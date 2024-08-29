@@ -15,12 +15,19 @@ steps:
       az acr login -n $(ACR)
 
 - script: |
+    ls -la
+    cd azure-container-networking/
     set -e
-    if [ ${{ parameters.os }} = 'windows' ]; then export BUILDX_ACTION='--push'; fi
-    make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }} OS_VERSION=${{ parameters.os_version }}
+    if [ "$IN_OS" = 'windows' ]; then export BUILDX_ACTION='--push'; fi
+    make "$IMGNAME" OS="$IN_OS" ARCH="$IN_ARCH" OS_VERSION="$IN_OS_VERSION"
   name: image_build
   displayName: Image Build
   retryCountOnTaskFailure: 3
+  env:
+    IMGNAME: '${{ parameters.name }}-image'
+    IN_OS: '${{ parameters.os }}'
+    IN_ARCH: '${{ parameters.arch }}'
+    IN_OS_VERSION: '${{ parameters.os_version }}'
 
 - task: AzureCLI@2
   displayName: "Logout"

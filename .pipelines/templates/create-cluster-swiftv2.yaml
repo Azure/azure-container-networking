@@ -5,12 +5,23 @@ parameters:
 jobs:
   - job: ${{ parameters.name }}
     displayName: Cluster - ${{ parameters.name }}
+    pool:
+      isCustom: true
+      type: linux
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+      ob_git_checkout: true
     steps:
+      - checkout: azure-container-networking
+        clean: true
+
       - task: AzureCLI@2
         inputs:
           azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
           scriptLocation: "inlineScript"
           scriptType: "bash"
+          workingDirectory: $(ACN_DIR)
           addSpnToEnvironment: true
           inlineScript: |
             set -e
@@ -28,7 +39,7 @@ jobs:
             make -C ./hack/aks ${{ parameters.clusterType }} \
             AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) \
             CLUSTER=${{ parameters.clusterName }} \
-            VM_SIZE=${{ parameters.vmSize }} OS=${{parameters.os}} \
+            VM_SIZE=${{ parameters.vmSize }} OS=${{parameters.os}}
 
             echo "Cluster successfully created"
         displayName: Cluster - ${{ parameters.clusterType }}

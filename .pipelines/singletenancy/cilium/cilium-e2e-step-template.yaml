@@ -5,13 +5,6 @@ parameters:
 
 steps:
   - bash: |
-      echo $UID
-      sudo rm -rf $(System.DefaultWorkingDirectory)/*
-    displayName: "Set up OS environment"
-
-  - checkout: self
-
-  - bash: |
       go version
       go env
       mkdir -p '$(GOBIN)'
@@ -31,6 +24,7 @@ steps:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
+      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
@@ -60,6 +54,7 @@ steps:
       echo "Start Azilium E2E Tests"
       kubectl get po -owide -A
       sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZILIUM=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CLEANUP=true
+    workingDirectory: $(ACN_DIR)
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E"
@@ -73,11 +68,12 @@ steps:
     name: "CiliumStatus"
     displayName: "Cilium Status"
 
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
+      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
@@ -89,11 +85,12 @@ steps:
         done
     displayName: "Restart Nodes"
 
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
+      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         cd test/integration/load
@@ -130,12 +127,14 @@ steps:
       kubectl delete ns $(ciliumNamespace)
       kubectl get pod -owide -A
       make test-validate-state
+    workingDirectory: $(ACN_DIR)
     name: "validatePods"
     displayName: "Validate Pods"
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"
       bash test/network/wireserver_metadata_test.sh
+    workingDirectory: $(ACN_DIR)
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
@@ -147,5 +146,6 @@ steps:
       if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
         kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
       fi
+    workingDirectory: $(ACN_DIR)
     name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"

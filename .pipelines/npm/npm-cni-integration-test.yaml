@@ -18,6 +18,8 @@ jobs:
     condition: and( and( not(canceled()), not(failed()) ), ${{ or(contains(parameters.os_version, '2022'), eq(parameters.os, 'linux') ) }} , or( contains(variables.CONTROL_SCENARIO, 'npm') , contains(variables.CONTROL_SCENARIO, 'all') ) )
     timeoutInMinutes: 180 # This is for testing windows, due to the 3m between the 14 tests -> results in 42m of wasted time
     pool:
+      isCustom: true
+      type: linux
       name: $(BUILD_POOL_NAME_DEFAULT)
       demands:
       - agent.os -equals Linux

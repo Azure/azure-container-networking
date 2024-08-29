@@ -17,14 +17,17 @@ steps:
       echo '##vso[task.prependpath]$(GOROOT)/bin'
     name: "GoEnv"
     displayName: "Set up the Go environment"
+
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
+      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
@@ -49,11 +52,13 @@ steps:
         fi
     name: "deployCNI"
     displayName: "Deploy CNI"
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
+      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
@@ -63,6 +68,7 @@ steps:
           make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
         done
     displayName: "Restart Nodes"
+
   - script: |
       kubectl get pods -A -o wide
       echo "Deploying test pods"
@@ -73,5 +79,6 @@ steps:
       make test-validate-state OS_TYPE=${{ parameters.os }} CNI_TYPE=cniv1
 
       kubectl delete ns load-test
+    workingDirectory: $(ACN_DIR)
     displayName: "Validate State"
     retryCountOnTaskFailure: 3

@@ -28,6 +28,7 @@ steps:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
+      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
           make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
@@ -95,6 +96,7 @@ steps:
         fi
       displayName: Failure Logs
       condition: always()
+      workingDirectory: $(ACN_DIR)
 
   - ${{ if eq(parameters.os, 'linux') }}:
     - bash: |
@@ -190,6 +192,7 @@ steps:
             echo "Cilium, $file, captured: $(acnLogs)/"$node"_logs/Cilium-output/$file"
           done
         fi
+      workingDirectory: $(ACN_DIR)
       displayName: Linux Logs
       condition: always()
 
@@ -265,11 +268,12 @@ steps:
             fi
           done
         fi
+      workingDirectory: $(ACN_DIR)
       displayName: Windows Logs
       condition: always()
 
-  - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
-    condition: always()
-    artifact: ${{ parameters.clusterName }}_${{ parameters.os }}${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
-    name: acnLogs_${{ parameters.logType }}
-    displayName: Publish Cluster logs
+#  - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+#    condition: always()
+#    artifact: ${{ parameters.clusterName }}_${{ parameters.os }}${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
+#    name: acnLogs_${{ parameters.logType }}
+#    displayName: Publish Cluster logs

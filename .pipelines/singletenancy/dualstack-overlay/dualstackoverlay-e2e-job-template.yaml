@@ -13,8 +13,6 @@ stages:
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
@@ -41,13 +39,13 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}_linux
         displayName: DualStack Overlay Test Suite | Linux - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
+          isCustom: true
+          type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
           - agent.os -equals Linux
@@ -64,6 +62,8 @@ stages:
         displayName: Add Windows Nodepool
         dependsOn: ${{ parameters.name }}_linux
         pool:
+          isCustom: true
+          type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
           - agent.os -equals Linux
@@ -91,6 +91,8 @@ stages:
         timeoutInMinutes: 120
         dependsOn: windows_nodepool
         pool:
+          isCustom: true
+          type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
           - agent.os -equals Linux
@@ -134,6 +136,10 @@ stages:
           - ${{ parameters.name }}_linux
           - cni_linux
         condition: in(dependencies.${{ parameters.name }}_linux.result, 'Failed')
+        pool:
+          isCustom: true
+          type: linux
+          name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
@@ -147,6 +153,10 @@ stages:
           - ${{ parameters.name }}_windows
           - cni_windows
         condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed')
+        pool:
+          isCustom: true
+          type: linux
+          name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - template: ../../templates/log-template.yaml
             parameters:

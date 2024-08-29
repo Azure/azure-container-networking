@@ -24,6 +24,7 @@ steps:
       azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
+      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
@@ -69,6 +70,7 @@ steps:
       cd test/integration/swiftv2
       echo "TestSwiftv2PodToPod and will run it after migration from scripts."
       go test -count=1 swiftv2_test.go -timeout 3m -tags swiftv2 -run ^TestSwiftv2PodToPod$ -tags=swiftv2,integration -v
+    workingDirectory: $(ACN_DIR)
     retryCountOnTaskFailure: 3
     name: "Swiftv2_Tests_future_version"
     displayName: "Swiftv2 Tests through code"

@@ -63,3 +63,4 @@ steps:
       fi
     name: ${{ parameters.name }}
     displayName: k8s E2E - ${{ parameters.testName }}
+    workingDirectory: $(ACN_DIR)
