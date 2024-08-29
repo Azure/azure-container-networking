@@ -950,6 +950,8 @@ func main() {
 
 	if cnsconfig.EnableAsyncPodDelete {
 		// Start fs watcher here
+		z.Info("AsyncPodDelete is enabled")
+		logger.Printf("AsyncPodDelete is enabled")
 		cnsclient, err := cnsclient.New("", cnsReqTimeout) //nolint
 		if err != nil {
 			z.Error("failed to create cnsclient", zap.Error(err))
@@ -957,7 +959,8 @@ func main() {
 		go func() {
 			_ = retry.Do(func() error {
 				z.Info("starting fsnotify watcher to process missed Pod deletes")
-				w, err := fsnotify.New(cnsclient, cnsconfig.AsyncPodDeletePath, z)
+				logger.Printf("starting fsnotify watcher to process missed Pod deletes")
+				w, err := fsnotify.New(cnsconfig, cnsclient, cnsconfig.AsyncPodDeletePath, z)
 				if err != nil {
 					z.Error("failed to create fsnotify watcher", zap.Error(err))
 					return errors.Wrap(err, "failed to create fsnotify watcher, will retry")

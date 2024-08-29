@@ -66,6 +66,14 @@ func (e *ConnectionFailureErr) Error() string {
 	return e.cause.Error()
 }
 
+type EndpointStateNotFoundErr struct {
+	cause error
+}
+
+func (e *EndpointStateNotFoundErr) Error() string {
+	return e.cause.Error()
+}
+
 // New returns a new CNS client configured with the passed URL and timeout.
 func New(baseURL string, requestTimeout time.Duration) (*Client, error) {
 	if baseURL == "" {
@@ -1035,7 +1043,7 @@ func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserve
 	req.Header.Set(headerContentType, contentTypeJSON)
 	res, err := c.client.Do(req)
 	if err != nil {
-		return nil, errors.Wrap(err, "http request failed")
+		return nil, &ConnectionFailureErr{cause: err}
 	}
 
 	defer res.Body.Close()
@@ -1050,7 +1058,11 @@ func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserve
 		return nil, errors.Wrap(err, "failed to decode GetEndpointResponse")
 	}
 
+	if response.Response.ReturnCode == types.NotFound {
+		return nil, &EndpointStateNotFoundErr{cause: err}
+	}
 	if response.Response.ReturnCode != 0 {
+
 		return nil, errors.New(response.Response.Message)
 	}
 
@@ -1076,7 +1088,7 @@ func (c *Client) UpdateEndpoint(ctx context.Context, endpointID string, ipInfo m
 	req.Header.Set(headerContentType, contentTypeJSON)
 	res, err := c.client.Do(req)
 	if err != nil {
-		return nil, errors.Wrap(err, "http request failed with error from server")
+		return nil, &ConnectionFailureErr{cause: err}
 	}
 
 	defer res.Body.Close()

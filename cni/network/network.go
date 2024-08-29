@@ -11,7 +11,6 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -1134,14 +1133,17 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		// otherwise, in stateless, we don't need the network id for deletion
 		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID)
 		// if stateless CNI fail to get the endpoint from CNS for any reason other than  Endpoint Not found
-		if err != nil && !strings.Contains(err.Error(), "endpoint state could not be found in the statefile") {
-			if strings.Contains(err.Error(), "No connection could be made") {
-				addErr := fsnotify.AddFile("stateless_"+args.ContainerID, args.ContainerID, watcherPath)
+		var connectionErr *cnscli.ConnectionFailureErr
+		var EndpointStateNotFoundErr *cnscli.EndpointStateNotFoundErr
+		if err != nil && !errors.As(err, &EndpointStateNotFoundErr) {
+			if errors.As(err, &connectionErr) {
+				addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
+				logger.Info("add containerid file for Asynch delete", zap.String("containerID", args.ContainerID), zap.Error(addErr))
 				if addErr != nil {
-					logger.Error("Failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
+					logger.Error("failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
 					return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s", args.ContainerID))
 				}
-
+				return nil
 			}
 			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 		}

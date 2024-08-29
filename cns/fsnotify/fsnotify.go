@@ -6,11 +6,11 @@ import (
 	"io/fs"
 	"os"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/fsnotify/fsnotify"
@@ -18,6 +18,8 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
+
+const DefaultNetworkID = "azure"
 
 type releaseIPsClient interface {
 	ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error
@@ -31,20 +33,22 @@ type watcher struct {
 
 	pendingDelete map[string]struct{}
 	lock          sync.Mutex
+	cnsconfig     *configuration.CNSConfig
 }
 
 // Create the AsyncDelete watcher.
-func New(cli releaseIPsClient, path string, logger *zap.Logger) (*watcher, error) { //nolint
+func New(cnsconfig *configuration.CNSConfig, cli releaseIPsClient, path string, zlogger *zap.Logger) (*watcher, error) { //nolint
 	// Add directory where intended deletes are kept
 	if err := os.Mkdir(path, 0o755); err != nil && !errors.Is(err, fs.ErrExist) { //nolint
-		logger.Error("error making directory", zap.String("path", path), zap.Error(err))
+		zlogger.Error("error making directory", zap.String("path", path), zap.Error(err))
 		return nil, errors.Wrapf(err, "failed to create dir %s", path)
 	}
 	return &watcher{
 		cli:           cli,
 		path:          path,
-		log:           logger,
+		log:           zlogger,
 		pendingDelete: make(map[string]struct{}),
+		cnsconfig:     cnsconfig,
 	}, nil
 }
 
@@ -59,7 +63,9 @@ func New(cli releaseIPsClient, path string, logger *zap.Logger) (*watcher, error
 func (w *watcher) releaseAll(ctx context.Context) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
+	w.log.Info("deleting Endpoint asynchronously")
 	for containerID := range w.pendingDelete {
+		w.log.Info("deleting Endpoint asynchronously")
 		// read file contents
 		filepath := w.path + "/" + containerID
 		file, err := os.Open(filepath)
@@ -73,14 +79,12 @@ func (w *watcher) releaseAll(ctx context.Context) {
 		}
 		file.Close()
 		podInterfaceID := string(data)
-		// in case of stateless CNI, CNS needs to remove HNS endpoitns first
-		if strings.Contains(podInterfaceID, "stateless") && runtime.GOOS == "windows" {
-			podInterfaceID = podInterfaceID[9:]
-			w.log.Info("removinf HNS Endpoint for", zap.String("podInterfaceID", podInterfaceID))
+		// in case of stateless CNI for Windows, CNS needs to remove HNS endpoitns first
+		if isStalessCNIMode(w.cnsconfig) {
 			// remove HNS endpoint
+			w.log.Info("deleting HNS Endpoint asynchronously")
 			if err := w.deleteHNSEndpoint(ctx, containerID); err != nil {
 				w.log.Error("failed to remove HNS endpoint", zap.Error(err))
-				return
 			}
 		}
 		w.log.Info("releasing IP for missed delete", zap.String("podInterfaceID", podInterfaceID), zap.String("containerID", containerID))
@@ -228,9 +232,26 @@ func (w *watcher) deleteHNSEndpoint(ctx context.Context, containerid string) err
 		return errors.Wrap(err, "failed to read the endpoint from CNS state")
 	}
 	for _, ipInfo := range endpointResponse.EndpointInfo.IfnameToIPMap {
-		if err := hnsclient.DeleteHNSEndpointbyID(ipInfo.HnsEndpointID); err != nil {
+		hnsEndpointID := ipInfo.HnsEndpointID
+		// we need to get the HNSENdpoint via the IP address if the HNSEndpointID is not present in the statefile
+		if ipInfo.HnsEndpointID == "" {
+			if hnsEndpointID, err = hnsclient.GetHNSEndpointbyIP(ipInfo.IPv4, ipInfo.IPv6, DefaultNetworkID); err != nil {
+				return errors.Wrap(err, "failed to find HNS endpoint with id")
+			}
+		}
+		w.log.Info("deleting HNS Endpoint with id ", zap.String("id", hnsEndpointID))
+		if err := hnsclient.DeleteHNSEndpointbyID(hnsEndpointID); err != nil {
 			return errors.Wrap(err, "failed to delete HNS endpoint with id "+ipInfo.HnsEndpointID)
 		}
 	}
 	return nil
+}
+
+// isStalessCNIMode verify if the CNI is running stateless mode
+func isStalessCNIMode(cnsconfig *configuration.CNSConfig) bool {
+	if !cnsconfig.InitializeFromCNI && cnsconfig.ManageEndpointState && runtime.GOOS == "windows" {
+		return true
+	}
+	return false
+
 }

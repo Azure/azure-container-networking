@@ -2,6 +2,7 @@ package hnsclient
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/Azure/azure-container-networking/cns"
 )
@@ -55,4 +56,8 @@ func DeleteHostNCApipaEndpoint(
 // created for Satateless CNI Asynch delete
 func DeleteHNSEndpointbyID(_ string) error {
 	return nil
+}
+
+func GetHNSEndpointbyIP(_, _ []net.IPNet, networkID string) (string, error) {
+	return "", nil
 }
