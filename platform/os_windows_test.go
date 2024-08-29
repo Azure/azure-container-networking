@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os/exec"
-	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows/registry"
 )
 
 var errTestFailure = errors.New("test failure")
@@ -116,34 +116,64 @@ func TestExecuteCommandError(t *testing.T) {
 }
 
 func TestSetSdnRemoteArpMacAddress_hnsNotEnabled(t *testing.T) {
-	mockExecClient := NewMockExecClient(false)
+	//mockExecClient := NewMockExecClient(false)
+
 	// testing skip setting SdnRemoteArpMacAddress when hns not enabled
-	mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
-		return "False", nil
+	// mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
+	// 	return "False", nil
+	// })
+
+	mockRegistryClient := NewMockRegistryClient(false)
+	// mockRegistryClient.SetOpenKey(func(k registry.Key, path string, access uint32) (RegistryKey, error) {
+	// 	return nil,nil
+	// })
+	mockRegistryClient.SetOpenKey(func(k registry.Key, path string, access uint32) (RegistryKey, error) {
+		return &mockRegistryKey{
+			Values: map[string]string{
+				"SDNRemoteArpMacAddress": "MockData1",
+			},
+		}, nil
 	})
-	err := SetSdnRemoteArpMacAddress(mockExecClient)
+
+	mockRegistryClient.SetRestartService(func(s string) error {
+		return nil
+	})
+
+	err := SetSdnRemoteArpMacAddress(mockRegistryClient)
 	assert.NoError(t, err)
 	assert.Equal(t, false, sdnRemoteArpMacAddressSet)
 
 	// testing the scenario when there is an error in checking if hns is enabled or not
-	mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
-		return "", errTestFailure
-	})
-	err = SetSdnRemoteArpMacAddress(mockExecClient)
+	// mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
+	// 	return "", errTestFailure
+	// })
+	err = SetSdnRemoteArpMacAddress(mockRegistryClient)
 	assert.ErrorAs(t, err, &errTestFailure)
 	assert.Equal(t, false, sdnRemoteArpMacAddressSet)
 }
 
 func TestSetSdnRemoteArpMacAddress_hnsEnabled(t *testing.T) {
-	mockExecClient := NewMockExecClient(false)
-	// happy path
-	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
-		if strings.Contains(cmd, "Test-Path") {
-			return "True", nil
-		}
-		return "", nil
+	//mockExecClient := NewMockExecClient(false)
+
+	mockRegistryClient := NewMockRegistryClient(false) // happy path
+	// mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+	// 	if strings.Contains(cmd, "Test-Path") {
+	// 		return "True", nil
+	// 	}
+	// 	return "", nil
+	// })
+	mockRegistryClient.SetOpenKey(func(k registry.Key, path string, access uint32) (RegistryKey, error) {
+		return &mockRegistryKey{
+			Values: map[string]string{
+				"SDNRemoteArpMacAddress": "MockData1",
+			},
+		}, nil
 	})
-	err := SetSdnRemoteArpMacAddress(mockExecClient)
+	mockRegistryClient.SetRestartService(func(s string) error {
+		return nil
+	})
+
+	err := SetSdnRemoteArpMacAddress(mockRegistryClient)
 	assert.NoError(t, err)
 	assert.Equal(t, true, sdnRemoteArpMacAddressSet)
 	// reset sdnRemoteArpMacAddressSet

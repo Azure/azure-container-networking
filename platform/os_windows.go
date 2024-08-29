@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -15,11 +14,9 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/Azure/azure-container-networking/platform/windows/adapter"
-	"github.com/Azure/azure-container-networking/platform/windows/adapter/mellanox"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 const (
@@ -61,23 +58,11 @@ const (
 	// for vlan tagged arp requests
 	SDNRemoteArpMacAddress = "12-34-56-78-9a-bc"
 
-	// Command to get SDNRemoteArpMacAddress registry key
-	GetSdnRemoteArpMacAddressCommand = "(Get-ItemProperty " +
-		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress).SDNRemoteArpMacAddress"
-
-	// Command to set SDNRemoteArpMacAddress registry key
-	SetSdnRemoteArpMacAddressCommand = "Set-ItemProperty " +
-		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress -Value \"12-34-56-78-9a-bc\""
-
-	// Command to check if system has hns state path or not
-	CheckIfHNSStatePathExistsCommand = "Test-Path " +
-		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State"
-
 	// Command to fetch netadapter and pnp id
+	//TODO can we replace this (and things in endpoint_windows) with "golang.org/x/sys/windows"
+	//var adapterInfo windows.IpAdapterInfo
+	//var bufferSize uint32 = uint32(unsafe.Sizeof(adapterInfo))
 	GetMacAddressVFPPnpIDMapping = "Get-NetAdapter | Select-Object MacAddress, PnpDeviceID| Format-Table -HideTableHeaders"
-
-	// Command to restart HNS service
-	RestartHnsServiceCommand = "Restart-Service -Name hns"
 
 	// Interval between successive checks for mellanox adapter's PriorityVLANTag value
 	defaultMellanoxMonitorInterval = 30 * time.Second
@@ -257,32 +242,39 @@ func (p *execClient) ExecutePowershellCommandWithContext(ctx context.Context, co
 }
 
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy if hns is enabled
-func SetSdnRemoteArpMacAddress(execClient ExecClient) error {
-	exists, err := execClient.ExecutePowershellCommand(CheckIfHNSStatePathExistsCommand)
+func SetSdnRemoteArpMacAddress(registerClient RegistryClient) error {
+	key, err := registerClient.OpenKey(registry.LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Services\\hns\\State", registry.READ|registry.SET_VALUE)
 	if err != nil {
+		if err == registry.ErrNotExist {
+			log.Printf("hns state path does not exist, skip setting SdnRemoteArpMacAddress")
+			return nil
+		}
 		errMsg := fmt.Sprintf("Failed to check the existent of hns state path due to error %s", err.Error())
 		log.Printf(errMsg)
 		return errors.Errorf(errMsg)
 	}
-	if strings.EqualFold(exists, "false") {
-		log.Printf("hns state path does not exist, skip setting SdnRemoteArpMacAddress")
-		return nil
-	}
+
 	if sdnRemoteArpMacAddressSet == false {
-		result, err := execClient.ExecutePowershellCommand(GetSdnRemoteArpMacAddressCommand)
+
+		//Was (Get-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress).SDNRemoteArpMacAddress"
+		result, _, err := key.GetStringValue("SDNRemoteArpMacAddress")
 		if err != nil {
 			return err
 		}
 
 		// Set the reg key if not already set or has incorrect value
 		if result != SDNRemoteArpMacAddress {
-			if _, err = execClient.ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand); err != nil {
+
+			//was "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress -Value \"12-34-56-78-9a-bc\""
+
+			if err := key.SetStringValue("SDNRemoteArpMacAddress", SDNRemoteArpMacAddress); err != nil {
 				log.Printf("Failed to set SDNRemoteArpMacAddress due to error %s", err.Error())
 				return err
 			}
-
 			log.Printf("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
-			if _, err := execClient.ExecutePowershellCommand(RestartHnsServiceCommand); err != nil {
+
+			//	was "Restart-Service -Name hns"
+			if err := registerClient.restartService("hns"); err != nil {
 				log.Printf("Failed to Restart HNS Service due to error %s", err.Error())
 				return err
 			}
@@ -290,151 +282,5 @@ func SetSdnRemoteArpMacAddress(execClient ExecClient) error {
 
 		sdnRemoteArpMacAddressSet = true
 	}
-
 	return nil
-}
-
-func HasMellanoxAdapter() bool {
-	m := &mellanox.Mellanox{}
-	return hasNetworkAdapter(m)
-}
-
-func hasNetworkAdapter(na adapter.NetworkAdapter) bool {
-	adapterName, err := na.GetAdapterName()
-	if err != nil {
-		log.Errorf("Error while getting network adapter name: %v", err)
-		return false
-	}
-	log.Printf("Name of the network adapter : %v", adapterName)
-	return true
-}
-
-// Regularly monitors the Mellanox PriorityVLANGTag registry value and sets it to desired value if needed
-func MonitorAndSetMellanoxRegKeyPriorityVLANTag(ctx context.Context, intervalSecs int) {
-	m := &mellanox.Mellanox{}
-	interval := defaultMellanoxMonitorInterval
-	if intervalSecs > 0 {
-		interval = time.Duration(intervalSecs) * time.Second
-	}
-	err := updatePriorityVLANTagIfRequired(m, desiredVLANTagForMellanox)
-	if err != nil {
-		log.Errorf("Error while monitoring mellanox, continuing: %v", err)
-	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			log.Printf("context cancelled, stopping Mellanox Monitoring: %v", ctx.Err())
-			return
-		case <-ticker.C:
-			err := updatePriorityVLANTagIfRequired(m, desiredVLANTagForMellanox)
-			if err != nil {
-				log.Errorf("Error while monitoring mellanox, continuing: %v", err)
-			}
-		}
-	}
-}
-
-// Updates the priority VLAN Tag of mellanox adapter if not already set to the desired value
-func updatePriorityVLANTagIfRequired(na adapter.NetworkAdapter, desiredValue int) error {
-	currentVal, err := na.GetPriorityVLANTag()
-	if err != nil {
-		return fmt.Errorf("error while getting Priority VLAN Tag value: %w", err)
-	}
-
-	if currentVal == desiredValue {
-		log.Printf("Adapter's PriorityVLANTag is already set to %v, skipping reset", desiredValue)
-		return nil
-	}
-
-	err = na.SetPriorityVLANTag(desiredValue)
-	if err != nil {
-		return fmt.Errorf("error while setting Priority VLAN Tag value: %w", err)
-	}
-
-	return nil
-}
-
-func GetOSDetails() (map[string]string, error) {
-	return nil, nil
-}
-
-func GetProcessNameByID(pidstr string) (string, error) {
-	pidstr = strings.Trim(pidstr, "\r\n")
-	cmd := fmt.Sprintf("Get-Process -Id %s|Format-List", pidstr)
-	p := NewExecClient(nil)
-	out, err := p.ExecutePowershellCommand(cmd)
-	if err != nil {
-		log.Printf("Process is not running. Output:%v, Error %v", out, err)
-		return "", err
-	}
-
-	if len(out) <= 0 {
-		log.Printf("Output length is 0")
-		return "", fmt.Errorf("get-process output length is 0")
-	}
-
-	lines := strings.Split(out, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "Name") {
-			pName := strings.Split(line, ":")
-			if len(pName) > 1 {
-				return strings.TrimSpace(pName[1]), nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("Process not found")
-}
-
-func PrintDependencyPackageDetails() {
-}
-
-// https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw
-func ReplaceFile(source, destination string) error {
-	src, err := syscall.UTF16PtrFromString(source)
-	if err != nil {
-		return err
-	}
-
-	dest, err := syscall.UTF16PtrFromString(destination)
-	if err != nil {
-		return err
-	}
-
-	return windows.MoveFileEx(src, dest, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
-}
-
-/*
-Output:
-6C-A1-00-50-E4-2D PCI\VEN_8086&DEV_2723&SUBSYS_00808086&REV_1A\4&328243d9&0&00E0
-80-6D-97-1E-CF-4E USB\VID_17EF&PID_A359\3010019E3
-*/
-func FetchMacAddressPnpIDMapping(ctx context.Context, execClient ExecClient) (map[string]string, error) {
-	ctx, cancel := context.WithTimeout(ctx, ExecTimeout)
-	defer cancel() // The cancel should be deferred so resources are cleaned up
-	output, err := execClient.ExecutePowershellCommandWithContext(ctx, GetMacAddressVFPPnpIDMapping)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to fetch VF mapping")
-	}
-	result := make(map[string]string)
-	if output != "" {
-		// Split the output based on new line characters
-		lines := strings.Split(output, "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			// Split based on " " to fetch the macaddress and pci id
-			parts := strings.Split(line, " ")
-			// Changing the format of macaddress from xx-xx-xx-xx to xx:xx:xx:xx
-			formattedMacaddress, err := net.ParseMAC(parts[0])
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to fetch MACAddressPnpIDMapping")
-			}
-			key := formattedMacaddress.String()
-			value := parts[1]
-			result[key] = value
-		}
-	}
-	return result, nil
 }
