@@ -254,6 +254,11 @@ func SetSdnRemoteArpMacAddress(registerClient RegistryClient) error {
 		return errors.Errorf(errMsg)
 	}
 
+	if key == nil {
+		log.Printf("hns state path does not exist, skip setting SdnRemoteArpMacAddress")
+		return nil
+	}
+
 	if sdnRemoteArpMacAddressSet == false {
 
 		//Was (Get-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress).SDNRemoteArpMacAddress"

@@ -128,11 +128,7 @@ func TestSetSdnRemoteArpMacAddress_hnsNotEnabled(t *testing.T) {
 	// 	return nil,nil
 	// })
 	mockRegistryClient.SetOpenKey(func(k registry.Key, path string, access uint32) (RegistryKey, error) {
-		return &mockRegistryKey{
-			Values: map[string]string{
-				"SDNRemoteArpMacAddress": "MockData1",
-			},
-		}, nil
+		return nil, nil
 	})
 
 	mockRegistryClient.SetRestartService(func(s string) error {
@@ -147,6 +143,14 @@ func TestSetSdnRemoteArpMacAddress_hnsNotEnabled(t *testing.T) {
 	// mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
 	// 	return "", errTestFailure
 	// })
+	mockRegistryClient.SetOpenKey(func(k registry.Key, path string, access uint32) (RegistryKey, error) {
+		return &mockRegistryKey{
+			Values: map[string]string{
+				"": "",
+			},
+		}, errTestFailure
+	})
+
 	err = SetSdnRemoteArpMacAddress(mockRegistryClient)
 	assert.ErrorAs(t, err, &errTestFailure)
 	assert.Equal(t, false, sdnRemoteArpMacAddressSet)
