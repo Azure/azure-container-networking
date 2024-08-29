@@ -79,6 +79,13 @@ func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetMana
 	}
 }
 
+// PreviousApplyFailed is only relevant for Linux right now since Windows doesn't track failures
+func (iMgr *IPSetManager) PreviousApplyFailed() bool {
+	iMgr.Lock()
+	defer iMgr.Unlock()
+	return iMgr.consecutiveApplyFailures > 0
+}
+
 /*
 Reconcile removes empty/unreferenced sets from the cache.
 For ApplyAllIPSets mode, those sets are added to the toDeleteCache.

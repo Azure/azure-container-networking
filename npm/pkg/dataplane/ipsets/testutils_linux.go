@@ -11,6 +11,12 @@ var (
 		Stdout:   "success",
 		ExitCode: 0,
 	}
+
+	fakeRestoreFailureCommand = testutils.TestCmd{
+		Cmd:      ipsetRestoreStringSlice,
+		Stdout:   "failure",
+		ExitCode: 1,
+	}
 )
 
 func GetApplyIPSetsTestCalls(toAddOrUpdateIPSets, toDeleteIPSets []*IPSetMetadata) []testutils.TestCmd {
@@ -18,6 +24,16 @@ func GetApplyIPSetsTestCalls(toAddOrUpdateIPSets, toDeleteIPSets []*IPSetMetadat
 		return []testutils.TestCmd{}
 	}
 	return []testutils.TestCmd{fakeRestoreSuccessCommand}
+}
+
+func GetApplyIPSetsFailureTestCalls() []testutils.TestCmd {
+	return []testutils.TestCmd{
+		fakeRestoreFailureCommand,
+		fakeRestoreFailureCommand,
+		fakeRestoreFailureCommand,
+		fakeRestoreFailureCommand,
+		fakeRestoreFailureCommand,
+	}
 }
 
 func GetResetTestCalls() []testutils.TestCmd {
