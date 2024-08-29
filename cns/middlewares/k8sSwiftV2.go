@@ -203,7 +203,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 				err        error
 			)
 			switch {
-			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC && !interfaceInfo.AccelnetEnabled:
+			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC:
 				nicType = cns.DelegatedVMNIC
 			// TODO: have it back once Linux supports accelnetNIC
 			// case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC && interfaceInfo.AccelnetEnabled:
