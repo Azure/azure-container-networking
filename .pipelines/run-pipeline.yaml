@@ -1,3 +1,21 @@
+parameters:
+- name: triggerBuildSourceBranch
+  type: string
+  default: ''
+
+- name: triggerBuildReason
+  type: string
+  default: ''
+  
+- name: triggerBuildGitRef
+  type: string
+  default: ''
+
+- name: triggerBuildQueuedBy
+  type: string
+  default: ''
+
+
 stages:
   - stage: setup
     displayName: ACN
@@ -8,11 +26,11 @@ stages:
           isCustom: true
           type: linux
           name: "$(BUILD_POOL_NAME_DEFAULT)"
-        variables:
+        #variables:
           #cob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
-          ob_git_checkout: true
+          #ob_git_checkout: true
         steps:
-          - checkout: azure-container-networking
+          - checkout: none
 
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
@@ -28,16 +46,12 @@ stages:
               go env
               which go
               echo $PATH
-              echo "------"
-              echo $(Build.QueuedBy)
-              echo $(Build.Reason) # manual, PR, IndividualCI
-              echo $(Build.SourceBranch)
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
 
   - template: templates/run-unit-tests.yaml
 
-  - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
+  - ${{ if not(contains(parameters.triggerBuildSourceBranch, 'refs/pull')) }}:
     - stage: binaries
       displayName: Build Binaries
       dependsOn:

@@ -1,0 +1,101 @@
+pr:
+  branches:
+    include:
+      - master
+      - release/*
+  paths:
+    exclude:
+      - ".devcontainer"
+      - ".hooks"
+      - ".vscode"
+      - ".github"
+      - docs
+
+trigger:
+  branches:
+    include:
+      - gh-readonly-queue/master/*
+  tags:
+    include:
+      - "*"
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  ADO_COMPLIANT_BUILD_PROJECT_URI: $(VAR_PROJECT_URI)
+  ADO_COMPLIANT_BUILD_ORG: $(VAR_BUILD_ORG)
+  ADO_AUTH_METHOD: $(VAR_AUTH_METHOD)
+  ADO_AUTHORIZATION: $(VAR_AUTH)
+  ADO_COMPLIANT_PIPELINE_ID: $(VAR_PIPELINE_ID)
+
+jobs:
+- job: trigger
+  displayName: Test ACN Pull Request Changes
+  # 4 hour timeout
+  timeoutInMinutes: 240
+  steps:
+  - checkout: self
+
+  - bash: |
+      set -e
+      # Get Build Reason
+      ACN_BUILD_REASON=$(echo -n "$BUILD_REASON")
+      echo >&2 "$ACN_BUILD_REASON"
+
+      # Get ACN Git Ref
+      [[ -n $BUILD_SOURCEBRANCH ]] && \
+        ACN_BUILD_AZURE_ACN_GIT_REF="$BUILD_SOURCEBRANCH" || \
+        ACN_BUILD_AZURE_ACN_GIT_REF=$(git rev-parse HEAD | xargs)
+
+      echo >&2 "$ACN_BUILD_AZURE_ACN_GIT_REF"
+      # Get Queuer
+      ACN_BUILD_QUEUEDBY="$BUILD_QUEUEDBY"
+      echo >&2 "$ACN_BUILD_QUEUEDBY"
+      # Get Source Branch
+      ACN_BUILD_SOURCE_BRANCH="$BUILD_SOURCEBRANCH"
+      echo >&2 "$ACN_BUILD_SOURCE_BRANCH"
+
+      ACN_BUILD_PARAMETERS=$(echo '{ "TriggerDetails": {} }' | jq -cr \
+      --arg REASON "$ACN_BUILD_REASON" \
+      --arg REF "$ACN_BUILD_AZURE_ACN_GIT_REF" \
+      --arg BRANCH "$ACN_BUILD_SOURCE_BRANCH" \
+      --arg QUEUEDBY "$ACN_BUILD_QUEUEDBY" \
+      '.TriggerDetails = { reason: $REASON, ref: $REF, queuedBy: $QUEUEDBY, sourceBranch: $BRANCH }')
+        echo "$ACN_BUILD_PARAMETERS" | jq .
+
+      ACN_BUILD_PARAMETERS="TriggerDetails: $( echo -n "$ACN_BUILD_PARAMETERS" | jq -cr '.TriggerDetails' )"
+
+      echo >&2 "Triggering Pull Request build for ${BUILD_SOURCEBRANCH}."
+      echo >&2 "##vso[task.setvariable variable=templateParameters]$ACN_BUILD_PARAMETERS"
+
+      echo "${BUILD_QUEUEDBY}"
+      echo "${BUILD_REASON}" # manual, PR, IndividualCI
+      echo "${BUILD_SOURCEBRANCH}"
+    displayName: Retrieve PR Source Details
+
+  - task: TriggerBuild@4
+    displayName: Trigger Compliant Build
+    # 3 hour timeout
+    timeoutInMinutes: 180
+    inputs:
+      definitionIsInCurrentTeamProject: false
+      tfsServer: $(ADO_COMPLIANT_BUILD_PROJECT_URI)
+      teamProject: $(ADO_COMPLIANT_BUILD_ORG)
+      buildDefinition: $(ADO_COMPLIANT_PIPELINE_ID)
+      queueBuildForUserThatTriggeredBuild: true
+      useSameBranch: false
+      # master
+      branchToUse: feature/ob-onboard-0
+      authenticationMethod: $(ADO_AUTH_METHOD)
+      password: $(ADO_AUTHORIZATION)
+      storeInEnvironmentVariable: true
+      waitForQueuedBuildsToFinish: true
+      treatPartiallySucceededBuildAsSuccessful: false
+      downloadBuildArtifacts: false
+      failTaskIfBuildsNotSuccessful: true
+      # Refresh every 10 min
+      # Seconds
+      waitForQueuedBuildsToFinishRefreshTime: 600
+      ignoreSslCertificateErrors: false
+      templateParameters: $(templateParameters)
