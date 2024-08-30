@@ -1039,6 +1039,10 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		}
 	}
 
+	/* For AZR scenarios, if NMAgent is restarted, it loses state and does not know what VNETs to subscribe to.
+	As it no longer has VNET state, delete nc calls would fail. We need to add join VNET call for all AZR
+	nc unpublish calls just like publish nc calls.
+	*/
 	if unpublishBody.AZREnabled || !service.isNetworkJoined(req.NetworkID) {
 		joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID) //nolint:govet // ok to shadow
 		if err != nil {
