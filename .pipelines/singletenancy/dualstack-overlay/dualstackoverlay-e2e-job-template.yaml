@@ -15,6 +15,7 @@ stages:
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      ACN_DIR: $(Build.SourcesDirectory)
     jobs:
       - template: ../../templates/create-cluster.yaml
         parameters:
@@ -39,6 +40,7 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      ACN_DIR: $(Build.SourcesDirectory)
     jobs:
       - job: ${{ parameters.name }}_linux
         displayName: DualStack Overlay Test Suite | Linux - (${{ parameters.name }})
@@ -50,7 +52,13 @@ stages:
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
         steps:
+          - checkout: azure-container-networking
+            clean: true
+
           - template: dualstackoverlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
@@ -68,7 +76,13 @@ stages:
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
         steps:
+          - checkout: azure-container-networking
+            clean: true
+
           - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -97,7 +111,13 @@ stages:
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
         steps:
+          - checkout: azure-container-networking
+            clean: true
+
           - template: dualstackoverlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
@@ -140,6 +160,9 @@ stages:
           isCustom: true
           type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
@@ -157,6 +180,9 @@ stages:
           isCustom: true
           type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
