@@ -18,11 +18,12 @@ import (
 const (
 	reconcileDuration = time.Duration(5 * time.Minute)
 
-	contextBackground      = "BACKGROUND"
-	contextApplyDP         = "APPLY-DP"
-	contextAddNetPol       = "ADD-NETPOL"
-	contextAddNetPolBootup = "BOOTUP-ADD-NETPOL"
-	contextDelNetPol       = "DEL-NETPOL"
+	contextBackground              = "BACKGROUND"
+	contextApplyDP                 = "APPLY-DP"
+	contextAddNetPol               = "ADD-NETPOL"
+	contextAddNetPolBootup         = "BOOTUP-ADD-NETPOL"
+	contextAddNetPolCIDRPrecaution = "ADD-NETPOL-CIDR-PRECAUTION"
+	contextDelNetPol               = "DEL-NETPOL"
 )
 
 var (
@@ -468,6 +469,29 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 			defer dp.applyInfo.Unlock()
 		} else {
 			dp.applyInfo.Unlock()
+		}
+	}
+
+	if !util.IsWindowsDP() {
+		for _, netPol := range netPols {
+			if !(netPol.HasCIDRRules() && dp.ipsetMgr.PreviousApplyFailed()) {
+				continue
+			}
+
+			if inBootupPhase {
+				// this should never happen because bootup phase is for windows, but just in case, we don't want to applyDataplaneNow() or else there will be a deadlock on dp.applyInfo
+				msg := fmt.Sprintf("[DataPlane] [%s] at risk of improperly applying a CIDR policy which is removed then readded", contextAddNetPolCIDRPrecaution)
+				klog.Warning(msg)
+				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, msg)
+				break
+			}
+
+			// prevent #2977
+			if err := dp.applyDataPlaneNow(contextAddNetPolCIDRPrecaution); err != nil {
+				return err // nolint:wrapcheck // unnecessary to wrap error since the provided context is included in the error
+			}
+
+			break
 		}
 	}
 

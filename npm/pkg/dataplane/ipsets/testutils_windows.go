@@ -27,6 +27,10 @@ func GetApplyIPSetsTestCalls(_, _ []*IPSetMetadata) []testutils.TestCmd {
 	return []testutils.TestCmd{}
 }
 
+func GetApplyIPSetsFailureTestCalls() []testutils.TestCmd {
+	return []testutils.TestCmd{}
+}
+
 func GetResetTestCalls() []testutils.TestCmd {
 	return []testutils.TestCmd{}
 }
