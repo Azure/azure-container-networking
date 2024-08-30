@@ -334,17 +334,17 @@ stages:
 #        dependsOn: "containerize"
 #        testHubble: true
 #
-#    # Azure Overlay E2E tests
-#    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
-#      parameters:
-#        name: "azure_overlay_e2e"
-#        displayName: Azure Overlay
-#        os: linux
-#        clusterType: overlay-byocni-up
-#        clusterName: "azovere2e"
-#        vmSize: Standard_B2ms
-#        k8sVersion: ""
-#        dependsOn: "containerize"
+    # Azure Overlay E2E tests
+    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
+      parameters:
+        name: "azure_overlay_e2e"
+        displayName: Azure Overlay
+        os: linux
+        clusterType: overlay-byocni-up
+        clusterName: "azovere2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: "containerize"
 
     # AKS Swift E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
@@ -428,7 +428,7 @@ stages:
       condition: always()
       dependsOn:
         - setup
-#        - azure_overlay_e2e
+        - azure_overlay_e2e
         - aks_swift_e2e
         - cilium_e2e
 #        - cilium_overlay_e2e
@@ -464,9 +464,9 @@ stages:
 #              cilium_h_overlay_e2e:
 #                name: cilium_h_overlay_e2e
 #                clusterName: "cilwhleovere2e"
-#              azure_overlay_e2e:
-#                name: azure_overlay_e2e
-#                clusterName: "azovere2e"
+              azure_overlay_e2e:
+                name: azure_overlay_e2e
+                clusterName: "azovere2e"
               aks_swift_e2e:
                 name: aks_swift_e2e
                 clusterName: "swifte2e"

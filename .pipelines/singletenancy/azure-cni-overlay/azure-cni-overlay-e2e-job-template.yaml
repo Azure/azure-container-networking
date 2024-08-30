@@ -15,6 +15,7 @@ stages:
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      ACN_DIR: $(Build.SourcesDirectory)
     jobs:
       - template: ../../templates/create-cluster.yaml
         parameters:
@@ -34,6 +35,7 @@ stages:
     - publish
     - ${{ parameters.clusterName }}
     variables:
+      ACN_DIR: $(Build.SourcesDirectory)
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
@@ -51,7 +53,13 @@ stages:
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
         steps:
+          - checkout: azure-container-networking
+            clean: true
+
           - template: azure-cni-overlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
@@ -69,7 +77,13 @@ stages:
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
         steps:
+          - checkout: azure-container-networking
+            clean: true
+
           - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -99,7 +113,13 @@ stages:
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
         steps:
+          - checkout: azure-container-networking
+            clean: true
+
           - template: azure-cni-overlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
@@ -142,7 +162,12 @@ stages:
           isCustom: true
           type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
         steps:
+          - checkout: azure-container-networking
+
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -159,7 +184,12 @@ stages:
           isCustom: true
           type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
         steps:
+          - checkout: azure-container-networking
+
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
