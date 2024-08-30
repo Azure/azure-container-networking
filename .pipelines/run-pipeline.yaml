@@ -310,17 +310,17 @@ stages:
         k8sVersion: ""
         dependsOn: "containerize"
 #
-#    # Cilium Dualstack Overlay E2E tests
-#    - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml
-#      parameters:
-#        name: "cilium_dualstackoverlay_e2e"
-#        displayName: Cilium on AKS DualStack Overlay
-#        os: linux
-#        clusterType: dualstack-byocni-nokubeproxy-up
-#        clusterName: "cildsovere2e"
-#        vmSize: Standard_B2ms
-#        k8sVersion: ""
-#        dependsOn: "containerize"
+    # Cilium Dualstack Overlay E2E tests
+    - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml
+      parameters:
+        name: "cilium_dualstackoverlay_e2e"
+        displayName: Cilium on AKS DualStack Overlay
+        os: linux
+        clusterType: dualstack-byocni-nokubeproxy-up
+        clusterName: "cildsovere2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: "containerize"
 #
 #        # Cilium Overlay with hubble E2E tests
     - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
@@ -437,7 +437,7 @@ stages:
         - aks_swift_vnetscale_e2e
         - aks_windows_22_e2e
         - dualstackoverlay_e2e
-#        - cilium_dualstackoverlay_e2e
+        - cilium_dualstackoverlay_e2e
         - swiftv2_e2e
       variables:
         ACN_DIR: $(Build.SourcesDirectory)
@@ -482,9 +482,9 @@ stages:
               dualstackoverlay_e2e:
                 name: dualstackoverlay_e2e
                 clusterName: "dsovere2e"
-#              cilium_dualstackoverlay_e2e:
-#                name: cilium_dualstackoverlay_e2e
-#                clusterName: "cildsovere2e"
+              cilium_dualstackoverlay_e2e:
+                name: cilium_dualstackoverlay_e2e
+                clusterName: "cildsovere2e"
 #              swiftv2_e2e:
 #                name: swiftv2_e2e
 #                clusterName: "mtcluster"
