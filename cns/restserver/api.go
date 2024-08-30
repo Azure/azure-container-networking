@@ -1036,6 +1036,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		err = json.Unmarshal(req.DeleteNetworkContainerRequestBody, &unpublishBody)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("could not unmarshal delete network container body: %v", err), http.StatusBadRequest)
+			return
 		}
 	}
 
