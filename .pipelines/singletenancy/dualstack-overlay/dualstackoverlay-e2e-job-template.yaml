@@ -124,7 +124,7 @@ stages:
           dualstack: true
           dns: true
           portforward: true
-          service: true
+          # service: true  # Currently broken for scenario and blocking releases, HNS is investigating.
           hostport: true
           hybridWin: true
 
