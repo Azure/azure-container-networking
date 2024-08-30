@@ -259,26 +259,26 @@ stages:
               azure_ipam:
                 name: azure-ipam
                 os_versions: ltsc2019 ltsc2022
-                platforms: linux/amd64 linux/arm64 windows/amd64 
+                platforms: linux/amd64 linux/arm64 windows/amd64
               cni:
                 name: cni
                 os_versions: ltsc2019 ltsc2022 ltsc2025
-                platforms: linux/amd64 linux/arm64 windows/amd64 
+                platforms: linux/amd64 linux/arm64 windows/amd64
               cni_dropgz:
                 name: cni-dropgz
                 os_versions: ltsc2019 ltsc2022
-                platforms: linux/amd64 linux/arm64 windows/amd64 
+                platforms: linux/amd64 linux/arm64 windows/amd64
               cns:
                 name: cns
                 os_versions: ltsc2019 ltsc2022 ltsc2025
-                platforms: linux/amd64 linux/arm64 windows/amd64 
+                platforms: linux/amd64 linux/arm64 windows/amd64
               ipv6_hp_bpf:
                 name: ipv6-hp-bpf
                 platforms: linux/amd64 linux/arm64
               npm:
                 name: npm
                 os_versions: ltsc2022
-                platforms: linux/amd64 linux/arm64 windows/amd64 
+                platforms: linux/amd64 linux/arm64 windows/amd64
           steps:
             - checkout: azure-container-networking
 
@@ -299,16 +299,16 @@ stages:
         k8sVersion: ""
         dependsOn: "containerize"
 
-#    # Cilium Overlay E2E tests
-#    - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
-#      parameters:
-#        name: "cilium_overlay_e2e"
-#        displayName: Cilium on AKS Overlay
-#        clusterType: overlay-byocni-nokubeproxy-up
-#        clusterName: "cilovere2e"
-#        vmSize: Standard_B2ms
-#        k8sVersion: ""
-#        dependsOn: "containerize"
+    # Cilium Overlay E2E tests
+    - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
+      parameters:
+        name: "cilium_overlay_e2e"
+        displayName: Cilium on AKS Overlay
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cilovere2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: "containerize"
 #
 #    # Cilium Dualstack Overlay E2E tests
 #    - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml
@@ -431,7 +431,7 @@ stages:
         - azure_overlay_e2e
         - aks_swift_e2e
         - cilium_e2e
-#        - cilium_overlay_e2e
+        - cilium_overlay_e2e
 #        - cilium_h_overlay_e2e
         - aks_ubuntu_22_linux_e2e
         - aks_swift_vnetscale_e2e
@@ -458,8 +458,8 @@ stages:
               cilium_e2e:
                 name: cilium_e2e
                 clusterName: "ciliume2e"
-#              cilium_overlay_e2e:
-#                name: cilium_overlay_e2e
+              cilium_overlay_e2e:
+                name: cilium_overlay_e2e
 #                clusterName: "cilovere2e"
 #              cilium_h_overlay_e2e:
 #                name: cilium_h_overlay_e2e
