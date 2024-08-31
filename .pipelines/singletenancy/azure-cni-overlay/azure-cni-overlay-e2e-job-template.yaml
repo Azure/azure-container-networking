@@ -40,8 +40,6 @@ stages:
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}_linux
         displayName: Azure CNI Overlay Test Suite | Linux - (${{ parameters.name }})
@@ -89,6 +87,7 @@ stages:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
+              workingDirectory: $(ACN_DIR)
               addSpnToEnvironment: true
               inlineScript: |
                 set -e
@@ -163,7 +162,7 @@ stages:
           type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
         variables:
-          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_outputDirectory: $(ACN_DIR)/${{ parameters.clusterName }}-$(commitID)_FailedE2ELogs_linux_Attempt_#$(System.StageAttempt)
           ob_git_checkout: true
         steps:
           - checkout: azure-container-networking
@@ -185,7 +184,7 @@ stages:
           type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
         variables:
-          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_outputDirectory: $(ACN_DIR)/${{ parameters.clusterName }}-$(commitID)_FailedE2ELogs_windows_Attempt_#$(System.StageAttempt)
           ob_git_checkout: true
         steps:
           - checkout: azure-container-networking
