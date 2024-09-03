@@ -426,7 +426,7 @@ stages:
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       jobs:
-        - job: delete
+        - job: delete_build
           displayName: Delete Cluster
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
@@ -435,43 +435,71 @@ stages:
               cilium_e2e:
                 name: cilium_e2e
                 clusterName: "ciliume2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
               cilium_overlay_e2e:
                 name: cilium_overlay_e2e
                 clusterName: "cilovere2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
               cilium_h_overlay_e2e:
                 name: cilium_h_overlay_e2e
                 clusterName: "cilwhleovere2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
               azure_overlay_e2e:
                 name: azure_overlay_e2e
                 clusterName: "azovere2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
               aks_swift_e2e:
                 name: aks_swift_e2e
                 clusterName: "swifte2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
               aks_swift_vnetscale_e2e:
                 name: aks_swift_vnetscale_e2e
                 clusterName: "vscaleswifte2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
               aks_ubuntu_22_linux_e2e:
                 name: aks_ubuntu_22_linux_e2e
                 clusterName: "ubuntu22e2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
               aks_windows_22_e2e:
                 name: aks_windows_22_e2e
                 clusterName: "win22e2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
               dualstackoverlay_e2e:
                 name: dualstackoverlay_e2e
                 clusterName: "dsovere2e"
+                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
               cilium_dualstackoverlay_e2e:
                 name: cilium_dualstackoverlay_e2e
                 clusterName: "cildsovere2e"
-              swiftv2_e2e:
-                name: swiftv2_e2e
-                clusterName: "mtcluster"
-              swiftv2_dummy_e2e:
-                name: swiftv2_dummy_e2e
-                clusterName: "swiftv2dummy"
+                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
           steps:
             - template: templates/delete-cluster.yaml
               parameters:
                 name: $(name)
                 clusterName: $(clusterName)-$(commitID)
-                region: $(REGION_AKS_CLUSTER_TEST)
+                region: $(region)
+                sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+                svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
 
+        - job: delete_test
+          displayName: Delete Cluster
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          strategy:
+            matrix:
+              swiftv2_e2e:
+                name: swiftv2_e2e
+                clusterName: "mtacluster"
+                region: $(REGION_SWIFTV2_CLUSTER_TEST)
+              swiftv2_dummy_e2e:
+                name: swiftv2_dummy_e2e
+                clusterName: "swiftv2dummy"
+                region: $(REGION_SWIFTV2_CLUSTER_TEST)
+          steps:
+            - template: templates/delete-cluster.yaml
+              parameters:
+                name: $(name)
+                clusterName: $(clusterName)-$(commitID)
+                region: $(region)
+                sub: $(SUB_AZURE_NETWORK_AGENT_TEST)
+                svcConn: $(ACN_TEST_SERVICE_CONNECTION)
