@@ -18,12 +18,12 @@ import (
 const (
 	reconcileDuration = time.Duration(5 * time.Minute)
 
-	contextBackground              = "BACKGROUND"
-	contextApplyDP                 = "APPLY-DP"
-	contextAddNetPol               = "ADD-NETPOL"
-	contextAddNetPolBootup         = "BOOTUP-ADD-NETPOL"
-	contextAddNetPolCIDRPrecaution = "ADD-NETPOL-CIDR-PRECAUTION"
-	contextDelNetPol               = "DEL-NETPOL"
+	contextBackground          = "BACKGROUND"
+	contextApplyDP             = "APPLY-DP"
+	contextAddNetPol           = "ADD-NETPOL"
+	contextAddNetPolBootup     = "BOOTUP-ADD-NETPOL"
+	contextAddNetPolPrecaution = "ADD-NETPOL-PRECAUTION"
+	contextDelNetPol           = "DEL-NETPOL"
 )
 
 var (
@@ -64,7 +64,11 @@ type DataPlane struct {
 	endpointQuery  *endpointQuery
 	applyInfo      *applyInfo
 	netPolQueue    *netPolQueue
-	stopChannel    <-chan struct{}
+	// halfRemovedPolicy tracks when a policy was removed yet had ApplyIPSet failures.
+	// The value is the policyKey, or the empty string if there is no half-removed policy.
+	// This field is only relevant for Linux.
+	halfRemovedPolicy string
+	stopChannel       <-chan struct{}
 }
 
 func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChannel <-chan struct{}) (*DataPlane, error) {
@@ -335,6 +339,9 @@ func (dp *DataPlane) applyDataPlaneNow(context string) error {
 	}
 	klog.Infof("[DataPlane] [ApplyDataPlane] [%s] finished applying ipsets", context)
 
+	// see comment in RemovePolicy() for why this is here
+	dp.halfRemovedPolicy = ""
+
 	if dp.applyInBackground {
 		dp.applyInfo.Lock()
 		dp.applyInfo.numBatches = 0
@@ -474,20 +481,20 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 
 	if !util.IsWindowsDP() {
 		for _, netPol := range netPols {
-			if !(netPol.HasCIDRRules() && dp.ipsetMgr.PreviousApplyFailed()) {
+			if netPol.PolicyKey != dp.halfRemovedPolicy {
 				continue
 			}
 
 			if inBootupPhase {
 				// this should never happen because bootup phase is for windows, but just in case, we don't want to applyDataplaneNow() or else there will be a deadlock on dp.applyInfo
-				msg := fmt.Sprintf("[DataPlane] [%s] at risk of improperly applying a CIDR policy which is removed then readded", contextAddNetPolCIDRPrecaution)
+				msg := fmt.Sprintf("[DataPlane] [%s] at risk of improperly applying a policy which is removed then readded", contextAddNetPolPrecaution)
 				klog.Warning(msg)
 				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, msg)
 				break
 			}
 
 			// prevent #2977
-			if err := dp.applyDataPlaneNow(contextAddNetPolCIDRPrecaution); err != nil {
+			if err := dp.applyDataPlaneNow(contextAddNetPolPrecaution); err != nil {
 				return err // nolint:wrapcheck // unnecessary to wrap error since the provided context is included in the error
 			}
 
@@ -530,6 +537,9 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 					return fmt.Errorf("[DataPlane] [%s] error while applying IPSets: %w", contextAddNetPolBootup, err)
 				}
 				klog.Infof("[DataPlane] [%s] finished applying ipsets", contextAddNetPolBootup)
+
+				// see comment in RemovePolicy() for why this is here
+				dp.halfRemovedPolicy = ""
 
 				dp.applyInfo.numBatches = 0
 			}
@@ -627,7 +637,16 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 		return err
 	}
 
-	return dp.applyDataPlaneNow(contextApplyDP)
+	if err := dp.applyDataPlaneNow(contextDelNetPol); err != nil {
+		// Failed to apply IPSets while removing this policy.
+		// Consider this policy "half-removed" until apply IPSets is successful.
+		// Related to #2977
+		klog.Infof("[DataPlane] marking policy as half-removed until the next successful call to ApplyIPSets: %s", policyKey)
+		dp.halfRemovedPolicy = policyKey
+		return err // nolint:wrapcheck // unnecessary to wrap error since the provided context is included in the error
+	}
+
+	return nil
 }
 
 // UpdatePolicy takes in updated policy object, calculates the delta and applies changes
