@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/dhcp"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
@@ -167,7 +168,7 @@ func (nw *network) newEndpointImpl(
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
 		} else if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 			logger.Info("Secondary client")
-			epClient = NewSecondaryEndpointClient(nl, netioCli, plc, nsc, ep)
+			epClient = NewSecondaryEndpointClient(nl, netioCli, plc, nsc, dhcp.New(), ep)
 		} else {
 			logger.Info("Transparent client")
 			epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, netioCli, plc)
@@ -287,7 +288,7 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 		} else {
 			// delete if secondary interfaces populated or endpoint of type delegated (new way)
 			if len(ep.SecondaryInterfaces) > 0 || ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
-				epClient = NewSecondaryEndpointClient(nl, nioc, plc, nsc, ep)
+				epClient = NewSecondaryEndpointClient(nl, nioc, plc, nsc, dhcp.New(), ep)
 				epClient.DeleteEndpointRules(ep)
 				//nolint:errcheck // ignore error
 				epClient.DeleteEndpoints(ep)

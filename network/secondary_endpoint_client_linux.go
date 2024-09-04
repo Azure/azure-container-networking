@@ -1,6 +1,7 @@
 package network
 
 import (
+	"net"
 	"os"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/netns"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -19,12 +21,17 @@ func newErrorSecondaryEndpointClient(err error) error {
 	return errors.Wrapf(err, "%s", errorSecondaryEndpointClient)
 }
 
+type dhcpClient interface {
+	DiscoverRequest(net.HardwareAddr, string) (*dhcpv4.DHCPv4, error)
+}
+
 type SecondaryEndpointClient struct {
 	netlink        netlink.NetlinkInterface
 	netioshim      netio.NetIOInterface
 	plClient       platform.ExecClient
 	netUtilsClient networkutils.NetworkUtils
 	nsClient       NamespaceClientInterface
+	dhcpClient     dhcpClient
 	ep             *endpoint
 }
 
@@ -33,6 +40,7 @@ func NewSecondaryEndpointClient(
 	nioc netio.NetIOInterface,
 	plc platform.ExecClient,
 	nsc NamespaceClientInterface,
+	dhcpClient dhcpClient,
 	endpoint *endpoint,
 ) *SecondaryEndpointClient {
 	client := &SecondaryEndpointClient{
@@ -41,6 +49,7 @@ func NewSecondaryEndpointClient(
 		plClient:       plc,
 		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 		nsClient:       nsc,
+		dhcpClient:     dhcpClient,
 		ep:             endpoint,
 	}
 
@@ -126,6 +135,13 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 	}
 
 	ifInfo.Routes = append(ifInfo.Routes, epInfo.Routes...)
+
+	// issue dhcp discover packet to ensure mapping created for dns via wireserver to work
+	// we do not use the response for anything
+	res, err := client.dhcpClient.DiscoverRequest(epInfo.MacAddress, epInfo.IfName)
+	if err != nil || res == nil {
+		return errors.Wrapf(err, "failed to issue dhcp discover packet to create mapping in host, response is %v", res)
+	}
 
 	return nil
 }
