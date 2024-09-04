@@ -20,21 +20,21 @@ func New() *DHCP {
 	return &DHCP{}
 }
 
-func makeListeningSocketWithCustomPort(ifname string, port int) (int, error) {
+func makeListeningSocketWithCustomPort(ifname string, _ int) (int, error) {
 	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_DGRAM, int(htons(unix.ETH_P_IP)))
 	if err != nil {
-		return fd, err
+		return fd, errors.Wrap(err, "dhcp socket creation failure")
 	}
 	iface, err := net.InterfaceByName(ifname)
 	if err != nil {
-		return fd, err
+		return fd, errors.Wrap(err, "dhcp failed to get interface")
 	}
 	llAddr := unix.SockaddrLinklayer{
 		Ifindex:  iface.Index,
 		Protocol: htons(unix.ETH_P_IP),
 	}
 	err = unix.Bind(fd, &llAddr)
-	return fd, err
+	return fd, errors.Wrap(err, "dhcp failed to bind")
 }
 
 // MakeBroadcastSocket creates a socket that can be passed to unix.Sendto
@@ -46,7 +46,7 @@ func MakeBroadcastSocket(ifname string) (int, error) {
 	}
 	err = unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_BROADCAST, 1)
 	if err != nil {
-		return fd, err
+		return fd, errors.Wrap(err, "dhcp failed to set sockopt")
 	}
 	return fd, nil
 }
@@ -61,26 +61,25 @@ func htons(v uint16) uint16 {
 func makeRawSocket(ifname string) (int, error) {
 	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_RAW, unix.IPPROTO_RAW)
 	if err != nil {
-		return fd, err
+		return fd, errors.Wrap(err, "dhcp raw socket creation failure")
 	}
 	err = unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
 	if err != nil {
-		return fd, err
+		return fd, errors.Wrap(err, "dhcp failed to set raw sockopt")
 	}
 	err = unix.SetsockoptInt(fd, unix.IPPROTO_IP, unix.IP_HDRINCL, 1)
 	if err != nil {
-		return fd, err
+		return fd, errors.Wrap(err, "dhcp failed to set second raw sockopt")
 	}
 	err = dhcpv4.BindToInterface(fd, ifname)
 	if err != nil {
-		return fd, err
+		return fd, errors.Wrap(err, "dhcp failed to bind to interface")
 	}
 	return fd, nil
 }
 
 func (c *DHCP) DiscoverRequest(hwAddr net.HardwareAddr, ifName string) (*dhcpv4.DHCPv4, error) {
 	discover, err := dhcpv4.NewDiscovery(hwAddr)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create dhcp discover request")
 	}
@@ -102,11 +101,11 @@ func (c *DHCP) DiscoverRequest(hwAddr net.HardwareAddr, ifName string) (*dhcpv4.
 	}
 
 	defer func() {
-		if err := unix.Close(sfd); err != nil {
+		if err = unix.Close(sfd); err != nil {
 			log.Printf("unix.Close(sendFd) failed: %v", err)
 		}
 		if sfd != rfd {
-			if err := unix.Close(rfd); err != nil {
+			if err = unix.Close(rfd); err != nil {
 				log.Printf("unix.Close(recvFd) failed: %v", err)
 			}
 		}
