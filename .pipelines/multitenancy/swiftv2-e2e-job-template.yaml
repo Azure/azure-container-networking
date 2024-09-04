@@ -58,7 +58,7 @@ stages:
           ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
           ob_git_checkout: true
         steps:
-          - checkout: azure-container-networking
+          - checkout: ACNReviewChanges
             clean: true
 
           - template: swiftv2-e2e-step-template.yaml

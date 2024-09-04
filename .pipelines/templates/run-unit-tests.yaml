@@ -14,7 +14,10 @@ stages:
           type: linux
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
-          - checkout: azure-container-networking
+          # Test changes under review
+          - checkout: ACNReviewChanges
+            clean: true
+
           - script: |
               cd azure-container-networking
               make tools
@@ -45,7 +48,10 @@ stages:
           type: windows
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
         steps:
-          - checkout: azure-container-networking
+          # Test changes under review
+          - checkout: ACNReviewChanges
+            clean: true
+
           - script: |
               cd azure-container-networking/
               cd npm/

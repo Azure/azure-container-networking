@@ -56,7 +56,7 @@ stages:
           ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
           ob_git_checkout: true
         steps:
-          - checkout: azure-container-networking
+          - checkout: ACNReviewChanges
             clean: true
 
           - template: cilium-overlay-e2e-step-template.yaml
@@ -91,7 +91,8 @@ stages:
           ob_outputDirectory: $(ACN_DIR)/${{ parameters.clusterName }}-$(commitID)_FailedE2ELogs_Attempt_#$(System.StageAttempt)
           ob_git_checkout: true
         steps:
-          - checkout: azure-container-networking
+          - checkout: ACNReviewChanges
+            clean: true
 
           - template: ../../templates/log-template.yaml
             parameters:

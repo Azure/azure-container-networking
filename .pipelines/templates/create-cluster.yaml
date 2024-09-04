@@ -22,7 +22,7 @@ jobs:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
       ob_git_checkout: true
     steps:
-      - checkout: azure-container-networking
+      - checkout: ACNReviewChanges
         clean: true
 
       - task: AzureCLI@2

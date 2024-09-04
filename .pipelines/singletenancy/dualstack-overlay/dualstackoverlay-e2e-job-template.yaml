@@ -56,7 +56,7 @@ stages:
           ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
           ob_git_checkout: true
         steps:
-          - checkout: azure-container-networking
+          - checkout: ACNReviewChanges
             clean: true
 
           - template: dualstackoverlay-e2e-step-template.yaml
@@ -80,7 +80,7 @@ stages:
           ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
           ob_git_checkout: true
         steps:
-          - checkout: azure-container-networking
+          - checkout: ACNReviewChanges
             clean: true
 
           - task: AzureCLI@2
@@ -116,7 +116,7 @@ stages:
           ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
           ob_git_checkout: true
         steps:
-          - checkout: azure-container-networking
+          - checkout: ACNReviewChanges
             clean: true
 
           - template: dualstackoverlay-e2e-step-template.yaml
@@ -154,9 +154,10 @@ stages:
       - job: failedE2ELogs_linux
         displayName: "Linux Failure Logs"
         dependsOn:
+          - CNI_linux # k8s tests
           - ${{ parameters.name }}_linux
           - cni_linux
-        condition: in(dependencies.${{ parameters.name }}_linux.result, 'Failed')
+        condition: failed()
         pool:
           isCustom: true
           type: linux
@@ -165,7 +166,8 @@ stages:
           ob_outputDirectory: $(ACN_DIR)/${{ parameters.clusterName }}-$(commitID)_FailedE2ELogs_linux_Attempt_#$(System.StageAttempt)
           ob_git_checkout: true
         steps:
-          - checkout: azure-container-networking
+          - checkout: ACNReviewChanges
+            clean: true
 
           - template: ../../templates/log-template.yaml
             parameters:
@@ -176,9 +178,10 @@ stages:
       - job: failedE2ELogs_windows
         displayName: "Windows Failure Logs"
         dependsOn:
+          - CNI_windows # k8s tests
           - ${{ parameters.name }}_windows
           - cni_windows
-        condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed')
+        condition: failed()
         pool:
           isCustom: true
           type: linux
@@ -187,7 +190,8 @@ stages:
           ob_outputDirectory: $(ACN_DIR)/${{ parameters.clusterName }}-$(commitID)_FailedE2ELogs_windows_Attempt_#$(System.StageAttempt)
           ob_git_checkout: true
         steps:
-          - checkout: azure-container-networking
+          - checkout: ACNReviewChanges
+            clean: true
 
           - template: ../../templates/log-template.yaml
             parameters:

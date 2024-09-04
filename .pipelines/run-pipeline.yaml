@@ -1,4 +1,5 @@
 parameters:
+
 - name: triggerBuildSourceBranch
   type: string
   default: ''
@@ -19,6 +20,8 @@ parameters:
 stages:
   - stage: setup
     displayName: ACN
+    # Block build start until pre-build validation occurs.
+    dependsOn: pre_build
     jobs:
       - job: env
         displayName: Setup
@@ -26,11 +29,12 @@ stages:
           isCustom: true
           type: linux
           name: "$(BUILD_POOL_NAME_DEFAULT)"
-        #variables:
+        variables:
           #cob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
-          #ob_git_checkout: true
+          ob_git_checkout: true
         steps:
-          - checkout: none
+          - checkout: ACNTools
+            clean: true
 
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
@@ -71,7 +75,8 @@ stages:
             type: linux
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           steps:
-            - checkout: azure-container-networking
+            - checkout: ACNReviewChanges
+              clean: true
 
             - script: |
                 cd azure-container-networking
@@ -196,7 +201,8 @@ stages:
             ob_artifactSuffix: $(Suffix) # this is needed to not collide published artifact containers
             ob_git_checkout: true
           steps:
-            - checkout: azure-container-networking
+            - checkout: ACNReviewChanges
+              clean: true
 
             - template: containers/container-template.yaml
               parameters:
@@ -242,7 +248,8 @@ stages:
                 name: npm
                 os: linux
           steps:
-            - checkout: azure-container-networking
+            - checkout: ACNReviewChanges
+              clean: true
 
             - template: containers/container-template.yaml
               parameters:
@@ -294,7 +301,8 @@ stages:
                 os_versions: ltsc2022
                 platforms: linux/amd64 linux/arm64 windows/amd64
           steps:
-            - checkout: azure-container-networking
+            - checkout: ACNReviewChanges
+              clean: true
 
             - template: containers/manifest-template.yaml
               parameters:
@@ -506,7 +514,8 @@ stages:
                 name: swiftv2_dummy_e2e
                 clusterName: "swiftv2dummy"
           steps:
-            - checkout: azure-container-networking
+            - checkout: ACNReviewChanges
+              clean: true
 
             - template: templates/delete-cluster.yaml
               parameters:
