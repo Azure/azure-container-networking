@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -20,6 +21,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	k8sversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
@@ -115,8 +117,20 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	factor := rand.Float64() + 1 //nolint
 	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
 	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
-	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
+	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
+	// npm-lite -> daemon set will listen to pods only in its own node
+	if config.Toggles.EnableNPMLite {
+		nodeName := os.Getenv("NODE_NAME")
+		factory = informers.NewSharedInformerFactoryWithOptions(
+			clientset,
+			resyncPeriod,
+			informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+				// Use field selector to filter pods based on their assigned node
+				options.FieldSelector = "spec.nodeName=" + nodeName
+			}),
+		)
+	}
 	k8sServerVersion := k8sServerVersion(clientset)
 
 	var dp dataplane.GenericDataplane

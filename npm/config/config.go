@@ -51,6 +51,7 @@ var DefaultConfig = Config{
 		ApplyInBackground: true,
 		// NetPolInBackground is currently used in Linux to apply NetPol controller Add events in the background
 		NetPolInBackground: true,
+		EnableNPMLite:      false,
 	},
 }
 
@@ -94,6 +95,7 @@ type Toggles struct {
 	ApplyInBackground bool
 	// NetPolInBackground
 	NetPolInBackground bool
+	EnableNPMLite      bool
 }
 
 type Flags struct {
