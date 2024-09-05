@@ -10,8 +10,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/Azure/azure-container-networking/cni/log"
-
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/net/ipv4"
@@ -49,13 +47,16 @@ var (
 	magicCookie        = []byte{0x63, 0x82, 0x53, 0x63} // DHCP magic cookie
 	DefaultReadTimeout = 3 * time.Second
 	DefaultTimeout     = 3 * time.Second
-	logger             = log.CNILogger.With(zap.String("component", "dhcp"))
 )
 
-type DHCP struct{}
+type DHCP struct {
+	logger *zap.Logger
+}
 
-func New() *DHCP {
-	return &DHCP{}
+func New(logger *zap.Logger) *DHCP {
+	return &DHCP{
+		logger: logger,
+	}
 }
 
 // GenerateTransactionID generates a random 32-bits number suitable for use as TransactionID
@@ -230,7 +231,7 @@ func MakeRawUDPPacket(payload []byte, serverAddr, clientAddr net.UDPAddr) ([]byt
 }
 
 // Send DHCP discover packet using unix.RawConn
-func sendDHCPDiscover(fd int, packet []byte) error {
+func (c *DHCP) sendDHCPDiscover(fd int, packet []byte) error {
 	raddr := &net.UDPAddr{IP: net.IPv4bcast, Port: dhcpServerPort}
 	laddr := &net.UDPAddr{IP: net.IPv4zero, Port: dhcpClientPort}
 	var destination [net.IPv4len]byte
@@ -250,7 +251,7 @@ func sendDHCPDiscover(fd int, packet []byte) error {
 
 // Receive DHCP response packet using unix.Recvfrom
 // returns nil if a reply is received with the xid, otherwise an error is returned
-func receiveDHCPResponse(fd int, xid TransactionID) error {
+func (c *DHCP) receiveDHCPResponse(fd int, xid TransactionID) error {
 	recvErrors := make(chan error, 1)
 	go func(errs chan<- error) {
 		// set read timeout
@@ -299,8 +300,7 @@ func receiveDHCPResponse(fd int, xid TransactionID) error {
 			// the txid is 4 bytes, so we take four bytes after the offset
 			txid := payload[txidOffset : txidOffset+4]
 
-			logger.Info("Received packet", zap.Int("opCode", int(opcode)), zap.ByteString("transactionID", txid))
-
+			c.logger.Info("Received packet", zap.Int("opCode", int(opcode)), zap.Any("transactionID", TransactionID(txid)))
 			if opcode != dhcpOpCodeReply {
 				continue // opcode is not a reply, so continue
 			}
@@ -352,14 +352,14 @@ func (c *DHCP) DiscoverRequest(mac net.HardwareAddr, ifname string) error {
 	}
 
 	// Send the DHCP discover packet
-	err = sendDHCPDiscover(sfd, packet)
+	err = c.sendDHCPDiscover(sfd, packet)
 	if err != nil {
 		return errors.Wrap(err, "failed to send dhcp discover packet")
 	}
 
-	logger.Info("DHCP Discover packet sent successfully", zap.Any("transactionID", txid))
+	c.logger.Info("DHCP Discover packet sent successfully", zap.Any("transactionID", txid))
 
 	// Wait for DHCP response (Offer)
-	res := receiveDHCPResponse(rfd, txid)
+	res := c.receiveDHCPResponse(rfd, txid)
 	return res
 }
