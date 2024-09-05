@@ -118,7 +118,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
 
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
-	podFactory := factory
+	podFactory := factory // // Separate podFactory for different versions in npm and npm lite.
 	// npm-lite -> daemon set will listen to pods only in its own node
 	if config.Toggles.EnableNPMLite {
 		podFactory = informers.NewSharedInformerFactoryWithOptions(
