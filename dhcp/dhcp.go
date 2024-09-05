@@ -26,6 +26,9 @@ const (
 	dhcpClientPort           = 68
 	dhcpOpCodeReply          = 2
 	bootpMinLen              = 300
+	bytesInAddress           = 4 // bytes in an ip address
+	macBytes                 = 6 // bytes in a mac address
+	udpProtocol              = 17
 
 	opRequest     = 1
 	htypeEthernet = 1
@@ -41,9 +44,11 @@ const (
 // The TransactionID is used to match DHCP replies to their original request.
 type TransactionID [4]byte
 
-var magicCookie = []byte{0x63, 0x82, 0x53, 0x63} // DHCP magic cookie
-var RandomTimeout = 5 * time.Second
-var DefaultReadTimeout = 3 * time.Second
+var (
+	magicCookie        = []byte{0x63, 0x82, 0x53, 0x63} // DHCP magic cookie
+	DefaultReadTimeout = 3 * time.Second
+	DefaultTimeout     = 3 * time.Second
+)
 
 type DHCP struct{}
 
@@ -58,7 +63,7 @@ func GenerateTransactionID() (TransactionID, error) {
 	if err != nil {
 		return xid, errors.Errorf("could not get random number: %v", err)
 	}
-	return xid, err
+	return xid, nil
 }
 
 func makeListeningSocket(ifname string) (int, error) {
@@ -99,7 +104,7 @@ func htons(v uint16) uint16 {
 }
 
 func BindToInterface(fd int, ifname string) error {
-	return unix.BindToDevice(fd, ifname)
+	return errors.Wrap(unix.BindToDevice(fd, ifname), "failed to bind to device")
 }
 
 // makeRawSocket creates a socket that can be passed to unix.Sendto.
@@ -125,42 +130,53 @@ func makeRawSocket(ifname string) (int, error) {
 
 // Build DHCP Discover Packet
 func buildDHCPDiscover(mac net.HardwareAddr, txid TransactionID) ([]byte, error) {
-	if len(mac) != 6 {
-		return nil, fmt.Errorf("invalid MAC address length")
+	if len(mac) != macBytes {
+		return nil, errors.Errorf("invalid MAC address length")
 	}
 
 	var packet bytes.Buffer
 
 	// BOOTP header
-	packet.WriteByte(opRequest)                            // op: BOOTREQUEST (1)
-	packet.WriteByte(htypeEthernet)                        // htype: Ethernet (1)
-	packet.WriteByte(hlenEthernet)                         // hlen: MAC address length (6)
-	packet.WriteByte(hops)                                 // hops: 0
-	packet.Write(txid[:])                                  // xid: Transaction ID (4 bytes)
-	binary.Write(&packet, binary.BigEndian, uint16(secs))  // secs: Seconds elapsed
-	binary.Write(&packet, binary.BigEndian, uint16(flags)) // flags: Broadcast flag
+	packet.WriteByte(opRequest)                                  // op: BOOTREQUEST (1)
+	packet.WriteByte(htypeEthernet)                              // htype: Ethernet (1)
+	packet.WriteByte(hlenEthernet)                               // hlen: MAC address length (6)
+	packet.WriteByte(hops)                                       // hops: 0
+	packet.Write(txid[:])                                        // xid: Transaction ID (4 bytes)
+	err := binary.Write(&packet, binary.BigEndian, uint16(secs)) // secs: Seconds elapsed
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to write seconds elapsed")
+	}
+	err = binary.Write(&packet, binary.BigEndian, uint16(flags)) // flags: Broadcast flag
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to write broadcast flag")
+	}
 
 	// Client IP address (0.0.0.0)
-	packet.Write(make([]byte, 4))
+	packet.Write(make([]byte, bytesInAddress))
 	// Your IP address (0.0.0.0)
-	packet.Write(make([]byte, 4))
+	packet.Write(make([]byte, bytesInAddress))
 	// Server IP address (0.0.0.0)
-	packet.Write(make([]byte, 4))
+	packet.Write(make([]byte, bytesInAddress))
 	// Gateway IP address (0.0.0.0)
-	packet.Write(make([]byte, 4))
+	packet.Write(make([]byte, bytesInAddress))
 
 	// chaddr: Client hardware address (MAC address)
-
-	packet.Write(mac)              // MAC address
-	packet.Write(make([]byte, 10)) // Padding to 16 bytes
+	paddingBytes := 10
+	packet.Write(mac)                        // MAC address (6 bytes)
+	packet.Write(make([]byte, paddingBytes)) // Padding to 16 bytes
 
 	// sname: Server host name (64 bytes)
-	packet.Write(make([]byte, 64))
+	serverHostNameBytes := 64
+	packet.Write(make([]byte, serverHostNameBytes))
 	// file: Boot file name (128 bytes)
-	packet.Write(make([]byte, 128))
+	bootFileNameBytes := 128
+	packet.Write(make([]byte, bootFileNameBytes))
 
 	// Magic cookie (DHCP)
-	binary.Write(&packet, binary.BigEndian, magicCookie)
+	err = binary.Write(&packet, binary.BigEndian, magicCookie)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to write magic cookie")
+	}
 
 	// DHCP options (minimal required options for DISCOVER)
 	packet.Write([]byte{
@@ -170,7 +186,7 @@ func buildDHCPDiscover(mac net.HardwareAddr, txid TransactionID) ([]byte, error)
 	})
 
 	// padding length to 300 bytes
-	var value uint8 = uint8(0)
+	var value uint8 = 0
 	if packet.Len() < bootpMinLen {
 		packet.Write(bytes.Repeat([]byte{value}, bootpMinLen-packet.Len()))
 	}
@@ -181,18 +197,24 @@ func buildDHCPDiscover(mac net.HardwareAddr, txid TransactionID) ([]byte, error)
 // MakeRawUDPPacket converts a payload (a serialized packet) into a
 // raw UDP packet for the specified serverAddr from the specified clientAddr.
 func MakeRawUDPPacket(payload []byte, serverAddr, clientAddr net.UDPAddr) ([]byte, error) {
-	udp := make([]byte, 8)
+	udpBytes := 8
+	udp := make([]byte, udpBytes)
 	binary.BigEndian.PutUint16(udp[:2], uint16(clientAddr.Port))
 	binary.BigEndian.PutUint16(udp[2:4], uint16(serverAddr.Port))
-	binary.BigEndian.PutUint16(udp[4:6], uint16(8+len(payload)))
+	totalLen := uint16(udpBytes + len(payload))
+	binary.BigEndian.PutUint16(udp[4:6], totalLen)
 	binary.BigEndian.PutUint16(udp[6:8], 0) // try to offload the checksum
 
+	headerVersion := 4
+	headerLen := 20
+	headerTTL := 64
+
 	h := ipv4.Header{
-		Version:  4,
-		Len:      20,
-		TotalLen: 20 + len(udp) + len(payload),
-		TTL:      64,
-		Protocol: 17, // UDP
+		Version:  headerVersion, // nolint
+		Len:      headerLen,     // nolint
+		TotalLen: headerLen + len(udp) + len(payload),
+		TTL:      headerTTL,
+		Protocol: udpProtocol, // UDP
 		Dst:      serverAddr.IP,
 		Src:      clientAddr.IP,
 	}
@@ -209,9 +231,7 @@ func MakeRawUDPPacket(payload []byte, serverAddr, clientAddr net.UDPAddr) ([]byt
 func sendDHCPDiscover(fd int, packet []byte) error {
 	raddr := &net.UDPAddr{IP: net.IPv4bcast, Port: dhcpServerPort}
 	laddr := &net.UDPAddr{IP: net.IPv4zero, Port: dhcpClientPort}
-	var (
-		destination [net.IPv4len]byte
-	)
+	var destination [net.IPv4len]byte
 	copy(destination[:], raddr.IP.To4())
 
 	packetBytes, err := MakeRawUDPPacket(packet, *raddr, *laddr)
@@ -223,7 +243,7 @@ func sendDHCPDiscover(fd int, packet []byte) error {
 	remoteAddr := unix.SockaddrInet4{Port: laddr.Port, Addr: destination}
 
 	// Send the packet using the raw socket
-	return unix.Sendto(fd, packetBytes, 0, &remoteAddr)
+	return errors.Wrap(unix.Sendto(fd, packetBytes, 0, &remoteAddr), "failed unix send to")
 }
 
 // Receive DHCP response packet using unix.Recvfrom
@@ -250,7 +270,7 @@ func receiveDHCPResponse(fd int, xid TransactionID) error {
 				// skip non-IP data
 				continue
 			}
-			if iph.Protocol != 17 {
+			if iph.Protocol != udpProtocol {
 				// skip non-UDP packets
 				continue
 			}
@@ -296,12 +316,11 @@ func receiveDHCPResponse(fd int, xid TransactionID) error {
 		if err != nil {
 			return errors.Wrap(err, "error during receiving")
 		}
-	case <-time.After(time.Second * 3):
+	case <-time.After(DefaultTimeout):
 		log.Fatal("timed out waiting for replies")
 		return errors.New("timed out waiting for replies")
 	}
 	return nil
-
 }
 
 // Issues a DHCP Discover packet from the nic specified by mac and name ifname
