@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/pkg/errors"
 )
 
@@ -16,8 +15,7 @@ func (m *StandaloneSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(ipRequestHa
 	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		ipConfigsResp, err := ipRequestHandler(ctx, req)
 		if err != nil {
-			ipConfigsResp.Response.ReturnCode = types.UnexpectedError
-			return ipConfigsResp, errors.Wrapf(err, "Failed to requestIPConfigs for Standalone-SwiftV2 from IPConfigsRequest %v", req)
+			return ipConfigsResp, errors.Wrapf(err, "Failed to requestIPConfigs for Standalone SwiftV2 from IPConfigsRequest %+v", req)
 		}
 
 		return ipConfigsResp, nil

@@ -1,4 +1,4 @@
-ARG VARIANT="1.21"
+ARG VARIANT="1.22"
 FROM mcr.microsoft.com/vscode/devcontainers/go:${VARIANT}
 RUN apt-get update && \
     export DEBIAN_FRONTEND=noninteractive && \

@@ -107,6 +107,7 @@ type NnsClient interface {
 // client for getting interface
 type InterfaceGetter interface {
 	GetNetworkInterfaces() ([]net.Interface, error)
+	GetNetworkInterfaceAddrs(iface *net.Interface) ([]net.Addr, error)
 }
 
 // snatConfiguration contains a bool that determines whether CNI enables snat on host and snat for dns
@@ -255,7 +256,7 @@ func (plugin *NetPlugin) findMasterInterfaceBySubnet(nwCfg *cni.NetworkConfig, s
 	}
 	var ipnets []string
 	for _, iface := range interfaces {
-		addrs, _ := iface.Addrs()
+		addrs, _ := plugin.netClient.GetNetworkInterfaceAddrs(&iface) //nolint
 		for _, addr := range addrs {
 			_, ipnet, err := net.ParseCIDR(addr.String())
 			if err != nil {

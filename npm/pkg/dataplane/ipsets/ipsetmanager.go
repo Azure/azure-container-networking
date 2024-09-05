@@ -51,6 +51,9 @@ type IPSetManager struct {
 	setMap     map[string]*IPSet
 	dirtyCache dirtyCacheInterface
 	ioShim     *common.IOShim
+	// consecutiveApplyFailures is used in Linux to count the number of consecutive failures to apply ipsets
+	// if this count exceeds a threshold, we will panic
+	consecutiveApplyFailures int
 	sync.RWMutex
 }
 
@@ -71,7 +74,16 @@ func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetMana
 		setMap:     make(map[string]*IPSet),
 		dirtyCache: newDirtyCache(),
 		ioShim:     ioShim,
+		// set to 0 to avoid lint error for windows
+		consecutiveApplyFailures: 0,
 	}
+}
+
+// PreviousApplyFailed is only relevant for Linux right now since Windows doesn't track failures
+func (iMgr *IPSetManager) PreviousApplyFailed() bool {
+	iMgr.Lock()
+	defer iMgr.Unlock()
+	return iMgr.consecutiveApplyFailures > 0
 }
 
 /*

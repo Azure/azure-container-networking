@@ -42,6 +42,15 @@ func NewNPMNetworkPolicy(netPolName, netPolNamespace string) *NPMNetworkPolicy {
 	}
 }
 
+func (netPol *NPMNetworkPolicy) HasCIDRRules() bool {
+	for _, set := range netPol.RuleIPSets {
+		if set.Metadata.Type == ipsets.CIDRBlocks {
+			return true
+		}
+	}
+	return false
+}
+
 func (netPol *NPMNetworkPolicy) AllPodSelectorIPSets() []*ipsets.TranslatedIPSet {
 	return append(netPol.PodSelectorIPSets, netPol.ChildPodSelectorIPSets...)
 }

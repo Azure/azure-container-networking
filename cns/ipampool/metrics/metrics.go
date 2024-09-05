@@ -1,4 +1,4 @@
-package ipampool
+package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
@@ -6,12 +6,12 @@ import (
 )
 
 const (
-	subnetLabel                = "subnet"
-	subnetCIDRLabel            = "subnet_cidr"
-	podnetARMIDLabel           = "podnet_arm_id"
+	SubnetLabel                = "subnet"
+	SubnetCIDRLabel            = "subnet_cidr"
+	PodnetARMIDLabel           = "podnet_arm_id"
 	customerMetricLabel        = "customer_metric"
 	customerMetricLabelValue   = "customer metric"
-	subnetExhaustionStateLabel = "subnet_exhaustion_state"
+	SubnetExhaustionStateLabel = "subnet_exhaustion_state"
 	SubnetIPExhausted          = 1
 	SubnetIPNotExhausted       = 0
 )
@@ -23,7 +23,7 @@ var (
 			Help:        "IPs currently in use by Pods on this CNS Node.",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamAvailableIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -31,7 +31,7 @@ var (
 			Help:        "IPs available on this CNS Node for use by a Pod.",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamBatchSize = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -39,7 +39,7 @@ var (
 			Help:        "IPAM IP pool scaling batch size.",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamCurrentAvailableIPcount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -47,7 +47,7 @@ var (
 			Help:        "Current available IP count.",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamExpectedAvailableIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -55,7 +55,7 @@ var (
 			Help:        "Expected future available IP count assuming the Requested IP count is honored.",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamMaxIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -63,7 +63,7 @@ var (
 			Help:        "Maximum Secondary IPs allowed on this Node.",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamPendingProgramIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -71,7 +71,7 @@ var (
 			Help:        "IPs reserved but not yet available (Pending Programming).",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamPendingReleaseIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -79,7 +79,7 @@ var (
 			Help:        "IPs reserved but not available anymore (Pending Release).",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamPrimaryIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -87,7 +87,7 @@ var (
 			Help:        "NC Primary IP count (reserved from Pod Subnet for DNS and IMDS SNAT).",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamRequestedIPConfigCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -95,7 +95,7 @@ var (
 			Help:        "Secondary Pod Subnet IPs requested by this CNS Node (for Pods).",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamSecondaryIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -103,7 +103,7 @@ var (
 			Help:        "Node NC Secondary IP count (reserved usable by Pods).",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamTotalIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -111,7 +111,7 @@ var (
 			Help:        "Count of total IP pool size allocated to CNS by DNC.",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamSubnetExhaustionState = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -119,14 +119,14 @@ var (
 			Help:        "IPAM view of subnet exhaustion state",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel},
 	)
 	IpamSubnetExhaustionCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "cx_ipam_subnet_exhaustion_state_count_total",
 			Help: "Count of the number of times the ipam pool monitor sees subnet exhaustion",
 		},
-		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel, subnetExhaustionStateLabel},
+		[]string{SubnetLabel, SubnetCIDRLabel, PodnetARMIDLabel, SubnetExhaustionStateLabel},
 	)
 )
 
@@ -147,25 +147,4 @@ func init() {
 		IpamSubnetExhaustionState,
 		IpamSubnetExhaustionCount,
 	)
-}
-
-func observeIPPoolState(state ipPoolState, meta metaState) {
-	labels := []string{meta.subnet, meta.subnetCIDR, meta.subnetARMID}
-	IpamAllocatedIPCount.WithLabelValues(labels...).Set(float64(state.allocatedToPods))
-	IpamAvailableIPCount.WithLabelValues(labels...).Set(float64(state.available))
-	IpamBatchSize.WithLabelValues(labels...).Set(float64(meta.batch))
-	IpamCurrentAvailableIPcount.WithLabelValues(labels...).Set(float64(state.currentAvailableIPs))
-	IpamExpectedAvailableIPCount.WithLabelValues(labels...).Set(float64(state.expectedAvailableIPs))
-	IpamMaxIPCount.WithLabelValues(labels...).Set(float64(meta.max))
-	IpamPendingProgramIPCount.WithLabelValues(labels...).Set(float64(state.pendingProgramming))
-	IpamPendingReleaseIPCount.WithLabelValues(labels...).Set(float64(state.pendingRelease))
-	IpamPrimaryIPCount.WithLabelValues(labels...).Set(float64(len(meta.primaryIPAddresses)))
-	IpamRequestedIPConfigCount.WithLabelValues(labels...).Set(float64(state.requestedIPs))
-	IpamSecondaryIPCount.WithLabelValues(labels...).Set(float64(state.secondaryIPs))
-	IpamTotalIPCount.WithLabelValues(labels...).Set(float64(state.secondaryIPs + int64(len(meta.primaryIPAddresses))))
-	if meta.exhausted {
-		IpamSubnetExhaustionState.WithLabelValues(labels...).Set(float64(SubnetIPExhausted))
-	} else {
-		IpamSubnetExhaustionState.WithLabelValues(labels...).Set(float64(SubnetIPNotExhausted))
-	}
 }
