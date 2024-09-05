@@ -7,12 +7,13 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
-	"fmt"
-	"log"
 	"net"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cni/log"
+
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/unix"
 )
@@ -48,6 +49,7 @@ var (
 	magicCookie        = []byte{0x63, 0x82, 0x53, 0x63} // DHCP magic cookie
 	DefaultReadTimeout = 3 * time.Second
 	DefaultTimeout     = 3 * time.Second
+	logger             = log.CNILogger.With(zap.String("component", "dhcp"))
 )
 
 type DHCP struct{}
@@ -186,7 +188,7 @@ func buildDHCPDiscover(mac net.HardwareAddr, txid TransactionID) ([]byte, error)
 	})
 
 	// padding length to 300 bytes
-	var value uint8 = 0
+	var value uint8 // default is zero
 	if packet.Len() < bootpMinLen {
 		packet.Write(bytes.Repeat([]byte{value}, bootpMinLen-packet.Len()))
 	}
@@ -247,6 +249,7 @@ func sendDHCPDiscover(fd int, packet []byte) error {
 }
 
 // Receive DHCP response packet using unix.Recvfrom
+// returns nil if a reply is received with the xid, otherwise an error is returned
 func receiveDHCPResponse(fd int, xid TransactionID) error {
 	recvErrors := make(chan error, 1)
 	go func(errs chan<- error) {
@@ -289,25 +292,25 @@ func receiveDHCPResponse(fd int, xid TransactionID) error {
 			pLen := int(binary.BigEndian.Uint16(udph[4:6]))
 			payload := buf[iph.Len+8 : iph.Len+pLen]
 
-			log.Printf("potential candidate packet found %d", payload[0])
-
+			// retrieve opcode from payload
 			opcode := payload[0] // opcode is first byte
+			// retrieve txid from payload
+			txidOffset := 4 // after 4 bytes, the txid starts
+			// the txid is 4 bytes, so we take four bytes after the offset
+			txid := payload[txidOffset : txidOffset+4]
+
+			logger.Info("Received packet", zap.Int("opCode", int(opcode)), zap.ByteString("transactionID", txid))
+
 			if opcode != dhcpOpCodeReply {
 				continue // opcode is not a reply, so continue
 			}
 
-			txidOffset := 4 // after 4 bytes, the txid starts
-			// the txid is 4 bytes, so we take four bytes after the offset
-			txid := payload[txidOffset : txidOffset+4]
-			log.Printf("txid found: %v, want: %v", txid, xid)
 			if TransactionID(txid) == xid {
-				log.Printf("success! opcode: %d", opcode)
 				break
 			}
 		}
 		// only occurs if we find our reply packet successfully
 		// a nil error means a reply was found for this txid
-		log.Print("received a response!")
 		recvErrors <- nil
 	}(recvErrors)
 
@@ -317,7 +320,6 @@ func receiveDHCPResponse(fd int, xid TransactionID) error {
 			return errors.Wrap(err, "error during receiving")
 		}
 	case <-time.After(DefaultTimeout):
-		log.Fatal("timed out waiting for replies")
 		return errors.New("timed out waiting for replies")
 	}
 	return nil
@@ -355,11 +357,9 @@ func (c *DHCP) DiscoverRequest(mac net.HardwareAddr, ifname string) error {
 		return errors.Wrap(err, "failed to send dhcp discover packet")
 	}
 
-	fmt.Println("DHCP Discover packet sent successfully!")
+	logger.Info("DHCP Discover packet sent successfully", zap.Any("transactionID", txid))
 
 	// Wait for DHCP response (Offer)
 	res := receiveDHCPResponse(rfd, txid)
-	log.Printf("Response error: %v", res)
-
-	return nil
+	return res
 }
