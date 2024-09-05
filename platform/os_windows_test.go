@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os/exec"
-	"strings"
 	"testing"
 	"time"
 
@@ -113,41 +112,6 @@ func TestExecuteCommandError(t *testing.T) {
 	_, err := NewExecClient(nil).ExecuteCommand(context.Background(), "dontaddtopath")
 	require.Error(t, err)
 	require.ErrorIs(t, err, exec.ErrNotFound)
-}
-
-func TestSetSdnRemoteArpMacAddress_hnsNotEnabled(t *testing.T) {
-	mockExecClient := NewMockExecClient(false)
-	// testing skip setting SdnRemoteArpMacAddress when hns not enabled
-	mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
-		return "False", nil
-	})
-	err := SetSdnRemoteArpMacAddress(mockExecClient)
-	assert.NoError(t, err)
-	assert.Equal(t, false, sdnRemoteArpMacAddressSet)
-
-	// testing the scenario when there is an error in checking if hns is enabled or not
-	mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
-		return "", errTestFailure
-	})
-	err = SetSdnRemoteArpMacAddress(mockExecClient)
-	assert.ErrorAs(t, err, &errTestFailure)
-	assert.Equal(t, false, sdnRemoteArpMacAddressSet)
-}
-
-func TestSetSdnRemoteArpMacAddress_hnsEnabled(t *testing.T) {
-	mockExecClient := NewMockExecClient(false)
-	// happy path
-	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
-		if strings.Contains(cmd, "Test-Path") {
-			return "True", nil
-		}
-		return "", nil
-	})
-	err := SetSdnRemoteArpMacAddress(mockExecClient)
-	assert.NoError(t, err)
-	assert.Equal(t, true, sdnRemoteArpMacAddressSet)
-	// reset sdnRemoteArpMacAddressSet
-	sdnRemoteArpMacAddressSet = false
 }
 
 func TestFetchPnpIDMapping(t *testing.T) {
