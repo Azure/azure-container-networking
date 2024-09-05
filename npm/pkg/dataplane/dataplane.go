@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -48,6 +49,11 @@ type Config struct {
 	*policies.PolicyManagerCfg
 }
 
+type removePolicyInfo struct {
+	sync.Mutex
+	previousRemovePolicyIPSetsFailed bool
+}
+
 type DataPlane struct {
 	*Config
 	applyInBackground  bool
@@ -64,11 +70,10 @@ type DataPlane struct {
 	endpointQuery  *endpointQuery
 	applyInfo      *applyInfo
 	netPolQueue    *netPolQueue
-	// halfRemovedPolicy tracks when a policy was removed yet had ApplyIPSet failures.
-	// The value is the policyKey, or the empty string if there is no half-removed policy.
+	// removePolicyInfo tracks when a policy was removed yet had ApplyIPSet failures.
 	// This field is only relevant for Linux.
-	halfRemovedPolicy string
-	stopChannel       <-chan struct{}
+	removePolicyInfo removePolicyInfo
+	stopChannel      <-chan struct{}
 }
 
 func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChannel <-chan struct{}) (*DataPlane, error) {
@@ -340,7 +345,7 @@ func (dp *DataPlane) applyDataPlaneNow(context string) error {
 	klog.Infof("[DataPlane] [ApplyDataPlane] [%s] finished applying ipsets", context)
 
 	// see comment in RemovePolicy() for why this is here
-	dp.halfRemovedPolicy = ""
+	dp.setRemovePolicyFailure(false)
 
 	if dp.applyInBackground {
 		dp.applyInfo.Lock()
@@ -479,26 +484,17 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 		}
 	}
 
-	if !util.IsWindowsDP() {
-		for _, netPol := range netPols {
-			if netPol.PolicyKey != dp.halfRemovedPolicy {
-				continue
-			}
-
-			if inBootupPhase {
-				// this should never happen because bootup phase is for windows, but just in case, we don't want to applyDataplaneNow() or else there will be a deadlock on dp.applyInfo
-				msg := fmt.Sprintf("[DataPlane] [%s] at risk of improperly applying a policy which is removed then readded", contextAddNetPolPrecaution)
-				klog.Warning(msg)
-				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, msg)
-				break
-			}
-
+	if dp.hadRemovePolicyFailure() {
+		if inBootupPhase {
+			// this should never happen because bootup phase is for windows, but just in case, we don't want to applyDataplaneNow() or else there will be a deadlock on dp.applyInfo
+			msg := fmt.Sprintf("[DataPlane] [%s] at risk of improperly applying a policy which is removed then readded", contextAddNetPolPrecaution)
+			klog.Warning(msg)
+			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, msg)
+		} else {
 			// prevent #2977
 			if err := dp.applyDataPlaneNow(contextAddNetPolPrecaution); err != nil {
 				return err // nolint:wrapcheck // unnecessary to wrap error since the provided context is included in the error
 			}
-
-			break
 		}
 	}
 
@@ -539,7 +535,7 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 				klog.Infof("[DataPlane] [%s] finished applying ipsets", contextAddNetPolBootup)
 
 				// see comment in RemovePolicy() for why this is here
-				dp.halfRemovedPolicy = ""
+				dp.setRemovePolicyFailure(false)
 
 				dp.applyInfo.numBatches = 0
 			}
@@ -639,10 +635,10 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 
 	if err := dp.applyDataPlaneNow(contextDelNetPol); err != nil {
 		// Failed to apply IPSets while removing this policy.
-		// Consider this policy "half-removed" until apply IPSets is successful.
+		// Consider this removepolicy call a failure until apply IPSets is successful.
 		// Related to #2977
-		klog.Infof("[DataPlane] marking policy as half-removed until the next successful call to ApplyIPSets: %s", policyKey)
-		dp.halfRemovedPolicy = policyKey
+		klog.Info("[DataPlane] remove policy has failed to apply ipsets. setting remove policy failure")
+		dp.setRemovePolicyFailure(true)
 		return err // nolint:wrapcheck // unnecessary to wrap error since the provided context is included in the error
 	}
 
@@ -767,4 +763,24 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		dp.ipsetMgr.DeleteIPSet(set.Metadata.GetPrefixName(), false)
 	}
 	return nil
+}
+
+func (dp *DataPlane) setRemovePolicyFailure(failed bool) {
+	if util.IsWindowsDP() {
+		return
+	}
+
+	dp.removePolicyInfo.Lock()
+	defer dp.removePolicyInfo.Unlock()
+	dp.removePolicyInfo.previousRemovePolicyIPSetsFailed = failed
+}
+
+func (dp *DataPlane) hadRemovePolicyFailure() bool {
+	if util.IsWindowsDP() {
+		return false
+	}
+
+	dp.removePolicyInfo.Lock()
+	defer dp.removePolicyInfo.Unlock()
+	return dp.removePolicyInfo.previousRemovePolicyIPSetsFailed
 }
