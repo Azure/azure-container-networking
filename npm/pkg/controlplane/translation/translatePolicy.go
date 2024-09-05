@@ -416,9 +416,8 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 		if cfg.Toggles.EnableNPMLite {
 			if peer.PodSelector != nil || peer.NamespaceSelector != nil {
 				return ErrUnsupportedNonCIDR
-			} else {
-				continue
 			}
+			continue
 		}
 
 		// if there is no PodSelector or NamespaceSelector in peer, no need to run the rest of codes.
