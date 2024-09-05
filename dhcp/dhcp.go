@@ -1,8 +1,11 @@
+//go:build linux
+// +build linux
+
 package dhcp
 
 import (
 	"bytes"
-	"context"
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"log"
@@ -10,7 +13,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/u-root/uio/rand"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/sys/unix"
 )
@@ -52,14 +54,9 @@ func New() *DHCP {
 // GenerateTransactionID generates a random 32-bits number suitable for use as TransactionID
 func GenerateTransactionID() (TransactionID, error) {
 	var xid TransactionID
-	ctx, cancel := context.WithTimeout(context.Background(), RandomTimeout)
-	defer cancel()
-	n, err := rand.ReadContext(ctx, xid[:])
+	_, err := rand.Read(xid[:])
 	if err != nil {
 		return xid, errors.Errorf("could not get random number: %v", err)
-	}
-	if n != 4 {
-		return xid, errors.New("invalid random sequence for transaction ID: smaller than 32 bits")
 	}
 	return xid, err
 }
