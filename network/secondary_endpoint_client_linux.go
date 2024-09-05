@@ -10,7 +10,6 @@ import (
 	"github.com/Azure/azure-container-networking/netns"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -22,7 +21,7 @@ func newErrorSecondaryEndpointClient(err error) error {
 }
 
 type dhcpClient interface {
-	DiscoverRequest(net.HardwareAddr, string) (*dhcpv4.DHCPv4, error)
+	DiscoverRequest(net.HardwareAddr, string) error
 }
 
 type SecondaryEndpointClient struct {
@@ -138,9 +137,9 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 
 	// issue dhcp discover packet to ensure mapping created for dns via wireserver to work
 	// we do not use the response for anything
-	res, err := client.dhcpClient.DiscoverRequest(epInfo.MacAddress, epInfo.IfName)
-	if err != nil || res == nil {
-		return errors.Wrapf(err, "failed to issue dhcp discover packet to create mapping in host, response is %v", res)
+	err := client.dhcpClient.DiscoverRequest(epInfo.MacAddress, epInfo.IfName)
+	if err != nil {
+		return errors.Wrapf(err, "failed to issue dhcp discover packet to create mapping in host")
 	}
 
 	return nil
