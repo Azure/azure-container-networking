@@ -5,7 +5,6 @@ package main
 import (
 	"fmt"
 	"math/rand"
-	"os"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -121,13 +120,12 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 	// npm-lite -> daemon set will listen to pods only in its own node
 	if config.Toggles.EnableNPMLite {
-		nodeName := os.Getenv("NODE_NAME")
 		factory = informers.NewSharedInformerFactoryWithOptions(
 			clientset,
 			resyncPeriod,
 			informers.WithTweakListOptions(func(options *metav1.ListOptions) {
 				// Use field selector to filter pods based on their assigned node
-				options.FieldSelector = "spec.nodeName=" + nodeName
+				options.FieldSelector = "spec.nodeName=" + models.GetNodeName()
 			}),
 		)
 	}
