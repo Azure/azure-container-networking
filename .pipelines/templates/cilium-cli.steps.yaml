@@ -19,5 +19,6 @@ steps:
       rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
       cilium status
       cilium version
+    workingDirectory: $(ACN_DIR)
     name: "installCiliumCLI"
     displayName: "Install Cilium CLI"

@@ -17,6 +17,7 @@ steps:
   - script: |
       set -e
       make ${{ parameters.name }}-manifest-build PLATFORMS="${{ parameters.platforms }}" OS_VERSIONS="${{ parameters.os_versions }}"
+    workingDirectory: $(ACN_DIR)
     name: manifest_build
     displayName: Manifest Build
     retryCountOnTaskFailure: 3
@@ -35,6 +36,7 @@ steps:
       make ${{ parameters.name }}-skopeo-archive IMAGE_ARCHIVE_DIR=$(Build.ArtifactStagingDirectory)/images
     name: manifest_push
     displayName: Manifest Push
+    workingDirectory: $(ACN_DIR)
     retryCountOnTaskFailure: 3
 
   - task: AzureCLI@2
@@ -50,9 +52,3 @@ steps:
     displayName: "Add SBOM Generator tool"
     inputs:
       BuildDropPath: "$(Build.ArtifactStagingDirectory)"
-
-  - task: PublishBuildArtifacts@1
-    inputs:
-      artifactName: "output"
-      pathtoPublish: "$(Build.ArtifactStagingDirectory)"
-    condition: succeeded()

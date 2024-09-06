@@ -39,16 +39,14 @@ stages:
           location: $(LOCATION_AMD64)
         ${{ if eq(parameters.arch, 'arm64') }}:
           location: $(LOCATION_ARM64)
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
       dependsOn:
         - setup
         - build_images
       displayName: "Create Cluster - ${{ parameters.clusterName }}"
       jobs:
         - job: create_aks_cluster_with_${{ parameters.name }}
-          pool:
-            isCustom: true
-            type: linux
-            name: $(BUILD_POOL_NAME_DEFAULT)
           steps:
             - template: ../load-test-templates/create-cluster-template.yaml
               parameters:
@@ -74,16 +72,14 @@ stages:
           location: $(LOCATION_AMD64)
         ${{ if eq(parameters.arch, 'arm64') }}:
           location: $(LOCATION_ARM64)
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
       dependsOn:
         - setup
         - build_images
       displayName: "Create Cluster - ${{ parameters.clusterName }}"
       jobs:
         - job: create_aks_cluster_with_${{ parameters.name }}
-          pool:
-            isCustom: true
-            type: linux
-            name: $(BUILD_POOL_NAME_DEFAULT)
           steps:
             - template: ../load-test-templates/create-cluster-template.yaml
               parameters:
@@ -110,6 +106,8 @@ stages:
         location: $(LOCATION_AMD64)
       ${{ if eq(parameters.arch, 'arm64') }}:
         location: $(LOCATION_ARM64)
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
       - create_${{ parameters.name }}
       - publish
@@ -117,10 +115,6 @@ stages:
     displayName: "CNIv1 Test - ${{ parameters.clusterName }}"
     jobs:
       - job: update_cni
-        pool:
-          isCustom: true
-          type: linux
-          name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - task: AzureCLI@2
             inputs:
@@ -164,10 +158,6 @@ stages:
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Scale Test"
         dependsOn: npm_k8se2e
-        pool:
-          isCustom: true
-          type: linux
-          name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
@@ -186,10 +176,6 @@ stages:
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartNode') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Restart Test"
         dependsOn: deploy_pods
-        pool:
-          isCustom: true
-          type: linux
-          name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
@@ -206,10 +192,6 @@ stages:
       - job: recover
         displayName: "Recover Resources"
         dependsOn: restart_nodes
-        pool:
-          isCustom: true
-          type: linux
-          name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - task: AzureCLI@2
             inputs:
@@ -249,10 +231,6 @@ stages:
           - recover
           - cni_${{ parameters.os }}
         condition: failed()
-        pool:
-          isCustom: true
-          type: linux
-          name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
@@ -272,6 +250,8 @@ stages:
           location: $(LOCATION_AMD64)
         ${{ if eq(parameters.arch, 'arm64') }}:
           location: $(LOCATION_ARM64)
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
       dependsOn:
         - ${{ parameters.name }}
         - setup
@@ -280,10 +260,6 @@ stages:
         - job: restart_hns
           displayName: "Restart and Validate HNS"
           condition: and( and( not(canceled()), not(failed()) ), ${{ eq(parameters.os, 'windows') }} )
-          pool:
-            isCustom: true
-            type: linux
-            name: $(BUILD_POOL_NAME_DEFAULT)
           steps:
             - template: ../load-test-templates/restart-hns-template.yaml
               parameters:
@@ -293,10 +269,6 @@ stages:
           condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )
           displayName: "Scale Test"
           dependsOn: restart_hns
-          pool:
-            isCustom: true
-            type: linux
-            name: $(BUILD_POOL_NAME_DEFAULT)
           steps:
             - template: ../load-test-templates/pod-deployment-template.yaml
               parameters:
@@ -315,10 +287,6 @@ stages:
           condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartNode') , contains(variables.CONTROL_SCENARIO, 'all') ) )
           displayName: "Restart Test"
           dependsOn: deploy_podsHNS
-          pool:
-            isCustom: true
-            type: linux
-            name: $(BUILD_POOL_NAME_DEFAULT)
           steps:
             - template: ../load-test-templates/restart-node-template.yaml
               parameters:
@@ -336,10 +304,6 @@ stages:
         - job: recover
           displayName: "Recover Resources"
           dependsOn: restart_nodesHNS
-          pool:
-            isCustom: true
-            type: linux
-            name: $(BUILD_POOL_NAME_DEFAULT)
           steps:
             - task: AzureCLI@2
               inputs:
@@ -378,10 +342,6 @@ stages:
             - recover
             - cni_${{ parameters.os }}
           condition: failed()
-          pool:
-            isCustom: true
-            type: linux
-            name: $(BUILD_POOL_NAME_DEFAULT)
           steps:
             - template: ../../templates/log-template.yaml
               parameters:

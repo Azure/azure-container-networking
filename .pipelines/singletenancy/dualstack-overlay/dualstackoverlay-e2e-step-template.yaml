@@ -26,7 +26,6 @@ steps:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
@@ -40,7 +39,6 @@ steps:
         kubectl get node
         kubectl get po -owide -A
         sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=dualstack VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) CLEANUP=true
-      workingDirectory: $(ACN_DIR)
       retryCountOnTaskFailure: 3
       name: "integrationTest"
       displayName: "Run CNS Integration Tests on AKS DualStack Overlay"
@@ -53,7 +51,6 @@ steps:
         go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
         echo "Dualstack Overlay Linux datapath IPv4 test"
         go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
-      workingDirectory: $(ACN_DIR)
       retryCountOnTaskFailure: 3
       name: "DualStack_Overlay_Linux_Tests"
       displayName: "DualStack Overlay Linux Tests"
@@ -63,7 +60,6 @@ steps:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
         scriptType: "bash"
-        workingDirectory: $(ACN_DIR)
         addSpnToEnvironment: true
         inlineScript: |
           set -e
@@ -79,7 +75,6 @@ steps:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
         scriptType: "bash"
-        workingDirectory: $(ACN_DIR)
         addSpnToEnvironment: true
         inlineScript: |
           cd test/integration/load
@@ -105,7 +100,6 @@ steps:
             fi
         done
         sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) CLEANUP=true
-      workingDirectory: $(ACN_DIR)
       name: "WindowsDualStackOverlayControlPlaneScaleTests"
       displayName: "Windows DualStack Overlay ControlPlane Scale Tests"
       retryCountOnTaskFailure: 3
@@ -114,17 +108,15 @@ steps:
         echo "DualStack Overlay DataPath Test"
         cd test/integration/datapath
         sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
-      workingDirectory: $(ACN_DIR)
       name: "WindowsDualStackOverlayDatapathTests"
       displayName: "Windows DualStack Overlay Datapath Tests"
       retryCountOnTaskFailure: 3
 
-    - task: AzureCLI@2
+    - task: AzureCLI@1
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
         scriptType: "bash"
-        workingDirectory: $(ACN_DIR)
         addSpnToEnvironment: true
         inlineScript: |
           set -e
@@ -135,12 +127,11 @@ steps:
           done
       displayName: "Restart Nodes"
 
-    - task: AzureCLI@2
+    - task: AzureCLI@1
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
         scriptType: "bash"
-        workingDirectory: $(ACN_DIR)
         addSpnToEnvironment: true
         inlineScript: |
           cd test/integration/load

@@ -23,16 +23,21 @@ parameters:
   jobName: "FailedE2ELogs"
 
 steps:
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
+      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
           make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
 
-          acnLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+          acnLogs=$OB_OUTPUTDIRECTORY
           mkdir -p $acnLogs
           echo "Root Directory created: $acnLogs"
           echo "##vso[task.setvariable variable=acnLogs]$acnLogs"
@@ -95,6 +100,7 @@ steps:
         fi
       displayName: Failure Logs
       condition: always()
+      workingDirectory: $(ACN_DIR)
 
   - ${{ if eq(parameters.os, 'linux') }}:
     - bash: |
@@ -167,7 +173,7 @@ steps:
             file="azure-cns.json"
             kubectl exec -i -n kube-system $pod -- cat /var/lib/azure-network/$file > $(acnLogs)/"$node"_logs/CNS-output/$file
             echo "CNS State, $file, captured: $(acnLogs)/"$node"_logs/CNS-output/$file"
-            if [ $managed = "true" ]; then
+            if [[ $managed =~ true ]]; then
               file="azure-endpoints.json"
               kubectl exec -i -n kube-system $pod -- cat /var/run/azure-cns/$file > $(acnLogs)/"$node"_logs/CNS-output/$file
               echo "CNS Managed State, $file, captured: $(acnLogs)/"$node"_logs/CNS-output/$file"
@@ -190,6 +196,7 @@ steps:
             echo "Cilium, $file, captured: $(acnLogs)/"$node"_logs/Cilium-output/$file"
           done
         fi
+      workingDirectory: $(ACN_DIR)
       displayName: Linux Logs
       condition: always()
 
@@ -265,11 +272,13 @@ steps:
             fi
           done
         fi
+      workingDirectory: $(ACN_DIR)
       displayName: Windows Logs
       condition: always()
 
-  - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
-    condition: always()
-    artifact: ${{ parameters.clusterName }}_${{ parameters.os }}${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
-    name: acnLogs_${{ parameters.logType }}
-    displayName: Publish Cluster logs
+#  - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+#    condition: always()
+#    artifact: ${{ parameters.clusterName }}_${{ parameters.os }}${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
+#    name: acnLogs_${{ parameters.logType }}
+#    displayName: Publish Cluster logs
+

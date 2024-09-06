@@ -15,9 +15,10 @@ stages:
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      ACN_DIR: $(Build.SourcesDirectory)
     jobs:
       - template: ../../templates/create-cluster.yaml
         parameters:
@@ -37,29 +38,22 @@ stages:
     - publish
     - ${{ parameters.clusterName }}
     variables:
-      ACN_DIR: $(Build.SourcesDirectory)
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Overlay Test Suite - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
-          isCustom: true
-          type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-        variables:
-          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
-          ob_git_checkout: true
         steps:
-          - checkout: ACNReviewChanges
-            clean: true
-
           - template: cilium-overlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
@@ -85,17 +79,7 @@ stages:
           - ${{ parameters.name }}
           - cni_${{ parameters.os }}
         condition: failed()
-        pool:
-          isCustom: true
-          type: linux
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        variables:
-          ob_outputDirectory: $(ACN_DIR)/${{ parameters.clusterName }}-$(commitID)_FailedE2ELogs_Attempt_#$(System.StageAttempt)
-          ob_git_checkout: true
         steps:
-          - checkout: ACNReviewChanges
-            clean: true
-
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)

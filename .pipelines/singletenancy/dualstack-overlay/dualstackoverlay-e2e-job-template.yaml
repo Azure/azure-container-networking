@@ -13,9 +13,10 @@ stages:
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      ACN_DIR: $(Build.SourcesDirectory)
     jobs:
       - template: ../../templates/create-cluster.yaml
         parameters:
@@ -40,25 +41,18 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      ACN_DIR: $(Build.SourcesDirectory)
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}_linux
         displayName: DualStack Overlay Test Suite | Linux - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
-          isCustom: true
-          type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-        variables:
-          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
-          ob_git_checkout: true
         steps:
-          - checkout: ACNReviewChanges
-            clean: true
-
           - template: dualstackoverlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
@@ -70,25 +64,16 @@ stages:
         displayName: Add Windows Nodepool
         dependsOn: ${{ parameters.name }}_linux
         pool:
-          isCustom: true
-          type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-        variables:
-          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
-          ob_git_checkout: true
         steps:
-          - checkout: ACNReviewChanges
-            clean: true
-
           - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
-              workingDirectory: $(ACN_DIR)
               addSpnToEnvironment: true
               inlineScript: |
                 set -e
@@ -106,19 +91,11 @@ stages:
         timeoutInMinutes: 120
         dependsOn: windows_nodepool
         pool:
-          isCustom: true
-          type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-        variables:
-          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
-          ob_git_checkout: true
         steps:
-          - checkout: ACNReviewChanges
-            clean: true
-
           - template: dualstackoverlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
@@ -154,21 +131,10 @@ stages:
       - job: failedE2ELogs_linux
         displayName: "Linux Failure Logs"
         dependsOn:
-          - CNI_linux # k8s tests
           - ${{ parameters.name }}_linux
           - cni_linux
-        condition: failed()
-        pool:
-          isCustom: true
-          type: linux
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        variables:
-          ob_outputDirectory: $(ACN_DIR)/${{ parameters.clusterName }}-$(commitID)_FailedE2ELogs_linux_Attempt_#$(System.StageAttempt)
-          ob_git_checkout: true
+        condition: in(dependencies.${{ parameters.name }}_linux.result, 'Failed')
         steps:
-          - checkout: ACNReviewChanges
-            clean: true
-
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -178,21 +144,10 @@ stages:
       - job: failedE2ELogs_windows
         displayName: "Windows Failure Logs"
         dependsOn:
-          - CNI_windows # k8s tests
           - ${{ parameters.name }}_windows
           - cni_windows
-        condition: failed()
-        pool:
-          isCustom: true
-          type: linux
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        variables:
-          ob_outputDirectory: $(ACN_DIR)/${{ parameters.clusterName }}-$(commitID)_FailedE2ELogs_windows_Attempt_#$(System.StageAttempt)
-          ob_git_checkout: true
+        condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed')
         steps:
-          - checkout: ACNReviewChanges
-            clean: true
-
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)

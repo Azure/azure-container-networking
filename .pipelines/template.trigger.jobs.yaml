@@ -5,6 +5,9 @@ parameters:
 - name: mainRepoRef
   type: string
 
+- name: mainRepoCommit
+  type: string
+
 - name: mainRepoType
   type: string
 
@@ -15,11 +18,14 @@ jobs:
   # 4 hour timeout
   timeoutInMinutes: 240
   steps:
-  - checkout: none
+  - checkout: azure-container-networking
+    clean: true
+
   - bash: |
       set -e
       [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
 
+      # Verify Branch Name
       if [[ $TMPL_REPO_REF =~ $ACCEPTED_REPO_REFS ]]; then
         echo >&2 "##[info]Verification passed."
       else
@@ -27,6 +33,7 @@ jobs:
         exit 1
       fi
 
+      # Verify Repo Name
       if [[ $TMPL_REPO_NAME =~ $ACCEPTED_REPO_NAME ]]; then
         echo >&2 "##[info]Verification passed."
       else
@@ -34,6 +41,7 @@ jobs:
         exit 1
       fi
 
+      # Verify Repo Type
       if [[ $TMPL_REPO_TYPE =~ $ACCEPTED_REPO_TYPE ]]; then
         echo >&2 "##[info]Verification passed."
       else

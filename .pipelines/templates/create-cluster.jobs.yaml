@@ -14,12 +14,23 @@ parameters:
 jobs:
   - job: ${{ parameters.name }}
     displayName: Cluster - ${{ parameters.name }}
+    pool:
+      isCustom: true
+      type: linux
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+      ob_git_checkout: true
     steps:
+      - checkout: ACNReviewChanges
+        clean: true
+
       - task: AzureCLI@2
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptLocation: "inlineScript"
           scriptType: "bash"
+          workingDirectory: $(ACN_DIR)
           addSpnToEnvironment: true
           inlineScript: |
             set -e
@@ -44,3 +55,4 @@ jobs:
             echo "Cluster successfully created"
         displayName: Cluster - ${{ parameters.clusterType }}
         continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}
+
