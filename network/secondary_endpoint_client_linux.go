@@ -1,9 +1,11 @@
 package network
 
 import (
+	"context"
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
@@ -21,7 +23,7 @@ func newErrorSecondaryEndpointClient(err error) error {
 }
 
 type dhcpClient interface {
-	DiscoverRequest(net.HardwareAddr, string) error
+	DiscoverRequest(context.Context, net.HardwareAddr, string) error
 }
 
 type SecondaryEndpointClient struct {
@@ -137,8 +139,11 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 
 	// issue dhcp discover packet to ensure mapping created for dns via wireserver to work
 	// we do not use the response for anything
+	timeout := 3 * time.Second
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(timeout))
+	defer cancel()
 	logger.Info("Sending DHCP packet", zap.Any("macAddress", epInfo.MacAddress), zap.String("ifName", epInfo.IfName))
-	err := client.dhcpClient.DiscoverRequest(epInfo.MacAddress, epInfo.IfName)
+	err := client.dhcpClient.DiscoverRequest(ctx, epInfo.MacAddress, epInfo.IfName)
 	if err != nil {
 		return errors.Wrapf(err, "failed to issue dhcp discover packet to create mapping in host")
 	}

@@ -5,8 +5,10 @@ package dhcp
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"io"
 	"net"
 	"time"
 
@@ -57,6 +59,66 @@ func New(logger *zap.Logger) *DHCP {
 	return &DHCP{
 		logger: logger,
 	}
+}
+
+type Socket struct {
+	fd         int
+	remoteAddr unix.SockaddrInet4
+}
+
+// Linux specific
+func NewWriteSocket(ifname string, remoteAddr unix.SockaddrInet4) (io.WriteCloser, error) {
+	fd, err := MakeBroadcastSocket(ifname)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not make dhcp write socket")
+	}
+
+	return &Socket{
+		fd:         fd,
+		remoteAddr: remoteAddr,
+	}, nil
+}
+func (s *Socket) Write(packetBytes []byte) (int, error) {
+	err := unix.Sendto(s.fd, packetBytes, 0, &s.remoteAddr)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed unix send to")
+	}
+	return len(packetBytes), nil
+}
+
+func NewReadSocket(ifname string, timeout time.Duration) (io.ReadCloser, error) {
+	fd, err := makeListeningSocket(ifname)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not make dhcp read socket")
+	}
+	ret := &Socket{
+		fd: fd,
+	}
+	// set max time waiting without any data received
+	timeval := unix.NsecToTimeval(timeout.Nanoseconds())
+	if innerErr := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &timeval); innerErr != nil {
+		// don't leak sockets
+		if closeErr := ret.Close(); closeErr != nil {
+			return nil, errors.Wrap(innerErr, "could not set timeout on socket and failed to close read socket")
+		}
+		return nil, errors.Wrap(innerErr, "could not set timeout on socket")
+	}
+
+	return ret, nil
+}
+func (s *Socket) Read(p []byte) (n int, err error) {
+	n, _, innerErr := unix.Recvfrom(s.fd, p, 0)
+	if innerErr != nil {
+		return 0, errors.Wrap(err, "failed unix recv from")
+	}
+	return n, nil
+}
+func (s *Socket) Close() error {
+	// Ensure the file descriptor is closed when done
+	if err := unix.Close(s.fd); err != nil {
+		return errors.Wrap(err, "error closing dhcp unix socket")
+	}
+	return nil
 }
 
 // GenerateTransactionID generates a random 32-bits number suitable for use as TransactionID
@@ -230,40 +292,20 @@ func MakeRawUDPPacket(payload []byte, serverAddr, clientAddr net.UDPAddr) ([]byt
 	return ret, nil
 }
 
-// Send DHCP discover packet using unix.RawConn
-func (c *DHCP) sendDHCPDiscover(fd int, packet []byte) error {
-	raddr := &net.UDPAddr{IP: net.IPv4bcast, Port: dhcpServerPort}
-	laddr := &net.UDPAddr{IP: net.IPv4zero, Port: dhcpClientPort}
-	var destination [net.IPv4len]byte
-	copy(destination[:], raddr.IP.To4())
-
-	packetBytes, err := MakeRawUDPPacket(packet, *raddr, *laddr)
-	if err != nil {
-		return errors.Wrap(err, "error making raw udp packet")
-	}
-
-	// Create sockaddr_ll structure for sending the packet
-	remoteAddr := unix.SockaddrInet4{Port: laddr.Port, Addr: destination}
-
-	// Send the packet using the raw socket
-	return errors.Wrap(unix.Sendto(fd, packetBytes, 0, &remoteAddr), "failed unix send to")
-}
-
-// Receive DHCP response packet using unix.Recvfrom
-// returns nil if a reply is received with the xid, otherwise an error is returned
-func (c *DHCP) receiveDHCPResponse(fd int, xid TransactionID) error {
+// Receive DHCP response packet using reader
+func (c *DHCP) receiveDHCPResponse(ctx context.Context, reader io.ReadCloser, xid TransactionID) error {
 	recvErrors := make(chan error, 1)
 	go func(errs chan<- error) {
-		// set read timeout
-		timeout := unix.NsecToTimeval(DefaultReadTimeout.Nanoseconds())
-		if innerErr := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &timeout); innerErr != nil {
-			errs <- innerErr
-			return
-		}
-		// loop will only exit if there is an error, or we find our reply packet
+		// loop will only exit if there is an error, context canceled, or we find our reply packet
 		for {
+			if ctx.Err() != nil {
+				errs <- ctx.Err()
+				return
+			}
+
 			buf := make([]byte, MaxUDPReceivedPacketSize)
-			n, _, innerErr := unix.Recvfrom(fd, buf, 0)
+			// Blocks until data received or timeout period is reached
+			n, innerErr := reader.Read(buf)
 			if innerErr != nil {
 				errs <- innerErr
 				return
@@ -314,12 +356,19 @@ func (c *DHCP) receiveDHCPResponse(fd int, xid TransactionID) error {
 		recvErrors <- nil
 	}(recvErrors)
 
+	// sends a message on repeat after timeout, but only the first one matters
+	ticker := time.NewTicker(DefaultReadTimeout)
+	defer ticker.Stop()
+
 	select {
 	case err := <-recvErrors:
+		if err == unix.EAGAIN {
+			return errors.Wrap(err, "timed out while listening for replies")
+		}
 		if err != nil {
 			return errors.Wrap(err, "error during receiving")
 		}
-	case <-time.After(DefaultTimeout):
+	case <-ticker.C:
 		return errors.New("timed out waiting for replies")
 	}
 	return nil
@@ -328,38 +377,72 @@ func (c *DHCP) receiveDHCPResponse(fd int, xid TransactionID) error {
 // Issues a DHCP Discover packet from the nic specified by mac and name ifname
 // Returns nil if a reply to the transaction was received, or error if time out
 // Does not return the DHCP Offer that was received from the DHCP server
-func (c *DHCP) DiscoverRequest(mac net.HardwareAddr, ifname string) error {
+func (c *DHCP) DiscoverRequest(ctx context.Context, mac net.HardwareAddr, ifname string) error {
 	txid, err := GenerateTransactionID()
 	if err != nil {
 		return errors.Wrap(err, "failed to generate random transaction id")
 	}
 
+	// Used in later steps
+	raddr := &net.UDPAddr{IP: net.IPv4bcast, Port: dhcpServerPort}
+	laddr := &net.UDPAddr{IP: net.IPv4zero, Port: dhcpClientPort}
+	var (
+		destination [net.IPv4len]byte
+	)
+	copy(destination[:], raddr.IP.To4())
+
 	// Build a DHCP discover packet
-	packet, err := buildDHCPDiscover(mac, txid)
+	dhcpPacket, err := buildDHCPDiscover(mac, txid)
 	if err != nil {
 		return errors.Wrap(err, "failed to build dhcp discover packet")
 	}
+	// Make UDP packet from dhcp packet in previous steps
+	packetToSendBytes, err := MakeRawUDPPacket(dhcpPacket, *raddr, *laddr)
+	if err != nil {
+		return errors.Wrap(err, "error making raw udp packet")
+	}
 
-	// get send and receive file descriptors
-	sfd, err := MakeBroadcastSocket(ifname)
+	// Make writer
+	remoteAddr := unix.SockaddrInet4{Port: laddr.Port, Addr: destination}
+	writer, err := NewWriteSocket(ifname, remoteAddr)
 	if err != nil {
 		return errors.Wrap(err, "failed to make broadcast socket")
 	}
 
-	rfd, err := makeListeningSocket(ifname)
+	defer func() {
+		// Ensure the file descriptor is closed when done
+		if err := writer.Close(); err != nil {
+			c.logger.Error("Error closing dhcp writer socket:", zap.Error(err))
+		}
+	}()
+
+	// Make reader
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return errors.New("no deadline for passed in context")
+	}
+	timeout := time.Until(deadline)
+	// note: if the write/send takes a long time DiscoverRequest might take a bit longer than the deadline
+	reader, err := NewReadSocket(ifname, timeout)
 	if err != nil {
 		return errors.Wrap(err, "failed to make listening socket")
 	}
+	defer func() {
+		// Ensure the file descriptor is closed when done
+		if err := reader.Close(); err != nil {
+			c.logger.Error("Error closing dhcp reader socket:", zap.Error(err))
+		}
+	}()
 
-	// Send the DHCP discover packet
-	err = c.sendDHCPDiscover(sfd, packet)
+	// Once writer and reader created, start sending and receiving
+	_, err = writer.Write(packetToSendBytes)
 	if err != nil {
 		return errors.Wrap(err, "failed to send dhcp discover packet")
 	}
 
-	c.logger.Info("DHCP Discover packet sent successfully", zap.Any("transactionID", txid))
+	c.logger.Info("DHCP Discover packet was sent successfully", zap.Any("transactionID", txid))
 
 	// Wait for DHCP response (Offer)
-	res := c.receiveDHCPResponse(rfd, txid)
+	res := c.receiveDHCPResponse(ctx, reader, txid)
 	return res
 }
