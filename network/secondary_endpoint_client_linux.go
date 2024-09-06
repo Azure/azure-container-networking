@@ -139,7 +139,8 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 
 	// issue dhcp discover packet to ensure mapping created for dns via wireserver to work
 	// we do not use the response for anything
-	timeout := 3 * time.Second
+	numSecs := 3
+	timeout := time.Duration(numSecs) * time.Second
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(timeout))
 	defer cancel()
 	logger.Info("Sending DHCP packet", zap.Any("macAddress", epInfo.MacAddress), zap.String("ifName", epInfo.IfName))

@@ -78,6 +78,7 @@ func NewWriteSocket(ifname string, remoteAddr unix.SockaddrInet4) (io.WriteClose
 		remoteAddr: remoteAddr,
 	}, nil
 }
+
 func (s *Socket) Write(packetBytes []byte) (int, error) {
 	err := unix.Sendto(s.fd, packetBytes, 0, &s.remoteAddr)
 	if err != nil {
@@ -106,6 +107,7 @@ func NewReadSocket(ifname string, timeout time.Duration) (io.ReadCloser, error) 
 
 	return ret, nil
 }
+
 func (s *Socket) Read(p []byte) (n int, err error) {
 	n, _, innerErr := unix.Recvfrom(s.fd, p, 0)
 	if innerErr != nil {
@@ -113,6 +115,7 @@ func (s *Socket) Read(p []byte) (n int, err error) {
 	}
 	return n, nil
 }
+
 func (s *Socket) Close() error {
 	// Ensure the file descriptor is closed when done
 	if err := unix.Close(s.fd); err != nil {
@@ -362,9 +365,6 @@ func (c *DHCP) receiveDHCPResponse(ctx context.Context, reader io.ReadCloser, xi
 
 	select {
 	case err := <-recvErrors:
-		if err == unix.EAGAIN {
-			return errors.Wrap(err, "timed out while listening for replies")
-		}
 		if err != nil {
 			return errors.Wrap(err, "error during receiving")
 		}
@@ -386,9 +386,7 @@ func (c *DHCP) DiscoverRequest(ctx context.Context, mac net.HardwareAddr, ifname
 	// Used in later steps
 	raddr := &net.UDPAddr{IP: net.IPv4bcast, Port: dhcpServerPort}
 	laddr := &net.UDPAddr{IP: net.IPv4zero, Port: dhcpClientPort}
-	var (
-		destination [net.IPv4len]byte
-	)
+	var destination [net.IPv4len]byte
 	copy(destination[:], raddr.IP.To4())
 
 	// Build a DHCP discover packet
@@ -411,7 +409,7 @@ func (c *DHCP) DiscoverRequest(ctx context.Context, mac net.HardwareAddr, ifname
 
 	defer func() {
 		// Ensure the file descriptor is closed when done
-		if err := writer.Close(); err != nil {
+		if err = writer.Close(); err != nil {
 			c.logger.Error("Error closing dhcp writer socket:", zap.Error(err))
 		}
 	}()
@@ -429,7 +427,7 @@ func (c *DHCP) DiscoverRequest(ctx context.Context, mac net.HardwareAddr, ifname
 	}
 	defer func() {
 		// Ensure the file descriptor is closed when done
-		if err := reader.Close(); err != nil {
+		if err = reader.Close(); err != nil {
 			c.logger.Error("Error closing dhcp reader socket:", zap.Error(err))
 		}
 	}()
