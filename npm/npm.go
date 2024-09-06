@@ -58,7 +58,7 @@ type NetworkPolicyManager struct {
 // NewNetworkPolicyManager creates a NetworkPolicyManager
 func NewNetworkPolicyManager(config npmconfig.Config,
 	informerFactory informers.SharedInformerFactory,
-	PodFactory informers.SharedInformerFactory,
+	podFactory informers.SharedInformerFactory,
 	dp dataplane.GenericDataplane,
 	exec utilexec.Interface,
 	npmVersion string,
@@ -70,7 +70,7 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 		Dataplane: dp,
 		Informers: models.Informers{
 			InformerFactory: informerFactory,
-			PodInformer:     PodFactory.Core().V1().Pods(),
+			PodInformer:     podFactory.Core().V1().Pods(),
 			NsInformer:      informerFactory.Core().V1().Namespaces(),
 			NpInformer:      informerFactory.Networking().V1().NetworkPolicies(),
 		},
