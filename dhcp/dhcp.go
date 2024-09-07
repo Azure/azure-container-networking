@@ -67,16 +67,18 @@ type Socket struct {
 }
 
 // Linux specific
+// returns a writer which should always be closed, even if we return an error
 func NewWriteSocket(ifname string, remoteAddr unix.SockaddrInet4) (io.WriteCloser, error) {
 	fd, err := MakeBroadcastSocket(ifname)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not make dhcp write socket")
-	}
-
-	return &Socket{
+	ret := &Socket{
 		fd:         fd,
 		remoteAddr: remoteAddr,
-	}, nil
+	}
+	if err != nil {
+		return ret, errors.Wrap(err, "could not make dhcp write socket")
+	}
+
+	return ret, nil
 }
 
 func (s *Socket) Write(packetBytes []byte) (int, error) {
@@ -87,22 +89,14 @@ func (s *Socket) Write(packetBytes []byte) (int, error) {
 	return len(packetBytes), nil
 }
 
+// returns a reader which should always be closed, even if we return an error
 func NewReadSocket(ifname string, timeout time.Duration) (io.ReadCloser, error) {
-	fd, err := makeListeningSocket(ifname)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not make dhcp read socket")
-	}
+	fd, err := makeListeningSocket(ifname, timeout)
 	ret := &Socket{
 		fd: fd,
 	}
-	// set max time waiting without any data received
-	timeval := unix.NsecToTimeval(timeout.Nanoseconds())
-	if innerErr := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &timeval); innerErr != nil {
-		// don't leak sockets
-		if closeErr := ret.Close(); closeErr != nil {
-			return nil, errors.Wrap(innerErr, "could not set timeout on socket and failed to close read socket")
-		}
-		return nil, errors.Wrap(innerErr, "could not set timeout on socket")
+	if err != nil {
+		return ret, errors.Wrap(err, "could not make dhcp read socket")
 	}
 
 	return ret, nil
@@ -117,6 +111,10 @@ func (s *Socket) Read(p []byte) (n int, err error) {
 }
 
 func (s *Socket) Close() error {
+	// do not attempt to close fd with -1 as they are not valid
+	if s.fd == -1 {
+		return nil
+	}
 	// Ensure the file descriptor is closed when done
 	if err := unix.Close(s.fd); err != nil {
 		return errors.Wrap(err, "error closing dhcp unix socket")
@@ -134,7 +132,7 @@ func GenerateTransactionID() (TransactionID, error) {
 	return xid, nil
 }
 
-func makeListeningSocket(ifname string) (int, error) {
+func makeListeningSocket(ifname string, timeout time.Duration) (int, error) {
 	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_DGRAM, int(htons(unix.ETH_P_IP)))
 	if err != nil {
 		return fd, errors.Wrap(err, "dhcp socket creation failure")
@@ -148,6 +146,13 @@ func makeListeningSocket(ifname string) (int, error) {
 		Protocol: htons(unix.ETH_P_IP),
 	}
 	err = unix.Bind(fd, &llAddr)
+
+	// set max time waiting without any data received
+	timeval := unix.NsecToTimeval(timeout.Nanoseconds())
+	if innerErr := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &timeval); innerErr != nil {
+		return fd, errors.Wrap(innerErr, "could not set timeout on socket")
+	}
+
 	return fd, errors.Wrap(err, "dhcp failed to bind")
 }
 
@@ -403,16 +408,15 @@ func (c *DHCP) DiscoverRequest(ctx context.Context, mac net.HardwareAddr, ifname
 	// Make writer
 	remoteAddr := unix.SockaddrInet4{Port: laddr.Port, Addr: destination}
 	writer, err := NewWriteSocket(ifname, remoteAddr)
-	if err != nil {
-		return errors.Wrap(err, "failed to make broadcast socket")
-	}
-
 	defer func() {
 		// Ensure the file descriptor is closed when done
 		if err = writer.Close(); err != nil {
 			c.logger.Error("Error closing dhcp writer socket:", zap.Error(err))
 		}
 	}()
+	if err != nil {
+		return errors.Wrap(err, "failed to make broadcast socket")
+	}
 
 	// Make reader
 	deadline, ok := ctx.Deadline()
@@ -422,15 +426,15 @@ func (c *DHCP) DiscoverRequest(ctx context.Context, mac net.HardwareAddr, ifname
 	timeout := time.Until(deadline)
 	// note: if the write/send takes a long time DiscoverRequest might take a bit longer than the deadline
 	reader, err := NewReadSocket(ifname, timeout)
-	if err != nil {
-		return errors.Wrap(err, "failed to make listening socket")
-	}
 	defer func() {
 		// Ensure the file descriptor is closed when done
 		if err = reader.Close(); err != nil {
 			c.logger.Error("Error closing dhcp reader socket:", zap.Error(err))
 		}
 	}()
+	if err != nil {
+		return errors.Wrap(err, "failed to make listening socket")
+	}
 
 	// Once writer and reader created, start sending and receiving
 	_, err = writer.Write(packetToSendBytes)
