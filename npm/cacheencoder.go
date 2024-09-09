@@ -29,7 +29,7 @@ func CacheEncoder(nodeName string) json.Marshaler {
 	cfg.Toggles.EnableHTTPDebugAPI = true
 	cfg.Toggles.EnableV2NPM = false
 	// TODO test v2 NPM debug API when it's implemented
-	npMgr := NewNetworkPolicyManager(cfg, kubeInformer, &dpmocks.MockGenericDataplane{}, exec, npmVersion, fakeK8sVersion)
+	npMgr := NewNetworkPolicyManager(cfg, kubeInformer, kubeInformer, &dpmocks.MockGenericDataplane{}, exec, npmVersion, fakeK8sVersion)
 	npMgr.NodeName = nodeName
 	return npMgr
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -34,6 +35,8 @@ var (
 	)
 	// ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
 	ErrUnsupportedIPAddress = errors.New("unsupported IP address")
+	// ErrUnsupportedNonCIDR is returned when non-CIDR blocks (i.e pod selectors or namespace selectors) are passed with a NPM Lite configuration
+	ErrUnsupportedNonCIDR = errors.New("unsupported Non-CIDR block for NPM Lite")
 )
 
 type podSelectorResult struct {
@@ -405,6 +408,15 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 			}
 			// Do not need to run below code to translate PodSelector and NamespaceSelector
 			// since IPBlock field is exclusive in NetworkPolicyPeer (i.e., peer in this code).
+			continue
+		}
+
+		// if npm lite is configured, check whether pod selector or namespace selector is passed in - is so throw an error if not continue
+		cfg := npmconfig.DefaultConfig
+		if cfg.Toggles.EnableNPMLite {
+			if peer.PodSelector != nil || peer.NamespaceSelector != nil {
+				return ErrUnsupportedNonCIDR
+			}
 			continue
 		}
 
