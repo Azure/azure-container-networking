@@ -186,10 +186,7 @@ func makeRawSocket(ifname string) (int, error) {
 	if err != nil {
 		return fd, errors.Wrap(err, "dhcp raw socket creation failure")
 	}
-	err = unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
-	if err != nil {
-		return fd, errors.Wrap(err, "dhcp failed to set raw sockopt")
-	}
+	// Later on when we write to this socket, our packet already contains the header (we create it with MakeRawUDPPacket).
 	err = unix.SetsockoptInt(fd, unix.IPPROTO_IP, unix.IP_HDRINCL, 1)
 	if err != nil {
 		return fd, errors.Wrap(err, "dhcp failed to set second raw sockopt")
@@ -303,6 +300,14 @@ func MakeRawUDPPacket(payload []byte, serverAddr, clientAddr net.UDPAddr) ([]byt
 // Receive DHCP response packet using reader
 func (c *DHCP) receiveDHCPResponse(ctx context.Context, reader io.ReadCloser, xid TransactionID) error {
 	recvErrors := make(chan error, 1)
+	// Recvfrom is a blocking call, so if something goes wrong with its timeout it won't return.
+
+	// Additionally, the timeout on the socket (on the Read(...)) call is how long until the socket times out and gives an error,
+	// but it won't error if we do get some sort of data within the time out period.
+
+	// If we get some data (even if it is not the packet we are looking for, like wrong txid, wrong response opcode etc.)
+	// then we continue in the for loop. We then call recvfrom again which will reset the timeout period
+	// Without the secondary timeout at the bottom of the function, we could stay stuck in the for loop as long as we receive packets.
 	go func(errs chan<- error) {
 		// loop will only exit if there is an error, context canceled, or we find our reply packet
 		for {
