@@ -51,7 +51,7 @@ var DefaultConfig = Config{
 		ApplyInBackground: true,
 		// NetPolInBackground is currently used in Linux to apply NetPol controller Add events in the background
 		NetPolInBackground: true,
-		EnableNPMLite:      false,
+		EnableNPMLite:      true,
 	},
 }
 
