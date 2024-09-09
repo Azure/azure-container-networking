@@ -229,8 +229,15 @@ func (iMgr *IPSetManager) setsWithReferences() map[string]struct{} {
 	var setsWithReferences map[string]struct{}
 	if haveRefsStill {
 		setsWithReferences = readByteLinesToMap(setsWithReferencesBytes)
+		subset := make(map[string]struct{}, maxLinesToPrint)
+		for key := range setsWithReferences {
+			subset[key] = struct{}{}
+			if len(subset) >= maxLinesToPrint {
+				break
+			}
+		}
 		metrics.SendErrorLogAndMetric(util.IpsmID, "error: found leaked reference counts in kernel. ipsets (max %d): %+v. err: %v",
-			maxLinesToPrint, setsWithReferences, err)
+			maxLinesToPrint, subset, err)
 	}
 
 	return setsWithReferences
@@ -847,9 +854,6 @@ func readByteLinesToMap(output []byte) map[string]struct{} {
 		line, readIndex = parse.Line(readIndex, output)
 		hashedSetName := strings.Trim(string(line), "\n")
 		lines[hashedSetName] = struct{}{}
-		if len(lines) > maxLinesToPrint {
-			break
-		}
 	}
 	return lines
 }
