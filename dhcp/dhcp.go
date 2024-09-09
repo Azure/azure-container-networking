@@ -133,6 +133,9 @@ func GenerateTransactionID() (TransactionID, error) {
 }
 
 func makeListeningSocket(ifname string, timeout time.Duration) (int, error) {
+	// reference: https://manned.org/packet.7
+	// starts listening to the specified protocol, or none if zero
+	// the SockaddrLinkLayer also ensures packets for the htons(unix.ETH_P_IP) prot are received
 	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_DGRAM, int(htons(unix.ETH_P_IP)))
 	if err != nil {
 		return fd, errors.Wrap(err, "dhcp socket creation failure")
@@ -163,6 +166,7 @@ func MakeBroadcastSocket(ifname string) (int, error) {
 	if err != nil {
 		return fd, err
 	}
+	// enables broadcast (disabled by default)
 	err = unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_BROADCAST, 1)
 	if err != nil {
 		return fd, errors.Wrap(err, "dhcp failed to set sockopt")
@@ -170,6 +174,7 @@ func MakeBroadcastSocket(ifname string) (int, error) {
 	return fd, nil
 }
 
+// conversion between host and network byte order
 func htons(v uint16) uint16 {
 	var tmp [2]byte
 	binary.BigEndian.PutUint16(tmp[:], v)
@@ -182,6 +187,7 @@ func BindToInterface(fd int, ifname string) error {
 
 // makeRawSocket creates a socket that can be passed to unix.Sendto.
 func makeRawSocket(ifname string) (int, error) {
+	// AF_INET sends via IPv4, SOCK_RAW means create an ip datagram socket (skips udp transport layer, see below)
 	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_RAW, unix.IPPROTO_RAW)
 	if err != nil {
 		return fd, errors.Wrap(err, "dhcp raw socket creation failure")
@@ -189,7 +195,7 @@ func makeRawSocket(ifname string) (int, error) {
 	// Later on when we write to this socket, our packet already contains the header (we create it with MakeRawUDPPacket).
 	err = unix.SetsockoptInt(fd, unix.IPPROTO_IP, unix.IP_HDRINCL, 1)
 	if err != nil {
-		return fd, errors.Wrap(err, "dhcp failed to set second raw sockopt")
+		return fd, errors.Wrap(err, "dhcp failed to set hdrincl raw sockopt")
 	}
 	err = BindToInterface(fd, ifname)
 	if err != nil {
