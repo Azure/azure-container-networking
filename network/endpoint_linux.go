@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/dhcp"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
@@ -58,6 +57,7 @@ func (nw *network) newEndpointImpl(
 	testEpClient EndpointClient,
 	nsc NamespaceClientInterface,
 	iptc ipTablesClient,
+	dhcpclient dhcpClient,
 	epInfo *EndpointInfo,
 ) (*endpoint, error) {
 	var (
@@ -168,7 +168,7 @@ func (nw *network) newEndpointImpl(
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
 		} else if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 			logger.Info("Secondary client")
-			epClient = NewSecondaryEndpointClient(nl, netioCli, plc, nsc, dhcp.New(logger), ep)
+			epClient = NewSecondaryEndpointClient(nl, netioCli, plc, nsc, dhcpclient, ep)
 		} else {
 			logger.Info("Transparent client")
 			epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, netioCli, plc)
@@ -266,7 +266,7 @@ func (nw *network) newEndpointImpl(
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
 func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, epClient EndpointClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface,
-	iptc ipTablesClient, ep *endpoint,
+	iptc ipTablesClient, dhcpc dhcpClient, ep *endpoint,
 ) error {
 	// Delete the veth pair by deleting one of the peer interfaces.
 	// Deleting the host interface is more convenient since it does not require
@@ -288,7 +288,7 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 		} else {
 			// delete if secondary interfaces populated or endpoint of type delegated (new way)
 			if len(ep.SecondaryInterfaces) > 0 || ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
-				epClient = NewSecondaryEndpointClient(nl, nioc, plc, nsc, dhcp.New(logger), ep)
+				epClient = NewSecondaryEndpointClient(nl, nioc, plc, nsc, dhcpc, ep)
 				epClient.DeleteEndpointRules(ep)
 				//nolint:errcheck // ignore error
 				epClient.DeleteEndpoints(ep)

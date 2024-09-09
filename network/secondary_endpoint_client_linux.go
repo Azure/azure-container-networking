@@ -2,7 +2,6 @@ package network
 
 import (
 	"context"
-	"net"
 	"os"
 	"strings"
 	"time"
@@ -20,10 +19,6 @@ var errorSecondaryEndpointClient = errors.New("SecondaryEndpointClient Error")
 
 func newErrorSecondaryEndpointClient(err error) error {
 	return errors.Wrapf(err, "%s", errorSecondaryEndpointClient)
-}
-
-type dhcpClient interface {
-	DiscoverRequest(context.Context, net.HardwareAddr, string) error
 }
 
 type SecondaryEndpointClient struct {
