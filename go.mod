@@ -43,10 +43,10 @@ require (
 	google.golang.org/grpc v1.66.1
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
-	k8s.io/api v0.30.4
+	k8s.io/api v0.30.5
 	k8s.io/apiextensions-apiserver v0.30.1
-	k8s.io/apimachinery v0.30.4
-	k8s.io/client-go v0.30.4
+	k8s.io/apimachinery v0.30.5
+	k8s.io/client-go v0.30.5
 	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
@@ -106,7 +106,7 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.27.0
-	golang.org/x/net v0.28.0 // indirect
+	golang.org/x/net v0.28.0
 	golang.org/x/oauth2 v0.22.0 // indirect
 	golang.org/x/term v0.24.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
@@ -150,7 +150,7 @@ require (
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
-	k8s.io/kubelet v0.30.4
+	k8s.io/kubelet v0.30.5
 )
 
 replace (
