@@ -121,7 +121,7 @@ stages:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: windows
           dependsOn: cni_linux
-          dualstack: true
+          # dualstack: true # Currently broken for scenario and blocking releases, HNS is investigating. Covered by go test in E2E step template
           dns: true
           portforward: true
           # service: true  # Currently broken for scenario and blocking releases, HNS is investigating.
