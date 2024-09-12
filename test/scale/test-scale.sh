@@ -433,8 +433,8 @@ fi
 
 ## DELETE PRIOR STATE
 echo "cleaning up previous scale test state..."
-$KUBECTL $KUBECONFIG_ARG delete ns scale-test connectivity-test --ignore-not-found
-$KUBECTL $KUBECONFIG_ARG delete node -l type=kwok
+# $KUBECTL $KUBECONFIG_ARG delete ns scale-test connectivity-test --ignore-not-found
+# $KUBECTL $KUBECONFIG_ARG delete node -l type=kwok
 
 if [[ $USING_NPM == true ]]; then
     echo "restarting NPM pods..."
@@ -473,6 +473,7 @@ echo
 
 set -x
 $KUBECTL $KUBECONFIG_ARG create ns scale-test
+$KUBECTL $KUBECONFIG_ARG apply -f templates/service-accounts.yaml
 set +x
 
 if [[ $numKwokNodes -gt 0 ]]; then

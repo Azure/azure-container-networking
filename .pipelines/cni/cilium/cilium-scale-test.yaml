@@ -91,6 +91,7 @@ stages:
     displayName: "Scale deploments for Network Policies Check"
     jobs:
       - job: scale_deployments
+        timeoutInMinutes: 600
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
@@ -108,7 +109,7 @@ stages:
                 echo "running k top node"
                 kubectl top node >> "node_before_netpol_scale.log"
                 echo "running k top pod"
-                kubectl top pod -A | grep cilium >> "pod_before_netpol_scale.log"
+                kubectl top pod -A | grep retina >> "pod_before_netpol_scale.log"
                 echo "Logs will be available as a build artifact"
                 ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test1_1_netpol_cpu_and_mem_before/
                 echo $ARTIFACT_DIR
@@ -119,14 +120,15 @@ stages:
                 echo "scale deployment and to prep for network policies test"
                 cd test/scale
                 chmod +x test-scale.sh
-                ./test-scale.sh --max-kwok-pods-per-node=0 --num-kwok-deployments=0 --num-kwok-replicas=0 --max-real-pods-per-node=${REAL_PODS_PER_NODE_NETPOL} --num-real-deployments=${NUM_REAL_DEPLOYMENTS_NETPOL} --num-real-replicas=${NUM_REAL_REPLICAS_NETPOL} --num-network-policies=${APPLIED_NETPOL} --num-unapplied-network-policies=${UNAPPLIED_NETPOL} --num-unique-labels-per-pod=0 --num-unique-labels-per-deployment=5 --num-shared-labels-per-pod=3 --num-real-services=${NUM_REAL_SVC_NETPOL} --delete-labels
+                ./test-scale.sh --max-kwok-pods-per-node=0 --num-kwok-deployments=0 --num-kwok-replicas=0 --max-real-pods-per-node=${REAL_PODS_PER_NODE_NETPOL} --num-real-deployments=${NUM_REAL_DEPLOYMENTS_NETPOL} --num-real-replicas=${NUM_REAL_REPLICAS_NETPOL} --num-network-policies=${APPLIED_NETPOL} --num-unapplied-network-policies=${UNAPPLIED_NETPOL} --num-unique-labels-per-pod=0 --num-unique-labels-per-deployment=1 --num-shared-labels-per-pod=3 --num-real-services=${NUM_REAL_SVC_NETPOL} --real-pod-type=kapinger --delete-labels
                 echo "collect cpu and mem results after scaling"
                 mkdir test1_2_netpol_cpu_and_mem_scale
                 cd test1_2_netpol_cpu_and_mem_scale
                 echo "running k top node"
                 kubectl top node >> "node_netpol_scale.log"
                 echo "running k top pod"
-                kubectl top pod -A | grep cilium >> "pod_netpol_scale.log"
+                # kubectl top pod -A | grep cilium >> "pod_netpol_scale.log"
+                kubectl top pod -A | grep retina >> "pod_netpol_scale.log"
                 echo "Logs will be available as a build artifact"
                 ARTIFACT_DIR2=$(Build.ArtifactStagingDirectory)/test1_2_netpol_cpu_and_mem_scale/
                 echo $ARTIFACT_DIR2
@@ -134,6 +136,27 @@ stages:
                 sudo mkdir $ARTIFACT_DIR2
                 cd ..
                 sudo cp ./test1_2_netpol_cpu_and_mem_scale/* $ARTIFACT_DIR2
+                mkdir test1_3_components_status
+                cd test1_3_components_status
+                echo "getting retina components' status"
+                kubectl get deploy,ds -n kube-system -l 'helm.toolkit.fluxcd.io/name=kappie-adapter-helmrelease' -o wide >> "retina_components_status.log"
+                kubectl describe pod -n kube-system -l app=retina-operator >> "retina_operator_pod_status.log"
+                echo "getting events in kube-system namespace"
+                kubectl get events -n kube-system -o wide >> "kube_system_events.log"
+                kubectl get po -n kube-system -l k8s-app=retina -o json | jq -r '.items[] | select(.status.containerStatuses[].ready==false)|.metadata.name' | while read i; do echo "---"; kubectl describe po -n kube-system $i >> "retina_pods_not_ready.log"; echo -e "\n---\nCurrent logs for pod $i:" >> "current_logs_pods_not_ready.log"; kubectl logs -n kube-system $i >> "current_logs_pods_not_ready.log"; echo -e "\n---\nPrevious logs for pod $i:" >> "previous_logs_pods_not_ready.log"; kubectl logs -n kube-system $i -p >> "previous_logs_pods_not_ready.log"; done
+                # echo "getting cilium components' status"
+                # kubectl get deploy,ds -n kube-system -l 'helm.toolkit.fluxcd.io/name=cilium-adapter-helmrelease' -o wide >> "cilium_components_status.log"
+                # kubectl describe pod -n kube-system -l name=cilium-operator >> "cilium_operator_pod_status.log"
+                # echo "getting events in kube-system namespace"
+                # kubectl get events -n kube-system -o wide >> "kube_system_events.log"
+                # kubectl get po -n kube-system -l k8s-app=cilium -o json | jq -r '.items[] | select(.status.containerStatuses[].ready==false)|.metadata.name' | while read i; do echo "---"; kubectl describe po -n kube-system $i >> "cilium_pods_not_ready.log"; echo -e "\n---\nCurrent logs for pod $i:" >> "current_logs_pods_not_ready.log"; kubectl logs -n kube-system $i >> "current_logs_pods_not_ready.log"; echo -e "\n---\nPrevious logs for pod $i:" >> "previous_logs_pods_not_ready.log"; kubectl logs -n kube-system $i -p >> "previous_logs_pods_not_ready.log"; done
+                ARTIFACT_DIR3=$(Build.ArtifactStagingDirectory)/test1_3_components_status/
+                echo $ARTIFACT_DIR3
+                sudo rm -rf $ARTIFACT_DIR3
+                sudo mkdir $ARTIFACT_DIR3
+                cd ..
+                sudo cp ./test1_3_components_status/* $ARTIFACT_DIR3
+                echo "Retina components' status and kube-system events will be available as a build artifact"
             name: "scaling"
             displayName: "Run scale script"
           - task: PublishBuildArtifacts@1
@@ -150,6 +173,13 @@ stages:
             condition: always()
             name: "PublishResults2"
             displayName: "Result Network Policies Artifacts"
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: test1_3_components_status
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/test1_3_components_status"
+            condition: always()
+            name: "PublishResults3"
+            displayName: "Components' Status Artifacts"
 
   - ${{ if or(eq(parameters.scenario, 'ACNS Security - Cilium'),eq(parameters.scenario, 'ACNS Observability+Security - Cilium')) }}:
     - stage: test_network_policies_connectivity
