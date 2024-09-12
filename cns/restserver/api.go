@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 )
 
@@ -1029,7 +1030,20 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 
 	ctx := r.Context()
 
-	if !service.isNetworkJoined(req.NetworkID) {
+	var unpublishBody nmagent.DeleteContainerRequest
+	if req.DeleteNetworkContainerRequestBody != nil {
+		err = json.Unmarshal(req.DeleteNetworkContainerRequestBody, &unpublishBody)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("could not unmarshal delete network container body: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
+
+	/* For AZR scenarios, if NMAgent is restarted, it loses state and does not know what VNETs to subscribe to.
+	As it no longer has VNET state, delete nc calls would fail. We need to add join VNET call for all AZR
+	nc unpublish calls just like publish nc calls.
+	*/
+	if unpublishBody.AZREnabled || !service.isNetworkJoined(req.NetworkID) {
 		joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID) //nolint:govet // ok to shadow
 		if err != nil {
 			resp := cns.UnpublishNetworkContainerResponse{
@@ -1062,7 +1076,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		}
 
 		service.setNetworkStateJoined(req.NetworkID)
-		logger.Printf("[Azure-CNS] joined vnet %s during nc %s unpublish. wireserver response: %v", req.NetworkID, req.NetworkContainerID, string(joinBytes))
+		logger.Printf("[Azure-CNS] joined vnet %s during nc %s unpublish. AZREnabled: %t, wireserver response: %v", req.NetworkID, req.NetworkContainerID, unpublishBody.AZREnabled, string(joinBytes))
 	}
 
 	publishResp, err := service.wsproxy.UnpublishNC(ctx, ncParams, req.DeleteNetworkContainerRequestBody)
