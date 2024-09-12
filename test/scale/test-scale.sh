@@ -311,7 +311,7 @@ wait_for_pods() {
             echo "waiting for real pods to run (try $count)"
             count=$((count+1))
             set +e -x
-            $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=0 && set -e +x && break
+            $KUBECTL $KUBECONFIG_ARG wait --for=jsonpath='{.status.readyReplicas}'=$numRealReplicas deploy -n scale-test -l is-real=true --all --timeout=0 && set -e +x && break
             set -e +x
             endDate=`date +%s`
             if [[ $endDate -gt $(( startDate + (10*60) )) ]]; then
@@ -377,6 +377,7 @@ generateServices() {
 
         sed "s/TEMP_NAME/$name/g" templates/$serviceKind-service.yaml > $outFile
         sed -i "s/TEMP_DEPLOYMENT_NAME/$serviceKind-$depKind-dep-$i/g" $outFile
+        # sed -i "/TEMP_DEPLOYMENT_NAME/d" $outFile
     done
 }
 
@@ -433,8 +434,8 @@ fi
 
 ## DELETE PRIOR STATE
 echo "cleaning up previous scale test state..."
-$KUBECTL $KUBECONFIG_ARG delete ns scale-test connectivity-test --ignore-not-found
-$KUBECTL $KUBECONFIG_ARG delete node -l type=kwok
+# $KUBECTL $KUBECONFIG_ARG delete ns scale-test connectivity-test --ignore-not-found
+# $KUBECTL $KUBECONFIG_ARG delete node -l type=kwok
 
 if [[ $USING_NPM == true ]]; then
     echo "restarting NPM pods..."
@@ -473,6 +474,7 @@ echo
 
 set -x
 $KUBECTL $KUBECONFIG_ARG create ns scale-test
+$KUBECTL $KUBECONFIG_ARG apply -f templates/service-accounts.yaml
 set +x
 
 if [[ $numKwokNodes -gt 0 ]]; then

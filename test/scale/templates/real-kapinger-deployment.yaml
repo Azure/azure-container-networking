@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: TEMP_NAME
+  namespace: scale-test
+  labels:
+    app: kapinger
+    is-real: "true"
+    name: TEMP_NAME
+spec:
+  replicas: TEMP_REPLICAS
+  selector:
+    matchLabels:
+      app: kapinger
+      is-real: "true"OTHER_LABELS_6_SPACES
+  template:
+    metadata:
+      labels:
+        app: kapinger
+        name: TEMP_NAME
+        is-real: "true"OTHER_LABELS_8_SPACES
+    spec:
+      nodeSelector:
+        scale-test: "true"
+      containers:
+        - name: container
+          image: acnpublic.azurecr.io/matmerr-pinger:v32
+          resources:
+            limits:
+              memory: 40Mi
+            requests:
+              memory: 20Mi
+          env:
+            - name: TARGET_TYPE
+              value: "service"
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: HTTP_PORT
+              value: "8080"
+            - name: TCP_PORT
+              value: "8085"
+            - name: UDP_PORT
+              value: "8086"
+          ports:
+            - containerPort: 8080
