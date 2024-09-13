@@ -407,6 +407,22 @@ stages:
         dummyClusterType: "swiftv2-dummy-cluster-up"
         dummyClusterDisplayName: Swiftv2 Multitenancy Dummy Cluster
 
+    # Swiftv2 E2E tests with windows multitenancy cluster
+    - template: multitenancy/swiftv2-e2e-job-template.yaml
+      parameters:
+        name: "swiftv2_windows_e2e"
+        displayName: Swiftv2 Windows Multitenancy
+        os: linux
+        clusterType: swiftv2-multitenancy-windows-cluster-up
+        clusterName: "mtawindowscluster"
+        nodePoolName: "mtapool"
+        vmSize: $(SWIFTV2_MT_CLUSTER_SKU)
+        k8sVersion: "1.30"
+        dependsOn: "containerize"
+        dummyClusterName: "swiftv2windows"
+        dummyClusterType: "swiftv2-windows-cluster-up"
+        dummyClusterDisplayName: Swiftv2 Multitenancy Windows Cluster
+
     - stage: delete
       displayName: Delete Clusters
       condition: always()
@@ -423,6 +439,7 @@ stages:
         - dualstackoverlay_e2e
         - cilium_dualstackoverlay_e2e
         - swiftv2_e2e
+        - swiftv2_windows_e2e
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       jobs:
@@ -468,6 +485,9 @@ stages:
               swiftv2_dummy_e2e:
                 name: swiftv2_dummy_e2e
                 clusterName: "swiftv2dummy"
+              swiftv2_windows_e2e:
+                name: swiftv2_windows_e2e
+                clusterName: "swiftv2windows"
           steps:
             - template: templates/delete-cluster.yaml
               parameters:

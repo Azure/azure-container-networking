@@ -1,0 +1,8 @@
+apiVersion: multitenancy.acn.azure.com/v1alpha1
+kind: PodNetworkInstance
+metadata:
+   name: $PNI_NAME
+   namespace: default
+spec:
+  podNetworkConfigs:
+  - podNetwork: "pn-swiftv2-e2e"

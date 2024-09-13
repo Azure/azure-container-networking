@@ -1,0 +1,7 @@
+apiVersion: multitenancy.acn.azure.com/v1alpha1
+kind: PodNetwork
+metadata:
+  name: $PN_NAME
+spec:
+  networkID: $NETWORK_ID
+  deviceType: "acn.azure.com/vnet-nic"

@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: $SWIFTV2_POD_NAME
+  labels:
+    kubernetes.azure.com/pod-network-instance: $PNI_NAME
+    kubernetes.azure.com/pod-network: pn-swiftv2-e2e
+  annotations:
+    io.microsoft.virtualmachine.fullyphysicallybacked: "true"
+
+spec:
+  runtimeClassName: runhcs-lcow
+  nodeName: $NODE_NAME_1
+  nodeSelector:
+    "kubernetes.io/os": windows
+  containers:
+  - name: superbench-linux
+    image: weibeld/ubuntu-networking
+    command: ["/bin/sh", "-c"]
+    args: ["while true; do echo 'Hello this is LCOW container on AKS Windows'; ps -efj; uname -a; sleep 5; done"]
+    resources:
+      limits:
+        cpu: 300m
+        memory: 600Mi
+      requests:
+        cpu: 300m
+        memory: 600Mi
+    securityContext:
+      privileged: true
