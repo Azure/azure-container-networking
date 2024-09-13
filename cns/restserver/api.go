@@ -4,6 +4,7 @@
 package restserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -1031,19 +1032,24 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	ctx := r.Context()
 
 	var unpublishBody nmagent.DeleteContainerRequest
-	if req.DeleteNetworkContainerRequestBody != nil {
-		err = json.Unmarshal(req.DeleteNetworkContainerRequestBody, &unpublishBody)
-		if err != nil {
+	var azrNC bool
+	err = json.Unmarshal(req.DeleteNetworkContainerRequestBody, &unpublishBody)
+	if err != nil {
+		// If the body contains only `""\n`, it is a non-AZR NC
+		if !bytes.Equal(req.DeleteNetworkContainerRequestBody, []byte(`""`+"\n")) {
 			http.Error(w, fmt.Sprintf("could not unmarshal delete network container body: %v", err), http.StatusBadRequest)
 			return
 		}
+	} else {
+		// If unmarshalling was successful, it is an AZR NC
+		azrNC = true
 	}
 
 	/* For AZR scenarios, if NMAgent is restarted, it loses state and does not know what VNETs to subscribe to.
 	As it no longer has VNET state, delete nc calls would fail. We need to add join VNET call for all AZR
 	nc unpublish calls just like publish nc calls.
 	*/
-	if unpublishBody.AZREnabled || !service.isNetworkJoined(req.NetworkID) {
+	if azrNC || !service.isNetworkJoined(req.NetworkID) {
 		joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID) //nolint:govet // ok to shadow
 		if err != nil {
 			resp := cns.UnpublishNetworkContainerResponse{
