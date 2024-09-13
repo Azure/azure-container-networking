@@ -1085,6 +1085,7 @@ func TestUnpublishNCViaCNS(t *testing.T) {
 func TestUnpublishViaCNSRequestBody(t *testing.T) {
 	createNetworkContainerURL := "http://" + nmagentEndpoint + "/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
 	deleteNetworkContainerURL := "http://" + nmagentEndpoint + "/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1/method/DELETE"
+	vnet := "vnet1"
 	wsProxy := fakes.WireserverProxyFake{}
 	cleanup := setWireserverProxy(svc, &wsProxy)
 	defer cleanup()
@@ -1118,9 +1119,9 @@ func TestUnpublishViaCNSRequestBody(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			errPublish := publishNCViaCNS("vnet1", tt.ncID, createNetworkContainerURL)
+			errPublish := publishNCViaCNS(vnet, tt.ncID, createNetworkContainerURL)
 			require.NoError(t, errPublish)
-			errUnpublish := unpublishNCViaCNS("vnet1", tt.ncID, deleteNetworkContainerURL, tt.body)
+			errUnpublish := unpublishNCViaCNS(vnet, tt.ncID, deleteNetworkContainerURL, tt.body)
 			if tt.requireError {
 				require.Error(t, errUnpublish)
 			} else {
