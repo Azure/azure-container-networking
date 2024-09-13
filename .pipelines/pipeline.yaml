@@ -408,7 +408,7 @@ stages:
         dummyClusterDisplayName: Swiftv2 Multitenancy Dummy Cluster
 
     # Swiftv2 E2E tests with windows multitenancy cluster
-    - template: multitenancy/swiftv2-e2e-job-template.yaml
+    - template: multitenancy/swiftv2-windows-e2e-job-template.yaml
       parameters:
         name: "swiftv2_windows_e2e"
         displayName: Swiftv2 Windows Multitenancy

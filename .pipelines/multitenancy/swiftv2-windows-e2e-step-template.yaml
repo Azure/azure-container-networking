@@ -60,6 +60,15 @@ steps:
         echo "waiting for pod to be ready"
         sleep 2m
         kubectl get po -owide -A
+        echo "Creating second LCOW Pod"
+        less test/integration/manifests/swiftv2/mtwindowspod.yaml
+        export SWIFTV2_POD_NAME="swiftv2pod2"
+        export NODE_NAME_1="$(kubectl get nodes -o json | jq -r .items[0].metadata.name)"
+        echo $NODE_NAME_1
+        envsubst '${SWIFTV2_POD_NAME},${NODE_NAME_1}' < test/integration/manifests/swiftv2/mtwindowspod.yaml | kubectl apply -f -
+        echo "waiting for pod to be ready"
+        sleep 2m
+        kubectl get po -owide -A
     name: "start_swiftv2_windows_pods"
     displayName: "Start Swiftv2 Windows Pods"
     continueOnError: ${{ parameters.continueOnError }}
