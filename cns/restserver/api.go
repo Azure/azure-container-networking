@@ -1038,7 +1038,8 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		// If the body contains only `""\n`, it is non-AZR NC
 		// In this case, we should not return an error
 		// However, if the body is not `""\n`, it is invalid and therefore, we must return an error
-		if !bytes.Equal(req.DeleteNetworkContainerRequestBody, []byte(`""`+"\n")) {
+		// []byte{34, 34, 10} here represents []byte(`""`+"\n")
+		if !bytes.Equal(req.DeleteNetworkContainerRequestBody, []byte{34, 34, 10}) {
 			http.Error(w, fmt.Sprintf("could not unmarshal delete network container body: %v", err), http.StatusBadRequest)
 			return
 		}

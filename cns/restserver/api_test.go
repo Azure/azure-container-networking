@@ -1126,6 +1126,7 @@ func TestUnpublishViaCNSRequestBody(t *testing.T) {
 			errUnpublish := unpublishNCViaCNS(vnet, tt.ncID, deleteNetworkContainerURL, tt.body)
 			if tt.requireError {
 				require.Error(t, errUnpublish)
+				require.Contains(t, errUnpublish.Error(), "error decoding json")
 			} else {
 				require.NoError(t, errUnpublish)
 			}
