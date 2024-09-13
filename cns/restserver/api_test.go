@@ -1083,8 +1083,10 @@ func TestUnpublishNCViaCNS(t *testing.T) {
 }
 
 func TestUnpublishViaCNSRequestBody(t *testing.T) {
-	createNetworkContainerURL := "http://" + nmagentEndpoint + "/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
-	deleteNetworkContainerURL := "http://" + nmagentEndpoint + "/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1/method/DELETE"
+	createNetworkContainerURL := "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
+	deleteNetworkContainerURL := "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1/method/DELETE"
 	vnet := "vnet1"
 	wsProxy := fakes.WireserverProxyFake{}
 	cleanup := setWireserverProxy(svc, &wsProxy)
