@@ -1133,10 +1133,8 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		// otherwise, in stateless, we don't need the network id for deletion
 		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID)
 		// if stateless CNI fail to get the endpoint from CNS for any reason other than  Endpoint Not found
-		var connectionErr *cnscli.ConnectionFailureErr
-		var EndpointStateNotFoundErr *cnscli.EndpointStateNotFoundErr
-		if err != nil && !errors.As(err, &EndpointStateNotFoundErr) {
-			if errors.As(err, &connectionErr) {
+		if err != nil {
+			if errors.Is(err, network.ErrConnectionFailure) {
 				addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
 				logger.Info("add containerid file for Asynch delete", zap.String("containerID", args.ContainerID), zap.Error(addErr))
 				if addErr != nil {
@@ -1145,6 +1143,11 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 				}
 				return nil
 			}
+			if errors.Is(err, network.ErrEndpointStateNotFound) {
+				logger.Info("Endpoint Not found for:", zap.String("containerID", args.ContainerID), zap.Error(err))
+				return nil
+			}
+			logger.Error("Get Endpoint Stat API return with error for: ", zap.String("containerID", args.ContainerID), zap.Error(err))
 			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 		}
 	} else {
@@ -1152,8 +1155,8 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 
 	// for when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
-	// stateless cni might get into this issue if endpoint is not present in the statefile
-	if len(epInfos) == 0 {
+	// this block is not applied to stateless CNI
+	if len(epInfos) == 0 && !plugin.nm.IsStatelessCNIMode() {
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		if !nwCfg.MultiTenancy {
 			logger.Error("Failed to query endpoint",

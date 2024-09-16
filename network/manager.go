@@ -455,8 +455,17 @@ func validateUpdateEndpointState(endpointID string, ifNameToIPInfoMap map[string
 // In stateless cni, container id is the endpoint id, so you can pass in either
 func (nm *networkManager) GetEndpointState(networkID, containerID string) ([]*EndpointInfo, error) {
 	endpointResponse, err := nm.CnsClient.GetEndpoint(context.TODO(), containerID)
+
 	if err != nil {
-		return nil, err
+		var connectionErr *cnsclient.ConnectionFailureErr
+		var EndpointStateNotFoundErr *cnsclient.EndpointStateNotFoundErr
+		if errors.As(err, &EndpointStateNotFoundErr) {
+			return nil, ErrEndpointStateNotFound
+		}
+		if errors.As(err, &connectionErr) {
+			return nil, ErrConnectionFailure
+		}
+		return nil, ErrGetEndpointStateFailure
 
 	}
 	epInfos := cnsEndpointInfotoCNIEpInfos(endpointResponse.EndpointInfo, containerID)

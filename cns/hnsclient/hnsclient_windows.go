@@ -699,7 +699,8 @@ func DeleteHNSEndpointbyID(hnsEndpointID string) error {
 	if err != nil {
 		// If error is anything other than EndpointNotFoundError, return error.
 		// else log the error but don't return error because endpoint is already deleted.
-		if _, endpointNotFound := err.(hcn.EndpointNotFoundError); !endpointNotFound {
+		var notFoundErr hcn.EndpointNotFoundError
+		if errors.As(err, &notFoundErr) {
 			return fmt.Errorf("Failed to get hcn endpoint with id: %s due to err: %w", hnsEndpointID, err)
 		}
 
@@ -713,7 +714,7 @@ func DeleteHNSEndpointbyID(hnsEndpointID string) error {
 	}
 
 	if err = hcnEndpoint.Delete(); err != nil {
-		return fmt.Errorf("Failed to delete endpoint: %+v. Error: %v", hnsEndpointID, err)
+		return fmt.Errorf("Failed to delete endpoint: %s. Error: %w", hnsEndpointID, err)
 	}
 
 	logger.Errorf("[Azure CNS] Successfully deleted endpoint: %+v", hnsEndpointID)

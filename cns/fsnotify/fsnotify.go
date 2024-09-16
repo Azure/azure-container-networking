@@ -21,13 +21,13 @@ import (
 
 const DefaultNetworkID = "azure"
 
-type releaseIPsClient interface {
+type IPAMClient interface {
 	ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error
 	GetEndpoint(ctx context.Context, endpointID string) (*restserver.GetEndpointResponse, error)
 }
 
 type watcher struct {
-	cli  releaseIPsClient
+	cli  IPAMClient
 	path string
 	log  *zap.Logger
 
@@ -37,7 +37,7 @@ type watcher struct {
 }
 
 // Create the AsyncDelete watcher.
-func New(cnsconfig *configuration.CNSConfig, cli releaseIPsClient, path string, zlogger *zap.Logger) (*watcher, error) { //nolint
+func New(cnsconfig *configuration.CNSConfig, cli IPAMClient, path string, zlogger *zap.Logger) (*watcher, error) { //nolint
 	// Add directory where intended deletes are kept
 	if err := os.Mkdir(path, 0o755); err != nil && !errors.Is(err, fs.ErrExist) { //nolint
 		zlogger.Error("error making directory", zap.String("path", path), zap.Error(err))
@@ -83,7 +83,7 @@ func (w *watcher) releaseAll(ctx context.Context) {
 		if isStalessCNIMode(w.cnsconfig) {
 			// remove HNS endpoint
 			w.log.Info("deleting HNS Endpoint asynchronously")
-			if err := w.deleteHNSEndpoint(ctx, containerID); err != nil {
+			if err := w.deleteEndpoint(ctx, containerID); err != nil {
 				w.log.Error("failed to remove HNS endpoint", zap.Error(err))
 			}
 		}
@@ -226,7 +226,7 @@ func (w *watcher) releaseIP(ctx context.Context, podInterfaceID, containerID str
 }
 
 // call GetEndpoint API to get the state and then remove assiciated HNS
-func (w *watcher) deleteHNSEndpoint(ctx context.Context, containerid string) error {
+func (w *watcher) deleteEndpoint(ctx context.Context, containerid string) error {
 	endpointResponse, err := w.cli.GetEndpoint(ctx, containerid)
 	if err != nil {
 		return errors.Wrap(err, "failed to read the endpoint from CNS state")
