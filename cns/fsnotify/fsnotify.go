@@ -248,7 +248,7 @@ func (w *watcher) deleteEndpoint(ctx context.Context, containerid string) error 
 }
 
 // isStalessCNIMode verify if the CNI is running stateless mode
-func isStalessCNIMode(cnsconfig *configuration.CNSConfig) bool {
+func isStalessCNIWindows(cnsconfig *configuration.CNSConfig) bool {
 	if !cnsconfig.InitializeFromCNI && cnsconfig.ManageEndpointState && runtime.GOOS == "windows" {
 		return true
 	}
