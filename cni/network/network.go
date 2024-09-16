@@ -1147,7 +1147,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 				logger.Info("Endpoint Not found", zap.String("containerID", args.ContainerID), zap.Error(err))
 				return nil
 			}
-			logger.Error("Get Endpoint Stat API return with error for: ", zap.String("containerID", args.ContainerID), zap.Error(err))
+			logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
 			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 		}
 	} else {
