@@ -1144,7 +1144,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 				return nil
 			}
 			if errors.Is(err, network.ErrEndpointStateNotFound) {
-				logger.Info("Endpoint Not found for:", zap.String("containerID", args.ContainerID), zap.Error(err))
+				logger.Info("Endpoint Not found", zap.String("containerID", args.ContainerID), zap.Error(err))
 				return nil
 			}
 			logger.Error("Get Endpoint Stat API return with error for: ", zap.String("containerID", args.ContainerID), zap.Error(err))
