@@ -66,14 +66,6 @@ func (e *ConnectionFailureErr) Error() string {
 	return e.cause.Error()
 }
 
-type EndpointStateNotFoundErr struct {
-	cause error
-}
-
-func (e *EndpointStateNotFoundErr) Error() string {
-	return e.cause.Error()
-}
-
 // New returns a new CNS client configured with the passed URL and timeout.
 func New(baseURL string, requestTimeout time.Duration) (*Client, error) {
 	if baseURL == "" {
@@ -1036,34 +1028,33 @@ func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserve
 	// build the request
 	u := c.routes[cns.EndpointAPI]
 	uString := u.String() + endpointID
+	var response restserver.GetEndpointResponse
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uString, http.NoBody)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to build request")
+		response.Response.ReturnCode = types.UnexpectedError
+		return &response, errors.Wrap(err, "failed to build request")
 	}
+
 	req.Header.Set(headerContentType, contentTypeJSON)
 	res, err := c.client.Do(req)
 	if err != nil {
-		return nil, &ConnectionFailureErr{cause: err}
+		response.Response.ReturnCode = types.ConnectionError
+		return &response, &ConnectionFailureErr{cause: err}
 	}
 
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, errors.Errorf("http response %d", res.StatusCode)
+		response.Response.ReturnCode = types.UnexpectedError
+		return &response, errors.Errorf("http response %d", res.StatusCode)
 	}
-
-	var response restserver.GetEndpointResponse
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to decode GetEndpointResponse")
-	}
-
-	if response.Response.ReturnCode == types.NotFound {
-		return nil, &EndpointStateNotFoundErr{cause: err}
+		response.Response.ReturnCode = types.UnexpectedError
+		return &response, errors.Wrap(err, "failed to decode GetEndpointResponse")
 	}
 	if response.Response.ReturnCode != 0 {
-
-		return nil, errors.New(response.Response.Message)
+		return &response, errors.New(response.Response.Message)
 	}
 
 	return &response, nil

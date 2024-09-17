@@ -960,7 +960,7 @@ func main() {
 			_ = retry.Do(func() error {
 				z.Info("starting fsnotify watcher to process missed Pod deletes")
 				logger.Printf("starting fsnotify watcher to process missed Pod deletes")
-				w, err := fsnotify.New(cnsconfig, cnsclient, cnsconfig.AsyncPodDeletePath, z)
+				w, err := fsnotify.New(cnsconfig, cnsclient, cnsconfig.AsyncPodDeletePath)
 				if err != nil {
 					z.Error("failed to create fsnotify watcher", zap.Error(err))
 					return errors.Wrap(err, "failed to create fsnotify watcher, will retry")

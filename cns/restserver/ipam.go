@@ -1173,7 +1173,7 @@ func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointI
 		} else {
 			logger.Errorf("[GetEndpointState]  Failed to retrieve state, err:%v", err)
 		}
-		return nil, errors.Wrap(err, "[GetEndpointState]  Failed to retrieve state")
+		return nil, ErrEndpointStateNotFound
 	}
 	if endpointInfo, ok := service.EndpointState[endpointID]; ok {
 		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", endpointID)

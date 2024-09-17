@@ -1135,6 +1135,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		// if stateless CNI fail to get the endpoint from CNS for any reason other than  Endpoint Not found
 		if err != nil {
 			if errors.Is(err, network.ErrConnectionFailure) {
+				logger.Info("failed to connect to CNS", zap.String("containerID", args.ContainerID), zap.Error(err))
 				addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
 				logger.Info("add containerid file for Asynch delete", zap.String("containerID", args.ContainerID), zap.Error(addErr))
 				if addErr != nil {
@@ -1156,7 +1157,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	// for when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
 	// this block is not applied to stateless CNI
-	if len(epInfos) == 0 && !plugin.nm.IsStatelessCNIMode() {
+	if len(epInfos) == 0 {
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		if !nwCfg.MultiTenancy {
 			logger.Error("Failed to query endpoint",

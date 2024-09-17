@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
@@ -455,18 +456,16 @@ func validateUpdateEndpointState(endpointID string, ifNameToIPInfoMap map[string
 // In stateless cni, container id is the endpoint id, so you can pass in either
 func (nm *networkManager) GetEndpointState(networkID, containerID string) ([]*EndpointInfo, error) {
 	endpointResponse, err := nm.CnsClient.GetEndpoint(context.TODO(), containerID)
-
 	if err != nil {
-		var connectionErr *cnsclient.ConnectionFailureErr
-		var EndpointStateNotFoundErr *cnsclient.EndpointStateNotFoundErr
-		if errors.As(err, &EndpointStateNotFoundErr) {
+		//var connectionErr *cnsclient.ConnectionFailureErr
+		//var EndpointStateNotFoundErr *cnsclient.EndpointStateNotFoundErr
+		if endpointResponse.Response.ReturnCode == types.NotFound {
 			return nil, ErrEndpointStateNotFound
 		}
-		if errors.As(err, &connectionErr) {
+		if endpointResponse.Response.ReturnCode == types.ConnectionError {
 			return nil, ErrConnectionFailure
 		}
 		return nil, ErrGetEndpointStateFailure
-
 	}
 	epInfos := cnsEndpointInfotoCNIEpInfos(endpointResponse.EndpointInfo, containerID)
 
