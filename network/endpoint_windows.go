@@ -323,7 +323,7 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 	}
 
 	// add hcnEndpoint policy for accelnet
-	if epInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+	if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC || epInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
 		endpointPolicy, err := policy.AddAccelnetPolicySetting()
 		if err != nil {
 			logger.Error("Failed to set iov endpoint policy", zap.Error(err))
