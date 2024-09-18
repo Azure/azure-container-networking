@@ -44,8 +44,8 @@ const (
 	StatusUnauthorized                     ResponseCode = 42
 	UnsupportedAPI                         ResponseCode = 43
 	FailedToAllocateBackendConfig          ResponseCode = 44
+	ConnectionError                        ResponseCode = 45
 	UnexpectedError                        ResponseCode = 99
-	ConnectionError                        ResponseCode = 404
 )
 
 // nolint:gocyclo

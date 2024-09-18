@@ -457,8 +457,6 @@ func validateUpdateEndpointState(endpointID string, ifNameToIPInfoMap map[string
 func (nm *networkManager) GetEndpointState(networkID, containerID string) ([]*EndpointInfo, error) {
 	endpointResponse, err := nm.CnsClient.GetEndpoint(context.TODO(), containerID)
 	if err != nil {
-		//var connectionErr *cnsclient.ConnectionFailureErr
-		//var EndpointStateNotFoundErr *cnsclient.EndpointStateNotFoundErr
 		if endpointResponse.Response.ReturnCode == types.NotFound {
 			return nil, ErrEndpointStateNotFound
 		}

@@ -58,6 +58,6 @@ func DeleteHNSEndpointbyID(_ string) error {
 	return nil
 }
 
-func GetHNSEndpointbyIP(_, _ []net.IPNet, _ string) (string, error) {
+func GetHNSEndpointbyIP(_, _ []net.IPNet) (string, error) {
 	return "", nil
 }

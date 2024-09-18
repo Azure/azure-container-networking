@@ -19,8 +19,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const DefaultNetworkID = "azure"
-
 type endpointManager interface {
 	ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error
 	GetEndpoint(ctx context.Context, endpointID string) (*restserver.GetEndpointResponse, error)
@@ -76,7 +74,7 @@ func (w *watcher) releaseAll(ctx context.Context) {
 		file.Close()
 		podInterfaceID := string(data)
 		// in case of stateless CNI for Windows, CNS needs to remove HNS endpoitns first
-		if isStalessCNIMode(w.cnsconfig) {
+		if isStalessCNIWindows(w.cnsconfig) {
 			logger.Printf("deleting HNS Endpoint asynchronously")
 			// remove HNS endpoint
 			if err := w.deleteEndpoint(ctx, containerID); err != nil {
@@ -235,7 +233,7 @@ func (w *watcher) deleteEndpoint(ctx context.Context, containerid string) error 
 			// TODO: the HSN client for windows needs to be refactored:
 			// remove hnsclient_linux.go and hnsclient_windows.go and instead have endpoint_linux.go and endpoint_windows.go
 			// and abstract hns changes in endpoint_windows.go
-			if hnsEndpointID, err = hnsclient.GetHNSEndpointbyIP(ipInfo.IPv4, ipInfo.IPv6, DefaultNetworkID); err != nil {
+			if hnsEndpointID, err = hnsclient.GetHNSEndpointbyIP(ipInfo.IPv4, ipInfo.IPv6); err != nil {
 				return errors.Wrap(err, "failed to find HNS endpoint with id")
 			}
 		}
@@ -248,10 +246,9 @@ func (w *watcher) deleteEndpoint(ctx context.Context, containerid string) error 
 }
 
 // isStalessCNIMode verify if the CNI is running stateless mode
-func isStalessCNIMode(cnsconfig *configuration.CNSConfig) bool {
+func isStalessCNIWindows(cnsconfig *configuration.CNSConfig) bool {
 	if !cnsconfig.InitializeFromCNI && cnsconfig.ManageEndpointState && runtime.GOOS == "windows" {
 		return true
 	}
 	return false
-
 }
