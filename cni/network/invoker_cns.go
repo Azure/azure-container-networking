@@ -169,7 +169,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		// Do we want to leverage this lint skip in other places of our code?
 		key := invoker.getInterfaceInfoKey(info.nicType, info.macAddress)
 		switch info.nicType {
-		case cns.NodeNetworkInterfaceFrontendNIC, cns.NodeNetworkInterfaceAccelnetFrontendNIC:
+		case cns.NodeNetworkInterfaceFrontendNIC:
 			// only handling single v4 PodIPInfo for NodeNetworkInterfaceFrontendNIC and AccelnetNIC at the moment, will have to update once v6 gets added
 			if !info.skipDefaultRoutes {
 				numInterfacesWithDefaultRoutes++
@@ -527,7 +527,7 @@ func addBackendNICToResult(info *IPResultInfo, addResult *IPAMAddResult, key str
 }
 
 func (invoker *CNSIPAMInvoker) getInterfaceInfoKey(nicType cns.NICType, macAddress string) string {
-	if nicType == cns.NodeNetworkInterfaceFrontendNIC || nicType == cns.BackendNIC || nicType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+	if nicType == cns.NodeNetworkInterfaceFrontendNIC || nicType == cns.BackendNIC {
 		return macAddress
 	}
 	return string(nicType)

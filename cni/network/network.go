@@ -687,7 +687,7 @@ func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 	switch opt.ifInfo.NICType {
 	case cns.InfraNIC:
 		return plugin.findMasterInterfaceBySubnet(opt.ipamAddConfig.nwCfg, &opt.ifInfo.HostSubnetPrefix)
-	case cns.NodeNetworkInterfaceFrontendNIC, cns.NodeNetworkInterfaceAccelnetFrontendNIC:
+	case cns.NodeNetworkInterfaceFrontendNIC:
 		return plugin.findInterfaceByMAC(opt.ifInfo.MacAddress.String())
 	case cns.BackendNIC:
 		// if windows swiftv2 has right network drivers, there will be an NDIS interface while the VFs are mounted
