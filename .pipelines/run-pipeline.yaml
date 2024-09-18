@@ -94,11 +94,14 @@ stages:
               name: "PrepareArtifacts"
               displayName: "Prepare Artifacts"
 
-            - task: CopyFiles@2
-              inputs:
-                sourceFolder: "output"
-                targetFolder: $(Build.ArtifactStagingDirectory)
-              condition: succeeded()
+            - publish: ${Build.ArtifactStagingDirectory)
+              artifact: drop_binaries_build
+#            - task: CopVyFiles@2
+#              inputs:
+#                sourceFolder: "output"
+#                targetFolder: $(Build.ArtifactStagingDirectory)
+#              condition: succeeded()
+
 
     - stage: containerize
       displayName: Build Images
