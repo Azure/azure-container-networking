@@ -287,7 +287,7 @@ func TestCleanupMultitenancyResources(t *testing.T) {
 				},
 				infraIPNet: &cniTypesCurr.Result{},
 				plugin: &NetPlugin{
-					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
+					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				},
 			},
 			expected: args{
@@ -298,7 +298,7 @@ func TestCleanupMultitenancyResources(t *testing.T) {
 				},
 				infraIPNet: &cniTypesCurr.Result{},
 				plugin: &NetPlugin{
-					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
+					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				},
 			},
 		},
@@ -421,7 +421,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 					IPAM:                       cni.IPAM{Type: "azure-vnet-ipam"},
 				},
 				plugin: &NetPlugin{
-					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
+					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
@@ -645,7 +645,7 @@ func TestGetMultiTenancyCNIResultUnsupportedAPI(t *testing.T) {
 					IPAM:                       cni.IPAM{Type: "azure-vnet-ipam"},
 				},
 				plugin: &NetPlugin{
-					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
+					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
@@ -785,7 +785,7 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 					IPAM:                       cni.IPAM{Type: "azure-vnet-ipam"},
 				},
 				plugin: &NetPlugin{
-					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
+					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
@@ -820,7 +820,7 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 					IPAM:                       cni.IPAM{Type: "azure-vnet-ipam"},
 				},
 				plugin: &NetPlugin{
-					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
+					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
