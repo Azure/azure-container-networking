@@ -150,6 +150,7 @@ func (nw *network) newEndpointImpl(
 	_ EndpointClient,
 	_ NamespaceClientInterface,
 	_ ipTablesClient,
+	_ dhcpClient,
 	epInfo *EndpointInfo,
 ) (*endpoint, error) {
 	if epInfo.NICType == cns.BackendNIC {
@@ -521,7 +522,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
 func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.ExecClient, _ EndpointClient, _ netio.NetIOInterface, _ NamespaceClientInterface,
-	_ ipTablesClient, ep *endpoint,
+	_ ipTablesClient, _ dhcpClient, ep *endpoint,
 ) error {
 	// endpoint deletion is not required for IB
 	if ep.NICType == cns.BackendNIC {

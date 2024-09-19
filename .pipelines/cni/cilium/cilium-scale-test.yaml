@@ -51,9 +51,26 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -ex
-                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
-                echo "Scaling up nodes"
-                az aks nodepool scale --name nodepool1 --cluster-name ${CLUSTER} --resource-group ${CLUSTER} --node-count ${NODE_COUNT_UP}
+                az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${CLUSTER}
+                current_node_count=$(az aks show --resource-group ${RESOURCE_GROUP} --name ${CLUSTER} --query agentPoolProfiles[].count -o tsv)
+                if [ $current_node_count -lt ${NODE_COUNT_UP} ]; then
+                  increments=$(((${NODE_COUNT_UP} - current_node_count + 199) / 200)) # Calculate how many increments of 200 are needed, rounding up
+                  for ((i=0; i<increments; i++)); do
+                    new_count=$((current_node_count + 200))
+                    if [ $new_count -gt ${NODE_COUNT_UP} ]; then
+                      new_count=${NODE_COUNT_UP} # Do not exceed NODE_COUNT_UP
+                    fi
+                    echo "Scaling up nodes to $new_count"
+                    az aks nodepool scale --name nodepool1 --cluster-name ${CLUSTER} --resource-group ${RESOURCE_GROUP} --node-count $new_count
+                    if [ $new_count -eq ${NODE_COUNT_UP} ]; then
+                      echo "Node count reached ${NODE_COUNT_UP}"
+                      break
+                    fi
+                    current_node_count=$new_count
+                  done
+                else
+                  echo "Node count is already at ${NODE_COUNT_UP}"
+                fi
             name: "ScaleUp"
             displayName: "Scale up Nodes"
   - stage: label_nodes

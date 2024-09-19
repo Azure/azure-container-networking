@@ -179,3 +179,4 @@ stages:
               name: $(name)
               clusterName: $(clusterName)-$(commitID)
               region: $(LOCATION)
+              svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)

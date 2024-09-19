@@ -1,0 +1,54 @@
+parameters:
+  name: ""
+  platforms: ""
+  os_versions: ""
+
+steps:
+
+  - task: AzureCLI@2
+    displayName: "Login"
+    inputs:
+      azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      inlineScript: |
+        az acr login -n $(ACR)
+
+  - script: |
+      set -e
+      make ${{ parameters.name }}-manifest-build PLATFORMS="${{ parameters.platforms }}" OS_VERSIONS="${{ parameters.os_versions }}"
+    workingDirectory: $(ACN_DIR)
+    name: manifest_build
+    displayName: Manifest Build
+    retryCountOnTaskFailure: 3
+
+  - script: |
+      set -ex
+      echo "checking XDG_RUNTIME_DIR"
+      echo $XDG_RUNTIME_DIR
+      make ${{ parameters.name }}-manifest-push
+      mkdir -p $(Build.ArtifactStagingDirectory)/images
+
+      echo "setting XDG_RUNTIME_DIR"
+      export XDG_RUNTIME_DIR=/run/user/$(id -u)
+      echo $XDG_RUNTIME_DIR
+
+      make ${{ parameters.name }}-skopeo-archive IMAGE_ARCHIVE_DIR=$(Build.ArtifactStagingDirectory)/images
+    name: manifest_push
+    displayName: Manifest Push
+    workingDirectory: $(ACN_DIR)
+    retryCountOnTaskFailure: 3
+
+  - task: AzureCLI@2
+    displayName: "Logout"
+    inputs:
+      azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      inlineScript: |
+        docker logout
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: "Add SBOM Generator tool"
+    inputs:
+      BuildDropPath: "$(Build.ArtifactStagingDirectory)"

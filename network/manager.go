@@ -86,6 +86,7 @@ type networkManager struct {
 	plClient           platform.ExecClient
 	nsClient           NamespaceClientInterface
 	iptablesClient     ipTablesClient
+	dhcpClient         dhcpClient
 	sync.Mutex
 }
 
@@ -123,7 +124,7 @@ type NetworkManager interface {
 
 // Creates a new network manager.
 func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, netioCli netio.NetIOInterface, nsc NamespaceClientInterface,
-	iptc ipTablesClient,
+	iptc ipTablesClient, dhcpc dhcpClient,
 ) (NetworkManager, error) {
 	nm := &networkManager{
 		ExternalInterfaces: make(map[string]*externalInterface),
@@ -132,6 +133,7 @@ func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, net
 		netio:              netioCli,
 		nsClient:           nsc,
 		iptablesClient:     iptc,
+		dhcpClient:         dhcpc,
 	}
 
 	return nm, nil
@@ -386,7 +388,7 @@ func (nm *networkManager) createEndpoint(cli apipaClient, networkID string, epIn
 		}
 	}
 
-	ep, err := nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, epInfo)
+	ep, err := nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, nm.dhcpClient, epInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -395,7 +397,7 @@ func (nm *networkManager) createEndpoint(cli apipaClient, networkID string, epIn
 		if err != nil {
 			logger.Error("Create endpoint failure", zap.Error(err))
 			logger.Info("Cleanup resources")
-			delErr := nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, ep.Id)
+			delErr := nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, nm.dhcpClient, ep.Id)
 			if delErr != nil {
 				logger.Error("Deleting endpoint after create endpoint failure failed with", zap.Error(delErr))
 			}
@@ -489,7 +491,7 @@ func (nm *networkManager) DeleteEndpoint(networkID, endpointID string, epInfo *E
 		return err
 	}
 
-	err = nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, endpointID)
+	err = nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, nm.dhcpClient, endpointID)
 	if err != nil {
 		return err
 	}
@@ -531,7 +533,7 @@ func (nm *networkManager) DeleteEndpointState(networkID string, epInfo *Endpoint
 	}
 	logger.Info("Deleting endpoint with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", ep.HnsId))
 
-	err := nw.deleteEndpointImpl(netlink.NewNetlink(), platform.NewExecClient(logger), nil, nil, nil, nil, ep)
+	err := nw.deleteEndpointImpl(netlink.NewNetlink(), platform.NewExecClient(logger), nil, nil, nil, nil, nil, ep)
 	if err != nil {
 		return err
 	}

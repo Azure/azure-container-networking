@@ -1057,7 +1057,7 @@ func TestUnpublishNCViaCNS(t *testing.T) {
 		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToke/" +
 		"8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
 		"/api-version/1/method/DELETE"
-	err = unpublishNCViaCNS("vnet1", "ethWebApp", deleteNetworkContainerURL)
+	err = unpublishNCViaCNS("vnet1", "ethWebApp", deleteNetworkContainerURL, []byte(`""`+"\n"))
 	if err == nil {
 		t.Fatal("Expected a bad request error due to delete network url being incorrect")
 	}
@@ -1068,7 +1068,7 @@ func TestUnpublishNCViaCNS(t *testing.T) {
 		"/machine/plugins/?comp=nmagent&NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/" +
 		"8636c99d-7861-401f-b0d3-7e5b7dc8183c8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
 		"/api-version/1/method/DELETE"
-	err = unpublishNCViaCNS("vnet1", "ethWebApp", deleteNetworkContainerURL)
+	err = unpublishNCViaCNS("vnet1", "ethWebApp", deleteNetworkContainerURL, []byte(`""`+"\n"))
 	if err == nil {
 		t.Fatal("Expected a bad request error due to create network url having more characters than permitted in auth token")
 	}
@@ -1076,9 +1076,61 @@ func TestUnpublishNCViaCNS(t *testing.T) {
 	// now actually perform the deletion:
 	deleteNetworkContainerURL = "http://" + nmagentEndpoint +
 		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1/method/DELETE"
-	err = unpublishNCViaCNS("vnet1", "ethWebApp", deleteNetworkContainerURL)
+	err = unpublishNCViaCNS("vnet1", "ethWebApp", deleteNetworkContainerURL, []byte(`""`+"\n"))
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestUnpublishViaCNSRequestBody(t *testing.T) {
+	createNetworkContainerURL := "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
+	deleteNetworkContainerURL := "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1/method/DELETE"
+	vnet := "vnet1"
+	wsProxy := fakes.WireserverProxyFake{}
+	cleanup := setWireserverProxy(svc, &wsProxy)
+	defer cleanup()
+
+	tests := []struct {
+		name         string
+		ncID         string
+		body         []byte
+		requireError bool
+	}{
+		{
+			name:         "Delete NC with invalid body",
+			ncID:         "ncID1",
+			body:         []byte(`invalid` + "\n"),
+			requireError: true,
+		},
+		{
+			name:         "Delete NC with valid non-AZR body",
+			ncID:         "ncID2",
+			body:         []byte(`""` + "\n"),
+			requireError: false,
+		},
+		{
+			name:         "Delete NC with valid AZR body",
+			ncID:         "ncID3",
+			body:         []byte(`{"azID":1,"azrEnabled":true}`),
+			requireError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			errPublish := publishNCViaCNS(vnet, tt.ncID, createNetworkContainerURL)
+			require.NoError(t, errPublish)
+			errUnpublish := unpublishNCViaCNS(vnet, tt.ncID, deleteNetworkContainerURL, tt.body)
+			if tt.requireError {
+				require.Error(t, errUnpublish)
+				require.Contains(t, errUnpublish.Error(), "error decoding json")
+			} else {
+				require.NoError(t, errUnpublish)
+			}
+		})
 	}
 }
 
@@ -1161,7 +1213,7 @@ func TestUnpublishNCViaCNS401(t *testing.T) {
 	}
 }
 
-func unpublishNCViaCNS(networkID, networkContainerID, deleteNetworkContainerURL string) error {
+func unpublishNCViaCNS(networkID, networkContainerID, deleteNetworkContainerURL string, bodyBytes []byte) error {
 	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
 
 	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
@@ -1169,7 +1221,7 @@ func unpublishNCViaCNS(networkID, networkContainerID, deleteNetworkContainerURL 
 		NetworkContainerID:                networkContainerID,
 		JoinNetworkURL:                    joinNetworkURL,
 		DeleteNetworkContainerURL:         deleteNetworkContainerURL,
-		DeleteNetworkContainerRequestBody: []byte("{}"),
+		DeleteNetworkContainerRequestBody: bodyBytes,
 	}
 
 	var body bytes.Buffer

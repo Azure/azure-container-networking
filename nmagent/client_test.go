@@ -3,9 +3,11 @@ package nmagent_test
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -805,6 +807,89 @@ func TestGetHomeAz(t *testing.T) {
 
 			if !cmp.Equal(got, test.exp) {
 				t.Error("response differs from expectation: diff:", cmp.Diff(got, test.exp))
+			}
+		})
+	}
+}
+
+func TestGetInterfaceIPInfo(t *testing.T) {
+	tests := []struct {
+		name     string
+		expURL   string
+		response nmagent.Interfaces
+		respStr  string
+	}{
+		{
+			"happy path",
+			"/machine/plugins?comp=nmagent&type=getinterfaceinfov1",
+			nmagent.Interfaces{
+				Entries: []nmagent.Interface{
+					{
+						MacAddress: nmagent.MACAddress{0x00, 0x0D, 0x3A, 0xF9, 0xDC, 0xA6},
+						IsPrimary:  true,
+						InterfaceSubnets: []nmagent.InterfaceSubnet{
+							{
+								Prefix: "10.240.0.0/16",
+								IPAddress: []nmagent.NodeIP{
+									{
+										Address:   nmagent.IPAddress(netip.AddrFrom4([4]byte{10, 240, 0, 5})),
+										IsPrimary: true,
+									},
+									{
+										Address:   nmagent.IPAddress(netip.AddrFrom4([4]byte{10, 240, 0, 6})),
+										IsPrimary: false,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"<Interfaces><Interface MacAddress=\"000D3AF9DCA6\" IsPrimary=\"true\"><IPSubnet Prefix=\"10.240.0.0/16\">" +
+				"<IPAddress Address=\"10.240.0.5\" IsPrimary=\"true\"/><IPAddress Address=\"10.240.0.6\" IsPrimary=\"false\"/>" +
+				"</IPSubnet></Interface></Interfaces>",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotURL string
+			client := nmagent.NewTestClient(&TestTripper{
+				RoundTripF: func(req *http.Request) (*http.Response, error) {
+					gotURL = req.URL.RequestURI()
+					rr := httptest.NewRecorder()
+					rr.WriteHeader(http.StatusOK)
+					err := xml.NewEncoder(rr).Encode(test.response)
+					if err != nil {
+						t.Fatal("unexpected error encoding response: err:", err)
+					}
+					return rr.Result(), nil
+				},
+			})
+
+			ctx, cancel := testContext(t)
+			defer cancel()
+
+			resp, err := client.GetInterfaceIPInfo(ctx)
+			checkErr(t, err, false)
+
+			if gotURL != test.expURL {
+				t.Error("received URL differs from expected: got:", gotURL, "exp:", test.expURL)
+			}
+
+			if got := resp; !cmp.Equal(got, test.response) {
+				t.Error("response differs from expectation: diff:", cmp.Diff(got, test.response))
+			}
+
+			var unmarshaled nmagent.Interfaces
+			err = xml.Unmarshal([]byte(test.respStr), &unmarshaled)
+			checkErr(t, err, false)
+
+			if !cmp.Equal(resp, unmarshaled) {
+				t.Error("response differs from expected decoded string: diff:", cmp.Diff(resp, unmarshaled))
 			}
 		})
 	}

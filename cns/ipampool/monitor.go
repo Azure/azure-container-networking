@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/ipampool/metrics"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/cns/types"
@@ -105,9 +106,9 @@ func (pm *Monitor) Start(ctx context.Context) error {
 		case css := <-pm.cssSource: // received an updated ClusterSubnetState
 			pm.metastate.exhausted = css.Status.Exhausted
 			logger.Printf("subnet exhausted status = %t", pm.metastate.exhausted)
-			IpamSubnetExhaustionCount.With(prometheus.Labels{
-				subnetLabel: pm.metastate.subnet, subnetCIDRLabel: pm.metastate.subnetCIDR,
-				podnetARMIDLabel: pm.metastate.subnetARMID, subnetExhaustionStateLabel: strconv.FormatBool(pm.metastate.exhausted),
+			metrics.IpamSubnetExhaustionCount.With(prometheus.Labels{
+				metrics.SubnetLabel: pm.metastate.subnet, metrics.SubnetCIDRLabel: pm.metastate.subnetCIDR,
+				metrics.PodnetARMIDLabel: pm.metastate.subnetARMID, metrics.SubnetExhaustionStateLabel: strconv.FormatBool(pm.metastate.exhausted),
 			}).Inc()
 			select {
 			default:
@@ -479,6 +480,27 @@ func (pm *Monitor) clampScaler(scaler *v1alpha.Scaler) {
 	}
 	if scaler.ReleaseThresholdPercent < scaler.RequestThresholdPercent+100 {
 		scaler.ReleaseThresholdPercent = scaler.RequestThresholdPercent + 100 //nolint:gomnd // it's a percent
+	}
+}
+
+func observeIPPoolState(state ipPoolState, meta metaState) {
+	labels := []string{meta.subnet, meta.subnetCIDR, meta.subnetARMID}
+	metrics.IpamAllocatedIPCount.WithLabelValues(labels...).Set(float64(state.allocatedToPods))
+	metrics.IpamAvailableIPCount.WithLabelValues(labels...).Set(float64(state.available))
+	metrics.IpamBatchSize.WithLabelValues(labels...).Set(float64(meta.batch))
+	metrics.IpamCurrentAvailableIPcount.WithLabelValues(labels...).Set(float64(state.currentAvailableIPs))
+	metrics.IpamExpectedAvailableIPCount.WithLabelValues(labels...).Set(float64(state.expectedAvailableIPs))
+	metrics.IpamMaxIPCount.WithLabelValues(labels...).Set(float64(meta.max))
+	metrics.IpamPendingProgramIPCount.WithLabelValues(labels...).Set(float64(state.pendingProgramming))
+	metrics.IpamPendingReleaseIPCount.WithLabelValues(labels...).Set(float64(state.pendingRelease))
+	metrics.IpamPrimaryIPCount.WithLabelValues(labels...).Set(float64(len(meta.primaryIPAddresses)))
+	metrics.IpamRequestedIPConfigCount.WithLabelValues(labels...).Set(float64(state.requestedIPs))
+	metrics.IpamSecondaryIPCount.WithLabelValues(labels...).Set(float64(state.secondaryIPs))
+	metrics.IpamTotalIPCount.WithLabelValues(labels...).Set(float64(state.secondaryIPs + int64(len(meta.primaryIPAddresses))))
+	if meta.exhausted {
+		metrics.IpamSubnetExhaustionState.WithLabelValues(labels...).Set(float64(metrics.SubnetIPExhausted))
+	} else {
+		metrics.IpamSubnetExhaustionState.WithLabelValues(labels...).Set(float64(metrics.SubnetIPNotExhausted))
 	}
 }
 

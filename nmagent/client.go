@@ -44,9 +44,8 @@ type Client struct {
 	httpClient *http.Client
 
 	// config
-	host string
-	port uint16
-
+	host      string
+	port      uint16
 	enableTLS bool
 
 	retrier interface {
@@ -282,6 +281,37 @@ func (c *Client) GetHomeAz(ctx context.Context) (AzResponse, error) {
 	}
 
 	return homeAzResponse, nil
+}
+
+// GetInterfaceIPInfo fetches the node's interface IP information from nmagent
+func (c *Client) GetInterfaceIPInfo(ctx context.Context) (Interfaces, error) {
+	req, err := c.buildRequest(ctx, &GetSecondaryIPsRequest{})
+	var out Interfaces
+
+	if err != nil {
+		return out, errors.Wrap(err, "building request")
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return out, errors.Wrap(err, "submitting request")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return out, die(resp.StatusCode, resp.Header, resp.Body, req.URL.Path)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return out, die(resp.StatusCode, resp.Header, resp.Body, req.URL.Path)
+	}
+
+	err = xml.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return out, errors.Wrap(err, "decoding response")
+	}
+
+	return out, nil
 }
 
 func die(code int, headers http.Header, body io.ReadCloser, path string) error {

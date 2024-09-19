@@ -1,0 +1,47 @@
+parameters:
+  os: linux
+  continueOnError: true
+
+jobs:
+  - job: ${{ parameters.name }}
+    displayName: Cluster - ${{ parameters.name }}
+    pool:
+      isCustom: true
+      type: linux
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+      ob_git_checkout: true
+    steps:
+      - checkout: ACNReviewChanges
+        clean: true
+
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+          scriptLocation: "inlineScript"
+          scriptType: "bash"
+          workingDirectory: $(ACN_DIR)
+          addSpnToEnvironment: true
+          inlineScript: |
+            set -e
+            echo "Check az version"
+            az version
+            if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
+            then
+              echo "Install az cli extension preview"
+              az extension add --name aks-preview
+              az extension update --name aks-preview
+            fi
+            mkdir -p ~/.kube/
+            make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
+
+            make -C ./hack/aks ${{ parameters.clusterType }} \
+            AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) \
+            CLUSTER=${{ parameters.clusterName }} \
+            VM_SIZE=${{ parameters.vmSize }} OS=${{parameters.os}}
+
+            echo "Cluster successfully created"
+        displayName: Cluster - ${{ parameters.clusterType }}
+        continueOnError: ${{ parameters.continueOnError }}
+

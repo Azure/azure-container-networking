@@ -1,0 +1,199 @@
+parameters:
+  name: ""
+  displayName: ""
+  clusterType: ""
+  clusterName: ""
+  vmSize: ""
+  k8sVersion: ""
+  dependsOn: ""
+
+stages:
+  - stage: ${{ parameters.clusterName }}
+    displayName: Create Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      ACN_DIR: $(Build.SourcesDirectory)
+    jobs:
+      - template: ../../templates/create-cluster.jobs.yaml@ACNTools
+        parameters:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
+          k8sVersion: ${{ parameters.k8sVersion }}
+          dependsOn: ${{ parameters.dependsOn }}
+          region: $(REGION_AKS_CLUSTER_TEST)
+
+  - stage: ${{ parameters.name }}
+    displayName: E2E - ${{ parameters.displayName }}
+    dependsOn:
+    - setup
+    - publish
+    - ${{ parameters.clusterName }}
+    variables:
+      ACN_DIR: $(Build.SourcesDirectory)
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+      GOBIN: "$(GOPATH)/bin" # Go binaries path
+      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+    jobs:
+      - job: ${{ parameters.name }}_linux
+        displayName: Azure CNI Overlay Test Suite | Linux - (${{ parameters.name }})
+        timeoutInMinutes: 120
+        pool:
+          isCustom: true
+          type: linux
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
+        steps:
+          - checkout: ACNReviewChanges
+            clean: true
+
+          - template: azure-cni-overlay-e2e.steps.yaml@ACNTools
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: linux
+              scaleup: 100
+
+      - job: windows_nodepool
+        displayName: Add Windows Nodepool
+        dependsOn: ${{ parameters.name }}_linux
+        pool:
+          isCustom: true
+          type: linux
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
+        steps:
+          - checkout: ACNReviewChanges
+            clean: true
+
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              workingDirectory: $(ACN_DIR)
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -e
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}-$(commitID) VM_SIZE_WIN=${{ parameters.vmSize }}
+                echo "Windows node are successfully added to v4 Overlay Cluster"
+                kubectl cluster-info
+                kubectl get node -owide
+                kubectl get po -owide -A
+            name: "Add_Windows_Node"
+            displayName: "Add windows node on v4 overlay cluster"
+
+
+      - job: ${{ parameters.name }}_windows
+        displayName: Azure CNI Overlay Test Suite | Windows - (${{ parameters.name }})
+        timeoutInMinutes: 120
+        dependsOn: windows_nodepool
+        pool:
+          isCustom: true
+          type: linux
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
+        steps:
+          - checkout: ACNReviewChanges
+            clean: true
+
+          - template: azure-cni-overlay-e2e.steps.yaml@ACNTools
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: windows
+              scaleup: 50
+
+      - template: ../../cni/k8s-e2e/k8s-e2e.jobs.yaml@ACNTools
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          dependsOn: ${{ parameters.name }}_windows
+          datapath: true
+          dns: true
+          portforward: true
+          hostport: true
+          service: true
+
+      - template: ../../cni/k8s-e2e/k8s-e2e.jobs.yaml@ACNTools
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: windows
+          dependsOn: cni_${{ parameters.os }}
+          datapath: true
+          dns: true
+          portforward: true
+          hostport: true
+          service: true
+          hybridWin: true
+
+      - job: failedE2ELogs_linux
+        displayName: "Linux Failure Logs"
+        dependsOn:
+          - ${{ parameters.name }}_linux
+          - CNI_linux
+        condition: failed()
+        pool:
+          isCustom: true
+          type: linux
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        variables:
+          ob_outputDirectory: $(ACN_DIR)/${{ parameters.clusterName }}-$(commitID)_FailedE2ELogs_linux_Attempt_#$(System.StageAttempt)
+          ob_git_checkout: true
+        steps:
+          - checkout: ACNReviewChanges
+            clean: true
+
+          - template: ../../templates/log-template.steps.yaml@ACNTools
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: linux
+              cni: cniv2
+
+      - job: failedE2ELogs_windows
+        displayName: "Windows Failure Logs"
+        dependsOn:
+          - ${{ parameters.name }}_windows
+          - CNI_windows
+        condition: failed()
+        pool:
+          isCustom: true
+          type: linux
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        variables:
+          ob_outputDirectory: $(ACN_DIR)/${{ parameters.clusterName }}-$(commitID)_FailedE2ELogs_windows_Attempt_#$(System.StageAttempt)
+          ob_git_checkout: true
+        steps:
+          - checkout: ACNReviewChanges
+            clean: true
+
+          - template: ../../templates/log-template.steps.yaml@ACNTools
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: windows
+              cni: cniv2
+

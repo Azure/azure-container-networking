@@ -1,0 +1,52 @@
+parameters:
+- name: region
+  type: string
+
+- name: project_select
+  values:
+    - cni
+
+- name: project_config
+  default: 
+    - swift-byocni-nokubeproxy-up
+    - overlay-byocni-nokubeproxy-up
+    - dualstack-byocni-nokubeproxy-up
+    - overlay-byocni-nokubeproxy-up
+    - overlay-byocni-up
+    - swift-byocni-up
+    - vnetscale-swift-byocni-up
+    - linux-cniv1-up
+    - windows-cniv1-up
+    - dualstack-overlay-byocni-up
+    - swiftv2-multitenancy-cluster-up
+
+steps:
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+    scriptLocation: "inlineScript"
+    scriptType: "bash"
+    workingDirectory: $(ACN_DIR)
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -e
+      echo "Check az version"
+      az version
+      if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
+      then
+        echo "Install az cli extension preview"
+        az extension add --name aks-preview
+        az extension update --name aks-preview
+      fi
+      mkdir -p ~/.kube/
+      make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
+
+      make -C ./hack/aks ${{ parameters.clusterType }} \
+      AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) \
+      CLUSTER=${{ parameters.clusterName }} \
+      VM_SIZE=${{ parameters.vmSize }} OS=${{parameters.os}} \
+
+      echo "Cluster successfully created"
+  displayName: Multitenant Cluster - ${{ parameters.clusterType }}
+  continueOnError: ${{ parameters.continueOnError }}
+

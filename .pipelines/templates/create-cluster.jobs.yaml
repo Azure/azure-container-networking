@@ -1,0 +1,58 @@
+parameters:
+  name: ""
+  displayName: ""
+  clusterType: ""
+  clusterName: "" # Recommended to pass in unique identifier
+  vmSize: ""
+  vmSizeWin: ""
+  k8sVersion: ""
+  osSkuWin: "Windows2022" # Currently we only support Windows2022
+  dependsOn: ""
+  region: ""
+  os: linux
+
+jobs:
+  - job: ${{ parameters.name }}
+    displayName: Cluster - ${{ parameters.name }}
+    pool:
+      isCustom: true
+      type: linux
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+      ob_git_checkout: true
+    steps:
+      - checkout: ACNReviewChanges
+        clean: true
+
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptLocation: "inlineScript"
+          scriptType: "bash"
+          workingDirectory: $(ACN_DIR)
+          addSpnToEnvironment: true
+          inlineScript: |
+            set -e
+            echo "Check az version"
+            az version
+            if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
+            then
+              echo "Install az cli extension preview"
+              az extension add --name aks-preview
+              az extension update --name aks-preview
+            fi
+            mkdir -p ~/.kube/
+            make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
+
+            make -C ./hack/aks ${{ parameters.clusterType }} \
+            AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
+            CLUSTER=${{ parameters.clusterName }} \
+            VM_SIZE=${{ parameters.vmSize }} VM_SIZE_WIN=${{ parameters.vmSizeWin }} \
+            OS_SKU_WIN=${{ parameters.osSkuWin }} OS=${{parameters.os}} \
+            WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD}
+
+            echo "Cluster successfully created"
+        displayName: Cluster - ${{ parameters.clusterType }}
+        continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}
+

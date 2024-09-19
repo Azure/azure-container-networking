@@ -536,3 +536,29 @@ func (g *GetHomeAzRequest) Path() string {
 func (g *GetHomeAzRequest) Validate() error {
 	return nil
 }
+
+var _ Request = &GetSecondaryIPsRequest{}
+
+type GetSecondaryIPsRequest struct{}
+
+// Body is a no-op method to satisfy the Request interface while indicating
+// that there is no body for a GetSecondaryIPsRequest Request.
+func (g *GetSecondaryIPsRequest) Body() (io.Reader, error) {
+	return nil, nil
+}
+
+// Method indicates that GetSecondaryIPsRequest requests are GET requests.
+func (g *GetSecondaryIPsRequest) Method() string {
+	return http.MethodGet
+}
+
+// Path returns the necessary URI path for invoking a GetSecondaryIPsRequest request.
+func (g *GetSecondaryIPsRequest) Path() string {
+	return "getinterfaceinfov1"
+}
+
+// Validate is a no-op method because parameters are hard coded in the path,
+// no customization needed.
+func (g *GetSecondaryIPsRequest) Validate() error {
+	return nil
+}

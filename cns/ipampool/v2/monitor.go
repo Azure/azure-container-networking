@@ -36,28 +36,30 @@ type scaler struct {
 }
 
 type Monitor struct {
-	z            *zap.Logger
-	scaler       scaler
-	nnccli       nodeNetworkConfigSpecUpdater
-	store        ipStateStore
-	demand       int64
-	request      int64
-	demandSource <-chan int
-	cssSource    <-chan v1alpha1.ClusterSubnetState
-	nncSource    <-chan v1alpha.NodeNetworkConfig
-	started      chan interface{}
-	once         sync.Once
+	z                     *zap.Logger
+	scaler                scaler
+	nnccli                nodeNetworkConfigSpecUpdater
+	store                 ipStateStore
+	demand                int64
+	request               int64
+	demandSource          <-chan int
+	cssSource             <-chan v1alpha1.ClusterSubnetState
+	nncSource             <-chan v1alpha.NodeNetworkConfig
+	started               chan interface{}
+	once                  sync.Once
+	legacyMetricsObserver func() error
 }
 
 func NewMonitor(z *zap.Logger, store ipStateStore, nnccli nodeNetworkConfigSpecUpdater, demandSource <-chan int, nncSource <-chan v1alpha.NodeNetworkConfig, cssSource <-chan v1alpha1.ClusterSubnetState) *Monitor { //nolint:lll // it's fine
 	return &Monitor{
-		z:            z.With(zap.String("component", "ipam-pool-monitor")),
-		store:        store,
-		nnccli:       nnccli,
-		demandSource: demandSource,
-		cssSource:    cssSource,
-		nncSource:    nncSource,
-		started:      make(chan interface{}),
+		z:                     z.With(zap.String("component", "ipam-pool-monitor")),
+		store:                 store,
+		nnccli:                nnccli,
+		demandSource:          demandSource,
+		cssSource:             cssSource,
+		nncSource:             nncSource,
+		started:               make(chan interface{}),
+		legacyMetricsObserver: func() error { return nil },
 	}
 }
 
@@ -97,6 +99,9 @@ func (pm *Monitor) Start(ctx context.Context) error {
 		// if control has flowed through the select(s) to this point, we can now reconcile.
 		if err := pm.reconcile(ctx); err != nil {
 			pm.z.Error("reconcile failed", zap.Error(err))
+		}
+		if err := pm.legacyMetricsObserver(); err != nil {
+			pm.z.Error("legacy metrics observer failed", zap.Error(err))
 		}
 	}
 }
@@ -144,6 +149,10 @@ func (pm *Monitor) buildNNCSpec(request int64) v1alpha.NodeNetworkConfigSpec {
 		spec.IPsNotInUse[i] = pendingReleaseIPs[i].ID
 	}
 	return spec
+}
+
+func (pm *Monitor) WithLegacyMetricsObserver(observer func() error) {
+	pm.legacyMetricsObserver = observer
 }
 
 // calculateTargetIPCountOrMax calculates the target IP count request

@@ -107,7 +107,8 @@ func TestDeleteEndpointImplHnsV2ForIB(t *testing.T) {
 	}
 
 	mockCli := NewMockEndpointClient(nil)
-	err := nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &ep)
+	err := nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli,
+		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, &ep)
 	if err != nil {
 		t.Fatal("endpoint deletion for IB is executed")
 	}
@@ -134,7 +135,8 @@ func TestDeleteEndpointImplHnsV2WithEmptyHNSID(t *testing.T) {
 
 	// should return nil because HnsID is empty
 	mockCli := NewMockEndpointClient(nil)
-	err := nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &ep)
+	err := nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli,
+		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, &ep)
 	if err != nil {
 		t.Fatal("endpoint deletion gets executed")
 	}
@@ -492,7 +494,7 @@ func TestNewEndpointImplHnsv2ForIBHappyPath(t *testing.T) {
 
 	// Happy Path
 	endpoint, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), epInfo)
+		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, epInfo)
 
 	if endpoint != nil || err != nil {
 		t.Fatalf("Endpoint is created for IB due to %v", err)
@@ -522,7 +524,7 @@ func TestNewEndpointImplHnsv2ForIBUnHappyPath(t *testing.T) {
 
 	// Set UnHappy Path
 	_, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(true),
-		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), epInfo)
+		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, epInfo)
 
 	if err == nil {
 		t.Fatal("Failed to test Endpoint creation for IB with unhappy path")
@@ -562,7 +564,8 @@ func TestCreateAndDeleteEndpointImplHnsv2ForDelegatedHappyPath(t *testing.T) {
 	}
 
 	mockCli := NewMockEndpointClient(nil)
-	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), ep)
+	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli,
+		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, ep)
 	if err != nil {
 		t.Fatalf("Failed to delete endpoint for Delegated NIC due to %v", err)
 	}

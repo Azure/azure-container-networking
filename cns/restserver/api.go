@@ -4,6 +4,7 @@
 package restserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 )
 
@@ -1029,7 +1031,28 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 
 	ctx := r.Context()
 
-	if !service.isNetworkJoined(req.NetworkID) {
+	var unpublishBody nmagent.DeleteContainerRequest
+	var azrNC bool
+	err = json.Unmarshal(req.DeleteNetworkContainerRequestBody, &unpublishBody)
+	if err != nil {
+		// If the body contains only `""\n`, it is non-AZR NC
+		// In this case, we should not return an error
+		// However, if the body is not `""\n`, it is invalid and therefore, we must return an error
+		// []byte{34, 34, 10} here represents []byte(`""`+"\n")
+		if !bytes.Equal(req.DeleteNetworkContainerRequestBody, []byte{34, 34, 10}) {
+			http.Error(w, fmt.Sprintf("could not unmarshal delete network container body: %v", err), http.StatusBadRequest)
+			return
+		}
+	} else {
+		// If unmarshalling was successful, it is an AZR NC
+		azrNC = true
+	}
+
+	/* For AZR scenarios, if NMAgent is restarted, it loses state and does not know what VNETs to subscribe to.
+	As it no longer has VNET state, delete nc calls would fail. We need to add join VNET call for all AZR
+	nc unpublish calls just like publish nc calls.
+	*/
+	if azrNC || !service.isNetworkJoined(req.NetworkID) {
 		joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID) //nolint:govet // ok to shadow
 		if err != nil {
 			resp := cns.UnpublishNetworkContainerResponse{
@@ -1062,7 +1085,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		}
 
 		service.setNetworkStateJoined(req.NetworkID)
-		logger.Printf("[Azure-CNS] joined vnet %s during nc %s unpublish. wireserver response: %v", req.NetworkID, req.NetworkContainerID, string(joinBytes))
+		logger.Printf("[Azure-CNS] joined vnet %s during nc %s unpublish. AZREnabled: %t, wireserver response: %v", req.NetworkID, req.NetworkContainerID, unpublishBody.AZREnabled, string(joinBytes))
 	}
 
 	publishResp, err := service.wsproxy.UnpublishNC(ctx, ncParams, req.DeleteNetworkContainerRequestBody)
