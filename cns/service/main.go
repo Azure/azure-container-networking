@@ -651,7 +651,10 @@ func main() {
 		return
 	}
 
-	if cnsconfig.ChannelMode == cns.Managed {
+	// copy ChannelMode from cnsconfig to HTTPRemoteRestService config
+	if cnsconfig.ChannelMode == cns.Direct {
+		config.ChannelMode = cns.Direct
+	} else if cnsconfig.ChannelMode == cns.Managed {
 		config.ChannelMode = cns.Managed
 		privateEndpoint = cnsconfig.ManagedSettings.PrivateEndpoint
 		infravnet = cnsconfig.ManagedSettings.InfrastructureNetworkID
