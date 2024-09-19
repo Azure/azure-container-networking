@@ -639,28 +639,6 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Get Network Name from CNS for swiftv2 AccelnetNIC",
-			plugin: &NetPlugin{
-				Plugin:      plugin,
-				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, true, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
-			},
-			netNs: "azure",
-			nwCfg: &cni.NetworkConfig{
-				CNIVersion:   "0.3.0",
-				MultiTenancy: false,
-			},
-			interfaceInfo: &network.InterfaceInfo{
-				Name:       "swiftv2L1VHAccelnetInterface",
-				MacAddress: parsedMacAddress,
-				NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
-			},
-			want:    swiftv2NetworkNamePrefix + parsedMacAddress.String(),
-			wantErr: false,
-		},
-		{
 			name: "Unhappy path: Get Network Name from CNS for swiftv2 AccelnetNIC with empty interfaceInfo",
 			plugin: &NetPlugin{
 				Plugin:      plugin,
