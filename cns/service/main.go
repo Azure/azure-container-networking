@@ -960,7 +960,14 @@ func main() {
 			_ = retry.Do(func() error {
 				z.Info("starting fsnotify watcher to process missed Pod deletes")
 				logger.Printf("starting fsnotify watcher to process missed Pod deletes")
-				w, err := fsnotify.New(cnsconfig, cnsclient, cnsconfig.AsyncPodDeletePath)
+				var endpointCleanup fsnotify.ReleaseIPsClient
+				if isStalessCNIWindows(cnsconfig) {
+					endpointCleanup = hnsclient.NewEndpointManager(cnsclient)
+
+				} else {
+					endpointCleanup = cnsclient
+				}
+				w, err := fsnotify.New(endpointCleanup, cnsconfig.AsyncPodDeletePath, z)
 				if err != nil {
 					z.Error("failed to create fsnotify watcher", zap.Error(err))
 					return errors.Wrap(err, "failed to create fsnotify watcher, will retry")
@@ -1538,4 +1545,12 @@ func PopulateCNSEndpointState(endpointStateStore store.KeyValueStore) error {
 		return fmt.Errorf("failed to write endpoint state to store: %w", err)
 	}
 	return nil
+}
+
+// isStalessCNIMode verify if the CNI is running stateless mode
+func isStalessCNIWindows(cnsconfig *configuration.CNSConfig) bool {
+	if !cnsconfig.InitializeFromCNI && cnsconfig.ManageEndpointState && runtime.GOOS == "windows" {
+		return true
+	}
+	return false
 }

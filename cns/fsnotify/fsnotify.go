@@ -5,45 +5,41 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"runtime"
 	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/configuration"
-	"github.com/Azure/azure-container-networking/cns/hnsclient"
-	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
-type endpointManager interface {
+type ReleaseIPsClient interface {
 	ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error
-	GetEndpoint(ctx context.Context, endpointID string) (*restserver.GetEndpointResponse, error)
 }
 
 type watcher struct {
-	cli           endpointManager
-	path          string
+	cli  ReleaseIPsClient
+	path string
+	log  *zap.Logger
+
 	pendingDelete map[string]struct{}
 	lock          sync.Mutex
-	cnsconfig     *configuration.CNSConfig
 }
 
 // Create the AsyncDelete watcher.
-func New(cnsconfig *configuration.CNSConfig, cli endpointManager, path string) (*watcher, error) { //nolint
+func New(cli ReleaseIPsClient, path string, logger *zap.Logger) (*watcher, error) { //nolint
 	// Add directory where intended deletes are kept
 	if err := os.Mkdir(path, 0o755); err != nil && !errors.Is(err, fs.ErrExist) { //nolint
-		logger.Errorf("error making directory %s , %s", path, err.Error())
+		logger.Error("error making directory", zap.String("path", path), zap.Error(err))
 		return nil, errors.Wrapf(err, "failed to create dir %s", path)
 	}
 	return &watcher{
 		cli:           cli,
 		path:          path,
+		log:           logger,
 		pendingDelete: make(map[string]struct{}),
-		cnsconfig:     cnsconfig,
 	}, nil
 }
 
@@ -59,38 +55,29 @@ func (w *watcher) releaseAll(ctx context.Context) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	for containerID := range w.pendingDelete {
-		logger.Printf("deleting Endpoint asynchronously")
 		// read file contents
 		filepath := w.path + "/" + containerID
 		file, err := os.Open(filepath)
 		if err != nil {
-			logger.Errorf("failed to open file %s", err.Error())
+			w.log.Error("failed to open file", zap.Error(err))
 		}
 
 		data, errReadingFile := io.ReadAll(file)
 		if errReadingFile != nil {
-			logger.Errorf("failed to read file content %s", errReadingFile)
+			w.log.Error("failed to read file content", zap.Error(errReadingFile))
 		}
 		file.Close()
 		podInterfaceID := string(data)
-		// in case of stateless CNI for Windows, CNS needs to remove HNS endpoitns first
-		if isStalessCNIWindows(w.cnsconfig) {
-			logger.Printf("deleting HNS Endpoint asynchronously")
-			// remove HNS endpoint
-			if err := w.deleteEndpoint(ctx, containerID); err != nil {
-				logger.Errorf("failed to remove HNS endpoint %s", err.Error())
-				continue
-			}
-		}
-		logger.Printf("releasing IP for missed delete: podInterfaceID :%s containerID:%s", podInterfaceID, containerID)
+
+		w.log.Info("releasing IP for missed delete", zap.String("podInterfaceID", podInterfaceID), zap.String("containerID", containerID))
 		if err := w.releaseIP(ctx, podInterfaceID, containerID); err != nil {
-			logger.Errorf("failed to release IP for missed delete: podInterfaceID :%s containerID:%s", podInterfaceID, containerID)
+			w.log.Error("failed to release IP for missed delete", zap.String("containerID", containerID), zap.Error(err))
 			continue
 		}
-		logger.Printf("successfully released IP for missed delete: podInterfaceID :%s containerID:%s", podInterfaceID, containerID)
+		w.log.Info("successfully released IP for missed delete", zap.String("containerID", containerID))
 		delete(w.pendingDelete, containerID)
 		if err := removeFile(containerID, w.path); err != nil {
-			logger.Errorf("failed to remove file for missed delete %s", err.Error())
+			w.log.Error("failed to remove file for missed delete", zap.Error(err))
 		}
 	}
 }
@@ -109,7 +96,7 @@ func (w *watcher) watchPendingDelete(ctx context.Context) error {
 			if n == 0 {
 				continue
 			}
-			logger.Printf("processing pending missed deletes, count: %v", n)
+			w.log.Info("processing pending missed deletes", zap.Int("count", n))
 			w.releaseAll(ctx)
 		}
 	}
@@ -130,28 +117,28 @@ func (w *watcher) watchFS(ctx context.Context) error {
 	// Start watching the directory, so that we don't miss any events.
 	err = watcher.Add(w.path)
 	if err != nil {
-		logger.Errorf("failed to add path %s to fsnotify watcher %s", w.path, err.Error())
+		w.log.Error("failed to add path to fsnotify watcher", zap.String("path", w.path), zap.Error(err))
 		return errors.Wrap(err, "failed to add path to fsnotify watcher")
 	}
 	// List the directory and creates synthetic events for any existing items.
-	logger.Printf("listing directory:%s", w.path)
+	w.log.Info("listing directory", zap.String("path", w.path))
 	dirContents, err := os.ReadDir(w.path)
 	if err != nil {
-		logger.Errorf("error reading deleteID directory %s, %s", w.path, err.Error())
+		w.log.Error("error reading deleteID directory", zap.String("path", w.path), zap.Error(err))
 		return errors.Wrapf(err, "failed to read %s", w.path)
 	}
 	if len(dirContents) == 0 {
-		logger.Printf("no missed deletes found")
+		w.log.Info("no missed deletes found")
 	}
 	w.lock.Lock()
 	for _, file := range dirContents {
-		logger.Printf("adding missed delete from file %s", file.Name())
+		w.log.Info("adding missed delete from file", zap.String("name", file.Name()))
 		w.pendingDelete[file.Name()] = struct{}{}
 	}
 	w.lock.Unlock()
 
 	// Start listening for events.
-	logger.Printf("listening for events from fsnotify watcher")
+	w.log.Info("listening for events from fsnotify watcher")
 	for {
 		select {
 		case <-ctx.Done():
@@ -164,12 +151,12 @@ func (w *watcher) watchFS(ctx context.Context) error {
 				// discard any event that is not a file Create
 				continue
 			}
-			logger.Printf("received create event %s", event.Name)
+			w.log.Info("received create event", zap.String("event", event.Name))
 			w.lock.Lock()
 			w.pendingDelete[event.Name] = struct{}{}
 			w.lock.Unlock()
 		case watcherErr := <-watcher.Errors:
-			logger.Errorf("fsnotify watcher error %s", watcherErr.Error())
+			w.log.Error("fsnotify watcher error", zap.Error(watcherErr))
 		}
 	}
 }
@@ -218,37 +205,4 @@ func (w *watcher) releaseIP(ctx context.Context, podInterfaceID, containerID str
 		InfraContainerID: containerID,
 	}
 	return errors.Wrap(w.cli.ReleaseIPs(ctx, *ipconfigreq), "failed to release IP from CNS")
-}
-
-// call GetEndpoint API to get the state and then remove assiciated HNS
-func (w *watcher) deleteEndpoint(ctx context.Context, containerid string) error {
-	endpointResponse, err := w.cli.GetEndpoint(ctx, containerid)
-	if err != nil {
-		return errors.Wrap(err, "failed to read the endpoint from CNS state")
-	}
-	for _, ipInfo := range endpointResponse.EndpointInfo.IfnameToIPMap {
-		hnsEndpointID := ipInfo.HnsEndpointID
-		// we need to get the HNSENdpoint via the IP address if the HNSEndpointID is not present in the statefile
-		if ipInfo.HnsEndpointID == "" {
-			// TODO: the HSN client for windows needs to be refactored:
-			// remove hnsclient_linux.go and hnsclient_windows.go and instead have endpoint_linux.go and endpoint_windows.go
-			// and abstract hns changes in endpoint_windows.go
-			if hnsEndpointID, err = hnsclient.GetHNSEndpointbyIP(ipInfo.IPv4, ipInfo.IPv6); err != nil {
-				return errors.Wrap(err, "failed to find HNS endpoint with id")
-			}
-		}
-		logger.Printf("deleting HNS Endpoint with id %v", hnsEndpointID)
-		if err := hnsclient.DeleteHNSEndpointbyID(hnsEndpointID); err != nil {
-			return errors.Wrap(err, "failed to delete HNS endpoint with id "+ipInfo.HnsEndpointID)
-		}
-	}
-	return nil
-}
-
-// isStalessCNIMode verify if the CNI is running stateless mode
-func isStalessCNIWindows(cnsconfig *configuration.CNSConfig) bool {
-	if !cnsconfig.InitializeFromCNI && cnsconfig.ManageEndpointState && runtime.GOOS == "windows" {
-		return true
-	}
-	return false
 }
