@@ -9,7 +9,7 @@ AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v
 
 # overrideable defaults
 AUTOUPGRADE     ?= patch
-K8S_VER         ?= 1.28
+K8S_VER         ?= 1.30
 NODE_COUNT      ?= 2
 NODE_COUNT_WIN	?= $(NODE_COUNT)
 NODEUPGRADE     ?= NodeImage
@@ -237,7 +237,7 @@ swiftv2-multitenancy-cluster-up: rg-up
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
-		--kubernetes-version 1.28 \
+		--kubernetes-version $(K8S_VER) \
 		--nodepool-name "mtapool" \
 		--node-vm-size $(VM_SIZE) \
 		--node-count 2 \
