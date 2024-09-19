@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/endpointmanager"
 	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/cns/grpc"
 	"github.com/Azure/azure-container-networking/cns/healthserver"
@@ -961,9 +962,9 @@ func main() {
 				z.Info("starting fsnotify watcher to process missed Pod deletes")
 				logger.Printf("starting fsnotify watcher to process missed Pod deletes")
 				var endpointCleanup fsnotify.ReleaseIPsClient
+				// using endpointmanager implmentation for stateless CNI sceanrio to remove HNS endpoint alongside the IPs
 				if isStalessCNIWindows(cnsconfig) {
-					endpointCleanup = hnsclient.NewEndpointManager(cnsclient)
-
+					endpointCleanup = endpointmanager.WithPlatformReleaseIPsManager(cnsclient)
 				} else {
 					endpointCleanup = cnsclient
 				}
