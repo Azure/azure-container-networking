@@ -961,12 +961,10 @@ func main() {
 			_ = retry.Do(func() error {
 				z.Info("starting fsnotify watcher to process missed Pod deletes")
 				logger.Printf("starting fsnotify watcher to process missed Pod deletes")
-				var endpointCleanup fsnotify.ReleaseIPsClient
+				var endpointCleanup fsnotify.ReleaseIPsClient = cnsclient
 				// using endpointmanager implmentation for stateless CNI sceanrio to remove HNS endpoint alongside the IPs
 				if isStalessCNIWindows(cnsconfig) {
 					endpointCleanup = endpointmanager.WithPlatformReleaseIPsManager(cnsclient)
-				} else {
-					endpointCleanup = cnsclient
 				}
 				w, err := fsnotify.New(endpointCleanup, cnsconfig.AsyncPodDeletePath, z)
 				if err != nil {
