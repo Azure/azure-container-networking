@@ -963,7 +963,7 @@ func main() {
 				logger.Printf("starting fsnotify watcher to process missed Pod deletes")
 				var endpointCleanup fsnotify.ReleaseIPsClient = cnsclient
 				// using endpointmanager implmentation for stateless CNI sceanrio to remove HNS endpoint alongside the IPs
-				if isStalessCNIWindows(cnsconfig) {
+				if cnsconfig.IsStalessCNIWindows() {
 					endpointCleanup = endpointmanager.WithPlatformReleaseIPsManager(cnsclient)
 				}
 				w, err := fsnotify.New(endpointCleanup, cnsconfig.AsyncPodDeletePath, z)
@@ -1544,12 +1544,4 @@ func PopulateCNSEndpointState(endpointStateStore store.KeyValueStore) error {
 		return fmt.Errorf("failed to write endpoint state to store: %w", err)
 	}
 	return nil
-}
-
-// isStalessCNIMode verify if the CNI is running stateless mode
-func isStalessCNIWindows(cnsconfig *configuration.CNSConfig) bool {
-	if !cnsconfig.InitializeFromCNI && cnsconfig.ManageEndpointState && runtime.GOOS == "windows" {
-		return true
-	}
-	return false
 }
