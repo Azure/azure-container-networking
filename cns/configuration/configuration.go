@@ -235,8 +235,5 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 
 // isStalessCNIMode verify if the CNI is running stateless mode
 func (cnsconfig *CNSConfig) IsStalessCNIWindows() bool {
-	if !cnsconfig.InitializeFromCNI && cnsconfig.ManageEndpointState && runtime.GOOS == "windows" {
-		return true
-	}
-	return false
+	return !cnsconfig.InitializeFromCNI && cnsconfig.ManageEndpointState && runtime.GOOS == "windows"
 }
