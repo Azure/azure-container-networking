@@ -568,3 +568,16 @@ func TestNCVersionRequestValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestGetSecondaryIPsRequest(t *testing.T) {
+	const exp string = "getinterfaceinfov1"
+	req := nmagent.GetSecondaryIPsRequest{}
+
+	if err := req.Validate(); err != nil {
+		t.Error("Validation failed on GetSecondaryIpsRequest ", req)
+	}
+
+	if req.Path() != exp {
+		t.Error("unexpected path: exp:", exp, "got:", req.Path())
+	}
+}
