@@ -40,3 +40,26 @@ type NCVersionList struct {
 type AzResponse struct {
 	HomeAz uint `json:"homeAz"`
 }
+
+type NodeIP struct {
+	Address   IPAddress `xml:"Address,attr"`
+	IsPrimary bool      `xml:"IsPrimary,attr"`
+}
+
+type InterfaceSubnet struct {
+	IPAddress []NodeIP `xml:"IPAddress"`
+	Prefix    string   `xml:"Prefix,attr"`
+}
+
+type Interface struct {
+	InterfaceSubnets []InterfaceSubnet `xml:"IPSubnet"`
+	MacAddress       MACAddress        `xml:"MacAddress,attr"`
+	IsPrimary        bool              `xml:"IsPrimary,attr"`
+}
+
+// Response from NMAgent for getinterfaceinfov1 (interface IP information)
+// If we change this name, we need to tell the XML encoder to look for
+// "Interfaces" in the respose.
+type Interfaces struct {
+	Entries []Interface `xml:"Interface"`
+}

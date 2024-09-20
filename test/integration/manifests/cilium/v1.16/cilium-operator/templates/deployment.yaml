@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cilium-operator
+  namespace: kube-system
+  labels:
+    io.cilium/app: operator
+    name: cilium-operator
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      io.cilium/app: operator
+      name: cilium-operator
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        prometheus.io/port: "9963"
+        prometheus.io/scrape: "true"
+      labels:
+        io.cilium/app: operator
+        name: cilium-operator
+        kubernetes.azure.com/ebpf-dataplane: cilium
+    spec:
+      containers:
+      - name: cilium-operator
+        image: $CILIUM_IMAGE_REGISTRY/cilium/operator-generic:$CILIUM_VERSION_TAG
+        imagePullPolicy: IfNotPresent
+        command:
+        - cilium-operator-generic
+        args:
+        - --config-dir=/tmp/cilium/config-map
+        - --debug=$(CILIUM_DEBUG)
+        - --identity-gc-interval=0m20s
+        - --identity-heartbeat-timeout=0m20s
+        env:
+        - name: K8S_NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: CILIUM_K8S_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: CILIUM_DEBUG
+          valueFrom:
+            configMapKeyRef:
+              key: debug
+              name: cilium-config
+              optional: true
+        ports:
+        - name: prometheus
+          containerPort: 9963
+          hostPort: 9963
+          protocol: TCP
+        securityContext:
+          seLinuxOptions:
+            level: 's0'
+            # Running with spc_t since we have removed the privileged mode.
+            # Users can change it to a different type as long as they have the
+            # type available on the system.
+            type: 'spc_t'
+          capabilities:
+            add:
+              # Use to set socket permission
+              - CHOWN
+              # Used to terminate envoy child process
+              - KILL
+              # Used since cilium modifies routing tables, etc...
+              - NET_ADMIN
+              # Used since cilium creates raw sockets, etc...
+              - NET_RAW
+              # Used since cilium monitor uses mmap
+              - IPC_LOCK
+              # Used in iptables. Consider removing once we are iptables-free
+              - SYS_MODULE
+              # We need it for now but might not need it for >= 5.11 specially
+              # for the 'SYS_RESOURCE'.
+              # In >= 5.8 there's already BPF and PERMON capabilities
+              - SYS_ADMIN
+              # Could be an alternative for the SYS_ADMIN for the RLIMIT_NPROC
+              - SYS_RESOURCE
+              # Both PERFMON and BPF requires kernel 5.8, container runtime
+              # cri-o >= v1.22.0 or containerd >= v1.5.0.
+              # If available, SYS_ADMIN can be removed.
+              #- PERFMON
+              #- BPF
+              - DAC_OVERRIDE
+              - FOWNER
+              - SETGID
+              - SETUID
+            drop:
+              - ALL
+        livenessProbe:
+          httpGet:
+            host: "127.0.0.1"
+            path: /healthz
+            port: 9234
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 3
+        volumeMounts:
+        - name: cilium-config-path
+          mountPath: /tmp/cilium/config-map
+          readOnly: true
+      hostNetwork: true
+      restartPolicy: Always
+      priorityClassName: system-cluster-critical
+      serviceAccount: "cilium-operator"
+      serviceAccountName: "cilium-operator"
+      affinity:
+        nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: kubernetes.azure.com/cluster
+                  operator: Exists
+                - key: type
+                  operator: NotIn
+                  values:
+                  - virtual-kubelet
+                - key: kubernetes.io/os
+                  operator: In
+                  values:
+                  - linux
+            preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                - key: kubernetes.azure.com/mode
+                  operator: In
+                  values:
+                  - system
+        # In HA mode, cilium-operator pods must not be scheduled on the same
+        # node as they will clash with each other.
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                io.cilium/app: operator
+            topologyKey: kubernetes.io/hostname
+      tolerations:
+      - key: "CriticalAddonsOnly"
+        operator: "Exists"
+      volumes:
+        # To read the configuration from the config map
+      - name: cilium-config-path
+        configMap:
+          name: cilium-config
