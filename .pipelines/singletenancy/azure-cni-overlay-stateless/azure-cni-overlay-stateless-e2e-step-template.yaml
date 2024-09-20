@@ -19,7 +19,7 @@ steps:
     inputs:
       kubectlVersion: latest
 
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
@@ -45,7 +45,7 @@ steps:
       displayName: "Windows v4Overlay ControlPlane Scale Tests"
       retryCountOnTaskFailure: 2
 
-    - task: AzureCLI@1
+    - task: AzureCLI@2
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
@@ -61,7 +61,7 @@ steps:
           done
       displayName: "Restart Nodes"
 
-    - task: AzureCLI@1
+    - task: AzureCLI@2
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"

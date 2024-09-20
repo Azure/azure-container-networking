@@ -69,7 +69,7 @@ stages:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}_windows
-        displayName: Azure CNI Overlay Test Suite | Windows - (${{ parameters.name }})
+        displayName: Azure Stateless CNI Overlay Test Suite | Windows - (${{ parameters.name }})
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:

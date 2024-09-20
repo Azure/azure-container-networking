@@ -1163,7 +1163,6 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			logger.Error("Failed to query endpoint",
 				zap.String("endpoint", endpointID),
 				zap.Error(err))
-
 			logger.Error("Release ip by ContainerID (endpoint not found)",
 				zap.String("containerID", args.ContainerID))
 			sendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
