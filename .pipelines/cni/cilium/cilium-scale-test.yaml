@@ -129,6 +129,7 @@ stages:
                 fi
             name: "ScaleUp"
             displayName: "Scale up Nodes"
+        timeoutInMinutes: 90
   - stage: label_nodes
     displayName: "Label Nodes for Testing"
     jobs:
