@@ -7,6 +7,6 @@ import (
 )
 
 // ReleaseIPs implements an Interface in fsnotify for async delete of the HNS endpoint and IP addresses
-func (em *EndpointManager) ReleaseIPs(_ context.Context, _ cns.IPConfigsRequest) error {
-	return nil
+func (em *EndpointManager) ReleaseIPs(ctx context.Context, req cns.IPConfigsRequest) error {
+	return em.cli.ReleaseIPs(ctx, req)
 }
