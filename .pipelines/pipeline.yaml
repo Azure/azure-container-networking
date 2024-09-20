@@ -329,6 +329,7 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "containerize"
+
     # Azure Overlay E2E Stateless CNI tests
     - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml
       parameters:
