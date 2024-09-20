@@ -78,7 +78,7 @@ const (
 	apipaEndpointType = "APIPA"
 
 	// default network name used by HNS
-	DefaultNetworkName = "azure"
+	defaultNetworkName = "azure"
 )
 
 // Named Lock for network and endpoint creation/deletion
@@ -727,8 +727,8 @@ func DeleteHNSEndpointbyID(hnsEndpointID string) error {
 
 // GetHNSEndpointbyIP returns an HNSEndpoint with the corrsponding HNS Endpoint ID that matches an specific IP Address.
 func GetHNSEndpointbyIP(ipv4, ipv6 []net.IPNet) (string, error) {
-	logger.Printf("Fetching missing HNS endpoint id for endpoints in network with id %s", DefaultNetworkName)
-	hnsResponse, err := hcn.GetNetworkByName(DefaultNetworkName)
+	logger.Printf("Fetching missing HNS endpoint id for endpoints in network with id %s", defaultNetworkName)
+	hnsResponse, err := hcn.GetNetworkByName(defaultNetworkName)
 	if err != nil || hnsResponse == nil {
 		return "", errors.Wrapf(err, "HNS Network or endpoints not found")
 	}
