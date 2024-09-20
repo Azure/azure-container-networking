@@ -652,19 +652,22 @@ func main() {
 	}
 
 	// copy ChannelMode from cnsconfig to HTTPRemoteRestService config
-	if cnsconfig.ChannelMode == cns.Direct {
+	switch cnsconfig.ChannelMode {
+	case cns.Direct:
 		config.ChannelMode = cns.Direct
-	} else if cnsconfig.ChannelMode == cns.Managed {
+	case cns.Managed:
 		config.ChannelMode = cns.Managed
 		privateEndpoint = cnsconfig.ManagedSettings.PrivateEndpoint
 		infravnet = cnsconfig.ManagedSettings.InfrastructureNetworkID
 		nodeID = cnsconfig.ManagedSettings.NodeID
-	} else if cnsconfig.ChannelMode == cns.CRD {
+	case cns.CRD:
 		config.ChannelMode = cns.CRD
-	} else if cnsconfig.ChannelMode == cns.MultiTenantCRD {
+	case cns.MultiTenantCRD:
 		config.ChannelMode = cns.MultiTenantCRD
-	} else if acn.GetArg(acn.OptManaged).(bool) {
-		config.ChannelMode = cns.Managed
+	default:
+		if acn.GetArg(acn.OptManaged).(bool) {
+			config.ChannelMode = cns.Managed
+		}
 	}
 
 	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
