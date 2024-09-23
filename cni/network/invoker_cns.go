@@ -438,7 +438,8 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 		resRoute := addResult.interfaceInfo[key].Routes
 		if len(routes) > 0 {
 			resRoute = append(resRoute, routes...)
-		} else { // add default routes if none are provided and skipDefaultRoute is false
+		} else { // add default routes if none are provided
+			// on Swiftv2 windows scenario, skip to add default route on infra vnet;
 			if !info.skipDefaultRoutes {
 				resRoute = append(resRoute, network.RouteInfo{
 					Dst: defaultRouteDstPrefix,
@@ -493,7 +494,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 	resRoute := addResult.interfaceInfo[key].Routes
 	if len(routes) > 0 {
 		resRoute = append(resRoute, routes...)
-	} else { // add default routes for secondary interfaces
+	} else { // add default route to customer vnet on swiftv2 windows
 		resRoute = append(resRoute, network.RouteInfo{
 			Dst: defaultRouteDstPrefix,
 			Gw:  ncgw,
