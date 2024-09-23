@@ -438,12 +438,15 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 		resRoute := addResult.interfaceInfo[key].Routes
 		if len(routes) > 0 {
 			resRoute = append(resRoute, routes...)
-		} else { // add default routes if none are provided
-			resRoute = append(resRoute, network.RouteInfo{
-				Dst: defaultRouteDstPrefix,
-				Gw:  ncgw,
-			})
+		} else { // add default routes if none are provided and skipDefaultRoute is false
+			if !info.skipDefaultRoutes {
+				resRoute = append(resRoute, network.RouteInfo{
+					Dst: defaultRouteDstPrefix,
+					Gw:  ncgw,
+				})
+			}
 		}
+
 		// if we have multiple infra ip result infos, we effectively append routes and ip configs to that same interface info each time
 		// the host subnet prefix (in ipv4 or ipv6) will always refer to the same interface regardless of which ip result info we look at
 		addResult.interfaceInfo[key] = network.InterfaceInfo{
@@ -484,6 +487,19 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 		return err
 	}
 
+	defaultRouteDstPrefix := network.Ipv4DefaultRouteDstPrefix
+	ncgw := net.ParseIP(info.ncGatewayIPAddress)
+
+	resRoute := addResult.interfaceInfo[key].Routes
+	if len(routes) > 0 {
+		resRoute = append(resRoute, routes...)
+	} else { // add default routes for secondary interfaces
+		resRoute = append(resRoute, network.RouteInfo{
+			Dst: defaultRouteDstPrefix,
+			Gw:  ncgw,
+		})
+	}
+
 	addResult.interfaceInfo[key] = network.InterfaceInfo{
 		IPConfigs: []*network.IPConfig{
 			{
@@ -494,7 +510,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 				Gateway: net.ParseIP(info.ncGatewayIPAddress),
 			},
 		},
-		Routes:            routes,
+		Routes:            resRoute,
 		NICType:           info.nicType,
 		MacAddress:        macAddress,
 		SkipDefaultRoutes: info.skipDefaultRoutes,
