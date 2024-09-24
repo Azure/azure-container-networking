@@ -658,7 +658,7 @@ func main() {
 		infravnet = cnsconfig.ManagedSettings.InfrastructureNetworkID
 		nodeID = cnsconfig.ManagedSettings.NodeID
 	}
-	if acn.GetArg(acn.OptManaged).(bool) {
+	if isManaged, ok := acn.GetArg(acn.OptManaged).(bool); ok && isManaged {
 		config.ChannelMode = cns.Managed
 	}
 
