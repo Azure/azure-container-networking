@@ -233,7 +233,7 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 
 	// add route for virtualgwip
 	// ip route add 169.254.1.1/32 dev eth0
-	_, virtualGwNet, _ := net.ParseCIDR(virtualGwIPString)
+	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwIPString)
 	routeInfo := RouteInfo{
 		Dst:   *virtualGwNet,
 		Scope: netlink.RT_SCOPE_LINK,
@@ -242,7 +242,18 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		return newErrorTransparentEndpointClient(err)
 	}
 
-	if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes); err != nil {
+	if !epInfo.SkipDefaultRoutes {
+		// ip route add default via 169.254.1.1 dev eth0
+		_, defaultIPNet, _ := net.ParseCIDR(defaultGwCidr)
+		dstIP := net.IPNet{IP: net.ParseIP(defaultGw), Mask: defaultIPNet.Mask}
+		routeInfo = RouteInfo{
+			Dst: dstIP,
+			Gw:  virtualGwIP,
+		}
+		if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, []RouteInfo{routeInfo}); err != nil {
+			return err
+		}
+	} else if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes); err != nil {
 		return newErrorTransparentEndpointClient(err)
 	}
 

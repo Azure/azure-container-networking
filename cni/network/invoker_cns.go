@@ -487,16 +487,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 	if err != nil {
 		return err
 	}
-
-	resRoute := addResult.interfaceInfo[key].Routes
-	if len(routes) > 0 {
-		resRoute = append(resRoute, routes...)
-	} else { // add default route to customer vnet on swiftv2 windows
-		resRoute = append(resRoute, network.RouteInfo{
-			Dst: network.Ipv4DefaultRouteDstPrefix,
-			Gw:  net.ParseIP(info.ncGatewayIPAddress),
-		})
-	}
+	logger.Info("routes are now", zap.Any("routes are now", routes))
 
 	addResult.interfaceInfo[key] = network.InterfaceInfo{
 		IPConfigs: []*network.IPConfig{
@@ -508,7 +499,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 				Gateway: net.ParseIP(info.ncGatewayIPAddress),
 			},
 		},
-		Routes:            resRoute,
+		Routes:            routes,
 		NICType:           info.nicType,
 		MacAddress:        macAddress,
 		SkipDefaultRoutes: info.skipDefaultRoutes,
