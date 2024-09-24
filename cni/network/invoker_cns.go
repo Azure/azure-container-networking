@@ -488,16 +488,13 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 		return err
 	}
 
-	defaultRouteDstPrefix := network.Ipv4DefaultRouteDstPrefix
-	ncgw := net.ParseIP(info.ncGatewayIPAddress)
-
 	resRoute := addResult.interfaceInfo[key].Routes
 	if len(routes) > 0 {
 		resRoute = append(resRoute, routes...)
 	} else { // add default route to customer vnet on swiftv2 windows
 		resRoute = append(resRoute, network.RouteInfo{
-			Dst: defaultRouteDstPrefix,
-			Gw:  ncgw,
+			Dst: network.Ipv4DefaultRouteDstPrefix,
+			Gw:  net.ParseIP(info.ncGatewayIPAddress),
 		})
 	}
 
