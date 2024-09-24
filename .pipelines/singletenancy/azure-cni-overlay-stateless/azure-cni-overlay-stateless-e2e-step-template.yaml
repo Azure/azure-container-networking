@@ -1,0 +1,93 @@
+parameters:
+  name: ""
+  clusterName: ""
+  os: ""
+
+steps:
+  - bash: |
+      go version
+      go env
+      mkdir -p '$(GOBIN)'
+      mkdir -p '$(GOPATH)/pkg'
+      mkdir -p '$(modulePath)'
+      echo '##vso[task.prependpath]$(GOBIN)'
+      echo '##vso[task.prependpath]$(GOROOT)/bin'
+    name: "GoEnv"
+    displayName: "Set up the Go environment"
+
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+    name: "kubeconfig"
+    displayName: "Set Kubeconfig"
+
+  - script: |
+      nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
+      for node in $nodeList; do
+        taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
+        if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
+            kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+        fi
+      done
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=stateless VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+    name: "WindowsOverlayControlPlaneScaleTests"
+    displayName: "Windows v4Overlay ControlPlane Scale Tests"
+    retryCountOnTaskFailure: 2
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        kubectl get po -owide -A
+        clusterName=${{ parameters.clusterName }}
+        echo "Restarting nodes"
+        for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do
+          make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
+        done
+    displayName: "Restart Nodes"
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        cd test/integration/load
+        clusterName=${{ parameters.clusterName }}
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
+        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
+        kubectl get pods -owide -A
+        echo "Validating Node Restart"
+        CNI_TYPE=stateless RESTART_CASE=true go test -timeout 30m -tags load -run ^TestValidateState$
+    displayName: "Validate Node Restart"
+    retryCountOnTaskFailure: 3
+
+  - script: |
+      echo "Run wireserver and metadata connectivity Tests"
+      bash test/network/wireserver_metadata_test.sh
+    retryCountOnTaskFailure: 3
+    name: "WireserverMetadataConnectivityTests"
+    displayName: "Run Wireserver and Metadata Connectivity Tests"
+
+  - script: |
+      echo "IPv4 Overlay DataPath Test"
+      cd test/integration/datapath
+      sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
+    name: "WindowsV4OverlayDatapathTests"
+    displayName: "Windows v4Overlay Datapath Tests"
+    retryCountOnTaskFailure: 3

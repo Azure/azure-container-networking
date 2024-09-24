@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -75,6 +76,9 @@ const (
 
 	// signals a APIPA endpoint type
 	apipaEndpointType = "APIPA"
+
+	// default network name used by HNS
+	defaultNetworkName = "azure"
 )
 
 // Named Lock for network and endpoint creation/deletion
@@ -684,4 +688,69 @@ func DeleteHostNCApipaEndpoint(
 	logger.Debugf("[Azure CNS] Successfully deleted HostNCApipaEndpoint: %s", endpointName)
 
 	return nil
+}
+
+// DeleteHNSEndpointbyID deletes the HNS endpoint
+func DeleteHNSEndpointbyID(hnsEndpointID string) error {
+	var (
+		hcnEndpoint *hcn.HostComputeEndpoint
+		err         error
+	)
+
+	logger.Printf("Deleting hcn endpoint with id %v", hnsEndpointID)
+	hcnEndpoint, err = hcn.GetEndpointByID(hnsEndpointID)
+	if err != nil {
+		// If error is anything other than EndpointNotFoundError, return error.
+		// else log the error but don't return error because endpoint is already deleted.
+		var notFoundErr hcn.EndpointNotFoundError
+		if errors.As(err, &notFoundErr) {
+			return fmt.Errorf("Failed to get hcn endpoint with id: %s due to err: %w", hnsEndpointID, err)
+		}
+
+		logger.Errorf("Delete called on the Endpoint which doesn't exist. Error:%v", err)
+		return nil
+	}
+
+	// Remove this endpoint from the namespace
+	if err = hcn.RemoveNamespaceEndpoint(hcnEndpoint.HostComputeNamespace, hcnEndpoint.Id); err != nil {
+		logger.Errorf("Failed to remove hcn endpoint %s from namespace %s due to err: %v", hcnEndpoint.Id, hcnEndpoint.HostComputeNamespace, err)
+	}
+
+	if err = hcnEndpoint.Delete(); err != nil {
+		return fmt.Errorf("Failed to delete endpoint: %s. Error: %w", hnsEndpointID, err)
+	}
+
+	logger.Errorf("[Azure CNS] Successfully deleted endpoint: %+v", hnsEndpointID)
+
+	return nil
+}
+
+// GetHNSEndpointbyIP returns an HNSEndpoint with the corrsponding HNS Endpoint ID that matches an specific IP Address.
+func GetHNSEndpointbyIP(ipv4, ipv6 []net.IPNet) (string, error) {
+	logger.Printf("Fetching missing HNS endpoint id for endpoints in network with id %s", defaultNetworkName)
+	hnsResponse, err := hcn.GetNetworkByName(defaultNetworkName)
+	if err != nil || hnsResponse == nil {
+		return "", errors.Wrapf(err, "HNS Network or endpoints not found")
+	}
+	hcnEndpoints, err := hcn.ListEndpointsOfNetwork(hnsResponse.Id)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to fetch HNS endpoints for the given network")
+	}
+	for i := range hcnEndpoints {
+		for _, ipConfiguration := range hcnEndpoints[i].IpConfigurations {
+			for _, ip := range ipv4 {
+				if ipConfiguration.IpAddress == ip.IP.String() {
+					logger.Printf("Successfully found hcn endpoint id for endpoint %s with ip %s", hcnEndpoints[i].Id, ip.IP.String())
+					return hcnEndpoints[i].Id, nil
+				}
+			}
+			for _, ip := range ipv6 {
+				if ipConfiguration.IpAddress == ip.IP.String() {
+					logger.Printf("Successfully found hcn endpoint id for endpoint %s with ip %s", hcnEndpoints[i].Id, ip.IP.String())
+					return hcnEndpoints[i].Id, nil
+				}
+			}
+		}
+	}
+	return "", errors.Wrapf(err, "No HNSEndpointID matches the IPAddress")
 }

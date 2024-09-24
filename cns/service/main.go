@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/endpointmanager"
 	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/cns/grpc"
 	"github.com/Azure/azure-container-networking/cns/healthserver"
@@ -950,6 +951,8 @@ func main() {
 
 	if cnsconfig.EnableAsyncPodDelete {
 		// Start fs watcher here
+		z.Info("AsyncPodDelete is enabled")
+		logger.Printf("AsyncPodDelete is enabled")
 		cnsclient, err := cnsclient.New("", cnsReqTimeout) //nolint
 		if err != nil {
 			z.Error("failed to create cnsclient", zap.Error(err))
@@ -957,7 +960,13 @@ func main() {
 		go func() {
 			_ = retry.Do(func() error {
 				z.Info("starting fsnotify watcher to process missed Pod deletes")
-				w, err := fsnotify.New(cnsclient, cnsconfig.AsyncPodDeletePath, z)
+				logger.Printf("starting fsnotify watcher to process missed Pod deletes")
+				var endpointCleanup fsnotify.ReleaseIPsClient = cnsclient
+				// using endpointmanager implmentation for stateless CNI sceanrio to remove HNS endpoint alongside the IPs
+				if cnsconfig.IsStalessCNIWindows() {
+					endpointCleanup = endpointmanager.WithPlatformReleaseIPsManager(cnsclient)
+				}
+				w, err := fsnotify.New(endpointCleanup, cnsconfig.AsyncPodDeletePath, z)
 				if err != nil {
 					z.Error("failed to create fsnotify watcher", zap.Error(err))
 					return errors.Wrap(err, "failed to create fsnotify watcher, will retry")

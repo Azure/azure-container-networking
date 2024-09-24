@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/dhcp"
 	"github.com/Azure/azure-container-networking/iptables"
@@ -1131,18 +1132,38 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		// network ID is passed in and used only for migration
 		// otherwise, in stateless, we don't need the network id for deletion
 		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID)
+		// if stateless CNI fail to get the endpoint from CNS for any reason other than  Endpoint Not found
+		if err != nil {
+			if errors.Is(err, network.ErrConnectionFailure) {
+				logger.Info("failed to connect to CNS", zap.String("containerID", args.ContainerID), zap.Error(err))
+				addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
+				logger.Info("add containerid file for Asynch delete", zap.String("containerID", args.ContainerID), zap.Error(addErr))
+				if addErr != nil {
+					logger.Error("failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
+					return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s", args.ContainerID))
+				}
+				return nil
+			}
+			if errors.Is(err, network.ErrEndpointStateNotFound) {
+				logger.Info("Endpoint Not found", zap.String("containerID", args.ContainerID), zap.Error(err))
+				return nil
+			}
+			logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
+			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
+		}
 	} else {
 		epInfos = plugin.nm.GetEndpointInfosFromContainerID(args.ContainerID)
 	}
 
 	// for when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
-	// stateless cni won't have this issue
+	// this block is not applied to stateless CNI
 	if len(epInfos) == 0 {
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		if !nwCfg.MultiTenancy {
 			logger.Error("Failed to query endpoint",
 				zap.String("endpoint", endpointID),
 				zap.Error(err))
+
 			logger.Error("Release ip by ContainerID (endpoint not found)",
 				zap.String("containerID", args.ContainerID))
 			sendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))

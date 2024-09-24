@@ -1,0 +1,111 @@
+parameters:
+  name: ""
+  displayName: ""
+  clusterType: ""
+  clusterName: ""
+  vmSize: ""
+  k8sVersion: ""
+  dependsOn: ""
+
+stages:
+  - stage: ${{ parameters.clusterName }}
+    displayName: Create Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - template: ../../templates/create-cluster.yaml
+        parameters:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
+          k8sVersion: ${{ parameters.k8sVersion }}
+          dependsOn: ${{ parameters.dependsOn }}
+          region: $(REGION_AKS_CLUSTER_TEST)
+      - job: windows_nodepool
+        displayName: Add Windows Nodepool
+        dependsOn: ${{ parameters.name }}
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -e
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}-$(commitID) VM_SIZE_WIN=${{ parameters.vmSize }}
+                echo "Windows node are successfully added to v4 Overlay Cluster"
+                kubectl cluster-info
+                kubectl get node -owide
+                kubectl get po -owide -A
+            name: "Add_Windows_Node"
+            displayName: "Add windows node on v4 overlay cluster"
+
+  - stage: ${{ parameters.name }}
+    displayName: E2E - ${{ parameters.displayName }}
+    dependsOn:
+    - setup
+    - publish
+    - ${{ parameters.clusterName }}
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+      GOBIN: "$(GOPATH)/bin" # Go binaries path
+      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    jobs:
+      - job: ${{ parameters.name }}_windows
+        displayName: Azure Stateless CNI Overlay Test Suite | Windows - (${{ parameters.name }})
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        steps:
+          - template: azure-cni-overlay-stateless-e2e-step-template.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: windows
+              vmSizeWin: ${{ parameters.vmSize }}
+
+      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: windows
+          dependsOn: ${{ parameters.name }}_windows
+          datapath: true
+          dns: true
+          portforward: true
+          hostport: true
+          service: true
+          hybridWin: true
+
+      - job: failedE2ELogs_windows
+        displayName: "Windows Failure Logs"
+        dependsOn:
+          - ${{ parameters.name }}_windows
+          - cni_windows
+        condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed')
+        steps:
+          - template: ../../templates/log-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: windows
+              cni: cniv2
+
