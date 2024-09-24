@@ -47,7 +47,7 @@ type Monitor struct {
 	nncSource             <-chan v1alpha.NodeNetworkConfig
 	started               chan interface{}
 	once                  sync.Once
-	legacyMetricsObserver func() error
+	legacyMetricsObserver func(context.Context) error
 }
 
 func NewMonitor(z *zap.Logger, store ipStateStore, nnccli nodeNetworkConfigSpecUpdater, demandSource <-chan int, nncSource <-chan v1alpha.NodeNetworkConfig, cssSource <-chan v1alpha1.ClusterSubnetState) *Monitor { //nolint:lll // it's fine
@@ -59,7 +59,7 @@ func NewMonitor(z *zap.Logger, store ipStateStore, nnccli nodeNetworkConfigSpecU
 		cssSource:             cssSource,
 		nncSource:             nncSource,
 		started:               make(chan interface{}),
-		legacyMetricsObserver: func() error { return nil },
+		legacyMetricsObserver: func(context.Context) error { return nil },
 	}
 }
 
@@ -100,7 +100,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 		if err := pm.reconcile(ctx); err != nil {
 			pm.z.Error("reconcile failed", zap.Error(err))
 		}
-		if err := pm.legacyMetricsObserver(); err != nil {
+		if err := pm.legacyMetricsObserver(ctx); err != nil {
 			pm.z.Error("legacy metrics observer failed", zap.Error(err))
 		}
 	}
@@ -151,7 +151,7 @@ func (pm *Monitor) buildNNCSpec(request int64) v1alpha.NodeNetworkConfigSpec {
 	return spec
 }
 
-func (pm *Monitor) WithLegacyMetricsObserver(observer func() error) {
+func (pm *Monitor) WithLegacyMetricsObserver(observer func(context.Context) error) {
 	pm.legacyMetricsObserver = observer
 }
 

@@ -483,7 +483,7 @@ func startTelemetryService(ctx context.Context) {
 		log.Errorf("Telemetry service failed to start: %w", err)
 		return
 	}
-	tb.PushData(rootCtx)
+	tb.PushData(ctx)
 }
 
 // Main is the entry point for CNS.
@@ -1349,6 +1349,14 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
+	if cnsconfig.EnableSubnetScarcity {
+		cacheOpts.ByObject[&cssv1alpha1.ClusterSubnetState{}] = cache.ByObject{
+			Namespaces: map[string]cache.Config{
+				"kube-system": {},
+			},
+		}
+	}
+
 	managerOpts := ctrlmgr.Options{
 		Scheme:  scheme,
 		Metrics: ctrlmetrics.Options{BindAddress: "0"},
@@ -1374,9 +1382,13 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	cssCh := make(chan cssv1alpha1.ClusterSubnetState)
 	ipDemandCh := make(chan int)
 	if cnsconfig.EnableIPAMv2 {
+		cssSrc := func(context.Context) ([]cssv1alpha1.ClusterSubnetState, error) { return nil, nil }
+		if cnsconfig.EnableSubnetScarcity {
+			cssSrc = clustersubnetstate.NewClient(manager.GetClient()).List
+		}
 		nncCh := make(chan v1alpha.NodeNetworkConfig)
 		pmv2 := ipampoolv2.NewMonitor(z, httpRestServiceImplementation, cachedscopedcli, ipDemandCh, nncCh, cssCh)
-		obs := metrics.NewLegacyMetricsObserver(ctx, httpRestService.GetPodIPConfigState, cachedscopedcli.Get, clustersubnetstate.NewClient(manager.GetClient()).List)
+		obs := metrics.NewLegacyMetricsObserver(httpRestService.GetPodIPConfigState, cachedscopedcli.Get, cssSrc)
 		pmv2.WithLegacyMetricsObserver(obs)
 		poolMonitor = pmv2.AsV1(nncCh)
 	} else {
@@ -1462,13 +1474,14 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		// wait for the Reconciler to run once on a NNC that was made for this Node.
 		// the nncReadyCtx has a timeout of 15 minutes, after which we will consider
 		// this false and the NNC Reconciler stuck/failed, log and retry.
-		nncReadyCtx, _ := context.WithTimeout(ctx, 15*time.Minute) //nolint // it will time out and not leak
+		nncReadyCtx, cancel := context.WithTimeout(ctx, 15*time.Minute) //nolint // it will time out and not leak
 		if started, err := nncReconciler.Started(nncReadyCtx); !started {
 			log.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
 			nncReconcilerStartFailures.Inc()
 			continue
 		}
 		logger.Printf("NodeNetworkConfig reconciler has started.")
+		cancel()
 		break
 	}
 
