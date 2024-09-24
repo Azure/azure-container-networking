@@ -674,7 +674,7 @@ func main() {
 	}
 
 	if telemetryDaemonEnabled {
-		log.Printf("CNI Telemtry is enabled")
+		logger.Printf("CNI Telemtry is enabled")
 		go startTelemetryService(rootCtx)
 	}
 
@@ -689,7 +689,7 @@ func main() {
 
 	lockclient, err := processlock.NewFileLock(platform.CNILockPath + name + store.LockExtension)
 	if err != nil {
-		log.Printf("Error initializing file lock:%v", err)
+		logger.Printf("Error initializing file lock:%v", err)
 		return
 	}
 
@@ -703,10 +703,10 @@ func main() {
 
 	// Initialize endpoint state store if cns is managing endpoint state.
 	if cnsconfig.ManageEndpointState {
-		log.Printf("[Azure CNS] Configured to manage endpoints state")
+		logger.Printf("[Azure CNS] Configured to manage endpoints state")
 		endpointStoreLock, err := processlock.NewFileLock(platform.CNILockPath + endpointStoreName + store.LockExtension) // nolint
 		if err != nil {
-			log.Printf("Error initializing endpoint state file lock:%v", err)
+			logger.Printf("Error initializing endpoint state file lock:%v", err)
 			return
 		}
 		defer endpointStoreLock.Unlock() // nolint
@@ -1041,7 +1041,7 @@ func main() {
 	}
 
 	if err = lockclient.Unlock(); err != nil {
-		log.Errorf("lockclient cns unlock error:%v", err)
+		logger.Errorf("lockclient cns unlock error:%v", err)
 	}
 
 	logger.Printf("CNS exited")
