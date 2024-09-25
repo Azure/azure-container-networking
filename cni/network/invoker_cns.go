@@ -487,20 +487,6 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 	if err != nil {
 		return err
 	}
-	defaultRouteDstPrefix := network.Ipv4DefaultRouteDstPrefix
-	ncgw := net.ParseIP(info.ncGatewayIPAddress)
-
-	resRoute := addResult.interfaceInfo[key].Routes
-	if len(routes) > 0 {
-		resRoute = append(resRoute, routes...)
-	} else { // add default routes for secondary interfaces
-		resRoute = append(resRoute, network.RouteInfo{
-			Dst: defaultRouteDstPrefix,
-			Gw:  ncgw,
-		})
-	}
-
-	logger.Info("routes are now", zap.Any("routes are now", resRoute))
 
 	addResult.interfaceInfo[key] = network.InterfaceInfo{
 		IPConfigs: []*network.IPConfig{
@@ -512,7 +498,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 				Gateway: net.ParseIP(info.ncGatewayIPAddress),
 			},
 		},
-		Routes:            resRoute,
+		Routes:            routes,
 		NICType:           info.nicType,
 		MacAddress:        macAddress,
 		SkipDefaultRoutes: info.skipDefaultRoutes,
