@@ -332,11 +332,13 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 		hcnEndpoint.Policies = append(hcnEndpoint.Policies, endpointPolicy)
 	}
 
+	logger.Info("epInfo.Routes are", zap.Any("epInfo.Routes", epInfo.Routes))
 	for _, route := range epInfo.Routes {
 		hcnRoute := hcn.Route{
 			NextHop:           route.Gw.String(),
 			DestinationPrefix: route.Dst.String(),
 		}
+		logger.Info("endpoint windows", zap.Any("hcnRoute", hcnRoute))
 
 		hcnEndpoint.Routes = append(hcnEndpoint.Routes, hcnRoute)
 	}
@@ -421,6 +423,7 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 
 // newEndpointImplHnsV2 creates a new endpoint in the network using Hnsv2
 func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (*endpoint, error) {
+	logger.Info("epInfo routes on newEndpointImplHnsV2", zap.Any("epInfo routes", epInfo.Routes))
 	hcnEndpoint, err := nw.configureHcnEndpoint(epInfo)
 	if err != nil {
 		logger.Error("Failed to configure hcn endpoint due to", zap.Error(err))
@@ -428,7 +431,6 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 	}
 
 	// Create the HCN endpoint.
-	logger.Info("Creating hcn endpoint", zap.Any("hcnEndpoint", hcnEndpoint), zap.String("computenetwork", hcnEndpoint.HostComputeNetwork))
 	hnsResponse, err := Hnsv2.CreateEndpoint(hcnEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create endpoint: %s due to error: %v", hcnEndpoint.Name, err)
