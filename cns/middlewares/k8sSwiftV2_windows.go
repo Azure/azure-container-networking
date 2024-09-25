@@ -1,8 +1,6 @@
 package middlewares
 
 import (
-	"fmt"
-
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
@@ -17,7 +15,6 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		logger.Printf("[SWIFTv2Middleware] skip setting default route on InfraNIC interface")
 		podIPInfo.SkipDefaultRoutes = true
 	}
-
 	return nil
 }
 
@@ -44,14 +41,11 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(podIPInfo *cns.Pod
 		GatewayIPAddress: interfaceInfo.GatewayIP,
 	}
 	// assign default route
-	defaultRoute := cns.Route{
-		IPAddress: fmt.Sprintf("%s/%d", interfaceInfo.GatewayIP, prefixLength),
-	}
 	route := cns.Route{
 		IPAddress:        "0.0.0.0/0",
 		GatewayIPAddress: interfaceInfo.GatewayIP,
 	}
-	podIPInfo.Routes = append(podIPInfo.Routes, defaultRoute, route)
+	podIPInfo.Routes = append(podIPInfo.Routes, route)
 
 	return nil
 }

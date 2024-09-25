@@ -856,6 +856,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	}
 
 	setEndpointOptions(opt.cnsNetworkConfig, &endpointInfo, vethName)
+
 	logger.Info("Generated endpoint info from fields", zap.String("epInfo", endpointInfo.PrettyString()))
 
 	// now our ep info should have the full combined information from both the network and endpoint structs
