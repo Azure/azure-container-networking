@@ -439,13 +439,10 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 		if len(routes) > 0 {
 			resRoute = append(resRoute, routes...)
 		} else { // add default routes if none are provided
-			// on Swiftv2 windows scenario, skip to add default route on infra vnet;
-			if !info.skipDefaultRoutes {
-				resRoute = append(resRoute, network.RouteInfo{
-					Dst: defaultRouteDstPrefix,
-					Gw:  ncgw,
-				})
-			}
+			resRoute = append(resRoute, network.RouteInfo{
+				Dst: defaultRouteDstPrefix,
+				Gw:  ncgw,
+			})
 		}
 
 		// if we have multiple infra ip result infos, we effectively append routes and ip configs to that same interface info each time

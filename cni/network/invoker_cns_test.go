@@ -52,9 +52,6 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 	macAddress := "12:34:56:78:9a:bc"
 	parsedMacAddress, _ := net.ParseMAC(macAddress)
 
-	// parse default route (IP: 0.0.0.0 and mask /0)
-	_, ipNet, _ := net.ParseCIDR("0.0.0.0/0")
-
 	type fields struct {
 		podName      string
 		podNamespace string
@@ -289,15 +286,8 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 										IPAddress:    "20.240.1.242",
 										PrefixLength: 24,
 									},
-									NICType:           cns.NodeNetworkInterfaceFrontendNIC,
-									MacAddress:        macAddress,
-									SkipDefaultRoutes: false,
-									Routes: []cns.Route{
-										{
-											IPAddress:        "0.0.0.0/0",
-											GatewayIPAddress: "10.0.0.1",
-										},
-									},
+									NICType:    cns.NodeNetworkInterfaceFrontendNIC,
+									MacAddress: macAddress,
 								},
 							},
 							Response: cns.Response{
@@ -326,7 +316,12 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 						Gateway: net.ParseIP("10.0.0.1"),
 					},
 				},
-				Routes:            []network.RouteInfo(nil),
+				Routes: []network.RouteInfo{
+					{
+						Dst: network.Ipv4DefaultRouteDstPrefix,
+						Gw:  net.ParseIP("10.0.0.1"),
+					},
+				},
 				NICType:           cns.InfraNIC,
 				SkipDefaultRoutes: true,
 				HostSubnetPrefix:  *parseCIDR("10.0.0.0/24"),
@@ -337,12 +332,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 						Address: *getCIDRNotationForAddress("20.240.1.242/24"),
 					},
 				},
-				Routes: []network.RouteInfo{
-					{
-						Dst: *ipNet,
-						Gw:  net.ParseIP("10.0.0.1"),
-					},
-				},
+				Routes:     []network.RouteInfo{},
 				NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 				MacAddress: parsedMacAddress,
 				// secondaries don't have a host subnet prefix
@@ -1469,9 +1459,6 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 
 	pnpID := "PCI\\VEN_15B3&DEV_101C&SUBSYS_000715B3&REV_00\\5&8c5acce&0&0"
 
-	// parse default route (IP: 0.0.0.0 and mask /0)
-	_, ipNet, _ := net.ParseCIDR("0.0.0.0/0")
-
 	type fields struct {
 		podName      string
 		podNamespace string
@@ -1677,12 +1664,6 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 									NICType:           cns.NodeNetworkInterfaceFrontendNIC,
 									MacAddress:        macAddress,
 									SkipDefaultRoutes: false,
-									Routes: []cns.Route{
-										{
-											IPAddress:        "0.0.0.0/0",
-											GatewayIPAddress: "10.0.0.1",
-										},
-									},
 								},
 								{
 									MacAddress: ibMacAddress,
@@ -1716,7 +1697,12 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 						Gateway: net.ParseIP("10.0.0.1"),
 					},
 				},
-				Routes:            []network.RouteInfo(nil),
+				Routes: []network.RouteInfo{
+					{
+						Dst: network.Ipv4DefaultRouteDstPrefix,
+						Gw:  net.ParseIP("10.0.0.1"),
+					},
+				},
 				NICType:           cns.InfraNIC,
 				SkipDefaultRoutes: true,
 				HostSubnetPrefix:  *parseCIDR("10.0.0.0/24"),
@@ -1728,10 +1714,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 							Address: *getCIDRNotationForAddress("20.1.1.10/24"),
 						},
 					},
-					Routes: []network.RouteInfo{{
-						Dst: *ipNet,
-						Gw:  net.ParseIP("10.0.0.1"),
-					}},
+					Routes:     []network.RouteInfo{},
 					NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 					MacAddress: parsedMacAddress,
 				},
@@ -1739,7 +1722,6 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 					NICType:    cns.BackendNIC,
 					MacAddress: ibParsedMacAddress,
 					PnPID:      pnpID,
-					Routes:     []network.RouteInfo(nil),
 				},
 			},
 			wantErr: false,
@@ -1762,6 +1744,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 
 			for _, ifInfo := range ipamAddResult.interfaceInfo {
 				if ifInfo.NICType == cns.InfraNIC {
+					fmt.Printf("want:%+v\nrest:%+v\n", tt.wantDefaultResult, ifInfo)
 					require.Equalf(tt.wantDefaultResult, ifInfo, "incorrect ipv4 response")
 				}
 
