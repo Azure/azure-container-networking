@@ -224,7 +224,8 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 // ipBlockRule translates IPBlock field in networkpolicy object to translatedIPSet and SetInfo.
 // ipBlockSetIndex parameter is used to diffentiate ipBlock fields in one networkpolicy object.
 func ipBlockRule(policyName, ns string, direction policies.Direction, matchType policies.MatchType, ipBlockSetIndex, ipBlockPeerIndex int,
-	ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, policies.SetInfo, error) { //nolint // gofumpt
+	ipBlockRule *networkingv1.IPBlock,
+) (*ipsets.TranslatedIPSet, policies.SetInfo, error) { //nolint // gofumpt
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil, policies.SetInfo{}, nil
 	}
@@ -369,7 +370,8 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 	ruleIndex int,
 	ports []networkingv1.NetworkPolicyPort,
 	peers []networkingv1.NetworkPolicyPeer,
-	npmLiteToggle bool) error {
+	npmLiteToggle bool,
+) error {
 	// TODO(jungukcho): need to clean up it.
 	// Leave allowExternal variable now while the condition is checked before calling this function.
 	allowExternal, portRuleExists, peerRuleExists := ruleExists(ports, peers)
@@ -389,7 +391,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 		return nil
 	}
 
-	var err = checkOnlyPortRuleExists(portRuleExists, peerRuleExists, allowExternal, ports, npmLiteToggle, direction, npmNetPol)
+	err := checkOnlyPortRuleExists(portRuleExists, peerRuleExists, allowExternal, ports, npmLiteToggle, direction, npmNetPol)
 	if err != nil {
 		return err
 	}
@@ -662,7 +664,8 @@ func checkOnlyPortRuleExists(
 	ports []networkingv1.NetworkPolicyPort,
 	npmLiteToggle bool,
 	direction policies.Direction,
-	npmNetPol *policies.NPMNetworkPolicy) error {
+	npmNetPol *policies.NPMNetworkPolicy,
+) error {
 	// #1. Only Ports fields exist in rule
 	if portRuleExists && !peerRuleExists && !allowExternal {
 		for i := range ports {

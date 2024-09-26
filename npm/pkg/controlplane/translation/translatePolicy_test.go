@@ -3071,7 +3071,6 @@ func TestNpmLiteCidrPolicy(t *testing.T) {
 			var err error
 			for _, peer := range tt.peersFrom {
 				err = npmLiteValidPolicy(peer, tt.npmLiteEnabled)
-
 				if err != nil {
 					break
 				}
