@@ -36,10 +36,9 @@ endif
 REPO_ROOT				 = $(shell git rev-parse --show-toplevel)
 REVISION				?= $(shell git rev-parse --short HEAD)
 ACN_VERSION				?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --tags --always)
-IPV6_HP_BPF_VERSION			?= $(notdir $(shell git describe --match "ipv6-hp-bpf*" --tags --always))
+IPV6_HP_BPF_VERSION		?= $(notdir $(shell git describe --match "ipv6-hp-bpf*" --tags --always))
 AZURE_IPAM_VERSION		?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
 CNI_VERSION				?= $(ACN_VERSION)
-CNI_DROPGZ_VERSION		?= $(notdir $(shell git describe --match "dropgz*" --tags --always))
 CNS_VERSION				?= $(ACN_VERSION)
 NPM_VERSION				?= $(ACN_VERSION)
 ZAPAI_VERSION			?= $(notdir $(shell git describe --match "zapai*" --tags --always))
@@ -109,7 +108,6 @@ IPV6_HP_BPF_ARCHIVE_NAME = ipv6-hp-bpf-$(GOOS)-$(GOARCH)-$(IPV6_HP_BPF_VERSION).
 
 # Image info file names.
 CNI_IMAGE_INFO_FILE			= azure-cni-$(CNI_VERSION).txt
-CNI_DROPGZ_IMAGE_INFO_FILE	= cni-dropgz-$(CNI_DROPGZ_VERSION).txt
 CNS_IMAGE_INFO_FILE			= azure-cns-$(CNS_VERSION).txt
 NPM_IMAGE_INFO_FILE			= azure-npm-$(NPM_VERSION).txt
 
@@ -158,9 +156,6 @@ ipv6-hp-bpf-version: ## prints the ipv6-hp-bpf version
 
 cni-version: ## prints the cni version
 	@echo $(CNI_VERSION)
-
-cni-dropgz-version: ## prints the cni-dropgz version
-	@echo $(CNI_DROPGZ_VERSION)
 
 cns-version:
 	@echo $(CNS_VERSION)
@@ -267,7 +262,6 @@ ACNCLI_IMAGE		= acncli
 AZURE_IPAM_IMAGE	= azure-ipam
 IPV6_HP_BPF_IMAGE	= ipv6-hp-bpf
 CNI_IMAGE			= azure-cni
-CNI_DROPGZ_IMAGE	= cni-dropgz
 CNS_IMAGE			= azure-cns
 NPM_IMAGE			= azure-npm
 
@@ -278,7 +272,6 @@ AZURE_IPAM_WINDOWS_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$
 IPV6_HP_BPF_IMAGE_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(IPV6_HP_BPF_VERSION)
 CNI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)
 CNI_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)-$(OS_SKU_WIN)
-CNI_DROPGZ_PLATFORM_TAG 		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_VERSION)
 CNS_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)
 CNS_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)-$(OS_SKU_WIN)
 NPM_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(NPM_VERSION)
@@ -456,32 +449,6 @@ cni-image-pull: ## pull cni container image.
 		TAG=$(CNI_PLATFORM_TAG)
 
 
-# cni-dropgz
-
-cni-dropgz-image-name: # util target to print the CNI dropgz image name.
-	@echo $(CNI_DROPGZ_IMAGE)
-
-cni-dropgz-image-name-and-tag: # util target to print the CNI dropgz image name and tag.
-	@echo $(IMAGE_REGISTRY)/$(CNI_DROPGZ_IMAGE):$(CNI_DROPGZ_PLATFORM_TAG)
-
-cni-dropgz-image: ## build cni-dropgz container image.
-	$(MAKE) container \
-		DOCKERFILE=dropgz/build/$(OS).Dockerfile \
-		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_PLATFORM_TAG) \
-		TARGET=$(OS)
-
-cni-dropgz-image-push: ## push cni-dropgz container image.
-	$(MAKE) container-push \
-		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
-
-cni-dropgz-image-pull: ## pull cni-dropgz container image.
-	$(MAKE) container-pull \
-		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
-
-
 # cns
 
 cns-image-name: # util target to print the CNS image name
@@ -637,23 +604,6 @@ cni-skopeo-archive: ## export tar archive of cni multiplat container manifest.
 	$(MAKE) manifest-skopeo-archive \
 		IMAGE=$(CNI_IMAGE) \
 		TAG=$(CNI_VERSION)
-
-cni-dropgz-manifest-build: ## build cni-dropgz multiplat container manifest.
-	$(MAKE) manifest-build \
-		PLATFORMS="$(PLATFORMS)" \
-		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_VERSION) \
-		OS_VERSIONS="$(OS_VERSIONS)"
-
-cni-dropgz-manifest-push: ## push cni-dropgz multiplat container manifest
-	$(MAKE) manifest-push \
-		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_VERSION)
-
-cni-dropgz-skopeo-archive: ## export tar archive of cni-dropgz multiplat container manifest.
-	$(MAKE) manifest-skopeo-archive \
-		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_VERSION)
 
 cns-manifest-build: ## build azure-cns multiplat container manifest.
 	$(MAKE) manifest-build \
