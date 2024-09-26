@@ -98,7 +98,7 @@ func (dp *DataPlane) bootupDataPlane() error {
 	}
 
 	// for backwards compatibility, get remote allEndpoints to delete as well
-	allEndpoints, err := dp.getAllPodEndpoints()
+	allEndpoints, err := dp.getLocalPodEndpoints()
 	if err != nil {
 		return err
 	}
