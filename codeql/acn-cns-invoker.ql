@@ -12,18 +12,7 @@
 // Detect inputs from CNS Invoker to command injection
 // Does not detect flow to outside the enclosed method (which is why we analyze addIpamInvoker's results too)
 import go
-
-private class Sink extends DataFlow2::Node {
-  Sink() {
-    exists(DataFlow::CallNode c |
-      c.getTarget().hasQualifiedName("os/exec", "CommandContext") and
-      (c.getArgument(2) = this or c.getArgument(1) = this)
-      or
-      c.getTarget().hasQualifiedName("os/exec", "Command") and
-      (c.getArgument(0) = this or c.getArgument(1) = this)
-    )
-  }
-}
+import lib.ACN
 
 private class Source extends DataFlow2::Node {
   Source() {
@@ -45,7 +34,7 @@ private class Source extends DataFlow2::Node {
 }
 
 module MyConfiguration implements DataFlow::ConfigSig {
-  predicate isSink(DataFlow::Node sink) { sink instanceof Sink }
+  predicate isSink(DataFlow::Node sink) { sink instanceof ACN::CommandSink }
 
   predicate isSource(DataFlow::Node source) { source instanceof Source }
 }
