@@ -100,3 +100,5 @@ stages:
               name: $(name)
               clusterName: $(clusterName)-$(commitID)
               region: $(LOCATION)
+              sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+              svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
