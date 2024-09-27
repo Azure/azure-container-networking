@@ -327,23 +327,6 @@ func (dp *DataPlane) getEndpointsToApplyPolicies(netPols []*policies.NPMNetworkP
 	return endpointList, nil
 }
 
-func (dp *DataPlane) getAllPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
-	klog.Infof("getting all endpoints for network ID %s", dp.networkID)
-	timer := metrics.StartNewTimer()
-	endpoints, err := dp.ioShim.Hns.ListEndpointsOfNetwork(dp.networkID)
-	metrics.RecordListEndpointsLatency(timer)
-	if err != nil {
-		metrics.IncListEndpointsFailures()
-		return nil, npmerrors.SimpleErrorWrapper("failed to get all pod endpoints", err)
-	}
-
-	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
-	for k := range endpoints {
-		epPointers = append(epPointers, &endpoints[k])
-	}
-	return epPointers, nil
-}
-
 func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
 	klog.Info("getting local endpoints")
 	timer := metrics.StartNewTimer()
