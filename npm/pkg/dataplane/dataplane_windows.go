@@ -97,7 +97,6 @@ func (dp *DataPlane) bootupDataPlane() error {
 		return npmerrors.SimpleErrorWrapper("failed to initialize dataplane", err)
 	}
 
-	// for backwards compatibility, get remote allEndpoints to delete as well
 	allEndpoints, err := dp.getLocalPodEndpoints()
 	if err != nil {
 		return err
