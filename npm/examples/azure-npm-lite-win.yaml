@@ -154,6 +154,6 @@ data:
             "ApplyIPSetsOnNeed":       false,
             "ApplyInBackground":       true,
             "NetPolInBackground":      true,
-            "EnableNPMLite":           true
+            "EnableNPMLite":           false
         }
     }

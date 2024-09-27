@@ -32,7 +32,8 @@ type netPolFixture struct {
 	kubeobjects []runtime.Object
 
 	netPolController *NetworkPolicyController
-	kubeInformer     kubeinformers.SharedInformerFactory
+
+	kubeInformer kubeinformers.SharedInformerFactory
 }
 
 func newNetPolFixture(t *testing.T) *netPolFixture {
@@ -44,11 +45,11 @@ func newNetPolFixture(t *testing.T) *netPolFixture {
 	return f
 }
 
-func (f *netPolFixture) newNetPolController(_ chan struct{}, dp dataplane.GenericDataplane) {
+func (f *netPolFixture) newNetPolController(_ chan struct{}, dp dataplane.GenericDataplane, npmLiteToggle bool) {
 	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
-	f.netPolController = NewNetworkPolicyController(f.kubeInformer.Networking().V1().NetworkPolicies(), dp, false)
+	f.netPolController = NewNetworkPolicyController(f.kubeInformer.Networking().V1().NetworkPolicies(), dp, npmLiteToggle)
 
 	for _, netPol := range f.netPolLister {
 		err := f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Add(netPol)
@@ -247,7 +248,7 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
 
 	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(2)
 
@@ -275,7 +276,31 @@ func TestAddNetworkPolicy(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
+
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
+
+	addNetPol(f, netPolObj)
+	testCases := []expectedNetPolValues{
+		{1, 0, netPolPromVals{1, 1, 0, 0}},
+	}
+
+	checkNetPolTestResult("TestAddNetPol", f, testCases)
+}
+
+func TestAddNetworkPolicyWithNPMLite(t *testing.T) {
+	netPolObj := createNetPol()
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, true)
 
 	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
 
@@ -299,7 +324,7 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
 
 	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
 	dp.EXPECT().RemovePolicy(gomock.Any()).Times(1)
@@ -323,7 +348,7 @@ func TestDeleteNetworkPolicyWithTombstone(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
 
 	netPolKey := getKey(netPolObj, t)
 	tombstone := cache.DeletedFinalStateUnknown{
@@ -350,7 +375,7 @@ func TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy(t *testing.T) 
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
 
 	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
 	dp.EXPECT().RemovePolicy(gomock.Any()).Times(1)
@@ -376,7 +401,7 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
 
 	newNetPolObj := oldNetPolObj.DeepCopy()
 	// oldNetPolObj.ResourceVersion value is "0"
@@ -403,7 +428,7 @@ func TestLabelUpdateNetworkPolicy(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, true)
 
 	newNetPolObj := oldNetPolObj.DeepCopy()
 	// update podSelctor in a new network policy field

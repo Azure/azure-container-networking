@@ -172,6 +172,6 @@ data:
             "EnableV2NPM":             true,
             "PlaceAzureChainFirst":    false,
             "ApplyInBackground":       true,
-            "NetPolInBackground":      true
+            "NetPolInBackground":      false
         }
     }
