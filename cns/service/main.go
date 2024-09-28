@@ -652,16 +652,14 @@ func main() {
 		return
 	}
 
+	// copy ChannelMode from cnsconfig to HTTPRemoteRestService config
+	config.ChannelMode = cnsconfig.ChannelMode
 	if cnsconfig.ChannelMode == cns.Managed {
-		config.ChannelMode = cns.Managed
 		privateEndpoint = cnsconfig.ManagedSettings.PrivateEndpoint
 		infravnet = cnsconfig.ManagedSettings.InfrastructureNetworkID
 		nodeID = cnsconfig.ManagedSettings.NodeID
-	} else if cnsconfig.ChannelMode == cns.CRD {
-		config.ChannelMode = cns.CRD
-	} else if cnsconfig.ChannelMode == cns.MultiTenantCRD {
-		config.ChannelMode = cns.MultiTenantCRD
-	} else if acn.GetArg(acn.OptManaged).(bool) {
+	}
+	if isManaged, ok := acn.GetArg(acn.OptManaged).(bool); ok && isManaged {
 		config.ChannelMode = cns.Managed
 	}
 
