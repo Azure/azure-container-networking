@@ -344,11 +344,6 @@ func TestAddNetworkPolicy(t *testing.T) {
 func TestAddNetworkPolicyWithNPMLite_Failure(t *testing.T) {
 	netPolObj := createNetPol()
 
-	netPolObj.Spec.PolicyTypes = []networkingv1.PolicyType{
-		networkingv1.PolicyTypeIngress,
-		networkingv1.PolicyTypeEgress,
-	}
-
 	f := newNetPolFixture(t)
 	f.netPolLister = append(f.netPolLister, netPolObj)
 	f.kubeobjects = append(f.kubeobjects, netPolObj)
