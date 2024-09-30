@@ -52,7 +52,7 @@ roleRef:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: azure-npm
+  name: azure-npm-win
   namespace: kube-system
   labels:
     app: azure-npm
@@ -66,7 +66,6 @@ spec:
       labels:
         k8s-app: azure-npm
       annotations:
-        scheduler.alpha.kubernetes.io/critical-pod: ""
         azure.npm/scrapeable: ""
     spec:
       priorityClassName: system-node-critical
@@ -77,21 +76,26 @@ spec:
           effect: NoSchedule
         - key: CriticalAddonsOnly
           operator: Exists
+      securityContext:
+        windowsOptions:
+          hostProcess: true
+          runAsUserName: "NT AUTHORITY\\SYSTEM"
+      hostNetwork: true
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.45.3
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.5.5
+          command: ["powershell.exe"]
+          args:
+            [
+              '$env:CONTAINER_SANDBOX_MOUNT_POINT/npm.exe',
+              "start",
+            ]
           resources:
             limits:
               cpu: 250m
               memory: 300Mi
             requests:
               cpu: 250m
-          securityContext:
-            privileged: false
-            capabilities:
-              add:
-              - NET_ADMIN
-            readOnlyRootFilesystem: true
           env:
             - name: HOSTNAME
               valueFrom:
@@ -99,40 +103,16 @@ spec:
                   apiVersion: v1
                   fieldPath: spec.nodeName
             - name: NPM_CONFIG
-              value: /etc/azure-npm/azure-npm.json
+              value: .\\etc\\azure-npm\\azure-npm.json
           volumeMounts:
-            - name: log
-              mountPath: /var/log
-            - name: xtables-lock
-              mountPath: /run/xtables.lock
-            - name: protocols
-              mountPath: /etc/protocols
             - name: azure-npm-config
-              mountPath: /etc/azure-npm
-            - name: tmp
-              mountPath: /tmp
-      hostNetwork: true
-      hostUsers: false
+              mountPath: .\\etc\\azure-npm
       nodeSelector:
-        kubernetes.io/os: linux
+        kubernetes.io/os: windows
       volumes:
-        - name: log
-          hostPath:
-            path: /var/log
-            type: Directory
-        - name: xtables-lock
-          hostPath:
-            path: /run/xtables.lock
-            type: File
-        - name: protocols
-          hostPath:
-            path: /etc/protocols
-            type: File
         - name: azure-npm-config
           configMap:
             name: azure-npm-config
-        - name: tmp
-          emptyDir: {}
       serviceAccountName: azure-npm
 ---
 apiVersion: v1
@@ -171,6 +151,7 @@ data:
             "EnableHTTPDebugAPI":      true,
             "EnableV2NPM":             true,
             "PlaceAzureChainFirst":    false,
+            "ApplyIPSetsOnNeed":       false,
             "ApplyInBackground":       true,
             "NetPolInBackground":      true
             "EnableNPMLite":           false
