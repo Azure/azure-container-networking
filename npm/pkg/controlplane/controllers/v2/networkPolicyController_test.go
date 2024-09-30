@@ -75,6 +75,11 @@ func createNetPol() *networkingv1.NetworkPolicy {
 			Namespace: "test-nwpolicy",
 		},
 		Spec: networkingv1.NetworkPolicySpec{
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+				networkingv1.PolicyTypeEgress,
+			},
+
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
 				{
 					From: []networkingv1.NetworkPolicyPeer{
@@ -105,6 +110,54 @@ func createNetPol() *networkingv1.NetworkPolicy {
 					Ports: []networkingv1.NetworkPolicyPort{{
 						Protocol: &tcp,
 						Port:     &intstr.IntOrString{StrVal: "8000"}, // namedPort
+					}},
+				},
+			},
+		},
+	}
+}
+
+func createNetPolNpmLite() *networkingv1.NetworkPolicy {
+	tcp := corev1.ProtocolTCP
+	port8000 := intstr.FromInt(8000)
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "allow-ingress",
+			Namespace: "test-nwpolicy",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+				networkingv1.PolicyTypeEgress,
+			},
+
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "0.0.0.0/0",
+							},
+						},
+					},
+					Ports: []networkingv1.NetworkPolicyPort{{
+						Protocol: &tcp,
+						Port:     &port8000,
+					}},
+				},
+			},
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "0.0.0.0/0",
+							},
+						},
+					},
+					Ports: []networkingv1.NetworkPolicyPort{{
+						Protocol: &tcp,
+						Port:     &intstr.IntOrString{IntVal: 8000}, // namedPort
 					}},
 				},
 			},
@@ -318,7 +371,7 @@ func TestAddNetworkPolicyWithNPMLite_Failure(t *testing.T) {
 }
 
 func TestAddNetworkPolicyWithNPMLite(t *testing.T) {
-	netPolObj := createNetPol()
+	netPolObj := createNetPolNpmLite()
 
 	f := newNetPolFixture(t)
 	f.netPolLister = append(f.netPolLister, netPolObj)
@@ -457,7 +510,7 @@ func TestLabelUpdateNetworkPolicy(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp, true)
+	f.newNetPolController(stopCh, dp, false)
 
 	newNetPolObj := oldNetPolObj.DeepCopy()
 	// update podSelctor in a new network policy field
