@@ -288,6 +288,35 @@ func TestAddNetworkPolicy(t *testing.T) {
 	checkNetPolTestResult("TestAddNetPol", f, testCases)
 }
 
+func TestAddNetworkPolicyWithNPMLite_Failure(t *testing.T) {
+	netPolObj := createNetPol()
+
+	netPolObj.Spec.PolicyTypes = []networkingv1.PolicyType{
+		networkingv1.PolicyTypeIngress,
+		networkingv1.PolicyTypeEgress,
+	}
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, true)
+
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+
+	addNetPol(f, netPolObj)
+	testCases := []expectedNetPolValues{
+		{0, 0, netPolPromVals{0, 0, 0, 0}},
+	}
+
+	checkNetPolTestResult("TestAddNetPol", f, testCases)
+}
+
 func TestAddNetworkPolicyWithNPMLite(t *testing.T) {
 	netPolObj := createNetPol()
 
