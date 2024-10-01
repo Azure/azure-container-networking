@@ -8,11 +8,11 @@ on:
       - release/*
   pull_request:
     paths:
-      - 'npm/**'
-      - '.github/**'
+      - "npm/**"
+      - ".github/**"
   schedule:
     # run once a day at midnight
-    - cron: '0 0 * * *'
+    - cron: "0 0 * * *"
 
 jobs:
   cyclonus-test:
@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '^1.21'
+          go-version: "^1.22.7"
 
       - name: Setup Kind
         uses: helm/kind-action@v1
@@ -77,7 +77,7 @@ jobs:
           kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > npm-logs_${{ matrix.profile }}.txt
           mv ./test/cyclonus/cyclonus-test.txt ./cyclonus-test_${{ matrix.profile }}.txt
 
-      - name: 'Upload Logs'
+      - name: "Upload Logs"
         uses: actions/upload-artifact@v4
         if: always()
         with:
