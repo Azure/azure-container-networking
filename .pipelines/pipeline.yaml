@@ -134,20 +134,6 @@ stages:
                 name: cni
                 os: windows
                 os_version: ltsc2022
-              cni_dropgz_linux_amd64:
-                arch: amd64
-                name: cni-dropgz
-                os: linux
-              cni_dropgz_windows2019_amd64:
-                arch: amd64
-                name: cni-dropgz
-                os: windows
-                os_version: ltsc2019
-              cni_dropgz_windows2022_amd64:
-                arch: amd64
-                name: cni-dropgz
-                os: windows
-                os_version: ltsc2022
               cns_linux_amd64:
                 arch: amd64
                 name: cns
@@ -197,10 +183,6 @@ stages:
               cni_linux_arm64:
                 arch: arm64
                 name: cni
-                os: linux
-              cni_dropgz_linux_arm64:
-                arch: arm64
-                name: cni-dropgz
                 os: linux
               cns_linux_arm64:
                 arch: arm64
@@ -273,10 +255,6 @@ stages:
                 platforms: linux/amd64 linux/arm64 windows/amd64
               cni:
                 name: cni
-                os_versions: ltsc2019 ltsc2022
-                platforms: linux/amd64 linux/arm64 windows/amd64
-              cni_dropgz:
-                name: cni-dropgz
                 os_versions: ltsc2019 ltsc2022
                 platforms: linux/amd64 linux/arm64 windows/amd64
               cns:
