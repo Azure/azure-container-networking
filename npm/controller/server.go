@@ -91,7 +91,7 @@ func NewNetworkPolicyServer(
 	n.NpmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 	n.PodControllerV2 = controllersv2.NewPodController(n.PodInformer, dp, n.NpmNamespaceCacheV2)
 	n.NamespaceControllerV2 = controllersv2.NewNamespaceController(n.NsInformer, dp, n.NpmNamespaceCacheV2)
-	n.NetPolControllerV2 = controllersv2.NewNetworkPolicyController(n.NpInformer, dp)
+	n.NetPolControllerV2 = controllersv2.NewNetworkPolicyController(n.NpInformer, dp, config.Toggles.EnableNPMLite)
 
 	return n, nil
 }

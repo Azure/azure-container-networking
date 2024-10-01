@@ -97,8 +97,7 @@ func (dp *DataPlane) bootupDataPlane() error {
 		return npmerrors.SimpleErrorWrapper("failed to initialize dataplane", err)
 	}
 
-	// for backwards compatibility, get remote allEndpoints to delete as well
-	allEndpoints, err := dp.getAllPodEndpoints()
+	allEndpoints, err := dp.getLocalPodEndpoints()
 	if err != nil {
 		return err
 	}
@@ -326,23 +325,6 @@ func (dp *DataPlane) getEndpointsToApplyPolicies(netPols []*policies.NPMNetworkP
 		endpoint.netPolReference[netPol.PolicyKey] = struct{}{}
 	}
 	return endpointList, nil
-}
-
-func (dp *DataPlane) getAllPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
-	klog.Infof("getting all endpoints for network ID %s", dp.networkID)
-	timer := metrics.StartNewTimer()
-	endpoints, err := dp.ioShim.Hns.ListEndpointsOfNetwork(dp.networkID)
-	metrics.RecordListEndpointsLatency(timer)
-	if err != nil {
-		metrics.IncListEndpointsFailures()
-		return nil, npmerrors.SimpleErrorWrapper("failed to get all pod endpoints", err)
-	}
-
-	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
-	for k := range endpoints {
-		epPointers = append(epPointers, &endpoints[k])
-	}
-	return epPointers, nil
 }
 
 func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {

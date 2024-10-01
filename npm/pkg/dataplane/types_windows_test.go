@@ -425,7 +425,7 @@ func UpdatePolicy(policy *networkingv1.NetworkPolicy) *Action {
 
 // Do models policy updates in the NetworkPolicyController
 func (p *PolicyUpdateAction) Do(dp *DataPlane) error {
-	npmNetPol, err := translation.TranslatePolicy(p.Policy)
+	npmNetPol, err := translation.TranslatePolicy(p.Policy, false)
 	if err != nil {
 		return errors.Wrapf(err, "[PolicyUpdateAction] failed to translate policy with key %s/%s", p.Policy.Namespace, p.Policy.Name)
 	}
