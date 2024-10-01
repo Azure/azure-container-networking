@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.21 AS builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.22.7 AS builder
 ARG VERSION
 ARG DEBUG
 ARG OS
@@ -10,15 +10,15 @@ COPY ./bpf-prog/ipv6-hp-bpf/include/helper.h /bpf-prog/ipv6-hp-bpf/include/helpe
 RUN apt-get update && apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
 RUN mkdir -p /tmp/lib
 RUN if [ "$ARCH" = "arm64" ]; then \
-        apt-get install -y gcc-aarch64-linux-gnu && \
-        ARCH=aarch64-linux-gnu && \
-        cp /lib/"$ARCH"/ld-linux-aarch64.so.1 /tmp/lib/ && \
-        for dir in /usr/include/"$ARCH"/*; do ln -s "$dir" /usr/include/$(basename "$dir"); done; \
+    apt-get install -y gcc-aarch64-linux-gnu && \
+    ARCH=aarch64-linux-gnu && \
+    cp /lib/"$ARCH"/ld-linux-aarch64.so.1 /tmp/lib/ && \
+    for dir in /usr/include/"$ARCH"/*; do ln -s "$dir" /usr/include/$(basename "$dir"); done; \
     elif [ "$ARCH" = "amd64" ]; then \
-        apt-get install -y gcc-multilib && \
-        ARCH=x86_64-linux-gnu && \
-        cp /lib/"$ARCH"/ld-linux-x86-64.so.2 /tmp/lib/ && \
-        for dir in /usr/include/"$ARCH"/*; do ln -s "$dir" /usr/include/$(basename "$dir"); done; \
+    apt-get install -y gcc-multilib && \
+    ARCH=x86_64-linux-gnu && \
+    cp /lib/"$ARCH"/ld-linux-x86-64.so.2 /tmp/lib/ && \
+    for dir in /usr/include/"$ARCH"/*; do ln -s "$dir" /usr/include/$(basename "$dir"); done; \
     fi && \
     ln -sfn /usr/include/"$ARCH"/asm /usr/include/asm && \
     cp /lib/"$ARCH"/libnftables.so.1 /tmp/lib/ && \
