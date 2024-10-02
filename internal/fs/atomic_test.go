@@ -10,7 +10,7 @@ import (
 )
 
 func TestAtomicWriterFileExists(t *testing.T) {
-	file := "testdata/data.txt"
+	file := "./testdata/data.txt"
 	w, err := fs.NewAtomicWriter(file)
 	require.NoError(t, err, "error creating atomic writer")
 
@@ -37,7 +37,7 @@ func TestAtomicWriterFileExists(t *testing.T) {
 }
 
 func TestAtomicWriterNewFile(t *testing.T) {
-	file := "testdata/newdata.txt"
+	file := "./testdata/newdata.txt"
 
 	// if the file exists before running this test, remove it
 	err := os.Remove(file)
