@@ -124,6 +124,7 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 	pm.z.Info("calculated new request", zap.Int64("demand", pm.demand), zap.Int64("batch", s.batch), zap.Int64("max", s.max), zap.Float64("buffer", s.buffer), zap.Int64("target", target))
 	delta := target - pm.request
 	if delta == 0 {
+		pm.z.Info("NNC already at target IPs, no scaling required")
 		return nil
 	}
 	pm.z.Info("scaling pool", zap.Int64("delta", delta))
