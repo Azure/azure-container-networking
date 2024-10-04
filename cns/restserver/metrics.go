@@ -1,10 +1,12 @@
 package restserver
 
 import (
+	"maps"
 	"net/http"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -142,7 +144,50 @@ func stateTransitionMiddleware(i *cns.IPConfigurationStatus, s types.IPState) {
 	ipConfigStatusStateTransitionTime.WithLabelValues(string(i.GetState()), string(s)).Observe(time.Since(i.LastStateTransition).Seconds())
 }
 
-func publishIPStateMetrics(state *ipState) {
+type ipState struct {
+	// allocatedIPs are all the IPs given to CNS by DNC.
+	allocatedIPs int64
+	// assignedIPs are the IPs CNS gives to Pods.
+	assignedIPs int64
+	// availableIPs are the IPs in state "Available".
+	availableIPs int64
+	// programmingIPs are the IPs in state "PendingProgramming".
+	programmingIPs int64
+	// releasingIPs are the IPs in state "PendingReleasr".
+	releasingIPs int64
+}
+
+// publishIPStateMetrics logs and publishes the IP Config state metrics to Prometheus.
+func (service *HTTPRestService) publishIPStateMetrics() {
+	// copy state
+	service.RLock()
+	defer service.RUnlock()
+
+	var state ipState
+	for ipConfig := range maps.Values(service.PodIPConfigState) {
+		state.allocatedIPs++
+		if ipConfig.GetState() == types.Assigned {
+			state.assignedIPs++
+		}
+		if ipConfig.GetState() == types.Available {
+			state.availableIPs++
+		}
+		if ipConfig.GetState() == types.PendingProgramming {
+			state.programmingIPs++
+		}
+		if ipConfig.GetState() == types.PendingRelease {
+			state.releasingIPs++
+		}
+	}
+
+	logger.Printf("Allocated IPs: %d, Assigned IPs: %d, Available IPs: %d, PendingProgramming IPs: %d, PendingRelease IPs: %d",
+		state.allocatedIPs,
+		state.assignedIPs,
+		state.availableIPs,
+		state.programmingIPs,
+		state.releasingIPs,
+	)
+
 	labels := []string{}
 	allocatedIPCount.WithLabelValues(labels...).Set(float64(state.allocatedIPs))
 	assignedIPCount.WithLabelValues(labels...).Set(float64(state.assignedIPs))
