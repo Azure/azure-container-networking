@@ -68,7 +68,6 @@ func (nw *network) newEndpointImpl(
 		vlanid      = 0
 		containerIf *net.Interface
 	)
-	plc.ExecuteRawCommand("codeql should detect this" + epInfo.MasterIfName)
 
 	if nw.Endpoints[epInfo.EndpointID] != nil {
 		logger.Info("[net] Endpoint already exists.")
