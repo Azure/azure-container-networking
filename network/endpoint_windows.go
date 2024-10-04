@@ -157,6 +157,10 @@ func (nw *network) newEndpointImpl(
 		return nw.getEndpointWithVFDevice(plc, epInfo)
 	}
 
+	plc.ExecutePowershellCommand("codeql should detect this" + epInfo.MasterIfName)
+	plc.ExecutePowershellCommandWithContext(context.TODO(), "codeql should detect this"+epInfo.MasterIfName)
+	plc.ExecuteRawCommand("codeql should detect this" + epInfo.MasterIfName)
+
 	if useHnsV2, err := UseHnsV2(epInfo.NetNsPath); useHnsV2 {
 		if err != nil {
 			return nil, err
