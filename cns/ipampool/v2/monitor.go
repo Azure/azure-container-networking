@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
@@ -65,9 +66,10 @@ func NewMonitor(z *zap.Logger, store ipStateStore, nnccli nodeNetworkConfigSpecU
 
 // Start begins the Monitor's pool reconcile loop.
 // On first run, it will block until a NodeNetworkConfig is received (through a call to Update()).
-// Subsequently, it will run run once per RefreshDelay and attempt to re-reconcile the pool.
+// Subsequently, it will run run when Events happen or at least once per ReconcileDelay and attempt to re-reconcile the pool.
 func (pm *Monitor) Start(ctx context.Context) error {
 	pm.z.Debug("starting")
+	maxReconcileDelay := time.NewTicker(60 * time.Second) //nolint:gomnd // 60 seconds
 	for {
 		// proceed when things happen:
 		select {
@@ -89,6 +91,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 				pm.z.Debug("started", zap.Int64("initial request", pm.request))
 			})
 			pm.z.Info("scaler update", zap.Int64("batch", pm.scaler.batch), zap.Float64("buffer", pm.scaler.buffer), zap.Int64("max", pm.scaler.max), zap.Int64("request", pm.request))
+		case <-maxReconcileDelay.C: // try to reconcile the pool every maxReconcileDelay to prevent drift or lockups.
 		}
 		select {
 		case <-pm.started: // this blocks until we have initialized
