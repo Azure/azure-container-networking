@@ -196,6 +196,7 @@ func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context,
 
 // RequestIPConfigHandler requests an IPConfig from the CNS state
 func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r *http.Request) {
+	defer service.publishIPStateMetrics()
 	var ipconfigRequest cns.IPConfigRequest
 	err := common.Decode(w, r, &ipconfigRequest)
 	operationName := "requestIPConfigHandler"
@@ -271,6 +272,7 @@ func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r 
 
 // RequestIPConfigsHandler requests multiple IPConfigs from the CNS state
 func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
+	defer service.publishIPStateMetrics()
 	var ipconfigsRequest cns.IPConfigsRequest
 	err := common.Decode(w, r, &ipconfigsRequest)
 	operationName := "requestIPConfigsHandler"
@@ -414,6 +416,7 @@ func (service *HTTPRestService) ReleaseIPConfigHandlerHelper(ctx context.Context
 
 // ReleaseIPConfigHandler frees the IP assigned to a pod from CNS
 func (service *HTTPRestService) ReleaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
+	defer service.publishIPStateMetrics()
 	var ipconfigRequest cns.IPConfigRequest
 	err := common.Decode(w, r, &ipconfigRequest)
 	logger.Request(service.Name+"releaseIPConfigHandler", ipconfigRequest, err)
@@ -467,6 +470,7 @@ func (service *HTTPRestService) ReleaseIPConfigHandler(w http.ResponseWriter, r 
 
 // ReleaseIPConfigsHandler frees multiple IPConfigs from the CNS state
 func (service *HTTPRestService) ReleaseIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
+	defer service.publishIPStateMetrics()
 	var ipconfigsRequest cns.IPConfigsRequest
 	err := common.Decode(w, r, &ipconfigsRequest)
 	logger.Request(service.Name+"releaseIPConfigsHandler", ipconfigsRequest, err)
@@ -516,6 +520,7 @@ func (service *HTTPRestService) removeEndpointState(podInfo cns.PodInfo) error {
 // MarkIPAsPendingRelease will set the IPs which are in PendingProgramming or Available to PendingRelease state
 // It will try to update [totalIpsToRelease]  number of ips.
 func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (map[string]cns.IPConfigurationStatus, error) {
+	defer service.publishIPStateMetrics()
 	pendingReleasedIps := make(map[string]cns.IPConfigurationStatus)
 	service.Lock()
 	defer service.Unlock()
@@ -561,6 +566,7 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 // and return an error.
 // MarkNIPsPendingRelease is no-op if [n] is not a positive integer.
 func (service *HTTPRestService) MarkNIPsPendingRelease(n int) (map[string]cns.IPConfigurationStatus, error) {
+	defer service.publishIPStateMetrics()
 	service.Lock()
 	defer service.Unlock()
 	// try to release from PendingProgramming
