@@ -282,6 +282,7 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 	}
 	var ipConfigsResp *cns.IPConfigsResponse
 
+	// TODO: Decide what middleware option we need to singetenancy swift v2
 	// Check if IPConfigsHandlerMiddleware is set
 	if service.IPConfigsHandlerMiddleware != nil {
 		// Wrap the default datapath handlers with the middleware depending on middleware type
@@ -990,8 +991,11 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 // In the case of dualstack we would expect to have one IPv6 from one NC and one IPv4 from a second NC
 func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
 	// Gets the number of NCs which will determine the number of IPs given to a pod
+	// TODO: If we go with the One NC route then this logic would have to be updated
+	// Instead of using numOfNCs we would have a variable added to the HTTPRestService struct that determines IPFamilies and use the length of that
 	numOfNCs := len(service.state.ContainerStatus)
 	// if there are no NCs on the NNC there will be no IPs in the pool so return error
+	// We could still keep this check
 	if numOfNCs == 0 {
 		return nil, ErrNoNCs
 	}
@@ -1005,6 +1009,7 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	// Searches for available IPs in the pool
 	for _, ipState := range service.PodIPConfigState {
 		// check if an IP from this NC is already set side for assignment.
+		// TODO: Instead of using ncAlreadyMarkedForAssignment it would be IPFamilyAlreadyMarkedForAssignment
 		if _, ncAlreadyMarkedForAssignment := ipsToAssign[ipState.NCID]; ncAlreadyMarkedForAssignment {
 			continue
 		}
