@@ -1,4 +1,5 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.22 AS builder
+# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.23-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:46967b18b274559caafd0b3555676fc044037358d8103f4c44567cd4d0620ed7 AS builder
 ARG VERSION
 ARG DEBUG
 ARG OS
