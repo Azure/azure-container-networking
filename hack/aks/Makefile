@@ -49,7 +49,7 @@ unset-kubeconf: ## Deletes the kubeconf for $CLUSTER
 	@kubectl config unset current-context
 	@kubectl config delete-cluster $(CLUSTER)
 	@kubectl config delete-context $(CLUSTER)
-	@kubectl config delete-user clusterUser_$(CLUSTER)_$(CLUSTER)
+	@kubectl config delete-user clusterUser_$(GROUP)_$(CLUSTER)
 
 shell: ## print $AZCLI so it can be used outside of make
 	@echo $(AZCLI)
@@ -251,8 +251,9 @@ swift-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
-swiftv2-multitenancy-cluster-up: rg-up
+swiftv2-multitenancy-cluster-up:
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--tags acntestcluster=true stampcreatorserviceinfo=true \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--kubernetes-version $(K8S_VER) \
@@ -260,7 +261,11 @@ swiftv2-multitenancy-cluster-up: rg-up
 		--node-vm-size $(VM_SIZE) \
 		--node-count 2 \
 		--nodepool-tags fastpathenabled=true \
-		--no-ssh-key \
+		--node-os-upgrade-channel $(NODEUPGRADE) \
+		--nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true \
+		--enable-oidc-issuer \
+		--enable-workload-identity \
+		--generate-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -463,6 +468,10 @@ down: ## Delete the cluster
 	$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
 	@$(MAKE) unset-kubeconf
 	@$(MAKE) rg-down
+
+cluster-down: ## Delete the cluster
+	$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
+	@$(MAKE) unset-kubeconf $
 
 restart-vmss: ## Restarts the nodes in the cluster
 	$(AZCLI) vmss restart -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME)

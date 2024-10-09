@@ -2,6 +2,10 @@ parameters:
   name: ""
   clusterName: ""
   continueOnError: true
+  arch: ""
+  os: ""
+  scenario: ""
+  region: ""
 
 steps:
   - bash: |
@@ -26,51 +30,57 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        set -e
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        ls -lah
-        pwd
-        kubectl cluster-info
-        kubectl get po -owide -A
-        echo "Apply the pod network yaml to start the delegation"
-        less test/integration/manifests/swiftv2/podnetwork.yaml
-        envsubst '${SUBNET_TOKEN},${SUBNET_RESOURCE_ID},${VNET_GUID}' < test/integration/manifests/swiftv2/podnetwork.yaml | kubectl apply -f -
-        echo "Check the podnetwork yaml file"
-        less test/integration/manifests/swiftv2/podnetwork.yaml
-        kubectl get pn
-        kubectl describe pn
-        echo "Apply the pod network instance yaml to reserve IP"
-        kubectl apply -f test/integration/manifests/swiftv2/pni.yaml
-        kubectl get pni
-        kubectl describe pni
-        export NODE_NAME_0="$(kubectl get nodes -o json | jq -r .items[0].metadata.name)"
-        echo $NODE_NAME_0
-        echo "Start the first pod using the reserved IP"
-        envsubst '$NODE_NAME_0' < test/integration/manifests/swiftv2/mtpod0.yaml | kubectl apply -f -
-        export NODE_NAME_1="$(kubectl get nodes -o json | jq -r .items[1].metadata.name)"
-        echo $NODE_NAME_1
-        echo "Start another pod using the reserved IP"
-        envsubst '$NODE_NAME_1' < test/integration/manifests/swiftv2/mtpod1.yaml | kubectl apply -f -
-        sleep 2m
-        kubectl get pod -o wide -A
-        sleep 2m
-        echo "Check pods after 4 minutes"
-        kubectl get po -owide -A
-        kubectl describe pni
-    name: "start_swiftv2_pods"
-    displayName: "Start Swiftv2 Pods"
-    continueOnError: ${{ parameters.continueOnError }}
-    env:
-      SUBNET_TOKEN: $(SUBNET_TOKEN)
+        set -ex
+        source ./.pipelines/multitenancy/scripts/utils.sh
+        export_envVars ${{ parameters.scenario }} 
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }} GROUP=$RG
+    name: "kubeconfig"
+    displayName: "Set Kubeconfig"
 
-  - script: |
-      set -e
-      kubectl get po -owide -A
-      cd test/integration/swiftv2
-      echo "TestSwiftv2PodToPod and will run it after migration from scripts."
-      go test -count=1 swiftv2_test.go -timeout 3m -tags swiftv2 -run ^TestSwiftv2PodToPod$ -tags=swiftv2,integration -v
-    retryCountOnTaskFailure: 3
-    name: "Swiftv2_Tests_future_version"
-    displayName: "Swiftv2 Tests through code"
-    continueOnError: ${{ parameters.continueOnError }}
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -ex
+        source ./.pipelines/multitenancy/scripts/utils.sh
+        export_envVars ${{ parameters.scenario }} 
+        echo "Deploying on Linux nodes"
+        export CNI_IMAGE=$(make cni-image-name-and-tag-multiarch CNI_VERSION=$(make cni-version))
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }} GROUP=$RG
+        echo "Keep CNS version up to date, grabbing pipeline parameter"
+        CNS_IMAGE=$(make cns-image-name-and-tag-multiarch)
+        sed -i '/containers:/{n;n;s/\(image\).*/\1: '"${CNS_IMAGE//\//\\/}"'/}' ./test/integration/manifests/cns/daemonset-linux.yaml
+        sed -i '/initContainers:/{n;n;s/\(image\).*/\1: '"${CNI_IMAGE//\//\\/}"'/}' ./test/integration/manifests/cns/daemonset-linux.yaml
+        sed -i '/- name: cni-installer/,/volumeMounts:/ {    
+          /command: \["\/dropgz"\]/!b; a \ \ \ \ \ \ \ \ \ \ args:\n\ \ \ \ \ \ \ \ \ \ \ \ - deploy\n\ \ \ \ \ \ \ \ \ \ \ \ - --skip-verify\n\ \ \ \ \ \ \ \ \ \ \ \ - azure-vnet\n\ \ \ \ \ \ \ \ \ \ \ \ - -o\n\ \ \ \ \ \ \ \ \ \ \ \ - /opt/cni/bin/azure-vnet\n\ \ \ \ \ \ \ \ \ \ \ \ - azure-vnet-telemetry\n\ \ \ \ \ \ \ \ \ \ \ \ - -o\n\ \ \ \ \ \ \ \ \ \ \ \ - /opt/cni/bin/azure-vnet-telemetry
+        }' ./test/integration/manifests/cns/daemonset-linux.yaml
+        kubectl apply -f ./test/integration/manifests/cns/daemonset-linux.yaml
+        kubectl rollout status daemonset/azure-cns -n kube-system
+        kubectl get pod -A
+    name: "UpdateCNIandCNSVersion"
+    displayName: "Update CNI and CNS Version"
+
+  - task: AzureCLI@2
+    name: runSwiftv2Tests
+    displayName: "Run Tests"
+    inputs:
+      azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+      addSpnToEnvironment: true
+      scriptType: "bash"
+      scriptLocation: "inlineScript"
+      inlineScript: |
+        set -xe
+
+        bash .pipelines/multitenancy/scripts/az-login.sh \
+          --service-principal "$servicePrincipalId" \
+          --id-token "$idToken" \
+          --tenant "$tenantId"
+
+        bash .pipelines/multitenancy/scripts/run-tests.sh \
+          --test-dir "$(System.DefaultWorkingDirectory)/.pipelines/multitenancy/scripts" \
+          --mt-test-cluster ${{ parameters.clusterName }} \
+          --scenario ${{ parameters.scenario }}
 

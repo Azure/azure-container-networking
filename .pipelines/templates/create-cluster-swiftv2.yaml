@@ -22,13 +22,15 @@ jobs:
               az extension add --name aks-preview
               az extension update --name aks-preview
             fi
+            source ./.pipelines/multitenancy/scripts/utils.sh
+            export_envVars ${{ parameters.scenario }} 
             mkdir -p ~/.kube/
-            make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
+            make -C ./hack/aks azcfg AZCLI=az REGION=$LOCATION
 
             make -C ./hack/aks ${{ parameters.clusterType }} \
-            AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) \
+            AZCLI=az REGION=$LOCATION \
             CLUSTER=${{ parameters.clusterName }} \
-            VM_SIZE=${{ parameters.vmSize }} OS=${{parameters.os}} \
+            VM_SIZE=$VM_SIZE GROUP=$RG OS=${{parameters.os}}
 
             echo "Cluster successfully created"
         displayName: Cluster - ${{ parameters.clusterType }}
