@@ -2,7 +2,6 @@ parameters:
   depend: ""
   clusterName: "" # unique identifier
   vmSize: ""
-  retryCount: 5
 
 jobs:
 - job: windows_nodepool
@@ -47,6 +46,8 @@ jobs:
                 break
               fi
             done
+            # cluster state is always set and visible outside the loop
+            echo "Cluster state is: $cluster_state"
 
             make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
             make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }} VM_SIZE_WIN=${{ parameters.vmSize }}
@@ -59,4 +60,4 @@ jobs:
           fi
       name: "Add_Windows_Node"
       displayName: "Add windows node to cluster"
-      retryCountOnTaskFailure: ${{ parameters.retryCount }}
+      retryCountOnTaskFailure: 5
