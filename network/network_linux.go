@@ -300,7 +300,7 @@ func (nm *networkManager) addDNSServers(ifName string, dnsServers []string) (str
 		for _, server := range dnsServers {
 			serverList = serverList + " --set-dns " + server
 		}
-		cmd = fmt.Sprintf("systemd-resolve --interface %s %s", ifName, serverList)
+		cmd = fmt.Sprintf("systemd-resolve --interface %s%s", ifName, serverList)
 	}
 	return cmd, nil
 }
