@@ -50,7 +50,7 @@ jobs:
 
             make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
             make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }} VM_SIZE_WIN=${{ parameters.vmSize }}
-            echo "Windows node was successfully added to v4 Overlay Cluster"
+            echo "Windows node was successfully added"
             kubectl cluster-info
             kubectl get node -owide
             kubectl get po -owide -A
@@ -58,5 +58,5 @@ jobs:
             echo "Windows node pool already exists in the AKS cluster."
           fi
       name: "Add_Windows_Node"
-      displayName: "Add windows node on v4 overlay cluster"
+      displayName: "Add windows node to cluster"
       retryCountOnTaskFailure: ${{ parameters.retryCount }}
