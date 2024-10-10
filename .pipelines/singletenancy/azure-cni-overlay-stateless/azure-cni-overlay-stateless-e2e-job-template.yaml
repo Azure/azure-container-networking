@@ -11,6 +11,7 @@ stages:
   - stage: ${{ parameters.clusterName }}
     displayName: Create Cluster - ${{ parameters.displayName }}
     dependsOn:
+      - ${{ parameters.dependsOn }}
       - setup
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
