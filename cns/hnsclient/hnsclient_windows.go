@@ -53,6 +53,9 @@ const (
 	// Name of the loopback adapter needed to create Host NC apipa network
 	hostNCLoopbackAdapterName = "LoopbackAdapterHostNCConnectivity"
 
+	defaultHnsGwIPAddress       = "169.254.128.2"
+	hnsLoopbackAdapterIPAddress = "169.254.128.1"
+	apipaRemoteIPAddress        = "169.254.128.1"
 	// protocolTCP indicates the TCP protocol identifier in HCN
 	protocolTCP = "6"
 
@@ -301,10 +304,10 @@ func createHostNCApipaNetwork(
 		if interfaceExists, _ := networkcontainers.InterfaceExists(hostNCLoopbackAdapterName); !interfaceExists {
 			ipconfig := cns.IPConfiguration{
 				IPSubnet: cns.IPSubnet{
-					IPAddress:    localIPConfiguration.GatewayIPAddress,
+					IPAddress:    hnsLoopbackAdapterIPAddress,
 					PrefixLength: localIPConfiguration.IPSubnet.PrefixLength,
 				},
-				GatewayIPAddress: localIPConfiguration.GatewayIPAddress,
+				GatewayIPAddress: hnsLoopbackAdapterIPAddress,
 			}
 			logger.Printf("Print interfaces before creating loopback adapter")
 			LogNetworkInterfaces()
@@ -510,7 +513,7 @@ func configureHostNCApipaEndpoint(
 	endpointPolicies, err := configureAclSettingHostNCApipaEndpoint(
 		protocolList,
 		networkContainerApipaIP,
-		hostApipaIP,
+		apipaRemoteIPAddress,
 		allowNCToHostCommunication,
 		allowHostToNCCommunication,
 		ncPolicies)
@@ -573,6 +576,7 @@ func CreateHostNCApipaEndpoint(
 		return endpoint.Id, nil
 	}
 
+	adhocAdjustIPConfig(&localIPConfiguration)
 	if network, err = createHostNCApipaNetwork(localIPConfiguration); err != nil {
 		logger.Errorf("[Azure CNS] Failed to create HostNCApipaNetwork. Error: %v", err)
 		return "", err
@@ -602,6 +606,15 @@ func CreateHostNCApipaEndpoint(
 	logger.Printf("[Azure CNS] Successfully created HostNCApipaEndpoint: %+v", endpoint)
 
 	return endpoint.Id, nil
+}
+
+// adhocAdjustIPConfig applies adhoc change on gw IP address
+func adhocAdjustIPConfig(localIPConfiguration *cns.IPConfiguration) {
+	// When gw address is 169.254.128.1, should use .2 instead. If gw address is not .1, that mean this value is
+	// configured from dnc, we should keep it
+	if localIPConfiguration.GatewayIPAddress == "169.254.128.1" {
+		localIPConfiguration.GatewayIPAddress = defaultHnsGwIPAddress
+	}
 }
 
 func getHostNCApipaEndpointName(
