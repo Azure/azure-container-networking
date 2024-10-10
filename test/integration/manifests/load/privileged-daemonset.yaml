@@ -31,7 +31,7 @@ spec:
             - -i
             - -n
             - -p
-            - bash
+            - sh
             - -c
             - sleep 3650d
           securityContext:

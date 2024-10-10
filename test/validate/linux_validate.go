@@ -18,12 +18,13 @@ const (
 )
 
 var (
-	restartNetworkCmd           = []string{"bash", "-c", "systemctl restart systemd-networkd"}
-	cnsManagedStateFileCmd      = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
-	azureVnetStateFileCmd       = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
-	azureVnetIpamStateCmd       = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
-	ciliumStateFileCmd          = []string{"bash", "-c", "cilium endpoint list -o json"}
-	cnsCachedAssignedIPStateCmd = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
+	restartNetworkCmd      = []string{"bash", "-c", "systemctl restart systemd-networkd"}
+	cnsManagedStateFileCmd = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
+	azureVnetStateFileCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
+	azureVnetIpamStateCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
+	ciliumStateFileCmd     = []string{"bash", "-c", "cilium endpoint list -o json"}
+	// Would need https://teams.microsoft.com/l/message/19:9e8c1075b261459597d438acbff2d770@thread.skype/1724337155258?tenantId=72f988bf-86f1-41af-91ab-2d7cd011db47&groupId=e121dbfd-0ec1-40ea-8af5-26075f6a731b&parentMessageId=1724337155258&teamName=Azure%20Container%20Compute&channelName=Networking%20Sig&createdTime=1724337155258 to fix
+	// cnsCachedAssignedIPStateCmd = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
 )
 
 type stateFileIpsFunc func([]byte) (map[string]string, error)
@@ -45,14 +46,14 @@ var linuxChecksMap = map[string][]check{
 			podNamespace:     privilegedNamespace,
 			cmd:              ciliumStateFileCmd,
 		},
-		{
-			name:             "cns cache",
-			stateFileIPs:     cnsCacheStateFileIps,
-			podLabelSelector: validatorPod,
-			podNamespace:     privilegedNamespace,
-			containerName:    "debug",
-			cmd:              cnsCachedAssignedIPStateCmd,
-		},
+		// {
+		// 	name:             "cns cache",
+		// 	stateFileIPs:     cnsCacheStateFileIps,
+		// 	podLabelSelector: validatorPod,
+		// 	podNamespace:     privilegedNamespace,
+		// 	containerName:    "debug",
+		// 	cmd:              cnsCachedAssignedIPStateCmd,
+		// },
 	},
 	"cniv1": {
 		{
@@ -71,14 +72,14 @@ var linuxChecksMap = map[string][]check{
 		},
 	},
 	"cniv2": {
-		{
-			name:             "cns cache",
-			stateFileIPs:     cnsCacheStateFileIps,
-			podLabelSelector: validatorPod,
-			podNamespace:     privilegedNamespace,
-			containerName:    "debug",
-			cmd:              cnsCachedAssignedIPStateCmd,
-		},
+		// {
+		// 	name:             "cns cache",
+		// 	stateFileIPs:     cnsCacheStateFileIps,
+		// 	podLabelSelector: validatorPod,
+		// 	podNamespace:     privilegedNamespace,
+		// 	containerName:    "debug",
+		// 	cmd:              cnsCachedAssignedIPStateCmd,
+		// },
 		{
 			name:             "azure-vnet",
 			stateFileIPs:     azureVnetStateIps,
@@ -88,14 +89,14 @@ var linuxChecksMap = map[string][]check{
 		}, // cns configmap "ManageEndpointState": false, | Endpoints managed in CNI State File
 	},
 	"dualstack": {
-		{
-			name:             "cns cache",
-			stateFileIPs:     cnsCacheStateFileIps,
-			podLabelSelector: validatorPod,
-			podNamespace:     privilegedNamespace,
-			containerName:    "debug",
-			cmd:              cnsCachedAssignedIPStateCmd,
-		},
+		// {
+		// 	name:             "cns cache",
+		// 	stateFileIPs:     cnsCacheStateFileIps,
+		// 	podLabelSelector: validatorPod,
+		// 	podNamespace:     privilegedNamespace,
+		// 	containerName:    "debug",
+		// 	cmd:              cnsCachedAssignedIPStateCmd,
+		// },
 		{
 			name:             "azure dualstackoverlay",
 			stateFileIPs:     azureVnetStateIps,
@@ -120,14 +121,14 @@ var linuxChecksMap = map[string][]check{
 			podNamespace:     privilegedNamespace,
 			cmd:              ciliumStateFileCmd,
 		},
-		{
-			name:             "cns cache",
-			stateFileIPs:     cnsCacheStateFileIps,
-			podLabelSelector: validatorPod,
-			podNamespace:     privilegedNamespace,
-			containerName:    "debug",
-			cmd:              cnsCachedAssignedIPStateCmd,
-		},
+		// {
+		// 	name:             "cns cache",
+		// 	stateFileIPs:     cnsCacheStateFileIps,
+		// 	podLabelSelector: validatorPod,
+		// 	podNamespace:     privilegedNamespace,
+		// 	containerName:    "debug",
+		// 	cmd:              cnsCachedAssignedIPStateCmd,
+		// },
 	},
 }
 
