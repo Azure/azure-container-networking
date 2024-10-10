@@ -55,6 +55,7 @@ const (
 	JobObject              = "JobObject"
 	COW                    = "COW" // Container on Windows
 	BackendNICNC           = "BackendNICNC"
+	NodeSubnet             = "NodeSubnet" // Artificial Container Type for NodeSubnet
 )
 
 // Orchestrator Types
@@ -66,6 +67,7 @@ const (
 	AzureFirstParty = "AzureFirstParty"
 	KubernetesCRD   = "KubernetesCRD"
 	// TODO: Add OrchastratorType as CRD: https://msazure.visualstudio.com/One/_workitems/edit/7711872
+	KubernetesNodeSubnet = "KubernetesNodeSubnet"
 )
 
 // Encap Types
@@ -99,10 +101,13 @@ const (
 	Managed        = "Managed"
 	CRD            = "CRD"
 	MultiTenantCRD = "MultiTenantCRD"
+	AzureHost      = "AzureHost"
 )
 
-var ErrInvalidNCID = errors.New("invalid NetworkContainerID")
-var ErrInvalidIP = errors.New("invalid IP")
+var (
+	ErrInvalidNCID = errors.New("invalid NetworkContainerID")
+	ErrInvalidIP   = errors.New("invalid IP")
+)
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
 type CreateNetworkContainerRequest struct {

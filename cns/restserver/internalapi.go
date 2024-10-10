@@ -275,22 +275,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	return len(programmedNCs), nil
 }
 
-func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
-	logger.Printf("Reconciling CNS IPAM state with nc requests: [%+v], PodInfo [%+v], NNC: [%+v]", ncReqs, podInfoByIP, nnc)
-	// if no nc reqs, there is no CRD state yet
-	if len(ncReqs) == 0 {
-		logger.Printf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIP))
-		return types.Success
-	}
-
-	// first step in reconciliation is to create all the NCs in CNS, no IP assignment yet.
-	for _, ncReq := range ncReqs {
-		returnCode := service.CreateOrUpdateNetworkContainerInternal(ncReq)
-		if returnCode != types.Success {
-			return returnCode
-		}
-	}
-
+func (service *HTTPRestService) ReconcileIPAssignment(podInfoByIP map[string]cns.PodInfo, ncReqs []*cns.CreateNetworkContainerRequest) types.ResponseCode {
 	// index all the secondary IP configs for all the nc reqs, for easier lookup later on.
 	allSecIPsIdx := make(map[string]*cns.CreateNetworkContainerRequest)
 	for i := range ncReqs {
@@ -321,6 +306,7 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 	//   }
 	//
 	// such that we can iterate over pod interfaces, and assign all IPs for it at once.
+
 	podKeyToPodIPs, err := newPodKeyToPodIPsMap(podInfoByIP)
 	if err != nil {
 		logger.Errorf("could not transform pods indexed by IP address to pod IPs indexed by interface: %v", err)
@@ -378,12 +364,67 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 		}
 	}
 
+	return types.Success
+}
+
+func (service *HTTPRestService) CreateNCs(ncReqs []*cns.CreateNetworkContainerRequest) types.ResponseCode {
+	for _, ncReq := range ncReqs {
+		returnCode := service.CreateOrUpdateNetworkContainerInternal(ncReq)
+		if returnCode != types.Success {
+			return returnCode
+		}
+	}
+
+	return types.Success
+}
+
+func (service *HTTPRestService) ReconcileIPAMStateForSwift(ncReqs []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
+	logger.Printf("Reconciling CNS IPAM state with nc requests: [%+v], PodInfo [%+v], NNC: [%+v]", ncReqs, podInfoByIP, nnc)
+	// if no nc reqs, there is no CRD state yet
+	if len(ncReqs) == 0 {
+		logger.Printf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIP))
+		return types.Success
+	}
+
+	// first step in reconciliation is to create all the NCs in CNS, no IP assignment yet.
+	if returnCode := service.CreateNCs(ncReqs); returnCode != types.Success {
+		return returnCode
+	}
+
+	logger.Debugf("ncReqs created successfully, now save IPs")
+	// now reconcile IPAM state.
+	if returnCode := service.ReconcileIPAssignment(podInfoByIP, ncReqs); returnCode != types.Success {
+		return returnCode
+	}
+
 	if err := service.MarkExistingIPsAsPendingRelease(nnc.Spec.IPsNotInUse); err != nil {
 		logger.Errorf("[Azure CNS] Error. Failed to mark IPs as pending %v", nnc.Spec.IPsNotInUse)
 		return types.UnexpectedError
 	}
 
-	return 0
+	return types.Success
+}
+
+func (service *HTTPRestService) ReconcileIPAMStateForNodeSubnet(ncReqs []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo) types.ResponseCode {
+	logger.Printf("Reconciling CNS IPAM state with nc requests: [%+v], PodInfo [%+v]", ncReqs, podInfoByIP)
+
+	if len(ncReqs) != 1 {
+		logger.Errorf("Nodesubnet should always have 1 NC to hold secondary IPs")
+		return types.NetworkContainerNotSpecified
+	}
+
+	// first step in reconciliation is to create all the NCs in CNS, no IP assignment yet.
+	if returnCode := service.CreateNCs(ncReqs); returnCode != types.Success {
+		return returnCode
+	}
+
+	logger.Debugf("ncReqs created successfully, now save IPs")
+	// now reconcile IPAM state.
+	if returnCode := service.ReconcileIPAssignment(podInfoByIP, ncReqs); returnCode != types.Success {
+		return returnCode
+	}
+
+	return types.Success
 }
 
 var (
@@ -521,16 +562,24 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 
 	// For now only RequestController uses this API which will be initialized only for AKS scenario.
 	// Validate ContainerType is set as Docker
-	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes {
+	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes && service.state.OrchestratorType != cns.KubernetesNodeSubnet {
 		logger.Errorf("[Azure CNS] Error. Unsupported OrchestratorType: %s", service.state.OrchestratorType)
 		return types.UnsupportedOrchestratorType
 	}
 
-	// Validate PrimaryCA must never be empty
-	err := validateIPSubnet(req.IPConfiguration.IPSubnet)
-	if err != nil {
-		logger.Errorf("[Azure CNS] Error. PrimaryCA is invalid, NC Req: %v", req)
-		return types.InvalidPrimaryIPConfig
+	if req.NetworkContainerType == cns.NodeSubnet {
+		// For NodeSubnet scenarios, Validate PrimaryCA must be empty
+		if req.IPConfiguration.IPSubnet.IPAddress != "" {
+			logger.Errorf("[Azure CNS] Error. PrimaryCA is invalid, NC Req: %v", req)
+			return types.InvalidPrimaryIPConfig
+		}
+	} else {
+		// For Swift scenarios, Validate PrimaryCA must never be empty
+		err := validateIPSubnet(req.IPConfiguration.IPSubnet)
+		if err != nil {
+			logger.Errorf("[Azure CNS] Error. PrimaryCA is invalid, NC Req: %v", req)
+			return types.InvalidPrimaryIPConfig
+		}
 	}
 
 	// Validate SecondaryIPConfig
