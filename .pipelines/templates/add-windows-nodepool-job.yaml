@@ -13,6 +13,7 @@ jobs:
     demands:
     - agent.os -equals Linux
     - Role -equals $(CUSTOM_E2E_ROLE)
+  timeoutInMinutes: 30
   steps:
     - task: AzureCLI@2
       inputs:
@@ -31,7 +32,22 @@ jobs:
 
           if [ -z "$windows_nodepool" ]; then
             echo "No Windows node pool found in the AKS cluster."
-          
+
+            # wait for cluster to update
+            while true; do
+              cluster_state=$(az aks show \
+              --name "${{ parameters.clusterName }}" \
+              --resource-group "${{ parameters.clusterName }}" \
+              --query provisioningState)
+              
+              if echo "$cluster_state" | grep -q "Updating"; then
+                echo "Cluster is updating. Sleeping for 30 seconds..."
+                sleep 30
+              else
+                break
+              fi
+            done
+
             make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
             make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }} VM_SIZE_WIN=${{ parameters.vmSize }}
             echo "Windows node was successfully added to v4 Overlay Cluster"
