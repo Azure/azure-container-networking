@@ -1,0 +1,32 @@
+parameters:
+- name: artifactName
+  type: string
+
+- name: targetFolder
+  type: string
+  default: $(Build.ArtifactStagingDirectory)
+  
+
+steps:
+
+- task: AzureCLI@2
+  displayName: "[Artifacts] Download Blob"
+  inputs:
+    azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -e
+      [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+      mkdir -p "$DOWNLOAD_TARGET/$ARTIFACT_NAME"
+      az storage blob download-batch \
+        --account-name "$SA_NAME" \
+        --destination "$DOWNLOAD_TARGET/$ARTIFACT_NAME" \
+        --source "$CONTAINER_NAME" \
+        --pattern "$BLOB_PATH/$ARTIFACT_NAME/*"
+  env:
+    ARTIFACT_NAME: ${{ parameters.artifactName }}
+    DOWNLOAD_TARGET: ${{ parameters.targetFolder }}
+

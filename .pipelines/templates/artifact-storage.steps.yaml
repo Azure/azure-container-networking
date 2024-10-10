@@ -1,0 +1,258 @@
+
+steps:
+- bash: |
+    set -x
+    UNIQUE_ID=`tr -dc '0-9a-z' < /dev/urandom | head -c${1:-7}`
+    echo >&2 "##vso[task.setvariable variable=ACNCI_UNIQUE_ID]$UNIQUE_ID"
+  displayName: "[Infra] Generate Unique ID"
+
+- task: AzureCLI@2
+  name: resourcegroups
+  displayName: "Check Build Resource Groups"
+  inputs:
+    azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -e
+      [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+      set -x
+      
+      # App OID
+      SP_APP_OID=$(az ad sp show --id "$servicePrincipalId" | jq -rc '.id') 
+      # Get Subscription ID.
+      SUBSCRIPTION_ID=$(az account show | jq -rc '.id')
+
+      # Get Pipeline Build Subscriptions.
+      R_QUERY="[? tags.\""$ACNCI_BUILDTAG_DEFINITIONID"\" && tags.\""$ACNCI_BUILDTAG_CREATEDBYAPPID"\"]"
+      INFRA_RG_LIST=$(az group list --query "$R_QUERY" \
+        --tag "$ACNCI_BUILDTAG_DEFINITIONID"="$SYSTEM_DEFINITIONID" \
+        --tag "$ACNCI_BUILDTAG_CREATEDBYAPPID"="$servicePrincipalId" -o json | jq -rc '.')
+      echo "$INFRA_RG_LIST"
+
+      INFRA_RG_LENGTH=$(echo "$INFRA_RG_LIST" | jq length)
+      echo "$INFRA_RG_LIST_LENGTH"
+
+      if [[ -z $INFRA_RG_LENGTH ]] || \
+         (( $INFRA_RG_LENGTH < $ACNCI_SA_POOL_SIZE )); then
+        # Construct RG Name
+        RG_NAME="${ACNCI_RG_PREFIX}${ACNCI_UNIQUE_ID}"
+        # Create rg
+        az group create \
+          --name "$RG_NAME" \
+          --location "$ACNCI_SA_LOCATION" \
+          --tags "$ACNCI_BUILDTAG_DEFINITIONID"="$SYSTEM_DEFINITIONID" \
+                 "$ACNCI_BUILDTAG_CREATEDBYBUILDID"="$BUILD_BUILDID" \
+                 "$ACNCI_BUILDTAG_CREATEDBYAPPID"="$servicePrincipalId"
+        # Storage Blob Data Contributor on RG
+        RG_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG_NAME}"
+        az role assignment create \
+          --role "Storage Account Contributor" \
+          --assignee-principal-type ServicePrincipal \
+          --assignee-object-id "$servicePrincipalId" \
+          --scope "$RG_ID"
+        az role assignment create \
+          --role "Storage Blob Data Contributor" \
+          --assignee-principal-type ServicePrincipal \
+          --assignee-object-id "$servicePrincipalId" \
+          --scope "$RG_ID"
+
+      else
+        # Select one resource group to use.
+        RANDOM_SELECT=`tr -dc '1-9' < /dev/urandom | head -c${1:-7}`
+        IDX=$(( "$RANDOM_SELECT" % "$INFRA_RG_LENGTH" ))
+        RG_DATA=$(echo "$INFRA_RG_LIST" | jq --argjson IDX "$IDX" -rc '.[$IDX]')
+        RG_NAME=$(echo "$RG_DATA" | jq -rc '.name')
+        RG_ID=$(echo "$RG_DATA" | jq -rc '.id')
+      fi
+      echo >&2 "##vso[task.setvariable variable=ACNCI_BUILD_RESOURCEGROUP;isoutput=true;]$RG_NAME"
+      echo >&2 "##vso[task.setvariable variable=ACNCI_BUILD_RESOURCEGROUP_ID;isoutput=true;]$RG_ID"
+  env:
+    ACNCI_UNIQUE_ID: $(ACNCI_UNIQUE_ID)
+    # Allows use of az devops commands
+    AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+
+- template: get-storage-accounts.steps.yaml
+  parameters:
+    STORAGE_ACCOUNT_SERVICE_CONNECTION: $(ACN_TEST_SERVICE_CONNECTION)
+    resourceGroupName: $(resourcegroups.ACNCI_BUILD_RESOURCEGROUP)
+
+- task: AzureCLI@2
+  displayName: "Check Storage Account Pool"
+  inputs:
+    azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -e
+      [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+      
+      if (( "$SA_LIST_LENGTH" < "$ACNCI_SA_POOL_SIZE" )); then
+        echo >&2 "##vso[task.setvariable variable=CREATE_NEW_SA;]True"
+      fi
+  env:
+    SA_LIST_LENGTH: $(SA_LIST_LENGTH)
+
+- task: AzureCLI@2
+  displayName: "Add Storage Account to Pool"
+  condition: and(succeeded(), eq(variables.CREATE_NEW_SA, True))
+  inputs:
+    azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -e
+      [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+      SA_NAME="${ACNCI_SA_PREFIX}${ACNCI_UNIQUE_ID}"
+
+      az storage account create \
+        --name "$SA_NAME" \
+        --location "$ACNCI_SA_LOCATION" \
+        --resource-group "$RG_NAME" \
+        --public-network-access Disabled \
+        --require-infrastructure-encryption \
+        --allow-shared-key-access false \
+        --allow-blob-public-access false \
+        --tags "$ACNCI_BUILDTAG_DEFINITIONID"="$SYSTEM_DEFINITIONID" \
+               "$ACNCI_BUILDTAG_CREATEDBYBUILDID"="$BUILD_BUILDID" \
+               "$ACNCI_BUILDTAG_CREATEDBYAPPID"="$servicePrincipalId"
+        #--enable-files-aadds true 
+  env:
+    ACNCI_UNIQUE_ID: $(ACNCI_UNIQUE_ID)
+    RG_NAME: $(resourcegroups.ACNCI_BUILD_RESOURCEGROUP)
+    
+- template: get-storage-accounts.steps.yaml
+  parameters:
+    STORAGE_ACCOUNT_SERVICE_CONNECTION: $(ACN_TEST_SERVICE_CONNECTION)
+    condition: and(succeeded(), eq(variables.SA_LIST_LENGTH, 0))
+    resourceGroupName: $(resourcegroups.ACNCI_BUILD_RESOURCEGROUP)
+
+# Select Storage Account for use.
+- bash: |
+    [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+    if (( "$SA_LIST_LENGTH" > 0 )); then
+      SA_RANDOM_SELECT=`tr -dc '1-9' < /dev/urandom | head -c${1:-7}`
+      R_INDEX=$(( "$SA_RANDOM_SELECT" % "$SA_LIST_LENGTH" ))
+    else
+      R_INDEX=0
+    fi
+    echo >&2 "##vso[task.setvariable variable=SA_IDX;]$R_INDEX"
+  displayName: "Generate Selection"
+  env:
+    SA_LIST_LENGTH: $(SA_LIST_LENGTH)
+
+- task: AzureCLI@2
+  name: artifact_storage
+  displayName: "Get Storage Account Data"
+  inputs:
+    azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -e
+
+      [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+      # Make a random selection from the pool
+      SA_DATA=$(echo "$SA_LIST" | jq --argjson IDX "$SA_IDX" -rc '.[$IDX]')
+      echo "Delete me"
+      echo "$SA_DATA"
+      if (( "$SA_LIST_LENGTH" > 0 )); then
+        # Azure Resource ID
+        SA_ID=$(echo "$SA_DATA" | jq -r '.id')
+        echo >&2 "##vso[task.setvariable variable=ACNCI_STORAGEACCOUNT_ID;isoutput=true]$SA_ID"
+        # Azure Resource Name
+        SA_NAME=$(echo "$SA_DATA" | jq -r '.name')
+        echo >&2 "##vso[task.setvariable variable=ACNCI_STORAGEACCOUNT_NAME;isoutput=true]$SA_NAME"
+        # Storage Account Subscription
+        SA_SUBSCRIPTION=$(echo "$SA_DATA" | jq -r '.subscription')
+        echo >&2 "##vso[task.setvariable variable=ACNCI_STORAGEACCOUNT_SUBSCRIPTION;isoutput=true]$SA_SUBSCRIPTION"
+        # Service Connection
+        echo >&2 "##vso[task.setvariable variable=ACNCI_STORAGEACCOUNT_SERVICECONNECTION;isoutput=true]$SA_SERVICE_CONN"
+        # Storage Account Resource Group
+        SA_RG=$(echo "$SA_DATA" | jq -r '.resourceGroup')
+        echo >&2 "##vso[task.setvariable variable=ACNCI_STORAGEACCOUNT_RESOURCEGROUP;isoutput=true]$SA_RG"
+        # Storage Account Location
+        SA_LOCATION=$(echo "$SA_DATA" | jq -r '.location')
+        echo >&2 "##vso[task.setvariable variable=ACNCI_STORAGEACCOUNT_LOCATION;isoutput=true]$SA_LOCATION"
+        # - Local Use Only -
+        # SA Object
+        echo >&2 "##vso[task.setvariable variable=ACNCI_STORAGEACCOUNT]$SA_DATA"
+      else
+        echo >&2 "##[error]No storage accounts available for use."
+        exit 1
+      fi
+  env:
+    SA_IDX: $(SA_IDX)
+    SA_LIST: $(SA_LIST)
+    SA_LIST_LENGTH: $(SA_LIST_LENGTH)
+    SA_SERVICE_CONN: $(ACN_TEST_SERVICE_CONNECTION)
+
+- task: AzureCLI@2
+  displayName: "Storage Account Access Permissions"
+  inputs:
+    azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -x
+      echo $SPNOBJECTID
+      UPDATE_IDENTITY=$(echo "$ACNCI_STORAGEACCOUNT" | jq -r '.identity')
+      if [[ -z $UPDATE_IDENTITY ]] || \
+         [[ $UPDATE_IDENTITY =~ null ]]; then
+        SP_ID=$(az ad sp show --id "$(az account show --query user.name -o tsv)" --query id -o tsv)
+        az storage account update --user-identity-id "$servicePrincipalId" --ids "$ACNCI_STORAGEACCOUNT_ID"
+      else
+        echo >&2 "Storage account identity set."
+      fi
+  env:
+    ACNCI_STORAGEACCOUNT_ID: $(artifact_storage.ACNCI_STORAGEACCOUNT_ID)
+
+- task: AzureCLI@2
+  name: artifact_container
+  displayName: "Ensure Storage Container"
+  inputs:
+    azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -e
+      [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+      az storage account show -n "$SA_NAME" --query networkRuleSet
+      az storage container create \
+        --account-name "$SA_NAME" \
+        --resource-group "$RG_NAME" \
+        --name "$CONTAINER_NAME" \
+        --auth-mode login
+        #--public-access off 
+
+      echo >&2 "##vso[task.setvariable variable=ACNCI_STORAGEACCOUNT_ARTIFACT_CONTAINER;isoutput=true]$CONTAINER_NAME"
+  env:
+    CONTAINER_NAME: "azure-container-networking-pr" 
+    RG_NAME: $(resourcegroups.ACNCI_BUILD_RESOURCEGROUP)
+    SA_NAME: $(artifact_storage.ACNCI_STORAGEACCOUNT_NAME)
+
+- task: AzureCLI@2
+  name: artifact_blob
+  displayName: "Get Blob Path"
+  # Always run to generate new blob name
+  condition: always()
+  inputs:
+    azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -e
+      [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+      echo >&2 "##vso[task.setvariable variable=ACNCI_STORAGEACCOUNT_BLOBPATH;isoutput=true]$BUILD_BUILDID/$SYSTEM_JOBATTEMPT"
