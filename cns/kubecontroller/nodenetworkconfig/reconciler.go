@@ -124,6 +124,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		ipAssignments += len(req.SecondaryIPConfigs)
 	}
 
+	// TODO: Here we can assign a IPFamilies along with the allocated IPs
 	// record assigned IPs metric
 	allocatedIPs.Set(float64(ipAssignments))
 

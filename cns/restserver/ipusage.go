@@ -5,6 +5,9 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 )
 
+// TODO: add an IPFamily type with values ipv4 and ipv6
+//
+//	This should be similar to DNC's IPFamilies and will only be ipv4 only or ipv4,ipv6
 type ipState struct {
 	// allocatedIPs are all the IPs given to CNS by DNC.
 	allocatedIPs int64
@@ -16,6 +19,7 @@ type ipState struct {
 	programmingIPs int64
 	// releasingIPs are the IPs in state "PendingReleasr".
 	releasingIPs int64
+	// TODO: add and IPFamilies value to be a slice of IPFamily type
 }
 
 func (service *HTTPRestService) buildIPState() *ipState {
