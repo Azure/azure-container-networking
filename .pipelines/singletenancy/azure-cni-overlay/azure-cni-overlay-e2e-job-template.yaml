@@ -58,34 +58,11 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: linux
               scaleup: 100
-
-      - job: windows_nodepool
-        displayName: Add Windows Nodepool
-        dependsOn: ${{ parameters.name }}_linux
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-          demands:
-          - agent.os -equals Linux
-          - Role -equals $(CUSTOM_E2E_ROLE)
-        steps:
-          - task: AzureCLI@2
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                set -e
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
-                make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}-$(commitID) VM_SIZE_WIN=${{ parameters.vmSize }}
-                echo "Windows node are successfully added to v4 Overlay Cluster"
-                kubectl cluster-info
-                kubectl get node -owide
-                kubectl get po -owide -A
-            name: "Add_Windows_Node"
-            displayName: "Add windows node on v4 overlay cluster"
-
-
+      - template: ../../templates/add-windows-nodepool-job.yaml
+        parameters:
+          depend: ${{ parameters.name }}_linux
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
       - job: ${{ parameters.name }}_windows
         displayName: Azure CNI Overlay Test Suite | Windows - (${{ parameters.name }})
         timeoutInMinutes: 120
