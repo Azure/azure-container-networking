@@ -7,7 +7,15 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/nmagent"
+	"github.com/Azure/azure-container-networking/refresh"
 	"github.com/pkg/errors"
+)
+
+const (
+	// Default minimum time between secondary IP fetches
+	DefaultMinRefreshInterval = 4 * time.Second
+	// Default maximum time between secondary IP fetches
+	DefaultMaxRefreshInterval = 1024 * time.Second
 )
 
 var ErrRefreshSkipped = errors.New("refresh skipped due to throttling")
@@ -17,39 +25,75 @@ type InterfaceRetriever interface {
 	GetInterfaceIPInfo(ctx context.Context) (nmagent.Interfaces, error)
 }
 
+// IPConsumer is an interface implemented by whoever consumes the secondary IPs fetched in nodesubnet
+type IPConsumer interface {
+	UpdateIPsForNodeSubnet([]netip.Addr) error
+}
+
+// IPFetcher fetches secondary IPs from NMAgent at regular intervals. The
+// interval will vary within the range of minRefreshInterval and
+// maxRefreshInterval. When no diff is observed after a fetch, the interval
+// doubles (subject to the maximum interval). When a diff is observed, the
+// interval resets to the minimum.
 type IPFetcher struct {
-	// Node subnet state
-	secondaryIPQueryInterval   time.Duration // Minimum time between secondary IP fetches
-	secondaryIPLastRefreshTime time.Time     // Time of last secondary IP fetch
-
-	ipFectcherClient InterfaceRetriever
+	// Node subnet config
+	intfFetcherClient InterfaceRetriever
+	consumer          IPConsumer
+	fetcher           *refresh.Fetcher[nmagent.Interfaces]
 }
 
-func NewIPFetcher(nmaClient InterfaceRetriever, queryInterval time.Duration) *IPFetcher {
-	return &IPFetcher{
-		ipFectcherClient:         nmaClient,
-		secondaryIPQueryInterval: queryInterval,
+// NewIPFetcher creates a new IPFetcher. If minInterval is 0, it will default to 4 seconds.
+// If maxInterval is 0, it will default to 1024 seconds (or minInterval, if it is higher).
+func NewIPFetcher(
+	client InterfaceRetriever,
+	consumer IPConsumer,
+	minInterval time.Duration,
+	maxInterval time.Duration,
+	logger refresh.Logger,
+) *IPFetcher {
+	if minInterval == 0 {
+		minInterval = DefaultMinRefreshInterval
 	}
+
+	if maxInterval == 0 {
+		maxInterval = DefaultMaxRefreshInterval
+	}
+
+	maxInterval = max(maxInterval, minInterval)
+
+	newIPFetcher := &IPFetcher{
+		intfFetcherClient: client,
+		consumer:          consumer,
+		fetcher:           nil,
+	}
+	fetcher := refresh.NewFetcher[nmagent.Interfaces](client.GetInterfaceIPInfo, minInterval, maxInterval, newIPFetcher.ProcessInterfaces, logger)
+	newIPFetcher.fetcher = fetcher
+	return newIPFetcher
 }
 
-func (c *IPFetcher) RefreshSecondaryIPsIfNeeded(ctx context.Context) (ips []netip.Addr, err error) {
-	// If secondaryIPQueryInterval has elapsed since the last fetch, fetch secondary IPs
-	if time.Since(c.secondaryIPLastRefreshTime) < c.secondaryIPQueryInterval {
-		return nil, ErrRefreshSkipped
+// Start the IPFetcher.
+func (c *IPFetcher) Start(ctx context.Context) {
+	c.fetcher.Start(ctx)
+}
+
+// Fetch IPs from NMAgent and pass to the consumer
+func (c *IPFetcher) ProcessInterfaces(response nmagent.Interfaces) error {
+	if len(response.Entries) == 0 {
+		return errors.New("no interfaces found in response from NMAgent")
 	}
 
-	c.secondaryIPLastRefreshTime = time.Now()
-	response, err := c.ipFectcherClient.GetInterfaceIPInfo(ctx)
+	_, secondaryIPs := flattenIPListFromResponse(&response)
+	err := c.consumer.UpdateIPsForNodeSubnet(secondaryIPs)
 	if err != nil {
-		return nil, errors.Wrap(err, "getting interface IPs")
+		return errors.Wrap(err, "updating secondary IPs")
 	}
 
-	res := flattenIPListFromResponse(&response)
-	return res, nil
+	return nil
 }
 
 // Get the list of secondary IPs from fetched Interfaces
-func flattenIPListFromResponse(resp *nmagent.Interfaces) (res []netip.Addr) {
+func flattenIPListFromResponse(resp *nmagent.Interfaces) (primary netip.Addr, secondaryIPs []netip.Addr) {
+	var primaryIP netip.Addr
 	// For each interface...
 	for _, intf := range resp.Entries {
 		if !intf.IsPrimary {
@@ -63,15 +107,16 @@ func flattenIPListFromResponse(resp *nmagent.Interfaces) (res []netip.Addr) {
 			for _, a := range s.IPAddress {
 				// Primary addresses are reserved for the host.
 				if a.IsPrimary {
+					primaryIP = netip.Addr(a.Address)
 					continue
 				}
 
-				res = append(res, netip.Addr(a.Address))
+				secondaryIPs = append(secondaryIPs, netip.Addr(a.Address))
 				addressCount++
 			}
 			log.Printf("Got %d addresses from subnet %s", addressCount, s.Prefix)
 		}
 	}
 
-	return res
+	return primaryIP, secondaryIPs
 }
