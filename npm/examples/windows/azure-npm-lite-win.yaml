@@ -154,6 +154,7 @@ data:
             "ApplyIPSetsOnNeed":       false,
             "ApplyInBackground":       true,
             "NetPolInBackground":      true
-            "EnableNPMLite":           true
+            "EnableNPMLite":           true,
+            "IsL1VHNode":              true
         }
     }

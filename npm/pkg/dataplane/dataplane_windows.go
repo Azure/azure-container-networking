@@ -52,6 +52,14 @@ func (dp *DataPlane) initializeDataPlane() error {
 	}
 	// Filter out any endpoints that are not in "AttachedShared" State. All running Windows pods with networking must be in this state.
 	filterMap := map[string]uint16{"State": hcnEndpointStateAttachedSharing}
+	klog.Info("State:hcnEndpointStateAttachedSharing ")
+
+	// if npm lite is enabled and running on l1vh node, filter out any endpoints that are not in "Attached" State
+	if dp.EnableNPMLite && dp.IsL1VHNode {
+		klog.Info("NPM lite is running on L1VH Node")
+		filterMap = map[string]uint16{"State": hcnEndpointStateAttached}
+	}
+
 	filter, err := json.Marshal(filterMap)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to marshal endpoint filter map", err)

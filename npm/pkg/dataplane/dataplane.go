@@ -45,6 +45,8 @@ type Config struct {
 	NetPolInBackground bool
 	MaxPendingNetPols  int
 	NetPolInterval     time.Duration
+	IsL1VHNode         bool
+	EnableNPMLite      bool
 	*ipsets.IPSetManagerCfg
 	*policies.PolicyManagerCfg
 }
