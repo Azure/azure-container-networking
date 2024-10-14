@@ -955,7 +955,7 @@ func TestPluginWindowsAdd(t *testing.T) {
 					epInfo: &network.EndpointInfo{
 						ContainerID: "test-container",
 						Data: map[string]interface{}{
-							"cnetAddressSpace": ([]string)(nil),
+							"cnetAddressSpace": []string(nil),
 						},
 						Routes:             []network.RouteInfo{},
 						EnableSnatOnHost:   true,
@@ -1010,7 +1010,7 @@ func TestPluginWindowsAdd(t *testing.T) {
 					epInfo: &network.EndpointInfo{
 						ContainerID: "test-container",
 						Data: map[string]interface{}{
-							"cnetAddressSpace": ([]string)(nil),
+							"cnetAddressSpace": []string(nil),
 						},
 						Routes:             []network.RouteInfo{},
 						EnableSnatOnHost:   true,
@@ -1189,25 +1189,26 @@ func TestPluginWindowsAdd(t *testing.T) {
 			allEndpoints, _ := tt.plugin.nm.GetAllEndpoints("")
 			require.Len(t, allEndpoints, len(tt.want))
 			for _, wantedEndpointEntry := range tt.want {
-				epId := "none"
+				epID := "none"
 				for _, endpointInfo := range allEndpoints {
-					if tt.match(wantedEndpointEntry.epInfo, endpointInfo) {
-						// save the endpoint id before removing it
-						epId = endpointInfo.EndpointID
-						require.Regexp(t, regexp.MustCompile(wantedEndpointEntry.epIDRegex), epId)
-
-						// omit endpoint id and ifname fields as they are nondeterministic
-						endpointInfo.EndpointID = ""
-						endpointInfo.IfName = ""
-
-						require.Equal(t, wantedEndpointEntry.epInfo, endpointInfo)
-						break
+					if !tt.match(wantedEndpointEntry.epInfo, endpointInfo) {
+						continue
 					}
+					// save the endpoint id before removing it
+					epID = endpointInfo.EndpointID
+					require.Regexp(t, regexp.MustCompile(wantedEndpointEntry.epIDRegex), epID)
+
+					// omit endpoint id and ifname fields as they are nondeterministic
+					endpointInfo.EndpointID = ""
+					endpointInfo.IfName = ""
+
+					require.Equal(t, wantedEndpointEntry.epInfo, endpointInfo)
 				}
-				if epId == "none" {
+				if epID == "none" {
 					t.Fail()
 				}
-				tt.plugin.nm.DeleteEndpoint("", epId, nil)
+				err = tt.plugin.nm.DeleteEndpoint("", epID, nil)
+				require.NoError(t, err)
 			}
 
 			// ensure deleted

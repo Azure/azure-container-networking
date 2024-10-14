@@ -5,7 +5,6 @@ package network
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"regexp"
 	"testing"
@@ -511,26 +510,26 @@ func TestPluginLinuxAdd(t *testing.T) {
 
 			// compare contents
 			for _, wantedEndpointEntry := range tt.want {
-				epId := "none"
+				epID := "none"
 				for _, endpointInfo := range allEndpoints {
-					log.Printf("%v", endpointInfo.NetworkID)
-					if tt.match(wantedEndpointEntry.epInfo, endpointInfo) {
-						// save the endpoint id before removing it
-						epId = endpointInfo.EndpointID
-						require.Regexp(t, regexp.MustCompile(wantedEndpointEntry.epIDRegex), epId)
-
-						// omit endpoint id and ifname fields as they are nondeterministic
-						endpointInfo.EndpointID = ""
-						endpointInfo.IfName = ""
-
-						require.Equal(t, wantedEndpointEntry.epInfo, endpointInfo)
-						break
+					if !tt.match(wantedEndpointEntry.epInfo, endpointInfo) {
+						continue
 					}
+					// save the endpoint id before removing it
+					epID = endpointInfo.EndpointID
+					require.Regexp(t, regexp.MustCompile(wantedEndpointEntry.epIDRegex), epID)
+
+					// omit endpoint id and ifname fields as they are nondeterministic
+					endpointInfo.EndpointID = ""
+					endpointInfo.IfName = ""
+
+					require.Equal(t, wantedEndpointEntry.epInfo, endpointInfo)
 				}
-				if epId == "none" {
+				if epID == "none" {
 					t.Fail()
 				}
-				tt.plugin.nm.DeleteEndpoint("", epId, nil)
+				err = tt.plugin.nm.DeleteEndpoint("", epID, nil)
+				require.NoError(t, err)
 			}
 
 			// confirm separate entities
