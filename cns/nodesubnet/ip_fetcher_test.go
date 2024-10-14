@@ -12,29 +12,29 @@ import (
 
 // Mock client that simply consumes fetched IPs
 type TestConsumer struct {
-	consumeCount     int32
-	secondaryIPCount int32
+	consumeCount     int
+	secondaryIPCount int
 }
 
 // FetchConsumeCount atomically fetches the consume count
-func (c *TestConsumer) FetchConsumeCount() int32 {
+func (c *TestConsumer) FetchConsumeCount() int {
 	return c.consumeCount
 }
 
 // FetchSecondaryIPCount atomically fetches the last IP count
-func (c *TestConsumer) FetchSecondaryIPCount() int32 {
+func (c *TestConsumer) FetchSecondaryIPCount() int {
 	return c.consumeCount
 }
 
 // UpdateConsumeCount atomically updates the consume count
-func (c *TestConsumer) updateCounts(ipCount int32) {
+func (c *TestConsumer) updateCounts(ipCount int) {
 	c.consumeCount++
 	c.secondaryIPCount = ipCount
 }
 
 // Mock IP update
 func (c *TestConsumer) UpdateIPsForNodeSubnet(ips []netip.Addr) error {
-	c.updateCounts(int32(len(ips)))
+	c.updateCounts(len(ips))
 	return nil
 }
 
