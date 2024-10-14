@@ -15,13 +15,13 @@ import (
 
 // Mock client that simply tracks if refresh has been called
 type TestClient struct {
-	refreshCount int32
+	refreshCount int
 	responses    []nmagent.Interfaces
 	mu           sync.Mutex
 }
 
 // FetchRefreshCount atomically fetches the refresh count
-func (c *TestClient) FetchRefreshCount() int32 {
+func (c *TestClient) FetchRefreshCount() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.refreshCount
@@ -38,7 +38,7 @@ func (c *TestClient) UpdateRefreshCount() {
 func (c *TestClient) GetInterfaceIPInfo(_ context.Context) (nmagent.Interfaces, error) {
 	defer c.UpdateRefreshCount()
 
-	if c.refreshCount >= int32(len(c.responses)) {
+	if c.refreshCount >= len(c.responses) {
 		return c.responses[len(c.responses)-1], nil
 	}
 
@@ -49,12 +49,12 @@ var _ nodesubnet.InterfaceRetriever = &TestClient{}
 
 // Mock client that simply consumes fetched IPs
 type TestConsumer struct {
-	consumeCount int32
+	consumeCount int
 	mu           sync.Mutex
 }
 
 // FetchConsumeCount atomically fetches the consume count
-func (c *TestConsumer) FetchConsumeCount() int32 {
+func (c *TestConsumer) FetchConsumeCount() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.consumeCount
