@@ -3,6 +3,7 @@ package restserver
 import (
 	"maps"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -124,7 +125,6 @@ func init() {
 // Every http response is 200 so we really want cns  response code.
 // Hard tto do with middleware unless we derserialize the responses but making it an explit header works around it.
 // if that doesn't work we could have a separate countervec just for response codes.
-
 func NewHandlerFuncWithHistogram(handler http.HandlerFunc, histogram *prometheus.HistogramVec) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
@@ -157,14 +157,26 @@ type ipState struct {
 	releasingIPs int64
 }
 
-// publishIPStateMetrics logs and publishes the IP Config state metrics to Prometheus.
-func (service *HTTPRestService) publishIPStateMetrics() {
-	// copy state
-	service.RLock()
-	defer service.RUnlock()
+type asyncMetricsRecorder struct {
+	podIPConfigSrc func() map[string]cns.IPConfigurationStatus
+	sig            chan struct{}
+	once           sync.Once
+}
 
+// singleton recorder
+var recorder asyncMetricsRecorder
+
+// run starts the asyncMetricsRecorder and listens for signals to record the metrics.
+func (a *asyncMetricsRecorder) run() {
+	for range a.sig {
+		a.record()
+	}
+}
+
+// record records the IP Config state metrics to Prometheus.
+func (a *asyncMetricsRecorder) record() {
 	var state ipState
-	for ipConfig := range maps.Values(service.PodIPConfigState) {
+	for ipConfig := range maps.Values(a.podIPConfigSrc()) {
 		state.allocatedIPs++
 		if ipConfig.GetState() == types.Assigned {
 			state.assignedIPs++
@@ -194,4 +206,25 @@ func (service *HTTPRestService) publishIPStateMetrics() {
 	availableIPCount.WithLabelValues(labels...).Set(float64(state.availableIPs))
 	pendingProgrammingIPCount.WithLabelValues(labels...).Set(float64(state.programmingIPs))
 	pendingReleaseIPCount.WithLabelValues(labels...).Set(float64(state.releasingIPs))
+}
+
+// publishIPStateMetrics logs and publishes the IP Config state metrics to Prometheus.
+func (service *HTTPRestService) publishIPStateMetrics() {
+	recorder.once.Do(func() {
+		recorder.podIPConfigSrc = service.PodIPConfigStates
+		recorder.sig = make(chan struct{})
+		go recorder.run()
+	})
+	select {
+	case recorder.sig <- struct{}{}: // signal the recorder to record the metrics
+	default: // drop the signal if the recorder already has an event queued
+	}
+}
+
+// PodIPConfigStates returns a clone of the IP Config State map.
+func (service *HTTPRestService) PodIPConfigStates() map[string]cns.IPConfigurationStatus {
+	// copy state
+	service.RLock()
+	defer service.RUnlock()
+	return maps.Clone(service.PodIPConfigState)
 }
