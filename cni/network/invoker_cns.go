@@ -444,6 +444,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 				Gw:  ncgw,
 			})
 		}
+
 		// if we have multiple infra ip result infos, we effectively append routes and ip configs to that same interface info each time
 		// the host subnet prefix (in ipv4 or ipv6) will always refer to the same interface regardless of which ip result info we look at
 		addResult.interfaceInfo[key] = network.InterfaceInfo{
