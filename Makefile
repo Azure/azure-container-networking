@@ -419,6 +419,14 @@ ipv6-hp-bpf-image-pull: ## pull ipv6-hp-bpf container image.
 		IMAGE=$(IPV6_HP_BPF_IMAGE) \
 		TAG=$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG)
 
+# cns
+
+cns-image-name-and-tag: # util target to print the cns image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(CNS_IMAGE):$(CNS_PLATFORM_TAG)
+
+cns-image-name-and-tag-multiarch: # util target to print the cns image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(CNS_IMAGE):$(CNS_VERSION)
+
 # cni
 
 cni-image-name: # util target to print the cni image name.
@@ -426,6 +434,10 @@ cni-image-name: # util target to print the cni image name.
 
 cni-image-name-and-tag: # util target to print the cni image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(CNI_IMAGE):$(CNI_PLATFORM_TAG)
+
+
+cni-image-name-and-tag-multiarch: # util target to print the cni image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(CNI_IMAGE):$(CNI_VERSION)
 
 cni-image: ## build cni container image.
 	$(MAKE) container \
