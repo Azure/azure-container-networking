@@ -990,48 +990,45 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 // Assigns an available IP from each NC on the NNC. If there is one NC then we expect to only have one IP return
 // In the case of dualstack we would expect to have one IPv6 from one NC and one IPv4 from a second NC
 func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
-	// Gets the number of NCs which will determine the number of IPs given to a pod
-	// TODO: If we go with the One NC route then this logic would have to be updated
-	// Instead of using numOfNCs we would have a variable added to the HTTPRestService struct that determines IPFamilies and use the length of that
-	numOfNCs := len(service.state.ContainerStatus)
-	// if there are no NCs on the NNC there will be no IPs in the pool so return error
-	// We could still keep this check
-	if numOfNCs == 0 {
+	// Gets the number of IPFamilies expected to be returned.
+	numOfIPFamilies := len(service.IPFamilies)
+
+	if numOfIPFamilies == 0 {
+		// TODO: replace with it's own error
 		return nil, ErrNoNCs
 	}
 	service.Lock()
 	defer service.Unlock()
 	// Creates a slice of PodIpInfo with the size as number of NCs to hold the result for assigned IP configs
-	podIPInfo := make([]cns.PodIpInfo, numOfNCs)
+	podIPInfo := make([]cns.PodIpInfo, numOfIPFamilies)
 	// This map is used to store whether or not we have found an available IP from an NC when looping through the pool
-	ipsToAssign := make(map[string]cns.IPConfigurationStatus)
+	ipsToAssign := make(map[IPFamily]cns.IPConfigurationStatus)
 
 	// Searches for available IPs in the pool
 	for _, ipState := range service.PodIPConfigState {
-		// check if an IP from this NC is already set side for assignment.
-		// TODO: Instead of using ncAlreadyMarkedForAssignment it would be IPFamilyAlreadyMarkedForAssignment
-		if _, ncAlreadyMarkedForAssignment := ipsToAssign[ipState.NCID]; ncAlreadyMarkedForAssignment {
+		// check if the IP with the same family type exists already
+		if _, IPFamilyAlreadyMarkedForAssignment := ipsToAssign[net.ParseIP(ipState.IPAddress).To4() == nil]; IPFamilyAlreadyMarkedForAssignment {
 			continue
 		}
 		// Checks if the current IP is available
 		if ipState.GetState() != types.Available {
 			continue
 		}
-		ipsToAssign[ipState.NCID] = ipState
+		ipsToAssign[net.ParseIP(ipState.IPAddress).To4() == nil] = ipState
 		// Once one IP per container is found break out of the loop and stop searching
-		if len(ipsToAssign) == numOfNCs {
+		if len(ipsToAssign) == numOfIPFamilies {
 			break
 		}
 	}
 
 	// Checks to make sure we found one IP for each NC
-	if len(ipsToAssign) != numOfNCs {
-		for ncID := range service.state.ContainerStatus {
-			if _, found := ipsToAssign[ncID]; found {
+	if len(ipsToAssign) != numOfIPFamilies {
+		for _, ipFamily := range service.IPFamilies {
+			if _, found := ipsToAssign[ipFamily]; found {
 				continue
 			}
-			return podIPInfo, errors.Errorf("not enough IPs available for %s, waiting on Azure CNS to allocate more with NC Status: %s",
-				ncID, string(service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.NCStatus))
+			return podIPInfo, errors.Errorf("not enough IPs available of type %s, waiting on Azure CNS to allocate more with NC Status: %s",
+				ipFamily, string(service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.NCStatus))
 		}
 	}
 

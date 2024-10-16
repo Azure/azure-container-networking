@@ -94,6 +94,7 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
+	IPFamilies                 []IPFamily
 }
 
 type CNIConflistGenerator interface {
