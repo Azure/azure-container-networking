@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -67,6 +66,7 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/avast/retry-go/v4"
+	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -112,6 +112,9 @@ const (
 	defaultLocalServerPort           = "10090"
 	defaultDevicePluginRetryInterval = 2 * time.Second
 	defaultNodeInfoCRDPollInterval   = 5 * time.Second
+	defaultDevicePluginMaxRetryCount = 5
+	initialVnetNICCount              = 0
+	initialIBNICCount                = 0
 )
 
 type cniConflistScenario string
@@ -886,8 +889,6 @@ func main() {
 	}
 
 	if cnsconfig.EnableSwiftV2 && cnsconfig.EnableK8sDevicePlugin {
-		initialVnetNICCount := 0
-		initialIBNICCount := 0
 		// Create device plugin manager instance
 		pluginManager := deviceplugin.NewPluginManager(z)
 		pluginManager.AddPlugin(mtv1alpha1.DeviceTypeVnetNIC, initialVnetNICCount)
@@ -898,15 +899,24 @@ func main() {
 
 		// Start device plugin manager in a separate goroutine
 		go func() {
+			retryCount := 0
+			ticker := time.NewTicker(defaultDevicePluginRetryInterval)
+			// Ensure the ticker is stopped on exit
+			defer ticker.Stop()
 			for {
 				select {
 				case <-ctx.Done():
 					z.Info("Context canceled, stopping plugin manager")
 					return
-				default:
+				case <-ticker.C:
 					if pluginErr := pluginManager.Run(ctx); pluginErr != nil {
 						z.Error("plugin manager exited with error", zap.Error(pluginErr))
-						time.Sleep(defaultDevicePluginRetryInterval)
+						retryCount++
+						// Implementing a basic circuit breaker
+						if retryCount >= defaultDevicePluginMaxRetryCount {
+							z.Error("Max retries reached, stopping plugin manager")
+							return
+						}
 					} else {
 						return
 					}
@@ -1140,7 +1150,7 @@ func pollNodeInfoCRDAndUpdatePlugin(ctx context.Context, zlog *zap.Logger, plugi
 			}
 
 			// Check if the status is set
-			if !reflect.DeepEqual(nodeInfo.Status, mtv1alpha1.NodeInfoStatus{}) && len(nodeInfo.Status.DeviceInfos) > 0 {
+			if !cmp.Equal(nodeInfo.Status, mtv1alpha1.NodeInfoStatus{}) && len(nodeInfo.Status.DeviceInfos) > 0 {
 				// Create a map to count devices by type
 				deviceCounts := map[mtv1alpha1.DeviceType]int{
 					mtv1alpha1.DeviceTypeVnetNIC:       0,
