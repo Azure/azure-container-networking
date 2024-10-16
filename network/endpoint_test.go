@@ -267,31 +267,6 @@ var _ = Describe("Test Endpoint", func() {
 				Expect(ep.IfName).To(Equal("masterIfName"))
 			})
 		})
-		Context("When endpoint added accelnet", func() {
-			epInfo := &EndpointInfo{
-				EndpointID:   "768e8deb-eth1",
-				Data:         make(map[string]interface{}),
-				IfName:       eth0IfName,
-				MasterIfName: "accelnetNIC",
-				NICType:      cns.NodeNetworkInterfaceAccelnetFrontendNIC,
-			}
-
-			It("should have fields set", func() {
-				nw2 := &network{
-					Endpoints: map[string]*endpoint{},
-					extIf:     &externalInterface{IPv4Gateway: net.ParseIP("192.168.0.1")},
-				}
-				ep, err := nw2.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, epInfo)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(ep).NotTo(BeNil())
-				Expect(ep.Id).To(Equal(epInfo.EndpointID))
-				Expect(ep.Gateways).NotTo(BeNil())
-				Expect(len(ep.Gateways)).To(Equal(1))
-				Expect(ep.Gateways[0].String()).To(Equal("192.168.0.1"))
-				Expect(ep.IfName).To(Equal("accelnetNIC"))
-			})
-		})
 		Context("When endpoint add failed", func() {
 			It("Should not be added to the network", func() {
 				nw := &network{

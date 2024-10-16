@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -230,4 +231,9 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	}
 	config.GRPCSettings.Enable = false
 	config.WatchPods = config.EnableIPAMv2 || config.EnableSwiftV2
+}
+
+// isStalessCNIMode verify if the CNI is running stateless mode
+func (cnsconfig *CNSConfig) IsStalessCNIWindows() bool {
+	return !cnsconfig.InitializeFromCNI && cnsconfig.ManageEndpointState && runtime.GOOS == "windows"
 }

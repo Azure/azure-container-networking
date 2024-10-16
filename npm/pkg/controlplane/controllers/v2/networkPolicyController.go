@@ -31,10 +31,11 @@ var (
 
 type NetworkPolicyController struct {
 	sync.RWMutex
-	netPolLister netpollister.NetworkPolicyLister
-	workqueue    workqueue.RateLimitingInterface
-	rawNpSpecMap map[string]*networkingv1.NetworkPolicySpec // Key is <nsname>/<policyname>
-	dp           dataplane.GenericDataplane
+	netPolLister  netpollister.NetworkPolicyLister
+	workqueue     workqueue.RateLimitingInterface
+	rawNpSpecMap  map[string]*networkingv1.NetworkPolicySpec // Key is <nsname>/<policyname>
+	dp            dataplane.GenericDataplane
+	npmLiteToggle bool
 }
 
 func (c *NetworkPolicyController) GetCache() map[string]*networkingv1.NetworkPolicySpec {
@@ -43,12 +44,13 @@ func (c *NetworkPolicyController) GetCache() map[string]*networkingv1.NetworkPol
 	return c.rawNpSpecMap
 }
 
-func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer, dp dataplane.GenericDataplane) *NetworkPolicyController {
+func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer, dp dataplane.GenericDataplane, npmLiteToggle bool) *NetworkPolicyController {
 	netPolController := &NetworkPolicyController{
-		netPolLister: npInformer.Lister(),
-		workqueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NetworkPolicy"),
-		rawNpSpecMap: make(map[string]*networkingv1.NetworkPolicySpec),
-		dp:           dp,
+		netPolLister:  npInformer.Lister(),
+		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NetworkPolicy"),
+		rawNpSpecMap:  make(map[string]*networkingv1.NetworkPolicySpec),
+		dp:            dp,
+		npmLiteToggle: npmLiteToggle,
 	}
 
 	npInformer.Informer().AddEventHandler(
@@ -283,7 +285,7 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	}
 
 	// install translated rules into kernel
-	npmNetPolObj, err := translation.TranslatePolicy(netPolObj)
+	npmNetPolObj, err := translation.TranslatePolicy(netPolObj, c.npmLiteToggle)
 	if err != nil {
 		if isUnsupportedWindowsTranslationErr(err) {
 			klog.Warningf("NetworkPolicy %s in namespace %s is not translated because it has unsupported translated features of Windows: %s",

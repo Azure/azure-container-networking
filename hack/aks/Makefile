@@ -95,6 +95,24 @@ byocni-up: swift-byocni-up ## Alias to swift-byocni-up
 cilium-up: swift-cilium-up ## Alias to swift-cilium-up
 up: swift-up ## Alias to swift-up
 
+
+nodesubnet-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an NodeSubnet BYO CNI cluster without kube-proxy
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--auto-upgrade-channel $(AUTOUPGRADE) \
+		--node-os-upgrade-channel $(NODEUPGRADE) \
+		--kubernetes-version $(K8S_VER) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--load-balancer-sku basic \
+		--max-pods 250 \
+		--network-plugin none \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--os-sku $(OS_SKU) \
+		--no-ssh-key \
+		--kube-proxy-config ./kube-proxy.json \
+		--yes
+	@$(MAKE) set-kubeconf
+
 overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \

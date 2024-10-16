@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/deviceplugin"
+	"github.com/Azure/azure-container-networking/cns/endpointmanager"
 	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/cns/grpc"
 	"github.com/Azure/azure-container-networking/cns/healthserver"
@@ -486,7 +487,7 @@ func startTelemetryService(ctx context.Context) {
 		log.Errorf("Telemetry service failed to start: %w", err)
 		return
 	}
-	tb.PushData(rootCtx)
+	tb.PushData(ctx)
 }
 
 // Main is the entry point for CNS.
@@ -655,16 +656,14 @@ func main() {
 		return
 	}
 
+	// copy ChannelMode from cnsconfig to HTTPRemoteRestService config
+	config.ChannelMode = cnsconfig.ChannelMode
 	if cnsconfig.ChannelMode == cns.Managed {
-		config.ChannelMode = cns.Managed
 		privateEndpoint = cnsconfig.ManagedSettings.PrivateEndpoint
 		infravnet = cnsconfig.ManagedSettings.InfrastructureNetworkID
 		nodeID = cnsconfig.ManagedSettings.NodeID
-	} else if cnsconfig.ChannelMode == cns.CRD {
-		config.ChannelMode = cns.CRD
-	} else if cnsconfig.ChannelMode == cns.MultiTenantCRD {
-		config.ChannelMode = cns.MultiTenantCRD
-	} else if acn.GetArg(acn.OptManaged).(bool) {
+	}
+	if isManaged, ok := acn.GetArg(acn.OptManaged).(bool); ok && isManaged {
 		config.ChannelMode = cns.Managed
 	}
 
@@ -677,7 +676,7 @@ func main() {
 	}
 
 	if telemetryDaemonEnabled {
-		log.Printf("CNI Telemtry is enabled")
+		logger.Printf("CNI Telemtry is enabled")
 		go startTelemetryService(rootCtx)
 	}
 
@@ -692,7 +691,7 @@ func main() {
 
 	lockclient, err := processlock.NewFileLock(platform.CNILockPath + name + store.LockExtension)
 	if err != nil {
-		log.Printf("Error initializing file lock:%v", err)
+		logger.Printf("Error initializing file lock:%v", err)
 		return
 	}
 
@@ -706,10 +705,10 @@ func main() {
 
 	// Initialize endpoint state store if cns is managing endpoint state.
 	if cnsconfig.ManageEndpointState {
-		log.Printf("[Azure CNS] Configured to manage endpoints state")
+		logger.Printf("[Azure CNS] Configured to manage endpoints state")
 		endpointStoreLock, err := processlock.NewFileLock(platform.CNILockPath + endpointStoreName + store.LockExtension) // nolint
 		if err != nil {
-			log.Printf("Error initializing endpoint state file lock:%v", err)
+			logger.Printf("Error initializing endpoint state file lock:%v", err)
 			return
 		}
 		defer endpointStoreLock.Unlock() // nolint
@@ -991,6 +990,8 @@ func main() {
 
 	if cnsconfig.EnableAsyncPodDelete {
 		// Start fs watcher here
+		z.Info("AsyncPodDelete is enabled")
+		logger.Printf("AsyncPodDelete is enabled")
 		cnsclient, err := cnsclient.New("", cnsReqTimeout) //nolint
 		if err != nil {
 			z.Error("failed to create cnsclient", zap.Error(err))
@@ -998,7 +999,13 @@ func main() {
 		go func() {
 			_ = retry.Do(func() error {
 				z.Info("starting fsnotify watcher to process missed Pod deletes")
-				w, err := fsnotify.New(cnsclient, cnsconfig.AsyncPodDeletePath, z)
+				logger.Printf("starting fsnotify watcher to process missed Pod deletes")
+				var endpointCleanup fsnotify.ReleaseIPsClient = cnsclient
+				// using endpointmanager implmentation for stateless CNI sceanrio to remove HNS endpoint alongside the IPs
+				if cnsconfig.IsStalessCNIWindows() {
+					endpointCleanup = endpointmanager.WithPlatformReleaseIPsManager(cnsclient)
+				}
+				w, err := fsnotify.New(endpointCleanup, cnsconfig.AsyncPodDeletePath, z)
 				if err != nil {
 					z.Error("failed to create fsnotify watcher", zap.Error(err))
 					return errors.Wrap(err, "failed to create fsnotify watcher, will retry")
@@ -1073,7 +1080,7 @@ func main() {
 	}
 
 	if err = lockclient.Unlock(); err != nil {
-		log.Errorf("lockclient cns unlock error:%v", err)
+		logger.Errorf("lockclient cns unlock error:%v", err)
 	}
 
 	logger.Printf("CNS exited")
@@ -1468,6 +1475,14 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
+	if cnsconfig.EnableSubnetScarcity {
+		cacheOpts.ByObject[&cssv1alpha1.ClusterSubnetState{}] = cache.ByObject{
+			Namespaces: map[string]cache.Config{
+				"kube-system": {},
+			},
+		}
+	}
+
 	managerOpts := ctrlmgr.Options{
 		Scheme:  scheme,
 		Metrics: ctrlmetrics.Options{BindAddress: "0"},
@@ -1493,9 +1508,13 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	cssCh := make(chan cssv1alpha1.ClusterSubnetState)
 	ipDemandCh := make(chan int)
 	if cnsconfig.EnableIPAMv2 {
+		cssSrc := func(context.Context) ([]cssv1alpha1.ClusterSubnetState, error) { return nil, nil }
+		if cnsconfig.EnableSubnetScarcity {
+			cssSrc = clustersubnetstate.NewClient(manager.GetClient()).List
+		}
 		nncCh := make(chan v1alpha.NodeNetworkConfig)
 		pmv2 := ipampoolv2.NewMonitor(z, httpRestServiceImplementation, cachedscopedcli, ipDemandCh, nncCh, cssCh)
-		obs := metrics.NewLegacyMetricsObserver(ctx, httpRestService.GetPodIPConfigState, cachedscopedcli.Get, clustersubnetstate.NewClient(manager.GetClient()).List)
+		obs := metrics.NewLegacyMetricsObserver(httpRestService.GetPodIPConfigState, cachedscopedcli.Get, cssSrc)
 		pmv2.WithLegacyMetricsObserver(obs)
 		poolMonitor = pmv2.AsV1(nncCh)
 	} else {
@@ -1581,13 +1600,14 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		// wait for the Reconciler to run once on a NNC that was made for this Node.
 		// the nncReadyCtx has a timeout of 15 minutes, after which we will consider
 		// this false and the NNC Reconciler stuck/failed, log and retry.
-		nncReadyCtx, _ := context.WithTimeout(ctx, 15*time.Minute) //nolint // it will time out and not leak
+		nncReadyCtx, cancel := context.WithTimeout(ctx, 15*time.Minute) //nolint // it will time out and not leak
 		if started, err := nncReconciler.Started(nncReadyCtx); !started {
 			log.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
 			nncReconcilerStartFailures.Inc()
 			continue
 		}
 		logger.Printf("NodeNetworkConfig reconciler has started.")
+		cancel()
 		break
 	}
 

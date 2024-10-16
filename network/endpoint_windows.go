@@ -309,7 +309,7 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 	// macAddress type for InfraNIC is like "60:45:bd:12:45:65"
 	// if NICType is delegatedVMNIC or AccelnetNIC, convert the macaddress format
 	macAddress := epInfo.MacAddress.String()
-	if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC || epInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+	if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 		// convert the format of macAddress that HNS can accept, i.e, "60-45-bd-12-45-65" if NIC type is delegated NIC
 		macAddress = strings.Join(strings.Split(macAddress, ":"), "-")
 	}
@@ -322,8 +322,8 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 		return nil, err
 	}
 
-	// add hcnEndpoint policy for accelnet
-	if epInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+	// add hcnEndpoint policy for accelnet for frontendNIC
+	if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 		endpointPolicy, err := policy.AddAccelnetPolicySetting()
 		if err != nil {
 			logger.Error("Failed to set iov endpoint policy", zap.Error(err))

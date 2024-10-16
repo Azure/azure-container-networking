@@ -444,8 +444,6 @@ func TestGetSWIFTv2IPConfigMultiInterfaceSuccess(t *testing.T) {
 		switch ipInfo.NICType {
 		case cns.DelegatedVMNIC:
 			assert.Equal(t, ipInfo.NICType, cns.DelegatedVMNIC)
-		case cns.NodeNetworkInterfaceAccelnetFrontendNIC:
-			assert.Equal(t, ipInfo.NICType, cns.NodeNetworkInterfaceAccelnetFrontendNIC)
 		case cns.NodeNetworkInterfaceBackendNIC:
 			assert.Equal(t, ipInfo.NICType, cns.NodeNetworkInterfaceBackendNIC)
 		case cns.InfraNIC:

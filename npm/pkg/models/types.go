@@ -38,10 +38,11 @@ type K8SControllersV2 struct {
 
 // Informers are the informers for the k8s controllers
 type Informers struct {
-	InformerFactory informers.SharedInformerFactory           //nolint:structcheck //ignore this error
-	PodInformer     coreinformers.PodInformer                 //nolint:structcheck // false lint error
-	NsInformer      coreinformers.NamespaceInformer           //nolint:structcheck // false lint error
-	NpInformer      networkinginformers.NetworkPolicyInformer //nolint:structcheck // false lint error
+	InformerFactory    informers.SharedInformerFactory //nolint:structcheck //ignore this error
+	PodInformerFactory informers.SharedInformerFactory
+	PodInformer        coreinformers.PodInformer                 //nolint:structcheck // false lint error
+	NsInformer         coreinformers.NamespaceInformer           //nolint:structcheck // false lint error
+	NpInformer         networkinginformers.NetworkPolicyInformer //nolint:structcheck // false lint error
 }
 
 // AzureConfig captures the Azure specific configurations and fields

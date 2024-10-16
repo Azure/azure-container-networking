@@ -36,6 +36,8 @@ type NetworkPolicyManager struct {
 
 	Dataplane dataplane.GenericDataplane
 
+	NpmLiteToggle bool
+
 	// ipsMgr are shared in all controllers. Thus, only one ipsMgr is created for simple management
 	// and uses lock to avoid unintentional race condictions in IpsetManager.
 	ipsMgr *ipsm.IpsetManager
@@ -58,6 +60,7 @@ type NetworkPolicyManager struct {
 // NewNetworkPolicyManager creates a NetworkPolicyManager
 func NewNetworkPolicyManager(config npmconfig.Config,
 	informerFactory informers.SharedInformerFactory,
+	podFactory informers.SharedInformerFactory,
 	dp dataplane.GenericDataplane,
 	exec utilexec.Interface,
 	npmVersion string,
@@ -65,13 +68,15 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	klog.Infof("API server version: %+v AI metadata %+v", k8sServerVersion, aiMetadata)
 
 	npMgr := &NetworkPolicyManager{
-		config:    config,
-		Dataplane: dp,
+		config:        config,
+		Dataplane:     dp,
+		NpmLiteToggle: config.Toggles.EnableNPMLite,
 		Informers: models.Informers{
-			InformerFactory: informerFactory,
-			PodInformer:     informerFactory.Core().V1().Pods(),
-			NsInformer:      informerFactory.Core().V1().Namespaces(),
-			NpInformer:      informerFactory.Networking().V1().NetworkPolicies(),
+			InformerFactory:    informerFactory,
+			PodInformerFactory: podFactory,
+			PodInformer:        podFactory.Core().V1().Pods(),
+			NsInformer:         informerFactory.Core().V1().Namespaces(),
+			NpInformer:         informerFactory.Networking().V1().NetworkPolicies(),
 		},
 		AzureConfig: models.AzureConfig{
 			K8sServerVersion: k8sServerVersion,
@@ -87,7 +92,7 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 		npMgr.PodControllerV2 = controllersv2.NewPodController(npMgr.PodInformer, dp, npMgr.NpmNamespaceCacheV2)
 		npMgr.NamespaceControllerV2 = controllersv2.NewNamespaceController(npMgr.NsInformer, dp, npMgr.NpmNamespaceCacheV2)
 		// Question(jungukcho): Is config.Toggles.PlaceAzureChainFirst needed for v2?
-		npMgr.NetPolControllerV2 = controllersv2.NewNetworkPolicyController(npMgr.NpInformer, dp)
+		npMgr.NetPolControllerV2 = controllersv2.NewNetworkPolicyController(npMgr.NpInformer, dp, config.Toggles.EnableNPMLite)
 		return npMgr
 	}
 
@@ -186,6 +191,11 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 
 	// Starts all informers manufactured by npMgr's informerFactory.
 	npMgr.InformerFactory.Start(stopCh)
+
+	// npn lite
+	if npMgr.NpmLiteToggle {
+		npMgr.PodInformerFactory.Start(stopCh)
+	}
 
 	// Wait for the initial sync of local cache.
 	if !cache.WaitForCacheSync(stopCh, npMgr.PodInformer.Informer().HasSynced) {

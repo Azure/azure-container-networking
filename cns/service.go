@@ -17,7 +17,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/keyvault"
-	"github.com/Azure/azure-container-networking/log"
 	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -112,7 +111,7 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		// Start the listener and HTTP and HTTPS server.
 		tlsConfig, err := getTLSConfig(config.TLSSettings, config.ErrChan) //nolint
 		if err != nil {
-			log.Printf("Failed to compose Tls Configuration with error: %+v", err)
+			logger.Printf("Failed to compose Tls Configuration with error: %+v", err)
 			return errors.Wrap(err, "could not get tls config")
 		}
 
@@ -122,14 +121,14 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 	}
 
 	service.Listener = nodeListener
-	log.Debugf("[Azure CNS] Successfully initialized a service with config: %+v", config)
+	logger.Debugf("[Azure CNS] Successfully initialized a service with config: %+v", config)
 
 	return nil
 }
 
 // Initialize initializes the service and starts the listener.
 func (service *Service) Initialize(config *common.ServiceConfig) error {
-	log.Debugf("[Azure CNS] Going to initialize a service with config: %+v", config)
+	logger.Debugf("[Azure CNS] Going to initialize a service with config: %+v", config)
 
 	// Initialize the base service.
 	if err := service.Service.Initialize(config); err != nil {
@@ -281,11 +280,11 @@ func mtlsRootCAsFromCertificate(tlsCert *tls.Certificate) (*x509.CertPool, error
 }
 
 func (service *Service) StartListener(config *common.ServiceConfig) error {
-	log.Debugf("[Azure CNS] Going to start listener: %+v", config)
+	logger.Debugf("[Azure CNS] Going to start listener: %+v", config)
 
 	// Initialize the listener.
 	if service.Listener != nil {
-		log.Debugf("[Azure CNS] Starting listener: %+v", config)
+		logger.Debugf("[Azure CNS] Starting listener: %+v", config)
 		// Start the listener.
 		// continue to listen on the normal endpoint for http traffic, this will be supported
 		// for sometime until partners migrate fully to https
@@ -315,5 +314,5 @@ func (service *Service) ParseOptions(options OptionMap) OptionMap {
 func (service *Service) SendErrorResponse(w http.ResponseWriter, errMsg error) {
 	resp := errorResponse{errMsg.Error()}
 	err := acn.Encode(w, &resp)
-	log.Errorf("[%s] %+v %s.", service.Name, &resp, err.Error())
+	logger.Errorf("[%s] %+v %s.", service.Name, &resp, err.Error())
 }

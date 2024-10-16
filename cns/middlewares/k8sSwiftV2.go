@@ -205,9 +205,6 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 			switch {
 			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC:
 				nicType = cns.DelegatedVMNIC
-			// TODO: have it back once Linux supports accelnetNIC
-			// case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC && interfaceInfo.AccelnetEnabled:
-			// 	nicType = cns.NodeNetworkInterfaceAccelnetFrontendNIC
 			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeInfiniBandNIC:
 				nicType = cns.NodeNetworkInterfaceBackendNIC
 			default:

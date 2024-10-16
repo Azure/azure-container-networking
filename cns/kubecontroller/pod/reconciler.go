@@ -61,11 +61,11 @@ type limiter interface {
 // any events.
 // listeners are called with the new Pod list.
 func (p *watcher) NewNotifierFunc(listOpts *client.ListOptions, limiter limiter, listeners ...func([]v1.Pod)) reconcile.Func {
-	p.z.Debug("adding notified for listeners", zap.Int("listeners", len(listeners)))
+	p.z.Info("adding notifier for listeners", zap.Int("listeners", len(listeners)))
 	return func(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 		if !limiter.Allow() {
 			// rate limit exceeded, requeue
-			p.z.Debug("rate limit exceeded")
+			p.z.Info("rate limit exceeded")
 			return ctrl.Result{Requeue: true}, nil
 		}
 		podList := &v1.PodList{}

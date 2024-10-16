@@ -297,17 +297,9 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 		return nil, errNetworkModeInvalid
 	}
 
-	// DelegatedNIC flag: hcn.DisableHostPort(1024)
-	if nwInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
-		hcnNetwork.Type = hcn.Transparent
-		// set transparent network as non-persistent so that networks will be gone after the node gets rebooted
-		// hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableNonPersistent (1024 + 8 = 1032)
-		hcnNetwork.Flags = hcn.DisableHostPort | hcn.EnableNonPersistent
-	}
-
-	// AccelnetNIC flag: hcn.EnableIov(9216)
+	// AccelnetNIC flag: hcn.EnableIov(9216) - treat Delegated/FrontendNIC also the same as Accelnet
 	// For L1VH with accelnet, hcn.DisableHostPort and hcn.EnableIov must be configured
-	if nwInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+	if nwInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 		hcnNetwork.Type = hcn.Transparent
 		// set transparent network as non-persistent so that networks will be gone after the node gets rebooted
 		// hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableIov | hcn.EnableNonPersistent (1024 + 8192 + 8 = 9224)
@@ -454,7 +446,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalIn
 
 // DeleteNetworkImpl deletes an existing container network.
 func (nm *networkManager) deleteNetworkImpl(nw *network, nicType cns.NICType) error {
-	if nicType != cns.NodeNetworkInterfaceFrontendNIC && nicType != cns.NodeNetworkInterfaceAccelnetFrontendNIC { //nolint
+	if nicType != cns.NodeNetworkInterfaceFrontendNIC { //nolint
 		return nil
 	}
 

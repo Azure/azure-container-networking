@@ -14,7 +14,7 @@ jobs:
   crdgen:
     strategy:
       matrix:
-        go-version: ['1.21', '1.22']
+        go-version: ['1.22', '1.23']
         os: [ubuntu-latest]
     name: CRDs are Generated
     runs-on: ${{ matrix.os }}
@@ -31,5 +31,9 @@ jobs:
       run: make -C crd/multitenantnetworkcontainer
     - name: Regenerate Multitenancy CRDs
       run: make -C crd/multitenancy
+    - name: Regenerate ClusterSubnetState CRD
+      run: make -C crd/clustersubnetstate
+    - name: Regenerate OverlayExtensionConfig CRD
+      run: make -C crd/overlayextensionconfig
     - name: Fail if the tree is dirty
       run: test -z "$(git status --porcelain)"
