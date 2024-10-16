@@ -52,9 +52,8 @@ type imdsClient interface {
 	GetVMUniqueID(ctx context.Context) (string, error)
 }
 
-// HTTPRestService represents http listener for CNS - Container Networking Service.
-// TODO: Add a new value for IPFamily
-// If we add a new type of Middleware that will be reflected in the IPConfigsHandlerMiddleware value
+// HTTPRestService represents http listener for CNS - Container Networking Service.// TODO: Add a new value for IPFamily
+// TODO: If we add a new type of Middleware that will be reflected in the IPConfigsHandlerMiddleware value
 type HTTPRestService struct {
 	*cns.Service
 	dockerClient             *dockerclient.Client
@@ -78,6 +77,7 @@ type HTTPRestService struct {
 	IPConfigsHandlerMiddleware cns.IPConfigsHandlerMiddleware
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
+	IPFamilies                 []IPFamily
 }
 
 type CNIConflistGenerator interface {
