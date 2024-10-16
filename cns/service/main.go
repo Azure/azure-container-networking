@@ -1136,12 +1136,15 @@ func pollNodeInfoCRDAndUpdatePlugin(ctx context.Context, zlog *zap.Logger, plugi
 		Cli: directcli,
 	}
 
+	ticker := time.NewTicker(defaultNodeInfoCRDPollInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			zlog.Info("Polling context canceled, exiting")
 			return nil
-		default:
+		case <-ticker.C:
 			// Fetch the CRD status
 			nodeInfo, err := nodeInfoCli.Get(ctx, node.Name)
 			if err != nil {
@@ -1175,9 +1178,6 @@ func pollNodeInfoCRDAndUpdatePlugin(ctx context.Context, zlog *zap.Logger, plugi
 				// Exit polling loop once the CRD status is successfully processed
 				return nil
 			}
-
-			// Wait before polling again
-			time.Sleep(defaultNodeInfoCRDPollInterval)
 		}
 	}
 }
