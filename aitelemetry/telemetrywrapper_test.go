@@ -32,12 +32,12 @@ func TestMain(m *testing.M) {
 	p := platform.NewExecClient(nil)
 	if runtime.GOOS == "linux" {
 		//nolint:errcheck // initial test setup
-		p.ExecuteCommand("cp metadata_test.json /tmp/azuremetadata.json")
+		p.ExecuteRawCommand("cp metadata_test.json /tmp/azuremetadata.json")
 	} else {
 		metadataFile := filepath.FromSlash(os.Getenv("TEMP")) + "\\azuremetadata.json"
 		cmd := fmt.Sprintf("copy metadata_test.json %s", metadataFile)
 		//nolint:errcheck // initial test setup
-		p.ExecuteCommand(cmd)
+		p.ExecuteRawCommand(cmd)
 	}
 
 	hostu, _ := url.Parse("tcp://" + hostAgentUrl)
@@ -58,12 +58,12 @@ func TestMain(m *testing.M) {
 
 	if runtime.GOOS == "linux" {
 		//nolint:errcheck // test cleanup
-		p.ExecuteCommand("rm /tmp/azuremetadata.json")
+		p.ExecuteRawCommand("rm /tmp/azuremetadata.json")
 	} else {
 		metadataFile := filepath.FromSlash(os.Getenv("TEMP")) + "\\azuremetadata.json"
 		cmd := fmt.Sprintf("del %s", metadataFile)
 		//nolint:errcheck // initial test cleanup
-		p.ExecuteCommand(cmd)
+		p.ExecuteRawCommand(cmd)
 	}
 
 	log.Close()

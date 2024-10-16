@@ -992,6 +992,45 @@ func TestDeleteMembers(t *testing.T) {
 	require.False(t, wasFileAltered, "file should not be altered")
 }
 
+func TestCidrExceptMembers(t *testing.T) {
+	calls := []testutils.TestCmd{
+		fakeRestoreSuccessCommand,
+	}
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	iMgr := NewIPSetManager(applyAlwaysCfg, ioshim)
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestCIDRSet.Metadata}, "1.1.1.1 nomatch", "a"))
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestCIDRSet.Metadata}, "2.2.2.2", "b"))
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestCIDRSet.Metadata}, "3.3.3.3 nomatch", "c"))
+	// will not delete this member
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestCIDRSet.Metadata}, "4.4.4.4 nomatch", "d"))
+	// clear dirty cache, otherwise a set deletion will be a no-op
+	iMgr.clearDirtyCache()
+
+	// remove members
+	require.NoError(t, iMgr.RemoveFromSets([]*IPSetMetadata{TestCIDRSet.Metadata}, "1.1.1.1 nomatch", "a"))
+	require.NoError(t, iMgr.RemoveFromSets([]*IPSetMetadata{TestCIDRSet.Metadata}, "2.2.2.2", "b"))
+	require.NoError(t, iMgr.RemoveFromSets([]*IPSetMetadata{TestCIDRSet.Metadata}, "3.3.3.3 nomatch", "c"))
+	// add one more nomatch member
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestCIDRSet.Metadata}, "5.5.5.5 nomatch", "e"))
+
+	expectedLines := []string{
+		fmt.Sprintf("-N %s --exist nethash maxelem 4294967295", TestCIDRSet.HashedName),
+		fmt.Sprintf("-D %s 1.1.1.1", TestCIDRSet.HashedName),
+		fmt.Sprintf("-D %s 2.2.2.2", TestCIDRSet.HashedName),
+		fmt.Sprintf("-D %s 3.3.3.3", TestCIDRSet.HashedName),
+		fmt.Sprintf("-A %s 5.5.5.5 nomatch", TestCIDRSet.HashedName),
+		"",
+	}
+	sortedExpectedLines := testAndSortRestoreFileLines(t, expectedLines)
+	creator := iMgr.fileCreatorForApply(len(calls))
+	actualLines := testAndSortRestoreFileString(t, creator.ToString())
+	dptestutils.AssertEqualLines(t, sortedExpectedLines, actualLines)
+	wasFileAltered, err := creator.RunCommandOnceWithFile("ipset", "restore")
+	require.NoError(t, err, "ipset restore should be successful")
+	require.False(t, wasFileAltered, "file should not be altered")
+}
+
 func TestUpdateWithIdenticalSaveFile(t *testing.T) {
 	calls := []testutils.TestCmd{fakeRestoreSuccessCommand}
 	ioshim := common.NewMockIOShim(calls)

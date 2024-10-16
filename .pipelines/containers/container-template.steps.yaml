@@ -1,0 +1,39 @@
+parameters:
+  arch: ""
+  name: ""
+  os: ""
+  os_version: ""
+
+steps:
+- task: AzureCLI@2
+  displayName: "Login"
+  inputs:
+    azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
+    scriptLocation: "inlineScript"
+    scriptType: "bash"
+    inlineScript: |
+      az acr login -n $(ACR)
+
+- script: |
+    set -e
+    if [ "$IN_OS" = 'windows' ]; then export BUILDX_ACTION='--push'; fi
+    make "$IMGNAME" OS="$IN_OS" ARCH="$IN_ARCH" OS_VERSION="$IN_OS_VERSION"
+  name: image_build
+  displayName: Image Build
+  workingDirectory: $(ACN_DIR)
+  retryCountOnTaskFailure: 3
+  env:
+    IMGNAME: '${{ parameters.name }}-image'
+    IN_OS: '${{ parameters.os }}'
+    IN_ARCH: '${{ parameters.arch }}'
+    IN_OS_VERSION: '${{ parameters.os_version }}'
+
+- task: AzureCLI@2
+  displayName: "Logout"
+  inputs:
+    azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
+    scriptLocation: "inlineScript"
+    scriptType: "bash"
+    inlineScript: |
+      docker logout
+

@@ -1,0 +1,245 @@
+parameters:
+  name: ""
+  clusterName: ""
+  testHubble: false
+  scaleup: ""
+
+
+steps:
+  - bash: |
+      go version
+      go env
+      mkdir -p '$(GOBIN)'
+      mkdir -p '$(GOPATH)/pkg'
+      mkdir -p '$(modulePath)'
+      echo '##vso[task.prependpath]$(GOBIN)'
+      echo '##vso[task.prependpath]$(GOROOT)/bin'
+    name: "GoEnv"
+    displayName: "Set up the Go environment"
+
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      workingDirectory: $(ACN_DIR)
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        ls -lah
+        pwd
+        kubectl cluster-info
+        kubectl get po -owide -A
+        if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
+          FILE_PATH=-nightly
+          echo "Running nightly"
+          echo "deploy Cilium ConfigMap"
+          kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-config.yaml
+          # Passes Cilium image to daemonset and deployment
+          envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
+          envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+          # Use different file directories for nightly and current cilium version
+          kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-agent
+          kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-operator
+        else
+          echo "install Cilium ${CILIUM_VERSION_TAG}"
+          export DIR=${CILIUM_VERSION_TAG%.*}
+          echo "installing files from ${DIR}"
+          echo "deploy Cilium ConfigMap"
+          kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
+          # Passes Cilium image to daemonset and deployment
+          kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+          kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
+
+          envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+          envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+        fi
+
+        kubectl get po -owide -A
+    name: "installCilium"
+    displayName: "Install Cilium on AKS Overlay"
+
+  - template: ../../templates/cilium-cli.steps.yaml@ACNTools
+
+  - script: |
+      echo "Start Azilium E2E Tests on Overlay Cluster"
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
+      then
+          CNS=$(CNS_VERSION) IPAM=$(AZURE_IPAM_VERSION) && echo "Running nightly"
+      else
+          CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
+      fi
+      kubectl get po -owide -A
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
+    workingDirectory: $(ACN_DIR)
+    retryCountOnTaskFailure: 3
+    name: "aziliumTest"
+    displayName: "Run Azilium E2E on AKS Overlay"
+
+  - script: |
+      kubectl get po -owide -A
+      echo "Waiting < 2 minutes for cilium to be ready"
+      # Ensure Cilium is ready Xm\Xs
+      cilium status --wait --wait-duration 2m
+    retryCountOnTaskFailure: 3
+    name: "CiliumStatus"
+    displayName: "Cilium Status"
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      workingDirectory: $(ACN_DIR)
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        kubectl get po -owide -A
+        clusterName=${{ parameters.clusterName }}
+        echo "Restarting nodes"
+        for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do
+          make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
+        done
+    displayName: "Restart Nodes"
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      workingDirectory: $(ACN_DIR)
+      addSpnToEnvironment: true
+      inlineScript: |
+        cd test/integration/load
+
+        # Scale Cluster Up/Down to confirm functioning CNS
+        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+        kubectl get pods -owide -A
+
+        cd ../../..
+        echo "Validating Node Restart"
+        make test-validate-state OS_TYPE=linux RESTART_CASE=true
+        kubectl delete ns load-test
+    displayName: "Validate Node Restart"
+    retryCountOnTaskFailure: 3
+
+  - script: |
+      echo "Run Cilium Connectivity Tests"
+      cilium status
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
+      then
+          cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors' --force-deploy
+      else
+          cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption' --force-deploy
+      fi
+      ns=`kubectl get ns | grep cilium-test | awk '{print $1}'`
+      echo "##vso[task.setvariable variable=ciliumNamespace]$ns"
+    retryCountOnTaskFailure: 3
+    name: "ciliumConnectivityTests"
+    displayName: "Run Cilium Connectivity Tests"
+
+  - ${{ if eq( parameters['testHubble'], true) }}:
+      - script: |
+          echo "enable Hubble metrics server"
+          kubectl apply -f test/integration/manifests/cilium/hubble/hubble-peer-svc.yaml
+          kubectl apply -f test/integration/manifests/cilium/cilium-config-hubble.yaml
+          kubectl rollout restart ds cilium -n kube-system
+          echo "wait <3 minutes for pods to be ready after restart"
+          kubectl rollout status ds cilium -n kube-system --timeout=3m
+          kubectl get pods -Aowide
+          echo "verify Hubble metrics endpoint is usable"
+          go test ./test/integration/networkobservability -count=1 -v -tags=networkobservability
+        workingDirectory: $(ACN_DIR)
+        retryCountOnTaskFailure: 3
+        name: "HubbleConnectivityTests"
+        displayName: "Run Hubble Connectivity Tests"
+
+  - script: |
+      echo "validate pod IP assignment and check systemd-networkd restart"
+      kubectl get pod -owide -A
+      # Deleting echo-external-node deployment until cilium version matches TODO. https://github.com/cilium/cilium-cli/issues/67 is addressing the change.
+      # Saves 17 minutes
+      kubectl delete deploy -n $(ciliumNamespace) echo-external-node
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
+        echo "Check cilium identities in $(ciliumNamespace) namepsace during nightly run"
+        echo "expect the identities to be deleted when the namespace is deleted"
+        kubectl get ciliumidentity | grep cilium-test
+      fi
+      make test-validate-state
+      echo "delete cilium connectivity test resources and re-validate state"
+      kubectl delete ns $(ciliumNamespace)
+      kubectl get pod -owide -A
+      make test-validate-state
+    workingDirectory: $(ACN_DIR)
+    name: "validatePods"
+    displayName: "Validate Pods"
+
+  - script: |
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
+        kubectl get pod -owide -n $(ciliumNamespace)
+        echo "wait for pod and cilium identity deletion in $(ciliumNamespace) namespace"
+        while true; do
+          pods=$(kubectl get pods -n $(ciliumNamespace) --no-headers=true 2>/dev/null)
+          if [[ -z "$pods" ]]; then
+            echo "No pods found"
+              break
+          fi
+          sleep 2s
+        done
+        sleep 20s
+        echo "Verify cilium identities are deleted from $(ciliumNamespace)"
+        checkIdentity="$(kubectl get ciliumidentity -o json | grep cilium-test | jq -e 'length == 0')"
+        if [[ -n $checkIdentity ]]; then
+          echo "##[error]Cilium Identities still present in $(ciliumNamespace) namespace"
+          exit 1
+        else
+          printf -- "Identities deleted from $(ciliumNamespace) namespace\n"
+        fi
+      else
+        echo "skip cilium identities check for PR pipeline"
+      fi
+    name: "CiliumIdentities"
+    displayName: "Verify Cilium Identities Deletion"
+
+  - script: |
+      echo "validate pod IP assignment before CNS restart"
+      kubectl get pod -owide -A
+      make test-validate-state
+      echo "restart CNS"
+      kubectl rollout restart ds azure-cns -n kube-system
+      kubectl rollout status ds azure-cns -n kube-system
+      kubectl get pod -owide -A
+      echo "validate pods after CNS restart"
+      make test-validate-state
+    workingDirectory: $(ACN_DIR)
+    name: "restartCNS"
+    displayName: "Restart CNS and validate pods"
+
+  - script: |
+      echo "Run wireserver and metadata connectivity Tests"
+      bash test/network/wireserver_metadata_test.sh
+    workingDirectory: $(ACN_DIR)
+    retryCountOnTaskFailure: 3
+    name: "WireserverMetadataConnectivityTests"
+    displayName: "Run Wireserver and Metadata Connectivity Tests"
+
+  - script: |
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
+        echo "Running nightly, skip async delete test"
+      else
+        cd hack/scripts
+        chmod +x async-delete-test.sh
+        ./async-delete-test.sh
+        if ! [ -z $(kubectl -n kube-system get ds azure-cns | grep non-existing) ]; then
+          kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
+        fi
+      fi
+    workingDirectory: $(ACN_DIR)
+    name: "testAsyncDelete"
+    displayName: "Verify Async Delete when CNS is down"
+

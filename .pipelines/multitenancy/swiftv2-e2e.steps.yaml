@@ -1,0 +1,78 @@
+parameters:
+  name: ""
+  clusterName: ""
+  continueOnError: true
+
+steps:
+  - bash: |
+      go version
+      go env
+      mkdir -p '$(GOBIN)'
+      mkdir -p '$(GOPATH)/pkg'
+      mkdir -p '$(modulePath)'
+      echo '##vso[task.prependpath]$(GOBIN)'
+      echo '##vso[task.prependpath]$(GOROOT)/bin'
+    name: "GoEnv"
+    displayName: "Set up the Go environment"
+
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      workingDirectory: $(ACN_DIR)
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        ls -lah
+        pwd
+        kubectl cluster-info
+        kubectl get po -owide -A
+        echo "Apply the pod network yaml to start the delegation"
+        less test/integration/manifests/swiftv2/podnetwork.yaml
+        envsubst '${SUBNET_TOKEN},${SUBNET_RESOURCE_ID},${VNET_GUID}' < test/integration/manifests/swiftv2/podnetwork.yaml | kubectl apply -f -
+        echo "Check the podnetwork yaml file"
+        less test/integration/manifests/swiftv2/podnetwork.yaml
+        kubectl get pn
+        kubectl describe pn
+        echo "Apply the pod network instance yaml to reserve IP"
+        kubectl apply -f test/integration/manifests/swiftv2/pni.yaml
+        kubectl get pni
+        kubectl describe pni
+        export NODE_NAME_0="$(kubectl get nodes -o json | jq -r .items[0].metadata.name)"
+        echo $NODE_NAME_0
+        echo "Start the first pod using the reserved IP"
+        envsubst '$NODE_NAME_0' < test/integration/manifests/swiftv2/mtpod0.yaml | kubectl apply -f -
+        export NODE_NAME_1="$(kubectl get nodes -o json | jq -r .items[1].metadata.name)"
+        echo $NODE_NAME_1
+        echo "Start another pod using the reserved IP"
+        envsubst '$NODE_NAME_1' < test/integration/manifests/swiftv2/mtpod1.yaml | kubectl apply -f -
+        sleep 2m
+        kubectl get pod -o wide -A
+        sleep 2m
+        echo "Check pods after 4 minutes"
+        kubectl get po -owide -A
+        kubectl describe pni
+    name: "start_swiftv2_pods"
+    displayName: "Start Swiftv2 Pods"
+    continueOnError: ${{ parameters.continueOnError }}
+    env:
+      SUBNET_TOKEN: $(SUBNET_TOKEN)
+
+  - script: |
+      set -e
+      kubectl get po -owide -A
+      cd test/integration/swiftv2
+      echo "TestSwiftv2PodToPod and will run it after migration from scripts."
+      go test -count=1 swiftv2_test.go -timeout 3m -tags swiftv2 -run ^TestSwiftv2PodToPod$ -tags=swiftv2,integration -v
+    workingDirectory: $(ACN_DIR)
+    retryCountOnTaskFailure: 3
+    name: "Swiftv2_Tests_future_version"
+    displayName: "Swiftv2 Tests through code"
+    continueOnError: ${{ parameters.continueOnError }}
+

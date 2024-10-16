@@ -20,7 +20,7 @@ const (
 var (
 	errV4             = errors.New("v4 fail")
 	errV6             = errors.New("v6 Fail")
-	errDelegatedVMNIC = errors.New("delegatedVMNIC fail")
+	errDelegatedVMNIC = errors.New("NodeNetworkInterfaceFrontendNIC fail")
 	errDeleteIpam     = errors.New("delete fail")
 )
 
@@ -108,7 +108,7 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 		ipRes = append(ipRes, &network.IPConfig{Address: *ipnet})
 		ipamAddResult.interfaceInfo[string(cns.InfraNIC)] = network.InterfaceInfo{
 			IPConfigs: ipRes,
-			NICType:   cns.DelegatedVMNIC,
+			NICType:   cns.NodeNetworkInterfaceFrontendNIC,
 		}
 	}
 

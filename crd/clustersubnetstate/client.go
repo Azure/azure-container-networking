@@ -103,3 +103,9 @@ func (c *Client) Get(ctx context.Context, key types.NamespacedName) (*v1alpha1.C
 	err := c.cli.Get(ctx, key, clusterSubnetState)
 	return clusterSubnetState, errors.Wrapf(err, "failed to get css %v", key)
 }
+
+func (c *Client) List(ctx context.Context) ([]v1alpha1.ClusterSubnetState, error) {
+	clusterSubnetStateList := &v1alpha1.ClusterSubnetStateList{}
+	err := c.cli.List(ctx, clusterSubnetStateList, client.InNamespace("kube-system"))
+	return clusterSubnetStateList.Items, errors.Wrap(err, "failed to list css")
+}

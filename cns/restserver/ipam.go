@@ -132,17 +132,22 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 		return &cns.IPConfigsResponse{}, fmt.Errorf("error getting orchestrator context from PodInfo %w", err)
 	}
 	cnsRequest := cns.GetNetworkContainerRequest{OrchestratorContext: orchestratorContext}
+
+	// IMPORTANT: although SwiftV2 reuses the concept of NCs, NMAgent doesn't program NCs for SwiftV2, but
+	// instead programs NICs. When getting SwiftV2 NCs, we want the NIC type and MAC address of the NCs.
+	// TODO: we need another way to verify and sync NMAgent's NIC programming status. pending new NMAgent API or NIC programming status to be passed in the SwiftV2 create NC request.
 	resp := service.getAllNetworkContainerResponses(cnsRequest) //nolint:contextcheck // not passed in any methods, appease linter
 	// return err if returned list has no NCs
 	if len(resp) == 0 {
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
 				ReturnCode: types.FailedToAllocateIPConfig,
-				Message:    fmt.Sprintf("AllocateIPConfig failed due to not getting NC Response from statefile, IP config request is %v", ipconfigsRequest),
+				Message:    fmt.Sprintf("AllocateIPConfig failed due to not getting NC Response from statefile, IP config request is %+v", ipconfigsRequest),
 			},
 		}, ErrGetAllNCResponseEmpty
 	}
 
+	// assign NICType and MAC Address for SwiftV2. we assume that there won't be any SwiftV1 NCs here
 	podIPInfoList := make([]cns.PodIpInfo, 0, len(resp))
 	for i := range resp {
 		podIPInfo := cns.PodIpInfo{
@@ -166,7 +171,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
 				ReturnCode: types.FailedToAllocateIPConfig,
-				Message:    fmt.Sprintf("AllocateIPConfig failed while updating pod with interfaces: %v, IP config request is %v", err, ipconfigsRequest),
+				Message:    fmt.Sprintf("AllocateIPConfig failed while updating pod with interfaces: %v, IP config request is %+v", err, ipconfigsRequest),
 			},
 		}, err
 	}
@@ -191,10 +196,10 @@ func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context,
 
 // RequestIPConfigHandler requests an IPConfig from the CNS state
 func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r *http.Request) {
+	opName := "requestIPConfigHandler"
 	var ipconfigRequest cns.IPConfigRequest
 	err := common.Decode(w, r, &ipconfigRequest)
-	operationName := "requestIPConfigHandler"
-	logger.Request(service.Name+operationName, ipconfigRequest, err)
+	logger.Request(opName, ipconfigRequest, err)
 	if err != nil {
 		return
 	}
@@ -210,7 +215,7 @@ func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r 
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 		err = common.Encode(w, &reserveResp)
-		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+		logger.ResponseEx(opName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
 
@@ -235,7 +240,7 @@ func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r 
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 		err = common.Encode(w, &reserveResp)
-		logger.ResponseEx(service.Name+operationName, ipconfigsRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+		logger.ResponseEx(opName, ipconfigsRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
 
@@ -251,7 +256,7 @@ func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r 
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 		err = common.Encode(w, &reserveResp)
-		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+		logger.ResponseEx(opName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
 	// As this API is expected to return IPConfigResponse, generate it from the IPConfigsResponse returned above.
@@ -261,15 +266,15 @@ func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r 
 	}
 	w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 	err = common.Encode(w, &reserveResp)
-	logger.ResponseEx(service.Name+operationName, ipconfigsRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+	logger.ResponseEx(opName, ipconfigsRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 }
 
 // RequestIPConfigsHandler requests multiple IPConfigs from the CNS state
 func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
+	opName := "requestIPConfigsHandler"
 	var ipconfigsRequest cns.IPConfigsRequest
 	err := common.Decode(w, r, &ipconfigsRequest)
-	operationName := "requestIPConfigsHandler"
-	logger.Request(service.Name+operationName, ipconfigsRequest, err)
+	logger.Request(opName, ipconfigsRequest, err)
 	if err != nil {
 		return
 	}
@@ -295,13 +300,13 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 	if err != nil {
 		w.Header().Set(cnsReturnCode, ipConfigsResp.Response.ReturnCode.String())
 		err = common.Encode(w, &ipConfigsResp)
-		logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
+		logger.ResponseEx(opName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
 		return
 	}
 
 	w.Header().Set(cnsReturnCode, ipConfigsResp.Response.ReturnCode.String())
 	err = common.Encode(w, &ipConfigsResp)
-	logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
+	logger.ResponseEx(opName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
 }
 
 func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
@@ -409,9 +414,10 @@ func (service *HTTPRestService) ReleaseIPConfigHandlerHelper(ctx context.Context
 
 // ReleaseIPConfigHandler frees the IP assigned to a pod from CNS
 func (service *HTTPRestService) ReleaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
+	opName := "releaseIPConfigHandler"
 	var ipconfigRequest cns.IPConfigRequest
 	err := common.Decode(w, r, &ipconfigRequest)
-	logger.Request(service.Name+"releaseIPConfigHandler", ipconfigRequest, err)
+	logger.Request(opName, ipconfigRequest, err)
 	if err != nil {
 		resp := cns.Response{
 			ReturnCode: types.UnexpectedError,
@@ -420,7 +426,7 @@ func (service *HTTPRestService) ReleaseIPConfigHandler(w http.ResponseWriter, r 
 		logger.Errorf("releaseIPConfigHandler decode failed becase %v, release IP config info %s", resp.Message, ipconfigRequest)
 		w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
 		err = common.Encode(w, &resp)
-		logger.ResponseEx(service.Name, ipconfigRequest, resp, resp.ReturnCode, err)
+		logger.ResponseEx(opName, ipconfigRequest, resp, resp.ReturnCode, err)
 		return
 	}
 
@@ -434,7 +440,7 @@ func (service *HTTPRestService) ReleaseIPConfigHandler(w http.ResponseWriter, r 
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 		err = common.Encode(w, &reserveResp)
-		logger.ResponseEx(service.Name, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+		logger.ResponseEx(opName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
 
@@ -452,19 +458,20 @@ func (service *HTTPRestService) ReleaseIPConfigHandler(w http.ResponseWriter, r 
 	if err != nil {
 		w.Header().Set(cnsReturnCode, resp.Response.ReturnCode.String())
 		err = common.Encode(w, &resp)
-		logger.ResponseEx(service.Name, ipconfigRequest, resp, resp.Response.ReturnCode, err)
+		logger.ResponseEx(opName, ipconfigRequest, resp, resp.Response.ReturnCode, err)
 	}
 
 	w.Header().Set(cnsReturnCode, resp.Response.ReturnCode.String())
 	err = common.Encode(w, &resp)
-	logger.ResponseEx(service.Name, ipconfigRequest, resp, resp.Response.ReturnCode, err)
+	logger.ResponseEx(opName, ipconfigRequest, resp, resp.Response.ReturnCode, err)
 }
 
 // ReleaseIPConfigsHandler frees multiple IPConfigs from the CNS state
 func (service *HTTPRestService) ReleaseIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
+	opName := "releaseIPConfigsHandler"
 	var ipconfigsRequest cns.IPConfigsRequest
 	err := common.Decode(w, r, &ipconfigsRequest)
-	logger.Request(service.Name+"releaseIPConfigsHandler", ipconfigsRequest, err)
+	logger.Request("releaseIPConfigsHandler", ipconfigsRequest, err)
 	if err != nil {
 		resp := cns.Response{
 			ReturnCode: types.UnexpectedError,
@@ -473,7 +480,7 @@ func (service *HTTPRestService) ReleaseIPConfigsHandler(w http.ResponseWriter, r
 		logger.Errorf("releaseIPConfigsHandler decode failed because %v, release IP config info %+v", resp.Message, ipconfigsRequest)
 		w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
 		err = common.Encode(w, &resp)
-		logger.ResponseEx(service.Name, ipconfigsRequest, resp, resp.ReturnCode, err)
+		logger.ResponseEx(opName, ipconfigsRequest, resp, resp.ReturnCode, err)
 		return
 	}
 
@@ -481,12 +488,12 @@ func (service *HTTPRestService) ReleaseIPConfigsHandler(w http.ResponseWriter, r
 	if err != nil {
 		w.Header().Set(cnsReturnCode, resp.Response.ReturnCode.String())
 		err = common.Encode(w, &resp)
-		logger.ResponseEx(service.Name, ipconfigsRequest, resp, resp.Response.ReturnCode, err)
+		logger.ResponseEx(opName, ipconfigsRequest, resp, resp.Response.ReturnCode, err)
 	}
 
 	w.Header().Set(cnsReturnCode, resp.Response.ReturnCode.String())
 	err = common.Encode(w, &resp)
-	logger.ResponseEx(service.Name, ipconfigsRequest, resp, resp.Response.ReturnCode, err)
+	logger.ResponseEx(opName, ipconfigsRequest, resp, resp.Response.ReturnCode, err)
 }
 
 func (service *HTTPRestService) removeEndpointState(podInfo cns.PodInfo) error {
@@ -667,16 +674,18 @@ func (service *HTTPRestService) GetPodIPConfigState() map[string]cns.IPConfigura
 }
 
 func (service *HTTPRestService) HandleDebugPodContext(w http.ResponseWriter, r *http.Request) { //nolint
+	opName := "handleDebugPodContext"
 	service.RLock()
 	defer service.RUnlock()
 	resp := cns.GetPodContextResponse{
 		PodContext: service.PodIPIDByPodInterfaceKey,
 	}
 	err := common.Encode(w, &resp)
-	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+	logger.Response(opName, resp, resp.Response.ReturnCode, err)
 }
 
 func (service *HTTPRestService) HandleDebugRestData(w http.ResponseWriter, r *http.Request) { //nolint
+	opName := "handleDebugRestData"
 	service.RLock()
 	defer service.RUnlock()
 	resp := GetHTTPServiceDataResponse{
@@ -686,10 +695,11 @@ func (service *HTTPRestService) HandleDebugRestData(w http.ResponseWriter, r *ht
 		},
 	}
 	err := common.Encode(w, &resp)
-	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+	logger.Response(opName, resp, resp.Response.ReturnCode, err)
 }
 
 func (service *HTTPRestService) HandleDebugIPAddresses(w http.ResponseWriter, r *http.Request) {
+	opName := "handleDebugIPAddresses"
 	var req cns.GetIPAddressesRequest
 	if err := common.Decode(w, r, &req); err != nil {
 		resp := cns.GetIPAddressStatusResponse{
@@ -699,7 +709,7 @@ func (service *HTTPRestService) HandleDebugIPAddresses(w http.ResponseWriter, r 
 			},
 		}
 		err = common.Encode(w, &resp)
-		logger.ResponseEx(service.Name, req, resp, resp.Response.ReturnCode, err)
+		logger.ResponseEx(opName, req, resp, resp.Response.ReturnCode, err)
 		return
 	}
 	// Get all IPConfigs matching a state and return in the response
@@ -707,7 +717,7 @@ func (service *HTTPRestService) HandleDebugIPAddresses(w http.ResponseWriter, r 
 		IPConfigurationStatus: filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.PredicatesForStates(req.IPConfigStateFilter...)...),
 	}
 	err := common.Encode(w, &resp)
-	logger.ResponseEx(service.Name, req, resp, resp.Response.ReturnCode, err)
+	logger.ResponseEx(opName, req, resp, resp.Response.ReturnCode, err)
 }
 
 // GetAssignedIPConfigs returns a filtered list of IPs which are in
@@ -1088,6 +1098,7 @@ func validateDesiredIPAddresses(desiredIPs []string) error {
 
 // EndpointHandlerAPI forwards the endpoint related APIs to GetEndpointHandler or UpdateEndpointHandler based on the http method
 func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *http.Request) {
+	opName := "endpointHandler"
 	logger.Printf("[EndpointHandlerAPI] EndpointHandlerAPI received request with http Method %s", r.Method)
 	service.Lock()
 	defer service.Unlock()
@@ -1098,7 +1109,7 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 			Message:    fmt.Sprintf("[EndpointHandlerAPI] EndpointHandlerAPI failed with error: %s", ErrOptManageEndpointState),
 		}
 		err := common.Encode(w, &response)
-		logger.Response(service.Name, response, response.ReturnCode, err)
+		logger.Response(opName, response, response.ReturnCode, err)
 		return
 	}
 	switch r.Method {
@@ -1113,6 +1124,7 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 
 // GetEndpointHandler handles the incoming GetEndpoint requests with http Get method
 func (service *HTTPRestService) GetEndpointHandler(w http.ResponseWriter, r *http.Request) {
+	opName := "getEndpointState"
 	logger.Printf("[GetEndpointState] GetEndpoint for %s", r.URL.Path)
 	endpointID := strings.TrimPrefix(r.URL.Path, cns.EndpointPath)
 	endpointInfo, err := service.GetEndpointHelper(endpointID)
@@ -1134,7 +1146,7 @@ func (service *HTTPRestService) GetEndpointHandler(w http.ResponseWriter, r *htt
 		}
 		w.Header().Set(cnsReturnCode, response.Response.ReturnCode.String())
 		err = common.Encode(w, &response)
-		logger.Response(service.Name, response, response.Response.ReturnCode, err)
+		logger.Response(opName, response, response.Response.ReturnCode, err)
 		return
 	}
 	response := GetEndpointResponse{
@@ -1146,7 +1158,7 @@ func (service *HTTPRestService) GetEndpointHandler(w http.ResponseWriter, r *htt
 	}
 	w.Header().Set(cnsReturnCode, response.Response.ReturnCode.String())
 	err = common.Encode(w, &response)
-	logger.Response(service.Name, response, response.Response.ReturnCode, err)
+	logger.Response(opName, response, response.Response.ReturnCode, err)
 }
 
 // GetEndpointHelper returns the state of the given endpointId
@@ -1168,7 +1180,7 @@ func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointI
 		} else {
 			logger.Errorf("[GetEndpointState]  Failed to retrieve state, err:%v", err)
 		}
-		return nil, errors.Wrap(err, "[GetEndpointState]  Failed to retrieve state")
+		return nil, ErrEndpointStateNotFound
 	}
 	if endpointInfo, ok := service.EndpointState[endpointID]; ok {
 		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", endpointID)
@@ -1187,12 +1199,13 @@ func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointI
 
 // UpdateEndpointHandler handles the incoming UpdateEndpoint requests with http Patch method
 func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *http.Request) {
+	opName := "UpdateEndpointHandler"
 	logger.Printf("[updateEndpoint] updateEndpoint for %s", r.URL.Path)
 
 	var req map[string]*IPInfo
 	err := common.Decode(w, r, &req)
 	endpointID := strings.TrimPrefix(r.URL.Path, cns.EndpointPath)
-	logger.Request(service.Name, &req, err)
+	logger.Request(opName, &req, err)
 	// Check if the request is valid
 	if err != nil {
 		response := cns.Response{
@@ -1201,7 +1214,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 		}
 		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
 		err = common.Encode(w, &response)
-		logger.Response(service.Name, response, response.ReturnCode, err)
+		logger.Response(opName, response, response.ReturnCode, err)
 		return
 	}
 	if err = verifyUpdateEndpointStateRequest(req); err != nil {
@@ -1211,7 +1224,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 		}
 		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
 		err = common.Encode(w, &response)
-		logger.Response(service.Name, response, response.ReturnCode, err)
+		logger.Response(opName, response, response.ReturnCode, err)
 		return
 	}
 	// Update the endpoint state
@@ -1223,7 +1236,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 		}
 		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
 		err = common.Encode(w, &response)
-		logger.Response(service.Name, response, response.ReturnCode, err)
+		logger.Response(opName, response, response.ReturnCode, err)
 		return
 	}
 	response := cns.Response{
@@ -1232,7 +1245,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 	}
 	w.Header().Set(cnsReturnCode, response.ReturnCode.String())
 	err = common.Encode(w, &response)
-	logger.Response(service.Name, response, response.ReturnCode, err)
+	logger.Response(opName, response, response.ReturnCode, err)
 }
 
 // UpdateEndpointHelper updates the state of the given endpointId with HNSId, VethName or other InterfaceInfo fields

@@ -1436,6 +1436,7 @@ func TestPeerAndPortRule(t *testing.T) {
 	for i, tt := range tests {
 		tt := tt
 		setInfo := setInfos[i]
+		npmLiteToggle := false
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			for _, acl := range tt.npmNetPol.ACLs {
@@ -1446,7 +1447,7 @@ func TestPeerAndPortRule(t *testing.T) {
 				PolicyKey:   tt.npmNetPol.PolicyKey,
 				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
-			err := peerAndPortRule(npmNetPol, policies.Ingress, tt.ports, setInfo)
+			err := peerAndPortRule(npmNetPol, policies.Ingress, tt.ports, setInfo, npmLiteToggle)
 			if tt.skipWindows && util.IsWindowsDP() {
 				require.Error(t, err)
 			} else {
@@ -2178,7 +2179,7 @@ func TestIngressPolicy(t *testing.T) {
 			npmNetPol.PodSelectorList = psResult.psList
 			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
 			require.Len(t, splitPolicyKey, 2, "policy key must include name")
-			err = ingressPolicy(npmNetPol, splitPolicyKey[1], tt.rules)
+			err = ingressPolicy(npmNetPol, splitPolicyKey[1], tt.rules, false)
 			if tt.wantErr || (tt.skipWindows && util.IsWindowsDP()) {
 				require.Error(t, err)
 			} else {
@@ -2909,12 +2910,229 @@ func TestEgressPolicy(t *testing.T) {
 			npmNetPol.PodSelectorList = psResult.psList
 			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
 			require.Len(t, splitPolicyKey, 2, "policy key must include name")
-			err = egressPolicy(npmNetPol, splitPolicyKey[1], tt.rules)
+			err = egressPolicy(npmNetPol, splitPolicyKey[1], tt.rules, false)
 			if tt.wantErr || (tt.skipWindows && util.IsWindowsDP()) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.npmNetPol, npmNetPol)
+			}
+		})
+	}
+}
+
+func TestNpmLiteCidrPolicy(t *testing.T) {
+	// Test 1) Npm lite enabled, CIDR + Namespace label Peers, returns error
+	// Test 2) NPM lite disabled, CIDR + Namespace label Peers, returns no error
+	// Test 3) Npm Lite enabled, CIDR Peers , returns no error
+	// Test 4) NPM Lite enabled, Combination of CIDR + Label in same peer, returns an error
+	// test 5) NPM Lite enabled, no peer, returns no error
+	// test 6) NPM Lite enabled, no cidr, no peer, only ports + protocol
+
+	port8000 := intstr.FromInt(8000)
+	tcp := v1.ProtocolTCP
+	tests := []struct {
+		name           string
+		targetSelector *metav1.LabelSelector
+		ports          []networkingv1.NetworkPolicyPort
+		peersFrom      []networkingv1.NetworkPolicyPeer
+		peersTo        []networkingv1.NetworkPolicyPeer
+		npmLiteEnabled bool
+		wantErr        bool
+	}{
+		{
+			name:           "CIDR + port + namespace",
+			targetSelector: nil,
+			ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &tcp,
+					Port:     &port8000,
+				},
+			},
+			peersFrom: []networkingv1.NetworkPolicyPeer{
+				{
+					NamespaceSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"peer-nsselector-kay": "peer-nsselector-value",
+						},
+					},
+				},
+				{
+					IPBlock: &networkingv1.IPBlock{
+						CIDR:   "172.17.0.0/16",
+						Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
+					},
+				},
+				{
+					IPBlock: &networkingv1.IPBlock{
+						CIDR: "172.17.0.0/16",
+					},
+				},
+			},
+			peersTo:        []networkingv1.NetworkPolicyPeer{},
+			npmLiteEnabled: true,
+			wantErr:        true,
+		},
+		{
+			name:           "cidr + namespace label + disabledLite ",
+			targetSelector: nil,
+			peersFrom: []networkingv1.NetworkPolicyPeer{
+				{
+					NamespaceSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"peer-nsselector-kay": "peer-nsselector-value",
+						},
+					},
+				},
+				{
+					IPBlock: &networkingv1.IPBlock{
+						CIDR:   "172.17.0.0/16",
+						Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
+					},
+				},
+				{
+					IPBlock: &networkingv1.IPBlock{
+						CIDR: "172.17.0.0/16",
+					},
+				},
+			},
+			peersTo:        []networkingv1.NetworkPolicyPeer{},
+			npmLiteEnabled: false,
+			wantErr:        false,
+		},
+		{
+			name:           "CIDR Only",
+			targetSelector: nil,
+			peersFrom: []networkingv1.NetworkPolicyPeer{
+				{
+					IPBlock: &networkingv1.IPBlock{
+						CIDR:   "172.17.0.0/16",
+						Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
+					},
+				},
+				{
+					IPBlock: &networkingv1.IPBlock{
+						CIDR: "172.17.0.0/16",
+					},
+				},
+			},
+			peersTo:        []networkingv1.NetworkPolicyPeer{},
+			npmLiteEnabled: true,
+			wantErr:        false,
+		},
+		{
+			name:           "CIDR + namespace labels",
+			targetSelector: nil,
+			peersFrom: []networkingv1.NetworkPolicyPeer{
+				{
+					IPBlock: &networkingv1.IPBlock{
+						CIDR:   "172.17.0.0/17",
+						Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
+					},
+					NamespaceSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"peer-nsselector-kay": "peer-nsselector-value",
+						},
+					},
+				},
+			},
+			peersTo:        []networkingv1.NetworkPolicyPeer{},
+			npmLiteEnabled: true,
+			wantErr:        true,
+		},
+		{
+			name:           "no peers",
+			targetSelector: nil,
+			peersFrom:      []networkingv1.NetworkPolicyPeer{},
+			peersTo:        []networkingv1.NetworkPolicyPeer{},
+			npmLiteEnabled: true,
+			wantErr:        false,
+		},
+		{
+			name:           "port only",
+			targetSelector: nil,
+			ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &tcp,
+					Port:     &port8000,
+				},
+			},
+			peersFrom:      []networkingv1.NetworkPolicyPeer{},
+			peersTo:        []networkingv1.NetworkPolicyPeer{},
+			npmLiteEnabled: true,
+			wantErr:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// run the function passing in peers and a flag indicating whether npm lite is enabled
+			var err error
+			for _, peer := range tt.peersFrom {
+				err = npmLiteValidPolicy(peer, tt.npmLiteEnabled)
+				if err != nil {
+					break
+				}
+			}
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestCheckForNamedPortType(t *testing.T) {
+	port8000 := intstr.FromInt(8000)
+	namedPort := intstr.FromString("namedPort")
+	tcp := v1.ProtocolTCP
+	tests := []struct {
+		name           string
+		targetSelector *metav1.LabelSelector
+		ports          []networkingv1.NetworkPolicyPort
+		portKind       netpolPortType
+		npmLiteEnabled bool
+		wantErr        bool
+	}{
+		{
+			name:           "unnamedPortOnly",
+			targetSelector: nil,
+			ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &tcp,
+					Port:     &port8000,
+				},
+			},
+			portKind:       numericPortType,
+			npmLiteEnabled: true,
+			wantErr:        false,
+		},
+		{
+			name:           "namedPortOnly",
+			targetSelector: nil,
+			ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &tcp,
+					Port:     &namedPort,
+				},
+			},
+			portKind:       namedPortType,
+			npmLiteEnabled: true,
+			wantErr:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			// run the function passing in peers and a flag indicating whether npm lite is enabled
+			err := checkForNamedPortType(tt.portKind, tt.npmLiteEnabled)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}

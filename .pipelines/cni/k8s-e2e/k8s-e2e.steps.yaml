@@ -1,0 +1,67 @@
+parameters:
+  testName: ""
+  name: ""
+  ginkgoFocus: ""
+  ginkgoSkip: ""
+  os: ""
+  processes: "" # Number of parallel processes
+  attempts: ""
+
+
+steps:
+  - script: |
+      set -ex
+
+      # ginkgoSkip cant handle only |LinuxOnly. Need to have check
+      if ${{ lower(and(ge(length(parameters.ginkgoSkip), 1), eq(parameters.os, 'windows'))) }}
+      then
+        SKIP="|LinuxOnly"
+      elif ${{ lower(eq(parameters.os, 'windows')) }}
+      then
+        SKIP="LinuxOnly"
+      fi
+
+      # Taint Linux nodes so that windows tests do not run on them
+      if ${{ lower(eq(parameters.os, 'windows')) }}
+      then
+        kubectl rollout status -n kube-system deployment/konnectivity-agent --timeout=3m
+        kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule
+      fi
+
+      # Taint Windows nodes so that Linux tests do not run on them
+      if ${{ lower(eq(parameters.os, 'linux')) }}
+      then
+        kubectl taint nodes -l kubernetes.azure.com/mode=user node-role.kubernetes.io/control-plane:NoSchedule
+      fi
+
+      # Depreciating flags. Change once k8s minimum version supported is > 1.24
+      # nodes -> procs
+      # flakeAttempts -> flake-attempts
+      # dryRun -> dry-run
+
+      ./ginkgo --nodes=${{ parameters.processes }} \
+      ./e2e.test -- \
+      --num-nodes=2 \
+      --provider=skeleton \
+      --ginkgo.focus='${{ parameters.ginkgoFocus }}' \
+      --ginkgo.skip="${{ parameters.ginkgoSkip }}$SKIP" \
+      --ginkgo.flakeAttempts=${{ parameters.attempts }} \
+      --ginkgo.v \
+      --node-os-distro=${{ parameters.os }} \
+      --kubeconfig=$HOME/.kube/config
+
+      # Untaint Linux nodes once testing is complete
+      if ${{ lower(eq(parameters.os, 'windows')) }}
+      then
+        kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule-
+      fi
+
+      # Untaint Windows nodes once testing is complete
+      if ${{ lower(eq(parameters.os, 'linux')) }}
+      then
+        kubectl taint nodes -l kubernetes.azure.com/mode=user node-role.kubernetes.io/control-plane:NoSchedule-
+      fi
+    name: ${{ parameters.name }}
+    displayName: k8s E2E - ${{ parameters.testName }}
+    workingDirectory: $(ACN_DIR)
+    retryCountOnTaskFailure: 5

@@ -4,11 +4,11 @@
 package restserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -21,6 +21,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 )
 
@@ -335,161 +336,6 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
-// Handles ip reservation requests.
-func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] reserveIPAddress")
-
-	var req cns.ReserveIPAddressRequest
-	var returnCode types.ResponseCode
-	returnMessage := ""
-	addr := ""
-	address := ""
-	err := common.Decode(w, r, &req)
-
-	logger.Request(service.Name, &req, err)
-
-	if err != nil {
-		return
-	}
-
-	if req.ReservationID == "" {
-		returnCode = types.ReservationNotFound
-		returnMessage = "[Azure CNS] Error. ReservationId is empty"
-	}
-
-	switch r.Method {
-	case http.MethodPost:
-		ic := service.ipamClient
-
-		var ifInfo *wireserver.InterfaceInfo
-		ifInfo, err = service.getPrimaryHostInterface(context.TODO())
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-
-		asID, err := ic.GetAddressSpace()
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetAddressSpace failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-
-		poolID, err := ic.GetPoolID(asID, ifInfo.Subnet)
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPoolID failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-
-		addr, err = ic.ReserveIPAddress(poolID, req.ReservationID)
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] ReserveIpAddress failed with %+v", err.Error())
-			returnCode = types.AddressUnavailable
-			break
-		}
-
-		addressIP, _, err := net.ParseCIDR(addr)
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] ParseCIDR failed with %+v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-		address = addressIP.String()
-
-	default:
-		returnMessage = "[Azure CNS] Error. ReserveIP did not receive a POST."
-		returnCode = types.InvalidParameter
-
-	}
-
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
-	}
-
-	if resp.ReturnCode == 0 {
-		// If Response is success i.e. code 0, then publish metrics.
-		publishIPStateMetrics(service.buildIPState())
-	}
-
-	reserveResp := &cns.ReserveIPAddressResponse{Response: resp, IPAddress: address}
-	err = common.Encode(w, &reserveResp)
-	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
-}
-
-// Handles release ip reservation requests.
-func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] releaseIPAddress")
-
-	var req cns.ReleaseIPAddressRequest
-	var returnCode types.ResponseCode
-	returnMessage := ""
-
-	err := common.Decode(w, r, &req)
-	logger.Request(service.Name, &req, err)
-
-	if err != nil {
-		return
-	}
-
-	if req.ReservationID == "" {
-		returnCode = types.ReservationNotFound
-		returnMessage = "[Azure CNS] Error. ReservationId is empty"
-	}
-
-	switch r.Method {
-	case http.MethodPost:
-		ic := service.ipamClient
-
-		var ifInfo *wireserver.InterfaceInfo
-		ifInfo, err = service.getPrimaryHostInterface(context.TODO())
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-
-		asID, err := ic.GetAddressSpace()
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetAddressSpace failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-
-		poolID, err := ic.GetPoolID(asID, ifInfo.Subnet)
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPoolID failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-
-		err = ic.ReleaseIPAddress(poolID, req.ReservationID)
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] ReleaseIpAddress failed with %+v", err.Error())
-			returnCode = types.ReservationNotFound
-		}
-
-	default:
-		returnMessage = "[Azure CNS] Error. ReleaseIP did not receive a POST."
-		returnCode = types.InvalidParameter
-	}
-
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
-	}
-
-	if resp.ReturnCode == 0 {
-		// If Response is success i.e. code 0, then publish metrics.
-		publishIPStateMetrics(service.buildIPState())
-	}
-
-	err = common.Encode(w, &resp)
-	logger.Response(service.Name, resp, resp.ReturnCode, err)
-}
-
 // Retrieves the host local ip address. Containers can talk to host using this IP address.
 func (service *HTTPRestService) getHostLocalIP(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] getHostLocalIP")
@@ -542,71 +388,6 @@ func (service *HTTPRestService) getHostLocalIP(w http.ResponseWriter, r *http.Re
 	logger.Response(service.Name, hostLocalIPResponse, resp.ReturnCode, err)
 }
 
-// Handles ip address utilization requests.
-func (service *HTTPRestService) getIPAddressUtilization(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] getIPAddressUtilization")
-	logger.Request(service.Name, "getIPAddressUtilization", nil)
-
-	var returnCode types.ResponseCode
-	returnMessage := ""
-	capacity := 0
-	available := 0
-	var unhealthyAddrs []string
-
-	switch r.Method {
-	case http.MethodGet:
-		ic := service.ipamClient
-
-		ifInfo, err := service.getPrimaryHostInterface(context.TODO())
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-
-		asID, err := ic.GetAddressSpace()
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetAddressSpace failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-
-		poolID, err := ic.GetPoolID(asID, ifInfo.Subnet)
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPoolID failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-
-		capacity, available, unhealthyAddrs, err = ic.GetIPAddressUtilization(poolID)
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetIPUtilization failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-		logger.Printf("[Azure CNS] Capacity %v Available %v UnhealthyAddrs %v", capacity, available, unhealthyAddrs)
-
-	default:
-		returnMessage = "[Azure CNS] Error. GetIPUtilization did not receive a GET."
-		returnCode = types.InvalidParameter
-	}
-
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
-	}
-
-	utilResponse := &cns.IPAddressesUtilizationResponse{
-		Response:  resp,
-		Available: available,
-		Reserved:  capacity - available,
-		Unhealthy: len(unhealthyAddrs),
-	}
-
-	err := common.Encode(w, &utilResponse)
-	logger.Response(service.Name, utilResponse, resp.ReturnCode, err)
-}
-
 // Handles retrieval of ip addresses that are available to be reserved from ipam driver.
 func (service *HTTPRestService) getAvailableIPAddresses(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] getAvailableIPAddresses")
@@ -628,69 +409,6 @@ func (service *HTTPRestService) getReservedIPAddresses(w http.ResponseWriter, r 
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
 	err := common.Encode(w, &ipResp)
 
-	logger.Response(service.Name, ipResp, resp.ReturnCode, err)
-}
-
-// Handles retrieval of ghost ip addresses from ipam driver.
-func (service *HTTPRestService) getUnhealthyIPAddresses(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] getUnhealthyIPAddresses")
-	logger.Request(service.Name, "getUnhealthyIPAddresses", nil)
-
-	var returnCode types.ResponseCode
-	returnMessage := ""
-	capacity := 0
-	available := 0
-	var unhealthyAddrs []string
-
-	switch r.Method {
-	case http.MethodGet:
-		ic := service.ipamClient
-
-		ifInfo, err := service.getPrimaryHostInterface(context.TODO())
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPrimaryIfaceInfo failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-
-		asID, err := ic.GetAddressSpace()
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetAddressSpace failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-
-		poolID, err := ic.GetPoolID(asID, ifInfo.Subnet)
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetPoolID failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-
-		capacity, available, unhealthyAddrs, err = ic.GetIPAddressUtilization(poolID)
-		if err != nil {
-			returnMessage = fmt.Sprintf("[Azure CNS] Error. GetIPUtilization failed %v", err.Error())
-			returnCode = types.UnexpectedError
-			break
-		}
-		logger.Printf("[Azure CNS] Capacity %v Available %v UnhealthyAddrs %v", capacity, available, unhealthyAddrs)
-
-	default:
-		returnMessage = "[Azure CNS] Error. GetUnhealthyIP did not receive a POST."
-		returnCode = types.InvalidParameter
-	}
-
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
-	}
-
-	ipResp := &cns.GetIPAddressesResponse{
-		Response:    resp,
-		IPAddresses: unhealthyAddrs,
-	}
-
-	err := common.Encode(w, &ipResp)
 	logger.Response(service.Name, ipResp, resp.ReturnCode, err)
 }
 
@@ -1313,7 +1031,28 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 
 	ctx := r.Context()
 
-	if !service.isNetworkJoined(req.NetworkID) {
+	var unpublishBody nmagent.DeleteContainerRequest
+	var azrNC bool
+	err = json.Unmarshal(req.DeleteNetworkContainerRequestBody, &unpublishBody)
+	if err != nil {
+		// If the body contains only `""\n`, it is non-AZR NC
+		// In this case, we should not return an error
+		// However, if the body is not `""\n`, it is invalid and therefore, we must return an error
+		// []byte{34, 34, 10} here represents []byte(`""`+"\n")
+		if !bytes.Equal(req.DeleteNetworkContainerRequestBody, []byte{34, 34, 10}) {
+			http.Error(w, fmt.Sprintf("could not unmarshal delete network container body: %v", err), http.StatusBadRequest)
+			return
+		}
+	} else {
+		// If unmarshalling was successful, it is an AZR NC
+		azrNC = true
+	}
+
+	/* For AZR scenarios, if NMAgent is restarted, it loses state and does not know what VNETs to subscribe to.
+	As it no longer has VNET state, delete nc calls would fail. We need to add join VNET call for all AZR
+	nc unpublish calls just like publish nc calls.
+	*/
+	if azrNC || !service.isNetworkJoined(req.NetworkID) {
 		joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID) //nolint:govet // ok to shadow
 		if err != nil {
 			resp := cns.UnpublishNetworkContainerResponse{
@@ -1346,7 +1085,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		}
 
 		service.setNetworkStateJoined(req.NetworkID)
-		logger.Printf("[Azure-CNS] joined vnet %s during nc %s unpublish. wireserver response: %v", req.NetworkID, req.NetworkContainerID, string(joinBytes))
+		logger.Printf("[Azure-CNS] joined vnet %s during nc %s unpublish. AZREnabled: %t, wireserver response: %v", req.NetworkID, req.NetworkContainerID, unpublishBody.AZREnabled, string(joinBytes))
 	}
 
 	publishResp, err := service.wsproxy.UnpublishNC(ctx, ncParams, req.DeleteNetworkContainerRequestBody)

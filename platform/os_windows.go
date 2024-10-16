@@ -128,16 +128,42 @@ func (p *execClient) GetLastRebootTime() (time.Time, error) {
 	return rebootTime.UTC(), nil
 }
 
-func (p *execClient) ExecuteCommand(command string) (string, error) {
+// Deprecated: ExecuteRawCommand is deprecated, it is recommended to use ExecuteCommand when possible
+func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 	if p.logger != nil {
-		p.logger.Info("[Azure-Utils]", zap.String("ExecuteCommand", command))
+		p.logger.Info("[Azure-Utils]", zap.String("ExecuteRawCommand", command))
 	} else {
-		log.Printf("[Azure-Utils] ExecuteCommand: %q", command)
+		log.Printf("[Azure-Utils] ExecuteRawCommand: %q", command)
 	}
 
 	var stderr, stdout bytes.Buffer
 
 	cmd := exec.Command("cmd", "/c", command)
+	cmd.Stderr = &stderr
+	cmd.Stdout = &stdout
+
+	if err := cmd.Run(); err != nil {
+		return "", errors.Wrapf(err, "ExecuteRawCommand failed. stdout: %q, stderr: %q", stdout.String(), stderr.String())
+	}
+
+	return stdout.String(), nil
+}
+
+// ExecuteCommand passes its parameters to an exec.CommandContext, runs the command, and returns its output, or an error if the command fails or times out
+func (p *execClient) ExecuteCommand(ctx context.Context, command string, args ...string) (string, error) {
+	if p.logger != nil {
+		p.logger.Info("[Azure-Utils]", zap.String("ExecuteCommand", command), zap.Strings("args", args))
+	} else {
+		log.Printf("[Azure-Utils] ExecuteCommand: %q %v", command, args)
+	}
+
+	var stderr, stdout bytes.Buffer
+
+	// Create a new context and add a timeout to it
+	derivedCtx, cancel := context.WithTimeout(ctx, p.Timeout)
+	defer cancel() // The cancel should be deferred so resources are cleaned up
+
+	cmd := exec.CommandContext(derivedCtx, command, args...)
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
 
@@ -169,11 +195,12 @@ func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 
 func (p *execClient) KillProcessByName(processName string) error {
 	cmd := fmt.Sprintf("taskkill /IM %v /F", processName)
-	_, err := p.ExecuteCommand(cmd)
+	_, err := p.ExecuteRawCommand(cmd)
 	return err // nolint
 }
 
 // ExecutePowershellCommand executes powershell command
+// Deprecated: ExecutePowershellCommand is deprecated, it is recommended to use ExecuteCommand when possible
 func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
@@ -201,6 +228,7 @@ func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 }
 
 // ExecutePowershellCommandWithContext executes powershell command wth context
+// Deprecated: ExecutePowershellCommandWithContext is deprecated, it is recommended to use ExecuteCommand when possible
 func (p *execClient) ExecutePowershellCommandWithContext(ctx context.Context, command string) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {

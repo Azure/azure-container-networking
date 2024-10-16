@@ -1,0 +1,165 @@
+parameters:
+  clusterName: ""
+  os: ""
+  dependsOn: ""
+  sub: ""
+  cni: cni
+
+
+jobs:
+  - job: CNI_${{ parameters.os }}
+    condition: and( not(canceled()), not(failed()) )
+    displayName: CNI k8s E2E ${{ parameters.os }}
+    dependsOn: ${{ parameters.dependsOn }}
+    pool:
+      isCustom: true
+      type: linux
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+      ob_git_checkout: true
+    steps:
+      - checkout: ACNReviewChanges
+        clean: true
+
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: ${{ parameters.sub }}
+          scriptLocation: "inlineScript"
+          scriptType: "bash"
+          workingDirectory: $(ACN_DIR)
+          addSpnToEnvironment: true
+          inlineScript: |
+            set -e
+            make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+            # sig-release provides test suite tarball(s) per k8s release. Just need to provide k8s version "v1.xx.xx"
+            # pulling k8s version from AKS.
+            eval k8sVersion="v"$( az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query "currentKubernetesVersion")
+            echo $k8sVersion
+            curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
+
+            # https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
+            # explictly unzip and strip directories from ginkgo and e2e.test
+            tar -xvzf kubernetes-test-linux-amd64.tar.gz --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
+        displayName: "Setup Environment"
+        retryCountOnTaskFailure: 5
+
+      - ${{ if contains(parameters.os, 'windows') }}:
+        - script: |
+            set -e
+            kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
+            kubectl rollout status -n kube-system ds privileged-daemonset
+
+            kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -owide
+            pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows --no-headers | awk '{print $1}'`
+            for pod in $pods; do
+              kubectl exec -i -n kube-system $pod -- powershell "Restart-Service kubeproxy"
+              kubectl exec -i -n kube-system $pod -- powershell "Get-Service kubeproxy"
+            done
+          workingDirectory: $(ACN_DIR)
+          name: kubeproxy
+          displayName: Restart Kubeproxy on Windows nodes
+          retryCountOnTaskFailure: 3
+
+      - ${{ if eq(parameters.datapath, true) }}:
+        - template: k8s-e2e.steps.yaml@ACNTools
+          parameters:
+            testName: Datapath
+            name: datapath
+            ginkgoFocus: '(.*).Networking.should|(.*).Networking.Granular|(.*)kubernetes.api'
+            ginkgoSkip: 'SCTP|Disruptive|Slow|hostNetwork|kube-proxy|IPv6'
+            os: ${{ parameters.os }}
+            processes: 8
+            attempts: 10
+
+      - ${{ if eq(parameters.dns, true) }}:
+        - template: k8s-e2e.steps.yaml@ACNTools
+          parameters:
+            testName: DNS
+            name: dns
+            ginkgoFocus: '\[sig-network\].DNS.should'
+            ginkgoSkip: 'resolv|256 search'
+            os: ${{ parameters.os }}
+            processes: 8
+            attempts: 3
+
+      - ${{ if eq(parameters.portforward, true) }}:
+        - template: k8s-e2e.steps.yaml@ACNTools
+          parameters:
+            testName: Kubectl Portforward
+            name: portforward
+            ginkgoFocus: '\[sig-cli\].Kubectl.Port'
+            ginkgoSkip: ''
+            os: ${{ parameters.os }}
+            processes: 8
+            attempts: 3
+
+      - ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cni') ) }}:
+        - template: k8s-e2e.steps.yaml@ACNTools
+          parameters:
+            testName: Service Conformance
+            name: service
+            ginkgoFocus: 'Services.*\[Conformance\].*'
+            ginkgoSkip: ''
+            os: ${{ parameters.os }}
+            processes: 8
+            attempts: 3
+
+      - ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cilium') ) }}:
+        - template: k8s-e2e.steps.yaml@ACNTools
+          parameters:
+            testName: Service Conformance|Cilium
+            name: service
+            ginkgoFocus: 'Services.*\[Conformance\].*'
+            ginkgoSkip: 'should serve endpoints on same port and different protocols' # Cilium does not support this feature. For more info on test: https://github.com/kubernetes/kubernetes/blame/e602e9e03cd744c23dde9fee09396812dd7bdd93/test/conformance/testdata/conformance.yaml#L1780-L1788
+            os: ${{ parameters.os }}
+            processes: 8
+            attempts: 3
+
+      - ${{ if eq(parameters.hostport, true) }}:
+        - template: k8s-e2e.steps.yaml@ACNTools
+          parameters:
+            testName: Host Port
+            name: hostport
+            ginkgoFocus: '\[sig-network\](.*)HostPort|\[sig-scheduling\](.*)hostPort'
+            ginkgoSkip: 'SCTP|exists conflict' # Skip slow 5 minute test
+            os: ${{ parameters.os }}
+            processes: 1 # Has a short serial test
+            attempts: 3
+
+      - ${{ if and(eq(parameters.hybridWin, true), eq(parameters.os, 'windows')) }}:
+        - template: k8s-e2e.steps.yaml@ACNTools
+          parameters:
+            testName: Hybrid Network
+            name: hybrid
+            ginkgoFocus: '\[sig-windows\].Hybrid'
+            ginkgoSkip: ''
+            os: ${{ parameters.os }}
+            processes: 8
+            attempts: 3
+
+      - ${{ if and( eq(parameters.dualstack, true), eq(contains(parameters.cni, 'cilium'), false) ) }}:
+        - template: k8s-e2e.steps.yaml@ACNTools
+          parameters:
+            testName: DualStack Test
+            name: DualStack
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[Feature:IPv6DualStack\]'
+            ginkgoSkip: 'SCTP|session affinity'
+            os: ${{ parameters.os }}
+            processes: 8
+            attempts: 3
+
+      - ${{ if and( eq(parameters.dualstack, true), contains(parameters.cni, 'cilium') ) }}:
+        - template: k8s-e2e.steps.yaml@ACNTools
+          parameters:
+            testName: DualStack Test|Cilium
+            name: DualStack
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[Feature:IPv6DualStack\]'
+            ginkgoSkip: 'SCTP|session affinity|should function for service endpoints using hostNetwork' # Cilium dualstack has a known issue with this test https://github.com/cilium/cilium/issues/25135
+            os: ${{ parameters.os }}
+            processes: 8
+            attempts: 3
+

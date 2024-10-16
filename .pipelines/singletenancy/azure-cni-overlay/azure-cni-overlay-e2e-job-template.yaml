@@ -45,6 +45,7 @@ stages:
     jobs:
       - job: ${{ parameters.name }}_linux
         displayName: Azure CNI Overlay Test Suite | Linux - (${{ parameters.name }})
+        timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
@@ -56,10 +57,16 @@ stages:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: linux
-
+              scaleup: 100
+      - template: ../../templates/add-windows-nodepool-job.yaml
+        parameters:
+          depend: ${{ parameters.name }}_linux
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
       - job: ${{ parameters.name }}_windows
         displayName: Azure CNI Overlay Test Suite | Windows - (${{ parameters.name }})
-        dependsOn: ${{ parameters.name }}_linux
+        timeoutInMinutes: 120
+        dependsOn: windows_nodepool
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
@@ -71,7 +78,7 @@ stages:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: windows
-              vmSizeWin: ${{ parameters.vmSize }} # Matching linux vmSize
+              scaleup: 50
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:

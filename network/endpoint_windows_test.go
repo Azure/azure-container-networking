@@ -20,12 +20,17 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Microsoft/hcsshim/hcn"
 )
 
 var (
-	instanceID   = "12345-abcde-789"
-	locationPath = "12345-abcde-789-fea14"
-	pnpID        = "PCI\\VEN_15B3&DEV_101C&SUBSYS_000715B3&REV_00\\5&8c5acce&0&0"
+	instanceID      = "12345-abcde-789"
+	locationPath    = "12345-abcde-789-fea14"
+	pnpID           = "PCI\\VEN_15B3&DEV_101C&SUBSYS_000715B3&REV_00\\5&8c5acce&0&0"
+	macAddress      = "60-45-bd-12-45-65"
+	networkID       = "azure-23:34:56:78:90:ab"
+	networkName     = "l1vh"
+	l1vhNetworkType = hcn.Transparent
 )
 
 func TestNewAndDeleteEndpointImplHnsV2(t *testing.T) {
@@ -102,9 +107,38 @@ func TestDeleteEndpointImplHnsV2ForIB(t *testing.T) {
 	}
 
 	mockCli := NewMockEndpointClient(nil)
-	err := nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &ep)
+	err := nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli,
+		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, &ep)
 	if err != nil {
 		t.Fatal("endpoint deletion for IB is executed")
+	}
+}
+
+// Test endpoint deletion when hns id is empty
+func TestDeleteEndpointImplHnsV2WithEmptyHNSID(t *testing.T) {
+	nw := &network{
+		Endpoints: map[string]*endpoint{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2: hnswrapper.NewHnsv2wrapperFake(),
+	}
+
+	ep := endpoint{
+		HnsId:      "",
+		IfName:     "eth1",
+		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
+		NICType:    cns.NodeNetworkInterfaceFrontendNIC,
+	}
+
+	// should return nil because HnsID is empty
+	mockCli := NewMockEndpointClient(nil)
+	err := nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli,
+		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, &ep)
+	if err != nil {
+		t.Fatal("endpoint deletion gets executed")
 	}
 }
 
@@ -280,20 +314,11 @@ func TestDisableVFDeviceHappyPath(t *testing.T) {
 
 	err := disableVFDevice(instanceID, nm.plClient)
 	if err != nil {
-		t.Fatal("Failed to test disable VF happy path")
+		t.Fatalf("Failed to test disable VF happy path due to %v", err)
 	}
 }
 
-func TestDisableVFDeviceUnHappyPathOne(t *testing.T) {
-	// set unhappy path
-	mockExecClient := platform.NewMockExecClient(true)
-	err := disableVFDevice(instanceID, mockExecClient)
-	if err == nil {
-		t.Fatal("Failed to test disable VF unhappy path")
-	}
-}
-
-func TestDisableVFDeviceUnHappyPathTwo(t *testing.T) {
+func TestDisableVFDeviceUnHappyPath(t *testing.T) {
 	mockExecClient := platform.NewMockExecClient(false)
 	// set unhappy path
 	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
@@ -302,7 +327,7 @@ func TestDisableVFDeviceUnHappyPathTwo(t *testing.T) {
 
 	err := disableVFDevice(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatal("Failed to test disable VF unhappy path")
+		t.Fatalf("Failed to test disable VF unhappy path")
 	}
 }
 
@@ -323,15 +348,20 @@ func TestGetLocationPathHappyPath(t *testing.T) {
 
 	_, err := getLocationPath(instanceID, nm.plClient)
 	if err != nil {
-		t.Fatal("Failed to test get locationPath happy path")
+		t.Fatalf("Failed to test get locationPath happy path due to %v", err)
 	}
 }
 
 func TestGetLocationPathUnHappyPath(t *testing.T) {
-	mockExecClient := platform.NewMockExecClient(true)
+	mockExecClient := platform.NewMockExecClient(false)
+	// set unhappy path
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		return failedCaseReturn, errTestFailure
+	})
+
 	_, err := getLocationPath(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatal("Failed to test get locationPath unhappy path")
+		t.Fatal("Failed to test get location path on unhappy path")
 	}
 }
 
@@ -352,20 +382,11 @@ func TestDismountVFDeviceHappyPath(t *testing.T) {
 
 	err := dismountVFDevice(locationPath, nm.plClient)
 	if err != nil {
-		t.Fatal("Failed to test dismount vf device happy path")
+		t.Fatalf("Failed to test dismount vf device happy path due to %v", err)
 	}
 }
 
-func TestDismountVFDeviceUnHappyPathOne(t *testing.T) {
-	// set unhappy path
-	mockExecClient := platform.NewMockExecClient(true)
-	err := dismountVFDevice(instanceID, mockExecClient)
-	if err == nil {
-		t.Fatal("Failed to test dismount VF unhappy path")
-	}
-}
-
-func TestDismountVFDeviceUnHappyPathTwo(t *testing.T) {
+func TestDismountVFDeviceUnHappyPath(t *testing.T) {
 	mockExecClient := platform.NewMockExecClient(false)
 	// set unhappy path
 	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
@@ -396,12 +417,17 @@ func TestGetPnPDeviceIDHappyPath(t *testing.T) {
 
 	_, err := getPnPDeviceID(instanceID, nm.plClient)
 	if err != nil {
-		t.Fatal("Failed to test get pnp device id happy path")
+		t.Fatalf("Failed to test get pnp device id happy path due to %v", err)
 	}
 }
 
 func TestGetPnPDeviceIDUnHappyPath(t *testing.T) {
-	mockExecClient := platform.NewMockExecClient(true)
+	mockExecClient := platform.NewMockExecClient(false)
+	// set unhappy path
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		return failedCaseReturn, errTestFailure
+	})
+
 	_, err := getPnPDeviceID(instanceID, mockExecClient)
 	if err == nil {
 		t.Fatal("Failed to test get pnp device id unhappy path")
@@ -426,12 +452,17 @@ func TestGetPnPDeviceStateHappyPath(t *testing.T) {
 
 	_, _, err := getPnpDeviceState(instanceID, nm.plClient)
 	if err != nil {
-		t.Fatal("Failed to test happy path")
+		t.Fatalf("Failed to test happy path due to %v", err)
 	}
 }
 
 func TestGetPnPDeviceStateUnHappyPath(t *testing.T) {
-	mockExecClient := platform.NewMockExecClient(true)
+	mockExecClient := platform.NewMockExecClient(false)
+	// set unhappy path
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		return failedCaseReturn, errTestFailure
+	})
+
 	_, _, err := getPnpDeviceState(instanceID, mockExecClient)
 	if err == nil {
 		t.Fatal("Failed to test get pnp device state unhappy path")
@@ -463,14 +494,48 @@ func TestNewEndpointImplHnsv2ForIBHappyPath(t *testing.T) {
 
 	// Happy Path
 	endpoint, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), epInfo)
+		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, epInfo)
 
 	if endpoint != nil || err != nil {
-		t.Fatal("Endpoint is created for IB")
+		t.Fatalf("Endpoint is created for IB due to %v", err)
 	}
 }
 
 func TestNewEndpointImplHnsv2ForIBUnHappyPath(t *testing.T) {
+	nw := &network{
+		Endpoints: map[string]*endpoint{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	hnsFake := hnswrapper.NewHnsv2wrapperFake()
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2:          hnsFake,
+		HnsCallTimeout: 5 * time.Second,
+	}
+
+	epInfo := &EndpointInfo{
+		EndpointID: "768e8deb-eth1",
+		Data:       make(map[string]interface{}),
+		IfName:     "eth1",
+		NICType:    cns.BackendNIC,
+		PnPID:      pnpID,
+	}
+
+	// Set UnHappy Path
+	_, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(true),
+		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, epInfo)
+
+	if err == nil {
+		t.Fatal("Failed to test Endpoint creation for IB with unhappy path")
+	}
+
+	if !errors.Is(err, platform.ErrMockExec) {
+		t.Fatalf("Unexpected Error:%v; Error should be %v", err, platform.ErrMockExec)
+	}
+}
+
+func TestCreateAndDeleteEndpointImplHnsv2ForDelegatedHappyPath(t *testing.T) {
 	nw := &network{
 		Endpoints: map[string]*endpoint{},
 	}
@@ -488,19 +553,145 @@ func TestNewEndpointImplHnsv2ForIBUnHappyPath(t *testing.T) {
 		EndpointID: "768e8deb-eth1",
 		Data:       make(map[string]interface{}),
 		IfName:     "eth1",
-		NICType:    cns.BackendNIC,
-		PnPID:      pnpID,
+		NICType:    cns.NodeNetworkInterfaceFrontendNIC,
+		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
 	}
 
-	// Set UnHappy Path
-	_, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(true),
-		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), epInfo)
-
-	if err == nil {
-		t.Fatal("Failed to test Endpoint creation for IB with unhappy path")
+	// Happy Path to create and delete endpoint for delegated NIC
+	ep, err := nw.newEndpointImplHnsV2(nil, epInfo)
+	if err != nil {
+		t.Fatalf("Failed to create endpoint for Delegated NIC due to %v", err)
 	}
 
-	if !errors.Is(err, platform.ErrMockExec) {
-		t.Fatalf("Unexpected Error:%v; Error should be %v", err, platform.ErrMockExec)
+	mockCli := NewMockEndpointClient(nil)
+	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli,
+		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, ep)
+	if err != nil {
+		t.Fatalf("Failed to delete endpoint for Delegated NIC due to %v", err)
+	}
+}
+
+// mock to nivoke endpointState deletion with InfraNIC + DelegatedNIC
+func TestDeleteEndpointStateForInfraDelegatedNIC(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	hnsFake := hnswrapper.NewHnsv2wrapperFake()
+
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2:          hnsFake,
+		HnsCallTimeout: 5 * time.Second,
+	}
+
+	// create network for InfraNIC
+	infraNetworkID := "azure"
+	infraNetwork := &hcn.HostComputeNetwork{
+		Name: infraNetworkID,
+	}
+
+	_, err := Hnsv2.CreateNetwork(infraNetwork)
+	if err != nil {
+		t.Fatalf("Failed to create network for infraNIC due to %v", err)
+	}
+
+	// create network for DelegatedNIC
+	delegatedNetwork := &hcn.HostComputeNetwork{
+		Id:   networkID,
+		Name: networkName,
+		Type: l1vhNetworkType,
+	}
+	_, err = Hnsv2.CreateNetwork(delegatedNetwork)
+	if err != nil {
+		t.Fatalf("Failed to create network for delegatedNIC due to %v", err)
+	}
+
+	// make sure two networks are created:
+	networks := hnsFake.Cache.GetNetworks()
+	if len(networks) != 2 {
+		t.Fatal("Failed to create two networks for infraNIC and delegatedNIC")
+	}
+
+	// create endpoint for InfraNIC
+	infraEndpointID := "infraEndpoint"
+	infraEndpoint := &hcn.HostComputeEndpoint{
+		Id:                 infraEndpointID,
+		Name:               infraEndpointID,
+		HostComputeNetwork: infraNetworkID,
+	}
+
+	_, err = Hnsv2.CreateEndpoint(infraEndpoint)
+	if err != nil {
+		t.Fatalf("Failed to create endpoint for infraNIC due to %v", err)
+	}
+
+	// create endpoint for delegated NIC
+	deletegatedEndpointID := "delegatedEndpoint"
+	delegatedEndpoint := &hcn.HostComputeEndpoint{
+		Id:                 deletegatedEndpointID,
+		Name:               deletegatedEndpointID,
+		HostComputeNetwork: deletegatedEndpointID,
+		MacAddress:         macAddress,
+	}
+
+	_, err = Hnsv2.CreateEndpoint(delegatedEndpoint)
+	if err != nil {
+		t.Fatalf("Failed to create endpoint for delegatedNIC due to %v", err)
+	}
+
+	// make sure two endpoints are created:
+	endpoints := hnsFake.Cache.GetEndpoints()
+	if len(endpoints) != 2 {
+		t.Fatal("Failed to create two endpoints for infraNIC and delegatedNIC")
+	}
+
+	infraEpInfo := &EndpointInfo{
+		EndpointID:    infraEndpointID,
+		Data:          make(map[string]interface{}),
+		IfName:        "eth0",
+		NICType:       cns.InfraNIC,
+		HNSEndpointID: infraEndpointID,
+		HNSNetworkID:  infraNetworkID,
+	}
+
+	delegatedEpInfo := &EndpointInfo{
+		EndpointID:    deletegatedEndpointID,
+		Data:          make(map[string]interface{}),
+		IfName:        "eth1",
+		NICType:       cns.NodeNetworkInterfaceFrontendNIC,
+		MacAddress:    net.HardwareAddr(macAddress),
+		HNSEndpointID: deletegatedEndpointID,
+		HNSNetworkID:  networkID,
+	}
+
+	// mock DeleteEndpointState() to make sure endpoint and network is deleted from cache
+	// network and endpoint should be deleted from cache for delegatedNIC
+	err = nm.DeleteEndpointState(networkID, delegatedEpInfo)
+	if err != nil {
+		t.Fatalf("Failed to delete endpoint for delegatedNIC state due to %v", err)
+	}
+
+	// endpoint should be deleted from cache for delegatedNIC and network is still there
+	err = nm.DeleteEndpointState(infraNetworkID, infraEpInfo)
+	if err != nil {
+		t.Fatalf("Failed to delete endpoint for delegatedNIC state due to %v", err)
+	}
+
+	// check cache if endpoints are deleted
+	endpoints = hnsFake.Cache.GetEndpoints()
+	if len(endpoints) != 0 {
+		t.Fatalf("Not all endpoints are deleted, the remaining endpoints are %v", endpoints)
+	}
+
+	// check cache if delegated network is deleted and infra network is still there
+	networks = hnsFake.Cache.GetNetworks()
+	if len(networks) != 1 {
+		t.Fatalf("Failed to delete networks")
+	}
+
+	if _, ok := networks[infraNetworkID]; !ok {
+		t.Fatal("Network for InfraNIC does not exist")
 	}
 }

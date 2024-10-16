@@ -150,6 +150,7 @@ func (nw *network) newEndpointImpl(
 	_ EndpointClient,
 	_ NamespaceClientInterface,
 	_ ipTablesClient,
+	_ dhcpClient,
 	epInfo *EndpointInfo,
 ) (*endpoint, error) {
 	if epInfo.NICType == cns.BackendNIC {
@@ -306,9 +307,9 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 	}
 
 	// macAddress type for InfraNIC is like "60:45:bd:12:45:65"
-	// if NICType is delegatedVMNIC, convert the macaddress format
+	// if NICType is delegatedVMNIC or AccelnetNIC, convert the macaddress format
 	macAddress := epInfo.MacAddress.String()
-	if epInfo.NICType == cns.DelegatedVMNIC {
+	if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 		// convert the format of macAddress that HNS can accept, i.e, "60-45-bd-12-45-65" if NIC type is delegated NIC
 		macAddress = strings.Join(strings.Split(macAddress, ":"), "-")
 	}
@@ -319,6 +320,16 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 	} else {
 		logger.Error("Failed to get endpoint policies due to", zap.Error(err))
 		return nil, err
+	}
+
+	// add hcnEndpoint policy for accelnet for frontendNIC
+	if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
+		endpointPolicy, err := policy.AddAccelnetPolicySetting()
+		if err != nil {
+			logger.Error("Failed to set iov endpoint policy", zap.Error(err))
+			return nil, errors.Wrapf(err, "Failed to set iov endpoint policy for endpointId :%s", epInfo.EndpointID)
+		}
+		hcnEndpoint.Policies = append(hcnEndpoint.Policies, endpointPolicy)
 	}
 
 	for _, route := range epInfo.Routes {
@@ -511,11 +522,16 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
 func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.ExecClient, _ EndpointClient, _ netio.NetIOInterface, _ NamespaceClientInterface,
-	_ ipTablesClient, ep *endpoint,
+	_ ipTablesClient, _ dhcpClient, ep *endpoint,
 ) error {
 	// endpoint deletion is not required for IB
 	if ep.NICType == cns.BackendNIC {
 		return nil
+	}
+
+	if ep.HnsId == "" {
+		logger.Error("No HNS id found. Skip endpoint deletion", zap.Any("nicType", ep.NICType), zap.String("containerId", ep.ContainerID))
+		return fmt.Errorf("No HNS id found. Skip endpoint deletion for nicType %v, containerID %s", ep.NICType, ep.ContainerID) //nolint
 	}
 
 	if useHnsV2, err := UseHnsV2(ep.NetNs); useHnsV2 {
@@ -694,7 +710,7 @@ func getLocationPath(instanceID string, plc platform.ExecClient) (string, error)
 	return locationPath, nil
 }
 
-// Get PnP device state
+// Get PnP device state; PnP device objects represent the mounted/dismounted IB VFs
 // return devpkeyDeviceIsPresent and devpkeyDeviceProblemCode
 func getPnpDeviceState(instanceID string, plc platform.ExecClient) (string, string, error) { //nolint
 	// get if device is present

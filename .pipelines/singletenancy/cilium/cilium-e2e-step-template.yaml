@@ -1,6 +1,7 @@
 parameters:
   name: ""
   clusterName: ""
+  scaleup: ""
 
 steps:
   - bash: |
@@ -25,7 +26,7 @@ steps:
     inputs:
       kubectlVersion: latest
 
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
@@ -63,63 +64,4 @@ steps:
     name: "aziliumTest"
     displayName: "Run Azilium E2E"
 
-  - script: |
-      kubectl get po -owide -A
-      echo "Waiting < 2 minutes for cilium to be ready"
-      # Ensure Cilium is ready Xm\Xs
-      cilium status --wait --wait-duration 2m
-    retryCountOnTaskFailure: 3
-    name: "CiliumStatus"
-    displayName: "Cilium Status"
-
-  - script: |
-      echo "Run Cilium Connectivity Tests"
-      cilium status
-      cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption'
-    retryCountOnTaskFailure: 3
-    name: "ciliumConnectivityTests"
-    displayName: "Run Cilium Connectivity Tests"
-
-  - script: |
-      echo "validate pod IP assignment and check systemd-networkd restart"
-      kubectl get pod -owide -A
-      # Deleting echo-external-node deployment until cilium version matches TODO. https://github.com/cilium/cilium-cli/issues/67 is addressing the change.
-      # Saves 17 minutes
-      kubectl delete deploy -n cilium-test echo-external-node
-      make test-validate-state
-      echo "delete cilium connectivity test resources and re-validate state"
-      kubectl delete ns cilium-test
-      kubectl get pod -owide -A
-      make test-validate-state
-    name: "validatePods"
-    displayName: "Validate Pods"
-
-  - script: |
-      echo "validate pod IP assignment before CNS restart"
-      kubectl get pod -owide -A
-      make test-validate-state
-      echo "restart CNS"
-      kubectl rollout restart ds azure-cns -n kube-system
-      kubectl rollout status ds azure-cns -n kube-system
-      kubectl get pod -owide -A
-      echo "validate pods after CNS restart"
-      make test-validate-state
-    name: "restartCNS"
-    displayName: "Restart CNS and validate pods"
-
-  - script: |
-      echo "Run wireserver and metadata connectivity Tests"
-      bash test/network/wireserver_metadata_test.sh
-    retryCountOnTaskFailure: 3
-    name: "WireserverMetadataConnectivityTests"
-    displayName: "Run Wireserver and Metadata Connectivity Tests"
-  
-  - script: |
-      cd hack/scripts
-      chmod +x async-delete-test.sh
-      ./async-delete-test.sh
-      if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
-        kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
-      fi
-    name: "testAsyncDelete"
-    displayName: "Verify Async Delete when CNS is down"
+  - template: ../../templates/cilium-tests.yaml

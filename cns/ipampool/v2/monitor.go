@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
@@ -36,36 +37,39 @@ type scaler struct {
 }
 
 type Monitor struct {
-	z            *zap.Logger
-	scaler       scaler
-	nnccli       nodeNetworkConfigSpecUpdater
-	store        ipStateStore
-	demand       int64
-	request      int64
-	demandSource <-chan int
-	cssSource    <-chan v1alpha1.ClusterSubnetState
-	nncSource    <-chan v1alpha.NodeNetworkConfig
-	started      chan interface{}
-	once         sync.Once
+	z                     *zap.Logger
+	scaler                scaler
+	nnccli                nodeNetworkConfigSpecUpdater
+	store                 ipStateStore
+	demand                int64
+	request               int64
+	demandSource          <-chan int
+	cssSource             <-chan v1alpha1.ClusterSubnetState
+	nncSource             <-chan v1alpha.NodeNetworkConfig
+	started               chan interface{}
+	once                  sync.Once
+	legacyMetricsObserver func(context.Context) error
 }
 
 func NewMonitor(z *zap.Logger, store ipStateStore, nnccli nodeNetworkConfigSpecUpdater, demandSource <-chan int, nncSource <-chan v1alpha.NodeNetworkConfig, cssSource <-chan v1alpha1.ClusterSubnetState) *Monitor { //nolint:lll // it's fine
 	return &Monitor{
-		z:            z.With(zap.String("component", "ipam-pool-monitor")),
-		store:        store,
-		nnccli:       nnccli,
-		demandSource: demandSource,
-		cssSource:    cssSource,
-		nncSource:    nncSource,
-		started:      make(chan interface{}),
+		z:                     z.With(zap.String("component", "ipam-pool-monitor")),
+		store:                 store,
+		nnccli:                nnccli,
+		demandSource:          demandSource,
+		cssSource:             cssSource,
+		nncSource:             nncSource,
+		started:               make(chan interface{}),
+		legacyMetricsObserver: func(context.Context) error { return nil },
 	}
 }
 
 // Start begins the Monitor's pool reconcile loop.
 // On first run, it will block until a NodeNetworkConfig is received (through a call to Update()).
-// Subsequently, it will run run once per RefreshDelay and attempt to re-reconcile the pool.
+// Subsequently, it will run run when Events happen or at least once per ReconcileDelay and attempt to re-reconcile the pool.
 func (pm *Monitor) Start(ctx context.Context) error {
 	pm.z.Debug("starting")
+	maxReconcileDelay := time.NewTicker(60 * time.Second) //nolint:gomnd // 60 seconds
 	for {
 		// proceed when things happen:
 		select {
@@ -87,6 +91,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 				pm.z.Debug("started", zap.Int64("initial request", pm.request))
 			})
 			pm.z.Info("scaler update", zap.Int64("batch", pm.scaler.batch), zap.Float64("buffer", pm.scaler.buffer), zap.Int64("max", pm.scaler.max), zap.Int64("request", pm.request))
+		case <-maxReconcileDelay.C: // try to reconcile the pool every maxReconcileDelay to prevent drift or lockups.
 		}
 		select {
 		case <-pm.started: // this blocks until we have initialized
@@ -97,6 +102,9 @@ func (pm *Monitor) Start(ctx context.Context) error {
 		// if control has flowed through the select(s) to this point, we can now reconcile.
 		if err := pm.reconcile(ctx); err != nil {
 			pm.z.Error("reconcile failed", zap.Error(err))
+		}
+		if err := pm.legacyMetricsObserver(ctx); err != nil {
+			pm.z.Error("legacy metrics observer failed", zap.Error(err))
 		}
 	}
 }
@@ -116,6 +124,7 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 	pm.z.Info("calculated new request", zap.Int64("demand", pm.demand), zap.Int64("batch", s.batch), zap.Int64("max", s.max), zap.Float64("buffer", s.buffer), zap.Int64("target", target))
 	delta := target - pm.request
 	if delta == 0 {
+		pm.z.Info("NNC already at target IPs, no scaling required")
 		return nil
 	}
 	pm.z.Info("scaling pool", zap.Int64("delta", delta))
@@ -144,6 +153,10 @@ func (pm *Monitor) buildNNCSpec(request int64) v1alpha.NodeNetworkConfigSpec {
 		spec.IPsNotInUse[i] = pendingReleaseIPs[i].ID
 	}
 	return spec
+}
+
+func (pm *Monitor) WithLegacyMetricsObserver(observer func(context.Context) error) {
+	pm.legacyMetricsObserver = observer
 }
 
 // calculateTargetIPCountOrMax calculates the target IP count request

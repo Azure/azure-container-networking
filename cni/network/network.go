@@ -16,10 +16,13 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/dhcp"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
@@ -106,6 +109,7 @@ type NnsClient interface {
 // client for getting interface
 type InterfaceGetter interface {
 	GetNetworkInterfaces() ([]net.Interface, error)
+	GetNetworkInterfaceAddrs(iface *net.Interface) ([]net.Addr, error)
 }
 
 // snatConfiguration contains a bool that determines whether CNI enables snat on host and snat for dns
@@ -128,7 +132,7 @@ func NewPlugin(name string,
 
 	nl := netlink.NewNetlink()
 	// Setup network manager.
-	nm, err := network.NewNetworkManager(nl, platform.NewExecClient(logger), &netio.NetIO{}, network.NewNamespaceClient(), iptables.NewClient())
+	nm, err := network.NewNetworkManager(nl, platform.NewExecClient(logger), &netio.NetIO{}, network.NewNamespaceClient(), iptables.NewClient(), dhcp.New(logger))
 	if err != nil {
 		return nil, err
 	}
@@ -254,7 +258,7 @@ func (plugin *NetPlugin) findMasterInterfaceBySubnet(nwCfg *cni.NetworkConfig, s
 	}
 	var ipnets []string
 	for _, iface := range interfaces {
-		addrs, _ := iface.Addrs()
+		addrs, _ := plugin.netClient.GetNetworkInterfaceAddrs(&iface) //nolint
 		for _, addr := range addrs {
 			_, ipnet, err := net.ParseCIDR(addr.String())
 			if err != nil {
@@ -474,7 +478,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		logger.Info("ADD command completed for",
 			zap.String("pod", k8sPodName),
 			zap.Any("IPs", cniResult.IPs),
-			zap.Error(err))
+			zap.Error(log.NewErrorWithoutStackTrace(err)))
 	}()
 
 	ipamAddResult = IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
@@ -605,9 +609,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}()
 
 	infraSeen := false
-	endpointIndex := 0
+	endpointIndex := 1
 	for key := range ipamAddResult.interfaceInfo {
 		ifInfo := ipamAddResult.interfaceInfo[key]
+		logger.Info("Processing interfaceInfo:", zap.Any("ifInfo", ifInfo))
 
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
 		networkID, _ := plugin.getNetworkID(args.Netns, &ifInfo, nwCfg)
@@ -683,11 +688,13 @@ func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 	switch opt.ifInfo.NICType {
 	case cns.InfraNIC:
 		return plugin.findMasterInterfaceBySubnet(opt.ipamAddConfig.nwCfg, &opt.ifInfo.HostSubnetPrefix)
-	case cns.DelegatedVMNIC:
+	case cns.NodeNetworkInterfaceFrontendNIC:
 		return plugin.findInterfaceByMAC(opt.ifInfo.MacAddress.String())
-	case cns.BackendNIC: // TODO: how to find interface with IB NIC by mac address
-		opt.ifInfo.Name = ibInterfacePrefix + strconv.Itoa(opt.endpointIndex)
-		return opt.ifInfo.Name
+	case cns.BackendNIC:
+		// if windows swiftv2 has right network drivers, there will be an NDIS interface while the VFs are mounted
+		// when the VF is dismounted, this interface will go away
+		// return an unique interface name to containerd
+		return ibInterfacePrefix + strconv.Itoa(opt.endpointIndex)
 	default:
 		return ""
 	}
@@ -732,7 +739,6 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	// populate endpoint info
 	epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, opt.ifInfo.DNS, opt.k8sNamespace) // Probably won't panic if given bad values
 	if err != nil {
-
 		err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
 		return nil, err
 	}
@@ -753,13 +759,16 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	}
 
 	// generate endpoint info
-	var endpointID string
+	var endpointID, ifName string
+
 	if opt.ifInfo.NICType == cns.InfraNIC && !*opt.infraSeen {
 		// so we do not break existing scenarios, only the first infra gets the original endpoint id generation
-		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, opt.args.IfName)
+		ifName = opt.args.IfName
+		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, ifName)
 		*opt.infraSeen = true
 	} else {
-		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, strconv.Itoa(opt.endpointIndex))
+		ifName = "eth" + strconv.Itoa(opt.endpointIndex)
+		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, ifName)
 	}
 
 	endpointInfo := network.EndpointInfo{
@@ -770,14 +779,14 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		BridgeName:                    opt.ipamAddConfig.nwCfg.Bridge,
 		NetworkPolicies:               networkPolicies, // nw and ep policies separated to avoid possible conflicts
 		NetNs:                         opt.ipamAddConfig.args.Netns,
-		Options:                       opt.ipamAddConfig.options,
+		Options:                       opt.ipamAddConfig.shallowCopyIpamAddConfigOptions(),
 		DisableHairpinOnHostInterface: opt.ipamAddConfig.nwCfg.DisableHairpinOnHostInterface,
 		IsIPv6Enabled:                 opt.ipv6Enabled, // present infra only
 
 		EndpointID:  endpointID,
 		ContainerID: opt.args.ContainerID,
 		NetNsPath:   opt.args.Netns, // probably same value as epInfo.NetNs
-		IfName:      opt.args.IfName,
+		IfName:      ifName,
 		Data:        make(map[string]interface{}),
 		EndpointDNS: epDNSInfo,
 		// endpoint policies are populated later
@@ -931,7 +940,7 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 		}
 
 		logger.Info("GET command completed", zap.Any("result", result),
-			zap.Error(err))
+			zap.Error(log.NewErrorWithoutStackTrace(err)))
 	}()
 
 	// Parse network configuration from stdin.
@@ -1020,7 +1029,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	defer func() {
 		logger.Info("DEL command completed",
 			zap.String("pod", k8sPodName),
-			zap.Error(err))
+			zap.Error(log.NewErrorWithoutStackTrace(err)))
 	}()
 
 	// Parse network configuration from stdin.
@@ -1123,18 +1132,38 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		// network ID is passed in and used only for migration
 		// otherwise, in stateless, we don't need the network id for deletion
 		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID)
+		// if stateless CNI fail to get the endpoint from CNS for any reason other than  Endpoint Not found
+		if err != nil {
+			if errors.Is(err, network.ErrConnectionFailure) {
+				logger.Info("failed to connect to CNS", zap.String("containerID", args.ContainerID), zap.Error(err))
+				addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
+				logger.Info("add containerid file for Asynch delete", zap.String("containerID", args.ContainerID), zap.Error(addErr))
+				if addErr != nil {
+					logger.Error("failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
+					return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s", args.ContainerID))
+				}
+				return nil
+			}
+			if errors.Is(err, network.ErrEndpointStateNotFound) {
+				logger.Info("Endpoint Not found", zap.String("containerID", args.ContainerID), zap.Error(err))
+				return nil
+			}
+			logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
+			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
+		}
 	} else {
 		epInfos = plugin.nm.GetEndpointInfosFromContainerID(args.ContainerID)
 	}
 
 	// for when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
-	// stateless cni won't have this issue
+	// this block is not applied to stateless CNI
 	if len(epInfos) == 0 {
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		if !nwCfg.MultiTenancy {
 			logger.Error("Failed to query endpoint",
 				zap.String("endpoint", endpointID),
 				zap.Error(err))
+
 			logger.Error("Release ip by ContainerID (endpoint not found)",
 				zap.String("containerID", args.ContainerID))
 			sendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
@@ -1264,7 +1293,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 
 		logger.Info("UPDATE command completed",
 			zap.Any("result", result),
-			zap.Error(err))
+			zap.Error(log.NewErrorWithoutStackTrace(err)))
 	}()
 
 	// Parse Pod arguments.

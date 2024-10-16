@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -56,7 +57,7 @@ func GetOSInfo() string {
 func GetProcessSupport() error {
 	p := NewExecClient(nil)
 	cmd := fmt.Sprintf("ps -p %v -o comm=", os.Getpid())
-	_, err := p.ExecuteCommand(cmd)
+	_, err := p.ExecuteRawCommand(cmd)
 	return err
 }
 
@@ -88,7 +89,8 @@ func (p *execClient) GetLastRebootTime() (time.Time, error) {
 	return rebootTime.UTC(), nil
 }
 
-func (p *execClient) ExecuteCommand(command string) (string, error) {
+// Deprecated: ExecuteRawCommand is deprecated, it is recommended to use ExecuteCommand when possible
+func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 	if p.logger != nil {
 		p.logger.Info("[Azure-Utils]", zap.String("command", command))
 	} else {
@@ -114,11 +116,38 @@ func (p *execClient) ExecuteCommand(command string) (string, error) {
 	return out.String(), nil
 }
 
+// ExecuteCommand passes its parameters to an exec.CommandContext, runs the command, and returns its output, or an error if the command fails or times out
+func (p *execClient) ExecuteCommand(ctx context.Context, command string, args ...string) (string, error) {
+	if p.logger != nil {
+		p.logger.Info("[Azure-Utils]", zap.String("command", command), zap.Strings("args", args))
+	} else {
+		log.Printf("[Azure-Utils] %s %v", command, args)
+	}
+
+	var stderr bytes.Buffer
+	var out bytes.Buffer
+
+	// Create a new context and add a timeout to it
+	derivedCtx, cancel := context.WithTimeout(ctx, p.Timeout)
+	defer cancel() // The cancel should be deferred so resources are cleaned up
+
+	cmd := exec.CommandContext(derivedCtx, command, args...)
+	cmd.Stderr = &stderr
+	cmd.Stdout = &out
+
+	err := cmd.Run()
+	if err != nil {
+		return "", errors.Wrapf(err, "%s:%s", err.Error(), stderr.String())
+	}
+
+	return out.String(), nil
+}
+
 func SetOutboundSNAT(subnet string) error {
 	p := NewExecClient(nil)
 	cmd := fmt.Sprintf("iptables -t nat -A POSTROUTING -m iprange ! --dst-range 168.63.129.16 -m addrtype ! --dst-type local ! -d %v -j MASQUERADE",
 		subnet)
-	_, err := p.ExecuteCommand(cmd)
+	_, err := p.ExecuteRawCommand(cmd)
 	if err != nil {
 		log.Printf("SNAT Iptable rule was not set")
 		return err
@@ -132,17 +161,19 @@ func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 	return false, nil
 }
 
+// not supported on linux
 func (p *execClient) ExecutePowershellCommand(_ string) (string, error) {
 	return "", nil
 }
 
+// not supported on linux
 func (p *execClient) ExecutePowershellCommandWithContext(_ context.Context, _ string) (string, error) {
 	return "", nil
 }
 
 func (p *execClient) KillProcessByName(processName string) error {
 	cmd := fmt.Sprintf("pkill -f %v", processName)
-	_, err := p.ExecuteCommand(cmd)
+	_, err := p.ExecuteRawCommand(cmd)
 	return err
 }
 
@@ -174,7 +205,7 @@ func GetProcessNameByID(pidstr string) (string, error) {
 	p := NewExecClient(nil)
 	pidstr = strings.Trim(pidstr, "\n")
 	cmd := fmt.Sprintf("ps -p %s -o comm=", pidstr)
-	out, err := p.ExecuteCommand(cmd)
+	out, err := p.ExecuteRawCommand(cmd)
 	if err != nil {
 		log.Printf("GetProcessNameByID returned error: %v", err)
 		return "", err
@@ -188,7 +219,7 @@ func GetProcessNameByID(pidstr string) (string, error) {
 
 func PrintDependencyPackageDetails() {
 	p := NewExecClient(nil)
-	out, err := p.ExecuteCommand("iptables --version")
+	out, err := p.ExecuteRawCommand("iptables --version")
 	out = strings.TrimSuffix(out, "\n")
 	log.Printf("[cni-net] iptable version:%s, err:%v", out, err)
 }

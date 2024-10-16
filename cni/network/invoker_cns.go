@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
@@ -136,7 +137,6 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			}
 		} else {
 			logger.Info("Failed to get IP address from CNS",
-				zap.Error(err),
 				zap.Any("response", response))
 			return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS")
 		}
@@ -169,8 +169,8 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		// Do we want to leverage this lint skip in other places of our code?
 		key := invoker.getInterfaceInfoKey(info.nicType, info.macAddress)
 		switch info.nicType {
-		case cns.DelegatedVMNIC:
-			// only handling single v4 PodIPInfo for DelegatedVMNIC at the moment, will have to update once v6 gets added
+		case cns.NodeNetworkInterfaceFrontendNIC:
+			// only handling single v4 PodIPInfo for NodeNetworkInterfaceFrontendNIC and AccelnetNIC at the moment, will have to update once v6 gets added
 			if !info.skipDefaultRoutes {
 				numInterfacesWithDefaultRoutes++
 			}
@@ -321,8 +321,9 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 				if errors.As(err, &connectionErr) {
 					addErr := fsnotify.AddFile(ipConfigs.PodInterfaceID, args.ContainerID, watcherPath)
 					if addErr != nil {
-						logger.Error("Failed to add file to watcher", zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(addErr))
-						return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s and podInterfaceID %s", args.ContainerID, ipConfigs.PodInterfaceID))
+						logger.Error("Failed to add file to watcher (unsupported api path)",
+							zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(log.NewErrorWithoutStackTrace(addErr)))
+						return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s and podInterfaceID %s (unsupported api path)", args.ContainerID, ipConfigs.PodInterfaceID))
 					}
 				} else {
 					logger.Error("Failed to release IP address from CNS using ReleaseIPAddress ",
@@ -336,7 +337,8 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 			if errors.As(err, &connectionErr) {
 				addErr := fsnotify.AddFile(ipConfigs.PodInterfaceID, args.ContainerID, watcherPath)
 				if addErr != nil {
-					logger.Error("Failed to add file to watcher", zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(addErr))
+					logger.Error("Failed to add file to watcher", zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID),
+						zap.Error(log.NewErrorWithoutStackTrace(addErr)))
 					return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s and podInterfaceID %s", args.ContainerID, ipConfigs.PodInterfaceID))
 				}
 			} else {
@@ -525,7 +527,7 @@ func addBackendNICToResult(info *IPResultInfo, addResult *IPAMAddResult, key str
 }
 
 func (invoker *CNSIPAMInvoker) getInterfaceInfoKey(nicType cns.NICType, macAddress string) string {
-	if nicType == cns.DelegatedVMNIC || nicType == cns.BackendNIC {
+	if nicType == cns.NodeNetworkInterfaceFrontendNIC || nicType == cns.BackendNIC {
 		return macAddress
 	}
 	return string(nicType)

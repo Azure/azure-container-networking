@@ -11,7 +11,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
-	"github.com/Azure/azure-container-networking/cns/ipamclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/routes"
@@ -58,7 +57,6 @@ type HTTPRestService struct {
 	*cns.Service
 	dockerClient             *dockerclient.Client
 	wscli                    interfaceGetter
-	ipamClient               *ipamclient.IpamClient
 	nma                      nmagentClient
 	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
@@ -182,11 +180,6 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		return nil, err
 	}
 
-	ic, err := ipamclient.NewIpamClient("")
-	if err != nil {
-		return nil, err
-	}
-
 	res, err := wscli.GetInterfaces(context.TODO()) // TODO(rbtr): thread context through this client
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
@@ -218,7 +211,6 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		store:                    service.Service.Store,
 		dockerClient:             dc,
 		wscli:                    wscli,
-		ipamClient:               ic,
 		nma:                      nmagentClient,
 		wsproxy:                  wsproxy,
 		networkContainer:         nc,
@@ -256,11 +248,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.SetEnvironmentPath, service.setEnvironment)
 	listener.AddHandler(cns.CreateNetworkPath, service.createNetwork)
 	listener.AddHandler(cns.DeleteNetworkPath, service.deleteNetwork)
-	listener.AddHandler(cns.ReserveIPAddressPath, service.reserveIPAddress)
-	listener.AddHandler(cns.ReleaseIPAddressPath, service.releaseIPAddress)
 	listener.AddHandler(cns.GetHostLocalIPPath, service.getHostLocalIP)
-	listener.AddHandler(cns.GetIPAddressUtilizationPath, service.getIPAddressUtilization)
-	listener.AddHandler(cns.GetUnhealthyIPAddressesPath, service.getUnhealthyIPAddresses)
 	listener.AddHandler(cns.CreateOrUpdateNetworkContainer, service.createOrUpdateNetworkContainer)
 	listener.AddHandler(cns.DeleteNetworkContainer, service.deleteNetworkContainer)
 	listener.AddHandler(cns.GetInterfaceForContainer, service.getInterfaceForContainer)
@@ -296,11 +284,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
 	listener.AddHandler(cns.V2Prefix+cns.CreateNetworkPath, service.createNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.DeleteNetworkPath, service.deleteNetwork)
-	listener.AddHandler(cns.V2Prefix+cns.ReserveIPAddressPath, service.reserveIPAddress)
-	listener.AddHandler(cns.V2Prefix+cns.ReleaseIPAddressPath, service.releaseIPAddress)
 	listener.AddHandler(cns.V2Prefix+cns.GetHostLocalIPPath, service.getHostLocalIP)
-	listener.AddHandler(cns.V2Prefix+cns.GetIPAddressUtilizationPath, service.getIPAddressUtilization)
-	listener.AddHandler(cns.V2Prefix+cns.GetUnhealthyIPAddressesPath, service.getUnhealthyIPAddresses)
 	listener.AddHandler(cns.V2Prefix+cns.CreateOrUpdateNetworkContainer, service.createOrUpdateNetworkContainer)
 	listener.AddHandler(cns.V2Prefix+cns.DeleteNetworkContainer, service.deleteNetworkContainer)
 	listener.AddHandler(cns.V2Prefix+cns.GetInterfaceForContainer, service.getInterfaceForContainer)

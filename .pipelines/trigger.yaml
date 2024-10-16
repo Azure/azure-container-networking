@@ -1,0 +1,52 @@
+trigger: none
+#pr:
+#  branches:
+#    include:
+#      - master
+#      - release/*
+#  paths:
+#    exclude:
+#      - ".devcontainer"
+#      - ".hooks"
+#      - ".vscode"
+#      - ".github"
+#      - docs
+#
+#
+#trigger:
+#  branches:
+#    include:
+#      - gh-readonly-queue/master/*
+#  tags:
+#    include:
+#      - "*"
+
+
+resources:
+  repositories:
+  - repository: azure-container-networking
+    type: github
+    name: Azure/azure-container-networking
+    endpoint: 'Azure-ACN RO Service Connection'
+    ref: refs/heads/feature/ob-onboard-0
+
+
+variables:
+  REPO_REF: $[ resources.repositories['azure-container-networking'].ref ]
+  REPO_COMMIT: $[ resources.repositories['azure-container-networking'].version ]
+  REPO_NAME: $[ resources.repositories['azure-container-networking'].name ]
+  REPO_TYPE: $[ resources.repositories['azure-container-networking'].type ]
+  CHANGESET_COMMIT: $[ resources.repositories['self'].version ]
+ 
+
+pool:
+  vmImage: ubuntu-latest
+
+
+extends:
+  template: /.pipelines/template.trigger.jobs.yaml@azure-container-networking
+  parameters:
+    mainRepoRef: $(REPO_REF)
+    mainRepoCommit: $(REPO_COMMIT)
+    mainRepoName: $(REPO_NAME)
+    mainRepoType: $(REPO_TYPE)

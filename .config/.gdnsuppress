@@ -1,0 +1,26 @@
+{
+  "version": "latest",
+  "suppressionSets": {
+    "default": {
+      "name": "default",
+      "createdDate": "2022-11-28 20:04:38Z",
+      "lastUpdatedDate": "2022-11-28 20:04:38Z"
+    }
+  },
+  "results": {
+    "d7e55b5f3e54f9253a2fec595f97520ab0ffece607981d2db0fcfe4dae4cd490": {
+      "signature": "d7e55b5f3e54f9253a2fec595f97520ab0ffece607981d2db0fcfe4dae4cd490",
+      "alternativeSignatures": [],
+      "target": "**/testdata/dummy.pem",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "credscan",
+      "ruleId": "CSCAN-GENERAL0020",
+      "justification": null,
+      "createdDate": "2022-11-28 20:04:38Z",
+      "expirationDate": null,
+      "type": null
+    }
+  }
+}

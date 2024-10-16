@@ -15,12 +15,12 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type releaseIPsClient interface {
+type ReleaseIPsClient interface {
 	ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error
 }
 
 type watcher struct {
-	cli  releaseIPsClient
+	cli  ReleaseIPsClient
 	path string
 	log  *zap.Logger
 
@@ -29,7 +29,7 @@ type watcher struct {
 }
 
 // Create the AsyncDelete watcher.
-func New(cli releaseIPsClient, path string, logger *zap.Logger) (*watcher, error) { //nolint
+func New(cli ReleaseIPsClient, path string, logger *zap.Logger) (*watcher, error) { //nolint
 	// Add directory where intended deletes are kept
 	if err := os.Mkdir(path, 0o755); err != nil && !errors.Is(err, fs.ErrExist) { //nolint
 		logger.Error("error making directory", zap.String("path", path), zap.Error(err))

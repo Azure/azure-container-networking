@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - release/*
   pull_request:
     paths:
       - 'npm/**'
@@ -32,7 +33,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '^1.21'
+          go-version: '^1.23'
 
       - name: Setup Kind
         uses: helm/kind-action@v1
@@ -49,7 +50,7 @@ jobs:
       - name: Make NPM image
         run: |
           make npm-image NPM_PLATFORM_TAG=cyclonus PLATFORM=linux/amd64 CONTAINER_BUILDER=docker BUILDX_ACTION='--load'
-      
+
       - name: Install Azure NPM
         # set the ConfigMap based on the build matrix
         # currently have to restart the daemonset because changing the ConfigMap doesn't restart NPM
@@ -60,7 +61,7 @@ jobs:
           echo "Applying profile: ${{ matrix.profile }}"
           kubectl apply -f ./npm/profiles/${{ matrix.profile }}
           kubectl rollout restart ds azure-npm -n kube-system
-    
+
       - name: Check Cluster Components
         run: |
           sleep 10
@@ -80,7 +81,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: logs
+          name: logs-${{ matrix.profile }}
           path: |
             ./npm-logs_${{ matrix.profile }}.txt
             ./cyclonus-test_${{ matrix.profile }}.txt

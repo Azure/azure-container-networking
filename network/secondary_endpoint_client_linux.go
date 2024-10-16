@@ -1,8 +1,10 @@
 package network
 
 import (
+	"context"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
@@ -25,6 +27,7 @@ type SecondaryEndpointClient struct {
 	plClient       platform.ExecClient
 	netUtilsClient networkutils.NetworkUtils
 	nsClient       NamespaceClientInterface
+	dhcpClient     dhcpClient
 	ep             *endpoint
 }
 
@@ -33,6 +36,7 @@ func NewSecondaryEndpointClient(
 	nioc netio.NetIOInterface,
 	plc platform.ExecClient,
 	nsc NamespaceClientInterface,
+	dhcpClient dhcpClient,
 	endpoint *endpoint,
 ) *SecondaryEndpointClient {
 	client := &SecondaryEndpointClient{
@@ -41,6 +45,7 @@ func NewSecondaryEndpointClient(
 		plClient:       plc,
 		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 		nsClient:       nsc,
+		dhcpClient:     dhcpClient,
 		ep:             endpoint,
 	}
 
@@ -126,6 +131,19 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 	}
 
 	ifInfo.Routes = append(ifInfo.Routes, epInfo.Routes...)
+
+	// issue dhcp discover packet to ensure mapping created for dns via wireserver to work
+	// we do not use the response for anything
+	numSecs := 3
+	timeout := time.Duration(numSecs) * time.Second
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(timeout))
+	defer cancel()
+	logger.Info("Sending DHCP packet", zap.Any("macAddress", epInfo.MacAddress), zap.String("ifName", epInfo.IfName))
+	err := client.dhcpClient.DiscoverRequest(ctx, epInfo.MacAddress, epInfo.IfName)
+	if err != nil {
+		return errors.Wrapf(err, "failed to issue dhcp discover packet to create mapping in host")
+	}
+	logger.Info("Finished configuring container interfaces and routes for secondary endpoint client")
 
 	return nil
 }

@@ -54,6 +54,8 @@ const (
 	destroySectionPrefix           = "delete"
 	addOrUpdateSectionPrefix       = "add/update"
 	ipsetRestoreLineFailurePattern = "Error in line (\\d+):"
+
+	maxConsecutiveFailures = 100
 )
 
 var (
@@ -227,8 +229,15 @@ func (iMgr *IPSetManager) setsWithReferences() map[string]struct{} {
 	var setsWithReferences map[string]struct{}
 	if haveRefsStill {
 		setsWithReferences = readByteLinesToMap(setsWithReferencesBytes)
+		subset := make(map[string]struct{}, maxLinesToPrint)
+		for key := range setsWithReferences {
+			subset[key] = struct{}{}
+			if len(subset) >= maxLinesToPrint {
+				break
+			}
+		}
 		metrics.SendErrorLogAndMetric(util.IpsmID, "error: found leaked reference counts in kernel. ipsets (max %d): %+v. err: %v",
-			maxLinesToPrint, setsWithReferences, err)
+			maxLinesToPrint, subset, err)
 	}
 
 	return setsWithReferences
@@ -408,8 +417,19 @@ func (iMgr *IPSetManager) applyIPSets() error {
 	creator := iMgr.fileCreatorForApply(maxTryCount)
 	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if restoreError != nil {
+		iMgr.consecutiveApplyFailures++
+		if iMgr.consecutiveApplyFailures >= maxConsecutiveFailures {
+			msg := fmt.Sprintf("exceeded max consecutive failures (%d) when applying ipsets. final error: %s", maxConsecutiveFailures, restoreError.Error())
+			klog.Error(msg)
+			metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+			panic(msg)
+		}
+
 		return npmerrors.SimpleErrorWrapper("ipset restore failed when applying ipsets", restoreError)
 	}
+
+	iMgr.consecutiveApplyFailures = 0
+
 	return nil
 }
 
@@ -774,6 +794,17 @@ func (iMgr *IPSetManager) deleteMemberForApply(creator *ioutil.FileCreator, set 
 			},
 		},
 	}
+
+	splitMember := strings.Split(member, space)
+	if len(splitMember) == 2 && splitMember[1] == util.IpsetNomatch {
+		// Remove "nomatch" from the member.
+		// A "nomatch" CIDR must be deleted like so:
+		// ipset -D 10.0.0.1/32
+		// The following command would cause a syntax failure:
+		// ipset -D 10.0.0.1/32 nomatch
+		member = splitMember[0]
+	}
+
 	creator.AddLine(sectionID, errorHandlers, ipsetDeleteFlag, set.HashedName, member) // delete member
 }
 
@@ -823,9 +854,6 @@ func readByteLinesToMap(output []byte) map[string]struct{} {
 		line, readIndex = parse.Line(readIndex, output)
 		hashedSetName := strings.Trim(string(line), "\n")
 		lines[hashedSetName] = struct{}{}
-		if len(lines) > maxLinesToPrint {
-			break
-		}
 	}
 	return lines
 }

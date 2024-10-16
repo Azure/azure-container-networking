@@ -1,0 +1,102 @@
+parameters:
+  name: ""
+  displayName: ""
+  clusterType: ""
+  clusterName: ""
+  vmSize: ""
+  k8sVersion: ""
+  dependsOn: ""
+  os: "linux"
+
+stages:
+  - stage: ${{ parameters.clusterName }}
+    displayName: Create Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      ACN_DIR: $(Build.SourcesDirectory)
+    jobs:
+      - template: ../../templates/create-cluster.jobs.yaml@ACNTools
+        parameters:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
+          k8sVersion: ${{ parameters.k8sVersion }}
+          dependsOn: ${{ parameters.dependsOn }}
+          region: $(REGION_AKS_CLUSTER_TEST)
+
+  - stage: ${{ parameters.name }}
+    displayName: E2E - ${{ parameters.displayName }}
+    dependsOn:
+    - setup
+    - publish
+    - ${{ parameters.clusterName }}
+    variables:
+      ACN_DIR: $(Build.SourcesDirectory)
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+      GOBIN: "$(GOPATH)/bin" # Go binaries path
+      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+    jobs:
+      - job: ${{ parameters.name }}
+        displayName: Cilium Overlay Test Suite - (${{ parameters.name }})
+        timeoutInMinutes: 120
+        pool:
+          isCustom: true
+          type: linux
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
+        steps:
+          - checkout: ACNReviewChanges
+            clean: true
+
+          - template: cilium-overlay-e2e.steps.yaml@ACNTools
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              scaleup: 100
+
+      - template: ../../cni/k8s-e2e/k8s-e2e.jobs.yaml@ACNTools
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          cni: cilium
+          dependsOn: ${{ parameters.name }}
+          datapath: true
+          dns: true
+          portforward: true
+          service: true
+
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
+        dependsOn:
+          - ${{ parameters.name }}
+          - cni_${{ parameters.os }}
+        condition: failed()
+        pool:
+          isCustom: true
+          type: linux
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        variables:
+          ob_outputDirectory: $(ACN_DIR)/${{ parameters.clusterName }}-$(commitID)_FailedE2ELogs_Attempt_#$(System.StageAttempt)
+          ob_git_checkout: true
+        steps:
+          - checkout: ACNReviewChanges
+            clean: true
+
+          - template: ../../templates/log-template.steps.yaml@ACNTools
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cilium
+

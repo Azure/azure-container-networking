@@ -76,7 +76,7 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		}
 		podIPInfo.SkipDefaultRoutes = true
 
-	case cns.NodeNetworkInterfaceBackendNIC, cns.NodeNetworkInterfaceAccelnetFrontendNIC: //nolint:exhaustive // ignore exhaustive types check
+	case cns.NodeNetworkInterfaceBackendNIC: //nolint:exhaustive // ignore exhaustive types check
 		// No-op NIC types.
 	default:
 		return errInvalidSWIFTv2NICType

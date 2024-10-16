@@ -59,6 +59,7 @@ stages:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               testHubble: ${{ parameters.testHubble }}
+              scaleup: 100
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:

@@ -261,3 +261,21 @@ func cnsCacheStateFileIps(result []byte) (map[string]string, error) {
 	}
 	return cnsPodIps, nil
 }
+
+func cnsManagedStateFileIps(result []byte) (map[string]string, error) {
+	var cnsResult CnsManagedState
+	err := json.Unmarshal(result, &cnsResult)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal cns endpoint list")
+	}
+
+	cnsPodIps := make(map[string]string)
+	for _, v := range cnsResult.Endpoints {
+		for ifName, ip := range v.IfnameToIPMap {
+			if ifName == "eth0" {
+				cnsPodIps[ip.IPv4[0].IP.String()] = v.PodName
+			}
+		}
+	}
+	return cnsPodIps, nil
+}

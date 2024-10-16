@@ -8,7 +8,7 @@ parameters:
   jobName: "deploy_pods"
 
 steps:
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     displayName: "Pod Deployment"
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)

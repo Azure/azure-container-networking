@@ -1,0 +1,69 @@
+parameters:
+  name: ""
+  displayName: ""
+  clusterType: ""
+  clusterName: ""
+  vmSize: ""
+  k8sVersion: ""
+  dependsOn: ""
+  nodePoolName: ""
+  continueOnError: true
+
+stages:
+  - stage: ${{ parameters.clusterName }}
+    displayName: Create Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      ACN_DIR: $(Build.SourcesDirectory)
+    jobs:
+      - template: ../templates/create-cluster-swiftv2.jobs.yaml@ACNTools
+        parameters:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
+          k8sVersion: ${{ parameters.k8sVersion }}
+          dependsOn: ${{ parameters.dependsOn }}
+          continueOnError: ${{ parameters.continueOnError }}
+          region: $(REGION_SWIFTV2_CLUSTER_TEST) # Swiftv2 has a specific region requirements
+
+  - stage: ${{ parameters.name }}
+    condition: and( succeeded(), not(eq(dependencies.mtacluster.result,'SucceededWithIssues')) ) # Cant use parameters in dependencies
+    displayName: E2E - ${{ parameters.displayName }}
+    dependsOn:
+    - setup
+    - publish
+    - ${{ parameters.clusterName }}
+    variables:
+      ACN_DIR: $(Build.SourcesDirectory)
+      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+      GOBIN: "$(GOPATH)/bin" # Go binaries path
+      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - job: ${{ parameters.name }}
+        displayName: Swiftv2 Multitenancy E2E Test Suite - (${{ parameters.name }})
+        pool:
+          isCustom: true
+          type: linux
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
+          ob_git_checkout: true
+        steps:
+          - checkout: ACNReviewChanges
+            clean: true
+
+          - template: swiftv2-e2e.steps.yaml@ACNTools
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: linux
+

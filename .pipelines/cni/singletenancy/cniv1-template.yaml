@@ -116,7 +116,7 @@ stages:
     jobs:
       - job: update_cni
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -193,7 +193,7 @@ stages:
         displayName: "Recover Resources"
         dependsOn: restart_nodes
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -305,7 +305,7 @@ stages:
           displayName: "Recover Resources"
           dependsOn: restart_nodesHNS
           steps:
-            - task: AzureCLI@1
+            - task: AzureCLI@2
               inputs:
                 azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
                 scriptLocation: "inlineScript"

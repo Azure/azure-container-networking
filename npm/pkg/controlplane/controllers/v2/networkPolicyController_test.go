@@ -32,7 +32,8 @@ type netPolFixture struct {
 	kubeobjects []runtime.Object
 
 	netPolController *NetworkPolicyController
-	kubeInformer     kubeinformers.SharedInformerFactory
+
+	kubeInformer kubeinformers.SharedInformerFactory
 }
 
 func newNetPolFixture(t *testing.T) *netPolFixture {
@@ -44,11 +45,11 @@ func newNetPolFixture(t *testing.T) *netPolFixture {
 	return f
 }
 
-func (f *netPolFixture) newNetPolController(_ chan struct{}, dp dataplane.GenericDataplane) {
+func (f *netPolFixture) newNetPolController(_ chan struct{}, dp dataplane.GenericDataplane, npmLiteToggle bool) {
 	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
-	f.netPolController = NewNetworkPolicyController(f.kubeInformer.Networking().V1().NetworkPolicies(), dp)
+	f.netPolController = NewNetworkPolicyController(f.kubeInformer.Networking().V1().NetworkPolicies(), dp, npmLiteToggle)
 
 	for _, netPol := range f.netPolLister {
 		err := f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Add(netPol)
@@ -74,6 +75,11 @@ func createNetPol() *networkingv1.NetworkPolicy {
 			Namespace: "test-nwpolicy",
 		},
 		Spec: networkingv1.NetworkPolicySpec{
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+				networkingv1.PolicyTypeEgress,
+			},
+
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
 				{
 					From: []networkingv1.NetworkPolicyPeer{
@@ -104,6 +110,54 @@ func createNetPol() *networkingv1.NetworkPolicy {
 					Ports: []networkingv1.NetworkPolicyPort{{
 						Protocol: &tcp,
 						Port:     &intstr.IntOrString{StrVal: "8000"}, // namedPort
+					}},
+				},
+			},
+		},
+	}
+}
+
+func createNetPolNpmLite() *networkingv1.NetworkPolicy {
+	tcp := corev1.ProtocolTCP
+	port8000 := intstr.FromInt(8000)
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "allow-ingress",
+			Namespace: "test-nwpolicy",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+				networkingv1.PolicyTypeEgress,
+			},
+
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "0.0.0.0/0",
+							},
+						},
+					},
+					Ports: []networkingv1.NetworkPolicyPort{{
+						Protocol: &tcp,
+						Port:     &port8000,
+					}},
+				},
+			},
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "0.0.0.0/0",
+							},
+						},
+					},
+					Ports: []networkingv1.NetworkPolicyPort{{
+						Protocol: &tcp,
+						Port:     &intstr.IntOrString{IntVal: 8000}, // namedPort
 					}},
 				},
 			},
@@ -247,7 +301,7 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
 
 	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(2)
 
@@ -275,7 +329,55 @@ func TestAddNetworkPolicy(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
+
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
+
+	addNetPol(f, netPolObj)
+	testCases := []expectedNetPolValues{
+		{1, 0, netPolPromVals{1, 1, 0, 0}},
+	}
+
+	checkNetPolTestResult("TestAddNetPol", f, testCases)
+}
+
+func TestAddNetworkPolicyWithNPMLite_Failure(t *testing.T) {
+	netPolObj := createNetPol()
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, true)
+
+	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+
+	addNetPol(f, netPolObj)
+	testCases := []expectedNetPolValues{
+		{0, 0, netPolPromVals{0, 0, 0, 0}},
+	}
+
+	checkNetPolTestResult("TestAddNetPol", f, testCases)
+}
+
+func TestAddNetworkPolicyWithNPMLite(t *testing.T) {
+	netPolObj := createNetPolNpmLite()
+
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, true)
 
 	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
 
@@ -299,7 +401,7 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
 
 	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
 	dp.EXPECT().RemovePolicy(gomock.Any()).Times(1)
@@ -323,7 +425,7 @@ func TestDeleteNetworkPolicyWithTombstone(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
 
 	netPolKey := getKey(netPolObj, t)
 	tombstone := cache.DeletedFinalStateUnknown{
@@ -350,7 +452,7 @@ func TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy(t *testing.T) 
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
 
 	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
 	dp.EXPECT().RemovePolicy(gomock.Any()).Times(1)
@@ -376,7 +478,7 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
 
 	newNetPolObj := oldNetPolObj.DeepCopy()
 	// oldNetPolObj.ResourceVersion value is "0"
@@ -403,7 +505,7 @@ func TestLabelUpdateNetworkPolicy(t *testing.T) {
 	defer ctrl.Finish()
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
-	f.newNetPolController(stopCh, dp)
+	f.newNetPolController(stopCh, dp, false)
 
 	newNetPolObj := oldNetPolObj.DeepCopy()
 	// update podSelctor in a new network policy field

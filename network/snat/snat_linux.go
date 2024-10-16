@@ -469,7 +469,7 @@ func (client *Client) addMasqueradeRule(snatBridgeIPWithPrefix string) error {
 
 // Drop all vlan traffic on linux bridge
 func (client *Client) addVlanDropRule() error {
-	out, err := client.plClient.ExecuteCommand(l2PreroutingEntries)
+	out, err := client.plClient.ExecuteRawCommand(l2PreroutingEntries)
 	if err != nil {
 		logger.Error("Error while listing ebtable rules")
 		return err
@@ -482,7 +482,7 @@ func (client *Client) addVlanDropRule() error {
 	}
 
 	logger.Info("Adding ebtable rule to drop vlan traffic on snat bridge", zap.String("vlanDropAddRule", vlanDropAddRule))
-	_, err = client.plClient.ExecuteCommand(vlanDropAddRule)
+	_, err = client.plClient.ExecuteRawCommand(vlanDropAddRule)
 	return err
 }
 
@@ -490,7 +490,7 @@ func (client *Client) addVlanDropRule() error {
 func (client *Client) EnableIPForwarding() error {
 	// Enable ip forwading on linux vm.
 	// sysctl -w net.ipv4.ip_forward=1
-	_, err := client.plClient.ExecuteCommand(enableIPForwardCmd)
+	_, err := client.plClient.ExecuteRawCommand(enableIPForwardCmd)
 	if err != nil {
 		return errors.Wrap(err, "enable ipforwarding command failed")
 	}

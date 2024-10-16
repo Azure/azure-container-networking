@@ -19,8 +19,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
-	"github.com/Azure/azure-container-networking/cnm/ipam"
-	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	cnscli "github.com/Azure/azure-container-networking/cns/cmd/cli"
@@ -28,12 +26,14 @@ import (
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/endpointmanager"
 	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/cns/grpc"
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
+	"github.com/Azure/azure-container-networking/cns/ipampool/metrics"
 	ipampoolv2 "github.com/Azure/azure-container-networking/cns/ipampool/v2"
 	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
 	mtpncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/multitenantpodnetworkconfig"
@@ -50,6 +50,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd"
+	"github.com/Azure/azure-container-networking/crd/clustersubnetstate"
 	cssv1alpha1 "github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/multitenancy"
 	mtv1alpha1 "github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
@@ -213,18 +214,18 @@ var args = acn.ArgumentList{
 		DefaultValue: "",
 	},
 	{
-		Name:         acn.OptStartAzureCNM,
-		Shorthand:    acn.OptStartAzureCNMAlias,
-		Description:  "Start Azure-CNM if flag is set",
-		Type:         "bool",
-		DefaultValue: false,
-	},
-	{
 		Name:         acn.OptVersion,
 		Shorthand:    acn.OptVersionAlias,
 		Description:  "Print version information",
 		Type:         "bool",
 		DefaultValue: false,
+	},
+	{
+		Name:         acn.OptStoreFileLocation,
+		Shorthand:    acn.OptStoreFileLocationAlias,
+		Description:  "Set store file absolute path",
+		Type:         "string",
+		DefaultValue: platform.CNMRuntimePath,
 	},
 	{
 		Name:         acn.OptNetPluginPath,
@@ -267,13 +268,6 @@ var args = acn.ArgumentList{
 		Description:  "Set HTTP response header timeout in seconds to be used by http client in CNS",
 		Type:         "int",
 		DefaultValue: "120",
-	},
-	{
-		Name:         acn.OptStoreFileLocation,
-		Shorthand:    acn.OptStoreFileLocationAlias,
-		Description:  "Set store file absolute path",
-		Type:         "string",
-		DefaultValue: platform.CNMRuntimePath,
 	},
 	{
 		Name:         acn.OptPrivateEndpoint,
@@ -489,7 +483,7 @@ func startTelemetryService(ctx context.Context) {
 		log.Errorf("Telemetry service failed to start: %w", err)
 		return
 	}
-	tb.PushData(rootCtx)
+	tb.PushData(ctx)
 }
 
 // Main is the entry point for CNS.
@@ -497,8 +491,6 @@ func main() {
 	// Initialize and parse command line arguments.
 	acn.ParseArgs(&args, printVersion)
 
-	environment := acn.GetArg(acn.OptEnvironment).(string)
-	url := acn.GetArg(acn.OptAPIServerURL).(string)
 	cniPath := acn.GetArg(acn.OptNetPluginPath).(string)
 	cniConfigFile := acn.GetArg(acn.OptNetPluginConfigFile).(string)
 	cnsURL := acn.GetArg(acn.OptCnsURL).(string)
@@ -506,10 +498,7 @@ func main() {
 	logLevel := acn.GetArg(acn.OptLogLevel).(int)
 	logTarget := acn.GetArg(acn.OptLogTarget).(int)
 	logDirectory := acn.GetArg(acn.OptLogLocation).(string)
-	ipamQueryUrl := acn.GetArg(acn.OptIpamQueryUrl).(string)
-	ipamQueryInterval := acn.GetArg(acn.OptIpamQueryInterval).(int)
 
-	startCNM := acn.GetArg(acn.OptStartAzureCNM).(bool)
 	vers := acn.GetArg(acn.OptVersion).(bool)
 	createDefaultExtNetworkType := acn.GetArg(acn.OptCreateDefaultExtNetworkType).(string)
 	telemetryEnabled := acn.GetArg(acn.OptTelemetry).(bool)
@@ -663,16 +652,14 @@ func main() {
 		return
 	}
 
+	// copy ChannelMode from cnsconfig to HTTPRemoteRestService config
+	config.ChannelMode = cnsconfig.ChannelMode
 	if cnsconfig.ChannelMode == cns.Managed {
-		config.ChannelMode = cns.Managed
 		privateEndpoint = cnsconfig.ManagedSettings.PrivateEndpoint
 		infravnet = cnsconfig.ManagedSettings.InfrastructureNetworkID
 		nodeID = cnsconfig.ManagedSettings.NodeID
-	} else if cnsconfig.ChannelMode == cns.CRD {
-		config.ChannelMode = cns.CRD
-	} else if cnsconfig.ChannelMode == cns.MultiTenantCRD {
-		config.ChannelMode = cns.MultiTenantCRD
-	} else if acn.GetArg(acn.OptManaged).(bool) {
+	}
+	if isManaged, ok := acn.GetArg(acn.OptManaged).(bool); ok && isManaged {
 		config.ChannelMode = cns.Managed
 	}
 
@@ -685,7 +672,7 @@ func main() {
 	}
 
 	if telemetryDaemonEnabled {
-		log.Printf("CNI Telemtry is enabled")
+		logger.Printf("CNI Telemtry is enabled")
 		go startTelemetryService(rootCtx)
 	}
 
@@ -700,7 +687,7 @@ func main() {
 
 	lockclient, err := processlock.NewFileLock(platform.CNILockPath + name + store.LockExtension)
 	if err != nil {
-		log.Printf("Error initializing file lock:%v", err)
+		logger.Printf("Error initializing file lock:%v", err)
 		return
 	}
 
@@ -714,10 +701,10 @@ func main() {
 
 	// Initialize endpoint state store if cns is managing endpoint state.
 	if cnsconfig.ManageEndpointState {
-		log.Printf("[Azure CNS] Configured to manage endpoints state")
+		logger.Printf("[Azure CNS] Configured to manage endpoints state")
 		endpointStoreLock, err := processlock.NewFileLock(platform.CNILockPath + endpointStoreName + store.LockExtension) // nolint
 		if err != nil {
-			log.Printf("Error initializing endpoint state file lock:%v", err)
+			logger.Printf("Error initializing endpoint state file lock:%v", err)
 			return
 		}
 		defer endpointStoreLock.Unlock() // nolint
@@ -875,6 +862,12 @@ func main() {
 			if err = httpRemoteRestService.SavePnpIDMacaddressMapping(rootCtx); err != nil {
 				logger.Errorf("Failed to fetch PnpIDMacaddress mapping: %v", err)
 			}
+
+			// No-op for linux, setting primary macaddress if VF is enabled on the nics for aks swiftv2 windows
+			logger.Printf("Setting VF for accelnet nics if feature is enabled (only on windows VM & swiftV2 scenario)")
+			if err = httpRemoteRestService.SetVFForAccelnetNICs(); err != nil {
+				logger.Errorf("Failed to set VF for accelnet NICs: %v", err)
+			}
 		}
 	}
 
@@ -956,6 +949,8 @@ func main() {
 
 	if cnsconfig.EnableAsyncPodDelete {
 		// Start fs watcher here
+		z.Info("AsyncPodDelete is enabled")
+		logger.Printf("AsyncPodDelete is enabled")
 		cnsclient, err := cnsclient.New("", cnsReqTimeout) //nolint
 		if err != nil {
 			z.Error("failed to create cnsclient", zap.Error(err))
@@ -963,7 +958,13 @@ func main() {
 		go func() {
 			_ = retry.Do(func() error {
 				z.Info("starting fsnotify watcher to process missed Pod deletes")
-				w, err := fsnotify.New(cnsclient, cnsconfig.AsyncPodDeletePath, z)
+				logger.Printf("starting fsnotify watcher to process missed Pod deletes")
+				var endpointCleanup fsnotify.ReleaseIPsClient = cnsclient
+				// using endpointmanager implmentation for stateless CNI sceanrio to remove HNS endpoint alongside the IPs
+				if cnsconfig.IsStalessCNIWindows() {
+					endpointCleanup = endpointmanager.WithPlatformReleaseIPsManager(cnsclient)
+				}
+				w, err := fsnotify.New(endpointCleanup, cnsconfig.AsyncPodDeletePath, z)
 				if err != nil {
 					z.Error("failed to create fsnotify watcher", zap.Error(err))
 					return errors.Wrap(err, "failed to create fsnotify watcher, will retry")
@@ -1018,65 +1019,6 @@ func main() {
 		}(privateEndpoint, infravnet, nodeID)
 	}
 
-	var (
-		netPlugin     network.NetPlugin
-		ipamPlugin    ipam.IpamPlugin
-		lockclientCnm processlock.Interface
-	)
-
-	if startCNM {
-		var pluginConfig acn.PluginConfig
-		pluginConfig.Version = version
-
-		// Create a channel to receive unhandled errors from the plugins.
-		pluginConfig.ErrChan = make(chan error, 1)
-
-		// Create network plugin.
-		netPlugin, err = network.NewPlugin(&pluginConfig)
-		if err != nil {
-			logger.Errorf("Failed to create network plugin, err:%v.\n", err)
-			return
-		}
-
-		// Create IPAM plugin.
-		ipamPlugin, err = ipam.NewPlugin(&pluginConfig)
-		if err != nil {
-			logger.Errorf("Failed to create IPAM plugin, err:%v.\n", err)
-			return
-		}
-
-		lockclientCnm, err = processlock.NewFileLock(platform.CNILockPath + pluginName + store.LockExtension)
-		if err != nil {
-			log.Printf("Error initializing file lock:%v", err)
-			return
-		}
-
-		// Create the key value store.
-		pluginStoreFile := storeFileLocation + pluginName + ".json"
-		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile, lockclientCnm, nil)
-		if err != nil {
-			logger.Errorf("Failed to create plugin store file %s, due to error : %v\n", pluginStoreFile, err)
-			return
-		}
-
-		// Set plugin options.
-		netPlugin.SetOption(acn.OptAPIServerURL, url)
-		logger.Printf("Start netplugin\n")
-		if err := netPlugin.Start(&pluginConfig); err != nil {
-			logger.Errorf("Failed to create network plugin, err:%v.\n", err)
-			return
-		}
-
-		ipamPlugin.SetOption(acn.OptEnvironment, environment)
-		ipamPlugin.SetOption(acn.OptAPIServerURL, url)
-		ipamPlugin.SetOption(acn.OptIpamQueryUrl, ipamQueryUrl)
-		ipamPlugin.SetOption(acn.OptIpamQueryInterval, ipamQueryInterval)
-		if err := ipamPlugin.Start(&pluginConfig); err != nil {
-			logger.Errorf("Failed to create IPAM plugin, err:%v.\n", err)
-			return
-		}
-	}
-
 	// mark the service as "ready"
 	close(readyCh)
 	// block until process exiting
@@ -1096,24 +1038,8 @@ func main() {
 		httpRemoteRestService.Stop()
 	}
 
-	if startCNM {
-		logger.Printf("stop cnm plugin")
-		if netPlugin != nil {
-			netPlugin.Stop()
-		}
-
-		if ipamPlugin != nil {
-			logger.Printf("stop ipam plugin")
-			ipamPlugin.Stop()
-		}
-
-		if err = lockclientCnm.Unlock(); err != nil {
-			log.Errorf("lockclient cnm unlock error:%v", err)
-		}
-	}
-
 	if err = lockclient.Unlock(); err != nil {
-		log.Errorf("lockclient cns unlock error:%v", err)
+		logger.Errorf("lockclient cns unlock error:%v", err)
 	}
 
 	logger.Printf("CNS exited")
@@ -1423,6 +1349,14 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
+	if cnsconfig.EnableSubnetScarcity {
+		cacheOpts.ByObject[&cssv1alpha1.ClusterSubnetState{}] = cache.ByObject{
+			Namespaces: map[string]cache.Config{
+				"kube-system": {},
+			},
+		}
+	}
+
 	managerOpts := ctrlmgr.Options{
 		Scheme:  scheme,
 		Metrics: ctrlmetrics.Options{BindAddress: "0"},
@@ -1448,8 +1382,15 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	cssCh := make(chan cssv1alpha1.ClusterSubnetState)
 	ipDemandCh := make(chan int)
 	if cnsconfig.EnableIPAMv2 {
+		cssSrc := func(context.Context) ([]cssv1alpha1.ClusterSubnetState, error) { return nil, nil }
+		if cnsconfig.EnableSubnetScarcity {
+			cssSrc = clustersubnetstate.NewClient(manager.GetClient()).List
+		}
 		nncCh := make(chan v1alpha.NodeNetworkConfig)
-		poolMonitor = ipampoolv2.NewMonitor(z, httpRestServiceImplementation, cachedscopedcli, ipDemandCh, nncCh, cssCh).AsV1(nncCh)
+		pmv2 := ipampoolv2.NewMonitor(z, httpRestServiceImplementation, cachedscopedcli, ipDemandCh, nncCh, cssCh)
+		obs := metrics.NewLegacyMetricsObserver(httpRestService.GetPodIPConfigState, cachedscopedcli.Get, cssSrc)
+		pmv2.WithLegacyMetricsObserver(obs)
+		poolMonitor = pmv2.AsV1(nncCh)
 	} else {
 		poolOpts := ipampool.Options{
 			RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
@@ -1533,13 +1474,14 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		// wait for the Reconciler to run once on a NNC that was made for this Node.
 		// the nncReadyCtx has a timeout of 15 minutes, after which we will consider
 		// this false and the NNC Reconciler stuck/failed, log and retry.
-		nncReadyCtx, _ := context.WithTimeout(ctx, 15*time.Minute) //nolint // it will time out and not leak
+		nncReadyCtx, cancel := context.WithTimeout(ctx, 15*time.Minute) //nolint // it will time out and not leak
 		if started, err := nncReconciler.Started(nncReadyCtx); !started {
 			log.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
 			nncReconcilerStartFailures.Inc()
 			continue
 		}
 		logger.Printf("NodeNetworkConfig reconciler has started.")
+		cancel()
 		break
 	}
 

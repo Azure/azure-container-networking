@@ -221,7 +221,7 @@ func TestDatapathLinux(t *testing.T) {
 				DestPort:      8080,
 			}
 
-			pf, err := k8s.NewPortForwarder(restConfig, t, pfOpts)
+			pf, err := k8s.NewPortForwarder(restConfig, pfOpts)
 			if err != nil {
 				t.Fatal(err)
 			}

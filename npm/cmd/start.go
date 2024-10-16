@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	k8sversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
@@ -115,8 +116,21 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	factor := rand.Float64() + 1 //nolint
 	resyncPeriod := time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
 	klog.Infof("Resync period for NPM pod is set to %d.", int(resyncPeriod/time.Minute))
-	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
 
+	factory := informers.NewSharedInformerFactory(clientset, resyncPeriod)
+	podFactory := factory // // Separate podFactory for different versions in npm and npm lite.
+	// npm-lite -> daemon set will listen to pods only in its own node
+	if config.Toggles.EnableNPMLite {
+		podFactory = informers.NewSharedInformerFactoryWithOptions(
+			clientset,
+			resyncPeriod,
+			informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+				// Use field selector to filter pods based on their assigned node
+				klog.Infof("NPM agent is listening to pods only under its node")
+				options.FieldSelector = "spec.nodeName=" + models.GetNodeName()
+			}),
+		)
+	}
 	k8sServerVersion := k8sServerVersion(clientset)
 
 	var dp dataplane.GenericDataplane
@@ -181,7 +195,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 		}
 		dp.RunPeriodicTasks()
 	}
-	npMgr := npm.NewNetworkPolicyManager(config, factory, dp, exec.New(), version, k8sServerVersion)
+	npMgr := npm.NewNetworkPolicyManager(config, factory, podFactory, dp, exec.New(), version, k8sServerVersion)
 	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata())
 	if err != nil {
 		klog.Infof("CreateTelemetryHandle failed with error %v. AITelemetry is not initialized.", err)

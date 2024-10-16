@@ -203,10 +203,8 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 				err        error
 			)
 			switch {
-			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC && !interfaceInfo.AccelnetEnabled:
+			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC:
 				nicType = cns.DelegatedVMNIC
-			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC && interfaceInfo.AccelnetEnabled:
-				nicType = cns.NodeNetworkInterfaceAccelnetFrontendNIC
 			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeInfiniBandNIC:
 				nicType = cns.NodeNetworkInterfaceBackendNIC
 			default:
@@ -228,9 +226,9 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 						PrefixLength: uint8(prefixSize),
 					},
 					MacAddress:        interfaceInfo.MacAddress,
-					NICType:           cns.DelegatedVMNIC,
+					NICType:           nicType,
 					SkipDefaultRoutes: false,
-					// InterfaceName is empty for DelegatedVMNIC
+					// InterfaceName is empty for DelegatedVMNIC and AccelnetFrontendNIC
 				}
 				// for windows scenario, it is required to add additional fields with the exact subnetAddressSpace
 				// received from MTPNC, this function assigns them for windows while linux is a no-op

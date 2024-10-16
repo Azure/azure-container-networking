@@ -8,12 +8,14 @@ import (
 
 type MockExecClient struct {
 	returnError                bool
+	setExecRawCommand          execRawCommandValidator
 	setExecCommand             execCommandValidator
 	powershellCommandResponder powershellCommandResponder
 }
 
 type (
-	execCommandValidator       func(string) (string, error)
+	execRawCommandValidator    func(string) (string, error)
+	execCommandValidator       func(string, ...string) (string, error)
 	powershellCommandResponder func(string) (string, error)
 )
 
@@ -26,9 +28,9 @@ func NewMockExecClient(returnErr bool) *MockExecClient {
 	}
 }
 
-func (e *MockExecClient) ExecuteCommand(cmd string) (string, error) {
-	if e.setExecCommand != nil {
-		return e.setExecCommand(cmd)
+func (e *MockExecClient) ExecuteRawCommand(cmd string) (string, error) {
+	if e.setExecRawCommand != nil {
+		return e.setExecRawCommand(cmd)
 	}
 
 	if e.returnError {
@@ -36,6 +38,22 @@ func (e *MockExecClient) ExecuteCommand(cmd string) (string, error) {
 	}
 
 	return "", nil
+}
+
+func (e *MockExecClient) ExecuteCommand(_ context.Context, cmd string, args ...string) (string, error) {
+	if e.setExecCommand != nil {
+		return e.setExecCommand(cmd, args...)
+	}
+
+	if e.returnError {
+		return "", ErrMockExec
+	}
+
+	return "", nil
+}
+
+func (e *MockExecClient) SetExecRawCommand(fn execRawCommandValidator) {
+	e.setExecRawCommand = fn
 }
 
 func (e *MockExecClient) SetExecCommand(fn execCommandValidator) {

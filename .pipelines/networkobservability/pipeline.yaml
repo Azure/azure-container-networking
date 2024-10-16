@@ -47,7 +47,7 @@ stages:
           inputs:
               kubectlVersion: latest
 
-        - task: AzureCLI@1
+        - task: AzureCLI@2
           inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -70,7 +70,7 @@ stages:
           name: "installCiliumCLI"
           displayName: "Install Cilium CLI"
 
-        - task: AzureCLI@1
+        - task: AzureCLI@2
           inputs:
             azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
             scriptLocation: "inlineScript"
@@ -131,10 +131,10 @@ stages:
           retryCountOnTaskFailure: 3
           name: "HubbleConnectivityTests"
           displayName: "Run Hubble Connectivity Tests"
-          
+
   - stage: deleteCluster
     condition: always()
-    dependsOn: 
+    dependsOn:
      - createCluster
      - setupCluster
     jobs:

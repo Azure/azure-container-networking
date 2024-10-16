@@ -4,21 +4,26 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path"
+	"path/filepath"
+	"sync"
 
 	"github.com/pkg/errors"
 )
 
 type AtomicWriter struct {
-	filename string
-	tempFile *os.File
+	dir, name string
+	tempFile  *os.File
+
+	lock sync.Mutex
 }
 
 var _ io.WriteCloser = &AtomicWriter{}
 
 // NewAtomicWriter returns an io.WriteCloser that will write contents to a temp file and move that temp file to the destination filename. If the destination
 // filename already exists, this constructor will copy the file to <filename>-old, truncating that file if it already exists.
-func NewAtomicWriter(filename string) (*AtomicWriter, error) {
+func NewAtomicWriter(f string) (*AtomicWriter, error) {
+	filename := filepath.Clean(f)
+	dir, name := filepath.Split(filename)
 	// if a file already exists, copy it to <filname>-old
 	exists := true
 	existingFile, err := os.Open(filename)
@@ -52,29 +57,39 @@ func NewAtomicWriter(filename string) (*AtomicWriter, error) {
 		}
 	}
 
-	tempFile, err := os.CreateTemp(path.Dir(filename), path.Base(filename)+"*.tmp")
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to create temporary file")
-	}
-
-	return &AtomicWriter{filename: filename, tempFile: tempFile}, nil
+	return &AtomicWriter{dir: dir, name: name}, nil
 }
 
-// Close closes the temp file handle and moves the temp file to the final destination
+// Close closes the temp file handle and moves the temp file to the final destination.
+// Multiple calls to Close will have no effect after the first success.
 func (a *AtomicWriter) Close() error {
-	if err := a.tempFile.Close(); err != nil {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if a.tempFile == nil {
+		return nil
+	}
+	if err := a.tempFile.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
 		return errors.Wrapf(err, "unable to close temp file %s", a.tempFile.Name())
 	}
-
-	if err := os.Rename(a.tempFile.Name(), a.filename); err != nil {
-		return errors.Wrapf(err, "unable to move temp file %s to destination %s", a.tempFile.Name(), a.filename)
+	if err := os.Rename(a.tempFile.Name(), filepath.Join(a.dir, a.name)); err != nil {
+		return errors.Wrapf(err, "unable to move temp file %s to destination %s", a.tempFile.Name(), a.name)
 	}
-
+	a.tempFile = nil
 	return nil
 }
 
-// Write writes the buffer to the temp file. You must call Close() to complete the move from temp file to dest file
+// Write writes the buffer to the temp file. You must call Close() to complete the move from temp file to dest file.
+// Multiple calls to Write will append to the temp file.
 func (a *AtomicWriter) Write(p []byte) (int, error) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if a.tempFile == nil {
+		tempFile, err := os.CreateTemp(a.dir, a.name+"*.tmp")
+		if err != nil {
+			return 0, errors.Wrap(err, "unable to create temporary file")
+		}
+		a.tempFile = tempFile
+	}
 	bs, err := a.tempFile.Write(p)
 	return bs, errors.Wrap(err, "unable to write to temp file")
 }

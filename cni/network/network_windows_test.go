@@ -4,6 +4,7 @@
 package network
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"testing"
@@ -14,7 +15,8 @@ import (
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/telemetry"
-	"github.com/containernetworking/cni/pkg/skel"
+	hnsv2 "github.com/Microsoft/hcsshim/hcn"
+	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,78 +64,6 @@ func TestAddWithRunTimeNetPolicies(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Condition(t, assert.Comparison(func() bool { return p.Type == policy.EndpointPolicy }))
-			}
-		})
-	}
-}
-
-func TestPluginSecondAddSamePodWindows(t *testing.T) {
-	plugin, _ := cni.NewPlugin("name", "0.3.0")
-
-	tests := []struct {
-		name       string
-		methods    []string
-		cniArgs    skel.CmdArgs
-		plugin     *NetPlugin
-		wantErr    bool
-		wantErrMsg string
-	}{
-		{
-			name:    "CNI consecutive add already hot attached",
-			methods: []string{"ADD", "ADD"},
-			cniArgs: skel.CmdArgs{
-				ContainerID: "test1-container",
-				Netns:       "test1-container",
-				StdinData:   nwCfg.Serialize(),
-				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "container1", "container1-ns"),
-				IfName:      eth0IfName,
-			},
-			plugin: &NetPlugin{
-				Plugin:      plugin,
-				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
-			},
-			wantErr: false,
-		},
-		{
-			name:    "CNI consecutive add not hot attached",
-			methods: []string{"ADD", "ADD"},
-			cniArgs: skel.CmdArgs{
-				ContainerID: "test1-container",
-				Netns:       "test1-container",
-				StdinData:   nwCfg.Serialize(),
-				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "container1", "container1-ns"),
-				IfName:      eth0IfName,
-			},
-			plugin: &NetPlugin{
-				Plugin:      plugin,
-				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			var err error
-			for _, method := range tt.methods {
-				if method == "ADD" {
-					err = tt.plugin.Add(&tt.cniArgs)
-				}
-			}
-
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				endpoints, _ := tt.plugin.nm.GetAllEndpoints(nwCfg.Name)
-				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 1 }), "Expected 2 but got %v", len(endpoints))
 			}
 		})
 	}
@@ -219,8 +149,10 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 		name          string
 		nwCfg         cni.NetworkConfig
 		isIPv6Enabled bool
+		expected      []hnsv2.PortMappingPolicySetting
 	}{
 		{
+			// ipv6 disabled, ipv4 host ip --> ipv4 host ip policy only
 			name: "Runtime network polices",
 			nwCfg: cni.NetworkConfig{
 				RuntimeConfig: cni.RuntimeConfig{
@@ -235,9 +167,19 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 				},
 			},
 			isIPv6Enabled: false,
+			expected: []hnsv2.PortMappingPolicySetting{
+				{
+					ExternalPort: uint16(8000),
+					InternalPort: uint16(80),
+					VIP:          "192.168.0.4",
+					Protocol:     policy.ProtocolTcp,
+					Flags:        hnsv2.NatFlagsLocalRoutedVip,
+				},
+			},
 		},
 		{
-			name: "Runtime hostPort mapping polices",
+			// ipv6 disabled, no host ip --> ipv4 policy only
+			name: "Runtime hostPort mapping polices without hostIP",
 			nwCfg: cni.NetworkConfig{
 				RuntimeConfig: cni.RuntimeConfig{
 					PortMappings: []cni.PortMapping{
@@ -250,8 +192,17 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 				},
 			},
 			isIPv6Enabled: false,
+			expected: []hnsv2.PortMappingPolicySetting{
+				{
+					ExternalPort: uint16(44000),
+					InternalPort: uint16(80),
+					Protocol:     policy.ProtocolTcp,
+					Flags:        hnsv2.NatFlagsLocalRoutedVip,
+				},
+			},
 		},
 		{
+			// ipv6 enabled, ipv6 host ip --> ipv6 host ip policy only
 			name: "Runtime hostPort mapping polices with ipv6 hostIP",
 			nwCfg: cni.NetworkConfig{
 				RuntimeConfig: cni.RuntimeConfig{
@@ -266,6 +217,99 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 				},
 			},
 			isIPv6Enabled: true,
+			expected: []hnsv2.PortMappingPolicySetting{
+				{
+					ExternalPort: uint16(44000),
+					InternalPort: uint16(80),
+					VIP:          "2001:2002:2003::1",
+					Protocol:     policy.ProtocolTcp,
+					Flags:        hnsv2.NatFlagsIPv6,
+				},
+			},
+		},
+		{
+			// ipv6 enabled, ipv4 host ip --> ipv4 host ip policy only
+			name: "Runtime hostPort mapping polices with ipv4 hostIP on ipv6 enabled cluster",
+			nwCfg: cni.NetworkConfig{
+				RuntimeConfig: cni.RuntimeConfig{
+					PortMappings: []cni.PortMapping{
+						{
+							Protocol:      "tcp",
+							HostPort:      44000,
+							ContainerPort: 80,
+							HostIp:        "192.168.0.4",
+						},
+					},
+				},
+			},
+			isIPv6Enabled: true,
+			expected: []hnsv2.PortMappingPolicySetting{
+				{
+					ExternalPort: uint16(44000),
+					InternalPort: uint16(80),
+					VIP:          "192.168.0.4",
+					Protocol:     policy.ProtocolTcp,
+					Flags:        hnsv2.NatFlagsLocalRoutedVip,
+				},
+			},
+		},
+		{
+			// ipv6 enabled, no host ip --> ipv4 and ipv6 policies
+			name: "Runtime hostPort mapping polices with ipv6 without hostIP",
+			nwCfg: cni.NetworkConfig{
+				RuntimeConfig: cni.RuntimeConfig{
+					PortMappings: []cni.PortMapping{
+						{
+							Protocol:      "tcp",
+							HostPort:      44000,
+							ContainerPort: 80,
+						},
+					},
+				},
+			},
+			isIPv6Enabled: true,
+			expected: []hnsv2.PortMappingPolicySetting{
+				{
+					ExternalPort: uint16(44000),
+					InternalPort: uint16(80),
+					VIP:          "",
+					Protocol:     policy.ProtocolTcp,
+					Flags:        hnsv2.NatFlagsLocalRoutedVip,
+				},
+				{
+					ExternalPort: uint16(44000),
+					InternalPort: uint16(80),
+					VIP:          "",
+					Protocol:     policy.ProtocolTcp,
+					Flags:        hnsv2.NatFlagsIPv6,
+				},
+			},
+		},
+		{
+			// ipv6 enabled, ipv6 localhost ip --> ipv6 host ip policy only
+			name: "Runtime hostPort mapping polices with ipv6 localhost hostIP on ipv6 enabled cluster",
+			nwCfg: cni.NetworkConfig{
+				RuntimeConfig: cni.RuntimeConfig{
+					PortMappings: []cni.PortMapping{
+						{
+							Protocol:      "tcp",
+							HostPort:      44000,
+							ContainerPort: 80,
+							HostIp:        "::1",
+						},
+					},
+				},
+			},
+			isIPv6Enabled: true,
+			expected: []hnsv2.PortMappingPolicySetting{
+				{
+					ExternalPort: uint16(44000),
+					InternalPort: uint16(80),
+					VIP:          "::1",
+					Protocol:     policy.ProtocolTcp,
+					Flags:        hnsv2.NatFlagsIPv6,
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -276,6 +320,18 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 			require.Condition(t, assert.Comparison(func() bool {
 				return len(policies) > 0 && policies[0].Type == policy.EndpointPolicy
 			}))
+			require.Equal(t, len(tt.expected), len(policies), "expected number of policies not equal to actual")
+			for index, policy := range policies {
+				var hnsv2Policy hnsv2.EndpointPolicy
+				err = json.Unmarshal(policy.Data, &hnsv2Policy)
+				require.NoError(t, err, "failed to unmarshal hnsv2 policy")
+
+				var rawPolicy hnsv2.PortMappingPolicySetting
+				err = json.Unmarshal(hnsv2Policy.Settings, &rawPolicy)
+				require.NoError(t, err, "failed to unmarshal hnsv2 port mapping policy")
+
+				require.Equal(t, tt.expected[index], rawPolicy, "policies are not expected")
+			}
 		})
 	}
 }
@@ -523,7 +579,6 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 }
 
 func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
-	// TODO: Add Accelnet NIC test to this test
 	plugin, _ := cni.NewPlugin("name", "0.3.0")
 
 	macAddress := "00:00:5e:00:53:01"
@@ -536,7 +591,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 		netNs         string
 		nwCfg         *cni.NetworkConfig
 		interfaceInfo *network.InterfaceInfo
-		want          net.HardwareAddr
+		want          string
 		wantErr       bool
 	}{
 		{
@@ -556,9 +611,9 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 			interfaceInfo: &network.InterfaceInfo{
 				Name:       "swiftv2L1VHDelegatedInterface",
 				MacAddress: parsedMacAddress,
-				NICType:    cns.DelegatedVMNIC,
+				NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 			},
-			want:    parsedMacAddress,
+			want:    swiftv2NetworkNamePrefix + parsedMacAddress.String(),
 			wantErr: false,
 		},
 		{
@@ -580,7 +635,47 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 				MacAddress: parsedMacAddress,
 				NICType:    cns.BackendNIC,
 			},
-			want:    parsedMacAddress,
+			want:    swiftv2NetworkNamePrefix + parsedMacAddress.String(),
+			wantErr: false,
+		},
+		{
+			name: "Unhappy path: Get Network Name from CNS for swiftv2 AccelnetNIC with empty interfaceInfo",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+			},
+			netNs: "azure",
+			nwCfg: &cni.NetworkConfig{
+				CNIVersion:   "0.3.0",
+				MultiTenancy: false,
+			},
+			interfaceInfo: &network.InterfaceInfo{}, // return empty network name with empty interfaceInfo
+			want:          "",
+			wantErr:       false,
+		},
+		{
+			name: "Unhappy path: Get Network Name from CNS for swiftv2 AccelnetNIC with invalid nicType",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+			},
+			netNs: "azure",
+			nwCfg: &cni.NetworkConfig{
+				CNIVersion:   "0.3.0",
+				MultiTenancy: false,
+			},
+			interfaceInfo: &network.InterfaceInfo{
+				Name:       "swiftv2L1VHAccelnetInterface",
+				MacAddress: parsedMacAddress,
+				NICType:    "invalidNICType",
+			}, // return empty network name with invalid nic type
+			want:    "",
 			wantErr: false,
 		},
 	}
@@ -589,22 +684,173 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Log(tt.interfaceInfo)
+			// compare networkNamess
 			networkName, err := tt.plugin.getNetworkName(tt.netNs, tt.interfaceInfo, tt.nwCfg)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
-				expectedMacAddress := swiftv2NetworkNamePrefix + tt.want.String()
-				require.NoError(t, err)
-				require.Equal(t, expectedMacAddress, networkName)
+				require.Equal(t, tt.want, networkName)
 			}
 
+			// compare networkIDs
 			networkID, err := tt.plugin.getNetworkID(tt.netNs, tt.interfaceInfo, tt.nwCfg)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
-				expectedMacAddress := swiftv2NetworkNamePrefix + tt.want.String()
+				require.Equal(t, tt.want, networkID)
+			}
+		})
+	}
+}
+
+// Test Multitenancy Windows Add (Dualnic)
+func TestPluginMultitenancyWindowsAdd(t *testing.T) {
+	plugin, _ := cni.NewPlugin("test", "0.3.0")
+
+	localNwCfg := cni.NetworkConfig{
+		CNIVersion:                 "0.3.0",
+		Name:                       "mulnet",
+		MultiTenancy:               true,
+		EnableExactMatchForPodName: true,
+		Master:                     "eth0",
+	}
+
+	tests := []struct {
+		name       string
+		plugin     *NetPlugin
+		args       *cniSkel.CmdArgs
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name: "Add Happy path",
+			plugin: &NetPlugin{
+				Plugin:             plugin,
+				nm:                 network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				tb:                 &telemetry.TelemetryBuffer{},
+				report:             &telemetry.CNIReport{},
+				multitenancyClient: NewMockMultitenancy(false, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1(), GetTestCNSResponse2()}),
+			},
+
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Add Fail",
+			plugin: &NetPlugin{
+				Plugin:             plugin,
+				nm:                 network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				tb:                 &telemetry.TelemetryBuffer{},
+				report:             &telemetry.CNIReport{},
+				multitenancyClient: NewMockMultitenancy(true, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1(), GetTestCNSResponse2()}),
+			},
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "test-container",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			wantErr:    true,
+			wantErrMsg: errMockMulAdd.Error(),
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.plugin.Add(tt.args)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrMsg, "Expected %v but got %+v", tt.wantErrMsg, err.Error())
+			} else {
 				require.NoError(t, err)
-				require.Equal(t, expectedMacAddress, networkID)
+				endpoints, _ := tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
+				// an extra cns response is added in windows multitenancy to test dualnic
+				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 2 }))
+			}
+		})
+	}
+}
+
+func TestPluginMultitenancyWindowsDelete(t *testing.T) {
+	plugin := GetTestResources()
+	plugin.multitenancyClient = NewMockMultitenancy(false, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1(), GetTestCNSResponse2()})
+	localNwCfg := cni.NetworkConfig{
+		CNIVersion:                 "0.3.0",
+		Name:                       "mulnet",
+		MultiTenancy:               true,
+		EnableExactMatchForPodName: true,
+		Master:                     "eth0",
+	}
+
+	happyArgs := &cniSkel.CmdArgs{
+		StdinData:   localNwCfg.Serialize(),
+		ContainerID: "test-container",
+		Netns:       "test-container",
+		Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+		IfName:      eth0IfName,
+	}
+
+	tests := []struct {
+		name       string
+		methods    []string
+		args       *cniSkel.CmdArgs
+		delArgs    *cniSkel.CmdArgs
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name:    "Multitenancy delete success",
+			methods: []string{CNI_ADD, CNI_DEL},
+			args:    happyArgs,
+			delArgs: happyArgs,
+			wantErr: false,
+		},
+		{
+			name:    "Multitenancy delete net not found",
+			methods: []string{CNI_ADD, CNI_DEL},
+			args:    happyArgs,
+			delArgs: &cniSkel.CmdArgs{
+				StdinData: (&cni.NetworkConfig{
+					CNIVersion:                 "0.3.0",
+					Name:                       "othernet",
+					MultiTenancy:               true,
+					EnableExactMatchForPodName: true,
+					Master:                     "eth0",
+				}).Serialize(),
+				ContainerID: "test-container",
+				Netns:       "test-container",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			var err error
+			for _, method := range tt.methods {
+				if method == CNI_ADD {
+					err = plugin.Add(tt.args)
+				} else if method == CNI_DEL {
+					err = plugin.Delete(tt.delArgs)
+				}
+			}
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				endpoints, _ := plugin.nm.GetAllEndpoints(localNwCfg.Name)
+				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 0 }))
 			}
 		})
 	}

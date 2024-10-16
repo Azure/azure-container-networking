@@ -24,6 +24,14 @@ const (
 
 	// CnetAddressSpace indicates constant for the key string
 	CnetAddressSpace = "cnetAddressSpace"
+
+	// Accelnet NIC IOV policy setting flags
+	// The interrupt moderation value for I/O virtualization(IOV) offloading
+	interruptModeration = 0
+	// The weight assigned to this port for I/0 virtualization(IOV) offloading;
+	iovOffloadWeight = 100
+	// The number of queue pairs requested for this port for I/0 virtualization(IOV) offloading
+	queuePairsRequested = 1
 )
 
 type KVPairRoutePolicy struct {
@@ -549,4 +557,26 @@ func AddNATPolicyV2(vip string, destinations []string) (hcn.EndpointPolicy, erro
 		Settings: outBoundNatPolicySettingsBytes,
 	}
 	return endpointPolicy, err
+}
+
+// AddAccelnetPolicySetting returns serialized endpoint IOV policy
+// IOV(I/O virtualization) is the accelnet from networking point of view == VF = Accelnet
+// To enable IOV, must set iovOffloadWeight to 100
+func AddAccelnetPolicySetting() (hcn.EndpointPolicy, error) {
+	accelnetPolicy := hcn.IovPolicySetting{
+		InterruptModeration: interruptModeration,
+		IovOffloadWeight:    iovOffloadWeight,
+		QueuePairsRequested: queuePairsRequested,
+	}
+
+	rawPolicy, err := json.Marshal(accelnetPolicy)
+	if err != nil {
+		return hcn.EndpointPolicy{}, errors.Wrap(err, "Failed to marshal accelnet policy")
+	}
+	endpointPolicy := hcn.EndpointPolicy{
+		Type:     hcn.IOV,
+		Settings: rawPolicy,
+	}
+
+	return endpointPolicy, nil
 }

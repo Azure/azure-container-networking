@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/api"
 	zapLog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
@@ -126,6 +127,19 @@ func rootExecute() error {
 			network.ReportPluginError(reportManager, tb, err)
 			panic("network plugin start fatal error")
 		}
+	}
+	// dump an empty state in case the API is called for StateMigration or InitilizeCNS from CNI State
+	if cniCmd == cni.CmdGetEndpointsState {
+		logger.Debug("returning an empty state")
+		simpleState := api.AzureCNIState{
+			ContainerInterfaces: make(map[string]api.PodNetworkInterfaceInfo),
+		}
+		err = simpleState.PrintResult()
+		if err != nil {
+			logger.Error("Failed to print state result to stdout", zap.Error(err))
+		}
+
+		return errors.Wrap(err, "Get cni state printresult error")
 	}
 
 	if cniCmd == cni.CmdVersion {

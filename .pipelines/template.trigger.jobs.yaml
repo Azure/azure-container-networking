@@ -1,0 +1,176 @@
+parameters:
+- name: mainRepoName
+  type: string
+
+- name: mainRepoRef
+  type: string
+
+- name: mainRepoCommit
+  type: string
+
+- name: mainRepoType
+  type: string
+
+
+jobs:
+- job: trigger
+  displayName: Test ACN Pull Request Changes
+  # 4 hour timeout
+  timeoutInMinutes: 240
+  steps:
+  - checkout: azure-container-networking
+    clean: true
+
+  - bash: |
+      set -e
+      [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+      # Verify Branch Name
+      if [[ $TMPL_REPO_REF =~ $ACCEPTED_REPO_REFS ]]; then
+        echo >&2 "##[info]Verification passed."
+      else
+        echo >&2 "##[error]Verification failed (ref: "$TMPL_REPO_REF")."
+        exit 1
+      fi
+
+      # Verify Repo Name
+      if [[ $TMPL_REPO_NAME =~ $ACCEPTED_REPO_NAME ]]; then
+        echo >&2 "##[info]Verification passed."
+      else
+        echo >&2 "##[error]Verification failed (ref: "$TMPL_REPO_REF")."
+        exit 1
+      fi
+
+      # Verify Repo Type
+      if [[ $TMPL_REPO_TYPE =~ $ACCEPTED_REPO_TYPE ]]; then
+        echo >&2 "##[info]Verification passed."
+      else
+        echo >&2 "##[error]Verification failed (ref: "$TMPL_REPO_REF")."
+        exit 1
+      fi
+    displayName: "[Check]Primary Template Extends Master NOT Changes Under Test"
+    env:
+      TMPL_REPO_REF: '${{ parameters.mainRepoRef }}'
+      TMPL_REPO_NAME: '${{ parameters.mainRepoName }}'
+      TMPL_REPO_TYPE: '${{ parameters.mainRepoType }}'
+      ACCEPTED_REPO_REFS: '^refs/heads/feature/ob-onboard-0$'
+      ACCEPTED_REPO_NAME: '^Azure/azure-container-networking$'
+      ACCEPTED_REPO_TYPE: '^github$'
+
+  - bash: |
+      set -e
+      [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+      # Get Build Reason
+      ACN_BUILD_REASON=$(echo -n "$BUILD_REASON")
+
+      # Get ACN Git Ref
+      ACN_BUILD_AZURE_ACN_GIT_REF="$BUILD_SOURCEBRANCH"
+
+      # Get Queuer
+      ACN_BUILD_QUEUEDBY="$BUILD_QUEUEDBY"
+
+      # Get Source Branch
+      ACN_BUILD_SOURCE_BRANCH="$BUILD_SOURCEBRANCH"
+
+      # Get System PR Queue Variables
+      ACN_BUILD_EXTRAPARAMETERS=$(jq -n \
+      --arg PRID "$SYSTEM_PULLREQUEST_PULLREQUESTID" \
+      --arg PRNUM "$SYSTEM_PULLREQUEST_PULLREQUESTNUMBER" \
+      --arg MERGEDAT "$SYSTEM_PULLREQUEST_MERGEDAT" \
+      --arg SRCBRANCH "$SYSTEM_PULLREQUEST_SOURCEBRANCH" \
+      --arg TARGETBRANCH "$SYSTEM_PULLREQUEST_TARGETBRANCH" \
+      --arg TARGETBRANCHNAME "$SYSTEM_PULLREQUEST_TARGETBRANCHNAME" \
+      --arg SRCREPOURI "$SYSTEM_PULLREQUEST_SOURCEREPOSITORYURI" \
+      --arg SRCCOMMITID "$SYSTEM_PULLREQUEST_SOURCECOMMITID" \
+      --arg ISFORK "$SYSTEM_PULLREQUEST_ISFORK" \
+      '{
+         "pullRequestId": $PRID, 
+         "pullRequestNumber": $PRNUM, 
+         "mergedAt": $MERGEDAT, 
+         "sourceBranch": $SRCBRANCH, 
+         "targetBranch": $TARGETBRANCH, 
+         "targetBranchName": $TARGETBRANCHNAME, 
+         "sourceRepositoryUri": $SRCREPOURI, 
+         "sourceCommitID": $SRCCOMMITID,
+         "isFork": $ISFORK 
+      }')
+      echo "$ACN_BUILD_EXTRAPARAMETERS" | jq .
+
+      ACN_BUILD_PARAMETERS=$(jq -rcn \
+      --arg REASON "$ACN_BUILD_REASON" \
+      --arg REF "$ACN_BUILD_AZURE_ACN_GIT_REF" \
+      --arg BRANCH "$ACN_BUILD_SOURCE_BRANCH" \
+      --arg QUEUEDBY "$ACN_BUILD_QUEUEDBY" \
+      --argjson EXTRA "$ACN_BUILD_EXTRAPARAMETERS" \
+      '{ "reason": $REASON, "ref": $REF, "queuedBy": $QUEUEDBY, "sourceBranch": $BRANCH, "extra": $EXTRA }')
+      echo "$ACN_BUILD_PARAMETERS" | jq .
+
+      ACN_BUILD_PARAMETERS="TriggerDetails: $ACN_BUILD_PARAMETERS"
+
+      echo >&2 "Triggering Pull Request build for ${BUILD_SOURCEBRANCH}."
+      echo >&2 "##vso[task.setvariable variable=templateParameters]$ACN_BUILD_PARAMETERS"
+    displayName: Retrieve PR Source Details
+
+  - task: TriggerBuild@4
+    name: trigger
+    displayName: Trigger Compliant Build
+    # 3 hour timeout
+    timeoutInMinutes: 180
+    inputs:
+      definitionIsInCurrentTeamProject: false
+      tfsServer: $(ADO_COMPLIANT_BUILD_PROJECT_URI)
+      teamProject: $(ADO_COMPLIANT_BUILD_ORG)
+      buildDefinition: $(ADO_COMPLIANT_PIPELINE_ID)
+      queueBuildForUserThatTriggeredBuild: true
+      useSameBranch: false
+      # master
+      branchToUse: feature/ob-onboard-0
+      authenticationMethod: $(ADO_AUTH_METHOD)
+      password: $(ADO_AUTHORIZATION)
+      storeInEnvironmentVariable: true
+      waitForQueuedBuildsToFinish: true
+      treatPartiallySucceededBuildAsSuccessful: false
+      downloadBuildArtifacts: false
+      failTaskIfBuildsNotSuccessful: true
+      # Refresh every 10 min
+      # Seconds
+      waitForQueuedBuildsToFinishRefreshTime: 600
+      ignoreSslCertificateErrors: false
+      templateParameters: $(templateParameters)
+
+## Report Build Results
+#  - task: GitHubComment@0
+#    displayName: "Post PR Comment"
+#    condition: canceled()
+#    inputs:
+#      gitHubConnection: $(ADO_AUTHORIZATION)
+#      id: '$(System.PullRequest.PullRequestId)'
+#      comment: |
+#        'The build (id: "$(TRIGGERED_BUILDID)") was canceled.'
+#    env:
+#      TRIGGERED_BUILDID: $(TriggeredBuildIds)
+#
+#  - task: GitHubComment@0
+#    displayName: "Post PR Comment"
+#    condition: failed()
+#    inputs:
+#      gitHubConnection: $(ADO_AUTHORIZATION)
+#      repositoryName: '$(Build.Repository.Name)'
+#      id: '$(System.PullRequest.PullRequestId)'
+#      comment: |
+#        'The build (id: "$(TRIGGERED_BUILDID)") failed. Please verify your changes.'
+#    env:
+#      TRIGGERED_BUILDID: $(TriggeredBuildIds)
+#
+#  - task: GitHubComment@0
+#    displayName: "Post PR Comment"
+#    condition: succeeded()
+#    inputs:
+#      gitHubConnection: $(ADO_AUTHORIZATION)
+#      repositoryName: '$(Build.Repository.Name)'
+#      id: '$(System.PullRequest.PullRequestId)'
+#      comment: |
+#        'The build (id: "$(TRIGGERED_BUILDID)") succeeded!'
+#    env:
+#      TRIGGERED_BUILDID: $(TriggeredBuildIds)
