@@ -14,6 +14,18 @@ const (
 
 type MACAddress net.HardwareAddr
 
+func (h MACAddress) Equal(other MACAddress) bool {
+	if len(h) != len(other) {
+		return false
+	}
+	for i := range h {
+		if h[i] != other[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func (h *MACAddress) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	var macStr string
 	if err := d.DecodeElement(&macStr, &start); err != nil {

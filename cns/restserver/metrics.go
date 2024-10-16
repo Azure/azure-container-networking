@@ -143,7 +143,7 @@ func stateTransitionMiddleware(i *cns.IPConfigurationStatus, s types.IPState) {
 }
 
 func publishIPStateMetrics(state *ipState) {
-	labels := []string{} // TODO. ragasthya Add dimensions to the IP Usage metrics.
+	labels := []string{}
 	allocatedIPCount.WithLabelValues(labels...).Set(float64(state.allocatedIPs))
 	assignedIPCount.WithLabelValues(labels...).Set(float64(state.assignedIPs))
 	availableIPCount.WithLabelValues(labels...).Set(float64(state.availableIPs))
