@@ -609,9 +609,8 @@ func CreateHostNCApipaEndpoint(
 }
 
 // adjustIPConfig applies change on gw IP address.
-// currently cns using the same ip address "169.254.128.1" for both apipa gw and loopback adapter. This cause conflict
-// issue when hns get restarted and not able to rehydrate the apipa endpoints. This func is to overwrite the address to 169.254.128.2
-// when the gateway address is 169.254.128.1
+// Currently, cns using the same ip address "169.254.128.1" for both apipa gw and loopback adapter. This cause conflict issue when hns get restarted and not able to rehydrate the apipa endpoints.
+// This func is to overwrite the address to 169.254.128.2 when the gateway address is 169.254.128.1
 func adjustIPConfig(localIPConfiguration *cns.IPConfiguration) {
 	// When gw address is 169.254.128.1, should use .2 instead. If gw address is not .1, that mean this value is
 	// configured from dnc, we should keep it
