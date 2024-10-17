@@ -54,7 +54,7 @@ type imdsClient interface {
 	GetVMUniqueID(ctx context.Context) (string, error)
 }
 
-// HTTPRestService represents http listener for CNS - Container Networking Service.// TODO: Add a new value for IPFamily
+// HTTPRestService represents http listener for CNS - Container Networking Service.
 // TODO: If we add a new type of Middleware that will be reflected in the IPConfigsHandlerMiddleware value
 type HTTPRestService struct {
 	*cns.Service
