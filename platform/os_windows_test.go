@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os/exec"
-	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +14,19 @@ import (
 )
 
 var errTestFailure = errors.New("test failure")
+
+type mockKey struct {
+	values map[string]string
+}
+
+func (k *mockKey) SetStringValue(name, value string) error {
+	k.values[name] = value
+	return nil
+}
+
+func (k *mockKey) Close() error {
+	return nil
+}
 
 // Test if hasNetworkAdapter returns false on actual error or empty adapter name(an error)
 func TestHasNetworkAdapterReturnsError(t *testing.T) {
@@ -115,39 +127,11 @@ func TestExecuteCommandError(t *testing.T) {
 	require.ErrorIs(t, err, exec.ErrNotFound)
 }
 
-func TestSetSdnRemoteArpMacAddress_hnsNotEnabled(t *testing.T) {
-	mockExecClient := NewMockExecClient(false)
-	// testing skip setting SdnRemoteArpMacAddress when hns not enabled
-	mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
-		return "False", nil
-	})
-	err := SetSdnRemoteArpMacAddress(mockExecClient)
-	assert.NoError(t, err)
-	assert.Equal(t, false, sdnRemoteArpMacAddressSet)
-
-	// testing the scenario when there is an error in checking if hns is enabled or not
-	mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
-		return "", errTestFailure
-	})
-	err = SetSdnRemoteArpMacAddress(mockExecClient)
-	assert.ErrorAs(t, err, &errTestFailure)
-	assert.Equal(t, false, sdnRemoteArpMacAddressSet)
-}
-
-func TestSetSdnRemoteArpMacAddress_hnsEnabled(t *testing.T) {
-	mockExecClient := NewMockExecClient(false)
-	// happy path
-	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
-		if strings.Contains(cmd, "Test-Path") {
-			return "True", nil
-		}
-		return "", nil
-	})
-	err := SetSdnRemoteArpMacAddress(mockExecClient)
-	assert.NoError(t, err)
-	assert.Equal(t, true, sdnRemoteArpMacAddressSet)
-	// reset sdnRemoteArpMacAddressSet
-	sdnRemoteArpMacAddressSet = false
+func TestSetSDNRemoteARPMACAddress(t *testing.T) {
+	k := &mockKey{values: make(map[string]string)}
+	err := setSDNRemoteARPMACAddress(k)
+	require.NoError(t, err)
+	assert.Equal(t, SDNRemoteArpMacAddress, k.values["SDNRemoteArpMacAddress"])
 }
 
 func TestFetchPnpIDMapping(t *testing.T) {
