@@ -93,7 +93,7 @@ func TestReconcileNCStatePrimaryIPChangeShouldFail(t *testing.T) {
 	}
 
 	// now try to reconcile the state where the NC primary IP has changed
-	resp := svc.ReconcileIPAMState(ncReqs, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
+	resp := svc.ReconcileIPAMStateForSwift(ncReqs, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
 
 	assert.Equal(t, types.PrimaryCANotSame, resp)
 }
@@ -140,7 +140,7 @@ func TestReconcileNCStateGatewayChange(t *testing.T) {
 	}
 
 	// now try to reconcile the state where the NC gateway has changed
-	resp := svc.ReconcileIPAMState(ncReqs, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
+	resp := svc.ReconcileIPAMStateForSwift(ncReqs, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
 
 	assert.Equal(t, types.Success, resp)
 	// assert the new state reflects the gateway update
@@ -337,7 +337,7 @@ func TestReconcileNCWithEmptyState(t *testing.T) {
 
 	expectedNcCount := len(svc.state.ContainerStatus)
 	expectedAssignedPods := make(map[string]cns.PodInfo)
-	returnCode := svc.ReconcileIPAMState(nil, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
+	returnCode := svc.ReconcileIPAMStateForSwift(nil, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
 		Status: v1alpha.NodeNetworkConfigStatus{
 			Scaler: v1alpha.Scaler{
 				BatchSize:               batchSize,
@@ -387,7 +387,7 @@ func TestReconcileNCWithEmptyStateAndPendingRelease(t *testing.T) {
 		return pendingIPs
 	}()
 	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
-	returnCode := svc.ReconcileIPAMState([]*cns.CreateNetworkContainerRequest{req}, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
+	returnCode := svc.ReconcileIPAMStateForSwift([]*cns.CreateNetworkContainerRequest{req}, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
 		Spec: v1alpha.NodeNetworkConfigSpec{
 			IPsNotInUse: pending,
 		},
@@ -434,7 +434,7 @@ func TestReconcileNCWithExistingStateAndPendingRelease(t *testing.T) {
 	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileIPAMState([]*cns.CreateNetworkContainerRequest{req}, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
+	returnCode := svc.ReconcileIPAMStateForSwift([]*cns.CreateNetworkContainerRequest{req}, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
 		Spec: v1alpha.NodeNetworkConfigSpec{
 			IPsNotInUse: maps.Keys(pendingIPIDs),
 		},
@@ -471,7 +471,7 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileIPAMState([]*cns.CreateNetworkContainerRequest{req}, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
+	returnCode := svc.ReconcileIPAMStateForSwift([]*cns.CreateNetworkContainerRequest{req}, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
 		Status: v1alpha.NodeNetworkConfigStatus{
 			Scaler: v1alpha.Scaler{
 				BatchSize:               batchSize,
@@ -522,7 +522,7 @@ func TestReconcileCNSIPAMWithDualStackPods(t *testing.T) {
 
 	ncReqs := []*cns.CreateNetworkContainerRequest{ipv4NC, ipv6NC}
 
-	returnCode := svc.ReconcileIPAMState(ncReqs, podByIP, &v1alpha.NodeNetworkConfig{
+	returnCode := svc.ReconcileIPAMStateForSwift(ncReqs, podByIP, &v1alpha.NodeNetworkConfig{
 		Status: v1alpha.NodeNetworkConfigStatus{
 			Scaler: v1alpha.Scaler{
 				BatchSize:               batchSize,
@@ -570,7 +570,7 @@ func TestReconcileCNSIPAMWithMultipleIPsPerFamilyPerPod(t *testing.T) {
 
 	ncReqs := []*cns.CreateNetworkContainerRequest{ipv4NC, ipv6NC}
 
-	returnCode := svc.ReconcileIPAMState(ncReqs, podByIP, &v1alpha.NodeNetworkConfig{
+	returnCode := svc.ReconcileIPAMStateForSwift(ncReqs, podByIP, &v1alpha.NodeNetworkConfig{
 		Status: v1alpha.NodeNetworkConfigStatus{
 			Scaler: v1alpha.Scaler{
 				BatchSize:               batchSize,
@@ -697,7 +697,7 @@ func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileIPAMState([]*cns.CreateNetworkContainerRequest{req}, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
+	returnCode := svc.ReconcileIPAMStateForSwift([]*cns.CreateNetworkContainerRequest{req}, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
 		Status: v1alpha.NodeNetworkConfigStatus{
 			Scaler: v1alpha.Scaler{
 				BatchSize:               batchSize,
@@ -742,7 +742,7 @@ func TestReconcileCNSIPAMWithKubePodInfoProvider(t *testing.T) {
 	expectedAssignedPods["192.168.0.1"] = cns.NewPodInfo("", "", "systempod", "kube-system")
 
 	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileIPAMState([]*cns.CreateNetworkContainerRequest{req}, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
+	returnCode := svc.ReconcileIPAMStateForSwift([]*cns.CreateNetworkContainerRequest{req}, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
 		Status: v1alpha.NodeNetworkConfigStatus{
 			Scaler: v1alpha.Scaler{
 				BatchSize:               batchSize,

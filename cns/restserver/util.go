@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
+	"github.com/Azure/azure-container-networking/cns/nodesubnet"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
@@ -158,6 +159,12 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		existingSecondaryIPConfigs = existingNCStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 		vfpUpdateComplete = existingNCStatus.VfpUpdateComplete
 	}
+
+	if req.NetworkContainerid == nodesubnet.NodeSubnetNCID {
+		hostVersion = nodesubnet.NodeSubnetHostVersion
+		vfpUpdateComplete = true
+	}
+
 	if hostVersion == "" {
 		// Host version is the NC version from NMAgent, set it -1 to indicate no result from NMAgent yet.
 		// TODO, query NMAgent and with aggresive time out and assign latest host version.
@@ -187,9 +194,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		fallthrough
 	case cns.JobObject:
 		fallthrough
-	case cns.COW, cns.BackendNICNC:
-		fallthrough
-	case cns.WebApps:
+	case cns.COW, cns.BackendNICNC, cns.WebApps:
 		switch service.state.OrchestratorType {
 		case cns.Kubernetes:
 			fallthrough
@@ -291,6 +296,7 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 	if hostNCVersionInInt, err = strconv.Atoi(hostVersion); err != nil {
 		return types.UnsupportedNCVersion, fmt.Sprintf("Invalid hostVersion is %s, err:%s", hostVersion, err)
 	}
+
 	service.addIPConfigStateUntransacted(req.NetworkContainerid, hostNCVersionInInt, req.SecondaryIPConfigs,
 		existingSecondaryIPConfigs)
 
