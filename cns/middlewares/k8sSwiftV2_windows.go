@@ -20,6 +20,8 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 
 // assignSubnetPrefixLengthFields will assign the subnet-prefix length to some fields of podipinfo
 // this is required for the windows scenario so that HNS programming is successful for pods
+// TODO: This is being used for the delegated NIC for Windows solution. Once we are testing Windows we will
+// Need to confirm that this assigns the whole pod subnet that we expect for both v4 and v6
 func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(podIPInfo *cns.PodIpInfo, interfaceInfo v1alpha1.InterfaceInfo, ip string) error {
 	// Parse MTPNC SubnetAddressSpace to get the subnet prefix length
 	subnet, subnetPrefix, err := utils.ParseIPAndPrefix(interfaceInfo.SubnetAddressSpace)
