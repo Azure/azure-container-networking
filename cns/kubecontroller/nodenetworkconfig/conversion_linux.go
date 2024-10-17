@@ -21,8 +21,6 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 
 	// iterate through all IP addresses in the subnet described by primaryPrefix and
 	// add them to the request as secondary IPConfigs.
-	// TODO: we need to pass in a pointer to an IPFamilies slice to this function and add the family of the IPs added in
-	// Here we check the primary CIDR which is needed for overlay and VNET Block
 	for addr := primaryIPPrefix.Masked().Addr(); primaryIPPrefix.Contains(addr); addr = addr.Next() {
 		secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
 			IPAddress: addr.String(),
@@ -30,7 +28,7 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 		}
 
 	}
-
+	// adds the IPFamily of the primary CIDR to the set
 	if primaryIPPrefix.Addr().Is4() {
 		ipFamilies[restserver.IPv4Family] = struct{}{}
 	} else {
@@ -55,6 +53,7 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 					NCVersion: int(nc.Version),
 				}
 			}
+			// adds the IPFamily of the secondary CIDR to the set
 			if cidrPrefix.Addr().Is4() {
 				ipFamilies[restserver.IPv4Family] = struct{}{}
 			} else {
@@ -63,7 +62,7 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 		}
 	}
 
-	fmt.Printf("IPFamilies on NC %+v and %+v", nc.ID, ipFamilies)
+	fmt.Printf("IPFamilies found on NC %+v are %+v", nc.ID, ipFamilies)
 
 	return &cns.CreateNetworkContainerRequest{
 		HostPrimaryIP:        nc.NodeIP,
