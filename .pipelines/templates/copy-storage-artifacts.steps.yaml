@@ -1,0 +1,38 @@
+parameters:
+- name: sourceFolder
+  type: string
+
+- name: targetFolder
+  type: string
+  default: $(Build.ArtifactStagingDirectory)
+
+steps:
+
+# Dependency Variables: 
+#   IS_TRUE (run-pipeline level pipeline var)
+#   SYSTEM_DEBUG (global pipeline var)
+#   SA_NAME (stageDep)
+#   CONTAINER_NAME (stageDep)
+#   BLOB_PATH (stageDep)
+- task: AzureCLI@2
+  displayName: "Upload to Storage"
+  inputs:
+    azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -e
+      [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+      az storage blob upload-batch \
+        --account-name "$SA_NAME" \
+        --destination "$CONTAINER_NAME" \
+        --source "$SOURCE" \
+        --destination-path "$BLOB_PATH" \
+        --auth-mode login 
+  env:
+    SOURCE: ${{ parameters.sourceFolder }}
+    TARGET: ${{ parameters.targetFolder }}
+    SA_NAME: $(SA_NAME)
+    CONTAINER_NAME: $(CONTAINER_NAME)

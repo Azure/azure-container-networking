@@ -1,0 +1,49 @@
+{
+  "Name": "ACN CI/CD Build Environment Owner",
+  "roleName": "ACN CI/CD Build Environment Owner",
+  "Type": "CustomRole",
+  "roleType": "CustomRole",
+  "isCustom": true,
+  "description": "A custom role given to managed identities created by the CI build process. This role should try to focus on owning the resources already in its scope; rather than creating new ones. Actions should be added as necessary - and not in anticipation.",
+  "actions": [
+    "Microsoft.Storage/storageAccounts/read",
+
+    "Microsoft.Storage/storageAccounts/blobServices/generateUserDelegationKey/action",
+    "Microsoft.Storage/storageAccounts/blobServices/containers/read",
+    "Microsoft.Storage/storageAccounts/blobServices/containers/write",
+
+    "Microsoft.Storage/storageAccounts/tableServices/tables/read",
+    "Microsoft.Storage/storageAccounts/tableServices/tables/write",
+    
+    "Microsoft.ContainerRegistry/registries/pull/read",
+    "Microsoft.ContainerRegistry/registries/push/write"
+  ],
+  "notActions": [],
+  "dataActions": [
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/delete",
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read",
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/write",
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/filter/action",
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/move/action",
+    "Microsoft.Storage/storageAccounts/blobServices/containers/blobs/add/action",
+
+    "Microsoft.Storage/storageAccounts/tableServices/tables/entities/read",
+    "Microsoft.Storage/storageAccounts/tableServices/tables/entities/write",
+    "Microsoft.Storage/storageAccounts/tableServices/tables/entities/delete",
+    "Microsoft.Storage/storageAccounts/tableServices/tables/entities/add/action",
+    "Microsoft.Storage/storageAccounts/tableServices/tables/entities/update/action",
+    
+    "Microsoft.Storage/storageAccounts/fileServices/readFileBackupSemantics/action",
+    "Microsoft.Storage/storageAccounts/fileServices/writeFileBackupSemantics/action",
+    "Microsoft.Storage/storageAccounts/fileServices/fileshares/files/read",
+    "Microsoft.Storage/storageAccounts/fileServices/fileshares/files/write",
+    "Microsoft.Storage/storageAccounts/fileServices/fileshares/files/delete",
+    "Microsoft.Storage/storageAccounts/fileServices/fileshares/files/modifypermissions/action",
+
+    "Microsoft.Storage/storageAccounts/queueServices/queues/messages/*"
+  ],
+  "notDataActions": [],
+  "assignableScopes": [
+    "$RESOURCEID"
+  ]
+}

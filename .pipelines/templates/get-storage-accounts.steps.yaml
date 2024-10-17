@@ -1,0 +1,61 @@
+parameters:
+
+- name: STORAGE_ACCOUNT_SERVICE_CONNECTION
+  type: string
+
+- name: condition
+  type: object
+  default: true
+
+- name: resourceGroupName
+  type: string
+
+- name: varNameStorageAccountList
+  type: string
+  default: None
+
+steps:
+## Storage Account Resource Query
+- task: AzureCLI@2
+  displayName: "Get Storage Account Resources"
+  condition: ${{ parameters.condition }}
+  inputs:
+    azureSubscription: ${{ parameters.STORAGE_ACCOUNT_SERVICE_CONNECTION }}
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+    inlineScript: |
+      set -eu
+      [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+      # Query for Test Storage Accounts
+      R_QUERY="[? type == 'Microsoft.Storage/storageAccounts' && resourceGroup == '$RG_NAME']"
+      az resource list \
+        --query "$R_QUERY" \
+        --tag "$ACNCI_BUILDTAG_DEFINITIONID"="$SYSTEM_DEFINITIONID" \
+        --tag "$ACNCI_BUILDTAG_CREATEDBYAPPID"="$servicePrincipalId" -o json
+      echo $R_QUERY
+
+      # JSON of Returned Results
+      R_LIST=$(az resource list \
+        --query "$R_QUERY" \
+        --tag "$ACNCI_BUILDTAG_DEFINITIONID"="$SYSTEM_DEFINITIONID" \
+        --tag "$ACNCI_BUILDTAG_CREATEDBYAPPID"="$servicePrincipalId" -o json | jq -rc '.')
+      echo $R_LIST
+      # Length of resource list
+      R_LIST_LENGTH=$(echo "$R_LIST" | jq length)
+      echo $R_LIST_LENGTH
+
+      # Export the available storage account list..
+      #  uses custom variable naming if specified.
+      if [[ -n $VARNAME_SA_LIST ]] && \
+         ! [[ $VARNAME_SA_LIST =~ ^[N|n][O|o][N|n][E|e]$ ]]; then
+        echo >&2 "##vso[task.setvariable variable=${VARNAME_SA_LIST}]${R_LIST}"
+        echo >&2 "##vso[task.setvariable variable=${VARNAME_SA_LIST}_LENGTH]${R_LIST_LENGTH}"
+      else
+        echo >&2 "##vso[task.setvariable variable=SA_LIST;]$R_LIST"
+        echo >&2 "##vso[task.setvariable variable=SA_LIST_LENGTH;]$R_LIST_LENGTH"
+      fi
+  env:
+    VARNAME_SA_LIST: '${{ parameters.varNameStorageAccountList }}'
+    RG_NAME: '${{ parameters.resourceGroupName }}'
