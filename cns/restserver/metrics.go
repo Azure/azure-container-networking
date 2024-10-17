@@ -1,10 +1,13 @@
 package restserver
 
 import (
+	"maps"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -122,7 +125,6 @@ func init() {
 // Every http response is 200 so we really want cns  response code.
 // Hard tto do with middleware unless we derserialize the responses but making it an explit header works around it.
 // if that doesn't work we could have a separate countervec just for response codes.
-
 func NewHandlerFuncWithHistogram(handler http.HandlerFunc, histogram *prometheus.HistogramVec) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
@@ -142,11 +144,87 @@ func stateTransitionMiddleware(i *cns.IPConfigurationStatus, s types.IPState) {
 	ipConfigStatusStateTransitionTime.WithLabelValues(string(i.GetState()), string(s)).Observe(time.Since(i.LastStateTransition).Seconds())
 }
 
-func publishIPStateMetrics(state *ipState) {
+type ipState struct {
+	// allocatedIPs are all the IPs given to CNS by DNC.
+	allocatedIPs int64
+	// assignedIPs are the IPs CNS gives to Pods.
+	assignedIPs int64
+	// availableIPs are the IPs in state "Available".
+	availableIPs int64
+	// programmingIPs are the IPs in state "PendingProgramming".
+	programmingIPs int64
+	// releasingIPs are the IPs in state "PendingReleasr".
+	releasingIPs int64
+}
+
+type asyncMetricsRecorder struct {
+	podIPConfigSrc func() map[string]cns.IPConfigurationStatus
+	sig            chan struct{}
+	once           sync.Once
+}
+
+// singleton recorder
+var recorder asyncMetricsRecorder
+
+// run starts the asyncMetricsRecorder and listens for signals to record the metrics.
+func (a *asyncMetricsRecorder) run() {
+	for range a.sig {
+		a.record()
+	}
+}
+
+// record records the IP Config state metrics to Prometheus.
+func (a *asyncMetricsRecorder) record() {
+	var state ipState
+	for ipConfig := range maps.Values(a.podIPConfigSrc()) {
+		state.allocatedIPs++
+		if ipConfig.GetState() == types.Assigned {
+			state.assignedIPs++
+		}
+		if ipConfig.GetState() == types.Available {
+			state.availableIPs++
+		}
+		if ipConfig.GetState() == types.PendingProgramming {
+			state.programmingIPs++
+		}
+		if ipConfig.GetState() == types.PendingRelease {
+			state.releasingIPs++
+		}
+	}
+
+	logger.Printf("Allocated IPs: %d, Assigned IPs: %d, Available IPs: %d, PendingProgramming IPs: %d, PendingRelease IPs: %d",
+		state.allocatedIPs,
+		state.assignedIPs,
+		state.availableIPs,
+		state.programmingIPs,
+		state.releasingIPs,
+	)
+
 	labels := []string{}
 	allocatedIPCount.WithLabelValues(labels...).Set(float64(state.allocatedIPs))
 	assignedIPCount.WithLabelValues(labels...).Set(float64(state.assignedIPs))
 	availableIPCount.WithLabelValues(labels...).Set(float64(state.availableIPs))
 	pendingProgrammingIPCount.WithLabelValues(labels...).Set(float64(state.programmingIPs))
 	pendingReleaseIPCount.WithLabelValues(labels...).Set(float64(state.releasingIPs))
+}
+
+// publishIPStateMetrics logs and publishes the IP Config state metrics to Prometheus.
+func (service *HTTPRestService) publishIPStateMetrics() {
+	recorder.once.Do(func() {
+		recorder.podIPConfigSrc = service.PodIPConfigStates
+		recorder.sig = make(chan struct{})
+		go recorder.run()
+	})
+	select {
+	case recorder.sig <- struct{}{}: // signal the recorder to record the metrics
+	default: // drop the signal if the recorder already has an event queued
+	}
+}
+
+// PodIPConfigStates returns a clone of the IP Config State map.
+func (service *HTTPRestService) PodIPConfigStates() map[string]cns.IPConfigurationStatus {
+	// copy state
+	service.RLock()
+	defer service.RUnlock()
+	return maps.Clone(service.PodIPConfigState)
 }
