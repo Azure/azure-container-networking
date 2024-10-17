@@ -183,8 +183,6 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		VfpUpdateComplete:             vfpUpdateComplete,
 	}
 
-	service.IPFamilies = req.IPFamilies
-
 	switch req.NetworkContainerType {
 	case cns.AzureContainerInstance:
 		fallthrough

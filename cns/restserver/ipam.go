@@ -25,6 +25,7 @@ var (
 	ErrStoreEmpty             = errors.New("empty endpoint state store")
 	ErrParsePodIPFailed       = errors.New("failed to parse pod's ip")
 	ErrNoNCs                  = errors.New("no NCs found in the CNS internal state")
+	ErrNoIPFamilies           = errors.New("No IP Families found on NCs")
 	ErrOptManageEndpointState = errors.New("CNS is not set to manage the endpoint state")
 	ErrEndpointStateNotFound  = errors.New("endpoint state could not be found in the statefile")
 	ErrGetAllNCResponseEmpty  = errors.New("failed to get NC responses from statefile")
@@ -990,13 +991,25 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 // Assigns an available IP from each NC on the NNC. If there is one NC then we expect to only have one IP return
 // In the case of dualstack we would expect to have one IPv6 from one NC and one IPv4 from a second NC
 func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
-	// Gets the number of IPFamilies expected to be returned.
-	numOfIPFamilies := len(service.IPFamilies)
+	// Gets the number of IPFamilies expected to be returned across all NCs
+	ipFamilies := map[IPFamily]struct{}{}
 
-	if numOfIPFamilies == 0 {
-		// TODO: replace with it's own error
+	// checks to make sure we have at least one NC
+	if len(service.state.ContainerStatus) == 0 {
 		return nil, ErrNoNCs
 	}
+
+	for ncID := range service.state.ContainerStatus {
+		for ipFamily := range service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.IPFamilies {
+			ipFamilies[ipFamily] = struct{}{}
+		}
+	}
+
+	numOfIPFamilies := len(ipFamilies)
+	if numOfIPFamilies == 0 {
+		return nil, ErrNoIPFamilies
+	}
+
 	service.Lock()
 	defer service.Unlock()
 	// Creates a slice of PodIpInfo with the size as number of NCs to hold the result for assigned IP configs
@@ -1006,29 +1019,37 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 
 	// Searches for available IPs in the pool
 	for _, ipState := range service.PodIPConfigState {
+		// get the IPFamily of the current ipState
+		var ipStateFamily IPFamily
+		if net.ParseIP(ipState.IPAddress).To4() != nil {
+			ipStateFamily = IPv4Family
+		} else {
+			ipStateFamily = IPv6Family
+		}
+
 		// check if the IP with the same family type exists already
-		if _, IPFamilyAlreadyMarkedForAssignment := ipsToAssign[net.ParseIP(ipState.IPAddress).To4() == nil]; IPFamilyAlreadyMarkedForAssignment {
+		if _, IPFamilyAlreadyMarkedForAssignment := ipsToAssign[ipStateFamily]; IPFamilyAlreadyMarkedForAssignment {
 			continue
 		}
 		// Checks if the current IP is available
 		if ipState.GetState() != types.Available {
 			continue
 		}
-		ipsToAssign[net.ParseIP(ipState.IPAddress).To4() == nil] = ipState
-		// Once one IP per container is found break out of the loop and stop searching
+		ipsToAssign[ipStateFamily] = ipState
+		// Once one IP per family is found break out of the loop and stop searching
 		if len(ipsToAssign) == numOfIPFamilies {
 			break
 		}
 	}
 
-	// Checks to make sure we found one IP for each NC
+	// Checks to make sure we found one IP for each IPFamily
 	if len(ipsToAssign) != numOfIPFamilies {
-		for _, ipFamily := range service.IPFamilies {
-			if _, found := ipsToAssign[ipFamily]; found {
+		for ncID := range service.state.ContainerStatus {
+			if _, found := ipsToAssign[ncID]; found {
 				continue
 			}
-			return podIPInfo, errors.Errorf("not enough IPs available of type %s, waiting on Azure CNS to allocate more with NC Status: %s",
-				ipFamily, string(service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.NCStatus))
+			return podIPInfo, errors.Errorf("not enough IPs available for %s, waiting on Azure CNS to allocate more with NC Status: %s",
+				ncID, string(service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.NCStatus))
 		}
 	}
 
