@@ -28,7 +28,7 @@ func TestAdhocAdjustIPConfig(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			adjustIPConfig(&tt.ipConfig)
+			updateGwForLocalIPConfiguration(&tt.ipConfig)
 			assert.Equal(t, tt.expected.GatewayIPAddress, tt.ipConfig.GatewayIPAddress)
 		})
 	}
