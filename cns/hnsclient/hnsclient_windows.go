@@ -609,7 +609,7 @@ func CreateHostNCApipaEndpoint(
 	return endpoint.Id, nil
 }
 
-// updateGwForLocalIPConfiguration applies change on APIPA NW gw IP address.
+// updateGwForLocalIPConfiguration applies change on gw IP address for apipa NW and endpoint.
 // Currently, cns using the same ip address "169.254.128.1" for both apipa gw and loopback adapter. This cause conflict issue when hns get restarted and not able to rehydrate the apipa endpoints.
 // This func is to overwrite the address to 169.254.128.2 when the gateway address is 169.254.128.1
 func updateGwForLocalIPConfiguration(localIPConfiguration *cns.IPConfiguration) {
