@@ -13,13 +13,13 @@ import (
 )
 
 func runCommand(command string) (string, error) {
-	cmd := exec.Command("bash", "-c", command)
 	var out bytes.Buffer
 	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
 	var err error
 	for i := 0; i < 3; i++ {
+		cmd := exec.Command("bash", "-c", command)
+		cmd.Stdout = &out
+		cmd.Stderr = &stderr
 		err = cmd.Run()
 		if err == nil {
 			break
@@ -27,7 +27,7 @@ func runCommand(command string) (string, error) {
 	}
 
 	if err != nil {
-		return "", errors.Wrap(err, "command failed")
+		return "", errors.Wrap(err, fmt.Sprintf("command %s failed ", command))
 	}
 
 	return out.String(), nil
@@ -104,8 +104,12 @@ func main() {
 			for i := 2; i <= secondaryConfigCount+1; i++ {
 				ipConfig := make(map[string]interface{})
 				for k, v := range primaryIPConfig {
+					if k == "loadBalancerBackendAddressPools" {
+						continue
+					}
 					ipConfig[k] = v
 				}
+
 				ipConfigName := fmt.Sprintf("ipconfig%d", i)
 				if !contains(usedIPConfigNames, ipConfigName) {
 					ipConfig["name"] = ipConfigName
