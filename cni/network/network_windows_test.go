@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"regexp"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -14,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
+	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/telemetry"
 	hnsv2 "github.com/Microsoft/hcsshim/hcn"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -852,6 +854,365 @@ func TestPluginMultitenancyWindowsDelete(t *testing.T) {
 				endpoints, _ := plugin.nm.GetAllEndpoints(localNwCfg.Name)
 				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 0 }))
 			}
+		})
+	}
+}
+
+// windows swiftv2 example
+func GetTestCNSResponseSecondaryWindows(macAddress string) map[string]network.InterfaceInfo {
+	parsedMAC, _ := net.ParseMAC(macAddress)
+	return map[string]network.InterfaceInfo{
+		string(cns.InfraNIC): {
+			IPConfigs: []*network.IPConfig{
+				{
+					Address: *getCIDRNotationForAddress("10.244.2.107/16"),
+					Gateway: net.ParseIP("10.244.2.1"),
+				},
+			},
+			Routes: []network.RouteInfo{
+				{
+					Dst: *getCIDRNotationForAddress("1.1.1.1/24"),
+					Gw:  net.ParseIP("10.244.2.1"),
+				},
+			},
+			SkipDefaultRoutes: true,
+			NICType:           cns.InfraNIC,
+			HostSubnetPrefix:  *getCIDRNotationForAddress("20.224.0.0/16"),
+		},
+		macAddress: {
+			MacAddress: parsedMAC,
+			IPConfigs: []*network.IPConfig{
+				{
+					Address: *getCIDRNotationForAddress("10.241.0.21/16"),
+					Gateway: net.ParseIP("10.241.0.1"),
+				},
+			},
+			Routes: []network.RouteInfo{
+				{
+					// just to ensure we don't overwrite if we had more routes
+					Dst: *getCIDRNotationForAddress("2.2.2.2/24"),
+					Gw:  net.ParseIP("99.244.2.1"),
+				},
+			},
+			NICType: cns.NodeNetworkInterfaceFrontendNIC,
+		},
+	}
+}
+
+// Happy path scenario for add and delete
+func TestPluginWindowsAdd(t *testing.T) {
+	resources := GetTestResources()
+	localNwCfg := cni.NetworkConfig{
+		CNIVersion:                 "0.3.0",
+		Name:                       "mulnet",
+		MultiTenancy:               true,
+		EnableExactMatchForPodName: true,
+		Master:                     "eth0",
+	}
+	nwCfg := cni.NetworkConfig{
+		CNIVersion:                 "0.3.0",
+		Name:                       "net",
+		MultiTenancy:               false,
+		EnableExactMatchForPodName: true,
+	}
+	macAddress := "60:45:bd:76:f6:44"
+	parsedMACAddress, _ := net.ParseMAC(macAddress)
+
+	type endpointEntry struct {
+		epInfo    *network.EndpointInfo
+		epIDRegex string
+	}
+
+	tests := []struct {
+		name   string
+		plugin *NetPlugin
+		args   *cniSkel.CmdArgs
+		want   []endpointEntry
+		match  func(*network.EndpointInfo, *network.EndpointInfo) bool
+	}{
+		{
+			name: "Add Happy Path Dual NIC",
+			plugin: &NetPlugin{
+				Plugin:             resources.Plugin,
+				nm:                 network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				tb:                 &telemetry.TelemetryBuffer{},
+				report:             &telemetry.CNIReport{},
+				multitenancyClient: NewMockMultitenancy(false, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1(), GetTestCNSResponse2()}),
+			},
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			match: func(ei1, ei2 *network.EndpointInfo) bool {
+				return ei1.NetworkID == ei2.NetworkID
+			},
+			want: []endpointEntry{
+				// should match with GetTestCNSResponse1
+				{
+					epInfo: &network.EndpointInfo{
+						ContainerID: "test-container",
+						Data: map[string]interface{}{
+							"cnetAddressSpace": []string(nil),
+						},
+						Routes:             []network.RouteInfo{},
+						EnableSnatOnHost:   true,
+						EnableMultiTenancy: true,
+						EnableSnatForDns:   true,
+						PODName:            "test-pod",
+						PODNameSpace:       "test-pod-ns",
+						NICType:            cns.InfraNIC,
+						MasterIfName:       eth0IfName,
+						NetworkID:          "mulnet-vlan1-20-0-0-0_24",
+						NetNsPath:          "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
+						NetNs:              "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
+						HostSubnetPrefix:   "20.240.0.0/24",
+						Options: map[string]interface{}{
+							dockerNetworkOption: map[string]interface{}{
+								"VlanID": "1",
+							},
+						},
+						// matches with cns ip configuration
+						IPAddresses: []net.IPNet{
+							{
+								IP:   net.ParseIP("20.0.0.10"),
+								Mask: getIPNetWithString("20.0.0.10/24").Mask,
+							},
+						},
+						// LocalIPConfiguration doesn't seem used in windows
+						// Constant, in windows, NAT Info comes from
+						// options > ipamAddConfig >
+						// cns invoker may populate network.SNATIPKey with the default response received >
+						// getNATInfo (with nwCfg) > adds nat info based on condition
+						// typically adds azure dns (168.63.129.16)
+						NATInfo: []policy.NATInfo{
+							{
+								Destinations: []string{"168.63.129.16"},
+							},
+						},
+						// ip config pod ip + mask(s) from cns > interface info > subnet info
+						Subnets: []network.SubnetInfo{
+							{
+								Family: platform.AfINET,
+								// matches cns ip configuration (20.0.0.1/24 == 20.0.0.0/24)
+								Prefix: *getIPNetWithString("20.0.0.0/24"),
+								// matches cns ip configuration gateway ip address
+								Gateway: net.ParseIP("20.0.0.1"),
+							},
+						},
+					},
+					epIDRegex: `.*`,
+				},
+				// should match with GetTestCNSResponse2
+				{
+					epInfo: &network.EndpointInfo{
+						ContainerID: "test-container",
+						Data: map[string]interface{}{
+							"cnetAddressSpace": []string(nil),
+						},
+						Routes:             []network.RouteInfo{},
+						EnableSnatOnHost:   true,
+						EnableMultiTenancy: true,
+						EnableSnatForDns:   true,
+						PODName:            "test-pod",
+						PODNameSpace:       "test-pod-ns",
+						NICType:            cns.InfraNIC,
+						MasterIfName:       eth0IfName,
+						NetworkID:          "mulnet-vlan2-10-0-0-0_24",
+						NetNsPath:          "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
+						NetNs:              "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
+						HostSubnetPrefix:   "10.240.0.0/24",
+						Options: map[string]interface{}{
+							dockerNetworkOption: map[string]interface{}{
+								"VlanID": "2",
+							},
+						},
+						IPAddresses: []net.IPNet{
+							{
+								IP:   net.ParseIP("10.0.0.10"),
+								Mask: getIPNetWithString("10.0.0.10/24").Mask,
+							},
+						},
+						NATInfo: []policy.NATInfo{
+							{
+								Destinations: []string{"168.63.129.16"},
+							},
+						},
+						Subnets: []network.SubnetInfo{
+							{
+								Family:  platform.AfINET,
+								Prefix:  *getIPNetWithString("10.0.0.0/24"),
+								Gateway: net.ParseIP("10.0.0.1"),
+							},
+						},
+					},
+					epIDRegex: `.*`,
+				},
+			},
+		},
+		{
+			// Based on a live swiftv2 windows cluster's (infra + delegated) cns invoker response
+			name: "Add Happy Path Swiftv2",
+			plugin: &NetPlugin{
+				Plugin:      resources.Plugin,
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				tb:          &telemetry.TelemetryBuffer{},
+				report:      &telemetry.CNIReport{},
+				ipamInvoker: NewCustomMockIpamInvoker(GetTestCNSResponseSecondaryWindows(macAddress)),
+				netClient: &InterfaceGetterMock{
+					// used in secondary find master interface
+					interfaces: []net.Interface{
+						{
+							Name:         "secondary",
+							HardwareAddr: parsedMACAddress,
+						},
+						{
+							Name:         "primary",
+							HardwareAddr: net.HardwareAddr{},
+						},
+					},
+					// used in primary find master interface
+					interfaceAddrs: map[string][]net.Addr{
+						"primary": {
+							// match with the host subnet prefix to know that this ip belongs to the host
+							getCIDRNotationForAddress("20.224.0.0/16"),
+						},
+					},
+				},
+			},
+			args: &cniSkel.CmdArgs{
+				StdinData:   nwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			match: func(ei1, ei2 *network.EndpointInfo) bool {
+				return ei1.NICType == ei2.NICType
+			},
+			want: []endpointEntry{
+				// should match infra
+				{
+					epInfo: &network.EndpointInfo{
+						ContainerID: "test-container",
+						Data:        map[string]interface{}{},
+						Routes: []network.RouteInfo{
+							{
+								Dst: *getCIDRNotationForAddress("1.1.1.1/24"),
+								Gw:  net.ParseIP("10.244.2.1"),
+							},
+						},
+						PODName:           "test-pod",
+						PODNameSpace:      "test-pod-ns",
+						NICType:           cns.InfraNIC,
+						SkipDefaultRoutes: true,
+						MasterIfName:      "primary",
+						NetworkID:         "net",
+						NetNsPath:         "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
+						NetNs:             "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
+						HostSubnetPrefix:  "20.224.0.0/16",
+						Options:           map[string]interface{}{},
+						// matches with cns ip configuration
+						IPAddresses: []net.IPNet{
+							{
+								IP:   net.ParseIP("10.244.2.107"),
+								Mask: getIPNetWithString("10.244.2.107/16").Mask,
+							},
+						},
+						NATInfo: nil,
+						// ip config pod ip + mask(s) from cns > interface info > subnet info
+						Subnets: []network.SubnetInfo{
+							{
+								Family: platform.AfINET,
+								Prefix: *getIPNetWithString("10.244.0.0/16"),
+								// matches cns ip configuration gateway ip address
+								Gateway: net.ParseIP("10.244.2.1"),
+							},
+						},
+					},
+					epIDRegex: `.*`,
+				},
+				// should match secondary
+				{
+					epInfo: &network.EndpointInfo{
+						MacAddress:  parsedMACAddress,
+						ContainerID: "test-container",
+						Data:        map[string]interface{}{},
+						Routes: []network.RouteInfo{
+							{
+								// just to ensure we don't overwrite if we had more routes
+								Dst: *getCIDRNotationForAddress("2.2.2.2/24"),
+								Gw:  net.ParseIP("99.244.2.1"),
+							},
+						},
+						PODName:           "test-pod",
+						PODNameSpace:      "test-pod-ns",
+						NICType:           cns.NodeNetworkInterfaceFrontendNIC,
+						SkipDefaultRoutes: false,
+						MasterIfName:      "secondary",
+						NetworkID:         "azure-" + macAddress,
+						NetNsPath:         "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
+						NetNs:             "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
+						HostSubnetPrefix:  "<nil>",
+						Options:           map[string]interface{}{},
+						// matches with cns ip configuration
+						IPAddresses: []net.IPNet{
+							{
+								IP:   net.ParseIP("10.241.0.21"),
+								Mask: getIPNetWithString("10.241.0.21/16").Mask,
+							},
+						},
+						NATInfo: nil,
+						// ip config pod ip + mask(s) from cns > interface info > subnet info
+						Subnets: []network.SubnetInfo{
+							{
+								Family: platform.AfINET,
+								Prefix: *getIPNetWithString("10.241.0.21/16"),
+								// matches cns ip configuration gateway ip address
+								Gateway: net.ParseIP("10.241.0.1"),
+							},
+						},
+					},
+					epIDRegex: `.*`,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.plugin.Add(tt.args)
+			require.NoError(t, err)
+			allEndpoints, _ := tt.plugin.nm.GetAllEndpoints("")
+			require.Len(t, allEndpoints, len(tt.want))
+			for _, wantedEndpointEntry := range tt.want {
+				epID := "none"
+				for _, endpointInfo := range allEndpoints {
+					if !tt.match(wantedEndpointEntry.epInfo, endpointInfo) {
+						continue
+					}
+					// save the endpoint id before removing it
+					epID = endpointInfo.EndpointID
+					require.Regexp(t, regexp.MustCompile(wantedEndpointEntry.epIDRegex), epID)
+
+					// omit endpoint id and ifname fields as they are nondeterministic
+					endpointInfo.EndpointID = ""
+					endpointInfo.IfName = ""
+
+					require.Equal(t, wantedEndpointEntry.epInfo, endpointInfo)
+				}
+				if epID == "none" {
+					t.Fail()
+				}
+				err = tt.plugin.nm.DeleteEndpoint("", epID, nil)
+				require.NoError(t, err)
+			}
+
+			// ensure deleted
+			require.Empty(t, allEndpoints)
 		})
 	}
 }

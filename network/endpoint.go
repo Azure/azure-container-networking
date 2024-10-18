@@ -66,7 +66,7 @@ type EndpointInfo struct {
 	EndpointID               string
 	ContainerID              string
 	NetNsPath                string
-	IfName                   string // value differs during creation vs. deletion flow
+	IfName                   string // value differs during creation vs. deletion flow; used in statefile, not necessarily the nic name
 	SandboxKey               string
 	IfIndex                  int
 	MacAddress               net.HardwareAddr
@@ -93,7 +93,7 @@ type EndpointInfo struct {
 	IPV6Mode                 string
 	VnetCidrs                string
 	ServiceCidrs             string
-	NATInfo                  []policy.NATInfo
+	NATInfo                  []policy.NATInfo // windows only
 	NICType                  cns.NICType
 	SkipDefaultRoutes        bool
 	HNSEndpointID            string

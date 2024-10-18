@@ -688,6 +688,44 @@ func GetTestCNSResponse2() *cns.GetNetworkContainerResponse {
 	}
 }
 
+// For use with GetAllNetworkContainers in linux multitenancy
+func GetTestCNSResponse3() *cns.GetNetworkContainerResponse {
+	return &cns.GetNetworkContainerResponse{
+		NetworkContainerID: "Swift_74b34111-6e92-49ee-a82a-8881c850ce0e",
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "20.0.0.10",
+				PrefixLength: ipPrefixLen,
+			},
+			DNSServers: []string{
+				"168.63.129.16",
+			},
+			GatewayIPAddress: "20.0.0.1",
+		},
+		Routes: []cns.Route{
+			// dummy route
+			{
+				IPAddress:        "192.168.0.4/24",
+				GatewayIPAddress: "192.168.0.1",
+			},
+		},
+		MultiTenancyInfo: cns.MultiTenancyInfo{
+			EncapType: cns.Vlan,
+			ID:        multiTenancyVlan1,
+		},
+		PrimaryInterfaceIdentifier: "20.240.0.4/24",
+		LocalIPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "168.254.0.4",
+				PrefixLength: localIPPrefixLen,
+			},
+			GatewayIPAddress: "168.254.0.1",
+		},
+		AllowHostToNCCommunication: true,
+		AllowNCToHostCommunication: false,
+	}
+}
+
 // Test Multitenancy Add
 func TestPluginMultitenancyAdd(t *testing.T) {
 	plugin, _ := cni.NewPlugin("test", "0.3.0")

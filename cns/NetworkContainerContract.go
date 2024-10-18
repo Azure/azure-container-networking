@@ -99,10 +99,13 @@ const (
 	Managed        = "Managed"
 	CRD            = "CRD"
 	MultiTenantCRD = "MultiTenantCRD"
+	AzureHost      = "AzureHost"
 )
 
-var ErrInvalidNCID = errors.New("invalid NetworkContainerID")
-var ErrInvalidIP = errors.New("invalid IP")
+var (
+	ErrInvalidNCID = errors.New("invalid NetworkContainerID")
+	ErrInvalidIP   = errors.New("invalid IP")
+)
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
 type CreateNetworkContainerRequest struct {
