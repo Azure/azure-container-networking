@@ -1,0 +1,18 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "vmSku": {
+            "value": "Standard_D4s_v6"
+        },
+        "vmssName": {
+            "value": "aksvmsstip1"
+        },
+        "instanceCount": {
+            "value": 3
+        },
+        "tipSessionId": {
+            "value": "ef1cc9bd-1302-4331-a1f4-9b7736243112"
+        }
+    }
+}
