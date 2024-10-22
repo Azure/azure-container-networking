@@ -64,12 +64,13 @@ type DataPlane struct {
 	nodeName           string
 	// endpointCache stores all endpoints of the network (including off-node)
 	// Key is PodIP
-	endpointCache  *endpointCache
-	ioShim         *common.IOShim
-	updatePodCache *updatePodCache
-	endpointQuery  *endpointQuery
-	applyInfo      *applyInfo
-	netPolQueue    *netPolQueue
+	endpointCache     *endpointCache
+	ioShim            *common.IOShim
+	updatePodCache    *updatePodCache
+	endpointQuery     *endpointQuery
+	endpointQueryL1VH *endpointQuery //windows -> filter for state 2 (attached) endpoints in l1vh
+	applyInfo         *applyInfo
+	netPolQueue       *netPolQueue
 	// removePolicyInfo tracks when a policy was removed yet had ApplyIPSet failures.
 	// This field is only relevant for Linux.
 	removePolicyInfo removePolicyInfo
@@ -88,11 +89,12 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		policyMgr: policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
 		ipsetMgr:  ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
 		// networkID is set when initializing Windows dataplane
-		networkID:     "",
-		endpointCache: newEndpointCache(),
-		nodeName:      nodeName,
-		ioShim:        ioShim,
-		endpointQuery: new(endpointQuery),
+		networkID:         "",
+		endpointCache:     newEndpointCache(),
+		nodeName:          nodeName,
+		ioShim:            ioShim,
+		endpointQuery:     new(endpointQuery),
+		endpointQueryL1VH: new(endpointQuery),
 		applyInfo: &applyInfo{
 			inBootupPhase: true,
 		},

@@ -50,19 +50,39 @@ func (dp *DataPlane) initializeDataPlane() error {
 		},
 		Flags: hcn.HostComputeQueryFlagsNone,
 	}
+	// Initialize Endpoint query used to filter healthy endpoints (vNIC) of Windows pods on L1VH Node
+	dp.endpointQueryL1VH.query = hcn.HostComputeQuery{
+		SchemaVersion: hcn.SchemaVersion{
+			Major: hcnSchemaMajorVersion,
+			Minor: hcnSchemaMinorVersion,
+		},
+		Flags: hcn.HostComputeQueryFlagsNone,
+	}
+
 	// Filter out any endpoints that are not in "AttachedShared" State. All running Windows pods with networking must be in this state.
 	filterMap := map[string]uint16{"State": hcnEndpointStateAttachedSharing}
-	filter, err := json.Marshal(filterMap)
-	if err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to marshal endpoint filter map", err)
-	}
+	filterMapL1VH := map[string]uint16{"State": hcnEndpointStateAttached}
+
+	filter, err := marshalFilterMap(filterMap)
+
+	filterL1VH, err := marshalFilterMap(filterMapL1VH)
+
 	dp.endpointQuery.query.Filter = string(filter)
+	dp.endpointQueryL1VH.query.Filter = string(filterL1VH)
 
 	// reset endpoint cache so that netpol references are removed for all endpoints while refreshing pod endpoints
 	// no need to lock endpointCache at boot up
 	dp.endpointCache.cache = make(map[string]*npmEndpoint)
 
 	return nil
+}
+
+func marshalFilterMap(filtermap map[string]uint16) ([]byte, error) {
+	filter, err := json.Marshal(filtermap)
+	if err != nil {
+		return nil, npmerrors.SimpleErrorWrapper("failed to marshal endpoint filter map", err)
+	}
+	return filter, nil
 }
 
 func (dp *DataPlane) getNetworkInfo() error {
@@ -330,13 +350,15 @@ func (dp *DataPlane) getEndpointsToApplyPolicies(netPols []*policies.NPMNetworkP
 func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
 	klog.Info("getting local endpoints")
 	timer := metrics.StartNewTimer()
-	endpoints, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
+	endpointsAttachedSharing, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
+	endpointsAttached, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryL1VH.query)
 	metrics.RecordListEndpointsLatency(timer)
 	if err != nil {
 		metrics.IncListEndpointsFailures()
 		return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints", err)
 	}
-
+	endpoints := append(endpointsAttachedSharing, endpointsAttached...)
+	klog.Infof("there are %+v endpoints in endpointsAttachedSharing and %+v endpoints in Attached", len(endpointsAttachedSharing), len(endpointsAttached))
 	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
 	for k := range endpoints {
 		epPointers = append(epPointers, &endpoints[k])
