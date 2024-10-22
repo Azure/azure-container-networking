@@ -130,6 +130,8 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 				options.FieldSelector = "spec.nodeName=" + models.GetNodeName()
 			}),
 		)
+		npmV2DataplaneCfg.IsL1VHNode = config.Toggles.IsL1VHNode
+		npmV2DataplaneCfg.EnableNPMLite = config.Toggles.EnableNPMLite
 	}
 	k8sServerVersion := k8sServerVersion(clientset)
 
