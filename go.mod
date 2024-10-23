@@ -43,10 +43,10 @@ require (
 	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.35.1
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
-	k8s.io/api v0.30.5
+	k8s.io/api v0.30.6
 	k8s.io/apiextensions-apiserver v0.30.1
-	k8s.io/apimachinery v0.30.5
-	k8s.io/client-go v0.30.5
+	k8s.io/apimachinery v0.30.6
+	k8s.io/client-go v0.30.6
 	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
@@ -151,7 +151,7 @@ require (
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
-	k8s.io/kubelet v0.30.5
+	k8s.io/kubelet v0.30.6
 )
 
 replace (
