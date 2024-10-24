@@ -14,9 +14,10 @@ import (
 
 // NMAgentClientFake can be used to query to VM Host info.
 type NMAgentClientFake struct {
-	SupportedAPIsF    func(context.Context) ([]string, error)
-	GetNCVersionListF func(context.Context) (nmagent.NCVersionList, error)
-	GetHomeAzF        func(context.Context) (nmagent.AzResponse, error)
+	SupportedAPIsF      func(context.Context) ([]string, error)
+	GetNCVersionListF   func(context.Context) (nmagent.NCVersionList, error)
+	GetHomeAzF          func(context.Context) (nmagent.AzResponse, error)
+	GetInterfaceIPInfoF func(ctx context.Context) (nmagent.Interfaces, error)
 }
 
 func (n *NMAgentClientFake) SupportedAPIs(ctx context.Context) ([]string, error) {
@@ -29,4 +30,8 @@ func (n *NMAgentClientFake) GetNCVersionList(ctx context.Context) (nmagent.NCVer
 
 func (n *NMAgentClientFake) GetHomeAz(ctx context.Context) (nmagent.AzResponse, error) {
 	return n.GetHomeAzF(ctx)
+}
+
+func (n *NMAgentClientFake) GetInterfaceIPInfo(ctx context.Context) (nmagent.Interfaces, error) {
+	return n.GetInterfaceIPInfoF(ctx)
 }
