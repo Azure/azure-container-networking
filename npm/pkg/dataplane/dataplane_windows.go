@@ -350,15 +350,23 @@ func (dp *DataPlane) getEndpointsToApplyPolicies(netPols []*policies.NPMNetworkP
 func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
 	klog.Info("getting local endpoints")
 	timer := metrics.StartNewTimer()
-	endpointsAttachedSharing, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
-	endpointsAttached, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryL1VH.query)
+	endpoints, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
+	klog.Infof("There are %+v endpoints in AttachedSharing state", len(endpoints))
 	metrics.RecordListEndpointsLatency(timer)
 	if err != nil {
 		metrics.IncListEndpointsFailures()
 		return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints", err)
 	}
-	endpoints := append(endpointsAttachedSharing, endpointsAttached...)
-	klog.Infof("there are %+v endpoints in endpointsAttachedSharing and %+v endpoints in Attached", len(endpointsAttachedSharing), len(endpointsAttached))
+	if dp.EnableNPMLite {
+		timer = metrics.StartNewTimer()
+		endpointsAttached, errL1vh := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryL1VH.query)
+		if errL1vh != nil {
+			metrics.IncListEndpointsFailures()
+			return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints in L1VH", err)
+		}
+		klog.Infof("There are %+v endpoints in Attached state on l1vh", len(endpointsAttached))
+		endpoints = append(endpoints, endpointsAttached...)
+	}
 	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
 	for k := range endpoints {
 		epPointers = append(epPointers, &endpoints[k])

@@ -45,6 +45,7 @@ type Config struct {
 	NetPolInBackground bool
 	MaxPendingNetPols  int
 	NetPolInterval     time.Duration
+	EnableNPMLite      bool
 	*ipsets.IPSetManagerCfg
 	*policies.PolicyManagerCfg
 }
@@ -130,7 +131,6 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 	} else {
 		metrics.SendLog(util.DaemonDataplaneID, "[DataPlane] dataplane configured to NOT add netpols in background", true)
 	}
-
 	return dp, nil
 }
 
