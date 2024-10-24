@@ -24,6 +24,7 @@ AKS Clusters
   byocni-up                                 Alias to swift-byocni-up
   cilium-up                                 Alias to swift-cilium-up
   up                                        Alias to swift-up
+  nodesubnet-byocni-nokubeproxy-up          Bring up a Nodesubnet BYO CNI cluster. Does not include secondary IP configs.
   overlay-byocni-up                         Bring up a Overlay BYO CNI cluster
   overlay-byocni-nokubeproxy-up             Bring up a Overlay BYO CNI cluster without kube-proxy
   overlay-cilium-up                         Bring up a Overlay Cilium cluster

@@ -12,14 +12,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-func runCommand(command string) (string, error) {
-	cmd := exec.Command("bash", "-c", command)
+func runAzCommand(params ...string) (string, error) {
 	var out bytes.Buffer
 	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
 	var err error
+	fmt.Println("Running Azure CLI command ", strings.Join(params, " "))
 	for i := 0; i < 3; i++ {
+		cmd := exec.Command("az", params...)
+		cmd.Stdout = &out
+		cmd.Stderr = &stderr
 		err = cmd.Run()
 		if err == nil {
 			break
@@ -27,7 +28,7 @@ func runCommand(command string) (string, error) {
 	}
 
 	if err != nil {
-		return "", errors.Wrap(err, "command failed")
+		return "", errors.Wrap(err, "command failed "+stderr.String())
 	}
 
 	return out.String(), nil
@@ -60,16 +61,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	command := fmt.Sprintf("az vmss list -g %s --query '[0].name' -o tsv", resourceGroup)
-	result, err := runCommand(command)
+	result, err := runAzCommand("vmss", "list", "-g", resourceGroup, "--query", "[0].name", "-o", "tsv")
 	if err != nil {
 		fmt.Printf("Command failed with error: %s\n", err)
 		os.Exit(1)
 	}
 	vmssName := strings.TrimSpace(result)
 
-	command = fmt.Sprintf("az vmss show -g %s -n %s", resourceGroup, vmssName)
-	result, err = runCommand(command)
+	result, err = runAzCommand("vmss", "show", "-g", resourceGroup, "-n", vmssName)
 	if err != nil {
 		fmt.Printf("Command failed with error: %s\n", err)
 		os.Exit(1)
@@ -104,8 +103,14 @@ func main() {
 			for i := 2; i <= secondaryConfigCount+1; i++ {
 				ipConfig := make(map[string]interface{})
 				for k, v := range primaryIPConfig {
+					// only the primary config needs loadBalancerBackendAddressPools. Azure doesn't allow
+					// secondary IP configs to be associated load balancer backend pools.
+					if k == "loadBalancerBackendAddressPools" {
+						continue
+					}
 					ipConfig[k] = v
 				}
+
 				ipConfigName := fmt.Sprintf("ipconfig%d", i)
 				if !contains(usedIPConfigNames, ipConfigName) {
 					ipConfig["name"] = ipConfigName
@@ -125,20 +130,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	escapedNetworkProfileJSON := strings.ReplaceAll(string(networkProfileJSON), `\`, `\\`)
-	escapedNetworkProfileJSON = strings.ReplaceAll(escapedNetworkProfileJSON, `'`, `\'`)
-
-	command = fmt.Sprintf("az vmss update -g %s -n %s --set virtualMachineProfile.networkProfile='%s'", resourceGroup, vmssName, escapedNetworkProfileJSON)
-	fmt.Println("Command to update VMSS: ", command)
-	_, err = runCommand(command)
+	_, err = runAzCommand("vmss", "update", "-g", resourceGroup, "-n", vmssName, "--set", fmt.Sprintf("virtualMachineProfile.networkProfile=%s", networkProfileJSON))
 	if err != nil {
 		fmt.Printf("Command failed with error: %s\n", err)
 		os.Exit(1)
 	}
 
-	command = fmt.Sprintf("az vmss update-instances -g %s -n %s --instance-ids '*'", resourceGroup, vmssName)
-	fmt.Println("Command to update VMSS instances: ", command)
-	_, err = runCommand(command)
+	_, err = runAzCommand("vmss", "update-instances", "-g", resourceGroup, "-n", vmssName, "--instance-ids", "*")
 	if err != nil {
 		fmt.Printf("Command failed with error: %s\n", err)
 		os.Exit(1)
