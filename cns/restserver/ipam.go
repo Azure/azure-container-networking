@@ -1260,20 +1260,25 @@ func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req map[
 		return ErrStoreEmpty
 	}
 	logger.Printf("[updateEndpoint] Updating endpoint state for infra container %s", endpointID)
-	if endpointInfo, ok := service.EndpointState[endpointID]; ok {
-		// Updating the InterfaceInfo map of endpoint states with the interfaceInfo map that is given by Stateless Azure CNI
-		for ifName, interfaceInfo := range req {
-			// updating the ipInfoMap
-			updateIPInfoMap(endpointInfo.IfnameToIPMap, interfaceInfo, ifName, endpointID)
-		}
-		err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
-		if err != nil {
-			return fmt.Errorf("[updateEndpoint] failed to write endpoint state to store for pod %s :  %w", endpointInfo.PodName, err)
-		}
-		logger.Printf("[updateEndpoint] successfully write the state to the file %s", endpointID)
-		return nil
+	endpointInfo, endpointExist := service.EndpointState[endpointID]
+	// create a new entry in case the ednpoint does not exist in the statefile.
+	// this applies to the ACI scenario when the endpoint is not added to the statefile when the goalstate is sent to CNI
+	if !endpointExist {
+		logger.Printf("[updateEndpoint] endpoint could not be found in the statefile %s, new entry is being added", endpointID)
+		endpointInfo = &EndpointInfo{PodName: "", PodNamespace: "", IfnameToIPMap: make(map[string]*IPInfo)}
+		service.EndpointState[endpointID] = endpointInfo
 	}
-	return errors.New("[updateEndpoint] endpoint could not be found in the statefile")
+	// updating the InterfaceInfo map of endpoint states with the interfaceInfo map that is given by Stateless Azure CNI
+	for ifName, interfaceInfo := range req {
+		// updating the ipInfoMap
+		updateIPInfoMap(endpointInfo.IfnameToIPMap, interfaceInfo, ifName, endpointID)
+	}
+	err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
+	if err != nil {
+		return fmt.Errorf("[updateEndpoint] failed to write endpoint state to store for pod %s :  %w", endpointInfo.PodName, err)
+	}
+	logger.Printf("[updateEndpoint] successfully write the state to the file %s", endpointID)
+	return nil
 }
 
 // updateIPInfoMap updates the IfnameToIPMap of endpoint states with the interfaceInfo map that is given by Stateless Azure CNI
