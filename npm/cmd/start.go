@@ -137,6 +137,8 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	stopChannel := wait.NeverStop
 	if config.Toggles.EnableV2NPM {
 		// update the dataplane config
+		npmV2DataplaneCfg.EnableNPMLite = config.Toggles.EnableNPMLite
+
 		npmV2DataplaneCfg.MaxBatchedACLsPerPod = config.MaxBatchedACLsPerPod
 
 		npmV2DataplaneCfg.NetPolInBackground = config.Toggles.NetPolInBackground
