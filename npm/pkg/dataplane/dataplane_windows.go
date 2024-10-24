@@ -357,6 +357,7 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 		metrics.IncListEndpointsFailures()
 		return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints", err)
 	}
+	klog.Infof("NPM liste is enabled: %+v", dp.EnableNPMLite)
 	if dp.EnableNPMLite {
 		timer = metrics.StartNewTimer()
 		endpointsAttached, errL1vh := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryL1VH.query)
