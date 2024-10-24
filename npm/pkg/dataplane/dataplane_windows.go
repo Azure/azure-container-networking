@@ -351,13 +351,12 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 	klog.Info("getting local endpoints")
 	timer := metrics.StartNewTimer()
 	endpoints, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
-	klog.Infof("There are %+v endpoints in AttachedSharing state", len(endpoints))
 	metrics.RecordListEndpointsLatency(timer)
 	if err != nil {
 		metrics.IncListEndpointsFailures()
 		return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints", err)
 	}
-	klog.Infof("NPM liste is enabled: %+v", dp.EnableNPMLite)
+
 	if dp.EnableNPMLite {
 		timer = metrics.StartNewTimer()
 		endpointsAttached, errL1vh := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryL1VH.query)
@@ -365,7 +364,6 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 			metrics.IncListEndpointsFailures()
 			return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints in L1VH", err)
 		}
-		klog.Infof("There are %+v endpoints in Attached state on l1vh", len(endpointsAttached))
 		endpoints = append(endpoints, endpointsAttached...)
 	}
 	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
