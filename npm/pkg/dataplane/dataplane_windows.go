@@ -2,7 +2,6 @@ package dataplane
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Microsoft/hcsshim/hcn"
+	"github.com/pkg/errors"
 	"k8s.io/klog"
 )
 
@@ -63,14 +63,14 @@ func (dp *DataPlane) initializeDataPlane() error {
 	filterMap := map[string]uint16{"State": hcnEndpointStateAttachedSharing}
 	filterMapL1VH := map[string]uint16{"State": hcnEndpointStateAttached}
 
-	filter, err := marshalFilterMap(filterMap)
-
-	filterL1VH, errL1VH := marshalFilterMap(filterMapL1VH)
-
+	filter, err := json.Marshal(filterMap)
 	if err != nil {
-		return err
-	} else if errL1VH != nil {
-		return errL1VH
+		return errors.Wrap(err, "failed to marshal endpoint filter map")
+	}
+
+	filterL1VH, errL1VH := json.Marshal(filterMapL1VH)
+	if errL1VH != nil {
+		return errors.Wrap(errL1VH, "failed to marshal endpoint filter map")
 	}
 
 	dp.endpointQuery.query.Filter = string(filter)
@@ -81,14 +81,6 @@ func (dp *DataPlane) initializeDataPlane() error {
 	dp.endpointCache.cache = make(map[string]*npmEndpoint)
 
 	return nil
-}
-
-func marshalFilterMap(filtermap map[string]uint16) ([]byte, error) {
-	filter, err := json.Marshal(filtermap)
-	if err != nil {
-		return nil, npmerrors.SimpleErrorWrapper("failed to marshal endpoint filter map", err)
-	}
-	return filter, nil
 }
 
 func (dp *DataPlane) getNetworkInfo() error {
