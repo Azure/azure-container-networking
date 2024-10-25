@@ -350,6 +350,7 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 	klog.Info("getting local endpoints")
 	timer := metrics.StartNewTimer()
 	endpoints, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
+	klog.Infof("There are %+v endpoints with state: attached sharing", len(endpoints)) // Will remove after debugging
 	metrics.RecordListEndpointsLatency(timer)
 	if err != nil {
 		metrics.IncListEndpointsFailures()
@@ -359,6 +360,7 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 	if dp.EnableNPMLite {
 		timer = metrics.StartNewTimer()
 		endpointsAttached, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryL1VH.query)
+		klog.Infof("There are %+v endpoints with state: attached", len(endpointsAttached)) // Will remove after debugging
 		metrics.RecordListEndpointsLatency(timer)
 		if err != nil {
 			metrics.IncListEndpointsFailures()
