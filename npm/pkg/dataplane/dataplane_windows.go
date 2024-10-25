@@ -69,9 +69,9 @@ func (dp *DataPlane) initializeDataPlane() error {
 
 	if dp.EnableNPMLite {
 		filterMapL1VH := map[string]uint16{"State": hcnEndpointStateAttached}
-		filterL1VH, errL1VH := json.Marshal(filterMapL1VH)
-		if errL1VH != nil {
-			return errors.Wrap(errL1VH, "failed to marshal endpoint filter map")
+		filterL1VH, err := json.Marshal(filterMapL1VH)
+		if err != nil {
+			return errors.Wrap(err, "failed to marshal endpoint filter map")
 		}
 		dp.endpointQueryL1VH.query.Filter = string(filterL1VH)
 	}
@@ -357,11 +357,11 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 
 	if dp.EnableNPMLite {
 		timer = metrics.StartNewTimer()
-		endpointsAttached, errL1vh := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryL1VH.query)
+		endpointsAttached, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryL1VH.query)
 		metrics.RecordListEndpointsLatency(timer)
-		if errL1vh != nil {
+		if err != nil {
 			metrics.IncListEndpointsFailures()
-			return nil, errors.Wrap(errL1vh, "failed to get local pod endpoints in L1VH")
+			return nil, errors.Wrap(err, "failed to get local pod endpoints in L1VH")
 		}
 		endpoints = append(endpoints, endpointsAttached...)
 	}
