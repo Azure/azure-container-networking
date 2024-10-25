@@ -1,0 +1,197 @@
+
+parameters:
+- name: serviceConnection
+  type: string
+
+- name: createCondition
+  type: object
+  default: 'succeeded()'
+
+- name: updateCondition
+  type: object
+  default: 'succeeded()'
+
+- name: refreshAfterCreation
+  type: boolean
+  default: False
+
+- name: resourceType
+  type: string
+  values:
+  - roleassignments
+  - resourcegroups
+  - storageaccounts
+  - roledefinition
+  - managedidentity
+  - serviceconnection
+
+- name: inputs 
+  type: object
+  default: {}
+- name: outputVariableName
+  type: string
+  default: 'OUT_RESULT'
+
+steps:
+
+- ${{ if parameters.createCondition }}:
+  - task: AzureCLI@2
+    displayName: "[Create] ARM Details - (${{ parameters.resourceType }})"
+    condition: ${{ parameters.createCondition }}
+
+    env:
+      BUILDTAG_DEFINITIONID: ${{ parameters.inputs.buildTagDefinitionIdKey }}
+      BUILDTAG_CREATEDBYAPPID: ${{ parameters.inputs.buildTagCreatedByAppIdKey }}
+      BUILDTAG_CREATEDBYBUILDID: ${{ parameters.inputs.buildTagCreatedByBuildIdKey }}
+      ${{ if eq(parameters.resourceType, 'roleassignments') }}:
+        ROLE_NAME: ${{ parameters.inputs.roleName }}
+        RESOURCEGROUP_ID: ${{ parameters.inputs.resourceGroupId }}
+        MANAGEDIDENTITY_OBJECTID: ${{ parameters.inputs.managedIdentityObjectId }}
+
+      ${{ elseif eq(parameters.resourceType, 'resourcegroups') }}:
+        RESOURCEGROUP_NAME: ${{ parameters.inputs.resourceGroupName }}
+        RESOURCEGROUP_LOCATION: ${{ parameters.inputs.resourceGroupLocation }}
+
+      ${{ elseif eq(parameters.resourceType, 'storageaccounts') }}:
+        MANAGEDIDENTITY_ARMID: ${{ parameters.inputs.managedIdentityResourceId }}
+        RESOURCEGROUP_NAME: ${{ parameters.inputs.resourceGroupName }}
+        STORAGEACCOUNT_LOCATION: ${{ parameters.inputs.storageAccountLocation }}
+        STORAGEACCOUNT_NAME: ${{ parameters.inputs.storageAccountName }}
+
+      ${{ elseif eq(parameters.resourceType, 'roledefinition') }}:
+        ROLEDEFINITION_JSON: ${{ parameters.inputs.roleDefinitionJson }}
+
+      ${{ elseif eq(parameters.resourceType, 'managedidentity') }}:
+        RESOURCEGROUP_NAME: ${{ parameters.inputs.resourceGroupName }}
+        MANAGEDIDENTITY_NAME: ${{ parameters.inputs.managedIdentityName }}
+        MANAGEDIDENTITY_LOCATION: ${{ parameters.inputs.managedIdentityLocation }}
+
+      ${{ elseif eq(parameters.resourceType, 'serviceconnection') }}:
+        AZURE_DEVOPS_EXT_AZURE_RM_SERVICE_PRINCIPAL_KEY: $(System.AccessToken)
+        AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+        SERVICECONNECTION_PRINCIPALID: ${{ parameters.inputs.serviceConnectionPrincipalId }}
+        SUBSCRIPTION_ID: ${{ parameters.inputs.subscriptionId }}
+        SUBSCRIPTION_NAME: ${{ parameters.inputs.subscriptionName }}
+        SERVICECONNECTION_TENANT_ID: ${{ parameters.inputs.tenantId }}
+        SERVICECONNECTION_NAME: ${{ parameters.inputs.serviceConnectionName }}
+
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      addSpnToEnvironment: true
+  
+      ${{ if eq(parameters.resourceType, 'roleassignments') }}:
+        inlineScript: |
+          set -e
+          [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+    
+          az role assignment create \
+            --role "$ROLE_NAME" \
+            --assignee-object-id "$MANAGEDIDENTITY_OBJECTID" \
+            --assignee-principal-type ServicePrincipal \
+            --scope "$RESOURCEGROUP_ID"
+
+      ${{ elseif eq(parameters.resourceType, 'resourcegroups') }}:
+        inlineScript: |
+          set -e
+          [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+  
+          az group create \
+            --name "$RESOURCEGROUP_NAME" \
+            --location "$RESOURCEGROUP_LOCATION" \
+            --tags "$BUILDTAG_DEFINITIONID"="$SYSTEM_DEFINITIONID" \
+                   "$BUILDTAG_CREATEDBYBUILDID"="$BUILD_BUILDID" \
+                   "$BUILDTAG_CREATEDBYAPPID"="$servicePrincipalId"
+  
+      ${{ elseif eq(parameters.resourceType, 'storageaccounts') }}:
+        inlineScript: |
+          set -e
+          #[[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+          az upgrade -y
+
+          echo "az storage account create --name "$STORAGEACCOUNT_NAME" --location "$STORAGEACCOUNT_LOCATION" --resource-group "$RESOURCEGROUP_NAME" --allow-blob-public-access false --allow-shared-key-access false --tags "$BUILDTAG_DEFINITIONID"="$SYSTEM_DEFINITIONID" "$BUILDTAG_CREATEDBYBUILDID"="$BUILD_BUILDID" "$BUILDTAG_CREATEDBYAPPID"="$servicePrincipalId""
+          az storage account create --name "$STORAGEACCOUNT_NAME" --location "$STORAGEACCOUNT_LOCATION" --resource-group "$RESOURCEGROUP_NAME" --allow-blob-public-access false --allow-shared-key-access false --tags "$BUILDTAG_DEFINITIONID"="$SYSTEM_DEFINITIONID" "$BUILDTAG_CREATEDBYBUILDID"="$BUILD_BUILDID" "$BUILDTAG_CREATEDBYAPPID"="$servicePrincipalId"
+    
+      ${{ elseif eq(parameters.resourceType, 'roledefinition') }}:
+        inlineScript: |
+          set -e
+          [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+          az role definition create --role-definition "$ROLEDEFINITION_JSON"
+
+      ${{ elseif eq(parameters.resourceType, 'managedidentity') }}:
+        inlineScript: |
+          set -e
+          [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+          az identity create \
+            --name "$MANAGEDIDENTITY_NAME" \
+            --location "$MANAGEDIDENTITY_LOCATION" \
+            --resource-group "$RESOURCEGROUP_NAME" \
+            --tags "$ACNCI_BUILDTAG_DEFINITIONID"="$SYSTEM_DEFINITIONID" \
+                   "$ACNCI_BUILDTAG_CREATEDBYBUILDID"="$BUILD_BUILDID" \
+                   "$ACNCI_BUILDTAG_CREATEDBYAPPID"="$servicePrincipalId"
+  
+      ${{ elseif eq(parameters.resourceType, 'serviceconnection') }}:
+        inlineScript: |
+          set -e
+          [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+          az config set extension.use_dynamic_install=yes_without_prompt
+          #az devops login --identity "$SERVICECONNECTION_PRINCIPALID"
+          az config set extension.dynamic_install_allow_preview=true
+          az devops login
+          az devops service-endpoint azurerm create \
+            --org "https://dev.azure.com/msazure/" \
+            --azure-rm-service-principal-id "$SERVICECONNECTION_PRINCIPALID" \
+            --azure-rm-subscription-id "$SUBSCRIPTION_ID" \
+            --azure-rm-subscription-name "$SUBSCRIPTION_NAME" \
+            --azure-rm-tenant-id "$SERVICECONNECTION_TENANT_ID"\
+            --name "$SERVICECONNECTION_NAME" \
+            --project "One" --debug
+
+
+
+  - ${{ if parameters.refreshAfterCreation }}:
+    # Update data list
+    - template: get-resources.steps.yaml
+      parameters:
+        resourceType: ${{ parameters.resourceType }}
+        serviceConnection: ${{ parameters.serviceConnection }}
+        inputs: 
+          buildTagDefinitionIdKey: ${{ parameters.inputs.buildTagDefinitionIdKey }}
+          buildTagCreatedByAppIdKey: ${{ parameters.inputs.buildTagCreatedByAppIdKey }}
+          ${{ if eq(parameters.resourceType, 'managedidentity') }}:
+            resourceGroupName: ${{ parameters.inputs.resourceGroupName }}
+  
+          ${{ elseif eq(parameters.resourceType, 'roledefinition') }}:
+            roleName: ${{ parameters.inputs.roleName }}
+            roleDefinitionFileLocation: ${{ parameters.inputs.roleDefinitionFileLocation }}
+            subscriptionId: ${{ parameters.inputs.subscriptionId }}
+  
+          ${{ elseif eq(parameters.resourceType, 'storageaccounts') }}:
+            resourceGroupName: ${{ parameters.inputs.resourceGroupName }}
+
+
+- ${{ if and(parameters.updateCondition, eq(parameters.resourceType, 'roledefinition')) }}:
+  - task: AzureCLI@2
+    displayName: "[Update] ARM Details - (${{ parameters.resourceType }})"
+    condition: ${{ parameters.updateCondition }}
+
+    env:
+      ${{ if eq(parameters.resourceType, 'roledefinition') }}:
+        ROLEDEFINITION_JSON: ${{ parameters.inputs.roleDefinitionJson }}
+
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      addSpnToEnvironment: true
+    
+      ${{ if eq(parameters.resourceType, 'roledefinition') }}:
+        inlineScript: |
+          set -e
+          [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+          az role definition update --role-definition "$ROLEDEFINITION_JSON"

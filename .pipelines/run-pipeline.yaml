@@ -16,14 +16,14 @@ parameters:
   type: string
   default: ''
 
-
 stages:
   - stage: setup
-    displayName: ACN
+    displayName: "[PreBuild] Configure and Provision Required Resources"
     # Block build start until pre-build validation occurs.
     dependsOn: pre_build
     variables:
       ACN_DIR: $(Build.SourcesDirectory)
+      SYSTEM_DEBUG: $[ coalesce(variables.SYSTEM_DEBUG, 'False') ]
     jobs:
       - job: env
         displayName: Setup
@@ -52,6 +52,31 @@ stages:
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
 
+      - job: resources
+        displayName: "[Infra] Configure Artifact Resources"
+        variables:
+          ACNCI_BUILDUSER_ROLE_NAME: "ACN CI/CD Build Environment Owner"
+          ACNCI_MANAGEDIDENTITY_PREFIX: acnci-builds-
+          ACNCI_RG_PREFIX: acnci-builds-
+          ACNCI_RG_LOCATION: centralus
+          ACNCI_RG_POOL_SIZE: 3
+          ACNCI_SA_PREFIX: acnci
+          ACNCI_SA_LOCATION: $(ACNCI_RG_LOCATION)
+          ACNCI_SA_POOL_SIZE: 1
+          ACNCI_BUILDTAG_DEFINITIONID: 'Pipelines.DefinitionID'
+          ACNCI_BUILDTAG_CREATEDBYAPPID: 'Pipelines.CreatedByAppID'
+          ACNCI_BUILDTAG_CREATEDBYBUILDID: 'Pipelines.CreatedByBuildID'
+          CREATE_NEW_SA: False
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)
+          ob_git_checkout: true
+        pool:
+          type: linux
+        steps:
+        - checkout: ACNTools
+          clean: true
+  
+        - template: templates/artifact-storage.steps.yaml@ACNTools
+
   - template: templates/unit-tests.stages.yaml@ACNTools
 
   - ${{ if not(contains(parameters.triggerBuildSourceBranch, 'refs/pull')) }}:
@@ -62,6 +87,9 @@ stages:
         - test
       variables:
         ACN_DIR: $(Build.SourcesDirectory)
+        SA_NAME: $[ stageDependencies.setup.resources.outputs['artifact_storage.ACNCI_STORAGEACCOUNT_NAME'] ]
+        CONTAINER_NAME: $[ stageDependencies.setup.resources.outputs['artifact_container.ACNCI_STORAGEACCOUNT_ARTIFACT_CONTAINER'] ]
+        BLOB_PATH: $[ stageDependencies.setup.resources.outputs['artifact_blob.ACNCI_STORAGEACCOUNT_BLOBPATH'] ]
       jobs:
         - job: build
           displayName: Build Binaries
@@ -69,6 +97,8 @@ stages:
             STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
             ob_outputDirectory: $(Build.ArtifactStagingDirectory)
             ob_git_checkout: true
+            ob_artifactSuffix: $(System.JobAttempt)
+            ob_artifactBaseName: drop_binaries_build
           pool:
             isCustom: true
             type: linux
@@ -94,11 +124,38 @@ stages:
               name: "PrepareArtifacts"
               displayName: "Prepare Artifacts"
 
-            - task: CopyFiles@2
-              inputs:
-                sourceFolder: "output"
-                targetFolder: $(Build.ArtifactStagingDirectory)
-              condition: succeeded()
+            - template: templates/copy-storage-artifacts.steps.yaml@ACNTools
+              parameters:
+                targetFolder: binary-output
+                sourceFolder: $(Build.ArtifactStagingDirectory)
+
+        - job:
+          displayName: "[Publish] Generate Binary Artifacts" 
+          dependsOn:
+          - build
+          pool:
+            type: linux
+          variables:
+            blobName: binary-output
+            ob_outputDirectory: $(Build.ArtifactStagingDirectory)
+            ob_git_checkout: true
+          steps:
+          - checkout: ACNTools
+            clean: true
+
+          - template: templates/download-storage-artifacts.steps.yaml
+            parameters:
+              artifactName: binary-output
+              
+#            - publish: ${Build.ArtifactStagingDirectory)
+#              artifact: drop_binaries_build
+#              condition: succeeded()
+#            - task: CopVyFiles@2
+#              inputs:
+#                sourceFolder: "output"
+#                targetFolder: $(Build.ArtifactStagingDirectory)
+#              condition: succeeded()
+
 
     - stage: containerize
       displayName: Build Images
@@ -107,6 +164,7 @@ stages:
         - test
       variables:
         ACN_DIR: $(Build.SourcesDirectory)
+        SYSTEM_DEBUG: $[ coalesce(variables.SYSTEM_DEBUG, 'False') ]
       jobs:
         - job: containerize_amd64
           displayName: Build Images
@@ -268,6 +326,7 @@ stages:
       variables:
         Packaging.EnableSBOMSigning: false
         ACN_DIR: $(Build.SourcesDirectory)
+        SYSTEM_DEBUG: $[ coalesce(variables.SYSTEM_DEBUG, 'False') ]
       jobs:
         - job: manifest
           displayName: Compile Manifests
@@ -474,6 +533,7 @@ stages:
       variables:
         ACN_DIR: $(Build.SourcesDirectory)
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+        SYSTEM_DEBUG: $[ coalesce(variables.SYSTEM_DEBUG, 'False') ]
       jobs:
         - job: delete
           displayName: Delete Cluster

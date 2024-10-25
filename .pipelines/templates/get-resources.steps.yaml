@@ -1,0 +1,189 @@
+
+parameters:
+- name: serviceConnection
+  type: string
+
+- name: resourceType
+  type: string
+  values:
+  - roleassignments
+  - resourcegroups
+  - storageaccounts
+  - roledefinition
+  - managedidentity
+  - serviceconnection
+
+- name: inputs 
+  type: object
+  default: {}
+
+- name: outputVariableName
+  type: string
+  default: 'OUT_RESULT'
+
+steps:
+- task: AzureCLI@2
+  displayName: "[Get] ARM Details - (${{ parameters.resourceType }})"
+
+  env:
+    VAR_NAME: ${{ parameters.outputVariableName }}
+    BUILDTAG_DEFINITIONID: ${{ parameters.inputs.buildTagDefinitionIdKey }}
+    BUILDTAG_CREATEDBYAPPID: ${{ parameters.inputs.buildTagCreatedByAppIdKey }}
+    ${{ if eq(parameters.resourceType, 'roledefinition') }}:
+      SUBSCRIPTION_ID: ${{ parameters.inputs.subscriptionId }}
+      ROLE_NAME: ${{ parameters.inputs.roleName }}
+      ROLEDEFINITION_FILEPATH: ${{ parameters.inputs.roleDefinitionFileLocation }}
+
+    ${{ elseif eq(parameters.resourceType, 'roleassignments') }}:
+      MANAGEDIDENTITY_OBJECTID: ${{ parameters.inputs.managedIdentityObjectId }}
+      RESOURCEGROUP_NAME: ${{ parameters.inputs.resourceGroupName }}
+      ROLE_NAME: ${{ parameters.inputs.roleName }}
+
+    ${{ elseif eq(parameters.resourceType, 'resourcegroups') }}:
+      # Allows use of az devops commands
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+
+    ${{ elseif eq(parameters.resourceType, 'storageaccounts') }}:
+      RESOURCEGROUP_NAME: ${{ parameters.inputs.resourceGroupName }}
+
+    ${{ elseif eq(parameters.resourceType, 'managedidentity') }}:
+      RESOURCEGROUP_NAME: ${{ parameters.inputs.resourceGroupName }}
+
+    ${{ elseif eq(parameters.resourceType, 'serviceconnection') }}:
+      # Allows use of az devops commands
+      AZURE_DEVOPS_EXT_AZURE_RM_SERVICE_PRINCIPAL_KEY: $(System.AccessToken)
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+      SERVICECONNECTION_NAME: ${{ parameters.inputs.serviceConnectionName }}
+
+  inputs:
+    azureSubscription: ${{ parameters.serviceConnection }}
+    scriptType: bash
+    scriptLocation: inlineScript
+    addSpnToEnvironment: true
+
+    ${{ if eq(parameters.resourceType, 'roledefinition') }}:
+      inlineScript: |
+        set -e
+        [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+  
+        DEF_LIST=$(az role definition list \
+          --name "$ROLE_NAME" \
+          --custom-role-only \
+          -ojson | jq -rc '.')
+        DEF=$(echo "$DEF_LIST" | jq -rc .[0])
+        DEFS_FOUND=$(echo "$DEF_LIST" | jq length)
+  
+        if [[ -z $DEF_LIST ]] || \
+           [[ $DEFS_FOUND == 'null' ]] || \
+           (( $DEFS_FOUND < 1 )); then
+
+          DEF=$(cat "$ROLEDEFINITION_FILEPATH" | \
+            jq -rc \
+              --arg RESOURCEID "/subscriptions/$SUBSCRIPTION_ID" \
+              '.assignableScopes[] = $RESOURCEID')
+        fi
+
+        echo >&2 "##vso[task.setvariable variable=${VAR_NAME};]$DEF"
+        echo >&2 "##vso[task.setvariable variable=${VAR_NAME}_LENGTH;]$DEFS_FOUND"
+  
+
+    ${{ elseif eq(parameters.resourceType, 'roleassignments') }}:
+      inlineScript: |
+        set -e
+        [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+  
+        R_QUERY="[? principalId == '$MANAGEDIDENTITY_OBJECTID' ]"
+        MI_ROLE_DATA=$(az role assignment list \
+          --role "$ROLE_NAME" \
+          --resource-group "$RESOURCEGROUP_NAME" \
+          --query "$R_QUERY" \
+          --output json | jq -rc '.')
+        MI_ROLE_DATA_LENGTH=$(echo "$MI_ROLE_DATA" | jq length)
+  
+        echo >&2 "##vso[task.setvariable variable=${VAR_NAME};]$MI_ROLE_DATA"
+        echo >&2 "##vso[task.setvariable variable=${VAR_NAME}_LENGTH;]$MI_ROLE_DATA_LENGTH"
+
+
+    ${{ elseif eq(parameters.resourceType, 'resourcegroups') }}:
+      inlineScript: |
+        set -e
+        [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+  
+        # Get Pipeline Build Subscriptions.
+        R_QUERY="[? tags.\""$BUILDTAG_DEFINITIONID"\" && tags.\""$BUILDTAG_CREATEDBYAPPID"\"]"
+        INFRA_RG_LIST=$(az group list --query "$R_QUERY" \
+          --tag "$BUILDTAG_DEFINITIONID"="$SYSTEM_DEFINITIONID" \
+          --tag "$BUILDTAG_CREATEDBYAPPID"="$servicePrincipalId" -o json | jq -rc '.')
+        INFRA_RG_LENGTH=$(echo "$INFRA_RG_LIST" | jq length)
+  
+        echo >&2 "##vso[task.setvariable variable=${VAR_NAME};]$INFRA_RG_LIST"
+        echo >&2 "##vso[task.setvariable variable=${VAR_NAME}_LENGTH;]$INFRA_RG_LENGTH"
+
+
+    ${{ elseif eq(parameters.resourceType, 'storageaccounts') }}:
+      inlineScript: |
+        set -eu
+        [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+  
+        # Query for Test Storage Accounts
+        R_QUERY="[? tags.\""$BUILDTAG_DEFINITIONID"\" && tags.\""$BUILDTAG_CREATEDBYAPPID"\"]"
+        # JSON of Returned Results
+        az storage account list \
+          --resource-group "$RESOURCEGROUP_NAME" \
+          --query "$R_QUERY" 
+        R_LIST=$(az storage account list \
+          --resource-group "$RESOURCEGROUP_NAME" \
+          --query "$R_QUERY" | \
+          jq -rc \
+            --arg BUILDTAG_CREATEDBYAPPID "$BUILDTAG_CREATEDBYAPPID" \
+            --arg APPID "$servicePrincipalId" \
+            --arg BUILDTAG_DEFINITIONID "$BUILDTAG_DEFINITIONID" \
+            --arg DEFINITIONID "$SYSTEM_DEFINITIONID" \
+          '[ .[] | select(.tags[$BUILDTAG_DEFINITIONID] == $DEFINITIONID ) | select( .tags[$BUILDTAG_CREATEDBYAPPID] == $APPID) ]')
+        # Length of resource list
+        R_LIST_LENGTH=$(echo "$R_LIST" | jq length)
+  
+        # Export the available storage account list..
+        #  uses custom variable naming if specified.
+        echo >&2 "##vso[task.setvariable variable=${VAR_NAME};]$R_LIST"
+        echo >&2 "##vso[task.setvariable variable=${VAR_NAME}_LENGTH;]$R_LIST_LENGTH"
+
+
+    ${{ elseif eq(parameters.resourceType, 'managedidentity') }}:
+      inlineScript: |
+        set -e
+        [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+  
+        R_QUERY="[? tags.\""$BUILDTAG_DEFINITIONID"\" && tags.\""$BUILDTAG_CREATEDBYAPPID"\"]"
+        MI_LIST=$(az identity list \
+          --resource-group "$RESOURCEGROUP_NAME" \
+          --query "$R_QUERY" -o json | \
+          jq -rc \
+            --arg BUILDTAG_CREATEDBYAPPID "$BUILDTAG_CREATEDBYAPPID" \
+            --arg APPID "$servicePrincipalId" \
+            --arg BUILDTAG_DEFINITIONID "$BUILDTAG_DEFINITIONID" \
+            --arg DEFINITIONID "$SYSTEM_DEFINITIONID" \
+          '[ .[] | select(.tags[$BUILDTAG_DEFINITIONID] == $DEFINITIONID ) | select( .tags[$BUILDTAG_CREATEDBYAPPID] == $APPID) ]')
+        MI_LIST_LENGTH=$(echo "$MI_LIST" | jq length)
+  
+        echo >&2 "##vso[task.setvariable variable=${VAR_NAME};]$MI_LIST"
+        echo >&2 "##vso[task.setvariable variable=${VAR_NAME}_LENGTH;]$MI_LIST_LENGTH"
+
+    ${{ elseif eq(parameters.resourceType, 'serviceconnection') }}:
+      inlineScript: |
+        set -eu
+        [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ $IS_TRUE ]] && set -x || set +x
+
+        R_QUERY="[? name == '$SERVICECONNECTION_NAME' ]"
+        # JSON of Returned Results
+        R_LIST=$(az devops service-endpoint list \
+          --query "$R_QUERY" \
+          -ojson | \
+        jq -rc '.')
+        DEF=$(echo "$R_LIST" | jq -rc .[0])
+        DEFS_FOUND=$(echo "$R_LIST" | jq length)
+          
+        # Export the available storage account list..
+        #  uses custom variable naming if specified.
+        echo >&2 "##vso[task.setvariable variable=${VAR_NAME};]$DEF"
+        echo >&2 "##vso[task.setvariable variable=${VAR_NAME}_LENGTH;]$DEFS_FOUND"
