@@ -352,7 +352,7 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 	timer := metrics.StartNewTimer()
 	endpoints, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
 	for _, endpoint1 := range endpoints {
-		klog.Infof("ID: %s, Name: %+v", endpoint1.Id, endpoint1.Name)
+		klog.Infof(" AttachedSharing: ID: %s, Name: %+v", endpoint1.Id, endpoint1.Name)
 	} // Debugging
 	klog.Infof("There are %+v endpoints with state: attached sharing", len(endpoints)) // Will remove after debugging
 	metrics.RecordListEndpointsLatency(timer)
@@ -364,7 +364,7 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 	if dp.EnableNPMLite {
 		timer = metrics.StartNewTimer()
 		endpointsAttached, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryL1VH.query)
-		klog.Infof("There are %+v endpoints with state: attached", len(endpointsAttached)) // Will remove after debugging
+		klog.Infof("Attached: There are %+v endpoints with state: attached", len(endpointsAttached)) // Will remove after debugging
 		for _, endpoint := range endpointsAttached {
 			klog.Infof("ID: %s, Name: %+v", endpoint.Id, endpoint.Name)
 		} // Debugging
