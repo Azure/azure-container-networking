@@ -65,7 +65,13 @@ func (dp *DataPlane) initializeDataPlane() error {
 
 	filter, err := marshalFilterMap(filterMap)
 
-	filterL1VH, err := marshalFilterMap(filterMapL1VH)
+	filterL1VH, errL1VH := marshalFilterMap(filterMapL1VH)
+
+	if err != nil {
+		return err
+	} else if errL1VH != nil {
+		return errL1VH
+	}
 
 	dp.endpointQuery.query.Filter = string(filter)
 	dp.endpointQueryL1VH.query.Filter = string(filterL1VH)
@@ -360,6 +366,7 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 	if dp.EnableNPMLite {
 		timer = metrics.StartNewTimer()
 		endpointsAttached, errL1vh := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryL1VH.query)
+		metrics.RecordListEndpointsLatency(timer)
 		if errL1vh != nil {
 			metrics.IncListEndpointsFailures()
 			return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints in L1VH", err)

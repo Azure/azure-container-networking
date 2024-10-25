@@ -69,7 +69,7 @@ type DataPlane struct {
 	ioShim            *common.IOShim
 	updatePodCache    *updatePodCache
 	endpointQuery     *endpointQuery
-	endpointQueryL1VH *endpointQuery //windows -> filter for state 2 (attached) endpoints in l1vh
+	endpointQueryL1VH *endpointQuery // windows -> filter for state 2 (attached) endpoints in l1vh
 	applyInfo         *applyInfo
 	netPolQueue       *netPolQueue
 	// removePolicyInfo tracks when a policy was removed yet had ApplyIPSet failures.
