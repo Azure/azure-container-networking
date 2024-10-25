@@ -348,7 +348,7 @@ func (dp *DataPlane) getEndpointsToApplyPolicies(netPols []*policies.NPMNetworkP
 
 func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
 	klog.Info("getting local endpoints")
-	klog.Info("npm lite is enabled: %+v", dp.EnableNPMLite) //Will remove after debugging
+	klog.Info("npm lite is enabled: %+v", dp.EnableNPMLite) // Will remove after debugging
 	timer := metrics.StartNewTimer()
 	endpoints, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
 	klog.Infof("There are %+v endpoints with state: attached sharing", len(endpoints)) // Will remove after debugging
