@@ -61,20 +61,20 @@ func (dp *DataPlane) initializeDataPlane() error {
 
 	// Filter out any endpoints that are not in "AttachedShared" State. All running Windows pods with networking must be in this state.
 	filterMap := map[string]uint16{"State": hcnEndpointStateAttachedSharing}
-	filterMapL1VH := map[string]uint16{"State": hcnEndpointStateAttached}
-
 	filter, err := json.Marshal(filterMap)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal endpoint filter map")
 	}
-
-	filterL1VH, errL1VH := json.Marshal(filterMapL1VH)
-	if errL1VH != nil {
-		return errors.Wrap(errL1VH, "failed to marshal endpoint filter map")
-	}
-
 	dp.endpointQuery.query.Filter = string(filter)
-	dp.endpointQueryL1VH.query.Filter = string(filterL1VH)
+
+	if dp.EnableNPMLite {
+		filterMapL1VH := map[string]uint16{"State": hcnEndpointStateAttached}
+		filterL1VH, errL1VH := json.Marshal(filterMapL1VH)
+		if errL1VH != nil {
+			return errors.Wrap(errL1VH, "failed to marshal endpoint filter map")
+		}
+		dp.endpointQueryL1VH.query.Filter = string(filterL1VH)
+	}
 
 	// reset endpoint cache so that netpol references are removed for all endpoints while refreshing pod endpoints
 	// no need to lock endpointCache at boot up
