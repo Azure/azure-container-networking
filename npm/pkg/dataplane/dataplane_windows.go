@@ -63,15 +63,16 @@ func (dp *DataPlane) initializeDataPlane() error {
 	filterMap := map[string]uint16{"State": hcnEndpointStateAttachedSharing}
 	filter, err := json.Marshal(filterMap)
 	if err != nil {
-		return errors.Wrap(err, "failed to marshal endpoint filter map")
+		return errors.Wrap(err, "failed to marshal endpoint filter map for attachedsharing state")
 	}
 	dp.endpointQuery.query.Filter = string(filter)
 
+	// Filter out any endpoints that are not in "Attached" State. All running Windows L1VH pods with networking must be in this state.
 	if dp.EnableNPMLite {
 		filterMapL1VH := map[string]uint16{"State": hcnEndpointStateAttached}
 		filterL1VH, err := json.Marshal(filterMapL1VH)
 		if err != nil {
-			return errors.Wrap(err, "failed to marshal endpoint filter map")
+			return errors.Wrap(err, "failed to marshal endpoint filter map for attched state on L1VH Node")
 		}
 		dp.endpointQueryL1VH.query.Filter = string(filterL1VH)
 	}
