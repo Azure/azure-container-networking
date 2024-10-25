@@ -352,7 +352,7 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 	metrics.RecordListEndpointsLatency(timer)
 	if err != nil {
 		metrics.IncListEndpointsFailures()
-		return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints", err)
+		return nil, errors.Wrap(err, "failed to get local pod endpoints")
 	}
 
 	if dp.EnableNPMLite {
@@ -361,7 +361,7 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 		metrics.RecordListEndpointsLatency(timer)
 		if errL1vh != nil {
 			metrics.IncListEndpointsFailures()
-			return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints in L1VH", err)
+			return nil, errors.Wrap(errL1vh, "failed to get local pod endpoints in L1VH")
 		}
 		endpoints = append(endpoints, endpointsAttached...)
 	}
