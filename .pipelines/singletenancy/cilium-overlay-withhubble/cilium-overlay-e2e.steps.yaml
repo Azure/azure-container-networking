@@ -32,7 +32,7 @@ steps:
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         ls -lah
         export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
-        export DIR=${CILIUM_VERSION_TAG%.*}
+        export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
         echo "installing files from ${DIR}"
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
