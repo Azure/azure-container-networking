@@ -373,13 +373,45 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 			metrics.IncListEndpointsFailures()
 			return nil, errors.Wrap(err, "failed to get local pod endpoints in L1VH")
 		}
-		endpoints = append(endpoints, endpointsAttached...)
+		// TODO -> Check if endpoints and endpointsAttached have any same endpoint and if so filter those out
+		endpoints = removeCommonEndpoints(endpoints, endpointsAttached)
 	}
 	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
 	for k := range endpoints {
 		epPointers = append(epPointers, &endpoints[k])
 	}
 	return epPointers, nil
+}
+
+func removeCommonEndpoints(endpoints, endpointsAttached []hcn.HostComputeEndpoint) []hcn.HostComputeEndpoint {
+	smaller, larger := endpoints, endpointsAttached
+	if len(endpoints) > len(endpointsAttached) {
+		smaller, larger = endpointsAttached, endpoints
+	}
+
+	// Use a map to track the IDs in the smaller array
+	idMap := make(map[string]struct{}, len(smaller))
+	for _, ep := range smaller {
+		idMap[ep.Id] = struct{}{}
+	}
+
+	// Collect unique elements from both arrays
+	var result []hcn.HostComputeEndpoint
+	for _, ep := range larger {
+		if _, found := idMap[ep.Id]; !found {
+			result = append(result, ep) // Unique to larger array
+		} else {
+			delete(idMap, ep.Id) // Remove common element from map
+		}
+	}
+
+	// Append remaining unique elements from the smaller array
+	for _, ep := range smaller {
+		if _, found := idMap[ep.Id]; found {
+			result = append(result, ep)
+		}
+	}
+	return result
 }
 
 // refreshPodEndpoints will refresh all the pod endpoints and create empty netpol references for new endpoints
