@@ -436,7 +436,8 @@ cni-image: ## build cni container image.
 		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION)
+		OS_VERSION=$(OS_VERSION) \
+		EXTRA_BUILD_ARGS='--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
 
 cni-image-push: ## push cni container image.
 	$(MAKE) container-push \
