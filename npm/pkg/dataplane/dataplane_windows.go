@@ -66,6 +66,7 @@ func (dp *DataPlane) initializeDataPlane() error {
 		return errors.Wrap(err, "failed to marshal endpoint filter map for attachedsharing state")
 	}
 	dp.endpointQuery.query.Filter = string(filter)
+	klog.Infof("Attached Sharing State filter- %+v", string(filter))
 
 	// Filter out any endpoints that are not in "Attached" State. All running Windows L1VH pods with networking must be in this state.
 	if dp.EnableNPMLite {
@@ -75,6 +76,7 @@ func (dp *DataPlane) initializeDataPlane() error {
 			return errors.Wrap(err, "failed to marshal endpoint filter map for attched state on L1VH Node")
 		}
 		dp.endpointQueryL1VH.query.Filter = string(filterL1VH)
+		klog.Infof("AttachedState filter- %+v", string(filterL1VH))
 	}
 
 	// reset endpoint cache so that netpol references are removed for all endpoints while refreshing pod endpoints
@@ -375,6 +377,9 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 		}
 		// TODO -> Check if endpoints and endpointsAttached have any same endpoint and if so filter those out
 		endpoints = removeCommonEndpoints(endpoints, endpointsAttached)
+		for _, endpoint := range endpoints {
+			klog.Infof("combined enpoints ID: %s, Name: %+v", endpoint.Id, endpoint.Name)
+		}
 	}
 	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
 	for k := range endpoints {
