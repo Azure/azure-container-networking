@@ -34,7 +34,7 @@ steps:
         kubectl cluster-info
         kubectl get po -owide -A
         echo "install Cilium ${CILIUM_DUALSTACK_VERSION}"
-        export DIR=${CILIUM_DUALSTACK_VERSION%.*}
+        export DIR=$(echo ${CILIUM_DUALSTACK_VERSION#v} | cut -d. -f1,2)
         echo "installing files from ${DIR}"
         echo "deploy Cilium ConfigMap"
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-dualstack.yaml
