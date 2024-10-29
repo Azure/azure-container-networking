@@ -2,14 +2,6 @@
 // MIT License
 package util
 
-import (
-	"bytes"
-	"fmt"
-	"strings"
-
-	"github.com/Azure/azure-container-networking/common"
-)
-
 // kubernetes related constants.
 const (
 	KubeSystemFlag             string = "kube-system"
@@ -271,71 +263,3 @@ const (
 	DaemonDataplaneID // for v2
 	FanOutServerID    // for v2
 )
-
-func DetectIptablesVersion(ioShim *common.IOShim) {
-	cmd := ioShim.Exec.Command(IptablesSaveNft, "-t", "mangle")
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("Error running iptables-nft-save: %s", err)
-		return
-	}
-
-	if strings.Contains(string(output), "KUBE-IPTABLES-HINT") || strings.Contains(string(output), "KUBE-KUBELET-CANARY") {
-		Iptables = IptablesNft
-		IptablesSave = IptablesSaveNft
-		IptablesRestore = IptablesRestoreNft
-	} else {
-		lCmd := ioShim.Exec.Command(IptablesSaveLegacy, "-t", "mangle")
-
-		loutput, err := lCmd.CombinedOutput()
-		if err != nil {
-			fmt.Printf("Error running iptables-legacy-save: %s", err)
-			return
-		}
-
-		if strings.Contains(string(loutput), "KUBE-IPTABLES-HINT") || strings.Contains(string(loutput), "KUBE-KUBELET-CANARY") {
-			Iptables = IptablesLegacy
-			IptablesSave = IptablesSaveLegacy
-			IptablesRestore = IptablesRestoreLegacy
-		} else {
-			lsavecmd := ioShim.Exec.Command(IptablesSaveNft)
-			lsaveoutput, err := lsavecmd.CombinedOutput()
-			if err != nil {
-				fmt.Printf("Error running iptables-nft-save: %s", err)
-				return
-			}
-
-			lcount := countLines(lsaveoutput)
-
-			savecmd := ioShim.Exec.Command(IptablesSaveLegacy)
-			saveoutput, err := savecmd.CombinedOutput()
-			if err != nil {
-				fmt.Printf("Error running iptables-legacy-save: %s", err)
-				return
-			}
-
-			count := countLines(saveoutput)
-
-			if lcount > count {
-				Iptables = IptablesLegacy
-				IptablesSave = IptablesSaveLegacy
-				IptablesRestore = IptablesRestoreLegacy
-			} else {
-				Iptables = IptablesNft
-				IptablesSave = IptablesSaveNft
-				IptablesRestore = IptablesRestoreNft
-			}
-		}
-	}
-}
-
-func countLines(output []byte) int {
-	count := 0
-	for _, x := range bytes.Split(output, []byte("\n")) {
-		if len(x) >= 1 && x[0] == '-' {
-			count++
-		}
-	}
-	return count
-}
