@@ -48,6 +48,7 @@ type NodeNetworkConfigSpec struct {
 	RequestedIPCount int64    `json:"requestedIPCount"`
 	IPsNotInUse      []string `json:"ipsNotInUse,omitempty"`
 	// AvailabilityZone contains the Azure availability zone for the virtual machine where network containers are placed.
+	// +kubebuilder:validation:Optional
 	AvailabilityZone string `json:"availabilityZone,omitempty"`
 }
 
