@@ -51,7 +51,7 @@ func (dp *DataPlane) initializeDataPlane() error {
 		Flags: hcn.HostComputeQueryFlagsNone,
 	}
 	// Initialize Endpoint query used to filter healthy endpoints (vNIC) of Windows pods on L1VH Node
-	dp.endpointQueryL1VH.query = hcn.HostComputeQuery{
+	dp.endpointQueryAttachedState.query = hcn.HostComputeQuery{
 		SchemaVersion: hcn.SchemaVersion{
 			Major: hcnSchemaMajorVersion,
 			Minor: hcnSchemaMinorVersion,
@@ -69,15 +69,13 @@ func (dp *DataPlane) initializeDataPlane() error {
 	klog.Infof("Attached Sharing State filter- %+v", string(filter))
 
 	// Filter out any endpoints that are not in "Attached" State. All running Windows L1VH pods with networking must be in this state.
-	if dp.EnableNPMLite {
-		filterMapL1VH := map[string]uint16{"State": hcnEndpointStateAttached}
-		filterL1VH, err := json.Marshal(filterMapL1VH)
-		if err != nil {
-			return errors.Wrap(err, "failed to marshal endpoint filter map for attched state on L1VH Node")
-		}
-		dp.endpointQueryL1VH.query.Filter = string(filterL1VH)
-		klog.Infof("AttachedState filter- %+v", string(filterL1VH))
+	filterMapAttached := map[string]uint16{"State": hcnEndpointStateAttached}
+	filterAttached, err := json.Marshal(filterMapAttached)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal endpoint filter map for attched state on L1VH Node")
 	}
+	dp.endpointQueryAttachedState.query.Filter = string(filterAttached)
+	klog.Infof("AttachedState filter- %+v", string(filterAttached))
 
 	// reset endpoint cache so that netpol references are removed for all endpoints while refreshing pod endpoints
 	// no need to lock endpointCache at boot up
@@ -351,36 +349,38 @@ func (dp *DataPlane) getEndpointsToApplyPolicies(netPols []*policies.NPMNetworkP
 func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
 	klog.Info("getting local endpoints")
 	klog.Infof("npm lite is enabled: %+v", dp.EnableNPMLite) // Will remove after debugging
+
+	// Gets endpoints in state: Attached
 	timer := metrics.StartNewTimer()
+	endpointsAttached, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryAttachedState.query)
+	klog.Infof("Attached: There are %+v endpoints with state: attached", len(endpointsAttached)) // Will remove after debugging
+	for _, endpoint := range endpointsAttached {
+		klog.Infof("ID: %s, Name: %+v", endpoint.Id, endpoint.Name)
+	}
+	metrics.RecordListEndpointsLatency(timer)
+	if err != nil {
+		metrics.IncListEndpointsFailures()
+		return nil, errors.Wrap(err, "failed to get local pod endpoints in state:attached")
+	}
+
+	// Gets endpoints in state: AttachedSharing
+	timer = metrics.StartNewTimer()
 	endpoints, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
 	for _, endpoint1 := range endpoints {
 		klog.Infof(" AttachedSharing: ID: %s, Name: %+v", endpoint1.Id, endpoint1.Name)
-	} // Debugging
+	}
 	klog.Infof("There are %+v endpoints with state: attached sharing", len(endpoints)) // Will remove after debugging
 	metrics.RecordListEndpointsLatency(timer)
 	if err != nil {
 		metrics.IncListEndpointsFailures()
-		return nil, errors.Wrap(err, "failed to get local pod endpoints")
+		return nil, errors.Wrap(err, "failed to get local pod endpoints in state: attachedSharing")
+	}
+	// Filtering out any of the same endpoints between endpoints with state attached and attachedSharing
+	endpoints = removeCommonEndpoints(&endpoints, &endpointsAttached)
+	for _, endpoint := range endpoints {
+		klog.Infof("combined enpoints ID: %s, Name: %+v", endpoint.Id, endpoint.Name)
 	}
 
-	if dp.EnableNPMLite {
-		timer = metrics.StartNewTimer()
-		endpointsAttached, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryL1VH.query)
-		klog.Infof("Attached: There are %+v endpoints with state: attached", len(endpointsAttached)) // Will remove after debugging
-		for _, endpoint := range endpointsAttached {
-			klog.Infof("ID: %s, Name: %+v", endpoint.Id, endpoint.Name)
-		} // Debugging
-		metrics.RecordListEndpointsLatency(timer)
-		if err != nil {
-			metrics.IncListEndpointsFailures()
-			return nil, errors.Wrap(err, "failed to get local pod endpoints in L1VH")
-		}
-		// TODO -> Check if endpoints and endpointsAttached have any same endpoint and if so filter those out
-		endpoints = removeCommonEndpoints(endpoints, endpointsAttached)
-		for _, endpoint := range endpoints {
-			klog.Infof("combined enpoints ID: %s, Name: %+v", endpoint.Id, endpoint.Name)
-		}
-	}
 	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
 	for k := range endpoints {
 		epPointers = append(epPointers, &endpoints[k])
@@ -388,30 +388,30 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 	return epPointers, nil
 }
 
-func removeCommonEndpoints(endpoints, endpointsAttached []hcn.HostComputeEndpoint) []hcn.HostComputeEndpoint {
-	smaller, larger := endpoints, endpointsAttached
-	if len(endpoints) > len(endpointsAttached) {
-		smaller, larger = endpointsAttached, endpoints
+func removeCommonEndpoints(endpoints, endpointsAttached *[]hcn.HostComputeEndpoint) []hcn.HostComputeEndpoint {
+	smallerEndpointsList, largerEndpointsList := endpoints, endpointsAttached
+	if len(*endpoints) > len(*endpointsAttached) {
+		smallerEndpointsList, largerEndpointsList = endpointsAttached, endpoints
 	}
 
-	// Use a map to track the IDs in the smaller array
-	idMap := make(map[string]struct{}, len(smaller))
-	for _, ep := range smaller {
+	// add endpoints from smaller array into a map
+	idMap := make(map[string]struct{}, len(*smallerEndpointsList))
+	for i := 0; i < len(*smallerEndpointsList); i++ {
+		ep := &(*smallerEndpointsList)[i]
 		idMap[ep.Id] = struct{}{}
 	}
 
-	// Collect unique elements from both arrays
+	// checking for common endpoints among two endpoint arrays
 	var result []hcn.HostComputeEndpoint
-	for _, ep := range larger {
-		if _, found := idMap[ep.Id]; !found {
-			result = append(result, ep) // Unique to larger array
-		} else {
-			delete(idMap, ep.Id) // Remove common element from map
-		}
+	for i := 0; i < len(*largerEndpointsList); i++ {
+		ep := (*largerEndpointsList)[i]
+		result = append(result, ep)
+		delete(idMap, ep.Id)
 	}
 
-	// Append remaining unique elements from the smaller array
-	for _, ep := range smaller {
+	// Appending remaining unique elements from the smaller endpoint array
+	for i := 0; i < len(*smallerEndpointsList); i++ {
+		ep := (*smallerEndpointsList)[i]
 		if _, found := idMap[ep.Id]; found {
 			result = append(result, ep)
 		}

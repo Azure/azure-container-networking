@@ -99,7 +99,7 @@ func TestRemoveCommonEndpoints(t *testing.T) {
 			name:              "1 value same",
 			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "123456"}, {Id: "560971"}},
 			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "123456"}, {Id: "789012"}},
-			expected:          []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "789012"}, {Id: "456901"}, {Id: "560971"}},
+			expected:          []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "123456"}, {Id: "789012"}, {Id: "456901"}, {Id: "560971"}},
 		},
 		{
 			name:              "no values same",
@@ -107,12 +107,24 @@ func TestRemoveCommonEndpoints(t *testing.T) {
 			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "789012"}},
 			expected:          []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "789012"}, {Id: "456901"}, {Id: "560971"}},
 		},
+		{
+			name:              "1 value same",
+			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "123456"}, {Id: "560971"}},
+			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "123456"}, {Id: "789012"}},
+			expected:          []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "123456"}, {Id: "789012"}, {Id: "456901"}, {Id: "560971"}},
+		},
+		{
+			name:              "two values same",
+			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "560971"}, {Id: "123456"}, {Id: "789012"}},
+			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "789012"}, {Id: "123456"}},
+			expected:          []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "560971"}, {Id: "123456"}, {Id: "789012"}, {Id: "567890"}},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
 
 		t.Run(tt.name, func(t *testing.T) {
-			result := removeCommonEndpoints(tt.endpoints, tt.endpointsAttached)
+			result := removeCommonEndpoints(&tt.endpoints, &tt.endpointsAttached)
 			// Use reflect.DeepEqual as a backup if require.Equal doesn't work as expected
 			if !reflect.DeepEqual(tt.expected, result) {
 				t.Errorf("Test %s failed: expected %v, got %v", tt.name, tt.expected, result)
