@@ -49,8 +49,8 @@ stages:
                 kubectl apply -f test/integration/manifests/cilium/cilium-agent
                 kubectl apply -f test/integration/manifests/cilium/cilium-operator
                 # Passes Cilium image to daemonset and deployment
-                envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
-                envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+                envsubst '${CILIUM_VERSION_TAG_V1_4},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
+                envsubst '${CILIUM_VERSION_TAG_V1_4},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
                 kubectl get po -owide -A
                 echo "deploy ip-masq-agent for overlay"
                 kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false

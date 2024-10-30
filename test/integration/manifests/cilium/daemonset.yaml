@@ -66,7 +66,7 @@ spec:
               fieldPath: metadata.namespace
         - name: CILIUM_CLUSTERMESH_CONFIG
           value: /var/lib/cilium/clustermesh/
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG_V1_4
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 10
@@ -163,7 +163,7 @@ spec:
       hostNetwork: true
       initContainers:
       - name: install-cni-binaries
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG_V1_4
         imagePullPolicy: IfNotPresent
         command:
           - "/install-plugin.sh"
@@ -192,7 +192,7 @@ spec:
           value: /run/cilium/cgroupv2
         - name: BIN_PATH
           value: /opt/cni/bin
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG_V1_4
         imagePullPolicy: IfNotPresent
         name: mount-cgroup
         resources: {}
@@ -224,7 +224,7 @@ spec:
         env:
         - name: BIN_PATH
           value: /opt/cni/bin
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG_V1_4
         imagePullPolicy: IfNotPresent
         name: apply-sysctl-overwrites
         resources: {}
@@ -252,7 +252,7 @@ spec:
         - /bin/bash
         - -c
         - --
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG_V1_4
         imagePullPolicy: IfNotPresent
         name: mount-bpf-fs
         resources: {}
@@ -279,7 +279,7 @@ spec:
               key: clean-cilium-bpf-state
               name: cilium-config
               optional: true
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG_V1_4
         imagePullPolicy: IfNotPresent
         name: clean-cilium-state
         resources:
@@ -338,7 +338,7 @@ spec:
           name: host-usr-lib
           readOnly: true
       - name: block-wireserver
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG_V1_4
         imagePullPolicy: IfNotPresent
         command:
         - /bin/bash
