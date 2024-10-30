@@ -468,4 +468,4 @@ restart-vmss: ## Restarts the nodes in the cluster
 	$(AZCLI) vmss restart -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME)
 
 scale-nodes: ## Scales the nodes in the cluster
-	$(AZCLI) aks nodepool scale -g $(GROUP) -n $(CLUSTER) --node-count $(NODE_COUNT)
+	$(AZCLI) aks nodepool scale --resource-group $(GROUP) --cluster-name $(CLUSTER) --name $(NODEPOOL) --node-count $(NODE_COUNT)

@@ -117,7 +117,7 @@ stages:
                       new_count=${NODE_COUNT_UP} # Do not exceed NODE_COUNT_UP
                     fi
                     echo "Scaling up nodes to $new_count"
-                    make -C ./hack/aks scale-nodes AZCLI=az GROUP=${RESOURCE_GROUP} CLUSTER=${CLUSTER} NODE_COUNT=$new_count
+                    make -C ./hack/aks scale-nodes AZCLI=az GROUP=${RESOURCE_GROUP} CLUSTER=${CLUSTER} NODEPOOL=nodepool1 NODE_COUNT=$new_count
                     if [ $new_count -eq ${NODE_COUNT_UP} ]; then
                       echo "Node count reached ${NODE_COUNT_UP}"
                       break
@@ -454,7 +454,7 @@ stages:
                 set -ex
                 az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${CLUSTER}
                 echo "Scaling to 5 nodes"
-                make -C ./hack/aks scale-nodes AZCLI=az GROUP=${RESOURCE_GROUP} CLUSTER=${CLUSTER} NODE_COUNT=5
+                make -C ./hack/aks scale-nodes AZCLI=az GROUP=${RESOURCE_GROUP} CLUSTER=${CLUSTER} NODEPOOL=nodepool1 NODE_COUNT=5
                 kubectl get node
             name: "ScaleDown"
             displayName: "Scale down to 5 Nodes"
