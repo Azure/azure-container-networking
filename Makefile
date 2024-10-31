@@ -74,11 +74,9 @@ CNS_BUILD_DIR = $(BUILD_DIR)/cns
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
 TOOLS_DIR = $(REPO_ROOT)/build/tools
 TOOLS_BIN_DIR = $(TOOLS_DIR)/bin
-CNI_AI_ID = 5515a1eb-b2bc-406a-98eb-ba462e6f0411
 CNS_AI_ID = ce672799-8f08-4235-8c12-08563dc2acef
 NPM_AI_ID = 014c22bd-4107-459e-8475-67909e96edcb
 ACN_PACKAGE_PATH = github.com/Azure/azure-container-networking
-CNI_AI_PATH=$(ACN_PACKAGE_PATH)/telemetry.aiMetadata
 CNS_AI_PATH=$(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
 NPM_AI_PATH=$(ACN_PACKAGE_PATH)/npm.aiMetadata
 
@@ -205,7 +203,7 @@ azure-vnet-ipamv6-binary:
 
 # Build the Azure CNI telemetry binary.
 azure-vnet-telemetry-binary:
-	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CLI network binary.
 acncli-binary:
@@ -213,7 +211,7 @@ acncli-binary:
 
 # Build the Azure CNS binary.
 azure-cns-binary:
-	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(CNS_VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(CNS_VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure NPM binary.
 azure-npm-binary:
@@ -436,8 +434,7 @@ cni-image: ## build cni container image.
 		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION) \
-		EXTRA_BUILD_ARGS='--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
+		OS_VERSION=$(OS_VERSION)
 
 cni-image-push: ## push cni container image.
 	$(MAKE) container-push \

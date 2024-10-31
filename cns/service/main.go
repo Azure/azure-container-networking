@@ -672,7 +672,7 @@ func main() {
 	}
 
 	if telemetryDaemonEnabled {
-		logger.Printf("CNI Telemtry is enabled")
+		logger.Printf("CNI Telemetry is enabled")
 		go startTelemetryService(rootCtx)
 	}
 
