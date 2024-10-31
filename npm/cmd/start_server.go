@@ -81,9 +81,6 @@ func startControlplane(config npmconfig.Config, flags npmconfig.Flags) error {
 		}
 	}
 
-	k8sConfig.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
-	k8sConfig.ContentType = "application/vnd.kubernetes.protobuf"
-
 	// Creates the clientset
 	clientset, err := kubernetes.NewForConfig(k8sConfig)
 	if err != nil {
