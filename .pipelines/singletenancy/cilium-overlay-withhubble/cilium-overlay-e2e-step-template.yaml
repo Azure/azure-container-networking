@@ -37,14 +37,14 @@ steps:
         set -e
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         ls -lah
-        export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
-        export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
+        export CILIUM_VERSION_TAG_V1_5=${CILIUM_HUBBLE_VERSION_TAG}
+        export DIR=$(echo ${CILIUM_VERSION_TAG_V1_5#v} | cut -d. -f1,2)
         echo "installing files from ${DIR}"
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
-        envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
-        envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+        envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG_V1_5}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+        envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG_V1_5}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
         # Use different file directories for nightly and current cilium version
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
@@ -53,7 +53,7 @@ steps:
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
+      if [ "$CILIUM_VERSION_TAG_V1_5" = "cilium-nightly-pipeline" ]
       then
           CNS=$(CNS_VERSION) IPAM=$(AZURE_IPAM_VERSION) && echo "Running nightly"
       else
@@ -138,7 +138,7 @@ steps:
       # Deleting echo-external-node deployment until cilium version matches TODO. https://github.com/cilium/cilium-cli/issues/67 is addressing the change.
       # Saves 17 minutes
       kubectl delete deploy -n cilium-test echo-external-node
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
+      if [ "$CILIUM_VERSION_TAG_V1_5" = "cilium-nightly-pipeline" ]; then
         echo "Check cilium identities in cilium-test namepsace during nightly run"
         echo "expect the identities to be deleted when the namespace is deleted"
         kubectl get ciliumidentity | grep cilium-test
@@ -152,7 +152,7 @@ steps:
     displayName: "Validate Pods"
 
   - script: |
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
+      if [ "$CILIUM_VERSION_TAG_V1_5" = "cilium-nightly-pipeline" ]; then
         kubectl get pod -owide -n cilium-test
         echo "wait for pod and cilium identity deletion in cilium-test namespace"
         ns="cilium-test"

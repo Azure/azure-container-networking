@@ -39,8 +39,8 @@ steps:
         pwd
         kubectl cluster-info
         kubectl get po -owide -A
-        echo "install Cilium ${CILIUM_VERSION_TAG}"
-        export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
+        echo "install Cilium ${CILIUM_VERSION_TAG_V1_5}"
+        export DIR=$(echo ${CILIUM_VERSION_TAG_V1_5#v} | cut -d. -f1,2)
         echo "installing files from ${DIR}"
         echo "deploy Cilium ConfigMap"
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
@@ -48,8 +48,8 @@ steps:
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
 
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+        envsubst '${CILIUM_VERSION_TAG_V1_5},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+        envsubst '${CILIUM_VERSION_TAG_V1_5},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
         kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium"

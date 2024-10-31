@@ -360,7 +360,7 @@ stages:
       nodeCount: ${NODE_COUNT_CILIUM}
       vmSize: ${VM_SIZE_CILIUM}
       arch: amd64
-      dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+      dualstackVersion: ${CILIUM_DUALSTACK_VERSION_V1_5}
       cni: "cilium_dualstack"
 
   - stage: delete_resources
