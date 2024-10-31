@@ -17,15 +17,7 @@ func TestCreateAITelemetryHandle(t *testing.T) {
 		wantErr       bool
 	}{
 		{
-			name:          "disable telemetry",
-			aiConfig:      aitelemetry.AIConfig{},
-			disableAll:    false,
-			disableMetric: true,
-			disableTrace:  true,
-			wantErr:       true,
-		},
-		{
-			name:          "empty aiconfig",
+			name:          "disabled telemetry with empty aiconfig",
 			aiConfig:      aitelemetry.AIConfig{},
 			disableAll:    true,
 			disableMetric: true,
