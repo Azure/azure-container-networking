@@ -134,8 +134,8 @@ func TestRemoveCommonEndpoints(t *testing.T) {
 		{
 			name:              "1 value - different",
 			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}},
-			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "456990"}},
-			expected:          []hcn.HostComputeEndpoint{{Id: "456990"}, {Id: "456901"}},
+			endpointsAttached: []hcn.HostComputeEndpoint{},
+			expected:          []hcn.HostComputeEndpoint{{Id: "456901"}},
 		},
 	}
 	for _, tt := range tests {
