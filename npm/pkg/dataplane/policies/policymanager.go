@@ -29,6 +29,10 @@ const (
 )
 
 type PolicyManagerCfg struct {
+	// debug is only used for testing. Currently just indicating whether to use debug kernel version
+	debug bool
+	// debugKernelVersion is only used for testing
+	debugKernelVersion string
 	// NodeIP is only used in Windows
 	NodeIP string
 	// PolicyMode only affects Windows

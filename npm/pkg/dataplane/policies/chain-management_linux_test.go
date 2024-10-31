@@ -26,8 +26,7 @@ Chain AZURE-NPM-INGRESS (1 references)
 Chain AZURE-NPM-INGRESS-ALLOW-MARK (1 references)
 `
 
-	grepOutputAzureV1Chains = `Chain AZURE-NPM
-Chain AZURE-NPM (1 references)
+	grepOutputAzureV1Chains = `Chain AZURE-NPM (1 references)
 Chain AZURE-NPM-INGRESS (1 references)
 Chain AZURE-NPM-INGRESS-DROPS (1 references)
 Chain AZURE-NPM-INGRESS-TO (1 references)
@@ -38,28 +37,12 @@ Chain AZURE-NPM-EGRESS-FROM (1 references)
 Chain AZURE-NPM-EGRESS-PORTS (1 references)
 Chain AZURE-NPM-ACCEPT (1 references)
 `
+
+	// pMgr.cleanupOtherIptables() can't be tested deterministically for more than two chains
+	grepOutputTwoAzureChains = `Chain AZURE-NPM (1 references)
+Chain AZURE-NPM-INGRESS (1 references)
+`
 )
-
-// similar to TestBootup in policymanager.go except an error occurs
-func TestBootupFailure(t *testing.T) {
-	metrics.ReinitializeAll()
-	calls := []testutils.TestCmd{
-		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, //nolint // AZURE-NPM chain didn't exist
-		{Cmd: listAllCommandStrings, PipedToCommand: true, HasStartError: true, ExitCode: 1},
-		{Cmd: []string{"grep", "Chain AZURE-NPM"}},
-	}
-	ioshim := common.NewMockIOShim(calls)
-	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-
-	metrics.IncNumACLRules()
-	metrics.IncNumACLRules()
-
-	require.Error(t, pMgr.Bootup(nil))
-
-	// make sure that the metrics were reset
-	promVals{0, 0}.testPrometheusMetrics(t)
-}
 
 func TestStaleChainsForceLock(t *testing.T) {
 	testChains := []string{}
@@ -73,6 +56,7 @@ func TestStaleChainsForceLock(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	// don't verify calls because there shouldn't be as many commands as we create if forceLock works properly
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	util.SetIptablesToNft()
 
 	start := make(chan struct{}, 1)
 	done := make(chan struct{}, 1)
@@ -159,6 +143,7 @@ func TestCleanupChainsSuccess(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	util.SetIptablesToNft()
 
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
@@ -177,6 +162,7 @@ func TestCleanupChainsFailure(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	util.SetIptablesToNft()
 
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
@@ -364,25 +350,36 @@ func TestBootupLinux(t *testing.T) {
 		// all tests with "no NPM prior" work for any situation (with v1 or v2 prior),
 		// but the fake command exit codes and stdouts are in line with having no NPM prior
 		{
-			name:    "success (no NPM prior)",
-			calls:   GetBootupTestCalls(false),
+			name: "success (no NPM prior)",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, //nolint // AZURE-NPM chain didn't exist
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:      []string{"grep", "Chain AZURE-NPM"},
+					ExitCode: 1,
+				},
+				fakeIPTablesRestoreCommand,
+				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+			},
 			wantErr: false,
 		},
 		{
 			name: "success after restore failure (no NPM prior)",
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
 					ExitCode: 2,
 					Stdout:   "iptables v1.8.4 (legacy): Couldn't load target `AZURE-NPM':No such file or directory",
 				}, // AZURE-NPM chain didn't exist
-				{Cmd: listAllCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
 				fakeIPTablesRestoreFailureCommand, // e.g. xtables lock held by another app. Currently the stdout doesn't matter for retrying
 				fakeIPTablesRestoreCommand,
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			wantErr: false,
 		},
@@ -390,11 +387,11 @@ func TestBootupLinux(t *testing.T) {
 			name: "success: v2 existed prior",
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
 					ExitCode: 1,
 					Stdout:   "No chain/target/match by that name",
 				}, // deprecated rule did not exist
-				{Cmd: listAllCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: grepOutputAzureChainsWithoutPolicies,
@@ -402,15 +399,15 @@ func TestBootupLinux(t *testing.T) {
 				fakeIPTablesRestoreCommand,
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			wantErr: false,
 		},
 		{
 			name: "v1 existed prior: successfully delete deprecated jump",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}}, // deprecated rule existed
-				{Cmd: listAllCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}}, // deprecated rule existed
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: grepOutputAzureV1Chains,
@@ -418,15 +415,15 @@ func TestBootupLinux(t *testing.T) {
 				fakeIPTablesRestoreCommand,
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			wantErr: false,
 		},
 		{
 			name: "v1 existed prior: unknown error while deleting deprecated jump",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 3}, // unknown error
-				{Cmd: listAllCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 3}, // unknown error
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: grepOutputAzureV1Chains,
@@ -434,15 +431,15 @@ func TestBootupLinux(t *testing.T) {
 				fakeIPTablesRestoreCommand,
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			wantErr: false,
 		},
 		{
 			name: "failure while finding current chains (no NPM prior)",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
-				{Cmd: listAllCommandStrings, PipedToCommand: true, HasStartError: true, ExitCode: 1},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true, HasStartError: true, ExitCode: 1},
 				{Cmd: []string{"grep", "Chain AZURE-NPM"}},
 			},
 			wantErr: true,
@@ -450,8 +447,8 @@ func TestBootupLinux(t *testing.T) {
 		{
 			name: "failure twice on restore (no NPM prior)",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
-				{Cmd: listAllCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
 				fakeIPTablesRestoreFailureCommand,
 				fakeIPTablesRestoreFailureCommand,
@@ -461,8 +458,8 @@ func TestBootupLinux(t *testing.T) {
 		{
 			name: "failure on position (no NPM prior)",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
-				{Cmd: listAllCommandStrings, PipedToCommand: true},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, // AZURE-NPM chain didn't exist
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: grepOutputAzureChainsWithoutPolicies,
@@ -471,7 +468,7 @@ func TestBootupLinux(t *testing.T) {
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
 					ExitCode: 1,
 				},
 			},
@@ -484,7 +481,8 @@ func TestBootupLinux(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
 			pMgr := NewPolicyManager(ioshim, ipsetConfig)
-			err := pMgr.bootup(nil)
+			util.SetIptablesToNft()
+			err := pMgr.bootupAfterDetectAndCleanup()
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -506,7 +504,7 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 			calls: []testutils.TestCmd{
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainFirst,
 			wantErr:              false,
@@ -516,7 +514,7 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 			calls: []testutils.TestCmd{
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainFirst,
 			wantErr:              true,
@@ -550,8 +548,8 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 					Cmd:    []string{"grep", "AZURE-NPM"},
 					Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainFirst,
 			wantErr:              false,
@@ -564,7 +562,7 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 					Cmd:    []string{"grep", "AZURE-NPM"},
 					Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainFirst,
 			wantErr:              true,
@@ -577,8 +575,8 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 					Cmd:    []string{"grep", "AZURE-NPM"},
 					Stdout: "2    AZURE-NPM  all  --  0.0.0.0/0            0.0.0.0/0    ...",
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainFirst,
 			wantErr:              true,
@@ -590,7 +588,7 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "KUBE-SERVICES"}, ExitCode: 1},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
 			wantErr:              false,
@@ -605,7 +603,7 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 					Cmd:    []string{"grep", "KUBE-SERVICES"},
 					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "4", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "4", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
 			wantErr:              false,
@@ -620,8 +618,8 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 				},
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "KUBE-SERVICES"}, ExitCode: 1},
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
 			wantErr:              false,
@@ -636,8 +634,8 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 				},
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "KUBE-SERVICES"}, ExitCode: 1},
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
 			wantErr:              false,
@@ -672,8 +670,8 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 					Cmd:    []string{"grep", "KUBE-SERVICES"},
 					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "4", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "4", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
 			wantErr:              false,
@@ -691,8 +689,8 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 					Cmd:    []string{"grep", "KUBE-SERVICES"},
 					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "3", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "3", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
 			wantErr:              false,
@@ -719,7 +717,7 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 					Cmd:    []string{"grep", "KUBE-SERVICES"},
 					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "4", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "4", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
 			wantErr:              true,
@@ -737,7 +735,7 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 					Cmd:    []string{"grep", "KUBE-SERVICES"},
 					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
 			wantErr:              true,
@@ -755,8 +753,8 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 					Cmd:    []string{"grep", "KUBE-SERVICES"},
 					Stdout: "3  KUBE-SERVICES  all  --  0.0.0.0/0            0.0.0.0/0    ...",
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: []string{"iptables", "-w", "60", "-I", "FORWARD", "3", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-I", "FORWARD", "3", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 1},
 			},
 			placeAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
 			wantErr:              true,
@@ -772,6 +770,8 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 				PlaceAzureChainFirst: tt.placeAzureChainFirst,
 			}
 			pMgr := NewPolicyManager(ioshim, cfg)
+			util.SetIptablesToNft()
+
 			err := pMgr.positionAzureChainJumpRule()
 			if tt.wantErr {
 				require.Error(t, err)
@@ -863,6 +863,8 @@ func TestChainLineNumber(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
 			pMgr := NewPolicyManager(ioshim, ipsetConfig)
+			util.SetIptablesToNft()
+
 			lineNum, err := pMgr.chainLineNumber(testChainName)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -875,7 +877,7 @@ func TestChainLineNumber(t *testing.T) {
 }
 
 func getFakeDestroyCommand(chain string) testutils.TestCmd {
-	return testutils.TestCmd{Cmd: []string{"iptables", "-w", "60", "-X", chain}}
+	return testutils.TestCmd{Cmd: []string{"iptables-nft", "-w", "60", "-X", chain}}
 }
 
 func getFakeDestroyCommandWithExitCode(chain string, exitCode int) testutils.TestCmd {
@@ -893,4 +895,493 @@ func stringsToMap(items []string) map[string]struct{} {
 		m[s] = struct{}{}
 	}
 	return m
+}
+
+func TestDetectIptablesVersion(t *testing.T) {
+	type args struct {
+		name                    string
+		kernelVersion           string
+		calls                   []testutils.TestCmd
+		expectedErr             bool
+		expectedIptablesVersion string
+	}
+
+	tests := []args{
+		{
+			name: "iptables-nft-save returns kube chains",
+			calls: []testutils.TestCmd{
+				{
+					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
+					Stdout: iptablesSaveMangleOutput,
+				},
+			},
+			expectedErr:             false,
+			expectedIptablesVersion: util.IptablesNft,
+		},
+		{
+			name: "iptables-save returns kube chains",
+			calls: []testutils.TestCmd{
+				{
+					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
+					Stdout: "",
+				},
+				{
+					Cmd:    []string{"iptables-save", "-t", "mangle"},
+					Stdout: iptablesSaveMangleOutput,
+				},
+			},
+			expectedErr:             false,
+			expectedIptablesVersion: util.IptablesLegacy,
+		},
+		{
+			name:          "iptables-nft-save and iptables-save both fail: kernel version >= 5",
+			kernelVersion: "5.0.0",
+			calls: []testutils.TestCmd{
+				{
+					Cmd:      []string{"iptables-nft-save", "-t", "mangle"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables-save", "-t", "mangle"},
+					ExitCode: 1,
+				},
+			},
+			expectedErr:             false,
+			expectedIptablesVersion: util.IptablesNft,
+		},
+		{
+			name:          "no kube chains: kernel version >= 5",
+			kernelVersion: "5.0.0",
+			calls: []testutils.TestCmd{
+				{
+					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
+					Stdout: "",
+				},
+				{
+					Cmd:    []string{"iptables-save", "-t", "mangle"},
+					Stdout: "",
+				},
+			},
+			expectedErr:             false,
+			expectedIptablesVersion: util.IptablesNft,
+		},
+		{
+			name:          "no kube chains: kernel version < 5",
+			kernelVersion: "4.5.5",
+			calls: []testutils.TestCmd{
+				{
+					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
+					Stdout: "",
+				},
+				{
+					Cmd:    []string{"iptables-save", "-t", "mangle"},
+					Stdout: "",
+				},
+			},
+			expectedErr:             false,
+			expectedIptablesVersion: util.IptablesLegacy,
+		},
+		{
+			name:          "no kube chains: kernel version is empty",
+			kernelVersion: "",
+			calls: []testutils.TestCmd{
+				{
+					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
+					Stdout: "",
+				},
+				{
+					Cmd:    []string{"iptables-save", "-t", "mangle"},
+					Stdout: "",
+				},
+			},
+			expectedErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		if tt.name != "no kube chains: kernel version is empty" {
+			continue
+		}
+
+		t.Run(tt.name, func(t *testing.T) {
+
+			metrics.InitializeAll()
+
+			ioshim := common.NewMockIOShim(tt.calls)
+			defer ioshim.VerifyCalls(t, tt.calls)
+			cfg := &PolicyManagerCfg{
+				debug:                true,
+				debugKernelVersion:   tt.kernelVersion,
+				NodeIP:               "6.7.8.9",
+				PolicyMode:           IPSetPolicyMode,
+				PlaceAzureChainFirst: util.PlaceAzureChainFirst,
+			}
+			pMgr := NewPolicyManager(ioshim, cfg)
+			err := pMgr.detectIptablesVersion()
+
+			if tt.expectedErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedIptablesVersion, util.Iptables)
+			}
+		})
+	}
+}
+
+func TestCleanupOtherChains(t *testing.T) {
+	type args struct {
+		name         string
+		startWithNft bool
+		calls        []testutils.TestCmd
+		expectedErr  bool
+	}
+
+	tests := []args{
+		{
+			name:         "cleanup legacy jump no chains",
+			startWithNft: true,
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}}, // deprecated rule existed
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:      []string{"grep", "Chain AZURE-NPM"},
+					ExitCode: 1,
+				},
+			},
+			expectedErr: false,
+		},
+		{
+			name:         "cleanup legacy jump and chains",
+			startWithNft: true,
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}}, // deprecated rule existed
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: grepOutputTwoAzureChains,
+				},
+				{Cmd: []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"}},
+			},
+			expectedErr: false,
+		},
+		{
+			name:         "cleanup legacy retry flushes",
+			startWithNft: true,
+			calls: []testutils.TestCmd{
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: grepOutputTwoAzureChains,
+				},
+				{
+					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM"}},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"}},
+			},
+			expectedErr: false,
+		},
+		{
+			name:         "cleanup legacy error: delete/flush errors",
+			startWithNft: true,
+			calls: []testutils.TestCmd{
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: grepOutputTwoAzureChains,
+				},
+				{
+					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM"},
+					ExitCode: 1,
+				},
+			},
+			expectedErr: true,
+		},
+		{
+			name:         "cleanup legacy errors ok if deleted jump (non-deprecated)",
+			startWithNft: true,
+			calls: []testutils.TestCmd{
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: grepOutputTwoAzureChains,
+				},
+				{
+					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-X", "AZURE-NPM"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"},
+					ExitCode: 1,
+				},
+			},
+			expectedErr: false,
+		},
+		{
+			name:         "cleanup legacy errors ok if deleted jump (deprecated)",
+			startWithNft: true,
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: grepOutputTwoAzureChains,
+				},
+				{
+					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-X", "AZURE-NPM"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"},
+					ExitCode: 1,
+				},
+			},
+			expectedErr: false,
+		},
+		{
+			name:         "cleanup legacy other flush errors ok",
+			startWithNft: true,
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1,
+				},
+				{
+					Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true,
+					ExitCode: 1,
+				},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: grepOutputTwoAzureChains,
+				},
+				{
+					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM"}},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM"}},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"},
+					ExitCode: 1,
+				},
+			},
+			expectedErr: false,
+		},
+		{
+			name:         "cleanup legacy error: list error",
+			startWithNft: true,
+			calls: []testutils.TestCmd{
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1,
+				},
+				{
+					Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true, HasStartError: true,
+					ExitCode: 1,
+				},
+				{Cmd: []string{"grep", "Chain AZURE-NPM"}},
+			},
+			expectedErr: true,
+		},
+		{
+			name:         "cleanup nft",
+			startWithNft: false,
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}}, // deprecated rule existed
+				{
+					Cmd:      []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:      []string{"grep", "Chain AZURE-NPM"},
+					ExitCode: 1,
+				},
+			},
+			expectedErr: false,
+		},
+		{
+			name:         "cleanup nft error",
+			startWithNft: false,
+			calls: []testutils.TestCmd{
+				{
+					Cmd:      []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: grepOutputTwoAzureChains,
+				},
+				{
+					Cmd:      []string{"iptables-nft-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables-nft-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-F", "AZURE-NPM"}, ExitCode: 1},
+			},
+			expectedErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ioshim := common.NewMockIOShim(tt.calls)
+			defer ioshim.VerifyCalls(t, tt.calls)
+			pMgr := NewPolicyManager(ioshim, ipsetConfig)
+
+			if tt.startWithNft {
+				util.SetIptablesToNft()
+			} else {
+				util.SetIptablesToLegacy()
+			}
+
+			err := pMgr.cleanupOtherIptables()
+			if tt.expectedErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if tt.startWithNft {
+				require.Equal(t, util.IptablesNft, util.Iptables)
+			} else {
+				require.Equal(t, util.IptablesLegacy, util.Iptables)
+			}
+		})
+	}
+}
+
+func TestCreatorForCleanup(t *testing.T) {
+	chains := []string{
+		"AZURE-NPM",
+		"AZURE-NPM-INGRESS",
+		"AZURE-NPM-EGRESS",
+		"AZURE-NPM-ACCEPT",
+	}
+
+	expectedLines := []string{
+		"*filter",
+		"-F AZURE-NPM",
+		"-F AZURE-NPM-INGRESS",
+		"-F AZURE-NPM-EGRESS",
+		"-F AZURE-NPM-ACCEPT",
+		"COMMIT",
+		"",
+	}
+
+	ioshim := common.NewMockIOShim(nil)
+	defer ioshim.VerifyCalls(t, nil)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	creator := pMgr.creatorForCleanup(chains)
+	actualLines := strings.Split(creator.ToString(), "\n")
+	sortedActualLines := sortFlushes(actualLines)
+	sortedExpectedLines := sortFlushes(expectedLines)
+	dptestutils.AssertEqualLines(t, sortedExpectedLines, sortedActualLines)
+	assertStaleChainsContain(t, pMgr.staleChains, []string{}...)
 }

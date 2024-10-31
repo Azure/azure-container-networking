@@ -263,3 +263,15 @@ const (
 	DaemonDataplaneID // for v2
 	FanOutServerID    // for v2
 )
+
+func SetIptablesToNft() {
+	Iptables = IptablesNft
+	IptablesSave = IptablesSaveNft
+	IptablesRestore = IptablesRestoreNft
+}
+
+func SetIptablesToLegacy() {
+	Iptables = IptablesLegacy
+	IptablesSave = IptablesSaveLegacy
+	IptablesRestore = IptablesRestoreLegacy
+}

@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Azure/azure-container-networking/npm/util/ioutil"
+
 	"k8s.io/klog"
 	utilexec "k8s.io/utils/exec"
 )
@@ -23,9 +24,13 @@ const (
 
 	// transferred from iptm.go and not sure why this length is important
 	minLineNumberStringLength int = 3
+
+	detectingErrMsg = "failed to detect iptables version. failed to find KUBE chains in iptables-legacy-save and iptables-nft-save and failed to get kernel version. NPM will crash to retry"
 )
 
 var (
+	errDetectingIptablesVersion = errors.New(detectingErrMsg)
+
 	// Must loop through a slice because we need a deterministic order for fexec commands for UTs.
 	iptablesAzureChains = []string{
 		util.IptablesAzureChain,
@@ -162,6 +167,8 @@ func isBaseChain(chain string) bool {
 Called once at startup.
 Like the rest of PolicyManager, minimizes the number of OS calls by consolidating all possible actions into one iptables-restore call.
 
+0.1. Detect iptables version.
+0.2. Clean up legacy tables if using nft and vice versa.
 1. Delete the deprecated jump from FORWARD to AZURE-NPM chain (if it exists).
 2. Cleanup old NPM chains, and configure base chains and their rules.
  1. Do the following via iptables-restore --noflush:
@@ -181,87 +188,29 @@ TODO: could use one grep call instead of separate calls for getting jump line nu
 func (pMgr *PolicyManager) bootup(_ []string) error {
 	klog.Infof("booting up iptables Azure chains")
 
+	// 0.1. Detect iptables version
+	if err := pMgr.detectIptablesVersion(); err != nil {
+		return npmerrors.SimpleErrorWrapper("failed to detect iptables version", err)
+	}
+
 	// Stop reconciling so we don't contend for iptables, and so we don't update the staleChains at the same time as reconcile()
 	// Reconciling would only be happening if this function were called to reset iptables well into the azure-npm pod lifecycle.
 	pMgr.reconcileManager.forceLock()
 	defer pMgr.reconcileManager.forceUnlock()
 
-	if strings.Contains(util.Iptables, "nft") {
-		klog.Info("detected nft iptables. cleaning up legacy iptables")
-		util.Iptables = util.IptablesLegacy
-		util.IptablesSave = util.IptablesSaveLegacy
-		util.IptablesRestore = util.IptablesRestoreLegacy
-
-		// 0. delete the deprecated jump to deprecated AZURE-NPM in legacy iptables
-		deprecatedErrCode, deprecatedErr := pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
-		if deprecatedErrCode == 0 {
-			klog.Infof("deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
-		} else if deprecatedErr != nil {
-			metrics.SendErrorLogAndMetric(util.IptmID,
-				"failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s",
-				deprecatedErrCode, deprecatedErr.Error())
-		}
-
-		// 0. delete the deprecated jump to current AZURE-NPM in legacy iptables
-		deprecatedErrCode, deprecatedErr = pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, jumpFromForwardToAzureChainArgs...)
-		if deprecatedErrCode == 0 {
-			klog.Infof("deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
-		} else if deprecatedErr != nil {
-			metrics.SendErrorLogAndMetric(util.IptmID,
-				"failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s",
-				deprecatedErrCode, deprecatedErr.Error())
-		}
-
-		// clean up current chains in legacy iptables
-		currentChains, err := ioutil.AllCurrentAzureChains(pMgr.ioShim.Exec, util.IptablesDefaultWaitTime)
-		if err != nil {
-			return npmerrors.SimpleErrorWrapper("failed to get current chains for bootup", err)
-		}
-
-		// We have only one chance to clean existing legacy iptables chains.
-		// So flush all the chains and then destroy them
-		var aggregateError error
-		for chain := range currentChains {
-			errCode, err := pMgr.runIPTablesCommand(util.IptablesFlushFlag, chain)
-			if err != nil && errCode != doesNotExistErrorCode {
-				// add to staleChains if it's not one of the iptablesAzureChains
-				pMgr.staleChains.add(chain)
-				currentErrString := fmt.Sprintf("failed to flush chain %s with err [%v]", chain, err)
-				if aggregateError == nil {
-					aggregateError = npmerrors.SimpleError(currentErrString)
-				} else {
-					aggregateError = npmerrors.SimpleErrorWrapper(fmt.Sprintf("%s and had previous error", currentErrString), aggregateError)
-				}
-			}
-		}
-
-		for chain := range currentChains {
-			errCode, err := pMgr.runIPTablesCommand(util.IptablesDestroyFlag, chain)
-			if err != nil && errCode != doesNotExistErrorCode {
-				// add to staleChains if it's not one of the iptablesAzureChains
-				pMgr.staleChains.add(chain)
-				currentErrString := fmt.Sprintf("failed to delete chain %s with err [%v]", chain, err)
-				if aggregateError == nil {
-					aggregateError = npmerrors.SimpleError(currentErrString)
-				} else {
-					aggregateError = npmerrors.SimpleErrorWrapper(fmt.Sprintf("%s and had previous error", currentErrString), aggregateError)
-				}
-			}
-		}
-
-		if aggregateError != nil {
-			metrics.SendErrorLogAndMetric(util.IptmID,
-				"failed to flush and delete stale chain in legacy iptables with error: %s",
-				aggregateError.Error())
-		}
-
-		util.Iptables = util.IptablesNft
-		util.IptablesSave = util.IptablesSaveNft
-		util.IptablesRestore = util.IptablesRestoreNft
+	// 0.2. cleanup
+	if err := pMgr.cleanupOtherIptables(); err != nil {
+		return npmerrors.SimpleErrorWrapper("failed to cleanup other iptables chains", err)
 	}
 
-	klog.Info("cleaning up default iptables")
+	if err := pMgr.bootupAfterDetectAndCleanup(); err != nil {
+		return err
+	}
 
+	return nil
+}
+
+func (pMgr *PolicyManager) bootupAfterDetectAndCleanup() error {
 	// 1. delete the deprecated jump to AZURE-NPM
 	deprecatedErrCode, deprecatedErr := pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
 	if deprecatedErrCode == 0 {
@@ -292,6 +241,235 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 		return npmerrors.SimpleErrorWrapper(baseErrString, err) // we used to ignore this error in v1
 	}
 	return nil
+}
+
+// detectIptablesVersion sets the global iptables variable to nft if detected or legacy if detected.
+// NPM will crash if it fails to detect either.
+// This global variable is referenced in all iptables related functions.
+func (pMgr *PolicyManager) detectIptablesVersion() error {
+	klog.Info("first attempt detecting iptables version. running: iptables-nft-save -t mangle")
+	cmd := pMgr.ioShim.Exec.Command(util.IptablesSaveNft, "-t", "mangle")
+	output, err := cmd.CombinedOutput()
+	if err == nil && strings.Contains(string(output), "KUBE-IPTABLES-HINT") || strings.Contains(string(output), "KUBE-KUBELET-CANARY") {
+		msg := "detected iptables version on first attempt. found KUBE chains in nft iptables. NPM will use iptables-nft"
+		klog.Info(msg)
+		metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
+		util.SetIptablesToNft()
+		return nil
+	}
+
+	if err != nil {
+		msg := "failed to detect iptables version on first attempt. error running iptables-nft-save. will try detecting using iptables-legacy-save. err: %s"
+		metrics.SendErrorLogAndMetric(util.IptmID, msg, err.Error())
+	}
+
+	klog.Info("second attempt detecting iptables version. running: iptables-legacy-save -t mangle")
+	lCmd := pMgr.ioShim.Exec.Command(util.IptablesSaveLegacy, "-t", "mangle")
+	loutput, err := lCmd.CombinedOutput()
+	if err == nil && strings.Contains(string(loutput), "KUBE-IPTABLES-HINT") || strings.Contains(string(loutput), "KUBE-KUBELET-CANARY") {
+		msg := "detected iptables version on second attempt. found KUBE chains in legacy tables. NPM will use iptables-legacy"
+		klog.Info(msg)
+		metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
+		util.SetIptablesToLegacy()
+		return nil
+	}
+
+	if err != nil {
+		msg := "failed to detect iptables version on second attempt. error running iptables-legacy-save. will try detecting using kernel version. err: %s"
+		metrics.SendErrorLogAndMetric(util.IptmID, msg, err.Error())
+	}
+
+	klog.Info("third attempt detecting iptables version. getting kernel version")
+	kernelRelease := ""
+	if pMgr.debug {
+		// for testing purposes
+		kernelRelease = pMgr.debugKernelVersion
+	} else {
+		kernelRelease = util.KernelRelease()
+	}
+	kernelVersion := strings.Split(kernelRelease, ".")[0]
+	if kernelVersion == "" {
+		metrics.SendErrorLogAndMetric(util.IptmID, "failed to detect iptables version on third attempt. error getting kernel version")
+		return errDetectingIptablesVersion
+	}
+
+	majorVersion, err := strconv.Atoi(kernelVersion)
+	if err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "failed to detect iptables version on third attempt. error converting kernel version to int. err: %s", err.Error())
+		return errDetectingIptablesVersion
+	}
+
+	if majorVersion >= 5 {
+		msg := "detected iptables version on third attempt. found kernel version >= 5. NPM will use iptables-nft"
+		klog.Info(msg)
+		metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
+		util.SetIptablesToNft()
+		return nil
+	}
+
+	msg := "detected iptables version on third attempt. found kernel version < 5. NPM will use iptables-legacy"
+	klog.Info(msg)
+	metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
+	util.SetIptablesToLegacy()
+	return nil
+}
+
+// clenaupOtherIptablesChains cleans up legacy tables if using nft and vice versa.
+// It will only return an error if it fails to delete a jump rule and flush the AZURE-NPM chain (see comment about #3088 below).
+// Cleanup logic:
+// 1. delete jump rules to AZURE-NPM
+// 2. flush all chains
+// 3. delete all chains
+func (pMgr *PolicyManager) cleanupOtherIptables() error {
+	hadNFT := util.Iptables == util.IptablesNft
+	if hadNFT {
+		klog.Info("detected nft iptables. cleaning up legacy iptables")
+		util.SetIptablesToLegacy()
+	} else {
+		klog.Info("detected legacy iptables. cleaning up legacy iptables")
+		util.SetIptablesToNft()
+	}
+
+	defer func() {
+		if hadNFT {
+			klog.Info("cleaned up legacy iptables")
+			util.SetIptablesToNft()
+		} else {
+			klog.Info("cleaned up nft tables")
+			util.SetIptablesToLegacy()
+		}
+	}()
+
+	deletedJumpRule := false
+
+	// 1.1. delete the deprecated jump to AZURE-NPM
+	deprecatedErrCode, deprecatedErr := pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
+	if deprecatedErrCode == 0 {
+		klog.Infof("deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
+		deletedJumpRule = true
+	} else if deprecatedErr != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID,
+			"[cleanup] failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s",
+			deprecatedErrCode, deprecatedErr.Error())
+	}
+
+	// 1.2. delete the jump to AZURE-NPM
+	deprecatedErrCode, deprecatedErr = pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, jumpFromForwardToAzureChainArgs...)
+	if deprecatedErrCode == 0 {
+		deletedJumpRule = true
+		klog.Infof("deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
+	} else if deprecatedErr != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID,
+			"[cleanup] failed to delete jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s",
+			deprecatedErrCode, deprecatedErr.Error())
+	}
+
+	// 2. get current chains
+	currentChains, err := ioutil.AllCurrentAzureChains(pMgr.ioShim.Exec, util.IptablesDefaultWaitTime)
+	if err != nil {
+		return npmerrors.SimpleErrorWrapper("[cleanup] failed to get current chains for bootup", err)
+	}
+
+	if len(currentChains) == 0 {
+		klog.Info("no chains to cleanup")
+		return nil
+	}
+
+	klog.Infof("[cleanup] %d chains to clean up", len(currentChains))
+
+	// 3.1. try to flush all chains at once
+	chains := make([]string, 0, len(currentChains))
+	_, hasAzureChain := currentChains[util.IptablesAzureChain]
+	if hasAzureChain {
+		// putting AZURE-NPM chain first is required for proper unit testing (for determinancy in destroying chains)
+		chains = append(chains, util.IptablesAzureChain)
+	}
+	for chain := range currentChains {
+		if chain == util.IptablesAzureChain {
+			// putting AZURE-NPM chain first is required for proper unit testing (for determinancy in destroying chains)
+			continue
+		}
+		chains = append(chains, chain)
+	}
+
+	creator := pMgr.creatorForCleanup(chains)
+	if err := restore(creator); err != nil {
+		msg := fmt.Sprintf("[cleanup] failed to flush all chains with error: %s", err.Error())
+		klog.Info(msg)
+		metrics.SendErrorLogAndMetric(util.IptmID, msg)
+
+		// 3.2. if we failed to flush all chains, then try to flush and delete them one by one
+		var aggregateError error
+		if _, ok := currentChains[util.IptablesAzureChain]; ok {
+			_, err := pMgr.runIPTablesCommand(util.IptablesFlushFlag, util.IptablesAzureChain)
+			aggregateError = err
+			if err != nil && !deletedJumpRule {
+				// fixes #3088
+				// if we failed to delete a jump rule to AZURE-NPM and we failed to flush AZURE-NPM chain,
+				// then there is risk that there is a jump rule to AZURE-NPM, which in turn has rules which could lead to allowing or dropping a packet.
+				// We have failed to cleanup the other iptables rules, and there is no guarantee that packets will be processed correctly now.
+				// So we must crash and retry.
+				return npmerrors.SimpleErrorWrapper("[cleanup] must crash and retry. failed to delete jump rule and flush chain %s with error", err)
+			}
+		}
+
+		for chain := range currentChains {
+			if chain == util.IptablesAzureChain {
+				// already flushed above
+				continue
+			}
+
+			errCode, err := pMgr.runIPTablesCommand(util.IptablesFlushFlag, chain)
+			if err != nil && errCode != doesNotExistErrorCode {
+				currentErrString := fmt.Sprintf("failed to flush chain %s with err [%v]", chain, err)
+				if aggregateError == nil {
+					aggregateError = npmerrors.SimpleError(currentErrString)
+				} else {
+					aggregateError = npmerrors.SimpleErrorWrapper(fmt.Sprintf("%s and had previous error", currentErrString), aggregateError)
+				}
+			}
+		}
+
+		if aggregateError != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID,
+				"[cleanup] benign failure to flush chains with error: %s",
+				aggregateError.Error())
+		}
+	}
+
+	// 4. delete all chains
+	var aggregateError error
+	for _, chain := range chains {
+		errCode, err := pMgr.runIPTablesCommand(util.IptablesDestroyFlag, chain)
+		if err != nil && errCode != doesNotExistErrorCode {
+			// add to staleChains if it's not one of the iptablesAzureChains
+			pMgr.staleChains.add(chain)
+			currentErrString := fmt.Sprintf("failed to delete chain %s with err [%v]", chain, err)
+			if aggregateError == nil {
+				aggregateError = npmerrors.SimpleError(currentErrString)
+			} else {
+				aggregateError = npmerrors.SimpleErrorWrapper(fmt.Sprintf("%s and had previous error", currentErrString), aggregateError)
+			}
+		}
+	}
+
+	if aggregateError != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID,
+			"[cleanup] benign failure to delete chains with error: %s",
+			aggregateError.Error())
+	}
+
+	return nil
+}
+
+func (pMgr *PolicyManager) creatorForCleanup(chains []string) *ioutil.FileCreator {
+	// pass nil because we don't need to add any lines like ":CHAIN-NAME - -" because that is for creating chains
+	creator := pMgr.newCreatorWithChains(nil)
+	for _, chain := range chains {
+		creator.AddLine("", nil, fmt.Sprintf("-F %s", chain))
+	}
+	creator.AddLine("", nil, util.IptablesRestoreCommit)
+	return creator
 }
 
 // reconcile does the following:
@@ -363,7 +541,7 @@ func (pMgr *PolicyManager) ignoreErrorsAndRunIPTablesCommand(ignored []*exitErro
 	allArgs := []string{util.IptablesWaitFlag, util.IptablesDefaultWaitTime, operationFlag}
 	allArgs = append(allArgs, args...)
 
-	klog.Infof("Executing iptables command with args %v", allArgs)
+	klog.Infof("executing iptables command [%s] with args %v", util.Iptables, allArgs)
 
 	command := pMgr.ioShim.Exec.Command(util.Iptables, allArgs...)
 	output, err := command.CombinedOutput()
