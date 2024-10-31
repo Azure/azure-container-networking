@@ -390,7 +390,7 @@ func removeCommonEndpoints(endpoints, endpointsAttached *[]hcn.HostComputeEndpoi
 	}
 
 	// Append endpoints from larger list and remove common IDs from map
-	var result []hcn.HostComputeEndpoint
+	result := []hcn.HostComputeEndpoint{}
 	for i := 0; i < len(*largerEndpointsList); i++ {
 		ep := (*largerEndpointsList)[i]
 		result = append(result, ep)
