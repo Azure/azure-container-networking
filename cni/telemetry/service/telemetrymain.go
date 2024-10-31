@@ -167,8 +167,8 @@ func main() {
 		GetEnvRetryWaitTimeInSecs:    config.GetEnvRetryWaitTimeInSecs,
 	}
 
-	if aiCreationErr := tb.CreateAITelemetryHandle(aiConfig, config.DisableAll, config.DisableTrace, config.DisableMetric); aiCreationErr != nil {
-		logger.Error("AI Handle creation error:", zap.Error(aiCreationErr))
+	if err := tb.CreateAITelemetryHandle(aiConfig, config.DisableAll, config.DisableTrace, config.DisableMetric); err != nil { // nolint
+		logger.Error("AI Handle creation error:", zap.Error(err))
 	}
 	logger.Info("Report to host interval", zap.Duration("seconds", config.ReportToHostIntervalInSeconds))
 	tb.PushData(context.Background())
