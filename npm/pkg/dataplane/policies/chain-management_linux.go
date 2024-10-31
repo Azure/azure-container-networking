@@ -25,7 +25,7 @@ const (
 	// transferred from iptm.go and not sure why this length is important
 	minLineNumberStringLength int = 3
 
-	detectingErrMsg = "failed to detect iptables version. failed to find KUBE chains in iptables-legacy-save and iptables-nft-save and failed to get kernel version. NPM will crash to retry"
+	detectingErrMsg = "failed to detect iptables version. failed to run iptables-legacy-save, run iptables-nft-save, and get kernel version. NPM will crash to retry"
 )
 
 var (
@@ -249,8 +249,11 @@ func (pMgr *PolicyManager) bootupAfterDetectAndCleanup() error {
 func (pMgr *PolicyManager) detectIptablesVersion() error {
 	klog.Info("first attempt detecting iptables version. running: iptables-nft-save -t mangle")
 	cmd := pMgr.ioShim.Exec.Command(util.IptablesSaveNft, "-t", "mangle")
-	output, err := cmd.CombinedOutput()
-	if err == nil && strings.Contains(string(output), "KUBE-IPTABLES-HINT") || strings.Contains(string(output), "KUBE-KUBELET-CANARY") {
+	output, nftErr := cmd.CombinedOutput()
+	if nftErr != nil {
+		msg := "failed to detect iptables version on first attempt. error running iptables-nft-save. will try detecting using iptables-legacy-save. err: %s"
+		metrics.SendErrorLogAndMetric(util.IptmID, msg, nftErr.Error())
+	} else if strings.Contains(string(output), "KUBE-IPTABLES-HINT") || strings.Contains(string(output), "KUBE-KUBELET-CANARY") {
 		msg := "detected iptables version on first attempt. found KUBE chains in nft iptables. NPM will use iptables-nft"
 		klog.Info(msg)
 		metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
@@ -258,44 +261,42 @@ func (pMgr *PolicyManager) detectIptablesVersion() error {
 		return nil
 	}
 
-	if err != nil {
-		msg := "failed to detect iptables version on first attempt. error running iptables-nft-save. will try detecting using iptables-legacy-save. err: %s"
-		metrics.SendErrorLogAndMetric(util.IptmID, msg, err.Error())
-	}
-
 	klog.Info("second attempt detecting iptables version. running: iptables-legacy-save -t mangle")
 	lCmd := pMgr.ioShim.Exec.Command(util.IptablesSaveLegacy, "-t", "mangle")
-	loutput, err := lCmd.CombinedOutput()
-	if err == nil && strings.Contains(string(loutput), "KUBE-IPTABLES-HINT") || strings.Contains(string(loutput), "KUBE-KUBELET-CANARY") {
-		msg := "detected iptables version on second attempt. found KUBE chains in legacy tables. NPM will use iptables-legacy"
-		klog.Info(msg)
-		metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
-		util.SetIptablesToLegacy()
-		return nil
-	}
-
-	if err != nil {
+	loutput, legacyErr := lCmd.CombinedOutput()
+	if legacyErr != nil {
 		msg := "failed to detect iptables version on second attempt. error running iptables-legacy-save. will try detecting using kernel version. err: %s"
-		metrics.SendErrorLogAndMetric(util.IptmID, msg, err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, msg, legacyErr.Error())
+	} else {
+		if strings.Contains(string(loutput), "KUBE-IPTABLES-HINT") || strings.Contains(string(loutput), "KUBE-KUBELET-CANARY") {
+			msg := "detected iptables version on second attempt. found KUBE chains in legacy tables. NPM will use iptables-legacy"
+			klog.Info(msg)
+			metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
+			util.SetIptablesToLegacy()
+			return nil
+		} else if nftErr != nil {
+			msg := "NPM will use iptables-nft. iptables-nft-save failed earlier, but iptables-legacy-save didn't have KUBE chains"
+			klog.Info(msg)
+			metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
+			util.SetIptablesToNft()
+			return nil
+		}
 	}
 
+	// we are here if either:
+	// 1. both nft and legacy save commands failed
+	// 2. both nft and legacy save commands didn't have KUBE chains
 	klog.Info("third attempt detecting iptables version. getting kernel version")
-	kernelRelease := ""
+	var majorVersion int
+	var versionError error
 	if pMgr.debug {
 		// for testing purposes
-		kernelRelease = pMgr.debugKernelVersion
+		majorVersion = pMgr.debugKernelVersion
+		versionError = pMgr.debugKernelVersionErr
 	} else {
-		kernelRelease = util.KernelRelease()
+		majorVersion, versionError = util.KernelReleaseMajorVersion()
 	}
-	kernelVersion := strings.Split(kernelRelease, ".")[0]
-	if kernelVersion == "" {
-		metrics.SendErrorLogAndMetric(util.IptmID, "failed to detect iptables version on third attempt. error getting kernel version")
-		return errDetectingIptablesVersion
-	}
-
-	majorVersion, err := strconv.Atoi(kernelVersion)
-	if err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "failed to detect iptables version on third attempt. error converting kernel version to int. err: %s", err.Error())
+	if versionError != nil {
 		return errDetectingIptablesVersion
 	}
 

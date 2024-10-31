@@ -900,7 +900,8 @@ func stringsToMap(items []string) map[string]struct{} {
 func TestDetectIptablesVersion(t *testing.T) {
 	type args struct {
 		name                    string
-		kernelVersion           string
+		kernelVersion           int
+		kernelVersionErr        error
 		calls                   []testutils.TestCmd
 		expectedErr             bool
 		expectedIptablesVersion string
@@ -935,7 +936,7 @@ func TestDetectIptablesVersion(t *testing.T) {
 		},
 		{
 			name:          "iptables-nft-save and iptables-save both fail: kernel version >= 5",
-			kernelVersion: "5.0.0",
+			kernelVersion: 5,
 			calls: []testutils.TestCmd{
 				{
 					Cmd:      []string{"iptables-nft-save", "-t", "mangle"},
@@ -951,7 +952,7 @@ func TestDetectIptablesVersion(t *testing.T) {
 		},
 		{
 			name:          "no kube chains: kernel version >= 5",
-			kernelVersion: "5.0.0",
+			kernelVersion: 5,
 			calls: []testutils.TestCmd{
 				{
 					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
@@ -967,7 +968,7 @@ func TestDetectIptablesVersion(t *testing.T) {
 		},
 		{
 			name:          "no kube chains: kernel version < 5",
-			kernelVersion: "4.5.5",
+			kernelVersion: 4,
 			calls: []testutils.TestCmd{
 				{
 					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
@@ -982,8 +983,8 @@ func TestDetectIptablesVersion(t *testing.T) {
 			expectedIptablesVersion: util.IptablesLegacy,
 		},
 		{
-			name:          "no kube chains: kernel version is empty",
-			kernelVersion: "",
+			name:             "no kube chains: kernel version error",
+			kernelVersionErr: fmt.Errorf("kernel version error"),
 			calls: []testutils.TestCmd{
 				{
 					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
