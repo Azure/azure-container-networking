@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	aiMetadata           string
 	th                   aitelemetry.TelemetryHandle
 	gDisableTrace        bool
 	gDisableMetric       bool
@@ -16,7 +17,6 @@ var (
 )
 
 const (
-	aiMetadata = "5515a1eb-b2bc-406a-98eb-ba462e6f0411"
 	// Wait time for AI to gracefully close AI telemetry session
 	waitTimeInSecs = 10
 )
