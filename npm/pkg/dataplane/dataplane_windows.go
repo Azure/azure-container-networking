@@ -67,7 +67,7 @@ func (dp *DataPlane) initializeDataPlane() error {
 	}
 	dp.endpointQuery.query.Filter = string(filter)
 
-	// Filter out any endpoints that are not in "Attached" State. All running Windows L1VH pods with networking must be in this state.
+	// Filter out any endpoints that are not in "Attached" State. All running Windows pods on L1VH with networking must be in this state.
 	filterMapAttached := map[string]uint16{"State": hcnEndpointStateAttached}
 	filterAttached, err := json.Marshal(filterMapAttached)
 	if err != nil {
