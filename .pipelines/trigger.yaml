@@ -21,14 +21,19 @@ trigger: none
 #    include:
 #      - "*"
 
-
 resources:
   repositories:
+
+  - repository: 1ESPipelineTemplates
+    type: git
+    name: 1ESPipelineTemplates/1ESPipelineTemplates
+    ref: refs/tags/stable
+
   - repository: azure-container-networking
     type: github
     name: Azure/azure-container-networking
     endpoint: 'Azure-ACN RO Service Connection'
-    ref: refs/heads/feature/ob-onboard-0
+    ref: refs/heads/feature/ob-onboard-2
 
 
 variables:
@@ -37,16 +42,11 @@ variables:
   REPO_NAME: $[ resources.repositories['azure-container-networking'].name ]
   REPO_TYPE: $[ resources.repositories['azure-container-networking'].type ]
   CHANGESET_COMMIT: $[ resources.repositories['self'].version ]
- 
-
-pool:
-  vmImage: ubuntu-latest
-
 
 extends:
-  template: /.pipelines/template.trigger.jobs.yaml@azure-container-networking
+  template: v1/1ES.Unofficial.PipelineTemplate.yml@1ESPipelineTemplates
   parameters:
-    mainRepoRef: $(REPO_REF)
-    mainRepoCommit: $(REPO_COMMIT)
-    mainRepoName: $(REPO_NAME)
-    mainRepoType: $(REPO_TYPE)
+    pool:
+      name: "$(BUILD_POOL_NAME_DEFAULT)"
+    stages:
+    - template: /.pipelines/pipeline.yaml@azure-container-networking

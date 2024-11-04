@@ -36,22 +36,7 @@ steps:
     displayName: Manifest Push
     retryCountOnTaskFailure: 3
 
-  - task: AzureCLI@2
-    displayName: "Logout"
-    inputs:
-      azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      inlineScript: |
-        docker logout
-
-  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-    displayName: "Add SBOM Generator tool"
-    inputs:
-      BuildDropPath: "$(Build.ArtifactStagingDirectory)"
-
-  - task: PublishBuildArtifacts@1
+  - task: 1ES.PublishPipelineArtifact@1
     inputs:
       artifactName: "output"
-      pathtoPublish: "$(Build.ArtifactStagingDirectory)"
-    condition: succeeded()
+      targetPath: "$(Build.ArtifactStagingDirectory)"
