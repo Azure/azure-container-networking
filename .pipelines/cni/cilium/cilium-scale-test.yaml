@@ -117,7 +117,7 @@ stages:
                       new_count=${NODE_COUNT_UP} # Do not exceed NODE_COUNT_UP
                     fi
                     echo "Scaling up nodes to $new_count"
-                    az aks nodepool scale --name nodepool1 --cluster-name ${CLUSTER} --resource-group ${RESOURCE_GROUP} --node-count $new_count
+                    make -C ./hack/aks scale-nodes AZCLI=az GROUP=${RESOURCE_GROUP} CLUSTER=${CLUSTER} NODEPOOL=nodepool1 NODE_COUNT=$new_count
                     if [ $new_count -eq ${NODE_COUNT_UP} ]; then
                       echo "Node count reached ${NODE_COUNT_UP}"
                       break
@@ -442,6 +442,7 @@ stages:
       - job: scale_down
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+        timeoutInMinutes: 120
         steps:
           - task: AzureCLI@2
             inputs:
@@ -453,8 +454,7 @@ stages:
                 set -ex
                 az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${CLUSTER}
                 echo "Scaling to 5 nodes"
-                vmss_name=$(az vmss list -g MC_${RESOURCE_GROUP}_${CLUSTER}_$(LOCATION) --query "[].name" -o tsv)
-                make -C ./hack/aks scale-vmss AZCLI=az GROUP=${RESOURCE_GROUP} CLUSTER=${CLUSTER} REGION=$(LOCATION) VMSS_NAME=$vmss_name NODE_COUNT=5
+                make -C ./hack/aks scale-nodes AZCLI=az GROUP=${RESOURCE_GROUP} CLUSTER=${CLUSTER} NODEPOOL=nodepool1 NODE_COUNT=5
                 kubectl get node
             name: "ScaleDown"
             displayName: "Scale down to 5 Nodes"

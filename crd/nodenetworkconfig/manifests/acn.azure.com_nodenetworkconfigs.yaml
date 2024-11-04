@@ -21,6 +21,10 @@ spec:
       name: Requested IPs
       priority: 1
       type: integer
+    - jsonPath: .spec.availabilityZone
+      name: Availability Zone
+      priority: 1
+      type: string
     - jsonPath: .status.assignedIPCount
       name: Allocated IPs
       type: integer
@@ -71,6 +75,10 @@ spec:
           spec:
             description: NodeNetworkConfigSpec defines the desired state of NetworkConfig
             properties:
+              availabilityZone:
+                description: AvailabilityZone contains the Azure availability zone
+                  for the virtual machine where network containers are placed.
+                type: string
               ipsNotInUse:
                 items:
                   type: string
