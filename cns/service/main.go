@@ -776,6 +776,7 @@ func main() {
 				MSIResourceID:                      cnsconfig.MSISettings.ResourceID,
 				KeyVaultCertificateRefreshInterval: time.Duration(cnsconfig.KeyVaultSettings.RefreshIntervalInHrs) * time.Hour,
 				UseMTLS:                            cnsconfig.UseMTLS,
+				MinTLSVersion:                      cnsconfig.MinTLSVersion,
 			}
 		}
 

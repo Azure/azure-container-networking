@@ -14,6 +14,7 @@ type TlsSettings struct {
 	MSIResourceID                      string
 	KeyVaultCertificateRefreshInterval time.Duration
 	UseMTLS                            bool
+	MinTLSVersion                      string
 }
 
 func GetTlsCertificateRetriever(settings TlsSettings) (TlsCertificateRetriever, error) {
