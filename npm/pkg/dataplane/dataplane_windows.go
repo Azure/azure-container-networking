@@ -365,7 +365,7 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 		return nil, errors.Wrap(err, "failed to get local pod endpoints in state: attachedSharing")
 	}
 
-	// Filtering out any of the same endpoints between endpoints with state attached and attachedSharing
+	// Get endpoints unique to endpoints and endpointsAttached
 	endpoints = GetUniqueEndpoints(endpoints, endpointsAttached)
 
 	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
