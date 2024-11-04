@@ -272,7 +272,7 @@ container-buildah: # util target to build container images using buildah. do not
 	buildah push $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
 container-docker: # util target to build container images using docker buildx. do not invoke directly.
-	docker buildx create --use --platform $(PLATFORM)
+	docker buildx create --use --driver-opt image=mcr.microsoft.com/oss/v2/moby/buildkit:v0.16.0-2 --platform $(PLATFORM)
 	docker buildx build \
 		$(BUILDX_ACTION) \
 		--platform $(PLATFORM) \
