@@ -378,12 +378,14 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 func GetUniqueEndpoints(endpoints, endpointsAttached []hcn.HostComputeEndpoint) []hcn.HostComputeEndpoint {
 	// Store IDs of endpoints list in a map for quick lookup
 	idMap := make(map[string]struct{}, len(endpoints))
-	for _, ep := range endpoints {
+	for i := 0; i < len(endpoints); i++ {
+		ep := endpoints[i]
 		idMap[ep.Id] = struct{}{}
 	}
 
 	// Add endpointsAttached list endpoints in endpoints list if the endpoint is not in the map
-	for _, ep := range endpointsAttached {
+	for i := 0; i < len(endpointsAttached); i++ {
+		ep := endpointsAttached[i]
 		if _, ok := idMap[ep.Id]; !ok {
 			endpoints = append(endpoints, ep)
 		}
