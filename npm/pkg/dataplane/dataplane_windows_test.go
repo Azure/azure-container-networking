@@ -2,7 +2,6 @@ package dataplane
 
 import (
 	"fmt"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
 	"github.com/Microsoft/hcsshim/hcn"
+	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
@@ -99,19 +99,19 @@ func TestRemoveCommonEndpoints(t *testing.T) {
 			name:              "1 value same",
 			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "123456"}, {Id: "560971"}},
 			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "123456"}, {Id: "789012"}},
-			expected:          []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "123456"}, {Id: "789012"}, {Id: "456901"}, {Id: "560971"}},
+			expected:          []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "123456"}, {Id: "560971"}, {Id: "567890"}, {Id: "789012"}},
 		},
 		{
 			name:              "no values same",
 			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "560971"}},
 			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "789012"}},
-			expected:          []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "789012"}, {Id: "456901"}, {Id: "560971"}},
+			expected:          []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "560971"}, {Id: "567890"}, {Id: "789012"}},
 		},
 		{
 			name:              "1 value same",
 			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "123456"}, {Id: "560971"}},
 			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "123456"}, {Id: "789012"}},
-			expected:          []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "123456"}, {Id: "789012"}, {Id: "456901"}, {Id: "560971"}},
+			expected:          []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "123456"}, {Id: "560971"}, {Id: "567890"}, {Id: "789012"}},
 		},
 		{
 			name:              "two values same",
@@ -142,14 +142,10 @@ func TestRemoveCommonEndpoints(t *testing.T) {
 		tt := tt
 
 		t.Run(tt.name, func(t *testing.T) {
-			result := removeCommonEndpoints(&tt.endpoints, &tt.endpointsAttached)
-			// Use reflect.DeepEqual as a backup if require.Equal doesn't work as expected
-			if !reflect.DeepEqual(tt.expected, result) {
+			result := GetUniqueEndpoints(tt.endpoints, tt.endpointsAttached)
+			if !cmp.Equal(tt.expected, result) {
 				t.Errorf("Test %s failed: expected %v, got %v", tt.name, tt.expected, result)
 			}
-
-			// Or, if require.Equal works fine, it will display a descriptive error message
-			require.Equal(t, tt.expected, result, "expected array equals result")
 		})
 	}
 }

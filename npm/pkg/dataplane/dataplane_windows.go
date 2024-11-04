@@ -366,7 +366,7 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 	}
 
 	// Filtering out any of the same endpoints between endpoints with state attached and attachedSharing
-	endpoints = removeCommonEndpoints(&endpoints, &endpointsAttached)
+	endpoints = GetUniqueEndpoints(endpoints, endpointsAttached)
 
 	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
 	for k := range endpoints {
@@ -375,36 +375,22 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 	return epPointers, nil
 }
 
-func removeCommonEndpoints(endpoints, endpointsAttached *[]hcn.HostComputeEndpoint) []hcn.HostComputeEndpoint {
-	// Choose smaller and larger lists based on length for efficiency
-	smallerEndpointsList, largerEndpointsList := endpoints, endpointsAttached
-	if len(*endpoints) > len(*endpointsAttached) {
-		smallerEndpointsList, largerEndpointsList = endpointsAttached, endpoints
-	}
-
-	// Store IDs of smaller list in a map for quick lookup
-	idMap := make(map[string]struct{}, len(*smallerEndpointsList))
-	for i := 0; i < len(*smallerEndpointsList); i++ {
-		ep := &(*smallerEndpointsList)[i]
+func GetUniqueEndpoints(endpoints, endpointsAttached []hcn.HostComputeEndpoint) []hcn.HostComputeEndpoint {
+	// Store IDs of endpoints list in a map for quick lookup
+	idMap := make(map[string]struct{}, len(endpoints))
+	for i := 0; i < len(endpoints); i++ {
+		ep := &(endpoints)[i]
 		idMap[ep.Id] = struct{}{}
 	}
 
-	// Append endpoints from larger list and remove common IDs from map
-	result := []hcn.HostComputeEndpoint{}
-	for i := 0; i < len(*largerEndpointsList); i++ {
-		ep := (*largerEndpointsList)[i]
-		result = append(result, ep)
-		delete(idMap, ep.Id)
-	}
-
-	// Append remaining unique endpoints from smaller list to result
-	for i := 0; i < len(*smallerEndpointsList); i++ {
-		ep := (*smallerEndpointsList)[i]
-		if _, found := idMap[ep.Id]; found {
-			result = append(result, ep)
+	// Add endpointsAttached list endpoints in endpoints list if the endpoint is not in the map
+	for i := 0; i < len(endpointsAttached); i++ {
+		ep := endpointsAttached[i]
+		if _, ok := idMap[ep.Id]; !ok {
+			endpoints = append(endpoints, ep)
 		}
 	}
-	return result
+	return endpoints
 }
 
 // refreshPodEndpoints will refresh all the pod endpoints and create empty netpol references for new endpoints
