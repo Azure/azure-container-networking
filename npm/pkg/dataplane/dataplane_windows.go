@@ -71,7 +71,7 @@ func (dp *DataPlane) initializeDataPlane() error {
 	filterMapAttached := map[string]uint16{"State": hcnEndpointStateAttached}
 	filterAttached, err := json.Marshal(filterMapAttached)
 	if err != nil {
-		return errors.Wrap(err, "failed to marshal endpoint filter map for attched state on L1VH Node")
+		return errors.Wrap(err, "failed to marshal endpoint filter map for attched state")
 	}
 	dp.endpointQueryAttachedState.query.Filter = string(filterAttached)
 
