@@ -34,7 +34,7 @@ steps:
         kubectl cluster-info
         kubectl get po -owide -A
         echo "install Cilium ${CILIUM_VERSION_TAG}"
-        export DIR=${CILIUM_VERSION_TAG%.*}
+        export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
         echo "installing files from ${DIR}"
         echo "deploy Cilium ConfigMap"
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
