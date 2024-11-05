@@ -909,58 +909,69 @@ func TestDetectIptablesVersion(t *testing.T) {
 
 	tests := []args{
 		{
-			name: "iptables-nft-save returns kube chains",
+			name: "nft has hint chain",
 			calls: []testutils.TestCmd{
 				{
-					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
-					Stdout: iptablesSaveMangleOutput,
+					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					ExitCode: 0,
 				},
 			},
 			expectedErr:             false,
 			expectedIptablesVersion: util.IptablesNft,
 		},
 		{
-			name: "iptables-save returns kube chains",
+			name: "nft has only canary chain",
 			calls: []testutils.TestCmd{
 				{
-					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
-					Stdout: "",
+					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					ExitCode: 1,
 				},
 				{
-					Cmd:    []string{"iptables-save", "-t", "mangle"},
-					Stdout: iptablesSaveMangleOutput,
+					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					ExitCode: 0,
+				},
+			},
+			expectedErr:             false,
+			expectedIptablesVersion: util.IptablesNft,
+		},
+		{
+			name: "legacy has hint chain",
+			calls: []testutils.TestCmd{
+				{
+					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					ExitCode: 0,
 				},
 			},
 			expectedErr:             false,
 			expectedIptablesVersion: util.IptablesLegacy,
 		},
 		{
-			name:          "iptables-nft-save and iptables-save both fail: kernel version >= 5",
+			name:          "nft and legacy both fail: kernel version >= 5",
 			kernelVersion: 5,
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables-nft-save", "-t", "mangle"},
-					ExitCode: 1,
+					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					ExitCode: 2,
 				},
 				{
-					Cmd:      []string{"iptables-save", "-t", "mangle"},
-					ExitCode: 1,
-				},
-			},
-			expectedErr:             false,
-			expectedIptablesVersion: util.IptablesNft,
-		},
-		{
-			name:          "no kube chains: kernel version >= 5",
-			kernelVersion: 5,
-			calls: []testutils.TestCmd{
-				{
-					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
-					Stdout: "",
+					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					ExitCode: 2,
 				},
 				{
-					Cmd:    []string{"iptables-save", "-t", "mangle"},
-					Stdout: "",
+					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					ExitCode: 2,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					ExitCode: 2,
 				},
 			},
 			expectedErr:             false,
@@ -971,12 +982,20 @@ func TestDetectIptablesVersion(t *testing.T) {
 			kernelVersion: 4,
 			calls: []testutils.TestCmd{
 				{
-					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
-					Stdout: "",
+					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					ExitCode: 1,
 				},
 				{
-					Cmd:    []string{"iptables-save", "-t", "mangle"},
-					Stdout: "",
+					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					ExitCode: 1,
 				},
 			},
 			expectedErr:             false,
@@ -987,12 +1006,20 @@ func TestDetectIptablesVersion(t *testing.T) {
 			kernelVersionErr: fmt.Errorf("kernel version error"),
 			calls: []testutils.TestCmd{
 				{
-					Cmd:    []string{"iptables-nft-save", "-t", "mangle"},
-					Stdout: "",
+					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					ExitCode: 1,
 				},
 				{
-					Cmd:    []string{"iptables-save", "-t", "mangle"},
-					Stdout: "",
+					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					ExitCode: 1,
 				},
 			},
 			expectedErr: true,
@@ -1001,7 +1028,8 @@ func TestDetectIptablesVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		tt := tt
-		if tt.name != "no kube chains: kernel version is empty" {
+
+		if tt.name != "no kube chains: kernel version error" {
 			continue
 		}
 
@@ -1012,11 +1040,12 @@ func TestDetectIptablesVersion(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
 			cfg := &PolicyManagerCfg{
-				debug:                true,
-				debugKernelVersion:   tt.kernelVersion,
-				NodeIP:               "6.7.8.9",
-				PolicyMode:           IPSetPolicyMode,
-				PlaceAzureChainFirst: util.PlaceAzureChainFirst,
+				debug:                 true,
+				debugKernelVersion:    tt.kernelVersion,
+				debugKernelVersionErr: tt.kernelVersionErr,
+				NodeIP:                "6.7.8.9",
+				PolicyMode:            IPSetPolicyMode,
+				PlaceAzureChainFirst:  util.PlaceAzureChainFirst,
 			}
 			pMgr := NewPolicyManager(ioshim, cfg)
 			err := pMgr.detectIptablesVersion()

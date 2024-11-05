@@ -91,6 +91,10 @@ var (
 		util.IptablesJumpFlag,
 		util.IptablesAzureChain,
 	}
+
+	listChainArgs       = []string{util.IptablesWaitFlag, util.IptablesDefaultWaitTime, util.IptablesTableFlag, util.IptablesMangleTable, util.IptablesNumericFlag, util.IptablesListFlag}
+	listHintChainArgs   = append(listChainArgs, "KUBE-IPTABLES-HINT")
+	listCanaryChainArgs = append(listChainArgs, "KUBE-KUBELET-CANARY")
 )
 
 type exitErrorInfo struct {
@@ -246,46 +250,23 @@ func (pMgr *PolicyManager) bootupAfterDetectAndCleanup() error {
 // detectIptablesVersion sets the global iptables variable to nft if detected or legacy if detected.
 // NPM will crash if it fails to detect either.
 // This global variable is referenced in all iptables related functions.
+// NPM should use the same iptables version as kube-proxy.
+// kube-proxy creates an iptables chain as a hint for which version it uses.
+// For more details, see: https://kubernetes.io/blog/2022/09/07/iptables-chains-not-api/#use-case-iptables-mode
 func (pMgr *PolicyManager) detectIptablesVersion() error {
-	klog.Info("first attempt detecting iptables version. running: iptables-nft-save -t mangle")
-	cmd := pMgr.ioShim.Exec.Command(util.IptablesSaveNft, "-t", "mangle")
-	output, nftErr := cmd.CombinedOutput()
-	if nftErr != nil {
-		msg := "failed to detect iptables version on first attempt. error running iptables-nft-save. will try detecting using iptables-legacy-save. err: %s"
-		metrics.SendErrorLogAndMetric(util.IptmID, msg, nftErr.Error())
-	} else if strings.Contains(string(output), "KUBE-IPTABLES-HINT") || strings.Contains(string(output), "KUBE-KUBELET-CANARY") {
-		msg := "detected iptables version on first attempt. found KUBE chains in nft iptables. NPM will use iptables-nft"
-		klog.Info(msg)
-		metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
+	klog.Info("first attempt detecting iptables version. looking for hint/canary chain in iptables-nft")
+	if pMgr.hintOrCanaryChainExist(util.IptablesNft) {
 		util.SetIptablesToNft()
 		return nil
 	}
 
-	klog.Info("second attempt detecting iptables version. running: iptables-legacy-save -t mangle")
-	lCmd := pMgr.ioShim.Exec.Command(util.IptablesSaveLegacy, "-t", "mangle")
-	loutput, legacyErr := lCmd.CombinedOutput()
-	if legacyErr != nil {
-		msg := "failed to detect iptables version on second attempt. error running iptables-legacy-save. will try detecting using kernel version. err: %s"
-		metrics.SendErrorLogAndMetric(util.IptmID, msg, legacyErr.Error())
-	} else {
-		if strings.Contains(string(loutput), "KUBE-IPTABLES-HINT") || strings.Contains(string(loutput), "KUBE-KUBELET-CANARY") {
-			msg := "detected iptables version on second attempt. found KUBE chains in legacy tables. NPM will use iptables-legacy"
-			klog.Info(msg)
-			metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
-			util.SetIptablesToLegacy()
-			return nil
-		} else if nftErr != nil {
-			msg := "NPM will use iptables-nft. iptables-nft-save failed earlier, but iptables-legacy-save didn't have KUBE chains"
-			klog.Info(msg)
-			metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
-			util.SetIptablesToNft()
-			return nil
-		}
+	klog.Info("second attempt detecting iptables version. looking for hint/canary chain in iptables-legacy")
+	if pMgr.hintOrCanaryChainExist(util.IptablesLegacy) {
+		util.SetIptablesToLegacy()
+		return nil
 	}
 
-	// we are here if either:
-	// 1. both nft and legacy save commands failed
-	// 2. both nft and legacy save commands didn't have KUBE chains
+	// at this point, chains do not exist in iptables legacy/nft and/or iptables commands have failed for other reasons
 	klog.Info("third attempt detecting iptables version. getting kernel version")
 	var majorVersion int
 	var versionError error
@@ -313,6 +294,31 @@ func (pMgr *PolicyManager) detectIptablesVersion() error {
 	metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
 	util.SetIptablesToLegacy()
 	return nil
+}
+
+func (pMgr *PolicyManager) hintOrCanaryChainExist(iptablesCmd string) bool {
+	// hint chain should exist since k8s 1.24 (see https://kubernetes.io/blog/2022/09/07/iptables-chains-not-api/#use-case-iptables-mode)
+	hintCmd := pMgr.ioShim.Exec.Command(iptablesCmd, listHintChainArgs...)
+	_, hintErr := hintCmd.CombinedOutput()
+	if hintErr != nil {
+		klog.Infof("failed to list hint chain. cmd: %s. error: %s", iptablesCmd, hintErr.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "failed to list hint chain. cmd: %s. error: %s", iptablesCmd, hintErr.Error())
+	} else {
+		metrics.SendLog(util.IptmID, fmt.Sprintf("found hint chain. will use iptables version: %s", iptablesCmd), metrics.DonotPrint)
+		return true
+	}
+
+	// check for canary chain
+	canaryCmd := pMgr.ioShim.Exec.Command(iptablesCmd, listCanaryChainArgs...)
+	_, canaryErr := canaryCmd.CombinedOutput()
+	if canaryErr != nil {
+		klog.Infof("failed to list canary chain. cmd: %s. error: %s", iptablesCmd, canaryErr.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "failed to list canary chain. cmd: %s. error: %s", iptablesCmd, canaryErr.Error())
+		return false
+	}
+
+	metrics.SendLog(util.IptmID, fmt.Sprintf("found canary chain. will use iptables version: %s", iptablesCmd), metrics.DonotPrint)
+	return true
 }
 
 // clenaupOtherIptablesChains cleans up legacy tables if using nft and vice versa.

@@ -83,6 +83,7 @@ const (
 	IptablesEstablishedState   string = "ESTABLISHED"
 	IptablesNewState           string = "NEW"
 	IptablesFilterTable        string = "filter"
+	IptablesMangleTable        string = "mangle"
 	IptablesCommentModuleFlag  string = "comment"
 	IptablesCommentFlag        string = "--comment"
 	IptablesAddCommentFlag
