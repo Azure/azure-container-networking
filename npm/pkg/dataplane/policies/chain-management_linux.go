@@ -282,16 +282,16 @@ func (pMgr *PolicyManager) detectIptablesVersion() error {
 	}
 
 	if majorVersion >= 5 {
-		msg := "detected iptables version on third attempt. found kernel version >= 5. NPM will use iptables-nft"
-		klog.Info(msg)
-		metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
+		msg := "detected iptables version on third attempt. found kernel version >= 5. NPM will use iptables-nft. kernel version: %d"
+		klog.Infof(msg, majorVersion)
+		metrics.SendLog(util.IptmID, fmt.Sprintf(msg, majorVersion), metrics.DonotPrint)
 		util.SetIptablesToNft()
 		return nil
 	}
 
-	msg := "detected iptables version on third attempt. found kernel version < 5. NPM will use iptables-legacy"
-	klog.Info(msg)
-	metrics.SendLog(util.IptmID, msg, metrics.DonotPrint)
+	msg := "detected iptables version on third attempt. found kernel version < 5. NPM will use iptables-legacy. kernel version: %d"
+	klog.Infof(msg, majorVersion)
+	metrics.SendLog(util.IptmID, fmt.Sprintf(msg, majorVersion), metrics.DonotPrint)
 	util.SetIptablesToLegacy()
 	return nil
 }
