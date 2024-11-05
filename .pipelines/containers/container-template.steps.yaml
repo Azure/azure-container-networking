@@ -2,7 +2,6 @@ parameters:
   arch: ""
   name: ""
   os: ""
-  os_version: ""
 
 steps:
 - task: AzureCLI@2
@@ -17,7 +16,7 @@ steps:
 - script: |
     set -e
     if [ "$IN_OS" = 'windows' ]; then export BUILDX_ACTION='--push'; fi
-    make "$IMGNAME" OS="$IN_OS" ARCH="$IN_ARCH" OS_VERSION="$IN_OS_VERSION"
+    make "$IMGNAME" OS="$IN_OS" ARCH="$IN_ARCH" 
   name: image_build
   displayName: Image Build
   workingDirectory: $(ACN_DIR)
@@ -26,7 +25,6 @@ steps:
     IMGNAME: '${{ parameters.name }}-image'
     IN_OS: '${{ parameters.os }}'
     IN_ARCH: '${{ parameters.arch }}'
-    IN_OS_VERSION: '${{ parameters.os_version }}'
 
 - task: AzureCLI@2
   displayName: "Logout"

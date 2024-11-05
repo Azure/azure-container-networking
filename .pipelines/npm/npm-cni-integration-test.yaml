@@ -69,7 +69,7 @@ jobs:
               # deploy azure-npm-win
               # Windows
               kubectl apply -f npm/examples/windows/azure-npm.yaml
-              kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-${{ parameters.tag }}
+              kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-${{ parameters.tag }}
               kubectl rollout status -n kube-system daemonset/azure-npm-win
 
               # konnectivity agent tends to fail after rollout. Give it time to recover
