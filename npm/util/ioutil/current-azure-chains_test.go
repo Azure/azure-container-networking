@@ -17,7 +17,7 @@ Chain AZURE-NPM-INGRESS-123456 (1 references)
 Chain AZURE-NPM-INGRESS-ALLOW-MARK (1 references)
 `
 
-var listAllCommandStrings = []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}
+var listAllCommandStrings = []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}
 
 func TestAllCurrentAzureChains(t *testing.T) {
 	tests := []struct {
@@ -41,7 +41,7 @@ func TestAllCurrentAzureChains(t *testing.T) {
 		{
 			name: "ignore missing newline at end of grep result",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd: []string{"grep", "Chain AZURE-NPM"},
 					Stdout: `Chain AZURE-NPM (1 references)
@@ -54,7 +54,7 @@ Chain AZURE-NPM-INGRESS (1 references)`,
 		{
 			name: "ignore unexpected grep line (chain name too short)",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd: []string{"grep", "Chain AZURE-NPM"},
 					Stdout: `Chain AZURE-NPM (1 references)
@@ -69,7 +69,7 @@ Chain AZURE-NPM-INGRESS (1 references)
 		{
 			name: "ignore unexpected grep line (no space)",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd: []string{"grep", "Chain AZURE-NPM"},
 					Stdout: `Chain AZURE-NPM (1 references)
@@ -83,7 +83,7 @@ Chain AZURE-NPM-INGRESS (1 references)
 		{
 			name: "success with no chains",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "Chain AZURE-NPM"}, ExitCode: 1},
 			},
 			expectedChains: nil,
@@ -92,7 +92,7 @@ Chain AZURE-NPM-INGRESS (1 references)
 		{
 			name: "grep failure",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true, HasStartError: true, ExitCode: 1},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true, HasStartError: true, ExitCode: 1},
 				{Cmd: []string{"grep", "Chain AZURE-NPM"}},
 			},
 			expectedChains: nil,
@@ -101,7 +101,7 @@ Chain AZURE-NPM-INGRESS (1 references)
 		{
 			name: "invalid grep result",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: "",
