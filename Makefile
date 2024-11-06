@@ -300,7 +300,7 @@ container-buildah: # util target to build container images using buildah. do not
 	buildah push $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
 container-docker: # util target to build container images using docker buildx. do not invoke directly.
-	docker buildx create --use --platform $(PLATFORM)
+	docker buildx create --use --driver-opt image=mcr.microsoft.com/oss/v2/moby/buildkit:v0.16.0-2 --platform $(PLATFORM)
 	docker buildx build \
 		$(BUILDX_ACTION) \
 		--build-arg ARCH=$(ARCH) \
@@ -436,7 +436,8 @@ cni-image: ## build cni container image.
 		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION)
+		OS_VERSION=$(OS_VERSION) \
+		EXTRA_BUILD_ARGS='--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
 
 cni-image-push: ## push cni container image.
 	$(MAKE) container-push \

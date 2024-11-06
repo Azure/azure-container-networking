@@ -79,6 +79,7 @@ func TestSecondaryAddEndpoints(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.client.ep.SecondaryInterfaces["eth1"].MacAddress, tt.epInfo.MacAddress)
+				require.Equal(t, "eth1", tt.epInfo.IfName, "interface name should update based on mac address here before being referenced later")
 			}
 		})
 	}

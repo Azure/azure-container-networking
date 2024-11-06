@@ -71,9 +71,9 @@ stages:
           os: ${{ parameters.os }}
           datapath: true
           dns: true
+          cni: cilium
           portforward: true
           service: true
-          hostport: true
           dependsOn: ${{ parameters.name }}
 
       - job: failedE2ELogs

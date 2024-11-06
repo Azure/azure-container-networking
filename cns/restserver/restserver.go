@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
+	"github.com/Azure/azure-container-networking/cns/nodesubnet"
 	"github.com/Azure/azure-container-networking/cns/routes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/types/bounded"
@@ -40,6 +41,7 @@ type nmagentClient interface {
 	SupportedAPIs(context.Context) ([]string, error)
 	GetNCVersionList(context.Context) (nma.NCVersionList, error)
 	GetHomeAz(context.Context) (nma.AzResponse, error)
+	GetInterfaceIPInfo(ctx context.Context) (nma.Interfaces, error)
 }
 
 type wireserverProxy interface {
@@ -76,6 +78,7 @@ type HTTPRestService struct {
 	IPConfigsHandlerMiddleware cns.IPConfigsHandlerMiddleware
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
+	nodesubnetIPFetcher        *nodesubnet.IPFetcher
 }
 
 type CNIConflistGenerator interface {

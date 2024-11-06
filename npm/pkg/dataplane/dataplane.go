@@ -45,6 +45,7 @@ type Config struct {
 	NetPolInBackground bool
 	MaxPendingNetPols  int
 	NetPolInterval     time.Duration
+	EnableNPMLite      bool
 	*ipsets.IPSetManagerCfg
 	*policies.PolicyManagerCfg
 }
@@ -64,12 +65,13 @@ type DataPlane struct {
 	nodeName           string
 	// endpointCache stores all endpoints of the network (including off-node)
 	// Key is PodIP
-	endpointCache  *endpointCache
-	ioShim         *common.IOShim
-	updatePodCache *updatePodCache
-	endpointQuery  *endpointQuery
-	applyInfo      *applyInfo
-	netPolQueue    *netPolQueue
+	endpointCache              *endpointCache
+	ioShim                     *common.IOShim
+	updatePodCache             *updatePodCache
+	endpointQuery              *endpointQuery
+	endpointQueryAttachedState *endpointQuery // windows -> filter for state 2 (attached) endpoints in l1vh
+	applyInfo                  *applyInfo
+	netPolQueue                *netPolQueue
 	// removePolicyInfo tracks when a policy was removed yet had ApplyIPSet failures.
 	// This field is only relevant for Linux.
 	removePolicyInfo removePolicyInfo
@@ -88,11 +90,12 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		policyMgr: policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
 		ipsetMgr:  ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
 		// networkID is set when initializing Windows dataplane
-		networkID:     "",
-		endpointCache: newEndpointCache(),
-		nodeName:      nodeName,
-		ioShim:        ioShim,
-		endpointQuery: new(endpointQuery),
+		networkID:                  "",
+		endpointCache:              newEndpointCache(),
+		nodeName:                   nodeName,
+		ioShim:                     ioShim,
+		endpointQuery:              new(endpointQuery),
+		endpointQueryAttachedState: new(endpointQuery),
 		applyInfo: &applyInfo{
 			inBootupPhase: true,
 		},
@@ -128,7 +131,6 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 	} else {
 		metrics.SendLog(util.DaemonDataplaneID, "[DataPlane] dataplane configured to NOT add netpols in background", true)
 	}
-
 	return dp, nil
 }
 

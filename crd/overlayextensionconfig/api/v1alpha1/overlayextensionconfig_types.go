@@ -31,9 +31,13 @@ type OverlayExtensionConfigList struct {
 }
 
 // OverlayExtensionConfigSpec defines the desired state of OverlayExtensionConfig.
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.extensionIPRange) || has(self.extensionIPRange)", message="ExtensionIPRange is required once set"
 type OverlayExtensionConfigSpec struct {
 	// ExtensionIPRange field defines a CIDR that should be able to reach routing domain ip addresses.
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	// +kubebuilder:validation:MaxLength=43
+	// 43 is max length of IPv6 CIDR string
 	ExtensionIPRange string `json:"extensionIPRange,omitempty"`
 }
 

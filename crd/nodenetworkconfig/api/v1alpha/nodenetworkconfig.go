@@ -16,6 +16,7 @@ import (
 // +kubebuilder:resource:shortName=nnc
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Requested IPs",type=integer,priority=1,JSONPath=`.spec.requestedIPCount`
+// +kubebuilder:printcolumn:name="Availability Zone",type=string,priority=1,JSONPath=`.spec.availabilityZone`
 // +kubebuilder:printcolumn:name="Allocated IPs",type=integer,priority=0,JSONPath=`.status.assignedIPCount`
 // +kubebuilder:printcolumn:name="Subnet",type=string,priority=1,JSONPath=`.status.networkContainers[*].subnetName`
 // +kubebuilder:printcolumn:name="Subnet CIDR",type=string,priority=1,JSONPath=`.status.networkContainers[*].subnetAddressSpace`
@@ -46,6 +47,9 @@ type NodeNetworkConfigSpec struct {
 	// +kubebuilder:validation:Optional
 	RequestedIPCount int64    `json:"requestedIPCount"`
 	IPsNotInUse      []string `json:"ipsNotInUse,omitempty"`
+	// AvailabilityZone contains the Azure availability zone for the virtual machine where network containers are placed.
+	// +kubebuilder:validation:Optional
+	AvailabilityZone string `json:"availabilityZone,omitempty"`
 }
 
 // Status indicates the NNC reconcile status

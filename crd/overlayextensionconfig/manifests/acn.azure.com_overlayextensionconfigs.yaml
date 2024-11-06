@@ -48,10 +48,18 @@ spec:
             description: OverlayExtensionConfigSpec defines the desired state of OverlayExtensionConfig.
             properties:
               extensionIPRange:
-                description: ExtensionIPRange field defines a CIDR that should be
-                  able to reach routing domain ip addresses.
+                description: |-
+                  ExtensionIPRange field defines a CIDR that should be able to reach routing domain ip addresses.
+                  43 is max length of IPv6 CIDR string
+                maxLength: 43
                 type: string
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
             type: object
+            x-kubernetes-validations:
+            - message: ExtensionIPRange is required once set
+              rule: '!has(oldSelf.extensionIPRange) || has(self.extensionIPRange)'
           status:
             description: OverlayExtensionConfigStatus defines the observed state of
               OverlayExtensionConfig

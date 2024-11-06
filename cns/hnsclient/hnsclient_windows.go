@@ -17,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// TODO redesign hnsclient on windows
 const (
 	// Name of the external hns network
 	ExtHnsNetworkName = "ext"
@@ -53,6 +54,9 @@ const (
 	// Name of the loopback adapter needed to create Host NC apipa network
 	hostNCLoopbackAdapterName = "LoopbackAdapterHostNCConnectivity"
 
+	// HNS rehydration issue requires this GW to be different than the loopback adapter ip, so we set it to .2
+	defaultHnsGwIPAddress       = "169.254.128.2"
+	hnsLoopbackAdapterIPAddress = "169.254.128.1"
 	// protocolTCP indicates the TCP protocol identifier in HCN
 	protocolTCP = "6"
 
@@ -301,7 +305,7 @@ func createHostNCApipaNetwork(
 		if interfaceExists, _ := networkcontainers.InterfaceExists(hostNCLoopbackAdapterName); !interfaceExists {
 			ipconfig := cns.IPConfiguration{
 				IPSubnet: cns.IPSubnet{
-					IPAddress:    localIPConfiguration.GatewayIPAddress,
+					IPAddress:    hnsLoopbackAdapterIPAddress,
 					PrefixLength: localIPConfiguration.IPSubnet.PrefixLength,
 				},
 				GatewayIPAddress: localIPConfiguration.GatewayIPAddress,
@@ -510,7 +514,7 @@ func configureHostNCApipaEndpoint(
 	endpointPolicies, err := configureAclSettingHostNCApipaEndpoint(
 		protocolList,
 		networkContainerApipaIP,
-		hostApipaIP,
+		hnsLoopbackAdapterIPAddress,
 		allowNCToHostCommunication,
 		allowHostToNCCommunication,
 		ncPolicies)
@@ -573,6 +577,7 @@ func CreateHostNCApipaEndpoint(
 		return endpoint.Id, nil
 	}
 
+	updateGwForLocalIPConfiguration(&localIPConfiguration)
 	if network, err = createHostNCApipaNetwork(localIPConfiguration); err != nil {
 		logger.Errorf("[Azure CNS] Failed to create HostNCApipaNetwork. Error: %v", err)
 		return "", err
@@ -602,6 +607,17 @@ func CreateHostNCApipaEndpoint(
 	logger.Printf("[Azure CNS] Successfully created HostNCApipaEndpoint: %+v", endpoint)
 
 	return endpoint.Id, nil
+}
+
+// updateGwForLocalIPConfiguration applies change on gw IP address for apipa NW and endpoint.
+// Currently, cns using the same ip address "169.254.128.1" for both apipa gw and loopback adapter. This cause conflict issue when hns get restarted and not able to rehydrate the apipa endpoints.
+// This func is to overwrite the address to 169.254.128.2 when the gateway address is 169.254.128.1
+func updateGwForLocalIPConfiguration(localIPConfiguration *cns.IPConfiguration) {
+	// When gw address is 169.254.128.1, should use .2 instead. If gw address is not .1, that mean this value is
+	// configured from dnc, we should keep it
+	if localIPConfiguration.GatewayIPAddress == "169.254.128.1" {
+		localIPConfiguration.GatewayIPAddress = defaultHnsGwIPAddress
+	}
 }
 
 func getHostNCApipaEndpointName(
