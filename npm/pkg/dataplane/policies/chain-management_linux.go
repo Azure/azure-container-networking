@@ -94,9 +94,8 @@ var (
 		util.IptablesAzureChain,
 	}
 
-	listChainArgs       = []string{util.IptablesWaitFlag, util.IptablesDefaultWaitTime, util.IptablesTableFlag, util.IptablesMangleTable, util.IptablesNumericFlag, util.IptablesListFlag}
-	listHintChainArgs   = append(listChainArgs, "KUBE-IPTABLES-HINT")
-	listCanaryChainArgs = append(listChainArgs, "KUBE-KUBELET-CANARY")
+	listHintChainArgs   = []string{"KUBE-IPTABLES-HINT", util.IptablesTableFlag, util.IptablesMangleTable, util.IptablesNumericFlag}
+	listCanaryChainArgs = []string{"KUBE-KUBELET-CANARY", util.IptablesTableFlag, util.IptablesMangleTable, util.IptablesNumericFlag}
 )
 
 type exitErrorInfo struct {
@@ -300,22 +299,21 @@ func (pMgr *PolicyManager) detectIptablesVersion() error {
 
 func (pMgr *PolicyManager) hintOrCanaryChainExist(iptablesCmd string) bool {
 	// hint chain should exist since k8s 1.24 (see https://kubernetes.io/blog/2022/09/07/iptables-chains-not-api/#use-case-iptables-mode)
-	hintCmd := pMgr.ioShim.Exec.Command(iptablesCmd, listHintChainArgs...)
-	_, hintErr := hintCmd.CombinedOutput()
-	if hintErr != nil {
-		klog.Infof("failed to list hint chain. cmd: %s. error: %s", iptablesCmd, hintErr.Error())
-		metrics.SendErrorLogAndMetric(util.IptmID, "failed to list hint chain. cmd: %s. error: %s", iptablesCmd, hintErr.Error())
-	} else {
+	prevIptables := util.Iptables
+	util.Iptables = iptablesCmd
+	defer func() {
+		util.Iptables = prevIptables
+	}()
+
+	_, hintErr := pMgr.runIPTablesCommand(util.IptablesListFlag, listHintChainArgs...)
+	if hintErr == nil {
 		metrics.SendLog(util.IptmID, "found hint chain. will use iptables version: %s"+iptablesCmd, metrics.DonotPrint)
 		return true
 	}
 
 	// check for canary chain
-	canaryCmd := pMgr.ioShim.Exec.Command(iptablesCmd, listCanaryChainArgs...)
-	_, canaryErr := canaryCmd.CombinedOutput()
+	_, canaryErr := pMgr.runIPTablesCommand(util.IptablesListFlag, listCanaryChainArgs...)
 	if canaryErr != nil {
-		klog.Infof("failed to list canary chain. cmd: %s. error: %s", iptablesCmd, canaryErr.Error())
-		metrics.SendErrorLogAndMetric(util.IptmID, "failed to list canary chain. cmd: %s. error: %s", iptablesCmd, canaryErr.Error())
 		return false
 	}
 

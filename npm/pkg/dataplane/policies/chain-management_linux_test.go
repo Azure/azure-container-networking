@@ -915,7 +915,7 @@ func TestDetectIptablesVersion(t *testing.T) {
 			name: "nft has hint chain",
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 0,
 				},
 			},
@@ -926,11 +926,11 @@ func TestDetectIptablesVersion(t *testing.T) {
 			name: "nft has only canary chain",
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
 					ExitCode: 0,
 				},
 			},
@@ -941,15 +941,15 @@ func TestDetectIptablesVersion(t *testing.T) {
 			name: "legacy has hint chain",
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 0,
 				},
 			},
@@ -961,19 +961,19 @@ func TestDetectIptablesVersion(t *testing.T) {
 			kernelVersion: 5,
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 2,
 				},
 				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
 					ExitCode: 2,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 2,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
 					ExitCode: 2,
 				},
 			},
@@ -985,19 +985,19 @@ func TestDetectIptablesVersion(t *testing.T) {
 			kernelVersion: 4,
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 			},
@@ -1009,19 +1009,19 @@ func TestDetectIptablesVersion(t *testing.T) {
 			kernelVersionErr: errKernelVersion,
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-KUBELET-CANARY"},
+					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 			},
@@ -1172,6 +1172,36 @@ func TestCleanupOtherChains(t *testing.T) {
 				},
 			},
 			expectedErr: true,
+		},
+		{
+			name:         "don't flush azure chain if it isn't there",
+			startWithNft: true,
+			calls: []testutils.TestCmd{
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{
+					Cmd:    []string{"grep", "Chain AZURE-NPM"},
+					Stdout: "Chain AZURE-NPM-INGRESS (1 references)\n",
+				},
+				{
+					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{
+					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					ExitCode: 1,
+				},
+				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"}},
+				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"}},
+			},
+			expectedErr: false,
 		},
 		{
 			name:         "cleanup legacy errors ok if deleted jump (non-deprecated)",

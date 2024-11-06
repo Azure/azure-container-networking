@@ -53,7 +53,7 @@ func GetBootupTestCalls() []testutils.TestCmd {
 	bootUp := []testutils.TestCmd{
 		// detect iptables version to be nft
 		{
-			Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},
+			Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 			ExitCode: 0,
 		},
 		// legacy clean up
