@@ -101,15 +101,21 @@ func (p promVals) testPrometheusMetrics(t *testing.T) {
 // see chain-management_linux_test.go for testing when an error occurs
 func TestBootup(t *testing.T) {
 	metrics.ReinitializeAll()
-	calls := GetBootupTestCalls(false)
+	calls := GetBootupTestCalls()
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+
+	// verify that the iptables is explicitly set to nft during bootup
+	util.SetIptablesToLegacy()
+	// set back to default
+	defer util.SetIptablesToNft()
 
 	metrics.IncNumACLRules()
 	metrics.IncNumACLRules()
 
 	require.NoError(t, pMgr.Bootup(epIDs))
+	require.Equal(t, util.IptablesNft, util.Iptables)
 
 	expectedNumACLs := 11
 	if util.IsWindowsDP() {
@@ -126,7 +132,7 @@ func TestAddPolicy(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-
+	util.SetIptablesToNft()
 	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{testNetPol}, epList))
 	_, ok := pMgr.GetPolicy(testNetPol.PolicyKey)
 	require.True(t, ok)
@@ -144,6 +150,7 @@ func TestAddEmptyPolicy(t *testing.T) {
 	testNetPol := testNetworkPolicy()
 	ioshim := common.NewMockIOShim(nil)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	util.SetIptablesToNft()
 	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{
 		{
 			Namespace:   "x",
@@ -173,7 +180,7 @@ func TestGetPolicy(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-
+	util.SetIptablesToNft()
 	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{netpol}, epList))
 
 	require.True(t, pMgr.PolicyExists("x/test-netpol"))
@@ -190,6 +197,7 @@ func TestRemovePolicy(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	util.SetIptablesToNft()
 	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{testNetPol}, epList))
 	require.NoError(t, pMgr.RemovePolicy(testNetPol.PolicyKey))
 	_, ok := pMgr.GetPolicy(testNetPol.PolicyKey)
@@ -202,6 +210,7 @@ func TestRemoveNonexistentPolicy(t *testing.T) {
 	metrics.ReinitializeAll()
 	ioshim := common.NewMockIOShim(nil)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	util.SetIptablesToNft()
 	require.NoError(t, pMgr.RemovePolicy("wrong-policy-key"))
 	promVals{0, 0}.testPrometheusMetrics(t)
 }
