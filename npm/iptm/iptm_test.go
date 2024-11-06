@@ -54,11 +54,15 @@ var (
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS", "-j", "RETURN", "-m", "mark", "--mark", "0x3000", "-m", "comment", "--comment", "RETURN-on-EGRESS-and-INGRESS-mark-0x3000"}},
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS", "-j", "RETURN", "-m", "mark", "--mark", "0x1000", "-m", "comment", "--comment", "RETURN-on-EGRESS-mark-0x1000"}},
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS", "-j", "AZURE-NPM-EGRESS-DROPS"}},
-		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-PORT", "-j", "RETURN", "-m", "mark", "--mark", "0x3000", "-m", "comment", "--comment", "RETURN-on-EGRESS-and-INGRESS-mark-0x3000"}},
+		{Cmd: []string{
+			"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-PORT", "-j", "RETURN", "-m", "mark", "--mark", "0x3000", "-m", "comment", "--comment", "RETURN-on-EGRESS-and-INGRESS-mark-0x3000",
+		}},
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-PORT", "-j", "RETURN", "-m", "mark", "--mark", "0x1000", "-m", "comment", "--comment", "RETURN-on-EGRESS-mark-0x1000"}},
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-PORT", "-j", "AZURE-NPM-EGRESS-TO", "-m", "comment", "--comment", "ALL-JUMP-TO-AZURE-NPM-EGRESS-TO"}},
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-INGRESS-DROPS", "-j", "RETURN", "-m", "mark", "--mark", "0x2000", "-m", "comment", "--comment", "RETURN-on-INGRESS-mark-0x2000"}},
-		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-DROPS", "-j", "RETURN", "-m", "mark", "--mark", "0x3000", "-m", "comment", "--comment", "RETURN-on-EGRESS-and-INGRESS-mark-0x3000"}},
+		{Cmd: []string{
+			"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-DROPS", "-j", "RETURN", "-m", "mark", "--mark", "0x3000", "-m", "comment", "--comment", "RETURN-on-EGRESS-and-INGRESS-mark-0x3000",
+		}},
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-DROPS", "-j", "RETURN", "-m", "mark", "--mark", "0x1000", "-m", "comment", "--comment", "RETURN-on-EGRESS-mark-0x1000"}},
 	}
 
@@ -96,11 +100,15 @@ var (
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS", "-j", "RETURN", "-m", "mark", "--mark", "0x3000", "-m", "comment", "--comment", "RETURN-on-EGRESS-and-INGRESS-mark-0x3000"}},
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS", "-j", "RETURN", "-m", "mark", "--mark", "0x1000", "-m", "comment", "--comment", "RETURN-on-EGRESS-mark-0x1000"}},
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS", "-j", "AZURE-NPM-EGRESS-DROPS"}},
-		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-PORT", "-j", "RETURN", "-m", "mark", "--mark", "0x3000", "-m", "comment", "--comment", "RETURN-on-EGRESS-and-INGRESS-mark-0x3000"}},
+		{Cmd: []string{
+			"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-PORT", "-j", "RETURN", "-m", "mark", "--mark", "0x3000", "-m", "comment", "--comment", "RETURN-on-EGRESS-and-INGRESS-mark-0x3000",
+		}},
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-PORT", "-j", "RETURN", "-m", "mark", "--mark", "0x1000", "-m", "comment", "--comment", "RETURN-on-EGRESS-mark-0x1000"}},
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-PORT", "-j", "AZURE-NPM-EGRESS-TO", "-m", "comment", "--comment", "ALL-JUMP-TO-AZURE-NPM-EGRESS-TO"}},
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-INGRESS-DROPS", "-j", "RETURN", "-m", "mark", "--mark", "0x2000", "-m", "comment", "--comment", "RETURN-on-INGRESS-mark-0x2000"}},
-		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-DROPS", "-j", "RETURN", "-m", "mark", "--mark", "0x3000", "-m", "comment", "--comment", "RETURN-on-EGRESS-and-INGRESS-mark-0x3000"}},
+		{Cmd: []string{
+			"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-DROPS", "-j", "RETURN", "-m", "mark", "--mark", "0x3000", "-m", "comment", "--comment", "RETURN-on-EGRESS-and-INGRESS-mark-0x3000",
+		}},
 		{Cmd: []string{"iptables-nft", "-w", "60", "-C", "AZURE-NPM-EGRESS-DROPS", "-j", "RETURN", "-m", "mark", "--mark", "0x1000", "-m", "comment", "--comment", "RETURN-on-EGRESS-mark-0x1000"}},
 	}
 )
