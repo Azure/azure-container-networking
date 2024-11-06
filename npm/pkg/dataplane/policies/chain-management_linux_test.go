@@ -991,7 +991,6 @@ func TestDetectIptablesVersion(t *testing.T) {
 		tt := tt
 
 		t.Run(tt.name, func(t *testing.T) {
-
 			metrics.InitializeAll()
 
 			ioshim := common.NewMockIOShim(tt.calls)

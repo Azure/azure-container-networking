@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Azure/azure-container-networking/npm/util/ioutil"
-
 	"k8s.io/klog"
 	utilexec "k8s.io/utils/exec"
 )
