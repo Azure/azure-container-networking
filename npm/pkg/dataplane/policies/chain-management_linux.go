@@ -352,7 +352,7 @@ func (pMgr *PolicyManager) cleanupOtherIptables() error {
 	// 1.1. delete the deprecated jump to AZURE-NPM
 	errCode, err := pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
 	if errCode == 0 {
-		klog.Infof("deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
+		klog.Infof("[cleanup] deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
 		deletedJumpRule = true
 	} else if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID,
@@ -364,7 +364,7 @@ func (pMgr *PolicyManager) cleanupOtherIptables() error {
 	errCode, err = pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, jumpFromForwardToAzureChainArgs...)
 	if errCode == 0 {
 		deletedJumpRule = true
-		klog.Infof("deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
+		klog.Infof("[cleanup] deleted jump rule from FORWARD chain to AZURE-NPM chain")
 	} else if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID,
 			"[cleanup] failed to delete jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s",
@@ -416,7 +416,7 @@ func (pMgr *PolicyManager) cleanupOtherIptables() error {
 				// then there is risk that there is a jump rule to AZURE-NPM, which in turn has rules which could lead to allowing or dropping a packet.
 				// We have failed to cleanup the other iptables rules, and there is no guarantee that packets will be processed correctly now.
 				// So we must crash and retry.
-				return npmerrors.SimpleErrorWrapper("[cleanup] must crash and retry. failed to delete jump rule and flush chain %s with error", err)
+				return npmerrors.SimpleErrorWrapper("[cleanup] must crash and retry. failed to delete jump rule and flush AZURE-NPM chain with error", err)
 			}
 		}
 
