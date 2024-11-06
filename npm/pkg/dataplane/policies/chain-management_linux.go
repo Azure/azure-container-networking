@@ -261,7 +261,6 @@ func (pMgr *PolicyManager) detectIptablesVersion() {
 
 	// default to nft if nothing is found
 	util.SetIptablesToNft()
-	return
 }
 
 func (pMgr *PolicyManager) hintOrCanaryChainExist(iptablesCmd string) bool {

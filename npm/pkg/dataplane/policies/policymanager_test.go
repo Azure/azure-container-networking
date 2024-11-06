@@ -109,9 +109,7 @@ func TestBootup(t *testing.T) {
 	// verify that the iptables is explicitly set to nft during bootup
 	util.SetIptablesToLegacy()
 	// set back to default
-	defer func() {
-		util.SetIptablesToNft()
-	}()
+	defer util.SetIptablesToNft()
 
 	metrics.IncNumACLRules()
 	metrics.IncNumACLRules()

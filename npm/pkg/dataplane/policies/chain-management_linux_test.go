@@ -1349,9 +1349,7 @@ func TestCleanupOtherChains(t *testing.T) {
 			} else {
 				util.SetIptablesToLegacy()
 				// set back to default
-				defer func() {
-					util.SetIptablesToNft()
-				}()
+				defer util.SetIptablesToNft()
 			}
 
 			err := pMgr.cleanupOtherIptables()
