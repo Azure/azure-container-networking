@@ -159,3 +159,7 @@ replace (
 	github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )
+
+retract (
+	v1.16.15 // typo in the version number.
+)
