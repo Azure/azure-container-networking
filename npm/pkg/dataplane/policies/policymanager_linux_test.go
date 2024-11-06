@@ -212,7 +212,6 @@ func TestAddPolicyFailure(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	util.SetIptablesToNft()
 
 	require.Error(t, pMgr.AddPolicies([]*NPMNetworkPolicy{testNetPol}, nil))
 	_, ok := pMgr.GetPolicy(testNetPol.PolicyKey)
@@ -225,7 +224,6 @@ func TestCreatorForAddPolicies(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	util.SetIptablesToNft()
 
 	// 1. test with activation
 	policies := []*NPMNetworkPolicy{allTestNetworkPolicies[0]}
@@ -289,7 +287,6 @@ func TestCreatorForRemovePolicies(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	util.SetIptablesToNft()
 
 	// 1. test without deactivation (i.e. flushing azure chain when removing the last policy)
 	// hack: the cache is empty (and len(cache) != len(allTestNetworkPolicies)), so shouldDeactivate will be false
@@ -337,7 +334,6 @@ func TestRemovePoliciesAcceptableError(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	util.SetIptablesToNft()
 	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{bothDirectionsNetPol}, epList))
 	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey))
 	_, ok := pMgr.GetPolicy(bothDirectionsNetPol.PolicyKey)
@@ -384,7 +380,6 @@ func TestRemovePoliciesError(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
 			pMgr := NewPolicyManager(ioshim, ipsetConfig)
-			util.SetIptablesToNft()
 			err := pMgr.AddPolicies([]*NPMNetworkPolicy{bothDirectionsNetPol}, nil)
 			require.NoError(t, err)
 			err = pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey)
@@ -407,7 +402,6 @@ func TestUpdatingStaleChains(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	util.SetIptablesToNft()
 
 	// add so we can remove. no stale chains to start
 	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{bothDirectionsNetPol}, nil))

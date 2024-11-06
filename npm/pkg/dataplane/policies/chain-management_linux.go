@@ -24,15 +24,9 @@ const (
 
 	// transferred from iptm.go and not sure why this length is important
 	minLineNumberStringLength int = 3
-
-	detectingErrMsg = "failed to detect iptables version. failed to run iptables-legacy-save, run iptables-nft-save, and get kernel version. NPM will crash to retry"
-
-	minNftKernelVersion = 5
 )
 
 var (
-	errDetectingIptablesVersion = errors.New(detectingErrMsg)
-
 	// Must loop through a slice because we need a deterministic order for fexec commands for UTs.
 	iptablesAzureChains = []string{
 		util.IptablesAzureChain,
@@ -194,9 +188,7 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 	klog.Infof("booting up iptables Azure chains")
 
 	// 0.1. Detect iptables version
-	if err := pMgr.detectIptablesVersion(); err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to detect iptables version", err)
-	}
+	pMgr.detectIptablesVersion()
 
 	// Stop reconciling so we don't contend for iptables, and so we don't update the staleChains at the same time as reconcile()
 	// Reconciling would only be happening if this function were called to reset iptables well into the azure-npm pod lifecycle.
@@ -254,47 +246,22 @@ func (pMgr *PolicyManager) bootupAfterDetectAndCleanup() error {
 // NPM should use the same iptables version as kube-proxy.
 // kube-proxy creates an iptables chain as a hint for which version it uses.
 // For more details, see: https://kubernetes.io/blog/2022/09/07/iptables-chains-not-api/#use-case-iptables-mode
-func (pMgr *PolicyManager) detectIptablesVersion() error {
+func (pMgr *PolicyManager) detectIptablesVersion() {
 	klog.Info("first attempt detecting iptables version. looking for hint/canary chain in iptables-nft")
 	if pMgr.hintOrCanaryChainExist(util.IptablesNft) {
 		util.SetIptablesToNft()
-		return nil
+		return
 	}
 
 	klog.Info("second attempt detecting iptables version. looking for hint/canary chain in iptables-legacy")
 	if pMgr.hintOrCanaryChainExist(util.IptablesLegacy) {
 		util.SetIptablesToLegacy()
-		return nil
+		return
 	}
 
-	// at this point, chains do not exist in iptables legacy/nft and/or iptables commands have failed for other reasons
-	klog.Info("third attempt detecting iptables version. getting kernel version")
-	var majorVersion int
-	var versionError error
-	if pMgr.debug {
-		// for testing purposes
-		majorVersion = pMgr.debugKernelVersion
-		versionError = pMgr.debugKernelVersionErr
-	} else {
-		majorVersion, versionError = util.KernelReleaseMajorVersion()
-	}
-	if versionError != nil {
-		return errDetectingIptablesVersion
-	}
-
-	if majorVersion >= minNftKernelVersion {
-		msg := "detected iptables version on third attempt. found kernel version >= 5. NPM will use iptables-nft. kernel version: %d"
-		klog.Infof(msg, majorVersion)
-		metrics.SendLog(util.IptmID, fmt.Sprintf(msg, majorVersion), metrics.DonotPrint)
-		util.SetIptablesToNft()
-		return nil
-	}
-
-	msg := "detected iptables version on third attempt. found kernel version < 5. NPM will use iptables-legacy. kernel version: %d"
-	klog.Infof(msg, majorVersion)
-	metrics.SendLog(util.IptmID, fmt.Sprintf(msg, majorVersion), metrics.DonotPrint)
-	util.SetIptablesToLegacy()
-	return nil
+	// default to nft if nothing is found
+	util.SetIptablesToNft()
+	return
 }
 
 func (pMgr *PolicyManager) hintOrCanaryChainExist(iptablesCmd string) bool {

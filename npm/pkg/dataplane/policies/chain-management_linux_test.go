@@ -1,7 +1,6 @@
 package policies
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -45,8 +44,6 @@ Chain AZURE-NPM-INGRESS (1 references)
 `
 )
 
-var errKernelVersion = errors.New("kernel error")
-
 func TestStaleChainsForceLock(t *testing.T) {
 	testChains := []string{}
 	for i := 0; i < 100000; i++ {
@@ -59,7 +56,6 @@ func TestStaleChainsForceLock(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	// don't verify calls because there shouldn't be as many commands as we create if forceLock works properly
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	util.SetIptablesToNft()
 
 	start := make(chan struct{}, 1)
 	done := make(chan struct{}, 1)
@@ -146,7 +142,6 @@ func TestCleanupChainsSuccess(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	util.SetIptablesToNft()
 
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
@@ -165,7 +160,6 @@ func TestCleanupChainsFailure(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	util.SetIptablesToNft()
 
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
@@ -484,7 +478,6 @@ func TestBootupLinux(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
 			pMgr := NewPolicyManager(ioshim, ipsetConfig)
-			util.SetIptablesToNft()
 			err := pMgr.bootupAfterDetectAndCleanup()
 			if tt.wantErr {
 				require.Error(t, err)
@@ -773,7 +766,6 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 				PlaceAzureChainFirst: tt.placeAzureChainFirst,
 			}
 			pMgr := NewPolicyManager(ioshim, cfg)
-			util.SetIptablesToNft()
 
 			err := pMgr.positionAzureChainJumpRule()
 			if tt.wantErr {
@@ -866,7 +858,6 @@ func TestChainLineNumber(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
 			pMgr := NewPolicyManager(ioshim, ipsetConfig)
-			util.SetIptablesToNft()
 
 			lineNum, err := pMgr.chainLineNumber(testChainName)
 			if tt.wantErr {
@@ -903,10 +894,7 @@ func stringsToMap(items []string) map[string]struct{} {
 func TestDetectIptablesVersion(t *testing.T) {
 	type args struct {
 		name                    string
-		kernelVersion           int
-		kernelVersionErr        error
 		calls                   []testutils.TestCmd
-		expectedErr             bool
 		expectedIptablesVersion string
 	}
 
@@ -919,7 +907,6 @@ func TestDetectIptablesVersion(t *testing.T) {
 					ExitCode: 0,
 				},
 			},
-			expectedErr:             false,
 			expectedIptablesVersion: util.IptablesNft,
 		},
 		{
@@ -934,7 +921,6 @@ func TestDetectIptablesVersion(t *testing.T) {
 					ExitCode: 0,
 				},
 			},
-			expectedErr:             false,
 			expectedIptablesVersion: util.IptablesNft,
 		},
 		{
@@ -953,88 +939,56 @@ func TestDetectIptablesVersion(t *testing.T) {
 					ExitCode: 0,
 				},
 			},
-			expectedErr:             false,
 			expectedIptablesVersion: util.IptablesLegacy,
 		},
 		{
-			name:          "nft and legacy both fail: kernel version >= 5",
-			kernelVersion: 5,
+			name: "no kube chains: default nft",
 			calls: []testutils.TestCmd{
 				{
 					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
-					ExitCode: 2,
+					ExitCode: 1,
 				},
 				{
 					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
-					ExitCode: 2,
+					ExitCode: 1,
 				},
 				{
 					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
-					ExitCode: 2,
+					ExitCode: 1,
 				},
 				{
 					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
-					ExitCode: 2,
+					ExitCode: 1,
 				},
 			},
-			expectedErr:             false,
 			expectedIptablesVersion: util.IptablesNft,
 		},
 		{
-			name:          "no kube chains: kernel version < 5",
-			kernelVersion: 4,
+			name: "nft and legacy both fail: default nft",
 			calls: []testutils.TestCmd{
 				{
 					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
-					ExitCode: 1,
+					ExitCode: 2,
 				},
 				{
 					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
-					ExitCode: 1,
+					ExitCode: 2,
 				},
 				{
 					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
-					ExitCode: 1,
+					ExitCode: 2,
 				},
 				{
 					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
-					ExitCode: 1,
+					ExitCode: 2,
 				},
 			},
-			expectedErr:             false,
-			expectedIptablesVersion: util.IptablesLegacy,
-		},
-		{
-			name:             "no kube chains: kernel version error",
-			kernelVersionErr: errKernelVersion,
-			calls: []testutils.TestCmd{
-				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
-					ExitCode: 1,
-				},
-				{
-					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
-					ExitCode: 1,
-				},
-				{
-					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
-					ExitCode: 1,
-				},
-				{
-					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
-					ExitCode: 1,
-				},
-			},
-			expectedErr: true,
+			expectedIptablesVersion: util.IptablesNft,
 		},
 	}
 
 	for _, tt := range tests {
 		tt := tt
-
-		if tt.name != "no kube chains: kernel version error" {
-			continue
-		}
 
 		t.Run(tt.name, func(t *testing.T) {
 
@@ -1043,22 +997,14 @@ func TestDetectIptablesVersion(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
 			cfg := &PolicyManagerCfg{
-				debug:                 true,
-				debugKernelVersion:    tt.kernelVersion,
-				debugKernelVersionErr: tt.kernelVersionErr,
-				NodeIP:                "6.7.8.9",
-				PolicyMode:            IPSetPolicyMode,
-				PlaceAzureChainFirst:  util.PlaceAzureChainFirst,
+				NodeIP:               "6.7.8.9",
+				PolicyMode:           IPSetPolicyMode,
+				PlaceAzureChainFirst: util.PlaceAzureChainFirst,
 			}
 			pMgr := NewPolicyManager(ioshim, cfg)
-			err := pMgr.detectIptablesVersion()
+			pMgr.detectIptablesVersion()
 
-			if tt.expectedErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tt.expectedIptablesVersion, util.Iptables)
-			}
+			require.Equal(t, tt.expectedIptablesVersion, util.Iptables)
 		})
 	}
 }
@@ -1268,19 +1214,19 @@ func TestCleanupOtherChains(t *testing.T) {
 				},
 				{
 					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM"},
-					ExitCode: 1,
+					ExitCode: 2,
 				},
 				{
 					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"},
-					ExitCode: 1,
+					ExitCode: 2,
 				},
 				{
 					Cmd:      []string{"iptables", "-w", "60", "-X", "AZURE-NPM"},
-					ExitCode: 1,
+					ExitCode: 2,
 				},
 				{
 					Cmd:      []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"},
-					ExitCode: 1,
+					ExitCode: 2,
 				},
 			},
 			expectedErr: false,
@@ -1402,6 +1348,10 @@ func TestCleanupOtherChains(t *testing.T) {
 				util.SetIptablesToNft()
 			} else {
 				util.SetIptablesToLegacy()
+				// set back to default
+				defer func() {
+					util.SetIptablesToNft()
+				}()
 			}
 
 			err := pMgr.cleanupOtherIptables()

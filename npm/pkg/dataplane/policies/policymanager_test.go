@@ -105,13 +105,19 @@ func TestBootup(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	// do NOT set iptables to nft here
-	// it should be set because of Bootup
+
+	// verify that the iptables is explicitly set to nft during bootup
+	util.SetIptablesToLegacy()
+	// set back to default
+	defer func() {
+		util.SetIptablesToNft()
+	}()
 
 	metrics.IncNumACLRules()
 	metrics.IncNumACLRules()
 
 	require.NoError(t, pMgr.Bootup(epIDs))
+	require.Equal(t, util.IptablesNft, util.Iptables)
 
 	expectedNumACLs := 11
 	if util.IsWindowsDP() {

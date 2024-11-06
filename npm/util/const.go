@@ -2,6 +2,8 @@
 // MIT License
 package util
 
+import "k8s.io/klog"
+
 // kubernetes related constants.
 const (
 	KubeSystemFlag             string = "kube-system"
@@ -20,10 +22,10 @@ const (
 )
 
 var (
-	Iptables        = IptablesLegacy
+	Iptables        = IptablesNft
 	Ip6tables       = Ip6tablesLegacy //nolint (avoid warning to capitalize this p)
-	IptablesSave    = IptablesSaveLegacy
-	IptablesRestore = IptablesRestoreLegacy
+	IptablesSave    = IptablesSaveNft
+	IptablesRestore = IptablesRestoreNft
 )
 
 // iptables related constants.
@@ -266,12 +268,14 @@ const (
 )
 
 func SetIptablesToNft() {
+	klog.Info("setting iptables to nft")
 	Iptables = IptablesNft
 	IptablesSave = IptablesSaveNft
 	IptablesRestore = IptablesRestoreNft
 }
 
 func SetIptablesToLegacy() {
+	klog.Info("setting iptables to legacy")
 	Iptables = IptablesLegacy
 	IptablesSave = IptablesSaveLegacy
 	IptablesRestore = IptablesRestoreLegacy
