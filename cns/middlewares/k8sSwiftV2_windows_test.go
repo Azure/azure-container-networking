@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -53,9 +54,17 @@ func TestAssignSubnetPrefixSuccess(t *testing.T) {
 		MacAddress: "12:34:56:78:9a:bc",
 	}
 
+	gatewayIP := "20.240.1.1"
 	intInfo := v1alpha1.InterfaceInfo{
-		GatewayIP:          "20.240.1.1",
+		GatewayIP:          gatewayIP,
 		SubnetAddressSpace: "20.240.1.0/16",
+	}
+
+	routes := []cns.Route{
+		{
+			IPAddress:        "0.0.0.0/0",
+			GatewayIPAddress: gatewayIP,
+		},
 	}
 
 	ipInfo := podIPInfo
@@ -65,4 +74,9 @@ func TestAssignSubnetPrefixSuccess(t *testing.T) {
 	assert.Equal(t, ipInfo.PodIPConfig.PrefixLength, uint8(16))
 	assert.Equal(t, ipInfo.HostPrimaryIPInfo.Gateway, intInfo.GatewayIP)
 	assert.Equal(t, ipInfo.HostPrimaryIPInfo.Subnet, intInfo.SubnetAddressSpace)
+
+	// compare two slices of routes
+	if !reflect.DeepEqual(ipInfo.Routes, routes) {
+		t.Errorf("got '%+v', expected '%+v'", ipInfo.Routes, routes)
+	}
 }

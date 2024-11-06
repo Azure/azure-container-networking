@@ -12,7 +12,14 @@ import (
 // default route is set for secondary interface NIC(i.e,delegatedNIC)
 func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	if podIPInfo.NICType == cns.InfraNIC {
-		logger.Printf("[SWIFTv2Middleware] skip setting default route on InfraNIC interface")
+		// as a workaround, set a default route with gw 0.0.0.0 to avoid HNS setting default route to infraNIC interface
+		// TODO: Remove this once HNS supports custom routes adding to the pod
+		route := cns.Route{
+			IPAddress:        "0.0.0.0/0",
+			GatewayIPAddress: "0.0.0.0",
+		}
+		podIPInfo.Routes = append(podIPInfo.Routes, route)
+
 		podIPInfo.SkipDefaultRoutes = true
 	}
 	return nil
@@ -40,5 +47,12 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(podIPInfo *cns.Pod
 		},
 		GatewayIPAddress: interfaceInfo.GatewayIP,
 	}
+	// assign the default route with gateway IP
+	route := cns.Route {
+		IPAddress: "0.0.0.0/0",
+		GatewayIPAddress: interfaceInfo.GatewayIP,
+	}
+	podIPInfo.Routes = append(podIPInfo.Routes, route)
+
 	return nil
 }
