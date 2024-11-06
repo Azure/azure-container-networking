@@ -95,7 +95,7 @@ func TestNewService(t *testing.T) {
 		err = svc.StartListener(config)
 		require.NoError(t, err)
 
-		minTLSVersionNumber, err := TLSVersionNumber(config.TLSSettings.MinTLSVersion)
+		minTLSVersionNumber, err := parseTLSVersionName(config.TLSSettings.MinTLSVersion)
 		require.NoError(t, err)
 
 		tlsClient := &http.Client{
@@ -329,15 +329,28 @@ func createTestCertificate(t *testing.T) string {
 }
 
 func TestTLSVersionNumber(t *testing.T) {
-	t.Run("unsupported ServerSettings.MinTLSVersion", func(t *testing.T) {
-		versionNumber, err := TLSVersionNumber("TLS 1.4")
+	t.Run("unsupported ServerSettings.MinTLSVersion TLS 1.0", func(t *testing.T) {
+		versionNumber, err := parseTLSVersionName("TLS 1.0")
+		require.Equal(t, uint16(0), versionNumber)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unsupported TLS version name")
+	})
+
+	t.Run("unsupported ServerSettings.MinTLSVersion TLS 1.1", func(t *testing.T) {
+		versionNumber, err := parseTLSVersionName("TLS 1.1")
+		require.Equal(t, uint16(0), versionNumber)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unsupported TLS version name")
+	})
+	t.Run("unsupported ServerSettings.MinTLSVersion TLS 1.4", func(t *testing.T) {
+		versionNumber, err := parseTLSVersionName("TLS 1.4")
 		require.Equal(t, uint16(0), versionNumber)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "unsupported TLS version name")
 	})
 
 	t.Run("valid ServerSettings.MinTLSVersion", func(t *testing.T) {
-		versionNumber, err := TLSVersionNumber("TLS 1.2")
+		versionNumber, err := parseTLSVersionName("TLS 1.2")
 		require.Equal(t, uint16(tls.VersionTLS12), versionNumber)
 		require.NoError(t, err)
 	})

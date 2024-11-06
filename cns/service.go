@@ -28,7 +28,7 @@ const (
 	genericData          = "com.microsoft.azure.network.generic"
 )
 
-var errBootConfig = errors.New("configuration error")
+var errTLSConfig = errors.New("unsupported TLS version name from config")
 
 // Service defines Container Networking Service.
 type Service struct {
@@ -181,9 +181,9 @@ func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error)
 		PrivateKey:  privateKey,
 		Leaf:        leafCertificate,
 	}
-	minTLSVersionNumber, err := TLSVersionNumber(tlsSettings.MinTLSVersion)
+	minTLSVersionNumber, err := parseTLSVersionName(tlsSettings.MinTLSVersion)
 	if err != nil {
-		return nil, errors.Wrap(err, "MinTLSVersion is not valid")
+		return nil, errors.Wrap(err, "parsing MinTLSVersion from config")
 	}
 
 	tlsConfig := &tls.Config{
@@ -232,9 +232,9 @@ func getTLSConfigFromKeyVault(tlsSettings localtls.TlsSettings, errChan chan<- e
 		errChan <- cr.Refresh(ctx, tlsSettings.KeyVaultCertificateRefreshInterval)
 	}()
 
-	minTLSVersionNumber, err := TLSVersionNumber(tlsSettings.MinTLSVersion)
+	minTLSVersionNumber, err := parseTLSVersionName(tlsSettings.MinTLSVersion)
 	if err != nil {
-		return nil, errors.Wrap(err, "MinTLSVersion is not valid")
+		return nil, errors.Wrap(err, "parsing MinTLSVersion from config")
 	}
 
 	tlsConfig := tls.Config{
@@ -328,19 +328,15 @@ func (service *Service) SendErrorResponse(w http.ResponseWriter, errMsg error) {
 	logger.Errorf("[%s] %+v %s.", service.Name, &resp, err.Error())
 }
 
-// TLSVersionNumber returns the version number for the provided TLS version name
+// parseTLSVersionName returns the version number for the provided TLS version name
 // (e.g. 0x0301)
-func TLSVersionNumber(versionName string) (uint16, error) {
+func parseTLSVersionName(versionName string) (uint16, error) {
 	switch versionName {
-	case "TLS 1.0":
-		return tls.VersionTLS10, nil
-	case "TLS 1.1":
-		return tls.VersionTLS11, nil
 	case "TLS 1.2":
 		return tls.VersionTLS12, nil
 	case "TLS 1.3":
 		return tls.VersionTLS13, nil
 	default:
-		return 0, errors.Wrap(errBootConfig, "unsupported TLS version name")
+		return 0, errors.Wrapf(errTLSConfig, "version name %s", versionName)
 	}
 }
