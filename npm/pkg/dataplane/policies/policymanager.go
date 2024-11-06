@@ -30,11 +30,11 @@ const (
 
 type PolicyManagerCfg struct {
 	// debug is only used for testing. Currently just indicating whether to use debug kernel version
-	debug bool
+	debug bool //nolint:unused // only used in linux
 	// debugKernelVersion is only used for testing
-	debugKernelVersion int
+	debugKernelVersion int //nolint:unused // only used in linux
 	// debugKernelVersionErr is only used for testing
-	debugKernelVersionErr error
+	debugKernelVersionErr error //nolint:unused // only used in linux
 
 	// NodeIP is only used in Windows
 	NodeIP string

@@ -3,6 +3,7 @@ package util
 // this file has bits copied from github.com/zcalusic/sysinfo (v1.1.2)
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,7 +12,7 @@ import (
 
 const kernelReleaseFilepath = "/proc/sys/kernel/osrelease"
 
-var errNoKernelRelease = fmt.Errorf("error finding kernel release")
+var errNoKernelRelease = errors.New("error finding kernel release")
 
 func KernelReleaseMajorVersion() (int, error) {
 	rel, err := slurpFile(kernelReleaseFilepath)

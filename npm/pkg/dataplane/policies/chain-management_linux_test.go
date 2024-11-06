@@ -1,6 +1,7 @@
 package policies
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -43,6 +44,8 @@ Chain AZURE-NPM-ACCEPT (1 references)
 Chain AZURE-NPM-INGRESS (1 references)
 `
 )
+
+var errKernelVersion = errors.New("kernel error")
 
 func TestStaleChainsForceLock(t *testing.T) {
 	testChains := []string{}
@@ -1003,7 +1006,7 @@ func TestDetectIptablesVersion(t *testing.T) {
 		},
 		{
 			name:             "no kube chains: kernel version error",
-			kernelVersionErr: fmt.Errorf("kernel version error"),
+			kernelVersionErr: errKernelVersion,
 			calls: []testutils.TestCmd{
 				{
 					Cmd:      []string{"iptables-nft", "-w", "60", "-t", "mangle", "-n", "-L", "KUBE-IPTABLES-HINT"},

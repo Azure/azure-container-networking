@@ -26,6 +26,8 @@ const (
 	minLineNumberStringLength int = 3
 
 	detectingErrMsg = "failed to detect iptables version. failed to run iptables-legacy-save, run iptables-nft-save, and get kernel version. NPM will crash to retry"
+
+	minNftKernelVersion = 5
 )
 
 var (
@@ -281,7 +283,7 @@ func (pMgr *PolicyManager) detectIptablesVersion() error {
 		return errDetectingIptablesVersion
 	}
 
-	if majorVersion >= 5 {
+	if majorVersion >= minNftKernelVersion {
 		msg := "detected iptables version on third attempt. found kernel version >= 5. NPM will use iptables-nft. kernel version: %d"
 		klog.Infof(msg, majorVersion)
 		metrics.SendLog(util.IptmID, fmt.Sprintf(msg, majorVersion), metrics.DonotPrint)
@@ -304,7 +306,7 @@ func (pMgr *PolicyManager) hintOrCanaryChainExist(iptablesCmd string) bool {
 		klog.Infof("failed to list hint chain. cmd: %s. error: %s", iptablesCmd, hintErr.Error())
 		metrics.SendErrorLogAndMetric(util.IptmID, "failed to list hint chain. cmd: %s. error: %s", iptablesCmd, hintErr.Error())
 	} else {
-		metrics.SendLog(util.IptmID, fmt.Sprintf("found hint chain. will use iptables version: %s", iptablesCmd), metrics.DonotPrint)
+		metrics.SendLog(util.IptmID, "found hint chain. will use iptables version: %s"+iptablesCmd, metrics.DonotPrint)
 		return true
 	}
 
@@ -317,7 +319,7 @@ func (pMgr *PolicyManager) hintOrCanaryChainExist(iptablesCmd string) bool {
 		return false
 	}
 
-	metrics.SendLog(util.IptmID, fmt.Sprintf("found canary chain. will use iptables version: %s", iptablesCmd), metrics.DonotPrint)
+	metrics.SendLog(util.IptmID, "found canary chain. will use iptables version: "+iptablesCmd, metrics.DonotPrint)
 	return true
 }
 
@@ -401,9 +403,9 @@ func (pMgr *PolicyManager) cleanupOtherIptables() error {
 
 	creator := pMgr.creatorForCleanup(chains)
 	if err := restore(creator); err != nil {
-		msg := fmt.Sprintf("[cleanup] failed to flush all chains with error: %s", err.Error())
-		klog.Info(msg)
-		metrics.SendErrorLogAndMetric(util.IptmID, msg)
+		msg := "[cleanup] failed to flush all chains with error: %s"
+		klog.Infof(msg, err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, msg, err.Error())
 
 		// 3.2. if we failed to flush all chains, then try to flush and delete them one by one
 		var aggregateError error
@@ -432,7 +434,7 @@ func (pMgr *PolicyManager) cleanupOtherIptables() error {
 				if aggregateError == nil {
 					aggregateError = npmerrors.SimpleError(currentErrString)
 				} else {
-					aggregateError = npmerrors.SimpleErrorWrapper(fmt.Sprintf("%s and had previous error", currentErrString), aggregateError)
+					aggregateError = npmerrors.SimpleErrorWrapper(currentErrString+" and had previous error", aggregateError)
 				}
 			}
 		}
@@ -455,7 +457,7 @@ func (pMgr *PolicyManager) cleanupOtherIptables() error {
 			if aggregateError == nil {
 				aggregateError = npmerrors.SimpleError(currentErrString)
 			} else {
-				aggregateError = npmerrors.SimpleErrorWrapper(fmt.Sprintf("%s and had previous error", currentErrString), aggregateError)
+				aggregateError = npmerrors.SimpleErrorWrapper(currentErrString+" and had previous error", aggregateError)
 			}
 		}
 	}
@@ -473,7 +475,7 @@ func (pMgr *PolicyManager) creatorForCleanup(chains []string) *ioutil.FileCreato
 	// pass nil because we don't need to add any lines like ":CHAIN-NAME - -" because that is for creating chains
 	creator := pMgr.newCreatorWithChains(nil)
 	for _, chain := range chains {
-		creator.AddLine("", nil, fmt.Sprintf("-F %s", chain))
+		creator.AddLine("", nil, "-F "+chain)
 	}
 	creator.AddLine("", nil, util.IptablesRestoreCommit)
 	return creator
