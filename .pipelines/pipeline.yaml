@@ -261,6 +261,17 @@ stages:
         k8sVersion: ""
         dependsOn: "containerize"
 
+    # Cilium Nodesubnet E2E tests
+    - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml
+      parameters:
+        name: "cilium_nodesubnet_e2e"
+        displayName: Cilium NodeSubnet
+        clusterType: nodesubnet-byocni-nokubeproxy-up
+        clusterName: "cilndsubnete2e"
+        vmSize: Standard_B2s
+        k8sVersion: ""
+        dependsOn: "containerize"
+
     # Cilium Overlay E2E tests
     - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
       parameters:
@@ -405,6 +416,7 @@ stages:
         - azure_overlay_stateless_e2e
         - aks_swift_e2e
         - cilium_e2e
+        - cilium_nodesubnet_e2e
         - cilium_overlay_e2e
         - cilium_h_overlay_e2e
         - aks_ubuntu_22_linux_e2e
@@ -425,6 +437,10 @@ stages:
               cilium_e2e:
                 name: cilium_e2e
                 clusterName: "ciliume2e"
+                region: $(REGION_AKS_CLUSTER_TEST)                
+              cilium_nodesubnet_e2e:
+                name: cilium_nodesubnet_e2e
+                clusterName: "cilndsubnete2e"
                 region: $(REGION_AKS_CLUSTER_TEST)
               cilium_overlay_e2e:
                 name: cilium_overlay_e2e

@@ -10,6 +10,8 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
+	"github.com/Microsoft/hcsshim/hcn"
+	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
@@ -84,6 +86,68 @@ func TestAllMultiJobCases(t *testing.T) {
 
 func TestMultiJobApplyInBackground(t *testing.T) {
 	testMultiJobCases(t, multiJobApplyInBackgroundTests(), time.Duration(1*time.Second))
+}
+
+func TestRemoveCommonEndpoints(t *testing.T) {
+	tests := []struct {
+		name              string
+		endpoints         []hcn.HostComputeEndpoint
+		endpointsAttached []hcn.HostComputeEndpoint
+		expected          []hcn.HostComputeEndpoint
+	}{
+		{
+			name:              "1 value same",
+			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "123456"}, {Id: "560971"}},
+			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "123456"}, {Id: "789012"}},
+			expected:          []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "123456"}, {Id: "560971"}, {Id: "567890"}, {Id: "789012"}},
+		},
+		{
+			name:              "no values same",
+			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "560971"}},
+			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "789012"}},
+			expected:          []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "560971"}, {Id: "567890"}, {Id: "789012"}},
+		},
+		{
+			name:              "1 value same",
+			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "123456"}, {Id: "560971"}},
+			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "123456"}, {Id: "789012"}},
+			expected:          []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "123456"}, {Id: "560971"}, {Id: "567890"}, {Id: "789012"}},
+		},
+		{
+			name:              "two values same",
+			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "560971"}, {Id: "123456"}, {Id: "789012"}},
+			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "567890"}, {Id: "789012"}, {Id: "123456"}},
+			expected:          []hcn.HostComputeEndpoint{{Id: "456901"}, {Id: "560971"}, {Id: "123456"}, {Id: "789012"}, {Id: "567890"}},
+		},
+		{
+			name:              "no values",
+			endpoints:         []hcn.HostComputeEndpoint{},
+			endpointsAttached: []hcn.HostComputeEndpoint{},
+			expected:          []hcn.HostComputeEndpoint{},
+		},
+		{
+			name:              "1 value - same",
+			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}},
+			endpointsAttached: []hcn.HostComputeEndpoint{{Id: "456901"}},
+			expected:          []hcn.HostComputeEndpoint{{Id: "456901"}},
+		},
+		{
+			name:              "1 value - different",
+			endpoints:         []hcn.HostComputeEndpoint{{Id: "456901"}},
+			endpointsAttached: []hcn.HostComputeEndpoint{},
+			expected:          []hcn.HostComputeEndpoint{{Id: "456901"}},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetUniqueEndpoints(tt.endpoints, tt.endpointsAttached)
+			if !cmp.Equal(tt.expected, result) {
+				t.Errorf("Test %s failed: expected %v, got %v", tt.name, tt.expected, result)
+			}
+		})
+	}
 }
 
 func testSerialCases(t *testing.T, tests []*SerialTestCase, finalSleep time.Duration) {

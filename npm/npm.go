@@ -192,7 +192,7 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 	// Starts all informers manufactured by npMgr's informerFactory.
 	npMgr.InformerFactory.Start(stopCh)
 
-	// npn lite
+	// npm lite
 	if npMgr.NpmLiteToggle {
 		npMgr.PodInformerFactory.Start(stopCh)
 	}

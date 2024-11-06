@@ -2,7 +2,6 @@ package dataplane
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Microsoft/hcsshim/hcn"
+	"github.com/pkg/errors"
 	"k8s.io/klog"
 )
 
@@ -50,13 +50,30 @@ func (dp *DataPlane) initializeDataPlane() error {
 		},
 		Flags: hcn.HostComputeQueryFlagsNone,
 	}
+	// Initialize Endpoint query used to filter healthy endpoints (vNIC) of Windows pods on L1VH Node
+	dp.endpointQueryAttachedState.query = hcn.HostComputeQuery{
+		SchemaVersion: hcn.SchemaVersion{
+			Major: hcnSchemaMajorVersion,
+			Minor: hcnSchemaMinorVersion,
+		},
+		Flags: hcn.HostComputeQueryFlagsNone,
+	}
+
 	// Filter out any endpoints that are not in "AttachedShared" State. All running Windows pods with networking must be in this state.
 	filterMap := map[string]uint16{"State": hcnEndpointStateAttachedSharing}
 	filter, err := json.Marshal(filterMap)
 	if err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to marshal endpoint filter map", err)
+		return errors.Wrap(err, "failed to marshal endpoint filter map for attachedsharing state")
 	}
 	dp.endpointQuery.query.Filter = string(filter)
+
+	// Filter out any endpoints that are not in "Attached" State. All running Windows pods on L1VH with networking must be in this state.
+	filterMapAttached := map[string]uint16{"State": hcnEndpointStateAttached}
+	filterAttached, err := json.Marshal(filterMapAttached)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal endpoint filter map for attched state")
+	}
+	dp.endpointQueryAttachedState.query.Filter = string(filterAttached)
 
 	// reset endpoint cache so that netpol references are removed for all endpoints while refreshing pod endpoints
 	// no need to lock endpointCache at boot up
@@ -329,19 +346,51 @@ func (dp *DataPlane) getEndpointsToApplyPolicies(netPols []*policies.NPMNetworkP
 
 func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
 	klog.Info("getting local endpoints")
+
+	// Gets endpoints in state: Attached
 	timer := metrics.StartNewTimer()
+	endpointsAttached, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQueryAttachedState.query)
+	metrics.RecordListEndpointsLatency(timer)
+	if err != nil {
+		metrics.IncListEndpointsFailures()
+		return nil, errors.Wrap(err, "failed to get local pod endpoints in state:attached")
+	}
+
+	// Gets endpoints in state: AttachedSharing
+	timer = metrics.StartNewTimer()
 	endpoints, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
 	metrics.RecordListEndpointsLatency(timer)
 	if err != nil {
 		metrics.IncListEndpointsFailures()
-		return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints", err)
+		return nil, errors.Wrap(err, "failed to get local pod endpoints in state: attachedSharing")
 	}
+
+	// Get endpoints unique to endpoints and endpointsAttached
+	endpoints = GetUniqueEndpoints(endpoints, endpointsAttached)
 
 	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
 	for k := range endpoints {
 		epPointers = append(epPointers, &endpoints[k])
 	}
 	return epPointers, nil
+}
+
+func GetUniqueEndpoints(endpoints, endpointsAttached []hcn.HostComputeEndpoint) []hcn.HostComputeEndpoint {
+	// Store IDs of endpoints list in a map for quick lookup
+	idMap := make(map[string]struct{}, len(endpoints))
+	for i := 0; i < len(endpoints); i++ {
+		ep := endpoints[i]
+		idMap[ep.Id] = struct{}{}
+	}
+
+	// Add endpointsAttached list endpoints in endpoints list if the endpoint is not in the map
+	for i := 0; i < len(endpointsAttached); i++ {
+		ep := endpointsAttached[i]
+		if _, ok := idMap[ep.Id]; !ok {
+			endpoints = append(endpoints, ep)
+		}
+	}
+	return endpoints
 }
 
 // refreshPodEndpoints will refresh all the pod endpoints and create empty netpol references for new endpoints
