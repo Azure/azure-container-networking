@@ -35,5 +35,5 @@
     "AZRSettings": {
         "PopulateHomeAzCacheRetryIntervalSecs": 60
     },
-    "MinTLSVersion": "TLS 1.1"
+    "MinTLSVersion": "TLS 1.3"
 }

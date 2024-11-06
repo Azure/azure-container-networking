@@ -89,7 +89,7 @@ func TestReadConfigFromFile(t *testing.T) {
 				UseHTTPS:      true,
 				UseMTLS:       true,
 				WireserverIP:  "168.63.129.16",
-				MinTLSVersion: "TLS 1.1",
+				MinTLSVersion: "TLS 1.3",
 			},
 			wantErr: false,
 		},
