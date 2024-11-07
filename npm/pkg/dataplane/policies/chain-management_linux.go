@@ -89,6 +89,8 @@ var (
 
 	listHintChainArgs   = []string{"KUBE-IPTABLES-HINT", util.IptablesTableFlag, util.IptablesMangleTable, util.IptablesNumericFlag}
 	listCanaryChainArgs = []string{"KUBE-KUBELET-CANARY", util.IptablesTableFlag, util.IptablesMangleTable, util.IptablesNumericFlag}
+
+	errDetectingIptablesVersion = errors.New("unable to locate which iptables version kube proxy is using")
 )
 
 type exitErrorInfo struct {
@@ -187,7 +189,9 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 	klog.Infof("booting up iptables Azure chains")
 
 	// 0.1. Detect iptables version
-	pMgr.detectIptablesVersion()
+	if err := pMgr.detectIptablesVersion(); err != nil {
+		return npmerrors.SimpleErrorWrapper("failed to detect iptables version", err)
+	}
 
 	// Stop reconciling so we don't contend for iptables, and so we don't update the staleChains at the same time as reconcile()
 	// Reconciling would only be happening if this function were called to reset iptables well into the azure-npm pod lifecycle.
@@ -245,21 +249,20 @@ func (pMgr *PolicyManager) bootupAfterDetectAndCleanup() error {
 // NPM should use the same iptables version as kube-proxy.
 // kube-proxy creates an iptables chain as a hint for which version it uses.
 // For more details, see: https://kubernetes.io/blog/2022/09/07/iptables-chains-not-api/#use-case-iptables-mode
-func (pMgr *PolicyManager) detectIptablesVersion() {
+func (pMgr *PolicyManager) detectIptablesVersion() error {
 	klog.Info("first attempt detecting iptables version. looking for hint/canary chain in iptables-nft")
 	if pMgr.hintOrCanaryChainExist(util.IptablesNft) {
 		util.SetIptablesToNft()
-		return
+		return nil
 	}
 
 	klog.Info("second attempt detecting iptables version. looking for hint/canary chain in iptables-legacy")
 	if pMgr.hintOrCanaryChainExist(util.IptablesLegacy) {
 		util.SetIptablesToLegacy()
-		return
+		return nil
 	}
 
-	// default to nft if nothing is found
-	util.SetIptablesToNft()
+	return errDetectingIptablesVersion
 }
 
 func (pMgr *PolicyManager) hintOrCanaryChainExist(iptablesCmd string) bool {
