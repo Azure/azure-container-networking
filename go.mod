@@ -102,7 +102,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/vishvananda/netlink v1.3.0
-	github.com/vishvananda/netns v0.0.4
+	github.com/vishvananda/netns v0.0.5
 	go.opencensus.io v0.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.28.0
@@ -160,6 +160,4 @@ replace (
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )
 
-retract (
-	v1.16.15 // typo in the version number.
-)
+retract v1.16.15 // typo in the version number.
