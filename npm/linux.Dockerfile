@@ -8,6 +8,10 @@ RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/azure-npm -ldflags "-X main.vers
 
 FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 as linux
 COPY --from=builder /usr/local/bin/azure-npm /usr/bin/azure-npm
-RUN apt-get update && apt-get install -y iptables ipset ca-certificates strace gdb  build-essential  && apt-get autoremove -y && apt-get clean
+
+RUN  ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
+apt-get update && \
+apt-get install -y --no-install-recommends tzdata && apt-get update && apt-get install -y iptables ipset ca-certificates strace gdb  build-essential  && apt-get autoremove -y && apt-get clean
+
 RUN chmod +x /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
