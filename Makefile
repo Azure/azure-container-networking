@@ -425,13 +425,12 @@ cni-image: ## build cni container image.
 	$(MAKE) container \
 		DOCKERFILE=cni/$(OS).Dockerfile \
 		IMAGE=$(CNI_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION) --build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)' \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(CNI_PLATFORM_TAG) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION) \
-		EXTRA_BUILD_ARGS='--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
+		OS_VERSION=$(OS_VERSION)
 
 cni-image-push: ## push cni container image.
 	$(MAKE) container-push \
