@@ -223,7 +223,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 	// Initialize HNS network.
 	hcnNetwork := &hcn.HostComputeNetwork{
 		Name: nwInfo.NetworkID,
-		Type: hcn.L2Bridge
+		Type: hcn.L2Bridge,
 		Ipams: []hcn.Ipam{
 			{
 				Type: hcnIpamTypeStatic,
