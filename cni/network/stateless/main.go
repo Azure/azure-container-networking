@@ -6,12 +6,14 @@ package main
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
 	zapLog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
+	"github.com/Azure/azure-container-networking/cni/telemetry/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nns"
@@ -48,6 +50,16 @@ var args = common.ArgumentList{
 // Prints version information.
 func printVersion() {
 	fmt.Printf("Azure CNI Version %v\n", version)
+}
+
+// send error report to hostnetagent if CNI encounters any error.
+func reportPluginError(reportManager *telemetry.ReportManager, tb *telemetry.TelemetryBuffer, err error) {
+	logger.Error("Report plugin error")
+	reflect.ValueOf(reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
+
+	if err := reportManager.SendReport(tb); err != nil {
+		logger.Error("SendReport failed", zap.Error(err))
+	}
 }
 
 func rootExecute() error {
@@ -112,19 +124,18 @@ func rootExecute() error {
 			}
 		}()
 
-		// Connect to the telemetry process.
-		tb = telemetry.NewTelemetryBuffer(logger)
-		tb.ConnectToTelemetry()
-		defer tb.Close()
+		// Connect to the telemetry process. Does not start the telemetry service if it is not running.
+		telemetryclient.Telemetry.ConnectTelemetry(logger)
+		defer telemetryclient.Telemetry.DisconnectTelemetry()
 
-		netPlugin.SetCNIReport(cniReport, tb)
+		telemetryclient.Telemetry.CNIReportSettings = cniReport
 
 		t := time.Now()
 		cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
 
 		if err = netPlugin.Start(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to start network plugin, err:%v.\n", err))
-			network.ReportPluginError(reportManager, tb, err)
+			reportPluginError(reportManager, tb, err)
 			panic("network plugin start fatal error")
 		}
 	}
@@ -152,7 +163,7 @@ func rootExecute() error {
 	netPlugin.Stop()
 
 	if err != nil {
-		network.ReportPluginError(reportManager, tb, err)
+		reportPluginError(reportManager, tb, err)
 	}
 
 	return errors.Wrap(err, "Execute netplugin failure")

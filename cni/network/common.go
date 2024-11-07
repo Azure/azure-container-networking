@@ -4,25 +4,13 @@ import (
 	"encoding/json"
 	"io"
 	"os"
-	"reflect"
 
 	"github.com/Azure/azure-container-networking/cni"
-	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
-
-// send error report to hostnetagent if CNI encounters any error.
-func ReportPluginError(reportManager *telemetry.ReportManager, tb *telemetry.TelemetryBuffer, err error) {
-	logger.Error("Report plugin error")
-	reflect.ValueOf(reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
-
-	if err := reportManager.SendReport(tb); err != nil {
-		logger.Error("SendReport failed", zap.Error(err))
-	}
-}
 
 func validateConfig(jsonBytes []byte) error {
 	var conf struct {

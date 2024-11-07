@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -13,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni/api"
 	zaplog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
+	"github.com/Azure/azure-container-networking/cni/telemetry/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/platform"
@@ -50,6 +52,16 @@ var args = common.ArgumentList{
 // Prints version information.
 func printVersion() {
 	fmt.Printf("Azure CNI Version %v\n", version)
+}
+
+// send error report to hostnetagent if CNI encounters any error.
+func reportPluginError(reportManager *telemetry.ReportManager, tb *telemetry.TelemetryBuffer, err error) {
+	logger.Error("Report plugin error")
+	reflect.ValueOf(reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
+
+	if err := reportManager.SendReport(tb); err != nil {
+		logger.Error("SendReport failed", zap.Error(err))
+	}
 }
 
 func rootExecute() error {
@@ -111,7 +123,7 @@ func rootExecute() error {
 				return errors.Wrap(err, "lock acquire error")
 			}
 
-			network.ReportPluginError(reportManager, tb, err)
+			reportPluginError(reportManager, tb, err)
 
 			if errors.Is(err, store.ErrTimeoutLockingStore) {
 				var cniMetric telemetry.AIMetric
@@ -142,18 +154,17 @@ func rootExecute() error {
 
 		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
 		// end up creating/killing telemetry process results in undesired state.
-		tb = telemetry.NewTelemetryBuffer(logger)
-		tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
-		defer tb.Close()
+		telemetryclient.Telemetry.StartAndConnectTelemetry(logger)
+		defer telemetryclient.Telemetry.DisconnectTelemetry()
 
-		netPlugin.SetCNIReport(cniReport, tb)
+		telemetryclient.Telemetry.CNIReportSettings = cniReport
 
 		t := time.Now()
 		cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
 
 		if err = netPlugin.Start(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to start network plugin, err:%v.\n", err))
-			network.ReportPluginError(reportManager, tb, err)
+			reportPluginError(reportManager, tb, err)
 			panic("network plugin start fatal error")
 		}
 
@@ -190,7 +201,7 @@ func rootExecute() error {
 	netPlugin.Stop()
 
 	if err != nil {
-		network.ReportPluginError(reportManager, tb, err)
+		reportPluginError(reportManager, tb, err)
 	}
 
 	return errors.Wrap(err, "Execute netplugin failure")
