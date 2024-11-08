@@ -50,6 +50,7 @@ stages:
     jobs:
       - job: ${{ parameters.name }}
         displayName: Singletenancy AKS - (${{ parameters.name }})
+        timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
