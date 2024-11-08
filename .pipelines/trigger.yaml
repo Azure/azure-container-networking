@@ -41,11 +41,18 @@ variables:
   REPO_NAME: $[ resources.repositories['azure-container-networking'].name ]
   REPO_TYPE: $[ resources.repositories['azure-container-networking'].type ]
   CHANGESET_COMMIT: $[ resources.repositories['self'].version ]
+  # Local analysis is only enabled on PR branches
+  Codeql.AnalyzeInPipeline: $[startsWith(variables['Build.SourceBranch'], 'refs/pull/')]
 
 extends:
   template: v1/1ES.Unofficial.PipelineTemplate.yml@1ESPipelineTemplates
   parameters:
-    pool:
-      name: "$(BUILD_POOL_NAME_DEFAULT)"
+    codeql:
+      # Enables CodeQL on the main branch
+      compiled:
+        enabled: true
+        # Enables CodeQL on PR branches
+        ${{ if startsWith(variables['Build.SourceBranch'], 'refs/pull/')) }}:
+          enabledOnNonDefaultBranches: true
     stages:
     - template: /.pipelines/pipeline.yaml@azure-container-networking
