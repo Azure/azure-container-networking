@@ -431,6 +431,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			zap.String("pod", k8sPodName),
 			zap.Any("IPs", cniResult.IPs),
 			zap.Error(log.NewErrorWithoutStackTrace(err)))
+
+		telemetry.SendEvent(fmt.Sprintf("ADD command completed for ipamAddResult verbose: %s epInfos: %s error: %v ", ipamAddResult.PrettyString(), network.FormatStructPointers(epInfos), err))
 	}()
 
 	ipamAddResult = IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
@@ -562,6 +564,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	infraSeen := false
 	endpointIndex := 1
+
 	for key := range ipamAddResult.interfaceInfo {
 		ifInfo := ipamAddResult.interfaceInfo[key]
 		logger.Info("Processing interfaceInfo:", zap.Any("ifInfo", ifInfo))
@@ -631,8 +634,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to create endpoint") // behavior can change if you don't assign to err prior to returning
 	}
-	// telemetry added
-	telemetry.SendEvent(fmt.Sprintf("CNI ADD Process succeeded for interfaces: %v", ipamAddResult.PrettyString()))
 	return nil
 }
 
