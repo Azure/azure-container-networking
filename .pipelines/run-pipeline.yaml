@@ -1,39 +1,14 @@
-parameters:
-
-- name: triggerBuildSourceBranch
-  type: string
-  default: ''
-
-- name: triggerBuildReason
-  type: string
-  default: ''
-  
-- name: triggerBuildGitRef
-  type: string
-  default: ''
-
-- name: triggerBuildQueuedBy
-  type: string
-  default: ''
-
 stages:
   - stage: setup
-    displayName: "[PreBuild] Configure and Provision Required Resources"
-    # Block build start until pre-build validation occurs.
-    dependsOn: pre_build
     variables:
       ACN_DIR: $(Build.SourcesDirectory)
+    displayName: ACN
     jobs:
       - job: env
         displayName: Setup
         pool:
-          isCustom: true
-          type: linux
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
-          - checkout: ACNTools
-            clean: true
-
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
               BUILD_NUMBER=$(Build.BuildNumber)
@@ -48,12 +23,16 @@ stages:
               go env
               which go
               echo $PATH
+              echo "------"
+              echo $(Build.QueuedBy)
+              echo $(Build.Reason) # manual, PR, IndividualCI
+              echo $(Build.SourceBranch)
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
 
-  - template: templates/unit-tests.stages.yaml@ACNTools
+  - template: templates/run-unit-tests.yaml
 
-  - ${{ if not(contains(parameters.triggerBuildSourceBranch, 'refs/pull')) }}:
+  - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
     - stage: binaries
       displayName: Build Binaries
       dependsOn:
@@ -66,38 +45,15 @@ stages:
           displayName: Build Binaries
           variables:
             STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-            ob_outputDirectory: $(Build.ArtifactStagingDirectory)
-            ob_git_checkout: true
           pool:
-            isCustom: true
-            type: linux
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           steps:
-            - checkout: ACNReviewChanges
-              clean: true
-
+            - checkout: self
             - script: |
                 make ipv6-hp-bpf-lib
                 make all-binaries-platforms
               name: "BuildAllPlatformBinaries"
               displayName: "Build all platform binaries"
-              workingDirectory: $(ACN_DIR)
-
-            - script: |
-                cd ./output
-                find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
-                find . -name '*.zip' -print -exec mv -t ./bins/ {} +
-                shopt -s extglob
-                rm -rf !("bins")
-              name: "PrepareArtifacts"
-              displayName: "Prepare Artifacts"
-              
-            - task: CopyFiles@2
-              inputs:
-                sourceFolder: "output"
-                targetFolder: $(Build.ArtifactStagingDirectory)
-              condition: succeeded()
-
 
     - stage: containerize
       displayName: Build Images
@@ -110,14 +66,11 @@ stages:
         - job: containerize_amd64
           displayName: Build Images
           pool:
-            isCustom: true
-            type: linux
             name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
           strategy:
             maxParallel: 4
             matrix:
               azure_ipam_linux_amd64:
-                Suffix: azure_ipam_linux_amd64
                 arch: amd64
                 name: azure-ipam
                 os: linux
@@ -127,7 +80,6 @@ stages:
                 name: azure-ipam
                 os: windows
               cni_linux_amd64:
-                Suffix: cni_linux_amd64
                 arch: amd64
                 name: cni
                 os: linux
@@ -136,23 +88,11 @@ stages:
                 arch: amd64
                 name: cni
                 os: windows
-              cns_linux_amd64:
-                Suffix: cns_linux_amd64
-                arch: amd64
-                name: cns
-                os: linux
-              cns_windows_amd64:
-                Suffix: cns_windows_amd64
-                arch: amd64
-                name: cns
-                os: windows
               ipv6_hp_bpf_linux_amd64:
-                Suffix: ipv6_hp_bpf_linux_amd64
                 arch: amd64
                 name: ipv6-hp-bpf
                 os: linux
               npm_linux_amd64:
-                Suffix: npm_linux_amd64
                 arch: amd64
                 name: npm
                 os: linux
@@ -166,10 +106,8 @@ stages:
             ob_artifactSuffix: $(Suffix) # this is needed to not collide published artifact containers
             ob_outputDirectory: $(System.ArtifactStagingDirectory)
           steps:
-            - checkout: ACNReviewChanges
-              clean: true
-
-            - template: containers/container-template.steps.yaml@ACNTools
+            - checkout: self
+            - template: containers/container-template.yaml
               parameters:
                 arch: $(arch)
                 name: $(name)
@@ -178,8 +116,6 @@ stages:
         - job: containerize_linux_arm64
           displayName: Build Images
           pool:
-            isCustom: true
-            type: linux
             name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
           strategy:
             maxParallel: 4
@@ -188,42 +124,29 @@ stages:
                 arch: arm64
                 name: azure-ipam
                 os: linux
-                Suffix: azure-ipam-linux-arm64
               cni_linux_arm64:
                 arch: arm64
                 name: cni
                 os: linux
-                Suffix: cni-linux-arm64
               cns_linux_arm64:
                 arch: arm64
                 name: cns
                 os: linux
-                Suffix: cns
               ipv6_hp_bpf_linux_arm64:
                 arch: arm64
                 name: ipv6-hp-bpf
                 os: linux
-                Suffix: ipv6-hp-bpf-linux-arm64
               npm_linux_arm64:
                 arch: arm64
                 name: npm
                 os: linux
-                Suffix: npm-linux-arm64
-          variables:
-            STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-            ob_outputDirectory: $(Build.ArtifactStagingDirectory)
-            ob_git_checkout: true
-            ob_artifactSuffix: $(Suffix)
           steps:
-            - checkout: ACNReviewChanges
-              clean: true
-
-            - template: containers/container-template.steps.yaml@ACNTools
+            - checkout: self
+            - template: containers/container-template.yaml
               parameters:
                 arch: $(arch)
                 name: $(name)
                 os: $(os)
-
 
     - stage: publish
       displayName: Publish Multiarch Manifests
@@ -236,8 +159,6 @@ stages:
         - job: manifest
           displayName: Compile Manifests
           pool:
-            isCustom: true
-            type: linux
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           strategy:
             maxParallel: 4
@@ -245,42 +166,26 @@ stages:
               azure_ipam:
                 name: azure-ipam
                 platforms: linux/amd64 linux/arm64 windows/amd64
-                Suffix: azure-ipam
               cni:
                 name: cni
                 platforms: linux/amd64 linux/arm64 windows/amd64
-                Suffix: cni
               cns:
                 name: cns
                 platforms: linux/amd64 linux/arm64 windows/amd64
-                Suffix: cns
               ipv6_hp_bpf:
                 name: ipv6-hp-bpf
                 platforms: linux/amd64 linux/arm64
-                Suffix: ipv6-hp-bpf
               npm:
                 name: npm
                 platforms: linux/amd64 linux/arm64 windows/amd64
-                Suffix: npm
-          variables:
-            ob_outputDirectory: $(Build.ArtifactStagingDirectory)
-            ob_git_checkout: true
-            STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-            # this is needed to not collide published artifact containers
-            #ob_artifactBaseName: drop_$(Job.StageName)_$(Job.JobName)_
-            ob_artifactSuffix: $(Suffix)
-            #artifactName: ${{ ob_artifactBaseName }}${{ name }}
           steps:
-            - checkout: ACNReviewChanges
-              clean: true
-
-            - template: containers/manifest-template.steps.yaml@ACNTools
+            - template: containers/manifest-template.yaml
               parameters:
                 name: $(name)
                 platforms: $(platforms)
 
     # Cilium Podsubnet E2E tests
-    - template: singletenancy/cilium/cilium-e2e.jobs.yaml@ACNTools
+    - template: singletenancy/cilium/cilium-e2e-job-template.yaml
       parameters:
         name: "cilium_e2e"
         displayName: Cilium
@@ -290,8 +195,19 @@ stages:
         k8sVersion: ""
         dependsOn: "containerize"
 
+    # Cilium Nodesubnet E2E tests
+    - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml
+      parameters:
+        name: "cilium_nodesubnet_e2e"
+        displayName: Cilium NodeSubnet
+        clusterType: nodesubnet-byocni-nokubeproxy-up
+        clusterName: "cilndsubnete2e"
+        vmSize: Standard_B2s
+        k8sVersion: ""
+        dependsOn: "containerize"
+
     # Cilium Overlay E2E tests
-    - template: singletenancy/cilium-overlay/cilium-overlay-e2e.jobs.yaml@ACNTools
+    - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_overlay_e2e"
         displayName: Cilium on AKS Overlay
@@ -302,7 +218,7 @@ stages:
         dependsOn: "containerize"
 
     # Cilium Dualstack Overlay E2E tests
-    - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e.jobs.yaml@ACNTools
+    - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml
       parameters:
         name: "cilium_dualstackoverlay_e2e"
         displayName: Cilium on AKS DualStack Overlay
@@ -313,8 +229,8 @@ stages:
         k8sVersion: ""
         dependsOn: "containerize"
 
-    # Cilium Overlay with hubble E2E tests
-    - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e.jobs.yaml@ACNTools
+        # Cilium Overlay with hubble E2E tests
+    - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_h_overlay_e2e"
         displayName: Cilium on AKS Overlay with Hubble
@@ -326,7 +242,7 @@ stages:
         testHubble: true
 
     # Azure Overlay E2E tests
-    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e.jobs.yaml@ACNTools
+    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
       parameters:
         name: "azure_overlay_e2e"
         displayName: Azure Overlay
@@ -337,8 +253,19 @@ stages:
         k8sVersion: ""
         dependsOn: "containerize"
 
+    # Azure Overlay E2E Stateless CNI tests
+    - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml
+      parameters:
+        name: "azure_overlay_stateless_e2e"
+        displayName: Azure Stateless CNI Overlay
+        os: windows
+        clusterType: overlay-byocni-up
+        clusterName: "statelesswin"
+        vmSize: Standard_B2ms
+        dependsOn: "containerize"
+
     # AKS Swift E2E tests
-    - template: singletenancy/aks-swift/aks-swift-e2e.jobs.yaml@ACNTools
+    - template: singletenancy/aks-swift/e2e-job-template.yaml
       parameters:
         name: "aks_swift_e2e"
         displayName: AKS Swift Ubuntu
@@ -350,7 +277,7 @@ stages:
         dependsOn: "containerize"
 
     # AKS Swift Vnet Scale E2E tests
-    - template: singletenancy/aks-swift/aks-swift-e2e.jobs.yaml@ACNTools
+    - template: singletenancy/aks-swift/e2e-job-template.yaml
       parameters:
         name: "aks_swift_vnetscale_e2e"
         displayName: AKS Swift Vnet Scale Ubuntu
@@ -358,11 +285,11 @@ stages:
         clusterType: vnetscale-swift-byocni-up
         clusterName: "vscaleswifte2e"
         vmSize: Standard_B2ms
-        k8sVersion: "1.28"
+        k8sVersion: "1.30"
         dependsOn: "containerize"
 
     # CNIv1 E2E tests
-    - template: singletenancy/aks/aks-e2e.jobs.yaml@ACNTools
+    - template: singletenancy/aks/e2e-job-template.yaml
       parameters:
         name: "aks_ubuntu_22_linux_e2e"
         displayName: AKS Ubuntu 22
@@ -375,7 +302,7 @@ stages:
         scaleup: 100
         dependsOn: "containerize"
 
-    - template: singletenancy/aks/aks-e2e.jobs.yaml@ACNTools
+    - template: singletenancy/aks/e2e-job-template.yaml
       parameters:
         name: "aks_windows_22_e2e"
         displayName: AKS Windows 2022
@@ -389,7 +316,7 @@ stages:
         dependsOn: "containerize"
 
     # CNI dual stack overlay E2E tests
-    - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e.jobs.yaml@ACNTools
+    - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
       parameters:
         name: "dualstackoverlay_e2e"
         displayName: AKS DualStack Overlay
@@ -400,7 +327,7 @@ stages:
         dependsOn: "containerize"
 
     # Swiftv2 E2E tests with multitenancy cluster start up
-    - template: multitenancy/swiftv2-e2e.jobs.yaml@ACNTools
+    - template: multitenancy/swiftv2-e2e-job-template.yaml
       parameters:
         name: "swiftv2_e2e"
         displayName: Swiftv2 Multitenancy
@@ -420,8 +347,10 @@ stages:
       dependsOn:
         - setup
         - azure_overlay_e2e
+        - azure_overlay_stateless_e2e
         - aks_swift_e2e
         - cilium_e2e
+        - cilium_nodesubnet_e2e
         - cilium_overlay_e2e
         - cilium_h_overlay_e2e
         - aks_ubuntu_22_linux_e2e
@@ -431,76 +360,92 @@ stages:
         - cilium_dualstackoverlay_e2e
         - swiftv2_e2e
       variables:
-        ACN_DIR: $(Build.SourcesDirectory)
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       jobs:
-        - job: delete
+        - job: delete_build
           displayName: Delete Cluster
           pool:
-            isCustom: true
-            type: linux
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           strategy:
+            maxParallel: 4
             matrix:
               cilium_e2e:
                 name: cilium_e2e
                 clusterName: "ciliume2e"
-                Suffix: cilium_e2e
+                region: $(REGION_AKS_CLUSTER_TEST)                
+              cilium_nodesubnet_e2e:
+                name: cilium_nodesubnet_e2e
+                clusterName: "cilndsubnete2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
               cilium_overlay_e2e:
                 name: cilium_overlay_e2e
                 clusterName: "cilovere2e"
-                Suffix: cilium_overlay_e2e
+                region: $(REGION_AKS_CLUSTER_TEST)
               cilium_h_overlay_e2e:
                 name: cilium_h_overlay_e2e
                 clusterName: "cilwhleovere2e"
-                Suffix: cilium_h_overlay_e2e
+                region: $(REGION_AKS_CLUSTER_TEST)
               azure_overlay_e2e:
                 name: azure_overlay_e2e
                 clusterName: "azovere2e"
-                Suffix: azure_overlay_e2e
+                region: $(REGION_AKS_CLUSTER_TEST)
+              azure_overlay_stateless_e2e:
+                name: azure_overlay_stateless_e2e
+                clusterName: "statelesswin"
+                region: $(REGION_AKS_CLUSTER_TEST)
               aks_swift_e2e:
                 name: aks_swift_e2e
                 clusterName: "swifte2e"
-                Suffix: aks_swift_e2e
+                region: $(REGION_AKS_CLUSTER_TEST)
               aks_swift_vnetscale_e2e:
                 name: aks_swift_vnetscale_e2e
                 clusterName: "vscaleswifte2e"
-                Suffix: aks_swift_vnetscale_e2e
+                region: $(REGION_AKS_CLUSTER_TEST)
               aks_ubuntu_22_linux_e2e:
                 name: aks_ubuntu_22_linux_e2e
                 clusterName: "ubuntu22e2e"
-                Suffix: aks_ubuntu_22_linux_e2e
+                region: $(REGION_AKS_CLUSTER_TEST)
               aks_windows_22_e2e:
                 name: aks_windows_22_e2e
                 clusterName: "win22e2e"
-                Suffix: aks_windows_22_e2e
+                region: $(REGION_AKS_CLUSTER_TEST)
               dualstackoverlay_e2e:
                 name: dualstackoverlay_e2e
                 clusterName: "dsovere2e"
-                Suffix: dualstackoverlay_e2e
+                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
               cilium_dualstackoverlay_e2e:
                 name: cilium_dualstackoverlay_e2e
                 clusterName: "cildsovere2e"
-                Suffix: cilium_dualstackoverlay_e2e
-              swiftv2_e2e:
-                name: swiftv2_e2e
-                clusterName: "mtcluster"
-                Suffix: swiftv2_e2e
-              swiftv2_dummy_e2e:
-                name: swiftv2_dummy_e2e
-                clusterName: "swiftv2dummy"
-                Suffix: swiftv2_dummy_e2e
-          variables:
-            STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-            ob_outputDirectory: $(Build.ArtifactStagingDirectory)
-            ob_git_checkout: true
-            ob_artifactSuffix: $(Suffix) # this is needed to not collide published artifact containers
+                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
           steps:
-            - checkout: ACNReviewChanges
-              clean: true
-
-            - template: templates/delete-cluster.steps.yaml@ACNTools
+            - template: templates/delete-cluster.yaml
               parameters:
                 name: $(name)
                 clusterName: $(clusterName)-$(commitID)
-                region: $(REGION_AKS_CLUSTER_TEST)
+                region: $(region)
+                sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+                svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+
+        - job: delete_test
+          displayName: Delete Cluster
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          strategy:
+            maxParallel: 4
+            matrix:
+              swiftv2_e2e:
+                name: swiftv2_e2e
+                clusterName: "mtacluster"
+                region: $(REGION_SWIFTV2_CLUSTER_TEST)
+              swiftv2_dummy_e2e:
+                name: swiftv2_dummy_e2e
+                clusterName: "swiftv2dummy"
+                region: $(REGION_SWIFTV2_CLUSTER_TEST)
+          steps:
+            - template: templates/delete-cluster.yaml
+              parameters:
+                name: $(name)
+                clusterName: $(clusterName)-$(commitID)
+                region: $(region)
+                sub: $(SUB_AZURE_NETWORK_AGENT_TEST)
+                svcConn: $(ACN_TEST_SERVICE_CONNECTION)

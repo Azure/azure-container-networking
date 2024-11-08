@@ -1,7 +1,26 @@
+pr:
+  branches:
+    include:
+      - master
+      - release/*
+  paths:
+    exclude:
+      - ".devcontainer"
+      - ".hooks"
+      - ".vscode"
+      - ".github"
+      - docs
+
+trigger:
+  branches:
+    include:
+      - gh-readonly-queue/master/*
+  tags:
+    include:
+      - "*"
+
 stages:
   - stage: setup
-    variables:
-      ACN_DIR: $(Build.SourcesDirectory)
     displayName: ACN
     jobs:
       - job: env
@@ -29,6 +48,7 @@ stages:
               echo $(Build.SourceBranch)
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
+            condition: always()
 
   - template: templates/run-unit-tests.yaml
 
@@ -38,8 +58,6 @@ stages:
       dependsOn:
         - setup
         - test
-      variables:
-        ACN_DIR: $(Build.SourcesDirectory)
       jobs:
         - job: build
           displayName: Build Binaries
@@ -48,27 +66,45 @@ stages:
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           steps:
-            - checkout: self
             - script: |
                 make ipv6-hp-bpf-lib
                 make all-binaries-platforms
               name: "BuildAllPlatformBinaries"
               displayName: "Build all platform binaries"
 
+            - script: |
+                mkdir -p ./output/bins
+                cd ./output
+                find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
+                find . -name '*.zip' -print -exec mv -t ./bins/ {} +
+                shopt -s extglob
+                rm -rf !("bins")
+              name: "PrepareArtifacts"
+              displayName: "Prepare Artifacts"
+
+            - task: CopyFiles@2
+              inputs:
+                sourceFolder: "output"
+                targetFolder: $(Build.ArtifactStagingDirectory)
+              condition: succeeded()
+
+            - task: PublishBuildArtifacts@1
+              inputs:
+                artifactName: "output"
+                pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+              condition: succeeded()
+
     - stage: containerize
       displayName: Build Images
       dependsOn:
         - setup
         - test
-      variables:
-        ACN_DIR: $(Build.SourcesDirectory)
       jobs:
         - job: containerize_amd64
           displayName: Build Images
           pool:
             name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
           strategy:
-            maxParallel: 4
             matrix:
               azure_ipam_linux_amd64:
                 arch: amd64
@@ -107,7 +143,6 @@ stages:
                 name: npm
                 os: windows
           steps:
-            - checkout: self
             - template: containers/container-template.yaml
               parameters:
                 arch: $(arch)
@@ -119,7 +154,6 @@ stages:
           pool:
             name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
           strategy:
-            maxParallel: 4
             matrix:
               azure_ipam_linux_arm64:
                 arch: arm64
@@ -142,7 +176,6 @@ stages:
                 name: npm
                 os: linux
           steps:
-            - checkout: self
             - template: containers/container-template.yaml
               parameters:
                 arch: $(arch)
@@ -155,14 +188,12 @@ stages:
         - containerize
       variables:
         Packaging.EnableSBOMSigning: false
-        ACN_DIR: $(Build.SourcesDirectory)
       jobs:
         - job: manifest
           displayName: Compile Manifests
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           strategy:
-            maxParallel: 4
             matrix:
               azure_ipam:
                 name: azure-ipam
@@ -368,7 +399,6 @@ stages:
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           strategy:
-            maxParallel: 4
             matrix:
               cilium_e2e:
                 name: cilium_e2e
@@ -432,7 +462,6 @@ stages:
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           strategy:
-            maxParallel: 4
             matrix:
               swiftv2_e2e:
                 name: swiftv2_e2e
