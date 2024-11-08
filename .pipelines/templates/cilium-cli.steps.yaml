@@ -1,5 +1,6 @@
 steps:
   - script: |
+      set -e
       echo "install cilium CLI"
       if [[ ${CILIUM_VERSION_TAG#v} =~ ^1.1[1-3].[0-9]{1,2}|1.1[1-3].[0-9]{1,2}-[0-9]{1,6} ]]; then
         echo "Cilium Agent Version ${BASH_REMATCH[0]}"

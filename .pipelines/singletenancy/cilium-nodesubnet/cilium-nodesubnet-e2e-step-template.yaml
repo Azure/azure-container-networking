@@ -53,7 +53,7 @@ steps:
       inlineScript: |
         set -e
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        ls -lah      
+        ls -lah
         pwd
         kubectl cluster-info
         kubectl get po -owide -A
@@ -81,5 +81,8 @@ steps:
     retryCountOnTaskFailure: 3
     name: "nodeSubnetE2ETests"
     displayName: "Run NodeSubnet E2E"
-  
+
   - template: ../../templates/cilium-tests.yaml
+    parameters:
+      clusterName: ${{ parameters.clusterName }}
+      scaleup: ${{ parameters.scaleup }}

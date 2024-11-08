@@ -31,6 +31,7 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        set -e
         cd test/integration/load
 
         # Scale Cluster Up/Down to confirm functioning CNS
@@ -45,6 +46,7 @@ steps:
     retryCountOnTaskFailure: 3
 
   - script: |
+      set -e
       echo "Run Cilium Connectivity Tests"
       cilium status
       cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption' --force-deploy
@@ -55,13 +57,11 @@ steps:
     displayName: "Run Cilium Connectivity Tests"
 
   - script: |
+      set -e
       echo "validate pod IP assignment and check systemd-networkd restart"
       kubectl get pod -owide -A
-      # Deleting echo-external-node deployment until cilium version matches TODO. https://github.com/cilium/cilium-cli/issues/67 is addressing the change.
-      # Saves 17 minutes
-      kubectl delete deploy -n $(ciliumNamespace) echo-external-node
       make test-validate-state
-      echo "delete cilium connectivity test resources and re-validate state"
+      echo "delete cilium connectivity test resources and re-validate state" # TODO Delete this and the next 4 lines if connectivity no longer has bug
       kubectl delete ns $(ciliumNamespace)
       kubectl get pod -owide -A
       make test-validate-state
