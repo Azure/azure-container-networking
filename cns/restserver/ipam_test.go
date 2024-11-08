@@ -2190,7 +2190,7 @@ func TestStatelessCNIStateFile(t *testing.T) {
 		wantErr    bool
 	}{
 		{
-			name:       "good",
+			name:       "single-tenancy: update endpoint without error",
 			endpointID: endpointInfo1ContainerID,
 			req:        req1,
 			store:      svc.EndpointStateStore,
@@ -2206,7 +2206,7 @@ func TestStatelessCNIStateFile(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:       "good with ACI endpoint",
+			name:       "ACI: update and create absent endpoint without error",
 			endpointID: endpointInfo2ContainerID,
 			req:        endpointInfo2.IfnameToIPMap,
 			store:      svc.EndpointStateStore,
