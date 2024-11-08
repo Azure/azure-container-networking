@@ -1,25 +1,24 @@
-trigger: none
-#pr:
-#  branches:
-#    include:
-#      - master
-#      - release/*
-#  paths:
-#    exclude:
-#      - ".devcontainer"
-#      - ".hooks"
-#      - ".vscode"
-#      - ".github"
-#      - docs
-#
-#
-#trigger:
-#  branches:
-#    include:
-#      - gh-readonly-queue/master/*
-#  tags:
-#    include:
-#      - "*"
+pr:
+  branches:
+    include:
+      - master
+      - release/*
+  paths:
+    exclude:
+      - ".devcontainer"
+      - ".hooks"
+      - ".vscode"
+      - ".github"
+      - docs
+
+
+trigger:
+  branches:
+    include:
+      - gh-readonly-queue/master/*
+  tags:
+    include:
+      - "*"
 
 resources:
   repositories:
