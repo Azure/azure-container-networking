@@ -48,6 +48,9 @@ extends:
   template: v1/1ES.Unofficial.PipelineTemplate.yml@1ESPipelineTemplates
   parameters:
     sdl:
+      sourceAnalysisPool: 
+        name: $(BUILD_POOL_NAME_DEFAULT_WINDOWS)
+        os: windows
       codeql:
         # Enables CodeQL on the main branch
         compiled:
