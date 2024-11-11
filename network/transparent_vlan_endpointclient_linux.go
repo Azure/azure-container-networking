@@ -144,6 +144,7 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 		if vlanIfErr != nil {
 			// Assume any error is the vlan interface not found
 			logger.Info("vlan interface doesn't exist even though network namespace exists, deleting network namespace...", zap.String("message", vlanIfErr.Error()))
+			telemetry.SendEvent(fmt.Sprintf("vlan interface %s doesn't exist even though network namespace exists, deleting", client.vlanIfName))
 			delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
 			if delErr != nil {
 				return errors.Wrap(delErr, "failed to cleanup/delete ns after noticing vlan veth does not exist")
@@ -155,6 +156,7 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 	if vlanIfInVMErr == nil {
 		// The vlan interface exists in the VM ns because it failed to move into the network ns previously and needs to be cleaned up
 		logger.Info("vlan interface exists on the VM namespace, deleting", zap.String("vlanIfName", client.vlanIfName))
+		telemetry.SendEvent(fmt.Sprintf("vlan interface %s exists on the VM namespace, deleting", client.vlanIfName))
 		if delErr := client.netlink.DeleteLink(client.vlanIfName); delErr != nil {
 			return errors.Wrap(delErr, "failed to clean up vlan interface")
 		}
@@ -300,6 +302,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 			return errors.Wrap(deleteNSIfNotNilErr, "failed to move or detect vlan veth inside vnet namespace")
 		}
 		logger.Info("Moving vlan veth into namespace confirmed")
+		telemetry.SendEvent(fmt.Sprintf("Moving vlan veth %s into namespace %s (id: %d) confirmed", client.vlanIfName, client.vnetNSName, client.vnetNSFileDescriptor))
 	} else {
 		logger.Info("Existing NS detected. vlan interface should exist or namespace would've been deleted.", zap.String("vnetNSName", client.vnetNSName), zap.String("vlanIfName", client.vlanIfName))
 	}
