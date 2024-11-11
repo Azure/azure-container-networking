@@ -294,12 +294,10 @@ func (plugin *NetPlugin) getPodInfo(args string) (name, ns string, err error) {
 	return k8sPodName, k8sNamespace, nil
 }
 
-func (plugin *NetPlugin) setCNIReportDetails(nwCfg *cni.NetworkConfig, opType, msg string) {
+func (plugin *NetPlugin) setCNIReportDetails(containerID string, opType, msg string) {
 	telemetry.CNIReportSettings.OperationType = opType
-	telemetry.CNIReportSettings.SubContext = fmt.Sprintf("%+v", nwCfg)
+	telemetry.CNIReportSettings.SubContext = containerID
 	telemetry.CNIReportSettings.EventMessage = msg
-	telemetry.CNIReportSettings.BridgeDetails.NetworkMode = nwCfg.Mode
-	telemetry.CNIReportSettings.InterfaceDetails.SecondaryCAUsedCount = plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)
 	telemetry.CNIReportSettings.Version = plugin.Version
 }
 
@@ -367,8 +365,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		zap.Any("args", args.Args),
 		zap.String("path", args.Path),
 		zap.ByteString("stdinData", args.StdinData))
-	telemetry.SendEvent(fmt.Sprintf("[cni-net] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v StdinData:%s}.",
-		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData))
 
 	// Parse network configuration from stdin.
 	nwCfg, err := cni.ParseNetworkConfig(args.StdinData)
@@ -382,8 +378,11 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
+	plugin.setCNIReportDetails(args.ContainerID, CNI_ADD, "")
+	telemetry.SendEvent(fmt.Sprintf("[cni-net] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v StdinData:%s}.",
+		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData))
+
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
-	plugin.setCNIReportDetails(nwCfg, CNI_ADD, "")
 
 	defer func() {
 		// Add Interfaces to result.
@@ -970,8 +969,6 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		zap.Any("args", args.Args),
 		zap.String("path", args.Path),
 		zap.ByteString("stdinData", args.StdinData))
-	telemetry.SendEvent(fmt.Sprintf("[cni-net] Processing DEL command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v, StdinData:%s}.",
-		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData))
 
 	defer func() {
 		logger.Info("DEL command completed",
@@ -996,8 +993,10 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		logger.Error("Failed to get POD info", zap.Error(err))
 	}
 
-	plugin.setCNIReportDetails(nwCfg, CNI_DEL, "")
+	plugin.setCNIReportDetails(args.ContainerID, CNI_DEL, "")
 	telemetry.CNIReportSettings.ContainerName = k8sPodName + ":" + k8sNamespace
+	telemetry.SendEvent(fmt.Sprintf("[cni-net] Processing DEL command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v, StdinData:%s}.",
+		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData))
 
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 
@@ -1190,7 +1189,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	logger.Info("Read network configuration", zap.Any("config", nwCfg))
 
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
-	plugin.setCNIReportDetails(nwCfg, CNI_UPDATE, "")
+	plugin.setCNIReportDetails(args.ContainerID, CNI_UPDATE, "")
 
 	defer func() {
 		if result == nil {
@@ -1339,7 +1338,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	}
 
 	msg := fmt.Sprintf("CNI UPDATE succeeded : Updated %+v podname %v namespace %v", targetNetworkConfig, k8sPodName, k8sNamespace)
-	plugin.setCNIReportDetails(nwCfg, CNI_UPDATE, msg)
+	plugin.setCNIReportDetails(args.ContainerID, CNI_UPDATE, msg)
 
 	return nil
 }
