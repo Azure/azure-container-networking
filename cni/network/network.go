@@ -326,7 +326,6 @@ func (plugin *NetPlugin) addIpamInvoker(ipamAddConfig IPAMAddConfig) (IPAMAddRes
 	if err != nil {
 		return IPAMAddResult{}, errors.Wrap(err, "failed to add ipam invoker")
 	}
-	telemetry.SendEvent(fmt.Sprintf("Allocated IPAddress from ipam interface: %+v", ipamAddResult.PrettyString()))
 	return ipamAddResult, nil
 }
 
@@ -432,7 +431,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			zap.Any("IPs", cniResult.IPs),
 			zap.Error(log.NewErrorWithoutStackTrace(err)))
 
-		telemetry.SendEvent(fmt.Sprintf("ADD command completed for ipamAddResult verbose: %s epInfos: %s error: %v ", ipamAddResult.PrettyString(), network.FormatStructPointers(epInfos), err))
+		telemetry.SendEvent(fmt.Sprintf("ADD command completed with [ipamAddResult]: %s [epInfos]: %s [error]: %v ", ipamAddResult.PrettyString(), network.FormatStructPointers(epInfos), err))
 	}()
 
 	ipamAddResult = IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
@@ -538,15 +537,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		if err != nil {
 			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
 		}
-
-		// TODO: This proably needs to be changed as we return all interfaces...
-		// sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.interfaceInfo[ifIndex], ipamAddResult.interfaceInfo))
 	}
 
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
-	// moved to addIpamInvoker
-	// sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam interface: %+v", ipamAddResult.PrettyString()))
-
 	defer func() { //nolint:gocritic
 		if err != nil {
 			// for swift v1 multi-tenancies scenario, CNI is not supposed to invoke CNS for cleaning Ips
@@ -984,6 +977,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		logger.Info("DEL command completed",
 			zap.String("pod", k8sPodName),
 			zap.Error(log.NewErrorWithoutStackTrace(err)))
+		telemetry.SendEvent(fmt.Sprintf("DEL command completed: [released ip]: %+v [podname]: %s [namespace]: %s [error]: %v", nwCfg.IPAM.Address, k8sPodName, k8sNamespace, err))
 	}()
 
 	// Parse network configuration from stdin.
@@ -1100,13 +1094,13 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if len(epInfos) == 0 {
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		if !nwCfg.MultiTenancy {
-			logger.Error("Failed to query endpoint",
+			logger.Warn("Could not query endpoint",
 				zap.String("endpoint", endpointID),
 				zap.Error(err))
 
-			logger.Error("Release ip by ContainerID (endpoint not found)",
+			logger.Warn("Release ip by ContainerID (endpoint not found)",
 				zap.String("containerID", args.ContainerID))
-			telemetry.SendEvent(fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
+			telemetry.SendEvent(fmt.Sprintf("Release ip by ContainerID (endpoint not found): %s", args.ContainerID))
 			if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
 				return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
 			}
@@ -1133,14 +1127,13 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	for _, epInfo := range epInfos {
 		logger.Info("Deleting endpoint",
 			zap.String("endpointID", epInfo.EndpointID))
-		telemetry.SendEvent(fmt.Sprintf("Deleting endpoint:%v", epInfo.EndpointID))
 
 		if !nwCfg.MultiTenancy && (epInfo.NICType == cns.InfraNIC || epInfo.NICType == "") {
 			// Delegated/secondary nic ips are statically allocated so we don't need to release
 			// Call into IPAM plugin to release the endpoint's addresses.
 			for i := range epInfo.IPAddresses {
 				logger.Info("Release ip", zap.String("ip", epInfo.IPAddresses[i].IP.String()))
-				telemetry.SendEvent(fmt.Sprintf("Release ip:%s", epInfo.IPAddresses[i].IP.String()))
+				telemetry.SendEvent(fmt.Sprintf("Release ip: %s container id: %s endpoint id: %s", epInfo.IPAddresses[i].IP.String(), args.ContainerID, epInfo.EndpointID))
 				err = plugin.ipamInvoker.Delete(&epInfo.IPAddresses[i], nwCfg, args, nwInfo.Options)
 				if err != nil {
 					return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
@@ -1149,6 +1142,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		} else if epInfo.EnableInfraVnet { // remove in future PR
 			nwCfg.IPAM.Subnet = nwInfo.Subnets[0].Prefix.String()
 			nwCfg.IPAM.Address = epInfo.InfraVnetIP.IP.String()
+			telemetry.SendEvent(fmt.Sprintf("Deleting infra vnet endpoint: container id: %s endpoint id: %s subnet: %s address: %s", args.ContainerID, epInfo.EndpointID, nwCfg.IPAM.Subnet, nwCfg.IPAM.Address))
 			err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options)
 			if err != nil {
 				return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
@@ -1160,7 +1154,6 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if err != nil {
 		return plugin.RetriableError(fmt.Errorf("failed to save state: %w", err))
 	}
-	telemetry.SendEvent(fmt.Sprintf("CNI DEL succeeded : Released ip %+v podname %v namespace %v", nwCfg.IPAM.Address, k8sPodName, k8sNamespace))
 
 	return err
 }

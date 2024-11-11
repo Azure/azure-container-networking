@@ -5,6 +5,7 @@ package network
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -422,10 +423,13 @@ func (nm *networkManager) UpdateEndpointState(eps []*endpoint) error {
 	}
 
 	ifnameToIPInfoMap := generateCNSIPInfoMap(eps) // key : interface name, value : IPInfo
-	for _, ipinfo := range ifnameToIPInfoMap {
-		logger.Info("Update endpoint state", zap.String("hnsEndpointID", ipinfo.HnsEndpointID), zap.String("hnsNetworkID", ipinfo.HnsNetworkID),
+	ifNameToIPInfoCopy := map[string]restserver.IPInfo{}
+	for key, ipinfo := range ifnameToIPInfoMap {
+		logger.Info("Update endpoint state", zap.String("key", key), zap.String("hnsEndpointID", ipinfo.HnsEndpointID), zap.String("hnsNetworkID", ipinfo.HnsNetworkID),
 			zap.String("hostVethName", ipinfo.HostVethName), zap.String("macAddress", ipinfo.MacAddress), zap.String("nicType", string(ipinfo.NICType)))
+		ifNameToIPInfoCopy[key] = *ipinfo
 	}
+	telemetry.SendEvent(fmt.Sprintf("Stateless CNI update endpoint state with: %+v", ifNameToIPInfoCopy))
 
 	// we assume all endpoints have the same container id
 	cnsEndpointID := eps[0].ContainerID

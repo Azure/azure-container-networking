@@ -144,6 +144,8 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		}
 	}
 
+	telemetry.SendEvent(fmt.Sprintf("Received from cns: %+v", response.PodIPInfo))
+
 	addResult := IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
 	numInterfacesWithDefaultRoutes := 0
 

@@ -580,6 +580,7 @@ func (nw *network) deleteEndpointImplHnsV2(ep *endpoint) error {
 	}
 
 	logger.Info("Deleting hcn endpoint with id", zap.String("HnsId", ep.HnsId))
+	telemetry.SendEvent(fmt.Sprintf("Deleting HCN endpoint: %s", ep.HnsId))
 
 	hcnEndpoint, err = Hnsv2.GetEndpointByID(ep.HnsId)
 	if err != nil {
