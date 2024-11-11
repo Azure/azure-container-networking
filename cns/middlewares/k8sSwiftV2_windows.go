@@ -11,8 +11,9 @@ import (
 // default route is set for secondary interface NIC(i.e,delegatedNIC)
 func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	if podIPInfo.NICType == cns.InfraNIC {
-		// as a workaround, set a default route with gw 0.0.0.0 to avoid HNS setting default route to infraNIC interface
-		// TODO: Remove this once HNS supports custom routes adding to the pod
+		// as a workaround, HNS will not set this dummy default route(0.0.0.0/0, nexthop:0.0.0.0) on infraVnet interface eth0
+		// the only usage for this dummy default is to bypass HNS setting default route on eth0
+		// TODO: Remove this once HNS fix is ready
 		route := cns.Route{
 			IPAddress:        "0.0.0.0/0",
 			GatewayIPAddress: "0.0.0.0",
