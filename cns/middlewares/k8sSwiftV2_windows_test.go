@@ -91,7 +91,7 @@ func TestAddDefaultRoute(t *testing.T) {
 
 	expectedRoutes := []cns.Route{
 		{
-			IPAddress: "0.0.0.0/0",
+			IPAddress:        "0.0.0.0/0",
 			GatewayIPAddress: gatewayIP,
 		},
 	}
