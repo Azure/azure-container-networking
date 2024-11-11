@@ -46,7 +46,6 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(podIPInfo *cns.Pod
 		},
 		GatewayIPAddress: interfaceInfo.GatewayIP,
 	}
-
 	return nil
 }
 

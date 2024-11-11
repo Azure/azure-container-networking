@@ -54,9 +54,8 @@ func TestAssignSubnetPrefixSuccess(t *testing.T) {
 		MacAddress: "12:34:56:78:9a:bc",
 	}
 
-	gatewayIP := "20.240.1.1"
 	intInfo := v1alpha1.InterfaceInfo{
-		GatewayIP:          gatewayIP,
+		GatewayIP:          "20.240.1.1",
 		SubnetAddressSpace: "20.240.1.0/16",
 	}
 
