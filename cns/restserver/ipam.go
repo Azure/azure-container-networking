@@ -991,7 +991,7 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 // Assigns an available IP from each NC on the NNC. If there is one NC then we expect to only have one IP return
 // In the case of dualstack we would expect to have one IPv6 from one NC and one IPv4 from a second NC
 func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
-	// Gets the number of IPFamilies expected to be returned across all NCs
+	//  Map used to get the number of IPFamilies across all NCs
 	ipFamilies := map[IPFamily]struct{}{}
 
 	// checks to make sure we have at least one NC
@@ -1045,11 +1045,13 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	// Checks to make sure we found one IP for each IPFamily
 	if len(ipsToAssign) != numOfIPFamilies {
 		for ncID := range service.state.ContainerStatus {
-			if _, found := ipsToAssign[ncID]; found {
-				continue
+			for ipFamily := range service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.IPFamilies {
+				if _, found := ipsToAssign[ipFamily]; found {
+					continue
+				}
+				return podIPInfo, errors.Errorf("not enough IPs available of type %s for %s, waiting on Azure CNS to allocate more with NC Status: %s",
+					ipFamily, ncID, string(service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.NCStatus))
 			}
-			return podIPInfo, errors.Errorf("not enough IPs available for %s, waiting on Azure CNS to allocate more with NC Status: %s",
-				ncID, string(service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.NCStatus))
 		}
 	}
 
