@@ -522,6 +522,47 @@ func TestTransparentNetworkCreationForDelegated(t *testing.T) {
 	}
 }
 
+// Test Configure HNC network for infraNIC ensuring the hcn network type is always l2 bridge
+func TestConfigureHCNNetworkInfraNIC(t *testing.T) {
+	expectedHcnNetworkType := hcn.L2Bridge
+
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	extIf := externalInterface{
+		Name: "eth0",
+	}
+
+	nwInfo := &EndpointInfo{
+		AdapterName:  "eth0",
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		NICType:      cns.InfraNIC,
+		IfIndex:      1,
+		EndpointID:  "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
+		ContainerID: "545055c2-1462-42c8-b222-e75d0b291632",
+		NetNsPath:   "fakeNameSpace",
+		IfName:      "eth0",
+		Data:        make(map[string]interface{}),
+		EndpointDNS: DNSInfo{
+			Suffix:  "10.0.0.0",
+			Servers: []string{"10.0.0.1, 10.0.0.2"},
+			Options: nil,
+		},
+		HNSNetworkID: "853d3fb6-e9b3-49e2-a109-2acc5dda61f1",
+	}
+
+	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
+	if err != nil {
+		t.Fatalf("Failed to configure hcn network for infraNIC interface due to: %v", err)
+	}
+
+	if hostComputeNetwork.Type != expectedHcnNetworkType {
+		t.Fatalf("Host network mode is not configured as %v mode when interface NIC type is infraNIC", expectedHcnNetworkType)
+	}
+}
+
 // Test Configure HCN Network for Swiftv2 DelegatedNIC HostComputeNetwork fields
 func TestConfigureHCNNetworkSwiftv2DelegatedNIC(t *testing.T) {
 	expectedSwiftv2NetworkMode := hcn.Transparent
