@@ -79,8 +79,6 @@ type CNIReport struct {
 	VnetAddressSpace  []string
 	OSDetails         OSInfo
 	SystemDetails     SystemInfo
-	InterfaceDetails  InterfaceInfo
-	BridgeDetails     BridgeInfo
 	Metadata          common.Metadata `json:"compute"`
 	Logger            *zap.Logger
 }

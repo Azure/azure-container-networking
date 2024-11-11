@@ -82,11 +82,9 @@ func rootExecute() error {
 		HostNetAgentURL: hostNetAgentURL,
 		ContentType:     telemetry.ContentType,
 		Report: &telemetry.CNIReport{
-			Context:          "AzureCNI",
-			SystemDetails:    telemetry.SystemInfo{},
-			InterfaceDetails: telemetry.InterfaceInfo{},
-			BridgeDetails:    telemetry.BridgeInfo{},
-			Version:          version,
+			Context:       "AzureCNI",
+			SystemDetails: telemetry.SystemInfo{},
+			Version:       version,
 		},
 	}
 

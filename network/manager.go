@@ -429,10 +429,9 @@ func (nm *networkManager) UpdateEndpointState(eps []*endpoint) error {
 			zap.String("hostVethName", ipinfo.HostVethName), zap.String("macAddress", ipinfo.MacAddress), zap.String("nicType", string(ipinfo.NICType)))
 		ifNameToIPInfoCopy[key] = *ipinfo
 	}
-	telemetry.SendEvent(fmt.Sprintf("Stateless CNI update endpoint state with: %+v", ifNameToIPInfoCopy))
-
 	// we assume all endpoints have the same container id
 	cnsEndpointID := eps[0].ContainerID
+	telemetry.SendEvent(fmt.Sprintf("Stateless CNI update endpoint state for %s with: %+v ", cnsEndpointID, ifNameToIPInfoCopy))
 	if err := validateUpdateEndpointState(cnsEndpointID, ifnameToIPInfoMap); err != nil {
 		return errors.Wrap(err, "failed to validate update endpoint state that will be sent to cns")
 	}
