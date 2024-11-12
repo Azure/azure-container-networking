@@ -478,7 +478,7 @@ func startTelemetryService(ctx context.Context) {
 	tbtemp.Cleanup(telemetry.FdName)
 
 	err = tb.StartServer()
-	logger.Printf("Telemetry service for CNI started")
+	logger.Printf("[Azure CNS] Telemetry service for CNI started")
 	if err != nil {
 		logger.Errorf("[Azure CNS] Telemetry service failed to start: %v", err)
 		return
