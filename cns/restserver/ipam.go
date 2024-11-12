@@ -992,7 +992,7 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 // In the case of dualstack we would expect to have one IPv6 from one NC and one IPv4 from a second NC
 func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
 	//  Map used to get the number of IPFamilies across all NCs
-	ipFamilies := map[IPFamily]struct{}{}
+	ipFamilies := map[cns.IPFamily]struct{}{}
 
 	// checks to make sure we have at least one NC
 	if len(service.state.ContainerStatus) == 0 {
@@ -1015,16 +1015,16 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	// Creates a slice of PodIpInfo with the size as number of NCs to hold the result for assigned IP configs
 	podIPInfo := make([]cns.PodIpInfo, numOfIPFamilies)
 	// This map is used to store whether or not we have found an available IP from an NC when looping through the pool
-	ipsToAssign := make(map[IPFamily]cns.IPConfigurationStatus)
+	ipsToAssign := make(map[cns.IPFamily]cns.IPConfigurationStatus)
 
 	// Searches for available IPs in the pool
 	for _, ipState := range service.PodIPConfigState {
 		// get the IPFamily of the current ipState
-		var ipStateFamily IPFamily
+		var ipStateFamily cns.IPFamily
 		if net.ParseIP(ipState.IPAddress).To4() != nil {
-			ipStateFamily = IPv4Family
+			ipStateFamily = cns.IPv4Family
 		} else {
-			ipStateFamily = IPv6Family
+			ipStateFamily = cns.IPv6Family
 		}
 
 		// check if the IP with the same family type exists already

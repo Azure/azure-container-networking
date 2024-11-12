@@ -13,10 +13,3 @@ const (
 	dncApiVersion       = "?api-version=2018-03-01"
 	nmaAPICallTimeout   = 2 * time.Second
 )
-
-type IPFamily string
-
-const (
-	IPv4Family IPFamily = "ipv4"
-	IPv6Family IPFamily = "ipv6"
-)

@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/google/uuid"
@@ -128,7 +127,7 @@ type CreateNetworkContainerRequest struct {
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
 	NetworkInterfaceInfo       NetworkInterfaceInfo //nolint // introducing new field for backendnic, to be used later by cni code
-	IPFamilies                 map[restserver.IPFamily]struct{}
+	IPFamilies                 map[IPFamily]struct{}
 }
 
 func (req *CreateNetworkContainerRequest) Validate() error {
@@ -744,3 +743,10 @@ type NodeRegisterRequest struct {
 	NumCores             int
 	NmAgentSupportedApis []string
 }
+
+type IPFamily string
+
+const (
+	IPv4Family IPFamily = "ipv4"
+	IPv6Family IPFamily = "ipv6"
+)
