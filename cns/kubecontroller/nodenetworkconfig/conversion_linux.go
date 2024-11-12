@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
@@ -17,7 +16,7 @@ import (
 //nolint:gocritic //ignore hugeparam
 func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
-	ipFamilies := map[restserver.IPFamily]struct{}{}
+	ipFamilies := map[cns.IPFamily]struct{}{}
 
 	// iterate through all IP addresses in the subnet described by primaryPrefix and
 	// add them to the request as secondary IPConfigs.
@@ -30,9 +29,9 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 	}
 	// adds the IPFamily of the primary CIDR to the set
 	if primaryIPPrefix.Addr().Is4() {
-		ipFamilies[restserver.IPv4Family] = struct{}{}
+		ipFamilies[cns.IPv4Family] = struct{}{}
 	} else {
-		ipFamilies[restserver.IPv6Family] = struct{}{}
+		ipFamilies[cns.IPv6Family] = struct{}{}
 	}
 
 	// Add IPs from CIDR block to the secondary IPConfigs
@@ -55,9 +54,9 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 			}
 			// adds the IPFamily of the secondary CIDR to the set
 			if cidrPrefix.Addr().Is4() {
-				ipFamilies[restserver.IPv4Family] = struct{}{}
+				ipFamilies[cns.IPv4Family] = struct{}{}
 			} else {
-				ipFamilies[restserver.IPv6Family] = struct{}{}
+				ipFamilies[cns.IPv6Family] = struct{}{}
 			}
 		}
 	}

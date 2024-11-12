@@ -5,19 +5,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 )
 
-type ipState struct {
-	// allocatedIPs are all the IPs given to CNS by DNC.
-	allocatedIPs int64
-	// assignedIPs are the IPs CNS gives to Pods.
-	assignedIPs int64
-	// availableIPs are the IPs in state "Available".
-	availableIPs int64
-	// programmingIPs are the IPs in state "PendingProgramming".
-	programmingIPs int64
-	// releasingIPs are the IPs in state "PendingReleasr".
-	releasingIPs int64
-}
-
 func (service *HTTPRestService) buildIPState() *ipState {
 	service.Lock()
 	defer service.Unlock()
