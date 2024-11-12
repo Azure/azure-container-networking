@@ -1,7 +1,7 @@
 package metric
 
 import (
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // used for checksum
 	"encoding/json"
 	"testing"
 
@@ -21,10 +21,10 @@ func TestCreateCNSConfigSnapshotEvent(t *testing.T) {
 	event, err := createCNSConfigSnapshotEvent(config)
 	require.NoError(t, err)
 
-	bb, err := json.Marshal(config)
+	bb, err := json.Marshal(config) //nolint:musttag // no tag needed for config
 	require.NoError(t, err)
 
-	cs := md5.Sum(bb)
+	cs := md5.Sum(bb) //nolint:gosec // used for checksum
 	csStr := string(cs[:])
 
 	expected := aitelemetry.Event{

@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/pkg/errors"
 )
 
 // SendCNSConfigSnapshot emits CNS config periodically
@@ -21,7 +22,7 @@ func SendCNSConfigSnapshot(ctx context.Context, config *configuration.CNSConfig)
 
 	event, err := createCNSConfigSnapshotEvent(config)
 	if err != nil {
-		logger.Errorf("[Azure CNS] SendCNSConfigSnapshot failed to create event at an interval: %v", err)
+		logger.Errorf("[Azure CNS] SendCNSConfigSnapshot: %v", err)
 		return
 	}
 
@@ -38,7 +39,7 @@ func SendCNSConfigSnapshot(ctx context.Context, config *configuration.CNSConfig)
 func createCNSConfigSnapshotEvent(config *configuration.CNSConfig) (aitelemetry.Event, error) {
 	bb, err := json.Marshal(config) //nolint:musttag // no tag needed for config
 	if err != nil {
-		return aitelemetry.Event{}, err
+		return aitelemetry.Event{}, errors.Wrap(err, "failed to marshal config")
 	}
 
 	cs := md5.Sum(bb) //nolint:gosec // used for checksum
