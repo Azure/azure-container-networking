@@ -244,7 +244,7 @@ var args = acn.ArgumentList{
 	{
 		Name:         acn.OptCreateDefaultExtNetworkType,
 		Shorthand:    acn.OptCreateDefaultExtNetworkTypeAlias,
-		Description:  "Create default external network for windows platform with the specified type (l2bridge or l2tunnel)",
+		Description:  "Create default external network for windows platform with the specified type (l2bridge)",
 		Type:         "string",
 		DefaultValue: "",
 	},

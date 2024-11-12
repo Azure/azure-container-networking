@@ -24,7 +24,6 @@ import (
 const (
 	// HNS network types.
 	hnsL2bridge            = "l2bridge"
-	hnsL2tunnel            = "l2tunnel"
 	CnetAddressSpace       = "cnetAddressSpace"
 	vEthernetAdapterPrefix = "vEthernet"
 	baseDecimal            = 10
@@ -113,6 +112,7 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *EndpointInfo, extIf *exter
 	// Initialize HNS network.
 	hnsNetwork := &hcsshim.HNSNetwork{
 		Name:               nwInfo.NetworkID,
+		Type:               hnsL2bridge,
 		NetworkAdapterName: networkAdapterName,
 		Policies:           policy.SerializePolicies(policy.NetworkPolicy, nwInfo.NetworkPolicies, nil, false, false),
 	}
@@ -130,16 +130,6 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *EndpointInfo, extIf *exter
 		hnsNetwork.Policies = append(hnsNetwork.Policies, serializedVlanPolicy)
 
 		vlanid = (int)(vlanPolicy.VLAN)
-	}
-
-	// Set network mode.
-	switch nwInfo.Mode {
-	case opModeBridge:
-		hnsNetwork.Type = hnsL2bridge
-	case opModeTunnel:
-		hnsNetwork.Type = hnsL2tunnel
-	default:
-		return nil, errNetworkModeInvalid
 	}
 
 	// Populate subnets.
@@ -233,6 +223,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 	// Initialize HNS network.
 	hcnNetwork := &hcn.HostComputeNetwork{
 		Name: nwInfo.NetworkID,
+		Type: hcn.L2Bridge,
 		Ipams: []hcn.Ipam{
 			{
 				Type: hcnIpamTypeStatic,
@@ -285,16 +276,6 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 		}
 
 		vlanid = (int)(vlanID)
-	}
-
-	// Set network mode.
-	switch nwInfo.Mode {
-	case opModeBridge:
-		hcnNetwork.Type = hcn.L2Bridge
-	case opModeTunnel:
-		hcnNetwork.Type = hcn.L2Tunnel
-	default:
-		return nil, errNetworkModeInvalid
 	}
 
 	// AccelnetNIC flag: hcn.EnableIov(9216) - treat Delegated/FrontendNIC also the same as Accelnet

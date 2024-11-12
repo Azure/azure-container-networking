@@ -70,6 +70,7 @@ steps:
     displayName: "Restart Nodes"
 
   - script: |
+      set -e
       kubectl get pods -A -o wide
 
       echo "Deploying test pods"
