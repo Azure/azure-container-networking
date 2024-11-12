@@ -469,7 +469,7 @@ func startTelemetryService(ctx context.Context) {
 	tb := telemetry.NewTelemetryBuffer(nil)
 	err := tb.CreateAITelemetryHandle(config, false, false, false)
 	if err != nil {
-		logger.Errorf("AI telemetry handle creation failed..:%w", err)
+		logger.Errorf("[Azure CNS] AI telemetry handle creation failed: %v", err)
 		return
 	}
 
@@ -480,7 +480,7 @@ func startTelemetryService(ctx context.Context) {
 	err = tb.StartServer()
 	logger.Printf("Telemetry service for CNI started")
 	if err != nil {
-		logger.Errorf("Telemetry service failed to start: %w", err)
+		logger.Errorf("[Azure CNS] Telemetry service failed to start: %v", err)
 		return
 	}
 	tb.PushData(ctx)
