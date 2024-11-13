@@ -102,14 +102,17 @@ stages:
             AZURE_CLUSTER: "conformance-v2-background"
             PROFILE: "v2-background"
             IS_STRESS_TEST: "false"
+            OS_SKU: "Ubuntu"
           v2-ws22:
             AZURE_CLUSTER: "conformance-v2-ws22"
             PROFILE: "v2-default-ws22"
             IS_STRESS_TEST: "false"
+            OS_SKU: "Ubuntu"
           v2-linux-stress:
             AZURE_CLUSTER: "conformance-v2-linux-stress"
             PROFILE: "v2-background"
             IS_STRESS_TEST: "true"
+            OS_SKU: "Ubuntu"
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
         demands:
@@ -210,6 +213,7 @@ stages:
                 --resource-group $(RESOURCE_GROUP) \
                 --name $(AZURE_CLUSTER) \
                 --network-plugin azure
+                ----os-sku $(OS_SKU) 
 
                 if [ $? != 0 ]
                 then
