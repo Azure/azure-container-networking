@@ -3,6 +3,7 @@ package telemetryclient
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/Azure/azure-container-networking/telemetry"
 	"go.uber.org/zap"
@@ -17,6 +18,7 @@ type TelemetryClient struct {
 	CNIReportSettings *telemetry.CNIReport
 	tb                *telemetry.TelemetryBuffer
 	logger            *zap.Logger
+	lock              sync.Mutex
 }
 
 var Telemetry = NewTelemetryClient(&telemetry.CNIReport{})
@@ -49,6 +51,8 @@ func (c *TelemetryClient) sendTelemetry(msg string) {
 	if c.tb == nil {
 		return
 	}
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	c.CNIReportSettings.EventMessage = msg
 	eventMsg := fmt.Sprintf("[%d] %s", os.Getpid(), msg)
 	c.CNIReportSettings.EventMessage = eventMsg
