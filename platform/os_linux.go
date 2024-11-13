@@ -144,7 +144,7 @@ func (p *execClient) KillProcessByName(processName string) error {
 
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy
 // This operation is specific to windows OS
-func SetSdnRemoteArpMacAddress(_ ExecClient) error {
+func SetSdnRemoteArpMacAddress(context.Context) error {
 	return nil
 }
 

@@ -19,6 +19,9 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
+	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/mgr"
 )
 
 const (
@@ -59,21 +62,6 @@ const (
 	// This is set for multitenancy to get arp response from within VM
 	// for vlan tagged arp requests
 	SDNRemoteArpMacAddress = "12-34-56-78-9a-bc"
-
-	// Command to get SDNRemoteArpMacAddress registry key
-	GetSdnRemoteArpMacAddressCommand = "(Get-ItemProperty " +
-		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress).SDNRemoteArpMacAddress"
-
-	// Command to set SDNRemoteArpMacAddress registry key
-	SetSdnRemoteArpMacAddressCommand = "Set-ItemProperty " +
-		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress -Value \"12-34-56-78-9a-bc\""
-
-	// Command to check if system has hns state path or not
-	CheckIfHNSStatePathExistsCommand = "Test-Path " +
-		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State"
-
-	// Command to restart HNS service
-	RestartHnsServiceCommand = "Restart-Service -Name hns"
 
 	// Interval between successive checks for mellanox adapter's PriorityVLANTag value
 	defaultMellanoxMonitorInterval = 30 * time.Second
@@ -195,40 +183,73 @@ func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 }
 
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy if hns is enabled
-func SetSdnRemoteArpMacAddress(execClient ExecClient) error {
-	exists, err := execClient.ExecutePowershellCommand(CheckIfHNSStatePathExistsCommand)
+func SetSdnRemoteArpMacAddress(ctx context.Context) error {
+	log.Printf("Setting SDNRemoteArpMacAddress regKey")
+	// open the registry key
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Services\hns\State`, registry.READ|registry.SET_VALUE)
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to check the existent of hns state path due to error %s", err.Error())
-		log.Printf(errMsg)
-		return errors.Errorf(errMsg)
+		if errors.Is(err, registry.ErrNotExist) {
+			return nil
+		}
+		return errors.Wrap(err, "could not open registry key")
 	}
-	if strings.EqualFold(exists, "false") {
-		log.Printf("hns state path does not exist, skip setting SdnRemoteArpMacAddress")
-		return nil
+	defer k.Close()
+	// check the key value
+	if v, _, _ := k.GetStringValue("SDNRemoteArpMacAddress"); v == SDNRemoteArpMacAddress {
+		log.Printf("SDNRemoteArpMacAddress regKey already set")
+		return nil // already set
 	}
-	if sdnRemoteArpMacAddressSet == false {
-		result, err := execClient.ExecutePowershellCommand(GetSdnRemoteArpMacAddressCommand)
+	if err = k.SetStringValue("SDNRemoteArpMacAddress", SDNRemoteArpMacAddress); err != nil {
+		return errors.Wrap(err, "could not set registry key")
+	}
+	log.Printf("SDNRemoteArpMacAddress regKey set successfully")
+	log.Printf("Restarting HNS service")
+	// connect to the service manager
+	m, err := mgr.Connect()
+	if err != nil {
+		return errors.Wrap(err, "could not connect to service manager")
+	}
+	defer m.Disconnect() //nolint:errcheck // ignore error
+	// open the HNS service
+	service, err := m.OpenService("hns")
+	if err != nil {
+		return errors.Wrap(err, "could not access service")
+	}
+	defer service.Close()
+	if err := restartService(ctx, service); err != nil {
+		return errors.Wrap(err, "could not restart service")
+	}
+	log.Printf("HNS service restarted successfully")
+	return nil
+}
+
+func restartService(ctx context.Context, s *mgr.Service) error {
+	// Stop the service
+	_, err := s.Control(svc.Stop)
+	if err != nil {
+		return errors.Wrap(err, "could not stop service")
+	}
+	// Wait for the service to stop
+	ticker := time.NewTicker(500 * time.Millisecond) //nolint:gomnd // 500ms
+	defer ticker.Stop()
+	for { // hacky cancellable do-while
+		status, err := s.Query()
 		if err != nil {
-			return err
+			return errors.Wrap(err, "could not query service status")
 		}
-
-		// Set the reg key if not already set or has incorrect value
-		if result != SDNRemoteArpMacAddress {
-			if _, err = execClient.ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand); err != nil {
-				log.Printf("Failed to set SDNRemoteArpMacAddress due to error %s", err.Error())
-				return err
-			}
-
-			log.Printf("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
-			if _, err := execClient.ExecutePowershellCommand(RestartHnsServiceCommand); err != nil {
-				log.Printf("Failed to Restart HNS Service due to error %s", err.Error())
-				return err
-			}
+		if status.State == svc.Stopped {
+			break
 		}
-
-		sdnRemoteArpMacAddressSet = true
+		select {
+		case <-ctx.Done():
+			return errors.New("context cancelled")
+		case <-ticker.C:
+		}
 	}
-
+	// Start the service again
+	if err := s.Start(); err != nil {
+		return errors.Wrap(err, "could not start service")
+	}
 	return nil
 }
 
