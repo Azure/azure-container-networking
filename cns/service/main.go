@@ -710,8 +710,8 @@ func main() {
 		}
 	}
 
-	// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic
-	err = platform.SetSdnRemoteArpMacAddress()
+	// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic if HNS is enabled
+	err = platform.SetSdnRemoteArpMacAddress(rootCtx)
 	if err != nil {
 		logger.Errorf("Failed to set remote ARP MAC address: %v", err)
 		return
