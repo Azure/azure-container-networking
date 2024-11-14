@@ -45,6 +45,7 @@ stages:
             STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
           steps:
             - script: |
                 make ipv6-hp-bpf-lib
@@ -84,6 +85,7 @@ stages:
           displayName: Build Images
           pool:
             name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+            os: linux
           strategy:
             matrix:
               azure_ipam_linux_amd64:
@@ -133,6 +135,7 @@ stages:
           displayName: Build Images
           pool:
             name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+            os: linux
           strategy:
             matrix:
               azure_ipam_linux_arm64:
@@ -173,6 +176,7 @@ stages:
           displayName: Compile Manifests
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
           strategy:
             matrix:
               azure_ipam:
@@ -378,6 +382,7 @@ stages:
           displayName: Delete Cluster
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
           strategy:
             matrix:
               cilium_e2e:
@@ -441,6 +446,7 @@ stages:
           displayName: Delete Cluster
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
           strategy:
             matrix:
               swiftv2_e2e:

@@ -10,6 +10,7 @@ stages:
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+          os: linux
         steps:
           - script: |
               make tools
@@ -36,6 +37,7 @@ stages:
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
+          os: windows
         steps:
           - script: |
               cd npm/
