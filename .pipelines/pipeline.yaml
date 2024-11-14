@@ -73,7 +73,7 @@ stages:
                 targetFolder: $(Build.ArtifactStagingDirectory)
               condition: succeeded()
 
-            - task: PublishBuildArtifacts@1
+            - task: 1ES.PublishPipelineArtifact@1
               inputs:
                 artifactName: "output"
                 pathtoPublish: "$(Build.ArtifactStagingDirectory)"
