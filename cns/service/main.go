@@ -1303,6 +1303,8 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// TODO(rbtr): nodename and namespace should be in the cns config
 	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
+	// TODO: Create the NNC CRD here and update it with HomeAzinfo
+
 	logger.Printf("Reconciling initial CNS state")
 	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
 	// aks addons to come up so retry a bit more aggresively here.
