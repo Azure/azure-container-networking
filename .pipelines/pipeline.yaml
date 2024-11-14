@@ -76,8 +76,7 @@ stages:
             - task: 1ES.PublishPipelineArtifact@1
               inputs:
                 artifactName: "output"
-                pathtoPublish: "$(Build.ArtifactStagingDirectory)"
-              condition: succeeded()
+                targetPath: "$(Build.ArtifactStagingDirectory)"
 
     - stage: containerize
       displayName: Build Images
