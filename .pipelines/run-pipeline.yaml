@@ -1,13 +1,12 @@
 stages:
   - stage: setup
-    variables:
-      ACN_DIR: $(Build.SourcesDirectory)
     displayName: ACN
     jobs:
       - job: env
         displayName: Setup
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+          os: linux
         steps:
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
@@ -38,8 +37,6 @@ stages:
       dependsOn:
         - setup
         - test
-      variables:
-        ACN_DIR: $(Build.SourcesDirectory)
       jobs:
         - job: build
           displayName: Build Binaries
@@ -47,26 +44,48 @@ stages:
             STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
           steps:
-            - checkout: self
+            - task: GoTool@0
+              inputs:
+                version: $(GO_VERSION)
+
             - script: |
                 make ipv6-hp-bpf-lib
                 make all-binaries-platforms
-              name: "BuildAllPlatformBinaries"
               displayName: "Build all platform binaries"
+
+            - script: |
+                mkdir -p ./output/bins
+                cd ./output
+                find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
+                find . -name '*.zip' -print -exec mv -t ./bins/ {} +
+                shopt -s extglob
+                rm -rf !("bins")
+              name: "PrepareArtifacts"
+              displayName: "Prepare Artifacts"
+
+            - task: CopyFiles@2
+              inputs:
+                sourceFolder: "output"
+                targetFolder: $(Build.ArtifactStagingDirectory)
+
+            - task: 1ES.PublishPipelineArtifact@1
+              inputs:
+                artifactName: "output"
+                targetPath: "$(Build.ArtifactStagingDirectory)"
 
     - stage: containerize
       displayName: Build Images
       dependsOn:
         - setup
         - test
-      variables:
-        ACN_DIR: $(Build.SourcesDirectory)
       jobs:
         - job: containerize_amd64
           displayName: Build Images
           pool:
             name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+            os: linux
           strategy:
             maxParallel: 4
             matrix:
@@ -74,8 +93,7 @@ stages:
                 arch: amd64
                 name: azure-ipam
                 os: linux
-              azure_ipam_windows_amd64:
-                Suffix: azure_ipam_windows_amd64
+              azure_ipam_windows:
                 arch: amd64
                 name: azure-ipam
                 os: windows
@@ -84,9 +102,16 @@ stages:
                 name: cni
                 os: linux
               cni_windows_amd64:
-                Suffix: cni_windows_amd64
                 arch: amd64
                 name: cni
+                os: windows
+              cns_linux_amd64:
+                arch: amd64
+                name: cns
+                os: linux
+              cns_windows_amd64:
+                arch: amd64
+                name: cns
                 os: windows
               ipv6_hp_bpf_linux_amd64:
                 arch: amd64
@@ -97,26 +122,24 @@ stages:
                 name: npm
                 os: linux
               npm_windows_amd64:
-                Suffix: npm_windows_amd64
                 arch: amd64
                 name: npm
                 os: windows
-          variables:
-            ob_git_checkout: true
-            ob_artifactSuffix: $(Suffix) # this is needed to not collide published artifact containers
-            ob_outputDirectory: $(System.ArtifactStagingDirectory)
           steps:
-            - checkout: self
-            - template: containers/container-template.yaml
+            - task: GoTool@0
+              inputs:
+                version: $(GO_VERSION)
+            - template: containers/container-template.steps.yaml
               parameters:
                 arch: $(arch)
                 name: $(name)
                 os: $(os)
-
+                os_version: $(os_version)
         - job: containerize_linux_arm64
           displayName: Build Images
           pool:
             name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+            os: linux
           strategy:
             maxParallel: 4
             matrix:
@@ -141,8 +164,7 @@ stages:
                 name: npm
                 os: linux
           steps:
-            - checkout: self
-            - template: containers/container-template.yaml
+            - template: containers/container-template.steps.yaml
               parameters:
                 arch: $(arch)
                 name: $(name)
@@ -154,12 +176,12 @@ stages:
         - containerize
       variables:
         Packaging.EnableSBOMSigning: false
-        ACN_DIR: $(Build.SourcesDirectory)
       jobs:
         - job: manifest
           displayName: Compile Manifests
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
           strategy:
             maxParallel: 4
             matrix:
@@ -179,7 +201,10 @@ stages:
                 name: npm
                 platforms: linux/amd64 linux/arm64 windows/amd64
           steps:
-            - template: containers/manifest-template.yaml
+            - task: GoTool@0
+              inputs:
+                version: $(GO_VERSION)
+            - template: containers/manifest-template.steps.yaml
               parameters:
                 name: $(name)
                 platforms: $(platforms)
@@ -366,6 +391,7 @@ stages:
           displayName: Delete Cluster
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
           strategy:
             maxParallel: 4
             matrix:
@@ -430,6 +456,7 @@ stages:
           displayName: Delete Cluster
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
+            os: linux
           strategy:
             maxParallel: 4
             matrix:

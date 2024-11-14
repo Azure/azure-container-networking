@@ -5,33 +5,19 @@ parameters:
 
 steps:
 - task: AzureCLI@2
-  displayName: "Login"
-  inputs:
-    azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
-    scriptLocation: "inlineScript"
-    scriptType: "bash"
-    inlineScript: |
-      az acr login -n $(ACR)
-
-- script: |
-    set -e
-    if [ "$IN_OS" = 'windows' ]; then export BUILDX_ACTION='--push'; fi
-    make "$IMGNAME" OS="$IN_OS" ARCH="$IN_ARCH" 
-  name: image_build
-  displayName: Image Build
-  workingDirectory: $(ACN_DIR)
+  displayName: "Image Build"
   retryCountOnTaskFailure: 3
-  env:
-    IMGNAME: '${{ parameters.name }}-image'
-    IN_OS: '${{ parameters.os }}'
-    IN_ARCH: '${{ parameters.arch }}'
-
-- task: AzureCLI@2
-  displayName: "Logout"
   inputs:
     azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
+    addSpnToEnvironment: True
     scriptLocation: "inlineScript"
     scriptType: "bash"
     inlineScript: |
-      docker logout
-
+      set -e
+      make "$MAKE_CMD"
+  env:
+    OS: ${{ parameters.os }}
+    ARCH: ${{ parameters.arch }}
+    MAKE_CMD: ${{ parameters.name }}-image
+    ${{ if eq(parameters.os, 'windows') }}:
+      BUILDX_ACTION: '--push'
