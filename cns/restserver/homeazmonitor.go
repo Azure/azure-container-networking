@@ -135,7 +135,7 @@ func (h *HomeAzMonitor) Populate(ctx context.Context) {
 				return
 
 			default:
-				returnMessage := fmt.Sprintf("[HomeAzMonitor] failed with StatusCode: %d", apiError.StatusCode())
+				returnMessage := fmt.Sprintf("[HomeAzMonitor] failed with StatusCode: %d and error %v", apiError.StatusCode(), err)
 				returnCode := types.UnexpectedError
 				h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: true})
 				return
