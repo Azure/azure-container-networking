@@ -457,7 +457,7 @@ func (nm *networkManager) deleteNetworkImplHnsV2(nw *network) error {
 	var hcnNetwork *hcn.HostComputeNetwork
 	var err error
 	logger.Info("Deleting hcn network with id", zap.String("id", nw.HnsId))
-	telemetry.SendEvent(fmt.Sprintf("Deleting HCN network: %s", nw.HnsId))
+	telemetry.SendEvent("Deleting HCN network: " + nw.HnsId)
 
 	if hcnNetwork, err = Hnsv2.GetNetworkByID(nw.HnsId); err != nil {
 		return fmt.Errorf("Failed to get hcn network with id: %s due to err: %v", nw.HnsId, err)

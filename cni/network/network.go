@@ -15,7 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cni/log"
-	"github.com/Azure/azure-container-networking/cni/telemetry/client"
+	telemetryclient "github.com/Azure/azure-container-networking/cni/telemetry/client"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
@@ -294,7 +294,7 @@ func (plugin *NetPlugin) getPodInfo(args string) (name, ns string, err error) {
 	return k8sPodName, k8sNamespace, nil
 }
 
-func (plugin *NetPlugin) setCNIReportDetails(containerID string, opType, msg string) {
+func (plugin *NetPlugin) setCNIReportDetails(containerID, opType, msg string) {
 	telemetry.CNIReportSettings.OperationType = opType
 	telemetry.CNIReportSettings.SubContext = containerID
 	telemetry.CNIReportSettings.EventMessage = msg
@@ -1099,7 +1099,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 			logger.Warn("Release ip by ContainerID (endpoint not found)",
 				zap.String("containerID", args.ContainerID))
-			telemetry.SendEvent(fmt.Sprintf("Release ip by ContainerID (endpoint not found): %s", args.ContainerID))
+			telemetry.SendEvent("Release ip by ContainerID (endpoint not found): " + args.ContainerID)
 			if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
 				return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
 			}

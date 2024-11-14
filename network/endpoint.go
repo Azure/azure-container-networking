@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cni/log"
-	"github.com/Azure/azure-container-networking/cni/telemetry/client"
+	telemetryclient "github.com/Azure/azure-container-networking/cni/telemetry/client"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
@@ -166,7 +166,8 @@ func FormatStructPointers[T any](slice []*T) string {
 }
 
 func (epInfo *EndpointInfo) PrettyString() string {
-	return fmt.Sprintf("EndpointID:%s ContainerID:%s NetNsPath:%s IfName:%s IfIndex:%d MacAddr:%s IPAddrs:%v Gateways:%v Data:%+v NICType: %s NetworkContainerID: %s HostIfName: %s NetNs: %s Options: %v MasterIfName: %s IfName: %s HNSEndpointID: %s HNSNetworkID: %s",
+	return fmt.Sprintf("EndpointID:%s ContainerID:%s NetNsPath:%s IfName:%s IfIndex:%d MacAddr:%s IPAddrs:%v Gateways:%v Data:%+v NICType: %s "+
+		"NetworkContainerID: %s HostIfName: %s NetNs: %s Options: %v MasterIfName: %s IfName: %s HNSEndpointID: %s HNSNetworkID: %s",
 		epInfo.EndpointID, epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName, epInfo.IfIndex, epInfo.MacAddress.String(), epInfo.IPAddresses,
 		epInfo.Gateways, epInfo.Data, epInfo.NICType, epInfo.NetworkContainerID, epInfo.HostIfName, epInfo.NetNs, epInfo.Options, epInfo.MasterIfName,
 		epInfo.IfName, epInfo.HNSEndpointID, epInfo.HNSNetworkID)
