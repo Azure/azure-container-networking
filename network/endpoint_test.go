@@ -22,6 +22,32 @@ func TestEndpoint(t *testing.T) {
 	RunSpecs(t, "Endpoint Suite")
 }
 
+var _ = Describe("Test FormatStructPointers", func() {
+	ptrSlice := []*IPConfig{
+		{
+			Gateway: net.ParseIP("10.10.0.1"),
+		},
+		{
+			Gateway: net.ParseIP("10.10.0.2"),
+		},
+	}
+	Describe("Test FormatStructPointers", func() {
+		Context("When passing in a slice of pointers", func() {
+			It("Should create a pretty printed string of the contents", func() {
+				result := FormatStructPointers(ptrSlice)
+				Expect(result).To(Equal("{Address:{IP:<nil> Mask:<nil>} Gateway:10.10.0.1} \n{Address:{IP:<nil> Mask:<nil>} Gateway:10.10.0.2} \n"))
+			})
+		})
+		Context("When passing in nil", func() {
+			It("Should not error", func() {
+				var empty []*IPConfig
+				result := FormatStructPointers(empty)
+				Expect(result).To(Equal(""))
+			})
+		})
+	})
+})
+
 var _ = Describe("Test Endpoint", func() {
 	Describe("Test getEndpoint", func() {
 		Context("When endpoint not exists", func() {
