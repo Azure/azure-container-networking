@@ -47,6 +47,10 @@ stages:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
             os: linux
           steps:
+            - task: GoTool@0
+              inputs:
+                version: $(GO_VERSION)
+
             - script: |
                 make ipv6-hp-bpf-lib
                 make all-binaries-platforms
@@ -125,6 +129,9 @@ stages:
                 name: npm
                 os: windows
           steps:
+            - task: GoTool@0
+              inputs:
+                version: $(GO_VERSION)
             - template: containers/container-template.yaml
               parameters:
                 arch: $(arch)
@@ -195,6 +202,9 @@ stages:
                 name: npm
                 platforms: linux/amd64 linux/arm64 windows/amd64
           steps:
+            - task: GoTool@0
+              inputs:
+                version: $(GO_VERSION)
             - template: containers/manifest-template.yaml
               parameters:
                 name: $(name)
