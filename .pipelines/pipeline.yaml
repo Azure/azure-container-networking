@@ -27,6 +27,7 @@ stages:
         displayName: Setup
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+          os: linux
         steps:
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
