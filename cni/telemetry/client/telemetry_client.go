@@ -47,23 +47,25 @@ func (c *TelemetryClient) DisconnectTelemetry() {
 	}
 	c.tb.Close()
 }
+
 func (c *TelemetryClient) sendTelemetry(msg string) {
 	if c.tb == nil {
 		return
 	}
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.CNIReportSettings.EventMessage = msg
 	eventMsg := fmt.Sprintf("[%d] %s", os.Getpid(), msg)
 	c.CNIReportSettings.EventMessage = eventMsg
 	telemetry.SendCNIEvent(c.tb, c.CNIReportSettings)
 }
+
 func (c *TelemetryClient) sendLog(msg string) {
 	if c.logger == nil {
 		return
 	}
 	c.logger.Info("Telemetry Event", zap.String("message", msg))
 }
+
 func (c *TelemetryClient) SendEvent(msg string) {
 	c.sendLog(msg)
 	c.sendTelemetry(msg)

@@ -14,7 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni/api"
 	zaplog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
-	"github.com/Azure/azure-container-networking/cni/telemetry/client"
+	telemetryclient "github.com/Azure/azure-container-networking/cni/telemetry/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/platform"
