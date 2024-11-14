@@ -776,6 +776,7 @@ func main() {
 				MSIResourceID:                      cnsconfig.MSISettings.ResourceID,
 				KeyVaultCertificateRefreshInterval: time.Duration(cnsconfig.KeyVaultSettings.RefreshIntervalInHrs) * time.Hour,
 				UseMTLS:                            cnsconfig.UseMTLS,
+				MinTLSVersion:                      cnsconfig.MinTLSVersion,
 			}
 		}
 
@@ -787,8 +788,7 @@ func main() {
 	}
 
 	// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic if HNS is enabled
-	execClient := platform.NewExecClient(nil)
-	err = platform.SetSdnRemoteArpMacAddress(execClient)
+	err = platform.SetSdnRemoteArpMacAddress(rootCtx)
 	if err != nil {
 		logger.Errorf("Failed to set remote ARP MAC address: %v", err)
 		return

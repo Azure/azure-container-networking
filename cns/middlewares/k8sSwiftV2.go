@@ -237,6 +237,8 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 					return nil, errors.Wrap(err, "failed to parse mtpnc subnetAddressSpace prefix")
 				}
 				podIPInfos = append(podIPInfos, podIPInfo)
+				// for windows scenario, it is required to add default route with gatewayIP from CNS
+				k.addDefaultRoute(&podIPInfo, interfaceInfo.GatewayIP)
 			}
 		}
 	}

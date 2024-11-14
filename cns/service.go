@@ -28,6 +28,8 @@ const (
 	genericData          = "com.microsoft.azure.network.generic"
 )
 
+var errTLSConfig = errors.New("unsupported TLS version name from config")
+
 // Service defines Container Networking Service.
 type Service struct {
 	*common.Service
@@ -179,10 +181,14 @@ func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error)
 		PrivateKey:  privateKey,
 		Leaf:        leafCertificate,
 	}
+	minTLSVersionNumber, err := parseTLSVersionName(tlsSettings.MinTLSVersion)
+	if err != nil {
+		return nil, errors.Wrap(err, "parsing MinTLSVersion from config")
+	}
 
 	tlsConfig := &tls.Config{
 		MaxVersion: tls.VersionTLS13,
-		MinVersion: tls.VersionTLS12,
+		MinVersion: minTLSVersionNumber,
 		Certificates: []tls.Certificate{
 			tlsCert,
 		},
@@ -226,8 +232,13 @@ func getTLSConfigFromKeyVault(tlsSettings localtls.TlsSettings, errChan chan<- e
 		errChan <- cr.Refresh(ctx, tlsSettings.KeyVaultCertificateRefreshInterval)
 	}()
 
+	minTLSVersionNumber, err := parseTLSVersionName(tlsSettings.MinTLSVersion)
+	if err != nil {
+		return nil, errors.Wrap(err, "parsing MinTLSVersion from config")
+	}
+
 	tlsConfig := tls.Config{
-		MinVersion: tls.VersionTLS12,
+		MinVersion: minTLSVersionNumber,
 		MaxVersion: tls.VersionTLS13,
 		GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
 			return cr.GetCertificate(), nil
@@ -315,4 +326,17 @@ func (service *Service) SendErrorResponse(w http.ResponseWriter, errMsg error) {
 	resp := errorResponse{errMsg.Error()}
 	err := acn.Encode(w, &resp)
 	logger.Errorf("[%s] %+v %s.", service.Name, &resp, err.Error())
+}
+
+// parseTLSVersionName returns the version number for the provided TLS version name
+// (e.g. 0x0301)
+func parseTLSVersionName(versionName string) (uint16, error) {
+	switch versionName {
+	case "TLS 1.2":
+		return tls.VersionTLS12, nil
+	case "TLS 1.3":
+		return tls.VersionTLS13, nil
+	default:
+		return 0, errors.Wrapf(errTLSConfig, "version name %s", versionName)
+	}
 }

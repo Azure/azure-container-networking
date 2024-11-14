@@ -86,9 +86,10 @@ func TestReadConfigFromFile(t *testing.T) {
 				AZRSettings: AZRSettings{
 					PopulateHomeAzCacheRetryIntervalSecs: 60,
 				},
-				UseHTTPS:     true,
-				UseMTLS:      true,
-				WireserverIP: "168.63.129.16",
+				UseHTTPS:      true,
+				UseMTLS:       true,
+				WireserverIP:  "168.63.129.16",
+				MinTLSVersion: "TLS 1.3",
 			},
 			wantErr: false,
 		},
@@ -220,6 +221,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					IPAddress: "localhost",
 					Port:      8080,
 				},
+				MinTLSVersion: "TLS 1.2",
 			},
 		},
 		{
@@ -250,6 +252,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					IPAddress: "192.168.1.1",
 					Port:      9090,
 				},
+				MinTLSVersion: "TLS 1.3",
 			},
 			want: CNSConfig{
 				ChannelMode: "Other",
@@ -279,6 +282,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					IPAddress: "192.168.1.1",
 					Port:      9090,
 				},
+				MinTLSVersion: "TLS 1.3",
 			},
 		},
 	}

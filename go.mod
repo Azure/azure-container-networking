@@ -41,7 +41,7 @@ require (
 	golang.org/x/sys v0.27.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/grpc v1.68.0
-	google.golang.org/protobuf v1.35.1
+	google.golang.org/protobuf v1.35.2
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	k8s.io/api v0.30.6
 	k8s.io/apiextensions-apiserver v0.30.1

@@ -899,6 +899,38 @@ func GetTestCNSResponseSecondaryWindows(macAddress string) map[string]network.In
 	}
 }
 
+func GetRawACLPolicy() (ret json.RawMessage) {
+	var data map[string]interface{}
+	formatted := []byte(`{
+		"Type": "ACL",
+		"Protocols": "6",
+		"Action": "Block",
+		"Direction": "Out",
+		"RemoteAddresses": "168.63.129.16/32",
+		"RemotePorts": "80",
+		"Priority": 200,
+		"RuleType": "Switch"
+	  }`)
+	json.Unmarshal(formatted, &data)  // nolint
+	minified, _ := json.Marshal(data) // nolint
+	ret = json.RawMessage(minified)
+	return ret
+}
+
+func GetRawOutBoundNATPolicy() (ret json.RawMessage) {
+	var data map[string]interface{}
+	formatted := []byte(`{
+		"Type": "OutBoundNAT",
+		"ExceptionList": [
+		  "10.224.0.0/16"
+		]
+	  }`)
+	json.Unmarshal(formatted, &data)  // nolint
+	minified, _ := json.Marshal(data) // nolint
+	ret = json.RawMessage(minified)
+	return ret
+}
+
 // Happy path scenario for add and delete
 func TestPluginWindowsAdd(t *testing.T) {
 	resources := GetTestResources()
@@ -908,6 +940,20 @@ func TestPluginWindowsAdd(t *testing.T) {
 		MultiTenancy:               true,
 		EnableExactMatchForPodName: true,
 		Master:                     "eth0",
+		// these are added to test that policies propagate to endpoint info
+		AdditionalArgs: []cni.KVPair{
+			{
+				Name:  "EndpointPolicy",
+				Value: GetRawOutBoundNATPolicy(),
+			},
+			{
+				Name:  "EndpointPolicy",
+				Value: GetRawACLPolicy(),
+			},
+		},
+		WindowsSettings: cni.WindowsSettings{ // included to test functionality
+			EnableLoopbackDSR: true,
+		},
 	}
 	nwCfg := cni.NetworkConfig{
 		CNIVersion:                 "0.3.0",
@@ -1002,6 +1048,31 @@ func TestPluginWindowsAdd(t *testing.T) {
 								Gateway: net.ParseIP("20.0.0.1"),
 							},
 						},
+						EndpointPolicies: []policy.Policy{
+							{
+								Type: policy.EndpointPolicy,
+								Data: GetRawOutBoundNATPolicy(),
+							},
+							{
+								Type: policy.EndpointPolicy,
+								Data: GetRawACLPolicy(),
+							},
+							{
+								Type: policy.EndpointPolicy,
+								// if enabled we create a loopback dsr policy based on the cns ip config
+								Data: json.RawMessage(`{"Type":"LoopbackDSR","IPAddress":"20.0.0.10"}`),
+							},
+						},
+						NetworkPolicies: []policy.Policy{
+							{
+								Type: policy.EndpointPolicy,
+								Data: GetRawOutBoundNATPolicy(),
+							},
+							{
+								Type: policy.EndpointPolicy,
+								Data: GetRawACLPolicy(),
+							},
+						},
 					},
 					epIDRegex: `.*`,
 				},
@@ -1045,6 +1116,30 @@ func TestPluginWindowsAdd(t *testing.T) {
 								Family:  platform.AfINET,
 								Prefix:  *getIPNetWithString("10.0.0.0/24"),
 								Gateway: net.ParseIP("10.0.0.1"),
+							},
+						},
+						EndpointPolicies: []policy.Policy{
+							{
+								Type: policy.EndpointPolicy,
+								Data: GetRawOutBoundNATPolicy(),
+							},
+							{
+								Type: policy.EndpointPolicy,
+								Data: GetRawACLPolicy(),
+							},
+							{
+								Type: policy.EndpointPolicy,
+								Data: json.RawMessage(`{"Type":"LoopbackDSR","IPAddress":"10.0.0.10"}`),
+							},
+						},
+						NetworkPolicies: []policy.Policy{
+							{
+								Type: policy.EndpointPolicy,
+								Data: GetRawOutBoundNATPolicy(),
+							},
+							{
+								Type: policy.EndpointPolicy,
+								Data: GetRawACLPolicy(),
 							},
 						},
 					},
@@ -1209,6 +1304,37 @@ func TestPluginWindowsAdd(t *testing.T) {
 				}
 				err = tt.plugin.nm.DeleteEndpoint("", epID, nil)
 				require.NoError(t, err)
+			}
+
+			// confirm separate entities
+			// that is, if one is modified, the other should not be modified
+			epInfos := []*network.EndpointInfo{}
+			for _, val := range allEndpoints {
+				epInfos = append(epInfos, val)
+			}
+			if len(epInfos) > 1 {
+				// ensure the endpoint data  and options are separate entities when in separate endpoint infos
+				epInfo1 := epInfos[0]
+				epInfo2 := epInfos[1]
+				epInfo1.Data["dummy"] = "dummy value"
+				epInfo1.Options["dummy"] = "another dummy value"
+				require.NotEqual(t, epInfo1.Data, epInfo2.Data)
+				require.NotEqual(t, epInfo1.Options, epInfo2.Options)
+
+				// ensure the endpoint policy slices are separate entities when in separate endpoint infos
+				if len(epInfo1.EndpointPolicies) > 0 {
+					epInfo1.EndpointPolicies[0] = policy.Policy{
+						Type: policy.ACLPolicy,
+					}
+					require.NotEqual(t, epInfo1.EndpointPolicies, epInfo2.EndpointPolicies)
+				}
+				// ensure the network policy slices are separate entities when in separate endpoint infos
+				if len(epInfo1.NetworkPolicies) > 0 {
+					epInfo1.NetworkPolicies[0] = policy.Policy{
+						Type: policy.ACLPolicy,
+					}
+					require.NotEqual(t, epInfo1.NetworkPolicies, epInfo2.NetworkPolicies)
+				}
 			}
 
 			// ensure deleted

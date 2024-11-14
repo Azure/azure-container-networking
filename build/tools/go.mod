@@ -11,7 +11,7 @@ require (
 	github.com/golangci/golangci-lint v1.62.0
 	github.com/jstemmer/go-junit-report v1.0.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
-	google.golang.org/protobuf v1.35.1
+	google.golang.org/protobuf v1.35.2
 	mvdan.cc/gofumpt v0.7.0
 	sigs.k8s.io/controller-tools v0.16.3
 )

@@ -76,6 +76,7 @@ func TestNewService(t *testing.T) {
 			TLSPort:            "10091",
 			TLSSubjectName:     "localhost",
 			TLSCertificatePath: testCertFilePath,
+			MinTLSVersion:      "TLS 1.2",
 		}
 
 		svc, err := NewService(config.Name, config.Version, config.ChannelMode, config.Store)
@@ -94,10 +95,13 @@ func TestNewService(t *testing.T) {
 		err = svc.StartListener(config)
 		require.NoError(t, err)
 
+		minTLSVersionNumber, err := parseTLSVersionName(config.TLSSettings.MinTLSVersion)
+		require.NoError(t, err)
+
 		tlsClient := &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
-					MinVersion: tls.VersionTLS12,
+					MinVersion: minTLSVersionNumber,
 					MaxVersion: tls.VersionTLS13,
 					ServerName: config.TLSSettings.TLSSubjectName,
 					// #nosec G402 for test purposes only
@@ -134,6 +138,7 @@ func TestNewService(t *testing.T) {
 			TLSSubjectName:     "localhost",
 			TLSCertificatePath: testCertFilePath,
 			UseMTLS:            true,
+			MinTLSVersion:      "TLS 1.2",
 		}
 
 		svc, err := NewService(config.Name, config.Version, config.ChannelMode, config.Store)
@@ -321,4 +326,32 @@ func createTestCertificate(t *testing.T) string {
 	t.Log("Created test certificate file at: ", testCertFilePath)
 
 	return testCertFilePath
+}
+
+func TestTLSVersionNumber(t *testing.T) {
+	t.Run("unsupported ServerSettings.MinTLSVersion TLS 1.0", func(t *testing.T) {
+		versionNumber, err := parseTLSVersionName("TLS 1.0")
+		require.Equal(t, uint16(0), versionNumber)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unsupported TLS version name")
+	})
+
+	t.Run("unsupported ServerSettings.MinTLSVersion TLS 1.1", func(t *testing.T) {
+		versionNumber, err := parseTLSVersionName("TLS 1.1")
+		require.Equal(t, uint16(0), versionNumber)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unsupported TLS version name")
+	})
+	t.Run("unsupported ServerSettings.MinTLSVersion TLS 1.4", func(t *testing.T) {
+		versionNumber, err := parseTLSVersionName("TLS 1.4")
+		require.Equal(t, uint16(0), versionNumber)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unsupported TLS version name")
+	})
+
+	t.Run("valid ServerSettings.MinTLSVersion", func(t *testing.T) {
+		versionNumber, err := parseTLSVersionName("TLS 1.2")
+		require.Equal(t, uint16(tls.VersionTLS12), versionNumber)
+		require.NoError(t, err)
+	})
 }

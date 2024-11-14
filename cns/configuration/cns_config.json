@@ -33,5 +33,6 @@
     "MellanoxMonitorIntervalSecs": 30,
     "AZRSettings": {
         "PopulateHomeAzCacheRetryIntervalSecs": 60
-    }
+    },
+    "MinTLSVersion": "TLS 1.2"
 }

@@ -124,7 +124,7 @@ func (v *Validator) ValidateStateFile(ctx context.Context) error {
 }
 
 func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector, containerName string) error {
-	log.Printf("Validating %s state file", checkType)
+	log.Printf("Validating %s state file for %s on %s", checkType, v.cni, v.os)
 	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
 	if err != nil {
 		return errors.Wrapf(err, "failed to get node list")
