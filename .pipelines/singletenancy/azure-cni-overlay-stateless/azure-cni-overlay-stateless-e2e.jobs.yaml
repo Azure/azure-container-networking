@@ -25,7 +25,13 @@ stages:
           vmSize: ${{ parameters.vmSize }}
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
-          region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) # Dualstack has a specific region requirement
+          region: $(REGION_AKS_CLUSTER_TEST)
+
+      - template: ../../templates/add-windows-nodepool.jobs.yaml
+        parameters:
+          depend: ${{ parameters.name }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
@@ -34,13 +40,13 @@ stages:
     - publish
     - ${{ parameters.clusterName }}
     variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
-      - job: ${{ parameters.name }}
-        displayName: Cilium Dualstack Overlay Test Suite - (${{ parameters.name }})
+      - job: ${{ parameters.name }}_windows
+        displayName: Azure Stateless CNI Overlay Test Suite | Windows - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
@@ -52,34 +58,37 @@ stages:
           - checkout: self
             clean: true
 
-          - template: cilium-dualstackoverlay-e2e.steps.yaml
+          - template: azure-cni-overlay-stateless-e2e.steps.yaml
             parameters:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              scaleup: 100
+              os: windows
+              vmSizeWin: ${{ parameters.vmSize }}
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          cni: cilium
-          dependsOn: ${{ parameters.name }}
-          dualstack: true
+          os: windows
+          dependsOn: ${{ parameters.name }}_windows
+          datapath: true
           dns: true
           portforward: true
+          hostport: true
           service: true
+          hybridWin: true
 
-      - job: failedE2ELogs
-        displayName: "Failure Logs"
+      - job: failedE2ELogs_windows
+        displayName: "Windows Failure Logs"
         dependsOn:
-          - ${{ parameters.name }}
-          - cni_${{ parameters.os }}
-        condition: failed()
+          - ${{ parameters.name }}_windows
+          - cni_windows
+        condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed')
         steps:
           - template: ../../templates/log-template.steps.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: ${{ parameters.os }}
-              cni: cilium
+              os: windows
+              cni: cniv2
+
 

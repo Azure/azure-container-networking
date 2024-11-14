@@ -1,3 +1,24 @@
+pr:
+  branches:
+    include:
+      - master
+      - release/*
+  paths:
+    exclude:
+      - ".devcontainer"
+      - ".hooks"
+      - ".vscode"
+      - ".github"
+      - docs
+
+trigger:
+  branches:
+    include:
+      - gh-readonly-queue/master/*
+  tags:
+    include:
+      - "*"
+
 stages:
   - stage: setup
     displayName: ACN
@@ -6,7 +27,6 @@ stages:
         displayName: Setup
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
-          os: linux
         steps:
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
@@ -45,12 +65,7 @@ stages:
             STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
-            os: linux
           steps:
-            - task: GoTool@0
-              inputs:
-                version: $(GO_VERSION)
-
             - script: |
                 make ipv6-hp-bpf-lib
                 make all-binaries-platforms
@@ -73,10 +88,11 @@ stages:
                 targetFolder: $(Build.ArtifactStagingDirectory)
               condition: succeeded()
 
-            - task: 1ES.PublishPipelineArtifact@1
+            - task: PublishBuildArtifacts@1
               inputs:
                 artifactName: "output"
-                targetPath: "$(Build.ArtifactStagingDirectory)"
+                pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+              condition: succeeded()
 
     - stage: containerize
       displayName: Build Images
@@ -88,7 +104,6 @@ stages:
           displayName: Build Images
           pool:
             name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
-            os: linux
           strategy:
             matrix:
               azure_ipam_linux_amd64:
@@ -128,9 +143,6 @@ stages:
                 name: npm
                 os: windows
           steps:
-            - task: GoTool@0
-              inputs:
-                version: $(GO_VERSION)
             - template: containers/container-template.yaml
               parameters:
                 arch: $(arch)
@@ -141,7 +153,6 @@ stages:
           displayName: Build Images
           pool:
             name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
-            os: linux
           strategy:
             matrix:
               azure_ipam_linux_arm64:
@@ -182,7 +193,6 @@ stages:
           displayName: Compile Manifests
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
-            os: linux
           strategy:
             matrix:
               azure_ipam:
@@ -201,9 +211,6 @@ stages:
                 name: npm
                 platforms: linux/amd64 linux/arm64 windows/amd64
           steps:
-            - task: GoTool@0
-              inputs:
-                version: $(GO_VERSION)
             - template: containers/manifest-template.yaml
               parameters:
                 name: $(name)
@@ -391,7 +398,6 @@ stages:
           displayName: Delete Cluster
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
-            os: linux
           strategy:
             matrix:
               cilium_e2e:
@@ -443,7 +449,7 @@ stages:
                 clusterName: "cildsovere2e"
                 region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
           steps:
-            - template: templates/delete-cluster.yaml
+            - template: templates/delete-cluster.steps.yaml
               parameters:
                 name: $(name)
                 clusterName: $(clusterName)-$(commitID)
@@ -455,7 +461,6 @@ stages:
           displayName: Delete Cluster
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
-            os: linux
           strategy:
             matrix:
               swiftv2_e2e:
@@ -467,7 +472,7 @@ stages:
                 clusterName: "swiftv2dummy"
                 region: $(REGION_SWIFTV2_CLUSTER_TEST)
           steps:
-            - template: templates/delete-cluster.yaml
+            - template: templates/delete-cluster.steps.yaml
               parameters:
                 name: $(name)
                 clusterName: $(clusterName)-$(commitID)

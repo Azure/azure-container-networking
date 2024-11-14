@@ -19,9 +19,8 @@ stages:
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      ACN_DIR: $(Build.SourcesDirectory)
     jobs:
-      - template: ../../templates/create-cluster.jobs.yaml@ACNTools
+      - template: ../../templates/create-cluster.jobs.yaml
         parameters:
           name: ${{ parameters.name }}
           displayName: ${{ parameters.displayName }}
@@ -35,35 +34,30 @@ stages:
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
-    dependsOn:
-    - setup
-    - publish
-    - ${{ parameters.clusterName }}
     variables:
-      ACN_DIR: $(Build.SourcesDirectory)
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    dependsOn:
+    - setup
+    - publish
+    - ${{ parameters.clusterName }}
     jobs:
       - job: ${{ parameters.name }}
         displayName: Singletenancy AKS - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
-          isCustom: true
-          type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
+          os: linux
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-        variables:
-          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
-          ob_git_checkout: true
         steps:
-          - checkout: ACNReviewChanges
+          - checkout: self
             clean: true
 
-          - template: aks-e2e.steps.yaml@ACNTools
+          - template: aks-e2e.steps.yaml
             parameters:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -72,7 +66,7 @@ stages:
               os_version: ${{ parameters.os_version }}
               scaleup: ${{ parameters.scaleup }}
 
-      - template: ../../cni/k8s-e2e/k8s-e2e.jobs.yaml@ACNTools
+      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -91,18 +85,9 @@ stages:
           - ${{ parameters.name }}
           - cni_${{ parameters.os }}
         condition: failed()
-        pool:
-          type: linux
-        variables:
-          ob_outputDirectory: $(ACN_DIR)/${{ parameters.clusterName }}-$(commitID)_FailedE2ELogs_Attempt_#$(System.StageAttempt)
-          ob_git_checkout: true
         steps:
-          - checkout: ACNTools
-            clean: true
-
-          - template: ../../templates/log-template.steps.yaml@ACNTools
+          - template: ../../templates/log-template.steps.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv1
-

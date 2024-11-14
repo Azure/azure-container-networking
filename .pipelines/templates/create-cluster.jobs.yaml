@@ -14,45 +14,44 @@ parameters:
 jobs:
   - job: ${{ parameters.name }}
     displayName: Cluster - ${{ parameters.name }}
-    pool:
-      isCustom: true
-      type: linux
-      name: $(BUILD_POOL_NAME_DEFAULT)
-    variables:
-      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
-      ob_git_checkout: true
     steps:
-      - checkout: ACNReviewChanges
-        clean: true
+      - bash: |
+          set -e
 
+          echo "Check az version"
+          az version
+
+          echo "Install az cli extension preview"
+          az extension add --name aks-preview
+          az extension update --name aks-preview
+        displayName: "Install AzCLI Extentions"
+        condition: and(succeeded(), ${{ contains(parameters.clusterType, 'dualstack') }})
+ 
       - task: AzureCLI@2
+        displayName: Cluster - ${{ parameters.clusterType }}
+        continueOnError: contains(parameters.clusterType, 'dualstack')
+        env:
+          AZCLI: az
+          REGION: ${{ parameters.region }}
+          CLUSTER: ${{ parameters.clusterName }}
+          CLUSTER_TYPE: ${{ parameters.clusterType }}
+          SUB: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+          VM_SIZE: ${{ parameters.vmSize }}
+          VM_SIZE_WIN: ${{ parameters.vmSizeWin }}
+          OS: ${{ parameters.os }}
+          OS_SKU_WIN: ${{ parameters.osSkuWin }}
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptLocation: "inlineScript"
           scriptType: "bash"
-          workingDirectory: $(ACN_DIR)
           addSpnToEnvironment: true
           inlineScript: |
             set -e
-            echo "Check az version"
-            az version
-            if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
-            then
-              echo "Install az cli extension preview"
-              az extension add --name aks-preview
-              az extension update --name aks-preview
-            fi
-            mkdir -p ~/.kube/
-            make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
 
-            make -C ./hack/aks ${{ parameters.clusterType }} \
-            AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
-            CLUSTER=${{ parameters.clusterName }} \
-            VM_SIZE=${{ parameters.vmSize }} VM_SIZE_WIN=${{ parameters.vmSizeWin }} \
-            OS_SKU_WIN=${{ parameters.osSkuWin }} OS=${{parameters.os}} \
-            WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD}
+            mkdir -p ~/.kube/
+            make -C ./hack/aks azcfg
+
+            make -C ./hack/aks "$CLUSTER_TYPE"
+            #WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD}
 
             echo "Cluster successfully created"
-        displayName: Cluster - ${{ parameters.clusterType }}
-        continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}
-

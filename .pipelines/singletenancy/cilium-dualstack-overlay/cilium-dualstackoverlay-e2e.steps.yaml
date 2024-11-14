@@ -4,32 +4,23 @@ parameters:
   scaleup: ""
 
 steps:
-
-  - bash: |
-      go version
-      go env
-      mkdir -p '$(GOBIN)'
-      mkdir -p '$(GOPATH)/pkg'
-      mkdir -p '$(modulePath)'
-      echo '##vso[task.prependpath]$(GOBIN)'
-      echo '##vso[task.prependpath]$(GOROOT)/bin'
-    name: "GoEnv"
-    displayName: "Set up the Go environment"
-
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
 
   - task: AzureCLI@2
+    displayName: "Install Cilium on AKS Dualstack Overlay"
+    env:
+      AZCLI: az
+      CLUSTER: ${{ parameters.clusterName }}
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        make -C ./hack/aks set-kubeconf
         ls -lah
         pwd
         kubectl cluster-info
@@ -49,18 +40,22 @@ steps:
         envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
         envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
         kubectl get po -owide -A
-    name: "installCilium"
-    displayName: "Install Cilium on AKS Dualstack Overlay"
 
-  - template: ../../templates/cilium-cli.steps.yaml@ACNTools
+  - template: ../../templates/cilium-cli.yaml
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cilium_dualstack VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CLEANUP=true
-    workingDirectory: $(ACN_DIR)
+      sudo -E env "PATH=$PATH" make test-load AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version)
     retryCountOnTaskFailure: 3
-    name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
+    env:
+      SCALE_UP: 32
+      OS_TYPE: linux
+      CNI_TYPE: cilium_dualstack
+      VALIDATE_STATEFILE: true
+      INSTALL_CNS: true
+      INSTALL_OVERLAY: true
+      CLEANUP: true
 
   - script: |
       kubectl get pods -A
@@ -68,47 +63,54 @@ steps:
       # Ensure Cilium is ready Xm\Xs
       cilium status --wait --wait-duration 2m
     retryCountOnTaskFailure: 3
-    name: "CiliumStatus"
     displayName: "Cilium Status"
 
   - task: AzureCLI@2
+    displayName: "Restart Nodes"
+    env:
+      AZCLI: az
+      CLUSTER: ${{ parameters.clusterName }}
+      RESOURCE_GROUP: "MC_${{ parameters.clusterName }}_${{ parameters.clusterName }}_$(REGION_AKS_CLUSTER_TEST)"
+      REGION: $(REGION_AKS_CLUSTER_TEST)
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
         kubectl get po -owide -A
-        clusterName=${{ parameters.clusterName }}
         echo "Restarting nodes"
-        for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do
-          make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
+        for val in $(az vmss list -g "$RESOURCE_GROUP" --query "[].name" -o tsv); do
+          make -C ./hack/aks restart-vmss VMSS_NAME=${val}
         done
-    displayName: "Restart Nodes"
 
   - task: AzureCLI@2
+    displayName: "Validate Node Restart"
+    retryCountOnTaskFailure: 3
+    env:
+      ITERATIONS: 2
+      SCALE_UP: ${{ parameters.scaleup }}
+      OS_TYPE: linux
+      RESTART_CASE: true
+      CNI_TYPE: cilium_dualstack
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
-        cd test/integration/load
 
-        # Scale Cluster Up/Down to confirm functioning CNS
-        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-        kubectl get pods -owide -A
+        pushd test/integration/load
+          # Scale Cluster Up/Down to confirm functioning CNS
+          go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+          kubectl get pods -owide -A
+        popd
 
-        cd ../../..
         echo "Validating Node Restart"
-        make test-validate-state OS_TYPE=linux RESTART_CASE=true CNI_TYPE=cilium_dualstack
+        make test-validate-state
         kubectl delete ns load-test
-    displayName: "Validate Node Restart"
-    retryCountOnTaskFailure: 3
 
   - script: |
       set -e
@@ -118,7 +120,6 @@ steps:
       ns=`kubectl get ns | grep cilium-test | awk '{print $1}'`
       echo "##vso[task.setvariable variable=ciliumNamespace]$ns"
     retryCountOnTaskFailure: 3
-    name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
 
   - script: |
@@ -129,9 +130,7 @@ steps:
       go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
       echo "Dualstack Overlay Linux datapath IPv4 test"
       go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
-    workingDirectory: $(ACN_DIR)
     retryCountOnTaskFailure: 3
-    name: "DualStack_Overlay_Linux_Tests"
     displayName: "DualStack Overlay Linux Tests"
 
   - script: |
@@ -139,23 +138,22 @@ steps:
       kubectl get pod -owide -A
       # Deleting echo-external-node deployment until cilium version matches TODO. https://github.com/cilium/cilium-cli/issues/67 is addressing the change.
       # Saves 17 minutes
-      kubectl delete deploy -n $(ciliumNamespace) echo-external-node
+      kubectl delete deploy -n "$CILIUM_NS" echo-external-node
       cd test/integration/load
       CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
       echo "delete cilium connectivity test resources and re-validate state"
-      kubectl delete ns $(ciliumNamespace)
+      kubectl delete ns "$CILIUM_NS"
       kubectl get pod -owide -A
-      CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
-    workingDirectory: $(ACN_DIR)
-    name: "validatePods"
+      go test -timeout 30m -tags load -run ^TestValidateState$
     displayName: "Validate Pods"
+    env:
+      CILIUM_NS: $(ciliumNamespace)
+      CNI_TYPE: cilium_dualstack
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"
       bash test/network/wireserver_metadata_test.sh
-    workingDirectory: $(ACN_DIR)
     retryCountOnTaskFailure: 3
-    name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
 
   - script: |
@@ -165,7 +163,5 @@ steps:
       if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
         kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
       fi
-    workingDirectory: $(ACN_DIR)
-    retryCountOnTaskFailure: 3
-    name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"
+

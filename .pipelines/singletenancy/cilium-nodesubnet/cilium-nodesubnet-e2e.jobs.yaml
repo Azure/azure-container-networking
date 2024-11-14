@@ -1,11 +1,15 @@
 parameters:
-  name: ""
-  displayName: ""
-  clusterType: ""
-  clusterName: ""
-  vmSize: ""
-  k8sVersion: ""
   dependsOn: ""
+  name: "cilium_nodesubnet_e2e"
+  clusterType: "nodesubnet-byocni-nokubeproxy-up"
+  clusterName: "cilndsubnete2e"
+  vmSize: ""
+  os: "linux"
+  arch: ""
+  osSKU: Ubuntu
+  hubbleEnabled: false
+  dualstackVersion: ""
+  cni: "cilium"
 
 stages:
   - stage: ${{ parameters.clusterName }}
@@ -13,6 +17,9 @@ stages:
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
@@ -23,28 +30,30 @@ stages:
           clusterType: ${{ parameters.clusterType }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           vmSize: ${{ parameters.vmSize }}
-          k8sVersion: ${{ parameters.k8sVersion }}
-          dependsOn: ${{ parameters.dependsOn }}
-          region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) # Dualstack has a specific region requirement
+          region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+      GOBIN: "$(GOPATH)/bin" # Go binaries path
+      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     dependsOn:
     - setup
     - publish
     - ${{ parameters.clusterName }}
-    variables:
-      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
-      GOBIN: "$(GOPATH)/bin" # Go binaries path
-      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}
-        displayName: Cilium Dualstack Overlay Test Suite - (${{ parameters.name }})
+        displayName: Nodesubnet with Cilium - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-          os: linux
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
@@ -52,23 +61,25 @@ stages:
           - checkout: self
             clean: true
 
-          - template: cilium-dualstackoverlay-e2e.steps.yaml
+          - template: cilium-nodesubnet-e2e.steps.yaml
             parameters:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              scaleup: 100
+              arch: ${{ parameters.arch }}
+              os: ${{ parameters.os }}
+              scaleup: ${{ parameters.scaleup }}
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
-          cni: cilium
-          dependsOn: ${{ parameters.name }}
-          dualstack: true
+          datapath: true
           dns: true
+          cni: cilium
           portforward: true
           service: true
+          dependsOn: ${{ parameters.name }}
 
       - job: failedE2ELogs
         displayName: "Failure Logs"

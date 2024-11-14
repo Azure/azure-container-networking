@@ -8,11 +8,11 @@ parameters:
 
 jobs:
   - job: CNI_${{ parameters.os }}
-    condition: and( not(canceled()), not(failed()) )
     displayName: CNI k8s E2E ${{ parameters.os }}
     dependsOn: ${{ parameters.dependsOn }}
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
     steps:
       - task: AzureCLI@2
         inputs:

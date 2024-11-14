@@ -17,9 +17,8 @@ stages:
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      ACN_DIR: $(Build.SourcesDirectory)
     jobs:
-      - template: ../templates/create-cluster-swiftv2.jobs.yaml@ACNTools
+      - template: ../templates/create-cluster-swiftv2.yaml
         parameters:
           name: ${{ parameters.name }}
           displayName: ${{ parameters.displayName }}
@@ -39,7 +38,6 @@ stages:
     - publish
     - ${{ parameters.clusterName }}
     variables:
-      ACN_DIR: $(Build.SourcesDirectory)
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
@@ -48,22 +46,14 @@ stages:
       - job: ${{ parameters.name }}
         displayName: Swiftv2 Multitenancy E2E Test Suite - (${{ parameters.name }})
         pool:
-          isCustom: true
-          type: linux
           name: $(BUILD_POOL_NAME_DEFAULT)
+          os: linux
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-        variables:
-          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/output
-          ob_git_checkout: true
         steps:
-          - checkout: ACNReviewChanges
-            clean: true
-
-          - template: swiftv2-e2e.steps.yaml@ACNTools
+          - template: swiftv2-e2e.steps.yaml
             parameters:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: linux
-

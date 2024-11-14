@@ -4,15 +4,29 @@ parameters:
   scaleup: ""
 
 steps:
+  - task: AzureCLI@2
+    displayName: 'Update IP configs'
+    env:
+      SCALE_UP: ${{ coalesce(parameters.scaleup, 32) }}
+      RESOURCE_GROUP: "MC_${{ parameters.clusterName }}_${{ parameters.clusterName }}_$(REGION_AKS_CLUSTER_TEST)"
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+          set -e
+          SECONDARY_IP_COUNT=$((SCALE_UP * 2)) \
+          go run $(Build.SourcesDirectory)/test/integration/cilium-nodesubnet/ipconfigupdate.go
+
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
 
   - task: AzureCLI@2
-    displayName: "Install Cilium"
     env:
-      SCALE_UP: ${{ coalesce(parameters.scaleup, 32) }}
-      RESOURCE_GROUP: "MC_${{ parameters.clusterName }}_${{ parameters.clusterName }}_$(REGION_AKS_CLUSTER_TEST)"
+      AZCLI: az
+      CLUSTER: ${{ parameters.clusterName }}
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
@@ -37,26 +51,25 @@ steps:
         envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
         envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
         kubectl get po -owide -A
+    displayName: "Install Cilium"
 
   - template: ../../templates/cilium-cli.yaml
 
   - script: |
-      echo "Start Azilium E2E Tests"
+      echo "Start Nodesubnet E2E Tests"
       kubectl get po -owide -A
       sudo -E env "PATH=$PATH" make test-load AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version)
     retryCountOnTaskFailure: 3
-    displayName: "Run Azilium E2E"
+    displayName: "Run NodeSubnet E2E"
     env:
       SCALE_UP: 32
       OS_TYPE: linux
       VALIDATE_STATEFILE: true
       INSTALL_CNS: true
-      INSTALL_AZILIUM: true
+      INSTALL_CNS_NODESUBNET: true
       CLEANUP: true
-      
 
   - template: ../../templates/cilium-tests.yaml
     parameters:
       clusterName: ${{ parameters.clusterName }}
       scaleup: ${{ parameters.scaleup }}
-

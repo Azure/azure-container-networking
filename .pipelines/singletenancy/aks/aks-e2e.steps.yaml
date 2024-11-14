@@ -7,81 +7,80 @@ parameters:
   scaleup: ""
 
 steps:
-  - bash: |
-      go version
-      go env
-      mkdir -p '$(GOBIN)'
-      mkdir -p '$(GOPATH)/pkg'
-      mkdir -p '$(modulePath)'
-      echo '##vso[task.prependpath]$(GOBIN)'
-      echo '##vso[task.prependpath]$(GOROOT)/bin'
-    name: "GoEnv"
-    displayName: "Set up the Go environment"
-
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
 
   - task: AzureCLI@2
+    displayName: "Deploy CNI"
+    env:
+      AZCLI: az
+      CLUSTER: ${{ parameters.clusterName }}
+      OS: ${{ parameters.os }}
+      ARCH: ${{ parameters.arch }}
+      OS_VERSION: linux
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        make -C ./hack/aks set-kubeconf
         echo "Upload CNI"
         echo "Deploying on Linux nodes"
-        if [ "${{parameters.os}}" == "windows" ]; then
-          export CNI_IMAGE=$(make cni-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }})
+        if [ "$OS" == "windows" ]; then
+          export CNI_IMAGE=$(make cni-image-name-and-tag OS='linux')
           echo "CNI image: $CNI_IMAGE"
           envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
           kubectl rollout status daemonset/azure-cni -n kube-system
           echo "Deploying on windows nodes"
-          export CNI_IMAGE=$( make cni-image-name-and-tag OS='windows' ARCH=${{ parameters.arch }} OS_VERSION=${{ parameters.os_version }})
+          export CNI_IMAGE=$( make cni-image-name-and-tag OS='windows')
           echo "CNI image: $CNI_IMAGE"
           envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
           kubectl rollout status daemonset/azure-cni-windows -n kube-system
         else
-          export CNI_IMAGE=$(make cni-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }})
+          export CNI_IMAGE=$(make cni-image-name-and-tag)
           echo "CNI image: $CNI_IMAGE"
           envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
           kubectl rollout status daemonset/azure-cni -n kube-system
         fi
-    name: "deployCNI"
-    displayName: "Deploy CNI"
 
   - task: AzureCLI@2
+    displayName: "Restart Nodes"
+    env:
+      AZCLI: az
+      CLUSTER: ${{ parameters.clusterName }}
+      RESOURCE_GROUP: "MC_${{ parameters.clusterName }}_${{ parameters.clusterName }}_$(REGION_AKS_CLUSTER_TEST)"
+      REGION: $(REGION_AKS_CLUSTER_TEST)
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
-        clusterName=${{ parameters.clusterName }}
         echo "Restarting nodes"
-        for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do
-          make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
+        for val in $(az vmss list -g "$RESOURCE_GROUP" --query "[].name" -o tsv); do
+          make -C ./hack/aks restart-vmss VMSS_NAME=${val}
         done
-    displayName: "Restart Nodes"
 
   - script: |
       set -e
-      kubectl get pods -A -o wide
 
-      echo "Deploying test pods"
+      kubectl get pods -A -o wide
       pushd test/integration/load
-        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+        echo "Deploying test pods"
+        go test -count 1 -timeout 30m -tags load -run ^TestLoad$
       popd
 
-      make test-validate-state OS_TYPE=${{ parameters.os }} CNI_TYPE=cniv1
-
+      make test-validate-state
       kubectl delete ns load-test
-    workingDirectory: $(ACN_DIR)
     displayName: "Validate State"
     retryCountOnTaskFailure: 3
-
+    env:
+      ITERATIONS: 2
+      SCALE_UP: ${{ parameters.scaleup }}
+      OS_TYPE: ${{ parameters.os }}
+      RESTART_CASE: true
+      CNI_TYPE: cniv1
