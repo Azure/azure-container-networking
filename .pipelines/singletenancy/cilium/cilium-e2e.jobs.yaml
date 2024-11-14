@@ -17,6 +17,7 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
       os: linux
+      image: acn-runner-vmss-image-1es-v3.0
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
@@ -45,9 +46,6 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
     condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
-      os: linux
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Test Suite - (${{ parameters.name }})
@@ -55,8 +53,8 @@ stages:
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           os: linux
+          image: acn-runner-vmss-image-1es-v3.0
           demands:
-          - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
           - checkout: self

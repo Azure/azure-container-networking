@@ -17,9 +17,6 @@ stages:
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
-      os: linux
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
@@ -46,16 +43,15 @@ stages:
     - setup
     - publish
     - ${{ parameters.clusterName }}
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}
         displayName: Nodesubnet with Cilium - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
+          os: linux
+          image: acn-runner-vmss-image-1es-v3.0
           demands:
-          - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
           - checkout: self

@@ -4,9 +4,6 @@ stages:
     jobs:
       - job: env
         displayName: Setup
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-          os: linux
         steps:
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
@@ -42,9 +39,6 @@ stages:
           displayName: Build Binaries
           variables:
             STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-            os: linux
           steps:
             - task: GoTool@0
               inputs:
@@ -83,9 +77,6 @@ stages:
       jobs:
         - job: containerize_amd64
           displayName: Build Images
-          pool:
-            name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
-            os: linux
           strategy:
             maxParallel: 4
             matrix:
@@ -179,9 +170,6 @@ stages:
       jobs:
         - job: manifest
           displayName: Compile Manifests
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-            os: linux
           strategy:
             maxParallel: 4
             matrix:
@@ -389,9 +377,6 @@ stages:
       jobs:
         - job: delete_build
           displayName: Delete Cluster
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-            os: linux
           strategy:
             maxParallel: 4
             matrix:
@@ -454,9 +439,6 @@ stages:
 
         - job: delete_test
           displayName: Delete Cluster
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-            os: linux
           strategy:
             maxParallel: 4
             matrix:

@@ -51,8 +51,8 @@ stages:
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           os: linux
+          image: acn-runner-vmss-image-1es-v3.0
           demands:
-          - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
           - checkout: self
