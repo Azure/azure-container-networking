@@ -429,7 +429,6 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 
 	// Create the HCN endpoint.
 	logger.Info("Creating hcn endpoint", zap.Any("hcnEndpoint", hcnEndpoint), zap.String("computenetwork", hcnEndpoint.HostComputeNetwork))
-	telemetry.SendEvent(fmt.Sprintf("Creating HCN endpoint: %+v", hcnEndpoint))
 	hnsResponse, err := Hnsv2.CreateEndpoint(hcnEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create endpoint: %s due to error: %v", hcnEndpoint.Name, err)
@@ -580,7 +579,6 @@ func (nw *network) deleteEndpointImplHnsV2(ep *endpoint) error {
 	}
 
 	logger.Info("Deleting hcn endpoint with id", zap.String("HnsId", ep.HnsId))
-	telemetry.SendEvent("Deleting HCN endpoint: " + ep.HnsId)
 
 	hcnEndpoint, err = Hnsv2.GetEndpointByID(ep.HnsId)
 	if err != nil {

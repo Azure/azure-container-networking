@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cni/log"
-	telemetryclient "github.com/Azure/azure-container-networking/cni/telemetry/client"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
@@ -24,10 +23,7 @@ const (
 	InfraVnet = 0
 )
 
-var (
-	logger    = log.CNILogger.With(zap.String("component", "net"))
-	telemetry = telemetryclient.Telemetry
-)
+var logger = log.CNILogger.With(zap.String("component", "net"))
 
 type AzureHNSEndpoint struct{}
 

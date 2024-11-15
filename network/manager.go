@@ -5,7 +5,6 @@ package network
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -431,7 +430,7 @@ func (nm *networkManager) UpdateEndpointState(eps []*endpoint) error {
 	}
 	// we assume all endpoints have the same container id
 	cnsEndpointID := eps[0].ContainerID
-	telemetry.SendEvent(fmt.Sprintf("Stateless CNI update endpoint state for %s with: %+v ", cnsEndpointID, ifNameToIPInfoCopy))
+
 	if err := validateUpdateEndpointState(cnsEndpointID, ifnameToIPInfoMap); err != nil {
 		return errors.Wrap(err, "failed to validate update endpoint state that will be sent to cns")
 	}

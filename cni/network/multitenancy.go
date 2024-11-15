@@ -267,7 +267,6 @@ func (m *Multitenancy) getNetworkContainersInternal(
 	}
 
 	logger.Info("Network config received from cns", zap.Any("nconfig", ncConfigs))
-	telemetry.SendEvent(fmt.Sprintf("Network config received from cns: %+v", ncConfigs))
 
 	subnetPrefixes := []net.IPNet{}
 	for i := 0; i < len(ncConfigs); i++ {

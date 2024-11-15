@@ -1124,6 +1124,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	for _, epInfo := range epInfos {
 		logger.Info("Deleting endpoint",
 			zap.String("endpointID", epInfo.EndpointID))
+		telemetry.SendEvent("Deleting endpoint: " + epInfo.EndpointID)
 
 		if !nwCfg.MultiTenancy && (epInfo.NICType == cns.InfraNIC || epInfo.NICType == "") {
 			// Delegated/secondary nic ips are statically allocated so we don't need to release
@@ -1139,7 +1140,6 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		} else if epInfo.EnableInfraVnet { // remove in future PR
 			nwCfg.IPAM.Subnet = nwInfo.Subnets[0].Prefix.String()
 			nwCfg.IPAM.Address = epInfo.InfraVnetIP.IP.String()
-			telemetry.SendEvent(fmt.Sprintf("Deleting infra vnet endpoint: container id: %s endpoint id: %s subnet: %s address: %s", args.ContainerID, epInfo.EndpointID, nwCfg.IPAM.Subnet, nwCfg.IPAM.Address))
 			err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options)
 			if err != nil {
 				return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
