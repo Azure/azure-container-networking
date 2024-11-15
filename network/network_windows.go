@@ -359,7 +359,6 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *EndpointInfo, extIf *exter
 		// if network not found, create the HNS network.
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
 			logger.Info("Creating hcn network", zap.Any("hcnNetwork", hcnNetwork))
-			telemetry.SendEvent(fmt.Sprintf("Creating HCN network: %+v", hcnNetwork))
 			hnsResponse, err = Hnsv2.CreateNetwork(hcnNetwork)
 			if err != nil {
 				return nil, fmt.Errorf("Failed to create hcn network: %s due to error: %v", hcnNetwork.Name, err)
@@ -457,7 +456,6 @@ func (nm *networkManager) deleteNetworkImplHnsV2(nw *network) error {
 	var hcnNetwork *hcn.HostComputeNetwork
 	var err error
 	logger.Info("Deleting hcn network with id", zap.String("id", nw.HnsId))
-	telemetry.SendEvent("Deleting HCN network: " + nw.HnsId)
 
 	if hcnNetwork, err = Hnsv2.GetNetworkByID(nw.HnsId); err != nil {
 		return fmt.Errorf("Failed to get hcn network with id: %s due to err: %v", nw.HnsId, err)
