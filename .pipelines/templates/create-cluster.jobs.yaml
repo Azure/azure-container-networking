@@ -29,7 +29,7 @@ jobs:
  
       - task: AzureCLI@2
         displayName: Cluster - ${{ parameters.clusterType }}
-        continueOnError: contains(parameters.clusterType, 'dualstack')
+        continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}
         env:
           AZCLI: az
           REGION: ${{ parameters.region }}
@@ -53,5 +53,4 @@ jobs:
 
             make -C ./hack/aks "$CLUSTER_TYPE"
             #WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD}
-
             echo "Cluster successfully created"
