@@ -16,7 +16,7 @@ stages:
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
-      - template: ../../templates/create-cluster.steps.yaml
+      - template: ../../templates/create-cluster.jobs.yaml
         parameters:
           name: ${{ parameters.name }}
           displayName: ${{ parameters.displayName }}
