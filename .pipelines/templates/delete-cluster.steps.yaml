@@ -5,6 +5,12 @@ parameters:
 
 steps:
   - task: AzureCLI@2
+    displayName: Delete - ${{ parameters.name }}
+    env:
+      AZCLI: az
+      CLUSTER: ${{ parameters.clusterName }}
+      REGION: ${{ parameters.region }}
+      SUB: ${{ parameters.sub }}
     inputs:
       azureSubscription: ${{ parameters.svcConn }}
       scriptLocation: "inlineScript"
@@ -16,12 +22,3 @@ steps:
         make -C ./hack/aks set-kubeconf
         make -C ./hack/aks down
         echo "Cluster and resources down"
-    name: delete
-    displayName: Delete - ${{ parameters.name }}
-    env:
-    env:
-      AZCLI: az
-      CLUSTER: ${{ parameters.clusterName }}
-      REGION: ${{ parameters.region }}
-      SUB: ${{ parameters.sub }}
-      
