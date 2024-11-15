@@ -1245,8 +1245,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrap(err, "failed to get kubeconfig")
 	}
 	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
-	kubeConfig.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
-	kubeConfig.ContentType = "application/vnd.kubernetes.protobuf"
 
 	clientset, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
