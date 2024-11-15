@@ -378,6 +378,13 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
+	// Parse Pod arguments.
+	k8sPodName, k8sNamespace, err := plugin.getPodInfo(args.Args)
+	if err != nil {
+		return err
+	}
+	telemetry.CNIReportSettings.ContainerName = k8sPodName + ":" + k8sNamespace
+
 	plugin.setCNIReportDetails(args.ContainerID, CNI_ADD, "")
 	telemetry.SendEvent(fmt.Sprintf("[cni-net] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v StdinData:%s}.",
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData))
@@ -434,14 +441,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}()
 
 	ipamAddResult = IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
-
-	// Parse Pod arguments.
-	k8sPodName, k8sNamespace, err := plugin.getPodInfo(args.Args)
-	if err != nil {
-		return err
-	}
-
-	telemetry.CNIReportSettings.ContainerName = k8sPodName + ":" + k8sNamespace
 
 	k8sContainerID := args.ContainerID
 	if len(k8sContainerID) == 0 {
@@ -992,9 +991,9 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if k8sPodName, k8sNamespace, err = plugin.getPodInfo(args.Args); err != nil {
 		logger.Error("Failed to get POD info", zap.Error(err))
 	}
+	telemetry.CNIReportSettings.ContainerName = k8sPodName + ":" + k8sNamespace
 
 	plugin.setCNIReportDetails(args.ContainerID, CNI_DEL, "")
-	telemetry.CNIReportSettings.ContainerName = k8sPodName + ":" + k8sNamespace
 	telemetry.SendEvent(fmt.Sprintf("[cni-net] Processing DEL command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v, StdinData:%s}.",
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData))
 
@@ -1099,7 +1098,6 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 			logger.Warn("Release ip by ContainerID (endpoint not found)",
 				zap.String("containerID", args.ContainerID))
-			telemetry.SendEvent("Release ip by ContainerID (endpoint not found): " + args.ContainerID)
 			if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
 				return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
 			}
