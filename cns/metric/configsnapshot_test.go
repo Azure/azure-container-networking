@@ -1,7 +1,6 @@
 package metric
 
 import (
-	//nolint:gosec // used for checksum
 	"encoding/json"
 	"testing"
 
@@ -25,7 +24,7 @@ func TestCreateCNSConfigSnapshotEvent(t *testing.T) {
 	assert.Contains(t, event.Properties[logger.CNSConfigPropertyStr], "\"TLSPort\":\"10091\"")
 
 	eventConfig := &configuration.CNSConfig{}
-	err = json.Unmarshal([]byte(event.Properties[logger.CNSConfigPropertyStr]), eventConfig)
+	err = json.Unmarshal([]byte(event.Properties[logger.CNSConfigPropertyStr]), eventConfig) //nolint:musttag // no tag needed for config
 	require.NoError(t, err)
 	assert.EqualValues(t, config, eventConfig)
 }
