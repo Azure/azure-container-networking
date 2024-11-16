@@ -77,6 +77,8 @@ stages:
     jobs:
       - job: containerize_amd64
         displayName: Build Images
+        templateContext:
+          type: containerBuildJob
         strategy:
           maxParallel: 4
           matrix:
@@ -128,6 +130,8 @@ stages:
               os_version: $(os_version)
       - job: containerize_linux_arm64
         displayName: Build Images
+        templateContext:
+          type: containerBuildJob
         pool:
           name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
           os: linux
