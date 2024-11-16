@@ -26,6 +26,9 @@ func SendCNSConfigSnapshot(ctx context.Context, config *configuration.CNSConfig)
 		return
 	}
 
+	// Log the first event immediately
+	logger.LogEvent(event)
+
 	for {
 		select {
 		case <-ctx.Done():
