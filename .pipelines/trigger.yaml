@@ -52,7 +52,7 @@ extends:
       os: linux
       image: acn-runner-vmss-image-1es-v3.0
     authenticatedContainerRegistries:
-    - serviceConnection: $(ACR_ARM_SERVICE_CONNECTION)
+    - serviceConnection: 'Azure Container Networking - ACN Public Registry - Retina'
     - registry: onebranch.azurecr.io
       tenant: AME
       identity: 1ESPipelineIdentity
