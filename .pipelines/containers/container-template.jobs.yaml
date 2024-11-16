@@ -31,8 +31,13 @@ jobs:
           name: $(BUILD_POOL_NAME_LINUX_ARM64)
   
     templateContext:
+      outputs:
+      - output: pipelineArtifact
+        targetPath: $(System.DefaultWorkingDirectory)/output
+        artifactName: output
       type: containerBuildJob
       arguments:
+        pipelineArtifact: output
         image: $(IMAGE_NAME_AND_TAG_${{ parameters.name }})
         dockerfile: $(DOCKERFILE_PATH_${{ parameters.name }})
         path: $(BUILD_CONTEXT_${{ parameters.name }})
