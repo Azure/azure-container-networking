@@ -17,7 +17,7 @@ parameters:
 
 jobs:
 - ${{ each image in parameters.images }}:
-  - job: ${{ image }}_${{ parameters.os }}_${{ parameters.arch }}
+  - job: ${{ replace(image, '-', '_') }}_${{ parameters.os }}_${{ parameters.arch }}
     displayName: Build Images
     pool:
       arch: ${{ parameters.arch }}
