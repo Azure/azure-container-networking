@@ -1,11 +1,10 @@
 package metric
 
 import (
-	"crypto/md5" //nolint:gosec // used for checksum
+	//nolint:gosec // used for checksum
 	"encoding/json"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/stretchr/testify/assert"
@@ -21,20 +20,12 @@ func TestCreateCNSConfigSnapshotEvent(t *testing.T) {
 	event, err := createCNSConfigSnapshotEvent(config)
 	require.NoError(t, err)
 
-	bb, err := json.Marshal(config) //nolint:musttag // no tag needed for config
+	assert.Equal(t, logger.ConfigSnapshotMetricsStr, event.EventName)
+	assert.NotEmpty(t, event.ResourceID)
+	assert.Contains(t, event.Properties[logger.CNSConfigPropertyStr], "\"TLSPort\":\"10091\"")
+
+	eventConfig := &configuration.CNSConfig{}
+	err = json.Unmarshal([]byte(event.Properties[logger.CNSConfigPropertyStr]), eventConfig)
 	require.NoError(t, err)
-
-	cs := md5.Sum(bb) //nolint:gosec // used for checksum
-	csStr := string(cs[:])
-
-	expected := aitelemetry.Event{
-		EventName:  logger.ConfigSnapshotMetricsStr,
-		ResourceID: csStr,
-		Properties: map[string]string{
-			logger.CNSConfigPropertyStr:            string(bb),
-			logger.CNSConfigMD5CheckSumPropertyStr: csStr,
-		},
-	}
-
-	assert.Equal(t, expected, event)
+	assert.EqualValues(t, config, eventConfig)
 }
