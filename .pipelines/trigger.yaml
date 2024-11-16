@@ -51,6 +51,16 @@ extends:
       name: $(BUILD_POOL_NAME_DEFAULT)
       os: linux
       image: acn-runner-vmss-image-1es-v3.0
+    authenticatedContainerRegistries:
+    - serviceConnection: $(ACR_ARM_SERVICE_CONNECTION)
+    - registry: onebranch.azurecr.io
+      tenant: AME
+      identity: 1ESPipelineIdentity
+    containers:
+      default_windows_container:
+        image: onebranch.azurecr.io/windows/ltsc2019/vse2022:latest
+      default_linux_container:
+        image: onebranch.azurecr.io/linux/ubuntu-2204:latest
     sdl:
       sourceAnalysisPool: 
         name: $(BUILD_POOL_NAME_DEFAULT_WINDOWS)
