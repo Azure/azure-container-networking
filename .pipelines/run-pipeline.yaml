@@ -75,7 +75,7 @@ stages:
       - setup
       - test
     jobs:
-    - template: templates/container-template.jobs.yaml
+    - template: containers/container-template.jobs.yaml
       parameters:
         arch: amd64
         os: linux
@@ -85,7 +85,7 @@ stages:
         - cns
         - ipv6-hp-bpf
         - npm
-    - template: templates/container-template.jobs.yaml
+    - template: containers/container-template.jobs.yaml
       parameters:
         arch: arm64
         os: linux
@@ -95,7 +95,7 @@ stages:
         - cns
         - ipv6-hp-bpf
         - npm
-    - template: templates/container-template.jobs.yaml
+    - template: containers/container-template.jobs.yaml
       parameters:
         arch: amd64
         os: windows
