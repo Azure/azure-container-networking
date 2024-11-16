@@ -337,6 +337,10 @@ acncli-image-name: # util target to print the CNI manager image name.
 acncli-image-name-and-tag: # util target to print the CNI manager image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(ACNCLI_IMAGE):$(ACNCLI_PLATFORM_TAG)
 
+acncli-image-build-context:
+	$(eval BUILD_CONTEXT := $(REPO_ROOT))
+	@echo "$(BUILD_CONTEXT)"
+
 acncli-dockerfile-path:
 	$(eval DOCKERFILE_PATH := $(ACNCLI_DIR)/Dockerfile)
 	@echo "$(DOCKERFILE_PATH)"
@@ -370,6 +374,10 @@ azure-ipam-image-name: # util target to print the azure-ipam  image name.
 
 azure-ipam-image-name-and-tag: # util target to print the azure-ipam image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(AZURE_IPAM_IMAGE):$(AZURE_IPAM_PLATFORM_TAG)
+
+azure-ipam-image-build-context:
+	$(eval BUILD_CONTEXT := $(REPO_ROOT))
+	@echo "$(BUILD_CONTEXT)"
 
 azure-ipam-dockerfile-path:
 	$(eval DOCKERFILE_PATH := $(AZURE_IPAM_DIR)/Dockerfile)
@@ -408,6 +416,10 @@ ipv6-hp-bpf-image-name: # util target to print the ipv6-hp-bpf image name.
 ipv6-hp-bpf-image-name-and-tag: # util target to print the ipv6-hp-bpf image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(IPV6_HP_BPF_IMAGE):$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG)
 
+ipv6-hp-bpf-image-build-context:
+	$(eval BUILD_CONTEXT := $(REPO_ROOT))
+	@echo "$(BUILD_CONTEXT)"
+
 ipv6-hp-bpf-dockerfile-path:
 	$(eval DOCKERFILE_PATH := $(IPV6_HP_BPF_DIR)/$(OS).Dockerfile)
 	@echo "$(DOCKERFILE_PATH)"
@@ -444,6 +456,10 @@ cni-image-name: # util target to print the cni image name.
 
 cni-image-name-and-tag: # util target to print the cni image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(CNI_IMAGE):$(CNI_PLATFORM_TAG)
+
+cni-image-build-context:
+	$(eval BUILD_CONTEXT := $(REPO_ROOT))
+	@echo "$(BUILD_CONTEXT)"
 
 cni-image-dockerfile-path:
 	$(eval DOCKERFILE_PATH := $(CNI_BUILD_DIR)/Dockerfile)
@@ -483,6 +499,10 @@ cns-image-name: # util target to print the CNS image name
 cns-image-name-and-tag: # util target to print the CNS image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(CNS_IMAGE):$(CNS_PLATFORM_TAG)
 
+cns-image-build-context:
+	$(eval BUILD_CONTEXT := $(REPO_ROOT))
+	@echo "$(BUILD_CONTEXT)"
+
 cns-image-dockerfile-path:
 	$(eval DOCKERFILE_PATH := $(CNS_BUILD_DIR)/Dockerfile)
 	@echo "$(DOCKERFILE_PATH)"
@@ -519,6 +539,10 @@ npm-image-name: # util target to print the NPM image name
 
 npm-image-name-and-tag: # util target to print the NPM image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(NPM_IMAGE):$(NPM_PLATFORM_TAG)
+
+npm-image-build-context:
+	$(eval BUILD_CONTEXT := $(REPO_ROOT))
+	@echo "$(BUILD_CONTEXT)"
 
 npm-image-dockerfile-path:
 	$(eval DOCKERFILE_PATH := $(NPM_BUILD_DIR)/$(OS).Dockerfile)

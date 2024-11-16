@@ -7,6 +7,9 @@ steps:
 - bash: |
     set -e
 
+    BUILD_CONTEXT=$(make "$MAKE_BUILD_CONTEXT")
+    echo >&2 "##vso[task.setvariable variable=BUILD_CONTEXT_${VAR_ID};]$BUILD_CONTEXT"
+
     IMAGE_NAME_AND_TAG=$(make "$MAKE_IMG_NAME_AND_TAG")
     echo >&2 "##vso[task.setvariable variable=IMAGE_NAME_AND_TAG_${VAR_ID};]$IMAGE_NAME_AND_TAG"
 
@@ -18,6 +21,7 @@ steps:
   displayName: "Get Image Name"
   env:
     VAR_ID: ${{ parameters.name }}
+    MAKE_BUILD_CONTEXT: ${{ parameters.name }}-image-build-context
     MAKE_IMG_NAME_AND_TAG: ${{ parameters.name }}-image-name-and-tag
     MAKE_DOCKERFILE_PATH: ${{ parameters.name }}-image-dockerfile-path
     MAKE_EXTRA_BUILD_ARGS: ${{ parameters.name }}-image-build-args
@@ -27,6 +31,7 @@ steps:
   inputs:
     image: $(IMAGE_NAME_AND_TAG_${{ parameters.name }})
     dockerfile: $(DOCKERFILE_PATH_${{ parameters.name }})
+    path: $(BUILD_CONTEXT_${{ parameters.name }})
     buildArguments: TARGET=${{ parameters.os }} OS=${{ parameters.os }} PLATFORM=${{ parameters.os }} ARCH=${{ parameters.arch }} $(EXTRA_BUILD_ARGS_${{ parameters.name }})
     enableNetwork: true                         # Optional. Default: false
     enablePull: false                           # Optional. Default: true
