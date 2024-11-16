@@ -74,35 +74,36 @@ stages:
     dependsOn:
       - setup
       - test
-    strategy:
-      maxParallel: 4
-      matrix:
-        windows_amd64:
-          arch: amd64
-          os: windows
-          images: |
-            azure-ipam
-            cni
-            cns
-            npm
-        linux_amd64: |
-            azure-ipam
-            cni
-            cns
-            ipv6-hp-bpf
-            npm
-        linux_arm64: |
-            azure-ipam
-            cni
-            cns
-            ipv6-hp-bpf
-            npm
     jobs:
     - template: templates/container-template.jobs.yaml
       parameters:
-        arch: $(arch)
-        os: $(os)
-        images: $(images)
+        arch: amd64
+        os: linux
+        images:
+        - azure-ipam
+        - cni
+        - cns
+        - ipv6-hp-bpf
+        - npm
+    - template: templates/container-template.jobs.yaml
+      parameters:
+        arch: arm64
+        os: linux
+        images:
+        - azure-ipam
+        - cni
+        - cns
+        - ipv6-hp-bpf
+        - npm
+    - template: templates/container-template.jobs.yaml
+      parameters:
+        arch: amd64
+        os: windows
+        images:
+        - azure-ipam
+        - cni
+        - cns
+        - npm
 
 
   - stage: publish
