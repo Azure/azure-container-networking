@@ -74,96 +74,36 @@ stages:
     dependsOn:
       - setup
       - test
+    strategy:
+      maxParallel: 4
+      matrix:
+        windows_amd64:
+          arch: amd64
+          os: windows
+          images: |
+            azure-ipam
+            cni
+            cns
+            npm
+        linux_amd64: |
+            azure-ipam
+            cni
+            cns
+            ipv6-hp-bpf
+            npm
+        linux_arm64: |
+            azure-ipam
+            cni
+            cns
+            ipv6-hp-bpf
+            npm
     jobs:
-      - job: containerize_amd64
-        displayName: Build Images
-        templateContext:
-          type: containerBuildJob
-        strategy:
-          maxParallel: 4
-          matrix:
-            azure_ipam_linux_amd64:
-              arch: amd64
-              name: azure-ipam
-              os: linux
-            azure_ipam_windows:
-              arch: amd64
-              name: azure-ipam
-              os: windows
-            cni_linux_amd64:
-              arch: amd64
-              name: cni
-              os: linux
-            cni_windows_amd64:
-              arch: amd64
-              name: cni
-              os: windows
-            cns_linux_amd64:
-              arch: amd64
-              name: cns
-              os: linux
-            cns_windows_amd64:
-              arch: amd64
-              name: cns
-              os: windows
-            ipv6_hp_bpf_linux_amd64:
-              arch: amd64
-              name: ipv6-hp-bpf
-              os: linux
-            npm_linux_amd64:
-              arch: amd64
-              name: npm
-              os: linux
-            npm_windows_amd64:
-              arch: amd64
-              name: npm
-              os: windows
-        steps:
-          - task: GoTool@0
-            inputs:
-              version: $(GO_VERSION)
-          - template: containers/container-template.steps.yaml
-            parameters:
-              arch: $(arch)
-              name: $(name)
-              os: $(os)
-              os_version: $(os_version)
-      - job: containerize_linux_arm64
-        displayName: Build Images
-        templateContext:
-          type: containerBuildJob
-        pool:
-          name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
-          os: linux
-        strategy:
-          maxParallel: 4
-          matrix:
-            azure_ipam_linux_arm64:
-              arch: arm64
-              name: azure-ipam
-              os: linux
-            cni_linux_arm64:
-              arch: arm64
-              name: cni
-              os: linux
-            cns_linux_arm64:
-              arch: arm64
-              name: cns
-              os: linux
-            ipv6_hp_bpf_linux_arm64:
-              arch: arm64
-              name: ipv6-hp-bpf
-              os: linux
-            npm_linux_arm64:
-              arch: arm64
-              name: npm
-              os: linux
-        steps:
-          - template: containers/container-template.steps.yaml
-            parameters:
-              arch: $(arch)
-              name: $(name)
-              os: $(os)
+    - template: templates/container-template.jobs.yaml
+      parameters:
+        arch: $(arch)
+        os: $(os)
+        images: $(images)
+
 
   - stage: publish
     displayName: Publish Multiarch Manifests
