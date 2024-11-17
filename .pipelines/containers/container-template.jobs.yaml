@@ -19,18 +19,24 @@ jobs:
 - ${{ each image in parameters.images }}:
   - job: ${{ replace(image, '-', '_') }}_${{ parameters.os }}_${{ parameters.arch }}
     displayName: Build Images
-    pool:
-      arch: ${{ parameters.arch }}
-      os: ${{ parameters.os }}
-      ${{ if eq(parameters.os, 'windows') }}:
-        name: $(BUILD_POOL_NAME_DEFAULT_WINDOWS)
-      ${{ elseif eq(parameters.os, 'linux') }}:
-        ${{ if eq(parameters.arch, 'amd64') }}:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        ${{ elseif eq(parameters.arch, 'arm64') }}:
-          name: $(BUILD_POOL_NAME_LINUX_ARM64)
-  
+    #    pool:
+    #      arch: ${{ parameters.arch }}
+    #      os: ${{ parameters.os }}
+    #      ${{ if eq(parameters.os, 'windows') }}:
+    #        name: $(BUILD_POOL_NAME_DEFAULT_WINDOWS)
+    #      ${{ elseif eq(parameters.os, 'linux') }}:
+    #        ${{ if eq(parameters.arch, 'amd64') }}:
+    #          name: $(BUILD_POOL_NAME_DEFAULT)
+    #        ${{ elseif eq(parameters.arch, 'arm64') }}:
+    #          name: $(BUILD_POOL_NAME_LINUX_ARM64)
     templateContext:
+      containers:
+        ${{ if eq(parameters.os, 'windows') }}:
+          default_windows_container:
+            image: onebranch.azurecr.io/windows/ltsc2019/vse2022:latest
+        ${{ elseif eq(parameters.os, 'linux') }}:
+          default_linux_container:
+            image: onebranch.azurecr.io/linux/ubuntu-2204:latest
       outputs:
       - output: pipelineArtifact
         targetPath: $(System.DefaultWorkingDirectory)/output
