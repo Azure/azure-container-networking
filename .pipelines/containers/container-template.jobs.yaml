@@ -30,6 +30,11 @@ jobs:
     #        ${{ elseif eq(parameters.arch, 'arm64') }}:
     #          name: $(BUILD_POOL_NAME_LINUX_ARM64)
     templateContext:
+      authenticatedContainerRegistries:
+      - serviceConnection: 'Azure Container Networking - ACN Public Registry - Retina'
+      - registry: onebranch.azurecr.io
+        tenant: AME
+        identity: 1ESPipelineIdentity
       containers:
         ${{ if eq(parameters.os, 'windows') }}:
           default_windows_container:
