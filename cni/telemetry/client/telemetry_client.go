@@ -21,17 +21,32 @@ type TelemetryClient struct {
 	lock              sync.Mutex
 }
 
-var Telemetry = NewTelemetryClient(&telemetry.CNIReport{})
+type TelemetryInterface interface {
+	// Settings gets a pointer to the cni report struct, used to modify individual fields
+	Settings() *telemetry.CNIReport
+	// SetSettings REPLACES the pointer to the cni report struct and should only be used on startup
+	SetSettings(settings *telemetry.CNIReport)
+	IsConnected() bool
+	ConnectTelemetry(logger *zap.Logger)
+	StartAndConnectTelemetry(logger *zap.Logger)
+	DisconnectTelemetry()
+	SendEvent(msg string)
+	SendError(err error)
+	SendMetric(cniMetric *telemetry.AIMetric)
+}
 
-func NewTelemetryClient(report *telemetry.CNIReport) *TelemetryClient {
+var Telemetry TelemetryInterface = NewTelemetryClient()
+
+func NewTelemetryClient() *TelemetryClient {
 	return &TelemetryClient{
-		cniReportSettings: report,
+		cniReportSettings: &telemetry.CNIReport{},
 	}
 }
 
 func (c *TelemetryClient) Settings() *telemetry.CNIReport {
 	return c.cniReportSettings
 }
+
 func (c *TelemetryClient) SetSettings(settings *telemetry.CNIReport) {
 	c.cniReportSettings = settings
 }
@@ -59,7 +74,7 @@ func (c *TelemetryClient) DisconnectTelemetry() {
 	c.tb.Close()
 }
 
-func (c *TelemetryClient) sendTelemetry(msg string, errMsg string) {
+func (c *TelemetryClient) sendEvent(msg string) {
 	if c.tb == nil {
 		return
 	}
@@ -67,7 +82,6 @@ func (c *TelemetryClient) sendTelemetry(msg string, errMsg string) {
 	defer c.lock.Unlock()
 	eventMsg := fmt.Sprintf("[%d] %s", os.Getpid(), msg)
 	c.cniReportSettings.EventMessage = eventMsg
-	c.cniReportSettings.ErrorMessage = errMsg
 	telemetry.SendCNIEvent(c.tb, c.cniReportSettings)
 }
 
@@ -80,14 +94,19 @@ func (c *TelemetryClient) sendLog(msg string) {
 
 func (c *TelemetryClient) SendEvent(msg string) {
 	c.sendLog(msg)
-	c.sendTelemetry(msg, "")
+	c.sendEvent(msg)
 }
+
 func (c *TelemetryClient) SendError(err error) {
 	if err == nil {
 		return
 	}
-	c.sendTelemetry("", err.Error())
+	// when the cni report reaches the telemetry service, the ai log message
+	// is set to either the cni report's event message or error message,
+	// whichever is not empty, so we can always just set the event message
+	c.sendEvent(err.Error())
 }
+
 func (c *TelemetryClient) SendMetric(cniMetric *telemetry.AIMetric) {
 	if c.tb == nil || cniMetric == nil {
 		return
