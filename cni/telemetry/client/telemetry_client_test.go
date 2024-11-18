@@ -17,7 +17,7 @@ func TestClient(t *testing.T) {
 
 	require.NotPanics(t, func() { emptyClient.sendLog("no errors") })
 
-	require.NotPanics(t, func() { emptyClient.sendTelemetry("no errors") })
+	require.NotPanics(t, func() { emptyClient.sendTelemetry("no errors", "") })
 
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)

@@ -295,10 +295,10 @@ func (plugin *NetPlugin) getPodInfo(args string) (name, ns string, err error) {
 }
 
 func (plugin *NetPlugin) setCNIReportDetails(containerID, opType, msg string) {
-	telemetry.CNIReportSettings.OperationType = opType
-	telemetry.CNIReportSettings.SubContext = containerID
-	telemetry.CNIReportSettings.EventMessage = msg
-	telemetry.CNIReportSettings.Version = plugin.Version
+	telemetry.Settings().OperationType = opType
+	telemetry.Settings().SubContext = containerID
+	telemetry.Settings().EventMessage = msg
+	telemetry.Settings().Version = plugin.Version
 }
 
 func addNatIPV6SubnetInfo(nwCfg *cni.NetworkConfig,
@@ -383,7 +383,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
-	telemetry.CNIReportSettings.ContainerName = k8sPodName + ":" + k8sNamespace
+	telemetry.Settings().ContainerName = k8sPodName + ":" + k8sNamespace
 
 	plugin.setCNIReportDetails(args.ContainerID, CNI_ADD, "")
 	telemetry.SendEvent(fmt.Sprintf("[cni-net] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v StdinData:%s}.",
@@ -493,7 +493,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// triggered only in swift v1 multitenancy
 		// dual nic multitenancy -> two interface infos
 		// multitenancy (swift v1) -> one interface info
-		telemetry.CNIReportSettings.Context = "AzureCNIMultitenancy"
+		telemetry.Settings().Context = "AzureCNIMultitenancy"
 		plugin.multitenancyClient.Init(cnsClient, AzureNetIOShim{})
 
 		// Temporary if block to determining whether we disable SNAT on host (for multi-tenant scenario only)
@@ -991,7 +991,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if k8sPodName, k8sNamespace, err = plugin.getPodInfo(args.Args); err != nil {
 		logger.Error("Failed to get POD info", zap.Error(err))
 	}
-	telemetry.CNIReportSettings.ContainerName = k8sPodName + ":" + k8sNamespace
+	telemetry.Settings().ContainerName = k8sPodName + ":" + k8sNamespace
 
 	plugin.setCNIReportDetails(args.ContainerID, CNI_DEL, "")
 	telemetry.SendEvent(fmt.Sprintf("[cni-net] Processing DEL command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v, StdinData:%s}.",

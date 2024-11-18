@@ -89,9 +89,7 @@ type AIMetric struct {
 
 // ReportManager structure.
 type ReportManager struct {
-	HostNetAgentURL string
-	ContentType     string
-	Report          interface{}
+	Report interface{}
 }
 
 // GetReport retrieves orchestrator, system, OS and Interface details and create a report structure.

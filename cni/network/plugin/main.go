@@ -6,7 +6,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"reflect"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -25,7 +24,6 @@ import (
 )
 
 const (
-	hostNetAgentURL                 = "http://168.63.129.16/machine/plugins?comp=netagent&type=cnireport"
 	ipamQueryURL                    = "http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
 	pluginName                      = "CNI"
 	telemetryNumRetries             = 5
@@ -54,27 +52,14 @@ func printVersion() {
 	fmt.Printf("Azure CNI Version %v\n", version)
 }
 
-// send error report to hostnetagent if CNI encounters any error.
-func reportPluginError(reportManager *telemetry.ReportManager, tb *telemetry.TelemetryBuffer, err error) {
-	logger.Error("Report plugin error")
-	reflect.ValueOf(reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
-
-	if err := reportManager.SendReport(tb); err != nil {
-		logger.Error("SendReport failed", zap.Error(err))
-	}
-}
-
 func rootExecute() error {
 	var (
 		config common.PluginConfig
-		tb     *telemetry.TelemetryBuffer
 	)
 
 	config.Version = version
 
 	reportManager := &telemetry.ReportManager{
-		HostNetAgentURL: hostNetAgentURL,
-		ContentType:     telemetry.ContentType,
 		Report: &telemetry.CNIReport{
 			Context:       "AzureCNI",
 			SystemDetails: telemetry.SystemInfo{},
@@ -111,17 +96,21 @@ func rootExecute() error {
 			cniReport.VMUptime = upTime.Format("2006-01-02 15:04:05")
 		}
 
+		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
+		// end up creating/killing telemetry process results in undesired state.
+		telemetryclient.Telemetry.StartAndConnectTelemetry(logger)
+		defer telemetryclient.Telemetry.DisconnectTelemetry()
+		telemetryclient.Telemetry.SetSettings(cniReport)
+
 		// CNI Acquires lock
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
 
-			tb = telemetry.NewTelemetryBuffer(logger)
-			if tberr := tb.Connect(); tberr != nil {
-				logger.Error("Cannot connect to telemetry service", zap.Error(tberr))
+			if telemetryclient.Telemetry.IsConnected() {
+				logger.Error("Not connected to telemetry service")
 				return errors.Wrap(err, "lock acquire error")
 			}
-
-			reportPluginError(reportManager, tb, err)
+			telemetryclient.Telemetry.SendError(err)
 
 			if errors.Is(err, store.ErrTimeoutLockingStore) {
 				var cniMetric telemetry.AIMetric
@@ -130,13 +119,8 @@ func rootExecute() error {
 					Value:            1.0,
 					CustomDimensions: make(map[string]string),
 				}
-				sendErr := telemetry.SendCNIMetric(&cniMetric, tb)
-				if sendErr != nil {
-					logger.Error("Couldn't send cnilocktimeout metric", zap.Error(sendErr))
-				}
+				telemetryclient.Telemetry.SendMetric(&cniMetric)
 			}
-
-			tb.Close()
 			return errors.Wrap(err, "lock acquire error")
 		}
 
@@ -150,19 +134,12 @@ func rootExecute() error {
 			}
 		}()
 
-		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
-		// end up creating/killing telemetry process results in undesired state.
-		telemetryclient.Telemetry.StartAndConnectTelemetry(logger)
-		defer telemetryclient.Telemetry.DisconnectTelemetry()
-
-		telemetryclient.Telemetry.CNIReportSettings = cniReport
-
 		t := time.Now()
 		cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
 
 		if err = netPlugin.Start(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to start network plugin, err:%v.\n", err))
-			reportPluginError(reportManager, tb, err)
+			telemetryclient.Telemetry.SendError(err)
 			panic("network plugin start fatal error")
 		}
 
@@ -199,7 +176,7 @@ func rootExecute() error {
 	netPlugin.Stop()
 
 	if err != nil {
-		reportPluginError(reportManager, tb, err)
+		telemetryclient.Telemetry.SendError(err)
 	}
 
 	return errors.Wrap(err, "Execute netplugin failure")
