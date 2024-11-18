@@ -1550,7 +1550,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	// Start building the NNC Reconciler
 
-	// TODO: We need to return the IPFamilies from the reconciler so that they can be added to the Service struct
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
 	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, poolMonitor, nodeIP)
@@ -1584,7 +1583,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
-	// TODO: If we need special middleware this is where we would be setting it
 	if cnsconfig.EnableSwiftV2 {
 		if err := mtpncctrl.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")

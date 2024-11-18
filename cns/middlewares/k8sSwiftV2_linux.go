@@ -20,9 +20,6 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	var routes []cns.Route
 
 	switch podIPInfo.NICType {
-	// TODO: We may want to create a new type of NIC. Currently we are using delegated NICs but this set routes method only
-	// takes in for the multitenant scenario. We should have a new case that behaves similarly to InfraNIC but for a delegated NIC
-	// Q: Does the code currently see the kube pods as Infra or Delegated? They currently use the delegated pod subnet for IPs
 	case cns.DelegatedVMNIC:
 		virtualGWRoute := cns.Route{
 			IPAddress: fmt.Sprintf("%s/%d", virtualGW, prefixLength),

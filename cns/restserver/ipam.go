@@ -283,7 +283,6 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 	}
 	var ipConfigsResp *cns.IPConfigsResponse
 
-	// TODO: Decide what middleware option we need to singetenancy swift v2
 	// Check if IPConfigsHandlerMiddleware is set
 	if service.IPConfigsHandlerMiddleware != nil {
 		// Wrap the default datapath handlers with the middleware depending on middleware type

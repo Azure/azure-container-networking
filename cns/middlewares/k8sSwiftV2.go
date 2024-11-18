@@ -55,11 +55,9 @@ func (k *K8sSWIFTv2Middleware) GetPodInfoForIPConfigsRequest(ctx context.Context
 		}
 		ipConfigsResp, err := defaultHandler(ctx, req)
 		// If the pod is not v2, return the response from the handler
-		// we need to add the secondary Interface. Our current POC cluster is returning here
 		if !req.SecondaryInterfacesExist {
 			return ipConfigsResp, err
 		}
-		// TODO: the pod itself won't be "V2" as we aren't using multitenancy pods
 		// If the pod is v2, get the infra IP configs from the handler first and then add the SWIFTv2 IP config
 		defer func() {
 			// Release the default IP config if there is an error
@@ -105,7 +103,6 @@ func (k *K8sSWIFTv2Middleware) GetPodInfoForIPConfigsRequest(ctx context.Context
 	}
 }
 
-// TODO: we will not be using multitenant pods. Need to look into what labels we are currently seeing and maybe compare to Vanilla swiftv2
 // For our purposes we would skip over this logic or need to replace it with something to check the delegated NIC
 // validateIPConfigsRequest validates if pod is multitenant by checking the pod labels, used in SWIFT V2 AKS scenario.
 // nolint
