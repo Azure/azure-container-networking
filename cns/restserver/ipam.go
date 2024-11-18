@@ -998,12 +998,14 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 		return nil, ErrNoNCs
 	}
 
+	// Gets the IPFamilies from all NCs and stores them in a map. This will be ued to determine the amount of IPs to return
 	for ncID := range service.state.ContainerStatus {
 		for ipFamily := range service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.IPFamilies {
 			ipFamilies[ipFamily] = struct{}{}
 		}
 	}
 
+	// Makes sure we have at least one IPFamily across all NCs
 	numOfIPFamilies := len(ipFamilies)
 	if numOfIPFamilies == 0 {
 		return nil, ErrNoIPFamilies
