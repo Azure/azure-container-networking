@@ -53,9 +53,7 @@ func printVersion() {
 }
 
 func rootExecute() error {
-	var (
-		config common.PluginConfig
-	)
+	var config common.PluginConfig
 
 	config.Version = version
 

@@ -51,9 +51,7 @@ func printVersion() {
 }
 
 func rootExecute() error {
-	var (
-		config common.PluginConfig
-	)
+	var config common.PluginConfig
 
 	log.SetName(name)
 	log.SetLevel(log.LevelInfo)
