@@ -1277,7 +1277,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	if cnsconfig.EnableHomeAz {
 		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
-
+		createOrUpdateNNC(ctx)
 	}
 
 	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
@@ -1518,6 +1518,17 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}()
 	logger.Printf("Initialized SyncHostNCVersion loop.")
 	return nil
+}
+
+func createBaseNNC(ctx context.Context, node *corev1.Node) v1alpha.NodeNetworkConfig {
+	return v1alpha.NodeNetworkConfig{ObjectMeta: metav1.ObjectMeta{
+		Annotations: make(map[string]string),
+		Labels: map[string]string{
+			"managed": "true",
+			"owner":   node.Name,
+		},
+		Name: node.Name,
+	}}
 }
 
 // getPodInfoByIPProvider returns a PodInfoByIPProvider that reads endpoint state from the configured source
