@@ -93,7 +93,6 @@ func (c *TelemetryClient) sendLog(msg string) {
 }
 
 func (c *TelemetryClient) SendEvent(msg string) {
-	c.sendLog(msg)
 	c.sendEvent(msg)
 }
 
@@ -113,6 +112,6 @@ func (c *TelemetryClient) SendMetric(cniMetric *telemetry.AIMetric) {
 	}
 	err := telemetry.SendCNIMetric(cniMetric, c.tb)
 	if err != nil {
-		c.logger.Error("Couldn't send metric", zap.Error(err))
+		c.sendLog("Couldn't send metric: " + err.Error())
 	}
 }
