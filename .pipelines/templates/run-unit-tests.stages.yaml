@@ -57,6 +57,5 @@ stages:
           cd ../platform/
           go test ./...
         retryCountOnTaskFailure: 3
-        name: "TestWindows"
         displayName: "Run Windows Tests"
 
