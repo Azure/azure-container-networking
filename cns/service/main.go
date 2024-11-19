@@ -1306,7 +1306,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	nnc := v1alpha.NodeNetworkConfig{}
 	if cnsconfig.EnableHomeAz {
 		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
-		nnc = createBaseNNC(ctx, node)
+		nnc = createBaseNNC(node)
 	}
 	directcli.Create(ctx, &nnc)
 
@@ -1520,7 +1520,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	return nil
 }
 
-func createBaseNNC(ctx context.Context, node *corev1.Node) v1alpha.NodeNetworkConfig {
+func createBaseNNC(node *corev1.Node) v1alpha.NodeNetworkConfig {
 	return v1alpha.NodeNetworkConfig{ObjectMeta: metav1.ObjectMeta{
 		Annotations: make(map[string]string),
 		Labels: map[string]string{
