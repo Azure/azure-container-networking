@@ -33,7 +33,6 @@ stages:
     variables:
       STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
     pool:
-      isCustom: true
       type: windows
       name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
     steps:
