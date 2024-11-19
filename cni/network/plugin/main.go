@@ -170,12 +170,7 @@ func rootExecute() error {
 	if cniCmd == cni.CmdVersion {
 		return errors.Wrap(err, "Execute netplugin failure")
 	}
-
 	netPlugin.Stop()
-
-	if err != nil {
-		telemetryclient.Telemetry.SendError(err)
-	}
 
 	return errors.Wrap(err, "Execute netplugin failure")
 }
