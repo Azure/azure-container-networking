@@ -668,9 +668,9 @@ func main() {
 	}
 
 	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
-	// homeAz monitor is only required when there is a direct channel between DNC and CNS.
-	// This will prevent the monitor from unnecessarily calling NMA APIs for other scenarios such as AKS-swift, swiftv2
-	if cnsconfig.ChannelMode == cns.Direct {
+	// homeAz monitor is required when there is a direct channel between DNC and CNS OR when homeAz feature is enabled in CNS for AKS-Swift
+	// This will prevent the monitor from unnecessarily calling NMA APIs for other scenarios such as AKS-swift, swiftv2 when disabled.
+	if cnsconfig.ChannelMode == cns.Direct || cnsconfig.EnableHomeAz {
 		homeAzMonitor.Start()
 		defer homeAzMonitor.Stop()
 	}
@@ -1273,6 +1273,11 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
 			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
 		}
+	}
+
+	if cnsconfig.EnableHomeAz {
+		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
+
 	}
 
 	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
