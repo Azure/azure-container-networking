@@ -40,7 +40,7 @@ import (
 // matches if the string fully consists of zero or more alphanumeric, dots, dashes, parentheses, spaces, or underscores
 var (
 	allowedInput    = regexp.MustCompile(`^[a-zA-Z0-9._\-\(\) ]*$`)
-	telemetryClient = telemetry.Client
+	telemetryClient = telemetry.AIClient
 )
 
 const (

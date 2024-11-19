@@ -13,55 +13,56 @@ const (
 	telemetryWaitTimeInMilliseconds = 200
 )
 
-type TelemetryClient struct {
+type Client struct {
 	cniReportSettings *CNIReport
 	tb                *TelemetryBuffer
 	logger            *zap.Logger
 	lock              sync.Mutex
 }
 
-var Client = NewTelemetryClient()
+// package level variable for application insights telemetry
+var AIClient = NewClient()
 
-func NewTelemetryClient() *TelemetryClient {
-	return &TelemetryClient{
+func NewClient() *Client {
+	return &Client{
 		cniReportSettings: &CNIReport{},
 	}
 }
 
 // Settings gets a pointer to the cni report struct, used to modify individual fields
-func (c *TelemetryClient) Settings() *CNIReport {
+func (c *Client) Settings() *CNIReport {
 	return c.cniReportSettings
 }
 
 // SetSettings REPLACES the pointer to the cni report struct and should only be used on startup
-func (c *TelemetryClient) SetSettings(settings *CNIReport) {
+func (c *Client) SetSettings(settings *CNIReport) {
 	c.cniReportSettings = settings
 }
 
-func (c *TelemetryClient) IsConnected() bool {
+func (c *Client) IsConnected() bool {
 	return c.tb != nil && c.tb.Connected
 }
 
-func (c *TelemetryClient) ConnectTelemetry(logger *zap.Logger) {
+func (c *Client) ConnectTelemetry(logger *zap.Logger) {
 	c.tb = NewTelemetryBuffer(logger)
 	c.tb.ConnectToTelemetry()
 	c.logger = logger
 }
 
-func (c *TelemetryClient) StartAndConnectTelemetry(logger *zap.Logger) {
+func (c *Client) StartAndConnectTelemetry(logger *zap.Logger) {
 	c.tb = NewTelemetryBuffer(logger)
 	c.tb.ConnectToTelemetryService(telemetryNumberRetries, telemetryWaitTimeInMilliseconds)
 	c.logger = logger
 }
 
-func (c *TelemetryClient) DisconnectTelemetry() {
+func (c *Client) DisconnectTelemetry() {
 	if c.tb == nil {
 		return
 	}
 	c.tb.Close()
 }
 
-func (c *TelemetryClient) sendEvent(msg string) {
+func (c *Client) sendEvent(msg string) {
 	if c.tb == nil {
 		return
 	}
@@ -72,18 +73,18 @@ func (c *TelemetryClient) sendEvent(msg string) {
 	SendCNIEvent(c.tb, c.cniReportSettings)
 }
 
-func (c *TelemetryClient) sendLog(msg string) {
+func (c *Client) sendLog(msg string) {
 	if c.logger == nil {
 		return
 	}
 	c.logger.Info("Telemetry Event", zap.String("message", msg))
 }
 
-func (c *TelemetryClient) SendEvent(msg string) {
+func (c *Client) SendEvent(msg string) {
 	c.sendEvent(msg)
 }
 
-func (c *TelemetryClient) SendError(err error) {
+func (c *Client) SendError(err error) {
 	if err == nil {
 		return
 	}
@@ -93,7 +94,7 @@ func (c *TelemetryClient) SendError(err error) {
 	c.sendEvent(err.Error())
 }
 
-func (c *TelemetryClient) SendMetric(cniMetric *AIMetric) {
+func (c *Client) SendMetric(cniMetric *AIMetric) {
 	if c.tb == nil || cniMetric == nil {
 		return
 	}

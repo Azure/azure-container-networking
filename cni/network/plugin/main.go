@@ -95,19 +95,19 @@ func rootExecute() error {
 
 		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
 		// end up creating/killing telemetry process results in undesired state.
-		telemetry.Client.StartAndConnectTelemetry(logger)
-		defer telemetry.Client.DisconnectTelemetry()
-		telemetry.Client.SetSettings(cniReport)
+		telemetry.AIClient.StartAndConnectTelemetry(logger)
+		defer telemetry.AIClient.DisconnectTelemetry()
+		telemetry.AIClient.SetSettings(cniReport)
 
 		// CNI Acquires lock
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
 
-			if telemetry.Client.IsConnected() {
+			if telemetry.AIClient.IsConnected() {
 				logger.Error("Not connected to telemetry service")
 				return errors.Wrap(err, "lock acquire error")
 			}
-			telemetry.Client.SendError(err)
+			telemetry.AIClient.SendError(err)
 
 			if errors.Is(err, store.ErrTimeoutLockingStore) {
 				var cniMetric telemetry.AIMetric
@@ -116,7 +116,7 @@ func rootExecute() error {
 					Value:            1.0,
 					CustomDimensions: make(map[string]string),
 				}
-				telemetry.Client.SendMetric(&cniMetric)
+				telemetry.AIClient.SendMetric(&cniMetric)
 			}
 			return errors.Wrap(err, "lock acquire error")
 		}
@@ -136,7 +136,7 @@ func rootExecute() error {
 
 		if err = netPlugin.Start(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to start network plugin, err:%v.\n", err))
-			telemetry.Client.SendError(err)
+			telemetry.AIClient.SendError(err)
 			panic("network plugin start fatal error")
 		}
 
