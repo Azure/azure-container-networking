@@ -1275,11 +1275,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
-	if cnsconfig.EnableHomeAz {
-		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
-		createOrUpdateNNC(ctx)
-	}
-
 	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
 	if cnsconfig.EnableStateMigration && !httpRestServiceImplementation.EndpointStateStore.Exists() {
 		if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
@@ -1308,7 +1303,12 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// TODO(rbtr): nodename and namespace should be in the cns config
 	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
-	// TODO: Create the NNC CRD here and update it with HomeAzinfo
+	nnc := v1alpha.NodeNetworkConfig{}
+	if cnsconfig.EnableHomeAz {
+		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
+		nnc = createBaseNNC(ctx, node)
+	}
+	directcli.Create(ctx, &nnc)
 
 	logger.Printf("Reconciling initial CNS state")
 	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
