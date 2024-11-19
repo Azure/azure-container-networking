@@ -85,6 +85,7 @@ stages:
         - cns
         - ipv6-hp-bpf
         - npm
+        pushAcr: acnpublic
     - template: containers/container-template.jobs.yaml
       parameters:
         arch: arm64
@@ -95,6 +96,7 @@ stages:
         - cns
         - ipv6-hp-bpf
         - npm
+        pushAcr: acnpublic
     - template: containers/container-template.jobs.yaml
       parameters:
         arch: amd64
@@ -104,6 +106,7 @@ stages:
         - cni
         - cns
         - npm
+        pushAcr: acnpublic
 
 
   - stage: publish

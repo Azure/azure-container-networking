@@ -28,12 +28,6 @@ resources:
     name: 1ESPipelineTemplates/1ESPipelineTemplates
     ref: refs/tags/stable
 
-  - repository: azure-container-networking
-    type: github
-    name: Azure/azure-container-networking
-    endpoint: 'Azure-ACN RO Service Connection'
-    ref: refs/heads/feature/ob-onboard-2
-
 
 variables:
   REPO_REF: $[ resources.repositories['azure-container-networking'].ref ]
@@ -52,7 +46,6 @@ extends:
       os: linux
       image: acn-runner-vmss-image-1es-v3.0
     authenticatedContainerRegistries:
-    - serviceConnection: 'Azure Container Networking - ACN Public Registry - Retina'
     - registry: onebranch.azurecr.io
       tenant: AME
       identity: 1ESPipelineIdentity
@@ -69,4 +62,4 @@ extends:
           ${{ if startsWith(variables['Build.SourceBranch'], 'refs/pull/') }}:
             enabledOnNonDefaultBranches: true
     stages:
-    - template: /.pipelines/run-pipeline.yaml@azure-container-networking
+    - template: /.pipelines/run-pipeline.yaml
