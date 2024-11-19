@@ -1308,7 +1308,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
 		nnc = createBaseNNC(node)
 	}
-	directcli.Create(ctx, &nnc)
+	if err := directcli.Create(ctx, &nnc); err != nil {
+		return errors.Wrap(err, "failed to create base NNC")
+	}
 
 	logger.Printf("Reconciling initial CNS state")
 	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
