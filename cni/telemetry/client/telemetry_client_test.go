@@ -41,7 +41,7 @@ func TestClient(t *testing.T) {
 	// for testing, we create a new telemetry buffer and assign it
 	emptyClient.tb = &telemetry.TelemetryBuffer{}
 
-	// test sending error, event is empty
+	// test sending error
 	require.NotPanics(t, func() { emptyClient.SendError(errMockTelemetryClient) })
 	require.Regexp(t, allowedErrorMsg, emptyClient.Settings().EventMessage)
 
