@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cni/log"
-	telemetryclient "github.com/Azure/azure-container-networking/cni/telemetry/client"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
@@ -30,6 +29,7 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	nnscontracts "github.com/Azure/azure-container-networking/proto/nodenetworkservice/3.302.0.744"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/Azure/azure-container-networking/telemetry"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
@@ -39,8 +39,8 @@ import (
 
 // matches if the string fully consists of zero or more alphanumeric, dots, dashes, parentheses, spaces, or underscores
 var (
-	allowedInput = regexp.MustCompile(`^[a-zA-Z0-9._\-\(\) ]*$`)
-	telemetry    = telemetryclient.Telemetry
+	allowedInput    = regexp.MustCompile(`^[a-zA-Z0-9._\-\(\) ]*$`)
+	telemetryClient = telemetry.Client
 )
 
 const (
@@ -295,10 +295,10 @@ func (plugin *NetPlugin) getPodInfo(args string) (name, ns string, err error) {
 }
 
 func (plugin *NetPlugin) setCNIReportDetails(containerID, opType, msg string) {
-	telemetry.Settings().OperationType = opType
-	telemetry.Settings().SubContext = containerID
-	telemetry.Settings().EventMessage = msg
-	telemetry.Settings().Version = plugin.Version
+	telemetryClient.Settings().OperationType = opType
+	telemetryClient.Settings().SubContext = containerID
+	telemetryClient.Settings().EventMessage = msg
+	telemetryClient.Settings().Version = plugin.Version
 }
 
 func addNatIPV6SubnetInfo(nwCfg *cni.NetworkConfig,
@@ -383,10 +383,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
-	telemetry.Settings().ContainerName = k8sPodName + ":" + k8sNamespace
+	telemetryClient.Settings().ContainerName = k8sPodName + ":" + k8sNamespace
 
 	plugin.setCNIReportDetails(args.ContainerID, CNI_ADD, "")
-	telemetry.SendEvent(fmt.Sprintf("[cni-net] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v StdinData:%s}.",
+	telemetryClient.SendEvent(fmt.Sprintf("[cni-net] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v StdinData:%s}.",
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData))
 
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
@@ -437,7 +437,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			zap.Any("IPs", cniResult.IPs),
 			zap.Error(log.NewErrorWithoutStackTrace(err)))
 
-		telemetry.SendEvent(fmt.Sprintf("ADD command completed with [ipamAddResult]: %s [epInfos]: %s [error]: %v ", ipamAddResult.PrettyString(), network.FormatStructPointers(epInfos), err))
+		telemetryClient.SendEvent(fmt.Sprintf("ADD command completed with [ipamAddResult]: %s [epInfos]: %s [error]: %v ", ipamAddResult.PrettyString(), network.FormatStructPointers(epInfos), err))
 	}()
 
 	ipamAddResult = IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
@@ -493,7 +493,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// triggered only in swift v1 multitenancy
 		// dual nic multitenancy -> two interface infos
 		// multitenancy (swift v1) -> one interface info
-		telemetry.Settings().Context = "AzureCNIMultitenancy"
+		telemetryClient.Settings().Context = "AzureCNIMultitenancy"
 		plugin.multitenancyClient.Init(cnsClient, AzureNetIOShim{})
 
 		// Temporary if block to determining whether we disable SNAT on host (for multi-tenant scenario only)
@@ -973,7 +973,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		logger.Info("DEL command completed",
 			zap.String("pod", k8sPodName),
 			zap.Error(log.NewErrorWithoutStackTrace(err)))
-		telemetry.SendEvent(fmt.Sprintf("DEL command completed: [released ip]: %+v [podname]: %s [namespace]: %s [error]: %v", nwCfg.IPAM.Address, k8sPodName, k8sNamespace, err))
+		telemetryClient.SendEvent(fmt.Sprintf("DEL command completed: [released ip]: %+v [podname]: %s [namespace]: %s [error]: %v", nwCfg.IPAM.Address, k8sPodName, k8sNamespace, err))
 	}()
 
 	// Parse network configuration from stdin.
@@ -991,10 +991,10 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if k8sPodName, k8sNamespace, err = plugin.getPodInfo(args.Args); err != nil {
 		logger.Error("Failed to get POD info", zap.Error(err))
 	}
-	telemetry.Settings().ContainerName = k8sPodName + ":" + k8sNamespace
+	telemetryClient.Settings().ContainerName = k8sPodName + ":" + k8sNamespace
 
 	plugin.setCNIReportDetails(args.ContainerID, CNI_DEL, "")
-	telemetry.SendEvent(fmt.Sprintf("[cni-net] Processing DEL command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v, StdinData:%s}.",
+	telemetryClient.SendEvent(fmt.Sprintf("[cni-net] Processing DEL command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v, StdinData:%s}.",
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData))
 
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
@@ -1124,14 +1124,14 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	for _, epInfo := range epInfos {
 		logger.Info("Deleting endpoint",
 			zap.String("endpointID", epInfo.EndpointID))
-		telemetry.SendEvent("Deleting endpoint: " + epInfo.EndpointID)
+		telemetryClient.SendEvent("Deleting endpoint: " + epInfo.EndpointID)
 
 		if !nwCfg.MultiTenancy && (epInfo.NICType == cns.InfraNIC || epInfo.NICType == "") {
 			// Delegated/secondary nic ips are statically allocated so we don't need to release
 			// Call into IPAM plugin to release the endpoint's addresses.
 			for i := range epInfo.IPAddresses {
 				logger.Info("Release ip", zap.String("ip", epInfo.IPAddresses[i].IP.String()))
-				telemetry.SendEvent(fmt.Sprintf("Release ip: %s container id: %s endpoint id: %s", epInfo.IPAddresses[i].IP.String(), args.ContainerID, epInfo.EndpointID))
+				telemetryClient.SendEvent(fmt.Sprintf("Release ip: %s container id: %s endpoint id: %s", epInfo.IPAddresses[i].IP.String(), args.ContainerID, epInfo.EndpointID))
 				err = plugin.ipamInvoker.Delete(&epInfo.IPAddresses[i], nwCfg, args, nwInfo.Options)
 				if err != nil {
 					return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))

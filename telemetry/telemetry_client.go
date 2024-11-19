@@ -1,11 +1,10 @@
-package telemetryclient
+package telemetry
 
 import (
 	"fmt"
 	"os"
 	"sync"
 
-	"github.com/Azure/azure-container-networking/telemetry"
 	"go.uber.org/zap"
 )
 
@@ -15,39 +14,27 @@ const (
 )
 
 type TelemetryClient struct {
-	cniReportSettings *telemetry.CNIReport
-	tb                *telemetry.TelemetryBuffer
+	cniReportSettings *CNIReport
+	tb                *TelemetryBuffer
 	logger            *zap.Logger
 	lock              sync.Mutex
 }
 
-type TelemetryInterface interface {
-	// Settings gets a pointer to the cni report struct, used to modify individual fields
-	Settings() *telemetry.CNIReport
-	// SetSettings REPLACES the pointer to the cni report struct and should only be used on startup
-	SetSettings(settings *telemetry.CNIReport)
-	IsConnected() bool
-	ConnectTelemetry(logger *zap.Logger)
-	StartAndConnectTelemetry(logger *zap.Logger)
-	DisconnectTelemetry()
-	SendEvent(msg string)
-	SendError(err error)
-	SendMetric(cniMetric *telemetry.AIMetric)
-}
-
-var Telemetry TelemetryInterface = NewTelemetryClient()
+var Client = NewTelemetryClient()
 
 func NewTelemetryClient() *TelemetryClient {
 	return &TelemetryClient{
-		cniReportSettings: &telemetry.CNIReport{},
+		cniReportSettings: &CNIReport{},
 	}
 }
 
-func (c *TelemetryClient) Settings() *telemetry.CNIReport {
+// Settings gets a pointer to the cni report struct, used to modify individual fields
+func (c *TelemetryClient) Settings() *CNIReport {
 	return c.cniReportSettings
 }
 
-func (c *TelemetryClient) SetSettings(settings *telemetry.CNIReport) {
+// SetSettings REPLACES the pointer to the cni report struct and should only be used on startup
+func (c *TelemetryClient) SetSettings(settings *CNIReport) {
 	c.cniReportSettings = settings
 }
 
@@ -56,13 +43,13 @@ func (c *TelemetryClient) IsConnected() bool {
 }
 
 func (c *TelemetryClient) ConnectTelemetry(logger *zap.Logger) {
-	c.tb = telemetry.NewTelemetryBuffer(logger)
+	c.tb = NewTelemetryBuffer(logger)
 	c.tb.ConnectToTelemetry()
 	c.logger = logger
 }
 
 func (c *TelemetryClient) StartAndConnectTelemetry(logger *zap.Logger) {
-	c.tb = telemetry.NewTelemetryBuffer(logger)
+	c.tb = NewTelemetryBuffer(logger)
 	c.tb.ConnectToTelemetryService(telemetryNumberRetries, telemetryWaitTimeInMilliseconds)
 	c.logger = logger
 }
@@ -82,7 +69,7 @@ func (c *TelemetryClient) sendEvent(msg string) {
 	defer c.lock.Unlock()
 	eventMsg := fmt.Sprintf("[%d] %s", os.Getpid(), msg)
 	c.cniReportSettings.EventMessage = eventMsg
-	telemetry.SendCNIEvent(c.tb, c.cniReportSettings)
+	SendCNIEvent(c.tb, c.cniReportSettings)
 }
 
 func (c *TelemetryClient) sendLog(msg string) {
@@ -106,11 +93,11 @@ func (c *TelemetryClient) SendError(err error) {
 	c.sendEvent(err.Error())
 }
 
-func (c *TelemetryClient) SendMetric(cniMetric *telemetry.AIMetric) {
+func (c *TelemetryClient) SendMetric(cniMetric *AIMetric) {
 	if c.tb == nil || cniMetric == nil {
 		return
 	}
-	err := telemetry.SendCNIMetric(cniMetric, c.tb)
+	err := SendCNIMetric(cniMetric, c.tb)
 	if err != nil {
 		c.sendLog("Couldn't send metric: " + err.Error())
 	}

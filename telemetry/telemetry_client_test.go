@@ -1,11 +1,10 @@
-package telemetryclient
+package telemetry
 
 import (
 	"errors"
 	"regexp"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -39,7 +38,7 @@ func TestClient(t *testing.T) {
 	require.Equal(t, logger, emptyClient.logger)
 
 	// for testing, we create a new telemetry buffer and assign it
-	emptyClient.tb = &telemetry.TelemetryBuffer{}
+	emptyClient.tb = &TelemetryBuffer{}
 
 	// test sending error
 	require.NotPanics(t, func() { emptyClient.SendError(errMockTelemetryClient) })
@@ -51,7 +50,7 @@ func TestClient(t *testing.T) {
 	require.Equal(t, "", emptyClient.Settings().ErrorMessage)
 
 	// test sending aimetrics doesn't panic...
-	require.NotPanics(t, func() { emptyClient.SendMetric(&telemetry.AIMetric{}) })
+	require.NotPanics(t, func() { emptyClient.SendMetric(&AIMetric{}) })
 	// ...and doesn't affect the cni report
 	require.Regexp(t, allowedEventMsg, emptyClient.Settings().EventMessage)
 	require.Equal(t, "", emptyClient.Settings().ErrorMessage)

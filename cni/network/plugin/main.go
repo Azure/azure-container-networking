@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni/api"
 	zaplog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
-	telemetryclient "github.com/Azure/azure-container-networking/cni/telemetry/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/platform"
@@ -96,19 +95,19 @@ func rootExecute() error {
 
 		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
 		// end up creating/killing telemetry process results in undesired state.
-		telemetryclient.Telemetry.StartAndConnectTelemetry(logger)
-		defer telemetryclient.Telemetry.DisconnectTelemetry()
-		telemetryclient.Telemetry.SetSettings(cniReport)
+		telemetry.Client.StartAndConnectTelemetry(logger)
+		defer telemetry.Client.DisconnectTelemetry()
+		telemetry.Client.SetSettings(cniReport)
 
 		// CNI Acquires lock
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
 
-			if telemetryclient.Telemetry.IsConnected() {
+			if telemetry.Client.IsConnected() {
 				logger.Error("Not connected to telemetry service")
 				return errors.Wrap(err, "lock acquire error")
 			}
-			telemetryclient.Telemetry.SendError(err)
+			telemetry.Client.SendError(err)
 
 			if errors.Is(err, store.ErrTimeoutLockingStore) {
 				var cniMetric telemetry.AIMetric
@@ -117,7 +116,7 @@ func rootExecute() error {
 					Value:            1.0,
 					CustomDimensions: make(map[string]string),
 				}
-				telemetryclient.Telemetry.SendMetric(&cniMetric)
+				telemetry.Client.SendMetric(&cniMetric)
 			}
 			return errors.Wrap(err, "lock acquire error")
 		}
@@ -137,7 +136,7 @@ func rootExecute() error {
 
 		if err = netPlugin.Start(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to start network plugin, err:%v.\n", err))
-			telemetryclient.Telemetry.SendError(err)
+			telemetry.Client.SendError(err)
 			panic("network plugin start fatal error")
 		}
 
