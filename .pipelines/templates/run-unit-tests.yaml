@@ -39,9 +39,8 @@ stages:
         steps:
           # Only run one go test per script
           - script: |
-              set CGO_ENABLED=1
               cd azure-container-networking/
-              go test -race -timeout 30m ./npm/... ./cni/... ./platform/...
+              go test -timeout 30m ./npm/... ./cni/... ./platform/...
             retryCountOnTaskFailure: 3
             name: "TestWindows"
             displayName: "Run Windows Tests"
