@@ -18,7 +18,7 @@ jobs:
     displayName: Build Image - (${{ image }} ${{ parameters.os }}/${{ parameters.arch }})
     templateContext:
       authenticatedContainerRegistries:
-      - registry: ${{ parameters.containerRegistry.name }}
+      - registry: acnpublic.azurecr.io
         identity: ManagedIdentity
       - registry: onebranch.azurecr.io
         tenant: AME
@@ -39,7 +39,7 @@ jobs:
         inlineScript: |
           ls -la /bin
       env:
-        ACR: ${{ parameters.pushAcr }}
+        ACR: ${{ parameters.containerRegistry.name }}
 
     - bash: |
         set -e
