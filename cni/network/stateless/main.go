@@ -142,10 +142,6 @@ func rootExecute() error {
 	}
 	netPlugin.Stop()
 
-	if err != nil {
-		telemetryclient.Telemetry.SendError(err)
-	}
-
 	return errors.Wrap(err, "Execute netplugin failure")
 }
 
