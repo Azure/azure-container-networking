@@ -8,28 +8,36 @@ parameters:
 - name: images
   type: object
 
-- name: pushAcr
-  type: string
+- name: containerRegistry
+  type: object
 
 
 jobs:
 - ${{ each image in parameters.images }}:
   - job: ${{ replace(image, '-', '_') }}_${{ parameters.os }}_${{ parameters.arch }}
     displayName: Build Image - (${{ image }} ${{ parameters.os }}/${{ parameters.arch }})
+    templateContext:
+      authenticatedContainerRegistries:
+      - registry: ${{ parameters.containerRegistry.name }}
+        identity: ManagedIdentity
+      - registry: onebranch.azurecr.io
+        tenant: AME
+        identity: 1ESPipelineIdentity
 
     steps:
     - task: GoTool@0
       inputs:
         version: $(GO_VERSION)
-
+    
     - task: AzureCLI@2
+      displayName: "Docker Login"
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
         scriptType: "bash"
         addSpnToEnvironment: true
         inlineScript: |
-          az acr login --name "$ACR"
+          ls -la /bin
       env:
         ACR: ${{ parameters.pushAcr }}
 
