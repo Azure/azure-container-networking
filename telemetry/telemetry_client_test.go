@@ -15,7 +15,7 @@ func TestClient(t *testing.T) {
 	allowedErrorMsg := regexp.MustCompile(`^\[\d+\] mock telemetry client error`)
 	allowedEventMsg := regexp.MustCompile(`^\[\d+\] telemetry event`)
 
-	emptyClient := NewTelemetryClient()
+	emptyClient := NewClient()
 
 	// an empty client should not cause panics
 	require.NotPanics(t, func() { emptyClient.SendEvent("no errors") })

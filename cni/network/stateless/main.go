@@ -105,16 +105,16 @@ func rootExecute() error {
 		}()
 
 		// Connect to the telemetry process. Does not start the telemetry service if it is not running.
-		telemetry.Client.ConnectTelemetry(logger)
-		defer telemetry.Client.DisconnectTelemetry()
-		telemetry.Client.SetSettings(cniReport)
+		telemetry.AIClient.ConnectTelemetry(logger)
+		defer telemetry.AIClient.DisconnectTelemetry()
+		telemetry.AIClient.SetSettings(cniReport)
 
 		t := time.Now()
 		cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
 
 		if err = netPlugin.Start(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to start network plugin, err:%v.\n", err))
-			telemetry.Client.SendError(err)
+			telemetry.AIClient.SendError(err)
 			panic("network plugin start fatal error")
 		}
 	}
