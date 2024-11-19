@@ -13,7 +13,7 @@ parameters:
 
 
 jobs:
-- ${{ each image in split(parameters.images, '\n') }}:
+- ${{ each image in parameters.images }}:
   - job: ${{ image }}_${{ parameters.os }}_${{ parameters.arch }}
     displayName: Build Image - (${{ image }} ${{ parameters.os }}/${{ parameters.arch }})
 
