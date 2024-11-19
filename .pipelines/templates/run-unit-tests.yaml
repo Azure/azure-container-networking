@@ -37,10 +37,11 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
         steps:
-          # Test changes under review; only run one go test per script
+          # Only run one go test per script
           - script: |
+              set CGO_ENABLED=1
               cd azure-container-networking/
-              go test ./npm/... ./cni/... ./platform/...
+              go test -race -timeout 30m ./npm/... ./cni/... ./platform/...
             retryCountOnTaskFailure: 3
             name: "TestWindows"
             displayName: "Run Windows Tests"
