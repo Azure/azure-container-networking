@@ -26,7 +26,7 @@ stages:
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
 
-  - template: templates/run-unit-tests.stages.yaml
+  - template: templates/unit-tests.stages.yaml
 
   #- ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
   - stage: binaries
@@ -87,7 +87,7 @@ stages:
         - npm
         containerRegistry: 
           name: $(ACR_NAME)
-          #clientId: $(ACR_CLIENTID)
+          clientId: $(ACR_CLIENTID)
     - template: containers/container-template.jobs.yaml
       parameters:
         arch: arm64
@@ -100,7 +100,7 @@ stages:
         - npm
         containerRegistry: 
           name: $(ACR_NAME)
-          #clientId: $(ACR_CLIENTID)
+          clientId: $(ACR_CLIENTID)
     - template: containers/container-template.jobs.yaml
       parameters:
         arch: amd64
@@ -112,7 +112,7 @@ stages:
         - npm
         containerRegistry: 
           name: $(ACR_NAME)
-          #clientId: $(ACR_CLIENTID)
+          clientId: $(ACR_CLIENTID)
 
 
   - stage: publish
