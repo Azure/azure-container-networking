@@ -22,7 +22,7 @@ jobs:
         addSpnToEnvironment: true
         inlineScript: |
           set -e
-          
+
           windows_nodepool=$(az aks nodepool list \
           --resource-group ${{ parameters.clusterName }} \
           --cluster-name ${{ parameters.clusterName }} \
@@ -38,7 +38,7 @@ jobs:
               --name "${{ parameters.clusterName }}" \
               --resource-group "${{ parameters.clusterName }}" \
               --query provisioningState)
-              
+
               if echo "$cluster_state" | grep -q "Updating"; then
                 echo "Cluster is updating. Sleeping for 30 seconds..."
                 sleep 30
