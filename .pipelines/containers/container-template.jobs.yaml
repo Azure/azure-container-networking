@@ -55,7 +55,7 @@ jobs:
         MAKE_DOCKERFILE_PATH: ${{ parameters.name }}-image-dockerfile-path
         MAKE_EXTRA_BUILD_ARGS: ${{ parameters.name }}-image-build-args
 
-    - template: containers/container-template.steps.yaml
+    - template: container-template.steps.yaml
       parameters:
         arch: ${{ parameters.arch }}
         name: ${{ parameters.name }}
