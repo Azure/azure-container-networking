@@ -123,7 +123,6 @@ func TestSetTelemetrySettingDefaults(t *testing.T) {
 				TelemetryBatchSizeBytes:      32768,
 				HeartBeatIntervalInMins:      30,
 				SnapshotIntervalInMins:       60,
-				ConfigSnapshotIntervalInMins: 60,
 			},
 		},
 		{
@@ -134,7 +133,6 @@ func TestSetTelemetrySettingDefaults(t *testing.T) {
 				TelemetryBatchSizeBytes:      5,
 				HeartBeatIntervalInMins:      6,
 				SnapshotIntervalInMins:       7,
-				ConfigSnapshotIntervalInMins: 8,
 			},
 			want: TelemetrySettings{
 				RefreshIntervalInSecs:        3,
@@ -142,7 +140,6 @@ func TestSetTelemetrySettingDefaults(t *testing.T) {
 				TelemetryBatchSizeBytes:      5,
 				HeartBeatIntervalInMins:      6,
 				SnapshotIntervalInMins:       7,
-				ConfigSnapshotIntervalInMins: 8,
 			},
 		},
 	}
@@ -210,7 +207,6 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					HeartBeatIntervalInMins:      30,
 					RefreshIntervalInSecs:        15,
 					SnapshotIntervalInMins:       60,
-					ConfigSnapshotIntervalInMins: 60,
 				},
 				KeyVaultSettings: KeyVaultSettings{
 					RefreshIntervalInHrs: 12,
@@ -243,7 +239,6 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					HeartBeatIntervalInMins:      3,
 					RefreshIntervalInSecs:        1,
 					SnapshotIntervalInMins:       6,
-					ConfigSnapshotIntervalInMins: 7,
 				},
 				KeyVaultSettings: KeyVaultSettings{
 					RefreshIntervalInHrs: 3,
@@ -271,7 +266,6 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					HeartBeatIntervalInMins:      3,
 					RefreshIntervalInSecs:        1,
 					SnapshotIntervalInMins:       6,
-					ConfigSnapshotIntervalInMins: 7,
 				},
 				KeyVaultSettings: KeyVaultSettings{
 					RefreshIntervalInHrs: 3,

@@ -178,10 +178,6 @@ func setTelemetrySettingDefaults(telemetrySettings *TelemetrySettings) {
 	if telemetrySettings.SnapshotIntervalInMins == 0 {
 		telemetrySettings.SnapshotIntervalInMins = 60
 	}
-
-	if telemetrySettings.ConfigSnapshotIntervalInMins == 0 {
-		telemetrySettings.ConfigSnapshotIntervalInMins = 60
-	}
 }
 
 // set managed setting defaults

@@ -579,7 +579,9 @@ func main() {
 			logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
 		}
 
-		go metric.SendCNSConfigSnapshot(rootCtx, cnsconfig)
+		if cnsconfig.TelemetrySettings.ConfigSnapshotIntervalInMins > 0 {
+			go metric.SendCNSConfigSnapshot(rootCtx, cnsconfig)
+		}
 	}
 	logger.Printf("[Azure CNS] Using config: %+v", cnsconfig)
 
