@@ -1,37 +1,42 @@
 parameters:
-  arch: ""
-  name: ""
-  os: ""
+- name: name
+  type: string
+  values:
+  - azure-ipam
+  - cni
+  - cns
+  - ipv6-hp-bpf
+  - npm
+
+- name: arch
+  type: string
+  default: ""
+  values:
+  - amd64
+  - arm64
+
+- name: os
+  type: string
+  default: ""
+  values:
+  - windows
+  - linux
+
 
 steps:
-- task: AzureCLI@2
-  displayName: "Login"
-  inputs:
-    azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
-    scriptLocation: "inlineScript"
-    scriptType: "bash"
-    inlineScript: |
-      az acr login -n $(ACR)
-
-- script: |
-    set -e
-    if [ "$IN_OS" = 'windows' ]; then export BUILDX_ACTION='--push'; fi
-    make "$IMGNAME" OS="$IN_OS" ARCH="$IN_ARCH" 
-  name: image_build
-  displayName: Image Build
-  workingDirectory: $(ACN_DIR)
+- task: 1ES.BuildContainerImage@1
   retryCountOnTaskFailure: 3
-  env:
-    IMGNAME: '${{ parameters.name }}-image'
-    IN_OS: '${{ parameters.os }}'
-    IN_ARCH: '${{ parameters.arch }}'
-
-- task: AzureCLI@2
-  displayName: "Logout"
   inputs:
-    azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
-    scriptLocation: "inlineScript"
-    scriptType: "bash"
-    inlineScript: |
-      docker logout
+    image: $(IMAGE_NAME_AND_TAG_${{ parameters.name }})
+    dockerfile: $(DOCKERFILE_PATH_${{ parameters.name }})
+    path: $(BUILD_CONTEXT_${{ parameters.name }})
+    buildArguments: TARGET=${{ parameters.os }} OS=${{ parameters.os }} PLATFORM=${{ parameters.os }} ARCH=${{ parameters.arch }} $(EXTRA_BUILD_ARGS_${{ parameters.name }})
+    enableNetwork: true
+    enablePull: false
+    enableCache: true
+    useBuildKit: true
 
+- task: 1ES.PushContainerImage@1
+  condition: ${{ eq(parameters.os, 'windows') }}
+  inputs:
+    image: $(IMAGE_NAME_AND_TAG_${{ parameters.name }})

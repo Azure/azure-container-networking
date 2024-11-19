@@ -53,7 +53,7 @@ jobs:
       TMPL_REPO_REF: '${{ parameters.mainRepoRef }}'
       TMPL_REPO_NAME: '${{ parameters.mainRepoName }}'
       TMPL_REPO_TYPE: '${{ parameters.mainRepoType }}'
-      ACCEPTED_REPO_REFS: '^refs/heads/feature/ob-onboard-0$'
+      ACCEPTED_REPO_REFS: '^refs/heads/feature/ob-onboard-2$'
       ACCEPTED_REPO_NAME: '^Azure/azure-container-networking$'
       ACCEPTED_REPO_TYPE: '^github$'
 

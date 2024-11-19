@@ -449,7 +449,7 @@ stages:
                 clusterName: "cildsovere2e"
                 region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
           steps:
-            - template: templates/delete-cluster.yaml
+            - template: templates/delete-cluster.steps.yaml
               parameters:
                 name: $(name)
                 clusterName: $(clusterName)-$(commitID)
@@ -472,7 +472,7 @@ stages:
                 clusterName: "swiftv2dummy"
                 region: $(REGION_SWIFTV2_CLUSTER_TEST)
           steps:
-            - template: templates/delete-cluster.yaml
+            - template: templates/delete-cluster.steps.yaml
               parameters:
                 name: $(name)
                 clusterName: $(clusterName)-$(commitID)

@@ -1,34 +1,32 @@
-trigger: none
-#pr:
-#  branches:
-#    include:
-#      - master
-#      - release/*
-#  paths:
-#    exclude:
-#      - ".devcontainer"
-#      - ".hooks"
-#      - ".vscode"
-#      - ".github"
-#      - docs
-#
-#
-#trigger:
-#  branches:
-#    include:
-#      - gh-readonly-queue/master/*
-#  tags:
-#    include:
-#      - "*"
+pr:
+  branches:
+    include:
+      - master
+      - release/*
+  paths:
+    exclude:
+      - ".devcontainer"
+      - ".hooks"
+      - ".vscode"
+      - ".github"
+      - docs
 
+
+trigger:
+  branches:
+    include:
+      - gh-readonly-queue/master/*
+  tags:
+    include:
+      - "*"
 
 resources:
   repositories:
-  - repository: azure-container-networking
-    type: github
-    name: Azure/azure-container-networking
-    endpoint: 'Azure-ACN RO Service Connection'
-    ref: refs/heads/feature/ob-onboard-0
+
+  - repository: 1ESPipelineTemplates
+    type: git
+    name: 1ESPipelineTemplates/1ESPipelineTemplates
+    ref: refs/tags/stable
 
 
 variables:
@@ -37,16 +35,31 @@ variables:
   REPO_NAME: $[ resources.repositories['azure-container-networking'].name ]
   REPO_TYPE: $[ resources.repositories['azure-container-networking'].type ]
   CHANGESET_COMMIT: $[ resources.repositories['self'].version ]
- 
-
-pool:
-  vmImage: ubuntu-latest
-
+  # Local analysis is only enabled on PR branches
+  Codeql.AnalyzeInPipeline: $[startsWith(variables['Build.SourceBranch'], 'refs/pull/')]
 
 extends:
-  template: /.pipelines/template.trigger.jobs.yaml@azure-container-networking
+  template: v1/1ES.Unofficial.PipelineTemplate.yml@1ESPipelineTemplates
   parameters:
-    mainRepoRef: $(REPO_REF)
-    mainRepoCommit: $(REPO_COMMIT)
-    mainRepoName: $(REPO_NAME)
-    mainRepoType: $(REPO_TYPE)
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
+      image: acn-runner-vmss-image-1es-v3.0
+    #authenticatedContainerRegistries:
+    #- registry: onebranch.azurecr.io
+      #tenant: AME
+      #identity: 1ESPipelineIdentity
+    sdl:
+      sourceAnalysisPool: 
+        name: $(BUILD_POOL_NAME_DEFAULT_WINDOWS)
+        os: windows
+        image: acn-runner-vmss-image-windows-1es-v2.0
+      codeql:
+        # Enables CodeQL on the main branch
+        compiled:
+          enabled: true
+          # Enables CodeQL on PR branches
+          ${{ if startsWith(variables['Build.SourceBranch'], 'refs/pull/') }}:
+            enabledOnNonDefaultBranches: true
+    stages:
+    - template: /.pipelines/run-pipeline.yaml
