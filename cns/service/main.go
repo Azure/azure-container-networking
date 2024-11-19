@@ -1308,7 +1308,8 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
 		nnc = createBaseNNC(node)
 	}
-	if err := directcli.Create(ctx, &nnc); err != nil {
+
+	if err = directcli.Create(ctx, &nnc); err != nil {
 		return errors.Wrap(err, "failed to create base NNC")
 	}
 
