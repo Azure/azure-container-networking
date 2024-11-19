@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni/api"
 	zapLog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
-	telemetryclient "github.com/Azure/azure-container-networking/cni/telemetry/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nns"
@@ -106,16 +105,16 @@ func rootExecute() error {
 		}()
 
 		// Connect to the telemetry process. Does not start the telemetry service if it is not running.
-		telemetryclient.Telemetry.ConnectTelemetry(logger)
-		defer telemetryclient.Telemetry.DisconnectTelemetry()
-		telemetryclient.Telemetry.SetSettings(cniReport)
+		telemetry.Client.ConnectTelemetry(logger)
+		defer telemetry.Client.DisconnectTelemetry()
+		telemetry.Client.SetSettings(cniReport)
 
 		t := time.Now()
 		cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
 
 		if err = netPlugin.Start(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to start network plugin, err:%v.\n", err))
-			telemetryclient.Telemetry.SendError(err)
+			telemetry.Client.SendError(err)
 			panic("network plugin start fatal error")
 		}
 	}
