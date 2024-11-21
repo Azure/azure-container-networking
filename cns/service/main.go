@@ -428,7 +428,7 @@ func sendRegisterNodeRequest(ctx context.Context, httpClient httpDoer, httpRestS
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(nodeRegisterRequest)
 	if err != nil {
-		logger.Errorf("[Azure CNS] Failed to register node while encoding json failed with non-retryable err %v", err)
+		logger.Errorf("Failed to register node while encoding json failed with non-retryable err %v", err)
 		return errors.Wrap(retry.Unrecoverable(err), "failed to sendRegisterNodeRequest")
 	}
 
@@ -454,7 +454,7 @@ func sendRegisterNodeRequest(ctx context.Context, httpClient httpDoer, httpRestS
 	var req cns.SetOrchestratorTypeRequest
 	err = json.NewDecoder(response.Body).Decode(&req)
 	if err != nil {
-		logger.Errorf("[Azure CNS] decoding Node Register response json failed with err %v", err)
+		logger.Errorf("decoding Node Register response json failed with err %v", err)
 		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 	httpRestService.SetNodeOrchestrator(&req)
@@ -469,7 +469,7 @@ func startTelemetryService(ctx context.Context) {
 	tb := telemetry.NewTelemetryBuffer(nil)
 	err := tb.CreateAITelemetryHandle(config, false, false, false)
 	if err != nil {
-		logger.Errorf("[Azure CNS] AI telemetry handle creation failed: %v", err)
+		logger.Errorf("AI telemetry handle creation failed: %v", err)
 		return
 	}
 
@@ -478,9 +478,9 @@ func startTelemetryService(ctx context.Context) {
 	tbtemp.Cleanup(telemetry.FdName)
 
 	err = tb.StartServer()
-	logger.Printf("[Azure CNS] Telemetry service for CNI started")
+	logger.Printf("Telemetry service for CNI started")
 	if err != nil {
-		logger.Errorf("[Azure CNS] Telemetry service failed to start: %v", err)
+		logger.Errorf("Telemetry service failed to start: %v", err)
 		return
 	}
 	tb.PushData(ctx)
