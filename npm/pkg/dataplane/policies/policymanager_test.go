@@ -115,7 +115,7 @@ func TestBootup(t *testing.T) {
 	metrics.IncNumACLRules()
 
 	require.NoError(t, pMgr.Bootup(epIDs))
-	if util.IsWindowsDP() {
+	if !util.IsWindowsDP() {
 		require.Equal(t, util.IptablesNft, util.Iptables)
 	}
 
