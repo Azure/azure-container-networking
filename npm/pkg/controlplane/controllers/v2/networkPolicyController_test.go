@@ -307,26 +307,22 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 
 	if util.IsWindowsDP() {
 		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
-		addNetPol(f, netPolObj1)
-		addNetPol(f, netPolObj2)
-
-		// already exists (will be a no-op)
-		addNetPol(f, netPolObj1)
 		// named ports are not allowed on windows
 		testCases = []expectedNetPolValues{
 			{0, 0, netPolPromVals{0, 0, 0, 0}},
 		}
 	} else {
 		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(2)
-		addNetPol(f, netPolObj1)
-		addNetPol(f, netPolObj2)
 
-		// already exists (will be a no-op)
-		addNetPol(f, netPolObj1)
 		testCases = []expectedNetPolValues{
 			{2, 0, netPolPromVals{2, 2, 0, 0}},
 		}
 	}
+	addNetPol(f, netPolObj1)
+	addNetPol(f, netPolObj2)
+
+	// already exists (will be a no-op)
+	addNetPol(f, netPolObj1)
 
 	checkNetPolTestResult("TestAddMultipleNetPols", f, testCases)
 }
@@ -349,7 +345,6 @@ func TestAddNetworkPolicy(t *testing.T) {
 
 	if util.IsWindowsDP() {
 		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
-		addNetPol(f, netPolObj)
 		// named ports are not allowed on windows
 		testCases = []expectedNetPolValues{
 			{0, 0, netPolPromVals{0, 0, 0, 0}},
@@ -357,11 +352,12 @@ func TestAddNetworkPolicy(t *testing.T) {
 	} else {
 		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
 
-		addNetPol(f, netPolObj)
 		testCases = []expectedNetPolValues{
 			{1, 0, netPolPromVals{1, 1, 0, 0}},
 		}
 	}
+	addNetPol(f, netPolObj)
+
 	checkNetPolTestResult("TestAddNetPol", f, testCases)
 }
 
@@ -459,7 +455,6 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
 		dp.EXPECT().RemovePolicy(gomock.Any()).Times(0)
 
-		deleteNetPol(t, f, netPolObj, DeletedFinalStateknownObject)
 		testCases = []expectedNetPolValues{
 			{0, 0, netPolPromVals{0, 0, 0, 0}},
 		}
@@ -467,11 +462,11 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
 		dp.EXPECT().RemovePolicy(gomock.Any()).Times(1)
 
-		deleteNetPol(t, f, netPolObj, DeletedFinalStateknownObject)
 		testCases = []expectedNetPolValues{
 			{0, 0, netPolPromVals{0, 1, 0, 1}},
 		}
 	}
+	deleteNetPol(t, f, netPolObj, DeletedFinalStateknownObject)
 	checkNetPolTestResult("TestDelNetPol", f, testCases)
 }
 
@@ -522,7 +517,6 @@ func TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy(t *testing.T) 
 		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
 		dp.EXPECT().RemovePolicy(gomock.Any()).Times(0)
 
-		deleteNetPol(t, f, netPolObj, DeletedFinalStateUnknownObject)
 		testCases = []expectedNetPolValues{
 			{0, 0, netPolPromVals{0, 0, 0, 0}},
 		}
@@ -530,11 +524,12 @@ func TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy(t *testing.T) 
 		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
 		dp.EXPECT().RemovePolicy(gomock.Any()).Times(1)
 
-		deleteNetPol(t, f, netPolObj, DeletedFinalStateUnknownObject)
 		testCases = []expectedNetPolValues{
 			{0, 0, netPolPromVals{0, 1, 0, 1}},
 		}
 	}
+	deleteNetPol(t, f, netPolObj, DeletedFinalStateUnknownObject)
+
 	checkNetPolTestResult("TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy", f, testCases)
 }
 
@@ -563,18 +558,18 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 	if util.IsWindowsDP() {
 		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
 
-		updateNetPol(t, f, oldNetPolObj, newNetPolObj)
 		testCases = []expectedNetPolValues{
 			{0, 0, netPolPromVals{0, 0, 0, 0}},
 		}
 	} else {
 		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
 
-		updateNetPol(t, f, oldNetPolObj, newNetPolObj)
 		testCases = []expectedNetPolValues{
 			{1, 0, netPolPromVals{1, 1, 0, 0}},
 		}
 	}
+	updateNetPol(t, f, oldNetPolObj, newNetPolObj)
+
 	checkNetPolTestResult("TestUpdateNetPol", f, testCases)
 }
 
@@ -609,19 +604,17 @@ func TestLabelUpdateNetworkPolicy(t *testing.T) {
 	if util.IsWindowsDP() {
 		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
 
-		updateNetPol(t, f, oldNetPolObj, newNetPolObj)
-
 		testCases = []expectedNetPolValues{
 			{0, 0, netPolPromVals{0, 0, 0, 0}},
 		}
 	} else {
 		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(2)
 
-		updateNetPol(t, f, oldNetPolObj, newNetPolObj)
-
 		testCases = []expectedNetPolValues{
 			{1, 0, netPolPromVals{1, 1, 1, 0}},
 		}
 	}
+	updateNetPol(t, f, oldNetPolObj, newNetPolObj)
+
 	checkNetPolTestResult("TestUpdateNetPol", f, testCases)
 }
