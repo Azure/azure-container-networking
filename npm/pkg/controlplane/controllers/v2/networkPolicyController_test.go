@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	dpmocks "github.com/Azure/azure-container-networking/npm/pkg/dataplane/mocks"
+	"github.com/Azure/azure-container-networking/npm/util"
 	gomock "github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -302,18 +303,31 @@ func TestAddMultipleNetworkPolicies(t *testing.T) {
 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
 	f.newNetPolController(stopCh, dp, false)
+	var testCases []expectedNetPolValues
 
-	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(2)
+	if util.IsWindowsDP() {
+		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+		addNetPol(f, netPolObj1)
+		addNetPol(f, netPolObj2)
 
-	addNetPol(f, netPolObj1)
-	addNetPol(f, netPolObj2)
+		// already exists (will be a no-op)
+		addNetPol(f, netPolObj1)
+		// named ports are not allowed on windows
+		testCases = []expectedNetPolValues{
+			{0, 0, netPolPromVals{0, 0, 0, 0}},
+		}
+	} else {
+		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(2)
+		addNetPol(f, netPolObj1)
+		addNetPol(f, netPolObj2)
 
-	// already exists (will be a no-op)
-	addNetPol(f, netPolObj1)
-
-	testCases := []expectedNetPolValues{
-		{2, 0, netPolPromVals{2, 2, 0, 0}},
+		// already exists (will be a no-op)
+		addNetPol(f, netPolObj1)
+		testCases = []expectedNetPolValues{
+			{2, 0, netPolPromVals{2, 2, 0, 0}},
+		}
 	}
+
 	checkNetPolTestResult("TestAddMultipleNetPols", f, testCases)
 }
 
@@ -331,10 +345,46 @@ func TestAddNetworkPolicy(t *testing.T) {
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
 	f.newNetPolController(stopCh, dp, false)
 
+	var testCases []expectedNetPolValues
+
+	if util.IsWindowsDP() {
+		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+		addNetPol(f, netPolObj)
+		// named ports are not allowed on windows
+		testCases = []expectedNetPolValues{
+			{0, 0, netPolPromVals{0, 0, 0, 0}},
+		}
+	} else {
+		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
+
+		addNetPol(f, netPolObj)
+		testCases = []expectedNetPolValues{
+			{1, 0, netPolPromVals{1, 1, 0, 0}},
+		}
+	}
+	checkNetPolTestResult("TestAddNetPol", f, testCases)
+}
+
+func TestAddNetworkPolicyWithNumericPort(t *testing.T) {
+	netPolObj := createNetPol()
+	netPolObj.Spec.Egress[0].Ports[0].Port = &intstr.IntOrString{IntVal: 8000}
+	f := newNetPolFixture(t)
+	f.netPolLister = append(f.netPolLister, netPolObj)
+	f.kubeobjects = append(f.kubeobjects, netPolObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f.newNetPolController(stopCh, dp, false)
+
+	var testCases []expectedNetPolValues
+
 	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
 
 	addNetPol(f, netPolObj)
-	testCases := []expectedNetPolValues{
+	testCases = []expectedNetPolValues{
 		{1, 0, netPolPromVals{1, 1, 0, 0}},
 	}
 
@@ -403,12 +453,24 @@ func TestDeleteNetworkPolicy(t *testing.T) {
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
 	f.newNetPolController(stopCh, dp, false)
 
-	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
-	dp.EXPECT().RemovePolicy(gomock.Any()).Times(1)
+	var testCases []expectedNetPolValues
 
-	deleteNetPol(t, f, netPolObj, DeletedFinalStateknownObject)
-	testCases := []expectedNetPolValues{
-		{0, 0, netPolPromVals{0, 1, 0, 1}},
+	if util.IsWindowsDP() {
+		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+		dp.EXPECT().RemovePolicy(gomock.Any()).Times(0)
+
+		deleteNetPol(t, f, netPolObj, DeletedFinalStateknownObject)
+		testCases = []expectedNetPolValues{
+			{0, 0, netPolPromVals{0, 0, 0, 0}},
+		}
+	} else {
+		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
+		dp.EXPECT().RemovePolicy(gomock.Any()).Times(1)
+
+		deleteNetPol(t, f, netPolObj, DeletedFinalStateknownObject)
+		testCases = []expectedNetPolValues{
+			{0, 0, netPolPromVals{0, 1, 0, 1}},
+		}
 	}
 	checkNetPolTestResult("TestDelNetPol", f, testCases)
 }
@@ -454,12 +516,24 @@ func TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy(t *testing.T) 
 	dp := dpmocks.NewMockGenericDataplane(ctrl)
 	f.newNetPolController(stopCh, dp, false)
 
-	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
-	dp.EXPECT().RemovePolicy(gomock.Any()).Times(1)
+	var testCases []expectedNetPolValues
 
-	deleteNetPol(t, f, netPolObj, DeletedFinalStateUnknownObject)
-	testCases := []expectedNetPolValues{
-		{0, 0, netPolPromVals{0, 1, 0, 1}},
+	if util.IsWindowsDP() {
+		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+		dp.EXPECT().RemovePolicy(gomock.Any()).Times(0)
+
+		deleteNetPol(t, f, netPolObj, DeletedFinalStateUnknownObject)
+		testCases = []expectedNetPolValues{
+			{0, 0, netPolPromVals{0, 0, 0, 0}},
+		}
+	} else {
+		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
+		dp.EXPECT().RemovePolicy(gomock.Any()).Times(1)
+
+		deleteNetPol(t, f, netPolObj, DeletedFinalStateUnknownObject)
+		testCases = []expectedNetPolValues{
+			{0, 0, netPolPromVals{0, 1, 0, 1}},
+		}
 	}
 	checkNetPolTestResult("TestDeleteNetworkPolicyWithTombstoneAfterAddingNetworkPolicy", f, testCases)
 }
@@ -484,11 +558,22 @@ func TestUpdateNetworkPolicy(t *testing.T) {
 	// oldNetPolObj.ResourceVersion value is "0"
 	newRV, _ := strconv.Atoi(oldNetPolObj.ResourceVersion)
 	newNetPolObj.ResourceVersion = fmt.Sprintf("%d", newRV+1)
-	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
+	var testCases []expectedNetPolValues
 
-	updateNetPol(t, f, oldNetPolObj, newNetPolObj)
-	testCases := []expectedNetPolValues{
-		{1, 0, netPolPromVals{1, 1, 0, 0}},
+	if util.IsWindowsDP() {
+		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+
+		updateNetPol(t, f, oldNetPolObj, newNetPolObj)
+		testCases = []expectedNetPolValues{
+			{0, 0, netPolPromVals{0, 0, 0, 0}},
+		}
+	} else {
+		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(1)
+
+		updateNetPol(t, f, oldNetPolObj, newNetPolObj)
+		testCases = []expectedNetPolValues{
+			{1, 0, netPolPromVals{1, 1, 0, 0}},
+		}
 	}
 	checkNetPolTestResult("TestUpdateNetPol", f, testCases)
 }
@@ -518,12 +603,25 @@ func TestLabelUpdateNetworkPolicy(t *testing.T) {
 	// oldNetPolObj.ResourceVersion value is "0"
 	newRV, _ := strconv.Atoi(oldNetPolObj.ResourceVersion)
 	newNetPolObj.ResourceVersion = fmt.Sprintf("%d", newRV+1)
-	dp.EXPECT().UpdatePolicy(gomock.Any()).Times(2)
 
-	updateNetPol(t, f, oldNetPolObj, newNetPolObj)
+	var testCases []expectedNetPolValues
 
-	testCases := []expectedNetPolValues{
-		{1, 0, netPolPromVals{1, 1, 1, 0}},
+	if util.IsWindowsDP() {
+		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(0)
+
+		updateNetPol(t, f, oldNetPolObj, newNetPolObj)
+
+		testCases = []expectedNetPolValues{
+			{0, 0, netPolPromVals{0, 0, 0, 0}},
+		}
+	} else {
+		dp.EXPECT().UpdatePolicy(gomock.Any()).Times(2)
+
+		updateNetPol(t, f, oldNetPolObj, newNetPolObj)
+
+		testCases = []expectedNetPolValues{
+			{1, 0, netPolPromVals{1, 1, 1, 0}},
+		}
 	}
 	checkNetPolTestResult("TestUpdateNetPol", f, testCases)
 }
