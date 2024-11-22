@@ -62,3 +62,43 @@ updates:
   commit-message:
     prefix: "deps"
   open-pull-requests-limit: 10
+- package-ecosystem: "gomod"
+  directory: "/"
+  schedule:
+    interval: "daily"
+  reviewers:
+    - "azure/azure-sdn-members"
+  commit-message:
+    prefix: "deps"
+  open-pull-requests-limit: 10
+  target-branch: "release/v1.5"
+- package-ecosystem: "gomod"
+  directory: "/azure-ipam"
+  schedule:
+    interval: "daily"
+  reviewers:
+    - "azure/azure-sdn-members"
+  commit-message:
+    prefix: "deps"
+  open-pull-requests-limit: 10
+  target-branch: "release/v1.5"
+- package-ecosystem: "gomod"
+  directory: "/"
+  schedule:
+    interval: "daily"
+  reviewers:
+    - "azure/azure-sdn-members"
+  commit-message:
+    prefix: "deps"
+  open-pull-requests-limit: 10
+  target-branch: "release/v1.4"
+- package-ecosystem: "gomod"
+  directory: "/azure-ipam"
+  schedule:
+    interval: "daily"
+  reviewers:
+    - "azure/azure-sdn-members"
+  commit-message:
+    prefix: "deps"
+  open-pull-requests-limit: 10
+  target-branch: "release/v1.4"
