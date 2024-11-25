@@ -5,7 +5,7 @@ go 1.22.7
 require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.2
-	go.uber.org/zap v1.24.0
+	go.uber.org/zap v1.27.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )
 
@@ -89,8 +89,7 @@ require (
 	github.com/Azure/azure-container-networking v1.4.54
 	github.com/containernetworking/cni v1.1.2
 	github.com/containernetworking/plugins v1.2.0
-	go.uber.org/atomic v1.9.0 // indirect
-	go.uber.org/multierr v1.8.0 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
 )
 
 replace github.com/Microsoft/hcsshim => github.com/vakalapa/hcsshim v0.9.1-0.20211203205307-837d4d06df77
