@@ -30,50 +30,11 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		routes = append(routes, virtualGWRoute, route)
 
 	case cns.InfraNIC:
-		// Get and parse infraVNETCIDRs from env
-		infraVNETCIDRs, err := configuration.InfraVNETCIDRs()
+		infraRoutes, err := k.SetInfraRoutes(podIPInfo)
 		if err != nil {
-			return errors.Wrapf(err, "failed to get infraVNETCIDRs from env")
+			return errors.Wrap(err, "failed to set routes for infraNIC interface")
 		}
-		infraVNETCIDRsv4, infraVNETCIDRsv6, err := utils.ParseCIDRs(infraVNETCIDRs)
-		if err != nil {
-			return errors.Wrapf(err, "failed to parse infraVNETCIDRs")
-		}
-
-		// Get and parse podCIDRs from env
-		podCIDRs, err := configuration.PodCIDRs()
-		if err != nil {
-			return errors.Wrapf(err, "failed to get podCIDRs from env")
-		}
-		podCIDRsV4, podCIDRv6, err := utils.ParseCIDRs(podCIDRs)
-		if err != nil {
-			return errors.Wrapf(err, "failed to parse podCIDRs")
-		}
-
-		// Get and parse serviceCIDRs from env
-		serviceCIDRs, err := configuration.ServiceCIDRs()
-		if err != nil {
-			return errors.Wrapf(err, "failed to get serviceCIDRs from env")
-		}
-		serviceCIDRsV4, serviceCIDRsV6, err := utils.ParseCIDRs(serviceCIDRs)
-		if err != nil {
-			return errors.Wrapf(err, "failed to parse serviceCIDRs")
-		}
-
-		ip, err := netip.ParseAddr(podIPInfo.PodIPConfig.IPAddress)
-		if err != nil {
-			return errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
-		}
-
-		if ip.Is4() {
-			routes = append(routes, addRoutes(podCIDRsV4, overlayGatewayv4)...)
-			routes = append(routes, addRoutes(serviceCIDRsV4, overlayGatewayv4)...)
-			routes = append(routes, addRoutes(infraVNETCIDRsv4, overlayGatewayv4)...)
-		} else {
-			routes = append(routes, addRoutes(podCIDRv6, overlayGatewayV6)...)
-			routes = append(routes, addRoutes(serviceCIDRsV6, overlayGatewayV6)...)
-			routes = append(routes, addRoutes(infraVNETCIDRsv6, overlayGatewayV6)...)
-		}
+		routes = infraRoutes
 		podIPInfo.SkipDefaultRoutes = true
 
 	case cns.NodeNetworkInterfaceBackendNIC: //nolint:exhaustive // ignore exhaustive types check
@@ -84,17 +45,6 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 
 	podIPInfo.Routes = routes
 	return nil
-}
-
-func addRoutes(cidrs []string, gatewayIP string) []cns.Route {
-	routes := make([]cns.Route, len(cidrs))
-	for i, cidr := range cidrs {
-		routes[i] = cns.Route{
-			IPAddress:        cidr,
-			GatewayIPAddress: gatewayIP,
-		}
-	}
-	return routes
 }
 
 // assignSubnetPrefixLengthFields is a no-op for linux swiftv2 as the default prefix-length is sufficient
