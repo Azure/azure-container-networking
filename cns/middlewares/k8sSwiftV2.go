@@ -249,3 +249,65 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 func (k *K8sSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
 	return cns.K8sSWIFTV2
 }
+
+func (k *K8sSWIFTv2Middleware) addRoutes(cidrs []string, gatewayIP string) []cns.Route {
+	routes := make([]cns.Route, len(cidrs))
+	for i, cidr := range cidrs {
+		routes[i] = cns.Route{
+			IPAddress:        cidr,
+			GatewayIPAddress: gatewayIP,
+		}
+	}
+	return routes
+}
+
+func (k *K8sSWIFTv2Middleware) SetInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.Route, error) {
+	var routes []cns.Route
+
+	// Get and parse infraVNETCIDRs from env
+	infraVNETCIDRs, err := configuration.InfraVNETCIDRs()
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get infraVNETCIDRs from env")
+	}
+	infraVNETCIDRsv4, infraVNETCIDRsv6, err := utils.ParseCIDRs(infraVNETCIDRs)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse infraVNETCIDRs")
+	}
+
+	// Get and parse podCIDRs from env
+	podCIDRs, err := configuration.PodCIDRs()
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get podCIDRs from env")
+	}
+	podCIDRsV4, podCIDRv6, err := utils.ParseCIDRs(podCIDRs)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse podCIDRs")
+	}
+
+	// Get and parse serviceCIDRs from env
+	serviceCIDRs, err := configuration.ServiceCIDRs()
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get serviceCIDRs from env")
+	}
+	serviceCIDRsV4, serviceCIDRsV6, err := utils.ParseCIDRs(serviceCIDRs)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse serviceCIDRs")
+	}
+
+	ip, err := netip.ParseAddr(podIPInfo.PodIPConfig.IPAddress)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
+	}
+
+	if ip.Is4() {
+		routes = append(routes, k.addRoutes(podCIDRsV4, overlayGatewayv4)...)
+		routes = append(routes, k.addRoutes(serviceCIDRsV4, overlayGatewayv4)...)
+		routes = append(routes, k.addRoutes(infraVNETCIDRsv4, overlayGatewayv4)...)
+	} else {
+		routes = append(routes, k.addRoutes(podCIDRv6, overlayGatewayV6)...)
+		routes = append(routes, k.addRoutes(serviceCIDRsV6, overlayGatewayV6)...)
+		routes = append(routes, k.addRoutes(infraVNETCIDRsv6, overlayGatewayV6)...)
+	}
+
+	return routes, nil
+}
