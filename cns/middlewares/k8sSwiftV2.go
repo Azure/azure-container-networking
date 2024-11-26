@@ -3,6 +3,7 @@ package middlewares
 import (
 	"context"
 	"fmt"
+	"net/netip"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
