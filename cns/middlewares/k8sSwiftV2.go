@@ -301,9 +301,9 @@ func (k *K8sSWIFTv2Middleware) SetInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.R
 	}
 
 	if ip.Is4() {
-		routes = append(routes, k.addRoutes(podCIDRsV4, overlayGatewayv4)...)
-		routes = append(routes, k.addRoutes(serviceCIDRsV4, overlayGatewayv4)...)
-		routes = append(routes, k.addRoutes(infraVNETCIDRsv4, overlayGatewayv4)...)
+		routes = append(routes, k.addRoutes(podCIDRsV4, "10.229.0.1")...)
+		routes = append(routes, k.addRoutes(serviceCIDRsV4, "10.0.0.1")...)
+		routes = append(routes, k.addRoutes(infraVNETCIDRsv4, "10.225.0.1")...)
 	} else {
 		routes = append(routes, k.addRoutes(podCIDRv6, overlayGatewayV6)...)
 		routes = append(routes, k.addRoutes(serviceCIDRsV6, overlayGatewayV6)...)
