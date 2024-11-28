@@ -106,24 +106,24 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 // validateIPConfigsRequest validates if pod is multitenant by checking the pod labels, used in SWIFT V2 AKS scenario.
 // nolint
 func (k *K8sSWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req *cns.IPConfigsRequest) (podInfo cns.PodInfo, respCode types.ResponseCode, message string, defaultDenyACL bool) {
+	defaultDenyACLbool := false
 	// Retrieve the pod from the cluster
 	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 	if err != nil {
 		errBuf := errors.Wrapf(err, "failed to unmarshalling pod info from ipconfigs request %+v", req)
-		return nil, types.UnexpectedError, errBuf.Error(), false
+		return nil, types.UnexpectedError, errBuf.Error(), defaultDenyACLbool
 	}
 	logger.Printf("[SWIFTv2Middleware] validate ipconfigs request for pod %s", podInfo.Name())
 	podNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
 	pod := v1.Pod{}
 	if err := k.Cli.Get(ctx, podNamespacedName, &pod); err != nil {
 		errBuf := errors.Wrapf(err, "failed to get pod %+v", podNamespacedName)
-		return nil, types.UnexpectedError, errBuf.Error(), false
+		return nil, types.UnexpectedError, errBuf.Error(), defaultDenyACLbool
 	}
 
 	// check the pod labels for Swift V2, set the request's SecondaryInterfaceSet flag to true and check if its MTPNC CRD is ready
 	_, swiftV2PodNetworkLabel := pod.Labels[configuration.LabelPodSwiftV2]
 	_, swiftV2PodNetworkInstanceLabel := pod.Labels[configuration.LabelPodNetworkInstanceSwiftV2]
-	defaultDenyACLbool := false
 
 	if swiftV2PodNetworkLabel || swiftV2PodNetworkInstanceLabel {
 
