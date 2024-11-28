@@ -45,6 +45,8 @@ type MultitenantPodNetworkConfigSpec struct {
 	PodNetwork string `json:"podNetwork"`
 	// name of the requesting cx pod
 	PodName string `json:"podName,omitempty"`
+	//DefaultDenyAcl bool indicates whether default deny policy will be present on the pods upon pod creation
+	DefaultDenyACL bool `json:"defaultDenyACL"`
 }
 
 type InterfaceInfo struct {

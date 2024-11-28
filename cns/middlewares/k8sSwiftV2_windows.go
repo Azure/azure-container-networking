@@ -1,9 +1,14 @@
 package middlewares
 
 import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/pkg/errors"
 )
 
@@ -57,4 +62,34 @@ func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP st
 		GatewayIPAddress: gwIP,
 	}
 	podIPInfo.Routes = append(podIPInfo.Routes, route)
+}
+
+func (k *K8sSWIFTv2Middleware) addDefaultDenyAcl(podIPInfo *cns.PodIpInfo) error {
+	additionalArgs := []cni.KVPair{
+		{
+			Name:  "EndpointPolicy",
+			Value: getDefaultDenyACLPolicy(hcn.DirectionTypeOut),
+		},
+		{
+			Name:  "EndpointPolicy",
+			Value: getDefaultDenyACLPolicy(hcn.DirectionTypeIn),
+		},
+	}
+	podIPInfo.DefaultDenyACL = append(podIPInfo.DefaultDenyACL, additionalArgs...) //insert acl here
+	return nil
+}
+
+func getDefaultDenyACLPolicy(direction hcn.DirectionType) []byte {
+	denyACL := map[string]interface{}{
+		"Type":      "ACL",
+		"Action":    hcn.ActionTypeBlock,
+		"Direction": direction,
+		"Priority":  "1000",
+	}
+	denyACLJSON, err := json.Marshal(denyACL)
+	if err != nil {
+		fmt.Println("Error marshaling default deny policy:", err)
+		return nil
+	}
+	return denyACLJSON
 }
