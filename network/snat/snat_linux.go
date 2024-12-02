@@ -223,7 +223,11 @@ func (client *Client) AllowInboundFromHostToNC() error {
 		return newErrorSnatClient(err.Error())
 	}
 
-	snatContainerVeth, _ := net.InterfaceByName(client.containerSnatVethName)
+	snatContainerVeth, err := net.InterfaceByName(client.containerSnatVethName)
+	if err != nil {
+		logger.Info("Could not find interface", zap.String("containerSnatVethName", client.containerSnatVethName))
+		return errors.Wrap(newErrorSnatClient(err.Error()), "could not find container snat veth name for allow host to nc")
+	}
 
 	// Add static arp entry for localIP to prevent arp going out of VM
 	logger.Info("Adding static arp entry for ip", zap.Any("containerIP", containerIP),
@@ -319,7 +323,11 @@ func (client *Client) AllowInboundFromNCToHost() error {
 		return err
 	}
 
-	snatContainerVeth, _ := net.InterfaceByName(client.containerSnatVethName)
+	snatContainerVeth, err := net.InterfaceByName(client.containerSnatVethName)
+	if err != nil {
+		logger.Info("Could not find interface", zap.String("containerSnatVethName", client.containerSnatVethName))
+		return errors.Wrap(newErrorSnatClient(err.Error()), "could not find container snat veth name for allow nc to host")
+	}
 
 	// Add static arp entry for localIP to prevent arp going out of VM
 	logger.Info("Adding static arp entry for ip", zap.Any("containerIP", containerIP), zap.String("HardwareAddr", snatContainerVeth.HardwareAddr.String()))
