@@ -10,19 +10,21 @@ import (
 
 var anyInterface = "dummy"
 
-type mockIPTablesClient struct {
+type mockIPTablesClient struct{}
+
+func (c mockIPTablesClient) InsertIptableRule(_, _, _, _, _ string) error {
+	return nil
 }
 
-func (c mockIPTablesClient) InsertIptableRule(version, tableName, chainName, match, target string) error {
+func (c mockIPTablesClient) AppendIptableRule(_, _, _, _, _ string) error {
 	return nil
 }
-func (c mockIPTablesClient) AppendIptableRule(version, tableName, chainName, match, target string) error {
+
+func (c mockIPTablesClient) DeleteIptableRule(_, _, _, _, _ string) error {
 	return nil
 }
-func (c mockIPTablesClient) DeleteIptableRule(version, tableName, chainName, match, target string) error {
-	return nil
-}
-func (c mockIPTablesClient) CreateChain(version, tableName, chainName string) error {
+
+func (c mockIPTablesClient) CreateChain(_, _, _ string) error {
 	return nil
 }
 
