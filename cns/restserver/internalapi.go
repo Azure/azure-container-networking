@@ -633,3 +633,11 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 func (service *HTTPRestService) SetVFForAccelnetNICs() error {
 	return service.setVFForAccelnetNICs()
 }
+
+// GetHomeAz - Get the Home Az for the Node where CNS is running.
+func (service *HTTPRestService) GetHomeAz() (homeAzResponse cns.GetHomeAzResponse) {
+	service.RLock()
+	homeAzResponse = service.homeAzMonitor.GetHomeAz(context.TODO())
+	service.RUnlock()
+	return
+}
