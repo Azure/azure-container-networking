@@ -56,7 +56,7 @@ type PodNetworkInstanceSpec struct {
 	// optional for now in case orchestrator uses the deprecated fields
 	// +kubebuilder:validation:Optional
 	PodNetworkConfigs []PodNetworkConfig `json:"podNetworkConfigs"`
-	//DefaultDenyAcl bool indicates whether default deny policy will be present on the pods upon pod creation
+	// DefaultDenyAcl bool indicates whether default deny policy will be present on the pods upon pod creation
 	DefaultDenyACL bool `json:"defaultDenyACL"`
 }
 
