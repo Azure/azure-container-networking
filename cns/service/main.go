@@ -1307,7 +1307,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if cnsconfig.EnableHomeAz {
 		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
 		nnc = createBaseNNC(node)
-		homeAzResponse := httpRestServiceImplementation.GetHomeAz()
+		homeAzResponse := httpRestServiceImplementation.GetHomeAz(ctx)
 		nnc.Spec.AvailabilityZone = strconv.FormatUint(uint64(homeAzResponse.HomeAzResponse.HomeAz), 10)
 	}
 
