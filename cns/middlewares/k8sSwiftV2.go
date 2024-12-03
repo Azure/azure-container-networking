@@ -82,11 +82,14 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		// Set routes for the pod
 		for i := range ipConfigsResp.PodIPInfo {
 			ipInfo := &ipConfigsResp.PodIPInfo[i]
+			if defaultDenyACLbool {
+				err := addDefaultDenyACL(ipInfo)
+				if err != nil {
+					errors.Wrapf(err, "failed to add default deny acl's for pod %s", podInfo.Name())
+				}
+			}
 			// Backend nics doesn't need routes to be set
 			if ipInfo.NICType != cns.BackendNIC {
-				if defaultDenyACLbool {
-					k.addDefaultDenyAcl(ipInfo)
-				}
 				err = k.setRoutes(ipInfo)
 				if err != nil {
 					return &cns.IPConfigsResponse{

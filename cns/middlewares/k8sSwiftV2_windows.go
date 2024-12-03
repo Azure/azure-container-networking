@@ -64,7 +64,7 @@ func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP st
 	podIPInfo.Routes = append(podIPInfo.Routes, route)
 }
 
-func (k *K8sSWIFTv2Middleware) addDefaultDenyAcl(podIPInfo *cns.PodIpInfo) error {
+func addDefaultDenyACL(podIPInfo *cns.PodIpInfo) error {
 	additionalArgs := []cni.KVPair{
 		{
 			Name:  "EndpointPolicy",
@@ -75,7 +75,7 @@ func (k *K8sSWIFTv2Middleware) addDefaultDenyAcl(podIPInfo *cns.PodIpInfo) error
 			Value: getDefaultDenyACLPolicy(hcn.DirectionTypeIn),
 		},
 	}
-	podIPInfo.DefaultDenyACL = append(podIPInfo.DefaultDenyACL, additionalArgs...) //insert acl here
+	podIPInfo.DefaultDenyACL = append(podIPInfo.DefaultDenyACL, additionalArgs...)
 	return nil
 }
 
