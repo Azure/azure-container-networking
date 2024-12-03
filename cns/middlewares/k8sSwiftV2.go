@@ -137,7 +137,7 @@ func (k *K8sSWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req
 		if !mtpnc.IsReady() {
 			return nil, types.UnexpectedError, errMTPNCNotReady.Error(), defaultDenyACLbool
 		}
-		defaultDenyACLbool = mtpnc.Spec.DefaultDenyACL
+		defaultDenyACLbool = mtpnc.Status.DefaultDenyACL
 		// If primary Ip is set in status field, it indicates the presence of secondary interfaces
 		if mtpnc.Status.PrimaryIP != "" {
 			req.SecondaryInterfacesExist = true
