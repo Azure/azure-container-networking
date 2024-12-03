@@ -104,6 +104,6 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(_ *cns.PodIpInfo, 
 
 func (k *K8sSWIFTv2Middleware) addDefaultRoute(*cns.PodIpInfo, string) {}
 
-func addDefaultDenyACL(podIPInfo *cns.PodIpInfo) error {
+func addDefaultDenyACL(_ *cns.PodIpInfo) error {
 	return nil
 }
