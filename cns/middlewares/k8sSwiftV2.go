@@ -51,10 +51,24 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			}, errors.New("failed to validate IP configs request")
 		}
 		ipConfigsResp, err := defaultHandler(ctx, req)
+
 		// If the pod is not v2, return the response from the handler
 		if !req.SecondaryInterfacesExist {
 			return ipConfigsResp, err
 		}
+
+		// ipConfigsResp has infra IP configs -> if defaultDenyACLbool is enabled, add the default deny acl's pn the infra IP configs
+		for i := range ipConfigsResp.PodIPInfo {
+			ipInfo := &ipConfigsResp.PodIPInfo[i]
+			// there will be no pod connectivity to and from those pods
+			if defaultDenyACLbool {
+				err := addDefaultDenyACL(ipInfo)
+				if err != nil {
+					errors.Wrapf(err, "failed to add default deny acl's for pod %s", podInfo.Name())
+				}
+			}
+		}
+
 		// If the pod is v2, get the infra IP configs from the handler first and then add the SWIFTv2 IP config
 		defer func() {
 			// Release the default IP config if there is an error
@@ -82,12 +96,6 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		// Set routes for the pod
 		for i := range ipConfigsResp.PodIPInfo {
 			ipInfo := &ipConfigsResp.PodIPInfo[i]
-			if defaultDenyACLbool {
-				err := addDefaultDenyACL(ipInfo)
-				if err != nil {
-					errors.Wrapf(err, "failed to add default deny acl's for pod %s", podInfo.Name())
-				}
-			}
 			// Backend nics doesn't need routes to be set
 			if ipInfo.NICType != cns.BackendNIC {
 				err = k.setRoutes(ipInfo)
@@ -141,7 +149,10 @@ func (k *K8sSWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req
 		if !mtpnc.IsReady() {
 			return nil, types.UnexpectedError, errMTPNCNotReady.Error(), defaultDenyACLbool
 		}
+
+		// setting defaultDenyACLbool from mtpnc
 		defaultDenyACLbool = mtpnc.Status.DefaultDenyACL
+
 		// If primary Ip is set in status field, it indicates the presence of secondary interfaces
 		if mtpnc.Status.PrimaryIP != "" {
 			req.SecondaryInterfacesExist = true

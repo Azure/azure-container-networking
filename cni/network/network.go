@@ -588,12 +588,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// TODO: This proably needs to be changed as we return all interfaces...
 		// sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.interfaceInfo[ifIndex], ipamAddResult.interfaceInfo))
 	}
-	var swiftv2DefaultDenyACL []cni.KVPair = []cni.KVPair{}
-	if len(ipamAddResult.defaultDenyACL) > 0 {
-		swiftv2DefaultDenyACL = append(swiftv2DefaultDenyACL, ipamAddResult.defaultDenyACL...)
-	}
 
-	nwCfg.AdditionalArgs = append(nwCfg.AdditionalArgs, swiftv2DefaultDenyACL...)
+	nwCfg.AdditionalArgs = append(nwCfg.AdditionalArgs, ipamAddResult.defaultDenyACL...)
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
 	// moved to addIpamInvoker
