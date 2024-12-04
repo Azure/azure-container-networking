@@ -65,21 +65,32 @@ func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP st
 }
 
 func addDefaultDenyACL(podIPInfo *cns.PodIpInfo) error {
+	valueOut, err := getDefaultDenyACLPolicy(hcn.DirectionTypeOut)
+	if err != nil {
+		fmt.Printf("Failed to get default deny ACL policy egress: %v\n", err)
+		return err
+	}
+
+	valueIn, err := getDefaultDenyACLPolicy(hcn.DirectionTypeOut)
+	if err != nil {
+		fmt.Printf("Failed to get default deny ACL policy ingress: %v\n", err)
+		return err
+	}
 	additionalArgs := []cni.KVPair{
 		{
 			Name:  "EndpointPolicy",
-			Value: getDefaultDenyACLPolicy(hcn.DirectionTypeOut),
+			Value: valueOut,
 		},
 		{
 			Name:  "EndpointPolicy",
-			Value: getDefaultDenyACLPolicy(hcn.DirectionTypeIn),
+			Value: valueIn,
 		},
 	}
 	podIPInfo.DefaultDenyACL = append(podIPInfo.DefaultDenyACL, additionalArgs...)
 	return nil
 }
 
-func getDefaultDenyACLPolicy(direction hcn.DirectionType) []byte {
+func getDefaultDenyACLPolicy(direction hcn.DirectionType) ([]byte, error) {
 	denyACL := map[string]interface{}{
 		"Type":      "ACL",
 		"Action":    hcn.ActionTypeBlock,
@@ -89,7 +100,7 @@ func getDefaultDenyACLPolicy(direction hcn.DirectionType) []byte {
 	denyACLJSON, err := json.Marshal(denyACL)
 	if err != nil {
 		fmt.Println("Error marshaling default deny policy:", err)
-		return nil
+		return nil, nil
 	}
-	return denyACLJSON
+	return denyACLJSON, nil
 }
