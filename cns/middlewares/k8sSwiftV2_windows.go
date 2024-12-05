@@ -95,7 +95,7 @@ func getDefaultDenyACLPolicy(direction hcn.DirectionType) ([]byte, error) {
 		"Type":      "ACL",
 		"Action":    hcn.ActionTypeBlock,
 		"Direction": direction,
-		"Priority":  "1000",
+		"Priority":  "10000",
 	}
 	denyACLJSON, err := json.Marshal(denyACL)
 	if err != nil {
