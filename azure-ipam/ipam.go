@@ -81,7 +81,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	p.logger.Debug("Making request to CNS")
 	// if this fails, the caller plugin should execute again with cmdDel before returning error.
 	// https://www.cni.dev/docs/spec/#delegated-plugin-execution-procedure
-	resp, err := p.cnsClient.RequestIPs(context.TODO(), req)
+	resp, err := p.cnsClient.RequestIPs(context.TODO(), req) // need to add interfaces to this response
 	if err != nil {
 		if cnscli.IsUnsupportedAPI(err) {
 			p.logger.Error("Failed to request IPs using RequestIPs from CNS, going to try RequestIPAddress", zap.Error(err), zap.Any("request", req))
@@ -115,12 +115,12 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	p.logger.Debug("Received CNS IP config response", zap.Any("response", resp))
 
 	// Get Pod IP and gateway IP from ip config response
-	podIPNet, err := ipconfig.ProcessIPConfigsResp(resp)
+	podIPNet, err := ipconfig.ProcessIPConfigsResp(resp) // need to get interfaces out of the response and add it here
 	if err != nil {
 		p.logger.Error("Failed to interpret CNS IPConfigResponse", zap.Error(err), zap.Any("response", resp))
 		return cniTypes.NewError(ErrProcessIPConfigResponse, err.Error(), "failed to interpret CNS IPConfigResponse")
 	}
-	cniResult := &types100.Result{}
+	cniResult := &types100.Result{} // need toi add interfaces to this response
 	cniResult.IPs = make([]*types100.IPConfig, len(*podIPNet))
 	for i, ipNet := range *podIPNet {
 		p.logger.Debug("Parsed pod IP", zap.String("podIPNet", ipNet.String()))
@@ -130,14 +130,27 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 				IP:   net.ParseIP(ipNet.Addr().String()),
 				Mask: net.CIDRMask(ipNet.Bits(), 32), // nolint
 			}
+			ipConfig.Gateway = net.ParseIP("10.241.0.1")
+			var interf int = 1
+			ipConfig.Interface = &interf
 		} else {
 			ipConfig.Address = net.IPNet{
 				IP:   net.ParseIP(ipNet.Addr().String()),
 				Mask: net.CIDRMask(ipNet.Bits(), 128), // nolint
 			}
+			var interf int = 1
+			ipConfig.Interface = &interf
 		}
 		cniResult.IPs[i] = ipConfig
 	}
+	cniResult.Interfaces = make([]*types100.Interface, 1)
+	interface_test := &types100.Interface{
+		Name: "eth1",
+		Mac:  "00:0D:3A:F7:79:84",
+	}
+	cniResult.Interfaces[0] = interface_test
+
+	p.logger.Info("Created CNIResult:", zap.Any("result", cniResult))
 
 	// Get versioned result
 	versionedCniResult, err := cniResult.GetAsVersion(nwCfg.CNIVersion)
