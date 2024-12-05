@@ -668,9 +668,9 @@ func main() {
 	}
 
 	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
-	// homeAz monitor is only required when there is a direct channel between DNC and CNS.
-	// This will prevent the monitor from unnecessarily calling NMA APIs for other scenarios such as AKS-swift, swiftv2
-	if cnsconfig.ChannelMode == cns.Direct {
+	// homeAz monitor is required when there is a direct channel between DNC and CNS OR when homeAz feature is enabled in CNS for AKS-Swift
+	// This will prevent the monitor from unnecessarily calling NMA APIs for other scenarios such as AKS-swift, swiftv2 when disabled.
+	if cnsconfig.ChannelMode == cns.Direct || cnsconfig.EnableHomeAz {
 		homeAzMonitor.Start()
 		defer homeAzMonitor.Stop()
 	}
@@ -1303,6 +1303,18 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// TODO(rbtr): nodename and namespace should be in the cns config
 	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
+	nnc := v1alpha.NodeNetworkConfig{}
+	if cnsconfig.EnableHomeAz {
+		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
+		nnc = createBaseNNC(node)
+		homeAzResponse := httpRestServiceImplementation.GetHomeAz(ctx)
+		nnc.Spec.AvailabilityZone = strconv.FormatUint(uint64(homeAzResponse.HomeAzResponse.HomeAz), 10)
+	}
+
+	if err = directcli.Create(ctx, &nnc); err != nil {
+		return errors.Wrap(err, "failed to create base NNC")
+	}
+
 	logger.Printf("Reconciling initial CNS state")
 	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
 	// aks addons to come up so retry a bit more aggresively here.
@@ -1511,6 +1523,17 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}()
 	logger.Printf("Initialized SyncHostNCVersion loop.")
 	return nil
+}
+
+func createBaseNNC(node *corev1.Node) v1alpha.NodeNetworkConfig {
+	return v1alpha.NodeNetworkConfig{ObjectMeta: metav1.ObjectMeta{
+		Annotations: make(map[string]string),
+		Labels: map[string]string{
+			"managed": "true",
+			"owner":   node.Name,
+		},
+		Name: node.Name,
+	}}
 }
 
 // getPodInfoByIPProvider returns a PodInfoByIPProvider that reads endpoint state from the configured source
