@@ -151,7 +151,11 @@ type apipaClient interface {
 	CreateHostNCApipaEndpoint(ctx context.Context, networkContainerID string) (string, error)
 }
 
-func FormatStructPointers[T any](slice []*T) string {
+// FormatSliceOfPointersToString takes in a slice of pointers, and for each pointer, dereferences the pointer if not nil
+// and then formats it to its string representation, returning a string where each line is a separate item in the slice.
+// This is used for convenience to get a string representation of the actual structs and their fields
+// in slices of pointers since the default string representation of a slice of pointers is a list of memory addresses.
+func FormatSliceOfPointersToString[T any](slice []*T) string {
 	var builder strings.Builder
 	for _, ptr := range slice {
 		if ptr != nil {
@@ -175,7 +179,7 @@ func (ifInfo *InterfaceInfo) PrettyString() string {
 		ncresponse = fmt.Sprintf("%+v", *ifInfo.NCResponse)
 	}
 	return fmt.Sprintf("Name:%s NICType:%v MacAddr:%s IPConfigs:%s Routes:%+v DNSInfo:%+v NCResponse: %s",
-		ifInfo.Name, ifInfo.NICType, ifInfo.MacAddress.String(), FormatStructPointers(ifInfo.IPConfigs), ifInfo.Routes, ifInfo.DNS, ncresponse)
+		ifInfo.Name, ifInfo.NICType, ifInfo.MacAddress.String(), FormatSliceOfPointersToString(ifInfo.IPConfigs), ifInfo.Routes, ifInfo.DNS, ncresponse)
 }
 
 // NewEndpoint creates a new endpoint in the network.
