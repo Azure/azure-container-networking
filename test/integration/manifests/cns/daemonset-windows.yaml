@@ -52,8 +52,6 @@ spec:
           command: ["powershell.exe"]
           args:
             [
-              '.\setkubeconfigpath.ps1',
-              ";",
               '.\azure-cns.exe',
               "-c",
               "tcp://$(CNSIpAddress):$(CNSPort)",
@@ -65,8 +63,6 @@ spec:
               "$(CNSStoreFilePath)",
               "-config-path",
               "%CONTAINER_SANDBOX_MOUNT_POINT%\\$(CNS_CONFIGURATION_PATH)",
-              "--kubeconfig",
-              '.\kubeconfig',
             ]
           volumeMounts:
             - name: log

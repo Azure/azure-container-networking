@@ -36,8 +36,6 @@ EXPOSE 10090
 FROM --platform=windows/${ARCH} {{.WIN_HPC_PIN}} as hpc
 
 FROM hpc as windows
-COPY --from=builder /azure-container-networking/cns/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
-COPY --from=builder /azure-container-networking/npm/examples/windows/setkubeconfigpath.ps1 setkubeconfigpath.ps1
 COPY --from=builder /go/bin/azure-cns /azure-cns.exe
 ENTRYPOINT ["azure-cns.exe"]
 EXPOSE 10090
