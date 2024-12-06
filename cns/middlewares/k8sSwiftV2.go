@@ -239,7 +239,8 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 				}
 				podIPInfos = append(podIPInfos, podIPInfo)
 				// for windows scenario, it is required to add default route with gatewayIP from CNS
-				k.addDefaultRoute(&podIPInfo, "10.242.0.2")
+				k.addDefaultRoute(&podIPInfo)
+				logger.Printf("default route windows are %v", podIPInfo.Routes)
 			}
 		}
 	}
