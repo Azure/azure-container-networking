@@ -49,4 +49,4 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(_ *cns.PodIpInfo, 
 	return nil
 }
 
-func (k *K8sSWIFTv2Middleware) addDefaultRoute(*cns.PodIpInfo, string) {}
+func (k *K8sSWIFTv2Middleware) addDefaultRoute(*cns.PodIpInfo) {}
