@@ -6,44 +6,41 @@ parameters:
   scaleup: ""
 
 steps:
-  - bash: |
-      go version
-      go env
-      mkdir -p '$(GOBIN)'
-      mkdir -p '$(GOPATH)/pkg'
-      mkdir -p '$(modulePath)'
-      echo '##vso[task.prependpath]$(GOBIN)'
-      echo '##vso[task.prependpath]$(GOROOT)/bin'
-    name: "GoEnv"
-    displayName: "Set up the Go environment"
-
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
 
   - task: AzureCLI@2
+    displayName: "Set Kubeconfig"
+    env:
+      AZCLI: az
+      CLUSTER: ${{ parameters.clusterName }}
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-    name: "kubeconfig"
-    displayName: "Set Kubeconfig"
+        make -C ./hack/aks set-kubeconf
 
   - ${{ if eq(parameters.os, 'linux') }}:
     - script: |
         kubectl cluster-info
         kubectl get node
         kubectl get po -owide -A
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=dualstack VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) CLEANUP=true
-      workingDirectory: $(ACN_DIR)
+        sudo -E env "PATH=$PATH" make test-load =true  CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version)
       retryCountOnTaskFailure: 3
-      name: "integrationTest"
       displayName: "Run CNS Integration Tests on AKS DualStack Overlay"
+      env:
+        SCALE_UP: 32
+        OS_TYPE: linux
+        CNI_TYPE: dualstack
+        VALIDATE_STATEFILE: true
+        INSTALL_CNS: true
+        INSTALL_DUALSTACK_OVERLAY: true
+        VALIDATE_DUALSTACK: true
+        CLEANUP: true
 
     - script: |
         set -e
@@ -53,48 +50,54 @@ steps:
         go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
         echo "Dualstack Overlay Linux datapath IPv4 test"
         go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
-      workingDirectory: $(ACN_DIR)
       retryCountOnTaskFailure: 3
-      name: "DualStack_Overlay_Linux_Tests"
       displayName: "DualStack Overlay Linux Tests"
 
     - task: AzureCLI@2
+      displayName: "Restart Nodes"
+      env:
+        AZCLI: az
+        CLUSTER: ${{ parameters.clusterName }}
+        RESOURCE_GROUP: "MC_${{ parameters.clusterName }}_${{ parameters.clusterName }}_$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)"
+        REGION: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
         scriptType: "bash"
-        workingDirectory: $(ACN_DIR)
         addSpnToEnvironment: true
         inlineScript: |
           set -e
-          clusterName=${{ parameters.clusterName }}
           echo "Restarting nodes"
-          for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) --query "[].name" -o tsv); do
-            make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) VMSS_NAME=${val}
+          for val in $(az vmss list -g "$RESOURCE_GROUP" --query "[].name" -o tsv); do
+            make -C ./hack/aks restart-vmss VMSS_NAME=${val}
           done
-      displayName: "Restart Nodes"
 
     - task: AzureCLI@2
+      displayName: "Validate Node Restart"
+      retryCountOnTaskFailure: 3
+      env:
+        ITERATIONS: 2
+        SCALE_UP: ${{ parameters.scaleup }}
+        OS_TYPE: linux
+        RESTART_CASE: true
+        CNI_TYPE: dualstack
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
         scriptType: "bash"
-        workingDirectory: $(ACN_DIR)
         addSpnToEnvironment: true
         inlineScript: |
           set -e
-          cd test/integration/load
 
-          # Scale Cluster Up/Down to confirm functioning CNS
-          ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-          kubectl get pods -owide -A
+          pushd test/integration/load
+            # Scale Cluster Up/Down to confirm functioning CNS
+            go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+            kubectl get pods -owide -A
+          popd
 
-          cd ../../..
           echo "Validating Node Restart"
-          make test-validate-state OS_TYPE=linux RESTART_CASE=true CNI_TYPE=dualstack
+          make test-validate-state
           kubectl delete ns load-test
-      displayName: "Validate Node Restart"
-      retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.os, 'windows') }}:
     - script: |
@@ -105,55 +108,70 @@ steps:
                 kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
             fi
         done
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) CLEANUP=true
-      workingDirectory: $(ACN_DIR)
-      name: "WindowsDualStackOverlayControlPlaneScaleTests"
+        sudo -E env "PATH=$PATH" make test-load CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version)
       displayName: "Windows DualStack Overlay ControlPlane Scale Tests"
       retryCountOnTaskFailure: 3
+      env:
+        SCALE_UP: 32
+        OS_TYPE: windows
+        # TODO: Check if this is correct. This is the original CNI_TYPE, but the previous test uses "dualstack"
+        CNI_TYPE: cniv2
+        VALIDATE_STATEFILE: true
+        INSTALL_CNS: true
+        INSTALL_DUALSTACK_OVERLAY: true
+        VALIDATE_DUALSTACK: true
+        CLEANUP: true
 
     - script: |
         echo "DualStack Overlay DataPath Test"
         cd test/integration/datapath
         sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
-      workingDirectory: $(ACN_DIR)
-      name: "WindowsDualStackOverlayDatapathTests"
       displayName: "Windows DualStack Overlay Datapath Tests"
       retryCountOnTaskFailure: 3
 
     - task: AzureCLI@2
+      displayName: "Restart Nodes"
+      env:
+        AZCLI: az
+        CLUSTER: ${{ parameters.clusterName }}
+        RESOURCE_GROUP: "MC_${{ parameters.clusterName }}_${{ parameters.clusterName }}_$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)"
+        REGION: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
         scriptType: "bash"
-        workingDirectory: $(ACN_DIR)
         addSpnToEnvironment: true
         inlineScript: |
           set -e
           clusterName=${{ parameters.clusterName }}
           echo "Restarting nodes"
-          for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) --query "[].name" -o tsv); do
-            make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) VMSS_NAME=${val}
+          for val in $(az vmss list -g "$RESOURCE_GROUP" --query "[].name" -o tsv); do
+            make -C ./hack/aks restart-vmss VMSS_NAME=${val}
           done
-      displayName: "Restart Nodes"
 
     - task: AzureCLI@2
+      displayName: "Validate Node Restart"
+      retryCountOnTaskFailure: 3
+      env:
+        ITERATIONS: 2
+        SCALE_UP: ${{ parameters.scaleup }}
+        OS_TYPE: windows
+        RESTART_CASE: true
+        CNI_TYPE: cniv2
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
         scriptType: "bash"
-        workingDirectory: $(ACN_DIR)
         addSpnToEnvironment: true
         inlineScript: |
           set -e
-          cd test/integration/load
 
-          # Scale Cluster Up/Down to confirm functioning CNS
-          ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=windows go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-          kubectl get pods -owide -A
+          pushd test/integration/load
+            # Scale Cluster Up/Down to confirm functioning CNS
+             OS_TYPE=windows go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+            kubectl get pods -owide -A
+          popd
 
-          cd ../../..
           echo "Validating Node Restart"
-          make test-validate-state OS_TYPE=windows RESTART_CASE=true CNI_TYPE=cniv2
+          make test-validate-state
           kubectl delete ns load-test
-      displayName: "Validate Node Restart"
-      retryCountOnTaskFailure: 3

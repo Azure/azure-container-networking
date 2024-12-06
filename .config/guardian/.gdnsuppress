@@ -1,0 +1,24 @@
+{
+  "version": "latest",
+  "suppressionSets": {
+    "default": {
+      "name": "default",
+      "createdDate": "2024-11-21 01:58:07Z",
+      "lastUpdatedDate": "2024-11-21 01:58:07Z"
+    }
+  },
+  "results": {
+    "9a675be4784d448ece481deb7f6f1429fd6606a08b9598f33f23c2123c581520": {
+      "signature": "9a675be4784d448ece481deb7f6f1429fd6606a08b9598f33f23c2123c581520",
+      "alternativeSignatures": [],
+      "target": "keyvault/testdata/dummy.pem",
+      "line": 1,
+      "memberOf": [
+        "default"
+      ],
+      "tool": "credscan",
+      "ruleId": "CSCAN-GENERAL0020",
+      "createdDate": "2024-11-21 01:58:07Z"
+    }
+  }
+}

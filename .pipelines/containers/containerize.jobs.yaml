@@ -1,0 +1,67 @@
+parameters:
+
+- name: images
+  type: object
+  default: []
+
+- name: targetOs
+  type: string
+  default: linux
+  values:
+  - linux
+  - windows
+
+- name: targetArch
+  type: string
+  default: amd64
+  values:
+  - amd64
+  - arm64
+
+
+jobs:
+- ${{ each imageName in parameters.images }}:
+  - job: ${{ replace(format('{0}_{1}_{2}', imageName, parameters.targetOs, parameters.targetArch), '-', '_') }}
+    displayName: Build Image - (${{ imageName }} ${{ parameters.targetOs }}/${{ parameters.targetArch }})
+    # This can be removed after we verify that an increase in agent pool improves the run time.
+    timeoutInMinutes: 120
+
+    variables:
+      buildPlatform: ${{ parameters.buildOs }}/${{ parameters.buildArch }}
+      targetPlatform: ${{ parameters.targetOs }}/${{ parameters.targetArch }}
+
+#    ${{ if eq(parameters.targetOs, 'windows') }}:
+#      pool:
+#        name: $(BUILD_POOL_NAME_DEFAULT_WINDOWS)
+#        os: windows
+#        image: acn-runner-vmss-image-windows-1es-v2.0
+
+    steps:
+    - checkout: self
+
+    - task: GoTool@0
+      inputs:
+        version: $(GO_VERSION)
+
+    # Requires creation of the following variables:
+    # - IMAGE_NAME_AND_TAG_${image}_${OS}_${ARCH}}
+    # - DOCKERFILE_PATH_${image}_${OS}_${ARCH}}
+    # - BUILD_CONTEXT_${image}_${OS}_${ARCH}}
+    # - IMAGE_PLATFORM_TAG_${image}_${OS}_${ARCH}}
+    # - EXTRA_BUILD_ARGS_$${image}_${OS}_${ARCH}}
+    - template: /.pipelines/containers/build-variables-template.steps.yaml
+      parameters:
+        targetOs: ${{ parameters.targetOs }}
+        targetArch: ${{ parameters.targetArch }}
+        image: ${{ imageName }}
+
+    - template: ./containerize.steps.yaml
+      parameters:
+        imageNameAndTag: $(IMAGE_NAME_AND_TAG_${{ imageName }}_${{ parameters.targetOs }}_${{ parameters.targetArch }})
+        dockerfilePath: $(DOCKERFILE_PATH_${{ imageName }}_${{ parameters.targetOs }}_${{ parameters.targetArch }})
+        buildContextPath: $(BUILD_CONTEXT_${{ imageName }}_${{ parameters.targetOs }}_${{ parameters.targetArch }})
+        targetVersion: $(IMAGE_PLATFORM_TAG_${{ imageName }}_${{ parameters.targetOs }}_${{ parameters.targetArch }})
+        addBuildArgs: $(EXTRA_BUILD_ARGS_${{ imageName }}_${{ parameters.targetOs }}_${{ parameters.targetArch }})
+        targetPlatform: $(targetPlatform)
+        targetArch: ${{ parameters.targetArch }}
+        targetOs: ${{ parameters.targetOs }}

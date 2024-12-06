@@ -15,8 +15,7 @@ steps:
 
   - script: |
       set -e
-      make ${{ parameters.name }}-manifest-build PLATFORMS="${{ parameters.platforms }}"
-    workingDirectory: $(ACN_DIR)
+      make ${{ parameters.name }}-manifest-build PLATFORMS="${{ parameters.platforms }}" 
     name: manifest_build
     displayName: Manifest Build
     retryCountOnTaskFailure: 3
@@ -35,19 +34,9 @@ steps:
       make ${{ parameters.name }}-skopeo-archive IMAGE_ARCHIVE_DIR=$(Build.ArtifactStagingDirectory)/images
     name: manifest_push
     displayName: Manifest Push
-    workingDirectory: $(ACN_DIR)
     retryCountOnTaskFailure: 3
 
-  - task: AzureCLI@2
-    displayName: "Logout"
+  - task: 1ES.PublishPipelineArtifact@1
     inputs:
-      azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      inlineScript: |
-        docker logout
-
-  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-    displayName: "Add SBOM Generator tool"
-    inputs:
-      BuildDropPath: "$(Build.ArtifactStagingDirectory)"
+      artifactName: "output"
+      targetPath: "$(Build.ArtifactStagingDirectory)"

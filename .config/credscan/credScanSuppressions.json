@@ -1,0 +1,9 @@
+{
+  "tool": "Credential Scanner",
+  "suppressions": [
+    {
+      "file": "keyvault/testdata/dummy.pem",
+      "_justification": "Fake credentials for testing"
+    }
+  ]
+}

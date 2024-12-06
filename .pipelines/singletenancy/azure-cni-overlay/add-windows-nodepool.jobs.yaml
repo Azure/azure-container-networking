@@ -9,12 +9,20 @@ jobs:
   dependsOn: ${{ parameters.depend }}
   pool:
     name: $(BUILD_POOL_NAME_DEFAULT)
+    os: linux
+    image: acn-runner-vmss-image-1es-v3.0
     demands:
-    - agent.os -equals Linux
     - Role -equals $(CUSTOM_E2E_ROLE)
   timeoutInMinutes: 30
   steps:
     - task: AzureCLI@2
+      displayName: "Add windows node to cluster"
+      retryCountOnTaskFailure: 5
+      env:
+        AZCLI: az
+        CLUSTER: ${{ parameters.clusterName }}
+        SUB: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+        VM_SIZE_WIN: ${{ parameters.vmSize }}
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
@@ -22,10 +30,10 @@ jobs:
         addSpnToEnvironment: true
         inlineScript: |
           set -e
-
+          
           windows_nodepool=$(az aks nodepool list \
-          --resource-group ${{ parameters.clusterName }} \
-          --cluster-name ${{ parameters.clusterName }} \
+          --resource-group "$CLUSTER" \
+          --cluster-name "$CLUSTER" \
           --query "[?osType=='Windows']" \
           --output tsv)
 
@@ -35,10 +43,10 @@ jobs:
             # wait for cluster to update
             while true; do
               cluster_state=$(az aks show \
-              --name "${{ parameters.clusterName }}" \
-              --resource-group "${{ parameters.clusterName }}" \
+              --resource-group "$CLUSTER" \
+              --name "$CLUSTER" \
               --query provisioningState)
-
+              
               if echo "$cluster_state" | grep -q "Updating"; then
                 echo "Cluster is updating. Sleeping for 30 seconds..."
                 sleep 30
@@ -49,8 +57,8 @@ jobs:
             # cluster state is always set and visible outside the loop
             echo "Cluster state is: $cluster_state"
 
-            make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-            make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }} VM_SIZE_WIN=${{ parameters.vmSize }}
+            make -C ./hack/aks set-kubeconf
+            make -C ./hack/aks windows-nodepool-up
             echo "Windows node was successfully added"
             kubectl cluster-info
             kubectl get node -owide
@@ -58,6 +66,4 @@ jobs:
           else
             echo "Windows node pool already exists in the AKS cluster."
           fi
-      name: "Add_Windows_Node"
-      displayName: "Add windows node to cluster"
-      retryCountOnTaskFailure: 5
+
