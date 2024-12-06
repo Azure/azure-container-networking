@@ -38,7 +38,19 @@ type NCVersionList struct {
 }
 
 type AzResponse struct {
-	HomeAz uint `json:"homeAz"`
+	HomeAz     uint `json:"homeAz"`
+	APIVersion uint `json:"apiVersion"`
+}
+
+func (az AzResponse) Valid() bool {
+	// 0 should be valid when NMA version is old and does not have the apiVersion value in home az response
+	//nolint:gomnd // these magic numbers are made by nma design
+	return az.APIVersion == 0 || az.APIVersion == 2
+}
+
+func (az AzResponse) NmaAppliedTheIPV6Fix() bool {
+	//nolint:gomnd // this magic number is made by nma design
+	return az.APIVersion >= 2
 }
 
 type NodeIP struct {

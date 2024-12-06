@@ -756,6 +756,18 @@ func TestGetHomeAz(t *testing.T) {
 			map[string]interface{}{
 				"httpStatusCode": "200",
 				"HomeAz":         1,
+				"APIVersion":     0,
+			},
+			false,
+		},
+		{
+			"happy path with new version",
+			nmagent.AzResponse{HomeAz: uint(1), APIVersion: uint(2)},
+			"/machine/plugins?comp=nmagent&type=GetHomeAz%2Fapi-version%2F1",
+			map[string]interface{}{
+				"httpStatusCode": "200",
+				"HomeAz":         1,
+				"APIVersion":     2,
 			},
 			false,
 		},
