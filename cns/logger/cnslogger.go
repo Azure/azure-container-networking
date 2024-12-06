@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -140,11 +141,19 @@ func (c *CNSLogger) Request(tag string, request any, err error) {
 		return
 	}
 
+	//an alternative is to make al request types support stringer/fmt.formatter but thats easy to mess up.
+	var requestString string
+	if bytes, err := json.Marshal(request); err != nil {
+		requestString = string(bytes)
+	} else {
+		requestString = fmt.Sprintf("Failed to json marshal %s, %+v", err, request)
+	}
+
 	var msg string
 	if err == nil {
-		msg = fmt.Sprintf("[%s] Received %T %+v.", tag, request, request)
+		msg = fmt.Sprintf("[%s] Received %T %s.", tag, request, requestString)
 	} else {
-		msg = fmt.Sprintf("[%s] Failed to decode %T %+v %s.", tag, request, request, err.Error())
+		msg = fmt.Sprintf("[%s] Failed to decode %T %s %s.", tag, request, requestString, err.Error())
 	}
 
 	c.sendTraceInternal(msg)
@@ -157,14 +166,21 @@ func (c *CNSLogger) Response(tag string, response any, returnCode types.Response
 		return
 	}
 
+	var responseString string
+	if bytes, err := json.Marshal(response); err != nil {
+		responseString = string(bytes)
+	} else {
+		responseString = fmt.Sprintf("Failed to json marshal %s, %+v", err, responseString)
+	}
+
 	var msg string
 	switch {
 	case err == nil && returnCode == 0:
-		msg = fmt.Sprintf("[%s] Sent %T %+v.", tag, response, response)
+		msg = fmt.Sprintf("[%s] Sent %T %s.", tag, response, responseString)
 	case err != nil:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v %s.", tag, returnCode.String(), response, err.Error())
+		msg = fmt.Sprintf("[%s] Code:%s, %s %s.", tag, returnCode.String(), responseString, err.Error())
 	default:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v.", tag, returnCode.String(), response)
+		msg = fmt.Sprintf("[%s] Code:%s, %s.", tag, returnCode.String(), responseString)
 	}
 
 	c.sendTraceInternal(msg)
@@ -177,14 +193,28 @@ func (c *CNSLogger) ResponseEx(tag string, request, response any, returnCode typ
 		return
 	}
 
+	var requestString string
+	if bytes, err := json.Marshal(request); err != nil {
+		requestString = string(bytes)
+	} else {
+		requestString = fmt.Sprintf("Failed to json marshal %s, %+v", err, request)
+	}
+
+	var responseString string
+	if bytes, err := json.Marshal(response); err != nil {
+		responseString = string(bytes)
+	} else {
+		responseString = fmt.Sprintf("Failed to json marshal %s, %+v", err, responseString)
+	}
+
 	var msg string
 	switch {
 	case err == nil && returnCode == 0:
-		msg = fmt.Sprintf("[%s] Sent %T %+v %T %+v.", tag, request, request, response, response)
+		msg = fmt.Sprintf("[%s] Sent %T %s %T %s.", tag, request, requestString, response, responseString)
 	case err != nil:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v, %s.", tag, returnCode.String(), request, response, err.Error())
+		msg = fmt.Sprintf("[%s] Code:%s, %s, %s, %s.", tag, returnCode.String(), requestString, responseString, err.Error())
 	default:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v.", tag, returnCode.String(), request, response)
+		msg = fmt.Sprintf("[%s] Code:%s, %s, %s.", tag, returnCode.String(), requestString, responseString)
 	}
 
 	c.sendTraceInternal(msg)
