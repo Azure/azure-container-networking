@@ -35,10 +35,9 @@ spec:
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
-          command: ["powershell.exe"]
+          command: "azure-cns.exe"
           args: 
-            [ 
-              'powershell.exe', '.\azure-cns.exe',
+            [
               '-c', "tcp://$(CNSIpAddress):$(CNSPort)",
               '-t', "$(CNSLogTarget)",
               '-o', "$(CNSLogDir)",

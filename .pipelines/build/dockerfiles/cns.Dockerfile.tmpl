@@ -6,8 +6,6 @@ ARG ARCH
 FROM --platform=windows/${ARCH} {{.WIN_HPC_PIN}} AS windows
 ARG ARTIFACT_DIR .
 
-COPY ${ARTIFACT_DIR}/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
-COPY ${ARTIFACT_DIR}/scripts/setkubeconfigpath.ps1 setkubeconfigpath.ps1
 COPY ${ARTIFACT_DIR}/bin/azure-cns.exe /azure-cns.exe
 ENTRYPOINT ["azure-cns.exe"]
 EXPOSE 10090

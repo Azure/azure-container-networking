@@ -49,10 +49,9 @@ spec:
           securityContext:
             privileged: true
           workingDir: $env:CONTAINER_SANDBOX_MOUNT_POINT
-          command: ["powershell.exe"]
+          command: ["azure-cns.exe"]
           args:
             [
-              '.\azure-cns.exe',
               "-c",
               "tcp://$(CNSIpAddress):$(CNSPort)",
               "-t",
@@ -107,7 +106,7 @@ spec:
           image: acnpublic.azurecr.io/cni-dropgz:latest
           imagePullPolicy: Always
           command:
-            - powershell.exe; $env:CONTAINER_SANDBOX_MOUNT_POINT/dropgz
+            - $env:CONTAINER_SANDBOX_MOUNT_POINT/dropgz
           args:
             - deploy
             - azure-vnet
