@@ -294,7 +294,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 			// Set the Gateway route
 			Routes: []hcn.Route{
 				{
-					NextHop:           subnet.Gateway.String(),
+					NextHop:           "10.242.0.2",
 					DestinationPrefix: defaultRouteCIDR,
 				},
 			},
