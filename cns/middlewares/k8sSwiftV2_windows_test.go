@@ -100,3 +100,5 @@ func TestAddDefaultRoute(t *testing.T) {
 		t.Errorf("got '%+v', expected '%+v'", ipInfo.Routes, expectedRoutes)
 	}
 }
+
+//Add a test here that checks for equality between the default deny policies (in json) created by the function vs an what we expect the default deny json to look like
