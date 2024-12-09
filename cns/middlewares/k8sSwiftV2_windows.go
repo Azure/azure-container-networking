@@ -59,10 +59,10 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(podIPInfo *cns.Pod
 }
 
 // add default route with gateway IP to podIPInfo
-func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo) {
-	route := cns.Route{
-		IPAddress:        "0.0.0.0/0",
-		GatewayIPAddress: "10.242.0.2",
-	}
-	podIPInfo.Routes = append(podIPInfo.Routes, route)
-}
+// func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo) {
+// 	route := cns.Route{
+// 		IPAddress:        "0.0.0.0/0",
+// 		GatewayIPAddress: "10.242.0.2",
+// 	}
+// 	podIPInfo.Routes = append(podIPInfo.Routes, route)
+// }
