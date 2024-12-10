@@ -62,7 +62,7 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			ipInfo := &ipConfigsResp.PodIPInfo[i]
 			// there will be no pod connectivity to and from those pods
 			if defaultDenyACLbool {
-				err := addDefaultDenyACL(ipInfo)
+				err = addDefaultDenyACL(ipInfo)
 				if err != nil {
 					errors.Wrapf(err, "failed to add default deny acl's for pod %s", podInfo.Name())
 				}
