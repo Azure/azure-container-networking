@@ -91,6 +91,7 @@ func addDefaultDenyACL(podIPInfo *cns.PodIpInfo) error {
 }
 
 func getDefaultDenyACLPolicy(direction hcn.DirectionType) ([]byte, error) {
+	const DefaultDenyPriority = 10000
 	type DefaultDenyACL struct {
 		Type      string            `json:"Type"`
 		Action    hcn.ActionType    `json:"Action"`
@@ -101,12 +102,12 @@ func getDefaultDenyACLPolicy(direction hcn.DirectionType) ([]byte, error) {
 		Type:      "ACL",
 		Action:    hcn.ActionTypeBlock,
 		Direction: direction,
-		Priority:  10000,
+		Priority:  DefaultDenyPriority,
 	}
 	denyACLJSON, err := json.Marshal(denyACL)
 	if err != nil {
 		fmt.Println("Error marshaling default deny policy:", err)
-		return nil, nil
+		return nil, err
 	}
 	return denyACLJSON, nil
 }

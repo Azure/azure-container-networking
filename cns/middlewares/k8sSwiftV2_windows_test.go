@@ -139,7 +139,8 @@ func TestAddDefaultDenyACL(t *testing.T) {
 		MacAddress: "12:34:56:78:9a:bc",
 	}
 
-	addDefaultDenyACL(&podIPInfo)
+	err := addDefaultDenyACL(&podIPInfo)
+	assert.Equal(t, err, nil)
 
 	// Normalize both slices so there is no extra spacing, new lines, etc
 	normalizedExpected := normalizeKVPairs(t, expectedDefaultDenyACL)
