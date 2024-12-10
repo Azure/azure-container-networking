@@ -64,7 +64,7 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			if defaultDenyACLbool {
 				err = addDefaultDenyACL(ipInfo)
 				if err != nil {
-					logger.Errorf("failed to add default deny acl's for pod %s", podInfo.Name(), err)
+					logger.Errorf("failed to add default deny acl's for pod %v", podInfo.Name(), err)
 				}
 			}
 		}
