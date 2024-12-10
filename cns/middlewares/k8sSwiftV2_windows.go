@@ -71,7 +71,7 @@ func addDefaultDenyACL(podIPInfo *cns.PodIpInfo) error {
 		return err
 	}
 
-	valueIn, err := getDefaultDenyACLPolicy(hcn.DirectionTypeOut)
+	valueIn, err := getDefaultDenyACLPolicy(hcn.DirectionTypeIn)
 	if err != nil {
 		fmt.Printf("Failed to get default deny ACL policy ingress: %v\n", err)
 		return err
@@ -91,11 +91,17 @@ func addDefaultDenyACL(podIPInfo *cns.PodIpInfo) error {
 }
 
 func getDefaultDenyACLPolicy(direction hcn.DirectionType) ([]byte, error) {
-	denyACL := map[string]interface{}{
-		"Type":      "ACL",
-		"Action":    hcn.ActionTypeBlock,
-		"Direction": direction,
-		"Priority":  "10000",
+	type DefaultDenyACL struct {
+		Type      string            `json:"Type"`
+		Action    hcn.ActionType    `json:"Action"`
+		Direction hcn.DirectionType `json:"Direction"`
+		Priority  int               `json:"Priority"`
+	}
+	denyACL := DefaultDenyACL{
+		Type:      "ACL",
+		Action:    hcn.ActionTypeBlock,
+		Direction: direction,
+		Priority:  10000,
 	}
 	denyACLJSON, err := json.Marshal(denyACL)
 	if err != nil {
