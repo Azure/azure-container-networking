@@ -846,7 +846,8 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 	podIPInfo.HostPrimaryIPInfo.Subnet = primaryHostInterface.Subnet
 	podIPInfo.HostPrimaryIPInfo.Gateway = primaryHostInterface.Gateway
 	podIPInfo.NICType = cns.InfraNIC
-
+	podIPInfo.InterfaceName = service.wscli.GetInterfaces()
+	fmt.Printf("podIPInfo after adding interface: %+v", podIPInfo)
 	return nil
 }
 

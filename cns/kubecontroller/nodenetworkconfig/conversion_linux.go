@@ -1,6 +1,7 @@
 package nodenetworkconfig
 
 import (
+	"fmt"
 	"net/netip"
 	"strconv"
 
@@ -15,6 +16,7 @@ import (
 //nolint:gocritic //ignore hugeparam
 func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
+	ipFamilies := map[cns.IPFamily]struct{}{}
 
 	// iterate through all IP addresses in the subnet described by primaryPrefix and
 	// add them to the request as secondary IPConfigs.
@@ -23,12 +25,20 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 			IPAddress: addr.String(),
 			NCVersion: int(nc.Version),
 		}
+
+	}
+	// adds the IPFamily of the primary CIDR to the set
+	if primaryIPPrefix.Addr().Is4() {
+		ipFamilies[cns.IPv4Family] = struct{}{}
+	} else {
+		ipFamilies[cns.IPv6Family] = struct{}{}
 	}
 
 	// Add IPs from CIDR block to the secondary IPConfigs
 	if nc.Type == v1alpha.VNETBlock {
 
 		for _, ipAssignment := range nc.IPAssignments {
+			// Here we would need to check all other assigned CIDR Blocks that aren't the primary.
 			cidrPrefix, err := netip.ParsePrefix(ipAssignment.IP)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid CIDR block: %s", ipAssignment.IP)
@@ -42,8 +52,16 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 					NCVersion: int(nc.Version),
 				}
 			}
+			// adds the IPFamily of the secondary CIDR to the set
+			if cidrPrefix.Addr().Is4() {
+				ipFamilies[cns.IPv4Family] = struct{}{}
+			} else {
+				ipFamilies[cns.IPv6Family] = struct{}{}
+			}
 		}
 	}
+
+	fmt.Printf("IPFamilies found on NC %+v are %+v", nc.ID, ipFamilies)
 
 	return &cns.CreateNetworkContainerRequest{
 		HostPrimaryIP:        nc.NodeIP,
@@ -55,6 +73,7 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 			IPSubnet:         subnet,
 			GatewayIPAddress: nc.DefaultGateway,
 		},
-		NCStatus: nc.Status,
+		NCStatus:   nc.Status,
+		IPFamilies: ipFamilies,
 	}, nil
 }
