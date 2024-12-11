@@ -250,11 +250,6 @@ func (nm *networkManager) AddExternalInterface(ifName string, subnet string) err
 		return err
 	}
 
-	err = nm.save()
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -264,11 +259,6 @@ func (nm *networkManager) CreateNetwork(nwInfo *NetworkInfo) error {
 	defer nm.Unlock()
 
 	_, err := nm.newNetwork(nwInfo)
-	if err != nil {
-		return err
-	}
-
-	err = nm.save()
 	if err != nil {
 		return err
 	}
