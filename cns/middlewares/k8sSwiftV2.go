@@ -252,8 +252,8 @@ func (k *K8sSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
 	return cns.K8sSWIFTV2
 }
 
-// always pick up .1 as the default gateway for each IP address
-func (k *K8sSWIFTv2Middleware) getWindowsGateway(cidr string) (string, error) {
+// always pick up .1 as the default ipv4 gateway for each IP address
+func (k *K8sSWIFTv2Middleware) getWindowsIPv4Gateway(cidr string) (string, error) {
 	ip, _, err := net.ParseCIDR(cidr)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to parse cidr")
@@ -270,7 +270,7 @@ func (k *K8sSWIFTv2Middleware) addRoutes(cidrs []string, gatewayIP string) []cns
 	routes := make([]cns.Route, len(cidrs))
 	for i, cidr := range cidrs {
 		if gatewayIP == "" {
-			gatewayIP, _ = k.getWindowsGateway(cidr)
+			gatewayIP, _ = k.getWindowsIPv4Gateway(cidr)
 		}
 		routes[i] = cns.Route{
 			IPAddress:        cidr,
