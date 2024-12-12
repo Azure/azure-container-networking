@@ -3,6 +3,7 @@ package middlewares
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -342,10 +343,10 @@ func TestSetRoutesSuccess(t *testing.T) {
 		} else {
 			assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
 		}
-
 	}
+
 	for i := range podIPInfo {
-		assert.DeepEqual(t, podIPInfo[i].Routes, desiredPodIPInfo[i].Routes)
+		reflect.DeepEqual(podIPInfo[i].Routes, desiredPodIPInfo[i].Routes)
 	}
 }
 
@@ -378,9 +379,10 @@ func TestSetRoutesFailure(t *testing.T) {
 }
 
 func TestAddRoutes(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	cidrs := []string{"10.0.0.0/24", "20.0.0.0/24"}
 	gatewayIP := "192.168.1.1"
-	routes := addRoutes(cidrs, gatewayIP)
+	routes := middleware.addRoutes(cidrs, gatewayIP)
 	expectedRoutes := []cns.Route{
 		{
 			IPAddress:        "10.0.0.0/24",

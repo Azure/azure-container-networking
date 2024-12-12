@@ -249,3 +249,49 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 func (k *K8sSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
 	return cns.K8sSWIFTV2
 }
+
+// CNS gets node, pod and service CIDRs from configuration env and parse them to get the v4 and v6 IPs
+func (k *K8sSWIFTv2Middleware) GetCidrs() (v4IPs, v6IPs []string, err error) {
+	v4IPs = []string{}
+	v6IPs = []string{}
+
+	// Get and parse infraVNETCIDRs from env
+	infraVNETCIDRs, err := configuration.InfraVNETCIDRs()
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to get infraVNETCIDRs from env")
+	}
+	infraVNETCIDRsv4, infraVNETCIDRsv6, err := utils.ParseCIDRs(infraVNETCIDRs)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to parse infraVNETCIDRs")
+	}
+
+	// Get and parse podCIDRs from env
+	podCIDRs, err := configuration.PodCIDRs()
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to get podCIDRs from env")
+	}
+	podCIDRsV4, podCIDRv6, err := utils.ParseCIDRs(podCIDRs)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to parse podCIDRs")
+	}
+
+	// Get and parse serviceCIDRs from env
+	serviceCIDRs, err := configuration.ServiceCIDRs()
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to get serviceCIDRs from env")
+	}
+	serviceCIDRsV4, serviceCIDRsV6, err := utils.ParseCIDRs(serviceCIDRs)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to parse serviceCIDRs")
+	}
+
+	v4IPs = append(v4IPs, infraVNETCIDRsv4...)
+	v4IPs = append(v4IPs, podCIDRsV4...)
+	v4IPs = append(v4IPs, serviceCIDRsV4...)
+
+	v6IPs = append(v6IPs, infraVNETCIDRsv6...)
+	v6IPs = append(v6IPs, podCIDRv6...)
+	v6IPs = append(v6IPs, serviceCIDRsV6...)
+
+	return v4IPs, v6IPs, nil
+}
