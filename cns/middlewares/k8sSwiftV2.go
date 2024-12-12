@@ -335,7 +335,7 @@ func (k *K8sSWIFTv2Middleware) SetInfraRoutes(podIPInfo *cns.PodIpInfo, gwv4, gw
 		return nil, errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
 	}
 
-	v4IPs, v6IPs, err := k.getCidrs(podIPInfo)
+	v4IPs, v6IPs, err := k.getCidrs()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get CIDRs")
 	}
