@@ -3,7 +3,7 @@ steps:
       echo "install cilium CLI"
       if [[ ${CILIUM_VERSION_TAG_V1_4#v} =~ ^1.1[1-3].[0-9]{1,2}|1.1[1-3].[0-9]{1,2}-[0-9]{1,6} ]]; then
         echo "Cilium Agent Version ${BASH_REMATCH[0]}"
-        CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable-v0.14.txt)
+        CILIUM_CLI_VERSION=v0.14.8
       elif [[ ${CILIUM_VERSION_TAG_V1_4#v} =~ ^1.1[1-4].[0-9]{1,2}|1.1[1-4].[0-9]{1,2}-[0-9]{1,6} ]]; then
         echo "Cilium Agent Version ${BASH_REMATCH[0]}"
         CILIUM_CLI_VERSION=v0.15.22
