@@ -27,7 +27,8 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		routes = append(routes, virtualGWRoute, route)
 
 	case cns.InfraNIC:
-		infraRoutes, err := k.SetInfraRoutes(podIPInfo)
+		// Linux uses 169.254.1.1 as the default ipv4 gateway and fe80::1234:5678:9abc as the default ipv6 gateway
+		infraRoutes, err := k.SetInfraRoutes(podIPInfo, overlayGatewayv4, overlayGatewayV6)
 		if err != nil {
 			return errors.Wrap(err, "failed to set routes for infraNIC interface")
 		}
@@ -49,4 +50,4 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(_ *cns.PodIpInfo, 
 	return nil
 }
 
-func (k *K8sSWIFTv2Middleware) addDefaultRoute(*cns.PodIpInfo) {}
+func (k *K8sSWIFTv2Middleware) addDefaultRoute(*cns.PodIpInfo, string) {}

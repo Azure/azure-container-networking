@@ -1,7 +1,6 @@
 package middlewares
 
 import (
-	"fmt"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
@@ -21,13 +20,13 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		}
 		podIPInfo.Routes = append(podIPInfo.Routes, route)
 
-		// add routes for infraNIC
-		routes, err := k.SetInfraRoutes(podIPInfo)
-		fmt.Printf("routes are %v", routes)
+		// set routes(pod/node/service cidrs) for infraNIC interface
+		// Swiftv2 Windows does not support IPv6
+		infraRoutes, err := k.SetInfraRoutes(podIPInfo, "", "")
 		if err != nil {
 			return errors.Wrap(err, "failed to set routes for infraNIC interface")
 		}
-		podIPInfo.Routes = routes
+		podIPInfo.Routes = append(podIPInfo.Routes, infraRoutes...)
 		podIPInfo.SkipDefaultRoutes = true
 	}
 	return nil
@@ -58,11 +57,11 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(podIPInfo *cns.Pod
 	return nil
 }
 
-// add default route with gateway IP to podIPInfo
-func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo) {
+// add default route with gateway IP to podIPInfo for delegated interface
+func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gatewayIP string) {
 	route := cns.Route{
 		IPAddress:        "0.0.0.0/0",
-		GatewayIPAddress: "10.242.0.2",
+		GatewayIPAddress: gatewayIP,
 	}
 	podIPInfo.Routes = append(podIPInfo.Routes, route)
 }

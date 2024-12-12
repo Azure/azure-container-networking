@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"net"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
@@ -238,9 +239,8 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 					return nil, errors.Wrap(err, "failed to parse mtpnc subnetAddressSpace prefix")
 				}
 				podIPInfos = append(podIPInfos, podIPInfo)
-				// // for windows scenario, it is required to add default route with gatewayIP from CNS
-				// k.addDefaultRoute(&podIPInfo)
-				// logger.Printf("default route windows are %v", podIPInfo.Routes)
+				// for windows scenario, it is required to add default route with gatewayIP from CNS
+				k.addDefaultRoute(&podIPInfo, interfaceInfo.GatewayIP)
 			}
 		}
 	}
@@ -252,70 +252,100 @@ func (k *K8sSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
 	return cns.K8sSWIFTV2
 }
 
+// always pick up .1 as the default gateway for each IP address
+func (k *K8sSWIFTv2Middleware) getWindowsGateway(cidr string) (string, error) {
+	ip, _, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to parse cidr")
+	}
+	ip = ip.To4()
+	ip[3] = 1
+
+	return ip.String(), nil
+}
+
+// Linux always use fixed gateway IP for infraVNETCIDRs, podCIDRs and serviceCIDRs
+// Windows uses .1 as the gateway IP for each CIDR
 func (k *K8sSWIFTv2Middleware) addRoutes(cidrs []string, gatewayIP string) []cns.Route {
 	routes := make([]cns.Route, len(cidrs))
 	for i, cidr := range cidrs {
+		if gatewayIP == "" {
+			gatewayIP, _ = k.getWindowsGateway(cidr)
+		}
 		routes[i] = cns.Route{
 			IPAddress:        cidr,
 			GatewayIPAddress: gatewayIP,
 		}
 	}
+
 	return routes
 }
 
-func (k *K8sSWIFTv2Middleware) SetInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.Route, error) {
-	var routes []cns.Route
+// CNS gets node, pod and service CIDRs from configuration env and parse them to get the v4 and v6 IPs
+func (k *K8sSWIFTv2Middleware) getCidrs(podIPInfo *cns.PodIpInfo) (v4IPs, v6IPs []string, err error) {
+	v4IPs = []string{}
+	v6IPs = []string{}
 
 	// Get and parse infraVNETCIDRs from env
 	infraVNETCIDRs, err := configuration.InfraVNETCIDRs()
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get infraVNETCIDRs from env")
+		return nil, nil, errors.Wrapf(err, "failed to get infraVNETCIDRs from env")
 	}
 	infraVNETCIDRsv4, infraVNETCIDRsv6, err := utils.ParseCIDRs(infraVNETCIDRs)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse infraVNETCIDRs")
+		return nil, nil, errors.Wrapf(err, "failed to parse infraVNETCIDRs")
 	}
 
 	// Get and parse podCIDRs from env
 	podCIDRs, err := configuration.PodCIDRs()
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get podCIDRs from env")
+		return nil, nil, errors.Wrapf(err, "failed to get podCIDRs from env")
 	}
 	podCIDRsV4, podCIDRv6, err := utils.ParseCIDRs(podCIDRs)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse podCIDRs")
+		return nil, nil, errors.Wrapf(err, "failed to parse podCIDRs")
 	}
 
 	// Get and parse serviceCIDRs from env
 	serviceCIDRs, err := configuration.ServiceCIDRs()
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get serviceCIDRs from env")
+		return nil, nil, errors.Wrapf(err, "failed to get serviceCIDRs from env")
 	}
 	serviceCIDRsV4, serviceCIDRsV6, err := utils.ParseCIDRs(serviceCIDRs)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse serviceCIDRs")
+		return nil, nil, errors.Wrapf(err, "failed to parse serviceCIDRs")
 	}
+
+	v4IPs = append(v4IPs, infraVNETCIDRsv4...)
+	v4IPs = append(v4IPs, podCIDRsV4...)
+	v4IPs = append(v4IPs, serviceCIDRsV4...)
+
+	v6IPs = append(v6IPs, infraVNETCIDRsv6...)
+	v6IPs = append(v6IPs, podCIDRv6...)
+	v6IPs = append(v6IPs, serviceCIDRsV6...)
+
+	return v4IPs, v6IPs, nil
+}
+
+func (k *K8sSWIFTv2Middleware) SetInfraRoutes(podIPInfo *cns.PodIpInfo, gwv4, gwv6 string) ([]cns.Route, error) {
+	var routes []cns.Route
 
 	ip, err := netip.ParseAddr(podIPInfo.PodIPConfig.IPAddress)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
 	}
 
-	if ip.Is4() {
-		routes = append(routes, k.addRoutes(podCIDRsV4, "10.229.0.1")...)
-		routes = append(routes, k.addRoutes(serviceCIDRsV4, "10.0.0.1")...)
-		routes = append(routes, k.addRoutes(infraVNETCIDRsv4, "10.225.0.1")...)
-	} else {
-		routes = append(routes, k.addRoutes(podCIDRv6, overlayGatewayV6)...)
-		routes = append(routes, k.addRoutes(serviceCIDRsV6, overlayGatewayV6)...)
-		routes = append(routes, k.addRoutes(infraVNETCIDRsv6, overlayGatewayV6)...)
+	v4IPs, v6IPs, err := k.getCidrs(podIPInfo)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get CIDRs")
 	}
 
-	defaultRoute := cns.Route{
-		IPAddress:        "0.0.0.0/0",
-		GatewayIPAddress: "0.0.0.0",
+	if ip.Is4() {
+		routes = append(routes, k.addRoutes(v4IPs, gwv4)...)
+	} else {
+		routes = append(routes, k.addRoutes(v6IPs, gwv6)...)
 	}
-	routes = append(routes, defaultRoute)
 
 	return routes, nil
 }
+
