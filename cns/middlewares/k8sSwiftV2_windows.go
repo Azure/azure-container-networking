@@ -1,6 +1,9 @@
 package middlewares
 
 import (
+	"net"
+	"net/netip"
+
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
@@ -22,7 +25,7 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 
 		// set routes(pod/node/service cidrs) for infraNIC interface
 		// Swiftv2 Windows does not support IPv6
-		infraRoutes, err := k.SetInfraRoutes(podIPInfo, "", "")
+		infraRoutes, err := k.setInfraRoutes(podIPInfo)
 		if err != nil {
 			return errors.Wrap(err, "failed to set routes for infraNIC interface")
 		}
@@ -64,4 +67,51 @@ func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gateway
 		GatewayIPAddress: gatewayIP,
 	}
 	podIPInfo.Routes = append(podIPInfo.Routes, route)
+}
+
+// always pick up .1 as the default ipv4 gateway for each IP address
+func (k *K8sSWIFTv2Middleware) getIPv4Gateway(cidr string) (string, error) {
+	ip, _, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to parse cidr")
+	}
+	ip = ip.To4()
+	ip[3] = 1
+
+	return ip.String(), nil
+}
+
+// Windows uses .1 as the gateway IP for each CIDR
+func (k *K8sSWIFTv2Middleware) addRoutes(cidrs []string) []cns.Route {
+	routes := make([]cns.Route, len(cidrs))
+	for i, cidr := range cidrs {
+		gatewayIP, _ := k.getIPv4Gateway(cidr)
+		routes[i] = cns.Route{
+			IPAddress:        cidr,
+			GatewayIPAddress: gatewayIP,
+		}
+	}
+	return routes
+}
+
+func (k *K8sSWIFTv2Middleware) setInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.Route, error) {
+	var routes []cns.Route
+
+	ip, err := netip.ParseAddr(podIPInfo.PodIPConfig.IPAddress)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
+	}
+
+	v4IPs, v6IPs, err := k.GetCidrs()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get CIDRs")
+	}
+
+	if ip.Is4() {
+		routes = append(routes, k.addRoutes(v4IPs)...)
+	} else {
+		routes = append(routes, k.addRoutes(v6IPs)...)
+	}
+
+	return routes, nil
 }

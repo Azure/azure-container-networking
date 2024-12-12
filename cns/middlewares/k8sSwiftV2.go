@@ -3,8 +3,6 @@ package middlewares
 import (
 	"context"
 	"fmt"
-	"net"
-	"net/netip"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
@@ -252,37 +250,8 @@ func (k *K8sSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
 	return cns.K8sSWIFTV2
 }
 
-// always pick up .1 as the default ipv4 gateway for each IP address
-func (k *K8sSWIFTv2Middleware) getWindowsIPv4Gateway(cidr string) (string, error) {
-	ip, _, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to parse cidr")
-	}
-	ip = ip.To4()
-	ip[3] = 1
-
-	return ip.String(), nil
-}
-
-// Linux always use fixed gateway IP for infraVNETCIDRs, podCIDRs and serviceCIDRs
-// Windows uses .1 as the gateway IP for each CIDR
-func (k *K8sSWIFTv2Middleware) addRoutes(cidrs []string, gatewayIP string) []cns.Route {
-	routes := make([]cns.Route, len(cidrs))
-	for i, cidr := range cidrs {
-		if gatewayIP == "" {
-			gatewayIP, _ = k.getWindowsIPv4Gateway(cidr)
-		}
-		routes[i] = cns.Route{
-			IPAddress:        cidr,
-			GatewayIPAddress: gatewayIP,
-		}
-	}
-
-	return routes
-}
-
 // CNS gets node, pod and service CIDRs from configuration env and parse them to get the v4 and v6 IPs
-func (k *K8sSWIFTv2Middleware) getCidrs() (v4IPs, v6IPs []string, err error) {
+func (k *K8sSWIFTv2Middleware) GetCidrs() (v4IPs, v6IPs []string, err error) {
 	v4IPs = []string{}
 	v6IPs = []string{}
 
@@ -325,26 +294,4 @@ func (k *K8sSWIFTv2Middleware) getCidrs() (v4IPs, v6IPs []string, err error) {
 	v6IPs = append(v6IPs, serviceCIDRsV6...)
 
 	return v4IPs, v6IPs, nil
-}
-
-func (k *K8sSWIFTv2Middleware) SetInfraRoutes(podIPInfo *cns.PodIpInfo, gwv4, gwv6 string) ([]cns.Route, error) {
-	var routes []cns.Route
-
-	ip, err := netip.ParseAddr(podIPInfo.PodIPConfig.IPAddress)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
-	}
-
-	v4IPs, v6IPs, err := k.getCidrs()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get CIDRs")
-	}
-
-	if ip.Is4() {
-		routes = append(routes, k.addRoutes(v4IPs, gwv4)...)
-	} else {
-		routes = append(routes, k.addRoutes(v6IPs, gwv6)...)
-	}
-
-	return routes, nil
 }
