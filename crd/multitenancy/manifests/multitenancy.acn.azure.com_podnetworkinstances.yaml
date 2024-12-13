@@ -57,6 +57,10 @@ spec:
                 default: 0
                 description: Deprecated - use PodNetworks
                 type: integer
+              defaultDenyACL:
+                default: false
+                description: indicates whether default deny policy will be present on the pods upon pod creation
+                type: bool
               podNetworkConfigs:
                 description: |-
                   PodNetworkConfigs describes each PodNetwork to attach to a single Pod
