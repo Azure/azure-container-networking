@@ -75,7 +75,7 @@ spec:
               gatewayIP:
                 description: Deprecated - use InterfaceInfos
                 type: string
-              DefaultDenyACL:
+              defaultDenyACL:
                 description: indicates whether default deny policy will be present on the pods upon pod creation
                 type: boolean
               interfaceInfos:
