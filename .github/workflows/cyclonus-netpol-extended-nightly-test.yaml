@@ -29,7 +29,7 @@ jobs:
           go-version: "^1.23"
 
       - name: Setup Kind
-        uses: engineerd/setup-kind@v0.5.0
+        uses: engineerd/setup-kind@v0.6.2
         with:
           version: "v0.11.1"
           config: ./test/kind/kind.yaml

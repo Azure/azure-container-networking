@@ -2,7 +2,6 @@ package middlewares
 
 import (
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/pkg/errors"
@@ -12,7 +11,15 @@ import (
 // default route is set for secondary interface NIC(i.e,delegatedNIC)
 func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	if podIPInfo.NICType == cns.InfraNIC {
-		logger.Printf("[SWIFTv2Middleware] skip setting default route on InfraNIC interface")
+		// as a workaround, HNS will not set this dummy default route(0.0.0.0/0, nexthop:0.0.0.0) on infraVnet interface eth0
+		// the only usage for this dummy default is to bypass HNS setting default route on eth0
+		// TODO: Remove this once HNS fix is ready
+		route := cns.Route{
+			IPAddress:        "0.0.0.0/0",
+			GatewayIPAddress: "0.0.0.0",
+		}
+		podIPInfo.Routes = append(podIPInfo.Routes, route)
+
 		podIPInfo.SkipDefaultRoutes = true
 	}
 	return nil
@@ -41,4 +48,13 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(podIPInfo *cns.Pod
 		GatewayIPAddress: interfaceInfo.GatewayIP,
 	}
 	return nil
+}
+
+// add default route with gateway IP to podIPInfo
+func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP string) {
+	route := cns.Route{
+		IPAddress:        "0.0.0.0/0",
+		GatewayIPAddress: gwIP,
+	}
+	podIPInfo.Routes = append(podIPInfo.Routes, route)
 }

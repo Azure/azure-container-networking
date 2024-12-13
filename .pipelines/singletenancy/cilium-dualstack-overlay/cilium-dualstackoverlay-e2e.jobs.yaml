@@ -43,6 +43,7 @@ stages:
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Dualstack Overlay Test Suite - (${{ parameters.name }})
+        timeoutInMinutes: 120
         pool:
           isCustom: true
           type: linux

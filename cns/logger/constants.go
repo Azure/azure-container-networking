@@ -3,17 +3,20 @@ package logger
 
 const (
 	// Metrics
-	HeartBeatMetricStr = "HeartBeat"
+	HeartBeatMetricStr       = "HeartBeat"
+	ConfigSnapshotMetricsStr = "ConfigSnapshot"
 
 	// Dimensions
-	OrchestratorTypeStr = "OrchestratorType"
-	NodeIDStr           = "NodeID"
-	HomeAZStr           = "HomeAZ"
-	IsAZRSupportedStr   = "IsAZRSupported"
-	HomeAZErrorCodeStr  = "HomeAZErrorCode"
-	HomeAZErrorMsgStr   = "HomeAZErrorMsg"
+	OrchestratorTypeStr             = "OrchestratorType"
+	NodeIDStr                       = "NodeID"
+	HomeAZStr                       = "HomeAZ"
+	IsAZRSupportedStr               = "IsAZRSupported"
+	HomeAZErrorCodeStr              = "HomeAZErrorCode"
+	HomeAZErrorMsgStr               = "HomeAZErrorMsg"
+	CNSConfigPropertyStr            = "CNSConfiguration"
+	CNSConfigMD5CheckSumPropertyStr = "CNSConfigurationMD5Checksum"
 
-	// CNS Snspshot properties
+	// CNS NC Snspshot properties
 	CnsNCSnapshotEventStr         = "CNSNCSnapshot"
 	IpConfigurationStr            = "IPConfiguration"
 	LocalIPConfigurationStr       = "LocalIPConfiguration"

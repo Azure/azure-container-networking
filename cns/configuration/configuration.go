@@ -54,6 +54,7 @@ type CNSConfig struct {
 	WatchPods                   bool `json:"-"`
 	WireserverIP                string
 	GRPCSettings                GRPCSettings
+	MinTLSVersion               string
 }
 
 type TelemetrySettings struct {
@@ -79,6 +80,8 @@ type TelemetrySettings struct {
 	DebugMode bool
 	// Interval for sending snapshot events.
 	SnapshotIntervalInMins int
+	// Interval for sending config snapshot events.
+	ConfigSnapshotIntervalInMins int
 	// AppInsightsInstrumentationKey allows the user to override the default appinsights ikey
 	AppInsightsInstrumentationKey string
 }
@@ -228,6 +231,10 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	}
 	if config.GRPCSettings.Port == 0 {
 		config.GRPCSettings.Port = 8080
+	}
+
+	if config.MinTLSVersion == "" {
+		config.MinTLSVersion = "TLS 1.2"
 	}
 	config.GRPCSettings.Enable = false
 	config.WatchPods = config.EnableIPAMv2 || config.EnableSwiftV2

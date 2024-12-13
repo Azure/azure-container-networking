@@ -101,3 +101,5 @@ func addRoutes(cidrs []string, gatewayIP string) []cns.Route {
 func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(_ *cns.PodIpInfo, _ v1alpha1.InterfaceInfo, _ string) error {
 	return nil
 }
+
+func (k *K8sSWIFTv2Middleware) addDefaultRoute(*cns.PodIpInfo, string) {}

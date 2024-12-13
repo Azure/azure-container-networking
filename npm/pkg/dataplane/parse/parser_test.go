@@ -30,7 +30,7 @@ func TestParseIptablesObjectFileV2(t *testing.T) {
 
 func TestParseIptablesObject(t *testing.T) {
 	calls := []testutils.TestCmd{
-		{Cmd: []string{"iptables-save", "-t", "filter"}},
+		{Cmd: []string{"iptables-nft-save", "-t", "filter"}},
 	}
 
 	parser := IPTablesParser{

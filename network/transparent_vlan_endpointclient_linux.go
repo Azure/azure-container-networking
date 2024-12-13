@@ -635,7 +635,7 @@ func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error
 		return client.DeleteEndpointsImpl(ep, getNumRoutesLeft)
 	})
 	if err != nil {
-		return err
+		logger.Warn("could not delete transparent vlan endpoints", zap.String("errorMsg", err.Error()))
 	}
 
 	// VM NS

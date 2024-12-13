@@ -64,6 +64,7 @@ steps:
         scriptType: "bash"
         addSpnToEnvironment: true
         inlineScript: |
+          set -e
           cd test/integration/load
 
           # Scale Cluster Up/Down to confirm functioning CNS
@@ -129,6 +130,7 @@ steps:
         scriptType: "bash"
         addSpnToEnvironment: true
         inlineScript: |
+          set -e
           cd test/integration/load
 
           # Scale Cluster Up/Down to confirm functioning CNS

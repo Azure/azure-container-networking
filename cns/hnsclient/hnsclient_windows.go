@@ -30,7 +30,6 @@ const (
 
 	// HNS network types
 	hnsL2Bridge = "l2bridge"
-	hnsL2Tunnel = "l2tunnel"
 
 	// hcnSchemaVersionMajor indicates major version number for hcn schema
 	hcnSchemaVersionMajor = 2
@@ -145,7 +144,7 @@ func CreateDefaultExtNetwork(networkType string) error {
 		return nil
 	}
 
-	if networkType != hnsL2Bridge && networkType != hnsL2Tunnel {
+	if networkType != hnsL2Bridge {
 		return fmt.Errorf("Invalid hns network type %s", networkType)
 	}
 

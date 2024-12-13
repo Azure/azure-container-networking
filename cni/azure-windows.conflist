@@ -5,8 +5,6 @@
     "plugins": [
         {
             "type": "azure-vnet",
-            "mode": "bridge",
-            "bridge": "azure0",
             "capabilities": {
                 "portMappings": true,
                 "dns": true

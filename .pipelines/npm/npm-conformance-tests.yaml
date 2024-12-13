@@ -74,18 +74,16 @@ stages:
             arch: amd64
             name: npm
             os: linux
-          npm_windows2022_amd64:
+          npm_windows_amd64:
             arch: amd64
             name: npm
             os: windows
-            os_version: ltsc2022
       steps:
         - template: ../containers/container-template.yaml
           parameters:
             arch: $(arch)
             name: $(name)
             os: $(os)
-            os_version: $(os_version)
 
   - stage: Create_Cluster_and_Run_Test
     displayName: NPM Conformance
@@ -204,7 +202,7 @@ stages:
 
                 az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
                 ./kubectl --kubeconfig=./kubeconfig apply -f $(Pipeline.Workspace)/s/npm/examples/windows/azure-npm.yaml
-                ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
+                ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
 
               else
                 echo "Creating Linux Cluster";
@@ -515,7 +513,7 @@ stages:
   #             ./kubectl --kubeconfig=./kubeconfig apply -f $(Pipeline.Workspace)/s/npm/examples/windows/azure-npm.yaml
 
   #             # swap azure-npm image with one built during run
-  #             ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
+  #             ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
 
   #             echo "sleeping and waiting for NPM pods to be ready..."
   #             sleep 1m

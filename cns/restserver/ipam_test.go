@@ -2154,3 +2154,128 @@ func createAndSaveMockNCRequest(t *testing.T, svc *HTTPRestService, ncID string,
 	require.Equal(t, types.Success, returnCode)
 	require.Empty(t, returnMessage)
 }
+
+// Validate Statefile in Stateless CNI scenarios
+func TestStatelessCNIStateFile(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	svc.EndpointStateStore = store.NewMockStore("")
+	// test Case 1 - AKS SIngleTenancy
+	endpointInfo1ContainerID := "0a4917617e15d24dc495e407d8eb5c88e4406e58fa209e4eb75a2c2fb7045eea"
+	endpointInfo1 := &EndpointInfo{IfnameToIPMap: make(map[string]*IPInfo)}
+	endpointInfo1.IfnameToIPMap["eth0"] = &IPInfo{IPv4: []net.IPNet{{IP: net.IPv4(10, 0, 0, 1), Mask: net.IPv4Mask(255, 255, 255, 0)}}}
+	req1 := make(map[string]*IPInfo)
+	req1["eth0"] = &IPInfo{IPv4: []net.IPNet{{IP: net.IPv4(10, 0, 0, 1), Mask: net.IPv4Mask(255, 255, 255, 0)}}, HnsEndpointID: "5c15cccc-830a-4dff-81f3-4b1e55cb7dcb", NICType: cns.InfraNIC}
+	testPod1Info = cns.NewPodInfo(endpointInfo1ContainerID, endpointInfo1ContainerID, "pod1", "default")
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	// test Case 2 - ACI
+	endpointInfo2ContainerID := "1b4917617e15d24dc495e407d8eb5c88e4406e58fa209e4eb75a2c2fb7045eea"
+	endpointInfo2 := &EndpointInfo{IfnameToIPMap: make(map[string]*IPInfo)}
+	endpointInfo2.IfnameToIPMap["eth2"] = &IPInfo{
+		IPv4:          nil,
+		NICType:       cns.DelegatedVMNIC,
+		HnsEndpointID: "5c15cccc-830a-4dff-81f3-4b1e55cb7dcb",
+		HnsNetworkID:  "5c0712cd-824c-4898-b1c0-2fcb16ede4fb",
+		MacAddress:    "7c:1e:52:06:d3:4b",
+	}
+	// test cases
+	tests := []struct {
+		name       string
+		endpointID string
+		req        map[string]*IPInfo
+		store      store.KeyValueStore
+		want       *EndpointInfo
+		wantErr    bool
+	}{
+		{
+			name:       "single-tenancy: update endpoint without error",
+			endpointID: endpointInfo1ContainerID,
+			req:        req1,
+			store:      svc.EndpointStateStore,
+			want: &EndpointInfo{
+				PodName: "pod1", PodNamespace: "default", IfnameToIPMap: map[string]*IPInfo{
+					"eth0": {
+						IPv4:          []net.IPNet{{IP: net.IPv4(10, 0, 0, 1), Mask: net.IPv4Mask(255, 255, 255, 0)}},
+						HnsEndpointID: "5c15cccc-830a-4dff-81f3-4b1e55cb7dcb",
+						NICType:       cns.InfraNIC,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name:       "ACI: update and create absent endpoint without error",
+			endpointID: endpointInfo2ContainerID,
+			req:        endpointInfo2.IfnameToIPMap,
+			store:      svc.EndpointStateStore,
+			want:       endpointInfo2,
+			wantErr:    false,
+		},
+	}
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+	}
+
+	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
+	for i := range ncStates {
+		state := NewPodState(ncStates[i].ips[0], ipIDs[i][0], ncStates[i].ncID, types.Available, 0)
+		ipconfigs[state.ID] = state
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
+		if err != nil {
+			t.Fatalf("Expected to not fail update service with config: %+v", err)
+		}
+	}
+	t.Log(ipconfigs)
+	b, _ := testPod1Info.OrchestratorContext()
+	req.OrchestratorContext = b
+	req.Ifname = "eth0"
+	podIPInfo, err := requestIPConfigsHelper(svc, req)
+	if err != nil {
+		t.Fatalf("Expected to not fail getting pod ip info: %+v", err)
+	}
+
+	ipInfo := &IPInfo{}
+	for i := range podIPInfo {
+		ip, ipnet, errIP := net.ParseCIDR(podIPInfo[i].PodIPConfig.IPAddress + "/" + strconv.FormatUint(uint64(podIPInfo[i].PodIPConfig.PrefixLength), 10))
+		if errIP != nil {
+			t.Fatalf("failed to parse pod ip address: %+v", errIP)
+		}
+		ipconfig := net.IPNet{IP: ip, Mask: ipnet.Mask}
+		if ip.To4() == nil { // is an ipv6 address
+			ipInfo.IPv6 = append(ipInfo.IPv6, ipconfig)
+		} else {
+			ipInfo.IPv4 = append(ipInfo.IPv4, ipconfig)
+		}
+	}
+
+	// add goalState
+	err = svc.updateEndpointState(req, testPod1Info, podIPInfo)
+	if err != nil {
+		t.Fatalf("Expected to not fail updating endpoint state: %+v", err)
+	}
+	// update State
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := svc.UpdateEndpointHelper(tt.endpointID, tt.req)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			got, err := svc.GetEndpointHelper(tt.endpointID)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

@@ -1,7 +1,6 @@
 package dataplane
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -74,9 +73,6 @@ func TestNetPolInBackgroundUpdatePolicy(t *testing.T) {
 	calls := append(getBootupTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
 	calls = append(calls, getRemovePolicyTestCallsForDP(&testPolicyobj)...)
 	calls = append(calls, getAddPolicyTestCallsForDP(&updatedTestPolicyobj)...)
-	for _, call := range calls {
-		fmt.Println(call)
-	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, nil)
@@ -133,31 +129,31 @@ func TestNetPolInBackgroundFailureToAddFirstTime(t *testing.T) {
 		},
 		// restore will try twice per pMgr.AddPolicies() call
 		testutils.TestCmd{
-			Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+			Cmd:      []string{"iptables-nft-restore", "-w", "60", "-T", "filter", "--noflush"},
 			ExitCode: 1,
 		},
 		testutils.TestCmd{
-			Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+			Cmd:      []string{"iptables-nft-restore", "-w", "60", "-T", "filter", "--noflush"},
 			ExitCode: 1,
 		},
 		// first policy succeeds
 		testutils.TestCmd{
-			Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+			Cmd:      []string{"iptables-nft-restore", "-w", "60", "-T", "filter", "--noflush"},
 			ExitCode: 0,
 		},
 		// second policy succeeds
 		testutils.TestCmd{
-			Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+			Cmd:      []string{"iptables-nft-restore", "-w", "60", "-T", "filter", "--noflush"},
 			ExitCode: 0,
 		},
 		// third policy fails
 		// restore will try twice per pMgr.AddPolicies() call
 		testutils.TestCmd{
-			Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+			Cmd:      []string{"iptables-nft-restore", "-w", "60", "-T", "filter", "--noflush"},
 			ExitCode: 1,
 		},
 		testutils.TestCmd{
-			Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+			Cmd:      []string{"iptables-nft-restore", "-w", "60", "-T", "filter", "--noflush"},
 			ExitCode: 1,
 		},
 	)

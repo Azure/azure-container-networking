@@ -82,6 +82,7 @@ steps:
         workingDirectory: $(ACN_DIR)
         addSpnToEnvironment: true
         inlineScript: |
+          set -e
           cd test/integration/load
 
           # Scale Cluster Up/Down to confirm functioning CNS
@@ -143,6 +144,7 @@ steps:
         workingDirectory: $(ACN_DIR)
         addSpnToEnvironment: true
         inlineScript: |
+          set -e
           cd test/integration/load
 
           # Scale Cluster Up/Down to confirm functioning CNS
