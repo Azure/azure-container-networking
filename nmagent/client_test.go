@@ -751,11 +751,22 @@ func TestGetHomeAz(t *testing.T) {
 	}{
 		{
 			"happy path",
-			nmagent.AzResponse{HomeAz: uint(1)},
+			nmagent.AzResponse{HomeAz: uint(1), AppliedFixes: nil},
 			"/machine/plugins?comp=nmagent&type=GetHomeAz%2Fapi-version%2F1",
 			map[string]interface{}{
 				"httpStatusCode": "200",
 				"HomeAz":         1,
+			},
+			false,
+		},
+		{
+			"happy path with new version",
+			nmagent.AzResponse{HomeAz: uint(1), AppliedFixes: []nmagent.HomeAZFix{nmagent.HomeAZFixIPv6}},
+			"/machine/plugins?comp=nmagent&type=GetHomeAz%2Fapi-version%2F1",
+			map[string]interface{}{
+				"httpStatusCode": "200",
+				"HomeAz":         1,
+				"APIVersion":     2,
 			},
 			false,
 		},
