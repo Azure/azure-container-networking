@@ -22,7 +22,7 @@ for unique in $sufixes; do
         cilium install -n kube-system cilium cilium/cilium --version v1.16.1 \
         --set azure.resourceGroup=${clusterPrefix}-${unique}-rg --set cluster.id=${unique} \
         --set ipam.operator.clusterPoolIPv4PodCIDRList='{192.'${unique}'0.0.0/16}' \
-        --set hubble.enabled=false \
+        --set hubble.enabled=true \
         --set envoy.enabled=false
 
     else # Ignore this block for now, was testing internal resources.
@@ -42,11 +42,6 @@ for unique in $sufixes; do
         envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/manifests/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
         envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/manifests/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
     fi
-
-    make test-load CNS_ONLY=true \
-        AZURE_IPAM_VERSION=v0.2.0 CNS_VERSION=v1.5.32 \
-        INSTALL_CNS=true INSTALL_OVERLAY=true \
-        CNS_IMAGE_REPO=MCR IPAM_IMAGE_REPO=MCR
 done
 
 cd hack/scripts
