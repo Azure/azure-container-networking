@@ -88,7 +88,7 @@ func (az *AzResponse) UnmarshalJSON(in []byte) error {
 
 	az.HomeAz = rsp.HomeAz
 
-	if rsp.APIVersion == 2 {
+	if rsp.APIVersion == 2 { // nolint:gomnd // ignore magic number 2
 		az.AppliedFixes = append(az.AppliedFixes, HomeAZFixIPv6)
 	}
 
