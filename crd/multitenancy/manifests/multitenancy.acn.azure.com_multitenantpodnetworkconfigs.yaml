@@ -72,12 +72,13 @@ spec:
             description: MultitenantPodNetworkConfigStatus defines the observed state
               of PodNetworkConfig
             properties:
+              defaultDenyACL:
+                description: DefaultDenyAcl bool indicates whether default deny policy
+                  will be present on the pods upon pod creation
+                type: boolean
               gatewayIP:
                 description: Deprecated - use InterfaceInfos
                 type: string
-              defaultDenyACL:
-                description: indicates whether default deny policy will be present on the pods upon pod creation
-                type: boolean
               interfaceInfos:
                 description: InterfaceInfos describes all of the network container
                   goal state for this Pod
@@ -122,6 +123,8 @@ spec:
               primaryIP:
                 description: Deprecated - use InterfaceInfos
                 type: string
+            required:
+            - defaultDenyACL
             type: object
         type: object
     served: true
