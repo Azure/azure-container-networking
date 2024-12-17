@@ -1303,16 +1303,39 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// TODO(rbtr): nodename and namespace should be in the cns config
 	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
-	nnc := v1alpha.NodeNetworkConfig{}
+	// Create the base NNC CRD if HomeAz is enabled
 	if cnsconfig.EnableHomeAz {
-		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
-		nnc = createBaseNNC(node)
 		homeAzResponse := httpRestServiceImplementation.GetHomeAz(ctx)
-		nnc.Spec.AvailabilityZone = strconv.FormatUint(uint64(homeAzResponse.HomeAzResponse.HomeAz), 10)
-	}
+		availabilityZone := strconv.FormatUint(uint64(homeAzResponse.HomeAzResponse.HomeAz), 10)
+		logger.Printf("[Azure CNS] HomeAz: %s", availabilityZone)
+		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
+		var nnc *v1alpha.NodeNetworkConfig
+		if nnc, err = directnnccli.Get(ctx, types.NamespacedName{Namespace: "kube-system", Name: nodeName}); err != nil {
+			logger.Errorf("[Azure CNS] failed to get existing NNC: %v", err)
+		}
 
-	if err = directcli.Create(ctx, &nnc); err != nil {
-		return errors.Wrap(err, "failed to create base NNC")
+		if nnc == nil {
+			logger.Printf("[Azure CNS] Creating new base NNC")
+			newNNC := createBaseNNC(node)
+			newNNC.Spec.AvailabilityZone = availabilityZone
+			if err = directcli.Create(ctx, newNNC); err != nil {
+				return errors.Wrap(err, "failed to create base NNC")
+			}
+		} else {
+			// nnc.Spec.AvailabilityZone = availabilityZone
+			// if err = directcli.Update(ctx, nnc); err != nil {
+			// 	return errors.Wrap(err, "failed to update base NNC")
+			// }
+			logger.Printf("[Azure CNS] Patching existing NNC with new Spec with HomeAz")
+			newSpec := v1alpha.NodeNetworkConfigSpec{}
+			newSpec.AvailabilityZone = availabilityZone
+			newSpec.RequestedIPCount = nnc.Spec.RequestedIPCount
+			newSpec.IPsNotInUse = nnc.Spec.IPsNotInUse
+			if _, err := directnnccli.PatchSpec(ctx, types.NamespacedName{Namespace: "kube-system", Name: nodeName}, &newSpec, "azure-cns"); err != nil {
+				return errors.Wrap(err, "failed to update base NNC")
+			}
+		}
+		logger.Printf("[Azure CNS] Updated HomeAz in NNC")
 	}
 
 	logger.Printf("Reconciling initial CNS state")
@@ -1525,14 +1548,15 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	return nil
 }
 
-func createBaseNNC(node *corev1.Node) v1alpha.NodeNetworkConfig {
-	return v1alpha.NodeNetworkConfig{ObjectMeta: metav1.ObjectMeta{
+func createBaseNNC(node *corev1.Node) *v1alpha.NodeNetworkConfig {
+	return &v1alpha.NodeNetworkConfig{ObjectMeta: metav1.ObjectMeta{
 		Annotations: make(map[string]string),
 		Labels: map[string]string{
 			"managed": "true",
 			"owner":   node.Name,
 		},
-		Name: node.Name,
+		Name:      node.Name,
+		Namespace: "kube-system",
 	}}
 }
 
