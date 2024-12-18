@@ -1306,7 +1306,8 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// Create the base NNC CRD if HomeAz is enabled
 	if cnsconfig.EnableHomeAz {
 		homeAzResponse := httpRestServiceImplementation.GetHomeAz(ctx)
-		logger.Printf("[Azure CNS] HomeAz: %s", strconv.FormatUint(uint64(homeAzResponse.HomeAzResponse.HomeAz), 10))
+		az := int64(homeAzResponse.HomeAzResponse.HomeAz)
+		logger.Printf("[Azure CNS] HomeAz: %s", strconv.FormatInt(az, 10))
 		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
 		var nnc *v1alpha.NodeNetworkConfig
 		if nnc, err = directnnccli.Get(ctx, types.NamespacedName{Namespace: "kube-system", Name: nodeName}); err != nil {
@@ -1316,13 +1317,13 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		newNNC := createBaseNNC(node)
 		if nnc == nil {
 			logger.Printf("[Azure CNS] Creating new base NNC")
-			newNNC.Spec.AvailabilityZone = strconv.FormatUint(uint64(homeAzResponse.HomeAzResponse.HomeAz), 10)
+			newNNC.Spec.AvailabilityZone = az
 			if err = directcli.Create(ctx, newNNC); err != nil {
 				return errors.Wrap(err, "failed to create base NNC")
 			}
 		} else {
-			logger.Printf("[Azure CNS] Patching existing NNC with new Spec with HomeAz")
-			newNNC.Spec.AvailabilityZone = strconv.FormatUint(uint64(homeAzResponse.HomeAzResponse.HomeAz), 10)
+			logger.Printf("[Azure CNS] Patching existing NNC with new Spec with HomeAz %d", az)
+			newNNC.Spec.AvailabilityZone = az
 			newNNC.Spec.RequestedIPCount = nnc.Spec.RequestedIPCount
 			newNNC.Spec.IPsNotInUse = nnc.Spec.IPsNotInUse
 			newNNC.Status = nnc.Status

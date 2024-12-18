@@ -48,8 +48,9 @@ type NodeNetworkConfigSpec struct {
 	RequestedIPCount int64    `json:"requestedIPCount"`
 	IPsNotInUse      []string `json:"ipsNotInUse,omitempty"`
 	// AvailabilityZone contains the Azure availability zone for the virtual machine where network containers are placed.
+	// NMA returns an int value for the availability zone.
 	// +kubebuilder:validation:Optional
-	AvailabilityZone string `json:"availabilityZone,omitempty"`
+	AvailabilityZone int64 `json:"availabilityZone,omitempty"`
 }
 
 // Status indicates the NNC reconcile status
