@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/iptables"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
@@ -55,6 +56,7 @@ type Client struct {
 	netlink                netlink.NetlinkInterface
 	plClient               platform.ExecClient
 	ipTablesClient         ipTablesClient
+	netioClient            netio.NetIOInterface
 }
 
 func NewSnatClient(hostIfName string,
@@ -67,6 +69,7 @@ func NewSnatClient(hostIfName string,
 	nl netlink.NetlinkInterface,
 	plClient platform.ExecClient,
 	iptc ipTablesClient,
+	nio netio.NetIOInterface,
 ) Client {
 	snatClient := Client{
 		hostSnatVethName:       hostIfName,
@@ -78,6 +81,7 @@ func NewSnatClient(hostIfName string,
 		netlink:                nl,
 		plClient:               plClient,
 		ipTablesClient:         iptc,
+		netioClient:            nio,
 	}
 
 	snatClient.SkipAddressesFromBlock = append(snatClient.SkipAddressesFromBlock, skipAddressesFromBlock...)
@@ -223,7 +227,11 @@ func (client *Client) AllowInboundFromHostToNC() error {
 		return newErrorSnatClient(err.Error())
 	}
 
-	snatContainerVeth, _ := net.InterfaceByName(client.containerSnatVethName)
+	snatContainerVeth, err := client.netioClient.GetNetworkInterfaceByName(client.containerSnatVethName)
+	if err != nil {
+		logger.Info("Could not find interface", zap.String("containerSnatVethName", client.containerSnatVethName))
+		return errors.Wrap(newErrorSnatClient(err.Error()), "could not find container snat veth name for allow host to nc")
+	}
 
 	// Add static arp entry for localIP to prevent arp going out of VM
 	logger.Info("Adding static arp entry for ip", zap.Any("containerIP", containerIP),
@@ -319,7 +327,11 @@ func (client *Client) AllowInboundFromNCToHost() error {
 		return err
 	}
 
-	snatContainerVeth, _ := net.InterfaceByName(client.containerSnatVethName)
+	snatContainerVeth, err := client.netioClient.GetNetworkInterfaceByName(client.containerSnatVethName)
+	if err != nil {
+		logger.Info("Could not find interface", zap.String("containerSnatVethName", client.containerSnatVethName))
+		return errors.Wrap(newErrorSnatClient(err.Error()), "could not find container snat veth name for allow nc to host")
+	}
 
 	// Add static arp entry for localIP to prevent arp going out of VM
 	logger.Info("Adding static arp entry for ip", zap.Any("containerIP", containerIP), zap.String("HardwareAddr", snatContainerVeth.HardwareAddr.String()))
@@ -416,7 +428,7 @@ func (client *Client) DropArpForSnatBridgeApipaRange(snatBridgeIP, azSnatVethIfN
 
 // This function creates linux bridge which will be used for outbound connectivity by NCs
 func (client *Client) createSnatBridge(snatBridgeIP, hostPrimaryMac string) error {
-	_, err := net.InterfaceByName(SnatBridgeName)
+	_, err := client.netioClient.GetNetworkInterfaceByName(SnatBridgeName)
 	if err == nil {
 		logger.Info("Snat Bridge already exists")
 	} else {

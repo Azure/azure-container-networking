@@ -896,6 +896,7 @@ func TestDetectIptablesVersion(t *testing.T) {
 		name                    string
 		calls                   []testutils.TestCmd
 		expectedIptablesVersion string
+		expectedErr             bool
 	}
 
 	tests := []args{
@@ -942,7 +943,7 @@ func TestDetectIptablesVersion(t *testing.T) {
 			expectedIptablesVersion: util.IptablesLegacy,
 		},
 		{
-			name: "no kube chains: default nft",
+			name: "no kube chains: error",
 			calls: []testutils.TestCmd{
 				{
 					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
@@ -961,10 +962,10 @@ func TestDetectIptablesVersion(t *testing.T) {
 					ExitCode: 1,
 				},
 			},
-			expectedIptablesVersion: util.IptablesNft,
+			expectedErr: true,
 		},
 		{
-			name: "nft and legacy both fail: default nft",
+			name: "nft and legacy both fail: error",
 			calls: []testutils.TestCmd{
 				{
 					Cmd:      []string{"iptables-nft", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
@@ -983,7 +984,7 @@ func TestDetectIptablesVersion(t *testing.T) {
 					ExitCode: 2,
 				},
 			},
-			expectedIptablesVersion: util.IptablesNft,
+			expectedErr: true,
 		},
 	}
 
@@ -1001,9 +1002,14 @@ func TestDetectIptablesVersion(t *testing.T) {
 				PlaceAzureChainFirst: util.PlaceAzureChainFirst,
 			}
 			pMgr := NewPolicyManager(ioshim, cfg)
-			pMgr.detectIptablesVersion()
 
-			require.Equal(t, tt.expectedIptablesVersion, util.Iptables)
+			err := pMgr.detectIptablesVersion()
+			if tt.expectedErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedIptablesVersion, util.Iptables)
+			}
 		})
 	}
 }

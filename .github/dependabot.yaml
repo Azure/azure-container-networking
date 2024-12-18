@@ -29,6 +29,7 @@ updates:
     - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
+  labels: [ "dependencies" ]
   open-pull-requests-limit: 10
 - package-ecosystem: "gomod"
   directory: "/azure-ipam"
@@ -38,6 +39,7 @@ updates:
     - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
+  labels: [ "dependencies", "azure-ipam" ]
   open-pull-requests-limit: 10
 - package-ecosystem: "gomod"
   directory: "/build/tools"
@@ -47,6 +49,7 @@ updates:
     - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
+  labels: [ "dependencies" ]
   open-pull-requests-limit: 10
 - package-ecosystem: "gomod"
   directory: "/dropgz"
@@ -54,6 +57,7 @@ updates:
     interval: "daily"
   commit-message:
     prefix: "deps"
+  labels: [ "dependencies", "dropgz" ]
   open-pull-requests-limit: 10
 - package-ecosystem: "gomod"
   directory: "/zapai"
@@ -61,4 +65,49 @@ updates:
     interval: "daily"
   commit-message:
     prefix: "deps"
+  labels: [ "dependencies" ]
   open-pull-requests-limit: 10
+- package-ecosystem: "gomod"
+  directory: "/"
+  schedule:
+    interval: "daily"
+  reviewers:
+    - "azure/azure-sdn-members"
+  commit-message:
+    prefix: "deps"
+  labels: [ "dependencies", "release/1.5" ]
+  open-pull-requests-limit: 10
+  target-branch: "release/v1.5"
+- package-ecosystem: "gomod"
+  directory: "/azure-ipam"
+  schedule:
+    interval: "daily"
+  reviewers:
+    - "azure/azure-sdn-members"
+  commit-message:
+    prefix: "deps"
+  labels: [ "dependencies", "azure-ipam", "release/1.5" ]
+  open-pull-requests-limit: 10
+  target-branch: "release/v1.5"
+- package-ecosystem: "gomod"
+  directory: "/"
+  schedule:
+    interval: "daily"
+  reviewers:
+    - "azure/azure-sdn-members"
+  commit-message:
+    prefix: "deps"
+  labels: [ "dependencies", "release/1.4" ]
+  open-pull-requests-limit: 10
+  target-branch: "release/v1.4"
+- package-ecosystem: "gomod"
+  directory: "/azure-ipam"
+  schedule:
+    interval: "daily"
+  reviewers:
+    - "azure/azure-sdn-members"
+  commit-message:
+    prefix: "deps"
+  labels: [ "dependencies", "azure-ipam", "release/1.4" ]
+  open-pull-requests-limit: 10
+  target-branch: "release/v1.4"

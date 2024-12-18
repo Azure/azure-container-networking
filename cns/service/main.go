@@ -365,9 +365,9 @@ func init() {
 		// Wait until receiving a signal.
 		select {
 		case sig := <-sigCh:
-			log.Errorf("caught exit signal %v, exiting", sig)
+			logger.Errorf("caught exit signal %v, exiting", sig)
 		case err := <-rootErrCh:
-			log.Errorf("unhandled error %v, exiting", err)
+			logger.Errorf("unhandled error %v, exiting", err)
 		}
 		cancel()
 	}()
@@ -428,7 +428,7 @@ func sendRegisterNodeRequest(ctx context.Context, httpClient httpDoer, httpRestS
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(nodeRegisterRequest)
 	if err != nil {
-		log.Errorf("[Azure CNS] Failed to register node while encoding json failed with non-retryable err %v", err)
+		logger.Errorf("Failed to register node while encoding json failed with non-retryable err %v", err)
 		return errors.Wrap(retry.Unrecoverable(err), "failed to sendRegisterNodeRequest")
 	}
 
@@ -454,7 +454,7 @@ func sendRegisterNodeRequest(ctx context.Context, httpClient httpDoer, httpRestS
 	var req cns.SetOrchestratorTypeRequest
 	err = json.NewDecoder(response.Body).Decode(&req)
 	if err != nil {
-		log.Errorf("[Azure CNS] decoding Node Register response json failed with err %v", err)
+		logger.Errorf("decoding Node Register response json failed with err %v", err)
 		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
 	}
 	httpRestService.SetNodeOrchestrator(&req)
@@ -469,7 +469,7 @@ func startTelemetryService(ctx context.Context) {
 	tb := telemetry.NewTelemetryBuffer(nil)
 	err := tb.CreateAITelemetryHandle(config, false, false, false)
 	if err != nil {
-		log.Errorf("AI telemetry handle creation failed..:%w", err)
+		logger.Errorf("AI telemetry handle creation failed: %v", err)
 		return
 	}
 
@@ -478,9 +478,9 @@ func startTelemetryService(ctx context.Context) {
 	tbtemp.Cleanup(telemetry.FdName)
 
 	err = tb.StartServer()
-	log.Printf("Telemetry service for CNI started")
+	logger.Printf("Telemetry service for CNI started")
 	if err != nil {
-		log.Errorf("Telemetry service failed to start: %w", err)
+		logger.Errorf("Telemetry service failed to start: %v", err)
 		return
 	}
 	tb.PushData(ctx)
@@ -577,6 +577,10 @@ func main() {
 			logger.InitAIWithIKey(aiConfig, aiKey, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
 		} else {
 			logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
+		}
+
+		if cnsconfig.TelemetrySettings.ConfigSnapshotIntervalInMins > 0 {
+			go metric.SendCNSConfigSnapshot(rootCtx, cnsconfig)
 		}
 	}
 	logger.Printf("[Azure CNS] Using config: %+v", cnsconfig)
@@ -1245,8 +1249,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrap(err, "failed to get kubeconfig")
 	}
 	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
-	kubeConfig.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
-	kubeConfig.ContentType = "application/vnd.kubernetes.protobuf"
 
 	clientset, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
@@ -1482,7 +1484,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		// this false and the NNC Reconciler stuck/failed, log and retry.
 		nncReadyCtx, cancel := context.WithTimeout(ctx, 15*time.Minute) //nolint // it will time out and not leak
 		if started, err := nncReconciler.Started(nncReadyCtx); !started {
-			log.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
+			logger.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
 			nncReconcilerStartFailures.Inc()
 			continue
 		}

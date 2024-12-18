@@ -80,6 +80,7 @@ func TestReadConfigFromFile(t *testing.T) {
 					HeartBeatIntervalInMins:      30,
 					RefreshIntervalInSecs:        15,
 					SnapshotIntervalInMins:       60,
+					ConfigSnapshotIntervalInMins: 60,
 					TelemetryBatchIntervalInSecs: 15,
 					TelemetryBatchSizeBytes:      16384,
 				},
