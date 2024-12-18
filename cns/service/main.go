@@ -1306,8 +1306,8 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// Create the base NNC CRD if HomeAz is enabled
 	if cnsconfig.EnableHomeAz {
 		homeAzResponse := httpRestServiceImplementation.GetHomeAz(ctx)
-		az := int64(homeAzResponse.HomeAzResponse.HomeAz)
-		logger.Printf("[Azure CNS] HomeAz: %s", strconv.FormatInt(az, 10))
+		az := homeAzResponse.HomeAzResponse.HomeAz
+		logger.Printf("[Azure CNS] HomeAz: %d", az)
 		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
 		var nnc *v1alpha.NodeNetworkConfig
 		if nnc, err = directnnccli.Get(ctx, types.NamespacedName{Namespace: "kube-system", Name: nodeName}); err != nil {
