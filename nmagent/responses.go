@@ -1,5 +1,11 @@
 package nmagent
 
+import (
+	"encoding/json"
+
+	"github.com/pkg/errors"
+)
+
 type VirtualNetwork struct {
 	CNetSpace      string   `json:"cnetSpace"`
 	DefaultGateway string   `json:"defaultGateway"`
@@ -37,8 +43,74 @@ type NCVersionList struct {
 	Containers []NCVersion `json:"networkContainers"`
 }
 
+// HomeAZFix is an indication that a particular bugfix has been applied to some
+// HomeAZ.
+type HomeAZFix int
+
+func (h HomeAZFix) String() string {
+	switch h {
+	case HomeAZFixInvalid:
+		return "HomeAZFixInvalid"
+	case HomeAZFixIPv6:
+		return "HomeAZFixIPv6"
+	default:
+		return "Unknown HomeAZ Fix"
+	}
+}
+
+const (
+	HomeAZFixInvalid HomeAZFix = iota
+	HomeAZFixIPv6
+)
+
 type AzResponse struct {
-	HomeAz uint `json:"homeAz"`
+	HomeAz       uint
+	AppliedFixes []HomeAZFix
+}
+
+func (az *AzResponse) UnmarshalJSON(in []byte) error {
+	type resp struct {
+		HomeAz     uint `json:"homeAz"`
+		APIVersion uint `json:"apiVersion"`
+	}
+
+	var rsp resp
+	err := json.Unmarshal(in, &rsp)
+	if err != nil {
+		return errors.Wrap(err, "unmarshaling raw home az response")
+	}
+
+	if rsp.APIVersion != 0 && rsp.APIVersion != 2 {
+		return HomeAzAPIVersionError{
+			ReceivedAPIVersion: rsp.APIVersion,
+		}
+	}
+
+	az.HomeAz = rsp.HomeAz
+
+	if rsp.APIVersion == 2 { // nolint:gomnd // ignore magic number 2
+		az.AppliedFixes = append(az.AppliedFixes, HomeAZFixIPv6)
+	}
+
+	return nil
+}
+
+// ContainsFixes reports whether all fixes requested are present in the
+// AzResponse returned.
+func (az AzResponse) ContainsFixes(requestedFixes ...HomeAZFix) bool {
+	for _, requested := range requestedFixes {
+		found := false
+		for _, present := range az.AppliedFixes {
+			if requested == present {
+				found = true
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+	return true
 }
 
 type NodeIP struct {

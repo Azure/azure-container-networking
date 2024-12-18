@@ -11,6 +11,14 @@ import (
 	pkgerrors "github.com/pkg/errors"
 )
 
+type HomeAzAPIVersionError struct {
+	ReceivedAPIVersion uint
+}
+
+func (h HomeAzAPIVersionError) Error() string {
+	return fmt.Sprintf("invalid homeaz api version (must be 0 or 2): received %d", h.ReceivedAPIVersion)
+}
+
 var deleteNetworkPattern = regexp.MustCompile(`/NetworkManagement/joinedVirtualNetworks/[^/]+/api-version/\d+/method/DELETE`)
 
 // ContentError is encountered when an unexpected content type is obtained from
