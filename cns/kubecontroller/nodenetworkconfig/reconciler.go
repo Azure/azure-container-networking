@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
@@ -157,33 +158,49 @@ func (r *Reconciler) Started(ctx context.Context) (bool, error) {
 }
 
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter on nodeName.
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, node *v1.Node) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, node *v1.Node, cnsconfig *configuration.CNSConfig) error {
 	r.nnccli = nodenetworkconfig.NewClient(mgr.GetClient())
+
+	// specific event funcs
+	eventFuncs := predicate.Funcs{
+		// ignore delete events.
+		DeleteFunc: func(event.DeleteEvent) bool {
+			return false
+		},
+		UpdateFunc: func(ue event.UpdateEvent) bool {
+			if ue.ObjectOld == nil || ue.ObjectNew == nil {
+				return false
+			}
+			// check that the generation is the same - status changes don't update generation. But in IPAMv2
+			// it is safe to reconcile objects with a changed generation (typically means it was patched by
+			// CNS itself). This saves us from filtering out updates that were made while this controller's
+			// watch was down.
+			if cnsconfig != nil && cnsconfig.EnableIPAMv2 {
+				return true
+			}
+			return ue.ObjectOld.GetGeneration() == ue.ObjectNew.GetGeneration()
+		},
+	}
+
+	// these are applied to every event type
+	universalFuncs := predicate.NewPredicateFuncs(func(object client.Object) bool {
+		// match on node controller ref for all other events.
+		if !metav1.IsControlledBy(object, node) {
+			return false
+		}
+
+		// only process events on objects that are not being deleted.
+		if !object.GetDeletionTimestamp().IsZero() {
+			return false
+		}
+		return true
+	})
+
+	filters := predicate.And(eventFuncs, universalFuncs)
+
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha.NodeNetworkConfig{}).
-		WithEventFilter(predicate.Funcs{
-			// ignore delete events.
-			DeleteFunc: func(event.DeleteEvent) bool {
-				return false
-			},
-		}).
-		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
-			// match on node controller ref for all other events.
-			return metav1.IsControlledBy(object, node)
-		})).
-		WithEventFilter(predicate.Funcs{
-			// check that the generation is the same - status changes don't update generation.
-			UpdateFunc: func(ue event.UpdateEvent) bool {
-				if ue.ObjectOld == nil || ue.ObjectNew == nil {
-					return false
-				}
-				return ue.ObjectOld.GetGeneration() == ue.ObjectNew.GetGeneration()
-			},
-		}).
-		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
-			// only process events on objects that are not being deleted.
-			return object.GetDeletionTimestamp().IsZero()
-		})).
+		WithEventFilter(filters).
 		Complete(r)
 	if err != nil {
 		return errors.Wrap(err, "failed to set up reconciler with manager")
