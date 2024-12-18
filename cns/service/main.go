@@ -1306,36 +1306,46 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// Create the base NNC CRD if HomeAz is enabled
 	if cnsconfig.EnableHomeAz {
 		homeAzResponse := httpRestServiceImplementation.GetHomeAz(ctx)
-		availabilityZone := strconv.FormatUint(uint64(homeAzResponse.HomeAzResponse.HomeAz), 10)
-		logger.Printf("[Azure CNS] HomeAz: %s", availabilityZone)
+		logger.Printf("[Azure CNS] HomeAz: %s", strconv.FormatUint(uint64(homeAzResponse.HomeAzResponse.HomeAz), 10))
 		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
 		var nnc *v1alpha.NodeNetworkConfig
 		if nnc, err = directnnccli.Get(ctx, types.NamespacedName{Namespace: "kube-system", Name: nodeName}); err != nil {
 			logger.Errorf("[Azure CNS] failed to get existing NNC: %v", err)
 		}
 
+		newNNC := createBaseNNC(node)
 		if nnc == nil {
 			logger.Printf("[Azure CNS] Creating new base NNC")
-			newNNC := createBaseNNC(node)
-			newNNC.Spec.AvailabilityZone = availabilityZone
+			newNNC.Spec.AvailabilityZone = strconv.FormatUint(uint64(homeAzResponse.HomeAzResponse.HomeAz), 10)
 			if err = directcli.Create(ctx, newNNC); err != nil {
 				return errors.Wrap(err, "failed to create base NNC")
 			}
 		} else {
-			// nnc.Spec.AvailabilityZone = availabilityZone
-			// if err = directcli.Update(ctx, nnc); err != nil {
-			// 	return errors.Wrap(err, "failed to update base NNC")
-			// }
 			logger.Printf("[Azure CNS] Patching existing NNC with new Spec with HomeAz")
-			newSpec := v1alpha.NodeNetworkConfigSpec{}
-			newSpec.AvailabilityZone = availabilityZone
-			newSpec.RequestedIPCount = nnc.Spec.RequestedIPCount
-			newSpec.IPsNotInUse = nnc.Spec.IPsNotInUse
-			if _, err := directnnccli.PatchSpec(ctx, types.NamespacedName{Namespace: "kube-system", Name: nodeName}, &newSpec, "azure-cns"); err != nil {
-				return errors.Wrap(err, "failed to update base NNC")
+			newNNC.Spec.AvailabilityZone = strconv.FormatUint(uint64(homeAzResponse.HomeAzResponse.HomeAz), 10)
+			newNNC.Spec.RequestedIPCount = nnc.Spec.RequestedIPCount
+			newNNC.Spec.IPsNotInUse = nnc.Spec.IPsNotInUse
+			newNNC.Status = nnc.Status
+			newNNC.UID = nnc.UID
+			newNNC.Name = nnc.Name
+			newNNC.Namespace = nnc.Namespace
+			newNNC.Annotations = nnc.Annotations
+			newNNC.Labels = nnc.Labels
+			newNNC.Finalizers = nnc.Finalizers
+			newNNC.OwnerReferences = nnc.OwnerReferences
+			newNNC.CreationTimestamp = nnc.CreationTimestamp
+			newNNC.DeletionTimestamp = nnc.DeletionTimestamp
+
+			// Delete existing NNC and create new one with updated HomeAz
+			if err = directcli.Delete(ctx, nnc); err != nil {
+				return errors.Wrap(err, "[Azure CNS]: failed to delete existing NNC")
+			}
+
+			if err = directcli.Create(ctx, newNNC); err != nil {
+				return errors.Wrap(err, "[Azure CNS]: failed to create new NNC")
 			}
 		}
-		logger.Printf("[Azure CNS] Updated HomeAz in NNC")
+		logger.Printf("[Azure CNS] Updated HomeAz in NNC %v", newNNC)
 	}
 
 	logger.Printf("Reconciling initial CNS state")
