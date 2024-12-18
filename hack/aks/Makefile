@@ -21,8 +21,8 @@ VM_SIZE	        ?= Standard_B2s
 VM_SIZE_WIN     ?= Standard_B2s
 IP_TAG          ?= FirstPartyUsage=/DelegatedNetworkControllerTest
 IP_PREFIX       ?= serviceTaggedIp
-PUBLIC_IPv4       ?= $(IP_PREFIX)-$(CLUSTER)-v4
-PUBLIC_IPv6       ?= $(IP_PREFIX)-$(CLUSTER)-v6
+PUBLIC_IPv4     ?= $(IP_PREFIX)-$(CLUSTER)-v4
+PUBLIC_IPv6     ?= $(IP_PREFIX)-$(CLUSTER)-v6
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
 
 # overrideable variables
@@ -46,7 +46,7 @@ azcfg: ## Set the $AZCLI to use aks-preview
 	@$(AZCLI) extension add --name aks-preview --yes
 	@$(AZCLI) extension update --name aks-preview
 
-public-ipv4: rg-up
+public-ipv4:
 	$(AZCLI) network public-ip create --name $(PUBLIC_IPv4) \
 		--resource-group $(GROUP) \
 		--allocation-method Static \
@@ -56,7 +56,7 @@ public-ipv4: rg-up
 		--tier Regional \
 		--version IPv4
 
-public-ipv6: rg-up
+public-ipv6:
 	$(AZCLI) network public-ip create --name $(PUBLIC_IPv6) \
 		--resource-group $(GROUP) \
 		--allocation-method Static \
@@ -127,7 +127,6 @@ nodesubnet-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an NodeSubne
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku standard \
 		--max-pods 250 \
 		--load-balancer-outbound-ips /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/publicIPAddresses/$(PUBLIC_IPv4) \
 		--network-plugin none \
