@@ -1,9 +1,14 @@
 package middlewares
 
 import (
+	"encoding/json"
+
+	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/pkg/errors"
 )
 
@@ -57,4 +62,63 @@ func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP st
 		GatewayIPAddress: gwIP,
 	}
 	podIPInfo.Routes = append(podIPInfo.Routes, route)
+}
+
+// append the default deny acl's to the list defaultDenyACL field in podIpInfo
+func addDefaultDenyACL(podIpInfo *cns.PodIpInfo) error {
+	blockEgressACL, err := getDefaultDenyACLPolicy(hcn.DirectionTypeOut)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create default deny ACL policy egress")
+	}
+
+	blockIngressACL, err := getDefaultDenyACLPolicy(hcn.DirectionTypeIn)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create default deny ACL policy ingress")
+	}
+
+	additionalArgs := []cni.KVPair{
+		{
+			Name:  "EndpointPolicy",
+			Value: blockEgressACL,
+		},
+		{
+			Name:  "EndpointPolicy",
+			Value: blockIngressACL,
+		},
+	}
+
+	podIpInfo.DefaultDenyACL = append(podIpInfo.DefaultDenyACL, additionalArgs...)
+
+	logger.Printf("The length of podIpInfo.DefaultDenyACL is: %v", len(podIpInfo.DefaultDenyACL))
+
+	return nil
+}
+
+// create the default deny acl's that need to be added to the list defaultDenyACL field in podIpInfo
+func getDefaultDenyACLPolicy(direction hcn.DirectionType) ([]byte, error) {
+	const DefaultDenyPriority = 10000
+	const policyType = "ACL"
+	type DefaultDenyACL struct {
+		Type      string            `json:"Type"`
+		Action    hcn.ActionType    `json:"Action"`
+		Direction hcn.DirectionType `json:"Direction"`
+		Priority  int               `json:"Priority"`
+	}
+
+	denyACL := DefaultDenyACL{
+		Type:      policyType,
+		Action:    hcn.ActionTypeBlock,
+		Direction: direction,
+		Priority:  DefaultDenyPriority,
+	}
+
+	denyACLJSON, err := json.Marshal(denyACL)
+
+	logger.Printf("ACL Created for direction %s is : %s", direction, denyACLJSON)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "error marshalling default deny policy to json")
+	}
+
+	return denyACLJSON, nil
 }
