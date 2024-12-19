@@ -589,6 +589,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.interfaceInfo[ifIndex], ipamAddResult.interfaceInfo))
 	}
 
+	logger.Info("The length of ipamAddResult defaultDenyACL's is", zap.Any("defaultDenyACLLength", ipamAddResult.defaultDenyACL))
+	nwCfg.AdditionalArgs = append(nwCfg.AdditionalArgs, ipamAddResult.defaultDenyACL...)
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 	// moved to addIpamInvoker
 	// sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam interface: %+v", ipamAddResult.PrettyString()))
