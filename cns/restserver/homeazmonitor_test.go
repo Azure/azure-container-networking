@@ -67,11 +67,11 @@ func TestHomeAzMonitor(t *testing.T) {
 					return []string{GetHomeAzAPIName}, nil
 				},
 				GetHomeAzF: func(_ context.Context) (nmagent.AzResponse, error) {
-					return nmagent.AzResponse{HomeAz: uint(1), AppliedFixes: []nmagent.HomeAZFix{nmagent.HomeAZFixIPv6}}, nil
+					return nmagent.AzResponse{HomeAz: uint(1), AppliedFixes: []nmagent.HomeAZFix{nmagent.HomeAZFixInvalid}}, nil
 				},
 			},
-			cns.HomeAzResponse{IsSupported: true},
-			true,
+			cns.HomeAzResponse{IsSupported: true, HomeAz: uint(1), NmaAppliedTheIPV6Fix: false},
+			false,
 		},
 		{
 			"api supported but got unexpected errors",
