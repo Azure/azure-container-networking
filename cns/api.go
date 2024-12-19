@@ -354,8 +354,9 @@ type NmAgentSupportedApisResponse struct {
 }
 
 type HomeAzResponse struct {
-	IsSupported bool `json:"isSupported"`
-	HomeAz      uint `json:"homeAz"`
+	IsSupported          bool `json:"isSupported"`
+	HomeAz               uint `json:"homeAz"`
+	NmaAppliedTheIPV6Fix bool `json:"NmaAppliedTheIPV6Fix"`
 }
 
 type GetHomeAzResponse struct {

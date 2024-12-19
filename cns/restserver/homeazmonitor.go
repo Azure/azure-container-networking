@@ -154,7 +154,7 @@ func (h *HomeAzMonitor) Populate(ctx context.Context) {
 		h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: true})
 		return
 	}
-	h.update(types.Success, "Get Home Az succeeded", cns.HomeAzResponse{IsSupported: true, HomeAz: azResponse.HomeAz})
+	h.update(types.Success, "Get Home Az succeeded", cns.HomeAzResponse{IsSupported: true, HomeAz: azResponse.HomeAz, NmaAppliedTheIPV6Fix: azResponse.ContainsFixes(nmagent.HomeAZFixIPv6)})
 }
 
 // update constructs a GetHomeAzResponse entity and update its cache
