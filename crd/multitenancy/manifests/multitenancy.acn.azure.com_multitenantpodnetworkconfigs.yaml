@@ -73,7 +73,7 @@ spec:
               of PodNetworkConfig
             properties:
               defaultDenyACL:
-                description: DefaultDenyAcl bool indicates whether default deny policy
+                description: DefaultDenyACL bool indicates whether default deny policy
                   will be present on the pods upon pod creation
                 type: boolean
               gatewayIP:

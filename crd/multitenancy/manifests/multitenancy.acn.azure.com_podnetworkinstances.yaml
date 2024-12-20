@@ -55,7 +55,7 @@ spec:
             properties:
               defaultDenyACL:
                 default: false
-                description: DefaultDenyAcl bool indicates whether default deny policy
+                description: DefaultDenyACL bool indicates whether default deny policy
                   will be present on the pods upon pod creation
                 type: boolean
               podIPReservationSize:
