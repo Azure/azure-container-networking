@@ -123,8 +123,6 @@ spec:
               primaryIP:
                 description: Deprecated - use InterfaceInfos
                 type: string
-            required:
-            - defaultDenyACL
             type: object
         type: object
     served: true

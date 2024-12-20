@@ -85,7 +85,8 @@ type MultitenantPodNetworkConfigStatus struct {
 	// InterfaceInfos describes all of the network container goal state for this Pod
 	// +kubebuilder:validation:Optional
 	InterfaceInfos []InterfaceInfo `json:"interfaceInfos,omitempty"`
-	// DefaultDenyAcl bool indicates whether default deny policy will be present on the pods upon pod creation
+	// DefaultDenyACL bool indicates whether default deny policy will be present on the pods upon pod creation
+	// +kubebuilder:validation:Optional
 	DefaultDenyACL bool `json:"defaultDenyACL"`
 }
 

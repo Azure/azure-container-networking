@@ -85,8 +85,6 @@ spec:
               podnetwork:
                 description: Deprecated - use PodNetworks
                 type: string
-            required:
-            - defaultDenyACL
             type: object
           status:
             description: PodNetworkInstanceStatus defines the observed state of PodNetworkInstance
