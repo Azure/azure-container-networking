@@ -1,0 +1,96 @@
+parameters:
+- name: targetOs
+  type: string
+  values:
+  - linux
+  - windows
+
+- name: targetArch
+  type: string
+  values:
+  - amd64
+  - arm64
+
+- name: image
+  type: string
+  values:
+  - azure-ipam
+  - cni
+  - cns
+  - ipv6-hp-bpf
+  - npm
+
+
+steps:
+
+#- ${{ if eq(parameters.targetOs, 'linux') }}:
+  - bash: |
+      set -e
+  
+      VAR_ID="${IMAGE}_${OS}_${ARCH}"
+  
+      BUILD_CONTEXT=$(make "$MAKE_BUILD_CONTEXT")
+      echo >&2 "##vso[task.setvariable variable=BUILD_CONTEXT_${VAR_ID};]$BUILD_CONTEXT"
+  
+      IMAGE_PLATFORM_TAG=$(make "$MAKE_IMAGE_TAG")
+      echo >&2 "##vso[task.setvariable variable=IMAGE_PLATFORM_TAG_${VAR_ID};]$IMAGE_PLATFORM_TAG"
+  
+      IMAGE_NAME_AND_TAG=$(make "$MAKE_IMAGE_NAME_AND_TAG")
+      echo >&2 "##vso[task.setvariable variable=IMAGE_NAME_AND_TAG_${VAR_ID};]$IMAGE_NAME_AND_TAG"
+  
+      DOCKERFILE_PATH=$(make "$MAKE_DOCKERFILE_PATH")
+      echo >&2 "##vso[task.setvariable variable=DOCKERFILE_PATH_${VAR_ID};]$DOCKERFILE_PATH"
+  
+      EXTRA_BUILD_ARGS=$(make "$MAKE_EXTRA_BUILD_ARGS")
+      echo >&2 "##vso[task.setvariable variable=EXTRA_BUILD_ARGS_${VAR_ID};]$EXTRA_BUILD_ARGS"
+    displayName: "Get Image Build Data"
+    env:
+      IMAGE: ${{ parameters.image }}
+      OS: ${{ parameters.targetOs }}
+      ARCH: ${{ parameters.targetArch }}
+      PLATFORM: ${{ parameters.targetOs }}/${{ parameters.targetArch }}
+      MAKE_IMAGE_TAG: ${{ parameters.image }}-image-tag
+      MAKE_BUILD_CONTEXT: ${{ parameters.image }}-image-build-context
+      MAKE_IMAGE_NAME_AND_TAG: ${{ parameters.image }}-image-name-and-tag
+      MAKE_DOCKERFILE_PATH: ${{ parameters.image }}-dockerfile-path
+      MAKE_EXTRA_BUILD_ARGS: ${{ parameters.image }}-docker-build-args
+
+#- ${{ elseif eq(parameters.targetOs, 'windows') }}:
+#  - task: UsePythonVersion@0
+#    inputs:
+#      versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
+#      addToPath: true # boolean. Add to PATH. Default: true.
+#      architecture: 'x64'
+#
+#  - pwsh: |
+#      $VAR_ID = '{0}_{1}_{2}' -f $env:IMAGE, $env:OS, $env:ARCH
+#  
+#      $BUILD_CONTEXT = (make "$env:MAKE_BUILD_CONTEXT")
+#      Write-Host "##vso[task.setvariable variable=BUILD_CONTEXT_$VAR_ID;]$BUILD_CONTEXT"
+#  
+#      $IMAGE_PLATFORM_TAG = (make "$env:MAKE_IMAGE_TAG")
+#      Write-Host "##vso[task.setvariable variable=IMAGE_PLATFORM_TAG_$VAR_ID;]$IMAGE_PLATFORM_TAG"
+#  
+#      $IMAGE_NAME_AND_TAG = (make "$env:MAKE_IMAGE_NAME_AND_TAG")
+#      Write-Host "##vso[task.setvariable variable=IMAGE_NAME_AND_TAG_$VAR_ID;]$IMAGE_NAME_AND_TAG"
+#  
+#      $DOCKERFILE_PATH = (make "$env:MAKE_DOCKERFILE_PATH")
+#      Write-Host "##vso[task.setvariable variable=DOCKERFILE_PATH_$VAR_ID;]$DOCKERFILE_PATH"
+#  
+#      $EXTRA_BUILD_ARGS = (make "$env:MAKE_EXTRA_BUILD_ARGS")
+#      Write-Host "##vso[task.setvariable variable=EXTRA_BUILD_ARGS_$VAR_ID;]$EXTRA_BUILD_ARGS"
+#    displayName: "Get Image Build Data"
+#    errorActionPreference: stop
+#    env:
+#      CONTAINER_BUILDER: docker
+#      CONTAINER_RUNTIME: docker
+#      CONTAINER_TRANSPORT: docker  
+#      IMAGE: ${{ parameters.image }}
+#      OS: ${{ parameters.targetOs }}
+#      ARCH: ${{ parameters.targetArch }}
+#      PLATFORM: ${{ parameters.targetOs }}/${{ parameters.targetArch }}
+#      MAKE_IMAGE_TAG: ${{ parameters.image }}-image-tag
+#      MAKE_BUILD_CONTEXT: ${{ parameters.image }}-image-build-context
+#      MAKE_IMAGE_NAME_AND_TAG: ${{ parameters.image }}-image-name-and-tag
+#      MAKE_DOCKERFILE_PATH: ${{ parameters.image }}-dockerfile-path
+#      MAKE_EXTRA_BUILD_ARGS: ${{ parameters.image }}-docker-build-args

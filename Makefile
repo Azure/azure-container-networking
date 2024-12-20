@@ -337,11 +337,24 @@ acncli-image-name: # util target to print the CNI manager image name.
 acncli-image-name-and-tag: # util target to print the CNI manager image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(ACNCLI_IMAGE):$(ACNCLI_PLATFORM_TAG)
 
-acncli-image: ## build cni-manager container image.
+acncli-image-build-context:
+	$(eval BUILD_CONTEXT := $(REPO_ROOT))
+	@echo "$(BUILD_CONTEXT)"
+
+acncli-dockerfile-path:
+	$(eval DOCKERFILE_PATH := $(ACNCLI_DIR)/Dockerfile)
+	@echo "$(DOCKERFILE_PATH)"
+
+acncli-docker-build-args:
+	$(eval DOCKER_BUILD_ARGS := '')
+	@echo $(DOCKER_BUILD_ARGS)
+
+acncli-image: acncli-dockerfile-path acncli-build-args ## build cni-manager container image.
 	$(MAKE) container \
-		DOCKERFILE=tools/acncli/Dockerfile \
+		DOCKERFILE=$(DOCKERFILE_PATH) \
 		IMAGE=$(ACNCLI_IMAGE) \
-		TAG=$(ACNCLI_PLATFORM_TAG)
+		TAG=$(ACNCLI_PLATFORM_TAG) \
+		$(DOCKER_BUILD_ARGS)
 
 acncli-image-push: ## push cni-manager container image.
 	$(MAKE) container-push \
@@ -359,18 +372,34 @@ acncli-image-pull: ## pull cni-manager container image.
 azure-ipam-image-name: # util target to print the azure-ipam  image name.
 	@echo $(AZURE_IPAM_IMAGE)
 
+azure-ipam-image-tag:
+	@echo $(AZURE_IPAM_PLATFORM_TAG)
+
 azure-ipam-image-name-and-tag: # util target to print the azure-ipam image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(AZURE_IPAM_IMAGE):$(AZURE_IPAM_PLATFORM_TAG)
 
+azure-ipam-image-build-context:
+	$(eval BUILD_CONTEXT := $(REPO_ROOT))
+	@echo "$(BUILD_CONTEXT)"
+
+azure-ipam-dockerfile-path:
+	$(eval DOCKERFILE_PATH := $(AZURE_IPAM_DIR)/Dockerfile)
+	@echo "$(DOCKERFILE_PATH)"
+
+azure-ipam-docker-build-args:
+	$(eval DOCKER_BUILD_ARGS := '')
+	@echo $(DOCKER_BUILD_ARGS)
+
 azure-ipam-image: ## build azure-ipam container image.
 	$(MAKE) container \
-		DOCKERFILE=azure-ipam/Dockerfile \
+		DOCKERFILE=$(DOCKERFILE_PATH) \
 		IMAGE=$(AZURE_IPAM_IMAGE) \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(AZURE_IPAM_PLATFORM_TAG) \
 		TARGET=$(OS) \
 		OS=$(OS) \
-		ARCH=$(ARCH)
+		ARCH=$(ARCH) \
+		EXTRA_BUILD_ARGS=$(DOCKER_BUILD_ARGS)
 
 azure-ipam-image-push: ## push azure-ipam container image.
 	$(MAKE) container-push \
@@ -387,14 +416,29 @@ azure-ipam-image-pull: ## pull azure-ipam container image.
 ipv6-hp-bpf-image-name: # util target to print the ipv6-hp-bpf image name.
 	@echo $(IPV6_HP_BPF_IMAGE)
 
+ipv6-hp-bpf-image-tag:
+	@echo $(IPV6_HP_BPF_IMAGE_PLATFORM_TAG)
+
 ipv6-hp-bpf-image-name-and-tag: # util target to print the ipv6-hp-bpf image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(IPV6_HP_BPF_IMAGE):$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG)
 
+ipv6-hp-bpf-image-build-context:
+	$(eval BUILD_CONTEXT := $(REPO_ROOT))
+	@echo "$(BUILD_CONTEXT)"
+
+ipv6-hp-bpf-dockerfile-path:
+	$(eval DOCKERFILE_PATH := $(IPV6_HP_BPF_DIR)/$(OS).Dockerfile)
+	@echo "$(DOCKERFILE_PATH)"
+
+ipv6-hp-bpf-docker-build-args:
+	$(eval DOCKER_BUILD_ARGS := '--build-arg DEBUG=$(DEBUG)')
+	@echo $(DOCKER_BUILD_ARGS)
+
 ipv6-hp-bpf-image: ## build ipv6-hp-bpf container image.
 	$(MAKE) container \
-		DOCKERFILE=bpf-prog/ipv6-hp-bpf/$(OS).Dockerfile \
+		DOCKERFILE=$(DOCKERFILE_PATH) \
 		IMAGE=$(IPV6_HP_BPF_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg DEBUG=$(DEBUG)'\
+		EXTRA_BUILD_ARGS=$(DOCKER_BUILD_ARGS) \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG) \
 		TARGET=$(OS) \
@@ -416,19 +460,34 @@ ipv6-hp-bpf-image-pull: ## pull ipv6-hp-bpf container image.
 cni-image-name: # util target to print the cni image name.
 	@echo $(CNI_IMAGE)
 
+cni-image-tag:
+	@echo $(CNI_PLATFORM_TAG)
+
 cni-image-name-and-tag: # util target to print the cni image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(CNI_IMAGE):$(CNI_PLATFORM_TAG)
 
+cni-image-build-context:
+	$(eval BUILD_CONTEXT := $(REPO_ROOT))
+	@echo "$(BUILD_CONTEXT)"
+
+cni-dockerfile-path:
+	$(eval DOCKERFILE_PATH := $(REPO_ROOT)/cni/Dockerfile)
+	@echo "$(DOCKERFILE_PATH)"
+
+cni-docker-build-args:
+	$(eval DOCKER_BUILD_ARGS="--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)")
+	@echo $(DOCKER_BUILD_ARGS)
+
 cni-image: ## build cni container image.
 	$(MAKE) container \
-		DOCKERFILE=cni/Dockerfile \
+		DOCKERFILE=$(DOCKERFILE_PATH) \
 		IMAGE=$(CNI_IMAGE) \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(CNI_PLATFORM_TAG) \
 		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
-		EXTRA_BUILD_ARGS='--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
+		EXTRA_BUILD_ARGS=$(DOCKER_BUILD_ARGS)
 
 cni-image-push: ## push cni container image.
 	$(MAKE) container-push \
@@ -446,14 +505,29 @@ cni-image-pull: ## pull cni container image.
 cns-image-name: # util target to print the CNS image name
 	@echo $(CNS_IMAGE)
 
+cns-image-tag:
+	@echo $(CNS_PLATFORM_TAG)
+
 cns-image-name-and-tag: # util target to print the CNS image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(CNS_IMAGE):$(CNS_PLATFORM_TAG)
 
+cns-image-build-context:
+	$(eval BUILD_CONTEXT := $(REPO_ROOT))
+	@echo "$(BUILD_CONTEXT)"
+
+cns-dockerfile-path:
+	$(eval DOCKERFILE_PATH := $(REPO_ROOT)/cns/Dockerfile)
+	@echo "$(DOCKERFILE_PATH)"
+
+cns-docker-build-args:
+	$(eval DOCKER_BUILD_ARGS="--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)")
+	@echo $(DOCKER_BUILD_ARGS)
+
 cns-image: ## build cns container image.
 	$(MAKE) container \
-		DOCKERFILE=cns/Dockerfile \
+		DOCKERFILE=$(DOCKERFILE_PATH) \
 		IMAGE=$(CNS_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)' \
+		EXTRA_BUILD_ARGS=$(DOCKER_BUILD_ARGS) \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(CNS_PLATFORM_TAG) \
 		TARGET=$(OS) \
@@ -475,14 +549,29 @@ cns-image-pull: ## pull cns container image.
 npm-image-name: # util target to print the NPM image name
 	@echo $(NPM_IMAGE)
 
+npm-image-tag: # util target to print the NPM image name and tag.
+	@echo $(NPM_PLATFORM_TAG)
+
 npm-image-name-and-tag: # util target to print the NPM image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(NPM_IMAGE):$(NPM_PLATFORM_TAG)
 
+npm-image-build-context:
+	$(eval BUILD_CONTEXT := $(REPO_ROOT))
+	@echo "$(BUILD_CONTEXT)"
+
+npm-dockerfile-path:
+	$(eval DOCKERFILE_PATH := $(REPO_ROOT)/npm/$(OS).Dockerfile)
+	@echo "$(DOCKERFILE_PATH)"
+
+npm-docker-build-args:
+	$(eval DOCKER_BUILD_ARGS="--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)")
+	@echo $(DOCKER_BUILD_ARGS)
+
 npm-image: ## build the npm container image.
 	$(MAKE) container-$(CONTAINER_BUILDER) \
-		DOCKERFILE=npm/$(OS).Dockerfile \
+		DOCKERFILE=$(DOCKERFILE_PATH) \
 		IMAGE=$(NPM_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)' \
+		EXTRA_BUILD_ARGS=$(DOCKER_BUILD_ARGS) \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(NPM_PLATFORM_TAG) \
 		TARGET=$(OS) \

@@ -1,52 +1,82 @@
-trigger: none
-#pr:
-#  branches:
-#    include:
-#      - master
-#      - release/*
-#  paths:
-#    exclude:
-#      - ".devcontainer"
-#      - ".hooks"
-#      - ".vscode"
-#      - ".github"
-#      - docs
-#
-#
-#trigger:
-#  branches:
-#    include:
-#      - gh-readonly-queue/master/*
-#  tags:
-#    include:
-#      - "*"
+pr:
+  branches:
+    include:
+      - master
+      - release/*
+  paths:
+    exclude:
+      - ".devcontainer"
+      - ".hooks"
+      - ".vscode"
+      - ".github"
+      - docs
 
+
+trigger:
+  branches:
+    include:
+      - gh-readonly-queue/master/*
+  tags:
+    include:
+      - "*"
 
 resources:
   repositories:
-  - repository: azure-container-networking
-    type: github
-    name: Azure/azure-container-networking
-    endpoint: 'Azure-ACN RO Service Connection'
-    ref: refs/heads/feature/ob-onboard-0
+
+  - repository: 1ESPipelineTemplates
+    type: git
+    name: 1ESPipelineTemplates/1ESPipelineTemplates
+    ref: refs/tags/stable
 
 
 variables:
-  REPO_REF: $[ resources.repositories['azure-container-networking'].ref ]
-  REPO_COMMIT: $[ resources.repositories['azure-container-networking'].version ]
-  REPO_NAME: $[ resources.repositories['azure-container-networking'].name ]
-  REPO_TYPE: $[ resources.repositories['azure-container-networking'].type ]
-  CHANGESET_COMMIT: $[ resources.repositories['self'].version ]
- 
-
-pool:
-  vmImage: ubuntu-latest
+  # Local analysis is only enabled on PR branches
+  Codeql.AnalyzeInPipeline: $[startsWith(variables['Build.SourceBranch'], 'refs/pull/')]
+#  Codeql.ADO.Build.Repository.Uri: $(Build.Repository.Uri)
+#  Codeql.ADO.Build.Repository.Name: $(Build.Repository.Name)
+#  Codeql.ADO.Build.SourceVersion: $(Build.SourceVersion)
+#  Codeql.ADO.Build.DefinitionName: $(Build.DefinitionName)
+#  Codeql.ADO.Build.BuildId: $(Build.BuildId)
+#  Codeql.ADO.System.CollectionUri: $(System.CollectionUri)
+#  Codeql.ADO.System.TeamProject: $(System.TeamProject)
+#  Codeql.ADO.System.JobId: $(System.JobId)
+#  Codeql.ADO.Build.Repository.LocalPath: $(Build.Repository.LocalPath)
+#  Codeql.ADO.Build.SourceBranch: $(Build.SourceBranch)
+#  Codeql.ADO.Build.Repository.Provider: $(Build.Repository.Provider)
+#  Codeql.ADO.Build.SourceBranchName: $(Build.SourceBranchName)
+#  Codeql.ADO.Build.SourcesDirectory: $(Build.SourcesDirectory)
 
 
 extends:
-  template: /.pipelines/template.trigger.jobs.yaml@azure-container-networking
+  template: v1/1ES.Unofficial.PipelineTemplate.yml@1ESPipelineTemplates
   parameters:
-    mainRepoRef: $(REPO_REF)
-    mainRepoCommit: $(REPO_COMMIT)
-    mainRepoName: $(REPO_NAME)
-    mainRepoType: $(REPO_TYPE)
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      os: linux
+      image: acn-runner-vmss-image-1es-v3.0
+    featureFlags:
+      automaticContainerPatching: true
+    sdl:
+      sourceAnalysisPool:
+        name: $(BUILD_POOL_NAME_DEFAULT_WINDOWS)
+        os: windows
+        image: acn-runner-vmss-image-windows-1es-v2.1
+      globalSdl:
+        #baseline:
+          #baselineFile: $(Build.SourcesDirectory)\.config\.gdnbaselines
+          #suppressionSet: default
+        suppression:
+          suppressionFile: $(Build.SourcesDirectory)/.config/guardian/.gdnsuppress
+          suppressionSet: default
+        credscan:
+          enabled: true
+          suppressionsFileForArtifacts: $(Build.SourcesDirectory)/.config/credscan/credScanSuppressions.json
+      codeql:
+        # Enables CodeQL on the main branch
+        compiled:
+          enabled: true
+          # Enables CodeQL on PR branches
+          ${{ if startsWith(variables['Build.SourceBranch'], 'refs/pull/') }}:
+            enabledOnNonDefaultBranches: true
+    stages:
+    - template: /.pipelines/run-pipeline.yaml

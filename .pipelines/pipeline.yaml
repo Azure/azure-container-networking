@@ -440,10 +440,33 @@ stages:
                 clusterName: "cildsovere2e"
                 region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
           steps:
-            - template: templates/delete-cluster.yaml
+            - template: templates/delete-cluster.steps.yaml
               parameters:
                 name: $(name)
                 clusterName: $(clusterName)-$(commitID)
                 region: $(region)
                 sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
                 svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+
+        - job: delete_test
+          displayName: Delete Cluster
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          strategy:
+            matrix:
+              swiftv2_e2e:
+                name: swiftv2_e2e
+                clusterName: "mtacluster"
+                region: $(REGION_SWIFTV2_CLUSTER_TEST)
+              swiftv2_dummy_e2e:
+                name: swiftv2_dummy_e2e
+                clusterName: "swiftv2dummy"
+                region: $(REGION_SWIFTV2_CLUSTER_TEST)
+          steps:
+            - template: templates/delete-cluster.steps.yaml
+              parameters:
+                name: $(name)
+                clusterName: $(clusterName)-$(commitID)
+                region: $(region)
+                sub: $(SUB_AZURE_NETWORK_AGENT_TEST)
+                svcConn: $(ACN_TEST_SERVICE_CONNECTION)

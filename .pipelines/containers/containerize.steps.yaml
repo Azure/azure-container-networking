@@ -1,0 +1,60 @@
+parameters:
+- name: imageNameAndTag
+  type: string
+
+- name: dockerfilePath
+  type: string
+
+- name: buildContextPath
+  type: string
+
+- name: targetVersion
+  type: string
+
+- name: targetArch
+  type: string
+
+- name: targetPlatform
+  type: string
+
+- name: targetOs
+  type: string
+
+- name: addBuildArgs
+  type: object
+  default: ""
+
+
+steps:
+#- bash: |
+#    docker buildx ls
+#    # rm ~/.docker/config.json
+#    # Pull windows image to allow building windows images on the Linux platform.
+#    docker pull --platform windows mcr.microsoft.com/windows/servercore:ltsc2019
+#    docker pull --platform windows mcr.microsoft.com/windows/servercore:ltsc2022
+#  displayName: Pull Required Images
+
+- task: 1ES.BuildContainerImage@1
+  retryCountOnTaskFailure: 3
+  inputs:
+    image: ${{ parameters.imageNameAndTag }}
+    dockerfile: ${{ parameters.dockerfilePath }}
+    path: ${{ parameters.buildContextPath }}
+    buildArguments: |
+      --debug
+      --build-arg DEBUG="$(System.Debug)"
+      --build-arg PLATFORM="${{ parameters.targetPlatform }}"
+      --build-arg ARCH="${{ parameters.targetArch }}"
+      --build-arg OS="${{ parameters.targetOs }}"
+      --build-arg VERSION="${{ parameters.targetVersion }}"
+      --target "${{ parameters.targetOs }}"
+      ${{ parameters.addBuildArgs }}
+    enableNetwork: true
+    enableCache: true
+    useBuildKit: true
+    enablePull: true
+
+- task: 1ES.PushContainerImage@1
+  condition: ${{ eq(parameters.targetOs, 'windows') }}
+  inputs:
+    image: ${{ parameters.imageNameAndTag }}

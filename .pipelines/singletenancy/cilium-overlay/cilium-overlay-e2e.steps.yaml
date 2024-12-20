@@ -6,31 +6,18 @@ parameters:
 
 
 steps:
-  - bash: |
-      go version
-      go env
-      mkdir -p '$(GOBIN)'
-      mkdir -p '$(GOPATH)/pkg'
-      mkdir -p '$(modulePath)'
-      echo '##vso[task.prependpath]$(GOBIN)'
-      echo '##vso[task.prependpath]$(GOROOT)/bin'
-    name: "GoEnv"
-    displayName: "Set up the Go environment"
-
-  - task: KubectlInstaller@0
-    inputs:
-      kubectlVersion: latest
-
   - task: AzureCLI@2
+    env:
+      CLUSTER: ${{ parameters.clusterName }}
+      AZCLI: az
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        make -C ./hack/aks set-kubeconf
         ls -lah
         pwd
         kubectl cluster-info
@@ -61,10 +48,9 @@ steps:
         fi
 
         kubectl get po -owide -A
-    name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
 
-  - template: ../../templates/cilium-cli.steps.yaml@ACNTools
+  - template: ../../templates/cilium-cli.yaml
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
@@ -75,11 +61,16 @@ steps:
           CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
       fi
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
-    workingDirectory: $(ACN_DIR)
+      sudo -E env "PATH=$PATH" make test-load AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS}
     retryCountOnTaskFailure: 3
-    name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
+    env:
+      SCALE_UP: 32
+      OS_TYPE: linux
+      VALIDATE_STATEFILE: true
+      INSTALL_CNS: true
+      INSTALL_INSTALL_OVERLAY: true
+      CLEANUP: true
 
   - script: |
       kubectl get po -owide -A
@@ -95,39 +86,46 @@ steps:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
         kubectl get po -owide -A
-        clusterName=${{ parameters.clusterName }}
         echo "Restarting nodes"
-        for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do
-          make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
+        for val in $(az vmss list -g "$RESOURCE_GROUP" --query "[].name" -o tsv); do
+          make -C ./hack/aks restart-vmss VMSS_NAME=${val}
         done
     displayName: "Restart Nodes"
+    env:
+      AZCLI: az
+      CLUSTER: ${{ parameters.clusterName }}
+      RESOURCE_GROUP: "MC_${{ parameters.clusterName }}_${{ parameters.clusterName }}_$(REGION_AKS_CLUSTER_TEST)"
+      REGION: $(REGION_AKS_CLUSTER_TEST)
 
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
-        cd test/integration/load
 
-        # Scale Cluster Up/Down to confirm functioning CNS
-        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-        kubectl get pods -owide -A
+        pushd test/integration/load
+          # Scale Cluster Up/Down to confirm functioning CNS
+          go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+          kubectl get pods -owide -A
+        popd
 
-        cd ../../..
         echo "Validating Node Restart"
-        make test-validate-state OS_TYPE=linux RESTART_CASE=true
+        make test-validate-state
         kubectl delete ns load-test
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
+    env:
+      ITERATIONS: 2
+      SCALE_UP: ${{ parameters.scaleup }}
+      OS_TYPE: linux
+      RESTART_CASE: true
 
   - script: |
       set -e
@@ -142,7 +140,6 @@ steps:
       ns=`kubectl get ns | grep cilium-test | awk '{print $1}'`
       echo "##vso[task.setvariable variable=ciliumNamespace]$ns"
     retryCountOnTaskFailure: 3
-    name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
 
   - ${{ if eq( parameters['testHubble'], true) }}:
@@ -156,7 +153,6 @@ steps:
           kubectl get pods -Aowide
           echo "verify Hubble metrics endpoint is usable"
           go test ./test/integration/networkobservability -count=1 -v -tags=networkobservability
-        workingDirectory: $(ACN_DIR)
         retryCountOnTaskFailure: 3
         name: "HubbleConnectivityTests"
         displayName: "Run Hubble Connectivity Tests"
@@ -166,25 +162,25 @@ steps:
       echo "validate pod IP assignment and check systemd-networkd restart"
       kubectl get pod -owide -A
       if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
-        echo "Check cilium identities in $(ciliumNamespace) namepsace during nightly run"
+        echo "Check cilium identities in "$CILIUM_NS" namepsace during nightly run"
         echo "expect the identities to be deleted when the namespace is deleted"
         kubectl get ciliumidentity | grep cilium-test
       fi
       make test-validate-state
-      echo "delete cilium connectivity test resources and re-validate state" # TODO Delete this and the next 4 lines if connectivity no longer has bug
-      kubectl delete ns $(ciliumNamespace)
+      echo "delete cilium connectivity test resources and re-validate state"
+      kubectl delete ns "$CILIUM_NS"
       kubectl get pod -owide -A
       make test-validate-state
-    workingDirectory: $(ACN_DIR)
-    name: "validatePods"
     displayName: "Validate Pods"
+    env:
+      CILIUM_NS: $(ciliumNamespace)
 
   - script: |
       if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
-        kubectl get pod -owide -n $(ciliumNamespace)
-        echo "wait for pod and cilium identity deletion in $(ciliumNamespace) namespace"
+        kubectl get pod -owide -n "$CILIUM_NS"
+        echo "wait for pod and cilium identity deletion in "$CILIUM_NS" namespace"
         while true; do
-          pods=$(kubectl get pods -n $(ciliumNamespace) --no-headers=true 2>/dev/null)
+          pods=$(kubectl get pods -n "$CILIUM_NS" --no-headers=true 2>/dev/null)
           if [[ -z "$pods" ]]; then
             echo "No pods found"
               break
@@ -192,19 +188,20 @@ steps:
           sleep 2s
         done
         sleep 20s
-        echo "Verify cilium identities are deleted from $(ciliumNamespace)"
+        echo "Verify cilium identities are deleted from "$CILIUM_NS""
         checkIdentity="$(kubectl get ciliumidentity -o json | grep cilium-test | jq -e 'length == 0')"
         if [[ -n $checkIdentity ]]; then
-          echo "##[error]Cilium Identities still present in $(ciliumNamespace) namespace"
+          echo "##[error]Cilium Identities still present in "$CILIUM_NS" namespace"
           exit 1
         else
-          printf -- "Identities deleted from $(ciliumNamespace) namespace\n"
+          printf -- "Identities deleted from "$CILIUM_NS" namespace\n"
         fi
       else
         echo "skip cilium identities check for PR pipeline"
       fi
-    name: "CiliumIdentities"
     displayName: "Verify Cilium Identities Deletion"
+    env:
+      CILIUM_NS: $(ciliumNamespace)
 
   - script: | # TODO REMOVE THIS STEP, make test-load covers this
       set -e
@@ -217,14 +214,12 @@ steps:
       kubectl get pod -owide -A
       echo "validate pods after CNS restart"
       make test-validate-state
-    workingDirectory: $(ACN_DIR)
     name: "restartCNS"
     displayName: "Restart CNS and validate pods"
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"
       bash test/network/wireserver_metadata_test.sh
-    workingDirectory: $(ACN_DIR)
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
@@ -240,7 +235,6 @@ steps:
           kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
         fi
       fi
-    workingDirectory: $(ACN_DIR)
     name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"
 
