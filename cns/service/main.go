@@ -670,7 +670,7 @@ func main() {
 	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
 	// homeAz monitor is required when there is a direct channel between DNC and CNS OR when homeAz feature is enabled in CNS for AKS-Swift
 	// This will prevent the monitor from unnecessarily calling NMA APIs for other scenarios such as AKS-swift, swiftv2 when disabled.
-	if cnsconfig.ChannelMode == cns.Direct || cnsconfig.EnableHomeAz {
+	if cnsconfig.ChannelMode == cns.Direct || cnsconfig.EnableHomeAZ {
 		homeAzMonitor.Start()
 		defer homeAzMonitor.Stop()
 	}
@@ -1304,7 +1304,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
 	// Create the base NNC CRD if HomeAz is enabled
-	if cnsconfig.EnableHomeAz {
+	if cnsconfig.EnableHomeAZ {
 		homeAzResponse := httpRestServiceImplementation.GetHomeAz(ctx)
 		az := homeAzResponse.HomeAzResponse.HomeAz
 		logger.Printf("[Azure CNS] HomeAz: %d", az)
