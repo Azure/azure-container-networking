@@ -5,7 +5,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Microsoft/hcsshim/hcn"
@@ -89,8 +88,6 @@ func addDefaultDenyACL(podIpInfo *cns.PodIpInfo) error {
 
 	podIpInfo.DefaultDenyACL = append(podIpInfo.DefaultDenyACL, additionalArgs...)
 
-	logger.Printf("The length of podIpInfo.DefaultDenyACL is: %v", len(podIpInfo.DefaultDenyACL))
-
 	return nil
 }
 
@@ -113,8 +110,6 @@ func getDefaultDenyACLPolicy(direction hcn.DirectionType) ([]byte, error) {
 	}
 
 	denyACLJSON, err := json.Marshal(denyACL)
-
-	logger.Printf("ACL Created for direction %s is : %s", direction, denyACLJSON)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "error marshalling default deny policy to json")
