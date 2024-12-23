@@ -18,19 +18,22 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 	ipFamilies := map[cns.IPFamily]struct{}{}
 
-	// iterate through all IP addresses in the subnet described by primaryPrefix and
-	// add them to the request as secondary IPConfigs.
-	for addr := primaryIPPrefix.Masked().Addr(); primaryIPPrefix.Contains(addr); addr = addr.Next() {
-		secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
-			IPAddress: addr.String(),
-			NCVersion: int(nc.Version),
+	// in the case of vnet prefix on swift v2 the primary IP is a /32 and should not be added to secondary IP configs
+	if !primaryIPPrefix.IsSingleIP() {
+		// iterate through all IP addresses in the subnet described by primaryPrefix and
+		// add them to the request as secondary IPConfigs.
+		for addr := primaryIPPrefix.Masked().Addr(); primaryIPPrefix.Contains(addr); addr = addr.Next() {
+			secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
+				IPAddress: addr.String(),
+				NCVersion: int(nc.Version),
+			}
 		}
-	}
-	// adds the IPFamily of the primary CIDR to the set
-	if primaryIPPrefix.Addr().Is4() {
-		ipFamilies[cns.IPv4Family] = struct{}{}
-	} else {
-		ipFamilies[cns.IPv6Family] = struct{}{}
+		// adds the IPFamily of the primary CIDR to the set
+		if primaryIPPrefix.Addr().Is4() {
+			ipFamilies[cns.IPv4Family] = struct{}{}
+		} else {
+			ipFamilies[cns.IPv6Family] = struct{}{}
+		}
 	}
 
 	// Add IPs from CIDR block to the secondary IPConfigs
