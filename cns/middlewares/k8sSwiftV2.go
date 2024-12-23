@@ -59,14 +59,14 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		}
 
 		// ipConfigsResp has infra IP configs -> if defaultDenyACLbool is enabled, add the default deny acl's pn the infra IP configs
-		for i := range ipConfigsResp.PodIPInfo {
-			ipInfo := &ipConfigsResp.PodIPInfo[i]
+		for _, ipInfo := range ipConfigsResp.PodIPInfo {
 			// there will be no pod connectivity to and from those pods
 			if defaultDenyACLbool && ipInfo.NICType == cns.InfraNIC {
-				err = addDefaultDenyACL(ipInfo)
+				err = addDefaultDenyACL(&ipInfo)
 				if err != nil {
 					logger.Errorf("failed to add default deny acl's for pod %v with err %v", podInfo.Name(), err)
 				}
+				break
 			}
 		}
 
