@@ -824,7 +824,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				require.Equalf([]cni.KVPair(nil), ipamAddResult.defaultDenyACL, "incorrect default deny ACL")
 			} else {
 				require.NoError(err)
-				require.Equalf(expectedDefaultDenyACL, ipamAddResult.defaultDenyACL, "incorrect default deny ACL")
+				require.Equalf(expectedDefaultDenyACL, ipamAddResult.defaultDenyACL, "correct default deny ACL")
 			}
 
 			for _, ifInfo := range ipamAddResult.interfaceInfo {
