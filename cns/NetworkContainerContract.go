@@ -127,6 +127,7 @@ type CreateNetworkContainerRequest struct {
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
 	NetworkInterfaceInfo       NetworkInterfaceInfo //nolint // introducing new field for backendnic, to be used later by cni code
+	IPFamilies                 map[IPFamily]struct{}
 }
 
 func (req *CreateNetworkContainerRequest) Validate() error {
@@ -742,3 +743,11 @@ type NodeRegisterRequest struct {
 	NumCores             int
 	NmAgentSupportedApis []string
 }
+
+// IPFamily - Enum for determining IPFamily when retrieving IPs from network containers
+type IPFamily string
+
+const (
+	IPv4Family IPFamily = "ipv4"
+	IPv6Family IPFamily = "ipv6"
+)
