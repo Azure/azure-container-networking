@@ -594,6 +594,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			nwCfg.AdditionalArgs = append(nwCfg.AdditionalArgs, ipamAddResult.interfaceInfo[key].DefaultDenyACL...)
 		}
 	}
+
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 	// moved to addIpamInvoker
 	// sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam interface: %+v", ipamAddResult.PrettyString()))
