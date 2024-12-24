@@ -564,7 +564,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		if len(ipamAddResult.interfaceInfo) > 1 && !plugin.isDualNicFeatureSupported(args.Netns) {
 			errMsg := fmt.Sprintf("received multiple NC results %+v from CNS while dualnic feature is not supported", ipamAddResult.interfaceInfo)
 			logger.Error("received multiple NC results from CNS while dualnic feature is not supported",
-				zap.Any("Processing interfaceInfo", ipamAddResult.interfaceInfo))
+				zap.Any("results", ipamAddResult.interfaceInfo))
 			return plugin.Errorf(errMsg)
 		}
 	} else {
