@@ -612,6 +612,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 						Gateway: net.ParseIP("10.0.0.1"),
 					},
 				},
+				DefaultDenyACL: expectedDefaultDenyACL,
 				Routes: []network.RouteInfo{
 					{
 						Dst: network.Ipv4DefaultRouteDstPrefix,
@@ -681,6 +682,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 						Gateway: net.ParseIP("10.0.0.1"),
 					},
 				},
+				DefaultDenyACL: expectedDefaultDenyACL,
 				Routes: []network.RouteInfo{
 					{
 						Dst: network.Ipv4DefaultRouteDstPrefix,
@@ -742,7 +744,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 										PrimaryIP: "fe80::1234:5678:9abc",
 										Subnet:    "fd11:1234::/112",
 									},
-									NICType: cns.InfraNIC,
+									NICType:        cns.InfraNIC,
+									DefaultDenyACL: expectedDefaultDenyACL,
 								},
 							},
 							Response: cns.Response{
@@ -775,6 +778,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 						Gateway: net.ParseIP("fe80::1234:5678:9abc"),
 					},
 				},
+				DefaultDenyACL: expectedDefaultDenyACL,
 				Routes: []network.RouteInfo{
 					{
 						Dst: network.Ipv4DefaultRouteDstPrefix,
@@ -799,8 +803,19 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 					require: require,
 					requestIPs: requestIPsHandler{
 						ipconfigArgument: getTestIPConfigsRequest(),
-						result:           nil,
-						err:              errors.New("failed error from CNS"), //nolint "error for ut"
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
+								{
+									DefaultDenyACL: expectedDefaultDenyACL,
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: errors.New("failed error from CNS"), //nolint "error for ut"
+
 					},
 				},
 			},
@@ -820,6 +835,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 			}
 			ipamAddResult, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
 			if tt.wantErr {
+				require.Equalf([]cni.KVPair(nil), ipamAddResult.interfaceInfo[string(cns.InfraNIC)].DefaultDenyACL, "Correct default deny ACL")
 				require.Error(err)
 			} else {
 				require.NoError(err)
