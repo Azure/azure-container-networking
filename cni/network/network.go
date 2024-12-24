@@ -564,7 +564,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		if len(ipamAddResult.interfaceInfo) > 1 && !plugin.isDualNicFeatureSupported(args.Netns) {
 			errMsg := fmt.Sprintf("received multiple NC results %+v from CNS while dualnic feature is not supported", ipamAddResult.interfaceInfo)
 			logger.Error("received multiple NC results from CNS while dualnic feature is not supported",
-				zap.Any("results", ipamAddResult.interfaceInfo))
+				zap.Any("Processing interfaceInfo", ipamAddResult.interfaceInfo))
 			return plugin.Errorf(errMsg)
 		}
 	} else {
@@ -589,8 +589,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.interfaceInfo[ifIndex], ipamAddResult.interfaceInfo))
 	}
 
-	logger.Info("The length of ipamAddResult defaultDenyACL's is", zap.Any("defaultDenyACLLength", ipamAddResult.defaultDenyACL))
-	nwCfg.AdditionalArgs = append(nwCfg.AdditionalArgs, ipamAddResult.defaultDenyACL...)
+	for key := range ipamAddResult.interfaceInfo {
+		if key == string(cns.InfraNIC) {
+			nwCfg.AdditionalArgs = append(nwCfg.AdditionalArgs, ipamAddResult.interfaceInfo[key].DefaultDenyACL...)
+			logger.Info("nwCfg.AdditionalArgs2:", zap.Any("ifInfo", nwCfg.AdditionalArgs))
+		}
+	}
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 	// moved to addIpamInvoker
 	// sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam interface: %+v", ipamAddResult.PrettyString()))

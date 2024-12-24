@@ -9,6 +9,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/netio"
@@ -138,6 +139,7 @@ type InterfaceInfo struct {
 	HostSubnetPrefix  net.IPNet // Move this field from ipamAddResult
 	NCResponse        *cns.GetNetworkContainerResponse
 	PnPID             string
+	DefaultDenyACL    []cni.KVPair
 }
 
 type IPConfig struct {

@@ -28,8 +28,7 @@ type IPAMAddConfig struct {
 type IPAMAddResult struct {
 	interfaceInfo map[string]network.InterfaceInfo
 	// ncResponse and host subnet prefix were moved into interface info
-	ipv6Enabled    bool
-	defaultDenyACL []cni.KVPair
+	ipv6Enabled bool
 }
 
 func (ipamAddResult IPAMAddResult) PrettyString() string {

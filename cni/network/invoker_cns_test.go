@@ -821,10 +821,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 			ipamAddResult, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
 			if tt.wantErr {
 				require.Error(err)
-				require.Equalf([]cni.KVPair(nil), ipamAddResult.defaultDenyACL, "incorrect default deny ACL")
 			} else {
 				require.NoError(err)
-				require.Equalf(expectedDefaultDenyACL, ipamAddResult.defaultDenyACL, "correct default deny ACL")
 			}
 
 			for _, ifInfo := range ipamAddResult.interfaceInfo {
@@ -837,6 +835,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				}
 				if ifInfo.NICType == cns.InfraNIC {
 					require.Equalf(tt.wantDefaultResult, ifInfo, "incorrect default response")
+					require.Equalf(expectedDefaultDenyACL, ifInfo.DefaultDenyACL, "Correct default deny ACL")
 				}
 			}
 		})
