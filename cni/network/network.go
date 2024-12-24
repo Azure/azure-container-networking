@@ -592,7 +592,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	for key := range ipamAddResult.interfaceInfo {
 		if key == string(cns.InfraNIC) {
 			nwCfg.AdditionalArgs = append(nwCfg.AdditionalArgs, ipamAddResult.interfaceInfo[key].DefaultDenyACL...)
-			logger.Info("nwCfg.AdditionalArgs2:", zap.Any("ifInfo", nwCfg.AdditionalArgs))
 		}
 	}
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
