@@ -20,7 +20,7 @@ steps:
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
@@ -36,7 +36,7 @@ steps:
         kubectl rollout status daemonset/azure-cni-windows -n kube-system
     name: "UploadCni"
     displayName: "Upload CNI"
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"

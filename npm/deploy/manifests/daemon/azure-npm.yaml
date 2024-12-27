@@ -135,7 +135,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-          image: azure-npm:v1.4.1
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.1
           name: azure-npm
           ports:
             - name: metrics

@@ -1,6 +1,6 @@
 ARG ARCH
 ARG OS_VERSION
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.22 AS azure-vnet
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS azure-vnet
 ARG VERSION
 WORKDIR /azure-container-networking
 COPY . .
@@ -19,7 +19,7 @@ COPY --from=azure-vnet /azure-container-networking/telemetry/azure-vnet-telemetr
 RUN cd pkg/embed/fs/ && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive pkg/embed/fs && for f in pkg/embed/fs/*.gz; do mv -- "$f" "${f%%.gz}"; done
 
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.22 AS dropgz
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS dropgz
 ARG VERSION
 WORKDIR /dropgz
 COPY --from=compressor /dropgz .

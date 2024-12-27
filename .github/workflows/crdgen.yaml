@@ -11,15 +11,15 @@ jobs:
   crdgen119:
     strategy:
       matrix:
-        go-version: ["1.21", "1.22"]
+        go-version: ["1.22", "1.23"]
         os: [ubuntu-latest]
     name: CRDs are Generated
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
       - name: Regenerate NodeNetworkConfig CRD

@@ -7,25 +7,27 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+  merge_group:
+    types:
+      - checks_requested
 jobs:
-  golangci119:
+  golangci:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ["1.21.x", "1.22.x"]
+        go-version: ['1.22.x', '1.23.x']
         os: [ubuntu-latest, windows-latest]
     name: Lint
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/setup-go@v4
-        with:
-          go-version: ${{ matrix.go-version }}
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: v1.55.2
-          args: --timeout=25m
-          only-new-issues: true
+    - uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: v1.61
+        args: --new-from-rev=origin/release/v1.4 --config=.golangci.yml --timeout=25m 

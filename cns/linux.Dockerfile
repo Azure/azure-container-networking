@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.22 AS builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS builder
 ARG VERSION
 ARG CNS_AI_PATH
 ARG CNS_AI_ID

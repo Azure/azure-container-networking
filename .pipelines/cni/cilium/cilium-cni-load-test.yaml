@@ -7,7 +7,7 @@ stages:
     jobs:
       - job: create_aks_cluster_with_cilium
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -25,7 +25,7 @@ stages:
     jobs:
       - job: deploy_cilium_components
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             displayName: "Install Cilium, CNS, and ip-masq-agent"
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -76,7 +76,7 @@ stages:
     jobs:
       - job: validate_state
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -95,7 +95,7 @@ stages:
     jobs:
       - job: restart_nodes
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -138,7 +138,7 @@ stages:
               rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
             name: "InstallCiliumCli"
             displayName: "Install Cilium CLI"
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -162,7 +162,7 @@ stages:
     jobs:
       - job: delete_resources
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"

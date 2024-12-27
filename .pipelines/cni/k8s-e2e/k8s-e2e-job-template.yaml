@@ -13,7 +13,7 @@ jobs:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     steps:
-      - task: AzureCLI@1
+      - task: AzureCLI@2
         inputs:
           azureSubscription: ${{ parameters.sub }}
           scriptLocation: "inlineScript"

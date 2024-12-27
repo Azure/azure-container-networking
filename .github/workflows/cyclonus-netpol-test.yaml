@@ -5,14 +5,14 @@ on:
   push:
     branches:
       - main
+      - release/*
   pull_request:
     paths:
-      - "npm/**"
-      - "github/**"
-      - "test/**"
+      - 'npm/**'
+      - '.github/**'
   schedule:
     # run once a day at midnight
-    - cron: "0 0 * * *"
+    - cron: '0 0 * * *'
 
 jobs:
   cyclonus-test:
@@ -30,27 +30,26 @@ jobs:
           ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: "^1.22"
+          go-version: '^1.23'
 
       - name: Setup Kind
-        uses: engineerd/setup-kind@v0.5.0
+        uses: helm/kind-action@v1
         with:
-          version: "v0.11.1"
+          version: "v0.22.0"
+          kubectl_version: "v1.27.7"
           config: ./test/kind/kind.yaml
-          name: npm-kind
+          cluster_name: npm-kind
 
       - name: Check Kind
         run: |
           kubectl get po -owide -A
-
       - name: Make NPM image
         run: |
           make npm-image NPM_PLATFORM_TAG=cyclonus PLATFORM=linux/amd64 CONTAINER_BUILDER=docker BUILDX_ACTION='--load'
-
       - name: Install Azure NPM
         # set the ConfigMap based on the build matrix
         # currently have to restart the daemonset because changing the ConfigMap doesn't restart NPM
@@ -61,13 +60,11 @@ jobs:
           echo "Applying profile: ${{ matrix.profile }}"
           kubectl apply -f ./npm/profiles/${{ matrix.profile }}
           kubectl rollout restart ds azure-npm -n kube-system
-
       - name: Check Cluster Components
         run: |
           sleep 10
           kubectl get po -owide -A
           kubectl describe ds azure-npm -n kube-system
-
       - name: Run Cyclonus network policy test
         run: make test-cyclonus
 
@@ -76,12 +73,11 @@ jobs:
         run: |
           kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > npm-logs_${{ matrix.profile }}.txt
           mv ./test/cyclonus/cyclonus-test.txt ./cyclonus-test_${{ matrix.profile }}.txt
-
-      - name: "Upload Logs"
-        uses: actions/upload-artifact@v3
+      - name: 'Upload Logs'
+        uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: logs
+          name: logs-${{ matrix.profile }}
           path: |
             ./npm-logs_${{ matrix.profile }}.txt
             ./cyclonus-test_${{ matrix.profile }}.txt

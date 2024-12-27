@@ -9,7 +9,7 @@ AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v
 
 # overrideable defaults
 AUTOUPGRADE     ?= patch
-K8S_VER         ?= 1.27 # Designated for Long Term Support, July 2025 | Only Ubuntu 22.04 is supported
+K8S_VER         ?= 1.27.16 # Designated for Long Term Support, July 2025 | Only Ubuntu 22.04 is supported
 NODE_COUNT      ?= 2
 NODEUPGRADE     ?= NodeImage
 OS_SKU          ?= Ubuntu

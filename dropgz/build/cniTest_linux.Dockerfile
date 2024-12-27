@@ -1,10 +1,10 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.22 AS azure-ipam
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS azure-ipam
 ARG VERSION
 WORKDIR /azure-ipam
 COPY ./azure-ipam .
 RUN CGO_ENABLED=0 go build -a -o bin/azure-ipam -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
 
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.22 AS azure-vnet
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS azure-vnet
 ARG VERSION
 WORKDIR /azure-container-networking
 COPY . .
@@ -27,7 +27,7 @@ COPY --from=azure-vnet /azure-container-networking/telemetry/azure-vnet-telemetr
 RUN cd pkg/embed/fs/ && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive pkg/embed/fs && for f in pkg/embed/fs/*.gz; do mv -- "$f" "${f%%.gz}"; done
 
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.22 AS dropgz
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS dropgz
 ARG VERSION
 WORKDIR /dropgz
 COPY --from=compressor /dropgz .

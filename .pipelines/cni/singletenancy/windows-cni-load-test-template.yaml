@@ -62,7 +62,7 @@ stages:
               arch: amd64
               os_version: ltsc2022
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -155,7 +155,7 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"

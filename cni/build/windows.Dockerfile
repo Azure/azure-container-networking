@@ -1,5 +1,5 @@
 ARG OS_VERSION
-FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.22 AS builder
+FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS builder
 ARG VERSION
 ARG CNI_AI_PATH
 ARG CNI_AI_ID

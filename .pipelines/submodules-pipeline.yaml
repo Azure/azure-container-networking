@@ -132,10 +132,11 @@ stages:
               pathtoPublish: "$(Build.ArtifactStagingDirectory)"
             condition: succeeded()
 
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
+              scriptType: "bash"
               inlineScript: |
                 echo Creating storage container with name acn-$(STORAGE_ID) and account name $(STORAGE_ACCOUNT_NAME)
                 az storage container create -n acn-$(STORAGE_ID) --account-name $(STORAGE_ACCOUNT_NAME) --public-access container
@@ -321,10 +322,11 @@ stages:
           demands: agent.os -equals Linux
         steps:
           - checkout: none
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
+              scriptType: "bash"
               inlineScript: |
                 BUILD_NUMBER=$(Build.BuildNumber)
                 BUILD_NUMBER=${BUILD_NUMBER//./-}
