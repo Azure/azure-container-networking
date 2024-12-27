@@ -668,9 +668,9 @@ func main() {
 	}
 
 	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
-	// homeAz monitor is only required when there is a direct channel between DNC and CNS.
-	// This will prevent the monitor from unnecessarily calling NMA APIs for other scenarios such as AKS-swift, swiftv2
-	if cnsconfig.ChannelMode == cns.Direct {
+	// homeAz monitor is required when there is a direct channel between DNC and CNS OR when homeAz feature is enabled in CNS for AKS-Swift
+	// This will prevent the monitor from unnecessarily calling NMA APIs for other scenarios such as AKS-swift, swiftv2 when disabled.
+	if cnsconfig.ChannelMode == cns.Direct || cnsconfig.EnableHomeAZ {
 		homeAzMonitor.Start()
 		defer homeAzMonitor.Stop()
 	}
@@ -1303,6 +1303,68 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// TODO(rbtr): nodename and namespace should be in the cns config
 	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
+	// Create the base NNC CRD if HomeAz is enabled
+	if cnsconfig.EnableHomeAZ {
+		var homeAzResponse cns.GetHomeAzResponse
+		if homeAzResponse, err = httpRestServiceImplementation.GetHomeAz(ctx); err != nil {
+			return errors.Wrap(err, "failed to get HomeAz") // error out so that CNS restarts.
+		}
+		az := homeAzResponse.HomeAzResponse.HomeAz
+		logger.Printf("[Azure CNS] HomeAz: %d", az)
+		// Create Node Network Config CRD and update the Home Az field with the cache value from the HomeAz Monitor
+		var nnc *v1alpha.NodeNetworkConfig
+		err = retry.Do(func() error {
+			if nnc, err = directnnccli.Get(ctx, types.NamespacedName{Namespace: "kube-system", Name: nodeName}); err != nil {
+				return errors.Wrap(err, "[Azure CNS] failed to get existing NNC")
+			}
+			return nil
+		}, retry.Delay(initCNSInitalDelay), retry.Attempts(5))
+
+		newNNC := createBaseNNC(node)
+		if err != nil {
+			logger.Printf("[Azure CNS] Creating new base NNC with Az %d", az)
+			newNNC.Spec.AvailabilityZone = az
+			nncErr := retry.Do(func() error {
+				if err = directcli.Create(ctx, newNNC); err != nil {
+					return errors.Wrap(err, "failed to create base NNC with HomeAz")
+				}
+				return nil
+			}, retry.Delay(initCNSInitalDelay), retry.Attempts(5))
+			if nncErr != nil {
+				return errors.Wrap(nncErr, "[Azure CNS] failed to create base NNC with HomeAz")
+			}
+		}
+
+		if err == nil { // NNC exists, patch it with new HomeAz
+			logger.Printf("[Azure CNS] Patching existing NNC with new Spec with HomeAz %d", az)
+			newNNC.ObjectMeta.ResourceVersion = nnc.ObjectMeta.ResourceVersion
+			newNNC.Spec.AvailabilityZone = az
+			newNNC.Spec.RequestedIPCount = nnc.Spec.RequestedIPCount
+			newNNC.Spec.IPsNotInUse = nnc.Spec.IPsNotInUse
+			newNNC.Status = nnc.Status
+			newNNC.UID = nnc.UID
+			newNNC.Name = nnc.Name
+			newNNC.Namespace = nnc.Namespace
+			newNNC.Annotations = nnc.Annotations
+			newNNC.Labels = nnc.Labels
+			newNNC.Finalizers = nnc.Finalizers
+			newNNC.OwnerReferences = nnc.OwnerReferences
+			newNNC.CreationTimestamp = nnc.CreationTimestamp
+			newNNC.DeletionTimestamp = nnc.DeletionTimestamp
+			nncErr := retry.Do(func() error {
+				patchErr := directcli.Update(ctx, newNNC, &client.UpdateOptions{})
+				if patchErr != nil {
+					return errors.Wrap(patchErr, "failed to patch NNC")
+				}
+				return nil
+			}, retry.Delay(initCNSInitalDelay), retry.Attempts(5))
+			if nncErr != nil {
+				return errors.Wrap(nncErr, "[AzureCNS] failed to patch NNC with Home Az")
+			}
+		}
+		logger.Printf("[Azure CNS] Updated HomeAz in NNC %v", newNNC)
+	}
+
 	logger.Printf("Reconciling initial CNS state")
 	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
 	// aks addons to come up so retry a bit more aggresively here.
@@ -1511,6 +1573,18 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}()
 	logger.Printf("Initialized SyncHostNCVersion loop.")
 	return nil
+}
+
+func createBaseNNC(node *corev1.Node) *v1alpha.NodeNetworkConfig {
+	return &v1alpha.NodeNetworkConfig{ObjectMeta: metav1.ObjectMeta{
+		Annotations: make(map[string]string),
+		Labels: map[string]string{
+			"managed": "true",
+			"owner":   node.Name,
+		},
+		Name:      node.Name,
+		Namespace: "kube-system",
+	}}
 }
 
 // getPodInfoByIPProvider returns a PodInfoByIPProvider that reads endpoint state from the configured source

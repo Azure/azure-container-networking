@@ -35,6 +35,7 @@ type CNSConfig struct {
 	EnableSubnetScarcity        bool
 	EnableSwiftV2               bool
 	InitializeFromCNI           bool
+	EnableHomeAZ                bool
 	KeyVaultSettings            KeyVaultSettings
 	MSISettings                 MSISettings
 	ManageEndpointState         bool
