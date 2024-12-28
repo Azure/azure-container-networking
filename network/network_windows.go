@@ -4,8 +4,10 @@
 package network
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -43,6 +45,7 @@ const (
 	defaultIPv6Route = "::/0"
 	// Default IPv6 nextHop
 	defaultIPv6NextHop = "fe80::1234:5678:9abc"
+	dhcpTimeout        = 15 * time.Second
 )
 
 // Windows implementation of route.
@@ -414,8 +417,29 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *EndpointInfo, extIf *exter
 	return nw, nil
 }
 
+func (nm *networkManager) sendDHCPDiscoverOnSecondary(client dhcpClient, mac net.HardwareAddr, ifName string) error {
+	// issue dhcp discover packet to ensure mapping created for dns via wireserver to work
+	// we do not use the response for anything
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(dhcpTimeout))
+	defer cancel()
+	logger.Info("Sending DHCP packet", zap.Any("macAddress", mac), zap.String("ifName", ifName))
+	err := client.DiscoverRequest(ctx, mac, ifName)
+	if err != nil {
+		return errors.Wrapf(err, "failed to issue dhcp discover packet to create mapping in host")
+	}
+	logger.Info("Successfully received DHCP reply packet")
+	return nil
+}
+
 // NewNetworkImpl creates a new container network.
 func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalInterface) (*network, error) {
+	if nwInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
+		// use master interface name, interface name, or adapter name?
+		if err := nm.sendDHCPDiscoverOnSecondary(nm.dhcpClient, nwInfo.MacAddress, nwInfo.MasterIfName); err != nil {
+			return nil, err
+		}
+	}
+
 	if useHnsV2, err := UseHnsV2(nwInfo.NetNs); useHnsV2 {
 		if err != nil {
 			return nil, err
