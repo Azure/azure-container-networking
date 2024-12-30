@@ -38,8 +38,8 @@ jobs:
       - name: Setup Kind
         uses: helm/kind-action@v1
         with:
-          version: "v0.22.0"
-          kubectl_version: "v1.27.7"
+          version: "v0.24.0"
+          kubectl_version: "v1.28.15"
           config: ./test/kind/kind.yaml
           cluster_name: npm-kind
 
