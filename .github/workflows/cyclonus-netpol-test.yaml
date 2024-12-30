@@ -8,11 +8,11 @@ on:
       - release/*
   pull_request:
     paths:
-      - "npm/**"
-      - ".github/**"
+      - 'npm/**'
+      - '.github/**'
   schedule:
     # run once a day at midnight
-    - cron: "0 0 * * *"
+    - cron: '0 0 * * *'
 
 jobs:
   cyclonus-test:
@@ -33,24 +33,22 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "^1.23"
+          go-version: '^1.23'
 
       - name: Setup Kind
         uses: helm/kind-action@v1
         with:
-          version: "v0.24.0"
-          kubectl_version: "v1.28.15"
+          version: "v0.22.0"
+          kubectl_version: "v1.27.7"
           config: ./test/kind/kind.yaml
           cluster_name: npm-kind
 
       - name: Check Kind
         run: |
           kubectl get po -owide -A
-
       - name: Make NPM image
         run: |
           make npm-image NPM_PLATFORM_TAG=cyclonus PLATFORM=linux/amd64 CONTAINER_BUILDER=docker BUILDX_ACTION='--load'
-
       - name: Install Azure NPM
         # set the ConfigMap based on the build matrix
         # currently have to restart the daemonset because changing the ConfigMap doesn't restart NPM
@@ -61,13 +59,11 @@ jobs:
           echo "Applying profile: ${{ matrix.profile }}"
           kubectl apply -f ./npm/profiles/${{ matrix.profile }}
           kubectl rollout restart ds azure-npm -n kube-system
-
       - name: Check Cluster Components
         run: |
           sleep 10
           kubectl get po -owide -A
           kubectl describe ds azure-npm -n kube-system
-
       - name: Run Cyclonus network policy test
         run: make test-cyclonus
 
@@ -76,8 +72,7 @@ jobs:
         run: |
           kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > npm-logs_${{ matrix.profile }}.txt
           mv ./test/cyclonus/cyclonus-test.txt ./cyclonus-test_${{ matrix.profile }}.txt
-
-      - name: "Upload Logs"
+      - name: 'Upload Logs'
         uses: actions/upload-artifact@v4
         if: always()
         with:
