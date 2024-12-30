@@ -15,19 +15,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ["1.21.x", "1.22.x"]
+        go-version: ['1.22.x', '1.23.x']
         os: [ubuntu-latest, windows-latest]
     name: Lint
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ matrix.go-version }}
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v5
-        with:
-          version: v1.55
-          args: --new-from-rev=origin/release/v1.5 --config=.golangci.yml --timeout=25m
+    - uses: actions/setup-go@v5
+      with:
+        go-version: ${{ matrix.go-version }}
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: v1.61
+        args: --new-from-rev=origin/release/v1.5 --config=.golangci.yml --timeout=25m

@@ -3,7 +3,7 @@ ARG DROPGZ_VERSION=v0.0.12
 ARG OS_VERSION
 ARG OS
 
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.22 AS azure-vnet
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS azure-vnet
 ARG OS
 ARG VERSION
 ARG CNI_AI_PATH
@@ -31,7 +31,7 @@ COPY --from=azure-vnet /azure-container-networking/telemetry/azure-vnet-telemetr
 RUN cd /payload && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive /payload && for f in /payload/*.gz; do mv -- "$f" "${f%%.gz}"; done
 
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.22 AS dropgz
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS dropgz
 ARG DROPGZ_VERSION
 ARG OS
 ARG VERSION
