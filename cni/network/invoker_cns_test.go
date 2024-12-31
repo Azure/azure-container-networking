@@ -521,7 +521,30 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 		hostSubnetPrefix *net.IPNet
 		options          map[string]interface{}
 	}
+	valueOut := []byte(`{
+		"Type": "ACL",
+		"Action": "Block",
+		"Direction": "Out",
+		"Priority": 10000
+	}`)
 
+	valueIn := []byte(`{
+		"Type": "ACL",
+		"Action": "Block",
+		"Direction": "In",
+		"Priority": 10000
+	}`)
+
+	expectedDefaultDenyACL := []cni.KVPair{
+		{
+			Name:  "EndpointPolicy",
+			Value: valueOut,
+		},
+		{
+			Name:  "EndpointPolicy",
+			Value: valueIn,
+		},
+	}
 	tests := []struct {
 		name                  string
 		fields                fields
@@ -559,7 +582,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 										PrimaryIP: "10.0.0.1",
 										Subnet:    "10.0.0.0/24",
 									},
-									NICType: cns.InfraNIC,
+									NICType:        cns.InfraNIC,
+									DefaultDenyACL: expectedDefaultDenyACL,
 								},
 							},
 							Response: cns.Response{
@@ -628,6 +652,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 										PrimaryIP: "10.0.0.1",
 										Subnet:    "10.0.0.0/24",
 									},
+									DefaultDenyACL: expectedDefaultDenyACL,
 								},
 							},
 							Response: cns.Response{
@@ -696,7 +721,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 										PrimaryIP: "10.0.0.1",
 										Subnet:    "10.0.0.0/24",
 									},
-									NICType: cns.InfraNIC,
+									NICType:        cns.InfraNIC,
+									DefaultDenyACL: expectedDefaultDenyACL,
 								},
 								{
 									PodIPConfig: cns.IPSubnet{
@@ -795,8 +821,10 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 			ipamAddResult, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
 			if tt.wantErr {
 				require.Error(err)
+				require.Equalf([]cni.KVPair(nil), ipamAddResult.defaultDenyACL, "incorrect default deny ACL")
 			} else {
 				require.NoError(err)
+				require.Equalf(expectedDefaultDenyACL, ipamAddResult.defaultDenyACL, "incorrect default deny ACL")
 			}
 
 			for _, ifInfo := range ipamAddResult.interfaceInfo {
