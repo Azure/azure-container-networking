@@ -360,10 +360,20 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *EndpointInfo, extIf *exter
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
 			logger.Info("Creating hcn network", zap.Any("hcnNetwork", hcnNetwork))
 			hnsResponse, err = Hnsv2.CreateNetwork(hcnNetwork)
-			if err != nil {
-				return nil, fmt.Errorf("Failed to create hcn network: %s due to error: %v", hcnNetwork.Name, err)
+			if err == nil {
+				logger.Info("Successfully created hcn network with response", zap.Any("hnsResponse", hnsResponse))
+			} else {
+				if strings.Contains(err.Error(), "already exists") {
+					// fetch the network name again since the parallel CNI Add call has created the HNS network
+					hnsResponse, err = Hnsv2.GetNetworkByName(hcnNetwork.Name)
+					if err != nil {
+						return nil, fmt.Errorf("Failed to get hcn network: %s due to error: %v", hcnNetwork.Name, err)
+					}
+					logger.Info("Successfully fetched hcn network with response", zap.Any("hnsResponse", hnsResponse))
+				} else {
+					return nil, fmt.Errorf("Failed to create hcn network: %s due to error: %v", hcnNetwork.Name, err)
+				}
 			}
-			logger.Info("Successfully created hcn network with response", zap.Any("hnsResponse", hnsResponse))
 		} else {
 			// we can't validate if the network already exists, don't continue
 			return nil, fmt.Errorf("Failed to create hcn network: %s, failed to query for existing network with error: %v", hcnNetwork.Name, err)
