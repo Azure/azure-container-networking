@@ -20,8 +20,6 @@ GOOS 	 ?= $(shell go env GOOS)
 GOARCH   ?= $(shell go env GOARCH)
 GOOSES   ?= "linux windows" # To override at the cli do: GOOSES="\"darwin bsd\""
 GOARCHES ?= "amd64 arm64" # To override at the cli do: GOARCHES="\"ppc64 mips\""
-ltsc2019  = "10.0.17763.4010"
-ltsc2022  = "10.0.20348.643"
 
 # Windows specific extensions
 # set these based on the GOOS, not the OS
@@ -274,15 +272,15 @@ CNS_IMAGE			= azure-cns
 NPM_IMAGE			= azure-npm
 
 ## Image platform tags.
-ACNCLI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(ACN_VERSION)
-AZURE_IPAM_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(AZURE_IPAM_VERSION)
-AZURE_IPAM_WINDOWS_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(AZURE_IPAM_VERSION)-$(OS_SKU_WIN)
-IPV6_HP_BPF_IMAGE_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(IPV6_HP_BPF_VERSION)
-CNI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)
-CNI_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)-$(OS_SKU_WIN)
-CNS_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)
-CNS_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)-$(OS_SKU_WIN)
-NPM_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(NPM_VERSION)
+ACNCLI_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(ACN_VERSION)
+AZURE_IPAM_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))-$(AZURE_IPAM_VERSION)
+AZURE_IPAM_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))-$(AZURE_IPAM_VERSION)
+IPV6_HP_BPF_IMAGE_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))-$(IPV6_HP_BPF_VERSION)
+CNI_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(CNI_VERSION)
+CNI_WINDOWS_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))-$(CNI_VERSION)
+CNS_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)
+CNS_WINDOWS_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)
+NPM_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(NPM_VERSION)
 
 
 qemu-user-static: ## Set up the host to run qemu multiplatform container builds.
@@ -316,8 +314,7 @@ container: # util target to build container images. do not invoke directly.
 		PLATFORM=$(PLATFORM) \
 		TAG=$(TAG) \
 		OS=$(OS) \
-		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION)
+		ARCH=$(ARCH)
 
 container-push: # util target to publish container image. do not invoke directly.
 	$(CONTAINER_BUILDER) push \
@@ -367,12 +364,11 @@ azure-ipam-image: ## build azure-ipam container image.
 	$(MAKE) container \
 		DOCKERFILE=azure-ipam/$(OS).Dockerfile \
 		IMAGE=$(AZURE_IPAM_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH)' \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(AZURE_IPAM_PLATFORM_TAG) \
 		OS=$(OS) \
-		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION)
+		ARCH=$(ARCH)
 
 azure-ipam-image-push: ## push azure-ipam container image.
 	$(MAKE) container-push \
@@ -396,12 +392,11 @@ ipv6-hp-bpf-image: ## build ipv6-hp-bpf container image.
 	$(MAKE) container \
 		DOCKERFILE=bpf-prog/ipv6-hp-bpf/$(OS).Dockerfile \
 		IMAGE=$(IPV6_HP_BPF_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION) --build-arg DEBUG=$(DEBUG)'\
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg DEBUG=$(DEBUG)'\
 		PLATFORM=$(PLATFORM) \
 		TAG=$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG) \
 		OS=$(OS) \
-		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION)
+		ARCH=$(ARCH)
 
 ipv6-hp-bpf-image-push: ## push ipv6-hp-bpf container image.
 	$(MAKE) container-push \
@@ -425,12 +420,11 @@ cni-image: ## build cni container image.
 	$(MAKE) container \
 		DOCKERFILE=cni/$(OS).Dockerfile \
 		IMAGE=$(CNI_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION) --build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)' \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)' \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(CNI_PLATFORM_TAG) \
 		OS=$(OS) \
-		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION)
+		ARCH=$(ARCH)
 
 cni-image-push: ## push cni container image.
 	$(MAKE) container-push \
@@ -455,12 +449,11 @@ cns-image: ## build cns container image.
 	$(MAKE) container \
 		DOCKERFILE=cns/$(OS).Dockerfile \
 		IMAGE=$(CNS_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID) --build-arg OS_VERSION=$(OS_VERSION)' \
+		EXTRA_BUILD_ARGS='--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)' \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(CNS_PLATFORM_TAG) \
 		OS=$(OS) \
-		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION)
+		ARCH=$(ARCH)
 
 cns-image-push: ## push cns container image.
 	$(MAKE) container-push \
@@ -484,12 +477,11 @@ npm-image: ## build the npm container image.
 	$(MAKE) container-$(CONTAINER_BUILDER) \
 		DOCKERFILE=npm/$(OS).Dockerfile \
 		IMAGE=$(NPM_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID) --build-arg OS_VERSION=$(OS_VERSION)' \
+		EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)' \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(NPM_PLATFORM_TAG)\
 		OS=$(OS) \
-		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION)
+		ARCH=$(ARCH)
 
 npm-image-push: ## push npm container image.
 	$(MAKE) container-push \
@@ -543,19 +535,16 @@ manifest-create:
 	$(CONTAINER_BUILDER) manifest create $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
 manifest-add:
-	$(CONTAINER_BUILDER) manifest add --os=$(OS) --os-version=$($(OS_VERSION)) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(TAG)
+	$(CONTAINER_BUILDER) manifest add --os=$(OS) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG)
 
 manifest-build: # util target to compose multiarch container manifests from platform specific images.
 	$(MAKE) manifest-create
 	$(foreach PLATFORM,$(PLATFORMS),\
 		$(if $(filter $(PLATFORM),windows/amd64),\
-			$(foreach OS_VERSION,$(OS_VERSIONS),\
-				$(MAKE) manifest-add CONTAINER_BUILDER=$(CONTAINER_BUILDER) OS=windows OS_VERSION=$(OS_VERSION) PLATFORM=$(PLATFORM);\
-			),\
-			$(MAKE) manifest-add PLATFORM=$(PLATFORM);\
+			$(MAKE) manifest-add CONTAINER_BUILDER=$(CONTAINER_BUILDER) OS=windows PLATFORM=$(PLATFORM);,\
+		$(MAKE) manifest-add PLATFORM=$(PLATFORM);\
 		)\
 	)\
-
 
 
 manifest-push: # util target to push multiarch container manifest.
@@ -586,8 +575,7 @@ azure-ipam-manifest-build: ## build azure-ipam multiplat container manifest.
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(AZURE_IPAM_IMAGE) \
-		TAG=$(AZURE_IPAM_VERSION) \
-		OS_VERSIONS="$(OS_VERSIONS)"
+		TAG=$(AZURE_IPAM_VERSION)
 
 azure-ipam-manifest-push: ## push azure-ipam multiplat container manifest
 	$(MAKE) manifest-push \
@@ -603,8 +591,7 @@ ipv6-hp-bpf-manifest-build: ## build ipv6-hp-bpf multiplat container manifest.
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(IPV6_HP_BPF_IMAGE) \
-		TAG=$(IPV6_HP_BPF_VERSION) \
-		OS_VERSIONS="$(OS_VERSIONS)"
+		TAG=$(IPV6_HP_BPF_VERSION)
 
 ipv6-hp-bpf-manifest-push: ## push ipv6-hp-bpf multiplat container manifest
 	$(MAKE) manifest-push \
@@ -620,8 +607,7 @@ cni-manifest-build: ## build cni multiplat container manifest.
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNI_IMAGE) \
-		TAG=$(CNI_VERSION) \
-		OS_VERSIONS="$(OS_VERSIONS)"
+		TAG=$(CNI_VERSION)
 
 cni-manifest-push: ## push cni multiplat container manifest
 	$(MAKE) manifest-push \
@@ -637,8 +623,7 @@ cns-manifest-build: ## build azure-cns multiplat container manifest.
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNS_IMAGE) \
-		TAG=$(CNS_VERSION) \
-		OS_VERSIONS="$(OS_VERSIONS)"
+		TAG=$(CNS_VERSION)
 
 cns-manifest-push: ## push cns multiplat container manifest
 	$(MAKE) manifest-push \
@@ -654,8 +639,7 @@ npm-manifest-build: ## build azure-npm multiplat container manifest.
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(NPM_IMAGE) \
-		TAG=$(NPM_VERSION) \
-		OS_VERSIONS="$(OS_VERSIONS)"
+		TAG=$(NPM_VERSION)
 
 npm-manifest-push: ## push multiplat container manifest
 	$(MAKE) manifest-push \

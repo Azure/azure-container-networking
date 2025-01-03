@@ -1,7 +1,6 @@
 parameters:
   name: ""
   platforms: ""
-  os_versions: ""
 
 steps:
 
@@ -16,7 +15,7 @@ steps:
 
   - script: |
       set -e
-      make ${{ parameters.name }}-manifest-build PLATFORMS="${{ parameters.platforms }}" OS_VERSIONS="${{ parameters.os_versions }}"
+      make ${{ parameters.name }}-manifest-build PLATFORMS="${{ parameters.platforms }}"
     name: manifest_build
     displayName: Manifest Build
     retryCountOnTaskFailure: 3
