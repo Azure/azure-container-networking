@@ -21,6 +21,11 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	errHcnNetworkCreate = errors.New("failed to create hcn network")
+	errHcnNetworkGet    = errors.New("failed to get hcn network")
+)
+
 const (
 	// HNS network types.
 	hnsL2bridge            = "l2bridge"
@@ -365,18 +370,19 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *EndpointInfo, extIf *exter
 			} else {
 				if strings.Contains(err.Error(), "already exists") {
 					// fetch the network name again since the parallel CNI Add call has created the HNS network
+					logger.Error("Failed to create hcn network.due to error:", zap.String("HNS Network Name", hcnNetwork.Name), zap.String("hnsResponse", err.Error()))
 					hnsResponse, err = Hnsv2.GetNetworkByName(hcnNetwork.Name)
 					if err != nil {
-						return nil, fmt.Errorf("Failed to get hcn network: %s due to error: %v", hcnNetwork.Name, err)
+						return nil, fmt.Errorf("%w: %s due to error %s", errHcnNetworkGet, hcnNetwork.Name, err.Error())
 					}
-					logger.Info("Successfully fetched hcn network with response", zap.Any("hnsResponse", hnsResponse))
+					logger.Info("Successfully fetched hcn network with response", zap.Any("HNS Network ID", hnsResponse.Id), zap.String("HNS Network Name", hnsResponse.Name))
 				} else {
-					return nil, fmt.Errorf("Failed to create hcn network: %s due to error: %v", hcnNetwork.Name, err)
+					return nil, fmt.Errorf("%w: %s due to error %s", errHcnNetworkCreate, hcnNetwork.Name, err.Error())
 				}
 			}
 		} else {
 			// we can't validate if the network already exists, don't continue
-			return nil, fmt.Errorf("Failed to create hcn network: %s, failed to query for existing network with error: %v", hcnNetwork.Name, err)
+			return nil, fmt.Errorf("%w: %s due to error %s", errHcnNetworkCreate, hcnNetwork.Name, err.Error())
 		}
 	} else {
 		if hcnNetwork.Type == hcn.Transparent {
