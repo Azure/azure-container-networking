@@ -55,6 +55,7 @@ type IPResultInfo struct {
 	skipDefaultRoutes  bool
 	routes             []cns.Route
 	pnpID              string
+	defaultDenyACL     []cni.KVPair
 }
 
 func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
@@ -159,6 +160,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			skipDefaultRoutes:  response.PodIPInfo[i].SkipDefaultRoutes,
 			routes:             response.PodIPInfo[i].Routes,
 			pnpID:              response.PodIPInfo[i].PnPID,
+			defaultDenyACL:     response.PodIPInfo[i].DefaultDenyACL,
 		}
 
 		logger.Info("Received info for pod",
@@ -444,6 +446,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 				Gw:  ncgw,
 			})
 		}
+
 		// if we have multiple infra ip result infos, we effectively append routes and ip configs to that same interface info each time
 		// the host subnet prefix (in ipv4 or ipv6) will always refer to the same interface regardless of which ip result info we look at
 		addResult.interfaceInfo[key] = network.InterfaceInfo{
@@ -452,6 +455,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 			IPConfigs:         ipConfigs,
 			Routes:            resRoute,
 			HostSubnetPrefix:  *hostIPNet,
+			DefaultDenyACL:    info.defaultDenyACL,
 		}
 	}
 
