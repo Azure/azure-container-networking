@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
+	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -535,7 +536,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 		"Priority": 10000
 	}`)
 
-	expectedDefaultDenyACL := []cni.KVPair{
+	expectedDefaultDenyACL := []acn.KVPair{
 		{
 			Name:  "EndpointPolicy",
 			Value: valueOut,
@@ -835,7 +836,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 			}
 			ipamAddResult, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
 			if tt.wantErr {
-				require.Equalf([]cni.KVPair(nil), ipamAddResult.interfaceInfo[string(cns.InfraNIC)].DefaultDenyACL, "Correct default deny ACL")
+				require.Equalf([]acn.KVPair(nil), ipamAddResult.interfaceInfo[string(cns.InfraNIC)].DefaultDenyACL, "Correct default deny ACL")
 				require.Error(err)
 			} else {
 				require.NoError(err)

@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/cns/fsnotify"
+	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/networkutils"
@@ -55,7 +56,7 @@ type IPResultInfo struct {
 	skipDefaultRoutes  bool
 	routes             []cns.Route
 	pnpID              string
-	defaultDenyACL     []cni.KVPair
+	defaultDenyACL     []acn.KVPair
 }
 
 func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
