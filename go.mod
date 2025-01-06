@@ -65,7 +65,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/cgroups v1.0.1 // indirect
-	github.com/coreos/go-iptables v0.6.0
+	github.com/coreos/go-iptables v0.8.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/docker v20.10.8+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
