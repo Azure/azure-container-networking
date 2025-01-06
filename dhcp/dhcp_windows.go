@@ -20,3 +20,7 @@ func New(logger *zap.Logger) *DHCP {
 func (c *DHCP) DiscoverRequest(_ context.Context, _ net.HardwareAddr, _ string) error {
 	return nil
 }
+
+func (c *DHCP) DHCPRehydrationFeatureOnHost(ctx context.Context) (bool, error) {
+	return false, nil
+}

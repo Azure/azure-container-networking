@@ -10,6 +10,8 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -37,6 +39,9 @@ const (
 	hops          = 0
 	secs          = 0
 	flags         = 0x8000 // Broadcast flag
+
+	nmAgentSupportedApisURL = "http://168.63.129.16/machine/plugins/?comp=nmagent&type=GetSupportedApis"
+	dhcpRehydrationAPIStr   = "SwiftV2DhcpRehydrationFromGoalState" // Set value provided by host
 )
 
 // TransactionID represents a 4-byte DHCP transaction ID as defined in RFC 951,
@@ -49,6 +54,8 @@ var (
 	magicCookie        = []byte{0x63, 0x82, 0x53, 0x63} // DHCP magic cookie
 	DefaultReadTimeout = 3 * time.Second
 	DefaultTimeout     = 3 * time.Second
+
+	errResponseNotOK = errors.New("not ok http status")
 )
 
 type DHCP struct {
@@ -458,4 +465,38 @@ func (c *DHCP) DiscoverRequest(ctx context.Context, mac net.HardwareAddr, ifname
 	// Wait for DHCP response (Offer)
 	res := c.receiveDHCPResponse(ctx, reader, txid)
 	return res
+}
+
+// DHCPRehydrationFeatureOnHost queries the host to check if a particular API is supported,
+// and if so, returns true; if we are unable to determine if the feature is enabled, an error
+// is returned
+func (c *DHCP) DHCPRehydrationFeatureOnHost(ctx context.Context) (bool, error) {
+	var (
+		resp       *http.Response
+		httpClient = &http.Client{Timeout: DefaultTimeout}
+	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, nmAgentSupportedApisURL, nil)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to create http request")
+	}
+	req.Header.Add("Metadata", "true")
+	req.Header.Add("x-ms-version", "2012-11-30")
+	resp, err = httpClient.Do(req)
+	if err != nil {
+		return false, errors.Wrap(err, "error issuing http request")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false, errResponseNotOK
+	}
+	bytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to read response body")
+	}
+	str := string(bytes)
+	if !strings.Contains(str, dhcpRehydrationAPIStr) {
+		return false, nil
+	}
+
+	return true, nil
 }

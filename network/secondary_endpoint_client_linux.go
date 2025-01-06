@@ -138,12 +138,21 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 	timeout := time.Duration(numSecs) * time.Second
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(timeout))
 	defer cancel()
-	logger.Info("Sending DHCP packet", zap.Any("macAddress", epInfo.MacAddress), zap.String("ifName", epInfo.IfName))
-	err := client.dhcpClient.DiscoverRequest(ctx, epInfo.MacAddress, epInfo.IfName)
+
+	// check if the permanent fix on the host has already rolled out
+	dhcpRehydrationFeatureEnabled, err := client.dhcpClient.DHCPRehydrationFeatureOnHost(ctx)
 	if err != nil {
-		return errors.Wrapf(err, "failed to issue dhcp discover packet to create mapping in host")
+		return errors.Wrap(err, "could not determine if dhcp rehydration feature enabled on host")
 	}
-	logger.Info("Finished configuring container interfaces and routes for secondary endpoint client")
+	// only send the dhcp packet if the host does not have the permanent fix
+	if !dhcpRehydrationFeatureEnabled {
+		logger.Info("Sending DHCP packet", zap.Any("macAddress", epInfo.MacAddress), zap.String("ifName", epInfo.IfName))
+		err := client.dhcpClient.DiscoverRequest(ctx, epInfo.MacAddress, epInfo.IfName)
+		if err != nil {
+			return errors.Wrap(err, "failed to issue dhcp discover packet to create mapping in host")
+		}
+		logger.Info("Finished configuring container interfaces and routes for secondary endpoint client")
+	}
 
 	return nil
 }
