@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
+	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/v3/assert"
@@ -119,7 +119,7 @@ func TestAddDefaultDenyACL(t *testing.T) {
 		"Priority": 10000
 	}`)
 
-	expectedDefaultDenyACL := []cni.KVPair{
+	expectedDefaultDenyACL := []acn.KVPair{
 		{
 			Name:  "EndpointPolicy",
 			Value: valueOut,
@@ -151,8 +151,8 @@ func TestAddDefaultDenyACL(t *testing.T) {
 }
 
 // normalizeKVPairs normalizes the JSON values in the KV pairs by unmarshaling them into a map, then marshaling them back to compact JSON to remove any extra space, new lines, etc
-func normalizeKVPairs(t *testing.T, kvPairs []cni.KVPair) []cni.KVPair {
-	normalized := make([]cni.KVPair, len(kvPairs))
+func normalizeKVPairs(t *testing.T, kvPairs []acn.KVPair) []acn.KVPair {
+	normalized := make([]acn.KVPair, len(kvPairs))
 
 	for i, kv := range kvPairs {
 		var unmarshaledValue map[string]interface{}
@@ -165,7 +165,7 @@ func normalizeKVPairs(t *testing.T, kvPairs []cni.KVPair) []cni.KVPair {
 		require.NoError(t, err, "Failed to re-marshal JSON value")
 
 		// Replace Value with the normalized compact JSON
-		normalized[i] = cni.KVPair{
+		normalized[i] = acn.KVPair{
 			Name:  kv.Name,
 			Value: normalizedValue,
 		}

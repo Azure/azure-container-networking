@@ -3,9 +3,9 @@ package middlewares
 import (
 	"encoding/json"
 
-	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
+	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/pkg/errors"
@@ -75,7 +75,7 @@ func addDefaultDenyACL(podIPInfo *cns.PodIpInfo) error {
 		return errors.Wrap(err, "Failed to create default deny ACL policy ingress")
 	}
 
-	additionalArgs := []cni.KVPair{
+	additionalArgs := []acn.KVPair{
 		{
 			Name:  "EndpointPolicy",
 			Value: blockEgressACL,

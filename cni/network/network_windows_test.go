@@ -12,6 +12,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
+	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -941,7 +942,7 @@ func TestPluginWindowsAdd(t *testing.T) {
 		EnableExactMatchForPodName: true,
 		Master:                     "eth0",
 		// these are added to test that policies propagate to endpoint info
-		AdditionalArgs: []cni.KVPair{
+		AdditionalArgs: []acn.KVPair{
 			{
 				Name:  "EndpointPolicy",
 				Value: GetRawOutBoundNATPolicy(),
