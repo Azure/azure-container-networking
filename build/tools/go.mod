@@ -8,7 +8,7 @@ require (
 	github.com/AlekSi/gocov-xml v1.1.0
 	github.com/axw/gocov v1.2.1
 	github.com/golang/mock v1.6.0
-	github.com/golangci/golangci-lint v1.63.3
+	github.com/golangci/golangci-lint v1.63.4
 	github.com/jstemmer/go-junit-report v1.0.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
 	google.golang.org/protobuf v1.36.1
