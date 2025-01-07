@@ -78,7 +78,6 @@ spec:
               availabilityZone:
                 description: AvailabilityZone contains the Azure availability zone
                   for the virtual machine where network containers are placed.
-                format: int64
                 type: integer
               ipsNotInUse:
                 items:
