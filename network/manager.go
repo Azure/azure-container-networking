@@ -439,6 +439,7 @@ func (nm *networkManager) UpdateEndpointState(eps []*endpoint) error {
 	logger.Info("Update endpoint API returend ", zap.String("podname: ", response.ReturnCode.String()))
 	return nil
 }
+
 func validateUpdateEndpointState(endpointID string, ifNameToIPInfoMap map[string]*restserver.IPInfo) error {
 	if endpointID == "" {
 		return errors.New("endpoint id empty while validating update endpoint state")

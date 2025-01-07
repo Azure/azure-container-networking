@@ -33,6 +33,7 @@ func (client *OVSEndpointClient) NewSnatClient(snatBridgeIP, localIP string, epI
 			client.netlink,
 			client.plClient,
 			client.iptablesClient,
+			client.netioshim,
 		)
 	}
 }

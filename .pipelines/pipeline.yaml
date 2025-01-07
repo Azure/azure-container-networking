@@ -19,6 +19,13 @@ trigger:
     include:
       - "*"
 
+schedules:
+- cron: "0 2 * * *" # Every day at 2am
+  displayName: "Official Nightly Pipeline"
+  branches:
+    include: ["master"]
+  always: true
+
 stages:
   - stage: setup
     displayName: ACN
