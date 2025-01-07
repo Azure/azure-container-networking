@@ -151,8 +151,8 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 		if err != nil {
 			return errors.Wrap(err, "failed to issue dhcp discover packet to create mapping in host")
 		}
-		logger.Info("Finished configuring container interfaces and routes for secondary endpoint client")
 	}
+	logger.Info("Finished configuring container interfaces and routes for secondary endpoint client")
 
 	return nil
 }
