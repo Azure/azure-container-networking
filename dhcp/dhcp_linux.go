@@ -475,7 +475,7 @@ func (c *DHCP) DHCPRehydrationFeatureOnHost(ctx context.Context) (bool, error) {
 		resp       *http.Response
 		httpClient = &http.Client{Timeout: DefaultTimeout}
 	)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, nmAgentSupportedApisURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, nmAgentSupportedApisURL, http.NoBody)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to create http request")
 	}
@@ -489,11 +489,11 @@ func (c *DHCP) DHCPRehydrationFeatureOnHost(ctx context.Context) (bool, error) {
 	if resp.StatusCode != http.StatusOK {
 		return false, errResponseNotOK
 	}
-	bytes, err := io.ReadAll(resp.Body)
+	readBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to read response body")
 	}
-	str := string(bytes)
+	str := string(readBytes)
 	if !strings.Contains(str, dhcpRehydrationAPIStr) {
 		return false, nil
 	}
