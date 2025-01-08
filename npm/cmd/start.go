@@ -56,7 +56,10 @@ func newStartNPMCmd() *cobra.Command {
 				KubeConfigPath: viper.GetString(flagKubeConfigPath),
 			}
 
-			return start(*config, flags)
+			// start is blocking, unless there's an error
+			err = start(*config, flags)
+			metrics.Close()
+			return err
 		},
 	}
 
