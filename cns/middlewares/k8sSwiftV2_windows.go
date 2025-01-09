@@ -86,7 +86,7 @@ func addDefaultDenyACL(podIPInfo *cns.PodIpInfo) error {
 		},
 	}
 
-	podIPInfo.EdpointPolicies = append(podIPInfo.EdpointPolicies, additionalArgs...)
+	podIPInfo.EndpointPolicies = append(podIPInfo.EndpointPolicies, additionalArgs...)
 
 	return nil
 }
