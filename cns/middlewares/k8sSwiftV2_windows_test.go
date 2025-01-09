@@ -121,11 +121,11 @@ func TestAddDefaultDenyACL(t *testing.T) {
 
 	expectedDefaultDenyACL := []policy.Policy{
 		{
-			Type: policy.ACLPolicy,
+			Type: policy.EndpointPolicy,
 			Data: valueOut,
 		},
 		{
-			Type: policy.ACLPolicy,
+			Type: policy.EndpointPolicy,
 			Data: valueIn,
 		},
 	}
@@ -166,7 +166,7 @@ func normalizeKVPairs(t *testing.T, policies []policy.Policy) []policy.Policy {
 
 		// Replace Value with the normalized compact JSON
 		normalized[i] = policy.Policy{
-			Type: policy.ACLPolicy,
+			Type: policy.EndpointPolicy,
 			Data: normalizedValue,
 		}
 	}

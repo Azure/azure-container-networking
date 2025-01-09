@@ -77,11 +77,11 @@ func addDefaultDenyACL(podIPInfo *cns.PodIpInfo) error {
 
 	additionalArgs := []policy.Policy{
 		{
-			Type: policy.ACLPolicy,
+			Type: policy.EndpointPolicy,
 			Data: blockEgressACL,
 		},
 		{
-			Type: policy.ACLPolicy,
+			Type: policy.EndpointPolicy,
 			Data: blockIngressACL,
 		},
 	}
