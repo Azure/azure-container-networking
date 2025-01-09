@@ -151,10 +151,10 @@ func TestAddDefaultDenyACL(t *testing.T) {
 }
 
 // normalizeKVPairs normalizes the JSON values in the KV pairs by unmarshaling them into a map, then marshaling them back to compact JSON to remove any extra space, new lines, etc
-func normalizeKVPairs(t *testing.T, kvPairs []policy.Policy) []policy.Policy {
-	normalized := make([]policy.Policy, len(kvPairs))
+func normalizeKVPairs(t *testing.T, policies []policy.Policy) []policy.Policy {
+	normalized := make([]policy.Policy, len(policies))
 
-	for i, kv := range kvPairs {
+	for i, kv := range policies {
 		var unmarshaledValue map[string]interface{}
 		// Unmarshal the Value into a map
 		err := json.Unmarshal(kv.Data, &unmarshaledValue)
