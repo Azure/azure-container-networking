@@ -15,6 +15,7 @@ const (
 	PolicyStr string = "Policy"
 )
 
+// KVPair represents a K-V pair of a json object.
 type KVPair struct {
 	Name  string          `json:"name"`
 	Value json.RawMessage `json:"value"`
