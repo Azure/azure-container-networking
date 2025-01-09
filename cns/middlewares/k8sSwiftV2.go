@@ -40,7 +40,7 @@ var _ cns.IPConfigsHandlerMiddleware = (*K8sSWIFTv2Middleware)(nil)
 // and release IP configs handlers.
 func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
 	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
-		podInfo, respCode, message, defaultDenyACLbool := k.validateIPConfigsRequest(ctx, &req)
+		podInfo, respCode, message, defaultDenyACLbool := k.GetPodInfoForIPConfigsRequest(ctx, &req)
 
 		logger.Printf("defaultDenyACLbool value is: %v", defaultDenyACLbool)
 
@@ -116,9 +116,9 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 	}
 }
 
-// validateIPConfigsRequest validates if pod is multitenant by checking the pod labels, used in SWIFT V2 AKS scenario.
+// GetPodInfoForIPConfigsRequest validates if pod is multitenant by checking the pod labels, used in SWIFT V2 AKS scenario.
 // nolint
-func (k *K8sSWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req *cns.IPConfigsRequest) (podInfo cns.PodInfo, respCode types.ResponseCode, message string, defaultDenyACL bool) {
+func (k *K8sSWIFTv2Middleware) GetPodInfoForIPConfigsRequest(ctx context.Context, req *cns.IPConfigsRequest) (podInfo cns.PodInfo, respCode types.ResponseCode, message string, defaultDenyACL bool) {
 	defaultDenyACLbool := false
 
 	// Retrieve the pod from the cluster
