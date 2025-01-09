@@ -589,13 +589,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.interfaceInfo[ifIndex], ipamAddResult.interfaceInfo))
 	}
 
+	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 	for key := range ipamAddResult.interfaceInfo {
 		if key == string(cns.InfraNIC) {
-			nwCfg.AdditionalArgs = append(nwCfg.AdditionalArgs, ipamAddResult.interfaceInfo[key].DefaultDenyACL...)
+			policies = append(policies, ipamAddResult.interfaceInfo[key].EndpointPolicies...)
 		}
 	}
-
-	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 	// moved to addIpamInvoker
 	// sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam interface: %+v", ipamAddResult.PrettyString()))
 

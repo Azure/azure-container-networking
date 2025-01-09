@@ -3,8 +3,6 @@
 
 package common
 
-import "encoding/json"
-
 // Command line options.
 const (
 	// Operating environment.
@@ -148,9 +146,3 @@ const (
 	// OptCNIConflistScenarioAlias "shorthand" for the cni conflist scenairo, see above
 	OptCNIConflistScenarioAlias = "cniconflistscenario"
 )
-
-// KVPair represents a K-V pair of a json object.
-type KVPair struct {
-	Name  string          `json:"name"`
-	Value json.RawMessage `json:"value"`
-}

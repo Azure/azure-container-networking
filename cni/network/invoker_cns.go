@@ -12,10 +12,10 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/cns/fsnotify"
-	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/networkutils"
+	"github.com/Azure/azure-container-networking/network/policy"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -56,7 +56,7 @@ type IPResultInfo struct {
 	skipDefaultRoutes  bool
 	routes             []cns.Route
 	pnpID              string
-	defaultDenyACL     []acn.KVPair
+	endpointPolicies   []policy.Policy
 }
 
 func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
@@ -161,7 +161,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			skipDefaultRoutes:  response.PodIPInfo[i].SkipDefaultRoutes,
 			routes:             response.PodIPInfo[i].Routes,
 			pnpID:              response.PodIPInfo[i].PnPID,
-			defaultDenyACL:     response.PodIPInfo[i].DefaultDenyACL,
+			endpointPolicies:   response.PodIPInfo[i].EndpointPolicies,
 		}
 
 		logger.Info("Received info for pod",
@@ -456,7 +456,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 			IPConfigs:         ipConfigs,
 			Routes:            resRoute,
 			HostSubnetPrefix:  *hostIPNet,
-			DefaultDenyACL:    info.defaultDenyACL,
+			EndpointPolicies:  info.endpointPolicies,
 		}
 	}
 
