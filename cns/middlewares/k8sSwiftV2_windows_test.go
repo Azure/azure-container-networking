@@ -5,11 +5,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
-	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/v3/assert"
 )
@@ -120,14 +119,14 @@ func TestAddDefaultDenyACL(t *testing.T) {
 		"Priority": 10000
 	}`)
 
-	expectedDefaultDenyACL := []cni.KVPair{
+	expectedDefaultDenyACL := []policy.Policy{
 		{
-			Name:  "EndpointPolicy",
-			Value: valueOut,
+			Type: policy.ACLPolicy,
+			Data: valueOut,
 		},
 		{
-			Name:  "EndpointPolicy",
-			Value: valueIn,
+			Type: policy.ACLPolicy,
+			Data: valueIn,
 		},
 	}
 
@@ -145,20 +144,20 @@ func TestAddDefaultDenyACL(t *testing.T) {
 
 	// Normalize both slices so there is no extra spacing, new lines, etc
 	normalizedExpected := normalizeKVPairs(t, expectedDefaultDenyACL)
-	normalizedActual := normalizeKVPairs(t, podIPInfo.DefaultDenyACL)
+	normalizedActual := normalizeKVPairs(t, podIPInfo.EndpointPolicies)
 	if !reflect.DeepEqual(normalizedExpected, normalizedActual) {
-		t.Errorf("got '%+v', expected '%+v'", podIPInfo.DefaultDenyACL, expectedDefaultDenyACL)
+		t.Errorf("got '%+v', expected '%+v'", podIPInfo.EndpointPolicies, expectedDefaultDenyACL)
 	}
 }
 
 // normalizeKVPairs normalizes the JSON values in the KV pairs by unmarshaling them into a map, then marshaling them back to compact JSON to remove any extra space, new lines, etc
-func normalizeKVPairs(t *testing.T, kvPairs []acn.KVPair) []cni.KVPair {
-	normalized := make([]cni.KVPair, len(kvPairs))
+func normalizeKVPairs(t *testing.T, kvPairs []policy.Policy) []policy.Policy {
+	normalized := make([]policy.Policy, len(kvPairs))
 
 	for i, kv := range kvPairs {
 		var unmarshaledValue map[string]interface{}
 		// Unmarshal the Value into a map
-		err := json.Unmarshal(kv.Value, &unmarshaledValue)
+		err := json.Unmarshal(kv.Data, &unmarshaledValue)
 		require.NoError(t, err, "Failed to unmarshal JSON value")
 
 		// Marshal it back to compact JSON
@@ -166,9 +165,9 @@ func normalizeKVPairs(t *testing.T, kvPairs []acn.KVPair) []cni.KVPair {
 		require.NoError(t, err, "Failed to re-marshal JSON value")
 
 		// Replace Value with the normalized compact JSON
-		normalized[i] = acn.KVPair{
-			Name:  kv.Name,
-			Value: normalizedValue,
+		normalized[i] = policy.Policy{
+			Type: policy.ACLPolicy,
+			Data: normalizedValue,
 		}
 	}
 
