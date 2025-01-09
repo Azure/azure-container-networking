@@ -339,14 +339,17 @@ func (th *telemetryHandle) Close(timeout int) {
 
 	// wait for items to be sent otherwise timeout
 	// similar to the example in the appinsights-go repo: https://github.com/microsoft/ApplicationInsights-Go#shutdown
+	timer := time.NewTimer(time.Duration(maxWaitTimeInSeconds) * time.Second)
+	defer timer.Stop()
 	select {
 	case <-th.client.Channel().Close(time.Duration(timeout) * time.Second):
 		// timeout specified for retries.
 
 		// If we got here, then all telemetry was submitted
 		// successfully, and we can proceed to exiting.
-	case <-time.After(time.Duration(maxWaitTimeInSeconds) * time.Second):
-		// Thirty second absolute timeout.  This covers any
+
+	case <-timer.C:
+		// absolute timeout.  This covers any
 		// previous telemetry submission that may not have
 		// completed before Close was called.
 
