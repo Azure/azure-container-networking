@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	acn "github.com/Azure/azure-container-networking/common"
@@ -119,7 +120,7 @@ func TestAddDefaultDenyACL(t *testing.T) {
 		"Priority": 10000
 	}`)
 
-	expectedDefaultDenyACL := []acn.KVPair{
+	expectedDefaultDenyACL := []cni.KVPair{
 		{
 			Name:  "EndpointPolicy",
 			Value: valueOut,
@@ -151,8 +152,8 @@ func TestAddDefaultDenyACL(t *testing.T) {
 }
 
 // normalizeKVPairs normalizes the JSON values in the KV pairs by unmarshaling them into a map, then marshaling them back to compact JSON to remove any extra space, new lines, etc
-func normalizeKVPairs(t *testing.T, kvPairs []acn.KVPair) []acn.KVPair {
-	normalized := make([]acn.KVPair, len(kvPairs))
+func normalizeKVPairs(t *testing.T, kvPairs []acn.KVPair) []cni.KVPair {
+	normalized := make([]cni.KVPair, len(kvPairs))
 
 	for i, kv := range kvPairs {
 		var unmarshaledValue map[string]interface{}

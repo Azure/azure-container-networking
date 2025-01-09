@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"strings"
 
-	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network/policy"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 )
@@ -15,6 +14,11 @@ import (
 const (
 	PolicyStr string = "Policy"
 )
+
+type KVPair struct {
+	Name  string          `json:"name"`
+	Value json.RawMessage `json:"value"`
+}
 
 type PortMapping struct {
 	HostPort      int    `json:"hostPort"`
@@ -73,7 +77,7 @@ type NetworkConfig struct {
 	DNS                           cniTypes.DNS    `json:"dns,omitempty"`
 	RuntimeConfig                 RuntimeConfig   `json:"runtimeConfig,omitempty"`
 	WindowsSettings               WindowsSettings `json:"windowsSettings,omitempty"`
-	AdditionalArgs                []acn.KVPair    `json:"AdditionalArgs,omitempty"`
+	AdditionalArgs                []KVPair        `json:"AdditionalArgs,omitempty"`
 }
 
 type WindowsSettings struct {
@@ -116,7 +120,7 @@ func ParseNetworkConfig(b []byte) (*NetworkConfig, error) {
 }
 
 // GetPoliciesFromNwCfg returns network policies from network config.
-func GetPoliciesFromNwCfg(kvp []acn.KVPair) []policy.Policy {
+func GetPoliciesFromNwCfg(kvp []KVPair) []policy.Policy {
 	var policies []policy.Policy
 	for _, pair := range kvp {
 		if strings.Contains(pair.Name, PolicyStr) {

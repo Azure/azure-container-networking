@@ -5,8 +5,8 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
-	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/pkg/errors"
 )
@@ -75,18 +75,18 @@ func addDefaultDenyACL(podIPInfo *cns.PodIpInfo) error {
 		return errors.Wrap(err, "Failed to create default deny ACL policy ingress")
 	}
 
-	additionalArgs := []acn.KVPair{
+	additionalArgs := []policy.Policy{
 		{
-			Name:  "EndpointPolicy",
-			Value: blockEgressACL,
+			Type: policy.ACLPolicy,
+			Data: blockEgressACL,
 		},
 		{
-			Name:  "EndpointPolicy",
-			Value: blockIngressACL,
+			Type: policy.ACLPolicy,
+			Data: blockIngressACL,
 		},
 	}
 
-	podIPInfo.DefaultDenyACL = append(podIPInfo.DefaultDenyACL, additionalArgs...)
+	podIPInfo.EdpointPolicies = append(podIPInfo.EdpointPolicies, additionalArgs...)
 
 	return nil
 }

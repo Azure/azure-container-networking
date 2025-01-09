@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns/types"
-	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -504,8 +504,8 @@ type PodIpInfo struct {
 	Routes []Route
 	// PnpId is set for backend interfaces, Pnp Id identifies VF. Plug and play id(pnp) is also called as PCI ID
 	PnPID string
-	// Defauly Deny ACL's to configure on HNS endpoints for Swiftv2 window nodes
-	DefaultDenyACL []acn.KVPair
+	// Default Deny ACL's to configure on HNS endpoints for Swiftv2 window nodes
+	EdpointPolicies []policy.Policy
 }
 
 type HostIPInfo struct {
