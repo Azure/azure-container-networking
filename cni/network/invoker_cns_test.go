@@ -547,12 +547,13 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 		},
 	}
 	tests := []struct {
-		name                  string
-		fields                fields
-		args                  args
-		wantDefaultResult     network.InterfaceInfo
-		wantMultitenantResult network.InterfaceInfo
-		wantErr               bool
+		name                     string
+		fields                   fields
+		args                     args
+		wantDefaultDenyEndpoints bool
+		wantDefaultResult        network.InterfaceInfo
+		wantMultitenantResult    network.InterfaceInfo
+		wantErr                  bool
 	}{
 		{
 			name: "Test happy CNI add",
@@ -623,7 +624,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				NICType:          cns.InfraNIC,
 				HostSubnetPrefix: *parseCIDR("10.0.0.0/24"),
 			},
-			wantErr: false,
+			wantDefaultDenyEndpoints: true,
+			wantErr:                  false,
 		},
 		{
 			name: "Test CNI add with pod ip info empty nictype",
@@ -654,7 +656,6 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 										PrimaryIP: "10.0.0.1",
 										Subnet:    "10.0.0.0/24",
 									},
-									EndpointPolicies: expectedEndpointPolicies,
 								},
 							},
 							Response: cns.Response{
@@ -683,7 +684,6 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 						Gateway: net.ParseIP("10.0.0.1"),
 					},
 				},
-				EndpointPolicies: expectedEndpointPolicies,
 				Routes: []network.RouteInfo{
 					{
 						Dst: network.Ipv4DefaultRouteDstPrefix,
@@ -693,7 +693,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				NICType:          cns.InfraNIC,
 				HostSubnetPrefix: *parseCIDR("10.0.0.0/24"),
 			},
-			wantErr: false,
+			wantDefaultDenyEndpoints: false,
+			wantErr:                  false,
 		},
 		{
 			name: "Test happy CNI add for both ipv4 and ipv6",
@@ -793,7 +794,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				NICType:          cns.InfraNIC,
 				HostSubnetPrefix: *parseCIDR("fd11:1234::/112"),
 			},
-			wantErr: false,
+			wantDefaultDenyEndpoints: true,
+			wantErr:                  false,
 		},
 		{
 			name: "fail to request IP addresses from cns",
@@ -820,7 +822,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 					},
 				},
 			},
-			wantErr: true,
+			wantDefaultDenyEndpoints: false,
+			wantErr:                  true,
 		},
 	}
 	for _, tt := range tests {
@@ -852,7 +855,11 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				}
 				if ifInfo.NICType == cns.InfraNIC {
 					require.Equalf(tt.wantDefaultResult, ifInfo, "incorrect default response")
-					require.Equalf(expectedEndpointPolicies, ifInfo.EndpointPolicies, "Correct default deny ACL")
+					if tt.wantDefaultDenyEndpoints {
+						require.Equalf(expectedEndpointPolicies, ifInfo.EndpointPolicies, "Correct default deny ACL")
+					} else {
+						require.Equalf([]policy.Policy(nil), ifInfo.EndpointPolicies, "Correct default deny ACL")
+					}
 				}
 			}
 		})
