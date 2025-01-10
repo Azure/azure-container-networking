@@ -160,4 +160,7 @@ replace (
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )
 
-retract v1.16.15 // typo in the version number.
+retract  (
+        v1.16.15 // typo in the version number.
+        v1.16.16 // contains only retractions, has to be newer than 1.16.15.
+)
