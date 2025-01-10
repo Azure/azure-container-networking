@@ -108,7 +108,6 @@ func getDefaultDenyACLPolicy(direction hcn.DirectionType) ([]byte, error) {
 	}
 
 	denyACLJSON, err := json.Marshal(denyACL)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "error marshalling default deny policy to json")
 	}
