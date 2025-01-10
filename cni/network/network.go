@@ -590,11 +590,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
-	for key := range ipamAddResult.interfaceInfo {
-		if key == string(cns.InfraNIC) {
-			policies = append(policies, ipamAddResult.interfaceInfo[key].EndpointPolicies...)
-		}
-	}
+	policies = append(policies, ipamAddResult.interfaceInfo[string(cns.InfraNIC)].EndpointPolicies...)
+
 	// moved to addIpamInvoker
 	// sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam interface: %+v", ipamAddResult.PrettyString()))
 
