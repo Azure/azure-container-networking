@@ -538,11 +538,11 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 
 	expectedEndpointPolicies := []policy.Policy{
 		{
-			Type: policy.ACLPolicy,
+			Type: policy.EndpointPolicy,
 			Data: valueOut,
 		},
 		{
-			Type: policy.ACLPolicy,
+			Type: policy.EndpointPolicy,
 			Data: valueIn,
 		},
 	}
