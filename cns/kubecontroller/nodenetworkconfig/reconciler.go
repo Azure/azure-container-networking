@@ -157,7 +157,9 @@ func (r *Reconciler) Started(ctx context.Context) (bool, error) {
 }
 
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter on nodeName.
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, node *v1.Node) error {
+// filterGenerationChange will check the old and new object's generation and only reconcile updates where the
+// generation is the same. This is typically used in IPAMv1 but should be set to false in IPAMv2.
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, node *v1.Node, filterGenerationChange bool) error {
 	r.nnccli = nodenetworkconfig.NewClient(mgr.GetClient())
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha.NodeNetworkConfig{}).
@@ -166,20 +168,20 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, node *v1.Node) error {
 			DeleteFunc: func(event.DeleteEvent) bool {
 				return false
 			},
+			UpdateFunc: func(ue event.UpdateEvent) bool {
+				if ue.ObjectOld == nil || ue.ObjectNew == nil {
+					return false
+				}
+				if filterGenerationChange {
+					return ue.ObjectOld.GetGeneration() == ue.ObjectNew.GetGeneration()
+				}
+				return true
+			},
 		}).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
 			// match on node controller ref for all other events.
 			return metav1.IsControlledBy(object, node)
 		})).
-		WithEventFilter(predicate.Funcs{
-			// check that the generation is the same - status changes don't update generation.
-			UpdateFunc: func(ue event.UpdateEvent) bool {
-				if ue.ObjectOld == nil || ue.ObjectNew == nil {
-					return false
-				}
-				return ue.ObjectOld.GetGeneration() == ue.ObjectNew.GetGeneration()
-			},
-		}).
 		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
 			// only process events on objects that are not being deleted.
 			return object.GetDeletionTimestamp().IsZero()
