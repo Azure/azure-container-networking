@@ -590,9 +590,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
-	for key := range ipamAddResult.interfaceInfo {
-		policies = append(policies, ipamAddResult.interfaceInfo[key].EndpointPolicies...)
-	}
+
 	// moved to addIpamInvoker
 	// sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam interface: %+v", ipamAddResult.PrettyString()))
 
@@ -619,6 +617,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
 		networkID, _ := plugin.getNetworkID(args.Netns, &ifInfo, nwCfg)
+		policies = append(policies, ipamAddResult.interfaceInfo[key].EndpointPolicies...)
 
 		createEpInfoOpt := createEpInfoOpt{
 			nwCfg:            nwCfg,
