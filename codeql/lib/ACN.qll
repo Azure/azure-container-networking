@@ -1,7 +1,7 @@
 import go
 
 module ACN {
-  class CommandSink extends DataFlow2::Node {
+  class CommandSink extends DataFlow::Node {
     CommandSink() {
       exists(DataFlow::CallNode c, Method m |
         (

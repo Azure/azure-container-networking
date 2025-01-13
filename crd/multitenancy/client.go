@@ -216,3 +216,12 @@ func (n *NodeInfoClient) CreateOrUpdate(ctx context.Context, nodeInfo *v1alpha1.
 	}
 	return nil
 }
+
+// Get retrieves the NodeInfo CRD by name.
+func (n *NodeInfoClient) Get(ctx context.Context, name string) (*v1alpha1.NodeInfo, error) {
+	var nodeInfo v1alpha1.NodeInfo
+	if err := n.Cli.Get(ctx, client.ObjectKey{Name: name}, &nodeInfo); err != nil {
+		return nil, errors.Wrap(err, "error getting nodeinfo crd")
+	}
+	return &nodeInfo, nil
+}

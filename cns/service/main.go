@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/deviceplugin"
 	"github.com/Azure/azure-container-networking/cns/endpointmanager"
 	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/cns/grpc"
@@ -65,6 +66,7 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/avast/retry-go/v4"
+	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -105,9 +107,14 @@ const (
 	// envVarEnableCNIConflistGeneration enables cni conflist generation if set (value doesn't matter)
 	envVarEnableCNIConflistGeneration = "CNS_ENABLE_CNI_CONFLIST_GENERATION"
 
-	cnsReqTimeout          = 15 * time.Second
-	defaultLocalServerIP   = "localhost"
-	defaultLocalServerPort = "10090"
+	cnsReqTimeout                    = 15 * time.Second
+	defaultLocalServerIP             = "localhost"
+	defaultLocalServerPort           = "10090"
+	defaultDevicePluginRetryInterval = 2 * time.Second
+	defaultNodeInfoCRDPollInterval   = 5 * time.Second
+	defaultDevicePluginMaxRetryCount = 5
+	initialVnetNICCount              = 0
+	initialIBNICCount                = 0
 )
 
 type cniConflistScenario string
@@ -910,6 +917,50 @@ func main() {
 		}
 	}
 
+	if cnsconfig.EnableSwiftV2 && cnsconfig.EnableK8sDevicePlugin {
+		// Create device plugin manager instance
+		pluginManager := deviceplugin.NewPluginManager(z)
+		pluginManager.AddPlugin(mtv1alpha1.DeviceTypeVnetNIC, initialVnetNICCount)
+		pluginManager.AddPlugin(mtv1alpha1.DeviceTypeInfiniBandNIC, initialIBNICCount)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Start device plugin manager in a separate goroutine
+		go func() {
+			retryCount := 0
+			ticker := time.NewTicker(defaultDevicePluginRetryInterval)
+			// Ensure the ticker is stopped on exit
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					z.Info("Context canceled, stopping plugin manager")
+					return
+				case <-ticker.C:
+					if pluginErr := pluginManager.Run(ctx); pluginErr != nil {
+						z.Error("plugin manager exited with error", zap.Error(pluginErr))
+						retryCount++
+						// Implementing a basic circuit breaker
+						if retryCount >= defaultDevicePluginMaxRetryCount {
+							z.Error("Max retries reached, stopping plugin manager")
+							return
+						}
+					} else {
+						return
+					}
+				}
+			}
+		}()
+
+		// go routine to poll node info crd and update device counts
+		go func() {
+			if pollErr := pollNodeInfoCRDAndUpdatePlugin(ctx, z, pluginManager); pollErr != nil {
+				z.Error("Error in pollNodeInfoCRDAndUpdatePlugin", zap.Error(pollErr))
+			}
+		}()
+	}
+
 	// Conditionally initialize and start the gRPC server
 	if cnsconfig.GRPCSettings.Enable {
 		// Define gRPC server settings
@@ -981,7 +1032,7 @@ func main() {
 		// Start fs watcher here
 		z.Info("AsyncPodDelete is enabled")
 		logger.Printf("AsyncPodDelete is enabled")
-		cnsclient, err := cnsclient.New("", cnsReqTimeout) //nolint
+		cnsclient, err := cnsclient.New("", cnsReqTimeout) // nolint
 		if err != nil {
 			z.Error("failed to create cnsclient", zap.Error(err))
 		}
@@ -1081,6 +1132,91 @@ func main() {
 
 	logger.Printf("CNS exited")
 	logger.Close()
+}
+
+// Poll CRD until it's set and update PluginManager
+func pollNodeInfoCRDAndUpdatePlugin(ctx context.Context, zlog *zap.Logger, pluginManager *deviceplugin.PluginManager) error {
+	kubeConfig, err := ctrl.GetConfig()
+	if err != nil {
+		logger.Errorf("Failed to get kubeconfig for request controller: %v", err)
+		return errors.Wrap(err, "failed to get kubeconfig")
+	}
+	kubeConfig.UserAgent = "azure-cns-" + version
+
+	clientset, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to build clientset")
+	}
+
+	nodeName, err := configuration.NodeName()
+	if err != nil {
+		return errors.Wrap(err, "failed to get NodeName")
+	}
+
+	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node %s", nodeName)
+	}
+
+	// check the Node labels for Swift V2
+	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; !ok {
+		zlog.Info("Node is not labeled for Swift V2, skipping polling nodeinfo crd")
+		return nil
+	}
+
+	directcli, err := client.New(kubeConfig, client.Options{Scheme: multitenancy.Scheme})
+	if err != nil {
+		return errors.Wrap(err, "failed to create ctrl client")
+	}
+
+	nodeInfoCli := multitenancy.NodeInfoClient{
+		Cli: directcli,
+	}
+
+	ticker := time.NewTicker(defaultNodeInfoCRDPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			zlog.Info("Polling context canceled, exiting")
+			return nil
+		case <-ticker.C:
+			// Fetch the CRD status
+			nodeInfo, err := nodeInfoCli.Get(ctx, node.Name)
+			if err != nil {
+				zlog.Error("Error fetching nodeinfo CRD", zap.Error(err))
+				return errors.Wrap(err, "failed to get nodeinfo crd")
+			}
+
+			// Check if the status is set
+			if !cmp.Equal(nodeInfo.Status, mtv1alpha1.NodeInfoStatus{}) && len(nodeInfo.Status.DeviceInfos) > 0 {
+				// Create a map to count devices by type
+				deviceCounts := map[mtv1alpha1.DeviceType]int{
+					mtv1alpha1.DeviceTypeVnetNIC:       0,
+					mtv1alpha1.DeviceTypeInfiniBandNIC: 0,
+				}
+
+				// Aggregate device counts from the CRD
+				for _, deviceInfo := range nodeInfo.Status.DeviceInfos {
+					switch deviceInfo.DeviceType {
+					case mtv1alpha1.DeviceTypeVnetNIC, mtv1alpha1.DeviceTypeInfiniBandNIC:
+						deviceCounts[deviceInfo.DeviceType]++
+					default:
+						zlog.Error("Unknown device type", zap.String("deviceType", string(deviceInfo.DeviceType)))
+					}
+				}
+
+				// Update the plugin manager with device counts
+				for deviceType, count := range deviceCounts {
+					pluginManager.TrackDevices(deviceType, count)
+				}
+
+				// Exit polling loop once the CRD status is successfully processed
+				return nil
+			}
+		}
+	}
 }
 
 func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HTTPService, cnsconfig configuration.CNSConfig) error {
@@ -1412,7 +1548,10 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	nodeIP := configuration.NodeIP()
 	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, poolMonitor, nodeIP)
 	// pass Node to the Reconciler for Controller xref
-	if err := nncReconciler.SetupWithManager(manager, node); err != nil { //nolint:govet // intentional shadow
+	// IPAMv1 - reconcile only status changes (where generation doesn't change).
+	// IPAMv2 - reconcile all updates.
+	filterGenerationChange := !cnsconfig.EnableIPAMv2
+	if err := nncReconciler.SetupWithManager(manager, node, filterGenerationChange); err != nil { //nolint:govet // intentional shadow
 		return errors.Wrapf(err, "failed to setup nnc reconciler with manager")
 	}
 
@@ -1482,7 +1621,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		// wait for the Reconciler to run once on a NNC that was made for this Node.
 		// the nncReadyCtx has a timeout of 15 minutes, after which we will consider
 		// this false and the NNC Reconciler stuck/failed, log and retry.
-		nncReadyCtx, cancel := context.WithTimeout(ctx, 15*time.Minute) //nolint // it will time out and not leak
+		nncReadyCtx, cancel := context.WithTimeout(ctx, 15*time.Minute) // nolint // it will time out and not leak
 		if started, err := nncReconciler.Started(nncReadyCtx); !started {
 			logger.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
 			nncReconcilerStartFailures.Inc()
