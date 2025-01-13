@@ -161,8 +161,8 @@ replace (
 )
 
 retract  (
+        v1.15.22 // typo in the version number.
         v1.16.15 // typo in the version number.
         v1.16.16 // contains only retractions, has to be newer than 1.16.15.
-        v1.15.22 // typo in the version number.
-        v1.15.23 // contains only retractions, has to be newer than 1.15.22.
+        v1.16.17 // contains only retractions, new version to retract 1.15.22.
 )
