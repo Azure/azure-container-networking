@@ -119,7 +119,7 @@ func TestAddDefaultDenyACL(t *testing.T) {
 		"Priority": 10000
 	}`)
 
-	expectedDefaultDenyACL := []policy.Policy{
+	expectedDefaultDenyEndpoint := []policy.Policy{
 		{
 			Type: policy.EndpointPolicy,
 			Data: valueOut,
@@ -130,23 +130,14 @@ func TestAddDefaultDenyACL(t *testing.T) {
 		},
 	}
 
-	podIPInfo := cns.PodIpInfo{
-		PodIPConfig: cns.IPSubnet{
-			IPAddress:    "20.240.1.242",
-			PrefixLength: 32,
-		},
-		NICType:    cns.DelegatedVMNIC,
-		MacAddress: "12:34:56:78:9a:bc",
-	}
-
-	err := addDefaultDenyACL(&podIPInfo)
+	defaultDenyEndpoint, err := addDefaultDenyACL()
 	assert.Equal(t, err, nil)
 
 	// Normalize both slices so there is no extra spacing, new lines, etc
-	normalizedExpected := normalizeKVPairs(t, expectedDefaultDenyACL)
-	normalizedActual := normalizeKVPairs(t, podIPInfo.EndpointPolicies)
+	normalizedExpected := normalizeKVPairs(t, expectedDefaultDenyEndpoint)
+	normalizedActual := normalizeKVPairs(t, defaultDenyEndpoint)
 	if !reflect.DeepEqual(normalizedExpected, normalizedActual) {
-		t.Errorf("got '%+v', expected '%+v'", podIPInfo.EndpointPolicies, expectedDefaultDenyACL)
+		t.Errorf("got '%+v', expected '%+v'", normalizedActual, normalizedExpected)
 	}
 }
 

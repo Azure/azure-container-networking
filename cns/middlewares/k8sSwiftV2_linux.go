@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/pkg/errors"
 )
 
@@ -104,6 +105,6 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(_ *cns.PodIpInfo, 
 
 func (k *K8sSWIFTv2Middleware) addDefaultRoute(*cns.PodIpInfo, string) {}
 
-func addDefaultDenyACL(_ *cns.PodIpInfo) error {
-	return nil
+func addDefaultDenyACL() ([]policy.Policy, error) {
+	return []policy.Policy{}, nil
 }

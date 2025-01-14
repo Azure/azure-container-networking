@@ -64,15 +64,15 @@ func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP st
 }
 
 // append the default deny acl's to the list defaultDenyACL field in podIpInfo
-func addDefaultDenyACL(podIPInfo *cns.PodIpInfo) error {
+func addDefaultDenyACL() ([]policy.Policy, error) {
 	blockEgressACL, err := getDefaultDenyACLPolicy(hcn.DirectionTypeOut)
 	if err != nil {
-		return errors.Wrap(err, "Failed to create default deny ACL policy egress")
+		return []policy.Policy{}, errors.Wrap(err, "failed to create default deny ACL policy egress")
 	}
 
 	blockIngressACL, err := getDefaultDenyACLPolicy(hcn.DirectionTypeIn)
 	if err != nil {
-		return errors.Wrap(err, "Failed to create default deny ACL policy ingress")
+		return []policy.Policy{}, errors.Wrap(err, "Failed to create default deny ACL policy ingress")
 	}
 
 	additionalArgs := []policy.Policy{
@@ -86,9 +86,7 @@ func addDefaultDenyACL(podIPInfo *cns.PodIpInfo) error {
 		},
 	}
 
-	podIPInfo.EndpointPolicies = append(podIPInfo.EndpointPolicies, additionalArgs...)
-
-	return nil
+	return additionalArgs, nil
 }
 
 // create the default deny acl's that need to be added to the list defaultDenyACL field in podIpInfo
