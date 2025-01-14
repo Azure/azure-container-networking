@@ -120,6 +120,7 @@ stages:
                   echo "Deploy Azure-CNS"
                   sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   kubectl get po -owide -A
+                  kubectl get crd -A
       - ${{if eq(parameters.hubbleEnabled, true)}}:
         - job: deploy_cilium_components
           displayName: Deploy Cilium with Hubble
@@ -154,6 +155,7 @@ stages:
                   echo "Deploy Azure-CNS"
                   sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   kubectl get po -owide -A
+                  kubectl get crd -A
 
       - job: deploy_pods
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )

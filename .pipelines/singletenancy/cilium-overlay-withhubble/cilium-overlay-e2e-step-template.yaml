@@ -69,6 +69,7 @@ steps:
       echo "Waiting < 2 minutes for cilium to be ready"
       # Ensure Cilium is ready Xm\Xs
       cilium status --wait --wait-duration 2m
+      kubectl get crd -A
     retryCountOnTaskFailure: 3
     name: "CiliumStatus"
     displayName: "Cilium Status"
