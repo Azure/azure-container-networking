@@ -7,8 +7,8 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.0
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.12.0
 	github.com/Masterminds/semver v1.5.0
-	github.com/Microsoft/go-winio v0.6.1
-	github.com/Microsoft/hcsshim v0.12.0
+	github.com/Microsoft/go-winio v0.6.2
+	github.com/Microsoft/hcsshim v0.12.9
 	github.com/avast/retry-go/v3 v3.1.1
 	github.com/avast/retry-go/v4 v4.6.0
 	github.com/billgraziano/dpapi v0.5.0
@@ -140,9 +140,11 @@ require (
 )
 
 require (
-	github.com/containerd/cgroups/v3 v3.0.2 // indirect
-	github.com/containerd/errdefs v0.1.0 // indirect
+	github.com/containerd/cgroups/v3 v3.0.3 // indirect
+	github.com/containerd/errdefs v0.3.0 // indirect
+	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
+	github.com/containerd/typeurl/v2 v2.2.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
