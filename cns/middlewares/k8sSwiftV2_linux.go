@@ -105,6 +105,6 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(_ *cns.PodIpInfo, 
 
 func (k *K8sSWIFTv2Middleware) addDefaultRoute(*cns.PodIpInfo, string) {}
 
-func getEndpointPolicyL(_, _, _ string, _ int) (policy.Policy, error) {
+func getEndpointPolicy(_, _, _ string, _ int) (policy.Policy, error) {
 	return policy.Policy{}, nil
 }

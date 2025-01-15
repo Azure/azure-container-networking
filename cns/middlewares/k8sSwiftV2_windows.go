@@ -63,7 +63,7 @@ func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP st
 }
 
 // get policy of type endpoint policy given the params
-func getEndpointPolicyL(policyType, action, direction string, priority int) (policy.Policy, error) {
+func getEndpointPolicy(policyType, action, direction string, priority int) (policy.Policy, error) {
 	endpointPolicy, err := createEndpointPolicy(policyType, action, direction, priority)
 	if err != nil {
 		return policy.Policy{}, errors.Wrap(err, "failed to create endpoint policy")
@@ -78,7 +78,7 @@ func getEndpointPolicyL(policyType, action, direction string, priority int) (pol
 }
 
 // create policy given the params
-func createEndpointPolicy(policyType string, action string, direction string, priority int) ([]byte, error) {
+func createEndpointPolicy(policyType, action, direction string, priority int) ([]byte, error) {
 	type EndpointPolicy struct {
 		Type      string `json:"Type"`
 		Action    string `json:"Action"`

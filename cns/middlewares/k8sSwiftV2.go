@@ -66,12 +66,12 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			var defaultDenyEngressPolicy, defaultDenyIngressPolicy policy.Policy
 
 			if defaultDenyACLbool && ipInfo.NICType == cns.InfraNIC {
-				defaultDenyEngressPolicy, err = getEndpointPolicyL(string(policy.ACLPolicy), cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
+				defaultDenyEngressPolicy, err = getEndpointPolicy(string(policy.ACLPolicy), cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
 				if err != nil {
 					logger.Errorf("failed to add default deny acl's for pod %v with err %v", podInfo.Name(), err)
 				}
 
-				defaultDenyIngressPolicy, err = getEndpointPolicyL(string(policy.ACLPolicy), cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
+				defaultDenyIngressPolicy, err = getEndpointPolicy(string(policy.ACLPolicy), cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
 				if err != nil {
 					logger.Errorf("failed to add default deny acl's for pod %v with err %v", podInfo.Name(), err)
 				}
