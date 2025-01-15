@@ -147,10 +147,10 @@ func TestAddDefaultDenyACL(t *testing.T) {
 		},
 	}
 	var allEndpoints []policy.Policy
-	var defaultDenyEngressPolicy, defaultDenyIngressPolicy policy.Policy
+	var defaultDenyEgressPolicy, defaultDenyIngressPolicy policy.Policy
 	var err error
 
-	defaultDenyEngressPolicy, err = getEndpointPolicy("ACL", "Block", "Out", 10_000)
+	defaultDenyEgressPolicy, err = getEndpointPolicy("ACL", "Block", "Out", 10_000)
 	if err != nil {
 		fmt.Printf("failed to create endpoint policy")
 	}
@@ -159,7 +159,7 @@ func TestAddDefaultDenyACL(t *testing.T) {
 		fmt.Printf("failed to create endpoint policy")
 	}
 
-	allEndpoints = append(allEndpoints, defaultDenyEngressPolicy, defaultDenyIngressPolicy)
+	allEndpoints = append(allEndpoints, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
 	assert.Equal(t, err, nil)
 
 	// Normalize both slices so there is no extra spacing, new lines, etc
