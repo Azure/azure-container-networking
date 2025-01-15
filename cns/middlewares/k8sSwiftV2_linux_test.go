@@ -144,7 +144,7 @@ func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
 	happyReq.OrchestratorContext = b
 	happyReq.SecondaryInterfacesExist = false
 
-	_, respCode, err, _ := middleware.GetPodInfoForIPConfigsRequest(context.TODO(), happyReq)
+	_, respCode, _, err := middleware.GetPodInfoForIPConfigsRequest(context.TODO(), happyReq)
 	assert.Equal(t, err, "")
 	assert.Equal(t, respCode, types.Success)
 	assert.Equal(t, happyReq.SecondaryInterfacesExist, true)
@@ -158,7 +158,7 @@ func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
 	happyReq2.OrchestratorContext = b
 	happyReq2.SecondaryInterfacesExist = false
 
-	_, respCode, err, _ = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), happyReq2)
+	_, respCode, _, err = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), happyReq2)
 	assert.Equal(t, err, "")
 	assert.Equal(t, respCode, types.Success)
 	assert.Equal(t, happyReq.SecondaryInterfacesExist, true)
@@ -172,7 +172,7 @@ func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
 	happyReq3.OrchestratorContext = b
 	happyReq3.SecondaryInterfacesExist = false
 
-	_, respCode, err, _ = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), happyReq3)
+	_, respCode, _, err = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), happyReq3)
 	assert.Equal(t, err, "")
 	assert.Equal(t, respCode, types.Success)
 	assert.Equal(t, happyReq3.SecondaryInterfacesExist, false)
