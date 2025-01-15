@@ -7,7 +7,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/network/policy"
-	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/pkg/errors"
 )
 
@@ -63,52 +62,41 @@ func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP st
 	podIPInfo.Routes = append(podIPInfo.Routes, route)
 }
 
-// append the default deny acl's to the list defaultDenyACL field in podIpInfo
-func addDefaultDenyACL() ([]policy.Policy, error) {
-	blockEgressACL, err := getDefaultDenyACLPolicy(hcn.DirectionTypeOut)
+// get policy of type endpoint policy given the params
+func getEndpointPolicyL(policyType string, action string, direction string, priority int) (policy.Policy, error) {
+	endpointPolicy, err := createEndpointPolicy(policyType, action, direction, priority)
 	if err != nil {
-		return []policy.Policy{}, errors.Wrap(err, "failed to create default deny ACL policy egress")
+		return policy.Policy{}, errors.Wrap(err, "failed to create endpoint policy")
 	}
 
-	blockIngressACL, err := getDefaultDenyACLPolicy(hcn.DirectionTypeIn)
-	if err != nil {
-		return []policy.Policy{}, errors.Wrap(err, "Failed to create default deny ACL policy ingress")
-	}
-
-	additionalArgs := []policy.Policy{
-		{
-			Type: policy.EndpointPolicy,
-			Data: blockEgressACL,
-		},
-		{
-			Type: policy.EndpointPolicy,
-			Data: blockIngressACL,
-		},
+	additionalArgs := policy.Policy{
+		Type: policy.EndpointPolicy,
+		Data: endpointPolicy,
 	}
 
 	return additionalArgs, nil
 }
 
-// create the default deny acl's that need to be added to the list defaultDenyACL field in podIpInfo
-func getDefaultDenyACLPolicy(direction hcn.DirectionType) ([]byte, error) {
-	type DefaultDenyACL struct {
-		Type      string            `json:"Type"`
-		Action    hcn.ActionType    `json:"Action"`
-		Direction hcn.DirectionType `json:"Direction"`
-		Priority  int               `json:"Priority"`
+// create policy given the params
+func createEndpointPolicy(policyType string, action string, direction string, priority int) ([]byte, error) {
+	type EndpointPolicy struct {
+		Type      string `json:"Type"`
+		Action    string `json:"Action"`
+		Direction string `json:"Direction"`
+		Priority  int    `json:"Priority"`
 	}
 
-	denyACL := DefaultDenyACL{
-		Type:      "ACL", // policy type is ACL
-		Action:    hcn.ActionTypeBlock,
+	policy := EndpointPolicy{
+		Type:      policyType,
+		Action:    action,
 		Direction: direction,
-		Priority:  10_000, // default deny priority will be 10_000
+		Priority:  priority,
 	}
 
-	denyACLJSON, err := json.Marshal(denyACL)
+	rawPolicy, err := json.Marshal(policy)
 	if err != nil {
-		return nil, errors.Wrap(err, "error marshalling default deny policy to json")
+		return nil, errors.Wrap(err, "error marshalling policy to json")
 	}
 
-	return denyACLJSON, nil
+	return rawPolicy, nil
 }

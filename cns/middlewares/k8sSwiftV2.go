@@ -59,17 +59,26 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			return ipConfigsResp, err
 		}
 
-		// ipConfigsResp has infra IP configs -> if defaultDenyACLbool is enabled, add the default deny acl's pn the infra IP configs
+		// ipConfigsResp has infra IP configs -> if defaultDenyACLbool is enabled, add the default deny endpoint policies as a property in PodIpInfo
 		for i := range ipConfigsResp.PodIPInfo {
 			ipInfo := &ipConfigsResp.PodIPInfo[i]
-			var defaultDenyEndpointPolicies []policy.Policy
 			// there will be no pod connectivity to and from those pods
+			var defaultDenyEngressPolicy, defaultDenyIngressPolicy policy.Policy
+
 			if defaultDenyACLbool && ipInfo.NICType == cns.InfraNIC {
-				defaultDenyEndpointPolicies, err = addDefaultDenyACL()
+				defaultDenyEngressPolicy, err = getEndpointPolicyL(string(policy.ACLPolicy), cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
 				if err != nil {
 					logger.Errorf("failed to add default deny acl's for pod %v with err %v", podInfo.Name(), err)
 				}
-				ipInfo.EndpointPolicies = append(ipInfo.EndpointPolicies, defaultDenyEndpointPolicies...)
+
+				defaultDenyIngressPolicy, err = getEndpointPolicyL(string(policy.ACLPolicy), cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
+				if err != nil {
+					logger.Errorf("failed to add default deny acl's for pod %v with err %v", podInfo.Name(), err)
+				}
+
+				ipInfo.EndpointPolicies = append(ipInfo.EndpointPolicies, defaultDenyEngressPolicy, defaultDenyIngressPolicy)
+				logger.Printf("Created endpoint policies for defaultDenyEngressPolicy and defaultDenyIngressPolicy")
+
 				break
 			}
 		}

@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -105,19 +106,35 @@ func TestAddDefaultRoute(t *testing.T) {
 }
 
 func TestAddDefaultDenyACL(t *testing.T) {
-	valueOut := []byte(`{
-		"Type": "ACL",
-		"Action": "Block",
-		"Direction": "Out",
-		"Priority": 10000
-	}`)
+	const policyType = "ACL"
+	const action = "Block"
+	const ingressDir = "In"
+	const egressDir = "Out"
+	const priority = 10000
 
-	valueIn := []byte(`{
-		"Type": "ACL",
-		"Action": "Block",
-		"Direction": "In",
-		"Priority": 10000
-	}`)
+	valueIn := []byte(fmt.Sprintf(`{
+		"Type": "%s",
+		"Action": "%s",
+		"Direction": "%s",
+		"Priority": %d
+	}`,
+		policyType,
+		action,
+		ingressDir,
+		priority,
+	))
+
+	valueOut := []byte(fmt.Sprintf(`{
+		"Type": "%s",
+		"Action": "%s",
+		"Direction": "%s",
+		"Priority": %d
+	}`,
+		policyType,
+		action,
+		egressDir,
+		priority,
+	))
 
 	expectedDefaultDenyEndpoint := []policy.Policy{
 		{
@@ -129,13 +146,17 @@ func TestAddDefaultDenyACL(t *testing.T) {
 			Data: valueIn,
 		},
 	}
+	var allEndpoints []policy.Policy
 
-	defaultDenyEndpoint, err := addDefaultDenyACL()
+	defaultDenyEngressPolicy, err := getEndpointPolicyL("ACL", "Block", "Out", 10000)
+	defaultDenyIngressPolicy, err := getEndpointPolicyL("ACL", "Block", "In", 10000)
+
+	allEndpoints = append(allEndpoints, defaultDenyEngressPolicy, defaultDenyIngressPolicy)
 	assert.Equal(t, err, nil)
 
 	// Normalize both slices so there is no extra spacing, new lines, etc
 	normalizedExpected := normalizeKVPairs(t, expectedDefaultDenyEndpoint)
-	normalizedActual := normalizeKVPairs(t, defaultDenyEndpoint)
+	normalizedActual := normalizeKVPairs(t, allEndpoints)
 	if !reflect.DeepEqual(normalizedExpected, normalizedActual) {
 		t.Errorf("got '%+v', expected '%+v'", normalizedActual, normalizedExpected)
 	}
