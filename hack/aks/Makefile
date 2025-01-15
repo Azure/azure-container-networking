@@ -46,25 +46,22 @@ azcfg: ## Set the $AZCLI to use aks-preview
 	@$(AZCLI) extension add --name aks-preview --yes
 	@$(AZCLI) extension update --name aks-preview
 
-public-ipv4:
-	$(AZCLI) network public-ip create --name $(PUBLIC_IPv4) \
+ip:
+	$(AZCLI) network public-ip create --name $(IP_PREFIX)-$(CLUSTER)-$(IPVERSION) \
 		--resource-group $(GROUP) \
 		--allocation-method Static \
 		--ip-tags $(IP_TAG) \
 		--location $(REGION) \
 		--sku Standard \
 		--tier Regional \
-		--version IPv4
+		--version IP$(IPVERSION)
 
-public-ipv6:
-	$(AZCLI) network public-ip create --name $(PUBLIC_IPv6) \
-		--resource-group $(GROUP) \
-		--allocation-method Static \
-		--ip-tags $(IP_TAG) \
-		--location $(REGION) \
-		--sku Standard \
-		--tier Regional \
-		--version IPv6
+ipv4:
+	@$(MAKE) ip IPVERSION=v4
+
+ipv6:
+	@$(MAKE) ip IPVERSION=v6
+
 
 set-kubeconf: ## Adds the kubeconf for $CLUSTER
 	$(AZCLI) aks get-credentials -n $(CLUSTER) -g $(GROUP)
