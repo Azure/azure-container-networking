@@ -160,7 +160,6 @@ func TestAddDefaultDenyACL(t *testing.T) {
 	}
 
 	allEndpoints = append(allEndpoints, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
-	assert.Equal(t, err, nil)
 
 	// Normalize both slices so there is no extra spacing, new lines, etc
 	normalizedExpected := normalizeKVPairs(t, expectedDefaultDenyEndpoint)
@@ -168,6 +167,7 @@ func TestAddDefaultDenyACL(t *testing.T) {
 	if !reflect.DeepEqual(normalizedExpected, normalizedActual) {
 		t.Errorf("got '%+v', expected '%+v'", normalizedActual, normalizedExpected)
 	}
+	assert.Equal(t, err, nil)
 }
 
 // normalizeKVPairs normalizes the JSON values in the KV pairs by unmarshaling them into a map, then marshaling them back to compact JSON to remove any extra space, new lines, etc
