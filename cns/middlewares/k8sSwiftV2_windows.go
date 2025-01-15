@@ -79,14 +79,12 @@ func getEndpointPolicy(policyType, action, direction string, priority int) (poli
 
 // create policy given the params
 func createEndpointPolicy(policyType, action, direction string, priority int) ([]byte, error) {
-	type EndpointPolicy struct {
+	endpointPolicy := struct {
 		Type      string `json:"Type"`
 		Action    string `json:"Action"`
 		Direction string `json:"Direction"`
 		Priority  int    `json:"Priority"`
-	}
-
-	endpointPolicy := EndpointPolicy{
+	}{
 		Type:      policyType,
 		Action:    action,
 		Direction: direction,
