@@ -616,7 +616,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
 		networkID, _ := plugin.getNetworkID(args.Netns, &ifInfo, nwCfg)
-		policies = append(policies, ipamAddResult.interfaceInfo[key].EndpointPolicies...)
 
 		createEpInfoOpt := createEpInfoOpt{
 			nwCfg:            nwCfg,
@@ -834,6 +833,10 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	// create endpoint policies by appending to network policies
 	// the value passed into NetworkPolicies should be unaffected since we reassign here
 	opt.policies = append(opt.policies, endpointPolicies...)
+
+	// appends default deny endpoint policies if infra nic and default deny bool is enabled
+	opt.policies = append(opt.policies, opt.ifInfo.EndpointPolicies...)
+
 	endpointInfo.EndpointPolicies = opt.policies
 	// add even more endpoint policies
 	epPolicies, err := getPoliciesFromRuntimeCfg(opt.nwCfg, opt.ipamAddResult.ipv6Enabled) // not specific to delegated or infra
