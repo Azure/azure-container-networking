@@ -1,11 +1,16 @@
-package internal
+package retry
 
 import (
 	"context"
 	"errors"
 	"testing"
 	"time"
+
+	pkgerrors "github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 )
+
+var errTest = errors.New("mock error")
 
 type TestError struct{}
 
@@ -160,5 +165,79 @@ func TestMax(t *testing.T) {
 	_, err := cooldown()
 	if err == nil {
 		t.Errorf("expected an error after %d invocations but received none", exp+1)
+	}
+}
+
+func TestRetriableError(t *testing.T) {
+	// wrapping nil returns a nil
+	require.NoError(t, WrapTemporaryError(nil))
+
+	wrappedMockError := WrapTemporaryError(pkgerrors.Wrap(errTest, "nested"))
+
+	// temporary errors should still be able to be unwrapped
+	require.ErrorIs(t, wrappedMockError, errTest)
+
+	var temporaryError TemporaryError
+	require.ErrorAs(t, wrappedMockError, &temporaryError)
+	require.True(t, temporaryError.Temporary(), "errors returned from wrap temporary error should have temporary set to true")
+}
+
+func createFunctionWithFailurePattern(errorPattern []error) func() error {
+	s := 0
+	return func() error {
+		if s >= len(errorPattern) {
+			return nil
+		}
+		result := errorPattern[s]
+		s++
+		return result
+	}
+}
+
+func TestRunWithRetries(t *testing.T) {
+	errMock := WrapTemporaryError(errTest)
+	retries := 3 // runs 4 times, then errors before the 5th
+	retrier := Retrier{
+		Cooldown: Max(retries, Fixed(100*time.Millisecond)),
+	}
+
+	tests := []struct {
+		name    string
+		wantErr bool
+		f       func() error
+	}{
+		{
+			name:    "Succeed on first try",
+			f:       createFunctionWithFailurePattern([]error{}),
+			wantErr: false,
+		},
+		{
+			name:    "Succeed on first try do not check again",
+			f:       createFunctionWithFailurePattern([]error{nil, errMock, errMock, errMock}),
+			wantErr: false,
+		},
+		{
+			name:    "Succeed on last try",
+			f:       createFunctionWithFailurePattern([]error{errMock, errMock, errMock, nil, errMock}),
+			wantErr: false,
+		},
+		{
+			name:    "Fail after too many attempts",
+			f:       createFunctionWithFailurePattern([]error{errMock, errMock, errMock, errMock, nil, nil}),
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			err := retrier.Do(context.Background(), tt.f)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
