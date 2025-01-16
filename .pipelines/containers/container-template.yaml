@@ -2,7 +2,6 @@ parameters:
   arch: ""
   name: ""
   os: ""
-  os_version: ""
 
 steps:
 - task: AzureCLI@2
@@ -17,7 +16,7 @@ steps:
 - script: |
     set -e
     if [ ${{ parameters.os }} = 'windows' ]; then export BUILDX_ACTION='--push'; fi
-    make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }} OS_VERSION=${{ parameters.os_version }}
+    make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
   name: image_build
   displayName: Image Build
   retryCountOnTaskFailure: 3

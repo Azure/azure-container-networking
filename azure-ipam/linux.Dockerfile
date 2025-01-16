@@ -1,6 +1,5 @@
 ARG ARCH
 ARG DROPGZ_VERSION=v0.0.12
-ARG OS_VERSION
 ARG OS
 
 FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS azure-ipam
