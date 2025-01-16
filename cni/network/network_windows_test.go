@@ -878,6 +878,12 @@ func GetTestCNSResponseSecondaryWindows(macAddress string) map[string]network.In
 			SkipDefaultRoutes: true,
 			NICType:           cns.InfraNIC,
 			HostSubnetPrefix:  *getCIDRNotationForAddress("20.224.0.0/16"),
+			EndpointPolicies: []policy.Policy{
+				{
+					Type: policy.EndpointPolicy,
+					Data: GetRawACLPolicy(),
+				},
+			},
 		},
 		macAddress: {
 			MacAddress: parsedMAC,
@@ -1224,6 +1230,12 @@ func TestPluginWindowsAdd(t *testing.T) {
 								Prefix: *getIPNetWithString("10.244.0.0/16"),
 								// matches cns ip configuration gateway ip address
 								Gateway: net.ParseIP("10.244.2.1"),
+							},
+						},
+						EndpointPolicies: []policy.Policy{
+							{
+								Type: policy.EndpointPolicy,
+								Data: GetRawACLPolicy(),
 							},
 						},
 					},
