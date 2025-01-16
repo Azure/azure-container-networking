@@ -41,7 +41,7 @@ require (
 	golang.org/x/sys v0.29.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241015192408-796eee8c2d53 // indirect
 	google.golang.org/grpc v1.69.2
-	google.golang.org/protobuf v1.36.2
+	google.golang.org/protobuf v1.36.3
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	k8s.io/api v0.30.7
 	k8s.io/apiextensions-apiserver v0.30.1
@@ -160,9 +160,9 @@ replace (
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )
 
-retract  (
-        v1.15.22 // typo in the version number.
-        v1.16.15 // typo in the version number.
-        v1.16.16 // contains only retractions, has to be newer than 1.16.15.
-        v1.16.17 // contains only retractions, new version to retract 1.15.22.
+retract (
+	v1.16.17 // contains only retractions, new version to retract 1.15.22.
+	v1.16.16 // contains only retractions, has to be newer than 1.16.15.
+	v1.16.15 // typo in the version number.
+	v1.15.22 // typo in the version number.
 )
