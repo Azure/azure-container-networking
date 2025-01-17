@@ -14,21 +14,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-var defaultDenyEgressPolicy policy.Policy
-var defaultDenyIngressPolicy policy.Policy
-var errIngress error
-var errEgress error
-
-func init() {
-	defaultDenyEgressPolicy, errIngress = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
-	if errIngress != nil {
-		logger.Errorf("failed to add default deny egress acl's for pod with err %v", errIngress)
-	}
-	defaultDenyIngressPolicy, errEgress = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
-	if errEgress != nil {
-		logger.Errorf("failed to add default deny ingress acl's for pod with err %v", errEgress)
-	}
-}
+var defaultDenyEgressPolicy policy.Policy = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
+var defaultDenyIngressPolicy policy.Policy = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
 
 // for AKS L1VH, do not set default route on infraNIC to avoid customer pod reaching all infra vnet services
 // default route is set for secondary interface NIC(i.e,delegatedNIC)
@@ -83,22 +70,19 @@ func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP st
 }
 
 // get policy of type endpoint policy given the params
-func getEndpointPolicy(policyType policy.CNIPolicyType, action, direction string, priority int) (policy.Policy, error) {
-	endpointPolicy, err := createEndpointPolicy(string(policyType), action, direction, priority)
-	if err != nil {
-		return policy.Policy{}, errors.Wrap(err, "failed to create endpoint policy")
-	}
+func getEndpointPolicy(policyType policy.CNIPolicyType, action, direction string, priority int) policy.Policy {
+	endpointPolicy := createEndpointPolicy(string(policyType), action, direction, priority)
 
 	additionalArgs := policy.Policy{
 		Type: policy.EndpointPolicy,
 		Data: endpointPolicy,
 	}
 
-	return additionalArgs, nil
+	return additionalArgs
 }
 
 // create policy given the params
-func createEndpointPolicy(policyType, action, direction string, priority int) ([]byte, error) {
+func createEndpointPolicy(policyType, action, direction string, priority int) []byte {
 	endpointPolicy := struct {
 		Type      string `json:"Type"`
 		Action    string `json:"Action"`
@@ -113,10 +97,10 @@ func createEndpointPolicy(policyType, action, direction string, priority int) ([
 
 	rawPolicy, err := json.Marshal(endpointPolicy)
 	if err != nil {
-		return nil, errors.Wrap(err, "error marshalling policy to json")
+		logger.Errorf("error marshalling policy to json, err is:  %v", err)
 	}
 
-	return rawPolicy, nil
+	return rawPolicy
 }
 
 // IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP configs requests for AKS-SWIFT. This function wrapped the default SWIFT request
@@ -160,12 +144,6 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			// there will be no pod connectivity to and from those pods
 			if defaultDenyACLbool && ipInfo.NICType == cns.InfraNIC {
 				ipInfo.EndpointPolicies = append(ipInfo.EndpointPolicies, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
-				if errEgress != nil || errIngress != nil {
-					logger.Printf("There was an error creating endpoint policies for defaultDeny policies")
-				} else {
-					logger.Printf("Successfully created endpoint policies for defaultDenyEgressPolicy and defaultDenyIngressPolicy")
-				}
-
 				break
 			}
 		}
