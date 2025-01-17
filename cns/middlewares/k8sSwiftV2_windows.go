@@ -20,13 +20,13 @@ var errIngress error
 var errEgress error
 
 func init() {
-	defaultDenyEgressPolicy, err = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
-	if err != nil {
-		logger.Errorf("failed to add default deny egress acl's for pod with err %v", err)
+	defaultDenyEgressPolicy, errIngress = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
+	if errIngress != nil {
+		logger.Errorf("failed to add default deny egress acl's for pod with err %v", errIngress)
 	}
-	defaultDenyIngressPolicy, err = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
-	if err != nil {
-		logger.Errorf("failed to add default deny ingress acl's for pod with err %v", err)
+	defaultDenyIngressPolicy, errEgress = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
+	if errEgress != nil {
+		logger.Errorf("failed to add default deny ingress acl's for pod with err %v", errEgress)
 	}
 }
 
