@@ -166,6 +166,18 @@ func ExecutePowershellCommand(command string) (string, error) {
 
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy if hns is enabled
 func SetSdnRemoteArpMacAddress(ctx context.Context) error {
+	if err := setSDNRemoteARPRegKey(); err != nil {
+		return err
+	}
+	log.Printf("SDNRemoteArpMacAddress regKey set successfully")
+	if err := restartHNS(ctx); err != nil {
+		return err
+	}
+	log.Printf("HNS service restarted successfully")
+	return nil
+}
+
+func setSDNRemoteARPRegKey() error {
 	log.Printf("Setting SDNRemoteArpMacAddress regKey")
 	// open the registry key
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Services\hns\State`, registry.READ|registry.SET_VALUE)
@@ -184,7 +196,10 @@ func SetSdnRemoteArpMacAddress(ctx context.Context) error {
 	if err = k.SetStringValue("SDNRemoteArpMacAddress", SDNRemoteArpMacAddress); err != nil {
 		return errors.Wrap(err, "could not set registry key")
 	}
-	log.Printf("SDNRemoteArpMacAddress regKey set successfully")
+	return nil
+}
+
+func restartHNS(ctx context.Context) error {
 	log.Printf("Restarting HNS service")
 	// connect to the service manager
 	m, err := mgr.Connect()
@@ -198,16 +213,8 @@ func SetSdnRemoteArpMacAddress(ctx context.Context) error {
 		return errors.Wrap(err, "could not access service")
 	}
 	defer service.Close()
-	if err := restartService(ctx, service); err != nil {
-		return errors.Wrap(err, "could not restart service")
-	}
-	log.Printf("HNS service restarted successfully")
-	return nil
-}
-
-func restartService(ctx context.Context, s *mgr.Service) error {
 	// Stop the service
-	_, err := s.Control(svc.Stop)
+	_, err = service.Control(svc.Stop)
 	if err != nil {
 		return errors.Wrap(err, "could not stop service")
 	}
@@ -215,7 +222,7 @@ func restartService(ctx context.Context, s *mgr.Service) error {
 	ticker := time.NewTicker(500 * time.Millisecond) //nolint:gomnd // 500ms
 	defer ticker.Stop()
 	for { // hacky cancellable do-while
-		status, err := s.Query()
+		status, err := service.Query()
 		if err != nil {
 			return errors.Wrap(err, "could not query service status")
 		}
@@ -229,7 +236,7 @@ func restartService(ctx context.Context, s *mgr.Service) error {
 		}
 	}
 	// Start the service again
-	if err := s.Start(); err != nil {
+	if err := service.Start(); err != nil {
 		return errors.Wrap(err, "could not start service")
 	}
 	return nil
