@@ -150,8 +150,8 @@ func TestAddDefaultDenyACL(t *testing.T) {
 	var defaultDenyEgressPolicy, defaultDenyIngressPolicy policy.Policy
 	var err error
 
-	defaultDenyEgressPolicy = getEndpointPolicy("ACL", "Block", "Out", 10_000)
-	defaultDenyIngressPolicy = getEndpointPolicy("ACL", "Block", "In", 10_000)
+	defaultDenyEgressPolicy = getEndpointPolicy("Out")
+	defaultDenyIngressPolicy = getEndpointPolicy("In")
 
 	allEndpoints = append(allEndpoints, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
 

@@ -14,8 +14,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-var defaultDenyEgressPolicy policy.Policy = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
-var defaultDenyIngressPolicy policy.Policy = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
+var defaultDenyEgressPolicy policy.Policy = getEndpointPolicy(cns.DirectionTypeOut)
+
+var defaultDenyIngressPolicy policy.Policy = getEndpointPolicy(cns.DirectionTypeIn)
 
 // for AKS L1VH, do not set default route on infraNIC to avoid customer pod reaching all infra vnet services
 // default route is set for secondary interface NIC(i.e,delegatedNIC)
@@ -70,8 +71,8 @@ func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP st
 }
 
 // get policy of type endpoint policy given the params
-func getEndpointPolicy(policyType policy.CNIPolicyType, action, direction string, priority int) policy.Policy {
-	endpointPolicy := createEndpointPolicy(string(policyType), action, direction, priority)
+func getEndpointPolicy(direction string) policy.Policy {
+	endpointPolicy := createEndpointPolicy(direction)
 
 	additionalArgs := policy.Policy{
 		Type: policy.EndpointPolicy,
@@ -82,17 +83,17 @@ func getEndpointPolicy(policyType policy.CNIPolicyType, action, direction string
 }
 
 // create policy given the params
-func createEndpointPolicy(policyType, action, direction string, priority int) []byte {
+func createEndpointPolicy(direction string) []byte {
 	endpointPolicy := struct {
 		Type      string `json:"Type"`
 		Action    string `json:"Action"`
 		Direction string `json:"Direction"`
 		Priority  int    `json:"Priority"`
 	}{
-		Type:      policyType,
-		Action:    action,
+		Type:      string(policy.ACLPolicy),
+		Action:    cns.ActionTypeBlock,
 		Direction: direction,
-		Priority:  priority,
+		Priority:  10_000,
 	}
 
 	rawPolicy, err := json.Marshal(endpointPolicy)
@@ -107,7 +108,6 @@ func createEndpointPolicy(policyType, action, direction string, priority int) []
 // and release IP configs handlers.
 func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
 	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
-
 		podInfo, respCode, message := k.GetPodInfoForIPConfigsRequest(ctx, &req)
 
 		if respCode != types.Success {
