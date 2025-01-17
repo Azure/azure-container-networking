@@ -16,7 +16,8 @@ import (
 
 var defaultDenyEgressPolicy policy.Policy
 var defaultDenyIngressPolicy policy.Policy
-var err error
+var errIngress error
+var errEgress error
 
 func init() {
 	defaultDenyEgressPolicy, err = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
@@ -159,7 +160,11 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			// there will be no pod connectivity to and from those pods
 			if defaultDenyACLbool && ipInfo.NICType == cns.InfraNIC {
 				ipInfo.EndpointPolicies = append(ipInfo.EndpointPolicies, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
-				logger.Printf("Created endpoint policies for defaultDenyEgressPolicy and defaultDenyIngressPolicy")
+				if errEgress != nil || errIngress != nil {
+					logger.Printf("There was an error creating endpoint policies for defaultDeny policies")
+				} else {
+					logger.Printf("Successfully created endpoint policies for defaultDenyEgressPolicy and defaultDenyIngressPolicy")
+				}
 
 				break
 			}
