@@ -901,6 +901,12 @@ func GetTestCNSResponseSecondaryWindows(macAddress string) map[string]network.In
 				},
 			},
 			NICType: cns.NodeNetworkInterfaceFrontendNIC,
+			EndpointPolicies: []policy.Policy{
+				{
+					Type: policy.EndpointPolicy,
+					Data: GetRawOutBoundNATPolicy(),
+				},
+			},
 		},
 	}
 }
@@ -1281,6 +1287,12 @@ func TestPluginWindowsAdd(t *testing.T) {
 								Gateway: net.ParseIP("10.241.0.1"),
 							},
 						},
+						EndpointPolicies: []policy.Policy{
+							{
+								Type: policy.EndpointPolicy,
+								Data: GetRawOutBoundNATPolicy(),
+							},
+						},
 					},
 					epIDRegex: `.*`,
 				},
@@ -1338,6 +1350,8 @@ func TestPluginWindowsAdd(t *testing.T) {
 					epInfo1.EndpointPolicies[0] = policy.Policy{
 						Type: policy.ACLPolicy,
 					}
+					require.Equal(t, len(epInfo1.EndpointPolicies), 1)
+					require.Equal(t, len(epInfo2.EndpointPolicies), 1)
 					require.NotEqual(t, epInfo1.EndpointPolicies, epInfo2.EndpointPolicies)
 				}
 				// ensure the network policy slices are separate entities when in separate endpoint infos

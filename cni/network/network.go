@@ -834,7 +834,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	// the value passed into NetworkPolicies should be unaffected since we reassign here
 	opt.policies = append(opt.policies, endpointPolicies...)
 
-	// appends default deny endpoint policies if infra nic and default deny bool is enabled
+	// appends endpoint policies specific to this interface
 	opt.policies = append(opt.policies, opt.ifInfo.EndpointPolicies...)
 
 	endpointInfo.EndpointPolicies = opt.policies
