@@ -10,7 +10,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
-	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -37,158 +36,32 @@ type K8sSWIFTv2Middleware struct {
 // Verify interface compliance at compile time
 var _ cns.IPConfigsHandlerMiddleware = (*K8sSWIFTv2Middleware)(nil)
 
-// IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP configs requests for AKS-SWIFT. This function wrapped the default SWIFT request
-// and release IP configs handlers.
-func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
-	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
-		podInfo, respCode, defaultDenyACLbool, message := k.GetPodInfoForIPConfigsRequest(ctx, &req)
+func (k *K8sSWIFTv2Middleware) GetPodInfoForIPConfigsRequest(ctx context.Context, req *cns.IPConfigsRequest) (podInfo cns.PodInfo, respCode types.ResponseCode, message string) {
+	// gets pod info for the specified request
+	podInfo, pod, respCode, message := k.GetPodInfo(ctx, req)
+	if respCode != types.Success {
+		return nil, respCode, message
+	}
 
-		logger.Printf("defaultDenyACLbool value is: %v", defaultDenyACLbool)
+	// validates if pod is swiftv2
+	isSwiftv2 := ValidateSwiftv2Pod(pod)
 
+	var mtpnc v1alpha1.MultitenantPodNetworkConfig
+	// if swiftv2 is enabled, check if mtpnc is ready
+	if isSwiftv2 {
+		mtpnc, respCode, message = k.getMTPNC(ctx, podInfo)
 		if respCode != types.Success {
-			return &cns.IPConfigsResponse{
-				Response: cns.Response{
-					ReturnCode: respCode,
-					Message:    message,
-				},
-			}, errors.New("failed to validate IP configs request")
-		}
-		ipConfigsResp, err := defaultHandler(ctx, req)
-		// If the pod is not v2, return the response from the handler
-		if !req.SecondaryInterfacesExist {
-			return ipConfigsResp, err
+			return nil, respCode, message
 		}
 
-		// ipConfigsResp has infra IP configs -> if defaultDenyACLbool is enabled, add the default deny endpoint policies as a property in PodIpInfo
-		for i := range ipConfigsResp.PodIPInfo {
-			ipInfo := &ipConfigsResp.PodIPInfo[i]
-			// there will be no pod connectivity to and from those pods
-			var defaultDenyEgressPolicy, defaultDenyIngressPolicy policy.Policy
-
-			if defaultDenyACLbool && ipInfo.NICType == cns.InfraNIC {
-				defaultDenyEgressPolicy, err = getEndpointPolicy(string(policy.ACLPolicy), cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
-				if err != nil {
-					logger.Errorf("failed to add default deny acl's for pod %v with err %v", podInfo.Name(), err)
-				}
-
-				defaultDenyIngressPolicy, err = getEndpointPolicy(string(policy.ACLPolicy), cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
-				if err != nil {
-					logger.Errorf("failed to add default deny acl's for pod %v with err %v", podInfo.Name(), err)
-				}
-
-				ipInfo.EndpointPolicies = append(ipInfo.EndpointPolicies, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
-				logger.Printf("Created endpoint policies for defaultDenyEgressPolicy and defaultDenyIngressPolicy")
-
-				break
-			}
-		}
-
-		// If the pod is v2, get the infra IP configs from the handler first and then add the SWIFTv2 IP config
-		defer func() {
-			// Release the default IP config if there is an error
-			if err != nil {
-				_, err = failureHandler(ctx, req)
-				if err != nil {
-					logger.Errorf("failed to release default IP config : %v", err)
-				}
-			}
-		}()
-		if err != nil {
-			return ipConfigsResp, err
-		}
-		SWIFTv2PodIPInfos, err := k.getIPConfig(ctx, podInfo)
-		if err != nil {
-			return &cns.IPConfigsResponse{
-				Response: cns.Response{
-					ReturnCode: types.FailedToAllocateIPConfig,
-					Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, req),
-				},
-				PodIPInfo: []cns.PodIpInfo{},
-			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config : %v", req)
-		}
-		ipConfigsResp.PodIPInfo = append(ipConfigsResp.PodIPInfo, SWIFTv2PodIPInfos...)
-		// Set routes for the pod
-		for i := range ipConfigsResp.PodIPInfo {
-			ipInfo := &ipConfigsResp.PodIPInfo[i]
-			// Backend nics doesn't need routes to be set
-			if ipInfo.NICType != cns.BackendNIC {
-				err = k.setRoutes(ipInfo)
-				if err != nil {
-					return &cns.IPConfigsResponse{
-						Response: cns.Response{
-							ReturnCode: types.FailedToAllocateIPConfig,
-							Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, req),
-						},
-						PodIPInfo: []cns.PodIpInfo{},
-					}, errors.Wrapf(err, "failed to set routes for pod %s", podInfo.Name())
-				}
-			}
-		}
-		return ipConfigsResp, nil
-	}
-}
-
-// GetPodInfoForIPConfigsRequest validates if pod is multitenant by checking the pod labels, used in SWIFT V2 AKS scenario.
-// nolint
-func (k *K8sSWIFTv2Middleware) GetPodInfoForIPConfigsRequest(ctx context.Context, req *cns.IPConfigsRequest) (podInfo cns.PodInfo, respCode types.ResponseCode, defaultDenyACL bool, message string) {
-	defaultDenyACLbool := false
-
-	// Retrieve the pod from the cluster
-	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
-	if err != nil {
-		errBuf := errors.Wrapf(err, "failed to unmarshalling pod info from ipconfigs request %+v", req)
-		return nil, types.UnexpectedError, defaultDenyACLbool, errBuf.Error()
-	}
-	logger.Printf("[SWIFTv2Middleware] validate ipconfigs request for pod %s", podInfo.Name())
-	podNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
-	pod := v1.Pod{}
-	if err := k.Cli.Get(ctx, podNamespacedName, &pod); err != nil {
-		errBuf := errors.Wrapf(err, "failed to get pod %+v", podNamespacedName)
-		return nil, types.UnexpectedError, defaultDenyACLbool, errBuf.Error()
-	}
-
-	// check the pod labels for Swift V2, set the request's SecondaryInterfaceSet flag to true and check if its MTPNC CRD is ready
-	_, swiftV2PodNetworkLabel := pod.Labels[configuration.LabelPodSwiftV2]
-	_, swiftV2PodNetworkInstanceLabel := pod.Labels[configuration.LabelPodNetworkInstanceSwiftV2]
-	if swiftV2PodNetworkLabel || swiftV2PodNetworkInstanceLabel {
-
-		// Check if the MTPNC CRD exists for the pod, if not, return error
-		mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
-		mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
-		if err := k.Cli.Get(ctx, mtpncNamespacedName, &mtpnc); err != nil {
-			return nil, types.UnexpectedError, defaultDenyACLbool, fmt.Errorf("failed to get pod's mtpnc from cache : %w", err).Error()
-		}
-		// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
-		if !mtpnc.IsReady() {
-			return nil, types.UnexpectedError, defaultDenyACLbool, errMTPNCNotReady.Error()
-		}
-
-		// copying defaultDenyACL bool from mtpnc
-		defaultDenyACLbool = mtpnc.Status.DefaultDenyACL
-
-		// If primary Ip is set in status field, it indicates the presence of secondary interfaces
-		if mtpnc.Status.PrimaryIP != "" {
-			req.SecondaryInterfacesExist = true
-		}
-		interfaceInfos := mtpnc.Status.InterfaceInfos
-		for _, interfaceInfo := range interfaceInfos {
-			if interfaceInfo.DeviceType == v1alpha1.DeviceTypeInfiniBandNIC {
-				if interfaceInfo.MacAddress == "" || interfaceInfo.NCID == "" {
-					return nil, types.UnexpectedError, defaultDenyACLbool, errMTPNCNotReady.Error()
-				}
-				req.BackendInterfaceExist = true
-				req.BackendInterfaceMacAddresses = append(req.BackendInterfaceMacAddresses, interfaceInfo.MacAddress)
-
-			}
-			if interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC {
-				req.SecondaryInterfacesExist = true
-			}
+		// update ipConfigRequest
+		respCode, message = k.UpdateIPConfigRequest(mtpnc, podInfo, req)
+		if respCode != types.Success {
+			return nil, respCode, message
 		}
 	}
-	logger.Printf("[SWIFTv2Middleware] pod %s has secondary interface : %v", podInfo.Name(), req.SecondaryInterfacesExist)
-	logger.Printf("[SWIFTv2Middleware] pod %s has backend interface : %v", podInfo.Name(), req.BackendInterfaceExist)
-	// retrieve podinfo from orchestrator context
-	return podInfo, types.Success, defaultDenyACLbool, ""
+
+	return podInfo, types.Success, ""
 }
 
 // getIPConfig returns the pod's SWIFT V2 IP configuration.
@@ -282,4 +155,75 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 
 func (k *K8sSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
 	return cns.K8sSWIFTV2
+}
+
+// gets Pod Data
+func (k *K8sSWIFTv2Middleware) GetPodInfo(ctx context.Context, req *cns.IPConfigsRequest) (podInfo cns.PodInfo, k8sPod v1.Pod, respCode types.ResponseCode, message string) {
+	// Retrieve the pod from the cluster
+	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
+	if err != nil {
+		errBuf := errors.Wrapf(err, "failed to unmarshalling pod info from ipconfigs request %+v", req)
+		return nil, v1.Pod{}, types.UnexpectedError, errBuf.Error()
+	}
+	logger.Printf("[SWIFTv2Middleware] validate ipconfigs request for pod %s", podInfo.Name())
+	podNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
+	pod := v1.Pod{}
+	if err := k.Cli.Get(ctx, podNamespacedName, &pod); err != nil {
+		errBuf := errors.Wrapf(err, "failed to get pod %+v", podNamespacedName)
+		return nil, v1.Pod{}, types.UnexpectedError, errBuf.Error()
+	}
+	return podInfo, pod, types.Success, ""
+}
+
+// validates if pod is multitenant by checking the pod labels, used in SWIFT V2 AKS scenario.
+func ValidateSwiftv2Pod(pod v1.Pod) bool {
+	// check the pod labels for Swift V2, set the request's SecondaryInterfaceSet flag to true and check if its MTPNC CRD is ready
+	_, swiftV2PodNetworkLabel := pod.Labels[configuration.LabelPodSwiftV2]
+	_, swiftV2PodNetworkInstanceLabel := pod.Labels[configuration.LabelPodNetworkInstanceSwiftV2]
+	// check if mtpnc is nil here, if not nil then proceed
+	if swiftV2PodNetworkLabel || swiftV2PodNetworkInstanceLabel {
+		return true
+	}
+	return false
+}
+
+// checks if MTPNC is ready
+func (k *K8sSWIFTv2Middleware) getMTPNC(ctx context.Context, podInfo cns.PodInfo) (mtpncResource v1alpha1.MultitenantPodNetworkConfig, respCode types.ResponseCode, message string) {
+	// Check if the MTPNC CRD exists for the pod, if not, return error
+	mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
+	mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
+	if err := k.Cli.Get(ctx, mtpncNamespacedName, &mtpnc); err != nil {
+		return v1alpha1.MultitenantPodNetworkConfig{}, types.UnexpectedError, fmt.Errorf("failed to get pod's mtpnc from cache : %w", err).Error()
+	}
+	// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
+	if !mtpnc.IsReady() {
+		return v1alpha1.MultitenantPodNetworkConfig{}, types.UnexpectedError, errMTPNCNotReady.Error()
+	}
+	return mtpnc, types.Success, ""
+}
+
+// Updates Ip Config Request
+func (k *K8sSWIFTv2Middleware) UpdateIPConfigRequest(mtpnc v1alpha1.MultitenantPodNetworkConfig, podInfo cns.PodInfo, req *cns.IPConfigsRequest) (
+	respCode types.ResponseCode,
+	message string,
+) {
+	interfaceInfos := mtpnc.Status.InterfaceInfos
+	for _, interfaceInfo := range interfaceInfos {
+		if interfaceInfo.DeviceType == v1alpha1.DeviceTypeInfiniBandNIC {
+			if interfaceInfo.MacAddress == "" || interfaceInfo.NCID == "" {
+				return types.UnexpectedError, errMTPNCNotReady.Error()
+			}
+			req.BackendInterfaceExist = true
+			req.BackendInterfaceMacAddresses = append(req.BackendInterfaceMacAddresses, interfaceInfo.MacAddress)
+
+		}
+		if interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC {
+			req.SecondaryInterfacesExist = true
+		}
+	}
+
+	logger.Printf("[SWIFTv2Middleware] pod %s has secondary interface : %v", podInfo.Name(), req.SecondaryInterfacesExist)
+	logger.Printf("[SWIFTv2Middleware] pod %s has backend interface : %v", podInfo.Name(), req.BackendInterfaceExist)
+
+	return types.Success, ""
 }
