@@ -47,7 +47,7 @@ func (k *K8sSWIFTv2Middleware) GetPodInfoForIPConfigsRequest(ctx context.Context
 	isSwiftv2 := ValidateSwiftv2Pod(pod)
 
 	var mtpnc v1alpha1.MultitenantPodNetworkConfig
-	// if swiftv2 is enabled, check if mtpnc is ready
+	// if swiftv2 is enabled, get mtpnc
 	if isSwiftv2 {
 		mtpnc, respCode, message = k.getMTPNC(ctx, podInfo)
 		if respCode != types.Success {
@@ -179,17 +179,15 @@ func (k *K8sSWIFTv2Middleware) GetPodInfo(ctx context.Context, req *cns.IPConfig
 
 // validates if pod is multitenant by checking the pod labels, used in SWIFT V2 AKS scenario.
 func ValidateSwiftv2Pod(pod v1.Pod) bool {
-	// check the pod labels for Swift V2, set the request's SecondaryInterfaceSet flag to true and check if its MTPNC CRD is ready
+	// check the pod labels for Swift V2
 	_, swiftV2PodNetworkLabel := pod.Labels[configuration.LabelPodSwiftV2]
 	_, swiftV2PodNetworkInstanceLabel := pod.Labels[configuration.LabelPodNetworkInstanceSwiftV2]
-	// check if mtpnc is nil here, if not nil then proceed
 	if swiftV2PodNetworkLabel || swiftV2PodNetworkInstanceLabel {
 		return true
 	}
 	return false
 }
 
-// checks if MTPNC is ready
 func (k *K8sSWIFTv2Middleware) getMTPNC(ctx context.Context, podInfo cns.PodInfo) (mtpncResource v1alpha1.MultitenantPodNetworkConfig, respCode types.ResponseCode, message string) {
 	// Check if the MTPNC CRD exists for the pod, if not, return error
 	mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
