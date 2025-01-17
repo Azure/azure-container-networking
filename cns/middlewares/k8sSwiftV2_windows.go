@@ -14,6 +14,21 @@ import (
 	"github.com/pkg/errors"
 )
 
+var defaultDenyEgressPolicy policy.Policy
+var defaultDenyIngressPolicy policy.Policy
+var err error
+
+func init() {
+	defaultDenyEgressPolicy, err = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
+	if err != nil {
+		logger.Errorf("failed to add default deny egress acl's for pod with err %v", err)
+	}
+	defaultDenyIngressPolicy, err = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
+	if err != nil {
+		logger.Errorf("failed to add default deny ingress acl's for pod with err %v", err)
+	}
+}
+
 // for AKS L1VH, do not set default route on infraNIC to avoid customer pod reaching all infra vnet services
 // default route is set for secondary interface NIC(i.e,delegatedNIC)
 func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
@@ -142,19 +157,7 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		for i := range ipConfigsResp.PodIPInfo {
 			ipInfo := &ipConfigsResp.PodIPInfo[i]
 			// there will be no pod connectivity to and from those pods
-			var defaultDenyEgressPolicy, defaultDenyIngressPolicy policy.Policy
-
 			if defaultDenyACLbool && ipInfo.NICType == cns.InfraNIC {
-				defaultDenyEgressPolicy, err = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
-				if err != nil {
-					logger.Errorf("failed to add default deny acl's for pod %v with err %v", podInfo.Name(), err)
-				}
-
-				defaultDenyIngressPolicy, err = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
-				if err != nil {
-					logger.Errorf("failed to add default deny acl's for pod %v with err %v", podInfo.Name(), err)
-				}
-
 				ipInfo.EndpointPolicies = append(ipInfo.EndpointPolicies, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
 				logger.Printf("Created endpoint policies for defaultDenyEgressPolicy and defaultDenyIngressPolicy")
 
@@ -208,12 +211,6 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 }
 
 func GetDefaultDenyBool(mtpnc v1alpha1.MultitenantPodNetworkConfig) (bool, error) {
-
-	// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
-	if !mtpnc.IsReady() {
-		return false, errMTPNCNotReady
-	}
-
 	// returns the value of DefaultDenyACL from mtpnc
 	return mtpnc.Status.DefaultDenyACL, nil
 }
