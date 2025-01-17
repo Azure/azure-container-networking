@@ -135,14 +135,14 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			}, errors.New("failed to validate IP configs request")
 		}
 
-		// checks for default deny bool variable
-		defaultDenyACLbool, err := GetDefaultDenyBool(mtpnc)
+		//  GetDefaultDenyBool takes in mtpnc and returns the value of defaultDenyACLBool from it
+		defaultDenyACLBool, err := GetDefaultDenyBool(mtpnc)
 
 		// ipConfigsResp has infra IP configs -> if defaultDenyACLbool is enabled, add the default deny endpoint policies as a property in PodIpInfo
 		for i := range ipConfigsResp.PodIPInfo {
 			ipInfo := &ipConfigsResp.PodIPInfo[i]
 			// there will be no pod connectivity to and from those pods
-			if defaultDenyACLbool && ipInfo.NICType == cns.InfraNIC {
+			if defaultDenyACLBool && ipInfo.NICType == cns.InfraNIC {
 				ipInfo.EndpointPolicies = append(ipInfo.EndpointPolicies, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
 				break
 			}
