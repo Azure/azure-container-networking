@@ -67,8 +67,8 @@ func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP st
 }
 
 // get policy of type endpoint policy given the params
-func getEndpointPolicy(policyType, action, direction string, priority int) (policy.Policy, error) {
-	endpointPolicy, err := createEndpointPolicy(policyType, action, direction, priority)
+func getEndpointPolicy(policyType policy.CNIPolicyType, action, direction string, priority int) (policy.Policy, error) {
+	endpointPolicy, err := createEndpointPolicy(string(policyType), action, direction, priority)
 	if err != nil {
 		return policy.Policy{}, errors.Wrap(err, "failed to create endpoint policy")
 	}
@@ -145,12 +145,12 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			var defaultDenyEgressPolicy, defaultDenyIngressPolicy policy.Policy
 
 			if defaultDenyACLbool && ipInfo.NICType == cns.InfraNIC {
-				defaultDenyEgressPolicy, err = getEndpointPolicy(string(policy.ACLPolicy), cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
+				defaultDenyEgressPolicy, err = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeOut, 10_000)
 				if err != nil {
 					logger.Errorf("failed to add default deny acl's for pod %v with err %v", podInfo.Name(), err)
 				}
 
-				defaultDenyIngressPolicy, err = getEndpointPolicy(string(policy.ACLPolicy), cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
+				defaultDenyIngressPolicy, err = getEndpointPolicy(policy.ACLPolicy, cns.ActionTypeBlock, cns.DirectionTypeIn, 10_000)
 				if err != nil {
 					logger.Errorf("failed to add default deny acl's for pod %v with err %v", podInfo.Name(), err)
 				}
