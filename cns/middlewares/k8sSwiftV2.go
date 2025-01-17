@@ -55,11 +55,13 @@ func (k *K8sSWIFTv2Middleware) GetPodInfoForIPConfigsRequest(ctx context.Context
 		}
 
 		// update ipConfigRequest
-		respCode, message = k.UpdateIPConfigRequest(mtpnc, podInfo, req)
+		respCode, message = k.UpdateIPConfigRequest(mtpnc, req)
 		if respCode != types.Success {
 			return nil, respCode, message
 		}
 	}
+	logger.Printf("[SWIFTv2Middleware] pod %s has secondary interface : %v", podInfo.Name(), req.SecondaryInterfacesExist)
+	logger.Printf("[SWIFTv2Middleware] pod %s has backend interface : %v", podInfo.Name(), req.BackendInterfaceExist)
 
 	return podInfo, types.Success, ""
 }
@@ -203,10 +205,15 @@ func (k *K8sSWIFTv2Middleware) getMTPNC(ctx context.Context, podInfo cns.PodInfo
 }
 
 // Updates Ip Config Request
-func (k *K8sSWIFTv2Middleware) UpdateIPConfigRequest(mtpnc v1alpha1.MultitenantPodNetworkConfig, podInfo cns.PodInfo, req *cns.IPConfigsRequest) (
+func (k *K8sSWIFTv2Middleware) UpdateIPConfigRequest(mtpnc v1alpha1.MultitenantPodNetworkConfig, req *cns.IPConfigsRequest) (
 	respCode types.ResponseCode,
 	message string,
 ) {
+	// If primary Ip is set in status field, it indicates the presence of secondary interfaces
+	if mtpnc.Status.PrimaryIP != "" {
+		req.SecondaryInterfacesExist = true
+	}
+
 	interfaceInfos := mtpnc.Status.InterfaceInfos
 	for _, interfaceInfo := range interfaceInfos {
 		if interfaceInfo.DeviceType == v1alpha1.DeviceTypeInfiniBandNIC {
@@ -221,9 +228,6 @@ func (k *K8sSWIFTv2Middleware) UpdateIPConfigRequest(mtpnc v1alpha1.MultitenantP
 			req.SecondaryInterfacesExist = true
 		}
 	}
-
-	logger.Printf("[SWIFTv2Middleware] pod %s has secondary interface : %v", podInfo.Name(), req.SecondaryInterfacesExist)
-	logger.Printf("[SWIFTv2Middleware] pod %s has backend interface : %v", podInfo.Name(), req.BackendInterfaceExist)
 
 	return types.Success, ""
 }
