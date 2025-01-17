@@ -93,7 +93,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/common v0.61.0
+	github.com/prometheus/common v0.62.0
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/afero v1.11.0 // indirect
@@ -160,9 +160,9 @@ replace (
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )
 
-retract  (
-        v1.15.22 // typo in the version number.
-        v1.16.15 // typo in the version number.
-        v1.16.16 // contains only retractions, has to be newer than 1.16.15.
-        v1.16.17 // contains only retractions, new version to retract 1.15.22.
+retract (
+	v1.16.17 // contains only retractions, new version to retract 1.15.22.
+	v1.16.16 // contains only retractions, has to be newer than 1.16.15.
+	v1.16.15 // typo in the version number.
+	v1.15.22 // typo in the version number.
 )
