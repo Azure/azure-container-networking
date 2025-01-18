@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"context"
 	"fmt"
 	"net/netip"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/pkg/errors"
 )
@@ -103,3 +105,67 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(_ *cns.PodIpInfo, 
 }
 
 func (k *K8sSWIFTv2Middleware) addDefaultRoute(*cns.PodIpInfo, string) {}
+
+// IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP configs requests for AKS-SWIFT. This function wrapped the default SWIFT request
+// and release IP configs handlers.
+func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
+	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		podInfo, respCode, message := k.GetPodInfoForIPConfigsRequest(ctx, &req)
+
+		if respCode != types.Success {
+			return &cns.IPConfigsResponse{
+				Response: cns.Response{
+					ReturnCode: respCode,
+					Message:    message,
+				},
+			}, errors.New("failed to validate IP configs request")
+		}
+		ipConfigsResp, err := defaultHandler(ctx, req)
+		// If the pod is not v2, return the response from the handler
+		if !req.SecondaryInterfacesExist {
+			return ipConfigsResp, err
+		}
+		// If the pod is v2, get the infra IP configs from the handler first and then add the SWIFTv2 IP config
+		defer func() {
+			// Release the default IP config if there is an error
+			if err != nil {
+				_, err = failureHandler(ctx, req)
+				if err != nil {
+					logger.Errorf("failed to release default IP config : %v", err)
+				}
+			}
+		}()
+		if err != nil {
+			return ipConfigsResp, err
+		}
+		SWIFTv2PodIPInfos, err := k.getIPConfig(ctx, podInfo)
+		if err != nil {
+			return &cns.IPConfigsResponse{
+				Response: cns.Response{
+					ReturnCode: types.FailedToAllocateIPConfig,
+					Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, req),
+				},
+				PodIPInfo: []cns.PodIpInfo{},
+			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config : %v", req)
+		}
+		ipConfigsResp.PodIPInfo = append(ipConfigsResp.PodIPInfo, SWIFTv2PodIPInfos...)
+		// Set routes for the pod
+		for i := range ipConfigsResp.PodIPInfo {
+			ipInfo := &ipConfigsResp.PodIPInfo[i]
+			// Backend nics doesn't need routes to be set
+			if ipInfo.NICType != cns.BackendNIC {
+				err = k.setRoutes(ipInfo)
+				if err != nil {
+					return &cns.IPConfigsResponse{
+						Response: cns.Response{
+							ReturnCode: types.FailedToAllocateIPConfig,
+							Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, req),
+						},
+						PodIPInfo: []cns.PodIpInfo{},
+					}, errors.Wrapf(err, "failed to set routes for pod %s", podInfo.Name())
+				}
+			}
+		}
+		return ipConfigsResp, nil
+	}
+}
