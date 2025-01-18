@@ -1350,8 +1350,8 @@ func TestPluginWindowsAdd(t *testing.T) {
 					epInfo1.EndpointPolicies[0] = policy.Policy{
 						Type: policy.ACLPolicy,
 					}
-					require.Equal(t, len(epInfo1.EndpointPolicies), 1)
-					require.Equal(t, len(epInfo2.EndpointPolicies), 1)
+					require.Len(t, epInfo1.EndpointPolicies, 1)
+					require.Len(t, epInfo2.EndpointPolicies, 1)
 					require.NotEqual(t, epInfo1.EndpointPolicies, epInfo2.EndpointPolicies)
 				}
 				// ensure the network policy slices are separate entities when in separate endpoint infos
