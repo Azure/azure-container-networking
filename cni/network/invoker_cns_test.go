@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/network/policy"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	"github.com/stretchr/testify/require"
 )
@@ -521,14 +522,38 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 		hostSubnetPrefix *net.IPNet
 		options          map[string]interface{}
 	}
+	valueOut := []byte(`{
+		"Type": "ACL",
+		"Action": "Block",
+		"Direction": "Out",
+		"Priority": 10000
+	}`)
 
+	valueIn := []byte(`{
+		"Type": "ACL",
+		"Action": "Block",
+		"Direction": "In",
+		"Priority": 10000
+	}`)
+
+	expectedEndpointPolicies := []policy.Policy{
+		{
+			Type: policy.EndpointPolicy,
+			Data: valueOut,
+		},
+		{
+			Type: policy.EndpointPolicy,
+			Data: valueIn,
+		},
+	}
 	tests := []struct {
-		name                  string
-		fields                fields
-		args                  args
-		wantDefaultResult     network.InterfaceInfo
-		wantMultitenantResult network.InterfaceInfo
-		wantErr               bool
+		name                     string
+		fields                   fields
+		args                     args
+		wantDefaultDenyEndpoints bool
+		wantDefaultResult        network.InterfaceInfo
+		wantMultitenantResult    network.InterfaceInfo
+		wantErr                  bool
 	}{
 		{
 			name: "Test happy CNI add",
@@ -559,7 +584,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 										PrimaryIP: "10.0.0.1",
 										Subnet:    "10.0.0.0/24",
 									},
-									NICType: cns.InfraNIC,
+									NICType:          cns.InfraNIC,
+									EndpointPolicies: expectedEndpointPolicies,
 								},
 							},
 							Response: cns.Response{
@@ -588,6 +614,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 						Gateway: net.ParseIP("10.0.0.1"),
 					},
 				},
+				EndpointPolicies: expectedEndpointPolicies,
 				Routes: []network.RouteInfo{
 					{
 						Dst: network.Ipv4DefaultRouteDstPrefix,
@@ -597,7 +624,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				NICType:          cns.InfraNIC,
 				HostSubnetPrefix: *parseCIDR("10.0.0.0/24"),
 			},
-			wantErr: false,
+			wantDefaultDenyEndpoints: true,
+			wantErr:                  false,
 		},
 		{
 			name: "Test CNI add with pod ip info empty nictype",
@@ -665,7 +693,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				NICType:          cns.InfraNIC,
 				HostSubnetPrefix: *parseCIDR("10.0.0.0/24"),
 			},
-			wantErr: false,
+			wantDefaultDenyEndpoints: false,
+			wantErr:                  false,
 		},
 		{
 			name: "Test happy CNI add for both ipv4 and ipv6",
@@ -696,7 +725,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 										PrimaryIP: "10.0.0.1",
 										Subnet:    "10.0.0.0/24",
 									},
-									NICType: cns.InfraNIC,
+									NICType:          cns.InfraNIC,
+									EndpointPolicies: expectedEndpointPolicies,
 								},
 								{
 									PodIPConfig: cns.IPSubnet{
@@ -716,7 +746,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 										PrimaryIP: "fe80::1234:5678:9abc",
 										Subnet:    "fd11:1234::/112",
 									},
-									NICType: cns.InfraNIC,
+									NICType:          cns.InfraNIC,
+									EndpointPolicies: expectedEndpointPolicies,
 								},
 							},
 							Response: cns.Response{
@@ -749,6 +780,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 						Gateway: net.ParseIP("fe80::1234:5678:9abc"),
 					},
 				},
+				EndpointPolicies: expectedEndpointPolicies,
 				Routes: []network.RouteInfo{
 					{
 						Dst: network.Ipv4DefaultRouteDstPrefix,
@@ -762,7 +794,8 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				NICType:          cns.InfraNIC,
 				HostSubnetPrefix: *parseCIDR("fd11:1234::/112"),
 			},
-			wantErr: false,
+			wantDefaultDenyEndpoints: true,
+			wantErr:                  false,
 		},
 		{
 			name: "fail to request IP addresses from cns",
@@ -773,12 +806,24 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 					require: require,
 					requestIPs: requestIPsHandler{
 						ipconfigArgument: getTestIPConfigsRequest(),
-						result:           nil,
-						err:              errors.New("failed error from CNS"), //nolint "error for ut"
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
+								{
+									EndpointPolicies: expectedEndpointPolicies,
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: errors.New("failed error from CNS"), //nolint "error for ut"
+
 					},
 				},
 			},
-			wantErr: true,
+			wantDefaultDenyEndpoints: false,
+			wantErr:                  true,
 		},
 	}
 	for _, tt := range tests {
@@ -794,6 +839,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 			}
 			ipamAddResult, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
 			if tt.wantErr {
+				require.Equalf([]policy.Policy(nil), ipamAddResult.interfaceInfo[string(cns.InfraNIC)].EndpointPolicies, "There was an error requesting IP addresses from cns")
 				require.Error(err)
 			} else {
 				require.NoError(err)
@@ -809,6 +855,11 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				}
 				if ifInfo.NICType == cns.InfraNIC {
 					require.Equalf(tt.wantDefaultResult, ifInfo, "incorrect default response")
+					if tt.wantDefaultDenyEndpoints {
+						require.Equalf(expectedEndpointPolicies, ifInfo.EndpointPolicies, "Correct default deny ACL")
+					} else {
+						require.Equalf([]policy.Policy(nil), ifInfo.EndpointPolicies, "Correct default deny ACL")
+					}
 				}
 			}
 		})
