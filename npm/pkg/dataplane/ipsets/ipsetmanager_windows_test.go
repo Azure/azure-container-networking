@@ -387,7 +387,12 @@ func verifyHNSCache(t *testing.T, expected map[string]hcn.SetPolicySetting, hns 
 		copyOfCachedObj := *cacheObj
 		copyOfCachedObj.Values = strings.Join(members, ",")
 
-		require.Equal(t, setObj, copyOfCachedObj, setName+" mismatch in cache")
+		expectedMembers := strings.Split(setObj.Values, ",")
+		sort.Strings(expectedMembers)
+		copyOfExpectedObj := setObj
+		copyOfExpectedObj.Values = strings.Join(expectedMembers, ",")
+
+		require.Equal(t, copyOfExpectedObj, copyOfCachedObj, setName+" mismatch in cache")
 	}
 }
 
