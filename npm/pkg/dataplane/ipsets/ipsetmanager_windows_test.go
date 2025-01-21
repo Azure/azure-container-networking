@@ -1,7 +1,6 @@
 package ipsets
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -388,7 +387,7 @@ func verifyHNSCache(t *testing.T, expected map[string]hcn.SetPolicySetting, hns 
 		copyOfCachedObj := *cacheObj
 		copyOfCachedObj.Values = strings.Join(members, ",")
 
-		require.Equal(t, setObj, copyOfCachedObj, fmt.Sprintf("%s mismatch in cache", setName))
+		require.Equal(t, setObj, copyOfCachedObj, setName+" mismatch in cache")
 	}
 }
 
