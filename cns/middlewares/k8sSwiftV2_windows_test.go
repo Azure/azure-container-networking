@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/network/policy"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/v3/assert"
 )
@@ -150,16 +151,16 @@ func TestAddDefaultDenyACL(t *testing.T) {
 	var defaultDenyEgressPolicy, defaultDenyIngressPolicy policy.Policy
 	var err error
 
-	defaultDenyEgressPolicy = getEndpointPolicy("Out")
-	defaultDenyIngressPolicy = getEndpointPolicy("In")
+	defaultDenyEgressPolicy = mustGetEndpointPolicy("Out")
+	defaultDenyIngressPolicy = mustGetEndpointPolicy("In")
 
 	allEndpoints = append(allEndpoints, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
 
 	// Normalize both slices so there is no extra spacing, new lines, etc
 	normalizedExpected := normalizeKVPairs(t, expectedDefaultDenyEndpoint)
 	normalizedActual := normalizeKVPairs(t, allEndpoints)
-	if !reflect.DeepEqual(normalizedExpected, normalizedActual) {
-		t.Errorf("got '%+v', expected '%+v'", normalizedActual, normalizedExpected)
+	if !cmp.Equal(normalizedExpected, normalizedActual) {
+		t.Error("received policy differs from expectation: diff", cmp.Diff(normalizedExpected, normalizedActual))
 	}
 	assert.Equal(t, err, nil)
 }
