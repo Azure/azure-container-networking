@@ -182,10 +182,7 @@ func ValidateSwiftv2Pod(pod v1.Pod) bool {
 	// check the pod labels for Swift V2
 	_, swiftV2PodNetworkLabel := pod.Labels[configuration.LabelPodSwiftV2]
 	_, swiftV2PodNetworkInstanceLabel := pod.Labels[configuration.LabelPodNetworkInstanceSwiftV2]
-	if swiftV2PodNetworkLabel || swiftV2PodNetworkInstanceLabel {
-		return true
-	}
-	return false
+	return swiftV2PodNetworkLabel || swiftV2PodNetworkInstanceLabel
 }
 
 func (k *K8sSWIFTv2Middleware) getMTPNC(ctx context.Context, podInfo cns.PodInfo) (mtpncResource v1alpha1.MultitenantPodNetworkConfig, respCode types.ResponseCode, message string) {
