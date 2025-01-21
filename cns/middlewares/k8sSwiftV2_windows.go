@@ -81,7 +81,6 @@ func mustGetEndpointPolicy(direction string) policy.Policy {
 // get policy of type endpoint policy given the params
 func getEndpointPolicy(direction string) (policy.Policy, error) {
 	endpointPolicy, err := createEndpointPolicy(direction)
-
 	if err != nil {
 		return policy.Policy{}, fmt.Errorf("error creating endpoint policy:  %w", err)
 	}
