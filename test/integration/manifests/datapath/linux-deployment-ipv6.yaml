@@ -86,3 +86,10 @@ spec:
               periodSeconds: 5
         nodeSelector:
           kubernetes.io/os: linux
+        topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: "goldpinger"
