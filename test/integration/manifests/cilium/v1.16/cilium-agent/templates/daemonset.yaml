@@ -39,9 +39,6 @@ spec:
                 operator: In
                 values:
                 - linux
-      securityContext:
-        appArmorProfile: 
-          type: Unconfined
       containers:
       - args:
         - --config-dir=/tmp/cilium/config-map
@@ -287,6 +284,8 @@ spec:
             cpu: 100m
             memory: 100Mi
         securityContext:
+          appArmorProfile: 
+            type: Unconfined
           capabilities:
             add:
             - NET_ADMIN
