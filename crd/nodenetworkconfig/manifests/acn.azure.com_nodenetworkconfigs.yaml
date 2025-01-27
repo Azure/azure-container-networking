@@ -109,6 +109,8 @@ spec:
                       type: string
                     defaultGateway:
                       type: string
+                    defaultGatewayV6:
+                      type: string
                     id:
                       type: string
                     ipAssignments:
@@ -125,6 +127,8 @@ spec:
                     nodeIP:
                       type: string
                     primaryIP:
+                      type: string
+                    primaryIPV6:
                       type: string
                     resourceGroupID:
                       type: string
