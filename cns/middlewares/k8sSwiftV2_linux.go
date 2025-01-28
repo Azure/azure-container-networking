@@ -32,50 +32,12 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		routes = append(routes, virtualGWRoute, route)
 
 	case cns.InfraNIC:
-		// Get and parse infraVNETCIDRs from env
-		infraVNETCIDRs, err := configuration.InfraVNETCIDRs()
+		// get service and infravnet routes
+		infraRoutes, err := k.getInfraRoutes(podIPInfo)
 		if err != nil {
-			return errors.Wrapf(err, "failed to get infraVNETCIDRs from env")
+			return errors.Wrap(err, "failed to get infra routes for infraNIC interface")
 		}
-		infraVNETCIDRsv4, infraVNETCIDRsv6, err := utils.ParseCIDRs(infraVNETCIDRs)
-		if err != nil {
-			return errors.Wrapf(err, "failed to parse infraVNETCIDRs")
-		}
-
-		// Get and parse podCIDRs from env
-		podCIDRs, err := configuration.PodCIDRs()
-		if err != nil {
-			return errors.Wrapf(err, "failed to get podCIDRs from env")
-		}
-		podCIDRsV4, podCIDRv6, err := utils.ParseCIDRs(podCIDRs)
-		if err != nil {
-			return errors.Wrapf(err, "failed to parse podCIDRs")
-		}
-
-		// Get and parse serviceCIDRs from env
-		serviceCIDRs, err := configuration.ServiceCIDRs()
-		if err != nil {
-			return errors.Wrapf(err, "failed to get serviceCIDRs from env")
-		}
-		serviceCIDRsV4, serviceCIDRsV6, err := utils.ParseCIDRs(serviceCIDRs)
-		if err != nil {
-			return errors.Wrapf(err, "failed to parse serviceCIDRs")
-		}
-
-		ip, err := netip.ParseAddr(podIPInfo.PodIPConfig.IPAddress)
-		if err != nil {
-			return errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
-		}
-
-		if ip.Is4() {
-			routes = append(routes, addRoutes(podCIDRsV4, overlayGatewayv4)...)
-			routes = append(routes, addRoutes(serviceCIDRsV4, overlayGatewayv4)...)
-			routes = append(routes, addRoutes(infraVNETCIDRsv4, overlayGatewayv4)...)
-		} else {
-			routes = append(routes, addRoutes(podCIDRv6, overlayGatewayV6)...)
-			routes = append(routes, addRoutes(serviceCIDRsV6, overlayGatewayV6)...)
-			routes = append(routes, addRoutes(infraVNETCIDRsv6, overlayGatewayV6)...)
-		}
+		routes = infraRoutes
 		podIPInfo.SkipDefaultRoutes = true
 
 	case cns.NodeNetworkInterfaceBackendNIC: //nolint:exhaustive // ignore exhaustive types check
@@ -88,15 +50,57 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	return nil
 }
 
-func addRoutes(cidrs []string, gatewayIP string) []cns.Route {
-	routes := make([]cns.Route, len(cidrs))
-	for i, cidr := range cidrs {
-		routes[i] = cns.Route{
-			IPAddress:        cidr,
-			GatewayIPAddress: gatewayIP,
-		}
+// CNS gets pod CIDRs from configuration env and parse them to get the v4 and v6 IPs
+// Containerd reassigns the IP to the adapter and kernel configures the pod cidr route by default, so windows swiftv2 does not require pod cidr
+func (k *K8sSWIFTv2Middleware) GetPodCidrs() (v4IPs, v6IPs []string, err error) {
+	v4PodCidrs := []string{}
+	v6PodCidrs := []string{}
+
+	// Get and parse podCIDRs from env
+	podCIDRs, err := configuration.PodCIDRs()
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to get podCIDRs from env")
 	}
-	return routes
+	podCIDRsV4, podCIDRv6, err := utils.ParseCIDRs(podCIDRs)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to parse podCIDRs")
+	}
+
+	v4PodCidrs = append(v4PodCidrs, podCIDRsV4...)
+	v6PodCidrs = append(v6PodCidrs, podCIDRv6...)
+
+	return v4PodCidrs, v6PodCidrs, nil
+}
+
+func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.Route, error) {
+	var routes []cns.Route
+
+	ip, err := netip.ParseAddr(podIPInfo.PodIPConfig.IPAddress)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
+	}
+
+	v4IPs, v6IPs, err := k.GetCidrs()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get node and service CIDRs")
+	}
+
+	v4PodIPs, v6PodIPs, err := k.GetPodCidrs()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get pod CIDRs")
+	}
+
+	v4IPs = append(v4IPs, v4PodIPs...)
+	v6IPs = append(v6IPs, v6PodIPs...)
+
+	// Linux uses 169.254.1.1 as the default ipv4 gateway and fe80::1234:5678:9abc as the default ipv6 gateway
+	if ip.Is4() {
+		routes = append(routes, k.AddRoutes(v4IPs, overlayGatewayv4)...)
+	} else {
+		routes = append(routes, k.AddRoutes(v6IPs, overlayGatewayV6)...)
+	}
+
+	return routes, nil
 }
 
 // assignSubnetPrefixLengthFields is a no-op for linux swiftv2 as the default prefix-length is sufficient
