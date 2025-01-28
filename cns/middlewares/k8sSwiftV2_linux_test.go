@@ -3,8 +3,8 @@ package middlewares
 import (
 	"context"
 	"fmt"
-	"testing"
 	"reflect"
+	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
