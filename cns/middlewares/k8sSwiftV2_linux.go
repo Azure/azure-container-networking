@@ -53,7 +53,10 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 // Linux CNS gets pod CIDRs from configuration env
 // Containerd reassigns the IP to the adapter and kernel configures the pod cidr route by default on Windows VM
 // Hence the windows swiftv2 scenario does not require pod cidr
-func (k *K8sSWIFTv2Middleware) GetPodCidrs() (v4PodCidrs, v6PodCidrs []string, err error) {
+func (k *K8sSWIFTv2Middleware) GetPodCidrs() ([]string, []string, error) { //nolint
+	v4PodCidrs := []string{}
+	v6PodCidrs := []string{}
+
 	// Get and parse podCIDRs from env
 	podCIDRs, err := configuration.PodCIDRs()
 	if err != nil {
