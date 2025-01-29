@@ -3,7 +3,6 @@ package middlewares
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -12,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/google/go-cmp/cmp"
 	"gotest.tools/v3/assert"
 )
 
@@ -346,7 +346,7 @@ func TestSetRoutesSuccess(t *testing.T) {
 	}
 
 	for i := range podIPInfo {
-		reflect.DeepEqual(podIPInfo[i].Routes, desiredPodIPInfo[i].Routes)
+		cmp.Equal(podIPInfo[i].Routes, desiredPodIPInfo[i].Routes)
 	}
 }
 

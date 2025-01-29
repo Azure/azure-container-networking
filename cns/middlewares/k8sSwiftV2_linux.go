@@ -32,7 +32,7 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		routes = append(routes, virtualGWRoute, route)
 
 	case cns.InfraNIC:
-		// get service and infravnet routes
+		// Linux CNS middleware sets the infra routes(infravnet/pod/service cidrs) to infraNIC interface for the podIPInfo used in SWIFT V2 Linux scenario
 		infraRoutes, err := k.getInfraRoutes(podIPInfo)
 		if err != nil {
 			return errors.Wrap(err, "failed to get infra routes for infraNIC interface")
@@ -50,9 +50,10 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	return nil
 }
 
-// CNS gets pod CIDRs from configuration env and parse them to get the v4 and v6 IPs
-// Containerd reassigns the IP to the adapter and kernel configures the pod cidr route by default, so windows swiftv2 does not require pod cidr
-func (k *K8sSWIFTv2Middleware) GetPodCidrs() (v4IPs, v6IPs []string, err error) {
+// Linux CNS gets pod CIDRs from configuration env
+// Containerd reassigns the IP to the adapter and kernel configures the pod cidr route by default on Windows VM
+// Hence the windows swiftv2 scenario does not require pod cidr
+func (k *K8sSWIFTv2Middleware) GetPodCidrs() ([]string, []string, error) {
 	v4PodCidrs := []string{}
 	v6PodCidrs := []string{}
 
@@ -72,6 +73,8 @@ func (k *K8sSWIFTv2Middleware) GetPodCidrs() (v4IPs, v6IPs []string, err error) 
 	return v4PodCidrs, v6PodCidrs, nil
 }
 
+// getInfraRoutes() returns the infra routes including infravnet/pod/service cidrs for the podIPInfo used in SWIFT V2 Linux scenario
+// Linux uses 169.254.1.1 as the default ipv4 gateway and fe80::1234:5678:9abc as the default ipv6 gateway
 func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.Route, error) {
 	var routes []cns.Route
 
@@ -93,7 +96,6 @@ func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.R
 	v4IPs = append(v4IPs, v4PodIPs...)
 	v6IPs = append(v6IPs, v6PodIPs...)
 
-	// Linux uses 169.254.1.1 as the default ipv4 gateway and fe80::1234:5678:9abc as the default ipv6 gateway
 	if ip.Is4() {
 		routes = append(routes, k.AddRoutes(v4IPs, overlayGatewayv4)...)
 	} else {

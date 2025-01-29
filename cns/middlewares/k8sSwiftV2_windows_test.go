@@ -20,6 +20,7 @@ func TestSetRoutesSuccess(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16")
 	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.10/16")
+	t.Setenv(configuration.EnvPodCIDRs, "10.1.0.10/24") // make sure windows swiftv2 does not set pod cidr route
 
 	podIPInfo := []cns.PodIpInfo{
 		{

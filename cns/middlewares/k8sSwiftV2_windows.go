@@ -36,7 +36,7 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		}
 		podIPInfo.Routes = append(podIPInfo.Routes, route)
 
-		// set routes(infravnet and service cidrs) for infraNIC interface
+		// // Linux CNS middleware sets the infra routes(infravnet and service cidrs) to infraNIC interface for the podIPInfo used in SWIFT V2 Windows scenario
 		infraRoutes, err := k.getInfraRoutes(podIPInfo)
 		if err != nil {
 			return errors.Wrap(err, "failed to set routes for infraNIC interface")
@@ -220,6 +220,9 @@ func GetDefaultDenyBool(mtpnc v1alpha1.MultitenantPodNetworkConfig) bool {
 	return mtpnc.Status.DefaultDenyACL
 }
 
+// getInfraRoutes() returns the infra routes including infravnet/ and service cidrs for the podIPInfo used in SWIFT V2 Windows scenario
+// Windows uses default route 0.0.0.0 as the gateway IP for containerd to configure;
+// For example, containerd would set route like: ip route 10.0.0.0/16 via 0.0.0.0 dev eth0
 func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.Route, error) {
 	var routes []cns.Route
 
@@ -228,16 +231,13 @@ func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.R
 		return nil, errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
 	}
 
-	// swiftv2 windows does not support ipv6
+	// TODO: add ipv6 when supported
 	v4IPs, _, err := k.GetCidrs()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get CIDRs")
 	}
 
 	if ip.Is4() {
-		// add routes to podIPInfo for the given CIDRs and gateway IP
-		// always use default gateway IP for containerd to configure routes;
-		// containerd will set route with default gateway ip like 10.0.0.0/16 via 0.0.0.0 dev eth0
 		routes = append(routes, k.AddRoutes(v4IPs, defaultGateway)...)
 	}
 
