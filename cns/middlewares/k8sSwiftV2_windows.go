@@ -36,7 +36,7 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		}
 		podIPInfo.Routes = append(podIPInfo.Routes, route)
 
-		// // Linux CNS middleware sets the infra routes(infravnet and service cidrs) to infraNIC interface for the podIPInfo used in SWIFT V2 Windows scenario
+		// Windows CNS middleware sets the infra routes(infravnet and service cidrs) to infraNIC interface for the podIPInfo used in SWIFT V2 Windows scenario
 		infraRoutes, err := k.getInfraRoutes(podIPInfo)
 		if err != nil {
 			return errors.Wrap(err, "failed to set routes for infraNIC interface")
@@ -72,7 +72,7 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(podIPInfo *cns.Pod
 	return nil
 }
 
-// add default route with gateway IP to podIPInfo
+// add default route with gateway IP to podIPInfo for delegatedNIC interface
 func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP string) {
 	route := cns.Route{
 		IPAddress:        "0.0.0.0/0",

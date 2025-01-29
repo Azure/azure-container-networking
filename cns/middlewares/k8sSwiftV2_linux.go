@@ -32,7 +32,7 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		routes = append(routes, virtualGWRoute, route)
 
 	case cns.InfraNIC:
-		// Linux CNS middleware sets the infra routes(infravnet/pod/service cidrs) to infraNIC interface for the podIPInfo used in SWIFT V2 Linux scenario
+		// Linux CNS middleware sets the infra routes(pod, infravnet and service cidrs) to infraNIC interface for the podIPInfo used in SWIFT V2 Linux scenario
 		infraRoutes, err := k.getInfraRoutes(podIPInfo)
 		if err != nil {
 			return errors.Wrap(err, "failed to get infra routes for infraNIC interface")
@@ -53,10 +53,7 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 // Linux CNS gets pod CIDRs from configuration env
 // Containerd reassigns the IP to the adapter and kernel configures the pod cidr route by default on Windows VM
 // Hence the windows swiftv2 scenario does not require pod cidr
-func (k *K8sSWIFTv2Middleware) GetPodCidrs() ([]string, []string, error) {
-	v4PodCidrs := []string{}
-	v6PodCidrs := []string{}
-
+func (k *K8sSWIFTv2Middleware) GetPodCidrs() (v4PodCidrs, v6PodCidrs []string, err error) {
 	// Get and parse podCIDRs from env
 	podCIDRs, err := configuration.PodCIDRs()
 	if err != nil {
@@ -110,6 +107,7 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(_ *cns.PodIpInfo, 
 	return nil
 }
 
+// add default route is done on setRoutes() for Linux swiftv2
 func (k *K8sSWIFTv2Middleware) addDefaultRoute(*cns.PodIpInfo, string) {}
 
 // IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP configs requests for AKS-SWIFT. This function wrapped the default SWIFT request
