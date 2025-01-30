@@ -799,11 +799,15 @@ func main() {
 	}
 
 	// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic if HNS is enabled
-	err = platform.SetSdnRemoteArpMacAddress(rootCtx)
+	arpCtx, arpCtxCancel := context.WithTimeout(rootCtx, 30*time.Second)
+	err = platform.SetSdnRemoteArpMacAddress(arpCtx)
 	if err != nil {
 		logger.Errorf("Failed to set remote ARP MAC address: %v", err)
+		arpCtxCancel()
 		return
 	}
+	arpCtxCancel()
+
 	// We are only setting the PriorityVLANTag in 'cns.Direct' mode, because it neatly maps today, to 'isUsingMultitenancy'
 	// In the future, we would want to have a better CNS flag, to explicitly say, this CNS is using multitenancy
 	if cnsconfig.ChannelMode == cns.Direct {
