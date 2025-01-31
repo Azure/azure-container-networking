@@ -828,6 +828,8 @@ func main() {
 	// Initialze state in if CNS is running in CRD mode
 	// State must be initialized before we start HTTPRestService
 	if config.ChannelMode == cns.CRD {
+		// Add APIServer FQDN to Log metadata
+		logger.Log.SetAPIServer(os.Getenv("KUBERNETES_SERVICE_HOST"))
 
 		// Check the CNI statefile mount, and if the file is empty
 		// stub an empty JSON object

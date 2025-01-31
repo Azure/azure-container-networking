@@ -18,7 +18,7 @@ func Close() {
 }
 
 func InitLogger(fileName string, logLevel, logTarget int, logDir string) {
-	Log, _ = NewCNSLogger(fileName, logLevel, logTarget, logDir)
+	Log, _ = New(fileName, logLevel, logTarget, logDir)
 }
 
 func InitAI(aiConfig aitelemetry.AIConfig, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
