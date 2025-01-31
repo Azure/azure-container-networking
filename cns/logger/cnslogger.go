@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/Azure/azure-container-networking/aitelemetry"
+	ai "github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/pkg/errors"
@@ -15,7 +15,7 @@ import (
 
 type CNSLogger struct {
 	logger               *log.Logger
-	th                   aitelemetry.TelemetryHandle
+	th                   ai.TelemetryHandle
 	DisableTraceLogging  bool
 	DisableMetricLogging bool
 	DisableEventLogging  bool
@@ -49,12 +49,12 @@ func NewCNSLogger(fileName string, logLevel, logTarget int, logDir string) (*CNS
 	}, nil
 }
 
-func (c *CNSLogger) InitAI(aiConfig aitelemetry.AIConfig, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
+func (c *CNSLogger) InitAI(aiConfig ai.AIConfig, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
 	c.InitAIWithIKey(aiConfig, aiMetadata, disableTraceLogging, disableMetricLogging, disableEventLogging)
 }
 
-func (c *CNSLogger) InitAIWithIKey(aiConfig aitelemetry.AIConfig, instrumentationKey string, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
-	th, err := aitelemetry.NewAITelemetry("", instrumentationKey, aiConfig)
+func (c *CNSLogger) InitAIWithIKey(aiConfig ai.AIConfig, instrumentationKey string, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
+	th, err := ai.NewAITelemetry("", instrumentationKey, aiConfig)
 	if err != nil {
 		c.logger.Errorf("Error initializing AI Telemetry:%v", err)
 		return
@@ -94,7 +94,7 @@ func (c *CNSLogger) Printf(format string, args ...any) {
 	}
 
 	msg := fmt.Sprintf(format, args...)
-	c.sendTraceInternal(msg)
+	c.sendTraceInternal(msg, ai.InfoLevel)
 }
 
 func (c *CNSLogger) Debugf(format string, args ...any) {
@@ -106,7 +106,7 @@ func (c *CNSLogger) Debugf(format string, args ...any) {
 	}
 
 	msg := fmt.Sprintf(format, args...)
-	c.sendTraceInternal(msg)
+	c.sendTraceInternal(msg, ai.DebugLevel)
 }
 
 func (c *CNSLogger) Warnf(format string, args ...any) {
@@ -118,7 +118,7 @@ func (c *CNSLogger) Warnf(format string, args ...any) {
 	}
 
 	msg := fmt.Sprintf(format, args...)
-	c.sendTraceInternal(msg)
+	c.sendTraceInternal(msg, ai.WarnLevel)
 }
 
 func (c *CNSLogger) Errorf(format string, args ...any) {
@@ -130,7 +130,7 @@ func (c *CNSLogger) Errorf(format string, args ...any) {
 	}
 
 	msg := fmt.Sprintf(format, args...)
-	c.sendTraceInternal(msg)
+	c.sendTraceInternal(msg, ai.ErrorLevel)
 }
 
 func (c *CNSLogger) Request(tag string, request any, err error) {
@@ -141,13 +141,15 @@ func (c *CNSLogger) Request(tag string, request any, err error) {
 	}
 
 	var msg string
+	lvl := ai.InfoLevel
 	if err == nil {
 		msg = fmt.Sprintf("[%s] Received %T %+v.", tag, request, request)
 	} else {
 		msg = fmt.Sprintf("[%s] Failed to decode %T %+v %s.", tag, request, request, err.Error())
+		lvl = ai.ErrorLevel
 	}
 
-	c.sendTraceInternal(msg)
+	c.sendTraceInternal(msg, lvl)
 }
 
 func (c *CNSLogger) Response(tag string, response any, returnCode types.ResponseCode, err error) {
@@ -158,16 +160,18 @@ func (c *CNSLogger) Response(tag string, response any, returnCode types.Response
 	}
 
 	var msg string
+	lvl := ai.InfoLevel
 	switch {
 	case err == nil && returnCode == 0:
 		msg = fmt.Sprintf("[%s] Sent %T %+v.", tag, response, response)
 	case err != nil:
 		msg = fmt.Sprintf("[%s] Code:%s, %+v %s.", tag, returnCode.String(), response, err.Error())
+		lvl = ai.ErrorLevel
 	default:
 		msg = fmt.Sprintf("[%s] Code:%s, %+v.", tag, returnCode.String(), response)
 	}
 
-	c.sendTraceInternal(msg)
+	c.sendTraceInternal(msg, lvl)
 }
 
 func (c *CNSLogger) ResponseEx(tag string, request, response any, returnCode types.ResponseCode, err error) {
@@ -178,16 +182,18 @@ func (c *CNSLogger) ResponseEx(tag string, request, response any, returnCode typ
 	}
 
 	var msg string
+	lvl := ai.InfoLevel
 	switch {
 	case err == nil && returnCode == 0:
 		msg = fmt.Sprintf("[%s] Sent %T %+v %T %+v.", tag, request, request, response, response)
 	case err != nil:
 		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v, %s.", tag, returnCode.String(), request, response, err.Error())
+		lvl = ai.ErrorLevel
 	default:
 		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v.", tag, returnCode.String(), request, response)
 	}
 
-	c.sendTraceInternal(msg)
+	c.sendTraceInternal(msg, lvl)
 }
 
 func (c *CNSLogger) getOrchestratorAndNodeID() (orch, nodeID string) {
@@ -197,11 +203,12 @@ func (c *CNSLogger) getOrchestratorAndNodeID() (orch, nodeID string) {
 	return
 }
 
-func (c *CNSLogger) sendTraceInternal(msg string) {
+func (c *CNSLogger) sendTraceInternal(msg string, lvl ai.Level) {
 	orch, nodeID := c.getOrchestratorAndNodeID()
 
-	report := aitelemetry.Report{
+	report := ai.Report{
 		Message: msg,
+		Level:   lvl,
 		Context: nodeID,
 		CustomDimensions: map[string]string{
 			OrchestratorTypeStr: orch,
@@ -212,7 +219,7 @@ func (c *CNSLogger) sendTraceInternal(msg string) {
 	c.th.TrackLog(report)
 }
 
-func (c *CNSLogger) LogEvent(event aitelemetry.Event) {
+func (c *CNSLogger) LogEvent(event ai.Event) {
 	if c.th == nil || c.DisableEventLogging {
 		return
 	}
@@ -223,7 +230,7 @@ func (c *CNSLogger) LogEvent(event aitelemetry.Event) {
 	c.th.TrackEvent(event)
 }
 
-func (c *CNSLogger) SendMetric(metric aitelemetry.Metric) {
+func (c *CNSLogger) SendMetric(metric ai.Metric) {
 	if c.th == nil || c.DisableMetricLogging {
 		return
 	}
