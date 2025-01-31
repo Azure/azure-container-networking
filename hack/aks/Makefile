@@ -383,6 +383,8 @@ dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Over
 		--ip-families ipv4,ipv6 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
+		--tier premium \
+		--k8s-support-plan AKSLongTermSupport \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -417,6 +419,8 @@ dualstack-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up a Dualstack o
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
 		--kube-proxy-config ./kube-proxy.json \
+		--tier premium \
+		--k8s-support-plan AKSLongTermSupport \
 		--yes
 	@$(MAKE) set-kubeconf
 
