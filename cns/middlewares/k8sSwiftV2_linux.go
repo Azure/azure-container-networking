@@ -84,9 +84,9 @@ func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.R
 		return nil, errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
 	}
 
-	v4IPs, v6IPs, err := k.GetCidrs()
+	v4IPs, v6IPs, err := k.GetInfravnetAndServiceCidrs()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get node and service CIDRs")
+		return nil, errors.Wrap(err, "failed to get infravnet and service CIDRs")
 	}
 
 	v4PodIPs, v6PodIPs, err := k.GetPodCidrs()

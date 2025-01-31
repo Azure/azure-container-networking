@@ -72,7 +72,7 @@ func (k *K8sSWIFTv2Middleware) assignSubnetPrefixLengthFields(podIPInfo *cns.Pod
 	return nil
 }
 
-// add default route with gateway IP to podIPInfo for delegatedNIC interface
+// add default route with gateway IP to podIPInfo
 func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP string) {
 	route := cns.Route{
 		IPAddress:        "0.0.0.0/0",
@@ -232,9 +232,9 @@ func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.R
 	}
 
 	// TODO: add ipv6 when supported
-	v4IPs, _, err := k.GetCidrs()
+	v4IPs, _, err := k.GetInfravnetAndServiceCidrs()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get CIDRs")
+		return nil, errors.Wrap(err, "failed to get infravnet and service CIDRs")
 	}
 
 	if ip.Is4() {

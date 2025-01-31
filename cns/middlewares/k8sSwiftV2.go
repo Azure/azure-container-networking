@@ -239,8 +239,8 @@ func (k *K8sSWIFTv2Middleware) AddRoutes(cidrs []string, gatewayIP string) []cns
 }
 
 // Both Linux and Windows CNS gets infravnet and service CIDRs from configuration env
-// GetCidrs() returns v4CIDRs(infravnet and service cidrs) as first []string and v6CIDRs(infravnet and service) as second []string
-func (k *K8sSWIFTv2Middleware) GetCidrs() ([]string, []string, error) { //nolint
+// GetInfravnetAndServiceCidrs() returns v4CIDRs(infravnet and service cidrs) as first []string and v6CIDRs(infravnet and service) as second []string
+func (k *K8sSWIFTv2Middleware) GetInfravnetAndServiceCidrs() ([]string, []string, error) { //nolint
 	v4Cidrs := []string{}
 	v6Cidrs := []string{}
 
