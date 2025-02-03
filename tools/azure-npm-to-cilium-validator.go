@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -45,8 +44,14 @@ func main() {
 	policiesByNamespace := make(map[string][]networkingv1.NetworkPolicy)
 	servicesByNamespace := make(map[string][]corev1.Service)
 
+	// Copy namespaces.Items into a slice of pointers
+	namespacePointers := make([]*corev1.Namespace, len(namespaces.Items))
+	for i := range namespaces.Items {
+		namespacePointers[i] = &namespaces.Items[i]
+	}
+
 	// Iterate over namespaces and store policies/services
-	for _, ns := range namespaces.Items {
+	for _, ns := range namespacePointers {
 		fmt.Printf("Writing policies and services for namespace %s...\n", ns.Name)
 
 		// Get network policies
@@ -238,10 +243,10 @@ func checkExternalTrafficPolicyServices(namespaces *corev1.NamespaceList, servic
 
 		// Check if are there services with externalTrafficPolicy=Cluster (applicable if Type=NodePort or Type=LoadBalancer)
 		for _, service := range serviceListAtNamespace {
-			if service.Spec.Type == v1.ServiceTypeLoadBalancer || service.Spec.Type == v1.ServiceTypeNodePort {
+			if service.Spec.Type == corev1.ServiceTypeLoadBalancer || service.Spec.Type == corev1.ServiceTypeNodePort {
 				externalTrafficPolicy := service.Spec.ExternalTrafficPolicy
 				// If the service has externalTrafficPolicy is set to "Cluster" add it to the servicesAtRisk list (ExternalTrafficPolicy: "" defaults to Cluster)
-				if externalTrafficPolicy != v1.ServiceExternalTrafficPolicyTypeLocal {
+				if externalTrafficPolicy != corev1.ServiceExternalTrafficPolicyTypeLocal {
 					// Any service with externalTrafficPolicy=Cluster is at risk so need to elimate any services that are incorrectly flagged
 					servicesAtRisk = append(servicesAtRisk, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
 					// If the service has no selector add it to the noSelectorServices list
@@ -304,7 +309,7 @@ func hasIngressPolicies(policies []networkingv1.NetworkPolicy) bool {
 	return false
 }
 
-func checkServiceRisk(service v1.Service, namespace string, policiesListAtNamespace []networkingv1.NetworkPolicy, safeServices []string) []string {
+func checkServiceRisk(service corev1.Service, namespace string, policiesListAtNamespace []networkingv1.NetworkPolicy, safeServices []string) []string {
 	for _, policy := range policiesListAtNamespace {
 		for _, ingress := range policy.Spec.Ingress {
 			// Check if there is an allow all ingress policy that matches labels the service is safe
@@ -359,7 +364,7 @@ func checkPolicyMatchServiceLabels(serviceLabels, policyLabels map[string]string
 	return true
 }
 
-func checkServiceTargetPortMatchPolicyPorts(servicePorts []v1.ServicePort, policyPorts []networkingv1.NetworkPolicyPort) bool {
+func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, policyPorts []networkingv1.NetworkPolicyPort) bool {
 	ingressPorts := []string{}
 	for _, port := range policyPorts {
 		ingressPorts = append(ingressPorts, fmt.Sprintf("%d/%s", port.Port.IntVal, string(*port.Protocol)))
