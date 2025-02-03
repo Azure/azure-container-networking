@@ -239,11 +239,6 @@ func checkExternalTrafficPolicyServices(namespaces *corev1.NamespaceList, servic
 		// Check if are there services with externalTrafficPolicy=Cluster (applicable if Type=NodePort or Type=LoadBalancer)
 		for _, service := range serviceListAtNamespace {
 			if service.Spec.Type == v1.ServiceTypeLoadBalancer || service.Spec.Type == v1.ServiceTypeNodePort {
-				servicePorts := []string{}
-				// get the Port and Protocol of the service
-				for _, port := range service.Spec.Ports {
-					servicePorts = append(servicePorts, fmt.Sprintf("%d/%s", port.Port, port.Protocol))
-				}
 				externalTrafficPolicy := service.Spec.ExternalTrafficPolicy
 				// If the service has externalTrafficPolicy is set to "Cluster" add it to the servicesAtRisk list (ExternalTrafficPolicy: "" defaults to Cluster)
 				if externalTrafficPolicy != v1.ServiceExternalTrafficPolicyTypeLocal {
@@ -254,7 +249,7 @@ func checkExternalTrafficPolicyServices(namespaces *corev1.NamespaceList, servic
 						noSelectorServices = append(noSelectorServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
 					} else {
 						// Check if are there services with selector that match the network policy
-						safeServices = checkServiceRisk(service, namespace.Name, servicePorts, policiesByNamespace[namespace.Name], safeServices)
+						safeServices = checkServiceRisk(service, namespace.Name, policiesByNamespace[namespace.Name], safeServices)
 					}
 				}
 			}
@@ -309,7 +304,7 @@ func hasIngressPolicies(policies []networkingv1.NetworkPolicy) bool {
 	return false
 }
 
-func checkServiceRisk(service v1.Service, namespace string, servicePorts []string, policiesListAtNamespace []networkingv1.NetworkPolicy, safeServices []string) []string {
+func checkServiceRisk(service v1.Service, namespace string, policiesListAtNamespace []networkingv1.NetworkPolicy, safeServices []string) []string {
 	for _, policy := range policiesListAtNamespace {
 		for _, ingress := range policy.Spec.Ingress {
 			// Check if there is an allow all ingress policy that matches labels the service is safe
@@ -327,22 +322,16 @@ func checkServiceRisk(service v1.Service, namespace string, servicePorts []strin
 					return safeServices
 				}
 			}
-			// Check if all the labels in
-			// // If there are no ingress from but there are ports in the policy; check if the service is safe
-			// if len(ingress.From) == 0 && len(ingress.Ports) > 0 {
-			// 	if matchAllServiceSelector(&metav1.LabelSelector{MatchLabels: service.Spec.Selector}, &policy.Spec.PodSelector) {
-			// 		matchingPorts := []string{}
-			// 		for _, port := range ingress.Ports {
-			// 			matchingPorts = append(matchingPorts, fmt.Sprintf("%d/%s", port.Port.IntVal, string(*port.Protocol)))
-			// 		}
-			// 		for _, sevicePort := range servicePorts {
-			// 			if contains(matchingPorts, sevicePort) {
-			// 				safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace, service.Name))
-			// 				return
-			// 			}
-			// 		}
-			// 	}
-			// }
+			// If there are no ingress from but there are ports in the policy; check if the service is safe
+			if len(ingress.From) == 0 && len(ingress.Ports) > 0 {
+				// If the policy targets all pods (allow all) or only pods that are in the service selector, check if traffic is allowed to all the service's target ports
+				if len(policy.Spec.PodSelector.MatchLabels) == 0 || checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
+					if checkServiceTargetPortMatchPolicyPorts(service.Spec.Ports, ingress.Ports) {
+						safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace, service.Name))
+						return safeServices
+					}
+				}
+			}
 		}
 	}
 	return safeServices
@@ -364,6 +353,22 @@ func checkPolicyMatchServiceLabels(serviceLabels, policyLabels map[string]string
 			}
 		}
 		if !matchedPolicyLabelToServiceLabel {
+			return false
+		}
+	}
+	return true
+}
+
+func checkServiceTargetPortMatchPolicyPorts(servicePorts []v1.ServicePort, policyPorts []networkingv1.NetworkPolicyPort) bool {
+	ingressPorts := []string{}
+	for _, port := range policyPorts {
+		ingressPorts = append(ingressPorts, fmt.Sprintf("%d/%s", port.Port.IntVal, string(*port.Protocol)))
+	}
+
+	// Check if all the services target ports are in the policies ingress ports
+	for _, port := range servicePorts {
+		servicePort := fmt.Sprintf("%d/%s", port.TargetPort.IntValue(), port.Protocol)
+		if !contains(ingressPorts, servicePort) {
 			return false
 		}
 	}
