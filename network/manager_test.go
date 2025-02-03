@@ -12,12 +12,36 @@ import (
 	"github.com/Azure/azure-container-networking/testutils"
 )
 
+var errStore = errors.New("store error")
+
 func TestManager(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Manager Suite")
 }
 
 var _ = Describe("Test Manager", func() {
+	Describe("Test AddExternalInterface", func() {
+		Context("When adding the external interface", func() {
+			It("Should not write to the store", func() {
+				ifName := "eth0"
+				// accessing the store should result in an error
+				dataStore := &testutils.KeyValueStoreMock{
+					WriteError: errStore,
+					ReadError:  errStore,
+				}
+				nm := &networkManager{
+					ExternalInterfaces: map[string]*externalInterface{},
+					store:              dataStore,
+				}
+				nm.ExternalInterfaces[ifName] = &externalInterface{
+					Name: ifName,
+				}
+				err := nm.AddExternalInterface(ifName, "10.10.10.0/24")
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+	})
+
 	Describe("Test deleteExternalInterface", func() {
 		Context("When external interface not found", func() {
 			It("Should return nil", func() {
