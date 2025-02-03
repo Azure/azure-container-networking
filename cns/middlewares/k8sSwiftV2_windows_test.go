@@ -1,12 +1,17 @@
 package middlewares
 
 import (
+	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/Azure/azure-container-networking/network/policy"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 	"gotest.tools/v3/assert"
 )
 
@@ -99,4 +104,87 @@ func TestAddDefaultRoute(t *testing.T) {
 	if !reflect.DeepEqual(ipInfo.Routes, expectedRoutes) {
 		t.Errorf("got '%+v', expected '%+v'", ipInfo.Routes, expectedRoutes)
 	}
+}
+
+func TestAddDefaultDenyACL(t *testing.T) {
+	const policyType = "ACL"
+	const action = "Block"
+	const ingressDir = "In"
+	const egressDir = "Out"
+	const priority = 10000
+
+	valueIn := []byte(fmt.Sprintf(`{
+		"Type": "%s",
+		"Action": "%s",
+		"Direction": "%s",
+		"Priority": %d
+	}`,
+		policyType,
+		action,
+		ingressDir,
+		priority,
+	))
+
+	valueOut := []byte(fmt.Sprintf(`{
+		"Type": "%s",
+		"Action": "%s",
+		"Direction": "%s",
+		"Priority": %d
+	}`,
+		policyType,
+		action,
+		egressDir,
+		priority,
+	))
+
+	expectedDefaultDenyEndpoint := []policy.Policy{
+		{
+			Type: policy.EndpointPolicy,
+			Data: valueOut,
+		},
+		{
+			Type: policy.EndpointPolicy,
+			Data: valueIn,
+		},
+	}
+	var allEndpoints []policy.Policy
+	var defaultDenyEgressPolicy, defaultDenyIngressPolicy policy.Policy
+	var err error
+
+	defaultDenyEgressPolicy = mustGetEndpointPolicy("Out")
+	defaultDenyIngressPolicy = mustGetEndpointPolicy("In")
+
+	allEndpoints = append(allEndpoints, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
+
+	// Normalize both slices so there is no extra spacing, new lines, etc
+	normalizedExpected := normalizeKVPairs(t, expectedDefaultDenyEndpoint)
+	normalizedActual := normalizeKVPairs(t, allEndpoints)
+	if !cmp.Equal(normalizedExpected, normalizedActual) {
+		t.Error("received policy differs from expectation: diff", cmp.Diff(normalizedExpected, normalizedActual))
+	}
+	assert.Equal(t, err, nil)
+}
+
+// normalizeKVPairs normalizes the JSON values in the KV pairs by unmarshaling them into a map, then marshaling them back to compact JSON to remove any extra space, new lines, etc
+func normalizeKVPairs(t *testing.T, policies []policy.Policy) []policy.Policy {
+	normalized := make([]policy.Policy, len(policies))
+
+	for i, kv := range policies {
+		var unmarshaledValue map[string]interface{}
+		// Unmarshal the Value into a map
+		err := json.Unmarshal(kv.Data, &unmarshaledValue)
+		require.NoError(t, err, "Failed to unmarshal JSON value")
+
+		// Marshal it back to compact JSON
+		normalizedValue, err := json.Marshal(unmarshaledValue)
+		require.NoError(t, err, "Failed to re-marshal JSON value")
+
+		// Replace Value with the normalized compact JSON
+		normalized[i] = policy.Policy{
+			Type: policy.EndpointPolicy,
+			Data: normalizedValue,
+		}
+	}
+
+	return normalized
 }

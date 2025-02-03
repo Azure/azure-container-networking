@@ -1,11 +1,22 @@
 package middlewares
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/pkg/errors"
 )
+
+var defaultDenyEgressPolicy policy.Policy = mustGetEndpointPolicy(cns.DirectionTypeOut)
+
+var defaultDenyIngressPolicy policy.Policy = mustGetEndpointPolicy(cns.DirectionTypeIn)
 
 // for AKS L1VH, do not set default route on infraNIC to avoid customer pod reaching all infra vnet services
 // default route is set for secondary interface NIC(i.e,delegatedNIC)
@@ -57,4 +68,143 @@ func (k *K8sSWIFTv2Middleware) addDefaultRoute(podIPInfo *cns.PodIpInfo, gwIP st
 		GatewayIPAddress: gwIP,
 	}
 	podIPInfo.Routes = append(podIPInfo.Routes, route)
+}
+
+func mustGetEndpointPolicy(direction string) policy.Policy {
+	endpointPolicy, err := getEndpointPolicy(direction)
+	if err != nil {
+		panic(err)
+	}
+	return endpointPolicy
+}
+
+// get policy of type endpoint policy given the params
+func getEndpointPolicy(direction string) (policy.Policy, error) {
+	endpointPolicy, err := createEndpointPolicy(direction)
+	if err != nil {
+		return policy.Policy{}, fmt.Errorf("error creating endpoint policy:  %w", err)
+	}
+
+	additionalArgs := policy.Policy{
+		Type: policy.EndpointPolicy,
+		Data: endpointPolicy,
+	}
+
+	return additionalArgs, nil
+}
+
+// create policy given the params
+func createEndpointPolicy(direction string) ([]byte, error) {
+	endpointPolicy := struct {
+		Type      string `json:"Type"`
+		Action    string `json:"Action"`
+		Direction string `json:"Direction"`
+		Priority  int    `json:"Priority"`
+	}{
+		Type:      string(policy.ACLPolicy),
+		Action:    cns.ActionTypeBlock,
+		Direction: direction,
+		Priority:  10_000,
+	}
+
+	rawPolicy, err := json.Marshal(endpointPolicy)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling policy to json, err is:  %w", err)
+	}
+
+	return rawPolicy, nil
+}
+
+// IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP configs requests for AKS-SWIFT. This function wrapped the default SWIFT request
+// and release IP configs handlers.
+func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
+	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		podInfo, respCode, message := k.GetPodInfoForIPConfigsRequest(ctx, &req)
+
+		if respCode != types.Success {
+			return &cns.IPConfigsResponse{
+				Response: cns.Response{
+					ReturnCode: respCode,
+					Message:    message,
+				},
+			}, errors.New("failed to validate IP configs request")
+		}
+		ipConfigsResp, err := defaultHandler(ctx, req)
+		// If the pod is not v2, return the response from the handler
+		if !req.SecondaryInterfacesExist {
+			return ipConfigsResp, err
+		}
+
+		// Get MTPNC
+		mtpnc, respCode, message := k.getMTPNC(ctx, podInfo)
+		if respCode != types.Success {
+			return &cns.IPConfigsResponse{
+				Response: cns.Response{
+					ReturnCode: respCode,
+					Message:    message,
+				},
+			}, errors.New("failed to validate IP configs request")
+		}
+
+		//  GetDefaultDenyBool takes in mtpnc and returns the value of defaultDenyACLBool from it
+		defaultDenyACLBool := GetDefaultDenyBool(mtpnc)
+
+		// ipConfigsResp has infra IP configs -> if defaultDenyACLbool is enabled, add the default deny endpoint policies as a property in PodIpInfo
+		for i := range ipConfigsResp.PodIPInfo {
+			ipInfo := &ipConfigsResp.PodIPInfo[i]
+			// there will be no pod connectivity to and from those pods
+			if defaultDenyACLBool && ipInfo.NICType == cns.InfraNIC {
+				ipInfo.EndpointPolicies = append(ipInfo.EndpointPolicies, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
+				break
+			}
+		}
+
+		// If the pod is v2, get the infra IP configs from the handler first and then add the SWIFTv2 IP config
+		defer func() {
+			// Release the default IP config if there is an error
+			if err != nil {
+				_, err = failureHandler(ctx, req)
+				if err != nil {
+					logger.Errorf("failed to release default IP config : %v", err)
+				}
+			}
+		}()
+		if err != nil {
+			return ipConfigsResp, err
+		}
+		SWIFTv2PodIPInfos, err := k.getIPConfig(ctx, podInfo)
+		if err != nil {
+			return &cns.IPConfigsResponse{
+				Response: cns.Response{
+					ReturnCode: types.FailedToAllocateIPConfig,
+					Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, req),
+				},
+				PodIPInfo: []cns.PodIpInfo{},
+			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config : %v", req)
+		}
+		ipConfigsResp.PodIPInfo = append(ipConfigsResp.PodIPInfo, SWIFTv2PodIPInfos...)
+		// Set routes for the pod
+		for i := range ipConfigsResp.PodIPInfo {
+			ipInfo := &ipConfigsResp.PodIPInfo[i]
+			// Backend nics doesn't need routes to be set
+			if ipInfo.NICType != cns.BackendNIC {
+				err = k.setRoutes(ipInfo)
+				if err != nil {
+					return &cns.IPConfigsResponse{
+						Response: cns.Response{
+							ReturnCode: types.FailedToAllocateIPConfig,
+							Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, req),
+						},
+						PodIPInfo: []cns.PodIpInfo{},
+					}, errors.Wrapf(err, "failed to set routes for pod %s", podInfo.Name())
+				}
+			}
+		}
+		return ipConfigsResp, nil
+	}
+}
+
+func GetDefaultDenyBool(mtpnc v1alpha1.MultitenantPodNetworkConfig) bool {
+	// returns the value of DefaultDenyACL from mtpnc
+	return mtpnc.Status.DefaultDenyACL
 }
