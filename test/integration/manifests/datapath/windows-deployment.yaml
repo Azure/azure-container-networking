@@ -4,7 +4,7 @@ metadata:
   name: windows-pod
   namespace: datapath-win
 spec:
-  replicas: 4
+  replicas: 8
   selector:
     matchLabels:
       app: datapod
@@ -20,3 +20,10 @@ spec:
           args: ["sleep", "5000"]
       nodeSelector:
         kubernetes.io/os: windows
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: "datapod"
