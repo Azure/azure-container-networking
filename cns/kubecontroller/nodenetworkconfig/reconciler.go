@@ -64,13 +64,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	nnc, err := r.nnccli.Get(ctx, req.NamespacedName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
+			hasNNC.Set(0)
 			logger.Printf("[cns-rc] CRD not found, ignoring %v", err)
 			return reconcile.Result{}, errors.Wrapf(client.IgnoreNotFound(err), "NodeNetworkConfig %v not found", req.NamespacedName)
 		}
 		logger.Errorf("[cns-rc] Error retrieving CRD from cache : %v", err)
 		return reconcile.Result{}, errors.Wrapf(err, "failed to get NodeNetworkConfig %v", req.NamespacedName)
 	}
-
+	hasNNC.Set(1)
 	logger.Printf("[cns-rc] CRD Spec: %+v", nnc.Spec)
 
 	ipAssignments := 0
@@ -78,7 +79,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	// during node upgrades, an nnc may be updated with new ncs. at any given time, only the ncs
 	// that exist in the nnc are valid. any others that may have been previously created and no
 	// longer exist in the nnc should be considered stale.
-	validNCIDs := make([]string, len(nnc.Status.NetworkContainers))
+	ncCount := len(nnc.Status.NetworkContainers)
+	ncs.Set(float64(ncCount))
+	validNCIDs := make([]string, ncCount)
 	for i := range nnc.Status.NetworkContainers {
 		validNCIDs[i] = nnc.Status.NetworkContainers[i].ID
 	}
