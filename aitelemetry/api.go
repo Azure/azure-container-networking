@@ -5,11 +5,13 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
+	"github.com/microsoft/ApplicationInsights-Go/appinsights/contracts"
 )
 
 // Application trace/log structure
 type Report struct {
 	Message          string
+	Level            contracts.SeverityLevel
 	Context          string
 	AppVersion       string
 	CustomDimensions map[string]string
