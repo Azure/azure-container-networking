@@ -52,8 +52,6 @@ func main() {
 
 	// Iterate over namespaces and store policies/services
 	for _, ns := range namespacePointers {
-		fmt.Printf("Writing policies and services for namespace %s...\n", ns.Name)
-
 		// Get network policies
 		networkPolicies, err := clientset.NetworkingV1().NetworkPolicies(ns.Name).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -106,125 +104,117 @@ func main() {
 }
 
 func checkEndportNetworkPolicies(policiesByNamespace map[string][]networkingv1.NetworkPolicy) bool {
-	networkPolicyWithEndport := false
+	foundNetworkPolicyWithEndport := false
 	for namespace, policies := range policiesByNamespace {
 		for _, policy := range policies {
-			foundEndPort := false
-			for _, egress := range policy.Spec.Egress {
-				for _, port := range egress.Ports {
-					if port.EndPort != nil {
-						foundEndPort = true
-						if !networkPolicyWithEndport {
-							fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with endPort", "❌")
-							fmt.Println("Policies affected:")
-							networkPolicyWithEndport = true
-						}
-						fmt.Printf("❌ Found NetworkPolicy: \033[31m%s\033[0m with endPort field in namespace: \033[31m%s\033[0m\n", policy.Name, namespace)
-						// Exit egress.port loop
-						break
-					}
-				}
+			// Check the ingress field for endport
+			for _, ingress := range policy.Spec.Ingress {
+				foundEndPort := checkEndportInPolicyRules(ingress.Ports, policy.Name, namespace, "ingress", foundNetworkPolicyWithEndport)
 				if foundEndPort {
-					// Exit egress loop
+					foundNetworkPolicyWithEndport = true
+					break
+				}
+			}
+			for _, egress := range policy.Spec.Egress {
+				foundEndPort := checkEndportInPolicyRules(egress.Ports, policy.Name, namespace, "egress", foundNetworkPolicyWithEndport)
+				if foundEndPort {
+					foundNetworkPolicyWithEndport = true
 					break
 				}
 			}
 		}
 	}
 	// Print no impact if no network policy has endport
-	if !networkPolicyWithEndport {
+	if !foundNetworkPolicyWithEndport {
 		fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with endPort", "✅")
 		return false
 	}
 	return true
 }
 
+func checkEndportInPolicyRules(ports []networkingv1.NetworkPolicyPort, policyName, namespace string, direction string, foundNetworkPolicyWithEndport bool) bool {
+	foundEndPort := false
+	for _, port := range ports {
+		if port.EndPort != nil {
+			foundEndPort = true
+			if !foundNetworkPolicyWithEndport {
+				fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with endPort", "❌")
+				fmt.Println("Policies affected:")
+			}
+			fmt.Printf("❌ Found NetworkPolicy: \033[31m%s\033[0m with %s endPort field in namespace: \033[31m%s\033[0m\n", policyName, direction, namespace)
+			break
+		}
+	}
+	return foundEndPort
+}
+
 func checkCIDRNetworkPolicies(policiesByNamespace map[string][]networkingv1.NetworkPolicy) bool {
-	networkPolicyWithCIDR := false
+	foundNetworkPolicyWithCIDR := false
 	for namespace, policies := range policiesByNamespace {
 		for _, policy := range policies {
-			foundCIDRIngress := false
-			foundCIDREgress := false
 			// Check the ingress field for cidr
 			for _, ingress := range policy.Spec.Ingress {
-				for _, from := range ingress.From {
-					if from.IPBlock != nil {
-						if from.IPBlock.CIDR != "" {
-							foundCIDRIngress = true
-							// Print the network policy if it has an ingress cidr
-							if !networkPolicyWithCIDR {
-								fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with cidr", "❌")
-								fmt.Println("Policies affected:")
-								networkPolicyWithCIDR = true
-							}
-							fmt.Printf("❌ Found NetworkPolicy: \033[31m%s\033[0m with ingress cidr field in namespace: \033[31m%s\033[0m\n", policy.Name, namespace)
-
-							// Exit ingress.from.ipBlock loop
-							break
-						}
-					}
-				}
+				foundCIDRIngress := checkCIDRInPolicyRules(ingress.From, policy.Name, namespace, "ingress", foundNetworkPolicyWithCIDR)
 				if foundCIDRIngress {
-					// Exit ingress loop
+					foundNetworkPolicyWithCIDR = true
 					break
 				}
 			}
 			// Check the egress field for cidr
 			for _, egress := range policy.Spec.Egress {
-				for _, to := range egress.To {
-					if to.IPBlock != nil {
-						if to.IPBlock.CIDR != "" {
-							foundCIDREgress = true
-							// Print the network policy if it has an egress cidr
-							if !networkPolicyWithCIDR {
-								fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with cidr", "❌")
-								fmt.Println("Policies affected:")
-								networkPolicyWithCIDR = true
-							}
-							fmt.Printf("❌ Found NetworkPolicy: \033[31m%s\033[0m with egress cidr field in namespace: \033[31m%s\033[0m\n", policy.Name, namespace)
-
-							// Exit egress.to.ipBlock loop
-							break
-						}
-					}
-				}
+				foundCIDREgress := checkCIDRInPolicyRules(egress.To, policy.Name, namespace, "egress", foundNetworkPolicyWithCIDR)
 				if foundCIDREgress {
-					// Exit egress loop
+					foundNetworkPolicyWithCIDR = true
 					break
 				}
 			}
 		}
 	}
 	// Print no impact if no network policy has cidr
-	if !networkPolicyWithCIDR {
+	if !foundNetworkPolicyWithCIDR {
 		fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with cidr", "✅")
 		return false
 	}
 	return true
 }
 
+// Check for CIDR in ingress or egress rules
+func checkCIDRInPolicyRules(rules []networkingv1.NetworkPolicyPeer, policyName, namespace string, direction string, foundNetworkPolicyWithCIDR bool) bool {
+	foundCIDR := false
+	for _, rule := range rules {
+		if rule.IPBlock != nil && rule.IPBlock.CIDR != "" {
+			foundCIDR = true
+			if !foundNetworkPolicyWithCIDR {
+				fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with cidr", "❌")
+				fmt.Println("Policies affected:")
+			}
+			fmt.Printf("❌ Found NetworkPolicy: \033[31m%s\033[0m with %s cidr field in namespace: \033[31m%s\033[0m\n", policyName, direction, namespace)
+			break
+		}
+	}
+	return foundCIDR
+}
+
 func checkForEgressPolicies(policiesByNamespace map[string][]networkingv1.NetworkPolicy) bool {
-	networkPolicyWithEgress := false
+	foundNetworkPolicyWithEgress := false
 	for namespace, policies := range policiesByNamespace {
 		for _, policy := range policies {
 			for _, egress := range policy.Spec.Egress {
 				// If the policy has a egress field thats not an egress allow all flag it
 				if len(egress.To) > 0 || len(egress.Ports) > 0 {
-					if !networkPolicyWithEgress {
+					if !foundNetworkPolicyWithEgress {
 						fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with egress", "❌")
 						fmt.Printf("%-30s | %-30s \n", "(Not allow all egress)", "")
 						fmt.Println("Policies affected:")
-						networkPolicyWithEgress = true
+						foundNetworkPolicyWithEgress = true
 					}
 					fmt.Printf("❌ Found NetworkPolicy: \033[31m%s\033[0m with egress field (non-allow all) in namespace: \033[31m%s\033[0m\n", policy.Name, namespace)
-
-					// Exit egress loop
 					break
 				}
 			}
 		}
 	}
-	if !networkPolicyWithEgress {
+	if !foundNetworkPolicyWithEgress {
 		fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with egress", "✅")
 		return false
 	}
