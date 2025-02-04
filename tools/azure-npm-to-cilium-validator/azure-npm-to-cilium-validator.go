@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -74,7 +75,7 @@ func main() {
 
 	fmt.Println("Migration Summary:")
 	fmt.Println("+------------------------------+-------------------------------+")
-	fmt.Printf("%-30s | %-30s \n", "Breaking Change", "No Impact / Safe to Migrate")
+	fmt.Printf("%-30s | %-30s \n", "Breaking Change", "No Policy Changes Needed")
 	fmt.Println("+------------------------------+-------------------------------+")
 
 	// Check the endports of the network policies
@@ -294,7 +295,7 @@ func hasIngressPolicies(policies []networkingv1.NetworkPolicy) bool {
 	// Check if any policy is ingress
 	for _, policy := range policies {
 		for _, ingress := range policy.Spec.Ingress {
-			if len(ingress.From) > 0 {
+			if len(ingress.From) > 0 || len(ingress.Ports) > 0 {
 				return true
 			}
 		}
@@ -365,8 +366,15 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 
 	// Check if all the services target ports are in the policies ingress ports
 	for _, port := range servicePorts {
+		// If the target port is a string then it is a named port and service is at risk
+		if port.TargetPort.Type == intstr.String {
+			return false
+		}
 		servicePort := fmt.Sprintf("%d/%s", port.TargetPort.IntValue(), port.Protocol)
+		fmt.Printf("servicePort %s\n", servicePort)
+		fmt.Printf("ingressPorts %v\n", ingressPorts)
 		if !contains(ingressPorts, servicePort) {
+			fmt.Printf("Service port %s is not allowed in the policy\n", servicePort)
 			return false
 		}
 	}
