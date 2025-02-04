@@ -112,30 +112,7 @@ func TestCheckEndportNetworkPolicies(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Capture the logs
-			var buf bytes.Buffer
-
-			// Replace the default logger with our custom logger
-			originalLogger := log.Default()
-			log.SetOutput(&buf)
-			defer log.SetOutput(originalLogger.Writer())
-
-			result := checkEndportNetworkPolicies(tt.policiesByNamespace)
-			if result != tt.expectedResult {
-				t.Errorf("Expected %v, got %v", tt.expectedResult, result)
-			}
-
-			// Verify logs
-			logOutput := buf.String()
-			for _, expectedLog := range tt.expectedLogs {
-				if !strings.Contains(logOutput, expectedLog) {
-					t.Errorf("Expected log containing %q, but not found", expectedLog)
-				}
-			}
-		})
-	}
+	runTestWithLogs(t, tests, checkEndportNetworkPolicies)
 }
 
 // Test function for checkCIDRNetworkPolicies
@@ -243,27 +220,7 @@ func TestCheckCIDRNetworkPolicies(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Capture the logs
-			var buf bytes.Buffer
-			log.SetOutput(&buf)
-			defer log.SetOutput(nil)
-
-			result := checkCIDRNetworkPolicies(tt.policiesByNamespace)
-			if result != tt.expectedResult {
-				t.Errorf("Expected %v, got %v", tt.expectedResult, result)
-			}
-
-			// Verify logs
-			logOutput := buf.String()
-			for _, expectedLog := range tt.expectedLogs {
-				if !strings.Contains(logOutput, expectedLog) {
-					t.Errorf("Expected log containing %q, but not found", expectedLog)
-				}
-			}
-		})
-	}
+	runTestWithLogs(t, tests, checkCIDRNetworkPolicies)
 }
 
 // Test function for checkForEgressPolicies
@@ -304,11 +261,29 @@ func TestCheckForEgressPolicies(t *testing.T) {
 			},
 		},
 		{
-			name: "No egress policy present",
+			name: "Allow all egress policy present",
 			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
 				"default": {
 					{
 						ObjectMeta: metav1.ObjectMeta{Name: "policy2"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{},
+						},
+					},
+				},
+			},
+			expectedResult: false,
+			expectedLogs: []string{
+				"NetworkPolicy with egress",
+				"✅",
+			},
+		},
+		{
+			name: "No egress policy present",
+			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
+				"default": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "policy3"},
 						Spec: networkingv1.NetworkPolicySpec{
 							Ingress: []networkingv1.NetworkPolicyIngressRule{
 								{
@@ -344,27 +319,7 @@ func TestCheckForEgressPolicies(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Capture the logs
-			var buf bytes.Buffer
-			log.SetOutput(&buf)
-			defer log.SetOutput(nil)
-
-			result := checkForEgressPolicies(tt.policiesByNamespace)
-			if result != tt.expectedResult {
-				t.Errorf("Expected %v, got %v", tt.expectedResult, result)
-			}
-
-			// Verify logs
-			logOutput := buf.String()
-			for _, expectedLog := range tt.expectedLogs {
-				if !strings.Contains(logOutput, expectedLog) {
-					t.Errorf("Expected log containing %q, but not found", expectedLog)
-				}
-			}
-		})
-	}
+	runTestWithLogs(t, tests, checkForEgressPolicies)
 }
 
 // Test function for checkExternalTrafficPolicyServices
@@ -397,6 +352,36 @@ func TestCheckExternalTrafficPolicyServices(t *testing.T) {
 	// if !result {
 	// 	t.Errorf("Expected true, got %v", result)
 	// }
+}
+
+// Helper function to run tests and verify logs
+func runTestWithLogs(t *testing.T, tests []struct {
+	name                string
+	policiesByNamespace map[string][]networkingv1.NetworkPolicy
+	expectedResult      bool
+	expectedLogs        []string
+}, testFunc func(map[string][]networkingv1.NetworkPolicy) bool) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Capture the logs
+			var buf bytes.Buffer
+			log.SetOutput(&buf)
+			defer log.SetOutput(nil)
+
+			result := testFunc(tt.policiesByNamespace)
+			if result != tt.expectedResult {
+				t.Errorf("Expected %v, got %v", tt.expectedResult, result)
+			}
+
+			// Verify logs
+			logOutput := buf.String()
+			for _, expectedLog := range tt.expectedLogs {
+				if !strings.Contains(logOutput, expectedLog) {
+					t.Errorf("Expected log containing %q, but not found", expectedLog)
+				}
+			}
+		})
+	}
 }
 
 // Helper function to create a pointer to an int32
