@@ -248,7 +248,9 @@ func checkExternalTrafficPolicyServices(namespaces *corev1.NamespaceList, servic
 						noSelectorServices = append(noSelectorServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
 					} else {
 						// Check if are there services with selector that match the network policy
-						safeServices = checkServiceRisk(service, namespace.Name, policiesByNamespace[namespace.Name], safeServices)
+						if checkServiceRisk(service, namespace.Name, policiesByNamespace[namespace.Name]) {
+							safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
+						}
 					}
 				}
 			}
@@ -303,37 +305,40 @@ func hasIngressPolicies(policies []networkingv1.NetworkPolicy) bool {
 	return false
 }
 
-func checkServiceRisk(service corev1.Service, namespace string, policiesListAtNamespace []networkingv1.NetworkPolicy, safeServices []string) []string {
+func checkServiceRisk(service corev1.Service, namespace string, policiesListAtNamespace []networkingv1.NetworkPolicy) bool {
 	for _, policy := range policiesListAtNamespace {
 		for _, ingress := range policy.Spec.Ingress {
 			// Check if there is an allow all ingress policy that matches labels the service is safe
 			if len(ingress.From) == 0 && len(ingress.Ports) == 0 {
 				// Check if there is an allow all ingress policy with empty selectors return true as the policy allows all services in the namespace
-				if len(policy.Spec.PodSelector.MatchLabels) == 0 {
+				if checkPolicySelectorsAreEmpty(policy.Spec.PodSelector) {
 					fmt.Printf("found an allow all ingress policy: %s with empty selectors so service %s in the namespace %s is safe\n", policy.Name, service.Name, namespace)
-					safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace, service.Name))
-					return safeServices
+					return true
 				}
 				// Check if there is an allow all ingress policy that matches the service labels
 				if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
+					// TODO add this to above logic and check in one if statement after i am done printing the logs
 					fmt.Printf("found an allow all ingress policy: %s with matching selectors so service %s in the namespace %s is safe\n", policy.Name, service.Name, namespace)
-					safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace, service.Name))
-					return safeServices
+					return true
 				}
 			}
 			// If there are no ingress from but there are ports in the policy; check if the service is safe
 			if len(ingress.From) == 0 && len(ingress.Ports) > 0 {
 				// If the policy targets all pods (allow all) or only pods that are in the service selector, check if traffic is allowed to all the service's target ports
-				if len(policy.Spec.PodSelector.MatchLabels) == 0 || checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
+				if checkPolicySelectorsAreEmpty(policy.Spec.PodSelector) || checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
 					if checkServiceTargetPortMatchPolicyPorts(service.Spec.Ports, ingress.Ports) {
-						safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace, service.Name))
-						return safeServices
+						fmt.Printf("found an ingress port policy: %s with matching selectors and target ports so service %s in the namespace %s is safe\n", policy.Name, service.Name, namespace)
+						return true
 					}
 				}
 			}
 		}
 	}
-	return safeServices
+	return false
+}
+
+func checkPolicySelectorsAreEmpty(podSelector metav1.LabelSelector) bool {
+	return len(podSelector.MatchLabels) == 0 && len(podSelector.MatchExpressions) == 0
 }
 
 func checkPolicyMatchServiceLabels(serviceLabels, policyLabels map[string]string) bool {
@@ -343,6 +348,7 @@ func checkPolicyMatchServiceLabels(serviceLabels, policyLabels map[string]string
 	}
 
 	// Check for each policy label that that label is present in the service labels
+	// Note does not check matchExpressions
 	for policyKey, policyValue := range policyLabels {
 		matchedPolicyLabelToServiceLabel := false
 		for serviceKey, serviceValue := range serviceLabels {
@@ -371,10 +377,7 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 			return false
 		}
 		servicePort := fmt.Sprintf("%d/%s", port.TargetPort.IntValue(), port.Protocol)
-		fmt.Printf("servicePort %s\n", servicePort)
-		fmt.Printf("ingressPorts %v\n", ingressPorts)
 		if !contains(ingressPorts, servicePort) {
-			fmt.Printf("Service port %s is not allowed in the policy\n", servicePort)
 			return false
 		}
 	}
