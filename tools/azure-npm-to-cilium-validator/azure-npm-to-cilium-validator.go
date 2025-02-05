@@ -294,10 +294,10 @@ func checkExternalTrafficPolicyServices(namespaces *corev1.NamespaceList, servic
 }
 
 func hasIngressPolicies(policies []networkingv1.NetworkPolicy) bool {
-	// Check if any policy is ingress
+	// Check if any policy is ingress (including allow all and deny all)
 	for _, policy := range policies {
-		for _, ingress := range policy.Spec.Ingress {
-			if len(ingress.From) > 0 || len(ingress.Ports) > 0 {
+		for _, policyType := range policy.Spec.PolicyTypes {
+			if policyType == networkingv1.PolicyTypeIngress {
 				return true
 			}
 		}
@@ -307,6 +307,7 @@ func hasIngressPolicies(policies []networkingv1.NetworkPolicy) bool {
 
 func checkServiceRisk(service corev1.Service, namespace string, policiesListAtNamespace []networkingv1.NetworkPolicy) bool {
 	for _, policy := range policiesListAtNamespace {
+		// Skips deny all policies as they do not have any ingress rules
 		for _, ingress := range policy.Spec.Ingress {
 			// Check if there is an allow all ingress policy that matches labels the service is safe
 			if len(ingress.From) == 0 && len(ingress.Ports) == 0 {
@@ -365,32 +366,25 @@ func checkPolicyMatchServiceLabels(serviceLabels, policyLabels map[string]string
 }
 
 func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, policyPorts []networkingv1.NetworkPolicyPort) bool {
-	ingressPorts := []string{}
-	for _, port := range policyPorts {
-		ingressPorts = append(ingressPorts, fmt.Sprintf("%d/%s", port.Port.IntVal, string(*port.Protocol)))
-	}
-
-	// Check if all the services target ports are in the policies ingress ports
-	for _, port := range servicePorts {
+	for _, servicePort := range servicePorts {
 		// If the target port is a string then it is a named port and service is at risk
-		if port.TargetPort.Type == intstr.String {
+		if servicePort.TargetPort.Type == intstr.String {
 			return false
 		}
-		servicePort := fmt.Sprintf("%d/%s", port.TargetPort.IntValue(), port.Protocol)
-		if !contains(ingressPorts, servicePort) {
+
+		// Check if all the services target ports are in the policies ingress ports
+		serviceTargetPortPolicyPort := false
+		for _, policyPort := range policyPorts {
+			if servicePort.TargetPort.IntValue() == int(policyPort.Port.IntVal) && string(servicePort.Protocol) == string(*policyPort.Protocol) {
+				serviceTargetPortPolicyPort = true
+				break
+			}
+		}
+		if !serviceTargetPortPolicyPort {
 			return false
 		}
 	}
 	return true
-}
-
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }
 
 func difference(slice1, slice2, slice3 []string) []string {
