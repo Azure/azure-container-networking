@@ -1,8 +1,15 @@
-name: 'Update Base Images'
+name: 'Docker Base Images'
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * *'  # Runs daily at midnight
+  pull_request:
+    types:
+        - opened
+        - reopened
+        - synchronize
+        - ready_for_review
+  merge_group:
+    types:
+      - checks_requested
 
 jobs:
   render:
@@ -15,22 +22,11 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.23'
-    - name: Render Templates
+    - name: Render Dockerfiles
       run: make dockerfiles
-    - name: Check for changes
-      id: check_changes
+    - name: Fail if base images are outdated
       run: |
         if [ -n "$(git status --porcelain)" ]; then
-          echo "##[set-output name=changes;]true"
-        else
-          echo "##[set-output name=changes;]false"
+          echo "Changes detected. Please run 'make dockerfiles' locally to update the base images."
+          exit 1
         fi
-    - name: Create Pull Request
-      if: steps.check_changes.outputs.changes == 'true'
-      uses: peter-evans/create-pull-request@v5
-      with:
-        commit-message: 'deps: update base images'
-        branch: 'base-image-update'
-        title: 'deps: update base images'
-        body: 'Automated base image updates.'
-        labels: 'dependencies'

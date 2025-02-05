@@ -5,16 +5,13 @@ ARG OS_VERSION
 ARG OS
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.23-cbl-mariner2.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:220fcfd381b16cd55b89edee97e2cff24b3a0d39f8be8005e719ab0976aeea90 AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:48731a521e1de4c77f42141d38c8ddb10342d3f5414c6c4adffb10a37bfdfe30 AS go
 
 # mcr.microsoft.com/cbl-mariner/base/core:2.0
 FROM mcr.microsoft.com/cbl-mariner/base/core@sha256:ae7b5fdffdbec3a8be8201d0ba2ae46dbcf495dea77baf0d4b653902e1bb797b AS mariner-core
 
 # mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0
 FROM mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:e301d8bfb230bf48c650379ac3c3066c0698a490dcca2003c77b1e35ea8ba9b4 AS mariner-distroless
-
-# mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
-FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b as hpc
 
 FROM --platform=linux/${ARCH} go AS builder
 ARG OS
@@ -34,6 +31,9 @@ COPY --from=iptables /usr/lib /usr/lib
 COPY --from=builder /go/bin/azure-cns /usr/local/bin/azure-cns
 ENTRYPOINT [ "/usr/local/bin/azure-cns" ]
 EXPOSE 10090
+
+# mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
+FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b as hpc
 
 FROM hpc as windows
 COPY --from=builder /azure-container-networking/cns/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
