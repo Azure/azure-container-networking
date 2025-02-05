@@ -24,7 +24,7 @@ spec:
         scale-test: "true"
       containers:
       - name: nginx
-        image: nginx:1
+        image: mcr.microsoft.com/cbl-mariner/base/nginx:1
         ports:
         - name: http
           containerPort: 80
