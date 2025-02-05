@@ -1,0 +1,36 @@
+name: 'Update Base Images'
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # Runs daily at midnight
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+    - name: Render Templates
+      run: make dockerfiles
+    - name: Check for changes
+      id: check_changes
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "##[set-output name=changes;]true"
+        else
+          echo "##[set-output name=changes;]false"
+        fi
+    - name: Create Pull Request
+      if: steps.check_changes.outputs.changes == 'true'
+      uses: peter-evans/create-pull-request@v5
+      with:
+        commit-message: 'deps: update base images'
+        branch: 'base-image-update'
+        title: 'deps: update base images'
+        body: 'Automated base image updates.'
+        labels: 'dependencies'

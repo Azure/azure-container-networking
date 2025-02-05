@@ -87,6 +87,7 @@ GOFUMPT         := $(TOOLS_BIN_DIR)/gofumpt
 GOLANGCI_LINT   := $(TOOLS_BIN_DIR)/golangci-lint
 GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
 MOCKGEN         := $(TOOLS_BIN_DIR)/mockgen
+RENDERKIT		:= $(TOOLS_BIN_DIR)/renderkit
 
 # Archive file names.
 ACNCLI_ARCHIVE_NAME = acncli-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
@@ -808,6 +809,10 @@ test-k8se2e-only: ## Run k8s network conformance test, use TYPE=basic for only d
 
 ##@ Utilities
 
+dockerfiles: tools ## Render all Dockerfile templates with current state of world
+	@make -f build/images.mk render PATH=cns
+
+
 $(REPO_ROOT)/.git/hooks/pre-push:
 	@ln -s $(REPO_ROOT)/.hooks/pre-push $(REPO_ROOT)/.git/hooks/
 	@echo installed pre-push hook
@@ -867,10 +872,15 @@ $(MOCKGEN): $(TOOLS_DIR)/go.mod
 
 mockgen: $(MOCKGEN) ## Build mockgen
 
+$(RENDERKIT): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -o bin/renderkit github.com/orellazri/renderkit
+
+renderkit: $(RENDERKIT) ## Build renderkit
+
 clean-tools:
 	rm -r build/tools/bin
 
-tools: acncli gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools
+tools: acncli gocov gocov-xml go-junit-report golangci-lint gofumpt protoc renderkit ## Build bins for build tools
 
 
 ##@ Help
