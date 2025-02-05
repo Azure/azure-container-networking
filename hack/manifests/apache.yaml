@@ -13,6 +13,5 @@ spec:
     spec:
       containers:
       - name: ubuntu-tools
-        image: tamilmani1989/ubuntu18-tools
+        image: acnpublic.azurecr.io/tamilmani1989/ubuntu18-tools
         command: ["/bin/sleep", "3650d"]
-        
