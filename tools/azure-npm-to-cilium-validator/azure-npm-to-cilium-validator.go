@@ -300,16 +300,16 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts *[]corev1.ServicePort, 
 }
 
 func difference(slice1, slice2, slice3 *[]string) []string {
-	m := make(map[string]bool)
+	m := make(map[string]struct{})
 	for _, s := range *slice2 {
-		m[s] = true
+		m[s] = struct{}{}
 	}
 	for _, s := range *slice3 {
-		m[s] = true
+		m[s] = struct{}{}
 	}
 	var diff []string
 	for _, s := range *slice1 {
-		if !m[s] {
+		if _, ok := m[s]; !ok {
 			diff = append(diff, s)
 		}
 	}
