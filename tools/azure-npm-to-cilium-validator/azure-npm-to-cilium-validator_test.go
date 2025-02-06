@@ -118,6 +118,18 @@ func TestGetEndportNetworkPolicies(t *testing.T) {
 			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
 				"namespace1": {
 					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-endport-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
+									},
+								},
+							},
+						},
+					},
+					{
 						ObjectMeta: metav1.ObjectMeta{Name: "egress-endport-policy"},
 						Spec: networkingv1.NetworkPolicySpec{
 							Egress: []networkingv1.NetworkPolicyEgressRule{
@@ -150,7 +162,7 @@ func TestGetEndportNetworkPolicies(t *testing.T) {
 					},
 				},
 			},
-			expectedIngressEndportPolicies: []string{"namespace1/ingress-and-egress-endport-policy"},
+			expectedIngressEndportPolicies: []string{"namespace1/ingress-endport-policy", "namespace1/ingress-and-egress-endport-policy"},
 			expectedEgressEndportPolicies:  []string{"namespace1/egress-endport-policy", "namespace1/ingress-and-egress-endport-policy"},
 		},
 		{
@@ -158,9 +170,9 @@ func TestGetEndportNetworkPolicies(t *testing.T) {
 			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
 				"namespace1": {
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "egress-endport-policy"},
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-endport-policy"},
 						Spec: networkingv1.NetworkPolicySpec{
-							Egress: []networkingv1.NetworkPolicyEgressRule{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
 								{
 									Ports: []networkingv1.NetworkPolicyPort{
 										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
@@ -191,12 +203,24 @@ func TestGetEndportNetworkPolicies(t *testing.T) {
 				},
 				"namespace2": {
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "ingress-endport-policy"},
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-endport-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "no-endport-policy"},
 						Spec: networkingv1.NetworkPolicySpec{
 							Ingress: []networkingv1.NetworkPolicyIngressRule{
 								{
 									Ports: []networkingv1.NetworkPolicyPort{
-										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
+										{Port: intstrPtr(intstr.FromInt(80))},
 									},
 								},
 							},
@@ -218,8 +242,8 @@ func TestGetEndportNetworkPolicies(t *testing.T) {
 					},
 				},
 			},
-			expectedIngressEndportPolicies: []string{"namespace1/ingress-and-egress-endport-policy", "namespace2/ingress-endport-policy"},
-			expectedEgressEndportPolicies:  []string{"namespace1/egress-endport-policy", "namespace1/ingress-and-egress-endport-policy"},
+			expectedIngressEndportPolicies: []string{"namespace1/ingress-endport-policy", "namespace1/ingress-and-egress-endport-policy"},
+			expectedEgressEndportPolicies:  []string{"namespace1/ingress-and-egress-endport-policy", "namespace2/egress-endport-policy"},
 		},
 	}
 
@@ -341,7 +365,7 @@ func TestGetCIDRNetworkPolicies(t *testing.T) {
 			expectedEgressCIDRPolicies:  []string{"namespace1/ingress-and-egress-cidr-policy"},
 		},
 		{
-			name: "Multiple namespaces and policies",
+			name: "Multiple polices in a namespace with ingress or egress CIDR",
 			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
 				"namespace1": {
 					{
@@ -350,6 +374,77 @@ func TestGetCIDRNetworkPolicies(t *testing.T) {
 							Ingress: []networkingv1.NetworkPolicyIngressRule{
 								{
 									From: []networkingv1.NetworkPolicyPeer{
+										{IPBlock: &networkingv1.IPBlock{CIDR: "192.168.0.0/16"}},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
+										{IPBlock: &networkingv1.IPBlock{CIDR: "192.168.0.0/16"}},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-and-egress-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{IPBlock: &networkingv1.IPBlock{CIDR: "192.168.0.0/16"}},
+									},
+								},
+							},
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
+										{IPBlock: &networkingv1.IPBlock{CIDR: "192.168.0.0/16"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{"namespace1/ingress-cidr-policy", "namespace1/ingress-and-egress-cidr-policy"},
+			expectedEgressCIDRPolicies:  []string{"namespace1/egress-cidr-policy", "namespace1/ingress-and-egress-cidr-policy"},
+		},
+		{
+			name: "Multiple polices in multiple namespaces with ingress or egress CIDR or no CIDR",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{IPBlock: &networkingv1.IPBlock{CIDR: "192.168.0.0/16"}},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-and-egress-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{IPBlock: &networkingv1.IPBlock{CIDR: "192.168.0.0/16"}},
+									},
+								},
+							},
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
 										{IPBlock: &networkingv1.IPBlock{CIDR: "192.168.0.0/16"}},
 									},
 								},
@@ -370,10 +465,36 @@ func TestGetCIDRNetworkPolicies(t *testing.T) {
 							},
 						},
 					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "no-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				"namespace3": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "no-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
-			expectedIngressCIDRPolicies: []string{"namespace1/ingress-cidr-policy"},
-			expectedEgressCIDRPolicies:  []string{"namespace2/egress-cidr-policy"},
+			expectedIngressCIDRPolicies: []string{"namespace1/ingress-cidr-policy", "namespace1/ingress-and-egress-cidr-policy"},
+			expectedEgressCIDRPolicies:  []string{"namespace2/egress-cidr-policy", "namespace1/ingress-and-egress-cidr-policy"},
 		},
 	}
 
@@ -516,7 +637,7 @@ func TestGetEgressPolicies(t *testing.T) {
 			expectedEgressPolicies: []string{"namespace1/egress-to-and-ports-policy"},
 		},
 		{
-			name: "Multiple namespaces and policies",
+			name: "Multiple egress polices in a namespace with To or Port fields",
 			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
 				"namespace1": {
 					{
@@ -526,6 +647,68 @@ func TestGetEgressPolicies(t *testing.T) {
 								{
 									To: []networkingv1.NetworkPolicyPeer{
 										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-ports-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80))},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-to-and-ports-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80))},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedEgressPolicies: []string{"namespace1/egress-to-policy", "namespace1/egress-ports-policy", "namespace1/egress-to-and-ports-policy"},
+		},
+		{
+			name: "Multiple egresss polices in multiple namespaces with To or Port fields or no egress",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-to-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-to-and-ports-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80))},
 									},
 								},
 							},
@@ -545,9 +728,58 @@ func TestGetEgressPolicies(t *testing.T) {
 							},
 						},
 					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "no-egress-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				"namespace3": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-to-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-egress-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							PolicyTypes: []networkingv1.PolicyType{"Egress"},
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{},
+							},
+						},
+					},
+				},
+				"namespace4": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "no-egress-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
-			expectedEgressPolicies: []string{"namespace1/egress-to-policy", "namespace2/egress-ports-policy"},
+			expectedEgressPolicies: []string{"namespace1/egress-to-policy", "namespace1/egress-to-and-ports-policy", "namespace2/egress-ports-policy", "namespace3/egress-to-policy"},
 		},
 	}
 
