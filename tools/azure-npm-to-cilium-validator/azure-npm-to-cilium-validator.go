@@ -162,8 +162,8 @@ func getEgressPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPol
 	return egressPolicies
 }
 
-func getExternalTrafficPolicyClusterServices(namespaces *corev1.NamespaceList, servicesByNamespace map[string][]*corev1.Service, policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (unsafeServices, noSelectorServices []string) {
-	var servicesAtRisk, safeServices []string
+func getExternalTrafficPolicyClusterServices(namespaces *corev1.NamespaceList, servicesByNamespace map[string][]*corev1.Service, policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (unsafeServicesAtRisk, unsafeNoSelectorServices []string) {
+	var servicesAtRisk, noSelectorServices, safeServices []string
 
 	for i := range namespaces.Items {
 		namespace := &namespaces.Items[i]
@@ -195,10 +195,11 @@ func getExternalTrafficPolicyClusterServices(namespaces *corev1.NamespaceList, s
 		}
 	}
 
-	// Get the services that are at risk but not in the safe services or no selector services lists
-	unsafeServices = difference(&servicesAtRisk, &safeServices, &noSelectorServices)
-
-	return unsafeServices, noSelectorServices
+	// Remove all the safe services from the services at risk
+	unsafeServicesAtRisk = difference(&servicesAtRisk, &safeServices)
+	// Remove all the safe services from the no selector services
+	unsafeNoSelectorServices = difference(&noSelectorServices, &safeServices)
+	return unsafeServicesAtRisk, unsafeNoSelectorServices
 }
 
 func hasIngressPolicies(policies []*networkingv1.NetworkPolicy) bool {
@@ -299,12 +300,9 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts *[]corev1.ServicePort, 
 	return true
 }
 
-func difference(slice1, slice2, slice3 *[]string) []string {
+func difference(slice1, slice2 *[]string) []string {
 	m := make(map[string]struct{})
 	for _, s := range *slice2 {
-		m[s] = struct{}{}
-	}
-	for _, s := range *slice3 {
 		m[s] = struct{}{}
 	}
 	var diff []string
@@ -347,13 +345,13 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 	fmt.Println("+------------------------------+-------------------------------+")
 
 	// Get services that have externalTrafficPolicy!=Local
-	unsafeServices, noSelectorServices := getExternalTrafficPolicyClusterServices(namespaces, servicesByNamespace, policiesByNamespace)
+	unsafeServicesAtRisk, unsafeNoSelectorServices := getExternalTrafficPolicyClusterServices(namespaces, servicesByNamespace, policiesByNamespace)
 
 	// Print the services that are at risk
-	printUnsafeServices(&unsafeServices, &noSelectorServices)
+	printUnsafeServices(&unsafeServicesAtRisk, &unsafeNoSelectorServices)
 
 	fmt.Println("+------------------------------+-------------------------------+")
-	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 || len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 || len(egressPolicies) > 0 || len(unsafeServices) > 0 {
+	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 || len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 || len(egressPolicies) > 0 || len(unsafeServicesAtRisk) > 0 {
 		fmt.Println("\033[31m✘ Review above issues before migration.\033[0m")
 		fmt.Println("Please see \033[32maka.ms/azurenpmtocilium\033[0m for instructions on how to evaluate/assess the above warnings marked by ❌.")
 		fmt.Println("NOTE: rerun this script if any modifications (create/update/delete) are made to services or policies.")
@@ -416,27 +414,29 @@ func printEgressPolicies(egressPolicies *[]string) {
 	}
 }
 
-func printUnsafeServices(unsafeServices, noSelectorServices *[]string) {
-	// If there is no unsafe services then migration is safe for services with extranalTrafficPolicy=Cluster
-	if len(*unsafeServices) == 0 {
+func printUnsafeServices(unsafeServicesAtRisk, unsafeNoSelectorServices *[]string) {
+	// If there is no unsafe services and services with no selectors then migration is safe for services with extranalTrafficPolicy=Cluster
+	if len(*unsafeServicesAtRisk) == 0 {
 		fmt.Printf("%-30s | %-30s \n", "Disruption for some", "✅")
 		fmt.Printf("%-30s | %-30s \n", "Services with", "")
 		fmt.Printf("%-30s | %-30s \n", "externalTrafficPolicy=Cluster", "")
 	} else {
+		// Remove all no selector services from unsafe services to prevent repeating the same flagged service
+		*unsafeServicesAtRisk = difference(unsafeServicesAtRisk, unsafeNoSelectorServices)
 		fmt.Printf("%-30s | %-30s \n", "Disruption for some", "❌")
 		fmt.Printf("%-30s | %-30s \n", "Services with", "")
 		fmt.Printf("%-30s | %-30s \n", "externalTrafficPolicy=Cluster", "")
 		fmt.Println("Services affected:")
 		// If there are any no selector services or unsafe services then print them as they could be impacted by migration
-		if len(*noSelectorServices) > 0 {
-			for _, service := range *noSelectorServices {
+		if len(*unsafeNoSelectorServices) > 0 {
+			for _, service := range *unsafeNoSelectorServices {
 				serviceName := strings.Split(service, "/")[1]
 				serviceNamespace := strings.Split(service, "/")[0]
 				fmt.Printf("❌ Found Service: \033[31m%s\033[0m without selectors in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)
 			}
 		}
-		if len(*unsafeServices) > 0 {
-			for _, service := range *unsafeServices {
+		if len(*unsafeServicesAtRisk) > 0 {
+			for _, service := range *unsafeServicesAtRisk {
 				serviceName := strings.Split(service, "/")[1]
 				serviceNamespace := strings.Split(service, "/")[0]
 				fmt.Printf("❌ Found Service: \033[31m%s\033[0m with selectors in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)
