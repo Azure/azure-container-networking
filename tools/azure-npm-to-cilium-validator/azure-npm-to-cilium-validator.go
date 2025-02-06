@@ -80,7 +80,7 @@ func main() {
 	printMigrationSummary(namespaces, policiesByNamespace, servicesByNamespace)
 }
 
-func getEndportNetworkPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (ingressPoliciesWithEndport []string, egressPoliciesWithEndport []string) {
+func getEndportNetworkPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (ingressPoliciesWithEndport, egressPoliciesWithEndport []string) {
 	for namespace, policies := range policiesByNamespace {
 		for _, policy := range policies {
 			// Check the ingress field for endport
@@ -100,7 +100,7 @@ func getEndportNetworkPolicies(policiesByNamespace map[string][]*networkingv1.Ne
 			}
 		}
 	}
-	return
+	return ingressPoliciesWithEndport, egressPoliciesWithEndport
 }
 
 func checkEndportInPolicyRules(ports *[]networkingv1.NetworkPolicyPort) bool {
@@ -112,7 +112,7 @@ func checkEndportInPolicyRules(ports *[]networkingv1.NetworkPolicyPort) bool {
 	return false
 }
 
-func getCIDRNetworkPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (ingressPoliciesWithCIDR []string, egressPoliciesWithCIDR []string) {
+func getCIDRNetworkPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (ingressPoliciesWithCIDR, egressPoliciesWithCIDR []string) {
 	for namespace, policies := range policiesByNamespace {
 		for _, policy := range policies {
 			// Check the ingress field for cidr
@@ -133,7 +133,7 @@ func getCIDRNetworkPolicies(policiesByNamespace map[string][]*networkingv1.Netwo
 			}
 		}
 	}
-	return
+	return ingressPoliciesWithCIDR, egressPoliciesWithCIDR
 }
 
 // Check for CIDR in ingress or egress rules
@@ -162,7 +162,7 @@ func getEgressPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPol
 	return egressPolicies
 }
 
-func getExternalTrafficPolicyClusterServices(namespaces *corev1.NamespaceList, servicesByNamespace map[string][]*corev1.Service, policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (unsafeServices []string, noSelectorServices []string) {
+func getExternalTrafficPolicyClusterServices(namespaces *corev1.NamespaceList, servicesByNamespace map[string][]*corev1.Service, policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (unsafeServices, noSelectorServices []string) {
 	var servicesAtRisk, safeServices []string
 
 	for i := range namespaces.Items {
@@ -198,7 +198,7 @@ func getExternalTrafficPolicyClusterServices(namespaces *corev1.NamespaceList, s
 	// Get the services that are at risk but not in the safe services or no selector services lists
 	unsafeServices = difference(&servicesAtRisk, &safeServices, &noSelectorServices)
 
-	return
+	return unsafeServices, noSelectorServices
 }
 
 func hasIngressPolicies(policies []*networkingv1.NetworkPolicy) bool {
@@ -225,7 +225,7 @@ func checkServiceRisk(service *corev1.Service, namespace *string, policiesListAt
 					return true
 				}
 				// Check if there is an allow all ingress policy that matches the service labels
-				if checkPolicyMatchServiceLabels(&service.Spec.Selector, &policy.Spec.PodSelector.MatchLabels) {
+				if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
 					// TODO add this to above logic and check in one if statement after i am done printing the logs
 					fmt.Printf("found an allow all ingress policy: %s with matching selectors so service %s in the namespace %s is safe\n", policy.Name, service.Name, *namespace)
 					return true
@@ -234,7 +234,7 @@ func checkServiceRisk(service *corev1.Service, namespace *string, policiesListAt
 			// If there are no ingress from but there are ports in the policy; check if the service is safe
 			if len(ingress.From) == 0 && len(ingress.Ports) > 0 {
 				// If the policy targets all pods (allow all) or only pods that are in the service selector, check if traffic is allowed to all the service's target ports
-				if checkPolicySelectorsAreEmpty(&policy.Spec.PodSelector) || checkPolicyMatchServiceLabels(&service.Spec.Selector, &policy.Spec.PodSelector.MatchLabels) {
+				if checkPolicySelectorsAreEmpty(&policy.Spec.PodSelector) || checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
 					if checkServiceTargetPortMatchPolicyPorts(&service.Spec.Ports, &ingress.Ports) {
 						fmt.Printf("found an ingress port policy: %s with matching selectors and target ports so service %s in the namespace %s is safe\n", policy.Name, service.Name, *namespace)
 						return true
@@ -250,17 +250,17 @@ func checkPolicySelectorsAreEmpty(podSelector *metav1.LabelSelector) bool {
 	return len(podSelector.MatchLabels) == 0 && len(podSelector.MatchExpressions) == 0
 }
 
-func checkPolicyMatchServiceLabels(serviceLabels, policyLabels *map[string]string) bool {
+func checkPolicyMatchServiceLabels(serviceLabels, policyLabels map[string]string) bool {
 	// Return false if the policy has more labels than the service
-	if len(*policyLabels) > len(*serviceLabels) {
+	if len(policyLabels) > len(serviceLabels) {
 		return false
 	}
 
 	// Check for each policy label that that label is present in the service labels
 	// Note does not check matchExpressions
-	for policyKey, policyValue := range *policyLabels {
+	for policyKey, policyValue := range policyLabels {
 		matchedPolicyLabelToServiceLabel := false
-		for serviceKey, serviceValue := range *serviceLabels {
+		for serviceKey, serviceValue := range serviceLabels {
 			if policyKey == serviceKey && policyValue == serviceValue {
 				matchedPolicyLabelToServiceLabel = true
 				break
