@@ -41,15 +41,15 @@ func main() {
 		log.Fatalf("Error getting namespaces: %v\n", err)
 	}
 
-	// Store network policies and services in maps
-	policiesByNamespace := make(map[string][]networkingv1.NetworkPolicy)
-	servicesByNamespace := make(map[string][]corev1.Service)
-
 	// Copy namespaces.Items into a slice of pointers
 	namespacePointers := make([]*corev1.Namespace, len(namespaces.Items))
 	for i := range namespaces.Items {
 		namespacePointers[i] = &namespaces.Items[i]
 	}
+
+	// Store network policies and services in maps
+	policiesByNamespace := make(map[string][]*networkingv1.NetworkPolicy)
+	servicesByNamespace := make(map[string][]*corev1.Service)
 
 	// Iterate over namespaces and store policies/services
 	for _, ns := range namespacePointers {
@@ -59,7 +59,10 @@ func main() {
 			fmt.Printf("Error getting network policies in namespace %s: %v\n", ns.Name, err)
 			continue
 		}
-		policiesByNamespace[ns.Name] = networkPolicies.Items
+		policiesByNamespace[ns.Name] = make([]*networkingv1.NetworkPolicy, len(networkPolicies.Items))
+		for i := range networkPolicies.Items {
+			policiesByNamespace[ns.Name][i] = &networkPolicies.Items[i]
+		}
 
 		// Get services
 		services, err := clientset.CoreV1().Services(ns.Name).List(context.TODO(), metav1.ListOptions{})
@@ -67,17 +70,20 @@ func main() {
 			fmt.Printf("Error getting services in namespace %s: %v\n", ns.Name, err)
 			continue
 		}
-		servicesByNamespace[ns.Name] = services.Items
+		servicesByNamespace[ns.Name] = make([]*corev1.Service, len(services.Items))
+		for i := range services.Items {
+			servicesByNamespace[ns.Name][i] = &services.Items[i]
+		}
 	}
 
 	// Print the migration summary
-	printMigrationSummary(namespaces, &policiesByNamespace, &servicesByNamespace)
+	printMigrationSummary(namespaces, policiesByNamespace, servicesByNamespace)
 }
 
-func checkEndportNetworkPolicies(policiesByNamespace *map[string][]networkingv1.NetworkPolicy) ([]string, []string) {
+func getEndportNetworkPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) ([]string, []string) {
 	var ingressPoliciesWithEndport []string
 	var egressPoliciesWithEndport []string
-	for namespace, policies := range *policiesByNamespace {
+	for namespace, policies := range policiesByNamespace {
 		for _, policy := range policies {
 			// Check the ingress field for endport
 			for _, ingress := range policy.Spec.Ingress {
@@ -108,10 +114,10 @@ func checkEndportInPolicyRules(ports *[]networkingv1.NetworkPolicyPort) bool {
 	return false
 }
 
-func checkCIDRNetworkPolicies(policiesByNamespace *map[string][]networkingv1.NetworkPolicy) ([]string, []string) {
+func getCIDRNetworkPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) ([]string, []string) {
 	var ingressPoliciesWithCIDR []string
 	var egressPoliciesWithCIDR []string
-	for namespace, policies := range *policiesByNamespace {
+	for namespace, policies := range policiesByNamespace {
 		for _, policy := range policies {
 			// Check the ingress field for cidr
 			for _, ingress := range policy.Spec.Ingress {
@@ -144,9 +150,9 @@ func checkCIDRInPolicyRules(rules *[]networkingv1.NetworkPolicyPeer) bool {
 	return false
 }
 
-func checkForEgressPolicies(policiesByNamespace *map[string][]networkingv1.NetworkPolicy) []string {
+func getEgressPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) []string {
 	var egressPolicies []string
-	for namespace, policies := range *policiesByNamespace {
+	for namespace, policies := range policiesByNamespace {
 		for _, policy := range policies {
 			for _, egress := range policy.Spec.Egress {
 				// If the policy has a egress field thats not an egress allow all flag it
@@ -160,16 +166,16 @@ func checkForEgressPolicies(policiesByNamespace *map[string][]networkingv1.Netwo
 	return egressPolicies
 }
 
-func checkExternalTrafficPolicyServices(namespaces *corev1.NamespaceList, servicesByNamespace *map[string][]corev1.Service, policiesByNamespace *map[string][]networkingv1.NetworkPolicy) ([]string, []string) {
+func getExternalTrafficPolicyClusterServices(namespaces *corev1.NamespaceList, servicesByNamespace map[string][]*corev1.Service, policiesByNamespace map[string][]*networkingv1.NetworkPolicy) ([]string, []string) {
 	var servicesAtRisk, noSelectorServices, safeServices []string
 
 	for _, namespace := range namespaces.Items {
 		// Check if are there ingress policies in the namespace if not skip
-		policyListAtNamespace := (*policiesByNamespace)[namespace.Name]
-		if !hasIngressPolicies(&policyListAtNamespace) {
+		policyListAtNamespace := policiesByNamespace[namespace.Name]
+		if !hasIngressPolicies(policyListAtNamespace) {
 			continue
 		}
-		serviceListAtNamespace := (*servicesByNamespace)[namespace.Name]
+		serviceListAtNamespace := servicesByNamespace[namespace.Name]
 
 		// Check if are there services with externalTrafficPolicy=Cluster (applicable if Type=NodePort or Type=LoadBalancer)
 		for _, service := range serviceListAtNamespace {
@@ -184,7 +190,7 @@ func checkExternalTrafficPolicyServices(namespaces *corev1.NamespaceList, servic
 						noSelectorServices = append(noSelectorServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
 					} else {
 						// Check if are there services with selector that match the network policy
-						if checkServiceRisk(&service, &namespace.Name, &policyListAtNamespace) {
+						if checkServiceRisk(service, &namespace.Name, policyListAtNamespace) {
 							safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
 						}
 					}
@@ -199,9 +205,9 @@ func checkExternalTrafficPolicyServices(namespaces *corev1.NamespaceList, servic
 	return unsafeServices, noSelectorServices
 }
 
-func hasIngressPolicies(policies *[]networkingv1.NetworkPolicy) bool {
+func hasIngressPolicies(policies []*networkingv1.NetworkPolicy) bool {
 	// Check if any policy is ingress (including allow all and deny all)
-	for _, policy := range *policies {
+	for _, policy := range policies {
 		for _, policyType := range policy.Spec.PolicyTypes {
 			if policyType == networkingv1.PolicyTypeIngress {
 				return true
@@ -211,8 +217,8 @@ func hasIngressPolicies(policies *[]networkingv1.NetworkPolicy) bool {
 	return false
 }
 
-func checkServiceRisk(service *corev1.Service, namespace *string, policiesListAtNamespace *[]networkingv1.NetworkPolicy) bool {
-	for _, policy := range *policiesListAtNamespace {
+func checkServiceRisk(service *corev1.Service, namespace *string, policiesListAtNamespace []*networkingv1.NetworkPolicy) bool {
+	for _, policy := range policiesListAtNamespace {
 		// Skips deny all policies as they do not have any ingress rules
 		for _, ingress := range policy.Spec.Ingress {
 			// Check if there is an allow all ingress policy that matches labels the service is safe
@@ -314,38 +320,38 @@ func difference(slice1 *[]string, slice2 *[]string, slice3 *[]string) []string {
 	return diff
 }
 
-func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace *map[string][]networkingv1.NetworkPolicy, servicesByNamespace *map[string][]corev1.Service) {
+func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace map[string][]*networkingv1.NetworkPolicy, servicesByNamespace map[string][]*corev1.Service) {
 	fmt.Println("Migration Summary:")
 	fmt.Println("+------------------------------+-------------------------------+")
 	fmt.Printf("%-30s | %-30s \n", "Breaking Change", "No Policy Changes Needed")
 	fmt.Println("+------------------------------+-------------------------------+")
 
-	// Check the endports of the network policies
-	ingressEndportNetworkPolicy, egressEndportNetworkPolicy := checkEndportNetworkPolicies(policiesByNamespace)
+	// Get the endports of the network policies
+	ingressEndportNetworkPolicy, egressEndportNetworkPolicy := getEndportNetworkPolicies(policiesByNamespace)
 
 	// Print the network policies with endport
 	printPoliciesWithEndport(&ingressEndportNetworkPolicy, &egressEndportNetworkPolicy)
 
 	fmt.Println("+------------------------------+-------------------------------+")
 
-	// Check the cidr of the network policies
-	ingressPoliciesWithCIDR, egressPoliciesWithCIDR := checkCIDRNetworkPolicies(policiesByNamespace)
+	// Get the cidr of the network policies
+	ingressPoliciesWithCIDR, egressPoliciesWithCIDR := getCIDRNetworkPolicies(policiesByNamespace)
 
 	// Print the network policies with CIDR
 	printPoliciesWithCIDR(&ingressPoliciesWithCIDR, &egressPoliciesWithCIDR)
 
 	fmt.Println("+------------------------------+-------------------------------+")
 
-	// Check the egress of the network policies
-	egressPolicies := checkForEgressPolicies(policiesByNamespace)
+	// Get the egress of the network policies
+	egressPolicies := getEgressPolicies(policiesByNamespace)
 
 	// Print the network policies with egress
 	printEgressPolicies(&egressPolicies)
 
 	fmt.Println("+------------------------------+-------------------------------+")
 
-	// Check services that have externalTrafficPolicy!=Local
-	unsafeServices, noSelectorServices := checkExternalTrafficPolicyServices(namespaces, servicesByNamespace, policiesByNamespace)
+	// Get services that have externalTrafficPolicy!=Local
+	unsafeServices, noSelectorServices := getExternalTrafficPolicyClusterServices(namespaces, servicesByNamespace, policiesByNamespace)
 
 	// Print the services that are at risk
 	printUnsafeServices(&unsafeServices, &noSelectorServices)

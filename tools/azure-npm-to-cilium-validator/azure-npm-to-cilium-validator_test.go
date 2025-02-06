@@ -1,65 +1,38 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
-	"log"
-	"strings"
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	intstr "k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// Test function for checkEndportNetworkPolicies
-func TestCheckEndportNetworkPolicies(t *testing.T) {
+// Test function for getEndportNetworkPolicies
+func TestGetEndportNetworkPolicies(t *testing.T) {
 	tests := []struct {
-		name                string
-		policiesByNamespace map[string][]networkingv1.NetworkPolicy
-		expectedResult      bool
-		expectedLogs        []string
+		name                           string
+		policiesByNamespace            map[string][]*networkingv1.NetworkPolicy
+		expectedIngressEndportPolicies []string
+		expectedEgressEndportPolicies  []string
 	}{
 		{
-			name: "Egress endPort policy present",
-			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
-				"default": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "policy1"},
-						Spec: networkingv1.NetworkPolicySpec{
-							Egress: []networkingv1.NetworkPolicyEgressRule{
-								{
-									Ports: []networkingv1.NetworkPolicyPort{
-										{
-											EndPort: int32Ptr(8080),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedResult: true,
-			expectedLogs: []string{
-				"NetworkPolicy with endPort",
-				"❌ Found NetworkPolicy: \033[31mpolicy1\033[0m with egress endPort field in namespace: \033[31mdefault\033[0m\n",
-			},
+			name:                           "No policies",
+			policiesByNamespace:            map[string][]*networkingv1.NetworkPolicy{},
+			expectedIngressEndportPolicies: []string{},
+			expectedEgressEndportPolicies:  []string{},
 		},
 		{
-			name: "Ingress endPort policy present",
-			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
-				"default": {
+			name: "No endport in policies",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "policy2"},
+						ObjectMeta: metav1.ObjectMeta{Name: "no-endport-policy"},
 						Spec: networkingv1.NetworkPolicySpec{
 							Ingress: []networkingv1.NetworkPolicyIngressRule{
 								{
 									Ports: []networkingv1.NetworkPolicyPort{
-										{
-											EndPort: int32Ptr(8080),
-										},
+										{Port: intstrPtr(intstr.FromInt(80))},
 									},
 								},
 							},
@@ -67,25 +40,41 @@ func TestCheckEndportNetworkPolicies(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: true,
-			expectedLogs: []string{
-				"NetworkPolicy with endPort",
-				"❌ Found NetworkPolicy: \033[31mpolicy2\033[0m with ingress endPort field in namespace: \033[31mdefault\033[0m\n",
-			},
+			expectedIngressEndportPolicies: []string{},
+			expectedEgressEndportPolicies:  []string{},
 		},
 		{
-			name: "No endPort policy present",
-			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
-				"default": {
+			name: "Ingress endport in policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "policy3"},
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-endport-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressEndportPolicies: []string{"namespace1/ingress-endport-policy"},
+			expectedEgressEndportPolicies:  []string{},
+		},
+		{
+			name: "Egress endport in policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-endport-policy"},
 						Spec: networkingv1.NetworkPolicySpec{
 							Egress: []networkingv1.NetworkPolicyEgressRule{
 								{
 									Ports: []networkingv1.NetworkPolicyPort{
-										{
-											Port: &intstr.IntOrString{IntVal: 80},
-										},
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
 									},
 								},
 							},
@@ -93,51 +82,27 @@ func TestCheckEndportNetworkPolicies(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: false,
-			expectedLogs: []string{
-				"NetworkPolicy with endPort",
-				"✅",
-			},
+			expectedIngressEndportPolicies: []string{},
+			expectedEgressEndportPolicies:  []string{"namespace1/egress-endport-policy"},
 		},
 		{
-			name: "Empty policies",
-			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
-				"default": {},
-			},
-			expectedResult: false,
-			expectedLogs: []string{
-				"NetworkPolicy with endPort",
-				"✅",
-			},
-		},
-	}
-
-	runTestWithLogs(t, tests, checkEndportNetworkPolicies)
-}
-
-// Test function for checkCIDRNetworkPolicies
-func TestCheckCIDRNetworkPolicies(t *testing.T) {
-	tests := []struct {
-		name                string
-		policiesByNamespace map[string][]networkingv1.NetworkPolicy
-		expectedResult      bool
-		expectedLogs        []string
-	}{
-		{
-			name: "Ingress CIDR policy present",
-			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
-				"default": {
+			name: "Both ingress and egress endport in policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "policy1"},
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-and-egress-endport-policy"},
 						Spec: networkingv1.NetworkPolicySpec{
 							Ingress: []networkingv1.NetworkPolicyIngressRule{
 								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{
-											IPBlock: &networkingv1.IPBlock{
-												CIDR: "192.168.0.0/16",
-											},
-										},
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
+									},
+								},
+							},
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
 									},
 								},
 							},
@@ -145,55 +110,39 @@ func TestCheckCIDRNetworkPolicies(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: true,
-			expectedLogs: []string{
-				"NetworkPolicy with cidr",
-				"❌ Found NetworkPolicy: \033[31mpolicy1\033[0m with ingress cidr field in namespace: \033[31mdefault\033[0m",
-			},
+			expectedIngressEndportPolicies: []string{"namespace1/ingress-and-egress-endport-policy"},
+			expectedEgressEndportPolicies:  []string{"namespace1/ingress-and-egress-endport-policy"},
 		},
 		{
-			name: "Egress CIDR policy present",
-			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
-				"default": {
+			name: "Multiple polices in a namespace with ingress or egress endport",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "policy2"},
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-endport-policy"},
 						Spec: networkingv1.NetworkPolicySpec{
 							Egress: []networkingv1.NetworkPolicyEgressRule{
 								{
-									To: []networkingv1.NetworkPolicyPeer{
-										{
-											IPBlock: &networkingv1.IPBlock{
-												CIDR: "192.168.0.0/16",
-											},
-										},
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
 									},
 								},
 							},
 						},
 					},
-				},
-			},
-			expectedResult: true,
-			expectedLogs: []string{
-				"NetworkPolicy with cidr",
-				"❌ Found NetworkPolicy: \033[31mpolicy2\033[0m with egress cidr field in namespace: \033[31mdefault\033[0m",
-			},
-		},
-		{
-			name: "No CIDR policy present",
-			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
-				"default": {
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "policy3"},
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-and-egress-endport-policy"},
 						Spec: networkingv1.NetworkPolicySpec{
 							Ingress: []networkingv1.NetworkPolicyIngressRule{
 								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{
-											PodSelector: &metav1.LabelSelector{
-												MatchLabels: map[string]string{"app": "test"},
-											},
-										},
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
+									},
+								},
+							},
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
 									},
 								},
 							},
@@ -201,98 +150,67 @@ func TestCheckCIDRNetworkPolicies(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: false,
-			expectedLogs: []string{
-				"NetworkPolicy with cidr",
-				"✅",
-			},
+			expectedIngressEndportPolicies: []string{"namespace1/ingress-and-egress-endport-policy"},
+			expectedEgressEndportPolicies:  []string{"namespace1/egress-endport-policy", "namespace1/ingress-and-egress-endport-policy"},
 		},
 		{
-			name: "Empty policies",
-			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
-				"default": {},
-			},
-			expectedResult: false,
-			expectedLogs: []string{
-				"NetworkPolicy with cidr",
-				"✅",
-			},
-		},
-	}
-
-	runTestWithLogs(t, tests, checkCIDRNetworkPolicies)
-}
-
-// Test function for checkForEgressPolicies
-func TestCheckForEgressPolicies(t *testing.T) {
-	tests := []struct {
-		name                string
-		policiesByNamespace map[string][]networkingv1.NetworkPolicy
-		expectedResult      bool
-		expectedLogs        []string
-	}{
-		{
-			name: "Egress policy present",
-			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
-				"default": {
+			name: "Multiple polices in multiple namespaces with ingress or egress endport or no endport",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "policy1"},
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-endport-policy"},
 						Spec: networkingv1.NetworkPolicySpec{
 							Egress: []networkingv1.NetworkPolicyEgressRule{
 								{
-									To: []networkingv1.NetworkPolicyPeer{
-										{
-											PodSelector: &metav1.LabelSelector{
-												MatchLabels: map[string]string{"app": "test"},
-											},
-										},
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
 									},
 								},
 							},
 						},
 					},
-				},
-			},
-			expectedResult: true,
-			expectedLogs: []string{
-				"NetworkPolicy with egress",
-				"(Not allow all egress)",
-				"❌ Found NetworkPolicy: \033[31mpolicy1\033[0m with egress field (non-allow all) in namespace: \033[31mdefault\033[0m",
-			},
-		},
-		{
-			name: "Allow all egress policy present",
-			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
-				"default": {
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "policy2"},
-						Spec: networkingv1.NetworkPolicySpec{
-							Egress: []networkingv1.NetworkPolicyEgressRule{},
-						},
-					},
-				},
-			},
-			expectedResult: false,
-			expectedLogs: []string{
-				"NetworkPolicy with egress",
-				"✅",
-			},
-		},
-		{
-			name: "No egress policy present",
-			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
-				"default": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "policy3"},
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-and-egress-endport-policy"},
 						Spec: networkingv1.NetworkPolicySpec{
 							Ingress: []networkingv1.NetworkPolicyIngressRule{
 								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{
-											PodSelector: &metav1.LabelSelector{
-												MatchLabels: map[string]string{"app": "test"},
-											},
-										},
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
+									},
+								},
+							},
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
+									},
+								},
+							},
+						},
+					},
+				},
+				"namespace2": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-endport-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80)), EndPort: int32Ptr(90)},
+									},
+								},
+							},
+						},
+					},
+				},
+				"namespace3": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "no-endport-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80))},
 									},
 								},
 							},
@@ -300,88 +218,369 @@ func TestCheckForEgressPolicies(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: false,
-			expectedLogs: []string{
-				"NetworkPolicy with egress",
-				"✅",
-			},
-		},
-		{
-			name: "Empty policies",
-			policiesByNamespace: map[string][]networkingv1.NetworkPolicy{
-				"default": {},
-			},
-			expectedResult: false,
-			expectedLogs: []string{
-				"NetworkPolicy with egress",
-				"✅",
-			},
+			expectedIngressEndportPolicies: []string{"namespace1/ingress-and-egress-endport-policy", "namespace2/ingress-endport-policy"},
+			expectedEgressEndportPolicies:  []string{"namespace1/egress-endport-policy", "namespace1/ingress-and-egress-endport-policy"},
 		},
 	}
 
-	runTestWithLogs(t, tests, checkForEgressPolicies)
-}
-
-// Test function for checkExternalTrafficPolicyServices
-func TestCheckExternalTrafficPolicyServices(t *testing.T) {
-	namespaces := &corev1.NamespaceList{
-		Items: []corev1.Namespace{
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "default",
-				},
-			},
-		},
-	}
-
-	servicesByNamespace := map[string][]corev1.Service{
-		"default": {
-			{
-				Spec: corev1.ServiceSpec{
-					Type:                  corev1.ServiceTypeLoadBalancer,
-					ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
-				},
-			},
-		},
-	}
-
-	policiesByNamespace := map[string][]networkingv1.NetworkPolicy{}
-
-	result := checkExternalTrafficPolicyServices(namespaces, servicesByNamespace, policiesByNamespace)
-	fmt.Println(result)
-	// if !result {
-	// 	t.Errorf("Expected true, got %v", result)
-	// }
-}
-
-// Helper function to run tests and verify logs
-func runTestWithLogs(t *testing.T, tests []struct {
-	name                string
-	policiesByNamespace map[string][]networkingv1.NetworkPolicy
-	expectedResult      bool
-	expectedLogs        []string
-}, testFunc func(map[string][]networkingv1.NetworkPolicy) bool) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Capture the logs
-			var buf bytes.Buffer
-			log.SetOutput(&buf)
-			defer log.SetOutput(nil)
-
-			result := testFunc(tt.policiesByNamespace)
-			if result != tt.expectedResult {
-				t.Errorf("Expected %v, got %v", tt.expectedResult, result)
+			ingressPolicies, egressPolicies := getEndportNetworkPolicies(tt.policiesByNamespace)
+			if !equal(ingressPolicies, tt.expectedIngressEndportPolicies) {
+				t.Errorf("expected ingress policies %v, got %v", tt.expectedIngressEndportPolicies, ingressPolicies)
 			}
-
-			// Verify logs
-			logOutput := buf.String()
-			for _, expectedLog := range tt.expectedLogs {
-				if !strings.Contains(logOutput, expectedLog) {
-					t.Errorf("Expected log containing %q, but not found", expectedLog)
-				}
+			if !equal(egressPolicies, tt.expectedEgressEndportPolicies) {
+				t.Errorf("expected egress policies %v, got %v", tt.expectedEgressEndportPolicies, egressPolicies)
 			}
 		})
 	}
+}
+
+func TestGetCIDRNetworkPolicies(t *testing.T) {
+	tests := []struct {
+		name                        string
+		policiesByNamespace         map[string][]*networkingv1.NetworkPolicy
+		expectedIngressCIDRPolicies []string
+		expectedEgressCIDRPolicies  []string
+	}{
+		{
+			name:                        "No policies",
+			policiesByNamespace:         map[string][]*networkingv1.NetworkPolicy{},
+			expectedIngressCIDRPolicies: []string{},
+			expectedEgressCIDRPolicies:  []string{},
+		},
+		{
+			name: "No CIDR in policies",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "no-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{},
+			expectedEgressCIDRPolicies:  []string{},
+		},
+		{
+			name: "Ingress CIDR in policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{IPBlock: &networkingv1.IPBlock{CIDR: "192.168.0.0/16"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{"namespace1/ingress-cidr-policy"},
+			expectedEgressCIDRPolicies:  []string{},
+		},
+		{
+			name: "Egress CIDR in policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
+										{IPBlock: &networkingv1.IPBlock{CIDR: "192.168.0.0/16"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{},
+			expectedEgressCIDRPolicies:  []string{"namespace1/egress-cidr-policy"},
+		},
+		{
+			name: "Both ingress and egress CIDR in policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-and-egress-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{IPBlock: &networkingv1.IPBlock{CIDR: "192.168.0.0/16"}},
+									},
+								},
+							},
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
+										{IPBlock: &networkingv1.IPBlock{CIDR: "192.168.0.0/16"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{"namespace1/ingress-and-egress-cidr-policy"},
+			expectedEgressCIDRPolicies:  []string{"namespace1/ingress-and-egress-cidr-policy"},
+		},
+		{
+			name: "Multiple namespaces and policies",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{IPBlock: &networkingv1.IPBlock{CIDR: "192.168.0.0/16"}},
+									},
+								},
+							},
+						},
+					},
+				},
+				"namespace2": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
+										{IPBlock: &networkingv1.IPBlock{CIDR: "10.0.0.0/8"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{"namespace1/ingress-cidr-policy"},
+			expectedEgressCIDRPolicies:  []string{"namespace2/egress-cidr-policy"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ingressPolicies, egressPolicies := getCIDRNetworkPolicies(tt.policiesByNamespace)
+			if !equal(ingressPolicies, tt.expectedIngressCIDRPolicies) {
+				t.Errorf("expected ingress policies %v, got %v", tt.expectedIngressCIDRPolicies, ingressPolicies)
+			}
+			if !equal(egressPolicies, tt.expectedEgressCIDRPolicies) {
+				t.Errorf("expected egress policies %v, got %v", tt.expectedEgressCIDRPolicies, egressPolicies)
+			}
+		})
+	}
+}
+
+func TestGetEgressPolicies(t *testing.T) {
+	tests := []struct {
+		name                   string
+		policiesByNamespace    map[string][]*networkingv1.NetworkPolicy
+		expectedEgressPolicies []string
+	}{
+		{
+			name:                   "No policies",
+			policiesByNamespace:    map[string][]*networkingv1.NetworkPolicy{},
+			expectedEgressPolicies: []string{},
+		},
+		{
+			name: "No egress in policies",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "no-egress-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedEgressPolicies: []string{},
+		},
+		{
+			name: "Allow all egress policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-egress-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							PolicyTypes: []networkingv1.PolicyType{"Egress"},
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{},
+							},
+						},
+					},
+				},
+			},
+			expectedEgressPolicies: []string{},
+		},
+		{
+			name: "Deny all egress policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "deny-all-egress-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							PolicyTypes: []networkingv1.PolicyType{"Egress"},
+						},
+					},
+				},
+			},
+			expectedEgressPolicies: []string{},
+		},
+		{
+			name: "Egress policy with To field",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-to-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedEgressPolicies: []string{"namespace1/egress-to-policy"},
+		},
+		{
+			name: "Egress policy with Ports field",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-ports-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80))},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedEgressPolicies: []string{"namespace1/egress-ports-policy"},
+		},
+		{
+			name: "Egress policy with both To and Ports fields",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-to-and-ports-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80))},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedEgressPolicies: []string{"namespace1/egress-to-and-ports-policy"},
+		},
+		{
+			name: "Multiple namespaces and policies",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-to-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									To: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				"namespace2": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-ports-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{Port: intstrPtr(intstr.FromInt(80))},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedEgressPolicies: []string{"namespace1/egress-to-policy", "namespace2/egress-ports-policy"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			egressPolicies := getEgressPolicies(tt.policiesByNamespace)
+			if !equal(egressPolicies, tt.expectedEgressPolicies) {
+				t.Errorf("expected egress policies %v, got %v", tt.expectedEgressPolicies, egressPolicies)
+			}
+		})
+	}
+}
+
+// Helper to test the list output of functions
+func equal(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	m := make(map[string]bool)
+	for _, v := range a {
+		m[v] = true
+	}
+	for _, v := range b {
+		if !m[v] {
+			return false
+		}
+	}
+	return true
+}
+
+// Helper function to create a pointer to an intstr.IntOrString
+func intstrPtr(i intstr.IntOrString) *intstr.IntOrString {
+	return &i
 }
 
 // Helper function to create a pointer to an int32
