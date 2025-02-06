@@ -110,44 +110,26 @@ stages:
                 arch: amd64
                 name: azure-ipam
                 os: linux
-              azure_ipam_windows2019_amd64:
+              azure_ipam_windows_amd64:
                 arch: amd64
                 name: azure-ipam
                 os: windows
-                os_version: ltsc2019
-              azure_ipam_windows2022_amd64:
-                arch: amd64
-                name: azure-ipam
-                os: windows
-                os_version: ltsc2022
               cni_linux_amd64:
                 arch: amd64
                 name: cni
                 os: linux
-              cni_windows2019_amd64:
+              cni_windows_amd64:
                 arch: amd64
                 name: cni
                 os: windows
-                os_version: ltsc2019
-              cni_windows2022_amd64:
-                arch: amd64
-                name: cni
-                os: windows
-                os_version: ltsc2022
               cns_linux_amd64:
                 arch: amd64
                 name: cns
                 os: linux
-              cns_windows2019_amd64:
+              cns_windows_amd64:
                 arch: amd64
                 name: cns
                 os: windows
-                os_version: ltsc2019
-              cns_windows2022_amd64:
-                arch: amd64
-                name: cns
-                os: windows
-                os_version: ltsc2022
               ipv6_hp_bpf_linux_amd64:
                 arch: amd64
                 name: ipv6-hp-bpf
@@ -156,18 +138,16 @@ stages:
                 arch: amd64
                 name: npm
                 os: linux
-              npm_windows2022_amd64:
+              npm_windows_amd64:
                 arch: amd64
                 name: npm
                 os: windows
-                os_version: ltsc2022
           steps:
             - template: containers/container-template.yaml
               parameters:
                 arch: $(arch)
                 name: $(name)
                 os: $(os)
-                os_version: $(os_version)
         - job: containerize_linux_arm64
           displayName: Build Images
           pool:
@@ -216,28 +196,23 @@ stages:
             matrix:
               azure_ipam:
                 name: azure-ipam
-                os_versions: ltsc2019 ltsc2022
                 platforms: linux/amd64 linux/arm64 windows/amd64
               cni:
                 name: cni
-                os_versions: ltsc2019 ltsc2022
                 platforms: linux/amd64 linux/arm64 windows/amd64
               cns:
                 name: cns
-                os_versions: ltsc2019 ltsc2022
                 platforms: linux/amd64 linux/arm64 windows/amd64
               ipv6_hp_bpf:
                 name: ipv6-hp-bpf
                 platforms: linux/amd64 linux/arm64
               npm:
                 name: npm
-                os_versions: ltsc2022
                 platforms: linux/amd64 linux/arm64 windows/amd64
           steps:
             - template: containers/manifest-template.yaml
               parameters:
                 name: $(name)
-                os_versions: $(os_versions)
                 platforms: $(platforms)
 
     # Cilium Podsubnet E2E tests
