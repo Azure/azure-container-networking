@@ -226,3 +226,51 @@ func (k *K8sSWIFTv2Middleware) UpdateIPConfigRequest(mtpnc v1alpha1.MultitenantP
 
 	return types.Success, ""
 }
+
+func (k *K8sSWIFTv2Middleware) AddRoutes(cidrs []string, gatewayIP string) []cns.Route {
+	routes := make([]cns.Route, len(cidrs))
+	for i, cidr := range cidrs {
+		routes[i] = cns.Route{
+			IPAddress:        cidr,
+			GatewayIPAddress: gatewayIP,
+		}
+	}
+	return routes
+}
+
+// Both Linux and Windows CNS gets infravnet and service CIDRs from configuration env
+// GetInfravnetAndServiceCidrs() returns v4CIDRs(infravnet and service cidrs) as first []string and v6CIDRs(infravnet and service) as second []string
+func (k *K8sSWIFTv2Middleware) GetInfravnetAndServiceCidrs() ([]string, []string, error) { //nolint
+	v4Cidrs := []string{}
+	v6Cidrs := []string{}
+
+	// Get and parse infraVNETCIDRs from env
+	infraVNETCIDRs, err := configuration.InfraVNETCIDRs()
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to get infraVNETCIDRs from env")
+	}
+	infraVNETCIDRsv4, infraVNETCIDRsv6, err := utils.ParseCIDRs(infraVNETCIDRs)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to parse infraVNETCIDRs")
+	}
+
+	// Add infravnet CIDRs to v4 and v6 IPs
+	v4Cidrs = append(v4Cidrs, infraVNETCIDRsv4...)
+	v6Cidrs = append(v6Cidrs, infraVNETCIDRsv6...)
+
+	// Get and parse serviceCIDRs from env
+	serviceCIDRs, err := configuration.ServiceCIDRs()
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to get serviceCIDRs from env")
+	}
+	serviceCIDRsV4, serviceCIDRsV6, err := utils.ParseCIDRs(serviceCIDRs)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to parse serviceCIDRs")
+	}
+
+	// Add service CIDRs to v4 and v6 IPs
+	v4Cidrs = append(v4Cidrs, serviceCIDRsV4...)
+	v6Cidrs = append(v6Cidrs, serviceCIDRsV6...)
+
+	return v4Cidrs, v6Cidrs, nil
+}

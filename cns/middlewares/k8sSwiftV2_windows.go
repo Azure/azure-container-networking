@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/netip"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -18,6 +19,10 @@ var defaultDenyEgressPolicy policy.Policy = mustGetEndpointPolicy(cns.DirectionT
 
 var defaultDenyIngressPolicy policy.Policy = mustGetEndpointPolicy(cns.DirectionTypeIn)
 
+const (
+	defaultGateway = "0.0.0.0"
+)
+
 // for AKS L1VH, do not set default route on infraNIC to avoid customer pod reaching all infra vnet services
 // default route is set for secondary interface NIC(i.e,delegatedNIC)
 func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
@@ -27,10 +32,16 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		// TODO: Remove this once HNS fix is ready
 		route := cns.Route{
 			IPAddress:        "0.0.0.0/0",
-			GatewayIPAddress: "0.0.0.0",
+			GatewayIPAddress: defaultGateway,
 		}
 		podIPInfo.Routes = append(podIPInfo.Routes, route)
 
+		// Windows CNS middleware sets the infra routes(infravnet and service cidrs) to infraNIC interface for the podIPInfo used in SWIFT V2 Windows scenario
+		infraRoutes, err := k.getInfraRoutes(podIPInfo)
+		if err != nil {
+			return errors.Wrap(err, "failed to set routes for infraNIC interface")
+		}
+		podIPInfo.Routes = append(podIPInfo.Routes, infraRoutes...)
 		podIPInfo.SkipDefaultRoutes = true
 	}
 	return nil
@@ -207,4 +218,28 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 func GetDefaultDenyBool(mtpnc v1alpha1.MultitenantPodNetworkConfig) bool {
 	// returns the value of DefaultDenyACL from mtpnc
 	return mtpnc.Status.DefaultDenyACL
+}
+
+// getInfraRoutes() returns the infra routes including infravnet/ and service cidrs for the podIPInfo used in SWIFT V2 Windows scenario
+// Windows uses default route 0.0.0.0 as the gateway IP for containerd to configure;
+// For example, containerd would set route like: ip route 10.0.0.0/16 via 0.0.0.0 dev eth0
+func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.Route, error) {
+	var routes []cns.Route
+
+	ip, err := netip.ParseAddr(podIPInfo.PodIPConfig.IPAddress)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
+	}
+
+	// TODO: add ipv6 when supported
+	v4IPs, _, err := k.GetInfravnetAndServiceCidrs()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get infravnet and service CIDRs")
+	}
+
+	if ip.Is4() {
+		routes = append(routes, k.AddRoutes(v4IPs, defaultGateway)...)
+	}
+
+	return routes, nil
 }

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -17,11 +18,14 @@ import (
 
 func TestSetRoutesSuccess(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.10/16")
+	t.Setenv(configuration.EnvPodCIDRs, "10.1.0.10/24") // make sure windows swiftv2 does not set pod cidr route
 
 	podIPInfo := []cns.PodIpInfo{
 		{
 			PodIPConfig: cns.IPSubnet{
-				IPAddress:    "10.0.1.10",
+				IPAddress:    "10.0.1.100",
 				PrefixLength: 32,
 			},
 			NICType: cns.InfraNIC,
@@ -35,6 +39,30 @@ func TestSetRoutesSuccess(t *testing.T) {
 			MacAddress: "12:34:56:78:9a:bc",
 		},
 	}
+
+	desiredPodIPInfo := []cns.PodIpInfo{
+		{
+			PodIPConfig: cns.IPSubnet{
+				IPAddress:    "10.0.1.100",
+				PrefixLength: 32,
+			},
+			NICType: cns.InfraNIC,
+			Routes: []cns.Route{
+				{
+					IPAddress:        "10.0.0.0/16",
+					GatewayIPAddress: "0.0.0.0",
+				},
+				{
+					IPAddress:        "10.240.0.10/16",
+					GatewayIPAddress: "0.0.0.0",
+				},
+				{
+					IPAddress:        "0.0.0.0/0",
+					GatewayIPAddress: "0.0.0.0",
+				},
+			},
+		},
+	}
 	for i := range podIPInfo {
 		ipInfo := &podIPInfo[i]
 		err := middleware.setRoutes(ipInfo)
@@ -45,6 +73,9 @@ func TestSetRoutesSuccess(t *testing.T) {
 			assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
 		}
 	}
+
+	// check if the routes are set as expected
+	reflect.DeepEqual(podIPInfo[0].Routes, desiredPodIPInfo[0].Routes)
 }
 
 func TestAssignSubnetPrefixSuccess(t *testing.T) {
