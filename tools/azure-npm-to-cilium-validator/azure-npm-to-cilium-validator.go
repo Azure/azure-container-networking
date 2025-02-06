@@ -80,9 +80,7 @@ func main() {
 	printMigrationSummary(namespaces, policiesByNamespace, servicesByNamespace)
 }
 
-func getEndportNetworkPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) ([]string, []string) {
-	var ingressPoliciesWithEndport []string
-	var egressPoliciesWithEndport []string
+func getEndportNetworkPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (ingressPoliciesWithEndport []string, egressPoliciesWithEndport []string) {
 	for namespace, policies := range policiesByNamespace {
 		for _, policy := range policies {
 			// Check the ingress field for endport
@@ -102,7 +100,7 @@ func getEndportNetworkPolicies(policiesByNamespace map[string][]*networkingv1.Ne
 			}
 		}
 	}
-	return ingressPoliciesWithEndport, egressPoliciesWithEndport
+	return
 }
 
 func checkEndportInPolicyRules(ports *[]networkingv1.NetworkPolicyPort) bool {
@@ -114,9 +112,7 @@ func checkEndportInPolicyRules(ports *[]networkingv1.NetworkPolicyPort) bool {
 	return false
 }
 
-func getCIDRNetworkPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) ([]string, []string) {
-	var ingressPoliciesWithCIDR []string
-	var egressPoliciesWithCIDR []string
+func getCIDRNetworkPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (ingressPoliciesWithCIDR []string, egressPoliciesWithCIDR []string) {
 	for namespace, policies := range policiesByNamespace {
 		for _, policy := range policies {
 			// Check the ingress field for cidr
@@ -137,7 +133,7 @@ func getCIDRNetworkPolicies(policiesByNamespace map[string][]*networkingv1.Netwo
 			}
 		}
 	}
-	return ingressPoliciesWithCIDR, egressPoliciesWithCIDR
+	return
 }
 
 // Check for CIDR in ingress or egress rules
@@ -166,10 +162,11 @@ func getEgressPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPol
 	return egressPolicies
 }
 
-func getExternalTrafficPolicyClusterServices(namespaces *corev1.NamespaceList, servicesByNamespace map[string][]*corev1.Service, policiesByNamespace map[string][]*networkingv1.NetworkPolicy) ([]string, []string) {
-	var servicesAtRisk, noSelectorServices, safeServices []string
+func getExternalTrafficPolicyClusterServices(namespaces *corev1.NamespaceList, servicesByNamespace map[string][]*corev1.Service, policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (unsafeServices []string, noSelectorServices []string) {
+	var servicesAtRisk, safeServices []string
 
-	for _, namespace := range namespaces.Items {
+	for i := range namespaces.Items {
+		namespace := &namespaces.Items[i]
 		// Check if are there ingress policies in the namespace if not skip
 		policyListAtNamespace := policiesByNamespace[namespace.Name]
 		if !hasIngressPolicies(policyListAtNamespace) {
@@ -188,11 +185,10 @@ func getExternalTrafficPolicyClusterServices(namespaces *corev1.NamespaceList, s
 					// If the service has no selector add it to the noSelectorServices list
 					if service.Spec.Selector == nil {
 						noSelectorServices = append(noSelectorServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
-					} else {
-						// Check if are there services with selector that match the network policy
-						if checkServiceRisk(service, &namespace.Name, policyListAtNamespace) {
-							safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
-						}
+					}
+					// Check if are there services with selector that match the network policy
+					if checkServiceRisk(service, &namespace.Name, policyListAtNamespace) {
+						safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
 					}
 				}
 			}
@@ -200,9 +196,9 @@ func getExternalTrafficPolicyClusterServices(namespaces *corev1.NamespaceList, s
 	}
 
 	// Get the services that are at risk but not in the safe services or no selector services lists
-	unsafeServices := difference(&servicesAtRisk, &safeServices, &noSelectorServices)
+	unsafeServices = difference(&servicesAtRisk, &safeServices, &noSelectorServices)
 
-	return unsafeServices, noSelectorServices
+	return
 }
 
 func hasIngressPolicies(policies []*networkingv1.NetworkPolicy) bool {
@@ -254,7 +250,7 @@ func checkPolicySelectorsAreEmpty(podSelector *metav1.LabelSelector) bool {
 	return len(podSelector.MatchLabels) == 0 && len(podSelector.MatchExpressions) == 0
 }
 
-func checkPolicyMatchServiceLabels(serviceLabels *map[string]string, policyLabels *map[string]string) bool {
+func checkPolicyMatchServiceLabels(serviceLabels, policyLabels *map[string]string) bool {
 	// Return false if the policy has more labels than the service
 	if len(*policyLabels) > len(*serviceLabels) {
 		return false
@@ -303,7 +299,7 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts *[]corev1.ServicePort, 
 	return true
 }
 
-func difference(slice1 *[]string, slice2 *[]string, slice3 *[]string) []string {
+func difference(slice1, slice2, slice3 *[]string) []string {
 	m := make(map[string]bool)
 	for _, s := range *slice2 {
 		m[s] = true
@@ -367,7 +363,7 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 	}
 }
 
-func printPoliciesWithEndport(ingressEndportNetworkPolicy *[]string, egressEndportNetworkPolicy *[]string) {
+func printPoliciesWithEndport(ingressEndportNetworkPolicy, egressEndportNetworkPolicy *[]string) {
 	if len(*ingressEndportNetworkPolicy) == 0 && len(*egressEndportNetworkPolicy) == 0 {
 		fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with endport", "✅")
 	} else {
@@ -386,7 +382,7 @@ func printPoliciesWithEndport(ingressEndportNetworkPolicy *[]string, egressEndpo
 	}
 }
 
-func printPoliciesWithCIDR(ingressPoliciesWithCIDR *[]string, egressPoliciesWithCIDR *[]string) {
+func printPoliciesWithCIDR(ingressPoliciesWithCIDR, egressPoliciesWithCIDR *[]string) {
 	if len(*ingressPoliciesWithCIDR) == 0 && len(*egressPoliciesWithCIDR) == 0 {
 		fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with CIDR", "✅")
 	} else {
@@ -420,7 +416,7 @@ func printEgressPolicies(egressPolicies *[]string) {
 	}
 }
 
-func printUnsafeServices(unsafeServices *[]string, noSelectorServices *[]string) {
+func printUnsafeServices(unsafeServices, noSelectorServices *[]string) {
 	// If there is no unsafe services then migration is safe for services with extranalTrafficPolicy=Cluster
 	if len(*unsafeServices) == 0 {
 		fmt.Printf("%-30s | %-30s \n", "Disruption for some", "✅")
