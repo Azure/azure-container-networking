@@ -289,6 +289,11 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 			return false
 		}
 
+		// If the target port is 0 then it is at risk as Cilium treats port 0 in a special way
+		if servicePort.TargetPort.IntValue() == 0 {
+			return false
+		}
+
 		// Check if all the services target ports are in the policies ingress ports
 		matchedserviceTargetPortToPolicyPort := false
 		for _, policyPort := range policyPorts {
@@ -302,9 +307,14 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 					matchedserviceTargetPortToPolicyPort = true
 					break
 				}
+				continue
 			}
-			// If the port is a string then it is a named port and service is at risk
+			// If the port is a string then it is a named port and it cant be evaluated
 			if policyPort.Port.Type == intstr.String {
+				continue
+			}
+			// If the target port is 0 then it is at risk as Cilium treats port 0 in a special way
+			if int(policyPort.Port.IntVal) == 0 {
 				return false
 			}
 			if servicePort.TargetPort.IntValue() == int(policyPort.Port.IntVal) && string(servicePort.Protocol) == string(*policyPort.Protocol) {
@@ -372,7 +382,8 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 	fmt.Println("+------------------------------+-------------------------------+")
 	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
 		len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
-		len(egressPolicies) > 0 || len(unsafeRiskServices) > 0 {
+		len(egressPolicies) > 0 ||
+		len(unsafeRiskServices) > 0 || len(unsafeNoSelectorServices) > 0 {
 		fmt.Println("\033[31m✘ Review above issues before migration.\033[0m")
 		fmt.Println("Please see \033[32maka.ms/azurenpmtocilium\033[0m for instructions on how to evaluate/assess the above warnings marked by ❌.")
 		fmt.Println("NOTE: rerun this script if any modifications (create/update/delete) are made to services or policies.")
