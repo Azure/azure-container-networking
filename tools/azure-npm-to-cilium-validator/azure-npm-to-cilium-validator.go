@@ -150,6 +150,13 @@ func getEgressPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPol
 	var egressPolicies []string
 	for namespace, policies := range policiesByNamespace {
 		for _, policy := range policies {
+			for _, policyType := range policy.Spec.PolicyTypes {
+				// If the policy is an egress type and has no egress field it is an deny all flag it
+				if policyType == networkingv1.PolicyTypeEgress && len(policy.Spec.Egress) == 0 {
+					egressPolicies = append(egressPolicies, fmt.Sprintf("%s/%s", namespace, policy.Name))
+					break
+				}
+			}
 			for _, egress := range policy.Spec.Egress {
 				// If the policy has a egress field thats not an egress allow all flag it
 				if len(egress.To) > 0 || len(egress.Ports) > 0 {
@@ -271,6 +278,11 @@ func checkPolicyMatchServiceLabels(serviceLabels, policyLabels map[string]string
 }
 
 func checkServiceTargetPortMatchPolicyPorts(servicePorts *[]corev1.ServicePort, policyPorts *[]networkingv1.NetworkPolicyPort) bool {
+	// If the service has no ports then it is at risk
+	if len(*servicePorts) == 0 {
+		return false
+	}
+
 	for _, servicePort := range *servicePorts {
 		// If the target port is a string then it is a named port and service is at risk
 		if servicePort.TargetPort.Type == intstr.String {
@@ -280,9 +292,16 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts *[]corev1.ServicePort, 
 		// Check if all the services target ports are in the policies ingress ports
 		matchedserviceTargetPortToPolicyPort := false
 		for _, policyPort := range *policyPorts {
-			// Check if the policys port exists
-			if policyPort.Port == nil {
+			// Check if the policys port and protocol exists
+			if policyPort.Port == nil && policyPort.Protocol == nil {
 				return false
+			}
+			// If the policy only has a protocol check the protocol against the service
+			if policyPort.Port == nil && policyPort.Protocol != nil {
+				if string(servicePort.Protocol) == string(*policyPort.Protocol) {
+					matchedserviceTargetPortToPolicyPort = true
+					break
+				}
 			}
 			// If the port is a string then it is a named port and service is at risk
 			if policyPort.Port.Type == intstr.String {

@@ -572,7 +572,7 @@ func TestGetEgressPolicies(t *testing.T) {
 					},
 				},
 			},
-			expectedEgressPolicies: []string{},
+			expectedEgressPolicies: []string{"namespace1/deny-all-egress-policy"},
 		},
 		{
 			name: "Egress policy with To field",
@@ -1565,6 +1565,9 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 			expectedUnsafeRiskServices:       []string{},
 			expectedUnsafeNoSelectorServices: []string{},
 		},
+		// add ut where target port is nil
+		// add a ut where target port matches to portocol
+
 		// Scenarios where there are LoadBalancer or NodePort services with externalTrafficPolicy=Cluster and there are multiple policies
 
 		// Scenarios where there are LoadBalancer or NodePort services with externalTrafficPolicy=Cluster and there are multiple services
