@@ -317,6 +317,8 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 			if int(policyPort.Port.IntVal) == 0 {
 				return false
 			}
+			// Check if the service target port and protocol matches the policy port and protocol
+			// Note that the service target port will never been undefined as it defaults to port which is a required field when Ports is defined
 			if servicePort.TargetPort.IntValue() == int(policyPort.Port.IntVal) && string(servicePort.Protocol) == string(*policyPort.Protocol) {
 				matchedserviceTargetPortToPolicyPort = true
 				break

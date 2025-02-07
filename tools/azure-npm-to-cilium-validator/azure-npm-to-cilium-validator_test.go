@@ -1567,6 +1567,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 		},
 		// add ut where target port is nil
 		// add a ut where target port matches to portocol
+		// add a ut where the port is 0
 
 		// Scenarios where there are LoadBalancer or NodePort services with externalTrafficPolicy=Cluster and there are multiple policies
 
