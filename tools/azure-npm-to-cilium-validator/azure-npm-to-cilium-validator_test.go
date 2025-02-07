@@ -1475,6 +1475,96 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector-and-named-ports"},
 			expectedUnsafeNoSelectorServices: []string{},
 		},
+		// Scenarios covering edge cases
+		{
+			name: "LoadBalancer service with externalTrafficPolicy=Cluster with no selector and a allow all and deny all ingress policy with no selector",
+			namespaces: &corev1.NamespaceList{
+				Items: []corev1.Namespace{
+					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
+				},
+			},
+			servicesByNamespace: map[string][]*corev1.Service{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "service-with-no-selector"},
+						Spec: corev1.ServiceSpec{
+							Type:                  corev1.ServiceTypeLoadBalancer,
+							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
+						},
+					},
+				},
+			},
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "deny-all-ingress-policy-with-no-selector"},
+						Spec: networkingv1.NetworkPolicySpec{
+							PodSelector: metav1.LabelSelector{},
+							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-no-selector"},
+						Spec: networkingv1.NetworkPolicySpec{
+							PodSelector: metav1.LabelSelector{},
+							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{},
+							},
+						},
+					},
+				},
+			},
+			expectedUnsafeRiskServices:       []string{},
+			expectedUnsafeNoSelectorServices: []string{},
+		},
+		{
+			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and a allow all and deny all ingress policy with a matching selector",
+			namespaces: &corev1.NamespaceList{
+				Items: []corev1.Namespace{
+					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
+				},
+			},
+			servicesByNamespace: map[string][]*corev1.Service{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector"},
+						Spec: corev1.ServiceSpec{
+							Type:                  corev1.ServiceTypeLoadBalancer,
+							Selector:              map[string]string{"app": "test"},
+							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
+						},
+					},
+				},
+			},
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "deny-all-ingress-policy-with-selector"},
+						Spec: networkingv1.NetworkPolicySpec{
+							PodSelector: metav1.LabelSelector{
+								MatchLabels: map[string]string{"app": "test"},
+							},
+							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-no-selector"},
+						Spec: networkingv1.NetworkPolicySpec{
+							PodSelector: metav1.LabelSelector{
+								MatchLabels: map[string]string{"app": "test"},
+							},
+							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{},
+							},
+						},
+					},
+				},
+			},
+			expectedUnsafeRiskServices:       []string{},
+			expectedUnsafeNoSelectorServices: []string{},
+		},
 		// Scenarios where there are LoadBalancer or NodePort services with externalTrafficPolicy=Cluster and there are multiple policies
 
 		// Scenarios where there are LoadBalancer or NodePort services with externalTrafficPolicy=Cluster and there are multiple services

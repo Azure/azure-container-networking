@@ -191,7 +191,7 @@ func getExternalTrafficPolicyClusterServices(
 						noSelectorServices = append(noSelectorServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
 					}
 					// Check if are there services with selector that match the network policy
-					if checkServiceRisk(service, &namespace.Name, policyListAtNamespace) {
+					if checkServiceRisk(service, policyListAtNamespace) {
 						safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
 					}
 				}
@@ -218,7 +218,7 @@ func hasIngressPolicies(policies []*networkingv1.NetworkPolicy) bool {
 	return false
 }
 
-func checkServiceRisk(service *corev1.Service, namespace *string, policiesListAtNamespace []*networkingv1.NetworkPolicy) bool {
+func checkServiceRisk(service *corev1.Service, policiesListAtNamespace []*networkingv1.NetworkPolicy) bool {
 	for _, policy := range policiesListAtNamespace {
 		// Skips deny all policies as they do not have any ingress rules
 		for _, ingress := range policy.Spec.Ingress {
