@@ -224,13 +224,8 @@ func checkServiceRisk(service *corev1.Service, policiesListAtNamespace []*networ
 		for _, ingress := range policy.Spec.Ingress {
 			// Check if there is an allow all ingress policy that matches labels the service is safe
 			if len(ingress.From) == 0 && len(ingress.Ports) == 0 {
-				// Check if there is an allow all ingress policy with empty selectors return true as the policy allows all services in the namespace
-				if checkPolicySelectorsAreEmpty(&policy.Spec.PodSelector) {
-					return true
-				}
-				// Check if there is an allow all ingress policy that matches the service labels
-				if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
-					// TODO add this to above logic and check in one if statement after i am done printing the logs
+				// Check if there is an allow all ingress policy with empty selectors or matching service labels as the policy allows all services in the namespace
+				if checkPolicySelectorsAreEmpty(&policy.Spec.PodSelector) || checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
 					return true
 				}
 			}
