@@ -198,7 +198,7 @@ func getExternalTrafficPolicyClusterServices(
 						noSelectorServices = append(noSelectorServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
 					}
 					// Check if are there services with selector that match the network policy
-					if checkServiceRisk(service, policyListAtNamespace) {
+					if checkNoServiceRisk(service, policyListAtNamespace) {
 						safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
 					}
 				}
@@ -225,7 +225,7 @@ func hasIngressPolicies(policies []*networkingv1.NetworkPolicy) bool {
 	return false
 }
 
-func checkServiceRisk(service *corev1.Service, policiesListAtNamespace []*networkingv1.NetworkPolicy) bool {
+func checkNoServiceRisk(service *corev1.Service, policiesListAtNamespace []*networkingv1.NetworkPolicy) bool {
 	for _, policy := range policiesListAtNamespace {
 		// Skips deny all policies as they do not have any ingress rules
 		for _, ingress := range policy.Spec.Ingress {
@@ -261,7 +261,7 @@ func checkPolicyMatchServiceLabels(serviceLabels, policyLabels map[string]string
 	}
 
 	// Check for each policy label that that label is present in the service labels
-	// Note does not check matchExpressions
+	// Note: does not check matchExpressions
 	for policyKey, policyValue := range policyLabels {
 		matchedPolicyLabelToServiceLabel := false
 		for serviceKey, serviceValue := range serviceLabels {
@@ -302,7 +302,8 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 				return false
 			}
 			// If the policy only has a protocol check the protocol against the service
-			// Note if a network policy on NPM just targets a protocol it will allow all traffic with containing that protocol (ignoring the port)
+			// Note: if a network policy on NPM just targets a protocol it will allow all traffic with containing that protocol (ignoring the port)
+			// Note: an empty protocols default to "TCP" for both policies and services
 			if policyPort.Port == nil && policyPort.Protocol != nil {
 				if string(servicePort.Protocol) == string(*policyPort.Protocol) {
 					matchedserviceTargetPortToPolicyPort = true
@@ -319,7 +320,8 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 				return false
 			}
 			// Check if the service target port and protocol matches the policy port and protocol
-			// Note that the service target port will never been undefined as it defaults to port which is a required field when Ports is defined
+			// Note: that the service target port will never been undefined as it defaults to port which is a required field when Ports is defined
+			// Note: an empty protocols default to "TCP" for both policies and services
 			if servicePort.TargetPort.IntValue() == int(policyPort.Port.IntVal) && string(servicePort.Protocol) == string(*policyPort.Protocol) {
 				matchedserviceTargetPortToPolicyPort = true
 				break
