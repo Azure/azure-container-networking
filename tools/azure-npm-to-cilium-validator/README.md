@@ -1,6 +1,11 @@
 # Azure NPM to Cilium Validator
 
-This tool validates the migration from Azure NPM to Cilium.
+This tool validates the migration from Azure NPM to Cilium. It will provide information on if you can safely proceed with a manual update from Azure NPM to Cilium. It will verify the following checks to determine if the cluster is safe to migrate.
+
+- NetworkPolicy with endPort
+- NetworkPolicy with ipBlock
+- NetworkPolicy with Egress Policies (Not Allow All)
+- Disruption for some Services (LoadBalancer or NodePort) with externalTrafficPolicy=Cluster
 
 ## Prerequisites
 
@@ -43,4 +48,4 @@ To run the tests for the Azure NPM to Cilium Validator, use the following comman
 go test .
 ```
 
-This will execute all the test files in the directory and provide a summary of the test results.
+This will execute all the test files in azure-npm-to-cilium-validator_test.go and provide a summary of the test results.
