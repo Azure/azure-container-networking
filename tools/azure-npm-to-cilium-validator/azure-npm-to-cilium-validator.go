@@ -85,14 +85,14 @@ func getEndportNetworkPolicies(policiesByNamespace map[string][]*networkingv1.Ne
 		for _, policy := range policies {
 			// Check the ingress field for endport
 			for _, ingress := range policy.Spec.Ingress {
-				foundEndPort := checkEndportInPolicyRules(&ingress.Ports)
+				foundEndPort := checkEndportInPolicyRules(ingress.Ports)
 				if foundEndPort {
 					ingressPoliciesWithEndport = append(ingressPoliciesWithEndport, fmt.Sprintf("%s/%s", namespace, policy.Name))
 					break
 				}
 			}
 			for _, egress := range policy.Spec.Egress {
-				foundEndPort := checkEndportInPolicyRules(&egress.Ports)
+				foundEndPort := checkEndportInPolicyRules(egress.Ports)
 				if foundEndPort {
 					egressPoliciesWithEndport = append(egressPoliciesWithEndport, fmt.Sprintf("%s/%s", namespace, policy.Name))
 					break
@@ -103,8 +103,8 @@ func getEndportNetworkPolicies(policiesByNamespace map[string][]*networkingv1.Ne
 	return ingressPoliciesWithEndport, egressPoliciesWithEndport
 }
 
-func checkEndportInPolicyRules(ports *[]networkingv1.NetworkPolicyPort) bool {
-	for _, port := range *ports {
+func checkEndportInPolicyRules(ports []networkingv1.NetworkPolicyPort) bool {
+	for _, port := range ports {
 		if port.EndPort != nil {
 			return true
 		}
@@ -117,7 +117,7 @@ func getCIDRNetworkPolicies(policiesByNamespace map[string][]*networkingv1.Netwo
 		for _, policy := range policies {
 			// Check the ingress field for cidr
 			for _, ingress := range policy.Spec.Ingress {
-				foundCIDRIngress := checkCIDRInPolicyRules(&ingress.From)
+				foundCIDRIngress := checkCIDRInPolicyRules(ingress.From)
 				if foundCIDRIngress {
 					ingressPoliciesWithCIDR = append(ingressPoliciesWithCIDR, fmt.Sprintf("%s/%s", namespace, policy.Name))
 					break
@@ -125,7 +125,7 @@ func getCIDRNetworkPolicies(policiesByNamespace map[string][]*networkingv1.Netwo
 			}
 			// Check the egress field for cidr
 			for _, egress := range policy.Spec.Egress {
-				foundCIDREgress := checkCIDRInPolicyRules(&egress.To)
+				foundCIDREgress := checkCIDRInPolicyRules(egress.To)
 				if foundCIDREgress {
 					egressPoliciesWithCIDR = append(egressPoliciesWithCIDR, fmt.Sprintf("%s/%s", namespace, policy.Name))
 					break
@@ -137,8 +137,8 @@ func getCIDRNetworkPolicies(policiesByNamespace map[string][]*networkingv1.Netwo
 }
 
 // Check for CIDR in ingress or egress rules
-func checkCIDRInPolicyRules(rules *[]networkingv1.NetworkPolicyPeer) bool {
-	for _, rule := range *rules {
+func checkCIDRInPolicyRules(rules []networkingv1.NetworkPolicyPeer) bool {
+	for _, rule := range rules {
 		if rule.IPBlock != nil && rule.IPBlock.CIDR != "" {
 			return true
 		}
@@ -232,15 +232,15 @@ func checkServiceRisk(service *corev1.Service, policiesListAtNamespace []*networ
 			// Check if there is an allow all ingress policy that matches labels the service is safe
 			if len(ingress.From) == 0 && len(ingress.Ports) == 0 {
 				// Check if there is an allow all ingress policy with empty selectors or matching service labels as the policy allows all services in the namespace
-				if checkPolicySelectorsAreEmpty(&policy.Spec.PodSelector) || checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
+				if checkPolicySelectorsAreEmpty(policy.Spec.PodSelector) || checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
 					return true
 				}
 			}
 			// If there are no ingress from but there are ports in the policy; check if the service is safe
 			if len(ingress.From) == 0 && len(ingress.Ports) > 0 {
 				// If the policy targets all pods (allow all) or only pods that are in the service selector, check if traffic is allowed to all the service's target ports
-				if checkPolicySelectorsAreEmpty(&policy.Spec.PodSelector) || checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
-					if checkServiceTargetPortMatchPolicyPorts(&service.Spec.Ports, &ingress.Ports) {
+				if checkPolicySelectorsAreEmpty(policy.Spec.PodSelector) || checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
+					if checkServiceTargetPortMatchPolicyPorts(service.Spec.Ports, ingress.Ports) {
 						return true
 					}
 				}
@@ -250,7 +250,7 @@ func checkServiceRisk(service *corev1.Service, policiesListAtNamespace []*networ
 	return false
 }
 
-func checkPolicySelectorsAreEmpty(podSelector *metav1.LabelSelector) bool {
+func checkPolicySelectorsAreEmpty(podSelector metav1.LabelSelector) bool {
 	return len(podSelector.MatchLabels) == 0 && len(podSelector.MatchExpressions) == 0
 }
 
@@ -277,13 +277,13 @@ func checkPolicyMatchServiceLabels(serviceLabels, policyLabels map[string]string
 	return true
 }
 
-func checkServiceTargetPortMatchPolicyPorts(servicePorts *[]corev1.ServicePort, policyPorts *[]networkingv1.NetworkPolicyPort) bool {
+func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, policyPorts []networkingv1.NetworkPolicyPort) bool {
 	// If the service has no ports then it is at risk
-	if len(*servicePorts) == 0 {
+	if len(servicePorts) == 0 {
 		return false
 	}
 
-	for _, servicePort := range *servicePorts {
+	for _, servicePort := range servicePorts {
 		// If the target port is a string then it is a named port and service is at risk
 		if servicePort.TargetPort.Type == intstr.String {
 			return false
@@ -291,7 +291,7 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts *[]corev1.ServicePort, 
 
 		// Check if all the services target ports are in the policies ingress ports
 		matchedserviceTargetPortToPolicyPort := false
-		for _, policyPort := range *policyPorts {
+		for _, policyPort := range policyPorts {
 			// Check if the policys port and protocol exists
 			if policyPort.Port == nil && policyPort.Protocol == nil {
 				return false
