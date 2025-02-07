@@ -282,18 +282,22 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts *[]corev1.ServicePort, 
 		}
 
 		// Check if all the services target ports are in the policies ingress ports
-		serviceTargetPortPolicyPort := false
+		matchedserviceTargetPortToPolicyPort := false
 		for _, policyPort := range *policyPorts {
 			// Check if the policys port exists
 			if policyPort.Port == nil {
 				return false
 			}
+			// If the port is a string then it is a named port and service is at risk
+			if policyPort.Port.Type == intstr.String {
+				return false
+			}
 			if servicePort.TargetPort.IntValue() == int(policyPort.Port.IntVal) && string(servicePort.Protocol) == string(*policyPort.Protocol) {
-				serviceTargetPortPolicyPort = true
+				matchedserviceTargetPortToPolicyPort = true
 				break
 			}
 		}
-		if !serviceTargetPortPolicyPort {
+		if !matchedserviceTargetPortToPolicyPort {
 			return false
 		}
 	}
