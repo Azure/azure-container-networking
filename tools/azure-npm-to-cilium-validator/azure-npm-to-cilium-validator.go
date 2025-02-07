@@ -355,7 +355,9 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 	printUnsafeServices(&unsafeServicesAtRisk, &unsafeNoSelectorServices)
 
 	fmt.Println("+------------------------------+-------------------------------+")
-	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 || len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 || len(egressPolicies) > 0 || len(unsafeServicesAtRisk) > 0 {
+	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
+		len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
+		len(egressPolicies) > 0 || len(unsafeServicesAtRisk) > 0 {
 		fmt.Println("\033[31m✘ Review above issues before migration.\033[0m")
 		fmt.Println("Please see \033[32maka.ms/azurenpmtocilium\033[0m for instructions on how to evaluate/assess the above warnings marked by ❌.")
 		fmt.Println("NOTE: rerun this script if any modifications (create/update/delete) are made to services or policies.")
