@@ -232,17 +232,15 @@ func checkNoServiceRisk(service *corev1.Service, policiesListAtNamespace []*netw
 			// Check if there is an allow all ingress policy that matches labels the service is safe
 			if len(ingress.From) == 0 && len(ingress.Ports) == 0 {
 				// Check if there is an allow all ingress policy with empty selectors or matching service labels as the policy allows all services in the namespace
-				if checkPolicySelectorsAreEmpty(policy.Spec.PodSelector) || checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
+				if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector) {
 					return true
 				}
 			}
 			// If there are no ingress from but there are ports in the policy; check if the service is safe
 			if len(ingress.From) == 0 && len(ingress.Ports) > 0 {
 				// If the policy targets all pods (allow all) or only pods that are in the service selector, check if traffic is allowed to all the service's target ports
-				if checkPolicySelectorsAreEmpty(policy.Spec.PodSelector) || checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector.MatchLabels) {
-					if checkServiceTargetPortMatchPolicyPorts(service.Spec.Ports, ingress.Ports) {
-						return true
-					}
+				if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector) && checkServiceTargetPortMatchPolicyPorts(service.Spec.Ports, ingress.Ports) {
+					return true
 				}
 			}
 		}
@@ -250,19 +248,20 @@ func checkNoServiceRisk(service *corev1.Service, policiesListAtNamespace []*netw
 	return false
 }
 
-func checkPolicySelectorsAreEmpty(podSelector metav1.LabelSelector) bool {
-	return len(podSelector.MatchLabels) == 0 && len(podSelector.MatchExpressions) == 0
-}
+func checkPolicyMatchServiceLabels(serviceLabels map[string]string, podSelector metav1.LabelSelector) bool {
+	// Check if there is an allow all ingress policy with empty selectors if so the service is safe
+	if len(podSelector.MatchLabels) == 0 && len(podSelector.MatchExpressions) == 0 {
+		return true
+	}
 
-func checkPolicyMatchServiceLabels(serviceLabels, policyLabels map[string]string) bool {
-	// Return false if the policy has more labels than the service
-	if len(policyLabels) > len(serviceLabels) {
+	// Return false if the policy has no labels or more labels than the service
+	if len(podSelector.MatchLabels) == 0 || len(podSelector.MatchLabels) > len(serviceLabels) {
 		return false
 	}
 
 	// Check for each policy label that that label is present in the service labels
 	// Note: does not check matchExpressions
-	for policyKey, policyValue := range policyLabels {
+	for policyKey, policyValue := range podSelector.MatchLabels {
 		matchedPolicyLabelToServiceLabel := false
 		for serviceKey, serviceValue := range serviceLabels {
 			if policyKey == serviceKey && policyValue == serviceValue {

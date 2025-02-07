@@ -1354,6 +1354,44 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 			expectedUnsafeNoSelectorServices: []string{},
 		},
 		{
+			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a selector that has more labels",
+			namespaces: &corev1.NamespaceList{
+				Items: []corev1.Namespace{
+					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
+				},
+			},
+			servicesByNamespace: map[string][]*corev1.Service{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector"},
+						Spec: corev1.ServiceSpec{
+							Type:                  corev1.ServiceTypeLoadBalancer,
+							Selector:              map[string]string{"app": "test"},
+							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
+						},
+					},
+				},
+			},
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector"},
+						Spec: networkingv1.NetworkPolicySpec{
+							PodSelector: metav1.LabelSelector{
+								MatchLabels: map[string]string{"app": "test", "app2": "test2", "app3": "test3"},
+							},
+							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{},
+							},
+						},
+					},
+				},
+			},
+			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector"},
+			expectedUnsafeNoSelectorServices: []string{},
+		},
+		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a matching selector but ports dont match",
 			namespaces: &corev1.NamespaceList{
 				Items: []corev1.Namespace{
@@ -1549,7 +1587,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 						},
 					},
 					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-no-selector"},
+						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-a-selector"},
 						Spec: networkingv1.NetworkPolicySpec{
 							PodSelector: metav1.LabelSelector{
 								MatchLabels: map[string]string{"app": "test"},
@@ -1565,10 +1603,99 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 			expectedUnsafeRiskServices:       []string{},
 			expectedUnsafeNoSelectorServices: []string{},
 		},
-		// add ut where target port is nil
+		{
+			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and no ports and an allow all ingress policy with a matching selector and ports",
+			namespaces: &corev1.NamespaceList{
+				Items: []corev1.Namespace{
+					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
+				},
+			},
+			servicesByNamespace: map[string][]*corev1.Service{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector"},
+						Spec: corev1.ServiceSpec{
+							Type:                  corev1.ServiceTypeLoadBalancer,
+							Selector:              map[string]string{"app": "test"},
+							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
+						},
+					},
+				},
+			},
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-ports"},
+						Spec: networkingv1.NetworkPolicySpec{
+							PodSelector: metav1.LabelSelector{
+								MatchLabels: map[string]string{"app": "test"},
+							},
+							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromInt(80)),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector"},
+			expectedUnsafeNoSelectorServices: []string{},
+		},
+		{
+			name: "LoadBalancer service with externalTrafficPolicy=Cluster with no selector and an allow all ingress policy with a matchExpressions selector",
+			namespaces: &corev1.NamespaceList{
+				Items: []corev1.Namespace{
+					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
+				},
+			},
+			servicesByNamespace: map[string][]*corev1.Service{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "service-with-no-selector"},
+						Spec: corev1.ServiceSpec{
+							Type:                  corev1.ServiceTypeLoadBalancer,
+							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
+						},
+					},
+				},
+			},
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-matchexpressins-selector"},
+						Spec: networkingv1.NetworkPolicySpec{
+							PodSelector: metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "app",
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{"test"},
+									},
+								},
+							},
+							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{},
+							},
+						},
+					},
+				},
+			},
+			expectedUnsafeRiskServices:       []string{"namespace1/service-with-no-selector"},
+			expectedUnsafeNoSelectorServices: []string{"namespace1/service-with-no-selector"},
+		},
 		// add a ut where target port matches to protocol
 		// add a ut where the port is 0
-		// add a ut testing for match expressions
 
 		// Scenarios where there are LoadBalancer or NodePort services with externalTrafficPolicy=Cluster and there are multiple policies
 
