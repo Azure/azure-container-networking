@@ -91,5 +91,40 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 			return types.FailedToRunIPTableCmd, "[Azure CNS] failed to insert SNAT IMDS rule : " + err.Error()
 		}
 	}
+
+	// use any secondary ip + the nnc prefix length to get an iptables rule to allow dns traffic
+	// this should be idempotent if req.IPConfiguration.IPSubnet.IPAddress is an ip in the nc's subnet
+	for _, v := range req.SecondaryIPConfigs {
+		// put the ip address in standard cidr form (where we zero out the parts that change the rule)
+		_, podSubnet, _ := net.ParseCIDR(v.IPAddress + "/" + fmt.Sprintf("%d", req.IPConfiguration.IPSubnet.PrefixLength))
+
+		snatUDPRuleExists, err := ipt.Exists(iptables.Nat, SWIFT, "-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.UDP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", ncPrimaryIP.String())
+		if err != nil {
+			return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of pod SNAT UDP rule : %v", err)
+		}
+		if !snatUDPRuleExists {
+			logger.Printf("[Azure CNS] Inserting pod SNAT UDP rule ...")
+			err = ipt.Insert(iptables.Nat, SWIFT, 1, "-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.UDP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", ncPrimaryIP.String())
+			if err != nil {
+				return types.FailedToRunIPTableCmd, "[Azure CNS] failed to insert pod SNAT UDP rule : " + err.Error()
+			}
+		}
+
+		snatPodTCPRuleExists, err := ipt.Exists(iptables.Nat, SWIFT, "-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", ncPrimaryIP.String())
+		if err != nil {
+			return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of pod SNAT TCP rule : %v", err)
+		}
+		if !snatPodTCPRuleExists {
+			logger.Printf("[Azure CNS] Inserting pod SNAT TCP rule ...")
+			err = ipt.Insert(iptables.Nat, SWIFT, 1, "-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", ncPrimaryIP.String())
+			if err != nil {
+				return types.FailedToRunIPTableCmd, "[Azure CNS] failed to insert pod SNAT TCP rule : " + err.Error()
+			}
+		}
+
+		// we only need to run this code once as the iptable rule applies to all secondary ip configs in the same subnet
+		break
+	}
+
 	return types.Success, ""
 }
