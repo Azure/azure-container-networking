@@ -5,8 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
+	"github.com/olekukonko/tablewriter"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -372,41 +374,33 @@ func difference(slice1, slice2 []string) []string {
 
 func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace map[string][]*networkingv1.NetworkPolicy, servicesByNamespace map[string][]*corev1.Service) {
 	fmt.Println("Migration Summary:")
-	fmt.Println("+------------------------------+-------------------------------+")
-	fmt.Printf("%-30s | %-30s \n", "Breaking Change", "No Policy Changes Needed")
-	fmt.Println("+------------------------------+-------------------------------+")
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Breaking Change", "No Policy Changes Needed", "Details"})
+	table.SetRowLine(true)
 
 	// Get the endports of the network policies
 	ingressEndportNetworkPolicy, egressEndportNetworkPolicy := getEndportNetworkPolicies(policiesByNamespace)
-
-	// Print the network policies with endport
-	printPoliciesWithEndport(ingressEndportNetworkPolicy, egressEndportNetworkPolicy)
-
-	fmt.Println("+------------------------------+-------------------------------+")
+	// Add the network policies with endport
+	addPoliciesWithEndportToTable(table, ingressEndportNetworkPolicy, egressEndportNetworkPolicy)
 
 	// Get the cidr of the network policies
 	ingressPoliciesWithCIDR, egressPoliciesWithCIDR := getCIDRNetworkPolicies(policiesByNamespace)
-
-	// Print the network policies with CIDR
-	printPoliciesWithCIDR(ingressPoliciesWithCIDR, egressPoliciesWithCIDR)
-
-	fmt.Println("+------------------------------+-------------------------------+")
+	// Add the network policies with CIDR
+	addPoliciesWithCIDRToTable(table, ingressPoliciesWithCIDR, egressPoliciesWithCIDR)
 
 	// Get the egress of the network policies
 	egressPolicies := getEgressPolicies(policiesByNamespace)
-
-	// Print the network policies with egress
-	printEgressPolicies(egressPolicies)
-
-	fmt.Println("+------------------------------+-------------------------------+")
+	// Add the network policies with egress
+	addEgressPoliciesToTable(table, egressPolicies)
 
 	// Get services that have externalTrafficPolicy!=Local
 	unsafeRiskServices, unsafeNoSelectorServices := getExternalTrafficPolicyClusterServices(namespaces, servicesByNamespace, policiesByNamespace)
+	// Add the services that are at risk
+	addUnsafeServicesToTable(table, unsafeRiskServices, unsafeNoSelectorServices)
 
-	// Print the services that are at risk
-	printUnsafeServices(unsafeRiskServices, unsafeNoSelectorServices)
+	table.Render()
 
-	fmt.Println("+------------------------------+-------------------------------+")
 	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
 		len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
 		len(egressPolicies) > 0 ||
@@ -420,88 +414,80 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 	}
 }
 
-func printPoliciesWithEndport(ingressEndportNetworkPolicy, egressEndportNetworkPolicy []string) {
+func addPoliciesWithEndportToTable(table *tablewriter.Table, ingressEndportNetworkPolicy, egressEndportNetworkPolicy []string) {
 	if len(ingressEndportNetworkPolicy) == 0 && len(egressEndportNetworkPolicy) == 0 {
-		fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with endport", "✅")
+		table.Append([]string{"NetworkPolicy with endport", "✅", ""})
 	} else {
-		fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with endport", "❌")
-		fmt.Println("Policies affected:")
+		table.Append([]string{"NetworkPolicy with endport", "❌", "Policies affected:"})
 		for _, policy := range ingressEndportNetworkPolicy {
 			policyNamespace := strings.Split(policy, "/")[0]
 			policyName := strings.Split(policy, "/")[1]
-			fmt.Printf("❌ Found NetworkPolicy: \033[31m%s\033[0m with ingress endPort field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)
+			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with ingress endPort field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
 		}
 		for _, policy := range egressEndportNetworkPolicy {
 			policyNamespace := strings.Split(policy, "/")[0]
 			policyName := strings.Split(policy, "/")[1]
-			fmt.Printf("❌ Found NetworkPolicy: \033[31m%s\033[0m with engress endPort field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)
+			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m\n with egress endPort field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
 		}
 	}
 }
 
-func printPoliciesWithCIDR(ingressPoliciesWithCIDR, egressPoliciesWithCIDR []string) {
+func addPoliciesWithCIDRToTable(table *tablewriter.Table, ingressPoliciesWithCIDR, egressPoliciesWithCIDR []string) {
 	if len(ingressPoliciesWithCIDR) == 0 && len(egressPoliciesWithCIDR) == 0 {
-		fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with CIDR", "✅")
+		table.Append([]string{"NetworkPolicy with CIDR", "✅", ""})
 	} else {
-		fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with CIDR", "❌")
-		fmt.Println("Policies affected:")
+		table.Append([]string{"NetworkPolicy with CIDR", "❌", "Policies affected:"})
 		for _, policy := range ingressPoliciesWithCIDR {
 			policyNamespace := strings.Split(policy, "/")[0]
 			policyName := strings.Split(policy, "/")[1]
-			fmt.Printf("❌ Found NetworkPolicy: \033[31m%s\033[0m with ingress CIDR field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)
+			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with ingress CIDR field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
 		}
 		for _, policy := range egressPoliciesWithCIDR {
 			policyNamespace := strings.Split(policy, "/")[0]
 			policyName := strings.Split(policy, "/")[1]
-			fmt.Printf("❌ Found NetworkPolicy: \033[31m%s\033[0m with egress CIDR field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)
+			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with egress CIDR field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
 		}
 	}
 }
 
-func printEgressPolicies(egressPolicies []string) {
+func addEgressPoliciesToTable(table *tablewriter.Table, egressPolicies []string) {
 	if len(egressPolicies) == 0 {
-		fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with egress", "✅")
+		table.Append([]string{"NetworkPolicy with egress (Not allow all egress)", "✅", ""})
 	} else {
-		fmt.Printf("%-30s | %-30s \n", "NetworkPolicy with egress", "❌")
-		fmt.Printf("%-30s | %-30s \n", "(Not allow all egress)", "")
-		fmt.Println("Policies affected:")
+		table.Append([]string{"NetworkPolicy with egress (Not allow all egress)", "❌", "Policies affected:"})
 		for _, policy := range egressPolicies {
 			policyNamespace := strings.Split(policy, "/")[0]
 			policyName := strings.Split(policy, "/")[1]
-			fmt.Printf("❌ Found NetworkPolicy: \033[31m%s\033[0m with egress field (non-allow all) in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)
+			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with egress field (non-allow all) in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
 		}
 	}
 }
 
-func printUnsafeServices(unsafeRiskServices, unsafeNoSelectorServices []string) {
+func addUnsafeServicesToTable(table *tablewriter.Table, unsafeRiskServices, unsafeNoSelectorServices []string) {
 	// If there is no unsafe services and services with no selectors then migration is safe for services with extranalTrafficPolicy=Cluster
 	if len(unsafeRiskServices) == 0 {
-		fmt.Printf("%-30s | %-30s \n", "Disruption for some", "✅")
-		fmt.Printf("%-30s | %-30s \n", "Services with", "")
-		fmt.Printf("%-30s | %-30s \n", "externalTrafficPolicy=Cluster", "")
+		table.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "✅", ""})
 	} else {
 		// Remove all no selector services from unsafe services to prevent repeating the same flagged service
 		unsafeRiskServices = difference(unsafeRiskServices, unsafeNoSelectorServices)
-		fmt.Printf("%-30s | %-30s \n", "Disruption for some", "❌")
-		fmt.Printf("%-30s | %-30s \n", "Services with", "")
-		fmt.Printf("%-30s | %-30s \n", "externalTrafficPolicy=Cluster", "")
+		table.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "❌", "Services affected:"})
 		fmt.Println("Services affected:")
 		// If there are any no selector services or unsafe services then print them as they could be impacted by migration
 		if len(unsafeNoSelectorServices) > 0 {
 			for _, service := range unsafeNoSelectorServices {
 				serviceName := strings.Split(service, "/")[1]
 				serviceNamespace := strings.Split(service, "/")[0]
-				fmt.Printf("❌ Found Service: \033[31m%s\033[0m without selectors in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)
+				table.Append([]string{"", "❌", fmt.Sprintf("Found Service: \033[31m%s\033[0m without selectors in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)})
 			}
 		}
 		if len(unsafeRiskServices) > 0 {
 			for _, service := range unsafeRiskServices {
 				serviceName := strings.Split(service, "/")[1]
 				serviceNamespace := strings.Split(service, "/")[0]
-				fmt.Printf("❌ Found Service: \033[31m%s\033[0m with selectors in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)
+				table.Append([]string{"", "❌", fmt.Sprintf("Found Service: \033[31m%s\033[0m with selectors in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)})
 			}
 		}
-		fmt.Println("Manual investigation is required to evaluate if ingress is allowed to the service's backend Pods.")
-		fmt.Println("Please evaluate if these services would be impacted by migration.")
+		table.Append([]string{"", "", "Manual investigation is required to evaluate if ingress is allowed to the service's backend Pods."})
+		table.Append([]string{"", "", "Please evaluate if these services would be impacted by migration."})
 	}
 }
