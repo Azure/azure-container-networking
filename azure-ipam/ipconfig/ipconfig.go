@@ -69,6 +69,8 @@ func ProcessIPConfigsResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, *[]net.
 	gatewaysIPs := make([]net.IP, len(resp.PodIPInfo))
 
 	for i := range resp.PodIPInfo {
+		var gatewayIP net.IP
+
 		podCIDR := fmt.Sprintf(
 			"%s/%d",
 			resp.PodIPInfo[i].PodIPConfig.IPAddress,
@@ -81,21 +83,14 @@ func ProcessIPConfigsResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, *[]net.
 		podIPNets[i] = podIPNet
 
 		if podIPNet.Addr().Is4() {
-			gatewayIP := net.ParseIP(resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
-
-			if gatewayIP == nil {
-				return nil, nil, errors.New("cns returned invalid gateway IP address")
-			}
-			gatewaysIPs[i] = gatewayIP
+			gatewayIP = net.ParseIP(resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
 		} else if podIPNet.Addr().Is6() {
-			gatewayIP := net.ParseIP(resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPv6Address)
-
-			if gatewayIP == nil {
-				return nil, nil, errors.New("cns returned invalid gateway IPv6 address")
-			}
-			gatewaysIPs[i] = gatewayIP
+			gatewayIP = net.ParseIP(resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPv6Address)
 		}
 
+		if gatewayIP != nil {
+			gatewaysIPs[i] = gatewayIP
+		}
 	}
 
 	return &podIPNets, &gatewaysIPs, nil
