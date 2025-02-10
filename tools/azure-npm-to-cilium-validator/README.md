@@ -26,8 +26,7 @@ cd azure-container-networking/tools/azure-npm-to-cilium-validator
 Initialize the Go module and download dependencies:
 
 ```bash
-go mod tidy
-go mod vendor
+go mod tidy && go mod vendor
 ```
 
 ## Running the Tool

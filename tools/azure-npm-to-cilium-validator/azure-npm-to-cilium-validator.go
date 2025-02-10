@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strings"
 
@@ -139,9 +140,9 @@ func getCIDRNetworkPolicies(policiesByNamespace map[string][]*networkingv1.Netwo
 }
 
 // Check for CIDR in ingress or egress rules
-func checkCIDRInPolicyRules(rules []networkingv1.NetworkPolicyPeer) bool {
-	for _, rule := range rules {
-		if rule.IPBlock != nil && rule.IPBlock.CIDR != "" {
+func checkCIDRInPolicyRules(to []networkingv1.NetworkPolicyPeer) bool {
+	for _, toRule := range to {
+		if toRule.IPBlock != nil && toRule.IPBlock.CIDR != "" {
 			return true
 		}
 	}
@@ -239,8 +240,8 @@ func checkNoServiceRisk(service *corev1.Service, policiesListAtNamespace []*netw
 				}
 			}
 			// Check if service is a loadbalancer and policy allows 168.63.129.16 and has no ports
-			if service.Spec.Type == corev1.ServiceTypeLoadBalancer && len(ingress.From) > 0 && len(ingress.Ports) == 0 {
-				if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector) && checkAllowsLoadBalancerIngressCIDR(ingress.From) {
+			if service.Spec.Type == corev1.ServiceTypeLoadBalancer && len(ingress.Ports) == 0 {
+				if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector) && checkAllowsLoadBalancerIP(ingress.From) {
 					return true
 				}
 			}
@@ -349,10 +350,17 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 	return true
 }
 
-func checkAllowsLoadBalancerIngressCIDR(from []networkingv1.NetworkPolicyPeer) bool {
-	for _, peer := range from {
-		if peer.IPBlock != nil && peer.IPBlock.CIDR == "168.63.129.16/32" {
-			return true
+func checkAllowsLoadBalancerIP(from []networkingv1.NetworkPolicyPeer) bool {
+	loadBalancerIP := net.ParseIP("168.63.129.16")
+	for _, fromRule := range from {
+		if fromRule.IPBlock != nil && fromRule.IPBlock.CIDR != "" {
+			_, cidr, err := net.ParseCIDR(fromRule.IPBlock.CIDR)
+			if err != nil {
+				continue
+			}
+			if cidr.Contains(loadBalancerIP) {
+				return true
+			}
 		}
 	}
 	return false
