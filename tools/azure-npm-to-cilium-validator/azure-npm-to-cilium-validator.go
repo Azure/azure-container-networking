@@ -236,8 +236,14 @@ func checkNoServiceRisk(service *corev1.Service, policiesListAtNamespace []*netw
 					return true
 				}
 			}
+			// Check if service is a loadbalancer and policy allows 168.63.129.16 and has no ports
+			if service.Spec.Type == corev1.ServiceTypeLoadBalancer && len(ingress.From) > 0 && len(ingress.Ports) == 0 {
+				if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector) && checkAllowsLoadBalancerIngressCIDR(ingress.From) {
+					return true
+				}
+			}
 			// If there are no ingress from but there are ports in the policy; check if the service is safe
-			if len(ingress.From) == 0 && len(ingress.Ports) > 0 {
+			if len(ingress.From) == 0 {
 				// If the policy targets all pods (allow all) or only pods that are in the service selector, check if traffic is allowed to all the service's target ports
 				if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector) && checkServiceTargetPortMatchPolicyPorts(service.Spec.Ports, ingress.Ports) {
 					return true
@@ -254,13 +260,19 @@ func checkPolicyMatchServiceLabels(serviceLabels map[string]string, podSelector 
 		return true
 	}
 
-	// Return false if the policy has no labels or more labels than the service
-	if len(podSelector.MatchLabels) == 0 || len(podSelector.MatchLabels) > len(serviceLabels) {
+	// Return false if the policy has matchExpressions
+	// Note: does not check matchExpressions. It will only validate based on matchLabels
+	if len(podSelector.MatchExpressions) > 0 {
+		return false
+	}
+
+	// Return false if the policy has more labels than the service
+	if len(podSelector.MatchLabels) > len(serviceLabels) {
 		return false
 	}
 
 	// Check for each policy label that that label is present in the service labels
-	// Note: does not check matchExpressions
+	// Note: a policy with no matchLabels is an allow all policy
 	for policyKey, policyValue := range podSelector.MatchLabels {
 		matchedPolicyLabelToServiceLabel := false
 		for serviceKey, serviceValue := range serviceLabels {
@@ -282,6 +294,12 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 		return false
 	}
 
+	// If the policy is allowing no traffic from ports then the service is at risk
+	// Note: ingress.Ports.protocol will never be nil if len(ingress.Ports) is greater than 0. It defaults to "TCP" if not set
+	if len(policyPorts) == 0 {
+		return false
+	}
+
 	for _, servicePort := range servicePorts {
 		// If the target port is a string then it is a named port and service is at risk
 		if servicePort.TargetPort.Type == intstr.String {
@@ -296,10 +314,6 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 		// Check if all the services target ports are in the policies ingress ports
 		matchedserviceTargetPortToPolicyPort := false
 		for _, policyPort := range policyPorts {
-			// Check if the policys port and protocol exists
-			if policyPort.Port == nil && policyPort.Protocol == nil {
-				return false
-			}
 			// If the policy only has a protocol check the protocol against the service
 			// Note: if a network policy on NPM just targets a protocol it will allow all traffic with containing that protocol (ignoring the port)
 			// Note: an empty protocols default to "TCP" for both policies and services
@@ -314,9 +328,9 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 			if policyPort.Port.Type == intstr.String {
 				continue
 			}
-			// If the target port is 0 then it is at risk as Cilium treats port 0 in a special way
+			// Cilium treats port 0 in a special way so skip policys allowing port 0
 			if int(policyPort.Port.IntVal) == 0 {
-				return false
+				continue
 			}
 			// Check if the service target port and protocol matches the policy port and protocol
 			// Note: that the service target port will never been undefined as it defaults to port which is a required field when Ports is defined
@@ -331,6 +345,15 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 		}
 	}
 	return true
+}
+
+func checkAllowsLoadBalancerIngressCIDR(from []networkingv1.NetworkPolicyPeer) bool {
+	for _, peer := range from {
+		if peer.IPBlock != nil && peer.IPBlock.CIDR == "168.63.129.16/32" {
+			return true
+		}
+	}
+	return false
 }
 
 func difference(slice1, slice2 []string) []string {
