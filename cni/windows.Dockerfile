@@ -38,13 +38,13 @@ COPY --from=compressor /payload/* pkg/embed/fs/
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/dropgz -trimpath -ldflags "-X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$VERSION"" -gcflags="-dwarflocationlists=true" main.go
 
 # skopeo inspect --override-os windows docker://mcr.microsoft.com/windows/nanoserver:ltsc2019 --format "{{.Name}}@{{.Digest}}"
-FROM mcr.microsoft.com/windows/nanoserver@sha256:7f6649348a11655e3576463fd6d55c29248f97405f8e643cab2409009339f520 AS ltsc2019
+FROM mcr.microsoft.com/windows/nanoserver@sha256:d96a6c2108e1449c872cc2b224a9b3444fa1415b4d6947280aba2d2bb3bd0025 AS ltsc2019
 
 # skopeo inspect --override-os windows docker://mcr.microsoft.com/windows/nanoserver:ltsc2022 --format "{{.Name}}@{{.Digest}}"
-FROM mcr.microsoft.com/windows/nanoserver@sha256:244113e50a678a25a63930780f9ccafd22e1a37aa9e3d93295e4cebf0f170a11 AS ltsc2022
+FROM mcr.microsoft.com/windows/nanoserver@sha256:55474b390b2d25e98450356b381d6dc422e15fb79808970f724c0f34df0b217e AS ltsc2022
 
 # skopeo inspect --override-os windows docker://mcr.microsoft.com/windows/nanoserver:ltsc2025 --format "{{.Name}}@{{.Digest}}" ## 2025 isn't tagged yet
-FROM mcr.microsoft.com/windows/nanoserver/insider@sha256:67e0ab7f3a79cd73be4a18bae24659c03b294aed0dbeaa624feb3810931f0bd2 AS ltsc2025
+FROM mcr.microsoft.com/windows/nanoserver@sha256:d584aae93e84d61c8a3280ed3a5d5a6d397c0214a2902acadb8b17b0b00c70e8 AS ltsc2025
 
 FROM ${OS_VERSION} AS windows
 COPY --from=dropgz /go/bin/dropgz dropgz
