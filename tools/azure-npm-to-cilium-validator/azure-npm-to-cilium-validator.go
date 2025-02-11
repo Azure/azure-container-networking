@@ -226,24 +226,25 @@ func checkNoServiceRisk(service *corev1.Service, policiesListAtNamespace []*netw
 	for _, policy := range policiesListAtNamespace {
 		// Skips deny all policies as they do not have any ingress rules
 		for _, ingress := range policy.Spec.Ingress {
-			// Check if there is an allow all ingress policy that matches labels the service is safe
-			if len(ingress.From) == 0 && len(ingress.Ports) == 0 {
-				// Check if there is an allow all ingress policy with empty selectors or matching service labels as the policy allows all services in the namespace
-				if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector) {
+			// Check for each policy label that that label is present in the service labels meaning the service is being targeted by the policy
+			if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector) {
+				// Check if there is an allow all ingress policy as the policy allows all services in the namespace
+				if len(ingress.From) == 0 && len(ingress.Ports) == 0 {
 					return true
 				}
-			}
-			// Check if service is a loadbalancer and policy allows 168.63.129.16 and has no ports
-			if service.Spec.Type == corev1.ServiceTypeLoadBalancer && len(ingress.Ports) == 0 {
-				if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector) && checkAllowsLoadBalancerIP(ingress.From) {
-					return true
+				// Check if service is a loadbalancer and policy allows 168.63.129.16 and has no ports
+				if service.Spec.Type == corev1.ServiceTypeLoadBalancer && len(ingress.Ports) == 0 {
+					if checkAllowsLoadBalancerIP(ingress.From) {
+						return true
+					}
 				}
-			}
-			// If there are no ingress from but there are ports in the policy; check if the service is safe
-			if len(ingress.From) == 0 {
-				// If the policy targets all pods (allow all) or only pods that are in the service selector, check if traffic is allowed to all the service's target ports
-				if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector) && checkServiceTargetPortMatchPolicyPorts(service.Spec.Ports, ingress.Ports) {
-					return true
+				// If there are no ingress from but there are ports in the policy; check if the service is safe
+				if len(ingress.From) == 0 {
+					// If the policy targets all pods (allow all) or only pods that are in the service selector, check if traffic is allowed to all the service's target ports
+					// Note: ingress.Ports.protocol will never be nil if len(ingress.Ports) is greater than 0. It defaults to "TCP" if not set
+					if checkServiceTargetPortMatchPolicyPorts(service.Spec.Ports, ingress.Ports) {
+						return true
+					}
 				}
 			}
 		}
@@ -288,12 +289,6 @@ func checkPolicyMatchServiceLabels(serviceLabels map[string]string, podSelector 
 func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, policyPorts []networkingv1.NetworkPolicyPort) bool {
 	// If the service has no ports then it is at risk
 	if len(servicePorts) == 0 {
-		return false
-	}
-
-	// If the policy is allowing no traffic from ports then the service is at risk
-	// Note: ingress.Ports.protocol will never be nil if len(ingress.Ports) is greater than 0. It defaults to "TCP" if not set
-	if len(policyPorts) == 0 {
 		return false
 	}
 
