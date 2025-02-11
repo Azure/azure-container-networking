@@ -21,7 +21,9 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 	defer service.Unlock()
 
 	// Parse primary ip and ipnet from nnc
-	ncPrimaryIP, ncIPNet, _ := net.ParseCIDR(req.IPConfiguration.IPSubnet.IPAddress + "/" + fmt.Sprintf("%d", req.IPConfiguration.IPSubnet.PrefixLength))
+	// in podsubnet case, ncPrimaryIP is the pod subnet's primary ip
+	// in vnet scale case, ncPrimaryIP is the node's ip
+	ncPrimaryIP, _, _ := net.ParseCIDR(req.IPConfiguration.IPSubnet.IPAddress + "/" + fmt.Sprintf("%d", req.IPConfiguration.IPSubnet.PrefixLength))
 	ipt, err := goiptables.New()
 	if err != nil {
 		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to create iptables interface : %v", err)
@@ -56,9 +58,7 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 		}
 	}
 
-	// use any secondary ip + the nnc prefix length to get an iptables rule to allow dns traffic
-	// in podsubnet case, ncPrimaryIP is the pod subnet's primary ip
-	// in vnet scale case, ncPrimaryIP is the node's ip
+	// use any secondary ip + the nnc prefix length to get an iptables rule to allow dns and imds traffic from the pods
 	for _, v := range req.SecondaryIPConfigs {
 		// put the ip address in standard cidr form (where we zero out the parts that are not relevant)
 		_, podSubnet, _ := net.ParseCIDR(v.IPAddress + "/" + fmt.Sprintf("%d", req.IPConfiguration.IPSubnet.PrefixLength))
@@ -87,20 +87,20 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 			}
 		}
 
+		snatIMDSRuleexist, err := ipt.Exists(iptables.Nat, SWIFT, "-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureIMDS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.HTTPPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP)
+		if err != nil {
+			return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of pod SNAT IMDS rule : %v", err)
+		}
+		if !snatIMDSRuleexist {
+			logger.Printf("[Azure CNS] Inserting pod SNAT IMDS rule ...")
+			err = ipt.Insert(iptables.Nat, SWIFT, 1, "-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureIMDS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.HTTPPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP)
+			if err != nil {
+				return types.FailedToRunIPTableCmd, "[Azure CNS] failed to insert pod SNAT IMDS rule : " + err.Error()
+			}
+		}
+
 		// we only need to run this code once as the iptable rule applies to all secondary ip configs in the same subnet
 		break
-	}
-
-	snatIMDSRuleexist, err := ipt.Exists(iptables.Nat, SWIFT, "-m", "addrtype", "!", "--dst-type", "local", "-s", ncIPNet.String(), "-d", networkutils.AzureIMDS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.HTTPPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP)
-	if err != nil {
-		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of SNAT IMDS rule : %v", err)
-	}
-	if !snatIMDSRuleexist {
-		logger.Printf("[Azure CNS] Inserting SNAT IMDS rule ...")
-		err = ipt.Insert(iptables.Nat, SWIFT, 1, "-m", "addrtype", "!", "--dst-type", "local", "-s", ncIPNet.String(), "-d", networkutils.AzureIMDS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.HTTPPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP)
-		if err != nil {
-			return types.FailedToRunIPTableCmd, "[Azure CNS] failed to insert SNAT IMDS rule : " + err.Error()
-		}
 	}
 
 	return types.Success, ""
