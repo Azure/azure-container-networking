@@ -177,7 +177,7 @@ func getUnsafeExternalTrafficPolicyClusterServices(
 	servicesByNamespace map[string][]*corev1.Service,
 	policiesByNamespace map[string][]*networkingv1.NetworkPolicy,
 ) (unsafeServices []string) {
-	var riskServices, noSelectorServices, safeServices []string
+	var riskServices, safeServices []string
 
 	for i := range namespaces.Items {
 		namespace := &namespaces.Items[i]
@@ -196,11 +196,7 @@ func getUnsafeExternalTrafficPolicyClusterServices(
 				if externalTrafficPolicy != corev1.ServiceExternalTrafficPolicyTypeLocal {
 					// Any service with externalTrafficPolicy=Cluster is at risk so need to elimate any services that are incorrectly flagged
 					riskServices = append(riskServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
-					// If the service has no selector add it to the noSelectorServices list
-					if service.Spec.Selector == nil {
-						noSelectorServices = append(noSelectorServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
-					}
-					// Check if are there services with selector that match the network policy
+					// Check if are there services with selector that are allowed by a network policy that can be safely migrated
 					if checkNoServiceRisk(service, policyListAtNamespace) {
 						safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
 					}
@@ -479,7 +475,7 @@ func addUnsafeServicesToTable(table *tablewriter.Table, unsafeServices []string)
 		for _, service := range unsafeServices {
 			serviceName := strings.Split(service, "/")[1]
 			serviceNamespace := strings.Split(service, "/")[0]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found Service: \033[31m%s\033[0m with selectors in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("Found Service: \033[31m%s\033[0m in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)})
 		}
 		table.Append([]string{"", "", "Manual investigation is required to evaluate if ingress is allowed to the service's backend Pods."})
 		table.Append([]string{"", "", "Please evaluate if these services would be impacted by migration."})
