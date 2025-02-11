@@ -194,11 +194,16 @@ func getUnsafeExternalTrafficPolicyClusterServices(
 				externalTrafficPolicy := service.Spec.ExternalTrafficPolicy
 				// If the service has externalTrafficPolicy is set to "Cluster" add it to the riskServices list (ExternalTrafficPolicy: "" defaults to Cluster)
 				if externalTrafficPolicy != corev1.ServiceExternalTrafficPolicyTypeLocal {
+					// Check if the service has a selector
+					serviceSelector := "selectors"
+					if service.Spec.Selector == nil {
+						serviceSelector = "no selectors"
+					}
+					riskServices = append(riskServices, fmt.Sprintf("%s/%s/%s", namespace.Name, service.Name, serviceSelector))
 					// Any service with externalTrafficPolicy=Cluster is at risk so need to elimate any services that are incorrectly flagged
-					riskServices = append(riskServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
-					// Check if are there services with selector that are allowed by a network policy that can be safely migrated
 					if checkNoServiceRisk(service, policyListAtNamespace) {
-						safeServices = append(safeServices, fmt.Sprintf("%s/%s", namespace.Name, service.Name))
+						// Check if are there services with selector that are allowed by a network policy that can be safely migrated
+						safeServices = append(safeServices, fmt.Sprintf("%s/%s/%s", namespace.Name, service.Name, serviceSelector))
 					}
 				}
 			}
@@ -471,11 +476,12 @@ func addUnsafeServicesToTable(table *tablewriter.Table, unsafeServices []string)
 		table.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "✅", ""})
 	} else {
 		table.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "❌", "Services affected:"})
-		// If there are any unsafe services then print them as they could be impacted by migration
+		// Print unsafe services as they could be impacted by migration
 		for _, service := range unsafeServices {
 			serviceName := strings.Split(service, "/")[1]
 			serviceNamespace := strings.Split(service, "/")[0]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found Service: \033[31m%s\033[0m in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)})
+			serviceSelector := strings.Split(service, "/")[2]
+			table.Append([]string{"", "❌", fmt.Sprintf("Found Service: \033[31m%s\033[0m with \033[31m%s\033[0m in namespace: \033[31m%s\033[0m\n", serviceName, serviceSelector, serviceNamespace)})
 		}
 		table.Append([]string{"", "", "Manual investigation is required to evaluate if ingress is allowed to the service's backend Pods."})
 		table.Append([]string{"", "", "Please evaluate if these services would be impacted by migration."})
