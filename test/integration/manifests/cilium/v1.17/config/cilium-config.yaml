@@ -24,7 +24,7 @@ data:
   enable-health-check-nodeport: "true"
   enable-health-checking: "true"
   enable-host-legacy-routing: "true"
-  enable-hubble: "true"
+  enable-hubble: "false"
   enable-ipv4: "true"
   enable-ipv4-masquerade: "false"
   enable-ipv6: "false"
@@ -36,16 +36,11 @@ data:
   enable-local-redirect-policy: "false"
   enable-metrics: "true"
   enable-policy: default
-  enable-remote-node-identity: "true"
   enable-session-affinity: "true"
   enable-svc-source-range-check: "true"
   enable-vtep: "false"
   enable-well-known-identities: "false"
   enable-xt-socket-fallback: "true"
-  hubble-listen-address: ""
-  hubble-metrics: flow:sourceContext=pod;destinationContext=pod tcp:sourceContext=pod;destinationContext=pod
-    dns:query drop:sourceContext=pod;destinationContext=pod
-  hubble-metrics-server: :9965
   identity-allocation-mode: crd
   install-iptables-rules: "true"
   install-no-conntrack-iptables-rules: "false"
@@ -81,11 +76,10 @@ data:
   vtep-endpoint: ""
   vtep-mac: ""
   vtep-mask: ""
-  # new default values from Cilium v1.14.4
   enable-sctp: "false"
   external-envoy-proxy: "false"
-  k8s-client-qps: "5"
-  k8s-client-burst: "10"
+  k8s-client-qps: "10"
+  k8s-client-burst: "20"
   mesh-auth-enabled: "true"
   mesh-auth-queue-size: "1024"
   mesh-auth-rotated-identities-queue-size: "1024"
@@ -95,7 +89,7 @@ data:
   proxy-max-connection-duration-seconds: "0"
   set-cilium-node-taints: "true"
   unmanaged-pod-watcher-interval: "15"
-  ## new values added for 1.16 below
+## new values added for 1.16 below
   enable-ipv4-big-tcp: "false"
   enable-ipv6-big-tcp: "false"
   enable-masquerade-to-route-source: "false"
@@ -121,6 +115,19 @@ data:
   k8s-require-ipv4-pod-cidr: "false"
   k8s-require-ipv6-pod-cidr: "false"
   enable-node-selector-labels: "false" 
+## new values for 1.17
+  ces-slice-mode: "fcfs"
+  enable-cilium-endpoint-slice: "true"
+  bpf-lb-source-range-all-types: "false"
+  bpf-algorithm-annotation: "false"
+  bpf-lb-mode-annotation: "false"
+  enable-experimental-lb: "false"
+  enable-endpoint-lockdown-on-policy-overflow: "false"
+  health-check-icmp-failure-threshold: "3"
+  enable-internal-traffic-policy: "true"
+  enable-lb-ipam: "true"
+  enable-non-default-deny-policies: "true"
+  enable-source-ip-verification: "true"
 kind: ConfigMap
 metadata:
   annotations:
