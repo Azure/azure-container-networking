@@ -232,18 +232,19 @@ func checkNoServiceRisk(service *corev1.Service, policiesListAtNamespace []*netw
 				if len(ingress.From) == 0 && len(ingress.Ports) == 0 {
 					return true
 				}
-				// Check if service is a loadbalancer and policy allows 168.63.129.16 and has no ports
-				if service.Spec.Type == corev1.ServiceTypeLoadBalancer && len(ingress.Ports) == 0 {
-					if checkAllowsLoadBalancerIP(ingress.From) {
-						return true
-					}
-				}
-				// If there are no ingress from but there are ports in the policy; check if the service is safe
-				if len(ingress.From) == 0 {
+				// If there are ports in the policy; check if the service is safe
+				if len(ingress.Ports) > 0 {
 					// If the policy targets all pods (allow all) or only pods that are in the service selector, check if traffic is allowed to all the service's target ports
 					// Note: ingress.Ports.protocol will never be nil if len(ingress.Ports) is greater than 0. It defaults to "TCP" if not set
 					if checkServiceTargetPortMatchPolicyPorts(service.Spec.Ports, ingress.Ports) {
-						return true
+						// Check if service is not a load balancer (node port)
+						if service.Spec.Type == corev1.ServiceTypeNodePort {
+							return true
+						}
+						// If the service is a load balancer check if there exists a policy in the namespace that allows 168.63.129.16 (health probe IP)
+						if checkAPolicyAllowsHealthProbeIP(policiesListAtNamespace) {
+							return true
+						}
 					}
 				}
 			}
@@ -339,16 +340,34 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 	return true
 }
 
-func checkAllowsLoadBalancerIP(from []networkingv1.NetworkPolicyPeer) bool {
-	loadBalancerIP := net.ParseIP("168.63.129.16")
-	for _, fromRule := range from {
-		if fromRule.IPBlock != nil && fromRule.IPBlock.CIDR != "" {
-			_, cidr, err := net.ParseCIDR(fromRule.IPBlock.CIDR)
-			if err != nil {
-				continue
-			}
-			if cidr.Contains(loadBalancerIP) {
-				return true
+func checkAPolicyAllowsHealthProbeIP(policiesListAtNamespace []*networkingv1.NetworkPolicy) bool {
+	healthProbeIP := net.ParseIP("168.63.129.16")
+	for _, policy := range policiesListAtNamespace {
+		for _, ingress := range policy.Spec.Ingress {
+			for _, from := range ingress.From {
+				// Check if the policy allows traffic from the health probe IP and there is no except
+				// Note: ipBlock cannot be AND'd with namespaceSelector or podSelector
+				if from.IPBlock != nil && from.IPBlock.CIDR != "" {
+					// Check if the health probe IP is blocked in the CIDR except
+					if from.IPBlock.Except != nil {
+						for _, except := range from.IPBlock.Except {
+							_, excecptCidr, err := net.ParseCIDR(except)
+							if err != nil {
+								continue
+							}
+							if excecptCidr.Contains(healthProbeIP) {
+								return false
+							}
+						}
+					}
+					_, cidr, err := net.ParseCIDR(from.IPBlock.CIDR)
+					if err != nil {
+						continue
+					}
+					if cidr.Contains(healthProbeIP) {
+						return true
+					}
+				}
 			}
 		}
 	}
@@ -413,18 +432,18 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 
 func addPoliciesWithEndportToTable(table *tablewriter.Table, ingressEndportNetworkPolicy, egressEndportNetworkPolicy []string) {
 	if len(ingressEndportNetworkPolicy) == 0 && len(egressEndportNetworkPolicy) == 0 {
-		table.Append([]string{"NetworkPolicy with endport", "✅", ""})
+		table.Append([]string{"NetworkPolicy with endPort", "✅", ""})
 	} else {
-		table.Append([]string{"NetworkPolicy with endport", "❌", "Policies affected:"})
+		table.Append([]string{"NetworkPolicy with endPort", "❌", "Policies Affected:"})
 		for _, policy := range ingressEndportNetworkPolicy {
 			policyNamespace := strings.Split(policy, "/")[0]
 			policyName := strings.Split(policy, "/")[1]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with ingress endPort field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Ingress endPort field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
 		}
 		for _, policy := range egressEndportNetworkPolicy {
 			policyNamespace := strings.Split(policy, "/")[0]
 			policyName := strings.Split(policy, "/")[1]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m\n with egress endPort field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m\n with Egress endPort field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
 		}
 	}
 }
@@ -433,29 +452,29 @@ func addPoliciesWithCIDRToTable(table *tablewriter.Table, ingressPoliciesWithCID
 	if len(ingressPoliciesWithCIDR) == 0 && len(egressPoliciesWithCIDR) == 0 {
 		table.Append([]string{"NetworkPolicy with CIDR", "✅", ""})
 	} else {
-		table.Append([]string{"NetworkPolicy with CIDR", "❌", "Policies affected:"})
+		table.Append([]string{"NetworkPolicy with CIDR", "❌", "Policies Affected:"})
 		for _, policy := range ingressPoliciesWithCIDR {
 			policyNamespace := strings.Split(policy, "/")[0]
 			policyName := strings.Split(policy, "/")[1]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with ingress CIDR field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Ingress CIDR field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
 		}
 		for _, policy := range egressPoliciesWithCIDR {
 			policyNamespace := strings.Split(policy, "/")[0]
 			policyName := strings.Split(policy, "/")[1]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with egress CIDR field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Egress CIDR field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
 		}
 	}
 }
 
 func addEgressPoliciesToTable(table *tablewriter.Table, egressPolicies []string) {
 	if len(egressPolicies) == 0 {
-		table.Append([]string{"NetworkPolicy with egress (Not allow all egress)", "✅", ""})
+		table.Append([]string{"NetworkPolicy with Egress (Not Allow All Egress)", "✅", ""})
 	} else {
-		table.Append([]string{"NetworkPolicy with egress (Not allow all egress)", "❌", "Policies affected:"})
+		table.Append([]string{"NetworkPolicy with Egress (Not Allow All Egress)", "❌", "Policies Affected:"})
 		for _, policy := range egressPolicies {
 			policyNamespace := strings.Split(policy, "/")[0]
 			policyName := strings.Split(policy, "/")[1]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with egress field (non-allow all) in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Egress field (Not Allow All) in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
 		}
 	}
 }
@@ -465,7 +484,7 @@ func addUnsafeServicesToTable(table *tablewriter.Table, unsafeServices []string)
 	if len(unsafeServices) == 0 {
 		table.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "✅", ""})
 	} else {
-		table.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "❌", "Services affected:"})
+		table.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "❌", "Services Affected:"})
 		// If there are any unsafe services then print them as they could be impacted by migration
 		for _, service := range unsafeServices {
 			serviceName := strings.Split(service, "/")[1]
