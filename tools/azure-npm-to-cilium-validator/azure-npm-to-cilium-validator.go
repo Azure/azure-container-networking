@@ -172,11 +172,11 @@ func getEgressPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPol
 	return egressPolicies
 }
 
-func getExternalTrafficPolicyClusterServices(
+func getUnsafeExternalTrafficPolicyClusterServices(
 	namespaces *corev1.NamespaceList,
 	servicesByNamespace map[string][]*corev1.Service,
 	policiesByNamespace map[string][]*networkingv1.NetworkPolicy,
-) (unsafeRiskServices, unsafeNoSelectorServices []string) {
+) (unsafeServices []string) {
 	var riskServices, noSelectorServices, safeServices []string
 
 	for i := range namespaces.Items {
@@ -210,10 +210,8 @@ func getExternalTrafficPolicyClusterServices(
 	}
 
 	// Remove all the safe services from the services at risk
-	unsafeRiskServices = difference(riskServices, safeServices)
-	// Remove all the safe services from the no selector services
-	unsafeNoSelectorServices = difference(noSelectorServices, safeServices)
-	return unsafeRiskServices, unsafeNoSelectorServices
+	unsafeServices = difference(riskServices, safeServices)
+	return unsafeServices
 }
 
 func hasIngressPolicies(policies []*networkingv1.NetworkPolicy) bool {
@@ -402,17 +400,17 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 	// Add the network policies with egress
 	addEgressPoliciesToTable(table, egressPolicies)
 
-	// Get services that have externalTrafficPolicy!=Local
-	unsafeRiskServices, unsafeNoSelectorServices := getExternalTrafficPolicyClusterServices(namespaces, servicesByNamespace, policiesByNamespace)
+	// Get services that have externalTrafficPolicy!=Local that are unsafe (might have traffic disruption)
+	unsafeServices := getUnsafeExternalTrafficPolicyClusterServices(namespaces, servicesByNamespace, policiesByNamespace)
 	// Add the services that are at risk
-	addUnsafeServicesToTable(table, unsafeRiskServices, unsafeNoSelectorServices)
+	addUnsafeServicesToTable(table, unsafeServices)
 
 	table.Render()
 
 	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
 		len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
 		len(egressPolicies) > 0 ||
-		len(unsafeRiskServices) > 0 || len(unsafeNoSelectorServices) > 0 {
+		len(unsafeServices) > 0 {
 		fmt.Println("\033[31m✘ Review above issues before migration.\033[0m")
 		fmt.Println("Please see \033[32maka.ms/azurenpmtocilium\033[0m for instructions on how to evaluate/assess the above warnings marked by ❌.")
 		fmt.Println("NOTE: rerun this script if any modifications (create/update/delete) are made to services or policies.")
@@ -471,29 +469,17 @@ func addEgressPoliciesToTable(table *tablewriter.Table, egressPolicies []string)
 	}
 }
 
-func addUnsafeServicesToTable(table *tablewriter.Table, unsafeRiskServices, unsafeNoSelectorServices []string) {
+func addUnsafeServicesToTable(table *tablewriter.Table, unsafeServices []string) {
 	// If there is no unsafe services and services with no selectors then migration is safe for services with extranalTrafficPolicy=Cluster
-	if len(unsafeRiskServices) == 0 {
+	if len(unsafeServices) == 0 {
 		table.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "✅", ""})
 	} else {
-		// Remove all no selector services from unsafe services to prevent repeating the same flagged service
-		unsafeRiskServices = difference(unsafeRiskServices, unsafeNoSelectorServices)
 		table.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "❌", "Services affected:"})
-		fmt.Println("Services affected:")
-		// If there are any no selector services or unsafe services then print them as they could be impacted by migration
-		if len(unsafeNoSelectorServices) > 0 {
-			for _, service := range unsafeNoSelectorServices {
-				serviceName := strings.Split(service, "/")[1]
-				serviceNamespace := strings.Split(service, "/")[0]
-				table.Append([]string{"", "❌", fmt.Sprintf("Found Service: \033[31m%s\033[0m without selectors in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)})
-			}
-		}
-		if len(unsafeRiskServices) > 0 {
-			for _, service := range unsafeRiskServices {
-				serviceName := strings.Split(service, "/")[1]
-				serviceNamespace := strings.Split(service, "/")[0]
-				table.Append([]string{"", "❌", fmt.Sprintf("Found Service: \033[31m%s\033[0m with selectors in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)})
-			}
+		// If there are any unsafe services then print them as they could be impacted by migration
+		for _, service := range unsafeServices {
+			serviceName := strings.Split(service, "/")[1]
+			serviceNamespace := strings.Split(service, "/")[0]
+			table.Append([]string{"", "❌", fmt.Sprintf("Found Service: \033[31m%s\033[0m with selectors in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)})
 		}
 		table.Append([]string{"", "", "Manual investigation is required to evaluate if ingress is allowed to the service's backend Pods."})
 		table.Append([]string{"", "", "Please evaluate if these services would be impacted by migration."})

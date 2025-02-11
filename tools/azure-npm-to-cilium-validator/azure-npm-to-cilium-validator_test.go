@@ -796,12 +796,11 @@ func TestGetEgressPolicies(t *testing.T) {
 
 func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 	tests := []struct {
-		name                             string
-		namespaces                       *corev1.NamespaceList
-		servicesByNamespace              map[string][]*corev1.Service
-		policiesByNamespace              map[string][]*networkingv1.NetworkPolicy
-		expectedUnsafeRiskServices       []string
-		expectedUnsafeNoSelectorServices []string
+		name                   string
+		namespaces             *corev1.NamespaceList
+		servicesByNamespace    map[string][]*corev1.Service
+		policiesByNamespace    map[string][]*networkingv1.NetworkPolicy
+		expectedUnsafeServices []string
 	}{
 		// Scenarios where there are no LoadBalancer or NodePort services
 		{
@@ -809,10 +808,9 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 			namespaces: &corev1.NamespaceList{
 				Items: []corev1.Namespace{},
 			},
-			servicesByNamespace:              map[string][]*corev1.Service{},
-			policiesByNamespace:              map[string][]*networkingv1.NetworkPolicy{},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			servicesByNamespace:    map[string][]*corev1.Service{},
+			policiesByNamespace:    map[string][]*networkingv1.NetworkPolicy{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "Namespace with no policies and services",
@@ -827,8 +825,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
 				"namespace1": {},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		// Scenarios where there are LoadBalancer or NodePort services but externalTrafficPolicy is not Cluster
 		{
@@ -860,8 +857,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "NodePort service with externalTrafficPolicy=Local with no selector and a deny all ingress policy with no selector",
@@ -892,8 +888,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		// Scenarios where there are LoadBalancer or NodePort services with externalTrafficPolicy=Cluster but no policies
 		{
@@ -917,8 +912,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
 				"namespace1": {},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "NodePort service with externalTrafficPolicy=Cluster with no selector and no policies",
@@ -941,8 +935,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
 				"namespace1": {},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		// Scenarios where there are LoadBalancer or NodePort services with externalTrafficPolicy=Cluster and policies allow traffic
 		{
@@ -977,8 +970,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a matching selector",
@@ -1015,8 +1007,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a matching selector and ports",
@@ -1070,8 +1061,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.16/32 ingress policy with a matching selector and no ports",
@@ -1119,8 +1109,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "NodePort service with externalTrafficPolicy=Cluster with no selector and an allow all ingress policy with no selector",
@@ -1154,8 +1143,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "NodePort service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a matching selector",
@@ -1192,8 +1180,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "NodePort service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a matching selector and ports",
@@ -1247,8 +1234,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		// Scenarios where there are LoadBalancer or NodePort services with externalTrafficPolicy=Cluster and policies deny traffic
 		{
@@ -1280,8 +1266,43 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-no-selector"},
-			expectedUnsafeNoSelectorServices: []string{"namespace1/service-with-no-selector"},
+			expectedUnsafeServices: []string{"namespace1/service-with-no-selector"},
+		},
+		{
+			name: "LoadBalancer service with externalTrafficPolicy=Cluster with no selector and an allow all ingress policy with a selector",
+			namespaces: &corev1.NamespaceList{
+				Items: []corev1.Namespace{
+					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
+				},
+			},
+			servicesByNamespace: map[string][]*corev1.Service{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "service-with-no-selector"},
+						Spec: corev1.ServiceSpec{
+							Type:                  corev1.ServiceTypeLoadBalancer,
+							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
+						},
+					},
+				},
+			},
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-no-selector"},
+						Spec: networkingv1.NetworkPolicySpec{
+							PodSelector: metav1.LabelSelector{
+								MatchLabels: map[string]string{"app": "test"},
+							},
+							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{},
+							},
+						},
+					},
+				},
+			},
+			expectedUnsafeServices: []string{"namespace1/service-with-no-selector"},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an deny all ingress policy with a matching selector",
@@ -1315,8 +1336,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector"},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster and matching policy that is not an allow all",
@@ -1361,8 +1381,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/external-traffic-policy-cluster-service"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/external-traffic-policy-cluster-service"},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a selector that doesnt match",
@@ -1399,8 +1418,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector"},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a selector that has more labels",
@@ -1437,8 +1455,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector"},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a matching selector but ports dont match",
@@ -1504,8 +1521,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector-and-named-ports"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-named-ports"},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a matching selector but uses named ports",
@@ -1559,8 +1575,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector-and-named-ports"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-named-ports"},
 		},
 		// Scenarios covering edge cases
 		{
@@ -1602,8 +1617,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and a allow all and deny all ingress policy with a matching selector",
@@ -1649,8 +1663,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and no ports and an allow all ingress policy with a matching selector and ports",
@@ -1697,8 +1710,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector"},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with no selector and an allow all ingress policy with a matchExpressions selector",
@@ -1748,8 +1760,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector-and-ports"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-ports"},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a matchExpressions selector",
@@ -1791,8 +1802,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-no-selector"},
-			expectedUnsafeNoSelectorServices: []string{"namespace1/service-with-no-selector"},
+			expectedUnsafeServices: []string{"namespace1/service-with-no-selector"},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a matching selector and protocol with no ports",
@@ -1845,8 +1855,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow all ingress policy with a matching selector and port and port=0",
@@ -1907,8 +1916,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and targetport=0 and an allow all ingress policy with a matching selector and different ports",
@@ -1962,8 +1970,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector-and-ports"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-ports"},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and targetport=0 and an allow all ingress policy with a matching selector and ports=0",
@@ -2017,8 +2024,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector-and-ports"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-ports"},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.18/32 ingress policy with a matching selector and no ports",
@@ -2066,8 +2072,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector-and-ports"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-ports"},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.16/32 ingress policy with a matching selector and ports",
@@ -2124,8 +2129,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector-and-ports"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-ports"},
 		},
 		// Scenarios where there are LoadBalancer or NodePort services with externalTrafficPolicy=Cluster and there are multiple namespaces
 		{
@@ -2246,8 +2250,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "LoadBalancer or NodePort services with externalTrafficPolicy=Cluster and allow all ingress policies without matching label and ports in multiple namespaces",
@@ -2372,8 +2375,7 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector", "namespace2/service-with-selector-and-ports", "namespace3/service-with-selector-and-ports"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector", "namespace2/service-with-selector-and-ports", "namespace3/service-with-selector-and-ports"},
 		},
 		{
 			name: "LoadBalancer or NodePort services with externalTrafficPolicy=Cluster and allow all ingress policies with some matching label and ports in multiple namespaces",
@@ -2536,19 +2538,15 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 					},
 				},
 			},
-			expectedUnsafeRiskServices:       []string{"namespace1/service-with-selector-no-match", "namespace2/service-with-selector-and-ports-no-match", "namespace3/service-with-selector-and-ports-no-match"},
-			expectedUnsafeNoSelectorServices: []string{},
+			expectedUnsafeServices: []string{"namespace1/service-with-selector-no-match", "namespace2/service-with-selector-and-ports-no-match", "namespace3/service-with-selector-and-ports-no-match"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			unsafeServices, noSelectorServices := getExternalTrafficPolicyClusterServices(tt.namespaces, tt.servicesByNamespace, tt.policiesByNamespace)
-			if !equal(unsafeServices, tt.expectedUnsafeRiskServices) {
-				t.Errorf("expected unsafe services %v, got %v", tt.expectedUnsafeRiskServices, unsafeServices)
-			}
-			if !equal(noSelectorServices, tt.expectedUnsafeNoSelectorServices) {
-				t.Errorf("expected no selector services %v, got %v", tt.expectedUnsafeNoSelectorServices, noSelectorServices)
+			unsafeServices := getUnsafeExternalTrafficPolicyClusterServices(tt.namespaces, tt.servicesByNamespace, tt.policiesByNamespace)
+			if !equal(unsafeServices, tt.expectedUnsafeServices) {
+				t.Errorf("expected unsafe services %v, got %v", tt.expectedUnsafeServices, unsafeServices)
 			}
 		})
 	}
