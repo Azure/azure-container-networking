@@ -16,7 +16,7 @@ jobs:
     displayName: "NPM k8s E2E"
     dependsOn: ${{ parameters.dependsOn }}
     condition: and( and( not(canceled()), not(failed()) ), ${{ or(contains(parameters.os_version, '2022'), eq(parameters.os, 'linux') ) }} , or( contains(variables.CONTROL_SCENARIO, 'npm') , contains(variables.CONTROL_SCENARIO, 'all') ) )
-    timeoutInMinutes: 180 # This is for testing windows, due to the 3m between the 14 tests -> results in 42m of wasted time
+    timeoutInMinutes: 250 #this is for testing windows, due to the 3m between the 14 tests -> results in 42m of wasted time
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
       demands:
