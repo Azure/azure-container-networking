@@ -38,6 +38,7 @@ func SendHeartBeat(ctx context.Context, heartbeatInterval time.Duration, homeAzM
 				case types.Success:
 					metric.CustomDimensions[logger.IsAZRSupportedStr] = strconv.FormatBool(getHomeAzResp.HomeAzResponse.IsSupported)
 					metric.CustomDimensions[logger.HomeAZStr] = strconv.FormatUint(uint64(getHomeAzResp.HomeAzResponse.HomeAz), 10)
+					metric.CustomDimensions[logger.IsAZRDualStackFixPresentStr] = strconv.FormatBool(getHomeAzResp.HomeAzResponse.NmaAppliedTheIPV6Fix)
 				default:
 					metric.CustomDimensions[logger.HomeAZErrorCodeStr] = getHomeAzResp.Response.ReturnCode.String()
 					metric.CustomDimensions[logger.HomeAZErrorMsgStr] = getHomeAzResp.Response.Message

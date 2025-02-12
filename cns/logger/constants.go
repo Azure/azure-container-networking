@@ -11,6 +11,7 @@ const (
 	NodeIDStr                       = "NodeID"
 	HomeAZStr                       = "HomeAZ"
 	IsAZRSupportedStr               = "IsAZRSupported"
+	IsAZRDualStackFixPresentStr     = "IsAZRDualStackFixPresent"
 	HomeAZErrorCodeStr              = "HomeAZErrorCode"
 	HomeAZErrorMsgStr               = "HomeAZErrorMsg"
 	CNSConfigPropertyStr            = "CNSConfiguration"
