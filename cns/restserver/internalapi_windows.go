@@ -11,7 +11,7 @@ var errUnsupportedAPI = errors.New("unsupported api")
 
 type IPtablesProvider struct{}
 
-func (_ *IPtablesProvider) GetIPTables() (iptablesClient, error) {
+func (*IPtablesProvider) GetIPTables() (iptablesClient, error) {
 	return nil, errUnsupportedAPI
 }
 
