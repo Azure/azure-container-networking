@@ -54,11 +54,24 @@ type imdsClient interface {
 	GetVMUniqueID(ctx context.Context) (string, error)
 }
 
+type iptablesClient interface {
+	ChainExists(table string, chain string) (bool, error)
+	NewChain(table string, chain string) error
+	Append(table string, chain string, rulespec ...string) error
+	Exists(table string, chain string, rulespec ...string) (bool, error)
+	Insert(table string, chain string, pos int, rulespec ...string) error
+}
+
+type iptablesGetter interface {
+	GetIPTables() (iptablesClient, error)
+}
+
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
 	dockerClient             *dockerclient.Client
 	wscli                    interfaceGetter
+	iptables                 iptablesGetter
 	nma                      nmagentClient
 	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
@@ -167,7 +180,7 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, nmagentClient nmagentClient,
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, iptg iptablesGetter, nmagentClient nmagentClient,
 	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
 	imdsClient imdsClient,
 ) (*HTTPRestService, error) {
@@ -214,6 +227,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		store:                    service.Service.Store,
 		dockerClient:             dc,
 		wscli:                    wscli,
+		iptables:                 iptg,
 		nma:                      nmagentClient,
 		wsproxy:                  wsproxy,
 		networkContainer:         nc,

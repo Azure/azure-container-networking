@@ -15,6 +15,14 @@ import (
 
 const SWIFT = "SWIFT-POSTROUTING"
 
+type IPtablesProvider struct {
+	iptc iptablesClient
+}
+
+func (c *IPtablesProvider) GetIPTables() (iptablesClient, error) {
+	return goiptables.New()
+}
+
 // nolint
 func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
 	service.Lock()
@@ -24,7 +32,7 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 	// in podsubnet case, ncPrimaryIP is the pod subnet's primary ip
 	// in vnet scale case, ncPrimaryIP is the node's ip
 	ncPrimaryIP, _, _ := net.ParseCIDR(req.IPConfiguration.IPSubnet.IPAddress + "/" + fmt.Sprintf("%d", req.IPConfiguration.IPSubnet.PrefixLength))
-	ipt, err := goiptables.New()
+	ipt, err := service.iptables.GetIPTables()
 	if err != nil {
 		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to create iptables interface : %v", err)
 	}
