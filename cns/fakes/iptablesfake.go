@@ -23,14 +23,6 @@ func NewIPTablesMock() *IPTablesMock {
 	}
 }
 
-type iptablesClient interface {
-	ChainExists(table string, chain string) (bool, error)
-	NewChain(table string, chain string) error
-	Exists(table string, chain string, rulespec ...string) (bool, error)
-	Append(table string, chain string, rulespec ...string) error
-	Insert(table string, chain string, pos int, rulespec ...string) error
-}
-
 func (c *IPTablesMock) ensureTableExists(table string) {
 	_, exists := c.state[table]
 	if !exists {
@@ -69,7 +61,7 @@ func (c *IPTablesMock) NewChain(table, chain string) error {
 	return nil
 }
 
-func (c *IPTablesMock) Exists(table string, chain string, rulespec ...string) (bool, error) {
+func (c *IPTablesMock) Exists(table, chain string, rulespec ...string) (bool, error) {
 	c.ensureTableExists(table)
 
 	chainExists, _ := c.ChainExists(table, chain)
@@ -77,7 +69,7 @@ func (c *IPTablesMock) Exists(table string, chain string, rulespec ...string) (b
 		return false, nil
 	}
 
-	targetRule := strings.Join(rulespec[:], " ")
+	targetRule := strings.Join(rulespec, " ")
 	chainRules := c.state[table][chain]
 
 	for _, chainRule := range chainRules {
@@ -88,7 +80,7 @@ func (c *IPTablesMock) Exists(table string, chain string, rulespec ...string) (b
 	return false, nil
 }
 
-func (c *IPTablesMock) Append(table string, chain string, rulespec ...string) error {
+func (c *IPTablesMock) Append(table, chain string, rulespec ...string) error {
 	c.ensureTableExists(table)
 
 	chainExists, _ := c.ChainExists(table, chain)
@@ -101,11 +93,11 @@ func (c *IPTablesMock) Append(table string, chain string, rulespec ...string) er
 		return errRuleExists
 	}
 
-	targetRule := strings.Join(rulespec[:], " ")
+	targetRule := strings.Join(rulespec, " ")
 	c.state[table][chain] = append(c.state[table][chain], targetRule)
 	return nil
 }
 
-func (c *IPTablesMock) Insert(table string, chain string, _ int, rulespec ...string) error {
+func (c *IPTablesMock) Insert(table, chain string, _ int, rulespec ...string) error {
 	return c.Append(table, chain, rulespec...)
 }

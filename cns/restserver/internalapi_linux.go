@@ -11,16 +11,16 @@ import (
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	goiptables "github.com/coreos/go-iptables/iptables"
+	"github.com/pkg/errors"
 )
 
 const SWIFT = "SWIFT-POSTROUTING"
 
-type IPtablesProvider struct {
-	iptc iptablesClient
-}
+type IPtablesProvider struct{}
 
 func (c *IPtablesProvider) GetIPTables() (iptablesClient, error) {
-	return goiptables.New()
+	client, err := goiptables.New()
+	return client, errors.Wrap(err, "failed to get iptables client")
 }
 
 // nolint
