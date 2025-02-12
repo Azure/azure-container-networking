@@ -49,12 +49,25 @@ type wireserverProxy interface {
 	UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
 }
 
+type iptablesClient interface {
+	ChainExists(table string, chain string) (bool, error)
+	NewChain(table string, chain string) error
+	Append(table string, chain string, rulespec ...string) error
+	Exists(table string, chain string, rulespec ...string) (bool, error)
+	Insert(table string, chain string, pos int, rulespec ...string) error
+}
+
+type iptablesGetter interface {
+	GetIPTables() (iptablesClient, error)
+}
+
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
 	dockerClient             *dockerclient.Client
 	wscli                    interfaceGetter
 	ipamClient               *ipamclient.IpamClient
+	iptables                 iptablesGetter
 	nma                      nmagentClient
 	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
@@ -159,7 +172,7 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, nmagentClient nmagentClient,
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, iptg iptablesGetter, nmagentClient nmagentClient,
 	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
 ) (*HTTPRestService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
@@ -210,6 +223,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		dockerClient:             dc,
 		wscli:                    wscli,
 		ipamClient:               ic,
+		iptables:                 iptg,
 		nma:                      nmagentClient,
 		wsproxy:                  wsproxy,
 		networkContainer:         nc,

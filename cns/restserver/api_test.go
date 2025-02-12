@@ -1679,7 +1679,7 @@ func startService() error {
 	config.Store = fileStore
 
 	nmagentClient := &fakes.NMAgentClientFake{}
-	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, nmagentClient, nil, nil, nil)
+	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &IPtablesProvider{}, nmagentClient, nil, nil, nil)
 	if err != nil {
 		return err
 	}

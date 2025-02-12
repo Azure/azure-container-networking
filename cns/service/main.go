@@ -747,7 +747,7 @@ func main() {
 		Logger:     logger.Log,
 	}
 
-	httpRemoteRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, nmaClient,
+	httpRemoteRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, &restserver.IPtablesProvider{}, nmaClient,
 		endpointStateStore, conflistGenerator, homeAzMonitor)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)

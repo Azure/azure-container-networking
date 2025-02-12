@@ -63,7 +63,7 @@ type ncState struct {
 
 func getTestService() *HTTPRestService {
 	var config common.ServiceConfig
-	httpsvc, _ := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &fakes.NMAgentClientFake{}, store.NewMockStore(""), nil, nil)
+	httpsvc, _ := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &IPtablesProvider{}, &fakes.NMAgentClientFake{}, store.NewMockStore(""), nil, nil)
 	svc = httpsvc
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 
