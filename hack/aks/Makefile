@@ -19,7 +19,7 @@ OS_SKU_WIN           ?= Windows2022
 REGION               ?= westus2
 VM_SIZE	             ?= Standard_B2s
 VM_SIZE_WIN          ?= Standard_B2s
-KUBE_PROXY_JSON_PATH ?= /root/tmpsrc/kube-proxy.json
+KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
 
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
