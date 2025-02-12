@@ -232,19 +232,20 @@ func checkNoServiceRisk(service *corev1.Service, policiesListAtNamespace []*netw
 				if len(ingress.From) == 0 && len(ingress.Ports) == 0 {
 					return true
 				}
-				// If there are ports in the policy; check if the service is safe
-				if len(ingress.Ports) > 0 {
-					// If the policy targets all pods (allow all) or only pods that are in the service selector, check if traffic is allowed to all the service's target ports
-					// Note: ingress.Ports.protocol will never be nil if len(ingress.Ports) is greater than 0. It defaults to "TCP" if not set
-					if checkServiceTargetPortMatchPolicyPorts(service.Spec.Ports, ingress.Ports) {
-						// Check if service is not a load balancer (node port)
-						if service.Spec.Type == corev1.ServiceTypeNodePort {
-							return true
-						}
-						// If the service is a load balancer check if there exists a policy in the namespace that allows 168.63.129.16 (health probe IP)
-						if checkAPolicyAllowsHealthProbeIP(policiesListAtNamespace) {
-							return true
-						}
+				// If the policy targets all pods (allow all) or only pods that are in the service selector, check if traffic is allowed to all the service's target ports
+				// Note: ingress.Ports.protocol will never be nil if len(ingress.Ports) is greater than 0. It defaults to "TCP" if not set
+				if len(ingress.Ports) > 0 && checkServiceTargetPortMatchPolicyPorts(service.Spec.Ports, ingress.Ports) {
+					switch service.Spec.Type {
+					// If service the service is a node port check the policy does not have from rules that could disrupt traffic
+					case corev1.ServiceTypeNodePort:
+							if len(ingress.From) == 0 {
+									return true
+							}
+					// If the service is a load balancer check if there exists a policy in the namespace that allows 168.63.129.16 (health probe IP)
+					case corev1.ServiceTypeLoadBalancer:
+							if checkAPolicyAllowsHealthProbeIP(service, policiesListAtNamespace) {
+									return true
+							}
 					}
 				}
 			}
@@ -340,32 +341,34 @@ func checkServiceTargetPortMatchPolicyPorts(servicePorts []corev1.ServicePort, p
 	return true
 }
 
-func checkAPolicyAllowsHealthProbeIP(policiesListAtNamespace []*networkingv1.NetworkPolicy) bool {
+func checkAPolicyAllowsHealthProbeIP(service *corev1.Service, policiesListAtNamespace []*networkingv1.NetworkPolicy) bool {
 	healthProbeIP := net.ParseIP("168.63.129.16")
 	for _, policy := range policiesListAtNamespace {
-		for _, ingress := range policy.Spec.Ingress {
-			for _, from := range ingress.From {
-				// Check if the policy allows traffic from the health probe IP and there is no except
-				// Note: ipBlock cannot be AND'd with namespaceSelector or podSelector
-				if from.IPBlock != nil && from.IPBlock.CIDR != "" {
-					// Check if the health probe IP is blocked in the CIDR except
-					if from.IPBlock.Except != nil {
-						for _, except := range from.IPBlock.Except {
-							_, excecptCidr, err := net.ParseCIDR(except)
-							if err != nil {
-								continue
-							}
-							if excecptCidr.Contains(healthProbeIP) {
-								return false
+		if checkPolicyMatchServiceLabels(service.Spec.Selector, policy.Spec.PodSelector) {
+			for _, ingress := range policy.Spec.Ingress {
+				for _, from := range ingress.From {
+					// Check if the policy allows traffic from the health probe IP and there is no except
+					// Note: ipBlock is additive cannot be AND'd with namespaceSelector or podSelector
+					if from.IPBlock != nil && from.IPBlock.CIDR != "" {
+						// Check if the health probe IP is blocked in the CIDR except
+						if from.IPBlock.Except != nil {
+							for _, except := range from.IPBlock.Except {
+								_, excecptCidr, err := net.ParseCIDR(except)
+								if err != nil {
+									continue
+								}
+								if excecptCidr.Contains(healthProbeIP) {
+									return false
+								}
 							}
 						}
-					}
-					_, cidr, err := net.ParseCIDR(from.IPBlock.CIDR)
-					if err != nil {
-						continue
-					}
-					if cidr.Contains(healthProbeIP) {
-						return true
+						_, cidr, err := net.ParseCIDR(from.IPBlock.CIDR)
+						if err != nil {
+							continue
+						}
+						if cidr.Contains(healthProbeIP) {
+							return true
+						}
 					}
 				}
 			}
