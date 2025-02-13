@@ -52,7 +52,6 @@ func startService(cnsPort, cnsURL string) error {
 	service, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{},
 		&fakes.WireserverProxyFake{}, &restserver.IPtablesProvider{}, nmagentClient, nil, nil, nil,
 		fakes.NewMockIMDSClient())
-
 	if err != nil {
 		return errors.Wrap(err, "Failed to initialize service")
 	}
