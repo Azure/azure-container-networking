@@ -1046,9 +1046,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
 							Ingress: []networkingv1.NetworkPolicyIngressRule{
 								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
-									},
 									Ports: []networkingv1.NetworkPolicyPort{
 										{
 											Port: intstrPtr(intstr.FromInt(80)),
@@ -1328,7 +1325,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 											PodSelector: &metav1.LabelSelector{
 												MatchLabels: map[string]string{"app": "test"},
 											},
-											IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"},
 										},
 									},
 								},
@@ -1470,9 +1466,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 												return &protocol
 											}(),
 										},
-									},
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
 									},
 								},
 							},
@@ -1663,9 +1656,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 											}(),
 										},
 									},
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
-									},
 								},
 							},
 						},
@@ -1811,9 +1801,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 											}(),
 										},
 									},
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
-									},
 								},
 							},
 						},
@@ -1875,9 +1862,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 											}(),
 										},
 									},
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
-									},
 								},
 							},
 						},
@@ -1931,9 +1915,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 												return &protocol
 											}(),
 										},
-									},
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
 									},
 								},
 							},
@@ -1989,9 +1970,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 											}(),
 										},
 									},
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
-									},
 								},
 							},
 						},
@@ -1999,233 +1977,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 				},
 			},
 			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-ports"},
-		},
-		{
-			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.18/32 ingress policy with a matching selector and no ports",
-			namespaces: &corev1.NamespaceList{
-				Items: []corev1.Namespace{
-					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
-				},
-			},
-			servicesByNamespace: map[string][]*corev1.Service{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector-and-ports"},
-						Spec: corev1.ServiceSpec{
-							Type:     corev1.ServiceTypeLoadBalancer,
-							Selector: map[string]string{"app": "test"},
-							Ports: []corev1.ServicePort{
-								{
-									Port:       80,
-									Protocol:   corev1.ProtocolTCP,
-									TargetPort: intstr.FromInt(80),
-								},
-							},
-							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
-						},
-					},
-				},
-			},
-			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-ports"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.18/32"}},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-ports"},
-		},
-		{
-			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.18/32 ingress policy with a matching selector and ports",
-			namespaces: &corev1.NamespaceList{
-				Items: []corev1.Namespace{
-					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
-				},
-			},
-			servicesByNamespace: map[string][]*corev1.Service{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector-and-ports"},
-						Spec: corev1.ServiceSpec{
-							Type:     corev1.ServiceTypeLoadBalancer,
-							Selector: map[string]string{"app": "test"},
-							Ports: []corev1.ServicePort{
-								{
-									Port:       80,
-									Protocol:   corev1.ProtocolTCP,
-									TargetPort: intstr.FromInt(80),
-								},
-							},
-							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
-						},
-					},
-				},
-			},
-			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-ports"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.18/32"}},
-									},
-									Ports: []networkingv1.NetworkPolicyPort{
-										{
-											Port: intstrPtr(intstr.FromInt(80)),
-											Protocol: func() *corev1.Protocol {
-												protocol := corev1.ProtocolTCP
-												return &protocol
-											}(),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-ports"},
-		},
-		{
-			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.16/32 ingress policy with a matching selector and ports",
-			namespaces: &corev1.NamespaceList{
-				Items: []corev1.Namespace{
-					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
-				},
-			},
-			servicesByNamespace: map[string][]*corev1.Service{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector-and-ports"},
-						Spec: corev1.ServiceSpec{
-							Type:     corev1.ServiceTypeLoadBalancer,
-							Selector: map[string]string{"app": "test"},
-							Ports: []corev1.ServicePort{
-								{
-									Port:       80,
-									Protocol:   corev1.ProtocolTCP,
-									TargetPort: intstr.FromInt(80),
-								},
-							},
-							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
-						},
-					},
-				},
-			},
-			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-ports"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
-									},
-									Ports: []networkingv1.NetworkPolicyPort{
-										{
-											Port: intstrPtr(intstr.FromInt(80)),
-											Protocol: func() *corev1.Protocol {
-												protocol := corev1.ProtocolTCP
-												return &protocol
-											}(),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedUnsafeServices: []string{},
-		},
-		{
-			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.16/32 ingress policy with a matching selector and ports and pod/namespace selectors",
-			namespaces: &corev1.NamespaceList{
-				Items: []corev1.Namespace{
-					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
-				},
-			},
-			servicesByNamespace: map[string][]*corev1.Service{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector-and-ports"},
-						Spec: corev1.ServiceSpec{
-							Type:     corev1.ServiceTypeLoadBalancer,
-							Selector: map[string]string{"app": "test"},
-							Ports: []corev1.ServicePort{
-								{
-									Port:       80,
-									Protocol:   corev1.ProtocolTCP,
-									TargetPort: intstr.FromInt(80),
-								},
-							},
-							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
-						},
-					},
-				},
-			},
-			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-ports"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{
-											IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"},
-											PodSelector: &metav1.LabelSelector{
-												MatchLabels: map[string]string{"app": "test"},
-											},
-											NamespaceSelector: &metav1.LabelSelector{
-												MatchLabels: map[string]string{"app": "test"},
-											},
-										},
-									},
-									Ports: []networkingv1.NetworkPolicyPort{
-										{
-											Port: intstrPtr(intstr.FromInt(80)),
-											Protocol: func() *corev1.Protocol {
-												protocol := corev1.ProtocolTCP
-												return &protocol
-											}(),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedUnsafeServices: []string{},
 		},
 		{
 			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an ingress policy with a matching selector and ports and pod/namespace selectors",
@@ -2274,423 +2025,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 											},
 										},
 									},
-									Ports: []networkingv1.NetworkPolicyPort{
-										{
-											Port: intstrPtr(intstr.FromInt(80)),
-											Protocol: func() *corev1.Protocol {
-												protocol := corev1.ProtocolTCP
-												return &protocol
-											}(),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-ports"},
-		},
-		{
-			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.16/32 ingress policy and an ingress policy with a matching selector and ports",
-			namespaces: &corev1.NamespaceList{
-				Items: []corev1.Namespace{
-					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
-				},
-			},
-			servicesByNamespace: map[string][]*corev1.Service{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector-and-ports"},
-						Spec: corev1.ServiceSpec{
-							Type:     corev1.ServiceTypeLoadBalancer,
-							Selector: map[string]string{"app": "test"},
-							Ports: []corev1.ServicePort{
-								{
-									Port:       80,
-									Protocol:   corev1.ProtocolTCP,
-									TargetPort: intstr.FromInt(80),
-								},
-							},
-							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
-						},
-					},
-				},
-			},
-			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-ports"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
-									},
-								},
-							},
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-ports"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									Ports: []networkingv1.NetworkPolicyPort{
-										{
-											Port: intstrPtr(intstr.FromInt(80)),
-											Protocol: func() *corev1.Protocol {
-												protocol := corev1.ProtocolTCP
-												return &protocol
-											}(),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedUnsafeServices: []string{},
-		},
-		{
-			name: "NodePort service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.16/32 ingress policy with a matching selector and ports",
-			namespaces: &corev1.NamespaceList{
-				Items: []corev1.Namespace{
-					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
-				},
-			},
-			servicesByNamespace: map[string][]*corev1.Service{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector-and-ports"},
-						Spec: corev1.ServiceSpec{
-							Type:     corev1.ServiceTypeNodePort,
-							Selector: map[string]string{"app": "test"},
-							Ports: []corev1.ServicePort{
-								{
-									Port:       80,
-									Protocol:   corev1.ProtocolTCP,
-									TargetPort: intstr.FromInt(80),
-								},
-							},
-							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
-						},
-					},
-				},
-			},
-			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "ingress-policy-with-selector-form-and-ports"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
-									},
-									Ports: []networkingv1.NetworkPolicyPort{
-										{
-											Port: intstrPtr(intstr.FromInt(80)),
-											Protocol: func() *corev1.Protocol {
-												protocol := corev1.ProtocolTCP
-												return &protocol
-											}(),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-ports"},
-		},
-		{
-			name: "NodePort service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.16/32 ingress policy and an ingress policy with a matching selector and ports",
-			namespaces: &corev1.NamespaceList{
-				Items: []corev1.Namespace{
-					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
-				},
-			},
-			servicesByNamespace: map[string][]*corev1.Service{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector-and-ports"},
-						Spec: corev1.ServiceSpec{
-							Type:     corev1.ServiceTypeNodePort,
-							Selector: map[string]string{"app": "test"},
-							Ports: []corev1.ServicePort{
-								{
-									Port:       80,
-									Protocol:   corev1.ProtocolTCP,
-									TargetPort: intstr.FromInt(80),
-								},
-							},
-							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
-						},
-					},
-				},
-			},
-			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "ingress-policy-with-selector-and-ports"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									Ports: []networkingv1.NetworkPolicyPort{
-										{
-											Port: intstrPtr(intstr.FromInt(80)),
-											Protocol: func() *corev1.Protocol {
-												protocol := corev1.ProtocolTCP
-												return &protocol
-											}(),
-										},
-									},
-								},
-							},
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "ingress-policy-with-selector-and-form"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedUnsafeServices: []string{},
-		},
-		{
-			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.16/32 with an except ingress policy and an ingress policy with a matching selector and ports",
-			namespaces: &corev1.NamespaceList{
-				Items: []corev1.Namespace{
-					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
-				},
-			},
-			servicesByNamespace: map[string][]*corev1.Service{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector-and-ports"},
-						Spec: corev1.ServiceSpec{
-							Type:     corev1.ServiceTypeLoadBalancer,
-							Selector: map[string]string{"app": "test"},
-							Ports: []corev1.ServicePort{
-								{
-									Port:       80,
-									Protocol:   corev1.ProtocolTCP,
-									TargetPort: intstr.FromInt(80),
-								},
-							},
-							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
-						},
-					},
-				},
-			},
-			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-from"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{
-											IPBlock: &networkingv1.IPBlock{
-												CIDR:   "168.63.129.16/32",
-												Except: []string{"168.63.130.16/32"},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-ports"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									Ports: []networkingv1.NetworkPolicyPort{
-										{
-											Port: intstrPtr(intstr.FromInt(80)),
-											Protocol: func() *corev1.Protocol {
-												protocol := corev1.ProtocolTCP
-												return &protocol
-											}(),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedUnsafeServices: []string{},
-		},
-		{
-			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.16/32 with a matching except ingress policy and an ingress policy with a matching selector and ports",
-			namespaces: &corev1.NamespaceList{
-				Items: []corev1.Namespace{
-					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
-				},
-			},
-			servicesByNamespace: map[string][]*corev1.Service{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector-and-ports"},
-						Spec: corev1.ServiceSpec{
-							Type:     corev1.ServiceTypeLoadBalancer,
-							Selector: map[string]string{"app": "test"},
-							Ports: []corev1.ServicePort{
-								{
-									Port:       80,
-									Protocol:   corev1.ProtocolTCP,
-									TargetPort: intstr.FromInt(80),
-								},
-							},
-							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
-						},
-					},
-				},
-			},
-			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-from"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{
-											IPBlock: &networkingv1.IPBlock{
-												CIDR:   "168.63.129.16/32",
-												Except: []string{"168.63.129.16/16"},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-ports"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									Ports: []networkingv1.NetworkPolicyPort{
-										{
-											Port: intstrPtr(intstr.FromInt(80)),
-											Protocol: func() *corev1.Protocol {
-												protocol := corev1.ProtocolTCP
-												return &protocol
-											}(),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedUnsafeServices: []string{"namespace1/service-with-selector-and-ports"},
-		},
-		{
-			name: "LoadBalancer service with externalTrafficPolicy=Cluster with a selector and an allow 168.63.129.16/32 ingress policy to wrong label and an ingress policy with a matching selector and ports",
-			namespaces: &corev1.NamespaceList{
-				Items: []corev1.Namespace{
-					{ObjectMeta: metav1.ObjectMeta{Name: "namespace1"}},
-				},
-			},
-			servicesByNamespace: map[string][]*corev1.Service{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "service-with-selector-and-ports"},
-						Spec: corev1.ServiceSpec{
-							Type:     corev1.ServiceTypeLoadBalancer,
-							Selector: map[string]string{"app": "test"},
-							Ports: []corev1.ServicePort{
-								{
-									Port:       80,
-									Protocol:   corev1.ProtocolTCP,
-									TargetPort: intstr.FromInt(80),
-								},
-							},
-							ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeCluster,
-						},
-					},
-				},
-			},
-			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
-				"namespace1": {
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-from"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test2"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
-									},
-								},
-							},
-						},
-					},
-					{
-						ObjectMeta: metav1.ObjectMeta{Name: "allow-all-ingress-policy-with-selector-and-ports"},
-						Spec: networkingv1.NetworkPolicySpec{
-							PodSelector: metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "test"},
-							},
-							PolicyTypes: []networkingv1.PolicyType{"Ingress"},
-							Ingress: []networkingv1.NetworkPolicyIngressRule{
-								{
 									Ports: []networkingv1.NetworkPolicyPort{
 										{
 											Port: intstrPtr(intstr.FromInt(80)),
@@ -2821,9 +2155,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 											}(),
 										},
 									},
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
-									},
 								},
 							},
 						},
@@ -2926,9 +2257,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 											}(),
 										},
 									},
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
-									},
 								},
 							},
 						},
@@ -2951,9 +2279,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 												return &protocol
 											}(),
 										},
-									},
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
 									},
 								},
 							},
@@ -3117,9 +2442,6 @@ func TestGetExternalTrafficPolicyClusterServices(t *testing.T) {
 												return &protocol
 											}(),
 										},
-									},
-									From: []networkingv1.NetworkPolicyPeer{
-										{IPBlock: &networkingv1.IPBlock{CIDR: "168.63.129.16/32"}},
 									},
 								},
 							},
