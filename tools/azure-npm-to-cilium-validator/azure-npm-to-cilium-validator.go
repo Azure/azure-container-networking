@@ -173,6 +173,7 @@ func getNamedPortPolicies(policiesByNamespace map[string][]*networkingv1.Network
 
 func checkNamedPortInPolicyRules(ports []networkingv1.NetworkPolicyPort) bool {
 	for _, port := range ports {
+		// If port is a string it is a named port
 		if port.Port.Type == intstr.String {
 			return true
 		}
