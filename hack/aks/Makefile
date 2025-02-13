@@ -389,7 +389,7 @@ dualstack-overlay-up: rg-up overlay-net-up ## Brings up an dualstack Overlay clu
 		--yes
 	@$(MAKE) set-kubeconf
 
-dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Overlay BYO CNI cluster
+linux-dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
@@ -403,6 +403,17 @@ dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Over
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
 		--yes
+	@$(MAKE) set-kubeconf
+
+windows-dualstack-overlay-byocni-up: linux-dualstack-overlay-byocni-up
+	WINDOWS_NODEPOOL=$$(az aks nodepool list --resource-group $(GROUP) --cluster-name $(CLUSTER) --query "[?osType=='Windows']" --output tsv); \
+	if [ -z "$$WINDOWS_NODEPOOL" ]; then \
+		echo "No Windows node pool found in the AKS cluster."; \
+		AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh; \
+		$(MAKE) windows-nodepool-up; \
+	else \
+		echo "AKS cluster already has a Windows node pool."; \
+	fi
 	@$(MAKE) set-kubeconf
 
 cilium-dualstack-up: rg-up overlay-net-up ## Brings up a Cilium Dualstack Overlay cluster with Linux node only
