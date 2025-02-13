@@ -110,6 +110,10 @@ stages:
             AZURE_CLUSTER: "conformance-v2-linux-stress"
             PROFILE: "v2-background"
             IS_STRESS_TEST: "true"
+          v2-place-first:
+            AZURE_CLUSTER: "conformance-v2-place-first"
+            PROFILE: "v2-place-first"
+            IS_STRESS_TEST: "false"
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
         demands:
@@ -251,15 +255,23 @@ stages:
               set -e
               make -C ./hack/aks set-kubeconf AZCLI=az GROUP=$(RESOURCE_GROUP) CLUSTER=$(AZURE_CLUSTER)
 
-              # sig-release provides test suite tarball(s) per k8s release. Just need to provide k8s version "v1.xx.xx"
-              # pulling k8s version from AKS.
-              eval k8sVersion="v"$( az aks show -g $(RESOURCE_GROUP) -n $(AZURE_CLUSTER) --query "currentKubernetesVersion")
-              echo $k8sVersion
-              curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
+              if [ $(PROFILE) == "v2-place-first" ]; then
+                git clone --depth=1 --branch=huntergregory/service-types https://github.com/huntergregory/network-policy-api.git
+                cd network-policy-api/cmd/policy-assistant
+                make policy-assistant
+                cd ../../..
+                mv network-policy-api/cmd/policy-assistant/cmd/policy-assistant/policy-assistant .
+              else
+                # sig-release provides test suite tarball(s) per k8s release. Just need to provide k8s version "v1.xx.xx"
+                # pulling k8s version from AKS.
+                eval k8sVersion="v"$( az aks show -g $(RESOURCE_GROUP) -n $(AZURE_CLUSTER) --query "currentKubernetesVersion")
+                echo $k8sVersion
+                curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
 
-              # https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
-              # explictly unzip and strip directories from ginkgo and e2e.test
-              tar -xvzf kubernetes-test-linux-amd64.tar.gz --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
+                # https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
+                # explictly unzip and strip directories from ginkgo and e2e.test
+                tar -xvzf kubernetes-test-linux-amd64.tar.gz --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
+              fi
 
           displayName: "Setup Environment"
 
@@ -280,8 +292,13 @@ stages:
             echo $FQDN
 
             runConformance () {
-                KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
-                # there can't be a command after e2e.test because the exit code is important
+                if [ $(PROFILE) == "v2-place-first" ]; then
+                  # 15 minute timeout for creating LoadBalancer with Azure-internal "external IPs"
+                  ./policy-assistant generate --noisy=true --job-timeout-seconds=2 --pod-creation-timeout-seconds 900 --server-protocol TCP,UDP --ignore-loopback --include special-services --exclude cni-brings-source-pod-info-to-other-node
+                else
+                  KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
+                fi
+                # there can't be a command after e2e.test/policy-assistant because the exit code is important
             }
 
             runConformanceWindows () {
