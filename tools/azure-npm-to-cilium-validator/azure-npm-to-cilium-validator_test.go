@@ -512,6 +512,419 @@ func TestGetCIDRNetworkPolicies(t *testing.T) {
 	}
 }
 
+func TestGetNamedPortPolicies(t *testing.T) {
+	tests := []struct {
+		name                        string
+		policiesByNamespace         map[string][]*networkingv1.NetworkPolicy
+		expectedIngressCIDRPolicies []string
+		expectedEgressCIDRPolicies  []string
+	}{
+		{
+			name:                        "No policies",
+			policiesByNamespace:         map[string][]*networkingv1.NetworkPolicy{},
+			expectedIngressCIDRPolicies: []string{},
+			expectedEgressCIDRPolicies:  []string{},
+		},
+		{
+			name: "No named port in policies",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "no-cidr-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{},
+			expectedEgressCIDRPolicies:  []string{},
+		},
+		{
+			name: "Ingress named port in policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-named-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromString("http")),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{"namespace1/ingress-named-port-policy"},
+			expectedEgressCIDRPolicies:  []string{},
+		},
+		{
+			name: "Ingress int port in policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-int-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromInt(80)),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{},
+			expectedEgressCIDRPolicies:  []string{},
+		},
+		{
+			name: "Egress named port in policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-named-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromString("http")),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{},
+			expectedEgressCIDRPolicies:  []string{"namespace1/egress-named-port-policy"},
+		},
+		{
+			name: "Egress int port in policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-int-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromInt(80)),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{},
+			expectedEgressCIDRPolicies:  []string{},
+		},
+		{
+			name: "Both ingress and egress name ports in policy",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-and-egress-named-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromString("http")),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromString("http")),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{"namespace1/ingress-and-egress-named-port-policy"},
+			expectedEgressCIDRPolicies:  []string{"namespace1/ingress-and-egress-named-port-policy"},
+		},
+		{
+			name: "Multiple polices in a namespace with ingress or egress named ports",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-named-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromString("http")),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-named-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromString("http")),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-and-egress-named-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromString("http")),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromString("http")),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{"namespace1/ingress-named-port-policy", "namespace1/ingress-and-egress-named-port-policy"},
+			expectedEgressCIDRPolicies:  []string{"namespace1/egress-named-port-policy", "namespace1/ingress-and-egress-named-port-policy"},
+		},
+		{
+			name: "Multiple polices in multiple namespaces with ingress or egress CIDR or no CIDR",
+			policiesByNamespace: map[string][]*networkingv1.NetworkPolicy{
+				"namespace1": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-named-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromString("http")),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-and-egress-named-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromString("http")),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromString("http")),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-int-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromInt(80)),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"namespace2": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "egress-named-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Egress: []networkingv1.NetworkPolicyEgressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromString("http")),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "no-named-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
+				},
+				"namespace3": {
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "no-named-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									From: []networkingv1.NetworkPolicyPeer{
+										{PodSelector: &metav1.LabelSelector{}},
+									},
+								},
+							},
+						},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{Name: "ingress-int-port-policy"},
+						Spec: networkingv1.NetworkPolicySpec{
+							Ingress: []networkingv1.NetworkPolicyIngressRule{
+								{
+									Ports: []networkingv1.NetworkPolicyPort{
+										{
+											Port: intstrPtr(intstr.FromInt(80)),
+											Protocol: func() *corev1.Protocol {
+												protocol := corev1.ProtocolTCP
+												return &protocol
+											}(),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIngressCIDRPolicies: []string{"namespace1/ingress-named-port-policy", "namespace1/ingress-and-egress-named-port-policy"},
+			expectedEgressCIDRPolicies:  []string{"namespace2/egress-named-port-policy", "namespace1/ingress-and-egress-named-port-policy"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ingressPolicies, egressPolicies := getNamedPortPolicies(tt.policiesByNamespace)
+			if !equal(ingressPolicies, tt.expectedIngressCIDRPolicies) {
+				t.Errorf("expected ingress policies %v, got %v", tt.expectedIngressCIDRPolicies, ingressPolicies)
+			}
+			if !equal(egressPolicies, tt.expectedEgressCIDRPolicies) {
+				t.Errorf("expected egress policies %v, got %v", tt.expectedEgressCIDRPolicies, egressPolicies)
+			}
+		})
+	}
+}
+
 func TestGetEgressPolicies(t *testing.T) {
 	tests := []struct {
 		name                   string

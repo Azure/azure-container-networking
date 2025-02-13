@@ -93,6 +93,7 @@ func getEndportNetworkPolicies(policiesByNamespace map[string][]*networkingv1.Ne
 					break
 				}
 			}
+			// Check the egress field for endport
 			for _, egress := range policy.Spec.Egress {
 				foundEndPort := checkEndportInPolicyRules(egress.Ports)
 				if foundEndPort {
@@ -142,6 +143,37 @@ func getCIDRNetworkPolicies(policiesByNamespace map[string][]*networkingv1.Netwo
 func checkCIDRInPolicyRules(to []networkingv1.NetworkPolicyPeer) bool {
 	for _, toRule := range to {
 		if toRule.IPBlock != nil && toRule.IPBlock.CIDR != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func getNamedPortPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort []string) {
+	for namespace, policies := range policiesByNamespace {
+		for _, policy := range policies {
+			// Check the ingress field for named port
+			for _, ingress := range policy.Spec.Ingress {
+				if checkNamedPortInPolicyRules(ingress.Ports) {
+					ingressPoliciesWithNamedPort = append(ingressPoliciesWithNamedPort, fmt.Sprintf("%s/%s", namespace, policy.Name))
+					break
+				}
+			}
+			// Check the egress field for named port
+			for _, egress := range policy.Spec.Egress {
+				if checkNamedPortInPolicyRules(egress.Ports) {
+					egressPoliciesWithNamedPort = append(egressPoliciesWithNamedPort, fmt.Sprintf("%s/%s", namespace, policy.Name))
+					break
+				}
+			}
+		}
+	}
+	return ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort
+}
+
+func checkNamedPortInPolicyRules(ports []networkingv1.NetworkPolicyPort) bool {
+	for _, port := range ports {
+		if port.Port.Type == intstr.String {
 			return true
 		}
 	}
@@ -247,7 +279,7 @@ func checkNoServiceRisk(service *corev1.Service, policiesListAtNamespace []*netw
 }
 
 func checkPolicyMatchServiceLabels(serviceLabels map[string]string, podSelector metav1.LabelSelector) bool {
-	// Check if there is an allow all ingress policy with empty selectors if so the service is safe
+	// Check if there is an target all ingress policy with empty selectors if so the service is safe
 	if len(podSelector.MatchLabels) == 0 && len(podSelector.MatchExpressions) == 0 {
 		return true
 	}
@@ -354,17 +386,22 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 	table.SetHeader([]string{"Breaking Change", "No Policy Changes Needed", "Details"})
 	table.SetRowLine(true)
 
-	// Get the endports of the network policies
+	// Get the network policies with endports
 	ingressEndportNetworkPolicy, egressEndportNetworkPolicy := getEndportNetworkPolicies(policiesByNamespace)
 	// Add the network policies with endport
 	addPoliciesWithEndportToTable(table, ingressEndportNetworkPolicy, egressEndportNetworkPolicy)
 
-	// Get the cidr of the network policies
+	// Get the network policies with cidr
 	ingressPoliciesWithCIDR, egressPoliciesWithCIDR := getCIDRNetworkPolicies(policiesByNamespace)
-	// Add the network policies with CIDR
+	// Add the network policies with cidr
 	addPoliciesWithCIDRToTable(table, ingressPoliciesWithCIDR, egressPoliciesWithCIDR)
 
-	// Get the egress of the network policies
+	// Get the named port
+	ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort := getNamedPortPolicies(policiesByNamespace)
+	// Add the network policies with named port
+	addPoliciesWithNamedPortToTable(table, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort)
+
+	// Get the network policies with egress (except not egress allow all)
 	egressPolicies := getEgressPolicies(policiesByNamespace)
 	// Add the network policies with egress
 	addEgressPoliciesToTable(table, egressPolicies)
@@ -421,6 +458,24 @@ func addPoliciesWithCIDRToTable(table *tablewriter.Table, ingressPoliciesWithCID
 			policyNamespace := strings.Split(policy, "/")[0]
 			policyName := strings.Split(policy, "/")[1]
 			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Egress CIDR field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+		}
+	}
+}
+
+func addPoliciesWithNamedPortToTable(table *tablewriter.Table, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort []string) {
+	if len(ingressPoliciesWithNamedPort) == 0 && len(egressPoliciesWithNamedPort) == 0 {
+		table.Append([]string{"NetworkPolicy with Named Port", "✅", ""})
+	} else {
+		table.Append([]string{"NetworkPolicy with Named Port", "❌", "Policies Affected:"})
+		for _, policy := range ingressPoliciesWithNamedPort {
+			policyNamespace := strings.Split(policy, "/")[0]
+			policyName := strings.Split(policy, "/")[1]
+			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Ingress Named Port field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+		}
+		for _, policy := range egressPoliciesWithNamedPort {
+			policyNamespace := strings.Split(policy, "/")[0]
+			policyName := strings.Split(policy, "/")[1]
+			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Egress Named Port field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
 		}
 	}
 }
