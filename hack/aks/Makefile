@@ -114,7 +114,7 @@ nodesubnet-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an NodeSubne
 		--yes
 	@$(MAKE) set-kubeconf
 
-overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
+linux-overlay-byocni-up: rg-up overlay-net-up ## Brings up a Linux Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
@@ -129,9 +129,17 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
 		--yes
-ifeq ($(OS),windows)
-	@$(MAKE) windows-nodepool-up
-endif
+	@$(MAKE) set-kubeconf
+
+windows-overlay-byocni-up: linux-overlay-byocni-up rg-up overlay-net-up ## Brings up a Windows Overlay BYO CNI cluster
+	WINDOWS_NODEPOOL=$$(az aks nodepool list --resource-group $(GROUP) --cluster-name $(CLUSTER) --query "[?osType=='Windows']" --output tsv); \
+	if [ -z "$$WINDOWS_NODEPOOL" ]; then \
+		echo "No Windows node pool found in the AKS cluster."; \
+		AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh; \
+		$(MAKE) windows-nodepool-up; \
+	else \
+		echo "AKS cluster already has a Windows node pool."; \
+	fi
 	@$(MAKE) set-kubeconf
 
 overlay-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy
