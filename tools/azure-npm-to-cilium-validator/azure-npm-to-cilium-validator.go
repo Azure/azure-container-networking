@@ -413,6 +413,9 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 
 	table.Render()
 
+	// Print the total number of policies
+	printTotalPolicies(policiesByNamespace)
+
 	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
 		len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
 		len(egressPolicies) > 0 ||
@@ -423,6 +426,13 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 	} else {
 		fmt.Println("\033[32m✔ Safe to migrate this cluster.\033[0m")
 		fmt.Println("For more details please see \033[32maka.ms/azurenpmtocilium\033[0m.")
+	}
+}
+
+func printTotalPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) {
+	fmt.Println("Total Network Policies:")
+	for namespace, policies := range policiesByNamespace {
+		fmt.Printf("%s: %d\n", namespace, len(policies))
 	}
 }
 
