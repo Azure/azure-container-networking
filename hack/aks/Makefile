@@ -132,14 +132,8 @@ linux-overlay-byocni-up: rg-up overlay-net-up ## Brings up a Linux Overlay BYO C
 	@$(MAKE) set-kubeconf
 
 windows-overlay-byocni-up: linux-overlay-byocni-up rg-up overlay-net-up ## Brings up a Windows Overlay BYO CNI cluster
-	WINDOWS_NODEPOOL=$$(az aks nodepool list --resource-group $(GROUP) --cluster-name $(CLUSTER) --query "[?osType=='Windows']" --output tsv); \
-	if [ -z "$$WINDOWS_NODEPOOL" ]; then \
-		echo "No Windows node pool found in the AKS cluster."; \
-		AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh; \
-		$(MAKE) windows-nodepool-up; \
-	else \
-		echo "AKS cluster already has a Windows node pool."; \
-	fi
+	AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh
+	$(MAKE) windows-nodepool-up
 	@$(MAKE) set-kubeconf
 
 overlay-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy
@@ -414,14 +408,8 @@ linux-dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstac
 	@$(MAKE) set-kubeconf
 
 windows-dualstack-overlay-byocni-up: linux-dualstack-overlay-byocni-up
-	WINDOWS_NODEPOOL=$$(az aks nodepool list --resource-group $(GROUP) --cluster-name $(CLUSTER) --query "[?osType=='Windows']" --output tsv); \
-	if [ -z "$$WINDOWS_NODEPOOL" ]; then \
-		echo "No Windows node pool found in the AKS cluster."; \
-		AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh; \
-		$(MAKE) windows-nodepool-up; \
-	else \
-		echo "AKS cluster already has a Windows node pool."; \
-	fi
+	AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh
+	$(MAKE) windows-nodepool-up
 	@$(MAKE) set-kubeconf
 
 cilium-dualstack-up: rg-up overlay-net-up ## Brings up a Cilium Dualstack Overlay cluster with Linux node only
