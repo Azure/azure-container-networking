@@ -114,6 +114,9 @@ nodesubnet-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an NodeSubne
 		--yes
 	@$(MAKE) set-kubeconf
 
+# alias for linux-overlay-byocni-up
+overlay-byocni-up: linux-overlay-byocni-up
+
 linux-overlay-byocni-up: rg-up overlay-net-up ## Brings up a Linux Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
@@ -390,6 +393,9 @@ dualstack-overlay-up: rg-up overlay-net-up ## Brings up an dualstack Overlay clu
 		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
+
+# alias for linux-dualstack-overlay-byocni-up
+dualstack-overlay-byocni-up: linux-dualstack-overlay-byocni-up
 
 linux-dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
