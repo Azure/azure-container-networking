@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/olekukonko/tablewriter"
 	corev1 "k8s.io/api/core/v1"
@@ -433,14 +432,10 @@ func addPoliciesWithEndportToTable(table *tablewriter.Table, ingressEndportNetwo
 	} else {
 		table.Append([]string{"NetworkPolicy with endPort", "❌", "Policies Affected:"})
 		for _, policy := range ingressEndportNetworkPolicy {
-			policyNamespace := strings.Split(policy, "/")[0]
-			policyName := strings.Split(policy, "/")[1]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Ingress endPort field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("\033[31m%s\033[0m with Ingress endPort field", policy)})
 		}
 		for _, policy := range egressEndportNetworkPolicy {
-			policyNamespace := strings.Split(policy, "/")[0]
-			policyName := strings.Split(policy, "/")[1]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m\n with Egress endPort field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("\033[31m%s\033[0m with Egress endPort field", policy)})
 		}
 	}
 }
@@ -451,14 +446,10 @@ func addPoliciesWithCIDRToTable(table *tablewriter.Table, ingressPoliciesWithCID
 	} else {
 		table.Append([]string{"NetworkPolicy with CIDR", "❌", "Policies Affected:"})
 		for _, policy := range ingressPoliciesWithCIDR {
-			policyNamespace := strings.Split(policy, "/")[0]
-			policyName := strings.Split(policy, "/")[1]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Ingress CIDR field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("\033[31m%s\033[0m with Ingress CIDR field", policy)})
 		}
 		for _, policy := range egressPoliciesWithCIDR {
-			policyNamespace := strings.Split(policy, "/")[0]
-			policyName := strings.Split(policy, "/")[1]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Egress CIDR field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("\033[31m%s\033[0m with Egress CIDR field\n", policy)})
 		}
 	}
 }
@@ -469,14 +460,10 @@ func addPoliciesWithNamedPortToTable(table *tablewriter.Table, ingressPoliciesWi
 	} else {
 		table.Append([]string{"NetworkPolicy with Named Port", "❌", "Policies Affected:"})
 		for _, policy := range ingressPoliciesWithNamedPort {
-			policyNamespace := strings.Split(policy, "/")[0]
-			policyName := strings.Split(policy, "/")[1]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Ingress Named Port field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("\033[31m%s\033[0m with Ingress Named Port field", policy)})
 		}
 		for _, policy := range egressPoliciesWithNamedPort {
-			policyNamespace := strings.Split(policy, "/")[0]
-			policyName := strings.Split(policy, "/")[1]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Egress Named Port field in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("\033[31m%s\033[0m with Egress Named Port field", policy)})
 		}
 	}
 }
@@ -487,9 +474,7 @@ func addEgressPoliciesToTable(table *tablewriter.Table, egressPolicies []string)
 	} else {
 		table.Append([]string{"NetworkPolicy with Egress (Not Allow All Egress)", "❌", "Policies Affected:"})
 		for _, policy := range egressPolicies {
-			policyNamespace := strings.Split(policy, "/")[0]
-			policyName := strings.Split(policy, "/")[1]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found NetworkPolicy: \033[31m%s\033[0m with Egress field (Not Allow All) in namespace: \033[31m%s\033[0m\n", policyName, policyNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("\033[31m%s\033[0m with Egress field (Not Allow All)", policy)})
 		}
 	}
 }
@@ -502,9 +487,7 @@ func addUnsafeServicesToTable(table *tablewriter.Table, unsafeServices []string)
 		table.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "❌", "Services Affected:"})
 		// If there are any unsafe services then print them as they could be impacted by migration
 		for _, service := range unsafeServices {
-			serviceName := strings.Split(service, "/")[1]
-			serviceNamespace := strings.Split(service, "/")[0]
-			table.Append([]string{"", "❌", fmt.Sprintf("Found Service: \033[31m%s\033[0m in namespace: \033[31m%s\033[0m\n", serviceName, serviceNamespace)})
+			table.Append([]string{"", "❌", fmt.Sprintf("\033[31m%s\033[0m with externalTrafficPolicy=Cluster", service)})
 		}
 		table.Append([]string{"", "", "Manual investigation is required to evaluate if ingress is allowed to the service's backend Pods."})
 		table.Append([]string{"", "", "Please evaluate if these services would be impacted by migration."})
