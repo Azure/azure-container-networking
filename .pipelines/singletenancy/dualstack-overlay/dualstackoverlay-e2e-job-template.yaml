@@ -30,6 +30,7 @@ stages:
           vmSizeWin: ${{ parameters.vmSize }}
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
+          os: ${{ parameters.os }}
           region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) # Dualstack has a specific region requirement
 
   - stage: ${{ parameters.name }}

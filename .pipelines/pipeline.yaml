@@ -286,7 +286,7 @@ stages:
         name: "linux_azure_overlay_e2e"
         displayName: Azure Overlay Linux
         os: linux
-        clusterType: linux-overlay-byocni-up
+        clusterType: overlay-byocni-up
         clusterName: "linuxazovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
@@ -298,7 +298,7 @@ stages:
         name: "win_azure_overlay_e2e"
         displayName: Azure Overlay Windows
         os: windows
-        clusterType: windows-overlay-byocni-up
+        clusterType: overlay-byocni-up
         clusterName: "winazovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
@@ -373,7 +373,7 @@ stages:
         name: "linux_dualstackoverlay_e2e"
         displayName: AKS DualStack Overlay Linux
         os: linux
-        clusterType: linux-dualstack-overlay-byocni-up
+        clusterType: dualstack-overlay-byocni-up
         clusterName: "linuxdsovere2e"
         vmSize: Standard_B2ms
         dependsOn: "containerize"
@@ -384,7 +384,7 @@ stages:
         name: "win_dualstackoverlay_e2e"
         displayName: AKS DualStack Overlay Windows
         os: windows
-        clusterType: windows-dualstack-overlay-byocni-up
+        clusterType: dualstack-overlay-byocni-up
         clusterName: "windsovere2e"
         vmSize: Standard_B2ms
         dependsOn: "containerize"

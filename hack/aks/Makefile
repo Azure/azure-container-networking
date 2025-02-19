@@ -114,10 +114,7 @@ nodesubnet-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an NodeSubne
 		--yes
 	@$(MAKE) set-kubeconf
 
-# alias for linux-overlay-byocni-up
-overlay-byocni-up: linux-overlay-byocni-up
-
-linux-overlay-byocni-up: rg-up overlay-net-up ## Brings up a Linux Overlay BYO CNI cluster
+overlay-byocni-up: rg-up overlay-net-up ## Brings up a Linux Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
@@ -133,11 +130,10 @@ linux-overlay-byocni-up: rg-up overlay-net-up ## Brings up a Linux Overlay BYO C
 		--os-sku $(OS_SKU) \
 		--yes
 	@$(MAKE) set-kubeconf
-
-windows-overlay-byocni-up: linux-overlay-byocni-up rg-up overlay-net-up ## Brings up a Windows Overlay BYO CNI cluster
+ifeq ($(OS),windows)
 	AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh
 	$(MAKE) windows-nodepool-up
-	@$(MAKE) set-kubeconf
+endif
 
 overlay-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -394,10 +390,7 @@ dualstack-overlay-up: rg-up overlay-net-up ## Brings up an dualstack Overlay clu
 		--yes
 	@$(MAKE) set-kubeconf
 
-# alias for linux-dualstack-overlay-byocni-up
-dualstack-overlay-byocni-up: linux-dualstack-overlay-byocni-up
-
-linux-dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Overlay BYO CNI cluster
+dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
@@ -412,11 +405,10 @@ linux-dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstac
 		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
-
-windows-dualstack-overlay-byocni-up: linux-dualstack-overlay-byocni-up
+ifeq ($(OS),windows)
 	AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh
 	$(MAKE) windows-nodepool-up
-	@$(MAKE) set-kubeconf
+endif
 
 cilium-dualstack-up: rg-up overlay-net-up ## Brings up a Cilium Dualstack Overlay cluster with Linux node only
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
