@@ -440,7 +440,7 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 	fmt.Println("\nCluster Resources:")
 
 	resourceTable := tablewriter.NewWriter(os.Stdout)
-	resourceTable.SetHeader([]string{"Cluster Resources", "Namespace", "Count"})
+	resourceTable.SetHeader([]string{"Resource", "Namespace", "Count"})
 	resourceTable.SetRowLine(true)
 
 	// Print the total number of policies
