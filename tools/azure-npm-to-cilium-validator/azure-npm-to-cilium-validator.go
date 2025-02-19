@@ -425,6 +425,20 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 
 	migrationSummarytable.Render()
 
+	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
+		len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
+		len(egressPolicies) > 0 ||
+		len(unsafeServices) > 0 {
+		fmt.Println("\n\033[31m✘ Review above issues before migration.\033[0m")
+		fmt.Println("Please see \033[32maka.ms/azurenpmtocilium\033[0m for instructions on how to evaluate/assess the above warnings marked by ❌.")
+		fmt.Println("NOTE: rerun this script if any modifications (create/update/delete) are made to services or policies.")
+	} else {
+		fmt.Println("\n\033[32m✔ Safe to migrate this cluster.\033[0m")
+		fmt.Println("For more details please see \033[32maka.ms/azurenpmtocilium\033[0m.")
+	}
+
+	fmt.Println("\nCluster Resources:")
+
 	resourceTable := tablewriter.NewWriter(os.Stdout)
 	resourceTable.SetHeader([]string{"Cluster Resources", "Namespace", "Count"})
 	resourceTable.SetRowLine(true)
@@ -439,18 +453,6 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 	addTotalPodsToTable(resourceTable, podsByNamespace)
 
 	resourceTable.Render()
-
-	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
-		len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
-		len(egressPolicies) > 0 ||
-		len(unsafeServices) > 0 {
-		fmt.Println("\033[31m✘ Review above issues before migration.\033[0m")
-		fmt.Println("Please see \033[32maka.ms/azurenpmtocilium\033[0m for instructions on how to evaluate/assess the above warnings marked by ❌.")
-		fmt.Println("NOTE: rerun this script if any modifications (create/update/delete) are made to services or policies.")
-	} else {
-		fmt.Println("\033[32m✔ Safe to migrate this cluster.\033[0m")
-		fmt.Println("For more details please see \033[32maka.ms/azurenpmtocilium\033[0m.")
-	}
 }
 
 func addTotalPoliciesToTable(table *tablewriter.Table, policiesByNamespace map[string][]*networkingv1.NetworkPolicy) {
