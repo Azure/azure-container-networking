@@ -51,6 +51,7 @@ func main() {
 	// Store network policies and services in maps
 	policiesByNamespace := make(map[string][]*networkingv1.NetworkPolicy)
 	servicesByNamespace := make(map[string][]*corev1.Service)
+	podsByNamespace := make(map[string][]*corev1.Pod)
 
 	// Iterate over namespaces and store policies/services
 	for _, ns := range namespacePointers {
@@ -75,10 +76,21 @@ func main() {
 		for i := range services.Items {
 			servicesByNamespace[ns.Name][i] = &services.Items[i]
 		}
+
+		// Get pods
+		pods, err := clientset.CoreV1().Pods(ns.Name).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			fmt.Printf("Error getting pods in namespace %s: %v\n", ns.Name, err)
+			continue
+		}
+		podsByNamespace[ns.Name] = make([]*corev1.Pod, len(pods.Items))
+		for i := range pods.Items {
+			podsByNamespace[ns.Name][i] = &pods.Items[i]
+		}
 	}
 
 	// Print the migration summary
-	printMigrationSummary(namespaces, policiesByNamespace, servicesByNamespace)
+	printMigrationSummary(namespaces, policiesByNamespace, servicesByNamespace, podsByNamespace)
 }
 
 func getEndportNetworkPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (ingressPoliciesWithEndport, egressPoliciesWithEndport []string) {
@@ -379,42 +391,54 @@ func difference(slice1, slice2 []string) []string {
 	return diff
 }
 
-func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace map[string][]*networkingv1.NetworkPolicy, servicesByNamespace map[string][]*corev1.Service) {
+func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace map[string][]*networkingv1.NetworkPolicy, servicesByNamespace map[string][]*corev1.Service, podsByNamespace map[string][]*corev1.Pod) {
 	fmt.Println("Migration Summary:")
 
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Breaking Change", "No Policy Changes Needed", "Details"})
-	table.SetRowLine(true)
+	migrationSummarytable := tablewriter.NewWriter(os.Stdout)
+	migrationSummarytable.SetHeader([]string{"Breaking Change", "Upgrade compatibility", "Details"})
+	migrationSummarytable.SetRowLine(true)
 
 	// Get the network policies with endports
 	ingressEndportNetworkPolicy, egressEndportNetworkPolicy := getEndportNetworkPolicies(policiesByNamespace)
 	// Add the network policies with endport
-	addPoliciesWithEndportToTable(table, ingressEndportNetworkPolicy, egressEndportNetworkPolicy)
+	addPoliciesWithEndportToTable(migrationSummarytable, ingressEndportNetworkPolicy, egressEndportNetworkPolicy)
 
 	// Get the network policies with cidr
 	ingressPoliciesWithCIDR, egressPoliciesWithCIDR := getCIDRNetworkPolicies(policiesByNamespace)
 	// Add the network policies with cidr
-	addPoliciesWithCIDRToTable(table, ingressPoliciesWithCIDR, egressPoliciesWithCIDR)
+	addPoliciesWithCIDRToTable(migrationSummarytable, ingressPoliciesWithCIDR, egressPoliciesWithCIDR)
 
 	// Get the named port
 	ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort := getNamedPortPolicies(policiesByNamespace)
 	// Add the network policies with named port
-	addPoliciesWithNamedPortToTable(table, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort)
+	addPoliciesWithNamedPortToTable(migrationSummarytable, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort)
 
 	// Get the network policies with egress (except not egress allow all)
 	egressPolicies := getEgressPolicies(policiesByNamespace)
 	// Add the network policies with egress
-	addEgressPoliciesToTable(table, egressPolicies)
+	addEgressPoliciesToTable(migrationSummarytable, egressPolicies)
 
 	// Get services that have externalTrafficPolicy!=Local that are unsafe (might have traffic disruption)
 	unsafeServices := getUnsafeExternalTrafficPolicyClusterServices(namespaces, servicesByNamespace, policiesByNamespace)
 	// Add the services that are at risk
-	addUnsafeServicesToTable(table, unsafeServices)
+	addUnsafeServicesToTable(migrationSummarytable, unsafeServices)
 
-	table.Render()
+	migrationSummarytable.Render()
+
+	resourceTable := tablewriter.NewWriter(os.Stdout)
+	resourceTable.SetHeader([]string{"Cluster Resources", "Namespace", "Count"})
+	resourceTable.SetRowLine(true)
 
 	// Print the total number of policies
-	printTotalPolicies(policiesByNamespace)
+	addTotalPoliciesToTable(resourceTable, policiesByNamespace)
+
+	// Print the total number of services
+	addTotalServicesToTable(resourceTable, servicesByNamespace)
+
+	// Print the total number of pods
+	addTotalPodsToTable(resourceTable, podsByNamespace)
+
+	resourceTable.Render()
 
 	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
 		len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
@@ -429,10 +453,21 @@ func printMigrationSummary(namespaces *corev1.NamespaceList, policiesByNamespace
 	}
 }
 
-func printTotalPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) {
-	fmt.Println("Total Network Policies:")
+func addTotalPoliciesToTable(table *tablewriter.Table, policiesByNamespace map[string][]*networkingv1.NetworkPolicy) {
 	for namespace, policies := range policiesByNamespace {
-		fmt.Printf("%s: %d\n", namespace, len(policies))
+		table.Append([]string{"NetworkPolicy", namespace, fmt.Sprintf("%d", len(policies))})
+	}
+}
+
+func addTotalServicesToTable(table *tablewriter.Table, servicesByNamespace map[string][]*corev1.Service) {
+	for namespace, services := range servicesByNamespace {
+		table.Append([]string{"Service", namespace, fmt.Sprintf("%d", len(services))})
+	}
+}
+
+func addTotalPodsToTable(table *tablewriter.Table, podsByNamespace map[string][]*corev1.Pod) {
+	for namespace, pods := range podsByNamespace {
+		table.Append([]string{"Pod", namespace, fmt.Sprintf("%d", len(pods))})
 	}
 }
 
