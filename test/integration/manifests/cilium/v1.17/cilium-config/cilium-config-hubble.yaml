@@ -84,8 +84,8 @@ data:
   # new default values from Cilium v1.14.4
   enable-sctp: "false"
   external-envoy-proxy: "false"
-  k8s-client-qps: "5"
-  k8s-client-burst: "10"
+  k8s-client-qps: "10"
+  k8s-client-burst: "20"
   mesh-auth-enabled: "true"
   mesh-auth-queue-size: "1024"
   mesh-auth-rotated-identities-queue-size: "1024"
@@ -121,6 +121,19 @@ data:
   k8s-require-ipv4-pod-cidr: "false"
   k8s-require-ipv6-pod-cidr: "false"
   enable-node-selector-labels: "false" 
+## new values for 1.17
+  ces-slice-mode: "fcfs"
+  enable-cilium-endpoint-slice: "true"
+  bpf-lb-source-range-all-types: "false"
+  bpf-algorithm-annotation: "false"
+  bpf-lb-mode-annotation: "false"
+  enable-experimental-lb: "false"
+  enable-endpoint-lockdown-on-policy-overflow: "false"
+  health-check-icmp-failure-threshold: "3"
+  enable-internal-traffic-policy: "true"
+  enable-lb-ipam: "true"
+  enable-non-default-deny-policies: "true"
+  enable-source-ip-verification: "true"
 kind: ConfigMap
 metadata:
   annotations:
