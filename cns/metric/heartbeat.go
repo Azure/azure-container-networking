@@ -30,7 +30,6 @@ func SendHeartBeat(ctx context.Context, heartbeatInterval time.Duration, homeAzM
 				Value:            1.0,
 				CustomDimensions: make(map[string]string),
 			}
-
 			// add azr metrics when channel mode is direct
 			if channelMode == cns.Direct {
 				getHomeAzResp := homeAzMonitor.GetHomeAz(ctx)
@@ -42,7 +41,6 @@ func SendHeartBeat(ctx context.Context, heartbeatInterval time.Duration, homeAzM
 				default:
 					metric.CustomDimensions[logger.HomeAZErrorCodeStr] = getHomeAzResp.Response.ReturnCode.String()
 					metric.CustomDimensions[logger.HomeAZErrorMsgStr] = getHomeAzResp.Response.Message
-
 				}
 			}
 			logger.SendMetric(metric)

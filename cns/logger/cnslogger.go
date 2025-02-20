@@ -2,6 +2,7 @@ package logger
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"sync"
 
@@ -13,21 +14,23 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// wait time for closing AI telemetry session.
+const waitTimeInSecs = 10
+
 type CNSLogger struct {
-	logger               *log.Logger
-	th                   ai.TelemetryHandle
-	DisableTraceLogging  bool
-	DisableMetricLogging bool
-	DisableEventLogging  bool
-
+	logger    *log.Logger
 	zapLogger *zap.Logger
+	th        ai.TelemetryHandle
 
-	m            sync.RWMutex
-	Orchestrator string
-	NodeID       string
+	disableTraceLogging  bool
+	disableMetricLogging bool
+	disableEventLogging  bool
+
+	m        sync.RWMutex
+	metadata map[string]string
 }
 
-func NewCNSLogger(fileName string, logLevel, logTarget int, logDir string) (*CNSLogger, error) {
+func New(fileName string, logLevel, logTarget int, logDir string) (*CNSLogger, error) {
 	l, err := log.NewLoggerE(fileName, logLevel, logTarget, logDir)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not get new logger")
@@ -46,6 +49,7 @@ func NewCNSLogger(fileName string, logLevel, logTarget int, logDir string) (*CNS
 	return &CNSLogger{
 		logger:    l,
 		zapLogger: zapLogger,
+		metadata:  map[string]string{},
 	}, nil
 }
 
@@ -59,16 +63,12 @@ func (c *CNSLogger) InitAIWithIKey(aiConfig ai.AIConfig, instrumentationKey stri
 		c.logger.Errorf("Error initializing AI Telemetry:%v", err)
 		return
 	}
-
 	c.th = th
 	c.logger.Printf("AI Telemetry Handle created")
-	c.DisableMetricLogging = disableMetricLogging
-	c.DisableTraceLogging = disableTraceLogging
-	c.DisableEventLogging = disableEventLogging
+	c.disableMetricLogging = disableMetricLogging
+	c.disableTraceLogging = disableTraceLogging
+	c.disableEventLogging = disableEventLogging
 }
-
-// wait time for closing AI telemetry session.
-const waitTimeInSecs = 10
 
 func (c *CNSLogger) Close() {
 	c.logger.Close()
@@ -80,19 +80,23 @@ func (c *CNSLogger) Close() {
 func (c *CNSLogger) SetContextDetails(orchestrator, nodeID string) {
 	c.logger.Logf("SetContext details called with: %v orchestrator nodeID %v", orchestrator, nodeID)
 	c.m.Lock()
-	c.Orchestrator = orchestrator
-	c.NodeID = nodeID
+	c.metadata[orchestratorTypeKey] = orchestrator
+	c.metadata[nodeIDKey] = nodeID
+	c.m.Unlock()
+}
+
+func (c *CNSLogger) SetAPIServer(apiserver string) {
+	c.m.Lock()
+	c.metadata[apiServerKey] = apiserver
 	c.m.Unlock()
 }
 
 func (c *CNSLogger) Printf(format string, args ...any) {
 	c.logger.Logf(format, args...)
 	c.zapLogger.Info(fmt.Sprintf(format, args...))
-
-	if c.th == nil || c.DisableTraceLogging {
+	if c.th == nil || c.disableTraceLogging {
 		return
 	}
-
 	msg := fmt.Sprintf(format, args...)
 	c.sendTraceInternal(msg, ai.InfoLevel)
 }
@@ -100,11 +104,9 @@ func (c *CNSLogger) Printf(format string, args ...any) {
 func (c *CNSLogger) Debugf(format string, args ...any) {
 	c.logger.Debugf(format, args...)
 	c.zapLogger.Debug(fmt.Sprintf(format, args...))
-
-	if c.th == nil || c.DisableTraceLogging {
+	if c.th == nil || c.disableTraceLogging {
 		return
 	}
-
 	msg := fmt.Sprintf(format, args...)
 	c.sendTraceInternal(msg, ai.DebugLevel)
 }
@@ -112,11 +114,9 @@ func (c *CNSLogger) Debugf(format string, args ...any) {
 func (c *CNSLogger) Warnf(format string, args ...any) {
 	c.logger.Warnf(format, args...)
 	c.zapLogger.Warn(fmt.Sprintf(format, args...))
-
-	if c.th == nil || c.DisableTraceLogging {
+	if c.th == nil || c.disableTraceLogging {
 		return
 	}
-
 	msg := fmt.Sprintf(format, args...)
 	c.sendTraceInternal(msg, ai.WarnLevel)
 }
@@ -124,22 +124,18 @@ func (c *CNSLogger) Warnf(format string, args ...any) {
 func (c *CNSLogger) Errorf(format string, args ...any) {
 	c.logger.Errorf(format, args...)
 	c.zapLogger.Error(fmt.Sprintf(format, args...))
-
-	if c.th == nil || c.DisableTraceLogging {
+	if c.th == nil || c.disableTraceLogging {
 		return
 	}
-
 	msg := fmt.Sprintf(format, args...)
 	c.sendTraceInternal(msg, ai.ErrorLevel)
 }
 
 func (c *CNSLogger) Request(tag string, request any, err error) {
 	c.logger.Request(tag, request, err)
-
-	if c.th == nil || c.DisableTraceLogging {
+	if c.th == nil || c.disableTraceLogging {
 		return
 	}
-
 	var msg string
 	lvl := ai.InfoLevel
 	if err == nil {
@@ -148,17 +144,14 @@ func (c *CNSLogger) Request(tag string, request any, err error) {
 		msg = fmt.Sprintf("[%s] Failed to decode %T %+v %s.", tag, request, request, err.Error())
 		lvl = ai.ErrorLevel
 	}
-
 	c.sendTraceInternal(msg, lvl)
 }
 
 func (c *CNSLogger) Response(tag string, response any, returnCode types.ResponseCode, err error) {
 	c.logger.Response(tag, response, int(returnCode), returnCode.String(), err)
-
-	if c.th == nil || c.DisableTraceLogging {
+	if c.th == nil || c.disableTraceLogging {
 		return
 	}
-
 	var msg string
 	lvl := ai.InfoLevel
 	switch {
@@ -170,17 +163,14 @@ func (c *CNSLogger) Response(tag string, response any, returnCode types.Response
 	default:
 		msg = fmt.Sprintf("[%s] Code:%s, %+v.", tag, returnCode.String(), response)
 	}
-
 	c.sendTraceInternal(msg, lvl)
 }
 
 func (c *CNSLogger) ResponseEx(tag string, request, response any, returnCode types.ResponseCode, err error) {
 	c.logger.ResponseEx(tag, request, response, int(returnCode), returnCode.String(), err)
-
-	if c.th == nil || c.DisableTraceLogging {
+	if c.th == nil || c.disableTraceLogging {
 		return
 	}
-
 	var msg string
 	lvl := ai.InfoLevel
 	switch {
@@ -192,51 +182,38 @@ func (c *CNSLogger) ResponseEx(tag string, request, response any, returnCode typ
 	default:
 		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v.", tag, returnCode.String(), request, response)
 	}
-
 	c.sendTraceInternal(msg, lvl)
 }
 
-func (c *CNSLogger) getOrchestratorAndNodeID() (orch, nodeID string) {
-	c.m.RLock()
-	orch, nodeID = c.Orchestrator, c.NodeID
-	c.m.RUnlock()
-	return
-}
-
 func (c *CNSLogger) sendTraceInternal(msg string, lvl ai.Level) {
-	orch, nodeID := c.getOrchestratorAndNodeID()
-
 	report := ai.Report{
-		Message: msg,
-		Level:   lvl,
-		Context: nodeID,
-		CustomDimensions: map[string]string{
-			OrchestratorTypeStr: orch,
-			NodeIDStr:           nodeID,
-		},
+		Message:          msg,
+		Level:            lvl,
+		Context:          c.metadata[nodeIDKey],
+		CustomDimensions: map[string]string{"Level": lvl.String()},
 	}
-
+	c.m.RLock()
+	maps.Copy(report.CustomDimensions, c.metadata)
+	c.m.RUnlock()
 	c.th.TrackLog(report)
 }
 
 func (c *CNSLogger) LogEvent(event ai.Event) {
-	if c.th == nil || c.DisableEventLogging {
+	if c.th == nil || c.disableEventLogging {
 		return
 	}
-
-	orch, nodeID := c.getOrchestratorAndNodeID()
-	event.Properties[OrchestratorTypeStr] = orch
-	event.Properties[NodeIDStr] = nodeID
+	c.m.RLock()
+	maps.Copy(event.Properties, c.metadata)
+	c.m.RUnlock()
 	c.th.TrackEvent(event)
 }
 
 func (c *CNSLogger) SendMetric(metric ai.Metric) {
-	if c.th == nil || c.DisableMetricLogging {
+	if c.th == nil || c.disableMetricLogging {
 		return
 	}
-
-	orch, nodeID := c.getOrchestratorAndNodeID()
-	metric.CustomDimensions[OrchestratorTypeStr] = orch
-	metric.CustomDimensions[NodeIDStr] = nodeID
+	c.m.RLock()
+	maps.Copy(metric.CustomDimensions, c.metadata)
+	c.m.RUnlock()
 	c.th.TrackMetric(metric)
 }

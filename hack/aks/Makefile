@@ -114,7 +114,7 @@ nodesubnet-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an NodeSubne
 		--yes
 	@$(MAKE) set-kubeconf
 
-overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
+overlay-byocni-up: rg-up overlay-net-up ## Brings up a Linux Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
@@ -129,10 +129,11 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
 		--yes
-ifeq ($(OS),windows)
-	@$(MAKE) windows-nodepool-up
-endif
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh
+	$(MAKE) windows-nodepool-up
+endif
 
 overlay-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -404,6 +405,10 @@ dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Over
 		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh
+	$(MAKE) windows-nodepool-up
+endif
 
 cilium-dualstack-up: rg-up overlay-net-up ## Brings up a Cilium Dualstack Overlay cluster with Linux node only
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \

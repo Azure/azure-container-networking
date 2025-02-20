@@ -283,14 +283,27 @@ stages:
     # Azure Overlay E2E tests
     - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
       parameters:
-        name: "azure_overlay_e2e"
-        displayName: Azure Overlay
+        name: "linux_azure_overlay_e2e"
+        displayName: Azure Overlay Linux
         os: linux
         clusterType: overlay-byocni-up
-        clusterName: "azovere2e"
+        clusterName: "linuxazovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "containerize"
+        scaleup: 100
+    
+    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
+      parameters:
+        name: "win_azure_overlay_e2e"
+        displayName: Azure Overlay Windows
+        os: windows
+        clusterType: overlay-byocni-up
+        clusterName: "winazovere2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: "containerize"
+        scaleup: 50
 
     # Azure Overlay E2E Stateless CNI tests
     - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml
@@ -357,20 +370,33 @@ stages:
     # CNI dual stack overlay E2E tests
     - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
       parameters:
-        name: "dualstackoverlay_e2e"
-        displayName: AKS DualStack Overlay
+        name: "linux_dualstackoverlay_e2e"
+        displayName: AKS DualStack Overlay Linux
         os: linux
         clusterType: dualstack-overlay-byocni-up
-        clusterName: "dsovere2e"
+        clusterName: "linuxdsovere2e"
         vmSize: Standard_B2ms
         dependsOn: "containerize"
+        scaleup: 100
+
+    - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
+      parameters:
+        name: "win_dualstackoverlay_e2e"
+        displayName: AKS DualStack Overlay Windows
+        os: windows
+        clusterType: dualstack-overlay-byocni-up
+        clusterName: "windsovere2e"
+        vmSize: Standard_B2ms
+        dependsOn: "containerize"
+        scaleup: 50
 
     - stage: delete
       displayName: Delete Clusters
       condition: always()
       dependsOn:
         - setup
-        - azure_overlay_e2e
+        - linux_azure_overlay_e2e
+        - win_azure_overlay_e2e
         - azure_overlay_stateless_e2e
         - aks_swift_e2e
         - cilium_e2e
@@ -380,7 +406,8 @@ stages:
         - aks_ubuntu_22_linux_e2e
         - aks_swift_vnetscale_e2e
         - aks_windows_22_e2e
-        - dualstackoverlay_e2e
+        - linux_dualstackoverlay_e2e
+        - win_dualstackoverlay_e2e
         - cilium_dualstackoverlay_e2e
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
@@ -407,9 +434,13 @@ stages:
                 name: cilium_h_overlay_e2e
                 clusterName: "cilwhleovere2e"
                 region: $(REGION_AKS_CLUSTER_TEST)
-              azure_overlay_e2e:
-                name: azure_overlay_e2e
-                clusterName: "azovere2e"
+              linux_azure_overlay_e2e:
+                name: linux_azure_overlay_e2e
+                clusterName: "linuxazovere2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
+              windows_azure_overlay_e2e:
+                name: win_azure_overlay_e2e
+                clusterName: "winazovere2e"
                 region: $(REGION_AKS_CLUSTER_TEST)
               azure_overlay_stateless_e2e:
                 name: azure_overlay_stateless_e2e
@@ -431,9 +462,13 @@ stages:
                 name: aks_windows_22_e2e
                 clusterName: "win22e2e"
                 region: $(REGION_AKS_CLUSTER_TEST)
-              dualstackoverlay_e2e:
-                name: dualstackoverlay_e2e
-                clusterName: "dsovere2e"
+              linux_dualstackoverlay_e2e:
+                name: linux_dualstackoverlay_e2e
+                clusterName: "linuxdsovere2e"
+                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+              windows_dualstackoverlay_e2e:
+                name: windows_dualstackoverlay_e2e
+                clusterName: "windsovere2e"
                 region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
               cilium_dualstackoverlay_e2e:
                 name: cilium_dualstackoverlay_e2e
