@@ -57,6 +57,7 @@ stages:
                 vmSizeWin: ${{ parameters.vmSizeWin }}
                 region: $(location)
                 osSKU: ${{ parameters.osSKU }}
+                os: ${{ parameters.os }}
 
 # If ensures that only windows template calls are compared against the below condition
 # Condition confirms that:

@@ -164,7 +164,7 @@ stages:
   - template: singletenancy/cniv1-template.yaml
     parameters:
       name: win22_cniv1
-      clusterType: windows-cniv1-up
+      clusterType: cniv1-up
       clusterName: "win22-cniv1"
       nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
       nodeCountWin: ${NODE_COUNT_WIN}
@@ -229,7 +229,7 @@ stages:
   - template: singletenancy/cniv1-template.yaml
     parameters:
       name: linux_cniv1
-      clusterType: linux-cniv1-up
+      clusterType: cniv1-up
       clusterName: "linux-cniv1"
       nodeCount: ${NODE_COUNT_LINUX}
       vmSize: ${VM_SIZE}

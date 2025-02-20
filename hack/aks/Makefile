@@ -131,7 +131,6 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up a Linux Overlay BYO CNI clu
 		--yes
 	@$(MAKE) set-kubeconf
 ifeq ($(OS),windows)
-	AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh
 	$(MAKE) windows-nodepool-up
 endif
 
@@ -343,23 +342,7 @@ vnetscale-swift-up: rg-up vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT 
 		--yes
 	@$(MAKE) set-kubeconf
 
-windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
-		--network-plugin azure \
-		--windows-admin-password $(WINDOWS_PASSWORD) \
-		--windows-admin-username $(WINDOWS_USERNAME) \
-		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		--yes
-	@$(MAKE) windows-nodepool-up
-	@$(MAKE) set-kubeconf
-
-linux-cniv1-up: rg-up overlay-net-up ## Bring up a Linux CNIv1 cluster
+cniv1-up: rg-up overlay-net-up ## Bring up a CNIv1 cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
@@ -373,6 +356,9 @@ linux-cniv1-up: rg-up overlay-net-up ## Bring up a Linux CNIv1 cluster
 		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	$(MAKE) windows-nodepool-up
+endif
 
 dualstack-overlay-up: rg-up overlay-net-up ## Brings up an dualstack Overlay cluster with Linux node only
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -406,7 +392,6 @@ dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Over
 		--yes
 	@$(MAKE) set-kubeconf
 ifeq ($(OS),windows)
-	AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh
 	$(MAKE) windows-nodepool-up
 endif
 
@@ -445,6 +430,7 @@ dualstack-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up a Dualstack o
 	@$(MAKE) set-kubeconf
 
 windows-nodepool-up: ## Add windows node pool
+	AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh
 	$(AZCLI) aks nodepool add -g $(GROUP) -n npwin \
 		--node-count $(NODE_COUNT_WIN) \
 		--node-vm-size $(VM_SIZE_WIN) \

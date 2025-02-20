@@ -5,6 +5,7 @@ parameters:
   clusterName: ""
   vmSize: ""
   k8sVersion: ""
+  os: ""
   dependsOn: ""
 
 stages:
@@ -27,6 +28,7 @@ stages:
           vmSize: ${{ parameters.vmSize }}
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
+          os: ${{ parameters.os }}
           region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
