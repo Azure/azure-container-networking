@@ -351,8 +351,6 @@ cniv1-up: rg-up overlay-net-up ## Bring up a CNIv1 cluster
 		--node-vm-size $(VM_SIZE) \
 		--max-pods 250 \
 		--network-plugin azure \
-		--windows-admin-password $(WINDOWS_PASSWORD) \
-		--windows-admin-username $(WINDOWS_USERNAME) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--os-sku $(OS_SKU) \
 		--no-ssh-key \
