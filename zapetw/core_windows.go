@@ -9,48 +9,45 @@ import (
 // <product_name>-<component_name>
 const providername = "ACN-Monitoring"
 
-type ETWCore struct {
+type Core struct {
 	provider  *etw.Provider
 	eventName string
 	encoder   zapcore.Encoder
-	fields    []zapcore.Field
 	zapcore.LevelEnabler
 }
 
-func NewETWCore(eventName string, encoder zapcore.Encoder, levelEnabler zapcore.LevelEnabler) (*ETWCore, error) {
-	provider, err := etw.NewProviderWithOptions(providername)
+func New(providerName, eventName string, encoder zapcore.Encoder, levelEnabler zapcore.LevelEnabler) (zapcore.Core, func(), error) {
+	provider, err := etw.NewProviderWithOptions(providerName)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create ETW provider")
+		return nil, func() { _ = provider.Close() }, errors.Wrap(err, "failed to create ETW provider")
 	}
-	return &ETWCore{
+	return &Core{
 		provider:     provider,
 		eventName:    eventName,
 		encoder:      encoder,
 		LevelEnabler: levelEnabler,
-	}, nil
+	}, func() { _ = provider.Close() }, nil
 }
 
-func (core *ETWCore) With(fields []zapcore.Field) zapcore.Core {
-	return &ETWCore{
-		provider:     core.provider,
-		eventName:    core.eventName,
-		encoder:      core.encoder,
-		LevelEnabler: core.LevelEnabler,
-		fields:       append(core.fields, fields...),
+func (core *Core) With(fields []zapcore.Field) zapcore.Core {
+	clone := core.clone()
+	for i := range fields {
+		fields[i].AddTo(clone.encoder)
 	}
+	return clone
 }
 
 // Check is an implementation of the zapcore.Core interface's Check method.
 // Check determines whether the logger core is enabled at the supplied zapcore.Entry's Level.
 // If enabled, it adds the core to the CheckedEntry and returns it, otherwise returns the CheckedEntry unchanged.
-func (core *ETWCore) Check(entry zapcore.Entry, checkedEntry *zapcore.CheckedEntry) *zapcore.CheckedEntry {
+func (core *Core) Check(entry zapcore.Entry, checkedEntry *zapcore.CheckedEntry) *zapcore.CheckedEntry {
 	if core.Enabled(entry.Level) {
 		return checkedEntry.AddCore(entry, core)
 	}
 	return checkedEntry
 }
 
-func (core *ETWCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
+func (core *Core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	etwLevel := zapLevelToETWLevel(entry.Level)
 
 	buffer, err := core.encoder.EncodeEntry(entry, fields)
@@ -70,8 +67,17 @@ func (core *ETWCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	return nil
 }
 
-func (core *ETWCore) Sync() error {
+func (core *Core) Sync() error {
 	return nil
+}
+
+func (core *Core) clone() *Core {
+	return &Core{
+		provider:     core.provider,
+		eventName:    core.eventName,
+		encoder:      core.encoder.Clone(),
+		LevelEnabler: core.LevelEnabler,
+	}
 }
 
 func zapLevelToETWLevel(level zapcore.Level) etw.Level {
