@@ -359,7 +359,7 @@ stages:
         name: "aks_windows_22_e2e"
         displayName: AKS Windows 2022
         arch: amd64
-        os: windows
+        os: "windows"
         clusterType: cniv1-up
         clusterName: "win22e2e"
         vmSize: Standard_B2ms
