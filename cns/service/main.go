@@ -838,25 +838,10 @@ func main() {
 			return
 		}
 
-		// We might be configured to reinitialize state from the CNI instead of the apiserver.
-		// If so, we should check that the CNI is new enough to support the state commands,
-		// otherwise we fall back to the existing behavior.
-		if cnsconfig.InitializeFromCNI {
-			var isGoodVer bool
-			isGoodVer, err = cnireconciler.IsDumpStateVer()
-			if err != nil {
-				logger.Errorf("error checking CNI ver: %v", err)
-			}
-
-			// override the prior config flag with the result of the ver check.
-			cnsconfig.InitializeFromCNI = isGoodVer
-
-			if cnsconfig.InitializeFromCNI {
-				// Set the PodInfoVersion by initialization type, so that the
-				// PodInfo maps use the correct key schema
-				cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
-			}
-		}
+		// By default reinitialize state from the CNI.
+		// Set the PodInfoVersion by initialization type, so that the
+		// PodInfo maps use the correct key schema
+		cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
 		// If cns manageendpointstate is true, then cns maintains its own state and reconciles from it.
 		// in this case, cns maintains state with containerid as key and so in-memory cache can lookup
 		// and update based on container id.
@@ -1677,29 +1662,13 @@ func getPodInfoByIPProvider(
 				return podInfoByIPProvider, errors.Wrap(err, "failed to create CNS PodInfoProvider")
 			}
 		}
-	case cnsconfig.InitializeFromCNI:
+	default:
 		logger.Printf("Initializing from CNI")
 		podInfoByIPProvider, err = cnireconciler.NewCNIPodInfoProvider()
 		if err != nil {
 			return podInfoByIPProvider, errors.Wrap(err, "failed to create CNI PodInfoProvider")
 		}
-	default:
-		logger.Printf("Initializing from Kubernetes")
-		podInfoByIPProvider = cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
-			pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{ //nolint:govet // ignore err shadow
-				FieldSelector: "spec.nodeName=" + nodeName,
-			})
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to list Pods for PodInfoProvider")
-			}
-			podInfo, err := cns.KubePodsToPodInfoByIP(pods.Items)
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to convert Pods to PodInfoByIP")
-			}
-			return podInfo, nil
-		})
 	}
-
 	return podInfoByIPProvider, nil
 }
 
