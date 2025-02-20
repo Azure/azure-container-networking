@@ -1,7 +1,8 @@
 package ipsets
 
 import (
-	"fmt"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -379,7 +380,19 @@ func verifyHNSCache(t *testing.T, expected map[string]hcn.SetPolicySetting, hns 
 	for setName, setObj := range expected {
 		cacheObj := hns.Cache.SetPolicy(setObj.Id)
 		require.NotNil(t, cacheObj)
-		require.Equal(t, setObj, *cacheObj, fmt.Sprintf("%s mismatch in cache", setName))
+
+		// make values always sorted for testing consistency
+		members := strings.Split(cacheObj.Values, ",")
+		sort.Strings(members)
+		copyOfCachedObj := *cacheObj
+		copyOfCachedObj.Values = strings.Join(members, ",")
+
+		expectedMembers := strings.Split(setObj.Values, ",")
+		sort.Strings(expectedMembers)
+		copyOfExpectedObj := setObj
+		copyOfExpectedObj.Values = strings.Join(expectedMembers, ",")
+
+		require.Equal(t, copyOfExpectedObj, copyOfCachedObj, setName+" mismatch in cache")
 	}
 }
 
