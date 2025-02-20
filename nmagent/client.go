@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/nmagent/internal"
+	"github.com/Azure/azure-container-networking/retry"
 	"github.com/pkg/errors"
 )
 
@@ -30,9 +31,9 @@ func NewClient(c Config) (*Client, error) {
 		host:      c.Host,
 		port:      c.Port,
 		enableTLS: c.UseTLS,
-		retrier: internal.Retrier{
+		retrier: retry.Retrier{
 			// nolint:gomnd // the base parameter is explained in the function
-			Cooldown: internal.Exponential(1*time.Second, 2),
+			Cooldown: retry.Exponential(1*time.Second, 2),
 		},
 	}
 
