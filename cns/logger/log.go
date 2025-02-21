@@ -7,8 +7,9 @@ import (
 )
 
 var (
-	Log        *CNSLogger
-	aiMetadata string // this var is set at build time.
+	Log             *CNSLogger
+	aiMetadata      string // this var is set at build time.
+	AppInsightsIKey = aiMetadata
 )
 
 // todo: the functions below should be removed. CNSLogger should be injected where needed and not used from package level scope.

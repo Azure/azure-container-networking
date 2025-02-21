@@ -6,13 +6,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-type Config struct {
-	// Level is the general logging Level. If cores have more specific config it will override this.
-	Level      zapcore.Level
-	AIConfig   cores.AIConfig
-	FileConfig cores.FileConfig
-}
-
 type compoundCloser []func()
 
 func (c compoundCloser) Close() {
@@ -22,14 +15,14 @@ func (c compoundCloser) Close() {
 }
 
 func New(cfg *Config) (*zap.Logger, func(), error) {
-	stdoutCore := cores.StdoutCore(cfg.Level)
+	stdoutCore := cores.StdoutCore(cfg.level)
 	closer := compoundCloser{}
-	fileCore, fileCloser, err := cores.FileCore(&cfg.FileConfig)
+	fileCore, fileCloser, err := cores.FileCore(&cfg.File)
 	closer = append(closer, fileCloser)
 	if err != nil {
 		return nil, closer.Close, err //nolint:wrapcheck // it's an internal pkg
 	}
-	aiCore, aiCloser, err := cores.ApplicationInsightsCore(&cfg.AIConfig)
+	aiCore, aiCloser, err := cores.ApplicationInsightsCore(&cfg.AppInsights)
 	closer = append(closer, aiCloser)
 	if err != nil {
 		return nil, closer.Close, err //nolint:wrapcheck // it's an internal pkg
