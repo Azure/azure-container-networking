@@ -353,6 +353,11 @@ type NmAgentSupportedApisResponse struct {
 	SupportedApis []string
 }
 
+type NCListResponse struct {
+	Response Response `json:"response"`
+	NCList   []string `json:"ncList"`
+}
+
 type HomeAzResponse struct {
 	IsSupported          bool `json:"isSupported"`
 	HomeAz               uint `json:"homeAz"`

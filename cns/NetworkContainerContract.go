@@ -40,6 +40,7 @@ const (
 	NumberOfCPUCores                         = NumberOfCPUCoresPath
 	NMAgentSupportedAPIs                     = NmAgentSupportedApisPath
 	EndpointAPI                              = EndpointPath
+	GetNCList                                = "/nclist"
 )
 
 // NetworkContainer Prefixes

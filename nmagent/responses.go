@@ -37,7 +37,7 @@ type NCVersion struct {
 	Version            string `json:"version"` // the current network container version
 }
 
-// NetworkContainerListResponse is a collection of network container IDs mapped
+// NCVersionList is a collection of network container IDs mapped
 // to their current versions.
 type NCVersionList struct {
 	Containers []NCVersion `json:"networkContainers"`
