@@ -15,23 +15,29 @@ func (c compoundCloser) Close() {
 }
 
 func New(cfg *Config) (*zap.Logger, func(), error) {
-	stdoutCore := cores.StdoutCore(cfg.level)
+	core := cores.StdoutCore(cfg.level)
 	closer := compoundCloser{}
-	fileCore, fileCloser, err := cores.FileCore(&cfg.File)
-	closer = append(closer, fileCloser)
-	if err != nil {
-		return nil, closer.Close, err //nolint:wrapcheck // it's an internal pkg
+	if cfg.File != nil {
+		fileCore, fileCloser, err := cores.FileCore(cfg.File)
+		closer = append(closer, fileCloser)
+		if err != nil {
+			return nil, closer.Close, err //nolint:wrapcheck // it's an internal pkg
+		}
+		core = zapcore.NewTee(core, fileCore)
 	}
-	aiCore, aiCloser, err := cores.ApplicationInsightsCore(&cfg.AppInsights)
-	closer = append(closer, aiCloser)
-	if err != nil {
-		return nil, closer.Close, err //nolint:wrapcheck // it's an internal pkg
+	if cfg.AppInsights != nil {
+		aiCore, aiCloser, err := cores.ApplicationInsightsCore(cfg.AppInsights)
+		closer = append(closer, aiCloser)
+		if err != nil {
+			return nil, closer.Close, err //nolint:wrapcheck // it's an internal pkg
+		}
+		core = zapcore.NewTee(core, aiCore)
 	}
 	platformCore, platformCloser, err := platformCore(cfg)
 	closer = append(closer, platformCloser)
 	if err != nil {
 		return nil, closer.Close, err
 	}
-	core := zapcore.NewTee(stdoutCore, fileCore, aiCore, platformCore)
+	core = zapcore.NewTee(core, platformCore)
 	return zap.New(core), closer.Close, nil
 }

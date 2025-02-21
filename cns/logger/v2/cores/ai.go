@@ -2,8 +2,8 @@ package logger
 
 import (
 	"encoding/json"
-	"time"
 
+	"github.com/Azure/azure-container-networking/internal/time"
 	"github.com/Azure/azure-container-networking/zapai"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	"github.com/pkg/errors"
@@ -48,9 +48,9 @@ func ApplicationInsightsCore(cfg *AppInsightsConfig) (zapcore.Core, func(), erro
 	// build the AI config
 	aicfg := *appinsights.NewTelemetryConfiguration(cfg.IKey)
 	aicfg.MaxBatchSize = cfg.MaxBatchSize
-	aicfg.MaxBatchInterval = cfg.MaxBatchInterval
+	aicfg.MaxBatchInterval = cfg.MaxBatchInterval.Duration
 	sinkcfg := zapai.SinkConfig{
-		GracePeriod:            cfg.GracePeriod,
+		GracePeriod:            cfg.GracePeriod.Duration,
 		TelemetryConfiguration: aicfg,
 	}
 	// open the AI zap sink
