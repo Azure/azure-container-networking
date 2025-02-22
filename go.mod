@@ -30,7 +30,7 @@ require (
 	github.com/onsi/gomega v1.33.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.20.5
+	github.com/prometheus/client_golang v1.21.0
 	github.com/prometheus/client_model v0.6.1
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.6
@@ -39,8 +39,8 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/sys v0.30.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20241015192408-796eee8c2d53 // indirect
-	google.golang.org/grpc v1.69.2
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20241202173237-19429a94021a // indirect
+	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.4
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	k8s.io/api v0.30.7
@@ -148,7 +148,7 @@ require (
 	github.com/containerd/errdefs v0.3.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
-	github.com/klauspost/compress v1.17.9 // indirect
+	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect

@@ -1,7 +1,8 @@
 package ipsets
 
 import (
-	"fmt"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -375,11 +376,25 @@ func TestFailureOnDeletion(t *testing.T) {
 	verifyDeletedHNSCache(t, toDeleteSetNames, hns)
 }
 
+// sorts the Values field of the hcn set policy setting and returns a copy with sorted values
+func getSortedHnsPolicySetting(setting *hcn.SetPolicySetting) hcn.SetPolicySetting {
+	members := strings.Split(setting.Values, ",")
+	sort.Strings(members)
+	copyOfSetting := *setting
+	copyOfSetting.Values = strings.Join(members, ",")
+	return copyOfSetting
+}
+
 func verifyHNSCache(t *testing.T, expected map[string]hcn.SetPolicySetting, hns *hnswrapper.Hnsv2wrapperFake) {
 	for setName, setObj := range expected {
 		cacheObj := hns.Cache.SetPolicy(setObj.Id)
 		require.NotNil(t, cacheObj)
-		require.Equal(t, setObj, *cacheObj, fmt.Sprintf("%s mismatch in cache", setName))
+
+		// make values always sorted for testing consistency
+		copyOfCachedObj := getSortedHnsPolicySetting(cacheObj)
+		copyOfExpectedObj := getSortedHnsPolicySetting(&setObj)
+
+		require.Equal(t, copyOfExpectedObj, copyOfCachedObj, setName+" mismatch in cache")
 	}
 }
 

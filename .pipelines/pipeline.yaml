@@ -347,7 +347,7 @@ stages:
         displayName: AKS Ubuntu 22
         arch: "amd64"
         os: "linux"
-        clusterType: linux-cniv1-up
+        clusterType: cniv1-up
         clusterName: "ubuntu22e2e"
         vmSize: Standard_B2s
         k8sVersion: 1.25
@@ -359,8 +359,8 @@ stages:
         name: "aks_windows_22_e2e"
         displayName: AKS Windows 2022
         arch: amd64
-        os: windows
-        clusterType: windows-cniv1-up
+        os: "windows"
+        clusterType: cniv1-up
         clusterName: "win22e2e"
         vmSize: Standard_B2ms
         os_version: "ltsc2022"

@@ -1,0 +1,34 @@
+parameters:
+  clusterName: ""
+
+steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        deployments="cilium-operator"
+        daemonsets="cilium|azure-cns|ip-masq"
+
+        exit=0
+        for ds in $(kubectl get ds -n kube-system | grep -E $daemonsets | awk '{print $1}'); do
+          if ! kubectl rollout restart ds -n kube-system $ds --warnings-as-errors=true; then
+            exit=1
+          fi
+        done
+
+        for deploy in $(kubectl get deploy -n kube-system | grep -E $deployments | awk '{print $1}'); do
+          if ! kubectl rollout restart deploy -n kube-system $deploy --warnings-as-errors=true; then
+            exit=1
+          fi
+        done
+
+        if [ ${exit} == 1 ]; then
+          echo "Warnings within maintained daemonsets/deployment need to be resolved."
+          exit 1
+        fi
+    name: "k8syaml"
+    displayName: "Check k8s YAML"
