@@ -31,7 +31,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 	}{
 		Alias: (*Alias)(c),
 	}
-	if err := json.Unmarshal(data, &aux); err != nil {
+	if err := json.Unmarshal(data, &aux); err != nil { //nolint:musttag // doesn't understand the embedding strategy
 		return errors.Wrap(err, "failed to unmarshal Config")
 	}
 	lvl, err := zapcore.ParseLevel(c.Level)

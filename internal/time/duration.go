@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const Second = time.Second
+const Second = time.Second //nolint:revive // it's not a suffix
 
 type Duration struct {
 	time.Duration

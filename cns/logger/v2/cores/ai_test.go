@@ -20,10 +20,10 @@ func TestAIConfigUnmarshalJSON(t *testing.T) {
 			name: "valid",
 			have: []byte(`{"grace_period":"30s","level":"panic","max_batch_interval":"30s","max_batch_size":32000}`),
 			want: &AppInsightsConfig{
-				GracePeriod:      time.Duration{30 * time.Second},
+				GracePeriod:      time.Duration{Duration: 30 * time.Second},
 				Level:            "panic",
 				level:            zapcore.PanicLevel,
-				MaxBatchInterval: time.Duration{30 * time.Second},
+				MaxBatchInterval: time.Duration{Duration: 30 * time.Second},
 				MaxBatchSize:     32000,
 			},
 		},
