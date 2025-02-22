@@ -2,9 +2,9 @@ package logger
 
 import (
 	"encoding/json"
-	"time"
 
 	loggerv1 "github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/internal/time"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
 )
@@ -40,4 +40,35 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 	}
 	c.level = lvl
 	return nil
+}
+
+// Normalize checks the Config for missing or illegal values and sets them
+// to defaults if appropriate.
+func (c *Config) Normalize() {
+	if c.File != nil {
+		if c.File.Filepath == "" {
+			c.File.Filepath = defaultFilePath
+		}
+		if c.File.MaxBackups == 0 {
+			c.File.MaxBackups = defaultMaxBackups
+		}
+		if c.File.MaxSize == 0 {
+			c.File.MaxSize = defaultMaxSize
+		}
+	}
+	if c.AppInsights != nil {
+		if c.AppInsights.IKey == "" {
+			c.AppInsights.IKey = defaultIKey
+		}
+		if c.AppInsights.GracePeriod.Duration == 0 {
+			c.AppInsights.GracePeriod.Duration = defaultGracePeriod
+		}
+		if c.AppInsights.MaxBatchInterval.Duration == 0 {
+			c.AppInsights.MaxBatchInterval.Duration = defaultMaxBatchInterval
+		}
+		if c.AppInsights.MaxBatchSize == 0 {
+			c.AppInsights.MaxBatchSize = defaultMaxBatchSize
+		}
+	}
+	c.normalize()
 }

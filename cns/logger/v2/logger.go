@@ -15,6 +15,7 @@ func (c compoundCloser) Close() {
 }
 
 func New(cfg *Config) (*zap.Logger, func(), error) {
+	cfg.Normalize()
 	core := cores.StdoutCore(cfg.level)
 	closer := compoundCloser{}
 	if cfg.File != nil {

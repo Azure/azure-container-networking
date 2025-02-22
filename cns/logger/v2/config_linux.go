@@ -14,3 +14,5 @@ type Config struct {
 	AppInsights *cores.AppInsightsConfig `json:"appInsights,omitempty"`
 	File        *cores.FileConfig        `json:"file,omitempty"`
 }
+
+func (c *Config) normalize() {}

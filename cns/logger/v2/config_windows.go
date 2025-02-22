@@ -15,3 +15,14 @@ type Config struct {
 	File        *cores.FileConfig        `json:"file,omitempty"`
 	ETW         *cores.ETWConfig         `json:"etw,omitempty"`
 }
+
+func (c *Config) normalize() {
+	if c.ETW != nil {
+		if c.ETW.EventName == "" {
+			c.ETW.EventName = "AzureCNS"
+		}
+		if c.ETW.ProviderName == "" {
+			c.ETW.ProviderName = "ACN-Monitoring"
+		}
+	}
+}

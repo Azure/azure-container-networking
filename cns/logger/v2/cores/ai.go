@@ -12,10 +12,10 @@ import (
 )
 
 type AppInsightsConfig struct {
-	GracePeriod      time.Duration   `json:"grace_period"`
-	IKey             string          `json:"ikey"`
-	Level            string          `json:"level"`
 	level            zapcore.Level   `json:"-"` // Zero value is default Info level.
+	Level            string          `json:"level"`
+	IKey             string          `json:"ikey"`
+	GracePeriod      time.Duration   `json:"grace_period"`
 	MaxBatchInterval time.Duration   `json:"max_batch_interval"`
 	MaxBatchSize     int             `json:"max_batch_size"`
 	Fields           []zapcore.Field `json:"fields"`
