@@ -201,7 +201,6 @@ func renderMigrationSummaryTable(
 		fmt.Println("\n\033[32m✔ Safe to migrate this cluster.\033[0m")
 		fmt.Println("For more details please see \033[32maka.ms/azurenpmtocilium\033[0m.")
 	}
-	fmt.Println()
 }
 
 func renderFlaggedNetworkPolicyTable(
@@ -213,7 +212,7 @@ func renderFlaggedNetworkPolicyTable(
 	egressPoliciesWithNamedPort,
 	egressPolicies []string,
 ) {
-	fmt.Println("Flagged Network Policies:")
+	fmt.Println("\nFlagged Network Policies:")
 	flaggedResourceTable := tablewriter.NewWriter(os.Stdout)
 	flaggedResourceTable.SetHeader([]string{"Network Policy", "NetworkPolicy with endPort", "NetworkPolicy with CIDR", "NetworkPolicy with Named Port", "NetworkPolicy with Egress (Not Allow All Egress)"})
 	flaggedResourceTable.SetRowLine(true)
@@ -281,7 +280,7 @@ func renderFlaggedServiceTable(unsafeServices []string) {
 	flaggedResourceTable.SetHeader([]string{"Service", "Disruption for some Services with externalTrafficPolicy=Cluster"})
 	flaggedResourceTable.SetRowLine(true)
 	for _, service := range unsafeServices {
-		flaggedResourceTable.Append([]string{fmt.Sprintf("%s", service), "✅"})
+		flaggedResourceTable.Append([]string{fmt.Sprintf("%s", service), "❌"})
 	}
 	flaggedResourceTable.Render()
 }
