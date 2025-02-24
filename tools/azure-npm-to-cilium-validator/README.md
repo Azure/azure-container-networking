@@ -4,6 +4,7 @@ This tool validates the migration from Azure NPM to Cilium. It will provide info
 
 - NetworkPolicy with endPort
 - NetworkPolicy with ipBlock
+- NetworkPolicy with named Ports
 - NetworkPolicy with Egress Policies (not Allow All)
 - Disruption for some Services (LoadBalancer or NodePort) with externalTrafficPolicy=Cluster
 
