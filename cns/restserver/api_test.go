@@ -1302,6 +1302,31 @@ func TestNmAgentSupportedApisHandler(t *testing.T) {
 	fmt.Printf("nmAgentSupportedApisHandler Responded with %+v\n", nmAgentSupportedApisResponse)
 }
 
+func TestNMAgentNCListHandler(t *testing.T) {
+	fmt.Println("Test: nmAgentNCListHandler")
+	var (
+		err error
+		req *http.Request
+	)
+
+	req, err = http.NewRequest(http.MethodGet, cns.NMAgentGetNCListAPIPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	var nmAgentNCListResponse cns.NCListResponse
+
+	err = decodeResponse(w, &nmAgentNCListResponse)
+	if err != nil || nmAgentNCListResponse.Response.ReturnCode != 0 {
+		t.Errorf("nmAgentNCListHandler failed with response %+v", nmAgentNCListResponse)
+	}
+
+	fmt.Printf("nmAgentNCListHandler responded with %+v\n", nmAgentNCListResponse)
+	require.Len(t, nmAgentNCListResponse.NCList, 0)
+}
+
 // Testing GetHomeAz API handler, return UnsupportedVerb if http method is not supported
 func TestGetHomeAz_UnsupportedHttpMethod(t *testing.T) {
 	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, cns.GetHomeAz, http.NoBody)

@@ -19,6 +19,7 @@ import (
 const (
 	SetOrchestratorType                      = "/network/setorchestratortype"
 	GetHomeAz                                = "/homeaz"
+	GetNCList                                = "/nclist"
 	GetVMUniqueID                            = "/metadata/vmuniqueid"
 	CreateOrUpdateNetworkContainer           = "/network/createorupdatenetworkcontainer"
 	DeleteNetworkContainer                   = "/network/deletenetworkcontainer"
@@ -40,7 +41,6 @@ const (
 	NumberOfCPUCores                         = NumberOfCPUCoresPath
 	NMAgentSupportedAPIs                     = NmAgentSupportedApisPath
 	EndpointAPI                              = EndpointPath
-	GetNCList                                = "/nclist"
 )
 
 // NetworkContainer Prefixes
