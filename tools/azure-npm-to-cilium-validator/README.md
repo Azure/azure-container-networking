@@ -37,7 +37,11 @@ Run the following command with the path to your kube config file with the cluste
 go run azure-npm-to-cilium-validator.go --kubeconfig ~/.kube/config
 ```
 
-This will execute the validator and print the migration summary.
+This will execute the validator and print the migration summary. You can use the `--detailed-migration-summary` flag to get more information on flagged network policies and services as well as total number of network policies, services, and pods on the cluster targeted.
+
+```bash
+go run azure-npm-to-cilium-validator.go --kubeconfig ~/.kube/config --detailed-migration-summary
+```
 
 ## Running Tests
 

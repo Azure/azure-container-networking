@@ -23,7 +23,7 @@ import (
 func main() {
 	// Parse the kubeconfig flag
 	kubeconfig := flag.String("kubeconfig", "~/.kube/config", "absolute path to the kubeconfig file")
-	verboseOutput := flag.Bool("verbose", false, "enable verbose output")
+	detailedMigrationSummary := flag.Bool("detailed-migration-summary", false, "display flagged network polices/services and total cluster resource count")
 	flag.Parse()
 
 	// Build the Kubernetes client config
@@ -96,10 +96,225 @@ func main() {
 	metrics.InitializeAll()
 
 	// Print the migration summary
-	printMigrationSummary(verboseOutput, namespaces, policiesByNamespace, servicesByNamespace, podsByNamespace)
+	printMigrationSummary(detailedMigrationSummary, namespaces, policiesByNamespace, servicesByNamespace, podsByNamespace)
 
 	// Close the metrics
 	metrics.Close()
+}
+
+func printMigrationSummary(
+	detailedMigrationSummary *bool,
+	namespaces *corev1.NamespaceList,
+	policiesByNamespace map[string][]*networkingv1.NetworkPolicy,
+	servicesByNamespace map[string][]*corev1.Service,
+	podsByNamespace map[string][]*corev1.Pod,
+) {
+	// Get the network policies with endports
+	ingressEndportNetworkPolicy, egressEndportNetworkPolicy := getEndportNetworkPolicies(policiesByNamespace)
+	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d network policies with endPort", len(ingressEndportNetworkPolicy)+len(egressEndportNetworkPolicy)), metrics.DonotPrint)
+
+	// Get the network policies with cidr
+	ingressPoliciesWithCIDR, egressPoliciesWithCIDR := getCIDRNetworkPolicies(policiesByNamespace)
+	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d network policies with CIDR", len(ingressPoliciesWithCIDR)+len(egressPoliciesWithCIDR)), metrics.DonotPrint)
+
+	// Get the named port
+	ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort := getNamedPortPolicies(policiesByNamespace)
+	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d network policies with named port", len(ingressPoliciesWithNamedPort)+len(egressPoliciesWithNamedPort)), metrics.DonotPrint)
+
+	// Get the network policies with egress (except not egress allow all)
+	egressPolicies := getEgressPolicies(policiesByNamespace)
+	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d network policies with egress", len(egressPolicies)), metrics.DonotPrint)
+
+	// Get services that have externalTrafficPolicy!=Local that are unsafe (might have traffic disruption)
+	unsafeServices := getUnsafeExternalTrafficPolicyClusterServices(namespaces, servicesByNamespace, policiesByNamespace)
+	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d services with externalTrafficPolicy=Cluster", len(unsafeServices)), metrics.DonotPrint)
+
+	// Print the migration summary table
+	renderMigrationSummaryTable(ingressEndportNetworkPolicy, egressEndportNetworkPolicy, ingressPoliciesWithCIDR, egressPoliciesWithCIDR, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort, egressPolicies, unsafeServices)
+
+	// Print the flagged resource table and cluster resource table if the detailed-report flag is set
+	if *detailedMigrationSummary {
+		if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
+			len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
+			len(ingressPoliciesWithNamedPort) > 0 || len(egressPoliciesWithNamedPort) > 0 ||
+			len(egressPolicies) > 0 {
+			renderFlaggedNetworkPolicyTable(ingressEndportNetworkPolicy, egressEndportNetworkPolicy, ingressPoliciesWithCIDR, egressPoliciesWithCIDR, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort, egressPolicies)
+		}
+		if len(unsafeServices) > 0 {
+			renderFlaggedServiceTable(unsafeServices)
+		}
+		renderClusterResourceTable(policiesByNamespace, servicesByNamespace, podsByNamespace)
+	}
+}
+
+func renderMigrationSummaryTable(
+	ingressEndportNetworkPolicy,
+	egressEndportNetworkPolicy,
+	ingressPoliciesWithCIDR,
+	egressPoliciesWithCIDR,
+	ingressPoliciesWithNamedPort,
+	egressPoliciesWithNamedPort,
+	egressPolicies,
+	unsafeServices []string,
+) {
+	fmt.Println("Migration Summary:")
+	migrationSummarytable := tablewriter.NewWriter(os.Stdout)
+	migrationSummarytable.SetHeader([]string{"Breaking Change", "Upgrade compatibility", "Count"})
+	migrationSummarytable.SetRowLine(true)
+	if len(ingressEndportNetworkPolicy) == 0 && len(egressEndportNetworkPolicy) == 0 {
+		migrationSummarytable.Append([]string{"NetworkPolicy with endPort", "✅", fmt.Sprintf("0")})
+	} else {
+		migrationSummarytable.Append([]string{"NetworkPolicy with endPort", "❌", fmt.Sprintf("%d", len(ingressEndportNetworkPolicy)+len(egressEndportNetworkPolicy))})
+	}
+	if len(ingressPoliciesWithCIDR) == 0 && len(egressPoliciesWithCIDR) == 0 {
+		migrationSummarytable.Append([]string{"NetworkPolicy with CIDR", "✅", "0"})
+	} else {
+		migrationSummarytable.Append([]string{"NetworkPolicy with CIDR", "❌", fmt.Sprintf("%d", len(ingressPoliciesWithCIDR)+len(egressPoliciesWithCIDR))})
+	}
+	if len(ingressPoliciesWithNamedPort) == 0 && len(egressPoliciesWithNamedPort) == 0 {
+		migrationSummarytable.Append([]string{"NetworkPolicy with Named Port", "✅", "0"})
+	} else {
+		migrationSummarytable.Append([]string{"NetworkPolicy with Named Port", "❌", fmt.Sprintf("%d", len(ingressPoliciesWithNamedPort)+len(egressPoliciesWithNamedPort))})
+	}
+	if len(egressPolicies) == 0 {
+		migrationSummarytable.Append([]string{"NetworkPolicy with Egress (Not Allow All Egress)", "✅", "0"})
+	} else {
+		migrationSummarytable.Append([]string{"NetworkPolicy with Egress (Not Allow All Egress)", "❌", fmt.Sprintf("%d", len(egressPolicies))})
+	}
+	if len(unsafeServices) == 0 {
+		migrationSummarytable.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "✅", "0"})
+	} else {
+		migrationSummarytable.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "❌", fmt.Sprintf("%d", len(unsafeServices))})
+	}
+	migrationSummarytable.Render()
+	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
+		len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
+		len(ingressPoliciesWithNamedPort) > 0 || len(egressPoliciesWithNamedPort) > 0 ||
+		len(egressPolicies) > 0 ||
+		len(unsafeServices) > 0 {
+		metrics.SendLog(util.PodID, "Fails some checks. Unsafe to migrate this cluster", metrics.DonotPrint)
+		fmt.Println("\n\033[31m✘ Review above issues before migration.\033[0m")
+		fmt.Println("Please see \033[32maka.ms/azurenpmtocilium\033[0m for instructions on how to evaluate/assess the above warnings marked by ❌.")
+		fmt.Println("NOTE: rerun this script if any modifications (create/update/delete) are made to services or policies.")
+	} else {
+		metrics.SendLog(util.PodID, "Passes all checks. Safe to migrate this cluster", metrics.DonotPrint)
+		fmt.Println("\n\033[32m✔ Safe to migrate this cluster.\033[0m")
+		fmt.Println("For more details please see \033[32maka.ms/azurenpmtocilium\033[0m.")
+	}
+	fmt.Println()
+}
+
+func renderFlaggedNetworkPolicyTable(
+	ingressEndportNetworkPolicy,
+	egressEndportNetworkPolicy,
+	ingressPoliciesWithCIDR,
+	egressPoliciesWithCIDR,
+	ingressPoliciesWithNamedPort,
+	egressPoliciesWithNamedPort,
+	egressPolicies []string,
+) {
+	fmt.Println("Flagged Network Policies:")
+	flaggedResourceTable := tablewriter.NewWriter(os.Stdout)
+	flaggedResourceTable.SetHeader([]string{"Network Policy", "NetworkPolicy with endPort", "NetworkPolicy with CIDR", "NetworkPolicy with Named Port", "NetworkPolicy with Egress (Not Allow All Egress)"})
+	flaggedResourceTable.SetRowLine(true)
+
+	// Create a map to store the policies and their flags
+	policyFlags := make(map[string][]string)
+
+	// Helper function to add a flag to a policy
+	addFlag := func(policy string, flag string) {
+		if _, exists := policyFlags[policy]; !exists {
+			policyFlags[policy] = []string{"✅", "✅", "✅", "✅"}
+		}
+		switch flag {
+		case "ingressEndPort":
+			policyFlags[policy][0] = "❌ (ingress)"
+		case "egressEndPort":
+			policyFlags[policy][0] = "❌ (egress)"
+		case "ingressCIDR":
+			policyFlags[policy][1] = "❌ (ingress)"
+		case "egressCIDR":
+			policyFlags[policy][1] = "❌ (egress)"
+		case "ingressNamedPort":
+			policyFlags[policy][2] = "❌ (ingress)"
+		case "egressNamedPort":
+			policyFlags[policy][2] = "❌ (egress)"
+		case "Egress":
+			policyFlags[policy][3] = "❌"
+		}
+	}
+
+	// Add flags for each policy
+	for _, policy := range ingressEndportNetworkPolicy {
+		addFlag(policy, "ingressEndPort")
+	}
+	for _, policy := range egressEndportNetworkPolicy {
+		addFlag(policy, "egressEndPort")
+	}
+	for _, policy := range ingressPoliciesWithCIDR {
+		addFlag(policy, "ingressCIDR")
+	}
+	for _, policy := range egressPoliciesWithCIDR {
+		addFlag(policy, "egressCIDR")
+	}
+	for _, policy := range ingressPoliciesWithNamedPort {
+		addFlag(policy, "ingressNamedPort")
+	}
+	for _, policy := range egressPoliciesWithNamedPort {
+		addFlag(policy, "egressNamedPort")
+	}
+	for _, policy := range egressPolicies {
+		addFlag(policy, "Egress")
+	}
+
+	// Append the policies and their flags to the table
+	for policy, flags := range policyFlags {
+		flaggedResourceTable.Append([]string{policy, flags[0], flags[1], flags[2], flags[3]})
+	}
+
+	flaggedResourceTable.Render()
+}
+
+func renderFlaggedServiceTable(unsafeServices []string) {
+	fmt.Println("\nFlagged Services:")
+	flaggedResourceTable := tablewriter.NewWriter(os.Stdout)
+	flaggedResourceTable.SetHeader([]string{"Service", "Disruption for some Services with externalTrafficPolicy=Cluster"})
+	flaggedResourceTable.SetRowLine(true)
+	for _, service := range unsafeServices {
+		flaggedResourceTable.Append([]string{fmt.Sprintf("%s", service), "✅"})
+	}
+	flaggedResourceTable.Render()
+}
+
+func renderClusterResourceTable(policiesByNamespace map[string][]*networkingv1.NetworkPolicy, servicesByNamespace map[string][]*corev1.Service, podsByNamespace map[string][]*corev1.Pod) {
+	fmt.Println("\nCluster Resources:")
+
+	resourceTable := tablewriter.NewWriter(os.Stdout)
+	resourceTable.SetHeader([]string{"Resource", "Count"})
+	resourceTable.SetRowLine(true)
+
+	// Count the total number of policies
+	totalPolicies := 0
+	for _, policies := range policiesByNamespace {
+		totalPolicies += len(policies)
+	}
+	resourceTable.Append([]string{"NetworkPolicy", fmt.Sprintf("%d", totalPolicies)})
+
+	// Count the total number of services
+	totalServices := 0
+	for _, services := range servicesByNamespace {
+		totalServices += len(services)
+	}
+	resourceTable.Append([]string{"Service", fmt.Sprintf("%d", totalServices)})
+
+	// Count the total number of pods
+	totalPods := 0
+	for _, pods := range podsByNamespace {
+		totalPods += len(pods)
+	}
+	resourceTable.Append([]string{"Pod", fmt.Sprintf("%d", totalPods)})
+
+	resourceTable.Render()
 }
 
 func getEndportNetworkPolicies(policiesByNamespace map[string][]*networkingv1.NetworkPolicy) (ingressPoliciesWithEndport, egressPoliciesWithEndport []string) {
@@ -398,300 +613,4 @@ func difference(slice1, slice2 []string) []string {
 		}
 	}
 	return diff
-}
-
-func printMigrationSummary(
-	verboseOutput *bool,
-	namespaces *corev1.NamespaceList,
-	policiesByNamespace map[string][]*networkingv1.NetworkPolicy,
-	servicesByNamespace map[string][]*corev1.Service,
-	podsByNamespace map[string][]*corev1.Pod,
-) {
-	// Get the network policies with endports
-	ingressEndportNetworkPolicy, egressEndportNetworkPolicy := getEndportNetworkPolicies(policiesByNamespace)
-	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d network policies with endPort", len(ingressEndportNetworkPolicy)+len(egressEndportNetworkPolicy)), metrics.DonotPrint)
-	// // Add the network policies with endport
-	// addPoliciesWithEndportToTable(migrationSummarytable, ingressEndportNetworkPolicy, egressEndportNetworkPolicy)
-
-	// Get the network policies with cidr
-	ingressPoliciesWithCIDR, egressPoliciesWithCIDR := getCIDRNetworkPolicies(policiesByNamespace)
-	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d network policies with CIDR", len(ingressPoliciesWithCIDR)+len(egressPoliciesWithCIDR)), metrics.DonotPrint)
-	// // Add the network policies with cidr
-	// addPoliciesWithCIDRToTable(migrationSummarytable, ingressPoliciesWithCIDR, egressPoliciesWithCIDR)
-
-	// Get the named port
-	ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort := getNamedPortPolicies(policiesByNamespace)
-	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d network policies with named port", len(ingressPoliciesWithNamedPort)+len(egressPoliciesWithNamedPort)), metrics.DonotPrint)
-	// // Add the network policies with named port
-	// addPoliciesWithNamedPortToTable(migrationSummarytable, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort)
-
-	// Get the network policies with egress (except not egress allow all)
-	egressPolicies := getEgressPolicies(policiesByNamespace)
-	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d network policies with egress", len(egressPolicies)), metrics.DonotPrint)
-	// // Add the network policies with egress
-	// addEgressPoliciesToTable(migrationSummarytable, egressPolicies)
-
-	// Get services that have externalTrafficPolicy!=Local that are unsafe (might have traffic disruption)
-	unsafeServices := getUnsafeExternalTrafficPolicyClusterServices(namespaces, servicesByNamespace, policiesByNamespace)
-	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d services with externalTrafficPolicy=Cluster", len(unsafeServices)), metrics.DonotPrint)
-	// // Add the services that are at risk
-	// addUnsafeServicesToTable(migrationSummarytable, unsafeServices)
-
-	// Print the migration summary table
-	renderMigrationSummaryTable(ingressEndportNetworkPolicy, egressEndportNetworkPolicy, ingressPoliciesWithCIDR, egressPoliciesWithCIDR, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort, egressPolicies, unsafeServices)
-
-	// Print the cluster resources table and flagged resource table if the verbose flag is set
-	if *verboseOutput {
-		if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
-			len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
-			len(ingressPoliciesWithNamedPort) > 0 || len(egressPoliciesWithNamedPort) > 0 ||
-			len(egressPolicies) > 0 {
-			renderFlaggedNetworkPolicyTable(ingressEndportNetworkPolicy, egressEndportNetworkPolicy, ingressPoliciesWithCIDR, egressPoliciesWithCIDR, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort, egressPolicies)
-		}
-		if len(unsafeServices) > 0 {
-			renderFlaggedServiceTable(unsafeServices)
-		}
-		renderClusterResourceTable(policiesByNamespace, servicesByNamespace, podsByNamespace)
-	}
-}
-
-func renderMigrationSummaryTable(
-	ingressEndportNetworkPolicy,
-	egressEndportNetworkPolicy,
-	ingressPoliciesWithCIDR,
-	egressPoliciesWithCIDR,
-	ingressPoliciesWithNamedPort,
-	egressPoliciesWithNamedPort,
-	egressPolicies,
-	unsafeServices []string,
-) {
-	fmt.Println("Migration Summary:")
-	migrationSummarytable := tablewriter.NewWriter(os.Stdout)
-	migrationSummarytable.SetHeader([]string{"Breaking Change", "Upgrade compatibility", "Count"})
-	migrationSummarytable.SetRowLine(true)
-	if len(ingressEndportNetworkPolicy) == 0 && len(egressEndportNetworkPolicy) == 0 {
-		migrationSummarytable.Append([]string{"NetworkPolicy with endPort", "✅", fmt.Sprintf("0")})
-	} else {
-		migrationSummarytable.Append([]string{"NetworkPolicy with endPort", "❌", fmt.Sprintf("%d", len(ingressEndportNetworkPolicy)+len(egressEndportNetworkPolicy))})
-	}
-	if len(ingressPoliciesWithCIDR) == 0 && len(egressPoliciesWithCIDR) == 0 {
-		migrationSummarytable.Append([]string{"NetworkPolicy with CIDR", "✅", "0"})
-	} else {
-		migrationSummarytable.Append([]string{"NetworkPolicy with CIDR", "❌", fmt.Sprintf("%d", len(ingressPoliciesWithCIDR)+len(egressPoliciesWithCIDR))})
-	}
-	if len(ingressPoliciesWithNamedPort) == 0 && len(egressPoliciesWithNamedPort) == 0 {
-		migrationSummarytable.Append([]string{"NetworkPolicy with Named Port", "✅", "0"})
-	} else {
-		migrationSummarytable.Append([]string{"NetworkPolicy with Named Port", "❌", fmt.Sprintf("%d", len(ingressPoliciesWithNamedPort)+len(egressPoliciesWithNamedPort))})
-	}
-	if len(egressPolicies) == 0 {
-		migrationSummarytable.Append([]string{"NetworkPolicy with Egress (Not Allow All Egress)", "✅", "0"})
-	} else {
-		migrationSummarytable.Append([]string{"NetworkPolicy with Egress (Not Allow All Egress)", "❌", fmt.Sprintf("%d", len(egressPolicies))})
-	}
-	if len(unsafeServices) == 0 {
-		migrationSummarytable.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "✅", "0"})
-	} else {
-		migrationSummarytable.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "❌", fmt.Sprintf("%d", len(unsafeServices))})
-	}
-	migrationSummarytable.Render()
-	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
-		len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
-		len(ingressPoliciesWithNamedPort) > 0 || len(egressPoliciesWithNamedPort) > 0 ||
-		len(egressPolicies) > 0 ||
-		len(unsafeServices) > 0 {
-		metrics.SendLog(util.PodID, "Fails some checks. Unsafe to migrate this cluster", metrics.DonotPrint)
-		fmt.Println("\n\033[31m✘ Review above issues before migration.\033[0m")
-		fmt.Println("Please see \033[32maka.ms/azurenpmtocilium\033[0m for instructions on how to evaluate/assess the above warnings marked by ❌.")
-		fmt.Println("NOTE: rerun this script if any modifications (create/update/delete) are made to services or policies.")
-	} else {
-		metrics.SendLog(util.PodID, "Passes all checks. Safe to migrate this cluster", metrics.DonotPrint)
-		fmt.Println("\n\033[32m✔ Safe to migrate this cluster.\033[0m")
-		fmt.Println("For more details please see \033[32maka.ms/azurenpmtocilium\033[0m.")
-	}
-	fmt.Println()
-}
-
-func renderFlaggedNetworkPolicyTable(
-	ingressEndportNetworkPolicy,
-	egressEndportNetworkPolicy,
-	ingressPoliciesWithCIDR,
-	egressPoliciesWithCIDR,
-	ingressPoliciesWithNamedPort,
-	egressPoliciesWithNamedPort,
-	egressPolicies []string,
-) {
-	fmt.Println("Flagged Network Policies:")
-	flaggedResourceTable := tablewriter.NewWriter(os.Stdout)
-	flaggedResourceTable.SetHeader([]string{"Network Policy", "NetworkPolicy with endPort", "NetworkPolicy with CIDR", "NetworkPolicy with Named Port", "NetworkPolicy with Egress (Not Allow All Egress)"})
-	flaggedResourceTable.SetRowLine(true)
-
-	// Create a map to store the policies and their flags
-	policyFlags := make(map[string][]string)
-
-	// Helper function to add a flag to a policy
-	addFlag := func(policy string, flag string) {
-		if _, exists := policyFlags[policy]; !exists {
-			policyFlags[policy] = []string{"✅", "✅", "✅", "✅"}
-		}
-		switch flag {
-		case "ingressEndPort":
-			policyFlags[policy][0] = "❌ (ingress)"
-		case "egressEndPort":
-			policyFlags[policy][0] = "❌ (egress)"
-		case "ingressCIDR":
-			policyFlags[policy][1] = "❌ (ingress)"
-		case "egressCIDR":
-			policyFlags[policy][1] = "❌ (egress)"
-		case "ingressNamedPort":
-			policyFlags[policy][2] = "❌ (ingress)"
-		case "egressNamedPort":
-			policyFlags[policy][2] = "❌ (egress)"
-		case "Egress":
-			policyFlags[policy][3] = "❌"
-		}
-	}
-
-	// Add flags for each policy
-	for _, policy := range ingressEndportNetworkPolicy {
-		addFlag(policy, "ingressEndPort")
-	}
-	for _, policy := range egressEndportNetworkPolicy {
-		addFlag(policy, "egressEndPort")
-	}
-	for _, policy := range ingressPoliciesWithCIDR {
-		addFlag(policy, "ingressCIDR")
-	}
-	for _, policy := range egressPoliciesWithCIDR {
-		addFlag(policy, "egressCIDR")
-	}
-	for _, policy := range ingressPoliciesWithNamedPort {
-		addFlag(policy, "ingressNamedPort")
-	}
-	for _, policy := range egressPoliciesWithNamedPort {
-		addFlag(policy, "egressNamedPort")
-	}
-	for _, policy := range egressPolicies {
-		addFlag(policy, "Egress")
-	}
-
-	// Append the policies and their flags to the table
-	for policy, flags := range policyFlags {
-		flaggedResourceTable.Append([]string{policy, flags[0], flags[1], flags[2], flags[3]})
-	}
-
-	flaggedResourceTable.Render()
-}
-
-func renderFlaggedServiceTable(unsafeServices []string) {
-	fmt.Println("\nFlagged Services:")
-	flaggedResourceTable := tablewriter.NewWriter(os.Stdout)
-	flaggedResourceTable.SetHeader([]string{"Service", "Disruption for some Services with externalTrafficPolicy=Cluster"})
-	flaggedResourceTable.SetRowLine(true)
-	for _, service := range unsafeServices {
-		flaggedResourceTable.Append([]string{fmt.Sprintf("%s", service), "✅"})
-	}
-	flaggedResourceTable.Render()
-}
-
-func renderClusterResourceTable(policiesByNamespace map[string][]*networkingv1.NetworkPolicy, servicesByNamespace map[string][]*corev1.Service, podsByNamespace map[string][]*corev1.Pod) {
-	fmt.Println("\nCluster Resources:")
-
-	resourceTable := tablewriter.NewWriter(os.Stdout)
-	resourceTable.SetHeader([]string{"Resource", "Count"})
-	resourceTable.SetRowLine(true)
-
-	// Count the total number of policies
-	totalPolicies := 0
-	for _, policies := range policiesByNamespace {
-		totalPolicies += len(policies)
-	}
-	resourceTable.Append([]string{"NetworkPolicy", fmt.Sprintf("%d", totalPolicies)})
-
-	// Count the total number of services
-	totalServices := 0
-	for _, services := range servicesByNamespace {
-		totalServices += len(services)
-	}
-	resourceTable.Append([]string{"Service", fmt.Sprintf("%d", totalServices)})
-
-	// Count the total number of pods
-	totalPods := 0
-	for _, pods := range podsByNamespace {
-		totalPods += len(pods)
-	}
-	resourceTable.Append([]string{"Pod", fmt.Sprintf("%d", totalPods)})
-
-	resourceTable.Render()
-}
-
-func addPoliciesWithEndportToTable(table *tablewriter.Table, ingressEndportNetworkPolicy, egressEndportNetworkPolicy []string) {
-	if len(ingressEndportNetworkPolicy) == 0 && len(egressEndportNetworkPolicy) == 0 {
-		table.Append([]string{"NetworkPolicy with endPort", "✅", ""})
-	} else {
-		var endportPoliciesString string
-		for _, policy := range ingressEndportNetworkPolicy {
-			endportPoliciesString += fmt.Sprintf("\033[31m%s\033[0m with Ingress endPort field\n", policy)
-		}
-		for _, policy := range egressEndportNetworkPolicy {
-			endportPoliciesString += fmt.Sprintf("\033[31m%s\033[0m with Egress endPort field\n", policy)
-		}
-		table.Append([]string{"NetworkPolicy with endPort", "❌", fmt.Sprintf("Policies Affected:\n%s", endportPoliciesString)})
-	}
-}
-
-func addPoliciesWithCIDRToTable(table *tablewriter.Table, ingressPoliciesWithCIDR, egressPoliciesWithCIDR []string) {
-	if len(ingressPoliciesWithCIDR) == 0 && len(egressPoliciesWithCIDR) == 0 {
-		table.Append([]string{"NetworkPolicy with CIDR", "✅", ""})
-	} else {
-		var cidrPoliciesString string
-		for _, policy := range ingressPoliciesWithCIDR {
-			cidrPoliciesString += fmt.Sprintf("\033[31m%s\033[0m with Ingress CIDR field\n", policy)
-		}
-		for _, policy := range egressPoliciesWithCIDR {
-			cidrPoliciesString += fmt.Sprintf("\033[31m%s\033[0m with Egress CIDR field\n", policy)
-		}
-		table.Append([]string{"NetworkPolicy with CIDR", "❌", fmt.Sprintf("Policies Affected:\n%s", cidrPoliciesString)})
-	}
-}
-
-func addPoliciesWithNamedPortToTable(table *tablewriter.Table, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort []string) {
-	if len(ingressPoliciesWithNamedPort) == 0 && len(egressPoliciesWithNamedPort) == 0 {
-		table.Append([]string{"NetworkPolicy with Named Port", "✅", ""})
-	} else {
-		var namedPortPoliciesString string
-		for _, policy := range ingressPoliciesWithNamedPort {
-			namedPortPoliciesString += fmt.Sprintf("\033[31m%s\033[0m with Ingress Named Port field\n", policy)
-		}
-		for _, policy := range egressPoliciesWithNamedPort {
-			namedPortPoliciesString += fmt.Sprintf("\033[31m%s\033[0m with Egress Named Port field\n", policy)
-			table.Append([]string{"", "❌", fmt.Sprintf("\033[31m%s\033[0m with Egress Named Port field", policy)})
-		}
-		table.Append([]string{"NetworkPolicy with Named Port", "❌", fmt.Sprintf("Policies Affected:\n%s", namedPortPoliciesString)})
-	}
-}
-
-func addEgressPoliciesToTable(table *tablewriter.Table, egressPolicies []string) {
-	if len(egressPolicies) == 0 {
-		table.Append([]string{"NetworkPolicy with Egress (Not Allow All Egress)", "✅", ""})
-	} else {
-		var egressPoliciesString string
-		for _, policy := range egressPolicies {
-			egressPoliciesString += fmt.Sprintf("\033[31m%s\033[0m with Egress field (Not Allow All)\n", policy)
-		}
-		table.Append([]string{"NetworkPolicy with Egress (Not Allow All Egress)", "❌", fmt.Sprintf("Policies Affected:\n%s", egressPoliciesString)})
-	}
-}
-
-func addUnsafeServicesToTable(table *tablewriter.Table, unsafeServices []string) {
-	if len(unsafeServices) == 0 {
-		table.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "✅", ""})
-	} else {
-		var unsafeServicesString string
-		for _, service := range unsafeServices {
-			unsafeServicesString += fmt.Sprintf("\033[31m%s\033[0m\n", service)
-		}
-		unsafeServicesString += "Manual investigation is required to evaluate if ingress is allowed to the service's backend Pods. Please evaluate if these services would be impacted by migration."
-		table.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "❌", fmt.Sprintf("Services Affected:\n%s", unsafeServicesString)})
-	}
 }
