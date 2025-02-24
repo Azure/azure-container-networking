@@ -12,7 +12,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/Microsoft/hcsshim v0.12.9
 	github.com/avast/retry-go/v3 v3.1.1
-	github.com/avast/retry-go/v4 v4.6.0
+	github.com/avast/retry-go/v4 v4.6.1
 	github.com/billgraziano/dpapi v0.5.0
 	github.com/containernetworking/cni v1.2.2
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
