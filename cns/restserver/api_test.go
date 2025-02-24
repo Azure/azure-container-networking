@@ -1309,7 +1309,7 @@ func TestNMAgentNCListHandler(t *testing.T) {
 		req *http.Request
 	)
 
-	req, err = http.NewRequest(http.MethodGet, cns.NMAgentGetNCListAPIPath, nil)
+	req, err = http.NewRequest(http.MethodGet, cns.NMAgentGetNCListAPIPath, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1324,7 +1324,7 @@ func TestNMAgentNCListHandler(t *testing.T) {
 	}
 
 	fmt.Printf("nmAgentNCListHandler responded with %+v\n", nmAgentNCListResponse)
-	require.Len(t, nmAgentNCListResponse.NCList, 0)
+	require.Empty(t, nmAgentNCListResponse.NCList)
 }
 
 // Testing GetHomeAz API handler, return UnsupportedVerb if http method is not supported
