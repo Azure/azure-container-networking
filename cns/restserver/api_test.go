@@ -1309,7 +1309,7 @@ func TestNMAgentNCListHandler(t *testing.T) {
 		req *http.Request
 	)
 
-	req, err = http.NewRequest(http.MethodGet, cns.NMAgentGetNCListAPIPath, http.NoBody)
+	req, err = http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.NMAgentGetNCListAPIPath, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
