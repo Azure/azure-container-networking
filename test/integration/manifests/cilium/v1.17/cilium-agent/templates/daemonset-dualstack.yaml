@@ -93,7 +93,7 @@ spec:
           timeoutSeconds: 5
         resources: {}
         securityContext:
-          appArmorProfile: 
+          appArmorProfile:
             type: Unconfined
           capabilities:
             add:
@@ -193,7 +193,7 @@ spec:
         name: mount-cgroup
         resources: {}
         securityContext:
-          appArmorProfile: 
+          appArmorProfile:
             type: Unconfined
           capabilities:
             add:
@@ -227,7 +227,7 @@ spec:
         name: apply-sysctl-overwrites
         resources: {}
         securityContext:
-          appArmorProfile: 
+          appArmorProfile:
             type: Unconfined
           capabilities:
             add:
@@ -287,7 +287,7 @@ spec:
             cpu: 100m
             memory: 100Mi
         securityContext:
-          appArmorProfile: 
+          appArmorProfile:
             type: Unconfined
           capabilities:
             add:
@@ -319,6 +319,15 @@ spec:
         - mountPath: /host/usr/lib
           name: host-usr-lib
           readOnly: true
+      - name: start-ipv6-hp-bpf
+        image: acnpublic.azurecr.io/ipv6-hp-bpf:$IPV6_HP_BPF_VERSION
+        imagePullPolicy: IfNotPresent
+        command: [/ipv6-hp-bpf]
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /var/log
+          name: ipv6-hp-bpf
       - name: block-wireserver
         image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
         imagePullPolicy: IfNotPresent
@@ -357,6 +366,10 @@ spec:
       - effect: NoSchedule
         operator: Exists
       volumes:
+      - hostPath:
+          path: /var/log
+          type: DirectoryOrCreate
+        name: ipv6-hp-bpf
       - hostPath:
           path: /etc/systemd
           type: DirectoryOrCreate

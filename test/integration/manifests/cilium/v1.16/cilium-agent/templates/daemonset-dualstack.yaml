@@ -152,6 +152,9 @@ spec:
           readOnly: true
         - mountPath: /run/xtables.lock
           name: xtables-lock
+        - mountPath: /var/run/cilium/netns
+          name: cilium-netns
+          mountPropagation: HostToContainer
       dnsPolicy: ClusterFirst
       hostNetwork: true
       initContainers:
@@ -428,6 +431,10 @@ spec:
           path: /proc/sys/kernel
           type: Directory
         name: host-proc-sys-kernel
+      - hostPath: 
+          path: /var/run/netns
+          type: DirectoryOrCreate
+        name: cilium-netns
   updateStrategy:
     rollingUpdate:
       maxSurge: 0
