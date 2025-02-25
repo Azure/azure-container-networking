@@ -1306,10 +1306,10 @@ func (service *HTTPRestService) nmAgentNCListHandler(w http.ResponseWriter, r *h
 	logger.Request(service.Name, "nmAgentNCListHandler", nil)
 	var (
 		returnCode           types.ResponseCode
-		returnMessage        string
 		networkContainerList []string
 	)
 
+	returnMessage := "Successfully fetched NC list from NMAgent"
 	ctx := r.Context()
 	switch r.Method {
 	case http.MethodGet:
