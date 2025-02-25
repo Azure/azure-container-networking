@@ -1317,6 +1317,7 @@ func (service *HTTPRestService) nmAgentNCListHandler(w http.ResponseWriter, r *h
 		if ncVersionerr != nil {
 			returnCode = types.NmAgentNCVersionListError
 			returnMessage = "[Azure-CNS] " + ncVersionerr.Error()
+			break
 		}
 
 		for _, container := range ncVersionList.Containers {

@@ -1304,11 +1304,47 @@ func TestNmAgentSupportedApisHandler(t *testing.T) {
 
 func TestNMAgentNCListHandler(t *testing.T) {
 	fmt.Println("Test: nmAgentNCListHandler")
-	var (
-		err error
-		req *http.Request
-	)
 
+	setEnv(t)
+	setOrchestratorType(t, cns.Kubernetes)
+
+	mnma := &fakes.NMAgentClientFake{}
+	cleanupNMA := setMockNMAgent(svc, mnma)
+	defer cleanupNMA()
+
+	wsproxy := fakes.WireserverProxyFake{}
+	cleanupWSP := setWireserverProxy(svc, &wsproxy)
+	defer cleanupWSP()
+
+	params := createOrUpdateNetworkContainerParams{
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d475", // random guid
+		ncIP:         "11.0.0.5",
+		ncType:       cns.AzureContainerInstance,
+		ncVersion:    "0",
+		vnetID:       "vnet1",
+		podName:      "testpod",
+		podNamespace: "testpodnamespace",
+	}
+
+	err := createNC(params)
+	if err != nil {
+		t.Fatal("error creating NC: err:", err)
+	}
+
+	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
+		return nmagent.NCVersionList{
+			Containers: []nmagent.NCVersion{
+				{
+					// Must set it as params.ncID without cns.SwiftPrefix to mock real nmagent nc format.
+					NetworkContainerID: params.ncID,
+					Version:            params.ncVersion,
+				},
+			},
+		}, nil
+	}
+
+	// test CNS' new GET /ncList API
+	var req *http.Request
 	req, err = http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.NMAgentGetNCListAPIPath, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
@@ -1324,7 +1360,7 @@ func TestNMAgentNCListHandler(t *testing.T) {
 	}
 
 	fmt.Printf("nmAgentNCListHandler responded with %+v\n", nmAgentNCListResponse)
-	require.Empty(t, nmAgentNCListResponse.NCList)
+	require.Equal(t, params.ncID, nmAgentNCListResponse.NCList[0])
 }
 
 // Testing GetHomeAz API handler, return UnsupportedVerb if http method is not supported
