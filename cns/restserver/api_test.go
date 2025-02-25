@@ -1306,7 +1306,10 @@ func TestNMAgentNCListHandler(t *testing.T) {
 	fmt.Println("Test: nmAgentNCListHandler")
 
 	setEnv(t)
-	setOrchestratorType(t, cns.Kubernetes)
+	errSetOrch := setOrchestratorType(t, cns.Kubernetes)
+	if errSetOrch != nil {
+		t.Fatalf("TestNMAgentNCListHandler failed with error:%+v", errSetOrch)
+	}
 
 	mnma := &fakes.NMAgentClientFake{}
 	cleanupNMA := setMockNMAgent(svc, mnma)
