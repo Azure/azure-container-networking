@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/olekukonko/tablewriter"
@@ -90,11 +91,8 @@ func main() {
 		}
 	}
 
-	// Start sending metrics
-	klog.Infof("initializing metrics")
-	metrics.InitializeAll()
-
 	// Create telemetry handle
+	// Note: npmVersionNum and imageVersion telemetry is not needed for this tool so they are set to abitrary values
 	err = metrics.CreateTelemetryHandle(0, "", "014c22bd-4107-459e-8475-67909e96edcb")
 
 	if err != nil {
@@ -116,31 +114,32 @@ func printMigrationSummary(
 	ingressEndportNetworkPolicy, egressEndportNetworkPolicy := getEndportNetworkPolicies(policiesByNamespace)
 
 	// Send endPort telemetry
-	metrics.SendLog(0, fmt.Sprintf("Found %d network policies with endPort", len(ingressEndportNetworkPolicy)+len(egressEndportNetworkPolicy)), metrics.DonotPrint)
+	// Note: The operationID is set to a high number so it doesn't conflict with other telemetry
+	metrics.SendLog(10000, fmt.Sprintf("Found %d network policies with endPort", len(ingressEndportNetworkPolicy)+len(egressEndportNetworkPolicy)), metrics.DonotPrint)
 
 	// Get the network policies with cidr
 	ingressPoliciesWithCIDR, egressPoliciesWithCIDR := getCIDRNetworkPolicies(policiesByNamespace)
 
 	// Send cidr telemetry
-	metrics.SendLog(0, fmt.Sprintf("Found %d network policies with CIDR", len(ingressPoliciesWithCIDR)+len(egressPoliciesWithCIDR)), metrics.DonotPrint)
+	metrics.SendLog(10000, fmt.Sprintf("Found %d network policies with CIDR", len(ingressPoliciesWithCIDR)+len(egressPoliciesWithCIDR)), metrics.DonotPrint)
 
 	// Get the named port
 	ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort := getNamedPortPolicies(policiesByNamespace)
 
 	// Send named port telemetry
-	metrics.SendLog(0, fmt.Sprintf("Found %d network policies with named port", len(ingressPoliciesWithNamedPort)+len(egressPoliciesWithNamedPort)), metrics.DonotPrint)
+	metrics.SendLog(10000, fmt.Sprintf("Found %d network policies with named port", len(ingressPoliciesWithNamedPort)+len(egressPoliciesWithNamedPort)), metrics.DonotPrint)
 
 	// Get the network policies with egress (except not egress allow all)
 	egressPolicies := getEgressPolicies(policiesByNamespace)
 
 	// Send egress telemetry
-	metrics.SendLog(0, fmt.Sprintf("Found %d network policies with egress", len(egressPolicies)), metrics.DonotPrint)
+	metrics.SendLog(10000, fmt.Sprintf("Found %d network policies with egress", len(egressPolicies)), metrics.DonotPrint)
 
 	// Get services that have externalTrafficPolicy!=Local that are unsafe (might have traffic disruption)
 	unsafeServices := getUnsafeExternalTrafficPolicyClusterServices(namespaces, servicesByNamespace, policiesByNamespace)
 
 	// Send unsafe services telemetry
-	metrics.SendLog(0, fmt.Sprintf("Found %d services with externalTrafficPolicy=Cluster", len(unsafeServices)), metrics.DonotPrint)
+	metrics.SendLog(10000, fmt.Sprintf("Found %d services with externalTrafficPolicy=Cluster", len(unsafeServices)), metrics.DonotPrint)
 
 	unsafeNetworkPolicesInCluster := false
 	unsafeServicesInCluster := false
@@ -156,14 +155,15 @@ func printMigrationSummary(
 
 	if unsafeNetworkPolicesInCluster || unsafeServicesInCluster {
 		// Send cluster unsafe telemetry
-		metrics.SendLog(0, "Fails some checks. Unsafe to migrate this cluster", metrics.DonotPrint)
+		metrics.SendLog(10000, "Fails some checks. Unsafe to migrate this cluster", metrics.DonotPrint)
 	} else {
 		// Send cluster safe telemetry
-		metrics.SendLog(0, "Passes all checks. Safe to migrate this cluster", metrics.DonotPrint)
+		metrics.SendLog(10000, "Passes all checks. Safe to migrate this cluster", metrics.DonotPrint)
 	}
 
-	// Close the metrics before table is rendered to prevent formatting issues
+	// Close the metrics before table is rendered and wait one second to prevent formatting issues
 	metrics.Close()
+	time.Sleep(time.Second)
 
 	// Print the migration summary table
 	renderMigrationSummaryTable(ingressEndportNetworkPolicy, egressEndportNetworkPolicy, ingressPoliciesWithCIDR, egressPoliciesWithCIDR, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort, egressPolicies, unsafeServices)
