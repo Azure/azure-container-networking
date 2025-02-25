@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
-	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/olekukonko/tablewriter"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -95,11 +94,15 @@ func main() {
 	klog.Infof("initializing metrics")
 	metrics.InitializeAll()
 
+	// Create telemetry handle
+	err = metrics.CreateTelemetryHandle(0, "", "014c22bd-4107-459e-8475-67909e96edcb")
+
+	if err != nil {
+		klog.Infof("CreateTelemetryHandle failed with error %v. AITelemetry is not initialized.", err)
+	}
+
 	// Print the migration summary
 	printMigrationSummary(detailedMigrationSummary, namespaces, policiesByNamespace, servicesByNamespace, podsByNamespace)
-
-	// Close the metrics
-	metrics.Close()
 }
 
 func printMigrationSummary(
@@ -111,39 +114,79 @@ func printMigrationSummary(
 ) {
 	// Get the network policies with endports
 	ingressEndportNetworkPolicy, egressEndportNetworkPolicy := getEndportNetworkPolicies(policiesByNamespace)
-	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d network policies with endPort", len(ingressEndportNetworkPolicy)+len(egressEndportNetworkPolicy)), metrics.DonotPrint)
+
+	// Send endPort telemetry
+	metrics.SendLog(0, fmt.Sprintf("Found %d network policies with endPort", len(ingressEndportNetworkPolicy)+len(egressEndportNetworkPolicy)), metrics.DonotPrint)
 
 	// Get the network policies with cidr
 	ingressPoliciesWithCIDR, egressPoliciesWithCIDR := getCIDRNetworkPolicies(policiesByNamespace)
-	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d network policies with CIDR", len(ingressPoliciesWithCIDR)+len(egressPoliciesWithCIDR)), metrics.DonotPrint)
+
+	// Send cidr telemetry
+	metrics.SendLog(0, fmt.Sprintf("Found %d network policies with CIDR", len(ingressPoliciesWithCIDR)+len(egressPoliciesWithCIDR)), metrics.DonotPrint)
 
 	// Get the named port
 	ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort := getNamedPortPolicies(policiesByNamespace)
-	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d network policies with named port", len(ingressPoliciesWithNamedPort)+len(egressPoliciesWithNamedPort)), metrics.DonotPrint)
+
+	// Send named port telemetry
+	metrics.SendLog(0, fmt.Sprintf("Found %d network policies with named port", len(ingressPoliciesWithNamedPort)+len(egressPoliciesWithNamedPort)), metrics.DonotPrint)
 
 	// Get the network policies with egress (except not egress allow all)
 	egressPolicies := getEgressPolicies(policiesByNamespace)
-	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d network policies with egress", len(egressPolicies)), metrics.DonotPrint)
+
+	// Send egress telemetry
+	metrics.SendLog(0, fmt.Sprintf("Found %d network policies with egress", len(egressPolicies)), metrics.DonotPrint)
 
 	// Get services that have externalTrafficPolicy!=Local that are unsafe (might have traffic disruption)
 	unsafeServices := getUnsafeExternalTrafficPolicyClusterServices(namespaces, servicesByNamespace, policiesByNamespace)
-	metrics.SendLog(util.PodID, fmt.Sprintf("Found %d services with externalTrafficPolicy=Cluster", len(unsafeServices)), metrics.DonotPrint)
+
+	// Send unsafe services telemetry
+	metrics.SendLog(0, fmt.Sprintf("Found %d services with externalTrafficPolicy=Cluster", len(unsafeServices)), metrics.DonotPrint)
+
+	unsafeNetworkPolicesInCluster := false
+	unsafeServicesInCluster := false
+	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
+		len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
+		len(ingressPoliciesWithNamedPort) > 0 || len(egressPoliciesWithNamedPort) > 0 ||
+		len(egressPolicies) > 0 {
+		unsafeNetworkPolicesInCluster = true
+	}
+	if len(unsafeServices) > 0 {
+		unsafeServicesInCluster = true
+	}
+
+	if unsafeNetworkPolicesInCluster || unsafeServicesInCluster {
+		// Send cluster unsafe telemetry
+		metrics.SendLog(0, "Fails some checks. Unsafe to migrate this cluster", metrics.DonotPrint)
+	} else {
+		// Send cluster safe telemetry
+		metrics.SendLog(0, "Passes all checks. Safe to migrate this cluster", metrics.DonotPrint)
+	}
+
+	// Close the metrics before table is rendered to prevent formatting issues
+	metrics.Close()
 
 	// Print the migration summary table
 	renderMigrationSummaryTable(ingressEndportNetworkPolicy, egressEndportNetworkPolicy, ingressPoliciesWithCIDR, egressPoliciesWithCIDR, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort, egressPolicies, unsafeServices)
 
 	// Print the flagged resource table and cluster resource table if the detailed-report flag is set
 	if *detailedMigrationSummary {
-		if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
-			len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
-			len(ingressPoliciesWithNamedPort) > 0 || len(egressPoliciesWithNamedPort) > 0 ||
-			len(egressPolicies) > 0 {
+		if unsafeNetworkPolicesInCluster {
 			renderFlaggedNetworkPolicyTable(ingressEndportNetworkPolicy, egressEndportNetworkPolicy, ingressPoliciesWithCIDR, egressPoliciesWithCIDR, ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort, egressPolicies)
 		}
-		if len(unsafeServices) > 0 {
+		if unsafeServicesInCluster {
 			renderFlaggedServiceTable(unsafeServices)
 		}
 		renderClusterResourceTable(policiesByNamespace, servicesByNamespace, podsByNamespace)
+	}
+
+	// Print if the cluster is safe to migrate
+	if unsafeNetworkPolicesInCluster || unsafeServicesInCluster {
+		fmt.Println("\n\033[31m✘ Review above issues before migration.\033[0m")
+		fmt.Println("Please see \033[32maka.ms/azurenpmtocilium\033[0m for instructions on how to evaluate/assess the above warnings marked by ❌.")
+		fmt.Println("NOTE: rerun this script if any modifications (create/update/delete) are made to services or policies.")
+	} else {
+		fmt.Println("\n\033[32m✔ Safe to migrate this cluster.\033[0m")
+		fmt.Println("For more details please see \033[32maka.ms/azurenpmtocilium\033[0m.")
 	}
 }
 
@@ -157,7 +200,6 @@ func renderMigrationSummaryTable(
 	egressPolicies,
 	unsafeServices []string,
 ) {
-	fmt.Println("Migration Summary:")
 	migrationSummarytable := tablewriter.NewWriter(os.Stdout)
 	migrationSummarytable.SetHeader([]string{"Breaking Change", "Upgrade compatibility", "Count"})
 	migrationSummarytable.SetRowLine(true)
@@ -186,21 +228,9 @@ func renderMigrationSummaryTable(
 	} else {
 		migrationSummarytable.Append([]string{"Disruption for some Services with externalTrafficPolicy=Cluster", "❌", fmt.Sprintf("%d", len(unsafeServices))})
 	}
+
+	fmt.Println("\nMigration Summary:")
 	migrationSummarytable.Render()
-	if len(ingressEndportNetworkPolicy) > 0 || len(egressEndportNetworkPolicy) > 0 ||
-		len(ingressPoliciesWithCIDR) > 0 || len(egressPoliciesWithCIDR) > 0 ||
-		len(ingressPoliciesWithNamedPort) > 0 || len(egressPoliciesWithNamedPort) > 0 ||
-		len(egressPolicies) > 0 ||
-		len(unsafeServices) > 0 {
-		metrics.SendLog(util.PodID, "Fails some checks. Unsafe to migrate this cluster", metrics.DonotPrint)
-		fmt.Println("\n\033[31m✘ Review above issues before migration.\033[0m")
-		fmt.Println("Please see \033[32maka.ms/azurenpmtocilium\033[0m for instructions on how to evaluate/assess the above warnings marked by ❌.")
-		fmt.Println("NOTE: rerun this script if any modifications (create/update/delete) are made to services or policies.")
-	} else {
-		metrics.SendLog(util.PodID, "Passes all checks. Safe to migrate this cluster", metrics.DonotPrint)
-		fmt.Println("\n\033[32m✔ Safe to migrate this cluster.\033[0m")
-		fmt.Println("For more details please see \033[32maka.ms/azurenpmtocilium\033[0m.")
-	}
 }
 
 func renderFlaggedNetworkPolicyTable(
@@ -212,7 +242,6 @@ func renderFlaggedNetworkPolicyTable(
 	egressPoliciesWithNamedPort,
 	egressPolicies []string,
 ) {
-	fmt.Println("\nFlagged Network Policies:")
 	flaggedResourceTable := tablewriter.NewWriter(os.Stdout)
 	flaggedResourceTable.SetHeader([]string{"Network Policy", "NetworkPolicy with endPort", "NetworkPolicy with CIDR", "NetworkPolicy with Named Port", "NetworkPolicy with Egress (Not Allow All Egress)"})
 	flaggedResourceTable.SetRowLine(true)
@@ -271,6 +300,7 @@ func renderFlaggedNetworkPolicyTable(
 		flaggedResourceTable.Append([]string{policy, flags[0], flags[1], flags[2], flags[3]})
 	}
 
+	fmt.Println("\nFlagged Network Policies:")
 	flaggedResourceTable.Render()
 }
 
@@ -286,8 +316,6 @@ func renderFlaggedServiceTable(unsafeServices []string) {
 }
 
 func renderClusterResourceTable(policiesByNamespace map[string][]*networkingv1.NetworkPolicy, servicesByNamespace map[string][]*corev1.Service, podsByNamespace map[string][]*corev1.Pod) {
-	fmt.Println("\nCluster Resources:")
-
 	resourceTable := tablewriter.NewWriter(os.Stdout)
 	resourceTable.SetHeader([]string{"Resource", "Count"})
 	resourceTable.SetRowLine(true)
@@ -313,6 +341,7 @@ func renderClusterResourceTable(policiesByNamespace map[string][]*networkingv1.N
 	}
 	resourceTable.Append([]string{"Pod", fmt.Sprintf("%d", totalPods)})
 
+	fmt.Println("\nCluster Resources:")
 	resourceTable.Render()
 }
 
