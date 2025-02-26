@@ -96,7 +96,7 @@ func main() {
 
 	// Create telemetry handle
 	// Note: npmVersionNum and imageVersion telemetry is not needed for this tool so they are set to abitrary values
-	err = metrics.CreateTelemetryHandle(0, "", "014c22bd-4107-459e-8475-67909e96edcb")
+	err = metrics.CreateTelemetryHandle(0, "NPM-script-v0.0.1", "014c22bd-4107-459e-8475-67909e96edcb")
 
 	if err != nil {
 		klog.Infof("CreateTelemetryHandle failed with error %v. AITelemetry is not initialized.", err)
