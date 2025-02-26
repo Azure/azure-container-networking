@@ -19,6 +19,9 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// Note: The operationID is set to a high number so it doesn't conflict with other telemetry
+const scriptMetricOperationID = 10000
+
 // Use this tool to validate if your cluster is ready to migrate from Azure Network Policy Manager (NPM) to Cilium.
 func main() {
 	// Parse the kubeconfig flag
@@ -114,32 +117,31 @@ func printMigrationSummary(
 	ingressEndportNetworkPolicy, egressEndportNetworkPolicy := getEndportNetworkPolicies(policiesByNamespace)
 
 	// Send endPort telemetry
-	// Note: The operationID is set to a high number so it doesn't conflict with other telemetry
-	metrics.SendLog(10000, fmt.Sprintf("Found %d network policies with endPort", len(ingressEndportNetworkPolicy)+len(egressEndportNetworkPolicy)), metrics.DonotPrint)
+	metrics.SendLog(scriptMetricOperationID, fmt.Sprintf("[migration script] Found %d network policies with endPort", len(ingressEndportNetworkPolicy)+len(egressEndportNetworkPolicy)), metrics.DonotPrint)
 
 	// Get the network policies with cidr
 	ingressPoliciesWithCIDR, egressPoliciesWithCIDR := getCIDRNetworkPolicies(policiesByNamespace)
 
 	// Send cidr telemetry
-	metrics.SendLog(10000, fmt.Sprintf("Found %d network policies with CIDR", len(ingressPoliciesWithCIDR)+len(egressPoliciesWithCIDR)), metrics.DonotPrint)
+	metrics.SendLog(scriptMetricOperationID, fmt.Sprintf("[migration script] Found %d network policies with CIDR", len(ingressPoliciesWithCIDR)+len(egressPoliciesWithCIDR)), metrics.DonotPrint)
 
 	// Get the named port
 	ingressPoliciesWithNamedPort, egressPoliciesWithNamedPort := getNamedPortPolicies(policiesByNamespace)
 
 	// Send named port telemetry
-	metrics.SendLog(10000, fmt.Sprintf("Found %d network policies with named port", len(ingressPoliciesWithNamedPort)+len(egressPoliciesWithNamedPort)), metrics.DonotPrint)
+	metrics.SendLog(scriptMetricOperationID, fmt.Sprintf("[migration script] Found %d network policies with named port", len(ingressPoliciesWithNamedPort)+len(egressPoliciesWithNamedPort)), metrics.DonotPrint)
 
 	// Get the network policies with egress (except not egress allow all)
 	egressPolicies := getEgressPolicies(policiesByNamespace)
 
 	// Send egress telemetry
-	metrics.SendLog(10000, fmt.Sprintf("Found %d network policies with egress", len(egressPolicies)), metrics.DonotPrint)
+	metrics.SendLog(scriptMetricOperationID, fmt.Sprintf("[migration script] Found %d network policies with egress", len(egressPolicies)), metrics.DonotPrint)
 
 	// Get services that have externalTrafficPolicy!=Local that are unsafe (might have traffic disruption)
 	unsafeServices := getUnsafeExternalTrafficPolicyClusterServices(namespaces, servicesByNamespace, policiesByNamespace)
 
 	// Send unsafe services telemetry
-	metrics.SendLog(10000, fmt.Sprintf("Found %d services with externalTrafficPolicy=Cluster", len(unsafeServices)), metrics.DonotPrint)
+	metrics.SendLog(scriptMetricOperationID, fmt.Sprintf("[migration script] Found %d services with externalTrafficPolicy=Cluster", len(unsafeServices)), metrics.DonotPrint)
 
 	unsafeNetworkPolicesInCluster := false
 	unsafeServicesInCluster := false
@@ -155,10 +157,10 @@ func printMigrationSummary(
 
 	if unsafeNetworkPolicesInCluster || unsafeServicesInCluster {
 		// Send cluster unsafe telemetry
-		metrics.SendLog(10000, "Fails some checks. Unsafe to migrate this cluster", metrics.DonotPrint)
+		metrics.SendLog(scriptMetricOperationID, "[migration script] Fails some checks. Unsafe to migrate this cluster", metrics.DonotPrint)
 	} else {
 		// Send cluster safe telemetry
-		metrics.SendLog(10000, "Passes all checks. Safe to migrate this cluster", metrics.DonotPrint)
+		metrics.SendLog(scriptMetricOperationID, "[migration script] Passes all checks. Safe to migrate this cluster", metrics.DonotPrint)
 	}
 
 	// Close the metrics before table is rendered and wait one second to prevent formatting issues
