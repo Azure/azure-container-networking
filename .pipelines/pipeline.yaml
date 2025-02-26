@@ -227,13 +227,26 @@ stages:
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
       parameters:
         name: "cilium_e2e"
-        displayName: Cilium
+        displayName: Cilium Podsubnet
         clusterType: swift-byocni-nokubeproxy-up
         clusterName: "ciliume2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "containerize"
 
+    # Cilium Podsubnet Vnet Scale E2E tests
+    - template: singletenancy/cilium/cilium-e2e-job-template.yaml
+      parameters:
+        name: "cilium_vnetscale_e2e"
+        displayName: Cilium Podsubnet Vnet Scale Ubuntu
+        os: linux
+        clusterType: vnetscale-swift-byocni-nokubeproxy-up
+        clusterName: "ciliumvscalee2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: "containerize"
+  
+    
     # Cilium Nodesubnet E2E tests
     - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml
       parameters:
@@ -400,6 +413,7 @@ stages:
         - azure_overlay_stateless_e2e
         - aks_swift_e2e
         - cilium_e2e
+        - cilium_vnetscale_e2e
         - cilium_nodesubnet_e2e
         - cilium_overlay_e2e
         - cilium_h_overlay_e2e
@@ -421,6 +435,10 @@ stages:
               cilium_e2e:
                 name: cilium_e2e
                 clusterName: "ciliume2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_vnetscale_e2e:
+                name: cilium_vnetscale_e2e
+                clusterName: "ciliumvscalee2e"
                 region: $(REGION_AKS_CLUSTER_TEST)
               cilium_nodesubnet_e2e:
                 name: cilium_nodesubnet_e2e
