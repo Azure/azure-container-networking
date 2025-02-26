@@ -1,5 +1,5 @@
-# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.23.2 --format "{{.Name}}@{{.Digest}}"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:86c5b00bbed2a6e7157052d78bf4b45c0bf26545ed6e8fd7dbad51ac9415f534 AS builder
+# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:15c9b9b8449f55446243ce20c5d3808cc18625d0b358d70aaad402fb73c0766f AS go
 ARG VERSION
 ARG DEBUG
 ARG OS
@@ -39,8 +39,8 @@ RUN GOOS=$OS CGO_ENABLED=0 go generate ./...
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/ipv6-hp-bpf -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
 
 FROM mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0 AS linux
-COPY --from=builder /go/bin/ipv6-hp-bpf /ipv6-hp-bpf
-COPY --from=builder /usr/sbin/nft /usr/sbin/nft
-COPY --from=builder /sbin/ip /sbin/ip
-COPY --from=builder /tmp/lib/* /lib
+COPY --from=go /go/bin/ipv6-hp-bpf /ipv6-hp-bpf
+COPY --from=go /usr/sbin/nft /usr/sbin/nft
+COPY --from=go /sbin/ip /sbin/ip
+COPY --from=go /tmp/lib/* /lib
 CMD ["/ipv6-hp-bpf"]
