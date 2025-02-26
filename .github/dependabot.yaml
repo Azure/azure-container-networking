@@ -42,16 +42,6 @@ updates:
   labels: [ "dependencies", "azure-ipam" ]
   open-pull-requests-limit: 10
 - package-ecosystem: "gomod"
-  directory: "/build/tools"
-  schedule:
-    interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
-  commit-message:
-    prefix: "deps"
-  labels: [ "dependencies" ]
-  open-pull-requests-limit: 10
-- package-ecosystem: "gomod"
   directory: "/dropgz"
   schedule:
     interval: "daily"
