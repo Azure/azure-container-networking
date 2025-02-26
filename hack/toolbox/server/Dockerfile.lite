@@ -1,9 +1,0 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23 as build
-ADD ./server/server.go /
-ADD ./server/go.mod /
-WORKDIR /
-RUN CGO_ENABLED=0 GOOS=linux go build -o server .
-
-FROM scratch
-COPY --from=build /server .
-CMD ["./server"]

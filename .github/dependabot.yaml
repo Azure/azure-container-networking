@@ -63,27 +63,6 @@ updates:
     - dependency-name: "k8s.io/kubectl"
       versions: [">=0.35.0"]
 - package-ecosystem: "gomod"
-  directory: "/build/tools"
-  schedule:
-    interval: "daily"
-  commit-message:
-    prefix: "deps"
-  labels: [ "dependencies" ]
-  open-pull-requests-limit: 10
-  ignore:
-    - dependency-name: "k8s.io/api"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/client-go"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.35.0"]
-- package-ecosystem: "gomod"
   directory: "/dropgz"
   schedule:
     interval: "daily"

@@ -13,7 +13,6 @@ stages:
         steps:
           - script: |
               set -e
-              make tools
               make bpf-lib
               go generate ./...
 
@@ -23,7 +22,7 @@ stages:
               { { { {
                     sudo -E env "PATH=$PATH" make test-all;
                     echo $? >&3;
-                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
+                    } | tee >(go tool go-junit-report > report.xml) >&4;
                   } 3>&1;
                 } | { read xs; exit $xs; }
               } 4>&1
