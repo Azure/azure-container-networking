@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/Azure/azure-container-networking/nmagent/internal"
+	"github.com/Azure/azure-container-networking/retry"
 )
 
 // NewTestClient is a factory function available in tests only for creating
@@ -17,8 +18,8 @@ func NewTestClient(transport http.RoundTripper) *Client {
 		},
 		host: "localhost",
 		port: 12345,
-		retrier: internal.Retrier{
-			Cooldown: internal.AsFastAsPossible(),
+		retrier: retry.Retrier{
+			Cooldown: retry.AsFastAsPossible(),
 		},
 	}
 }
