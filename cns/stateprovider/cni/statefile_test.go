@@ -1,4 +1,4 @@
-package cnireconciler
+package cni
 
 import (
 	"os"
@@ -12,8 +12,9 @@ import (
 
 func TestWriteObjectToFile(t *testing.T) {
 	name := "testdata/test"
-	err := os.MkdirAll(path.Dir(name), 0o666)
+	err := os.MkdirAll(path.Dir(name), 0o755)
 	require.NoError(t, err)
+	defer os.RemoveAll("testdata")
 
 	_, err = os.Stat(name)
 	require.ErrorIs(t, err, os.ErrNotExist)

@@ -23,7 +23,6 @@ import (
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	cnscli "github.com/Azure/azure-container-networking/cns/cmd/cli"
 	"github.com/Azure/azure-container-networking/cns/cniconflist"
-	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/deviceplugin"
@@ -47,6 +46,8 @@ import (
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	restserverv2 "github.com/Azure/azure-container-networking/cns/restserver/v2"
+	cnipodprovider "github.com/Azure/azure-container-networking/cns/stateprovider/cni"
+	cnspodprovider "github.com/Azure/azure-container-networking/cns/stateprovider/cns"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
@@ -836,7 +837,7 @@ func main() {
 
 		// Check the CNI statefile mount, and if the file is empty
 		// stub an empty JSON object
-		if err := cnireconciler.WriteObjectToCNIStatefile(); err != nil {
+		if err := cnipodprovider.WriteObjectToCNIStatefile(); err != nil { //nolint:govet //shadow okay
 			logger.Errorf("Failed to write empty object to CNI state: %v", err)
 			return
 		}
@@ -1657,7 +1658,7 @@ func getPodInfoByIPProvider(
 	switch {
 	case cnsconfig.ManageEndpointState:
 		logger.Printf("Initializing from self managed endpoint store")
-		podInfoByIPProvider, err = cnireconciler.NewCNSPodInfoProvider(httpRestServiceImplementation.EndpointStateStore) // get reference to endpoint state store from rest server
+		podInfoByIPProvider, err = cnspodprovider.New(httpRestServiceImplementation.EndpointStateStore) // get reference to endpoint state store from rest server
 		if err != nil {
 			if errors.Is(err, store.ErrKeyNotFound) {
 				logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
@@ -1667,7 +1668,7 @@ func getPodInfoByIPProvider(
 		}
 	default:
 		logger.Printf("Initializing from CNI")
-		podInfoByIPProvider, err = cnireconciler.NewCNIPodInfoProvider()
+		podInfoByIPProvider, err = cnipodprovider.New()
 		if err != nil {
 			return podInfoByIPProvider, errors.Wrap(err, "failed to create CNI PodInfoProvider")
 		}
@@ -1716,7 +1717,7 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 // PopulateCNSEndpointState initilizes CNS Endpoint State by Migrating the CNI state.
 func PopulateCNSEndpointState(endpointStateStore store.KeyValueStore) error {
 	logger.Printf("State Migration is enabled")
-	endpointState, err := cnireconciler.MigrateCNISate()
+	endpointState, err := cnspodprovider.MigrateCNISate()
 	if err != nil {
 		return errors.Wrap(err, "failed to create CNS Endpoint state from CNI")
 	}
