@@ -62,6 +62,6 @@ func ApplicationInsightsCore(cfg *AppInsightsConfig) (zapcore.Core, func(), erro
 	core := zapai.NewCore(cfg.level, sink)
 	core = core.WithFieldMappers(zapai.DefaultMappers)
 	// add normalized fields for the built-in AI Tags
-	// TODO(rbtr): move to the caller
+
 	return core.With(cfg.Fields), aiclose, nil
 }
