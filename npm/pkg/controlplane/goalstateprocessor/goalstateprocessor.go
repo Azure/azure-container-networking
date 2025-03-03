@@ -37,8 +37,6 @@ func NewGoalStateProcessor(
 		return nil, ErrPodOrNodeNameNil
 	}
 
-	klog.Infof("Creating GoalStateProcessor for node %s", nodeID)
-
 	return &GoalStateProcessor{
 		ctx:            ctx,
 		nodeID:         nodeID,
@@ -51,18 +49,15 @@ func NewGoalStateProcessor(
 
 // Start kicks off the GoalStateProcessor
 func (gsp *GoalStateProcessor) Start(stopCh <-chan struct{}) {
-	klog.Infof("Starting GoalStateProcessor for node %s", gsp.nodeID)
 	go gsp.run(stopCh)
 }
 
 // Stop stops the GoalStateProcessor
 func (gsp *GoalStateProcessor) Stop() {
-	klog.Infof("Stopping GoalStateProcessor for node %s", gsp.nodeID)
 	gsp.cancel()
 }
 
 func (gsp *GoalStateProcessor) run(stopCh <-chan struct{}) {
-	klog.Infof("Starting dataplane for node %s", gsp.nodeID)
 
 	for gsp.processNext(stopCh) {
 	}
@@ -74,28 +69,23 @@ func (gsp *GoalStateProcessor) processNext(stopCh <-chan struct{}) bool {
 	// on a previous event
 	case inputEvents := <-gsp.inputChannel:
 		// TODO remove this large print later
-		klog.Infof("Received event %s", inputEvents)
 		gsp.process(inputEvents)
 		return true
 	case backoffEvents := <-gsp.backoffChannel:
 		// For now keep it simple. Do not worry about backoff events
 		// but if we need to handle them, we can do it here.
 		// TODO remove this large print later
-		klog.Infof("Received backoff event %s", backoffEvents)
 		gsp.process(backoffEvents)
 		return true
 
 	case <-gsp.ctx.Done():
-		klog.Infof("GoalStateProcessor for node %s received context Done", gsp.nodeID)
 		return false
 	case <-stopCh:
-		klog.Infof("GoalStateProcessor for node %s stopped", gsp.nodeID)
 		return false
 	}
 }
 
 func (gsp *GoalStateProcessor) process(inputEvent *protos.Events) {
-	klog.Infof("Processing event")
 	// apply dataplane after syncing
 	defer func() {
 		dperr := gsp.dp.ApplyDataPlane()
@@ -113,10 +103,8 @@ func (gsp *GoalStateProcessor) process(inputEvent *protos.Events) {
 	switch inputEvent.GetEventType() {
 	case protos.Events_Hydration:
 		// in hydration event, any thing in local cache and not in event should be deleted.
-		klog.Infof("Received hydration event")
 		gsp.processHydrationEvent(payload)
 	case protos.Events_GoalState:
-		klog.Infof("Received goal state event")
 		gsp.processGoalStateEvent(payload)
 	default:
 		klog.Errorf("Received unknown event type %s", inputEvent.GetEventType())
@@ -166,7 +154,6 @@ func (gsp *GoalStateProcessor) processHydrationEvent(payload map[string]*protos.
 	}
 
 	if len(toDeletePolicies) > 0 {
-		klog.Infof("Deleting %d policies", len(toDeletePolicies))
 		err = gsp.processPolicyRemoveEvent(toDeletePolicies)
 		if err != nil {
 			klog.Errorf("Error processing POLICY remove HYDRATION event %s", err)
@@ -195,7 +182,6 @@ func (gsp *GoalStateProcessor) processHydrationEvent(payload map[string]*protos.
 	}
 
 	if len(toDeleteIPSets) > 0 {
-		klog.Infof("Deleting %d ipsets", len(toDeleteIPSets))
 		gsp.processIPSetsRemoveEvent(toDeleteIPSets, util.ForceDelete)
 	}
 }
@@ -249,7 +235,6 @@ func (gsp *GoalStateProcessor) processIPSetsApplyEvent(goalState *protos.GoalSta
 		return nil, npmerrors.SimpleErrorWrapper("failed to decode IPSet apply event", err)
 	}
 
-	klog.Infof("Processing IPSet apply event %v", payloadIPSets)
 	appendedIPSets := make(map[string]struct{}, len(payloadIPSets))
 	for _, ipset := range payloadIPSets {
 		if ipset == nil {
@@ -257,10 +242,7 @@ func (gsp *GoalStateProcessor) processIPSetsApplyEvent(goalState *protos.GoalSta
 			continue
 		}
 
-		klog.Infof("ipset: %v", ipset)
-
 		ipsetName := ipset.GetPrefixName()
-		klog.Infof("Processing %s IPSET apply event", ipsetName)
 
 		cachedIPSet := gsp.dp.GetIPSet(ipsetName)
 		if cachedIPSet == nil {
@@ -357,7 +339,6 @@ func (gsp *GoalStateProcessor) processIPSetsRemoveEvent(ipsetNames []string, for
 			klog.Warningf("Empty IPSet remove event")
 			continue
 		}
-		klog.Infof("Processing %s IPSET remove event", ipsetName)
 
 		cachedIPSet := gsp.dp.GetIPSet(ipsetName)
 		if cachedIPSet == nil {
@@ -382,8 +363,6 @@ func (gsp *GoalStateProcessor) processPolicyApplyEvent(goalState *protos.GoalSta
 			klog.Warningf("Empty Policy apply event")
 			continue
 		}
-		klog.Infof("Processing %s Policy ADD event", netpol.PolicyKey)
-		klog.Infof("Netpol: %v", netpol)
 
 		err = gsp.dp.UpdatePolicy(netpol)
 		if err != nil {
@@ -397,7 +376,6 @@ func (gsp *GoalStateProcessor) processPolicyApplyEvent(goalState *protos.GoalSta
 
 func (gsp *GoalStateProcessor) processPolicyRemoveEvent(netpolNames []string) error {
 	for _, netpolName := range netpolNames {
-		klog.Infof("Processing %s Policy remove event", netpolName)
 
 		if netpolName == "" {
 			klog.Warningf("Empty Policy remove event")

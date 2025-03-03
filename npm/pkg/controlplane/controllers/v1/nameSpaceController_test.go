@@ -133,10 +133,8 @@ func newNameSpace(name, rv string, labels map[string]string) *corev1.Namespace {
 }
 
 func addNamespace(t *testing.T, f *nameSpaceFixture, nsObj *corev1.Namespace) {
-	t.Logf("Calling add namespace event")
 	f.nsController.addNamespace(nsObj)
 	if f.nsController.workqueue.Len() == 0 {
-		t.Logf("Add Namespace: worker queue length is 0 ")
 		return
 	}
 	f.nsController.processNextWorkItem()
@@ -144,15 +142,9 @@ func addNamespace(t *testing.T, f *nameSpaceFixture, nsObj *corev1.Namespace) {
 
 func updateNamespace(t *testing.T, f *nameSpaceFixture, oldNsObj, newNsObj *corev1.Namespace) {
 	addNamespace(t, f, oldNsObj)
-	t.Logf("Complete add namespace event")
-
-	t.Logf("Updating kubeinformer namespace object")
 	f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Update(newNsObj)
-
-	t.Logf("Calling update namespace event")
 	f.nsController.updateNamespace(oldNsObj, newNsObj)
 	if f.nsController.workqueue.Len() == 0 {
-		t.Logf("Update Namespace: worker queue length is 0 ")
 		return
 	}
 	f.nsController.processNextWorkItem()
@@ -160,12 +152,7 @@ func updateNamespace(t *testing.T, f *nameSpaceFixture, oldNsObj, newNsObj *core
 
 func deleteNamespace(t *testing.T, f *nameSpaceFixture, nsObj *corev1.Namespace, isDeletedFinalStateUnknownObject IsDeletedFinalStateUnknownObject) {
 	addNamespace(t, f, nsObj)
-	t.Logf("Complete add namespace event")
-
-	t.Logf("Updating kubeinformer namespace object")
 	f.kubeInformer.Core().V1().Namespaces().Informer().GetIndexer().Delete(nsObj)
-
-	t.Logf("Calling delete namespace event")
 	if isDeletedFinalStateUnknownObject {
 		tombstone := cache.DeletedFinalStateUnknown{
 			Key: nsObj.Name,
@@ -177,7 +164,6 @@ func deleteNamespace(t *testing.T, f *nameSpaceFixture, nsObj *corev1.Namespace,
 	}
 
 	if f.nsController.workqueue.Len() == 0 {
-		t.Logf("Delete Namespace: worker queue length is 0 ")
 		return
 	}
 	f.nsController.processNextWorkItem()
