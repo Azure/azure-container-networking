@@ -58,7 +58,6 @@ func (dp *DPShim) HydrateClients() (*protos.Events, error) {
 	defer dp.unlock()
 
 	if len(dp.setCache) == 0 && len(dp.policyCache) == 0 {
-		klog.Infof("HydrateClients: No local cache objects to hydrate daemon client")
 		return nil, nil
 	}
 
@@ -81,7 +80,6 @@ func (dp *DPShim) HydrateClients() (*protos.Events, error) {
 	}
 
 	if len(goalStates) == 0 {
-		klog.Info("HydrateClients: No changes to apply")
 		return nil, nil
 	}
 
@@ -137,14 +135,12 @@ func (dp *DPShim) DeleteIPSet(setMetadata *ipsets.IPSetMetadata, _ util.DeleteOp
 
 func (dp *DPShim) deleteIPSet(setMetadata *ipsets.IPSetMetadata) {
 	setName := setMetadata.GetPrefixName()
-	klog.Infof("deleteIPSet: cleaning up %s", setName)
 	set, ok := dp.setCache[setName]
 	if !ok {
 		return
 	}
 
 	if set.HasReferences() {
-		klog.Infof("deleteIPSet: ignore delete since set: %s has references", setName)
 		return
 	}
 
@@ -161,7 +157,6 @@ func (dp *DPShim) AddToSets(setMetadatas []*ipsets.IPSetMetadata, podMetadata *d
 	defer dp.unlock()
 
 	for _, set := range setMetadatas {
-		klog.Infof("AddToSets: Adding pod IP: %s, Key: %s,  to set %s", podMetadata.PodIP, podMetadata.PodKey, set.GetPrefixName())
 		prefixedSetName := set.GetPrefixName()
 		if !dp.setExists(prefixedSetName) {
 			dp.createIPSet(set)
@@ -192,7 +187,6 @@ func (dp *DPShim) RemoveFromSets(setMetadatas []*ipsets.IPSetMetadata, podMetada
 	defer dp.unlock()
 
 	for _, set := range setMetadatas {
-		klog.Infof("RemoveFromSets: removing pod ip: %s, podkey: %s,  from set %s ", podMetadata.PodIP, podMetadata.PodKey, set.GetPrefixName())
 		prefixedSetName := set.GetPrefixName()
 		if !dp.setExists(prefixedSetName) {
 			continue
@@ -209,8 +203,6 @@ func (dp *DPShim) RemoveFromSets(setMetadatas []*ipsets.IPSetMetadata, podMetada
 			continue
 		}
 		if cachedPod.PodKey != podMetadata.PodKey {
-			klog.Infof("DeleteFromSet: PodOwner has changed for Ip: %s, setName:%s, Old podKey: %s, new podKey: %s. Ignore the delete as this is stale update",
-				cachedPod.PodIP, prefixedSetName, cachedPod.PodKey, podMetadata.PodKey)
 			continue
 		}
 
@@ -400,11 +392,8 @@ func (dp *DPShim) ApplyDataPlane() error {
 
 	// check dirty cache contents
 	if !dp.dirtyCache.hasContents() {
-		klog.Info("ApplyDataPlane: No changes to apply")
 		return nil
 	}
-
-	dp.dirtyCache.printContents()
 
 	goalStates := make(map[string]*protos.GoalState)
 
@@ -441,7 +430,6 @@ func (dp *DPShim) ApplyDataPlane() error {
 	}
 
 	if len(goalStates) == 0 {
-		klog.Info("ApplyDataPlane: No changes to apply")
 		return nil
 	}
 
@@ -629,7 +617,6 @@ func (dp *DPShim) deleteUnusedSets(stopChannel <-chan struct{}) {
 			case <-stopChannel:
 				return
 			case <-ticker.C:
-				klog.Info("deleteUnusedSets: cleaning up unused sets")
 				dp.checkSetReferences()
 				err := dp.ApplyDataPlane()
 				if err != nil {
