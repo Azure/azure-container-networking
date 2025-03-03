@@ -136,6 +136,7 @@ func addPod(t *testing.T, f *podFixture, podObj *corev1.Pod) {
 
 func deletePod(t *testing.T, f *podFixture, podObj *corev1.Pod, isDeletedFinalStateUnknownObject IsDeletedFinalStateUnknownObject) {
 	addPod(t, f, podObj)
+	t.Logf("Complete add pod event")
 
 	// simulate pod delete event and delete pod object from sharedInformer cache
 	f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Delete(podObj)
@@ -162,6 +163,7 @@ func deletePod(t *testing.T, f *podFixture, podObj *corev1.Pod, isDeletedFinalSt
 // Need to make more cases - interestings..
 func updatePod(t *testing.T, f *podFixture, oldPodObj *corev1.Pod, newPodObj *corev1.Pod) {
 	addPod(t, f, oldPodObj)
+	t.Logf("Complete add pod event")
 
 	// simulate pod update event and update the pod to shared informer's cache
 	f.kubeInformer.Core().V1().Pods().Informer().GetIndexer().Update(newPodObj)

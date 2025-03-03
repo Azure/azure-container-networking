@@ -177,9 +177,12 @@ func (c *NetworkPolicyController) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
+	klog.Infof("Starting Network Policy worker")
 	go wait.Until(c.runWorker, time.Second, stopCh)
 
+	klog.Infof("Started Network Policy worker")
 	<-stopCh
+	klog.Info("Shutting down Network Policy workers")
 }
 
 func (c *NetworkPolicyController) runWorker() {
@@ -216,6 +219,7 @@ func (c *NetworkPolicyController) processNextWorkItem() bool {
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
 		c.workqueue.Forget(obj)
+		klog.Infof("Successfully synced '%s'", key)
 		return nil
 	}(obj)
 	if err != nil {
@@ -369,11 +373,13 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 
 	sets, namedPorts, lists, ingressIPCidrs, egressIPCidrs, iptEntries := translatePolicy(netPolObj)
 	for _, set := range sets {
+		klog.Infof("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
 		if err = c.ipsMgr.CreateSetNoLock(set, []string{util.IpsetNetHashFlag}); err != nil {
 			return operationKind, fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset %s with err: %w", set, err)
 		}
 	}
 	for _, set := range namedPorts {
+		klog.Infof("Creating set: %v, hashedSet: %v", set, util.GetHashedName(set))
 		if err = c.ipsMgr.CreateSetNoLock(set, []string{util.IpsetIPPortHashFlag}); err != nil {
 			return operationKind, fmt.Errorf("[syncAddAndUpdateNetPol] Error: creating ipset named port %s with err: %w", set, err)
 		}
@@ -484,6 +490,7 @@ func (c *NetworkPolicyController) createCidrsRule(direction, policyName, ns stri
 			continue
 		}
 		setName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + direction
+		klog.Infof("Creating set: %v, hashedSet: %v", setName, util.GetHashedName(setName))
 		if err := c.ipsMgr.CreateSetNoLock(setName, spec); err != nil {
 			return fmt.Errorf("[createCidrsRule] Error: creating ipset %s with err: %w", ipCidrSet, err)
 		}
@@ -514,6 +521,7 @@ func (c *NetworkPolicyController) removeCidrsRule(direction, policyName, ns stri
 			continue
 		}
 		setName := policyName + "-in-ns-" + ns + "-" + strconv.Itoa(i) + direction
+		klog.Infof("Delete set: %v, hashedSet: %v", setName, util.GetHashedName(setName))
 		if err := c.ipsMgr.DeleteSet(setName); err != nil {
 			return fmt.Errorf("[removeCidrsRule] deleting ipset %s with err: %w", ipCidrSet, err)
 		}

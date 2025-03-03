@@ -235,6 +235,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 		addedPortEntry  bool // add drop entries at the end of the chain when there are non ALLOW-ALL* rules
 	)
 
+	log.Logf("started parsing ingress rule")
 	netHashIPsets = append(netHashIPsets, "ns-"+ns)
 	ipCidrs = make([][]string, len(rules))
 	listIPsets = make(map[string][]string)
@@ -872,6 +873,7 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 		entries = append(fromRuleEntries, entries...)
 	}
 
+	log.Logf("finished parsing ingress rule")
 	return util.DropEmptyFields(netHashIPsets), util.DropEmptyFields(namedPorts), listIPsets, ipCidrs, entries
 }
 
@@ -887,6 +889,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 		addedPortEntry bool // add drop entry when there are non ALLOW-ALL* rules
 	)
 
+	log.Logf("started parsing egress rule")
 	netHashIPsets = append(netHashIPsets, "ns-"+ns)
 	ipCidrs = make([][]string, len(rules))
 	listIPsets = make(map[string][]string)
@@ -1527,6 +1530,7 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 		entries = append(toRuleEntries, entries...)
 	}
 
+	log.Logf("finished parsing egress rule")
 	return util.DropEmptyFields(netHashIPsets), util.DropEmptyFields(namedPorts), listIPsets, ipCidrs, entries
 }
 
@@ -1592,6 +1596,16 @@ func translatePolicy(npObj *networkingv1.NetworkPolicy) ([]string, []string, map
 		entries               []*iptm.IptEntry
 		hasIngress, hasEgress bool
 	)
+
+	defer func() {
+		log.Logf("Finished translatePolicy")
+		log.Logf("sets: %v", resultSets)
+		log.Logf("lists: %v", resultListMap)
+		log.Logf("entries: ")
+		for _, entry := range entries {
+			log.Logf("entry: %+v", entry)
+		}
+	}()
 
 	npNs := npObj.ObjectMeta.Namespace
 	policyName := npObj.ObjectMeta.Name

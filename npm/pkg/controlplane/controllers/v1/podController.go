@@ -89,11 +89,15 @@ func (c *PodController) needSync(eventType string, obj interface{}) (string, boo
 		return key, needSync
 	}
 
+	klog.Infof("[POD %s EVENT] for %s in %s", eventType, podObj.Name, podObj.Namespace)
+
 	if !hasValidPodIP(podObj) {
 		return key, needSync
 	}
 
 	if isHostNetworkPod(podObj) {
+		klog.Infof("[POD %s EVENT] HostNetwork POD IGNORED: [%s/%s/%s/%+v%s]",
+			eventType, podObj.GetObjectMeta().GetUID(), podObj.Namespace, podObj.Name, podObj.Labels, podObj.Status.PodIP)
 		return key, needSync
 	}
 
@@ -128,6 +132,7 @@ func (c *PodController) addPod(obj interface{}) {
 func (c *PodController) updatePod(old, newp interface{}) {
 	key, needSync := c.needSync("UPDATE", newp)
 	if !needSync {
+		klog.Infof("[POD UPDATE EVENT] No need to sync this pod")
 		return
 	}
 
@@ -138,6 +143,7 @@ func (c *PodController) updatePod(old, newp interface{}) {
 		if oldPod.ResourceVersion == newPod.ResourceVersion {
 			// Periodic resync will send update events for all known pods.
 			// Two different versions of the same pods will always have different RVs.
+			klog.Infof("[POD UPDATE EVENT] Two pods have the same RVs")
 			return
 		}
 	}
@@ -164,7 +170,9 @@ func (c *PodController) deletePod(obj interface{}) {
 		}
 	}
 
+	klog.Infof("[POD DELETE EVENT] for %s in %s", podObj.Name, podObj.Namespace)
 	if isHostNetworkPod(podObj) {
+		klog.Infof("[POD DELETE EVENT] HostNetwork POD IGNORED: [%s/%s/%s/%+v%s]", podObj.UID, podObj.Namespace, podObj.Name, podObj.Labels, podObj.Status.PodIP)
 		return
 	}
 
@@ -184,9 +192,12 @@ func (c *PodController) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
+	klog.Infof("Starting Pod worker")
 	go wait.Until(c.runWorker, time.Second, stopCh)
 
+	klog.Info("Started Pod workers")
 	<-stopCh
+	klog.Info("Shutting down Pod workers")
 }
 
 func (c *PodController) runWorker() {
@@ -224,6 +235,7 @@ func (c *PodController) processNextWorkItem() bool {
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
 		c.workqueue.Forget(obj)
+		klog.Infof("Successfully synced '%s'", key)
 		return nil
 	}(obj)
 	if err != nil {
@@ -313,11 +325,14 @@ func (c *PodController) syncPod(key string) error {
 }
 
 func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
+	klog.Infof("POD CREATING: [%s%s/%s/%s%+v%s]", string(podObj.GetUID()), podObj.Namespace,
+		podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
 
 	var err error
 	podNs := util.GetNSNameWithPrefix(podObj.Namespace)
 	podKey, _ := cache.MetaNamespaceKeyFunc(podObj)
 	// Add the pod ip information into namespace's ipset.
+	klog.Infof("Adding pod %s to ipset %s", podObj.Status.PodIP, podNs)
 	if err = c.ipsMgr.AddToSet(podNs, podObj.Status.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
 		return fmt.Errorf("[syncAddedPod] Error: failed to add pod to namespace ipset with err: %w", err)
 	}
@@ -328,11 +343,13 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 
 	// Get lists of podLabelKey and podLabelKey + podLavelValue ,and then start adding them to ipsets.
 	for labelKey, labelVal := range podObj.Labels {
+		klog.Infof("Adding pod %s to ipset %s", npmPodObj.PodIP, labelKey)
 		if err = c.ipsMgr.AddToSet(labelKey, npmPodObj.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
 			return fmt.Errorf("[syncAddedPod] Error: failed to add pod to label ipset with err: %w", err)
 		}
 
 		podIPSetName := util.GetIpSetFromLabelKV(labelKey, labelVal)
+		klog.Infof("Adding pod %s to ipset %s", npmPodObj.PodIP, podIPSetName)
 		if err = c.ipsMgr.AddToSet(podIPSetName, npmPodObj.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
 			return fmt.Errorf("[syncAddedPod] Error: failed to add pod to label ipset with err: %w", err)
 		}
@@ -340,6 +357,7 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 	}
 
 	// Add pod's named ports from its ipset.
+	klog.Infof("Adding named port ipsets")
 	containerPorts := common.GetContainerPortList(podObj)
 	if err = c.manageNamedPortIpsets(containerPorts, podKey, npmPodObj.PodIP, addNamedPort); err != nil {
 		return fmt.Errorf("[syncAddedPod] Error: failed to add pod to named port ipset with err: %w", err)
@@ -378,6 +396,7 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 
 	podKey, _ := cache.MetaNamespaceKeyFunc(newPodObj)
 	cachedNpmPod, exists := c.podMap[podKey]
+	klog.Infof("[syncAddAndUpdatePod] updating Pod with key %s", podKey)
 	// No cached npmPod exists. start adding the pod in a cache
 	if !exists {
 		if err = c.syncAddedPod(newPodObj); err != nil {
@@ -396,10 +415,15 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 	// NPM should clean up existing references of cached pod obj and its IP.
 	// then, re-add new pod obj.
 	if cachedNpmPod.PodIP != newPodObj.Status.PodIP {
+		klog.Infof("Pod (Namespace:%s, Name:%s, newUid:%s), has cachedPodIp:%s which is different from PodIp:%s",
+			newPodObj.Namespace, newPodObj.Name, string(newPodObj.UID), cachedNpmPod.PodIP, newPodObj.Status.PodIP)
+
+		klog.Infof("Deleting cached Pod with key:%s first due to IP Mistmatch", podKey)
 		if err = c.cleanUpDeletedPod(podKey); err != nil {
 			return metrics.UpdateOp, err
 		}
 
+		klog.Infof("Adding back Pod with key:%s after IP Mistmatch", podKey)
 		if err = c.syncAddedPod(newPodObj); err != nil {
 			return metrics.UpdateOp, err
 		}
@@ -414,6 +438,7 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 
 	// Delete the pod from its label's ipset.
 	for _, podIPSetName := range deleteFromIPSets {
+		klog.Infof("Deleting pod %s from ipset %s", cachedNpmPod.PodIP, podIPSetName)
 		if err = c.ipsMgr.DeleteFromSet(podIPSetName, cachedNpmPod.PodIP, podKey); err != nil {
 			return metrics.UpdateOp, fmt.Errorf("[syncAddAndUpdatePod] Error: failed to delete pod from label ipset with err: %w", err)
 		}
@@ -427,6 +452,7 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 
 	// Add the pod to its label's ipset.
 	for _, addIPSetName := range addToIPSets {
+		klog.Infof("Adding pod %s to ipset %s", newPodObj.Status.PodIP, addIPSetName)
 		if err = c.ipsMgr.AddToSet(addIPSetName, newPodObj.Status.PodIP, util.IpsetNetHashFlag, podKey); err != nil {
 			return metrics.UpdateOp, fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add pod to label ipset with err: %w", err)
 		}
@@ -469,6 +495,7 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 
 // cleanUpDeletedPod cleans up all ipset associated with this pod
 func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
+	klog.Infof("[cleanUpDeletedPod] deleting Pod with key %s", cachedNpmPodKey)
 	// If cached npmPod does not exist, return nil
 	cachedNpmPod, exist := c.podMap[cachedNpmPodKey]
 	if !exist {
@@ -484,11 +511,13 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 
 	// Get lists of podLabelKey and podLabelKey + podLavelValue ,and then start deleting them from ipsets
 	for labelKey, labelVal := range cachedNpmPod.Labels {
+		klog.Infof("Deleting pod %s from ipset %s", cachedNpmPod.PodIP, labelKey)
 		if err = c.ipsMgr.DeleteFromSet(labelKey, cachedNpmPod.PodIP, cachedNpmPodKey); err != nil {
 			return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from label ipset with err: %w", err)
 		}
 
 		podIPSetName := util.GetIpSetFromLabelKV(labelKey, labelVal)
+		klog.Infof("Deleting pod %s from ipset %s", cachedNpmPod.PodIP, podIPSetName)
 		if err = c.ipsMgr.DeleteFromSet(podIPSetName, cachedNpmPod.PodIP, cachedNpmPodKey); err != nil {
 			return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from label ipset with err: %w", err)
 		}
@@ -509,6 +538,7 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 func (c *PodController) manageNamedPortIpsets(portList []corev1.ContainerPort, podKey string,
 	podIP string, namedPortOperation NamedPortOperation) error {
 	for _, port := range portList {
+		klog.Infof("port is %+v", port)
 		if port.Name == "" {
 			continue
 		}

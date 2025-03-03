@@ -13,6 +13,7 @@ import (
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
+	"k8s.io/klog"
 	utilexec "k8s.io/utils/exec"
 )
 
@@ -31,6 +32,8 @@ type IPTablesParser struct {
 
 // runCommand returns (stdout, stderr, error)
 func (i *IPTablesParser) runCommand(command string, args ...string) ([]byte, error) {
+	klog.Infof("Executing iptables command %v %v", command, args)
+
 	commandExec := i.IOShim.Exec.Command(command, args...)
 	output, err := commandExec.CombinedOutput()
 
