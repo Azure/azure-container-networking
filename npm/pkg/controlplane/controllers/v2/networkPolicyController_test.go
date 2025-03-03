@@ -179,6 +179,7 @@ func addNetPol(f *netPolFixture, netPolObj *networkingv1.NetworkPolicy) {
 
 func deleteNetPol(t *testing.T, f *netPolFixture, netPolObj *networkingv1.NetworkPolicy, isDeletedFinalStateUnknownObject IsDeletedFinalStateUnknownObject) {
 	addNetPol(f, netPolObj)
+	t.Logf("Complete adding network policy event")
 
 	// simulate network policy deletion event and delete network policy object from sharedInformer cache
 	err := f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Delete(netPolObj)
@@ -205,6 +206,7 @@ func deleteNetPol(t *testing.T, f *netPolFixture, netPolObj *networkingv1.Networ
 
 func updateNetPol(t *testing.T, f *netPolFixture, oldNetPolObj, netNetPolObj *networkingv1.NetworkPolicy) {
 	addNetPol(f, oldNetPolObj)
+	t.Logf("Complete adding network policy event")
 
 	// simulate network policy update event and update the network policy to shared informer's cache
 	err := f.kubeInformer.Networking().V1().NetworkPolicies().Informer().GetIndexer().Update(netNetPolObj)
