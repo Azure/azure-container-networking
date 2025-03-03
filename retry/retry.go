@@ -1,4 +1,4 @@
-package internal
+package retry
 
 import (
 	"context"
@@ -17,6 +17,42 @@ const (
 	ErrMaxAttempts = Error("maximum attempts reached")
 )
 
+// Error represents an internal sentinal error which can be defined as a
+// constant.
+type Error string
+
+func (e Error) Error() string {
+	return string(e)
+}
+
+// RetriableError is an implementation of TemporaryError that is always retriable
+type RetriableError struct {
+	err error
+}
+
+func (r RetriableError) Error() string {
+	if r.err == nil {
+		return ""
+	}
+	return r.err.Error()
+}
+
+func (r RetriableError) Unwrap() error {
+	return r.err
+}
+
+func (r RetriableError) Temporary() bool {
+	return true
+}
+
+// Forces the error to be retriable, returns nil if error is nil
+func WrapTemporaryError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return RetriableError{err: err}
+}
+
 // TemporaryError is an error that can indicate whether it may be resolved with
 // another attempt.
 type TemporaryError interface {
@@ -25,7 +61,8 @@ type TemporaryError interface {
 }
 
 // Retrier is a construct for attempting some operation multiple times with a
-// configurable backoff strategy.
+// configurable backoff strategy. To retry, a returned error must implement the
+// TemporaryError interface and return true
 type Retrier struct {
 	Cooldown CooldownFactory
 }
@@ -47,9 +84,9 @@ func (r Retrier) Do(ctx context.Context, run func() error) error {
 			// check to see if it's temporary.
 			var tempErr TemporaryError
 			if ok := errors.As(err, &tempErr); ok && tempErr.Temporary() {
-				delay, err := cooldown() // nolint:govet // the shadow is intentional
-				if err != nil {
-					return pkgerrors.Wrap(err, "sleeping during retry")
+				delay, cooldownErr := cooldown()
+				if cooldownErr != nil {
+					return pkgerrors.Wrap(cooldownErr, "sleeping during retry, last error:"+err.Error())
 				}
 				time.Sleep(delay)
 				continue
@@ -72,7 +109,9 @@ type CooldownFunc func() (time.Duration, error)
 type CooldownFactory func() CooldownFunc
 
 // Max provides a fixed limit for the number of times a subordinate cooldown
-// function can be invoked.
+// function can be invoked. Note if we set the limit to 0, we still
+// invoke the target method once in the retrier, but do not retry
+// Read this as the max number of *retries*
 func Max(limit int, factory CooldownFactory) CooldownFactory {
 	return func() CooldownFunc {
 		cooldown := factory()
