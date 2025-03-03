@@ -1,8 +1,6 @@
 module github.com/Azure/azure-container-networking/azure-ipam
 
-go 1.23
-
-toolchain go1.23.2
+go 1.24
 
 require (
 	github.com/Azure/azure-container-networking v1.6.21
