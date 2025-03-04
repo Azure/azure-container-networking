@@ -617,7 +617,6 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 func (dp *DataPlane) UpdatePolicy(policy *policies.NPMNetworkPolicy) error {
 	ok := dp.policyMgr.PolicyExists(policy.PolicyKey)
 	if !ok {
-		klog.Infof("[DataPlane] Policy %s is not found.", policy.PolicyKey)
 		return dp.AddPolicy(policy)
 	}
 

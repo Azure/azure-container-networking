@@ -185,8 +185,6 @@ func (creator *FileCreator) runCommandOnceWithFile(fileString, cmd string, args 
 		return false, nil
 	}
 
-	klog.Infof("running this restore command: [%s]", commandString)
-
 	if creator.verbose {
 		creator.logLines(commandString)
 	}
