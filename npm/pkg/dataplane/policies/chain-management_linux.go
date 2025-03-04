@@ -633,6 +633,7 @@ func (pMgr *PolicyManager) positionAzureChainJumpRule() error {
 	}
 
 	// add (back) the azure jump
+	klog.Infof("Inserting jump from FORWARD chain to AZURE-NPM chain")
 	var args []string
 	if targetIndex == 1 {
 		// when no index is provided, index of 1 is implied
