@@ -11,6 +11,12 @@ metadata:
     kubernetes.io/os: linux
     kubernetes.io/role: agent
     node-role.kubernetes.io/agent: ""
+    kubernetes.azure.com/cluster: capz-centraluseuap-mdnc-e2e-116919902-cx4 
+    kubernetes.azure.com/podnetwork-delegationguid: "25a764bb-cd26-4775-91ca-53da786c25e5"
+    kubernetes.azure.com/podnetwork-max-pods: "63"
+    kubernetes.azure.com/podnetwork-subnet: "pod-subnet"
+    topology.kubernetes.io/region: centraluseuap
+    topology.kubernetes.io/zone: "0"
     type: kwok
   name: kwok-node-INSERT_NUMBER
 spec:
@@ -19,6 +25,11 @@ spec:
       key: kwok.x-k8s.io/node
       value: fake
 status:
+  addresses:
+    - address: kwok-node-INSERT_NUMBER
+      type: Hostname
+    - address: 10.2.0.INSERT_NUMBER
+      type: InternalIP
   allocatable:
     cpu: 32
     memory: 256Gi
