@@ -105,6 +105,7 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 	// do not let Linux apply in background
 	dp.applyInBackground = cfg.ApplyInBackground && util.IsWindowsDP()
 	if dp.applyInBackground {
+		klog.Infof("[DataPlane] dataplane configured to apply in background every %v or every %d calls to ApplyDataPlane()", dp.ApplyInterval, dp.ApplyMaxBatches)
 		dp.updatePodCache = newUpdatePodCache(cfg.ApplyMaxBatches)
 		if dp.ApplyMaxBatches <= 0 || dp.ApplyInterval == 0 {
 			return nil, ErrInvalidApplyConfig
@@ -416,6 +417,7 @@ func (dp *DataPlane) addPoliciesWithRetry(context string) {
 		return
 	}
 
+	klog.Errorf("[DataPlane] [%s] failed to add policies. will retry one policy at a time. err: %s", context, err.Error())
 	metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] [%s] failed to add policies. err: %s", context, err.Error())
 
 	// retry one policy at a time
@@ -476,6 +478,7 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 		// Create and add references for Selector IPSets first
 		err := dp.createIPSetsAndReferences(netPol.AllPodSelectorIPSets(), netPol.PolicyKey, ipsets.SelectorType)
 		if err != nil {
+			klog.Infof("[DataPlane] error while adding Selector IPSet references: %s", err.Error())
 			return fmt.Errorf("[DataPlane] error while adding Selector IPSet references: %w", err)
 		}
 
