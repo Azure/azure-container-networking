@@ -186,6 +186,8 @@ TODO: could use one grep call instead of separate calls for getting jump line nu
   - would use a grep pattern like so: <line num...AZURE-NPM>|<Chain AZURE-NPM>
 */
 func (pMgr *PolicyManager) bootup(_ []string) error {
+	klog.Infof("booting up iptables Azure chains")
+
 	// 0.1. Detect iptables version
 	if err := pMgr.detectIptablesVersion(); err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to detect iptables version", err)
@@ -212,6 +214,7 @@ func (pMgr *PolicyManager) bootupAfterDetectAndCleanup() error {
 	// 1. delete the deprecated jump to AZURE-NPM
 	deprecatedErrCode, deprecatedErr := pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
 	if deprecatedErrCode == 0 {
+		klog.Infof("deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
 	} else if deprecatedErr != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID,
 			"failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s",
@@ -222,6 +225,8 @@ func (pMgr *PolicyManager) bootupAfterDetectAndCleanup() error {
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to get current chains for bootup", err)
 	}
+
+	klog.Infof("found %d current chains in the default iptables", len(currentChains))
 
 	// 2. cleanup old NPM chains, and configure base chains and their rules.
 	creator := pMgr.creatorForBootup(currentChains)
@@ -245,11 +250,13 @@ func (pMgr *PolicyManager) bootupAfterDetectAndCleanup() error {
 // kube-proxy creates an iptables chain as a hint for which version it uses.
 // For more details, see: https://kubernetes.io/blog/2022/09/07/iptables-chains-not-api/#use-case-iptables-mode
 func (pMgr *PolicyManager) detectIptablesVersion() error {
+	klog.Info("first attempt detecting iptables version. looking for hint/canary chain in iptables-nft")
 	if pMgr.hintOrCanaryChainExist(util.IptablesNft) {
 		util.SetIptablesToNft()
 		return nil
 	}
 
+	klog.Info("second attempt detecting iptables version. looking for hint/canary chain in iptables-legacy")
 	if pMgr.hintOrCanaryChainExist(util.IptablesLegacy) {
 		util.SetIptablesToLegacy()
 		return nil
@@ -291,15 +298,19 @@ func (pMgr *PolicyManager) hintOrCanaryChainExist(iptablesCmd string) bool {
 func (pMgr *PolicyManager) cleanupOtherIptables() error {
 	hadNFT := util.Iptables == util.IptablesNft
 	if hadNFT {
+		klog.Info("detected nft iptables. cleaning up legacy iptables")
 		util.SetIptablesToLegacy()
 	} else {
+		klog.Info("detected legacy iptables. cleaning up nft iptables")
 		util.SetIptablesToNft()
 	}
 
 	defer func() {
 		if hadNFT {
+			klog.Info("cleaned up legacy iptables")
 			util.SetIptablesToNft()
 		} else {
+			klog.Info("cleaned up nft tables")
 			util.SetIptablesToLegacy()
 		}
 	}()
@@ -309,6 +320,7 @@ func (pMgr *PolicyManager) cleanupOtherIptables() error {
 	// 1.1. delete the deprecated jump to AZURE-NPM
 	errCode, err := pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
 	if errCode == 0 {
+		klog.Infof("[cleanup] deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
 		deletedJumpRule = true
 	} else if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID,
@@ -320,6 +332,7 @@ func (pMgr *PolicyManager) cleanupOtherIptables() error {
 	errCode, err = pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, jumpFromForwardToAzureChainArgs...)
 	if errCode == 0 {
 		deletedJumpRule = true
+		klog.Infof("[cleanup] deleted jump rule from FORWARD chain to AZURE-NPM chain")
 	} else if err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID,
 			"[cleanup] failed to delete jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s",
@@ -333,8 +346,11 @@ func (pMgr *PolicyManager) cleanupOtherIptables() error {
 	}
 
 	if len(currentChains) == 0 {
+		klog.Info("no chains to cleanup")
 		return nil
 	}
+
+	klog.Infof("[cleanup] %d chains to clean up", len(currentChains))
 
 	// 3.1. try to flush all chains at once
 	chains := make([]string, 0, len(currentChains))
@@ -453,6 +469,7 @@ func (pMgr *PolicyManager) reconcile() {
 		return
 	}
 
+	klog.Infof("cleaning up these stale chains: %+v", staleChains)
 	if err := pMgr.cleanupChains(staleChains); err != nil {
 		msg := fmt.Sprintf("failed to clean up old policy chains with the following error: %s", err.Error())
 		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
@@ -502,6 +519,8 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 func (pMgr *PolicyManager) ignoreErrorsAndRunIPTablesCommand(ignored []*exitErrorInfo, operationFlag string, args ...string) (int, error) {
 	allArgs := []string{util.IptablesWaitFlag, util.IptablesDefaultWaitTime, operationFlag}
 	allArgs = append(allArgs, args...)
+
+	klog.Infof("executing iptables command [%s] with args %v", util.Iptables, allArgs)
 
 	command := pMgr.ioShim.Exec.Command(util.Iptables, allArgs...)
 	output, err := command.CombinedOutput()
