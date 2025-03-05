@@ -35,11 +35,11 @@ var (
 	}
 
 	nncLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name: "nnc_creation_latency",
+		Name: "nnc_creation_latency_seconds",
 		Help: "Latency between NNC added and created",
 		Buckets: []float64{0.005, 0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.25, 1.5, 2, 3,
 			4, 5, 6, 8, 10, 15, 20, 30, 45, 60}, // WIP
-	}, []string{"stage"})
+	}, []string{"stage", "node"})
 
 	nodeCreation = make(map[string]time.Time)
 	nncCreation  = make(map[string]time.Time)
@@ -125,7 +125,7 @@ func watchNNC(dynamicClient *dynamic.DynamicClient, wg *sync.WaitGroup) {
 				fmt.Printf("NNC created: %v at %v \n", name, timestamp)
 				if _, ok := nodeCreation[name]; ok {
 					latency := nncCreation[name].Sub(nodeCreation[name])
-					nncLatency.WithLabelValues("nodetonnc").Observe(latency.Seconds())
+					nncLatency.WithLabelValues("nodetonnc", name).Observe(latency.Seconds())
 				}
 			}
 		},
@@ -139,7 +139,7 @@ func watchNNC(dynamicClient *dynamic.DynamicClient, wg *sync.WaitGroup) {
 					fmt.Printf("NNC ready: %v at %v \n", name, timestamp)
 					if _, ok := nncCreation[name]; ok {
 						latency := nncReady[name].Sub(nncCreation[name])
-						nncLatency.WithLabelValues("nncready").Observe(latency.Seconds())
+						nncLatency.WithLabelValues("nncready", name).Observe(latency.Seconds())
 					}
 				}
 			}
