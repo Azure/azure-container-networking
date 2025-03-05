@@ -108,7 +108,7 @@ func (iMgr *IPSetManager) resetIPSets() error {
 	// get current NPM ipsets
 	listNamesCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag, ipsetNameFlag)
 	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
-	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
 	// klog.Infof("running this command while resetting ipsets: [%s %s %s | %s %s]", ipsetCommand, ipsetListFlag, ipsetNameFlag, ioutil.Grep, azureNPMRegex)
 	azureIPSets, haveAzureNPMIPSets, commandError := ioutil.PipeCommandToGrep(listNamesCommand, grepCommand)
 	if commandError != nil {
@@ -146,7 +146,7 @@ func (iMgr *IPSetManager) resetIPSets() error {
 func (iMgr *IPSetManager) resetWithoutRestore() bool {
 	listNamesCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag, ipsetNameFlag)
 	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepQuietFlag, ioutil.GrepAntiMatchFlag, azureNPMPrefix)
-	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
 	// commandString := fmt.Sprintf(" [%s %s %s | %s %s %s %s]", ipsetCommand, ipsetListFlag, ipsetNameFlag, ioutil.Grep, ioutil.GrepQuietFlag, ioutil.GrepAntiMatchFlag, azureNPMPrefix)
 	// klog.Infof("running this command while resetting ipsets: [%s]", commandString)
 	_, haveNonAzureNPMIPSets, commandError := ioutil.PipeCommandToGrep(listNamesCommand, grepCommand)
@@ -159,7 +159,7 @@ func (iMgr *IPSetManager) resetWithoutRestore() bool {
 	}
 
 	flushAndDestroy := iMgr.ioShim.Exec.Command(util.BashCommand, util.BashCommandFlag, ipsetFlushAndDestroyString)
-	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
 	// klog.Infof("running this command while resetting ipsets: [%s %s '%s']", util.BashCommand, util.BashCommandFlag, ipsetFlushAndDestroyString)
 	output, err := flushAndDestroy.CombinedOutput()
 	if err != nil {
@@ -226,7 +226,7 @@ func (iMgr *IPSetManager) setsWithReferences() map[string]struct{} {
 	listAllCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag)
 	grep1 := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepBeforeFlag, referenceGrepLookBack, ioutil.GrepRegexFlag, positiveRefsRegex)
 	grep2 := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
-	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
 	// klog.Infof("running this command while resetting ipsets: [%s %s | %s %s %s %s %s | %s %s %s %s]", ipsetCommand, ipsetListFlag,
 	// 	ioutil.Grep, ioutil.GrepBeforeFlag, referenceGrepLookBack, ioutil.GrepRegexFlag, positiveRefsRegex,
 	// 	ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
