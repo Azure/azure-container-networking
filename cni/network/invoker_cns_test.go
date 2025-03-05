@@ -2149,7 +2149,6 @@ func TestMultipleIBNICsToResult(t *testing.T) {
 		args             *cniSkel.CmdArgs
 		hostSubnetPrefix *net.IPNet
 		options          map[string]interface{}
-		podIPConfig      *cns.IPSubnet
 		info             []IPResultInfo
 	}
 
