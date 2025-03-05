@@ -35,9 +35,10 @@ var (
 	}
 
 	nncLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "nnc_creation_latency",
-		Help:    "Latency between NNC added and created",
-		Buckets: prometheus.DefBuckets, // todo Fix, based on initial metrics seen
+		Name: "nnc_creation_latency",
+		Help: "Latency between NNC added and created",
+		Buckets: []float64{0.005, 0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.25, 1.5, 2, 3,
+			4, 5, 6, 8, 10, 15, 20, 30, 45, 60}, // WIP
 	}, []string{"stage"})
 
 	nodeCreation = make(map[string]time.Time)
@@ -111,7 +112,7 @@ func watchNodes(clientset *kubernetes.Clientset, wg *sync.WaitGroup) {
 func watchNNC(dynamicClient *dynamic.DynamicClient, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	// TODO: Should we skip cache syncing on start up?
+	// TODO: Should we skip cache syncing on start up? for now, initial node startup latencies are also counted
 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, time.Minute, corev1.NamespaceAll, nil)
 	informer := factory.ForResource(nnc).Informer()
 
