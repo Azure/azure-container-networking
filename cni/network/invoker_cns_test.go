@@ -2293,7 +2293,7 @@ func TestMultipleIBNICsToResult(t *testing.T) {
 			}
 
 			for _, macAddress := range macAddressList {
-				fmt.Printf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo[macAddress], ipamAddResult.interfaceInfo[macAddress])
+				t.Logf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo[macAddress], ipamAddResult.interfaceInfo[macAddress])
 				require.EqualValues(tt.wantSecondaryInterfacesInfo[macAddress], ipamAddResult.interfaceInfo[macAddress], "incorrect response for IB")
 			}
 		})
