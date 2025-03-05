@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -22,9 +24,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -37,14 +36,48 @@ var (
 	nncLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name: "nnc_creation_latency_seconds",
 		Help: "Latency between NNC added and created",
-		Buckets: []float64{0.005, 0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0, 1.25, 1.5, 2, 3,
-			4, 5, 6, 8, 10, 15, 20, 30, 45, 60}, // WIP
-	}, []string{"stage", "node"})
+		Buckets: []float64{0.05, 0.1, 0.5, 1.0, 1.5, 2, 3,
+			4, 5, 6, 8, 10, 15, 20, 30, 45, 60, 120, 180, 240, 300, 450, 600, 900, 1200}, // WIP
+	}, []string{"stage"})
+
+	nncReadyCount = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "nnc_ready",
+		Help: "Number of NNCs that are ready",
+	})
+
+	nodeReadyCount = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "node_ready",
+		Help: "Number of nodes that are ready",
+	})
 
 	nodeCreation = make(map[string]time.Time)
 	nncCreation  = make(map[string]time.Time)
 	nncReady     = make(map[string]time.Time)
 )
+
+// WIP
+// Controller is the controller implementation for Foo resources
+// type Controller struct {
+// 	// kubeclientset is a standard kubernetes clientset
+// 	kubeclientset kubernetes.Interface
+// 	// sampleclientset is a clientset for our own API group
+// 	sampleclientset clientset.Interface
+
+// 	deploymentsLister appslisters.DeploymentLister
+// 	deploymentsSynced cache.InformerSynced
+// 	foosLister        listers.FooLister
+// 	foosSynced        cache.InformerSynced
+
+// 	// workqueue is a rate limited work queue. This is used to queue work to be
+// 	// processed instead of performing it as soon as a change happens. This
+// 	// means we can ensure we only process a fixed amount of resources at a
+// 	// time, and makes it easy to ensure we are never processing the same item
+// 	// simultaneously in two different workers.
+// 	workqueue workqueue.TypedRateLimitingInterface[cache.ObjectName]
+// 	// recorder is an event recorder for recording Event resources to the
+// 	// Kubernetes API.
+// 	recorder record.EventRecorder
+// }
 
 func main() {
 	// todo: Allow user to pass kubeconfig arg.
@@ -72,6 +105,7 @@ func main() {
 	}
 
 	prometheus.MustRegister(nncLatency)
+	//ctx := context.Background()
 
 	wg := sync.WaitGroup{} // todo
 	wg.Add(2)
@@ -125,7 +159,7 @@ func watchNNC(dynamicClient *dynamic.DynamicClient, wg *sync.WaitGroup) {
 				fmt.Printf("NNC created: %v at %v \n", name, timestamp)
 				if _, ok := nodeCreation[name]; ok {
 					latency := nncCreation[name].Sub(nodeCreation[name])
-					nncLatency.WithLabelValues("nodetonnc", name).Observe(latency.Seconds())
+					nncLatency.WithLabelValues("nodetonnc").Observe(latency.Seconds())
 				}
 			}
 		},
@@ -139,7 +173,8 @@ func watchNNC(dynamicClient *dynamic.DynamicClient, wg *sync.WaitGroup) {
 					fmt.Printf("NNC ready: %v at %v \n", name, timestamp)
 					if _, ok := nncCreation[name]; ok {
 						latency := nncReady[name].Sub(nncCreation[name])
-						nncLatency.WithLabelValues("nncready", name).Observe(latency.Seconds())
+						nncLatency.WithLabelValues("nncready").Observe(latency.Seconds())
+						nncReadyCount.Inc()
 					}
 				}
 			}
