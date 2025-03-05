@@ -2227,7 +2227,7 @@ func TestMultipleIBNICsToResult(t *testing.T) {
 				},
 				hostSubnetPrefix: getCIDRNotationForAddress("10.0.0.1/24"),
 				options:          map[string]interface{}{},
-				info:  			  []IPResultInfo{
+				info: []IPResultInfo{
 					{
 						pnpID:      firstNewPnpID, // update pnp ID
 						macAddress: firstMacAddress,
