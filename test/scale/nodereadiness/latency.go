@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -23,6 +24,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -32,40 +34,19 @@ var (
 		Resource: "nodenetworkconfigs",
 	}
 
-	creationLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	nncLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "nnc_creation_latency",
 		Help:    "Latency between NNC added and created",
-		Buckets: prometheus.DefBuckets,
-	}, []string{"todo"})
+		Buckets: prometheus.DefBuckets, // todo Fix, based on initial metrics seen
+	}, []string{"stage"})
 
 	nodeCreation = make(map[string]time.Time)
 	nncCreation  = make(map[string]time.Time)
 	nncReady     = make(map[string]time.Time)
 )
 
-// TODO: Temporary: need to get formatting requirements, Output to file? Prometheus metric?
-func summarizeLatency(addedTime map[string]time.Time, createdTime map[string]time.Time) float64 {
-	latencies := make(map[string]time.Duration)
-
-	// This will currently skip nncs that were created before the informer started.
-	// However, should probably have the informer skip those so we can assume such an nnc was never created (timed out?)
-	// and track that.
-	for nnc, addedTime := range addedTime {
-		if _, ok := createdTime[nnc]; ok {
-			latencies[nnc] = createdTime[nnc].Sub(addedTime)
-		}
-	}
-
-	sum := time.Duration(0)
-	for nnc, latency := range latencies {
-		fmt.Printf("%v: %v\n", nnc, latency)
-		sum += latency
-	}
-	return (float64(sum.Seconds()) / float64(len(latencies)))
-}
-
 func main() {
-	// TODO: Allow user to pass kubeconfig arg.
+	// todo: Allow user to pass kubeconfig arg.
 	var kubeconfig *string
 	if home := homedir.HomeDir(); home != "" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -74,7 +55,6 @@ func main() {
 	}
 	flag.Parse()
 
-	// use the current context in kubeconfig
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
 		panic(err.Error())
@@ -90,26 +70,15 @@ func main() {
 		panic(err.Error())
 	}
 
-	//prometheus.MustRegister(creationLatency)
+	prometheus.MustRegister(nncLatency)
 
-	// select {
-	// case <-context.Background().Done():
-	// 	fmt.Println("context done")
-	// default:
-
-	// }
-
-	wg := sync.WaitGroup{}
+	wg := sync.WaitGroup{} // todo
 	wg.Add(2)
 	go watchNodes(clientset, &wg)
 	go watchNNC(dynamicClient, &wg)
 
-	//avg := summarizeLatency(addedTime, createdTime)
-	//fmt.Printf("Average latency (s): %v\n", avg)
-
-	// fmt.Printf("hey\n")
-	// http.Handle("/metrics", promhttp.Handler())
-	// http.ListenAndServe(":2112", nil)
+	http.Handle("/metrics", promhttp.Handler())
+	http.ListenAndServe(":2112", nil)
 
 	wg.Wait()
 }
@@ -153,7 +122,10 @@ func watchNNC(dynamicClient *dynamic.DynamicClient, wg *sync.WaitGroup) {
 			if _, ok := nncCreation[name]; !ok {
 				nncCreation[name] = timestamp
 				fmt.Printf("NNC created: %v at %v \n", name, timestamp)
-				// TODO, prometheus
+				if _, ok := nodeCreation[name]; ok {
+					latency := nncCreation[name].Sub(nodeCreation[name])
+					nncLatency.WithLabelValues("nodetonnc").Observe(latency.Seconds())
+				}
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
@@ -164,7 +136,10 @@ func watchNNC(dynamicClient *dynamic.DynamicClient, wg *sync.WaitGroup) {
 				if _, ok := nncReady[name]; !ok {
 					nncReady[name] = timestamp
 					fmt.Printf("NNC ready: %v at %v \n", name, timestamp)
-					// prometheus
+					if _, ok := nncCreation[name]; ok {
+						latency := nncReady[name].Sub(nncCreation[name])
+						nncLatency.WithLabelValues("nncready").Observe(latency.Seconds())
+					}
 				}
 			}
 		},

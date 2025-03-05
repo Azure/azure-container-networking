@@ -1,0 +1,8 @@
+(WIP)
+
+Assumes kubeconfig is in ~/.kube/config.
+Run ./run-kwok.sh
+Run latency.go
+Deploy generated/kwok-nodes
+Metrics exported to http://localhost:2112/metrics
+Save prometheus.yml and run your local prometheus e.g. `./prometheus  --web.listen-address="0.0.0.0:9091"`
