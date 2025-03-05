@@ -25,7 +25,7 @@ var (
 func CreateTelemetryHandle(npmVersionNum int, imageVersion, aiMetadata, logLevel string) error {
 	npmVersion = npmVersionNum
 	debugMode := strings.EqualFold(logLevel, "debug")
-	klog.Infof("LogLevel is %s. Debugmode is set to: %v.", logLevel, debugMode)
+	klog.Infof("LogLevel is %s. Debugmode is set to %v.", logLevel, debugMode)
 
 	aiConfig := aitelemetry.AIConfig{
 		AppName:                   util.AzureNpmFlag,
