@@ -144,6 +144,9 @@ func (c *updatePodCache) enqueue(m *PodMetadata) *updateNPMPod {
 	}
 
 	if !ok {
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] pod key %s not found in updatePodCache. creating a new obj", m.PodKey)
+
 		pod = newUpdateNPMPod(m)
 		c.cache[m.PodKey] = pod
 		c.queue = append(c.queue, m.PodKey)
@@ -155,6 +158,8 @@ func (c *updatePodCache) enqueue(m *PodMetadata) *updateNPMPod {
 // dequeue returns the first pod in the queue and removes it from the queue.
 func (c *updatePodCache) dequeue() *updateNPMPod {
 	if c.isEmpty() {
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] updatePodCache is empty. returning nil for dequeue()")
 		return nil
 	}
 
@@ -174,6 +179,8 @@ func (c *updatePodCache) dequeue() *updateNPMPod {
 func (c *updatePodCache) requeue(pod *updateNPMPod) {
 	if _, ok := c.cache[pod.PodKey]; ok {
 		// should not happen
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] pod key %s already exists in updatePodCache. skipping requeue", pod.PodKey)
 		return
 	}
 
@@ -204,6 +211,12 @@ func (q *netPolQueue) len() int {
 
 // enqueue adds a NetPol to the queue. If the NetPol already exists in the queue, the NetPol object is updated.
 func (q *netPolQueue) enqueue(policy *policies.NPMNetworkPolicy) {
+	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// if _, ok := q.toAdd[policy.PolicyKey]; ok {
+	// 	klog.Infof("[DataPlane] policy %s exists in netPolQueue. updating", policy.PolicyKey)
+	// } else {
+	// 	klog.Infof("[DataPlane] enqueuing policy %s in netPolQueue", policy.PolicyKey)
+	// }
 	q.toAdd[policy.PolicyKey] = policy
 }
 

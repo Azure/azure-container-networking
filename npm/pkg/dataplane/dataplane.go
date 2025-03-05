@@ -81,6 +81,8 @@ type DataPlane struct {
 func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChannel <-chan struct{}) (*DataPlane, error) {
 	metrics.InitializeAll()
 	if util.IsWindowsDP() {
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] enabling AddEmptySetToLists for Windows")
 		cfg.IPSetManagerCfg.AddEmptySetToLists = true
 	}
 
@@ -111,6 +113,8 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 			return nil, ErrInvalidApplyConfig
 		}
 	} else {
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Info("[DataPlane] dataplane configured to NOT apply in background")
 		dp.updatePodCache = newUpdatePodCache(1)
 	}
 
@@ -148,6 +152,8 @@ func (dp *DataPlane) FinishBootupPhase() {
 	dp.applyInfo.Lock()
 	defer dp.applyInfo.Unlock()
 
+	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// klog.Infof("[DataPlane] finished bootup phase")
 	dp.applyInfo.inBootupPhase = false
 }
 
@@ -254,6 +260,9 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 	}
 
 	if dp.shouldUpdatePod() && podMetadata.NodeName == dp.nodeName {
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] Updating Sets to Add for pod key %s", podMetadata.PodKey)
+
 		// lock updatePodCache while reading/modifying or setting the updatePod in the cache
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
@@ -274,6 +283,9 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 	}
 
 	if dp.shouldUpdatePod() && podMetadata.NodeName == dp.nodeName {
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
+
 		// lock updatePodCache while reading/modifying or setting the updatePod in the cache
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
@@ -321,7 +333,12 @@ func (dp *DataPlane) ApplyDataPlane() error {
 	newCount := dp.applyInfo.numBatches
 	dp.applyInfo.Unlock()
 
+	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// klog.Infof("[DataPlane] [%s] new batch count: %d", contextApplyDP, newCount)
+
 	if newCount >= dp.ApplyMaxBatches {
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", contextApplyDP, newCount)
 		return dp.applyDataPlaneNow(contextApplyDP)
 	}
 
@@ -329,10 +346,14 @@ func (dp *DataPlane) ApplyDataPlane() error {
 }
 
 func (dp *DataPlane) applyDataPlaneNow(context string) error {
+	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// klog.Infof("[DataPlane] [ApplyDataPlane] [%s] starting to apply ipsets", context)
 	err := dp.ipsetMgr.ApplyIPSets()
 	if err != nil {
 		return fmt.Errorf("[DataPlane] [%s] error while applying IPSets: %w", context, err)
 	}
+	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// klog.Infof("[DataPlane] [ApplyDataPlane] [%s] finished applying ipsets", context)
 
 	// see comment in RemovePolicy() for why this is here
 	dp.setRemovePolicyFailure(false)
@@ -353,6 +374,9 @@ func (dp *DataPlane) applyDataPlaneNow(context string) error {
 		}
 		dp.updatePodCache.Unlock()
 
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] [ApplyDataPlane] [%s] refreshing endpoints before updating pods", context)
+
 		err := dp.refreshPodEndpoints()
 		if err != nil {
 			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] failed to refresh endpoints while updating pods. err: [%s]", err.Error())
@@ -360,11 +384,16 @@ func (dp *DataPlane) applyDataPlaneNow(context string) error {
 			return nil
 		}
 
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] [ApplyDataPlane] [%s] refreshed endpoints", context)
+
 		// lock updatePodCache while driving goal state to kernel
 		// prevents another ApplyDataplane call from updating the same pods
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
 
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] [ApplyDataPlane] [%s] starting to update pods", context)
 		for !dp.updatePodCache.isEmpty() {
 			pod := dp.updatePodCache.dequeue()
 			if pod == nil {
@@ -381,12 +410,18 @@ func (dp *DataPlane) applyDataPlaneNow(context string) error {
 				continue
 			}
 		}
+
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] [ApplyDataPlane] [%s] finished updating pods", context)
 	}
 	return nil
 }
 
 // AddPolicy takes in a translated NPMNetworkPolicy object and applies on dataplane
 func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
+	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// klog.Infof("[DataPlane] Add Policy called for %s", policy.PolicyKey)
+
 	if !dp.netPolInBackground {
 		return dp.addPolicies([]*policies.NPMNetworkPolicy{policy})
 	}
@@ -399,7 +434,12 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	dp.netPolQueue.enqueue(policy)
 	newCount := dp.netPolQueue.len()
 
+	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// klog.Infof("[DataPlane] [%s] new pending netpol count: %d", contextAddNetPol, newCount)
+
 	if newCount >= dp.MaxPendingNetPols {
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", contextAddNetPol, newCount)
 		dp.addPoliciesWithRetry(contextAddNetPol)
 	}
 	return nil
@@ -409,10 +449,14 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 // The caller must lock netPolQueue.
 func (dp *DataPlane) addPoliciesWithRetry(context string) {
 	netPols := dp.netPolQueue.dump()
+	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// klog.Infof("[DataPlane] adding policies %+v", netPols)
 
 	err := dp.addPolicies(netPols)
 	if err == nil {
 		// clear queue and return on success
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] [%s] added policies successfully", context)
 		dp.netPolQueue.clear()
 		return
 	}
@@ -425,6 +469,8 @@ func (dp *DataPlane) addPoliciesWithRetry(context string) {
 		err = dp.addPolicies([]*policies.NPMNetworkPolicy{netPol})
 		if err == nil {
 			// remove from queue on success
+			// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+			// klog.Infof("[DataPlane] [%s] added policy successfully one at a time. policyKey: %s", context, netPol.PolicyKey)
 			dp.netPolQueue.delete(netPol.PolicyKey)
 		} else {
 			// keep in queue on failure
@@ -442,6 +488,8 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 	}
 
 	if len(netPols) == 0 {
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] expected to have at least one NetPol in dp.addPolicies()")
 		return nil
 	}
 
@@ -485,6 +533,8 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 		// Create and add references for Rule IPSets
 		err = dp.createIPSetsAndReferences(netPol.RuleIPSets, netPol.PolicyKey, ipsets.NetPolType)
 		if err != nil {
+			// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+			// klog.Infof("[DataPlane] error while adding Rule IPSet references: %s", err.Error())
 			return fmt.Errorf("[DataPlane] error while adding Rule IPSet references: %w", err)
 		}
 
@@ -497,11 +547,18 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 			// increment batch and apply IPSets if needed
 			dp.applyInfo.numBatches++
 			newCount := dp.applyInfo.numBatches
+			// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+			// klog.Infof("[DataPlane] [%s] new batch count: %d", contextAddNetPolBootup, newCount)
 			if newCount >= dp.ApplyMaxBatches {
+				// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+				// klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", contextAddNetPolBootup, newCount)
+				// klog.Infof("[DataPlane] [%s] starting to apply ipsets", contextAddNetPolBootup)
 				err = dp.ipsetMgr.ApplyIPSets()
 				if err != nil {
 					return fmt.Errorf("[DataPlane] [%s] error while applying IPSets: %w", contextAddNetPolBootup, err)
 				}
+				// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+				// klog.Infof("[DataPlane] [%s] finished applying ipsets", contextAddNetPolBootup)
 
 				// see comment in RemovePolicy() for why this is here
 				dp.setRemovePolicyFailure(false)
@@ -541,6 +598,9 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 
 // RemovePolicy takes in network policyKey (namespace/name of network policy) and removes it from dataplane and cache
 func (dp *DataPlane) RemovePolicy(policyKey string) error {
+	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// klog.Infof("[DataPlane] Remove Policy called for %s", policyKey)
+
 	if dp.netPolInBackground {
 		// make sure to not add this NetPol if we're deleting it
 		// hold the lock for the rest of this function so that we don't contend or have races with the background NetPol thread
@@ -615,8 +675,12 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 // UpdatePolicy takes in updated policy object, calculates the delta and applies changes
 // onto dataplane accordingly
 func (dp *DataPlane) UpdatePolicy(policy *policies.NPMNetworkPolicy) error {
+	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// klog.Infof("[DataPlane] Update Policy called for %s", policy.PolicyKey)
 	ok := dp.policyMgr.PolicyExists(policy.PolicyKey)
 	if !ok {
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[DataPlane] Policy %s is not found.", policy.PolicyKey)
 		return dp.AddPolicy(policy)
 	}
 

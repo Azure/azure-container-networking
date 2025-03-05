@@ -93,6 +93,8 @@ func (iMgr *IPSetManager) Reconcile() {
 	}
 	numRemovedSets := originalNumSets - len(iMgr.setMap)
 	if numRemovedSets > 0 {
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Infof("[IPSetManager] removed %d empty/unreferenced ipsets, updating toDeleteCache to: %+v", numRemovedSets, iMgr.dirtyCache.printDeleteCache())
 	}
 }
 
@@ -307,6 +309,11 @@ func (iMgr *IPSetManager) RemoveFromSets(removeFromSets []*IPSetMetadata, ip, po
 		}
 		// in case the IP belongs to a new Pod, then ignore this Delete call as this might be stale
 		if cachedPodKey != podKey {
+			// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+			// klog.Infof(
+			// 	"[IPSetManager] DeleteFromSet: PodOwner has changed for Ip: %s, setName:%s, Old podKey: %s, new podKey: %s. Ignore the delete as this is stale update",
+			// 	ip, prefixedName, cachedPodKey, podKey,
+			// )
 			continue
 		}
 
@@ -448,8 +455,16 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 	defer iMgr.Unlock()
 
 	if iMgr.dirtyCache.numSetsToAddOrUpdate() == 0 && iMgr.dirtyCache.numSetsToDelete() == 0 {
+		// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+		// klog.Info("[IPSetManager] No IPSets to apply")
 		return nil
 	}
+
+	// TODO: Refactor non-error/warning klogs with Vap and set the following logs to "debug" level
+	// klog.Infof(
+	// 	"[IPSetManager] dirty caches. toAddUpdateCache: %s, toDeleteCache: %s",
+	// 	iMgr.dirtyCache.printAddOrUpdateCache(), iMgr.dirtyCache.printDeleteCache(),
+	// )
 	iMgr.sanitizeDirtyCache()
 
 	// Call the appropriate apply ipsets
