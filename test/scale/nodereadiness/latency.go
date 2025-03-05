@@ -38,9 +38,9 @@ var (
 		Buckets: prometheus.DefBuckets,
 	}, []string{"todo"})
 
-	// node name -> node creationTimestamp
 	nodeCreation = make(map[string]time.Time)
 	nncCreation  = make(map[string]time.Time)
+	nncReady     = make(map[string]time.Time)
 )
 
 // TODO: Temporary: need to get formatting requirements, Output to file? Prometheus metric?
@@ -104,13 +104,14 @@ func main() {
 	go watchNodes(clientset, &wg)
 	go watchNNC(dynamicClient, &wg)
 
-	wg.Wait()
 	//avg := summarizeLatency(addedTime, createdTime)
 	//fmt.Printf("Average latency (s): %v\n", avg)
 
 	// fmt.Printf("hey\n")
 	// http.Handle("/metrics", promhttp.Handler())
 	// http.ListenAndServe(":2112", nil)
+
+	wg.Wait()
 }
 
 func watchNodes(clientset *kubernetes.Clientset, wg *sync.WaitGroup) {
@@ -124,9 +125,12 @@ func watchNodes(clientset *kubernetes.Clientset, wg *sync.WaitGroup) {
 	for event := range nodeWatcher.ResultChan() {
 		switch event.Type {
 		case watch.Added:
-			fmt.Printf("Node added: %v at %v \n", event.Object.(*corev1.Node).Name, event.Object.(*corev1.Node).CreationTimestamp)
-			// todo: record node added timestamp
-			nodeCreation[event.Object.(*corev1.Node).Name] = event.Object.(*corev1.Node).CreationTimestamp.Time
+			name := event.Object.(*corev1.Node).Name
+			timestamp := event.Object.(*corev1.Node).CreationTimestamp.Time
+			if _, ok := nodeCreation[name]; !ok {
+				nodeCreation[name] = timestamp
+				fmt.Printf("Node added: %v at %v \n", name, timestamp)
+			}
 		case watch.Modified:
 		case watch.Deleted:
 		case watch.Error:
@@ -144,11 +148,26 @@ func watchNNC(dynamicClient *dynamic.DynamicClient, wg *sync.WaitGroup) {
 
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			nncCreation[obj.(*unstructured.Unstructured).GetName()] = obj.(*unstructured.Unstructured).GetCreationTimestamp().Time
-			fmt.Printf("NNC created: %v at %v\n", obj.(*unstructured.Unstructured).GetName(), obj.(*unstructured.Unstructured).GetCreationTimestamp().Time)
-			// TODO: update Prometheus metric here
+			name := obj.(*unstructured.Unstructured).GetName()
+			timestamp := obj.(*unstructured.Unstructured).GetCreationTimestamp().Time
+			if _, ok := nncCreation[name]; !ok {
+				nncCreation[name] = timestamp
+				fmt.Printf("NNC created: %v at %v \n", name, timestamp)
+				// TODO, prometheus
+			}
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			if newObj.(*unstructured.Unstructured).Object != nil && newObj.(*unstructured.Unstructured).Object["status"] != nil {
+				timestamp := time.Now() // probs not super accurate
+				//nncStatus := newObj.(*unstructured.Unstructured).Object["status"]
+				name := newObj.(*unstructured.Unstructured).GetName()
+				if _, ok := nncReady[name]; !ok {
+					nncReady[name] = timestamp
+					fmt.Printf("NNC ready: %v at %v \n", name, timestamp)
+					// prometheus
+				}
+			}
+		},
 		DeleteFunc: func(obj interface{}) {},
 	})
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
