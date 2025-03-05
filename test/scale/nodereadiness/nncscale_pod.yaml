@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nncscale
+  labels:
+    app: nncscale
+spec:
+  containers:
+  - name: nncscale-container
+    image: acnpublic.azurecr.io/nncscale:latest
+    imagePullPolicy: Always
+    ports:
+    - containerPort: 2112

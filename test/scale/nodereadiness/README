@@ -8,3 +8,29 @@ Metrics exported to http://localhost:2112/metrics
 Save prometheus.yml and run your local prometheus e.g. `./prometheus  --web.listen-address="0.0.0.0:9091"`
 
 `./prometheus --storage.tsdb.path=data/ --web.enable-admin-api --web.listen-address="0.0.0.0:9091` (for snapshots?)
+
+
+# For Podman login
+
+sudo apt-get install podman -y
+
+# GET ACR creds
+az acr credential show --name acnpublic 
+
+returns:
+{
+  "passwords": [
+    {
+      "name": "password",
+      "value": "pass1"
+    },
+    {
+      "name": "password2",
+      "value": "pass2"
+    }
+  ],
+  "username": "acnpublic"
+}
+
+# Login to ACR through podman
+podman login acnpublic.azurecr.io -u acnpublic -p <pass>
