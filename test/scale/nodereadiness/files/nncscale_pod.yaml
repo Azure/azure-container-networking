@@ -9,9 +9,6 @@ metadata:
   name: nncscale
   labels:
     app: nncscale
-  annotations:
-    prometheus.io/port: "2112"
-    prometheus.io/scrape: "true"
 spec:
   containers:
   - name: nncscale-container
@@ -20,3 +17,19 @@ spec:
     ports:
     - containerPort: 2112
   serviceAccountName: nncscale
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nncscale-service
+  labels:
+    app: nncscale
+spec:
+  ports:
+  - name: web
+    port: 2112
+    targetPort: 2112
+    protocol: TCP
+  selector:
+    app: rpc-app
+  type: NodePort

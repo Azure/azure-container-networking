@@ -7,6 +7,7 @@ tasks:
       #- ./../run-kwok.sh
       - kubectl apply -f ./files/nncscale_rbac.yaml
       - kubectl apply -f ./files/nncscale_pod.yaml
+      - kubectl apply -f ./files/prom_rbac.yaml
       - kubectl apply -f ./files/prom-deployment.yaml
   scale:
     desc: Scale the Kwok nodes.
@@ -20,6 +21,11 @@ tasks:
     cmds:
       - kubectl delete -f ./generated/kwok-nodes/
       # TODO: with skale
+  viewresults:
+    desc: View results.
+    cmds:
+      - kubectl port-forward svc/prometheus 9092:9090
+      # TODO: save + auto snapshot?
   teardown:
     desc: Teardown components.
     cmds:
