@@ -18,12 +18,9 @@ tasks:
     desc: Start Kwok
     cmds:
       - ./skale kwok --cidr=155.0.0.0/16 --node-ip=155.0.0.1 --manage-all-nodes=false --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake --manage-nodes-with-label-selector=
-  scale:
+  skale:
     desc: Scale the Kwok nodes.
     cmds:
-      # TODO: integrate with skale instead
-      # - ./genkwok.sh {{.CLI_ARGS}}
-      # - kubectl apply -f ./generated/kwok-nodes/
       - ./skale --nodes {{.CLI_ARGS}} --subnet "pod-subnet" --subnet-guid {{.SUBNETGUID}}
       # Save Prometheus snapshot.
     vars:
@@ -31,9 +28,8 @@ tasks:
   scaledown:
     desc: Scale down the Kwok nodes.
     cmds:
-      - kubectl delete -f ./generated/kwok-nodes/
-      # TODO: with skale
-  viewresults:
+      - kubectl delete nodes -l type=kwok
+  prom:
     desc: View results.
     cmds:
       - kubectl port-forward svc/prometheus 9092:9090
@@ -47,5 +43,5 @@ tasks:
       - kubectl delete -f ./files/nncscale_rbac.yaml
       - kubectl delete -f ./files/nncscale_pod.yaml
       - kubectl delete -f ./files/prom-deployment.yaml
-      - kubectl delete -f ./generated/kwok-nodes/
-      # TODO: Delete kwok nodes with skale
+      - kubectl delete nodes -l type=kwok
+      # TODO: Delete kwok nodes with skale?

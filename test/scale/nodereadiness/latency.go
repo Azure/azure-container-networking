@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -75,6 +76,13 @@ func NewNNCController(
 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, time.Minute, corev1.NamespaceAll, nil)
 	informer := factory.ForResource(nnc).Informer()
 
+	nodeWatcher, err := clientset.CoreV1().Nodes().Watch(context.Background(), metav1.ListOptions{
+		LabelSelector: "type=kwok",
+	})
+	if err != nil {
+		panic(err.Error())
+	}
+
 	controller := &NNCController{
 		dynamicClient: dynamicClient,
 		workqueue:     workqueue,
@@ -84,6 +92,7 @@ func NewNNCController(
 		nodeReady:     make(map[string]struct{}),
 		clientset:     clientset,
 		informer:      informer,
+		nodeWatcher:   nodeWatcher,
 	}
 
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -92,31 +101,27 @@ func NewNNCController(
 		DeleteFunc: func(obj interface{}) {},
 	})
 
-	nodeWatcher, err := clientset.CoreV1().Nodes().Watch(context.Background(), metav1.ListOptions{})
-	if err != nil {
-		panic(err.Error())
-	}
-
 	go func() { // TODO: Move to separate controller?
 		for event := range nodeWatcher.ResultChan() {
 			switch event.Type {
 			case watch.Added:
 				name := event.Object.(*corev1.Node).Name
+				log.Printf("Node %v\n", name)
 				timestamp := event.Object.(*corev1.Node).CreationTimestamp.Time
 				if _, ok := controller.nodeCreation[name]; !ok {
 					controller.nodeCreation[name] = timestamp
-					fmt.Printf("Node added: %v at %v \n", name, timestamp)
+					log.Printf("Node added: %v at %v \n", name, timestamp)
 				}
 			case watch.Modified:
 				name := event.Object.(*corev1.Node).Name
-
+				log.Printf("Node %v\n", name)
 				conditions := event.Object.(*corev1.Node).Status.Conditions
 				for _, condition := range conditions {
 					if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
 						if _, ok := controller.nodeReady[name]; !ok {
 							controller.nodeReady[name] = struct{}{}
 							nodeReadyCount.Inc()
-							fmt.Printf("Node ready: %v\n", name)
+							log.Printf("Node ready: %v\n", name)
 							continue
 						}
 					}
@@ -137,7 +142,6 @@ func (c *NNCController) Run(ctx context.Context, workers int) {
 
 	c.informer.Run(ctx.Done())
 
-	fmt.Printf("Running\n")
 	for i := 0; i < workers; i++ {
 		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
 	}
@@ -146,7 +150,6 @@ func (c *NNCController) Run(ctx context.Context, workers int) {
 }
 
 func (c *NNCController) runWorker(ctx context.Context) {
-	fmt.Printf("Running worker\n")
 	for c.processNextWorkItem(ctx) {
 	}
 }
@@ -175,12 +178,15 @@ func (c *NNCController) processNextWorkItem(ctx context.Context) bool {
 }
 
 func (c *NNCController) addNNC(obj interface{}) {
-	fmt.Printf("NNC added: %v\n", obj.(*unstructured.Unstructured).GetName())
+	log.Printf("NNC added: %v\n", obj.(*unstructured.Unstructured).GetName())
 	name := obj.(*unstructured.Unstructured).GetName()
 	timestamp := obj.(*unstructured.Unstructured).GetCreationTimestamp().Time
+	if !isKwok(name) {
+		return
+	}
 	if _, ok := c.nncCreation[name]; !ok {
 		c.nncCreation[name] = timestamp
-		fmt.Printf("NNC created: %v at %v \n", name, timestamp)
+		log.Printf("NNC created: %v at %v \n", name, timestamp)
 		if _, ok := c.nodeCreation[name]; ok {
 			latency := c.nncCreation[name].Sub(c.nodeCreation[name])
 			nncLatency.WithLabelValues("nodetonnc").Observe(latency.Seconds())
@@ -189,20 +195,28 @@ func (c *NNCController) addNNC(obj interface{}) {
 }
 
 func (c *NNCController) updateNNC(oldObj, newObj interface{}) {
-	fmt.Printf("NNC updated: %v\n", newObj.(*unstructured.Unstructured).GetName())
+	log.Printf("NNC updated: %v\n", newObj.(*unstructured.Unstructured).GetName())
 	if newObj.(*unstructured.Unstructured).Object != nil && newObj.(*unstructured.Unstructured).Object["status"] != nil {
 		timestamp := time.Now() // probs not super accurate
 		name := newObj.(*unstructured.Unstructured).GetName()
+		if !isKwok(name) {
+			return
+		}
 		if _, ok := c.nncReady[name]; !ok {
 			c.nncReady[name] = timestamp
-			fmt.Printf("NNC ready: %v at %v \n", name, timestamp)
+			log.Printf("NNC ready: %v at %v \n", name, timestamp)
 			if _, ok := c.nncCreation[name]; ok {
 				latency := c.nncReady[name].Sub(c.nncCreation[name])
+				log.Printf("NNC %v was created at %v and is ready at %v, with a latency of: %v\n", name, c.nncCreation[name], c.nncReady[name], latency.Seconds())
 				nncLatency.WithLabelValues("nncready").Observe(latency.Seconds())
 				nncReadyCount.Inc()
 			}
 		}
 	}
+}
+
+func isKwok(name string) bool {
+	return strings.Contains(name, "skale")
 }
 
 func main() {
