@@ -56,6 +56,7 @@ var (
 type NNCController struct {
 	dynamicClient dynamic.Interface
 	workqueue     workqueue.TypedRateLimitingInterface[interface{}]
+	informer      cache.SharedIndexInformer
 
 	clientset   *kubernetes.Clientset
 	nodeWatcher watch.Interface
@@ -76,13 +77,17 @@ func NewNNCController(
 		workqueue.NewTypedItemExponentialFailureRateLimiter[interface{}](5*time.Millisecond, 1000*time.Second),
 	)
 
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, time.Minute, corev1.NamespaceAll, nil)
+	informer := factory.ForResource(nnc).Informer()
+
 	controller := &NNCController{
 		dynamicClient: dynamicClient,
 		workqueue:     workqueue,
+		nodeCreation:  make(map[string]time.Time),
+		nncCreation:   make(map[string]time.Time),
+		nncReady:      make(map[string]time.Time),
+		informer:      informer,
 	}
-
-	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, time.Minute, corev1.NamespaceAll, nil)
-	informer := factory.ForResource(nnc).Informer()
 
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.addNNC,
@@ -120,28 +125,39 @@ func (c *NNCController) Run(ctx context.Context, workers int) {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
+	c.informer.Run(ctx.Done())
+
+	fmt.Printf("Running\n")
 	for i := 0; i < workers; i++ {
+		//fmt.Printf("Hello\n")
 		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
 	}
+	//go wait.Until(c.runWorker, time.Second, stopCh)
 
 	<-ctx.Done()
 }
 
 func (c *NNCController) runWorker(ctx context.Context) {
+	fmt.Printf("Running worker\n")
 	for c.processNextWorkItem(ctx) {
+		//fmt.Printf("Processing next work item\n")
 	}
 }
 
 func (c *NNCController) processNextWorkItem(ctx context.Context) bool {
+	fmt.Printf("Processing next work item\n")
 	obj, shutdown := c.workqueue.Get()
+	fmt.Printf("Got work item\n")
 
 	if shutdown {
 		return false
 	}
 
 	err := func(obj interface{}) error {
+		fmt.Printf("here\n")
 		defer c.workqueue.Done(obj)
 
+		fmt.Printf("Added %v to workqueue\n", obj.(*unstructured.Unstructured).GetName())
 		c.workqueue.AddRateLimited(obj)
 		c.workqueue.Forget(obj)
 
@@ -156,6 +172,7 @@ func (c *NNCController) processNextWorkItem(ctx context.Context) bool {
 }
 
 func (c *NNCController) addNNC(obj interface{}) {
+	fmt.Printf("NNC added: %v\n", obj.(*unstructured.Unstructured).GetName())
 	name := obj.(*unstructured.Unstructured).GetName()
 	timestamp := obj.(*unstructured.Unstructured).GetCreationTimestamp().Time
 	if _, ok := c.nncCreation[name]; !ok {
@@ -169,6 +186,7 @@ func (c *NNCController) addNNC(obj interface{}) {
 }
 
 func (c *NNCController) updateNNC(oldObj, newObj interface{}) {
+	fmt.Printf("NNC updated: %v\n", newObj.(*unstructured.Unstructured).GetName())
 	if newObj.(*unstructured.Unstructured).Object != nil && newObj.(*unstructured.Unstructured).Object["status"] != nil {
 		timestamp := time.Now() // probs not super accurate
 		name := newObj.(*unstructured.Unstructured).GetName()
