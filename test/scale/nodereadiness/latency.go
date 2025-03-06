@@ -60,6 +60,7 @@ type NNCController struct {
 	nodeCreation map[string]time.Time
 	nncCreation  map[string]time.Time
 	nncReady     map[string]time.Time
+	nodeReady    map[string]struct{}
 
 	sync.RWMutex
 }
@@ -80,6 +81,8 @@ func NewNNCController(
 		nodeCreation:  make(map[string]time.Time),
 		nncCreation:   make(map[string]time.Time),
 		nncReady:      make(map[string]time.Time),
+		nodeReady:     make(map[string]struct{}),
+		clientset:     clientset,
 		informer:      informer,
 	}
 
@@ -94,7 +97,7 @@ func NewNNCController(
 		panic(err.Error())
 	}
 
-	go func() {
+	go func() { // TODO: Move to separate controller?
 		for event := range nodeWatcher.ResultChan() {
 			switch event.Type {
 			case watch.Added:
@@ -105,6 +108,19 @@ func NewNNCController(
 					fmt.Printf("Node added: %v at %v \n", name, timestamp)
 				}
 			case watch.Modified:
+				name := event.Object.(*corev1.Node).Name
+
+				conditions := event.Object.(*corev1.Node).Status.Conditions
+				for _, condition := range conditions {
+					if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionTrue {
+						if _, ok := controller.nodeReady[name]; !ok {
+							controller.nodeReady[name] = struct{}{}
+							nodeReadyCount.Inc()
+							fmt.Printf("Node ready: %v\n", name)
+							continue
+						}
+					}
+				}
 			case watch.Deleted:
 			case watch.Error:
 			case watch.Bookmark:
@@ -205,7 +221,7 @@ func main() {
 		panic(err.Error())
 	}
 
-	prometheus.MustRegister(nncLatency)
+	prometheus.MustRegister(nncLatency, nncReadyCount, nodeReadyCount)
 
 	ctx := context.Background()
 	nncController := NewNNCController(ctx, dynamicClient, clientset)

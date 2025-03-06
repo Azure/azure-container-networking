@@ -1,15 +1,17 @@
 (WIP)
 
-Assumes kubeconfig is in ~/.kube/config.
+For image: `make build-push`
 
+Testing commands:
 Run ./run-kwok.sh in the background.
-Run latency.go in another tab.
-Deploy generated/kwok-nodes onto your cluster.
-Metrics are exported to http://localhost:2112/metrics
-Save prometheus.yml and run your local prometheus e.g. `./prometheus  --web.listen-address="0.0.0.0:9091"`
 
-`./prometheus --storage.tsdb.path=data/ --web.enable-admin-api --web.listen-address="0.0.0.0:9091` (for snapshots?)
+`task setup`
+`task viewresults` -> localhost:9002
+`task scale -- 1000`
 
+Cleanup:
+`task scaledown`
+`task teardown`
 
 # For Podman login
 

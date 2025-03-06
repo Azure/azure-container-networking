@@ -25,6 +25,9 @@ tasks:
     desc: View results.
     cmds:
       - kubectl port-forward svc/prometheus 9092:9090
+      # k port-forward services/grafana 3000:3000
+      # Configure Grafana dashboard with Prometheus source
+      
       # TODO: save + auto snapshot?
   teardown:
     desc: Teardown components.
