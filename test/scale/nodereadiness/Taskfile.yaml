@@ -1,0 +1,30 @@
+version: "3"
+
+tasks:
+  setup:
+    desc: Setup cluster.
+    cmds:
+      #- ./../run-kwok.sh
+      - kubectl apply -f ./files/nncscale_rbac.yaml
+      - kubectl apply -f ./files/nncscale_pod.yaml
+      - kubectl apply -f ./files/prom-deployment.yaml
+  scale:
+    desc: Scale the Kwok nodes.
+    cmds:
+      # TODO: integrate with skale instead
+      - ./genkwok.sh {{.CLI_ARGS}}
+      - kubectl apply -f ./generated/kwok-nodes/
+      # Save Prometheus snapshot.
+  scaledown:
+    desc: Scale down the Kwok nodes.
+    cmds:
+      - kubectl delete -f ./generated/kwok-nodes/
+      # TODO: with skale
+  teardown:
+    desc: Teardown components.
+    cmds:
+      - kubectl delete -f ./files/nncscale_rbac.yaml
+      - kubectl delete -f ./files/nncscale_pod.yaml
+      - kubectl delete -f ./files/prom-deployment.yaml
+      - kubectl delete -f ./generated/kwok-nodes/
+      # TODO: Delete kwok nodes with skale

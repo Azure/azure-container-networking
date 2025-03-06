@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -21,9 +19,8 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
 	"k8s.io/client-go/util/workqueue"
 )
 
@@ -52,7 +49,6 @@ var (
 	})
 )
 
-// WIP
 type NNCController struct {
 	dynamicClient dynamic.Interface
 	workqueue     workqueue.TypedRateLimitingInterface[interface{}]
@@ -72,10 +68,8 @@ func NewNNCController(
 	ctx context.Context,
 	dynamicClient dynamic.Interface,
 	clientset *kubernetes.Clientset) *NNCController {
-	// TODO
 	workqueue := workqueue.NewTypedRateLimitingQueue(
-		workqueue.NewTypedItemExponentialFailureRateLimiter[interface{}](5*time.Millisecond, 1000*time.Second),
-	)
+		workqueue.DefaultTypedControllerRateLimiter[interface{}]())
 
 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, time.Minute, corev1.NamespaceAll, nil)
 	informer := factory.ForResource(nnc).Informer()
@@ -129,10 +123,8 @@ func (c *NNCController) Run(ctx context.Context, workers int) {
 
 	fmt.Printf("Running\n")
 	for i := 0; i < workers; i++ {
-		//fmt.Printf("Hello\n")
 		go wait.UntilWithContext(ctx, c.runWorker, time.Second)
 	}
-	//go wait.Until(c.runWorker, time.Second, stopCh)
 
 	<-ctx.Done()
 }
@@ -140,24 +132,19 @@ func (c *NNCController) Run(ctx context.Context, workers int) {
 func (c *NNCController) runWorker(ctx context.Context) {
 	fmt.Printf("Running worker\n")
 	for c.processNextWorkItem(ctx) {
-		//fmt.Printf("Processing next work item\n")
 	}
 }
 
 func (c *NNCController) processNextWorkItem(ctx context.Context) bool {
-	fmt.Printf("Processing next work item\n")
 	obj, shutdown := c.workqueue.Get()
-	fmt.Printf("Got work item\n")
 
 	if shutdown {
 		return false
 	}
 
 	err := func(obj interface{}) error {
-		fmt.Printf("here\n")
 		defer c.workqueue.Done(obj)
 
-		fmt.Printf("Added %v to workqueue\n", obj.(*unstructured.Unstructured).GetName())
 		c.workqueue.AddRateLimited(obj)
 		c.workqueue.Forget(obj)
 
@@ -203,26 +190,17 @@ func (c *NNCController) updateNNC(oldObj, newObj interface{}) {
 }
 
 func main() {
-	// todo: Allow user to pass kubeconfig arg.
-	var kubeconfig *string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
-	flag.Parse()
-
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	// create in-cluster config
+	config, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err.Error())
 	}
-
-	dynamicClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-
+	// create clientset
 	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	dynamicClient, err := dynamic.NewForConfig(config)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -236,72 +214,3 @@ func main() {
 	http.Handle("/metrics", promhttp.Handler())
 	http.ListenAndServe(":2112", nil)
 }
-
-// func watchNodes(clientset *kubernetes.Clientset, wg *sync.WaitGroup) {
-// 	defer wg.Done()
-
-// 	nodeWatcher, err := clientset.CoreV1().Nodes().Watch(context.Background(), metav1.ListOptions{})
-// 	if err != nil {
-// 		panic(err.Error())
-// 	}
-
-// 	for event := range nodeWatcher.ResultChan() {
-// 		switch event.Type {
-// 		case watch.Added:
-// 			name := event.Object.(*corev1.Node).Name
-// 			timestamp := event.Object.(*corev1.Node).CreationTimestamp.Time
-// 			if _, ok := nodeCreation[name]; !ok {
-// 				nodeCreation[name] = timestamp
-// 				fmt.Printf("Node added: %v at %v \n", name, timestamp)
-// 			}
-// 		case watch.Modified:
-// 		case watch.Deleted:
-// 		case watch.Error:
-// 		case watch.Bookmark:
-// 		}
-// 	}
-// }
-
-// func watchNNC(dynamicClient *dynamic.DynamicClient, wg *sync.WaitGroup) {
-// 	defer wg.Done()
-
-// 	// TODO: Should we skip cache syncing on start up? for now, initial node startup latencies are also counted
-// 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, time.Minute, corev1.NamespaceAll, nil)
-// 	informer := factory.ForResource(nnc).Informer()
-
-// 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-// 		AddFunc: func(obj interface{}) {
-// 			name := obj.(*unstructured.Unstructured).GetName()
-// 			timestamp := obj.(*unstructured.Unstructured).GetCreationTimestamp().Time
-// 			if _, ok := nncCreation[name]; !ok {
-// 				nncCreation[name] = timestamp
-// 				fmt.Printf("NNC created: %v at %v \n", name, timestamp)
-// 				if _, ok := nodeCreation[name]; ok {
-// 					latency := nncCreation[name].Sub(nodeCreation[name])
-// 					nncLatency.WithLabelValues("nodetonnc").Observe(latency.Seconds())
-// 				}
-// 			}
-// 		},
-// 		UpdateFunc: func(oldObj, newObj interface{}) {
-// 			if newObj.(*unstructured.Unstructured).Object != nil && newObj.(*unstructured.Unstructured).Object["status"] != nil {
-// 				timestamp := time.Now() // probs not super accurate
-// 				//nncStatus := newObj.(*unstructured.Unstructured).Object["status"]
-// 				name := newObj.(*unstructured.Unstructured).GetName()
-// 				if _, ok := nncReady[name]; !ok {
-// 					nncReady[name] = timestamp
-// 					fmt.Printf("NNC ready: %v at %v \n", name, timestamp)
-// 					if _, ok := nncCreation[name]; ok {
-// 						latency := nncReady[name].Sub(nncCreation[name])
-// 						nncLatency.WithLabelValues("nncready").Observe(latency.Seconds())
-// 						nncReadyCount.Inc()
-// 					}
-// 				}
-// 			}
-// 		},
-// 		DeleteFunc: func(obj interface{}) {},
-// 	})
-// 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-// 	defer cancel()
-
-// 	informer.Run(ctx.Done())
-// }

@@ -1,0 +1,25 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nncscale-role
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["list", "watch"]
+- apiGroups: ["acn.azure.com"]
+  resources: ["nodenetworkconfigs"]
+  verbs: ["list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nncscale-rolebinding
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: nncscale
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: nncscale-role
+  apiGroup: rbac.authorization.k8s.io
