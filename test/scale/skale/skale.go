@@ -5,11 +5,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
+	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	corev1 "k8s.io/api/core/v1"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,13 +32,20 @@ var (
 		},
 		PersistentPreRunE: setup,
 	}
-	rootopts = genericclioptions.NewConfigFlags(true)
+	rootopts = struct {
+		genericclioptions.ConfigFlags
+		subnet     string
+		subnetGUID string
+		nodes      int
+	}{}
 )
 
 func init() {
+	rootopts.ConfigFlags = *genericclioptions.NewConfigFlags(true)
 	rootopts.AddFlags(rootcmd.PersistentFlags())
-	rootcmd.Flags().String("subnet", "", "Subnet to use for the nodes")
-	rootcmd.Flags().String("subnet-guid", "", "Subnet GUID to use for the nodes")
+	rootcmd.Flags().StringVar(&rootopts.subnet, "subnet", "", "Subnet to use for the nodes")
+	rootcmd.Flags().StringVar(&rootopts.subnetGUID, "subnet-guid", "", "Subnet GUID to use for the nodes")
+	rootcmd.Flags().IntVar(&rootopts.nodes, "nodes", 10, "Number of nodes to create")
 }
 
 func setup(*cobra.Command, []string) error {
@@ -48,14 +58,14 @@ func setup(*cobra.Command, []string) error {
 		return errors.Wrap(err, "failed to build clientset")
 	}
 	kubecli = clientset
-	z, err = zap.NewDevelopment()
-	if err != nil {
-		return errors.Wrap(err, "failed to create logger")
-	}
+	zcfg := zap.NewProductionEncoderConfig()
+	zcfg.EncodeTime = zapcore.ISO8601TimeEncoder
+	z = zap.New(zapcore.NewCore(zaplogfmt.NewEncoder(zcfg), os.Stdout, zapcore.DebugLevel)).With(zap.String("cluster", kubeConfig.Host))
 	return nil
 }
 
 func run(ctx context.Context) error {
+	z.Debug("starting with opts", zap.String("subnet", rootopts.subnet), zap.String("subnetGUID", rootopts.subnetGUID), zap.Int("nodes", rootopts.nodes))
 	fakeNode := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "skale-node",
@@ -64,9 +74,9 @@ func run(ctx context.Context) error {
 			},
 			Labels: map[string]string{
 				"type": "kwok",
-				"kubernetes.azure.com/podnetwork-delegationguid": "cf649a07-6690-41ff-b9ef-a5be9582de4f",
+				"kubernetes.azure.com/podnetwork-delegationguid": rootopts.subnetGUID, // "cf649a07-6690-41ff-b9ef-a5be9582de4f",
 				"kubernetes.azure.com/podnetwork-max-pods":       "63",
-				"kubernetes.azure.com/podnetwork-subnet":         "pod-subnet",
+				"kubernetes.azure.com/podnetwork-subnet":         rootopts.subnet, // "pod-subnet"
 				"topology.kubernetes.io/zone":                    "0",
 			},
 		},
@@ -81,7 +91,7 @@ func run(ctx context.Context) error {
 		},
 	}
 
-	nodes := generateNodes(fakeNode, 10)
+	nodes := generateNodes(fakeNode, rootopts.nodes)
 	for _, node := range nodes {
 		if _, err := kubecli.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{}); err != nil && !k8serr.IsAlreadyExists(err) {
 			return errors.Wrap(err, "failed to create node")
