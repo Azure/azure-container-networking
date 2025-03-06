@@ -94,7 +94,7 @@ func startDaemon(config npmconfig.Config) error {
 		return fmt.Errorf("failed to create dataplane: %w", err)
 	}
 
-	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata(), npmconfig.DefaultConfig.LogLevel)
+	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata(), config.LogLevel)
 	if err != nil {
 		klog.Infof("CreateTelemetryHandle failed with error %v. AITelemetry is not initialized.", err)
 	}

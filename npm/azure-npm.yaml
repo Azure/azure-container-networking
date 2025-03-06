@@ -174,4 +174,5 @@ data:
             "ApplyInBackground":       true,
             "NetPolInBackground":      true
         }
+        LogLevel: "info",
     }

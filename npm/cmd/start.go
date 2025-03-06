@@ -135,7 +135,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 		)
 	}
 
-	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata(), npmconfig.DefaultConfig.LogLevel)
+	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata(), config.LogLevel)
 	if err != nil {
 		klog.Infof("CreateTelemetryHandle failed with error %v. AITelemetry is not initialized.", err)
 	}

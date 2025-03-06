@@ -55,7 +55,7 @@ var DefaultConfig = Config{
 	},
 
 	// Setting LogLevel to "info" by default. Set to "debug" to get application insight logs (creates a listener that outputs diagnosticMessageWriter logs).
-	LogLevel: "info",
+	LogLevel: "debug",
 }
 
 type GrpcServerConfig struct {
