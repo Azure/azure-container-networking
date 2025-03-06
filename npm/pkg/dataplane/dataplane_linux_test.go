@@ -94,6 +94,8 @@ func TestNetPolInBackgroundUpdatePolicy(t *testing.T) {
 }
 
 func TestNetPolInBackgroundSkipAddAfterRemove(t *testing.T) {
+	// Sleep for a bit to let IncNumACLRulesBy be resolved to avoid race condition
+	time.Sleep(100 * time.Millisecond)
 	metrics.ReinitializeAll()
 
 	calls := getBootupTestCalls()
