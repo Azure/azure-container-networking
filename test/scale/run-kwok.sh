@@ -20,6 +20,4 @@ kwok --kubeconfig $kubeconfigFile \
     --node-ip=155.0.0.1 \
     --manage-all-nodes=false \
     --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
-    --manage-nodes-with-label-selector= \
-    --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-    --disregard-status-with-label-selector=
+    --manage-nodes-with-label-selector=

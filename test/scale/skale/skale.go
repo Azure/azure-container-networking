@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/pkg/errors"
@@ -37,6 +36,7 @@ var (
 		subnet     string
 		subnetGUID string
 		nodes      int
+		cleanup    bool
 	}{}
 )
 
@@ -46,6 +46,7 @@ func init() {
 	rootcmd.Flags().StringVar(&rootopts.subnet, "subnet", "", "Subnet to use for the nodes")
 	rootcmd.Flags().StringVar(&rootopts.subnetGUID, "subnet-guid", "", "Subnet GUID to use for the nodes")
 	rootcmd.Flags().IntVar(&rootopts.nodes, "nodes", 10, "Number of nodes to create")
+	rootcmd.Flags().BoolVar(&rootopts.cleanup, "cleanup", false, "Cleanup nodes after test")
 }
 
 func setup(*cobra.Command, []string) error {
@@ -99,7 +100,10 @@ func run(ctx context.Context) error {
 		z.Info("created node", zap.String("name", node.Name))
 	}
 	z.Info("created nodes")
-	time.Sleep(10 * time.Second)
+	// TODO: this is where we will put the tests
+	if !rootopts.cleanup {
+		return nil
+	}
 	for _, node := range nodes {
 		if err := kubecli.CoreV1().Nodes().Delete(ctx, node.Name, metav1.DeleteOptions{}); err != nil {
 			return errors.Wrap(err, "failed to delete node")
