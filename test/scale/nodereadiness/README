@@ -1,20 +1,23 @@
-(WIP)
+For nncscale image build: `make build-push`
 
-For image: `make build-push`
+For skale image build: 
+`cd ./../skale`
+`go build -o ../nodereadiness/skale`
 
 Testing commands:
-Run ./run-kwok.sh in the background.
+`task kwok` in a separate terminal.
 
-`task setup`
-`task viewresults` -> localhost:9002
-`task scale -- 1000`
+`task setup` -> Set up pods on cluster.
+`task prom` -> Prometheus at localhost:9002
+`task skale -- 1000` -> Scale up to 1000 Kwok nodes.
 
 Cleanup:
-`task scaledown`
-`task teardown`
+`task scaledown` -> Scale down Kwok nodes.
+`task teardown` -> Teardown cluster state.
+
+
 
 # For Podman login
-
 sudo apt-get install podman -y
 
 # GET ACR creds
