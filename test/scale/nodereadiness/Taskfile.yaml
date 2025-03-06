@@ -1,21 +1,33 @@
 version: "3"
 
 tasks:
+  # build:
+  #   desc: Build.
+  #   cmds:
+  #     - make build-push
+  #     - cd ./../skale
+  #     - go build -o ../nodereadiness/skale
   setup:
     desc: Setup cluster.
     cmds:
-      #- ./../run-kwok.sh
       - kubectl apply -f ./files/nncscale_rbac.yaml
       - kubectl apply -f ./files/nncscale_pod.yaml
       - kubectl apply -f ./files/prom_rbac.yaml
       - kubectl apply -f ./files/prom-deployment.yaml
+  kwok:
+    desc: Start Kwok
+    cmds:
+      - ./skale kwok --cidr=155.0.0.0/16 --node-ip=155.0.0.1 --manage-all-nodes=false --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake --manage-nodes-with-label-selector=
   scale:
     desc: Scale the Kwok nodes.
     cmds:
       # TODO: integrate with skale instead
-      - ./genkwok.sh {{.CLI_ARGS}}
-      - kubectl apply -f ./generated/kwok-nodes/
+      # - ./genkwok.sh {{.CLI_ARGS}}
+      # - kubectl apply -f ./generated/kwok-nodes/
+      - ./skale --nodes {{.CLI_ARGS}} --subnet "pod-subnet" --subnet-guid {{.SUBNETGUID}}
       # Save Prometheus snapshot.
+    vars:
+      SUBNETGUID: "cf649a07-6690-41ff-b9ef-a5be9582de4f"
   scaledown:
     desc: Scale down the Kwok nodes.
     cmds:
@@ -27,7 +39,7 @@ tasks:
       - kubectl port-forward svc/prometheus 9092:9090
       # k port-forward services/grafana 3000:3000
       # Configure Grafana dashboard with Prometheus source
-      
+
       # TODO: save + auto snapshot?
   teardown:
     desc: Teardown components.

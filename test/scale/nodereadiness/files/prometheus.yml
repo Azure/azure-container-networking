@@ -1,6 +1,0 @@
-scrape_configs:
-- job_name: nnc
-  scrape_interval: 10s
-  static_configs:
-  - targets:
-    - localhost:2112
