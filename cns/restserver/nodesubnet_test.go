@@ -5,8 +5,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/stateprovider/cns"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/store"
@@ -71,7 +71,7 @@ func (m *MockCNIConflistGenerator) Close() error {
 // TestNodeSubnet tests initialization of NodeSubnet with endpoint info, and verfies that
 // the conflist is generated after fetching secondary IPs
 func TestNodeSubnet(t *testing.T) {
-	podInfoByIPProvider, err := cnireconciler.NewCNSPodInfoProvider(getMockStore())
+	podInfoByIPProvider, err := cns.New(getMockStore())
 	if err != nil {
 		t.Fatalf("NewCNSPodInfoProvider returned an error: %v", err)
 	}
