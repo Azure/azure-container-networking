@@ -81,8 +81,7 @@ type DataPlane struct {
 func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChannel <-chan struct{}) (*DataPlane, error) {
 	metrics.InitializeAll()
 	if util.IsWindowsDP() {
-		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
-		// klog.Infof("[DataPlane] enabling AddEmptySetToLists for Windows")
+		klog.Infof("[DataPlane] enabling AddEmptySetToLists for Windows")
 		cfg.IPSetManagerCfg.AddEmptySetToLists = true
 	}
 
@@ -107,15 +106,13 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 	// do not let Linux apply in background
 	dp.applyInBackground = cfg.ApplyInBackground && util.IsWindowsDP()
 	if dp.applyInBackground {
-		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
-		// klog.Infof("[DataPlane] dataplane configured to apply in background every %v or every %d calls to ApplyDataPlane()", dp.ApplyInterval, dp.ApplyMaxBatches)
+		klog.Infof("[DataPlane] dataplane configured to apply in background every %v or every %d calls to ApplyDataPlane()", dp.ApplyInterval, dp.ApplyMaxBatches)
 		dp.updatePodCache = newUpdatePodCache(cfg.ApplyMaxBatches)
 		if dp.ApplyMaxBatches <= 0 || dp.ApplyInterval == 0 {
 			return nil, ErrInvalidApplyConfig
 		}
 	} else {
-		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
-		// klog.Info("[DataPlane] dataplane configured to NOT apply in background")
+		klog.Info("[DataPlane] dataplane configured to NOT apply in background")
 		dp.updatePodCache = newUpdatePodCache(1)
 	}
 
@@ -153,8 +150,7 @@ func (dp *DataPlane) FinishBootupPhase() {
 	dp.applyInfo.Lock()
 	defer dp.applyInfo.Unlock()
 
-	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
-	// klog.Infof("[DataPlane] finished bootup phase")
+	klog.Infof("[DataPlane] finished bootup phase")
 	dp.applyInfo.inBootupPhase = false
 }
 
