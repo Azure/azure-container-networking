@@ -173,5 +173,6 @@ data:
             "PlaceAzureChainFirst":    false,
             "ApplyInBackground":       true,
             "NetPolInBackground":      true
-        }
+        },
+        "LogLevel": "info"
     }

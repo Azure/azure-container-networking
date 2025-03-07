@@ -53,6 +53,9 @@ var DefaultConfig = Config{
 		NetPolInBackground: true,
 		EnableNPMLite:      false,
 	},
+
+	// Setting LogLevel to "info" by default. Set to "debug" to get application insight logs (creates a listener that outputs diagnosticMessageWriter logs).
+	LogLevel: "info",
 }
 
 type GrpcServerConfig struct {
@@ -82,6 +85,7 @@ type Config struct {
 	MaxPendingNetPols            int     `json:"MaxPendingNetPols,omitempty"`
 	NetPolInvervalInMilliseconds int     `json:"NetPolInvervalInMilliseconds,omitempty"`
 	Toggles                      Toggles `json:"Toggles,omitempty"`
+	LogLevel                     string  `json:"LogLevel,omitempty"`
 }
 
 type Toggles struct {

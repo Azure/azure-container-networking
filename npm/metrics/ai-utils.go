@@ -3,6 +3,7 @@ package metrics
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -21,15 +22,18 @@ var (
 )
 
 // CreateTelemetryHandle creates a handler to initialize AI telemetry
-func CreateTelemetryHandle(npmVersionNum int, imageVersion, aiMetadata string) error {
+func CreateTelemetryHandle(npmVersionNum int, imageVersion, aiMetadata, logLevel string) error {
 	npmVersion = npmVersionNum
+	debugMode := strings.EqualFold(logLevel, "debug")
+	klog.Infof("LogLevel is %s. Debugmode is set to %v.", logLevel, debugMode)
+
 	aiConfig := aitelemetry.AIConfig{
 		AppName:                   util.AzureNpmFlag,
 		AppVersion:                imageVersion,
 		BatchSize:                 util.BatchSizeInBytes,
 		BatchInterval:             util.BatchIntervalInSecs,
 		RefreshTimeout:            util.RefreshTimeoutInSecs,
-		DebugMode:                 util.DebugMode,
+		DebugMode:                 debugMode,
 		GetEnvRetryCount:          util.GetEnvRetryCount,
 		GetEnvRetryWaitTimeInSecs: util.GetEnvRetryWaitTimeInSecs,
 	}

@@ -113,7 +113,11 @@ func startControlplane(config npmconfig.Config, flags npmconfig.Flags) error {
 		return fmt.Errorf("failed to create NPM controlplane manager: %w", err)
 	}
 
-	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata())
+	logLevel := config.LogLevel
+	if logLevel == "" {
+		logLevel = npmconfig.DefaultConfig.LogLevel
+	}
+	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata(), logLevel)
 	if err != nil {
 		klog.Infof("CreateTelemetryHandle failed with error %v. AITelemetry is not initialized.", err)
 	}

@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -79,8 +80,13 @@ func TestNewDataPlane(t *testing.T) {
 	calls := getBootupTestCalls()
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, dpCfg, nil)
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, dpCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+	}()
 	assert.NotNil(t, dp)
 }
 
@@ -90,8 +96,13 @@ func TestCreateAndDeleteIpSets(t *testing.T) {
 	calls := getBootupTestCalls()
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, dpCfg, nil)
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, dpCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+	}()
 	assert.NotNil(t, dp)
 	setsTocreate := []*ipsets.IPSetMetadata{
 		{
@@ -132,8 +143,13 @@ func TestAddToSet(t *testing.T) {
 	calls := getBootupTestCalls()
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, dpCfg, nil)
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, dpCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+	}()
 
 	setsTocreate := []*ipsets.IPSetMetadata{
 		{
@@ -196,8 +212,13 @@ func TestApplyPolicy(t *testing.T) {
 	calls := append(getBootupTestCalls(), getAddPolicyTestCallsForDP(&testPolicyobj)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, dpCfg, nil)
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, dpCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+	}()
 
 	err = dp.AddPolicy(&testPolicyobj)
 	require.NoError(t, err)
@@ -210,8 +231,13 @@ func TestRemovePolicy(t *testing.T) {
 	calls = append(calls, getRemovePolicyTestCallsForDP(&testPolicyobj)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, dpCfg, nil)
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, dpCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+	}()
 
 	err = dp.AddPolicy(&testPolicyobj)
 	require.NoError(t, err)
@@ -234,8 +260,13 @@ func TestHandle2977(t *testing.T) {
 	calls = append(calls, getAddPolicyTestCallsForDP(&testPolicyobj)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, dpCfg, nil)
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, dpCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+	}()
 
 	err = dp.AddPolicy(&testPolicyobj)
 	require.NoError(t, err)
@@ -263,8 +294,13 @@ func TestUpdatePolicy(t *testing.T) {
 	calls = append(calls, getAddPolicyTestCallsForDP(&updatedTestPolicyobj)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, dpCfg, nil)
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, dpCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+	}()
 
 	err = dp.AddPolicy(&testPolicyobj)
 	require.NoError(t, err)
