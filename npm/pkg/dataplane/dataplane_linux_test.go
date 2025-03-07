@@ -75,8 +75,14 @@ func TestNetPolInBackgroundUpdatePolicy(t *testing.T) {
 	calls = append(calls, getAddPolicyTestCallsForDP(&updatedTestPolicyobj)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, nil)
+
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+	}()
 
 	dp.RunPeriodicTasks()
 
@@ -99,8 +105,13 @@ func TestNetPolInBackgroundSkipAddAfterRemove(t *testing.T) {
 	calls := getBootupTestCalls()
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, nil)
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+	}()
 
 	require.NoError(t, dp.AddPolicy(&testPolicyobj))
 	require.NoError(t, dp.RemovePolicy(testPolicyobj.PolicyKey))
@@ -159,8 +170,13 @@ func TestNetPolInBackgroundFailureToAddFirstTime(t *testing.T) {
 	)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, nil)
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+	}()
 
 	require.NoError(t, dp.AddPolicy(&testPolicyobj))
 	require.NoError(t, dp.AddPolicy(&testPolicy2))

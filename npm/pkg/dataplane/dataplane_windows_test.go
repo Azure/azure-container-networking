@@ -28,9 +28,14 @@ func TestMetrics(t *testing.T) {
 	hns := ipsets.GetHNSFake(t, cfg.NetworkName)
 	hns.Delay = defaultHNSLatency
 	io := common.NewMockIOShimWithFakeHNS(hns)
-	dp, err := NewDataPlane(thisNode, io, cfg, nil)
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane(thisNode, io, cfg, stopCh)
 	require.NoError(t, err, "failed to initialize dp")
 	require.NotNil(t, dp, "failed to initialize dp (nil)")
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+	}()
 
 	count, err := metrics.TotalGetNetworkLatencyCalls()
 	require.Nil(t, err, "failed to get metric")
@@ -166,9 +171,14 @@ func testSerialCases(t *testing.T, tests []*SerialTestCase, finalSleep time.Dura
 				require.Nil(t, err, "failed to create initial endpoint %+v", ep)
 			}
 
-			dp, err := NewDataPlane(thisNode, io, tt.DpCfg, nil)
+			stopCh := make(chan struct{}, 1)
+			dp, err := NewDataPlane(thisNode, io, tt.DpCfg, stopCh)
 			require.NoError(t, err, "failed to initialize dp")
 			require.NotNil(t, dp, "failed to initialize dp (nil)")
+			defer func() {
+				stopCh <- struct{}{}
+				time.Sleep(100 * time.Millisecond)
+			}()
 
 			dp.RunPeriodicTasks()
 
@@ -206,8 +216,13 @@ func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase, finalSleep time.
 			}
 
 			// the dp is necessary for NPM tests
-			dp, err := NewDataPlane(thisNode, io, tt.DpCfg, nil)
+			stopCh := make(chan struct{}, 1)
+			dp, err := NewDataPlane(thisNode, io, tt.DpCfg, stopCh)
 			require.NoError(t, err, "failed to initialize dp")
+			defer func() {
+				stopCh <- struct{}{}
+				time.Sleep(100 * time.Millisecond)
+			}()
 
 			dp.RunPeriodicTasks()
 
