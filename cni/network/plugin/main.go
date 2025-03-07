@@ -103,8 +103,8 @@ func rootExecute() error {
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
 
-			if telemetry.AIClient.IsConnected() {
-				logger.Error("Not connected to telemetry service")
+			if !telemetry.AIClient.IsConnected() {
+				logger.Error("Not connected to telemetry service, skipping sending error to application insights")
 				return errors.Wrap(err, "lock acquire error")
 			}
 			telemetry.AIClient.SendError(err)
