@@ -9,6 +9,7 @@ data:
   bpf-map-dynamic-size-ratio: "0.0025"
   bpf-policy-map-max: "16384"
   bpf-root: /sys/fs/bpf
+  ces-slice-mode: fcfs
   cgroup-root: /run/cilium/cgroupv2
   cilium-endpoint-gc-interval: 5m0s
   cluster-id: "0"
@@ -19,6 +20,7 @@ data:
   enable-auto-protect-node-port-range: "true"
   enable-bgp-control-plane: "false"
   enable-bpf-clock-probe: "true"
+  enable-cilium-endpoint-slice: "true"
   enable-endpoint-health-checking: "false"
   enable-endpoint-routes: "true"
   enable-health-check-nodeport: "true"

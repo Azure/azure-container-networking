@@ -38,6 +38,8 @@ spec:
         - --debug=$(CILIUM_DEBUG)
         - --identity-gc-interval=0m20s
         - --identity-heartbeat-timeout=0m20s
+        - --enable-cilium-endpoint-slice=true
+        - --ces-slice-mode=cesSliceModeFCFS
         env:
         - name: K8S_NODE_NAME
           valueFrom:

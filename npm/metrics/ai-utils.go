@@ -11,6 +11,8 @@ import (
 	"k8s.io/klog"
 )
 
+const telemetryCloseWaitTimeSeconds = 10
+
 var (
 	th         aitelemetry.TelemetryHandle
 	npmVersion int
@@ -52,6 +54,15 @@ func CreateTelemetryHandle(npmVersionNum int, imageVersion, aiMetadata string) e
 	}
 
 	return nil
+}
+
+// Close cleans up the telemetry handle, which effectively waits for all telemetry data to be sent
+func Close() {
+	if th == nil {
+		return
+	}
+
+	th.Close(telemetryCloseWaitTimeSeconds)
 }
 
 // SendErrorLogAndMetric sends a metric through AI telemetry and sends a log to the Kusto Messages table

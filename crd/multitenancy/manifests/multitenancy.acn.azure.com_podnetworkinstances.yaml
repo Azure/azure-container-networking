@@ -53,6 +53,11 @@ spec:
           spec:
             description: PodNetworkInstanceSpec defines the desired state of PodNetworkInstance
             properties:
+              defaultDenyACL:
+                default: false
+                description: DefaultDenyACL bool indicates whether default deny policy
+                  will be present on the pods upon pod creation
+                type: boolean
               podIPReservationSize:
                 default: 0
                 description: Deprecated - use PodNetworks

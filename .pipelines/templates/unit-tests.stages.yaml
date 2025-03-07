@@ -48,18 +48,12 @@ stages:
           type: windows
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
         steps:
-          # Test changes under review
+          # Test changes under review; only run one go test per script
           - checkout: ACNReviewChanges
             clean: true
-
           - script: |
               cd azure-container-networking/
-              cd npm/
-              go test ./...
-              cd ../cni/
-              go test ./...
-              cd ../platform/
-              go test ./...
+              go test -timeout 30m ./npm/... ./cni/... ./platform/...
             retryCountOnTaskFailure: 3
             name: "TestWindows"
             displayName: "Run Windows Tests"

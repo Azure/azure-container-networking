@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
+	"github.com/microsoft/ApplicationInsights-Go/appinsights/contracts"
 )
 
 const (
@@ -27,11 +28,23 @@ const (
 	azurePublicCloudStr              = "AzurePublicCloud"
 	hostNameKey                      = "hostname"
 	defaultTimeout                   = 10
+	maxCloseTimeoutInSeconds         = 30
 	defaultBatchIntervalInSecs       = 15
 	defaultBatchSizeInBytes          = 32768
 	defaultGetEnvRetryCount          = 5
 	defaultGetEnvRetryWaitTimeInSecs = 3
 	defaultRefreshTimeoutInSecs      = 10
+)
+
+type Level = contracts.SeverityLevel
+
+const (
+	DebugLevel Level = contracts.Verbose
+	InfoLevel  Level = contracts.Information
+	WarnLevel  Level = contracts.Warning
+	ErrorLevel Level = contracts.Error
+	PanicLevel Level = contracts.Critical
+	FatalLevel Level = contracts.Critical
 )
 
 var debugMode bool
@@ -202,7 +215,7 @@ func NewAITelemetry(
 // and for rest it uses custom dimesion
 func (th *telemetryHandle) TrackLog(report Report) {
 	// Initialize new trace message
-	trace := appinsights.NewTraceTelemetry(report.Message, appinsights.Warning)
+	trace := appinsights.NewTraceTelemetry(report.Message, report.Level)
 
 	// will be empty if cns used as telemetry service for cni
 	if th.appVersion == "" {
@@ -330,8 +343,35 @@ func (th *telemetryHandle) Close(timeout int) {
 		timeout = defaultTimeout
 	}
 
+	// max wait is the minimum of the timeout and maxCloseTimeoutInSeconds
+	maxWaitTimeInSeconds := timeout
+	if maxWaitTimeInSeconds < maxCloseTimeoutInSeconds {
+		maxWaitTimeInSeconds = maxCloseTimeoutInSeconds
+	}
+
 	// wait for items to be sent otherwise timeout
-	<-th.client.Channel().Close(time.Duration(timeout) * time.Second)
+	// similar to the example in the appinsights-go repo: https://github.com/microsoft/ApplicationInsights-Go#shutdown
+	timer := time.NewTimer(time.Duration(maxWaitTimeInSeconds) * time.Second)
+	defer timer.Stop()
+	select {
+	case <-th.client.Channel().Close(time.Duration(timeout) * time.Second):
+		// timeout specified for retries.
+
+		// If we got here, then all telemetry was submitted
+		// successfully, and we can proceed to exiting.
+
+	case <-timer.C:
+		// absolute timeout.  This covers any
+		// previous telemetry submission that may not have
+		// completed before Close was called.
+
+		// There are a number of reasons we could have
+		// reached here.  We gave it a go, but telemetry
+		// submission failed somewhere.  Perhaps old events
+		// were still retrying, or perhaps we're throttled.
+		// Either way, we don't want to wait around for it
+		// to complete, so let's just exit.
+	}
 
 	// Remove diganostic message listener
 	if th.diagListener != nil {

@@ -42,14 +42,14 @@ func TestMetrics(t *testing.T) {
 
 	count, err = metrics.TotalListEndpointsLatencyCalls()
 	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 1, count, "should have listed endpoints once")
+	require.Equal(t, 2, count, "should have listed endpoints twice")
 
 	err = dp.refreshPodEndpoints()
 	require.Nil(t, err, "failed to refresh pod endpoints")
 
 	count, err = metrics.TotalListEndpointsLatencyCalls()
 	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 2, count, "should have listed endpoints twice")
+	require.Equal(t, 4, count, "should have listed endpoints four times")
 
 	count, err = metrics.TotalListEndpointsFailures()
 	require.Nil(t, err, "failed to get metric")

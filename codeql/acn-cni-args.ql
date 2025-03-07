@@ -13,7 +13,7 @@
 import go
 import lib.ACN
 
-private class Source extends DataFlow2::Node {
+private class Source extends DataFlow::Node {
   Source() {
     exists(DataFlow::CallNode c, Method m |
       (

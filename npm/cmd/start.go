@@ -57,7 +57,10 @@ func newStartNPMCmd() *cobra.Command {
 				KubeConfigPath: viper.GetString(flagKubeConfigPath),
 			}
 
-			return start(*config, flags)
+			// start is blocking, unless there's an error
+			err = start(*config, flags)
+			metrics.Close()
+			return err
 		},
 	}
 
@@ -131,7 +134,11 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 			}),
 		)
 	}
-	k8sServerVersion := k8sServerVersion(clientset)
+
+	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata())
+	if err != nil {
+		klog.Infof("CreateTelemetryHandle failed with error %v. AITelemetry is not initialized.", err)
+	}
 
 	var dp dataplane.GenericDataplane
 	stopChannel := wait.NeverStop
@@ -197,11 +204,9 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 		}
 		dp.RunPeriodicTasks()
 	}
+
+	k8sServerVersion := k8sServerVersion(clientset)
 	npMgr := npm.NewNetworkPolicyManager(config, factory, podFactory, dp, exec.New(), version, k8sServerVersion)
-	err = metrics.CreateTelemetryHandle(config.NPMVersion(), version, npm.GetAIMetadata())
-	if err != nil {
-		klog.Infof("CreateTelemetryHandle failed with error %v. AITelemetry is not initialized.", err)
-	}
 
 	go restserver.NPMRestServerListenAndServe(config, npMgr)
 

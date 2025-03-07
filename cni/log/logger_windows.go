@@ -26,7 +26,7 @@ func etwCore(loggingLevel zapcore.Level) (zapcore.Core, error) {
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
 
-	etwcore, err := zapetw.NewETWCore(etwCNIEventName, jsonEncoder, loggingLevel)
+	etwcore, _, err := zapetw.New("ACN-Monitoring", etwCNIEventName, jsonEncoder, loggingLevel)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create ETW core")
 	}

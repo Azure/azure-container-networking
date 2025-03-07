@@ -49,7 +49,7 @@ type NodeNetworkConfigSpec struct {
 	IPsNotInUse      []string `json:"ipsNotInUse,omitempty"`
 	// AvailabilityZone contains the Azure availability zone for the virtual machine where network containers are placed.
 	// +kubebuilder:validation:Optional
-	AvailabilityZone string `json:"availabilityZone,omitempty"`
+	AvailabilityZone uint `json:"availabilityZone,omitempty"`
 }
 
 // Status indicates the NNC reconcile status

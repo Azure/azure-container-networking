@@ -24,6 +24,18 @@ var (
 			Help: "Unused IP count.",
 		},
 	)
+	hasNNC = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "nnc_has_nodenetworkconfig",
+			Help: "Has received a NodeNetworkConfig",
+		},
+	)
+	ncs = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "nnc_ncs",
+			Help: "Network Container count in the NodeNetworkConfig",
+		},
+	)
 )
 
 func init() {
@@ -31,5 +43,7 @@ func init() {
 		allocatedIPs,
 		requestedIPs,
 		unusedIPs,
+		hasNNC,
+		ncs,
 	)
 }

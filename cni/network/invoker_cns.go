@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/networkutils"
+	"github.com/Azure/azure-container-networking/network/policy"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -55,6 +56,7 @@ type IPResultInfo struct {
 	skipDefaultRoutes  bool
 	routes             []cns.Route
 	pnpID              string
+	endpointPolicies   []policy.Policy
 }
 
 func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
@@ -159,6 +161,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			skipDefaultRoutes:  response.PodIPInfo[i].SkipDefaultRoutes,
 			routes:             response.PodIPInfo[i].Routes,
 			pnpID:              response.PodIPInfo[i].PnPID,
+			endpointPolicies:   response.PodIPInfo[i].EndpointPolicies,
 		}
 
 		logger.Info("Received info for pod",
@@ -444,6 +447,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 				Gw:  ncgw,
 			})
 		}
+
 		// if we have multiple infra ip result infos, we effectively append routes and ip configs to that same interface info each time
 		// the host subnet prefix (in ipv4 or ipv6) will always refer to the same interface regardless of which ip result info we look at
 		addResult.interfaceInfo[key] = network.InterfaceInfo{
@@ -452,6 +456,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 			IPConfigs:         ipConfigs,
 			Routes:            resRoute,
 			HostSubnetPrefix:  *hostIPNet,
+			EndpointPolicies:  info.endpointPolicies,
 		}
 	}
 

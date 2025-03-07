@@ -1302,6 +1302,70 @@ func TestNmAgentSupportedApisHandler(t *testing.T) {
 	fmt.Printf("nmAgentSupportedApisHandler Responded with %+v\n", nmAgentSupportedApisResponse)
 }
 
+func TestNMAgentNCListHandler(t *testing.T) {
+	fmt.Println("Test: nmAgentNCListHandler")
+
+	setEnv(t)
+	errSetOrch := setOrchestratorType(t, cns.Kubernetes)
+	if errSetOrch != nil {
+		t.Fatalf("TestNMAgentNCListHandler failed with error:%+v", errSetOrch)
+	}
+
+	mnma := &fakes.NMAgentClientFake{}
+	cleanupNMA := setMockNMAgent(svc, mnma)
+	defer cleanupNMA()
+
+	wsproxy := fakes.WireserverProxyFake{}
+	cleanupWSP := setWireserverProxy(svc, &wsproxy)
+	defer cleanupWSP()
+
+	params := createOrUpdateNetworkContainerParams{
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d475", // random guid
+		ncIP:         "11.0.0.5",
+		ncType:       cns.AzureContainerInstance,
+		ncVersion:    "0",
+		vnetID:       "vnet1",
+		podName:      "testpod",
+		podNamespace: "testpodnamespace",
+	}
+
+	err := createNC(params)
+	if err != nil {
+		t.Fatal("error creating NC: err:", err)
+	}
+
+	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
+		return nmagent.NCVersionList{
+			Containers: []nmagent.NCVersion{
+				{
+					// Must set it as params.ncID without cns.SwiftPrefix to mock real nmagent nc format.
+					NetworkContainerID: params.ncID,
+					Version:            params.ncVersion,
+				},
+			},
+		}, nil
+	}
+
+	// test CNS' new GET /ncList API
+	var req *http.Request
+	req, err = http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.NMAgentGetNCListAPIPath, http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	var nmAgentNCListResponse cns.NCListResponse
+
+	err = decodeResponse(w, &nmAgentNCListResponse)
+	if err != nil || nmAgentNCListResponse.Response.ReturnCode != 0 {
+		t.Errorf("nmAgentNCListHandler failed with response %+v", nmAgentNCListResponse)
+	}
+
+	fmt.Printf("nmAgentNCListHandler responded with %+v\n", nmAgentNCListResponse)
+	require.Equal(t, params.ncID, nmAgentNCListResponse.NCList[0])
+}
+
 // Testing GetHomeAz API handler, return UnsupportedVerb if http method is not supported
 func TestGetHomeAz_UnsupportedHttpMethod(t *testing.T) {
 	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, cns.GetHomeAz, http.NoBody)
@@ -1735,7 +1799,7 @@ func startService(serviceConfig common.ServiceConfig, _ configuration.CNSConfig)
 	config.Store = fileStore
 
 	nmagentClient := &fakes.NMAgentClientFake{}
-	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{},
+	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &IPtablesProvider{},
 		nmagentClient, nil, nil, nil, fakes.NewMockIMDSClient())
 	if err != nil {
 		return err

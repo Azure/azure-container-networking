@@ -166,10 +166,10 @@ overlay-byocni-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay BYO CNI clu
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
 		--yes
-ifeq ($(OS),windows)
-	@$(MAKE) windows-nodepool-up
-endif
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	$(MAKE) windows-nodepool-up
+endif
 
 overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -381,24 +381,7 @@ vnetscale-swift-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale S
 		--yes
 	@$(MAKE) set-kubeconf
 
-windows-cniv1-up: rg-up ipv4 overlay-net-up ## Bring up a Windows CNIv1 cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
-		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
-		--network-plugin azure \
-		--windows-admin-password $(WINDOWS_PASSWORD) \
-		--windows-admin-username $(WINDOWS_USERNAME) \
-		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		--yes
-	@$(MAKE) windows-nodepool-up
-	@$(MAKE) set-kubeconf
-
-linux-cniv1-up: rg-up ipv4 overlay-net-up ## Bring up a Linux CNIv1 cluster
+cniv1-up: rg-up ipv4 overlay-net-up ## Bring up a CNIv1 cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
@@ -413,6 +396,9 @@ linux-cniv1-up: rg-up ipv4 overlay-net-up ## Bring up a Linux CNIv1 cluster
 		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	$(MAKE) windows-nodepool-up
+endif
 
 dualstack-overlay-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dualstack Overlay cluster with Linux node only
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -447,6 +433,9 @@ dualstack-overlay-byocni-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dual
 		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	$(MAKE) windows-nodepool-up
+endif
 
 cilium-dualstack-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a Cilium Dualstack Overlay cluster with Linux node only
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -485,6 +474,7 @@ dualstack-byocni-nokubeproxy-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a D
 	@$(MAKE) set-kubeconf
 
 windows-nodepool-up: ## Add windows node pool
+	AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh
 	$(AZCLI) aks nodepool add -g $(GROUP) -n npwin \
 		--node-count $(NODE_COUNT_WIN) \
 		--node-vm-size $(VM_SIZE_WIN) \

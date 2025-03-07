@@ -18,3 +18,4 @@ steps:
         echo "Cluster and resources down"
     name: delete
     displayName: Delete - ${{ parameters.name }}
+    condition: always()

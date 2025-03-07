@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/google/go-cmp/cmp"
 	"gotest.tools/v3/assert"
 )
 
@@ -144,7 +145,7 @@ func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
 	happyReq.OrchestratorContext = b
 	happyReq.SecondaryInterfacesExist = false
 
-	_, respCode, err := middleware.validateIPConfigsRequest(context.TODO(), happyReq)
+	_, respCode, err := middleware.GetPodInfoForIPConfigsRequest(context.TODO(), happyReq)
 	assert.Equal(t, err, "")
 	assert.Equal(t, respCode, types.Success)
 	assert.Equal(t, happyReq.SecondaryInterfacesExist, true)
@@ -158,7 +159,7 @@ func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
 	happyReq2.OrchestratorContext = b
 	happyReq2.SecondaryInterfacesExist = false
 
-	_, respCode, err = middleware.validateIPConfigsRequest(context.TODO(), happyReq2)
+	_, respCode, err = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), happyReq2)
 	assert.Equal(t, err, "")
 	assert.Equal(t, respCode, types.Success)
 	assert.Equal(t, happyReq.SecondaryInterfacesExist, true)
@@ -172,7 +173,7 @@ func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
 	happyReq3.OrchestratorContext = b
 	happyReq3.SecondaryInterfacesExist = false
 
-	_, respCode, err = middleware.validateIPConfigsRequest(context.TODO(), happyReq3)
+	_, respCode, err = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), happyReq3)
 	assert.Equal(t, err, "")
 	assert.Equal(t, respCode, types.Success)
 	assert.Equal(t, happyReq3.SecondaryInterfacesExist, false)
@@ -188,7 +189,7 @@ func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
 		InfraContainerID: testPod1Info.InfraContainerID(),
 	}
 	failReq.OrchestratorContext = []byte("invalid")
-	_, respCode, _ := middleware.validateIPConfigsRequest(context.TODO(), failReq)
+	_, respCode, _ := middleware.GetPodInfoForIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
 
 	// Pod doesn't exist in cache test
@@ -198,19 +199,19 @@ func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
 	}
 	b, _ := testPod2Info.OrchestratorContext()
 	failReq.OrchestratorContext = b
-	_, respCode, _ = middleware.validateIPConfigsRequest(context.TODO(), failReq)
+	_, respCode, _ = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
 
 	// Failed to get MTPNC
 	b, _ = testPod3Info.OrchestratorContext()
 	failReq.OrchestratorContext = b
-	_, respCode, _ = middleware.validateIPConfigsRequest(context.TODO(), failReq)
+	_, respCode, _ = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
 
 	// MTPNC not ready
 	b, _ = testPod4Info.OrchestratorContext()
 	failReq.OrchestratorContext = b
-	_, respCode, _ = middleware.validateIPConfigsRequest(context.TODO(), failReq)
+	_, respCode, _ = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
 }
 
@@ -342,10 +343,10 @@ func TestSetRoutesSuccess(t *testing.T) {
 		} else {
 			assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
 		}
-
 	}
+
 	for i := range podIPInfo {
-		assert.DeepEqual(t, podIPInfo[i].Routes, desiredPodIPInfo[i].Routes)
+		cmp.Equal(podIPInfo[i].Routes, desiredPodIPInfo[i].Routes)
 	}
 }
 
@@ -378,9 +379,10 @@ func TestSetRoutesFailure(t *testing.T) {
 }
 
 func TestAddRoutes(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	cidrs := []string{"10.0.0.0/24", "20.0.0.0/24"}
 	gatewayIP := "192.168.1.1"
-	routes := addRoutes(cidrs, gatewayIP)
+	routes := middleware.AddRoutes(cidrs, gatewayIP)
 	expectedRoutes := []cns.Route{
 		{
 			IPAddress:        "10.0.0.0/24",
