@@ -1061,7 +1061,7 @@ func main() {
 					return errors.Wrap(err, "failed to start fsnotify watcher, will retry")
 				}
 				return nil
-			}, retry.DelayType(retry.BackOffDelay), retry.Attempts(0), retry.Context(rootCtx)) // infinite cancellable exponential backoff retrier
+			}, retry.DelayType(retry.BackOffDelay), retry.UntilSucceeded(), retry.Context(rootCtx)) // infinite cancellable exponential backoff retrier
 		}()
 	}
 
@@ -1450,20 +1450,18 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// aks addons to come up so retry a bit more aggresively here.
 	// will retry 10 times maxing out at a minute taking about 8 minutes before it gives up.
 	attempt := 0
-	err = retry.Do(func() error {
+	_ = retry.Do(func() error {
 		attempt++
 		logger.Printf("reconciling initial CNS state attempt: %d", attempt)
 		err = reconcileInitialCNSState(ctx, directscopedcli, httpRestServiceImplementation, podInfoByIPProvider)
 		if err != nil {
 			logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
+			nncInitFailure.Inc()
 		}
 		return errors.Wrap(err, "failed to initialize CNS state")
-	}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute))
-	if err != nil {
-		return err
-	}
+	}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute), retry.UntilSucceeded())
 	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
-
+	hasNNCInitialized.Set(1)
 	scheme := kuberuntime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil { //nolint:govet // intentional shadow
 		return errors.Wrap(err, "failed to add corev1 to scheme")
