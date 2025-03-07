@@ -82,7 +82,7 @@ func TestNetPolInBackgroundUpdatePolicy(t *testing.T) {
 	require.NoError(t, err)
 	defer func() {
 		stopCh <- struct{}{}
-		time.Sleep(5000 * time.Millisecond)
+		time.Sleep(3000 * time.Millisecond)
 		klog.Info("defer for TestNetPolInBackgroundUpdatePolicy finished")
 	}()
 
@@ -91,12 +91,12 @@ func TestNetPolInBackgroundUpdatePolicy(t *testing.T) {
 	err = dp.AddPolicy(&testPolicyobj)
 	require.NoError(t, err)
 
-	time.Sleep(5000 * time.Millisecond)
+	time.Sleep(3000 * time.Millisecond)
 
 	err = dp.UpdatePolicy(&updatedTestPolicyobj)
 	require.NoError(t, err)
 
-	time.Sleep(5000 * time.Millisecond)
+	time.Sleep(3000 * time.Millisecond)
 
 	linuxPromVals{2, 1, 0, 0, 1}.assert(t)
 }
@@ -112,7 +112,7 @@ func TestNetPolInBackgroundSkipAddAfterRemove(t *testing.T) {
 	require.NoError(t, err)
 	defer func() {
 		stopCh <- struct{}{}
-		time.Sleep(5000 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		klog.Info("defer for TestNetPolInBackgroundSkipAddAfterRemove finished")
 	}()
 
@@ -120,7 +120,7 @@ func TestNetPolInBackgroundSkipAddAfterRemove(t *testing.T) {
 	require.NoError(t, dp.RemovePolicy(testPolicyobj.PolicyKey))
 
 	dp.RunPeriodicTasks()
-	time.Sleep(5000 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// nothing happens
 	linuxPromVals{0, 0, 0, 0, 0}.assert(t)
@@ -178,7 +178,7 @@ func TestNetPolInBackgroundFailureToAddFirstTime(t *testing.T) {
 	require.NoError(t, err)
 	defer func() {
 		stopCh <- struct{}{}
-		time.Sleep(5000 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}()
 
 	require.NoError(t, dp.AddPolicy(&testPolicyobj))
