@@ -62,6 +62,8 @@ type NNCController struct {
 	nncCreation  map[string]time.Time
 	nncReady     map[string]time.Time
 	nodeReady    map[string]struct{}
+	rcCreateNNC  map[string]time.Time
+	dncRcStatus  map[string]time.Time
 
 	sync.RWMutex
 }
@@ -90,6 +92,8 @@ func NewNNCController(
 		nncCreation:   make(map[string]time.Time),
 		nncReady:      make(map[string]time.Time),
 		nodeReady:     make(map[string]struct{}),
+		rcCreateNNC:   make(map[string]time.Time),
+		dncRcStatus:   make(map[string]time.Time),
 		clientset:     clientset,
 		informer:      informer,
 		nodeWatcher:   nodeWatcher,
@@ -196,6 +200,7 @@ func (c *NNCController) addNNC(obj interface{}) {
 
 func (c *NNCController) updateNNC(oldObj, newObj interface{}) {
 	log.Printf("NNC updated: %v\n", newObj.(*unstructured.Unstructured).GetName())
+	// NNC Status written, as observed (less accurate)
 	if newObj.(*unstructured.Unstructured).Object != nil && newObj.(*unstructured.Unstructured).Object["status"] != nil {
 		timestamp := time.Now() // probs not super accurate
 		name := newObj.(*unstructured.Unstructured).GetName()
@@ -210,6 +215,29 @@ func (c *NNCController) updateNNC(oldObj, newObj interface{}) {
 				log.Printf("NNC %v was created at %v and is ready at %v, with a latency of: %v\n", name, c.nncCreation[name], c.nncReady[name], latency.Seconds())
 				nncLatency.WithLabelValues("nncready").Observe(latency.Seconds())
 				nncReadyCount.Inc()
+			}
+		}
+	}
+	// Parse Managed Field Timestamps
+	managedFields := newObj.(*unstructured.Unstructured).GetManagedFields()
+	if managedFields != nil {
+		for _, field := range managedFields {
+			if field.Manager == "dnc-rc" && field.Operation == "Update" {
+				timestamp := field.Time
+				name := newObj.(*unstructured.Unstructured).GetName()
+				if field.Subresource == "status" {
+					if _, ok := c.dncRcStatus[name]; !ok {
+						c.dncRcStatus[name] = timestamp.Time
+						latency := c.dncRcStatus[name].Sub(c.rcCreateNNC[name])
+						nncLatency.WithLabelValues("createToStatus").Observe(latency.Seconds())
+					}
+				} else {
+					if _, ok := c.rcCreateNNC[name]; !ok {
+						c.rcCreateNNC[name] = timestamp.Time
+						latency := c.rcCreateNNC[name].Sub(c.nncCreation[name])
+						nncLatency.WithLabelValues("rcCreate").Observe(latency.Seconds())
+					}
+				}
 			}
 		}
 	}

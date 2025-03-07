@@ -9,7 +9,7 @@ Testing commands:
 
 `task setup` -> Set up pods on cluster.
 `task prom` -> Prometheus at localhost:9002
-`task skale -- 1000` -> Scale up to 1000 Kwok nodes.
+`task skale-1000` -> Scale up to 1000 Kwok nodes.
 
 Cleanup:
 `task scaledown` -> Scale down Kwok nodes.

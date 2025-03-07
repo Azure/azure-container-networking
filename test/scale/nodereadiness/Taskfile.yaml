@@ -12,13 +12,15 @@ tasks:
     desc: Start Kwok
     cmds:
       - ./skale kwok --cidr=155.0.0.0/16 --node-ip=155.0.0.1 --manage-all-nodes=false --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake --manage-nodes-with-label-selector=
-  skale:
+  skale-*:
     desc: Scale the Kwok nodes.
-    cmds:
-      - ./skale --nodes {{.CLI_ARGS}} --subnet "pod-subnet" --subnet-guid {{.SUBNETGUID}}
-      # Save Prometheus snapshot.
     vars:
       SUBNETGUID: "cf649a07-6690-41ff-b9ef-a5be9582de4f"
+      NODES: '{{index .MATCH 0}}'
+    cmds:
+      # - ./scripts/test-and-result.sh {{.NODES}} {{.SUBNETGUID}}
+      - ./skale --nodes {{.NODES}} --subnet "pod-subnet" --subnet-guid {{.SUBNETGUID}}
+      # Save Prometheus snapshot.
   scaledown:
     desc: Scale down the Kwok nodes.
     cmds:
@@ -27,10 +29,11 @@ tasks:
     desc: View results.
     cmds:
       - kubectl port-forward svc/prometheus 9092:9090
-      # k port-forward services/grafana 3000:3000
-      # Configure Grafana dashboard with Prometheus source
-
-      # TODO: save + auto snapshot?
+  graf:
+    desc: Local Grafana.
+    cmds:
+      - sudo systemctl daemon-reload
+      - sudo systemctl start grafana-server
   teardown:
     desc: Teardown components.
     cmds:
