@@ -91,12 +91,12 @@ func TestNetPolInBackgroundUpdatePolicy(t *testing.T) {
 	err = dp.AddPolicy(&testPolicyobj)
 	require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 
 	err = dp.UpdatePolicy(&updatedTestPolicyobj)
 	require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1500 * time.Millisecond)
 
 	linuxPromVals{2, 1, 0, 0, 1}.assert(t)
 }
