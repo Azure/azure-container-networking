@@ -16,6 +16,7 @@ import (
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -23,6 +24,7 @@ import (
 var (
 	z       *zap.Logger
 	kubecli *kubernetes.Clientset
+	dynacli dynamic.Interface
 	rootcmd = &cobra.Command{
 		Use:   "skale",
 		Short: "Run ACN scale test",
@@ -59,6 +61,11 @@ func setup(*cobra.Command, []string) error {
 		return errors.Wrap(err, "failed to build clientset")
 	}
 	kubecli = clientset
+	d, err := dynamic.NewForConfig(kubeConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to build dynamic client")
+	}
+	dynacli = d
 	zcfg := zap.NewProductionEncoderConfig()
 	zcfg.EncodeTime = zapcore.ISO8601TimeEncoder
 	z = zap.New(zapcore.NewCore(zaplogfmt.NewEncoder(zcfg), os.Stdout, zapcore.DebugLevel)).With(zap.String("cluster", kubeConfig.Host))
