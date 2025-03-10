@@ -341,6 +341,7 @@ stages:
                 kubectl apply -f apache.yaml
                 echo "wait for pod to become ready"
                 kubectl rollout status deployment apachebench --timeout=30s
+                kubectl wait --for=condition=Ready pods --all --timeout=30s
                 kubectl get pod -owide
                 mkdir test2_apachebench
                 cd test2_apachebench
@@ -399,6 +400,7 @@ stages:
                 chmod +x hack/scripts/netperf.sh
                 kubectl apply -f hack/manifests/netperf-pod.yaml
                 kubectl rollout status deployment container6 --timeout=30s
+                kubectl wait --for=condition=Ready pods --all --timeout=30s
                 mkdir test3_netperf
                 sh hack/scripts/netperf.sh
                 echo "collect cpu and mem results after netperf tests"

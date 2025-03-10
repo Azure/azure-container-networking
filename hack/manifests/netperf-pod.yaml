@@ -20,7 +20,7 @@ spec:
         netperf: "true"
       containers:
       - name: ubuntu
-        image: tamilmani1989/ubuntu18-tools
+        image: acnpublic.azurecr.io/tamilmani1989/ubuntu18-tools
         imagePullPolicy: Always
         command: ["/bin/sh","-c"]
         args: ["echo helloworld>hello.txt; php -S 0.0.0.0:9568"]
