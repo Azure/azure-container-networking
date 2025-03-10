@@ -8,22 +8,22 @@ AZIMG   = mcr.microsoft.com/azure-cli
 AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(PWD):/root/tmpsrc $(AZIMG) az
 
 # overrideable defaults
-AUTOUPGRADE     ?= patch
-K8S_VER         ?= 1.30
-NODE_COUNT      ?= 2
-NODE_COUNT_WIN	?= $(NODE_COUNT)
-NODEUPGRADE     ?= NodeImage
-OS				?= linux # Used to signify if you want to bring up a windows nodePool on byocni clusters
-OS_SKU          ?= Ubuntu
-OS_SKU_WIN      ?= Windows2022
-REGION          ?= westus2
-VM_SIZE	        ?= Standard_B2s
-VM_SIZE_WIN     ?= Standard_B2s
-IP_TAG          ?= FirstPartyUsage=/DelegatedNetworkControllerTest
-IP_PREFIX       ?= serviceTaggedIp
-PUBLIC_IP_ID	?= /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/publicIPAddresses
-PUBLIC_IPv4     ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v4
-PUBLIC_IPv6     ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
+AUTOUPGRADE          ?= patch
+K8S_VER              ?= 1.30
+NODE_COUNT           ?= 2
+NODE_COUNT_WIN	     ?= $(NODE_COUNT)
+NODEUPGRADE          ?= NodeImage
+OS				     ?= linux # Used to signify if you want to bring up a windows nodePool on byocni clusters
+OS_SKU               ?= Ubuntu
+OS_SKU_WIN           ?= Windows2022
+REGION               ?= westus2
+VM_SIZE	             ?= Standard_B2s
+VM_SIZE_WIN          ?= Standard_B2s
+IP_TAG               ?= FirstPartyUsage=/DelegatedNetworkControllerTest
+IP_PREFIX            ?= serviceTaggedIp
+PUBLIC_IP_ID         ?= /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/publicIPAddresses
+PUBLIC_IPv4          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v4
+PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
 
 # overrideable variables
@@ -93,22 +93,6 @@ vars: ## Show the input vars configured for the cluster commands
 
 rg-up: ## Create resource group
 	@$(AZCLI) group create --location $(REGION) --name $(GROUP)
-
-ip:
-	$(AZCLI) network public-ip create --name $(IP_PREFIX)-$(CLUSTER)-$(IPVERSION) \
-		--resource-group $(GROUP) \
-		--allocation-method Static \
-		--ip-tags $(IP_TAG) \
-		--location $(REGION) \
-		--sku Standard \
-		--tier Regional \
-		--version IP$(IPVERSION)
-
-ipv4:
-	@$(MAKE) ip IPVERSION=v4
-
-ipv6:
-	@$(MAKE) ip IPVERSION=v6
 
 rg-down: ## Delete resource group
 	$(AZCLI) group delete -g $(GROUP) --yes
