@@ -2,6 +2,7 @@ parameters:
   name: ""
   clusterName: ""
   testHubble: false
+  testLRP: false
   scaleup: ""
 
 
@@ -158,6 +159,21 @@ steps:
         retryCountOnTaskFailure: 3
         name: "HubbleConnectivityTests"
         displayName: "Run Hubble Connectivity Tests"
+  
+  - ${{ if eq( parameters['testLRP'], true) }}:
+      - script: |
+          set -e
+          kubectl apply -f test/integration/manifests/cilium/lrp/cilium-config-lrp.yaml
+          kubectl rollout restart ds cilium -n kube-system
+          echo "wait <3 minutes for pods to be ready after restart"
+          kubectl rollout status ds cilium -n kube-system --timeout=3m
+          kubectl get pods -Aowide
+          cd test/integration/lrp/
+          go test ./lrp_test.go -v -run ^TestLRP$
+        retryCountOnTaskFailure: 3
+        name: "LRPTest"
+        displayName: "Run Cilium Local Redirect Policy Test"
+
 
   - script: |
       set -e
