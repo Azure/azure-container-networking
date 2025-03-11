@@ -16,7 +16,7 @@ func TestGetMetricValue(t *testing.T) {
 						{Name: ptr("scenario"), Value: ptr("local")},
 						{Name: ptr("sku"), Value: ptr("large")},
 					},
-					Untyped: &io_prometheus_client.Untyped{Value: ptrFloat(30.0)},
+					Counter: &io_prometheus_client.Counter{Value: ptrFloat(30.0)},
 				},
 			},
 		},
@@ -27,14 +27,14 @@ func TestGetMetricValue(t *testing.T) {
 						{Name: ptr("instance"), Value: ptr("localhost")},
 						{Name: ptr("job"), Value: ptr("test")},
 					},
-					Untyped: &io_prometheus_client.Untyped{Value: ptrFloat(42.5)},
+					Counter: &io_prometheus_client.Counter{Value: ptrFloat(42.5)},
 				},
 				{
 					Label: []*io_prometheus_client.LabelPair{
 						{Name: ptr("instance"), Value: ptr("remotehost")},
 						{Name: ptr("job"), Value: ptr("test")},
 					},
-					Untyped: &io_prometheus_client.Untyped{Value: ptrFloat(55.0)},
+					Counter: &io_prometheus_client.Counter{Value: ptrFloat(55.0)},
 				},
 			},
 		},
@@ -112,7 +112,8 @@ func TestGetMetricValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			val, err := SelectMetric(metrics, tt.metricName, tt.target)
+			metric, err := SelectMetric(metrics, tt.metricName, tt.target)
+			val := metric.GetCounter().GetValue()
 
 			if tt.expectErr {
 				require.Error(t, err)
