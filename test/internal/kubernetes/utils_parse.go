@@ -1,6 +1,7 @@
 package kubernetes
 
 import (
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -52,4 +53,16 @@ func mustParseConfigMap(path string) corev1.ConfigMap {
 	var cm corev1.ConfigMap
 	mustParseResource(path, &cm)
 	return cm
+}
+
+func mustParseService(path string) corev1.Service {
+	var svc corev1.Service
+	mustParseResource(path, &svc)
+	return svc
+}
+
+func mustParseLRP(path string) ciliumv2.CiliumLocalRedirectPolicy {
+	var lrp ciliumv2.CiliumLocalRedirectPolicy
+	mustParseResource(path, &lrp)
+	return lrp
 }
