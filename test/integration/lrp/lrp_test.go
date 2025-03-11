@@ -46,7 +46,7 @@ var (
 // The test assumes the current kubeconfig points to a cluster with cilium and kube-dns already installed
 // and with the lrp feature flag enabled in the cilium config
 // Resources created are automatically cleaned up
-// From the lrp folder, run: go test ./lrp_test.go -v -tags "integration" -run ^TestLRP$
+// From the lrp folder, run: go test ./lrp_test.go -v -run ^TestLRP$
 func TestLRP(t *testing.T) {
 	config := kubernetes.MustGetRestConfig()
 	ctx := context.Background()
