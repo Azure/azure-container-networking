@@ -76,9 +76,6 @@ steps:
   - ${{ if eq( parameters['testLRP'], true) }}:
       - script: |
           set -e
-          kubectl rollout restart ds cilium -n kube-system
-          echo "wait <3 minutes for pods to be ready after restart"
-          kubectl rollout status ds cilium -n kube-system --timeout=3m
           kubectl get pods -Aowide
           cd test/integration/lrp/
           go test ./lrp_test.go -v -tags "lrp" -count=1 -run ^TestLRP$
