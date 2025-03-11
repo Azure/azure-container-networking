@@ -79,7 +79,7 @@ steps:
           kubectl rollout status ds cilium -n kube-system --timeout=3m
           kubectl get pods -Aowide
           cd test/integration/lrp/
-          go test ./lrp_test.go -v -run ^TestLRP$
+          go test ./lrp_test.go -v -tags "lrp" -count=1 -run ^TestLRP$
         retryCountOnTaskFailure: 3
         name: "LRPTest"
         displayName: "Run Cilium Local Redirect Policy Test"
