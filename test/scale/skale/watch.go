@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -72,11 +74,11 @@ func pipe[T runtime.Object](src watch.Interface, sink chan<- T, conv func(runtim
 	defer done()
 	for {
 		e, open := <-src.ResultChan()
-		z.Debug("watch event", zap.String("object", e.Object.GetObjectKind().GroupVersionKind().String()))
 		if !open {
 			z.Debug("watch closed")
 			break
 		}
+		z.Debug("watch event", zap.String("object", e.Object.GetObjectKind().GroupVersionKind().String()))
 		sink <- conv(e.Object)
 	}
 }
@@ -110,28 +112,54 @@ func process(ctx context.Context, nncch <-chan *v1alpha.NodeNetworkConfig, nodec
 	}
 }
 
+type stats struct {
+	avg, min, max, p50, p99 int64
+}
+
+func (s stats) MarshalLogObject(o zapcore.ObjectEncoder) error {
+	o.AddInt64("avg", s.avg)
+	o.AddInt64("min", s.min)
+	o.AddInt64("max", s.max)
+	o.AddInt64("p50", s.p50)
+	o.AddInt64("p99", s.p99)
+	return nil
+}
+
 func pretty(events map[string]event) {
 	totals := struct {
-		created               int64
-		ready                 int64
-		nncCreateLatencyAvgMs int64
-		nncReadyLatencyAvgMs  int64
+		created        int64
+		ready          int64
+		nncCreateStats stats
+		nncReadyStats  stats
 	}{}
+	var createVals, readyVals []int64
 	for i := range events {
 		if events[i].created() {
 			totals.created++
 		}
-		if events[i].nncCreateLatencyMs() > 0 {
-			totals.nncCreateLatencyAvgMs = totals.nncCreateLatencyAvgMs*(totals.created-1)/totals.created + events[i].nncCreateLatencyMs()/totals.created
-		}
 		if events[i].ready() {
 			totals.ready++
 		}
-		if events[i].nncReadyLatencyMs() > 0 {
-			totals.nncReadyLatencyAvgMs = totals.nncReadyLatencyAvgMs*(totals.ready-1)/totals.ready + events[i].nncReadyLatencyMs()/totals.ready
+		if val := events[i].nncCreateLatencyMs(); val > 0 {
+			totals.nncCreateStats.avg = totals.nncCreateStats.avg*(totals.created-1)/totals.created + val/totals.created
+			createVals = append(createVals, val)
+		}
+		if val := events[i].nncReadyLatencyMs(); val > 0 {
+			totals.nncReadyStats.avg = totals.nncReadyStats.avg*(totals.ready-1)/totals.ready + val/totals.ready
+			readyVals = append(readyVals, val)
 		}
 	}
-	z.Debug("recalculated", zap.Int("total", len(events)), zap.Int64("create latency avg ms", totals.nncCreateLatencyAvgMs), zap.Int64("ready latency avg ms", totals.nncReadyLatencyAvgMs))
+	slices.Sort(createVals)
+	slices.Sort(readyVals)
+	totals.nncCreateStats.max = createVals[len(createVals)-1]
+	totals.nncCreateStats.min = createVals[0]
+	totals.nncCreateStats.p50 = createVals[len(createVals)/2]
+	totals.nncCreateStats.p99 = createVals[len(createVals)*99/100]
+	totals.nncReadyStats.max = readyVals[len(readyVals)-1]
+	totals.nncReadyStats.min = readyVals[0]
+	totals.nncReadyStats.p50 = readyVals[len(readyVals)/2]
+	totals.nncReadyStats.p99 = readyVals[len(readyVals)*99/100]
+	z.Debug("recalculated", zap.Int("total", len(events)), zap.Object("create", totals.nncCreateStats), zap.Object("ready", totals.nncReadyStats))
 }
 
 type event struct {

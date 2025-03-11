@@ -100,19 +100,19 @@ func run(ctx context.Context) error {
 	}
 
 	nodes := generateNodes(fakeNode, rootopts.nodes)
-	for _, node := range nodes {
-		if _, err := kubecli.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{}); err != nil && !k8serr.IsAlreadyExists(err) {
-			return errors.Wrap(err, "failed to create node")
-		}
-		z.Info("created node", zap.String("name", node.Name))
-	}
-	z.Info("created nodes")
-	// TODO: this is where we will put the tests
 	if !rootopts.cleanup {
+		for _, node := range nodes {
+			if _, err := kubecli.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{}); err != nil && !k8serr.IsAlreadyExists(err) {
+				return errors.Wrap(err, "failed to create node")
+			}
+			z.Info("created node", zap.String("name", node.Name))
+		}
+		z.Info("created nodes")
 		return nil
 	}
+	// TODO: this is where we will put the tests
 	for _, node := range nodes {
-		if err := kubecli.CoreV1().Nodes().Delete(ctx, node.Name, metav1.DeleteOptions{}); err != nil {
+		if err := kubecli.CoreV1().Nodes().Delete(ctx, node.Name, metav1.DeleteOptions{}); err != nil && !k8serr.IsNotFound(err) {
 			return errors.Wrap(err, "failed to delete node")
 		}
 		z.Info("deleted node", zap.String("name", node.Name))
