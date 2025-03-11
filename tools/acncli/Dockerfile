@@ -1,5 +1,5 @@
 # skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
-FROM mcr.microsoft.com/oss/go/microsoft/golang:15c9b9b8449f55446243ce20c5d3808cc18625d0b358d70aaad402fb73c0766f as build
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:15c9b9b8449f55446243ce20c5d3808cc18625d0b358d70aaad402fb73c0766f as build
 WORKDIR /go/src/github.com/Azure/azure-container-networking/
 ARG VERSION
 ADD . . 

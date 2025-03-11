@@ -693,7 +693,6 @@ workspace: ## Set up the Go workspace.
 	go work init
 	go work use .
 	go work use ./azure-ipam
-	go work use ./build/tools
 	go work use ./zapai
 
 ##@ Test
