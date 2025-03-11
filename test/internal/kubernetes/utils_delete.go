@@ -3,6 +3,8 @@ package kubernetes
 import (
 	"context"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	typedciliumv2 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/cilium.io/v2"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -44,6 +46,38 @@ func MustDeleteNamespace(ctx context.Context, clienset *kubernetes.Clientset, na
 	if err := clienset.CoreV1().Namespaces().Delete(ctx, namespace, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
 			panic(errors.Wrapf(err, "failed to delete namespace %v", namespace))
+		}
+	}
+}
+
+func MustDeleteConfigMap(ctx context.Context, configMaps typedcorev1.ConfigMapInterface, cm corev1.ConfigMap) {
+	if err := configMaps.Delete(ctx, cm.Name, metav1.DeleteOptions{}); err != nil {
+		if !apierrors.IsNotFound(err) {
+			panic(errors.Wrap(err, "failed to delete config map"))
+		}
+	}
+}
+
+func MustDeleteServiceAccount(ctx context.Context, serviceAccounts typedcorev1.ServiceAccountInterface, svcAcct corev1.ServiceAccount) {
+	if err := serviceAccounts.Delete(ctx, svcAcct.Name, metav1.DeleteOptions{}); err != nil {
+		if !apierrors.IsNotFound(err) {
+			panic(errors.Wrap(err, "failed to delete service account"))
+		}
+	}
+}
+
+func MustDeleteService(ctx context.Context, services typedcorev1.ServiceInterface, svc corev1.Service) {
+	if err := services.Delete(ctx, svc.Name, metav1.DeleteOptions{}); err != nil {
+		if !apierrors.IsNotFound(err) {
+			panic(errors.Wrap(err, "failed to delete service"))
+		}
+	}
+}
+
+func MustDeleteCiliumLocalRedirectPolicy(ctx context.Context, lrpClient typedciliumv2.CiliumLocalRedirectPolicyInterface, clrp ciliumv2.CiliumLocalRedirectPolicy) {
+	if err := lrpClient.Delete(ctx, clrp.Name, metav1.DeleteOptions{}); err != nil {
+		if !apierrors.IsNotFound(err) {
+			panic(errors.Wrap(err, "failed to delete cilium local redirect policy"))
 		}
 	}
 }

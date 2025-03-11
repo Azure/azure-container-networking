@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: lrp-test
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      lrp-test: "true"
+  template:
+    metadata:
+      labels:
+        lrp-test: "true"
+    spec:
+      containers:
+        - name: no-op
+          command: ["sleep","3600"]
+          image: mcr.microsoft.com/cbl-mariner/busybox:2.0
+          imagePullPolicy: Always
