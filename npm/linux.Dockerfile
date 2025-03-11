@@ -1,4 +1,5 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS builder
+# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
+FROM mcr.microsoft.com/oss/go/microsoft/golang:15c9b9b8449f55446243ce20c5d3808cc18625d0b358d70aaad402fb73c0766f AS builder
 ARG VERSION
 ARG NPM_AI_PATH
 ARG NPM_AI_ID

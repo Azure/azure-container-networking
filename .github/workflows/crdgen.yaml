@@ -8,20 +8,16 @@ on:
       - synchronize
       - ready_for_review
 jobs:
-  crdgen119:
-    strategy:
-      matrix:
-        go-version: ["1.23", "1.24"]
-        os: [ubuntu-latest]
+  crdgen:
     name: CRDs are Generated
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version: stable
       - name: Regenerate NodeNetworkConfig CRD
         run: make -C crd/nodenetworkconfig
       - name: Regenerate MultitenantNetworkContainer CRD

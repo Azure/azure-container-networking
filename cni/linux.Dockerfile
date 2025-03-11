@@ -3,7 +3,8 @@ ARG DROPGZ_VERSION=v0.0.12
 ARG OS_VERSION
 ARG OS
 
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS azure-vnet
+# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
+FROM mcr.microsoft.com/oss/go/microsoft/golang:15c9b9b8449f55446243ce20c5d3808cc18625d0b358d70aaad402fb73c0766f AS azure-vnet
 ARG OS
 ARG VERSION
 WORKDIR /azure-container-networking
@@ -23,7 +24,8 @@ COPY --from=azure-vnet /azure-container-networking/telemetry/azure-vnet-telemetr
 RUN cd /payload && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive /payload && for f in /payload/*.gz; do mv -- "$f" "${f%%.gz}"; done
 
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS dropgz
+# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
+FROM mcr.microsoft.com/oss/go/microsoft/golang:15c9b9b8449f55446243ce20c5d3808cc18625d0b358d70aaad402fb73c0766f AS dropgz
 ARG DROPGZ_VERSION
 ARG OS
 ARG VERSION

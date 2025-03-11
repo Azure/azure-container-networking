@@ -65,8 +65,6 @@ CNI_OVERLAY_BUILD_DIR = $(BUILD_DIR)/cni-overlay
 CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
 CNS_BUILD_DIR = $(BUILD_DIR)/cns
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
-TOOLS_DIR = $(REPO_ROOT)/build/tools
-TOOLS_BIN_DIR = $(TOOLS_DIR)/bin
 CNI_AI_ID = 5515a1eb-b2bc-406a-98eb-ba462e6f0411
 CNS_AI_ID = ce672799-8f08-4235-8c12-08563dc2acef
 NPM_AI_ID = 014c22bd-4107-459e-8475-67909e96edcb
@@ -74,15 +72,6 @@ ACN_PACKAGE_PATH = github.com/Azure/azure-container-networking
 CNI_AI_PATH=$(ACN_PACKAGE_PATH)/telemetry.aiMetadata
 CNS_AI_PATH=$(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
 NPM_AI_PATH=$(ACN_PACKAGE_PATH)/npm.aiMetadata
-
-# Tool paths
-CONTROLLER_GEN  := $(TOOLS_BIN_DIR)/controller-gen
-GOCOV           := $(TOOLS_BIN_DIR)/gocov
-GOCOV_XML       := $(TOOLS_BIN_DIR)/gocov-xml
-GOFUMPT         := $(TOOLS_BIN_DIR)/gofumpt
-GOLANGCI_LINT   := $(TOOLS_BIN_DIR)/golangci-lint
-GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
-MOCKGEN         := $(TOOLS_BIN_DIR)/mockgen
 
 # Archive file names.
 ACNCLI_ARCHIVE_NAME = acncli-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
@@ -680,16 +669,17 @@ endif
 
 clean: ## Clean build artifacts.
 	$(RMDIR) $(OUTPUT_DIR)
-	$(RMDIR) $(TOOLS_BIN_DIR)
 	$(RMDIR) go.work*
 
 
 LINT_PKG ?= .
 
-lint: $(GOLANGCI_LINT) ## Fast lint vs default branch showing only new issues.
+GOLANGCI_LINT = go tool golangci-lint
+
+lint: ## Fast lint vs default branch showing only new issues.
 	GOGC=20 $(GOLANGCI_LINT) run --new-from-rev release/v1.4 --timeout 10m -v $(LINT_PKG)/...
 
-lint-all: $(GOLANGCI_LINT) ## Lint the current branch in entirety.
+lint-all: ## Lint the current branch in entirety.
 	GOGC=20 $(GOLANGCI_LINT) run -v $(LINT_PKG)/...
 
 
@@ -761,57 +751,7 @@ gitconfig: ## configure the local git repository
 	@git config core.fsmonitor true
 	@git config core.untrackedcache true
 
-setup: tools install-hooks gitconfig ## performs common required repo setup
-
-
-##@ Tools
-
-$(TOOLS_DIR)/go.mod:
-	cd $(TOOLS_DIR); go mod init && go mod tidy
-
-$(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
-
-controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
-
-protoc:
-	source ${REPO_ROOT}/scripts/install-protoc.sh
-
-$(GOCOV): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/gocov github.com/axw/gocov/gocov
-
-gocov: $(GOCOV) ## Build gocov
-
-$(GOCOV_XML): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/gocov-xml github.com/AlekSi/gocov-xml
-
-gocov-xml: $(GOCOV_XML) ## Build gocov-xml
-
-$(GOFUMPT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/gofumpt mvdan.cc/gofumpt
-
-gofumpt: $(GOFUMPT) ## Build gofumpt
-
-$(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
-
-golangci-lint: $(GOLANGCI_LINT) ## Build golangci-lint
-
-$(GO_JUNIT_REPORT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/go-junit-report github.com/jstemmer/go-junit-report
-
-go-junit-report: $(GO_JUNIT_REPORT) ## Build go-junit-report
-
-$(MOCKGEN): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/mockgen github.com/golang/mock/mockgen
-
-mockgen: $(MOCKGEN) ## Build mockgen
-
-clean-tools:
-	rm -r build/tools/bin
-
-tools: acncli gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools
-
+setup: install-hooks gitconfig ## performs common required repo setup
 
 ##@ Help
 
