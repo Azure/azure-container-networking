@@ -21,7 +21,7 @@ const (
 	kubeSystemNamespace = "kube-system"
 	dnsService          = "kube-dns"
 	// envCiliumDir              = "DIR"
-	retryAttempts             = 5
+	retryAttempts             = 10
 	retryDelay                = 5 * time.Second
 	promAddress               = "http://localhost:9253/metrics"
 	nodeLocalDNSLabelSelector = "k8s-app=node-local-dns"
@@ -45,11 +45,11 @@ var (
 // TestLRP tests if the local redirect policy in a cilium cluster is functioning
 // The test assumes the current kubeconfig points to a cluster with cilium and kube-dns already installed
 // and with the lrp feature flag enabled in the cilium config
-// run go test from the lrp directory
+// Resources created are automatically cleaned up
+// From the lrp folder, run: go test ./lrp_test.go -v -tags "integration" -run ^TestLRP$
 func TestLRP(t *testing.T) {
 	config := kubernetes.MustGetRestConfig()
 	ctx := context.Background()
-	// clusterCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 
 	cs := kubernetes.MustGetClientset()
 
@@ -75,37 +75,42 @@ func TestLRP(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	// deploy configmap
+	// list out and select node of choice
+	nodeList, err := kubernetes.GetNodeList(ctx, cs)
+	require.NotEmpty(t, nodeList.Items)
+	selectedNode := TakeOne(nodeList.Items).Name
+
+	// deploy node local dns preqreqs and pods
 	_, cleanupConfigMap := kubernetes.MustSetupConfigMap(ctx, cs, nodeLocalDNSConfigMapPath)
 	defer cleanupConfigMap()
-
-	// deploy node local dns pods
-	nodeLocalDNSDS, cleanupNodeLocalDNS := kubernetes.MustSetupDaemonset(ctx, cs, tempNodeLocalDNSDaemonsetPath)
-	defer cleanupNodeLocalDNS()
 	_, cleanupServiceAccount := kubernetes.MustSetupServiceAccount(ctx, cs, nodeLocalDNSServiceAccountPath)
 	defer cleanupServiceAccount()
 	_, cleanupService := kubernetes.MustSetupService(ctx, cs, nodeLocalDNSServicePath)
 	defer cleanupService()
+	nodeLocalDNSDS, cleanupNodeLocalDNS := kubernetes.MustSetupDaemonset(ctx, cs, tempNodeLocalDNSDaemonsetPath)
+	defer cleanupNodeLocalDNS()
+	err = kubernetes.WaitForPodsRunning(ctx, cs, nodeLocalDNSDS.Namespace, nodeLocalDNSLabelSelector)
+	require.NoError(t, err)
+	// select a local dns pod after they start running
+	pods, err := kubernetes.GetPodsByNode(ctx, cs, nodeLocalDNSDS.Namespace, nodeLocalDNSLabelSelector, selectedNode)
+	require.NoError(t, err)
+	selectedLocalDNSPod := TakeOne(pods.Items).Name
 
 	// deploy lrp
 	_, cleanupLRP := kubernetes.MustSetupLRP(ctx, ciliumCS, lrpPath)
 	defer cleanupLRP()
 
-	// get busybox node, and then get local dns pod on same node
+	// create client pods
 	clientDS, cleanupClient := kubernetes.MustSetupDaemonset(ctx, cs, clientPath)
 	defer cleanupClient()
-
-	err = kubernetes.WaitForPodsRunning(ctx, cs, "", "")
+	err = kubernetes.WaitForPodsRunning(ctx, cs, clientDS.Namespace, clientLabelSelector)
 	require.NoError(t, err)
-
-	// list out node local dns pods
-	nodeList, err := kubernetes.GetNodeList(ctx, cs)
-	require.NotEmpty(t, nodeList.Items)
-	selectedNode := TakeOne(nodeList.Items).Name
-
-	pods, err := kubernetes.GetPodsByNode(ctx, cs, nodeLocalDNSDS.Namespace, nodeLocalDNSLabelSelector, selectedNode)
+	// select a client pod after they start running
+	clientPods, err := kubernetes.GetPodsByNode(ctx, cs, clientDS.Namespace, clientLabelSelector, selectedNode)
 	require.NoError(t, err)
-	selectedLocalDNSPod := TakeOne(pods.Items).Name
+	selectedClientPod := TakeOne(clientPods.Items).Name
+
+	t.Logf("Selected node: %s, node local dns pod: %s, client pod: %s\n", selectedNode, selectedLocalDNSPod, selectedClientPod)
 
 	// port forward to local dns pod on same node (separate thread)
 	pf, err := k8s.NewPortForwarder(config, k8s.PortForwardingOpts{
@@ -128,9 +133,7 @@ func TestLRP(t *testing.T) {
 
 	t.Log("started port forward")
 
-	time.Sleep(time.Second * 10)
-
-	// labels
+	// labels for target lrp metric
 	metricLabels := map[string]string{
 		"family": "1",
 		"proto":  "udp",
@@ -138,18 +141,12 @@ func TestLRP(t *testing.T) {
 		"zone":   ".",
 	}
 
-	// curl localhost:9253/metrics | grep coredns_dns_request_count_total
-	beforeCount, err := prometheus.GetMetric(promAddress, coreDNSRequestCountTotal, metricLabels)
+	// curl localhost:9253/metrics
+	beforeMetric, err := prometheus.GetMetric(promAddress, coreDNSRequestCountTotal, metricLabels)
 	require.NoError(t, err)
 
-	// select a pod
-	clientPods, err := kubernetes.GetPodsByNode(ctx, cs, clientDS.Namespace, clientLabelSelector, selectedNode)
-	require.NoError(t, err)
-	selectedClientPod := TakeOne(clientPods.Items).Name
-
-	time.Sleep(1 * time.Second)
 	t.Log("calling nslookup from client")
-	// nslookup to 10.0.0.10
+	// nslookup to 10.0.0.10 (coredns)
 	val, err := kubernetes.ExecCmdOnPod(ctx, cs, clientDS.Namespace, selectedClientPod, clientContainer, []string{
 		"nslookup", "google.com", "10.0.0.10",
 	}, config)
@@ -157,14 +154,15 @@ func TestLRP(t *testing.T) {
 	// can connect
 	require.Contains(t, string(val), "Server:")
 
+	// in case there is time to propagate
 	time.Sleep(1 * time.Second)
 
 	// curl again and see count increases
-	afterCount, err := prometheus.GetMetric(promAddress, coreDNSRequestCountTotal, metricLabels)
+	afterMetric, err := prometheus.GetMetric(promAddress, coreDNSRequestCountTotal, metricLabels)
 	require.NoError(t, err)
 
 	// count should go up
-	require.Greater(t, afterCount, beforeCount, "dns metric count did not increase after nslookup")
+	require.Greater(t, afterMetric.GetCounter().GetValue(), beforeMetric.GetCounter().GetValue(), "dns metric count did not increase after nslookup")
 }
 func TakeOne[T any](slice []T) T {
 	if len(slice) == 0 {
