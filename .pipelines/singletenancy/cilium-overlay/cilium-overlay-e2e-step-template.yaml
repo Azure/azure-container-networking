@@ -73,15 +73,6 @@ steps:
 
   - template: ../../templates/cilium-cli.yaml
 
-  - ${{ if eq( parameters['testLRP'], true) }}:
-      - script: |
-          set -e
-          kubectl get pods -Aowide
-          cd test/integration/lrp/
-          go test ./lrp_test.go -v -tags "lrp" -count=1 -run ^TestLRP$
-        retryCountOnTaskFailure: 3
-        name: "LRPTest"
-        displayName: "Run Cilium Local Redirect Policy Test"
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
@@ -106,6 +97,16 @@ steps:
     retryCountOnTaskFailure: 3
     name: "CiliumStatus"
     displayName: "Cilium Status"
+
+  - ${{ if eq( parameters['testLRP'], true) }}:
+    - script: |
+        set -e
+        kubectl get pods -Aowide
+        cd test/integration/lrp/
+        go test ./lrp_test.go -v -tags "lrp" -count=1 -run ^TestLRP$
+      retryCountOnTaskFailure: 3
+      name: "LRPTest"
+      displayName: "Run Cilium Local Redirect Policy Test"
 
   - task: AzureCLI@1
     inputs:
