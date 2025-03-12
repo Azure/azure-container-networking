@@ -86,7 +86,7 @@ func SelectMetric(metrics map[string]*io_prometheus_client.MetricFamily, name st
 // GetMetric is a convenience function to issue a web request to the specified url and then
 // select a particular metric that exactly matches the name and labels. The metric is then returned
 // and values can be retrieved based on what type of metric it is, for example .GetCounter().GetValue()
-func GetMetric(url string, name string, labels map[string]string) (*io_prometheus_client.Metric, error) {
+func GetMetric(url, name string, labels map[string]string) (*io_prometheus_client.Metric, error) {
 	metrics, err := GetMetrics(url)
 	if err != nil {
 		return nil, err

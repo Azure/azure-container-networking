@@ -119,7 +119,7 @@ func TestGetMetricValue(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.expectedVal, val)
+				require.InDelta(t, tt.expectedVal, val, 0.01)
 			}
 		})
 	}
