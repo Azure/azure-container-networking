@@ -173,7 +173,7 @@ func mustCreateService(ctx context.Context, svci typedcorev1.ServiceInterface, s
 	}
 	log.Printf("Creating Service %v", svc.Name)
 	if _, err := svci.Create(ctx, &svc, metav1.CreateOptions{}); err != nil {
-		log.Fatal(errors.Wrap(err, "failed to create configmap"))
+		log.Fatal(errors.Wrap(err, "failed to create service"))
 	}
 }
 
