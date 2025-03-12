@@ -21,16 +21,17 @@ data:
           "NodeID": "",
           "NodeSyncIntervalInSeconds": 30
       },
-      "EnableSubnetScarcity": false,
+      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs",
       "ChannelMode": "CRD",
-      "InitializeFromCNI": false,
-      "ManageEndpointState": true,
-      "ProgramSNATIPTables" : false,
-      "MetricsBindAddress": ":10092",
-      "EnableCNIConflistGeneration": false,
       "CNIConflistFilepath": "C:\\k\\azurecni\\netconf\\10-azure.conflist",
       "CNIConflistScenario": "v4overlay",
       "EnableAsyncPodDelete": true,
-      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs",
-      "EnableIPAMv2": true
+      "EnableCNIConflistGeneration": false,
+      "EnableIPAMv2": true,
+      "EnableStateMigration": false,
+      "EnableSubnetScarcity": false,
+      "InitializeFromCNI": false,
+      "ManageEndpointState": true,
+      "MetricsBindAddress": ":10092",
+      "ProgramSNATIPTables": false
     }

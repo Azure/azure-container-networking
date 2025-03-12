@@ -21,14 +21,16 @@ data:
           "NodeID": "",
           "NodeSyncIntervalInSeconds": 30
       },
+      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs",
       "ChannelMode": "CRD",
-      "InitializeFromCNI": true,
-      "ManageEndpointState": false,
-      "ProgramSNATIPTables" : false,
-      "EnableCNIConflistGeneration": true,
       "CNIConflistFilepath": "/etc/cni/net.d/15-azure-swift-overlay.conflist",
       "CNIConflistScenario": "v4overlay",
       "EnableAsyncPodDelete": true,
-      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs",
-      "EnableIPAMv2": true
+      "EnableCNIConflistGeneration": true,
+      "EnableIPAMv2": true,
+      "EnableStateMigration": false,
+      "EnableSubnetScarcity": false,
+      "InitializeFromCNI": true,
+      "ManageEndpointState": false,
+      "ProgramSNATIPTables": false
     }
