@@ -45,8 +45,8 @@ var (
 )
 
 // TestLRP tests if the local redirect policy in a cilium cluster is functioning
-// The test assumes the current kubeconfig points to a cluster with cilium and kube-dns already installed
-// and with the lrp feature flag enabled in the cilium config
+// The test assumes the current kubeconfig points to a cluster with cilium (1.16+), cns,
+// and kube-dns already installed. The lrp feature flag should be enabled in the cilium config
 // Resources created are automatically cleaned up
 // From the lrp folder, run: go test ./lrp_test.go -v -tags "lrp" -run ^TestLRP$
 func TestLRP(t *testing.T) {
@@ -70,7 +70,7 @@ func TestLRP(t *testing.T) {
 	// replace pillar dns
 	replaced := strings.ReplaceAll(string(nodeLocalDNSContent), "__PILLAR__DNS__SERVER__", kubeDNS)
 	// Write the updated content back to the file
-	err = os.WriteFile(tempNodeLocalDNSDaemonsetPath, []byte(replaced), 0644)
+	err = os.WriteFile(tempNodeLocalDNSDaemonsetPath, []byte(replaced), 0o644)
 	require.NoError(t, err)
 	defer func() {
 		err := os.Remove(tempNodeLocalDNSDaemonsetPath)
@@ -166,6 +166,7 @@ func TestLRP(t *testing.T) {
 	// count should go up
 	require.Greater(t, afterMetric.GetCounter().GetValue(), beforeMetric.GetCounter().GetValue(), "dns metric count did not increase after nslookup")
 }
+
 func TakeOne[T any](slice []T) T {
 	if len(slice) == 0 {
 		var zero T
