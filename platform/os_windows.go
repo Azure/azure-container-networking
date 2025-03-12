@@ -247,8 +247,13 @@ func (p *execClient) ExecutePowershellCommandWithContext(ctx context.Context, co
 
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy if hns is enabled
 func SetSdnRemoteArpMacAddress(ctx context.Context) error {
-	if err := setSDNRemoteARPRegKey(); err != nil {
+	changed, err := setSDNRemoteARPRegKey()
+	if err != nil {
 		return err
+	}
+	if !changed {
+		log.Printf("SDNRemoteArpMacAddress regKey already set, skipping HNS restart")
+		return nil
 	}
 	log.Printf("SDNRemoteArpMacAddress regKey set successfully")
 	if err := restartHNS(ctx); err != nil {
@@ -258,26 +263,28 @@ func SetSdnRemoteArpMacAddress(ctx context.Context) error {
 	return nil
 }
 
-func setSDNRemoteARPRegKey() error {
+// setSDNRemoteARPRegKey sets the SDNRemoteArpMacAddress registry key
+// returns true if the key was changed, false if unchanged
+func setSDNRemoteARPRegKey() (bool, error) {
 	log.Printf("Setting SDNRemoteArpMacAddress regKey")
 	// open the registry key
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Services\hns\State`, registry.READ|registry.SET_VALUE)
 	if err != nil {
 		if errors.Is(err, registry.ErrNotExist) {
-			return nil
+			return false, nil
 		}
-		return errors.Wrap(err, "could not open registry key")
+		return false, errors.Wrap(err, "could not open registry key")
 	}
 	defer k.Close()
 	// check the key value
 	if v, _, _ := k.GetStringValue("SDNRemoteArpMacAddress"); v == SDNRemoteArpMacAddress {
 		log.Printf("SDNRemoteArpMacAddress regKey already set")
-		return nil // already set
+		return false, nil // already set
 	}
 	if err = k.SetStringValue("SDNRemoteArpMacAddress", SDNRemoteArpMacAddress); err != nil {
-		return errors.Wrap(err, "could not set registry key")
+		return false, errors.Wrap(err, "could not set registry key")
 	}
-	return nil
+	return true, nil
 }
 
 func restartHNS(ctx context.Context) error {
