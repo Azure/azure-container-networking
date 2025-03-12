@@ -26,5 +26,6 @@ data:
       "ManageEndpointState": false,
       "ProgramSNATIPTables": false,
       "EnableAsyncPodDelete": true,
-      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs"
+      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs",
+      "EnableIPAMv2": true
     }
