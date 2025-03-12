@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/test/internal/retry"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	cilium "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned"
-
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -203,7 +202,7 @@ func MustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePat
 	mustCreateRoleBinding(ctx, roleBindings, roleBinding)
 }
 
-func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) (corev1.ConfigMap, func()) {
+func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) (corev1.ConfigMap, func()) { // nolint
 	cm := mustParseConfigMap(configMapPath)
 	configmaps := clientset.CoreV1().ConfigMaps(cm.Namespace)
 	mustCreateConfigMap(ctx, configmaps, cm)
@@ -214,7 +213,7 @@ func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, co
 
 // MustSetupDaemonset is a convenience function to directly apply the daemonset at dsPath to the cluster,
 // returning the parsed daemonset struct and a cleanup function in the process
-func MustSetupDaemonset(ctx context.Context, clientset *kubernetes.Clientset, dsPath string) (appsv1.DaemonSet, func()) {
+func MustSetupDaemonset(ctx context.Context, clientset *kubernetes.Clientset, dsPath string) (appsv1.DaemonSet, func()) { // nolint
 	ds := MustParseDaemonSet(dsPath)
 	dsClient := clientset.AppsV1().DaemonSets(ds.Namespace)
 	MustCreateDaemonset(ctx, dsClient, ds)
@@ -223,7 +222,7 @@ func MustSetupDaemonset(ctx context.Context, clientset *kubernetes.Clientset, ds
 	}
 }
 
-func MustSetupDeployment(ctx context.Context, clientset *kubernetes.Clientset, depPath string) (appsv1.Deployment, func()) {
+func MustSetupDeployment(ctx context.Context, clientset *kubernetes.Clientset, depPath string) (appsv1.Deployment, func()) { // nolint
 	dep := MustParseDeployment(depPath)
 	depClient := clientset.AppsV1().Deployments(dep.Namespace)
 	MustCreateDeployment(ctx, depClient, dep)
@@ -232,7 +231,7 @@ func MustSetupDeployment(ctx context.Context, clientset *kubernetes.Clientset, d
 	}
 }
 
-func MustSetupServiceAccount(ctx context.Context, clientset *kubernetes.Clientset, serviceAccountPath string) (corev1.ServiceAccount, func()) {
+func MustSetupServiceAccount(ctx context.Context, clientset *kubernetes.Clientset, serviceAccountPath string) (corev1.ServiceAccount, func()) { // nolint
 	sa := mustParseServiceAccount(serviceAccountPath)
 	sas := clientset.CoreV1().ServiceAccounts(sa.Namespace)
 	mustCreateServiceAccount(ctx, sas, sa)
@@ -241,7 +240,7 @@ func MustSetupServiceAccount(ctx context.Context, clientset *kubernetes.Clientse
 	}
 }
 
-func MustSetupService(ctx context.Context, clientset *kubernetes.Clientset, servicePath string) (corev1.Service, func()) {
+func MustSetupService(ctx context.Context, clientset *kubernetes.Clientset, servicePath string) (corev1.Service, func()) { // nolint
 	svc := mustParseService(servicePath)
 	svcs := clientset.CoreV1().Services(svc.Namespace)
 	mustCreateService(ctx, svcs, svc)
@@ -250,7 +249,7 @@ func MustSetupService(ctx context.Context, clientset *kubernetes.Clientset, serv
 	}
 }
 
-func MustSetupLRP(ctx context.Context, clientset *cilium.Clientset, lrpPath string) (ciliumv2.CiliumLocalRedirectPolicy, func()) {
+func MustSetupLRP(ctx context.Context, clientset *cilium.Clientset, lrpPath string) (ciliumv2.CiliumLocalRedirectPolicy, func()) { // nolint
 	lrp := mustParseLRP(lrpPath)
 	lrps := clientset.CiliumV2().CiliumLocalRedirectPolicies(lrp.Namespace)
 	mustCreateCiliumLocalRedirectPolicy(ctx, lrps, lrp)
