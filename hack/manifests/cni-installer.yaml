@@ -27,7 +27,7 @@ spec:
                     operator: NotIn
                     values:
                       - virtual-kubelet
-                  - key: beta.kubernetes.io/os
+                  - key: kubernetes.io/os
                     operator: In
                     values:
                       - linux
