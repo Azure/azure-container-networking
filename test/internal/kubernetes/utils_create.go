@@ -2,16 +2,15 @@ package kubernetes
 
 import (
 	"context"
-
-	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
-	typedciliumv2 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/cilium.io/v2"
-
 	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
+
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	typedciliumv2 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/cilium.io/v2"
 
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -83,7 +82,7 @@ func MustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetIn
 	MustDeleteDaemonset(ctx, daemonsets, ds)
 	log.Printf("Creating Daemonset %v", ds.Name)
 	if _, err := daemonsets.Create(ctx, &ds, metav1.CreateOptions{}); err != nil {
-		log.Fatal(errors.Wrap(err, "failed to create daemonset"), ds)
+		log.Fatal(errors.Wrap(err, "failed to create daemonset"))
 	}
 }
 

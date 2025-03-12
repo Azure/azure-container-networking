@@ -63,7 +63,7 @@ func GetDeploymentAvailableReplicas(ctx context.Context, deploymentsClient typed
 }
 
 func GetService(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string) (*corev1.Service, error) {
-	service, err := clientset.CoreV1().Services("kube-system").Get(ctx, "kube-dns", metav1.GetOptions{})
+	service, err := clientset.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return service, errors.Wrap(err, "could not get service")
 	}
