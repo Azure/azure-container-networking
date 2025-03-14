@@ -76,21 +76,21 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 
 	// create v2 NPM specific components.
 	if npMgr.config.Toggles.EnableV2NPM {
-		npMgr.NpmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
-		npMgr.PodControllerV2 = controllersv2.NewPodController(npMgr.PodInformer, dp, npMgr.NpmNamespaceCacheV2)
-		npMgr.NamespaceControllerV2 = controllersv2.NewNamespaceController(npMgr.NsInformer, dp, npMgr.NpmNamespaceCacheV2)
+		npMgr.K8SControllersV2.NpmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
+		npMgr.K8SControllersV2.PodControllerV2 = controllersv2.NewPodController(npMgr.Informers.PodInformer, dp, npMgr.K8SControllersV2.NpmNamespaceCacheV2)
+		npMgr.K8SControllersV2.NamespaceControllerV2 = controllersv2.NewNamespaceController(npMgr.Informers.NsInformer, dp, npMgr.K8SControllersV2.NpmNamespaceCacheV2)
 		// Question(jungukcho): Is config.Toggles.PlaceAzureChainFirst needed for v2?
-		npMgr.NetPolControllerV2 = controllersv2.NewNetworkPolicyController(npMgr.NpInformer, dp)
+		npMgr.K8SControllersV2.NetPolControllerV2 = controllersv2.NewNetworkPolicyController(npMgr.Informers.NpInformer, dp)
 		return npMgr
 	}
 
 	// create v1 NPM specific components.
 	npMgr.ipsMgr = ipsm.NewIpsetManager(exec)
 
-	npMgr.NpmNamespaceCacheV1 = &controllersv1.NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
-	npMgr.PodControllerV1 = controllersv1.NewPodController(npMgr.PodInformer, npMgr.ipsMgr, npMgr.NpmNamespaceCacheV1)
-	npMgr.NamespaceControllerV1 = controllersv1.NewNameSpaceController(npMgr.NsInformer, npMgr.ipsMgr, npMgr.NpmNamespaceCacheV1)
-	npMgr.NetPolControllerV1 = controllersv1.NewNetworkPolicyController(npMgr.NpInformer, npMgr.ipsMgr, config.Toggles.PlaceAzureChainFirst)
+	npMgr.K8SControllersV1.NpmNamespaceCacheV1 = &controllersv1.NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
+	npMgr.K8SControllersV1.PodControllerV1 = controllersv1.NewPodController(npMgr.Informers.PodInformer, npMgr.ipsMgr, npMgr.K8SControllersV1.NpmNamespaceCacheV1)
+	npMgr.K8SControllersV1.NamespaceControllerV1 = controllersv1.NewNameSpaceController(npMgr.Informers.NsInformer, npMgr.ipsMgr, npMgr.K8SControllersV1.NpmNamespaceCacheV1)
+	npMgr.K8SControllersV1.NetPolControllerV1 = controllersv1.NewNetworkPolicyController(npMgr.Informers.NpInformer, npMgr.ipsMgr, config.Toggles.PlaceAzureChainFirst)
 	return npMgr
 }
 
@@ -104,13 +104,13 @@ func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 	m := map[models.CacheKey]json.RawMessage{}
 
 	if npMgr.config.Toggles.EnableV2NPM {
-		npmNamespaceCacheRaw, err := json.Marshal(npMgr.NpmNamespaceCacheV2)
+		npmNamespaceCacheRaw, err := json.Marshal(npMgr.K8SControllersV2.NpmNamespaceCacheV2)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to marshal v2 ns cache")
 		}
 		m[models.NsMap] = npmNamespaceCacheRaw
 
-		podControllerRaw, err := json.Marshal(npMgr.PodControllerV2)
+		podControllerRaw, err := json.Marshal(npMgr.K8SControllersV2.PodControllerV2)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to marshal v2 pod controller")
 		}
@@ -123,13 +123,13 @@ func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 		m[models.SetMap] = setMapRaw
 
 	} else {
-		npmNamespaceCacheRaw, err := json.Marshal(npMgr.NpmNamespaceCacheV1)
+		npmNamespaceCacheRaw, err := json.Marshal(npMgr.K8SControllersV1.NpmNamespaceCacheV1)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to marshal v1 ns cache")
 		}
 		m[models.NsMap] = npmNamespaceCacheRaw
 
-		podControllerRaw, err := json.Marshal(npMgr.PodControllerV1)
+		podControllerRaw, err := json.Marshal(npMgr.K8SControllersV1.PodControllerV1)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to marshal v1 pod controller")
 		}
@@ -149,7 +149,7 @@ func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 
 	}
 
-	nodenameRaw, err := json.Marshal(npMgr.NodeName)
+	nodenameRaw, err := json.Marshal(npMgr.AzureConfig.NodeName)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to marshal node name")
 	}
@@ -165,47 +165,47 @@ func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 
 // GetAppVersion returns network policy manager app version
 func (npMgr *NetworkPolicyManager) GetAppVersion() string {
-	return npMgr.Version
+	return npMgr.AzureConfig.Version
 }
 
 // Start starts shared informers and waits for the shared informer cache to sync.
 func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan struct{}) error {
 	if !config.Toggles.EnableV2NPM {
 		// Do initialization of data plane before starting syncup of each controller to avoid heavy call to api-server
-		if err := npMgr.NetPolControllerV1.BootupDataplane(); err != nil {
+		if err := npMgr.K8SControllersV1.NetPolControllerV1.BootupDataplane(); err != nil {
 			return fmt.Errorf("Failed to initialized data plane with err %w", err)
 		}
 	}
 
 	// Starts all informers manufactured by npMgr's informerFactory.
-	npMgr.InformerFactory.Start(stopCh)
+	npMgr.Informers.InformerFactory.Start(stopCh)
 
 	// Wait for the initial sync of local cache.
-	if !cache.WaitForCacheSync(stopCh, npMgr.PodInformer.Informer().HasSynced) {
+	if !cache.WaitForCacheSync(stopCh, npMgr.Informers.PodInformer.Informer().HasSynced) {
 		return fmt.Errorf("Pod informer error: %w", models.ErrInformerSyncFailure)
 	}
 
-	if !cache.WaitForCacheSync(stopCh, npMgr.NsInformer.Informer().HasSynced) {
+	if !cache.WaitForCacheSync(stopCh, npMgr.Informers.NsInformer.Informer().HasSynced) {
 		return fmt.Errorf("Namespace informer error: %w", models.ErrInformerSyncFailure)
 	}
 
-	if !cache.WaitForCacheSync(stopCh, npMgr.NpInformer.Informer().HasSynced) {
+	if !cache.WaitForCacheSync(stopCh, npMgr.Informers.NpInformer.Informer().HasSynced) {
 		return fmt.Errorf("NetworkPolicy informer error: %w", models.ErrInformerSyncFailure)
 	}
 
 	// start v2 NPM controllers after synced
 	if config.Toggles.EnableV2NPM {
-		go npMgr.PodControllerV2.Run(stopCh)
-		go npMgr.NamespaceControllerV2.Run(stopCh)
-		go npMgr.NetPolControllerV2.Run(stopCh)
+		go npMgr.K8SControllersV2.PodControllerV2.Run(stopCh)
+		go npMgr.K8SControllersV2.NamespaceControllerV2.Run(stopCh)
+		go npMgr.K8SControllersV2.NetPolControllerV2.Run(stopCh)
 		return nil
 	}
 
 	// start v1 NPM controllers after synced
-	go npMgr.PodControllerV1.Run(stopCh)
-	go npMgr.NamespaceControllerV1.Run(stopCh)
-	go npMgr.NetPolControllerV1.Run(stopCh)
-	go npMgr.NetPolControllerV1.RunPeriodicTasks(stopCh)
+	go npMgr.K8SControllersV1.PodControllerV1.Run(stopCh)
+	go npMgr.K8SControllersV1.NamespaceControllerV1.Run(stopCh)
+	go npMgr.K8SControllersV1.NetPolControllerV1.Run(stopCh)
+	go npMgr.K8SControllersV1.NetPolControllerV1.RunPeriodicTasks(stopCh)
 
 	return nil
 }

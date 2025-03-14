@@ -1,7 +1,5 @@
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
-TOOLS_DIR = $(REPO_ROOT)/build/tools
-TOOLS_BIN_DIR = $(REPO_ROOT)/build/tools/bin
-MOCKGEN = $(TOOLS_BIN_DIR)/mockgen
+MOCKGEN = go tool github.com/golang/mock/mockgen
 
 generate: $(MOCKGEN) ## Generate mock clients
 	@go mod vendor
