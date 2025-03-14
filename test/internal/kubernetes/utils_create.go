@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strconv"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	typedciliumv2 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/cilium.io/v2"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -160,6 +162,30 @@ func mustCreateConfigMap(ctx context.Context, cmi typedcorev1.ConfigMapInterface
 	log.Printf("Creating ConfigMap %v", cm.Name)
 	if _, err := cmi.Create(ctx, &cm, metav1.CreateOptions{}); err != nil {
 		log.Fatal(errors.Wrap(err, "failed to create configmap"))
+	}
+}
+
+func mustCreateService(ctx context.Context, svci typedcorev1.ServiceInterface, svc corev1.Service) {
+	if err := svci.Delete(ctx, svc.Name, metav1.DeleteOptions{}); err != nil {
+		if !apierrors.IsNotFound(err) {
+			log.Fatal(errors.Wrap(err, "failed to delete service"))
+		}
+	}
+	log.Printf("Creating Service %v", svc.Name)
+	if _, err := svci.Create(ctx, &svc, metav1.CreateOptions{}); err != nil {
+		log.Fatal(errors.Wrap(err, "failed to create service"))
+	}
+}
+
+func mustCreateCiliumLocalRedirectPolicy(ctx context.Context, lrpClient typedciliumv2.CiliumLocalRedirectPolicyInterface, clrp ciliumv2.CiliumLocalRedirectPolicy) {
+	if err := lrpClient.Delete(ctx, clrp.Name, metav1.DeleteOptions{}); err != nil {
+		if !apierrors.IsNotFound(err) {
+			log.Fatal(errors.Wrap(err, "failed to delete cilium local redirect policy"))
+		}
+	}
+	log.Printf("Creating CiliumLocalRedirectPolicy %v", clrp.Name)
+	if _, err := lrpClient.Create(ctx, &clrp, metav1.CreateOptions{}); err != nil {
+		log.Fatal(errors.Wrap(err, "failed to create cilium local redirect policy"))
 	}
 }
 

@@ -13,6 +13,8 @@ import (
 
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/test/internal/retry"
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	cilium "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -200,10 +202,60 @@ func MustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePat
 	mustCreateRoleBinding(ctx, roleBindings, roleBinding)
 }
 
-func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) {
+func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) (corev1.ConfigMap, func()) { // nolint
 	cm := mustParseConfigMap(configMapPath)
 	configmaps := clientset.CoreV1().ConfigMaps(cm.Namespace)
 	mustCreateConfigMap(ctx, configmaps, cm)
+	return cm, func() {
+		MustDeleteConfigMap(ctx, configmaps, cm)
+	}
+}
+
+// MustSetupDaemonset is a convenience function to directly apply the daemonset at dsPath to the cluster,
+// returning the parsed daemonset struct and a cleanup function in the process
+func MustSetupDaemonset(ctx context.Context, clientset *kubernetes.Clientset, dsPath string) (appsv1.DaemonSet, func()) { // nolint
+	ds := MustParseDaemonSet(dsPath)
+	dsClient := clientset.AppsV1().DaemonSets(ds.Namespace)
+	MustCreateDaemonset(ctx, dsClient, ds)
+	return ds, func() {
+		MustDeleteDaemonset(ctx, dsClient, ds)
+	}
+}
+
+func MustSetupDeployment(ctx context.Context, clientset *kubernetes.Clientset, depPath string) (appsv1.Deployment, func()) { // nolint
+	dep := MustParseDeployment(depPath)
+	depClient := clientset.AppsV1().Deployments(dep.Namespace)
+	MustCreateDeployment(ctx, depClient, dep)
+	return dep, func() {
+		MustDeleteDeployment(ctx, depClient, dep)
+	}
+}
+
+func MustSetupServiceAccount(ctx context.Context, clientset *kubernetes.Clientset, serviceAccountPath string) (corev1.ServiceAccount, func()) { // nolint
+	sa := mustParseServiceAccount(serviceAccountPath)
+	sas := clientset.CoreV1().ServiceAccounts(sa.Namespace)
+	mustCreateServiceAccount(ctx, sas, sa)
+	return sa, func() {
+		MustDeleteServiceAccount(ctx, sas, sa)
+	}
+}
+
+func MustSetupService(ctx context.Context, clientset *kubernetes.Clientset, servicePath string) (corev1.Service, func()) { // nolint
+	svc := mustParseService(servicePath)
+	svcs := clientset.CoreV1().Services(svc.Namespace)
+	mustCreateService(ctx, svcs, svc)
+	return svc, func() {
+		MustDeleteService(ctx, svcs, svc)
+	}
+}
+
+func MustSetupLRP(ctx context.Context, clientset *cilium.Clientset, lrpPath string) (ciliumv2.CiliumLocalRedirectPolicy, func()) { // nolint
+	lrp := mustParseLRP(lrpPath)
+	lrps := clientset.CiliumV2().CiliumLocalRedirectPolicies(lrp.Namespace)
+	mustCreateCiliumLocalRedirectPolicy(ctx, lrps, lrp)
+	return lrp, func() {
+		MustDeleteCiliumLocalRedirectPolicy(ctx, lrps, lrp)
+	}
 }
 
 func Int32ToPtr(i int32) *int32 { return &i }
