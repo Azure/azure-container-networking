@@ -27,5 +27,8 @@ data:
       "EnableIPAMv2": true,
       "InitializeFromCNI": true,
       "ManageEndpointState": false,
+      "EnableStateMigration": false,
+      "EnableSubnetScarcity": false,
+      "MetricsBindAddress": ":10092",
       "ProgramSNATIPTables" : false
     }

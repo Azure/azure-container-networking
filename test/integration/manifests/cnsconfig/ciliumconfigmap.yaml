@@ -29,5 +29,8 @@ data:
       "CNIConflistFilepath": "/etc/cni/net.d/05-cilium.conflist",
       "CNIConflistScenario": "cilium",
       "EnableAsyncPodDelete": true,
+      "EnableStateMigration": false,
+      "EnableSubnetScarcity": false,
+      "MetricsBindAddress": ":10092",
       "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs"
     }

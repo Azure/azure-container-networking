@@ -31,5 +31,7 @@ data:
       "CNIConflistFilepath": "C:\\k\\azurecni\\netconf\\10-azure.conflist",
       "CNIConflistScenario": "v4overlay",
       "EnableAsyncPodDelete": true,
+      "EnableStateMigration": false,
+      "MetricsBindAddress": ":10092",
       "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs"
     }

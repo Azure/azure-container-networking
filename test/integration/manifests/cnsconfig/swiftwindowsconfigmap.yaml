@@ -26,5 +26,8 @@ data:
       "ManageEndpointState": false,
       "ProgramSNATIPTables": false,
       "EnableAsyncPodDelete": true,
+      "EnableStateMigration": false,
+      "EnableSubnetScarcity": false,
+      "MetricsBindAddress": ":10092",
       "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs"
     }

@@ -29,5 +29,8 @@ data:
       "CNIConflistFilepath": "/etc/cni/net.d/15-azure-swift-overlay.conflist",
       "CNIConflistScenario": "overlay",
       "EnableAsyncPodDelete": false,
+      "EnableStateMigration": false,
+      "EnableSubnetScarcity": false,
+      "MetricsBindAddress": ":10092",
       "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs"
     }
