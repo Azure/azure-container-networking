@@ -1,5 +1,5 @@
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
-MOCKGEN = go tool mockgen
+MOCKGEN = go tool github.com/golang/mock/mockgen
 
 generate: $(MOCKGEN) ## Generate mock clients
 	@go mod vendor

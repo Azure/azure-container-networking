@@ -21,7 +21,7 @@ jobs:
     steps:
     - uses: actions/setup-go@v5
       with:
-        go-version: stable
+        go-version-file: go.mod
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0

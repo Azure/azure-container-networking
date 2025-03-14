@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version-file: go.mod
       - name: Regenerate NodeNetworkConfig CRD
         run: make -C crd/nodenetworkconfig
       - name: Regenerate MultitenantNetworkContainer CRD

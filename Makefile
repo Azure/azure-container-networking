@@ -674,7 +674,7 @@ clean: ## Clean build artifacts.
 
 LINT_PKG ?= .
 
-GOLANGCI_LINT = go tool golangci-lint
+GOLANGCI_LINT = go tool github.com/golangci/golangci-lint/cmd/golangci-lint
 
 lint: ## Fast lint vs default branch showing only new issues.
 	GOGC=20 $(GOLANGCI_LINT) run --new-from-rev release/v1.4 --config=.golangci.yml --timeout 10m -v $(LINT_PKG)/...

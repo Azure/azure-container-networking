@@ -1,7 +1,7 @@
 .DEFAULT_GOAL: all
 
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
-CONTROLLER_GEN = go tool controller-gen
+CONTROLLER_GEN = go tool sigs.k8s.io/controller-tools/cmd/controller-gen
 
 all: generate manifests 
 
