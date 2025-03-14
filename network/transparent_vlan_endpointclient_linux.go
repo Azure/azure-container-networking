@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/snat"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Azure/azure-container-networking/retry"
 	"github.com/pkg/errors"
 	vishnetlink "github.com/vishvananda/netlink"
 	"go.uber.org/zap"
@@ -26,8 +28,8 @@ const (
 	tunnelingTable        = 2                                         // Packets not entering on the vlan interface go to this routing table
 	tunnelingMark         = 333                                       // The packets that are to tunnel will be marked with this number
 	DisableRPFilterCmd    = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
-	numRetries            = 5
-	sleepInMs             = 100
+	numRetries            = 4
+	sleepDelay            = 100 * time.Millisecond
 )
 
 var errNamespaceCreation = fmt.Errorf("network namespace creation error")
@@ -192,13 +194,13 @@ func (client *TransparentVlanEndpointClient) setLinkNetNSAndConfirm(name string,
 	}
 
 	// confirm veth was moved successfully
-	err = RunWithRetries(func() error {
+	err = client.Retry(func() error {
 		// retry checking in the namespace if the interface is not detected
 		return ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
 			_, ifDetectedErr := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
 			return errors.Wrap(ifDetectedErr, "failed to get vlan veth in namespace")
 		})
-	}, numRetries, sleepInMs)
+	})
 	if err != nil {
 		return errors.Wrapf(err, "failed to detect %v inside namespace %v", name, fd)
 	}
@@ -220,9 +222,9 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		// We assume the only possible error is that the namespace doesn't exist
 		logger.Info("No existing NS detected. Creating the vnet namespace and switching to it", zap.String("message", existingErr.Error()))
 
-		err = RunWithRetries(func() error {
+		err = client.Retry(func() error {
 			return client.createNetworkNamespace(vmNS)
-		}, numRetries, sleepInMs)
+		})
 		if err != nil {
 			return errors.Wrap(err, "failed to create network namespace")
 		}
@@ -279,10 +281,10 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		}()
 
 		// sometimes there is slight delay in interface creation. check if it exists
-		err = RunWithRetries(func() error {
+		err = client.Retry(func() error {
 			_, err = client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
 			return errors.Wrap(err, "failed to get vlan veth")
-		}, numRetries, sleepInMs)
+		})
 
 		if err != nil {
 			deleteNSIfNotNilErr = errors.Wrapf(err, "failed to get vlan veth interface:%s", client.vlanIfName)
@@ -316,21 +318,21 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 	}
 
 	// Ensure vnet veth is created, as there may be a slight delay
-	err = RunWithRetries(func() error {
+	err = client.Retry(func() error {
 		_, getErr := client.netioshim.GetNetworkInterfaceByName(client.vnetVethName)
 		return errors.Wrap(getErr, "failed to get vnet veth")
-	}, numRetries, sleepInMs)
+	})
 	if err != nil {
 		return errors.Wrap(err, "vnet veth does not exist")
 	}
 
 	// Ensure container veth is created, as there may be a slight delay
 	var containerIf *net.Interface
-	err = RunWithRetries(func() error {
+	err = client.Retry(func() error {
 		var getErr error
 		containerIf, getErr = client.netioshim.GetNetworkInterfaceByName(client.containerVethName)
 		return errors.Wrap(getErr, "failed to get container veth")
-	}, numRetries, sleepInMs)
+	})
 	if err != nil {
 		return errors.Wrap(err, "container veth does not exist")
 	}
@@ -673,6 +675,17 @@ func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, _
 	return nil
 }
 
+// Creates a new retrier with a fixed delay, and treats all errors as retriable
+func (client *TransparentVlanEndpointClient) Retry(f func() error) error {
+	retrier := retry.Retrier{
+		Cooldown: retry.Max(numRetries, retry.Fixed(sleepDelay)),
+	}
+	return errors.Wrap(retrier.Do(context.Background(), func() error {
+		// we always want to retry, so all errors are temporary errors
+		return retry.WrapTemporaryError(f()) // nolint
+	}), "error during retry")
+}
+
 // Helper function that allows executing a function in a VM namespace
 // Does not work for process namespaces
 func ExecuteInNS(nsc NamespaceClientInterface, nsName string, f func() error) error {
@@ -711,17 +724,4 @@ func ExecuteInNS(nsc NamespaceClientInterface, nsName string, f func() error) er
 		}
 	}()
 	return f()
-}
-
-func RunWithRetries(f func() error, maxRuns, sleepMs int) error {
-	var err error
-	for i := 0; i < maxRuns; i++ {
-		err = f()
-		if err == nil {
-			break
-		}
-		logger.Info("Retrying after delay...", zap.String("error", err.Error()), zap.Int("retry", i), zap.Int("sleepMs", sleepMs))
-		time.Sleep(time.Duration(sleepMs) * time.Millisecond)
-	}
-	return err
 }

@@ -131,8 +131,10 @@ func NewPlugin(name string,
 	}
 
 	nl := netlink.NewNetlink()
+	plc := platform.NewExecClient(logger)
+	nio := &netio.NetIO{}
 	// Setup network manager.
-	nm, err := network.NewNetworkManager(nl, platform.NewExecClient(logger), &netio.NetIO{}, network.NewNamespaceClient(), iptables.NewClient(), dhcp.New(logger))
+	nm, err := network.NewNetworkManager(nl, plc, nio, network.NewNamespaceClient(), iptables.NewClient(), dhcp.New(logger, nio))
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +146,7 @@ func NewPlugin(name string,
 		nm:                 nm,
 		nnsClient:          client,
 		multitenancyClient: multitenancyClient,
-		netClient:          &netio.NetIO{},
+		netClient:          nio,
 	}, nil
 }
 
@@ -1530,7 +1532,7 @@ func (plugin *NetPlugin) validateArgs(args *cniSkel.CmdArgs, nwCfg *cni.NetworkC
 	if !allowedInput.MatchString(args.ContainerID) || !allowedInput.MatchString(args.IfName) {
 		return errors.New("invalid args value")
 	}
-	if !allowedInput.MatchString(nwCfg.Bridge) {
+	if !allowedInput.MatchString(nwCfg.Bridge) || !allowedInput.MatchString(nwCfg.Master) {
 		return errors.New("invalid network config value")
 	}
 
