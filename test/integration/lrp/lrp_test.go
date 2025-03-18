@@ -16,13 +16,15 @@ import (
 	ciliumClientset "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/rand"
 )
 
 const (
-	ciliumManifestsDir  = "../manifests/cilium/lrp/"
-	kubeSystemNamespace = "kube-system"
-	dnsService          = "kube-dns"
-	// envCiliumDir              = "DIR"
+	ciliumConfigmapName       = "cilium-config"
+	ciliumManifestsDir        = "../manifests/cilium/lrp/"
+	enableLRPFlag             = "enable-local-redirect-policy"
+	kubeSystemNamespace       = "kube-system"
+	dnsService                = "kube-dns"
 	retryAttempts             = 10
 	retryDelay                = 5 * time.Second
 	promAddress               = "http://localhost:9253/metrics"
@@ -62,8 +64,12 @@ func TestLRP(t *testing.T) {
 	require.NoError(t, err)
 	kubeDNS := svc.Spec.ClusterIP
 
+	// ensure lrp flag is enabled
+	ciliumCM, err := kubernetes.GetConfigmap(ctx, cs, kubeSystemNamespace, ciliumConfigmapName)
+	require.NoError(t, err)
+	require.Equal(t, "true", ciliumCM.Data[enableLRPFlag], "enable-local-redirect-policy not set to true in cilium-config")
+
 	// 1.17 and 1.13 cilium versions of both files are identical
-	// directory := os.Getenv(string(envCiliumDir))
 	// read file
 	nodeLocalDNSContent, err := os.ReadFile(nodeLocalDNSDaemonsetPath)
 	require.NoError(t, err)
@@ -167,10 +173,13 @@ func TestLRP(t *testing.T) {
 	require.Greater(t, afterMetric.GetCounter().GetValue(), beforeMetric.GetCounter().GetValue(), "dns metric count did not increase after nslookup")
 }
 
+// TakeOne takes one item from the slice randomly; if empty, it returns the empty value for the type
+// Use in testing only
 func TakeOne[T any](slice []T) T {
 	if len(slice) == 0 {
 		var zero T
 		return zero
 	}
-	return slice[0]
+	rand.Seed(uint64(time.Now().UnixNano()))
+	return slice[rand.Intn(len(slice))]
 }

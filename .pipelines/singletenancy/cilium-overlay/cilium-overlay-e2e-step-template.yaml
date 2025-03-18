@@ -73,7 +73,6 @@ steps:
 
   - template: ../../templates/cilium-cli.yaml
 
-
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
       if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]

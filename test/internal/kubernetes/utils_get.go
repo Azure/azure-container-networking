@@ -69,3 +69,11 @@ func GetService(ctx context.Context, clientset *kubernetes.Clientset, namespace,
 	}
 	return service, nil
 }
+
+func GetConfigmap(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string) (*corev1.ConfigMap, error) {
+	configmap, err := clientset.CoreV1().ConfigMaps(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return configmap, errors.Wrap(err, "could not get configmap")
+	}
+	return configmap, nil
+}
