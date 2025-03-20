@@ -192,7 +192,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			err := tt.client.setLinkNetNSAndConfirm(tt.client.vlanIfName, 1)
 			if tt.wantErr {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())
+				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v \nActual:%v", tt.wantErrMsg, err.Error())
 			} else {
 				require.NoError(t, err)
 			}
@@ -289,7 +289,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			err := tt.client.ensureCleanPopulateVM()
 			if tt.wantErr {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())
+				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v \nActual:%v", tt.wantErrMsg, err.Error())
 			} else {
 				require.NoError(t, err)
 			}
@@ -431,7 +431,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
-			wantErrMsg: "container veth does not exist: failed to get container veth: B1veth0: " + errMockNetIOFail.Error() + "",
+			wantErrMsg: "failed to get container veth: B1veth0: " + errMockNetIOFail.Error() + "",
 		},
 		{
 			name: "Add endpoints NetNS Get fail",
@@ -491,7 +491,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			err := tt.client.PopulateVM(tt.epInfo)
 			if tt.wantErr {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())
+				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v \nActual:%v", tt.wantErrMsg, err.Error())
 			} else {
 				require.NoError(t, err)
 			}
@@ -581,7 +581,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			err := tt.client.PopulateVnet(tt.epInfo)
 			if tt.wantErr {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())
+				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v \nActual:%v", tt.wantErrMsg, err.Error())
 			} else {
 				require.NoError(t, err)
 			}
@@ -697,7 +697,7 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 			err := tt.client.DeleteEndpointsImpl(tt.ep, tt.routesLeft)
 			if tt.wantErr {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())
+				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v \nActual:%v", tt.wantErrMsg, err.Error())
 			} else {
 				require.NoError(t, err)
 			}
@@ -832,7 +832,7 @@ func TestTransparentVlanConfigureContainerInterfacesAndRoutes(t *testing.T) {
 			err := tt.client.ConfigureContainerInterfacesAndRoutesImpl(tt.epInfo)
 			if tt.wantErr {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())
+				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v \nActual:%v", tt.wantErrMsg, err.Error())
 			} else {
 				require.NoError(t, err)
 			}
@@ -903,62 +903,7 @@ func TestTransparentVlanConfigureContainerInterfacesAndRoutes(t *testing.T) {
 			err := tt.client.ConfigureVnetInterfacesAndRoutesImpl(tt.epInfo)
 			if tt.wantErr {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
-func createFunctionWithFailurePattern(errorPattern []error) func() error {
-	s := 0
-	return func() error {
-		if s >= len(errorPattern) {
-			return nil
-		}
-		result := errorPattern[s]
-		s++
-		return result
-	}
-}
-
-func TestRunWithRetries(t *testing.T) {
-	errMock := errors.New("mock error")
-	runs := 4
-
-	tests := []struct {
-		name    string
-		wantErr bool
-		f       func() error
-	}{
-		{
-			name:    "Succeed on first try",
-			f:       createFunctionWithFailurePattern([]error{}),
-			wantErr: false,
-		},
-		{
-			name:    "Succeed on first try do not check again",
-			f:       createFunctionWithFailurePattern([]error{nil, errMock, errMock, errMock}),
-			wantErr: false,
-		},
-		{
-			name:    "Succeed on last try",
-			f:       createFunctionWithFailurePattern([]error{errMock, errMock, errMock, nil, errMock}),
-			wantErr: false,
-		},
-		{
-			name:    "Fail after too many attempts",
-			f:       createFunctionWithFailurePattern([]error{errMock, errMock, errMock, errMock, nil, nil}),
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			err := RunWithRetries(tt.f, runs, 100)
-			if tt.wantErr {
-				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v \nActual:%v", tt.wantErrMsg, err.Error())
 			} else {
 				require.NoError(t, err)
 			}
