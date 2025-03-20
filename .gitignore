@@ -24,7 +24,6 @@ ipam-*.xml
 *.test
 
 controller-gen
-build/tools/bin
 npm/debug/http
 
 go.work*

@@ -1,4 +1,4 @@
-ARG VARIANT="1.23"
+ARG VARIANT="1.24"
 FROM mcr.microsoft.com/vscode/devcontainers/go:${VARIANT}
 RUN apt-get update && \
     export DEBIAN_FRONTEND=noninteractive && \
@@ -8,4 +8,6 @@ RUN apt-get update && \
     skopeo \
     vim \
     fzf \
-    ripgrep
+    ripgrep \
+    jq \
+    curl
