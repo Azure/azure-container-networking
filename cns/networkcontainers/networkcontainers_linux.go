@@ -39,7 +39,7 @@ func updateInterface(createNetworkContainerRequest cns.CreateNetworkContainerReq
 	if _, err := os.Stat(netpluginConfig.path); err != nil {
 		if os.IsNotExist(err) {
 			msg := "[Azure CNS] Unable to find " + netpluginConfig.path + ", cannot continue."
-			logger.Printf(msg)
+			logger.Printf("%s", msg)
 			return errors.New(msg)
 		}
 	}

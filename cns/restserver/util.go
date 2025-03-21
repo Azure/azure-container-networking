@@ -199,13 +199,13 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 			}
 		default:
 			errMsg := fmt.Sprintf("Unsupported orchestrator type: %s", service.state.OrchestratorType)
-			logger.Errorf(errMsg)
+			logger.Errorf("%s", errMsg)
 			return types.UnsupportedOrchestratorType, errMsg
 		}
 
 	default:
 		errMsg := fmt.Sprintf("Unsupported network container type %s", req.NetworkContainerType)
-		logger.Errorf(errMsg)
+		logger.Errorf("%s", errMsg)
 		return types.UnsupportedNetworkContainerType, errMsg
 	}
 

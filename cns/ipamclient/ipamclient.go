@@ -57,7 +57,7 @@ func (ic *IpamClient) GetAddressSpace() (string, error) {
 
 		if resp.Err != "" {
 			log.Printf("[Azure CNS] GetAddressSpace received error response :%v", resp.Err)
-			return "", fmt.Errorf(resp.Err)
+			return "", fmt.Errorf("%s", resp.Err)
 		}
 
 		return resp.LocalDefaultAddressSpace, nil
@@ -103,7 +103,7 @@ func (ic *IpamClient) GetPoolID(asID, subnet string) (string, error) {
 
 		if resp.Err != "" {
 			log.Printf("[Azure CNS] GetPoolID received error response :%v", resp.Err)
-			return "", fmt.Errorf(resp.Err)
+			return "", fmt.Errorf("%s", resp.Err)
 		}
 
 		return resp.PoolID, nil
@@ -151,7 +151,7 @@ func (ic *IpamClient) ReserveIPAddress(poolID string, reservationID string) (str
 
 		if reserveResp.Err != "" {
 			log.Printf("[Azure CNS] ReserveIP received error response :%v", reserveResp.Err)
-			return "", fmt.Errorf(reserveResp.Err)
+			return "", fmt.Errorf("%s", reserveResp.Err)
 		}
 
 		return reserveResp.Address, nil
@@ -201,7 +201,7 @@ func (ic *IpamClient) ReleaseIPAddress(poolID string, reservationID string) erro
 
 		if releaseResp.Err != "" {
 			log.Printf("[Azure CNS] ReleaseIP received error response :%v", releaseResp.Err)
-			return fmt.Errorf(releaseResp.Err)
+			return fmt.Errorf("%s", releaseResp.Err)
 		}
 
 		return nil
@@ -245,7 +245,7 @@ func (ic *IpamClient) GetIPAddressUtilization(poolID string) (int, int, []string
 
 		if poolInfoResp.Err != "" {
 			log.Printf("[Azure CNS] GetIPUtilization received error response :%v", poolInfoResp.Err)
-			return 0, 0, nil, fmt.Errorf(poolInfoResp.Err)
+			return 0, 0, nil, fmt.Errorf("%s", poolInfoResp.Err)
 		}
 
 		return poolInfoResp.Capacity, poolInfoResp.Available, poolInfoResp.UnhealthyAddresses, nil
