@@ -633,7 +633,6 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 			routesLeft: func() (int, error) {
 				return numDefaultRoutes, nil
 			},
-			wantErr: false,
 		},
 		{
 			name: "Delete endpoint do not delete vnet ns it is still in use",
@@ -659,7 +658,6 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 			routesLeft: func() (int, error) {
 				return numDefaultRoutes + 1, nil
 			},
-			wantErr: false,
 		},
 		//nolint gocritic
 		/*		{
@@ -694,15 +692,47 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.client.DeleteEndpointsImpl(tt.ep, tt.routesLeft)
-			if tt.wantErr {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())
-			} else {
-				require.NoError(t, err)
-			}
+			tt.client.DeleteEndpointsImpl(tt.ep, tt.routesLeft)
 		})
 	}
+
+	t.Run("Delete endpoint runs even if delete routes fails", func(t *testing.T) {
+		nl := netlink.NewMockNetlink(true, "netlink failure")
+		// count number of times delete and link and set route are called
+		// even if deleting the routes fail, we should still delete the veth pair in the vnet ns
+		deleteLinkFlag := 0
+		nl.DeleteLinkFn = func(_ string) error {
+			deleteLinkFlag++
+			return errors.New("err mock")
+		}
+		errOnDeleteRouteFlag := 0
+		nl.SetDeleteRouteValidationFn(func(_ *netlink.Route) error {
+			errOnDeleteRouteFlag++
+			return errors.New("err mock")
+		})
+
+		client := TransparentVlanEndpointClient{
+			primaryHostIfName: "eth0",
+			vlanIfName:        "eth0.1",
+			vnetVethName:      "A1veth0",
+			containerVethName: "B1veth0",
+			vnetNSName:        "az_ns_1",
+			netnsClient: &mockNetns{
+				deleteNamed: defaultDeleteNamed,
+			},
+			netlink:        nl,
+			plClient:       platform.NewMockExecClient(false),
+			netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+			netioshim:      netio.NewMockNetIO(false, 0),
+		}
+		ep := &endpoint{
+			IPAddresses: IPAddresses,
+		}
+		client.DeleteEndpointsImpl(ep, func() (int, error) { return 0, nil })
+
+		require.Equal(t, 1, errOnDeleteRouteFlag, "error must occur during delete route path")
+		require.Equal(t, 1, deleteLinkFlag, "delete link must still be called")
+	})
 }
 
 func TestTransparentVlanConfigureContainerInterfacesAndRoutes(t *testing.T) {

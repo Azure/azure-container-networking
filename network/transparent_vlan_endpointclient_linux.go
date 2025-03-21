@@ -622,7 +622,7 @@ func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMa
 
 func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	// Vnet NS
-	err := ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
+	_ = ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
 		// Passing in functionality to get number of routes after deletion
 		getNumRoutesLeft := func() (int, error) {
 			routes, err := vishnetlink.RouteList(nil, vishnetlink.FAMILY_V4)
@@ -632,11 +632,9 @@ func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error
 			return len(routes), nil
 		}
 
-		return client.DeleteEndpointsImpl(ep, getNumRoutesLeft)
+		client.DeleteEndpointsImpl(ep, getNumRoutesLeft)
+		return nil
 	})
-	if err != nil {
-		logger.Warn("could not delete transparent vlan endpoints", zap.String("errorMsg", err.Error()))
-	}
 
 	// VM NS
 	if err := client.DeleteSnatEndpoint(); err != nil {
@@ -646,16 +644,16 @@ func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error
 }
 
 // getNumRoutesLeft is a function which gets the current number of routes in the namespace. Namespace: Vnet
-func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, _ func() (int, error)) error {
+func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, _ func() (int, error)) {
 	routeInfoList := client.GetVnetRoutes(ep.IPAddresses)
 	if err := deleteRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
-		return errors.Wrap(err, "failed to remove routes")
+		logger.Error("Failed to remove routes", zap.Error(err))
 	}
 
 	logger.Info("Deleting host veth", zap.String("vnetVethName", client.vnetVethName))
 	// Delete Host Veth
 	if err := client.netlink.DeleteLink(client.vnetVethName); err != nil {
-		return errors.Wrapf(err, "deleteLink for %v failed", client.vnetVethName)
+		logger.Error("Failed to delete link", zap.Error(err), zap.String("vnetVethName", client.vnetVethName))
 	}
 
 	// TODO: revist if this require in future.
@@ -670,7 +668,6 @@ func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, _
 			}
 		}
 	*/
-	return nil
 }
 
 // Helper function that allows executing a function in a VM namespace

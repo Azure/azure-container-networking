@@ -22,6 +22,7 @@ type MockNetlink struct {
 	errorString   string
 	deleteRouteFn routeValidateFn
 	addRouteFn    routeValidateFn
+	DeleteLinkFn  func(name string) error
 }
 
 func NewMockNetlink(returnError bool, errorString string) *MockNetlink {
@@ -55,6 +56,9 @@ func (f *MockNetlink) SetLinkMTU(name string, mtu int) error {
 }
 
 func (f *MockNetlink) DeleteLink(name string) error {
+	if f.DeleteLinkFn != nil {
+		return f.DeleteLinkFn(name)
+	}
 	return f.error()
 }
 
