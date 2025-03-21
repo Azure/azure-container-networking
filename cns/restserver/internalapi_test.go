@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/netip"
 	"os"
 	"reflect"
 	"strconv"
@@ -913,12 +914,23 @@ func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConf
 	ipSubnet.IPAddress = primaryIP
 	ipSubnet.PrefixLength = subnetPrfixLength
 	ipConfig.IPSubnet = ipSubnet
+	
+	ipFamilies := map[cns.IPFamily]struct{}{}
+	for _, secIPConfig := range secondaryIps {
+		IP, _ := netip.ParseAddr(secIPConfig.IPAddress)
+		if IP.Is4() {
+			ipFamilies[cns.IPv4Family] = struct{}{}
+		} else {
+			ipFamilies[cns.IPv6Family] = struct{}{}
+		}
+	}
 
 	req := cns.CreateNetworkContainerRequest{
 		NetworkContainerType: dockerContainerType,
 		NetworkContainerid:   ncID,
 		IPConfiguration:      ipConfig,
 		Version:              ncVersion,
+		IPFamilies:           ipFamilies,
 	}
 
 	ncVersionInInt, _ := strconv.Atoi(ncVersion)

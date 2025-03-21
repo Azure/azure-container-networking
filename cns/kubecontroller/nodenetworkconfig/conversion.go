@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/pkg/errors"
 )
 
@@ -102,5 +104,46 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwor
 		return nil, errors.Wrapf(err, "error while creating NC request from static NC")
 	}
 
+	logger.Printf("[CreateNCRequestFromStaticNC] Created NC request %+v", req)
+
+	err = assignIPToDelegatedNIC(nc)
+
 	return req, err
+}
+
+func assignIPToDelegatedNIC(nc v1alpha.NetworkContainer) error {
+	logger.Printf("[assignIPToDelegatedNIC] Before Assign IP to the Delegated NIC")
+
+	// Assign IP to the Delegated NIC
+	nl := netlink.NewNetlink()
+
+	if nl == nil {
+		logger.Printf("failed to create netlink handle")
+		return errors.New("failed to create netlink handle")
+	}
+
+	ip, addr, _ := net.ParseCIDR(nc.PrimaryIP)
+
+	logger.Printf("[assignIPToDelegatedNIC] ip %s addr %s", ip, addr)
+
+	err := nl.AddIPAddress("eth1", ip, addr)
+
+	if err != nil {
+		errors.Wrapf(err, "failed to assign IP to delegated NIC")
+	}
+
+	ipv6, addrv6, _ := net.ParseCIDR(nc.PrimaryIPv6)
+
+	logger.Printf("[assignIPToDelegatedNIC] ip %s addr %s", ipv6, addrv6)
+
+	if ipv6 != nil {
+		errv6 := nl.AddIPAddress("eth1", ipv6, addrv6)
+
+		if errv6 != nil {
+			errors.Wrapf(errv6, "failed to assign V6 IP to delegated NIC")
+		}
+	}
+
+	logger.Printf("[assignIPToDelegatedNIC] After Assign IP to the Delegated NIC")
+	return err
 }

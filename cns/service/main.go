@@ -1415,9 +1415,11 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
 		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
+		logger.Printf("Before IMDS call")
 		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
 			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
 		}
+		logger.Printf("After IMDS call")
 	}
 
 	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
@@ -1711,6 +1713,8 @@ func getPodInfoByIPProvider(
 func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, node *corev1.Node) error {
 	imdsCli := imds.NewClient()
 	vmUniqueID, err := imdsCli.GetVMUniqueID(ctx)
+
+	logger.Printf("VMUniqueID from IMDS call %s", vmUniqueID)
 	if err != nil {
 		return errors.Wrap(err, "error getting vm unique ID from imds")
 	}

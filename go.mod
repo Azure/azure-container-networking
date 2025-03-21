@@ -12,7 +12,7 @@ require (
 	github.com/avast/retry-go/v3 v3.1.1
 	github.com/avast/retry-go/v4 v4.6.1
 	github.com/billgraziano/dpapi v0.5.0
-	github.com/containernetworking/cni v1.2.2
+	github.com/containernetworking/cni v1.2.3
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/golang/mock v1.6.0
@@ -25,7 +25,7 @@ require (
 	github.com/microsoft/ApplicationInsights-Go v0.4.4
 	github.com/nxadm/tail v1.4.11
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/gomega v1.33.1
+	github.com/onsi/gomega v1.36.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.21.1
@@ -202,3 +202,5 @@ retract (
 	v1.16.15 // typo in the version number.
 	v1.15.22 // typo in the version number.
 )
+
+replace github.com/Azure/azure-container-networking => ./azure-container-networking

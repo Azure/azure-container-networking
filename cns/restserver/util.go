@@ -171,6 +171,8 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 		hostVersion = "-1"
 	}
 
+	hostVersion = req.Version
+
 	// Remove the auth token before saving the containerStatus to cns json file
 	createNetworkContainerRequest := req
 	createNetworkContainerRequest.AuthorizationToken = ""
@@ -845,7 +847,11 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 	podIPInfo.HostPrimaryIPInfo.PrimaryIP = primaryHostInterface.PrimaryIP
 	podIPInfo.HostPrimaryIPInfo.Subnet = primaryHostInterface.Subnet
 	podIPInfo.HostPrimaryIPInfo.Gateway = primaryHostInterface.Gateway
+	podIPInfo.MacAddress = ncStatus.CreateNetworkContainerRequest.NetworkInterfaceInfo.MACAddress
+	fmt.Printf("podIPInfo from NNC: %+v", podIPInfo)
 	podIPInfo.NICType = cns.InfraNIC
+	//podIPInfo.MacAddress = "00-0D-3A-07-2C-D1"
+	fmt.Printf("podIPInfo after adding interface new: %+v", podIPInfo)
 
 	return nil
 }
