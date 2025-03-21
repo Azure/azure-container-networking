@@ -15,81 +15,81 @@ jobs:
   - job: npm_k8se2e
     displayName: "NPM k8s E2E"
     dependsOn: ${{ parameters.dependsOn }}
-    condition: and( and( not(canceled()), not(failed()) ), ${{ or(contains(parameters.os_version, '2022'), eq(parameters.os, 'linux') ) }} , or( contains(variables.CONTROL_SCENARIO, 'npm') , contains(variables.CONTROL_SCENARIO, 'all') ) )
+    condition: and( and( not(canceled()), not(failed()) ), ${{ or(contains(parameters.os_version, '2022'), and( eq(parameters.os, 'linux'), not(contains(parameters.clusterName, 'linux-podsub')) ) ) }} , or( contains(variables.CONTROL_SCENARIO, 'npm') , contains(variables.CONTROL_SCENARIO, 'all') ) )
     timeoutInMinutes: 180 # This is for testing windows, due to the 3m between the 14 tests -> results in 42m of wasted time
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
       demands:
-      - agent.os -equals Linux
-      - Role -equals Build
+        - agent.os -equals Linux
+        - Role -equals Build
     steps:
       - ${{ if eq(parameters.os, 'linux') }}:
-        - task: AzureCLI@2
-          displayName: "Deploy NPM to Test Cluster"
-          inputs:
-            azureSubscription: ${{ parameters.sub }}
-            scriptType: "bash"
-            scriptLocation: "inlineScript"
-            inlineScript: |
-              set -ex
+          - task: AzureCLI@2
+            displayName: "Deploy NPM to Test Cluster"
+            inputs:
+              azureSubscription: ${{ parameters.sub }}
+              scriptType: "bash"
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                set -ex
 
-              make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
 
-              # deploy azure-npm
-              kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
-              kubectl set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:${{ parameters.tag }}
-              kubectl rollout status -n kube-system daemonset/azure-npm
+                # deploy azure-npm
+                kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
+                kubectl set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:${{ parameters.tag }}
+                kubectl rollout status -n kube-system daemonset/azure-npm
 
-              kubectl get po -n kube-system -owide -A
+                kubectl get po -n kube-system -owide -A
 
-              # FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
-              FQDN=`az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query fqdn -o tsv`
-              echo $FQDN
-              echo "##vso[task.setvariable variable=FQDN]$FQDN"
+                # FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
+                FQDN=`az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query fqdn -o tsv`
+                echo $FQDN
+                echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
-              artifact=npm_k8s
-              echo $artifact/e2e.test
-              echo "##vso[task.setvariable variable=artifact]$artifact"
+                artifact=npm_k8s
+                echo $artifact/e2e.test
+                echo "##vso[task.setvariable variable=artifact]$artifact"
 
-        - download: current
-          artifact: npm_k8s
+          - download: current
+            artifact: npm_k8s
 
       - ${{ if eq(parameters.os, 'windows') }}:
-        - task: AzureCLI@2
-          displayName: "Deploy Windows NPM to Test Cluster"
-          inputs:
-            azureSubscription: ${{ parameters.sub }}
-            scriptType: "bash"
-            scriptLocation: "inlineScript"
-            inlineScript: |
-              set -ex
+          - task: AzureCLI@2
+            displayName: "Deploy Windows NPM to Test Cluster"
+            inputs:
+              azureSubscription: ${{ parameters.sub }}
+              scriptType: "bash"
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                set -ex
 
-              make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
 
-              # deploy azure-npm-win
-              # Windows
-              kubectl apply -f npm/examples/windows/azure-npm.yaml
-              kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-${{ parameters.tag }}
-              kubectl rollout status -n kube-system daemonset/azure-npm-win
+                # deploy azure-npm-win
+                # Windows
+                kubectl apply -f npm/examples/windows/azure-npm.yaml
+                kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-${{ parameters.tag }}
+                kubectl rollout status -n kube-system daemonset/azure-npm-win
 
-              # konnectivity agent tends to fail after rollout. Give it time to recover
-              sleep 60
-              # Taint Linux (system) nodes so windows tests do not run on them
-              kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule
+                # konnectivity agent tends to fail after rollout. Give it time to recover
+                sleep 60
+                # Taint Linux (system) nodes so windows tests do not run on them
+                kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule
 
-              kubectl get po -n kube-system -owide -A
+                kubectl get po -n kube-system -owide -A
 
-              # FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
-              FQDN=`az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query fqdn -o tsv`
-              echo $FQDN
-              echo "##vso[task.setvariable variable=FQDN]$FQDN"
+                # FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
+                FQDN=`az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query fqdn -o tsv`
+                echo $FQDN
+                echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
-              artifact=npm_k8s_windows
-              echo $artifact/e2e.test
-              echo "##vso[task.setvariable variable=artifact]$artifact"
+                artifact=npm_k8s_windows
+                echo $artifact/e2e.test
+                echo "##vso[task.setvariable variable=artifact]$artifact"
 
-        - download: current
-          artifact: npm_k8s_windows
+          - download: current
+            artifact: npm_k8s_windows
 
       - bash: |
           set -e
@@ -126,12 +126,12 @@ jobs:
         continueOnError: ${{ parameters.continueOnError }}
 
       - ${{ if eq(parameters.os, 'windows') }}:
-        - bash: |
-            # Untaint Linux (system) nodes once testing is complete
-            kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule-
+          - bash: |
+              # Untaint Linux (system) nodes once testing is complete
+              kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule-
 
-          displayName: Untaint Linux Nodes
-          condition: always()
+            displayName: Untaint Linux Nodes
+            condition: always()
 
       - bash: |
           npmLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_npmLogs_Attempt_#$(System.StageAttempt)
