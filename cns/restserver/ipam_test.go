@@ -178,36 +178,46 @@ func updatePnpIDMacAddressState(svc *HTTPRestService) {
 	}
 }
 
-// create an endpoint with only one IP
-func TestEndpointStateReadAndWriteSingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestEndpointStateReadAndWrite(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP1v6,
+				},
 			},
 		},
 	}
-	endpointStateReadAndWrite(t, ncStates)
-}
-
-// create an endpoint with one IP from each NC
-func TestEndpointStateReadAndWriteMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		EndpointStateReadAndWrite(t, ncState)
 	}
-	endpointStateReadAndWrite(t, ncStates)
 }
 
 // Tests the creation of an endpoint using the NCs and IPs as input and then tests the deletion of that endpoint
@@ -282,35 +292,46 @@ func endpointStateReadAndWrite(t *testing.T, ncStates []ncState) {
 }
 
 // assign the available IP to the new pod
-func TestIPAMGetAvailableIPConfigSingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestIPAMGetAvailableIPConfig(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP1v6,
+				},
 			},
 		},
 	}
-	ipamGetAvailableIPConfig(t, ncStates)
-}
-
-// assign one IP per NC to the pod
-func TestIPAMGetAvailableIPConfigMultipleNCs(t *testing.T) {
-	nsStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		IPAMGetAvailableIPConfig(t, ncState)
 	}
-	ipamGetAvailableIPConfig(t, nsStates)
 }
 
 // Add one IP per NC to the pool and request those IPs
@@ -359,37 +380,51 @@ func ipamGetAvailableIPConfig(t *testing.T, ncStates []ncState) {
 	}
 }
 
-func TestIPAMGetNextAvailableIPConfigSingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestIPAMGetNextAvailableIPConfig(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-				testIP2,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+					testIP2v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+					testIP1v6,
+					testIP2v6,
+				},
 			},
 		},
 	}
-	getNextAvailableIPConfig(t, ncStates)
-}
-
-func TestIPAMGetNextAvailableIPConfigMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-				testIP2,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-				testIP2v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		IPAMGetNextAvailableIPConfig(t, ncState)
 	}
-	getNextAvailableIPConfig(t, ncStates)
 }
 
 // First IP is already assigned to a pod, want second IP
@@ -442,34 +477,46 @@ func getNextAvailableIPConfig(t *testing.T, ncStates []ncState) {
 	}
 }
 
-func TestIPAMGetAlreadyAssignedIPConfigForSamePodSingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestIPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP1v6,
+				},
 			},
 		},
 	}
-	ipamGetAlreadyAssignedIPConfigForSamePod(t, ncStates)
-}
-
-func TestIPAMGetAlreadyAssignedIPConfigForSamePodMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		IPAMGetAlreadyAssignedIPConfigForSamePod(t, ncState)
 	}
-	ipamGetAlreadyAssignedIPConfigForSamePod(t, ncStates)
 }
 
 func ipamGetAlreadyAssignedIPConfigForSamePod(t *testing.T, ncStates []ncState) {
@@ -517,37 +564,51 @@ func ipamGetAlreadyAssignedIPConfigForSamePod(t *testing.T, ncStates []ncState) 
 	}
 }
 
-func TestIPAMAttemptToRequestIPNotFoundInPoolSingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestIPAMAttemptToRequestIPNotFoundInPool(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-				testIP2,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+					testIP2v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+					testIP1v6,
+					testIP2v6,
+				},
 			},
 		},
 	}
-	ipamAttemptToRequestIPNotFoundInPool(t, ncStates)
-}
-
-func TestIPAMAttemptToRequestIPNotFoundInPoolMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-				testIP2,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-				testIP2v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		IPAMAttemptToRequestIPNotFoundInPool(t, ncState)
 	}
-	ipamAttemptToRequestIPNotFoundInPool(t, ncStates)
 }
 
 func ipamAttemptToRequestIPNotFoundInPool(t *testing.T, ncStates []ncState) {
@@ -580,34 +641,46 @@ func ipamAttemptToRequestIPNotFoundInPool(t *testing.T, ncStates []ncState) {
 	}
 }
 
-func TestIPAMGetDesiredIPConfigWithSpecfiedIPSingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestIPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP1v6,
+				},
 			},
 		},
 	}
-	ipamGetDesiredIPConfigWithSpecfiedIP(t, ncStates)
-}
-
-func TestIPAMGetDesiredIPConfigWithSpecfiedIPMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		IPAMGetDesiredIPConfigWithSpecfiedIP(t, ncState)
 	}
-	ipamGetDesiredIPConfigWithSpecfiedIP(t, ncStates)
 }
 
 func ipamGetDesiredIPConfigWithSpecfiedIP(t *testing.T, ncStates []ncState) {
@@ -659,34 +732,46 @@ func ipamGetDesiredIPConfigWithSpecfiedIP(t *testing.T, ncStates []ncState) {
 	}
 }
 
-func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIPSingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP1v6,
+				},
 			},
 		},
 	}
-	ipamFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t, ncStates)
-}
-
-func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIPMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		IPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t, ncState)
 	}
-	ipamFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t, ncStates)
 }
 
 func ipamFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T, ncStates []ncState) {
@@ -720,37 +805,51 @@ func ipamFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T, ncS
 	}
 }
 
-func TestIPAMFailToGetIPWhenAllIPsAreAssignedSingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestIPAMFailToGetIPWhenAllIPsAreAssigned(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-				testIP2,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+					testIP2v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+					testIP1v6,
+					testIP2v6,
+				},
 			},
 		},
 	}
-	ipamFailToGetIPWhenAllIPsAreAssigned(t, ncStates)
-}
-
-func TestIPAMFailToGetIPWhenAllIPsAreAssignedMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-				testIP2,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-				testIP2v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		IPAMFailToGetIPWhenAllIPsAreAssigned(t, ncState)
 	}
-	ipamFailToGetIPWhenAllIPsAreAssigned(t, ncStates)
 }
 
 func ipamFailToGetIPWhenAllIPsAreAssigned(t *testing.T, ncStates []ncState) {
@@ -780,34 +879,46 @@ func ipamFailToGetIPWhenAllIPsAreAssigned(t *testing.T, ncStates []ncState) {
 	}
 }
 
-func TestIPAMRequestThenReleaseThenRequestAgainSingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP1v6,
+				},
 			},
 		},
 	}
-	ipamRequestThenReleaseThenRequestAgain(t, ncStates)
-}
-
-func TestIPAMRequestThenReleaseThenRequestAgainMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		IPAMRequestThenReleaseThenRequestAgain(t, ncState)
 	}
-	ipamRequestThenReleaseThenRequestAgain(t, ncStates)
 }
 
 // 10.0.0.1 = PodInfo1
@@ -889,34 +1000,46 @@ func ipamRequestThenReleaseThenRequestAgain(t *testing.T, ncStates []ncState) {
 	}
 }
 
-func TestIPAMReleaseIPIdempotencySingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestIPAMReleaseIPIdempotency(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP1v6,
+				},
 			},
 		},
 	}
-	ipamReleaseIPIdempotency(t, ncStates)
-}
-
-func TestIPAMReleaseIPIdempotencyMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		IPAMReleaseIPIdempotency(t, ncState)
 	}
-	ipamReleaseIPIdempotency(t, ncStates)
 }
 
 func ipamReleaseIPIdempotency(t *testing.T, ncStates []ncState) {
@@ -945,34 +1068,46 @@ func ipamReleaseIPIdempotency(t *testing.T, ncStates []ncState) {
 	}
 }
 
-func TestIPAMAllocateIPIdempotencySingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestIPAMAllocateIPIdempotency(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP1v6,
+				},
 			},
 		},
 	}
-	ipamAllocateIPIdempotency(t, ncStates)
-}
-
-func TestIPAMAllocateIPIdempotencyMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		IPAMAllocateIPIdempotency(t, ncState)
 	}
-	ipamAllocateIPIdempotency(t, ncStates)
 }
 
 func ipamAllocateIPIdempotency(t *testing.T, ncStates []ncState) {
@@ -994,40 +1129,56 @@ func ipamAllocateIPIdempotency(t *testing.T, ncStates []ncState) {
 	}
 }
 
-func TestAvailableIPConfigsSingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestAvailableIPConfigs(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-				testIP2,
-				testIP3,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+					testIP3,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+					testIP3,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+					testIP2v6,
+					testIP3v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+					testIP3,
+					testIP1v6,
+					testIP2v6,
+					testIP3v6,
+				},
 			},
 		},
 	}
-	availableIPConfigs(t, ncStates)
-}
-
-func TestAvailableIPConfigsMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-				testIP2,
-				testIP3,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-				testIP2v6,
-				testIP3v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		AvailableIPConfigs(t, ncState)
 	}
-	availableIPConfigs(t, ncStates)
 }
 
 func availableIPConfigs(t *testing.T, ncStates []ncState) {
@@ -1113,34 +1264,46 @@ func validateIpState(t *testing.T, actualIps []cns.IPConfigurationStatus, expect
 	}
 }
 
-func TestIPAMMarkIPCountAsPendingSingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestIPAMMarkIPCountAsPending(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP1v6,
+				},
 			},
 		},
 	}
-	ipamMarkIPCountAsPending(t, ncStates)
-}
-
-func TestIPAMMarkIPCountAsPendingMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		IPAMMarkIPCountAsPending(t, ncState)
 	}
-	ipamMarkIPCountAsPending(t, ncStates)
 }
 
 func ipamMarkIPCountAsPending(t *testing.T, ncStates []ncState) {
@@ -1272,37 +1435,51 @@ func constructSecondaryIPConfigs(ipAddress, uuid string, ncVersion int, secondar
 	secondaryIPConfigs[uuid] = secIPConfig
 }
 
-func TestIPAMMarkExistingIPConfigAsPendingSingleNC(t *testing.T) {
-	ncStates := []ncState{
+func TestIPAMMarkExistingIPConfigAsPending(t *testing.T) {
+	testNcs := [][]ncState{
+		// single stack NC
 		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-				testIP2,
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+				},
+			},
+		},
+		// two NCs (one V4 and one V6)
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+				},
+			},
+			{
+				ncID: testNCIDv6,
+				ips: []string{
+					testIP1v6,
+					testIP2v6,
+				},
+			},
+		},
+		// dualstack NC
+		{
+			{
+				ncID: testNCID,
+				ips: []string{
+					testIP1,
+					testIP2,
+					testIP1v6,
+					testIP2v6,
+				},
 			},
 		},
 	}
-	ipamMarkExistingIPConfigAsPending(t, ncStates)
-}
-
-func TestIPAMMarkExistingIPConfigAsPendingMultipleNCs(t *testing.T) {
-	ncStates := []ncState{
-		{
-			ncID: testNCID,
-			ips: []string{
-				testIP1,
-				testIP2,
-			},
-		},
-		{
-			ncID: testNCIDv6,
-			ips: []string{
-				testIP1v6,
-				testIP2v6,
-			},
-		},
+	for _, ncState := range testNcs {
+		IPAMMarkExistingIPConfigAsPending(t, ncState)
 	}
-	ipamMarkExistingIPConfigAsPending(t, ncStates)
 }
 
 func ipamMarkExistingIPConfigAsPending(t *testing.T, ncStates []ncState) {
@@ -1433,27 +1610,32 @@ func TestIPAMReleaseOneIPWhenExpectedToHaveTwo(t *testing.T) {
 
 func TestIPAMFailToRequestOneIPWhenExpectedToHaveTwo(t *testing.T) {
 	svc := getTestService(cns.KubernetesCRD)
-
 	// set state as already assigned
-	testState := newPodState(testIP1, ipIDs[0][0], testNCID, types.Available, 0)
+	testState1, _ := NewPodStateWithOrchestratorContext(testIP1, testIPID1, testNCID, types.Assigned, 24, 0, testPod1Info)
+	testState2 := NewPodState(testIP2, testIPID2, testNCID, types.Available, 0)
 	ipconfigs := map[string]cns.IPConfigurationStatus{
-		testState.ID: testState,
+		testState1.ID: testState1,
+		testState2.ID: testState2,
 	}
-	emptyIpconfigs := map[string]cns.IPConfigurationStatus{}
+	testState1v6, _ := NewPodStateWithOrchestratorContext(testIP1v6, testIPID1v6, testNCIDv6, types.Assigned, 120, 0, testPod1Info)
+	// setting v6 IPs to Assigned so there are none available
+	ipconfigsV6 := map[string]cns.IPConfigurationStatus{
+		testState1v6.ID: testState1v6,
+	}
 
 	err := updatePodIPConfigState(t, svc, ipconfigs, testNCID)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
-	err = updatePodIPConfigState(t, svc, emptyIpconfigs, testNCIDv6)
+	err = UpdatePodIPConfigState(t, svc, ipconfigsV6, testNCIDv6)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
 	}
 
 	// request should expect 2 IPs but there is only 1 in the pool
 	req := cns.IPConfigsRequest{}
-	b, _ := testPod1Info.OrchestratorContext()
+	b, _ := testPod2Info.OrchestratorContext()
 	req.OrchestratorContext = b
 
 	_, err = requestIPAddressAndGetState(t, req)

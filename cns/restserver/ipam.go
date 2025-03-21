@@ -995,38 +995,85 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	if numOfNCs == 0 {
 		return nil, ErrNoNCs
 	}
+
+	//  Map used to get the number of IPFamilies across all NCs
+	ncIPFamilies := map[cns.IPFamily]struct{}{}
+	// Gets the IPFamilies from all NCs and store them in a map. This will be used to determine the number of IPs to return
+	for ncID := range service.state.ContainerStatus {
+		if len(ncIPFamilies) == 2 {
+			break
+		}
+
+		for _, secIPConfig := range service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.SecondaryIPConfigs {
+			if len(ncIPFamilies) == 2 {
+				break
+			}
+
+			ip := net.ParseIP(secIPConfig.IPAddress)
+			if ip == nil {
+				continue
+			}
+
+			if ip.To4() != nil {
+				ncIPFamilies[cns.IPv4] = struct{}{}
+			} else {
+				ncIPFamilies[cns.IPv6] = struct{}{}
+			}
+		}
+	}
+	// Makes sure we have at least one IPFamily across all NCs
+	numOfIPFamilies := len(ncIPFamilies)
+
+	numberOfIPs := numOfNCs
+	if numOfIPFamilies != 0 {
+		numberOfIPs = numOfIPFamilies
+	}
+
 	service.Lock()
 	defer service.Unlock()
 	// Creates a slice of PodIpInfo with the size as number of NCs to hold the result for assigned IP configs
-	podIPInfo := make([]cns.PodIpInfo, numOfNCs)
+	podIPInfo := make([]cns.PodIpInfo, numberOfIPs)
 	// This map is used to store whether or not we have found an available IP from an NC when looping through the pool
 	ipsToAssign := make(map[string]cns.IPConfigurationStatus)
 
 	// Searches for available IPs in the pool
 	for _, ipState := range service.PodIPConfigState {
-		// check if an IP from this NC is already set side for assignment.
-		if _, ncAlreadyMarkedForAssignment := ipsToAssign[ipState.NCID]; ncAlreadyMarkedForAssignment {
+
+		// get the IPFamily of the current ipState
+		var ipStateFamily cns.IPFamily
+		if net.ParseIP(ipState.IPAddress).To4() != nil {
+			ipStateFamily = cns.IPv4
+		} else {
+			ipStateFamily = cns.IPv6
+		}
+
+		key := generateAssignedIPKey(ipState.NCID, ipStateFamily)
+
+		// check if the IP with the same family type exists already
+		if _, ncIPFamilyAlreadyMarkedForAssignment := ipsToAssign[key]; ncIPFamilyAlreadyMarkedForAssignment {
 			continue
 		}
 		// Checks if the current IP is available
 		if ipState.GetState() != types.Available {
 			continue
 		}
-		ipsToAssign[ipState.NCID] = ipState
-		// Once one IP per container is found break out of the loop and stop searching
-		if len(ipsToAssign) == numOfNCs {
+		ipsToAssign[key] = ipState
+		// Once numberOfIPs per container is found break out of the loop and stop searching
+		if len(ipsToAssign) == numberOfIPs {
 			break
 		}
 	}
 
-	// Checks to make sure we found one IP for each NC
-	if len(ipsToAssign) != numOfNCs {
+	// Checks to make sure we found one IP for each NCxIPFamily
+	if len(ipsToAssign) != numberOfIPs {
 		for ncID := range service.state.ContainerStatus {
-			if _, found := ipsToAssign[ncID]; found {
-				continue
+			for ipFamily := range ncIPFamilies {
+				if _, found := ipsToAssign[generateAssignedIPKey(ncID, ipFamily)]; found {
+					continue
+				}
+				return podIPInfo, errors.Errorf("not enough IPs available of type %s for %s, waiting on Azure CNS to allocate more with NC Status: %s",
+					ipFamily, ncID, string(service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.NCStatus))
 			}
-			return podIPInfo, errors.Errorf("not enough IPs available for %s, waiting on Azure CNS to allocate more with NC Status: %s",
-				ncID, string(service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.NCStatus))
 		}
 	}
 
@@ -1061,8 +1108,12 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 		return podIPInfo, fmt.Errorf("not enough IPs available, waiting on Azure CNS to allocate more")
 	}
 
-	logger.Printf("[AssignDesiredIPConfigs] Successfully assigned IPs for pod %+v", podInfo)
+	logger.Printf("[AssignAvailableIPConfigs] Successfully assigned IPs for pod %+v", podInfo)
 	return podIPInfo, nil
+}
+
+func generateAssignedIPKey(ncID string, ipFamily cns.IPFamily) string {
+	return fmt.Sprintf("%s_%s", ncID, string(ipFamily))
 }
 
 // If IPConfigs are already assigned to the pod, it returns that else it returns the available ipconfigs.
