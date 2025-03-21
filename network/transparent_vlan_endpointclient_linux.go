@@ -622,7 +622,7 @@ func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMa
 
 func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	// Vnet NS
-	err := ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
+	_ = ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
 		// Passing in functionality to get number of routes after deletion
 		getNumRoutesLeft := func() (int, error) {
 			routes, err := vishnetlink.RouteList(nil, vishnetlink.FAMILY_V4)
@@ -635,9 +635,6 @@ func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error
 		client.DeleteEndpointsImpl(ep, getNumRoutesLeft)
 		return nil
 	})
-	if err != nil {
-		logger.Warn("could not delete transparent vlan endpoints", zap.String("errorMsg", err.Error()))
-	}
 
 	// VM NS
 	if err := client.DeleteSnatEndpoint(); err != nil {
