@@ -1,0 +1,56 @@
+parameters:
+- name: target
+  type: string
+
+- name: os
+  type: string
+
+- name: arch
+  type: string
+
+
+steps:
+- task: GoTool@0
+  inputs:
+    version: '$(GOVERSION)'
+
+- bash: |
+    sudo apt-get update -y
+    if [[ $GOARCH =~ amd64 ]]; then
+      sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
+      for dir in /usr/include/x86_64-linux-gnu/*; do 
+        sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
+      done
+
+    elif [[ $GOARCH =~ arm64 ]]; then
+      sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
+      for dir in /usr/include/aarch64-linux-gnu/*; do 
+        sudo ln -sfn "$dir" /usr/include/$(basename "$dir")
+      done
+    fi
+  displayName: "Install Binary Pre-Reqs"
+  workingDirectory: $(ACN_DIR)
+  env:
+    TARGET: ${{ parameters.target }}
+    GOOS: ${{ parameters.os }}
+    GOARCH: ${{ parameters.arch }}
+
+- bash: |
+    make "$TARGET"
+    ls -la output
+  displayName: "Build Binary - ${{ parameters.target }}"
+  workingDirectory: $(ACN_DIR)
+  env:
+    TARGET: ${{ parameters.target }}
+    GOOS: ${{ parameters.os }}
+    GOARCH: ${{ parameters.arch }}
+
+- script: |
+    SOURCE_DIR="./output"
+    TARGET_DIR="$BUILD_ARTIFACTSTAGINGDIRECTORY"/out
+    mkdir -p "$TARGET_DIR"
+    find "$SOURCE_DIR" -name '*.tgz*' -print -exec mv -t "$TARGET_DIR"/ {} +
+    find "$SOURCE_DIR" -name '*.zip' -print -exec mv -t "$TARGET_DIR"/ {} +
+    ls -la "$TARGET_DIR"
+  displayName: "Prepare Artifacts"
+  workingDirectory: $(ACN_DIR)

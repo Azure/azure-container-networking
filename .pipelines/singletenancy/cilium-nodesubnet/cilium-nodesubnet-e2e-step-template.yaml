@@ -4,12 +4,6 @@ parameters:
   scaleup: ""
 
 steps:
-  - bash: |
-      echo $UID
-      sudo rm -rf $(System.DefaultWorkingDirectory)/*
-    displayName: "Set up OS environment"
-
-  - checkout: self
 
   - bash: |
       go version
@@ -21,6 +15,10 @@ steps:
       echo '##vso[task.prependpath]$(GOROOT)/bin'
     name: "GoEnv"
     displayName: "Set up the Go environment"
+
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
 
   - task: AzureCLI@2
     displayName: 'Update IP configs'
@@ -39,10 +37,6 @@ steps:
           SECONDARY_IP_COUNT=$((SCALE_UP * 2)) \
           RESOURCE_GROUP="MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST)" \
           go run $(Build.SourcesDirectory)/test/integration/cilium-nodesubnet/ipconfigupdate.go
-
-  - task: KubectlInstaller@0
-    inputs:
-      kubectlVersion: latest
 
   - task: AzureCLI@2
     inputs:

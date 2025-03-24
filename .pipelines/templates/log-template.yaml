@@ -23,6 +23,10 @@ parameters:
   jobName: "FailedE2ELogs"
 
 steps:
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -268,8 +272,8 @@ steps:
       displayName: Windows Logs
       condition: always()
 
-  - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
-    condition: always()
-    artifact: ${{ parameters.clusterName }}_${{ parameters.os }}${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
-    name: acnLogs_${{ parameters.logType }}
-    displayName: Publish Cluster logs
+  - task: CopyFiles@2
+    displayName: "Add Logs to Artifacts Dir"
+    inputs:
+      sourceFolder: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+      targetFolder: $(Build.ArtifactStagingDirectory)/out

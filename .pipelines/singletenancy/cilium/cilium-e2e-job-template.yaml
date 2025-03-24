@@ -14,8 +14,6 @@ stages:
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
@@ -34,7 +32,6 @@ stages:
     displayName: E2E - ${{ parameters.displayName }}
     dependsOn:
     - setup
-    - publish
     - ${{ parameters.clusterName }}
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
@@ -44,8 +41,6 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
     condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Test Suite - (${{ parameters.name }})
@@ -55,7 +50,10 @@ stages:
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
+          isCustom: true
+          type: linux
         steps:
+          - checkout: azure-container-networking
           - template: cilium-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
@@ -80,7 +78,14 @@ stages:
           - ${{ parameters.name }}
           - cni_${{ parameters.os }}
         condition: failed()
+        pool:
+          type: linux
+          isCustom: true
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
         steps:
+          - checkout: azure-container-networking
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)

@@ -4,12 +4,6 @@ parameters:
   scaleup: ""
 
 steps:
-  - bash: |
-      echo $UID
-      sudo rm -rf $(System.DefaultWorkingDirectory)/*
-    displayName: "Set up OS environment"
-
-  - checkout: self
 
   - bash: |
       go version
@@ -59,10 +53,27 @@ steps:
   - script: |
       echo "Start Azilium E2E Tests"
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZILIUM=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load \
+                              SCALE_UP="$SCALE_UP" \
+                              OS_TYPE="$OS_TYPE" \
+                              VALIDATE_STATEFILE="$VALIDATE_STATEFILE" \
+                              INSTALL_CNS="$INSTALL_CNS" \
+                              INSTALL_AZILIUM="$INSTALL_AZILIUM" \
+                              AZURE_IPAM_VERSION="$AZURE_IPAM_VERSION" \
+                              CNS_VERSION="$CNS_VERSION" \
+                              CLEANUP="$CLEANUP"
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E"
+    env:
+      SCALE_UP: 32
+      OS_TYPE: linux
+      VALIDATE_STATEFILE: true
+      INSTALL_CNS: true
+      INSTALL_AZILIUM: true
+      AZURE_IPAM_VERSION: $(azureIpamVersion)
+      CNS_VERSION: $(cnsVersion)
+      CLEANUP: true
 
   - template: ../../templates/cilium-tests.yaml
     parameters:

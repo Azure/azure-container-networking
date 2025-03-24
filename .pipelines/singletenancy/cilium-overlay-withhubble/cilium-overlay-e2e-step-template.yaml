@@ -5,12 +5,6 @@ parameters:
   scaleup: ""
 
 steps:
-  - bash: |
-      echo $UID
-      sudo rm -rf $(System.DefaultWorkingDirectory)/*
-    displayName: "Set up OS environment"
-
-  - checkout: self
 
   - bash: |
       go version

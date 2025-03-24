@@ -14,7 +14,12 @@ parameters:
 jobs:
   - job: ${{ parameters.name }}
     displayName: Cluster - ${{ parameters.name }}
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      isCustom: true
+      type: linux
     steps:
+      - checkout: azure-container-networking
       - task: AzureCLI@2
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
