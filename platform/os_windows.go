@@ -311,9 +311,11 @@ func restartHNS(ctx context.Context) error {
 	)
 	// Start the service again
 	log.Printf("Starting HNS service")
-	if err := service.Start(); err != nil {
-		return errors.Wrap(err, "could not start service")
-	}
+	_ = retry.Do(
+		tryStartServiceFn(ctx, service),
+		retry.UntilSucceeded(),
+		retry.Context(ctx),
+	)
 	log.Printf("HNS service started")
 	return nil
 }
@@ -321,38 +323,76 @@ func restartHNS(ctx context.Context) error {
 type managedService interface {
 	Control(control svc.Cmd) (svc.Status, error)
 	Query() (svc.Status, error)
+	Start(args ...string) error
 }
 
-func tryStopServiceFn(ctx context.Context, service managedService) func() error {
+func tryStartServiceFn(ctx context.Context, service managedService) func() error {
+	shouldStart := func(state svc.State) bool {
+		return !(state == svc.Running || state == svc.StartPending)
+	}
 	return func() error {
 		status, err := service.Query()
 		if err != nil {
 			return errors.Wrap(err, "could not query service status")
 		}
-		// If the service is already stopped, no need to stop it again
-		if status.State == svc.Stopped {
-			return nil
+		if shouldStart(status.State) {
+			err = service.Start()
+			if err != nil {
+				return errors.Wrap(err, "could not start service")
+			}
 		}
-		_, err = service.Control(svc.Stop)
+		// Wait for the service to start
+		ticker := time.NewTicker(500 * time.Millisecond) //nolint:gomnd // 500ms
+		defer ticker.Stop()
+		for {
+			status, err := service.Query()
+			if err != nil {
+				return errors.Wrap(err, "could not query service status")
+			}
+			if status.State == svc.Running {
+				log.Printf("service started")
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return errors.Wrap(ctx.Err(), "context cancelled")
+			case <-ticker.C:
+			}
+		}
+		return nil
+	}
+}
+
+func tryStopServiceFn(ctx context.Context, service managedService) func() error {
+	shouldStop := func(state svc.State) bool {
+		return !(state == svc.Stopped || state == svc.StopPending)
+	}
+	return func() error {
+		status, err := service.Query()
 		if err != nil {
-			return errors.Wrap(err, "could not stop service")
+			return errors.Wrap(err, "could not query service status")
+		}
+		if shouldStop(status.State) {
+			_, err = service.Control(svc.Stop)
+			if err != nil {
+				return errors.Wrap(err, "could not stop service")
+			}
 		}
 		// Wait for the service to stop
 		ticker := time.NewTicker(500 * time.Millisecond) //nolint:gomnd // 500ms
 		defer ticker.Stop()
 		for {
-			log.Printf("Waiting for HNS service to stop")
 			status, err := service.Query()
 			if err != nil {
 				return errors.Wrap(err, "could not query service status")
 			}
 			if status.State == svc.Stopped {
-				log.Printf("HNS service stopped")
+				log.Printf("service stopped")
 				break
 			}
 			select {
 			case <-ctx.Done():
-				return errors.New("context cancelled")
+				return errors.Wrap(ctx.Err(), "context cancelled")
 			case <-ticker.C:
 			}
 		}

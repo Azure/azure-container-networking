@@ -151,6 +151,7 @@ func TestExecuteCommandTimeout(t *testing.T) {
 type mockManagedService struct {
 	queryFuncs  []func() (svc.Status, error)
 	controlFunc func(svc.Cmd) (svc.Status, error)
+	startFunc   func(args ...string) error
 }
 
 func (m *mockManagedService) Query() (svc.Status, error) {
@@ -163,6 +164,10 @@ func (m *mockManagedService) Control(cmd svc.Cmd) (svc.Status, error) {
 	return m.controlFunc(cmd)
 }
 
+func (m *mockManagedService) Start(args ...string) error {
+	return m.startFunc(args...)
+}
+
 func TestTryStopServiceFn(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -173,6 +178,9 @@ func TestTryStopServiceFn(t *testing.T) {
 		{
 			name: "Service already stopped",
 			queryFuncs: []func() (svc.Status, error){
+				func() (svc.Status, error) {
+					return svc.Status{State: svc.Stopped}, nil
+				},
 				func() (svc.Status, error) {
 					return svc.Status{State: svc.Stopped}, nil
 				},
@@ -246,6 +254,93 @@ func TestTryStopServiceFn(t *testing.T) {
 				controlFunc: tt.controlFunc,
 			}
 			err := tryStopServiceFn(context.Background(), service)()
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestTryStartServiceFn(t *testing.T) {
+	tests := []struct {
+		name        string
+		queryFuncs  []func() (svc.Status, error)
+		startFunc   func(...string) error
+		expectError bool
+	}{
+		{
+			name: "Service already running",
+			queryFuncs: []func() (svc.Status, error){
+				func() (svc.Status, error) {
+					return svc.Status{State: svc.Running}, nil
+				},
+				func() (svc.Status, error) {
+					return svc.Status{State: svc.Running}, nil
+				},
+			},
+			startFunc:   nil,
+			expectError: false,
+		},
+		{
+			name: "Service already starting",
+			queryFuncs: []func() (svc.Status, error){
+				func() (svc.Status, error) {
+					return svc.Status{State: svc.StartPending}, nil
+				},
+				func() (svc.Status, error) {
+					return svc.Status{State: svc.Running}, nil
+				},
+			},
+			startFunc:   nil,
+			expectError: false,
+		},
+		{
+			name: "Service starts successfully",
+			queryFuncs: []func() (svc.Status, error){
+				func() (svc.Status, error) {
+					return svc.Status{State: svc.Stopped}, nil
+				},
+				func() (svc.Status, error) {
+					return svc.Status{State: svc.Running}, nil
+				},
+			},
+			startFunc: func(...string) error {
+				return nil
+			},
+			expectError: false,
+		},
+		{
+			name: "Service fails to start",
+			queryFuncs: []func() (svc.Status, error){
+				func() (svc.Status, error) {
+					return svc.Status{State: svc.Stopped}, nil
+				},
+			},
+			startFunc: func(...string) error {
+				return errors.New("failed to start service") //nolint:err113 // test error
+			},
+			expectError: true,
+		},
+		{
+			name: "Service query fails",
+			queryFuncs: []func() (svc.Status, error){
+				func() (svc.Status, error) {
+					return svc.Status{}, errors.New("failed to query service status") //nolint:err113 // test error
+				},
+			},
+			startFunc:   nil,
+			expectError: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &mockManagedService{
+				queryFuncs: tt.queryFuncs,
+				startFunc:  tt.startFunc,
+			}
+			err := tryStartServiceFn(context.Background(), service)()
 			if tt.expectError {
 				assert.Error(t, err)
 				return
