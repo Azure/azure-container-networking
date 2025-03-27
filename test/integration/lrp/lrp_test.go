@@ -86,10 +86,10 @@ func setupLRP(t *testing.T, ctx context.Context) (*v1.Pod, func()) {
 	// Write the updated content back to the file
 	err = os.WriteFile(tempNodeLocalDNSDaemonsetPath, []byte(replaced), 0o644)
 	require.NoError(t, err)
-	cleanUpFns = append(cleanUpFns, func() {
+	defer func() {
 		err := os.Remove(tempNodeLocalDNSDaemonsetPath)
 		require.NoError(t, err)
-	})
+	}()
 
 	// list out and select node of choice
 	nodeList, err := kubernetes.GetNodeList(ctx, cs)
@@ -153,19 +153,9 @@ func setupLRP(t *testing.T, ctx context.Context) (*v1.Pod, func()) {
 	return &selectedClientPod, cleanupFn
 }
 
-// TestLRP tests if the local redirect policy in a cilium cluster is functioning
-// The test assumes the current kubeconfig points to a cluster with cilium (1.16+), cns,
-// and kube-dns already installed. The lrp feature flag should be enabled in the cilium config
-// Resources created are automatically cleaned up
-// From the lrp folder, run: go test ./lrp_test.go -v -tags "lrp" -run ^TestLRP$
-func TestLRP(t *testing.T) {
+func testLRPCase(t *testing.T, ctx context.Context, clientPod v1.Pod, clientCmd []string, expectResponse string, countShouldIncrease bool) {
 	config := kubernetes.MustGetRestConfig()
 	cs := kubernetes.MustGetClientset()
-	ctx := context.Background()
-
-	selectedPod, cleanupFn := setupLRP(t, ctx)
-	defer cleanupFn()
-	require.NotNil(t, selectedPod)
 
 	// labels for target lrp metric
 	metricLabels := map[string]string{
@@ -179,24 +169,43 @@ func TestLRP(t *testing.T) {
 	beforeMetric, err := prometheus.GetMetric(promAddress, coreDNSRequestCountTotal, metricLabels)
 	require.NoError(t, err)
 
-	t.Log("calling nslookup from client")
+	t.Log("calling command from client")
 	// nslookup to 10.0.0.10 (coredns)
-	val, err := kubernetes.ExecCmdOnPod(ctx, cs, selectedPod.Namespace, selectedPod.Name, clientContainer, []string{
-		"nslookup", "google.com", "10.0.0.10",
-	}, config)
+	val, err := kubernetes.ExecCmdOnPod(ctx, cs, clientPod.Namespace, clientPod.Name, clientContainer, clientCmd, config)
 	require.NoError(t, err, string(val))
 	// can connect
-	require.Contains(t, string(val), "Server:")
+	require.Contains(t, string(val), expectResponse)
 
 	// in case there is time to propagate
-	time.Sleep(1 * time.Second)
+	time.Sleep(500 * time.Millisecond)
 
 	// curl again and see count increases
 	afterMetric, err := prometheus.GetMetric(promAddress, coreDNSRequestCountTotal, metricLabels)
 	require.NoError(t, err)
 
 	// count should go up
-	require.Greater(t, afterMetric.GetCounter().GetValue(), beforeMetric.GetCounter().GetValue(), "dns metric count did not increase after nslookup")
+	if countShouldIncrease {
+		require.Greater(t, afterMetric.GetCounter().GetValue(), beforeMetric.GetCounter().GetValue(), "dns metric count did not increase after command")
+	} else {
+		require.Equal(t, afterMetric.GetCounter().GetValue(), beforeMetric.GetCounter().GetValue(), "dns metric count increased after command")
+	}
+}
+
+// TestLRP tests if the local redirect policy in a cilium cluster is functioning
+// The test assumes the current kubeconfig points to a cluster with cilium (1.16+), cns,
+// and kube-dns already installed. The lrp feature flag should be enabled in the cilium config
+// Resources created are automatically cleaned up
+// From the lrp folder, run: go test ./lrp_test.go -v -tags "lrp" -run ^TestLRP$
+func TestLRP(t *testing.T) {
+	ctx := context.Background()
+
+	selectedPod, cleanupFn := setupLRP(t, ctx)
+	defer cleanupFn()
+	require.NotNil(t, selectedPod)
+
+	testLRPCase(t, ctx, *selectedPod, []string{
+		"nslookup", "google.com", "10.0.0.10",
+	}, "Server:", true)
 }
 
 // TakeOne takes one item from the slice randomly; if empty, it returns the empty value for the type
