@@ -17,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/rand"
+	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -46,15 +47,22 @@ var (
 	clientPath                     = ciliumManifestsDir + "client-ds.yaml"
 )
 
-// TestLRP tests if the local redirect policy in a cilium cluster is functioning
-// The test assumes the current kubeconfig points to a cluster with cilium (1.16+), cns,
-// and kube-dns already installed. The lrp feature flag should be enabled in the cilium config
-// Resources created are automatically cleaned up
-// From the lrp folder, run: go test ./lrp_test.go -v -tags "lrp" -run ^TestLRP$
-func TestLRP(t *testing.T) {
-	config := kubernetes.MustGetRestConfig()
-	ctx := context.Background()
+func setupLRP(t *testing.T, ctx context.Context) (*v1.Pod, func()) {
+	var cleanUpFns []func()
+	success := false
+	cleanupFn := func() {
+		for len(cleanUpFns) > 0 {
+			cleanUpFns[len(cleanUpFns)-1]()
+			cleanUpFns = cleanUpFns[:len(cleanUpFns)-1]
+		}
+	}
+	defer func() {
+		if !success {
+			cleanupFn()
+		}
+	}()
 
+	config := kubernetes.MustGetRestConfig()
 	cs := kubernetes.MustGetClientset()
 
 	ciliumCS, err := ciliumClientset.NewForConfig(config)
@@ -78,10 +86,10 @@ func TestLRP(t *testing.T) {
 	// Write the updated content back to the file
 	err = os.WriteFile(tempNodeLocalDNSDaemonsetPath, []byte(replaced), 0o644)
 	require.NoError(t, err)
-	defer func() {
+	cleanUpFns = append(cleanUpFns, func() {
 		err := os.Remove(tempNodeLocalDNSDaemonsetPath)
 		require.NoError(t, err)
-	}()
+	})
 
 	// list out and select node of choice
 	nodeList, err := kubernetes.GetNodeList(ctx, cs)
@@ -90,13 +98,13 @@ func TestLRP(t *testing.T) {
 
 	// deploy node local dns preqreqs and pods
 	_, cleanupConfigMap := kubernetes.MustSetupConfigMap(ctx, cs, nodeLocalDNSConfigMapPath)
-	defer cleanupConfigMap()
+	cleanUpFns = append(cleanUpFns, cleanupConfigMap)
 	_, cleanupServiceAccount := kubernetes.MustSetupServiceAccount(ctx, cs, nodeLocalDNSServiceAccountPath)
-	defer cleanupServiceAccount()
+	cleanUpFns = append(cleanUpFns, cleanupServiceAccount)
 	_, cleanupService := kubernetes.MustSetupService(ctx, cs, nodeLocalDNSServicePath)
-	defer cleanupService()
+	cleanUpFns = append(cleanUpFns, cleanupService)
 	nodeLocalDNSDS, cleanupNodeLocalDNS := kubernetes.MustSetupDaemonset(ctx, cs, tempNodeLocalDNSDaemonsetPath)
-	defer cleanupNodeLocalDNS()
+	cleanUpFns = append(cleanUpFns, cleanupNodeLocalDNS)
 	err = kubernetes.WaitForPodsRunning(ctx, cs, nodeLocalDNSDS.Namespace, nodeLocalDNSLabelSelector)
 	require.NoError(t, err)
 	// select a local dns pod after they start running
@@ -106,19 +114,19 @@ func TestLRP(t *testing.T) {
 
 	// deploy lrp
 	_, cleanupLRP := kubernetes.MustSetupLRP(ctx, ciliumCS, lrpPath)
-	defer cleanupLRP()
+	cleanUpFns = append(cleanUpFns, cleanupLRP)
 
 	// create client pods
 	clientDS, cleanupClient := kubernetes.MustSetupDaemonset(ctx, cs, clientPath)
-	defer cleanupClient()
+	cleanUpFns = append(cleanUpFns, cleanupClient)
 	err = kubernetes.WaitForPodsRunning(ctx, cs, clientDS.Namespace, clientLabelSelector)
 	require.NoError(t, err)
 	// select a client pod after they start running
 	clientPods, err := kubernetes.GetPodsByNode(ctx, cs, clientDS.Namespace, clientLabelSelector, selectedNode)
 	require.NoError(t, err)
-	selectedClientPod := TakeOne(clientPods.Items).Name
+	selectedClientPod := TakeOne(clientPods.Items)
 
-	t.Logf("Selected node: %s, node local dns pod: %s, client pod: %s\n", selectedNode, selectedLocalDNSPod, selectedClientPod)
+	t.Logf("Selected node: %s, node local dns pod: %s, client pod: %s\n", selectedNode, selectedLocalDNSPod, selectedClientPod.Name)
 
 	// port forward to local dns pod on same node (separate thread)
 	pf, err := k8s.NewPortForwarder(config, k8s.PortForwardingOpts{
@@ -130,16 +138,34 @@ func TestLRP(t *testing.T) {
 	require.NoError(t, err)
 	pctx := context.Background()
 	portForwardCtx, cancel := context.WithTimeout(pctx, (retryAttempts+1)*retryDelay)
-	defer cancel()
+	cleanUpFns = append(cleanUpFns, cancel)
 
 	err = defaultRetrier.Do(portForwardCtx, func() error {
 		t.Logf("attempting port forward to a pod with label %s, in namespace %s...", nodeLocalDNSLabelSelector, nodeLocalDNSDS.Namespace)
 		return errors.Wrap(pf.Forward(portForwardCtx), "could not start port forward")
 	})
 	require.NoError(t, err, "could not start port forward within %d", (retryAttempts+1)*retryDelay)
-	defer pf.Stop()
+	cleanUpFns = append(cleanUpFns, pf.Stop)
 
 	t.Log("started port forward")
+
+	success = true
+	return &selectedClientPod, cleanupFn
+}
+
+// TestLRP tests if the local redirect policy in a cilium cluster is functioning
+// The test assumes the current kubeconfig points to a cluster with cilium (1.16+), cns,
+// and kube-dns already installed. The lrp feature flag should be enabled in the cilium config
+// Resources created are automatically cleaned up
+// From the lrp folder, run: go test ./lrp_test.go -v -tags "lrp" -run ^TestLRP$
+func TestLRP(t *testing.T) {
+	config := kubernetes.MustGetRestConfig()
+	cs := kubernetes.MustGetClientset()
+	ctx := context.Background()
+
+	selectedPod, cleanupFn := setupLRP(t, ctx)
+	defer cleanupFn()
+	require.NotNil(t, selectedPod)
 
 	// labels for target lrp metric
 	metricLabels := map[string]string{
@@ -155,7 +181,7 @@ func TestLRP(t *testing.T) {
 
 	t.Log("calling nslookup from client")
 	// nslookup to 10.0.0.10 (coredns)
-	val, err := kubernetes.ExecCmdOnPod(ctx, cs, clientDS.Namespace, selectedClientPod, clientContainer, []string{
+	val, err := kubernetes.ExecCmdOnPod(ctx, cs, selectedPod.Namespace, selectedPod.Name, clientContainer, []string{
 		"nslookup", "google.com", "10.0.0.10",
 	}, config)
 	require.NoError(t, err, string(val))
