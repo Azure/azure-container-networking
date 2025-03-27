@@ -308,6 +308,7 @@ func restartHNS(ctx context.Context) error {
 		tryStopServiceFn(ctx, service),
 		retry.UntilSucceeded(),
 		retry.Context(ctx),
+		retry.DelayType(retry.BackOffDelay),
 	)
 	// Start the service again
 	log.Printf("Starting HNS service")
@@ -315,6 +316,7 @@ func restartHNS(ctx context.Context) error {
 		tryStartServiceFn(ctx, service),
 		retry.UntilSucceeded(),
 		retry.Context(ctx),
+		retry.DelayType(retry.BackOffDelay),
 	)
 	log.Printf("HNS service started")
 	return nil
@@ -342,6 +344,8 @@ func tryStartServiceFn(ctx context.Context, service managedService) func() error
 			}
 		}
 		// Wait for the service to start
+		deadline, cancel := context.WithTimeout(ctx, 90*time.Second)
+		defer cancel()
 		ticker := time.NewTicker(500 * time.Millisecond) //nolint:gomnd // 500ms
 		defer ticker.Stop()
 		for {
@@ -354,8 +358,8 @@ func tryStartServiceFn(ctx context.Context, service managedService) func() error
 				break
 			}
 			select {
-			case <-ctx.Done():
-				return errors.Wrap(ctx.Err(), "context cancelled")
+			case <-deadline.Done():
+				return deadline.Err() //nolint:wrapcheck // error has sufficient context
 			case <-ticker.C:
 			}
 		}
@@ -379,6 +383,8 @@ func tryStopServiceFn(ctx context.Context, service managedService) func() error 
 			}
 		}
 		// Wait for the service to stop
+		deadline, cancel := context.WithTimeout(ctx, 90*time.Second)
+		defer cancel()
 		ticker := time.NewTicker(500 * time.Millisecond) //nolint:gomnd // 500ms
 		defer ticker.Stop()
 		for {
@@ -391,8 +397,8 @@ func tryStopServiceFn(ctx context.Context, service managedService) func() error 
 				break
 			}
 			select {
-			case <-ctx.Done():
-				return errors.Wrap(ctx.Err(), "context cancelled")
+			case <-deadline.Done():
+				return deadline.Err() //nolint:wrapcheck // error has sufficient context
 			case <-ticker.C:
 			}
 		}
