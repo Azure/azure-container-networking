@@ -189,6 +189,18 @@ func mustCreateCiliumLocalRedirectPolicy(ctx context.Context, lrpClient typedcil
 	}
 }
 
+func mustCreateCiliumNetworkPolicy(ctx context.Context, cnpClient typedciliumv2.CiliumNetworkPolicyInterface, cnp ciliumv2.CiliumNetworkPolicy) {
+	if err := cnpClient.Delete(ctx, cnp.Name, metav1.DeleteOptions{}); err != nil {
+		if !apierrors.IsNotFound(err) {
+			log.Fatal(errors.Wrap(err, "failed to delete cilium network policy"))
+		}
+	}
+	log.Printf("Creating CiliumNetworkPolicy %v", cnp.Name)
+	if _, err := cnpClient.Create(ctx, &cnp, metav1.CreateOptions{}); err != nil {
+		log.Fatal(errors.Wrap(err, "failed to create cilium network policy"))
+	}
+}
+
 func MustScaleDeployment(ctx context.Context,
 	deploymentsClient typedappsv1.DeploymentInterface,
 	deployment appsv1.Deployment,

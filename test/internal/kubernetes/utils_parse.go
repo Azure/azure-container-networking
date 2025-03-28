@@ -66,3 +66,9 @@ func mustParseLRP(path string) ciliumv2.CiliumLocalRedirectPolicy {
 	mustParseResource(path, &lrp)
 	return lrp
 }
+
+func mustParseCNP(path string) ciliumv2.CiliumNetworkPolicy {
+	var cnp ciliumv2.CiliumNetworkPolicy
+	mustParseResource(path, &cnp)
+	return cnp
+}

@@ -153,7 +153,7 @@ func setupLRP(t *testing.T, ctx context.Context) (*v1.Pod, func()) {
 	return &selectedClientPod, cleanupFn
 }
 
-func testLRPCase(t *testing.T, ctx context.Context, clientPod v1.Pod, clientCmd []string, expectResponse string, countShouldIncrease bool) {
+func testLRPCase(t *testing.T, ctx context.Context, clientPod v1.Pod, clientCmd []string, expectResponse, expectErrMsg string, countShouldIncrease bool) {
 	config := kubernetes.MustGetRestConfig()
 	cs := kubernetes.MustGetClientset()
 
@@ -171,10 +171,10 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod v1.Pod, clientCmd 
 
 	t.Log("calling command from client")
 	// nslookup to 10.0.0.10 (coredns)
-	val, err := kubernetes.ExecCmdOnPod(ctx, cs, clientPod.Namespace, clientPod.Name, clientContainer, clientCmd, config)
-	require.NoError(t, err, string(val))
-	// can connect
+	val, errMsg, err := kubernetes.ExecCmdOnPodOnce(ctx, cs, clientPod.Namespace, clientPod.Name, clientContainer, clientCmd, config)
+
 	require.Contains(t, string(val), expectResponse)
+	require.Contains(t, string(errMsg), expectErrMsg)
 
 	// in case there is time to propagate
 	time.Sleep(500 * time.Millisecond)
@@ -205,7 +205,7 @@ func TestLRP(t *testing.T) {
 
 	testLRPCase(t, ctx, *selectedPod, []string{
 		"nslookup", "google.com", "10.0.0.10",
-	}, "Server:", true)
+	}, "Server:", "", true)
 }
 
 // TakeOne takes one item from the slice randomly; if empty, it returns the empty value for the type
