@@ -195,7 +195,7 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod v1.Pod, clientCmd 
 // The test assumes the current kubeconfig points to a cluster with cilium (1.16+), cns,
 // and kube-dns already installed. The lrp feature flag should be enabled in the cilium config
 // Resources created are automatically cleaned up
-// From the lrp folder, run: go test ./lrp_test.go -v -tags "lrp" -run ^TestLRP$
+// From the lrp folder, run: go test ./ -v -tags "lrp" -run ^TestLRP$
 func TestLRP(t *testing.T) {
 	ctx := context.Background()
 
