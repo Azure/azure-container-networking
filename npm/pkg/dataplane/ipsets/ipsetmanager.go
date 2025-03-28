@@ -15,18 +15,18 @@ import (
 type IPSetMode string
 
 /*
-	IPSet Modes
+IPSet Modes
 
-	- ApplyAllIPSets:
-		- all ipsets are added to the kernel
-		- ipsets are removed from the kernel when they are deleted from the cache
-		- creates empty ipsets
-		- adds empty/unreferenced ipsets to the toDelete cache periodically
+- ApplyAllIPSets:
+  - all ipsets are added to the kernel
+  - ipsets are removed from the kernel when they are deleted from the cache
+  - creates empty ipsets
+  - adds empty/unreferenced ipsets to the toDelete cache periodically
 
-	- ApplyOnNeed:
-		- ipsets are added to the kernel when they are referenced by network policies or lists in the kernel
-		- ipsets are removed from the kernel when they no longer have a reference
-		- removes empty/unreferenced ipsets from the cache periodically
+- ApplyOnNeed:
+  - ipsets are added to the kernel when they are referenced by network policies or lists in the kernel
+  - ipsets are removed from the kernel when they no longer have a reference
+  - removes empty/unreferenced ipsets from the cache periodically
 */
 const (
 	ApplyAllIPSets IPSetMode = "all"
@@ -75,9 +75,9 @@ func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetMana
 }
 
 /*
-	Reconcile removes empty/unreferenced sets from the cache.
-	For ApplyAllIPSets mode, those sets are added to the toDeleteCache.
-	We can't delete from kernel immediately unless we lock iMgr during policy CRUD.
+Reconcile removes empty/unreferenced sets from the cache.
+For ApplyAllIPSets mode, those sets are added to the toDeleteCache.
+We can't delete from kernel immediately unless we lock iMgr during policy CRUD.
 */
 func (iMgr *IPSetManager) Reconcile() {
 	iMgr.Lock()
@@ -240,7 +240,7 @@ func (iMgr *IPSetManager) AddToSets(addToSets []*IPSetMetadata, ip, podKey strin
 
 	if !validateIPSetMemberIP(ip) {
 		msg := fmt.Sprintf("error: failed to add to sets: invalid ip %s", ip)
-		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "%s", msg)
 		return npmerrors.Errorf(npmerrors.AppendIPSet, true, msg)
 	}
 
@@ -276,7 +276,7 @@ func (iMgr *IPSetManager) RemoveFromSets(removeFromSets []*IPSetMetadata, ip, po
 
 	if !validateIPSetMemberIP(ip) {
 		msg := fmt.Sprintf("error: failed to add to sets: invalid ip %s", ip)
-		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "%s", msg)
 		return npmerrors.Errorf(npmerrors.AppendIPSet, true, msg)
 	}
 
