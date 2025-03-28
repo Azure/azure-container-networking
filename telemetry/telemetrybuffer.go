@@ -308,7 +308,7 @@ func (tb *TelemetryBuffer) StartTelemetryService(path string, args []string) err
 	err := tb.plc.KillProcessByName(TelemetryServiceProcessName)
 	if err != nil {
 		if tb.logger != nil {
-			tb.logger.Error("Failed to kill process by", zap.String("TelemetryServiceProcessName", TelemetryServiceProcessName), zap.Error(err))
+			tb.logger.Warn("Failed to kill process by", zap.String("TelemetryServiceProcessName", TelemetryServiceProcessName), zap.Error(err))
 		} else {
 			log.Logf("[Telemetry] Failed to kill process by telemetryServiceProcessName %s due to %v", TelemetryServiceProcessName, err)
 		}
