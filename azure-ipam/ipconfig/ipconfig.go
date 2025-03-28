@@ -3,6 +3,7 @@ package ipconfig
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/netip"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -63,8 +64,9 @@ func CreateIPConfigsReq(args *cniSkel.CmdArgs) (cns.IPConfigsRequest, error) {
 	return req, nil
 }
 
-func ProcessIPConfigsResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, error) {
+func ProcessIPConfigsResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, *[]net.IP, error) {
 	podIPNets := make([]netip.Prefix, len(resp.PodIPInfo))
+	gatewaysIPs := make([]net.IP, len(resp.PodIPInfo))
 
 	for i := range resp.PodIPInfo {
 		podCIDR := fmt.Sprintf(
@@ -74,12 +76,29 @@ func ProcessIPConfigsResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, error) 
 		)
 		podIPNet, err := netip.ParsePrefix(podCIDR)
 		if err != nil {
-			return nil, errors.Wrapf(err, "cns returned invalid pod CIDR %q", podCIDR)
+			return nil, nil, errors.Wrapf(err, "cns returned invalid pod CIDR %q", podCIDR)
 		}
 		podIPNets[i] = podIPNet
+
+		if podIPNet.Addr().Is4() {
+			gatewayIP := net.ParseIP(resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
+
+			if gatewayIP == nil {
+				return nil, nil, errors.New("cns returned invalid gateway IP address")
+			}
+			gatewaysIPs[i] = gatewayIP
+		} else if podIPNet.Addr().Is6() {
+			gatewayIP := net.ParseIP(resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPv6Address)
+
+			if gatewayIP == nil {
+				return nil, nil, errors.New("cns returned invalid gateway IPv6 address")
+			}
+			gatewaysIPs[i] = gatewayIP
+		}
+
 	}
 
-	return &podIPNets, nil
+	return &podIPNets, &gatewaysIPs, nil
 }
 
 type k8sPodEnvArgs struct {
