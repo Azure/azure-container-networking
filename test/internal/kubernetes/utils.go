@@ -500,7 +500,9 @@ func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespac
 	return result, errors.Wrapf(err, "could not execute the cmd %s on %s", cmd, podName)
 }
 
-func ExecCmdOnPodOnce(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName, containerName string, cmd []string, config *rest.Config) ([]byte, []byte, error) {
+// ExecCmdOnPodOnce runs a command on the specified pod and returns its standard output, standard error output, and error in that order
+// The command does not retry when the command fails (ex: due to timeout), unlike ExecCmdOnPod
+func ExecCmdOnPodOnce(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName, containerName string, cmd []string, config *rest.Config) ([]byte, []byte, error) { // nolint
 	req := clientset.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Name(podName).
