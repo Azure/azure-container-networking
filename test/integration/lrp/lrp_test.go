@@ -105,7 +105,7 @@ func setupLRP(t *testing.T, ctx context.Context) (*corev1.Pod, func()) {
 	cleanUpFns = append(cleanUpFns, cleanupService)
 	nodeLocalDNSDS, cleanupNodeLocalDNS := kubernetes.MustSetupDaemonset(ctx, cs, tempNodeLocalDNSDaemonsetPath)
 	cleanUpFns = append(cleanUpFns, cleanupNodeLocalDNS)
-	err = kubernetes.WaitForPodsRunning(ctx, cs, nodeLocalDNSDS.Namespace, nodeLocalDNSLabelSelector)
+	kubernetes.WaitForPodDaemonset(ctx, cs, nodeLocalDNSDS.Namespace, nodeLocalDNSDS.Name, nodeLocalDNSLabelSelector)
 	require.NoError(t, err)
 	// select a local dns pod after they start running
 	pods, err := kubernetes.GetPodsByNode(ctx, cs, nodeLocalDNSDS.Namespace, nodeLocalDNSLabelSelector, selectedNode)
@@ -119,7 +119,7 @@ func setupLRP(t *testing.T, ctx context.Context) (*corev1.Pod, func()) {
 	// create client pods
 	clientDS, cleanupClient := kubernetes.MustSetupDaemonset(ctx, cs, clientPath)
 	cleanUpFns = append(cleanUpFns, cleanupClient)
-	err = kubernetes.WaitForPodsRunning(ctx, cs, clientDS.Namespace, clientLabelSelector)
+	kubernetes.WaitForPodDaemonset(ctx, cs, clientDS.Namespace, clientDS.Name, clientLabelSelector)
 	require.NoError(t, err)
 	// select a client pod after they start running
 	clientPods, err := kubernetes.GetPodsByNode(ctx, cs, clientDS.Namespace, clientLabelSelector, selectedNode)
@@ -153,7 +153,9 @@ func setupLRP(t *testing.T, ctx context.Context) (*corev1.Pod, func()) {
 	return &selectedClientPod, cleanupFn
 }
 
-func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, clientCmd []string, expectResponse, expectErrMsg string, countShouldIncrease bool) {
+func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, clientCmd []string, expectResponse, expectErrMsg string,
+	shouldError, countShouldIncrease bool) {
+
 	config := kubernetes.MustGetRestConfig()
 	cs := kubernetes.MustGetClientset()
 
@@ -171,10 +173,15 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, client
 
 	t.Log("calling command from client")
 
-	val, errMsg, err := kubernetes.ExecCmdOnPodOnce(ctx, cs, clientPod.Namespace, clientPod.Name, clientContainer, clientCmd, config)
+	val, errMsg, err := kubernetes.ExecCmdOnPod(ctx, cs, clientPod.Namespace, clientPod.Name, clientContainer, clientCmd, config, false)
 
 	require.Contains(t, string(val), expectResponse)
 	require.Contains(t, string(errMsg), expectErrMsg)
+	if shouldError {
+		require.Error(t, err)
+	} else {
+		require.NoError(t, err)
+	}
 
 	// in case there is time to propagate
 	time.Sleep(500 * time.Millisecond)
@@ -205,7 +212,7 @@ func TestLRP(t *testing.T) {
 
 	testLRPCase(t, ctx, *selectedPod, []string{
 		"nslookup", "google.com", "10.0.0.10",
-	}, "Server:", "", true)
+	}, "Server:", "", false, true)
 }
 
 // TakeOne takes one item from the slice randomly; if empty, it returns the empty value for the type

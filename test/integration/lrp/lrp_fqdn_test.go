@@ -48,37 +48,43 @@ func TestLRPFQDN(t *testing.T) {
 		command                []string
 		expectedMsgContains    string
 		expectedErrMsgContains string
+		shouldError            bool
 		countIncreases         bool
 	}{
 		{
 			name:                "nslookup google succeeds",
 			command:             []string{"nslookup", "www.google.com", "10.0.0.10"},
-			expectedMsgContains: "Server:",
+			expectedMsgContains: "answer:",
 			countIncreases:      true,
+			shouldError:         false,
 		},
 		{
 			name:                   "wget google succeeds",
 			command:                []string{"wget", "-O", "index.html", "www.google.com", "--timeout=5"},
 			expectedErrMsgContains: "saved",
 			countIncreases:         true,
+			shouldError:            false,
 		},
 		{
 			name:                "nslookup bing succeeds",
 			command:             []string{"nslookup", "www.bing.com", "10.0.0.10"},
-			expectedMsgContains: "Server:",
+			expectedMsgContains: "answer:",
 			countIncreases:      true,
+			shouldError:         false,
 		},
 		{
 			name:                   "wget bing fails but dns succeeds",
 			command:                []string{"wget", "-O", "index.html", "www.bing.com", "--timeout=5"},
 			expectedErrMsgContains: "timed out",
 			countIncreases:         true,
+			shouldError:            true,
 		},
 		{
 			name:                "nslookup example fails",
 			command:             []string{"nslookup", "www.example.com", "10.0.0.10"},
 			expectedMsgContains: "REFUSED",
 			countIncreases:      false,
+			shouldError:         true,
 		},
 		{
 			// won't be able to nslookup, let alone query the website
@@ -86,12 +92,13 @@ func TestLRPFQDN(t *testing.T) {
 			command:                []string{"wget", "-O", "index.html", "www.example.com", "--timeout=5"},
 			expectedErrMsgContains: "bad address",
 			countIncreases:         false,
+			shouldError:            true,
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			testLRPCase(t, ctx, *selectedPod, tt.command, tt.expectedMsgContains, tt.expectedErrMsgContains, tt.countIncreases)
+			testLRPCase(t, ctx, *selectedPod, tt.command, tt.expectedMsgContains, tt.expectedErrMsgContains, tt.shouldError, tt.countIncreases)
 		})
 	}
 }
