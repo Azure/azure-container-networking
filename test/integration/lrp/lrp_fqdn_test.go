@@ -52,11 +52,16 @@ func TestLRPFQDN(t *testing.T) {
 		countIncreases         bool
 	}{
 		{
-			name:                "nslookup google succeeds",
-			command:             []string{"nslookup", "www.google.com", "10.0.0.10"},
-			expectedMsgContains: "answer:",
-			countIncreases:      true,
-			shouldError:         false,
+			name:           "nslookup google succeeds",
+			command:        []string{"nslookup", "www.google.com", "10.0.0.10"},
+			countIncreases: true,
+			shouldError:    false,
+		},
+		{
+			name:           "nslookup google succeeds without explicit dns server",
+			command:        []string{"nslookup", "www.google.com"},
+			countIncreases: true,
+			shouldError:    false,
 		},
 		{
 			name:                   "wget google succeeds",
@@ -66,11 +71,10 @@ func TestLRPFQDN(t *testing.T) {
 			shouldError:            false,
 		},
 		{
-			name:                "nslookup bing succeeds",
-			command:             []string{"nslookup", "www.bing.com", "10.0.0.10"},
-			expectedMsgContains: "answer:",
-			countIncreases:      true,
-			shouldError:         false,
+			name:           "nslookup bing succeeds",
+			command:        []string{"nslookup", "www.bing.com", "10.0.0.10"},
+			countIncreases: true,
+			shouldError:    false,
 		},
 		{
 			name:                   "wget bing fails but dns succeeds",

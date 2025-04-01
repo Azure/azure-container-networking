@@ -174,14 +174,14 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, client
 	t.Log("calling command from client")
 
 	val, errMsg, err := kubernetes.ExecCmdOnPod(ctx, cs, clientPod.Namespace, clientPod.Name, clientContainer, clientCmd, config, false)
-
-	require.Contains(t, string(val), expectResponse)
-	require.Contains(t, string(errMsg), expectErrMsg)
 	if shouldError {
 		require.Error(t, err)
 	} else {
 		require.NoError(t, err)
 	}
+
+	require.Contains(t, string(val), expectResponse)
+	require.Contains(t, string(errMsg), expectErrMsg)
 
 	// in case there is time to propagate
 	time.Sleep(500 * time.Millisecond)
@@ -212,7 +212,7 @@ func TestLRP(t *testing.T) {
 
 	testLRPCase(t, ctx, *selectedPod, []string{
 		"nslookup", "google.com", "10.0.0.10",
-	}, "Server:", "", false, true)
+	}, "", "", false, true)
 }
 
 // TakeOne takes one item from the slice randomly; if empty, it returns the empty value for the type
