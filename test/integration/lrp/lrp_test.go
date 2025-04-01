@@ -17,7 +17,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/rand"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -47,7 +47,7 @@ var (
 	clientPath                     = ciliumManifestsDir + "client-ds.yaml"
 )
 
-func setupLRP(t *testing.T, ctx context.Context) (*v1.Pod, func()) {
+func setupLRP(t *testing.T, ctx context.Context) (*corev1.Pod, func()) {
 	var cleanUpFns []func()
 	success := false
 	cleanupFn := func() {
@@ -153,7 +153,7 @@ func setupLRP(t *testing.T, ctx context.Context) (*v1.Pod, func()) {
 	return &selectedClientPod, cleanupFn
 }
 
-func testLRPCase(t *testing.T, ctx context.Context, clientPod v1.Pod, clientCmd []string, expectResponse, expectErrMsg string, countShouldIncrease bool) {
+func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, clientCmd []string, expectResponse, expectErrMsg string, countShouldIncrease bool) {
 	config := kubernetes.MustGetRestConfig()
 	cs := kubernetes.MustGetClientset()
 
@@ -179,11 +179,10 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod v1.Pod, clientCmd 
 	// in case there is time to propagate
 	time.Sleep(500 * time.Millisecond)
 
-	// curl again and see count increases
+	// curl again and see count diff
 	afterMetric, err := prometheus.GetMetric(promAddress, coreDNSRequestCountTotal, metricLabels)
 	require.NoError(t, err)
 
-	// count should go up
 	if countShouldIncrease {
 		require.Greater(t, afterMetric.GetCounter().GetValue(), beforeMetric.GetCounter().GetValue(), "dns metric count did not increase after command")
 	} else {
@@ -194,6 +193,7 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod v1.Pod, clientCmd 
 // TestLRP tests if the local redirect policy in a cilium cluster is functioning
 // The test assumes the current kubeconfig points to a cluster with cilium (1.16+), cns,
 // and kube-dns already installed. The lrp feature flag should be enabled in the cilium config
+// Does not check if cluster is in a stable state
 // Resources created are automatically cleaned up
 // From the lrp folder, run: go test ./ -v -tags "lrp" -run ^TestLRP$
 func TestLRP(t *testing.T) {

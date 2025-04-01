@@ -20,6 +20,7 @@ var (
 // FQDN Cilium Network Policy. As such, enable-l7-proxy should be enabled in the config
 // The test assumes the current kubeconfig points to a cluster with cilium, cns,
 // and kube-dns already installed. The lrp feature flag should also be enabled in the cilium config
+// Does not check if cluster is in a stable state
 // Resources created are automatically cleaned up
 // From the lrp folder, run: go test ./ -v -tags "lrp" -run ^TestLRPFQDN$
 func TestLRPFQDN(t *testing.T) {
