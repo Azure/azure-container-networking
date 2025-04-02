@@ -95,7 +95,6 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
 		--k8s-support-plan AKSLongTermSupport \
 		--tier premium \
 		--network-plugin none \
@@ -113,7 +112,6 @@ overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay Cilium cluster
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
 		--k8s-support-plan AKSLongTermSupport \
 		--tier premium \
 		--network-plugin azure \
@@ -132,7 +130,6 @@ overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
 		--k8s-support-plan AKSLongTermSupport \
 		--tier premium \
 		--network-plugin azure \
@@ -150,7 +147,6 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
 		--k8s-support-plan AKSLongTermSupport \
 		--tier premium \
 		--network-plugin none \
@@ -169,7 +165,6 @@ swift-cilium-up: rg-up swift-net-up ## Bring up a SWIFT Cilium cluster
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
 		--k8s-support-plan AKSLongTermSupport \
 		--tier premium \
 		--network-plugin azure \
@@ -188,7 +183,6 @@ swift-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
 		--k8s-support-plan AKSLongTermSupport \
 		--tier premium \
 		--network-plugin azure \
@@ -205,7 +199,6 @@ cilium-overlay-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster 
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
 		--k8s-support-plan AKSLongTermSupport \
 		--tier premium \
 		--network-plugin none \
@@ -224,7 +217,6 @@ cilium-podsubnet-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster with
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
 		--k8s-support-plan AKSLongTermSupport \
 		--tier premium \
 		--network-plugin none \
