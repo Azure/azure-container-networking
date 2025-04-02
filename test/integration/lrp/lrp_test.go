@@ -175,9 +175,9 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, client
 
 	val, errMsg, err := kubernetes.ExecCmdOnPod(ctx, cs, clientPod.Namespace, clientPod.Name, clientContainer, clientCmd, config, false)
 	if shouldError {
-		require.Error(t, err)
+		require.Error(t, err, "stdout: %s, stderr: %s", string(val), string(errMsg))
 	} else {
-		require.NoError(t, err)
+		require.NoError(t, err, "stdout: %s, stderr: %s", string(val), string(errMsg))
 	}
 
 	require.Contains(t, string(val), expectResponse)
