@@ -19,6 +19,6 @@ spec:
           rules:
             dns:
               - matchPattern: "*.google.com"
-              - matchPattern: "*.bing.com"
+              - matchPattern: "*.cloudflare.com"
     - toFQDNs:
         - matchPattern: "*.google.com"

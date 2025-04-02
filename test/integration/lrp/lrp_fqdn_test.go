@@ -71,14 +71,14 @@ func TestLRPFQDN(t *testing.T) {
 			shouldError:            false,
 		},
 		{
-			name:           "nslookup bing succeeds",
-			command:        []string{"nslookup", "www.bing.com", "10.0.0.10"},
+			name:           "nslookup cloudflare succeeds",
+			command:        []string{"nslookup", "www.cloudflare.com", "10.0.0.10"},
 			countIncreases: true,
 			shouldError:    false,
 		},
 		{
-			name:                   "wget bing fails but dns succeeds",
-			command:                []string{"wget", "-O", "index.html", "www.bing.com", "--timeout=5"},
+			name:                   "wget cloudflare fails but dns succeeds",
+			command:                []string{"wget", "-O", "index.html", "www.cloudflare.com", "--timeout=5"},
 			expectedErrMsgContains: "timed out",
 			countIncreases:         true,
 			shouldError:            true,
