@@ -185,7 +185,8 @@ func (creator *FileCreator) runCommandOnceWithFile(fileString, cmd string, args 
 		return false, nil
 	}
 
-	klog.Infof("running this restore command: [%s]", commandString)
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+	// klog.Infof("running this restore command: [%s]", commandString)
 
 	if creator.verbose {
 		creator.logLines(commandString)

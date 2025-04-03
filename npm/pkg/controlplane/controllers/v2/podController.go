@@ -170,7 +170,8 @@ func (c *PodController) deletePod(obj interface{}) {
 		}
 	}
 
-	klog.Infof("[POD DELETE EVENT] for %s in %s", podObj.Name, podObj.Namespace)
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+	// klog.Infof("[POD DELETE EVENT] for %s in %s", podObj.Name, podObj.Namespace)
 	if isHostNetworkPod(podObj) {
 		return
 	}
@@ -191,12 +192,15 @@ func (c *PodController) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
-	klog.Infof("Starting Pod worker")
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+	// klog.Infof("Starting Pod worker")
 	go wait.Until(c.runWorker, time.Second, stopCh)
 
-	klog.Info("Started Pod workers")
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+	// klog.Info("Started Pod workers")
 	<-stopCh
-	klog.Info("Shutting down Pod workers")
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+	// klog.Info("Shutting down Pod workers")
 }
 
 func (c *PodController) runWorker() {
@@ -234,7 +238,8 @@ func (c *PodController) processNextWorkItem() bool {
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
 		c.workqueue.Forget(obj)
-		klog.Infof("Successfully synced '%s'", key)
+		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+		// klog.Infof("Successfully synced '%s'", key)
 		return nil
 	}(obj)
 	if err != nil {
@@ -347,8 +352,9 @@ func (c *PodController) syncPod(key string) error {
 }
 
 func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
-	klog.Infof("POD CREATING: [%s/%s/%s/%s/%+v/%s]", string(podObj.GetUID()), podObj.Namespace,
-		podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+	// klog.Infof("POD CREATING: [%s/%s/%s/%s/%+v/%s]", string(podObj.GetUID()), podObj.Namespace,
+	// 	podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
 
 	if !util.IsIPV4(podObj.Status.PodIP) {
 		msg := fmt.Sprintf("[syncAddedPod] warning: ADD POD  [%s/%s/%s/%+v] ignored as the PodIP is not valid ipv4 address. ip: [%s]", podObj.Namespace,
@@ -369,7 +375,8 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 	namespaceSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(podObj.Namespace, ipsets.Namespace)}
 
 	// Add the pod ip information into namespace's ipset.
-	klog.Infof("Adding pod %s (ip : %s) to ipset %s", podKey, podObj.Status.PodIP, podObj.Namespace)
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+	// klog.Infof("Adding pod %s (ip : %s) to ipset %s", podKey, podObj.Status.PodIP, podObj.Namespace)
 	if err = c.dp.AddToSets(namespaceSet, podMetadata); err != nil {
 		return fmt.Errorf("[syncAddedPod] Error: failed to add pod to namespace ipset with err: %w", err)
 	}
@@ -387,8 +394,9 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 		targetSetKeyValue := ipsets.NewIPSetMetadata(labelKeyValue, ipsets.KeyValueLabelOfPod)
 		allSets := []*ipsets.IPSetMetadata{targetSetKey, targetSetKeyValue}
 
-		klog.Infof("Creating ipsets %+v and %+v if they do not exist", targetSetKey, targetSetKeyValue)
-		klog.Infof("Adding pod %s (ip : %s) to ipset %s and %s", podKey, npmPodObj.PodIP, labelKey, labelKeyValue)
+		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+		// klog.Infof("Creating ipsets %+v and %+v if they do not exist", targetSetKey, targetSetKeyValue)
+		// klog.Infof("Adding pod %s (ip : %s) to ipset %s and %s", podKey, npmPodObj.PodIP, labelKey, labelKeyValue)
 		if err = c.dp.AddToSets(allSets, podMetadata); err != nil {
 			return fmt.Errorf("[syncAddedPod] Error: failed to add pod to label ipset with err: %w", err)
 		}
@@ -396,7 +404,8 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 	}
 
 	// Add pod's named ports from its ipset.
-	klog.Infof("Adding named port ipsets")
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+	// klog.Infof("Adding named port ipsets")
 	containerPorts := common.GetContainerPortList(podObj)
 	if err = c.manageNamedPortIpsets(containerPorts, podKey, npmPodObj.PodIP, podObj.Spec.NodeName, addNamedPort); err != nil {
 		return fmt.Errorf("[syncAddedPod] Error: failed to add pod to named port ipset with err: %w", err)
@@ -430,7 +439,8 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 	c.npmNamespaceCache.Unlock()
 
 	cachedNpmPod, exists := c.podMap[podKey]
-	klog.Infof("[syncAddAndUpdatePod] updating Pod with key %s", podKey)
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+	// klog.Infof("[syncAddAndUpdatePod] updating Pod with key %s", podKey)
 	// No cached npmPod exists. start adding the pod in a cache
 	if !exists {
 		return metrics.CreateOp, c.syncAddedPod(newPodObj)
@@ -446,15 +456,18 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 	// NPM should clean up existing references of cached pod obj and its IP.
 	// then, re-add new pod obj.
 	if cachedNpmPod.PodIP != newPodObj.Status.PodIP {
-		klog.Infof("Pod (Namespace:%s, Name:%s, newUid:%s), has cachedPodIp:%s which is different from PodIp:%s",
-			newPodObj.Namespace, newPodObj.Name, string(newPodObj.UID), cachedNpmPod.PodIP, newPodObj.Status.PodIP)
+		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+		// klog.Infof("Pod (Namespace:%s, Name:%s, newUid:%s), has cachedPodIp:%s which is different from PodIp:%s",
+		// 	newPodObj.Namespace, newPodObj.Name, string(newPodObj.UID), cachedNpmPod.PodIP, newPodObj.Status.PodIP)
 
-		klog.Infof("Deleting cached Pod with key:%s first due to IP Mistmatch", podKey)
+		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+		// klog.Infof("Deleting cached Pod with key:%s first due to IP Mistmatch", podKey)
 		if er := c.cleanUpDeletedPod(podKey); er != nil {
 			return metrics.UpdateOp, er
 		}
 
-		klog.Infof("Adding back Pod with key:%s after IP Mistmatch", podKey)
+		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+		// klog.Infof("Adding back Pod with key:%s after IP Mistmatch", podKey)
 		return metrics.UpdateOp, c.syncAddedPod(newPodObj)
 	}
 
@@ -468,7 +481,8 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 	cachedPodMetadata := dataplane.NewPodMetadata(podKey, cachedNpmPod.PodIP, newPodMetadata.NodeName)
 	// Delete the pod from its label's ipset.
 	for _, removeIPSetName := range deleteFromIPSets {
-		klog.Infof("Deleting pod %s (ip : %s) from ipset %s", podKey, cachedNpmPod.PodIP, removeIPSetName)
+		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+		// klog.Infof("Deleting pod %s (ip : %s) from ipset %s", podKey, cachedNpmPod.PodIP, removeIPSetName)
 
 		var toRemoveSet *ipsets.IPSetMetadata
 		if util.IsKeyValueLabelSetName(removeIPSetName) {
@@ -490,7 +504,8 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 	// Add the pod to its label's ipset.
 	for _, addIPSetName := range addToIPSets {
 
-		klog.Infof("Creating ipset %s if it doesn't already exist", addIPSetName)
+		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+		// klog.Infof("Creating ipset %s if it doesn't already exist", addIPSetName)
 
 		var toAddSet *ipsets.IPSetMetadata
 		if util.IsKeyValueLabelSetName(addIPSetName) {
@@ -499,7 +514,8 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 			toAddSet = ipsets.NewIPSetMetadata(addIPSetName, ipsets.KeyLabelOfPod)
 		}
 
-		klog.Infof("Adding pod %s (ip : %s) to ipset %s", podKey, newPodObj.Status.PodIP, addIPSetName)
+		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+		// klog.Infof("Adding pod %s (ip : %s) to ipset %s", podKey, newPodObj.Status.PodIP, addIPSetName)
 		if err = c.dp.AddToSets([]*ipsets.IPSetMetadata{toAddSet}, newPodMetadata); err != nil {
 			return metrics.UpdateOp, fmt.Errorf("[syncAddAndUpdatePod] Error: failed to add pod to label ipset with err: %w", err)
 		}
@@ -542,7 +558,8 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 
 // cleanUpDeletedPod cleans up all ipset associated with this pod
 func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
-	klog.Infof("[cleanUpDeletedPod] deleting Pod with key %s", cachedNpmPodKey)
+	// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+	// klog.Infof("[cleanUpDeletedPod] deleting Pod with key %s", cachedNpmPodKey)
 	// If cached npmPod does not exist, return nil
 	cachedNpmPod, exist := c.podMap[cachedNpmPodKey]
 	if !exist {
@@ -562,7 +579,8 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 	// Get lists of podLabelKey and podLabelKey + podLavelValue ,and then start deleting them from ipsets
 	for labelKey, labelVal := range cachedNpmPod.Labels {
 		labelKeyValue := util.GetIpSetFromLabelKV(labelKey, labelVal)
-		klog.Infof("Deleting pod %s (ip : %s) from ipsets %s and %s", cachedNpmPodKey, cachedNpmPod.PodIP, labelKey, labelKeyValue)
+		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+		// klog.Infof("Deleting pod %s (ip : %s) from ipsets %s and %s", cachedNpmPodKey, cachedNpmPod.PodIP, labelKey, labelKeyValue)
 		if err = c.dp.RemoveFromSets(
 			[]*ipsets.IPSetMetadata{
 				ipsets.NewIPSetMetadata(labelKey, ipsets.KeyLabelOfPod),
@@ -595,7 +613,8 @@ func (c *PodController) manageNamedPortIpsets(portList []corev1.ContainerPort, p
 		return nil
 	}
 	for _, port := range portList {
-		klog.Infof("port is %+v", port)
+		// TODO: Refactor non-error/warning klogs with Zap and set the following logs to "debug" level
+		// klog.Infof("port is %+v", port)
 		if port.Name == "" {
 			continue
 		}

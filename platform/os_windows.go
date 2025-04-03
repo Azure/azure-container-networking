@@ -17,6 +17,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mellanox"
+	"github.com/avast/retry-go/v4"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
@@ -247,8 +248,13 @@ func (p *execClient) ExecutePowershellCommandWithContext(ctx context.Context, co
 
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy if hns is enabled
 func SetSdnRemoteArpMacAddress(ctx context.Context) error {
-	if err := setSDNRemoteARPRegKey(); err != nil {
+	changed, err := setSDNRemoteARPRegKey()
+	if err != nil {
 		return err
+	}
+	if !changed {
+		log.Printf("SDNRemoteArpMacAddress regKey already set, skipping HNS restart")
+		return nil
 	}
 	log.Printf("SDNRemoteArpMacAddress regKey set successfully")
 	if err := restartHNS(ctx); err != nil {
@@ -258,26 +264,28 @@ func SetSdnRemoteArpMacAddress(ctx context.Context) error {
 	return nil
 }
 
-func setSDNRemoteARPRegKey() error {
+// setSDNRemoteARPRegKey sets the SDNRemoteArpMacAddress registry key
+// returns true if the key was changed, false if unchanged
+func setSDNRemoteARPRegKey() (bool, error) {
 	log.Printf("Setting SDNRemoteArpMacAddress regKey")
 	// open the registry key
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SYSTEM\CurrentControlSet\Services\hns\State`, registry.READ|registry.SET_VALUE)
 	if err != nil {
 		if errors.Is(err, registry.ErrNotExist) {
-			return nil
+			return false, nil
 		}
-		return errors.Wrap(err, "could not open registry key")
+		return false, errors.Wrap(err, "could not open registry key")
 	}
 	defer k.Close()
 	// check the key value
 	if v, _, _ := k.GetStringValue("SDNRemoteArpMacAddress"); v == SDNRemoteArpMacAddress {
 		log.Printf("SDNRemoteArpMacAddress regKey already set")
-		return nil // already set
+		return false, nil // already set
 	}
 	if err = k.SetStringValue("SDNRemoteArpMacAddress", SDNRemoteArpMacAddress); err != nil {
-		return errors.Wrap(err, "could not set registry key")
+		return false, errors.Wrap(err, "could not set registry key")
 	}
-	return nil
+	return true, nil
 }
 
 func restartHNS(ctx context.Context) error {
@@ -295,32 +303,107 @@ func restartHNS(ctx context.Context) error {
 	}
 	defer service.Close()
 	// Stop the service
-	_, err = service.Control(svc.Stop)
-	if err != nil {
-		return errors.Wrap(err, "could not stop service")
+	log.Printf("Stopping HNS service")
+	_ = retry.Do(
+		tryStopServiceFn(ctx, service),
+		retry.UntilSucceeded(),
+		retry.Context(ctx),
+		retry.DelayType(retry.BackOffDelay),
+	)
+	// Start the service again
+	log.Printf("Starting HNS service")
+	_ = retry.Do(
+		tryStartServiceFn(ctx, service),
+		retry.UntilSucceeded(),
+		retry.Context(ctx),
+		retry.DelayType(retry.BackOffDelay),
+	)
+	log.Printf("HNS service started")
+	return nil
+}
+
+type managedService interface {
+	Control(control svc.Cmd) (svc.Status, error)
+	Query() (svc.Status, error)
+	Start(args ...string) error
+}
+
+func tryStartServiceFn(ctx context.Context, service managedService) func() error {
+	shouldStart := func(state svc.State) bool {
+		return !(state == svc.Running || state == svc.StartPending)
 	}
-	// Wait for the service to stop
-	ticker := time.NewTicker(500 * time.Millisecond) //nolint:gomnd // 500ms
-	defer ticker.Stop()
-	for { // hacky cancellable do-while
+	return func() error {
 		status, err := service.Query()
 		if err != nil {
 			return errors.Wrap(err, "could not query service status")
 		}
-		if status.State == svc.Stopped {
-			break
+		if shouldStart(status.State) {
+			err = service.Start()
+			if err != nil {
+				return errors.Wrap(err, "could not start service")
+			}
 		}
-		select {
-		case <-ctx.Done():
-			return errors.New("context cancelled")
-		case <-ticker.C:
+		// Wait for the service to start
+		deadline, cancel := context.WithTimeout(ctx, 90*time.Second)
+		defer cancel()
+		ticker := time.NewTicker(500 * time.Millisecond) //nolint:gomnd // 500ms
+		defer ticker.Stop()
+		for {
+			status, err := service.Query()
+			if err != nil {
+				return errors.Wrap(err, "could not query service status")
+			}
+			if status.State == svc.Running {
+				log.Printf("service started")
+				break
+			}
+			select {
+			case <-deadline.Done():
+				return deadline.Err() //nolint:wrapcheck // error has sufficient context
+			case <-ticker.C:
+			}
 		}
+		return nil
 	}
-	// Start the service again
-	if err := service.Start(); err != nil {
-		return errors.Wrap(err, "could not start service")
+}
+
+func tryStopServiceFn(ctx context.Context, service managedService) func() error {
+	shouldStop := func(state svc.State) bool {
+		return !(state == svc.Stopped || state == svc.StopPending)
 	}
-	return nil
+	return func() error {
+		status, err := service.Query()
+		if err != nil {
+			return errors.Wrap(err, "could not query service status")
+		}
+		if shouldStop(status.State) {
+			_, err = service.Control(svc.Stop)
+			if err != nil {
+				return errors.Wrap(err, "could not stop service")
+			}
+		}
+		// Wait for the service to stop
+		deadline, cancel := context.WithTimeout(ctx, 90*time.Second)
+		defer cancel()
+		ticker := time.NewTicker(500 * time.Millisecond) //nolint:gomnd // 500ms
+		defer ticker.Stop()
+		for {
+			status, err := service.Query()
+			if err != nil {
+				return errors.Wrap(err, "could not query service status")
+			}
+			if status.State == svc.Stopped {
+				log.Printf("service stopped")
+				break
+			}
+			select {
+			case <-deadline.Done():
+				return deadline.Err() //nolint:wrapcheck // error has sufficient context
+			case <-ticker.C:
+			}
+		}
+		return nil
+	}
 }
 
 func HasMellanoxAdapter() bool {

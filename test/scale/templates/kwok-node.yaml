@@ -6,7 +6,6 @@ metadata:
     kwok.x-k8s.io/node: fake
   labels:
     beta.kubernetes.io/arch: amd64
-    beta.kubernetes.io/os: linux
     kubernetes.io/arch: amd64
     kubernetes.io/hostname: kwok-node-INSERT_NUMBER
     kubernetes.io/os: linux

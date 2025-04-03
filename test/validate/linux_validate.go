@@ -326,7 +326,7 @@ func (v *Validator) validateRestartNetwork(ctx context.Context) error {
 		}
 		privilegedPod := pod.Items[0]
 		// exec into the pod to get the state file
-		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privilegedPod.Name, "", restartNetworkCmd, v.config)
+		_, _, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privilegedPod.Name, "", restartNetworkCmd, v.config, true)
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privilegedPod.Name, node.Name)
 		}

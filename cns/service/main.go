@@ -649,7 +649,13 @@ func main() {
 			return nil
 		}),
 	}
-	go healthserver.Start(z, cnsconfig.MetricsBindAddress, &healthz.Handler{}, readyChecker)
+
+	healthzHandler, err := healthserver.NewHealthzHandlerWithChecks(cnsconfig)
+	if err != nil {
+		logger.Errorf("unable to initialize a healthz handler: %v", err)
+		return
+	}
+	go healthserver.Start(z, cnsconfig.MetricsBindAddress, healthzHandler, readyChecker)
 
 	nmaConfig, err := nmagent.NewConfig(cnsconfig.WireserverIP)
 	if err != nil {
@@ -799,14 +805,11 @@ func main() {
 	}
 
 	// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic if HNS is enabled
-	arpCtx, arpCtxCancel := context.WithTimeout(rootCtx, 30*time.Second)
-	err = platform.SetSdnRemoteArpMacAddress(arpCtx)
+	err = platform.SetSdnRemoteArpMacAddress(rootCtx)
 	if err != nil {
 		logger.Errorf("Failed to set remote ARP MAC address: %v", err)
-		arpCtxCancel()
 		return
 	}
-	arpCtxCancel()
 
 	// We are only setting the PriorityVLANTag in 'cns.Direct' mode, because it neatly maps today, to 'isUsingMultitenancy'
 	// In the future, we would want to have a better CNS flag, to explicitly say, this CNS is using multitenancy

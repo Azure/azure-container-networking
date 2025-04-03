@@ -16,7 +16,7 @@ spec:
         app: master-pod-8085-tcp-host
     spec:
       nodeSelector:
-        beta.kubernetes.io/os: linux
+        kubernetes.io/os: linux
         kubernetes.io/role: master
       hostNetwork: true
       tolerations:
@@ -55,7 +55,7 @@ spec:
         app: master-pod-8085-tcp
     spec:
       nodeSelector:
-        beta.kubernetes.io/os: linux
+        kubernetes.io/os: linux
         kubernetes.io/role: master
       tolerations:
         - operator: "Exists"
@@ -92,7 +92,7 @@ spec:
         app: master-pod-8086-udp
     spec:
       nodeSelector:
-        beta.kubernetes.io/os: linux
+        kubernetes.io/os: linux
         kubernetes.io/role: master
       tolerations:
         - operator: "Exists"

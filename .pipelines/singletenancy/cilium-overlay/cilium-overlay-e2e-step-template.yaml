@@ -2,6 +2,7 @@ parameters:
   name: ""
   clusterName: ""
   testHubble: false
+  testLRP: false
   scaleup: ""
 
 
@@ -95,6 +96,16 @@ steps:
     retryCountOnTaskFailure: 3
     name: "CiliumStatus"
     displayName: "Cilium Status"
+  # Run LRP test after cns and config with lrp enabled config deployed
+  - ${{ if eq( parameters['testLRP'], true) }}:
+    - script: |
+        set -e
+        cd test/integration/lrp/
+        go test ./lrp_test.go -v -tags "lrp" -count=1 -run ^TestLRP$
+        kubectl get pods -Aowide
+      retryCountOnTaskFailure: 3
+      name: "LRPTest"
+      displayName: "Run Cilium Local Redirect Policy Test"
 
   - task: AzureCLI@1
     inputs:

@@ -109,6 +109,8 @@ spec:
                       type: string
                     defaultGateway:
                       type: string
+                    defaultGatewayV6:
+                      type: string
                     id:
                       type: string
                     ipAssignments:
@@ -122,9 +124,13 @@ spec:
                             type: string
                         type: object
                       type: array
+                    macAddress:
+                      type: string
                     nodeIP:
                       type: string
                     primaryIP:
+                      type: string
+                    primaryIPV6:
                       type: string
                     resourceGroupID:
                       type: string

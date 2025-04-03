@@ -2115,3 +2115,186 @@ func TestAddNICsToCNIResult(t *testing.T) {
 		})
 	}
 }
+
+// Test to add multiple IB NICs to make sure CNI receives all correct IB info from CNS
+func TestMultipleIBNICsToResult(t *testing.T) {
+	require := require.New(t) //nolint further usage of require without passing t
+
+	firstMacAddress := "bc:9a:78:56:34:12"
+	firstParsedMacAddress, _ := net.ParseMAC(firstMacAddress)
+
+	secondMacAddress := "bc:9a:78:56:34:13"
+	secondParsedMacAddress, _ := net.ParseMAC(secondMacAddress)
+
+	thirdMacAddress := "bc:9a:78:56:34:14"
+	thirdParsedMacAddress, _ := net.ParseMAC(thirdMacAddress)
+
+	macAddressList := []string{firstMacAddress, secondMacAddress, thirdMacAddress}
+
+	firstPnpID := "PCI\\VEN_15B3&DEV_101C&SUBSYS_000715B3&REV_00\\5&8c5acce&0&0"
+	firstNewPnpID := "PCI\\VEN_15B3&DEV_101C&SUBSYS_000715B3&REV_00\\5&8c5acce&0&1"
+	secondPnpID := "PCI\\VEN_15B3&DEV_101C&SUBSYS_000715B3&REV_00\\6&8c5acce&0&1"
+	secondNewPnpID := "PCI\\VEN_15B3&DEV_101C&SUBSYS_000715B3&REV_00\\6&8c5acce&0&2"
+	thirdPnpID := "PCI\\VEN_15B3&DEV_101C&SUBSYS_000715B3&REV_00\\7&8c5acce&0&2"
+	thirdNewPnpID := "PCI\\VEN_15B3&DEV_101C&SUBSYS_000715B3&REV_00\\7&8c5acce&0&3"
+
+	type fields struct {
+		podName      string
+		podNamespace string
+		cnsClient    cnsclient
+	}
+
+	type args struct {
+		nwCfg            *cni.NetworkConfig
+		args             *cniSkel.CmdArgs
+		hostSubnetPrefix *net.IPNet
+		options          map[string]interface{}
+		info             []IPResultInfo
+	}
+
+	tests := []struct {
+		name                        string
+		fields                      fields
+		args                        args
+		wantSecondaryInterfacesInfo map[string]network.InterfaceInfo
+	}{
+		{
+			name: "add three backendNIC to cni Result",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: require,
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: cns.IPConfigsRequest{
+							PodInterfaceID:      "testcont-testifname1",
+							InfraContainerID:    "testcontainerid1",
+							OrchestratorContext: marshallPodInfo(testPodInfo),
+						},
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "10.0.1.10",
+										PrefixLength: 24,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "10.0.1.0",
+											PrefixLength: 24,
+										},
+										DNSServers:       nil,
+										GatewayIPAddress: "10.0.0.1",
+									},
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "10.0.0.1",
+										PrimaryIP: "10.0.0.1",
+										Subnet:    "10.0.0.0/24",
+									},
+									NICType: cns.InfraNIC,
+								},
+								{
+									MacAddress: firstMacAddress,
+									NICType:    cns.BackendNIC,
+									PnPID:      firstPnpID,
+								},
+								{
+									MacAddress: secondMacAddress,
+									NICType:    cns.BackendNIC,
+									PnPID:      secondPnpID,
+								},
+								{
+									MacAddress: thirdMacAddress,
+									NICType:    cns.BackendNIC,
+									PnPID:      thirdPnpID,
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: nil,
+					},
+				},
+			},
+			args: args{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid1",
+					Netns:       "testnetns1",
+					IfName:      "testifname1",
+				},
+				hostSubnetPrefix: getCIDRNotationForAddress("10.0.0.1/24"),
+				options:          map[string]interface{}{},
+				info: []IPResultInfo{
+					{
+						pnpID:      firstNewPnpID, // update pnp ID
+						macAddress: firstMacAddress,
+						nicType:    cns.BackendNIC,
+					},
+					{
+						pnpID:      secondNewPnpID, // update pnp ID
+						macAddress: secondMacAddress,
+						nicType:    cns.BackendNIC,
+					},
+					{
+						pnpID:      thirdNewPnpID, // update pnp ID
+						macAddress: thirdMacAddress,
+						nicType:    cns.BackendNIC,
+					},
+				},
+			},
+			wantSecondaryInterfacesInfo: map[string]network.InterfaceInfo{
+				firstMacAddress: {
+					MacAddress: firstParsedMacAddress,
+					PnPID:      firstNewPnpID,
+					NICType:    cns.BackendNIC,
+				},
+				secondMacAddress: {
+					MacAddress: secondParsedMacAddress,
+					PnPID:      secondNewPnpID,
+					NICType:    cns.BackendNIC,
+				},
+				thirdMacAddress: {
+					MacAddress: thirdParsedMacAddress,
+					PnPID:      thirdNewPnpID,
+					NICType:    cns.BackendNIC,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			invoker := &CNSIPAMInvoker{
+				podName:      tt.fields.podName,
+				podNamespace: tt.fields.podNamespace,
+				cnsClient:    tt.fields.cnsClient,
+			}
+			ipamAddResult, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
+			if err != nil {
+				t.Fatalf("Failed to create ipamAddResult due to error: %v", err)
+			}
+
+			// add three new backendNICs info to cni Result
+			err = addBackendNICToResult(&tt.args.info[0], &ipamAddResult, firstMacAddress)
+			if err != nil {
+				t.Fatalf("Failed to add first backend NIC to cni Result due to error %v", err)
+			}
+			err = addBackendNICToResult(&tt.args.info[1], &ipamAddResult, secondMacAddress)
+			if err != nil {
+				t.Fatalf("Failed to add second backend NIC to cni Result due to error %v", err)
+			}
+			err = addBackendNICToResult(&tt.args.info[2], &ipamAddResult, thirdMacAddress)
+			if err != nil {
+				t.Fatalf("Failed to add third backend NIC to cni Result due to error %v", err)
+			}
+
+			for _, macAddress := range macAddressList {
+				t.Logf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo[macAddress], ipamAddResult.interfaceInfo[macAddress])
+				require.EqualValues(tt.wantSecondaryInterfacesInfo[macAddress], ipamAddResult.interfaceInfo[macAddress], "incorrect response for IB")
+			}
+		})
+	}
+}

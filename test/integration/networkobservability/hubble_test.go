@@ -5,17 +5,14 @@ package networkobservability
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
-	"strings"
 	"testing"
 	"time"
 
 	k8s "github.com/Azure/azure-container-networking/test/integration"
+	"github.com/Azure/azure-container-networking/test/integration/prometheus"
 	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/Azure/azure-container-networking/test/internal/retry"
 	io_prometheus_client "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,11 +45,11 @@ var (
 	drop = []string{"source", "source"}
 )
 
-func TestPromtheusStringInputParser(t *testing.T) {
+func TestPrometheusStringInputParser(t *testing.T) {
 	input := `
 	hubble_tcp_flags_total{destination="",family="IPv4",flag="RST",source="kube-system/metrics-server"} 980
 	`
-	metrics, err := parseStringPrometheusMetrics(input)
+	metrics, err := prometheus.ParseStringMetrics(input)
 	if err != nil {
 		t.Fail()
 	}
@@ -76,13 +73,13 @@ func TestPromtheusStringInputParser(t *testing.T) {
 	testMetrichubbletcpflagstotal(t, kv, "RST", "kube-system/metrics-server", 980)
 }
 
-func TestPromtheusStringThreeInputParser(t *testing.T) {
+func TestPrometheusStringThreeInputParser(t *testing.T) {
 	input := `
 	hubble_tcp_flags_total{destination="",family="IPv4",flag="RST",source="kube-system/metrics-server"} 980
 	hubble_tcp_flags_total{destination="",family="IPv4",flag="SYN",source="kube-system/ama-metrics"} 1777
 	hubble_flows_processed_total{destination="kube-system/coredns-76b9877f49-2p4fc",protocol="UDP",source="",subtype="to-stack",type="Trace",verdict="FORWARDED"} 3
 	`
-	metrics, err := parseStringPrometheusMetrics(input)
+	metrics, err := prometheus.ParseStringMetrics(input)
 	if err != nil {
 		t.Fail()
 	}
@@ -122,7 +119,7 @@ func TestLabelCheck(t *testing.T) {
 	hubble_tcp_flags_total{destination="",family="IPv4",flag="RST",source="kube-system/metrics-server"} 980
 	hubble_flows_processed_total{destination="kube-system/coredns-76b9877f49-2p4fc",protocol="UDP",source="",subtype="to-stack",type="Trace",verdict="FORWARDED"} 3
 	`
-	metrics, err := parseStringPrometheusMetrics(input)
+	metrics, err := prometheus.ParseStringMetrics(input)
 	if err != nil {
 		t.Fail()
 	}
@@ -132,11 +129,11 @@ func TestLabelCheck(t *testing.T) {
 	}
 }
 
-func TestPromtheusInvalidStringInputParser(t *testing.T) {
+func TestPrometheusInvalidStringInputParser(t *testing.T) {
 	input := `
 	This clearly should fail. If it ever passes blame Prometheus. 
 	`
-	_, err := parseStringPrometheusMetrics(input)
+	_, err := prometheus.ParseStringMetrics(input)
 	require.Error(t, err)
 }
 
@@ -248,7 +245,7 @@ func TestEndpoints(t *testing.T) {
 		defer pf.Stop()
 
 		// scrape the hubble metrics
-		metrics, err := getPrometheusMetrics(promAddress)
+		metrics, err := prometheus.GetMetrics(promAddress)
 		if err != nil {
 			return fmt.Errorf("scraping %s, failed with error: %w", promAddress, err)
 		}
@@ -263,35 +260,4 @@ func TestEndpoints(t *testing.T) {
 	if err := defaultRetrier.Do(clusterCtx, pingCheckFn); err != nil {
 		t.Fatalf("metrics check failed with error: %v", err)
 	}
-}
-
-func getPrometheusMetrics(url string) (map[string]*io_prometheus_client.MetricFamily, error) {
-	client := http.Client{}
-	resp, err := client.Get(url) //nolint
-	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP request failed with status: %v", resp.Status) //nolint:goerr113,gocritic
-	}
-
-	metrics, err := parseReaderPrometheusMetrics(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return metrics, nil
-}
-
-func parseReaderPrometheusMetrics(input io.Reader) (map[string]*io_prometheus_client.MetricFamily, error) {
-	var parser expfmt.TextParser
-	return parser.TextToMetricFamilies(input) //nolint
-}
-
-func parseStringPrometheusMetrics(input string) (map[string]*io_prometheus_client.MetricFamily, error) {
-	var parser expfmt.TextParser
-	reader := strings.NewReader(input)
-	return parser.TextToMetricFamilies(reader) //nolint
 }

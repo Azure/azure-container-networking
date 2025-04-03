@@ -13,6 +13,8 @@ import (
 
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/test/internal/retry"
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	cilium "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -200,10 +202,69 @@ func MustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePat
 	mustCreateRoleBinding(ctx, roleBindings, roleBinding)
 }
 
-func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) {
+func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) (corev1.ConfigMap, func()) { // nolint
 	cm := mustParseConfigMap(configMapPath)
 	configmaps := clientset.CoreV1().ConfigMaps(cm.Namespace)
 	mustCreateConfigMap(ctx, configmaps, cm)
+	return cm, func() {
+		MustDeleteConfigMap(ctx, configmaps, cm)
+	}
+}
+
+// MustSetupDaemonset is a convenience function to directly apply the daemonset at dsPath to the cluster,
+// returning the parsed daemonset struct and a cleanup function in the process
+func MustSetupDaemonset(ctx context.Context, clientset *kubernetes.Clientset, dsPath string) (appsv1.DaemonSet, func()) { // nolint
+	ds := MustParseDaemonSet(dsPath)
+	dsClient := clientset.AppsV1().DaemonSets(ds.Namespace)
+	MustCreateDaemonset(ctx, dsClient, ds)
+	return ds, func() {
+		MustDeleteDaemonset(ctx, dsClient, ds)
+	}
+}
+
+func MustSetupDeployment(ctx context.Context, clientset *kubernetes.Clientset, depPath string) (appsv1.Deployment, func()) { // nolint
+	dep := MustParseDeployment(depPath)
+	depClient := clientset.AppsV1().Deployments(dep.Namespace)
+	MustCreateDeployment(ctx, depClient, dep)
+	return dep, func() {
+		MustDeleteDeployment(ctx, depClient, dep)
+	}
+}
+
+func MustSetupServiceAccount(ctx context.Context, clientset *kubernetes.Clientset, serviceAccountPath string) (corev1.ServiceAccount, func()) { // nolint
+	sa := mustParseServiceAccount(serviceAccountPath)
+	saClient := clientset.CoreV1().ServiceAccounts(sa.Namespace)
+	mustCreateServiceAccount(ctx, saClient, sa)
+	return sa, func() {
+		MustDeleteServiceAccount(ctx, saClient, sa)
+	}
+}
+
+func MustSetupService(ctx context.Context, clientset *kubernetes.Clientset, servicePath string) (corev1.Service, func()) { // nolint
+	svc := mustParseService(servicePath)
+	svcClient := clientset.CoreV1().Services(svc.Namespace)
+	mustCreateService(ctx, svcClient, svc)
+	return svc, func() {
+		MustDeleteService(ctx, svcClient, svc)
+	}
+}
+
+func MustSetupLRP(ctx context.Context, clientset *cilium.Clientset, lrpPath string) (ciliumv2.CiliumLocalRedirectPolicy, func()) { // nolint
+	lrp := mustParseLRP(lrpPath)
+	lrpClient := clientset.CiliumV2().CiliumLocalRedirectPolicies(lrp.Namespace)
+	mustCreateCiliumLocalRedirectPolicy(ctx, lrpClient, lrp)
+	return lrp, func() {
+		MustDeleteCiliumLocalRedirectPolicy(ctx, lrpClient, lrp)
+	}
+}
+
+func MustSetupCNP(ctx context.Context, clientset *cilium.Clientset, cnpPath string) (ciliumv2.CiliumNetworkPolicy, func()) { // nolint
+	cnp := mustParseCNP(cnpPath)
+	cnpClient := clientset.CiliumV2().CiliumNetworkPolicies(cnp.Namespace)
+	mustCreateCiliumNetworkPolicy(ctx, cnpClient, cnp)
+	return cnp, func() {
+		MustDeleteCiliumNetworkPolicy(ctx, cnpClient, cnp)
+	}
 }
 
 func Int32ToPtr(i int32) *int32 { return &i }
@@ -427,8 +488,11 @@ func writeToFile(dir, fileName, str string) error {
 	return errors.Wrap(err, "failed to write string")
 }
 
-func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName, containerName string, cmd []string, config *rest.Config) ([]byte, error) {
+// ExecCmdOnPod runs the specified command on a particular pod and retries the command on failure if doRetry is set to true
+// The function returns the standard output, standard error, and error (if any) in that order
+func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName, containerName string, cmd []string, config *rest.Config, doRetry bool) ([]byte, []byte, error) { // nolint
 	var result []byte
+	var errResult []byte
 	execCmdOnPod := func() error {
 		req := clientset.CoreV1().RESTClient().Post().
 			Resource("pods").
@@ -456,19 +520,28 @@ func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespac
 			Stderr: &stderr,
 			Tty:    false,
 		})
+
+		result = stdout.Bytes()
+		errResult = stderr.Bytes()
+
 		if err != nil {
-			log.Printf("Error: %v had error %v from command - %v, will retry", podName, err, cmd)
+			log.Printf("Error: %v had error %v from command - %v", podName, err, cmd)
 			return errors.Wrapf(err, "error in executing command %s", cmd)
 		}
 		if len(stdout.Bytes()) == 0 {
 			log.Printf("Warning: %v had 0 bytes returned from command - %v", podName, cmd)
 		}
-		result = stdout.Bytes()
 		return nil
 	}
-	retrier := retry.Retrier{Attempts: ShortRetryAttempts, Delay: RetryDelay}
-	err := retrier.Do(ctx, execCmdOnPod)
-	return result, errors.Wrapf(err, "could not execute the cmd %s on %s", cmd, podName)
+
+	var err error
+	if doRetry {
+		retrier := retry.Retrier{Attempts: ShortRetryAttempts, Delay: RetryDelay}
+		err = retrier.Do(ctx, execCmdOnPod)
+	} else {
+		err = execCmdOnPod()
+	}
+	return result, errResult, errors.Wrapf(err, "could not execute the cmd %s on %s", cmd, podName)
 }
 
 func NamespaceExists(ctx context.Context, clientset *kubernetes.Clientset, namespace string) (bool, error) {
@@ -583,7 +656,7 @@ func RestartKubeProxyService(ctx context.Context, clientset *kubernetes.Clientse
 		}
 		privilegedPod := pod.Items[0]
 		// exec into the pod and restart kubeproxy
-		_, err = ExecCmdOnPod(ctx, clientset, privilegedNamespace, privilegedPod.Name, "", restartKubeProxyCmd, config)
+		_, _, err = ExecCmdOnPod(ctx, clientset, privilegedNamespace, privilegedPod.Name, "", restartKubeProxyCmd, config, true)
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privilegedPod.Name, node.Name)
 		}
