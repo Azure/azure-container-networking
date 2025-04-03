@@ -55,7 +55,7 @@ func NewHealthzHandlerWithChecks(cnsConfig *configuration.CNSConfig) (http.Handl
 
 	// strip prefix so that it runs through all checks registered on the handler.
 	// otherwise it will look for a check named "healthz" and return a 404 if not there.
-	return http.StripPrefix("/healthz", &healthz.Handler{
+	return &healthz.Handler{
 		Checks: checks,
-	}), nil
+	}, nil
 }
