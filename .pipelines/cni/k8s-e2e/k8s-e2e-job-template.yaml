@@ -5,7 +5,6 @@ parameters:
   sub: ""
   cni: cni
 
-
 jobs:
   - job: CNI_${{ parameters.os }}
     condition: and( not(canceled()), not(failed()) )
@@ -36,109 +35,109 @@ jobs:
 
         displayName: "Setup Environment"
       - ${{ if contains(parameters.os, 'windows') }}:
-        - script: |
-            set -e
-            kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
-            kubectl rollout status -n kube-system ds privileged-daemonset
+          - script: |
+              set -e
+              kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
+              kubectl rollout status -n kube-system ds privileged-daemonset
 
-            kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -owide
-            pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows --no-headers | awk '{print $1}'`
-            for pod in $pods; do
-              kubectl exec -i -n kube-system $pod -- powershell "Restart-Service kubeproxy"
-              kubectl exec -i -n kube-system $pod -- powershell "Get-Service kubeproxy"
-            done
-          name: kubeproxy
-          displayName: Restart Kubeproxy on Windows nodes
-          retryCountOnTaskFailure: 3
+              kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -owide
+              pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows --no-headers | awk '{print $1}'`
+              for pod in $pods; do
+                kubectl exec -i -n kube-system $pod -- powershell "Restart-Service kubeproxy"
+                kubectl exec -i -n kube-system $pod -- powershell "Get-Service kubeproxy"
+              done
+            name: kubeproxy
+            displayName: Restart Kubeproxy on Windows nodes
+            retryCountOnTaskFailure: 3
       - ${{ if eq(parameters.datapath, true) }}:
-        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
-          parameters:
-            testName: Datapath
-            name: datapath
-            ginkgoFocus: '(.*).Networking.should|(.*).Networking.Granular|(.*)kubernetes.api'
-            ginkgoSkip: 'SCTP|Disruptive|Slow|hostNetwork|kube-proxy|IPv6'
-            os: ${{ parameters.os }}
-            processes: 8
-            attempts: 10
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+            parameters:
+              testName: Datapath
+              name: datapath
+              ginkgoFocus: "(.*).Networking.should|(.*).Networking.Granular|(.*)kubernetes.api"
+              ginkgoSkip: "SCTP|Disruptive|Slow|hostNetwork|kube-proxy|IPv6"
+              os: ${{ parameters.os }}
+              processes: 8
+              attempts: 10
       - ${{ if eq(parameters.dns, true) }}:
-        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
-          parameters:
-            testName: DNS
-            name: dns
-            ginkgoFocus: '\[sig-network\].DNS.should'
-            ginkgoSkip: 'resolv|256 search'
-            os: ${{ parameters.os }}
-            processes: 8
-            attempts: 3
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+            parameters:
+              testName: DNS
+              name: dns
+              ginkgoFocus: '\[sig-network\].DNS.should'
+              ginkgoSkip: "resolv|256 search"
+              os: ${{ parameters.os }}
+              processes: 8
+              attempts: 3
       - ${{ if eq(parameters.portforward, true) }}:
-        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
-          parameters:
-            testName: Kubectl Portforward
-            name: portforward
-            ginkgoFocus: '\[sig-cli\].Kubectl.Port'
-            ginkgoSkip: ''
-            os: ${{ parameters.os }}
-            processes: 8
-            attempts: 3
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+            parameters:
+              testName: Kubectl Portforward
+              name: portforward
+              ginkgoFocus: '\[sig-cli\].Kubectl.Port'
+              ginkgoSkip: "port-forward should keep working after detect broken connection" # affecting k8s 1.32 https://github.com/kubernetes/kubernetes/issues/129803. Note: retry this test in 1.33 with timeout extended
+              os: ${{ parameters.os }}
+              processes: 8
+              attempts: 3
       - ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cni') ) }}:
-        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
-          parameters:
-            testName: Service Conformance
-            name: service
-            ginkgoFocus: 'Services.*\[Conformance\].*'
-            ginkgoSkip: ''
-            os: ${{ parameters.os }}
-            processes: 8
-            attempts: 3
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+            parameters:
+              testName: Service Conformance
+              name: service
+              ginkgoFocus: 'Services.*\[Conformance\].*'
+              ginkgoSkip: ""
+              os: ${{ parameters.os }}
+              processes: 8
+              attempts: 3
       - ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cilium') ) }}:
-        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
-          parameters:
-            testName: Service Conformance|Cilium
-            name: service
-            ginkgoFocus: 'Services.*\[Conformance\].*'
-            ginkgoSkip: 'should serve endpoints on same port and different protocols' # Cilium does not support this feature. For more info on test: https://github.com/kubernetes/kubernetes/blame/e602e9e03cd744c23dde9fee09396812dd7bdd93/test/conformance/testdata/conformance.yaml#L1780-L1788
-            os: ${{ parameters.os }}
-            processes: 8
-            attempts: 3
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+            parameters:
+              testName: Service Conformance|Cilium
+              name: service
+              ginkgoFocus: 'Services.*\[Conformance\].*'
+              ginkgoSkip: "should serve endpoints on same port and different protocols" # Cilium does not support this feature. For more info on test: https://github.com/kubernetes/kubernetes/blame/e602e9e03cd744c23dde9fee09396812dd7bdd93/test/conformance/testdata/conformance.yaml#L1780-L1788
+              os: ${{ parameters.os }}
+              processes: 8
+              attempts: 3
       - ${{ if eq(parameters.hostport, true) }}:
-        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
-          parameters:
-            testName: Host Port
-            name: hostport
-            ginkgoFocus: '\[sig-network\](.*)HostPort|\[sig-scheduling\](.*)hostPort'
-            ginkgoSkip: 'SCTP|exists conflict' # Skip slow 5 minute test
-            os: ${{ parameters.os }}
-            processes: 1 # Has a short serial test
-            attempts: 3
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+            parameters:
+              testName: Host Port
+              name: hostport
+              ginkgoFocus: '\[sig-network\](.*)HostPort|\[sig-scheduling\](.*)hostPort'
+              ginkgoSkip: "SCTP|exists conflict" # Skip slow 5 minute test
+              os: ${{ parameters.os }}
+              processes: 1 # Has a short serial test
+              attempts: 3
       - ${{ if and(eq(parameters.hybridWin, true), eq(parameters.os, 'windows')) }}:
-        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
-          parameters:
-            testName: Hybrid Network
-            name: hybrid
-            ginkgoFocus: '\[sig-windows\].Hybrid'
-            ginkgoSkip: ''
-            os: ${{ parameters.os }}
-            processes: 8
-            attempts: 3
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+            parameters:
+              testName: Hybrid Network
+              name: hybrid
+              ginkgoFocus: '\[sig-windows\].Hybrid'
+              ginkgoSkip: ""
+              os: ${{ parameters.os }}
+              processes: 8
+              attempts: 3
       - ${{ if and( eq(parameters.dualstack, true), eq(contains(parameters.cni, 'cilium'), false) ) }}:
-        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
-          parameters:
-            testName: DualStack Test
-            name: DualStack
-            clusterName: ${{ parameters.clusterName }}
-            ginkgoFocus: '\[Feature:IPv6DualStack\]'
-            ginkgoSkip: 'SCTP|session affinity'
-            os: ${{ parameters.os }}
-            processes: 8
-            attempts: 3
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+            parameters:
+              testName: DualStack Test
+              name: DualStack
+              clusterName: ${{ parameters.clusterName }}
+              ginkgoFocus: '\[Feature:IPv6DualStack\]'
+              ginkgoSkip: "SCTP|session affinity"
+              os: ${{ parameters.os }}
+              processes: 8
+              attempts: 3
       - ${{ if and( eq(parameters.dualstack, true), contains(parameters.cni, 'cilium') ) }}:
-        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
-          parameters:
-            testName: DualStack Test|Cilium
-            name: DualStack
-            clusterName: ${{ parameters.clusterName }}
-            ginkgoFocus: '\[Feature:IPv6DualStack\]'
-            ginkgoSkip: 'SCTP|session affinity|should function for service endpoints using hostNetwork' # Cilium dualstack has a known issue with this test https://github.com/cilium/cilium/issues/25135
-            os: ${{ parameters.os }}
-            processes: 8
-            attempts: 3
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+            parameters:
+              testName: DualStack Test|Cilium
+              name: DualStack
+              clusterName: ${{ parameters.clusterName }}
+              ginkgoFocus: '\[Feature:IPv6DualStack\]'
+              ginkgoSkip: "SCTP|session affinity|should function for service endpoints using hostNetwork" # Cilium dualstack has a known issue with this test https://github.com/cilium/cilium/issues/25135
+              os: ${{ parameters.os }}
+              processes: 8
+              attempts: 3
