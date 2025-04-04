@@ -384,18 +384,18 @@ ifeq ($(OS),windows)
 	$(MAKE) windows-nodepool-up
 endif
 
-dualstack-overlay-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dualstack Overlay cluster with Linux node only
+dualstack-overlay-up: rg-up ipv6 ipv4 overlay-net-up ## Brings up an dualstack Overlay cluster with Linux node only
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-outbound-ips $(PUBLIC_IPv4),$(PUBLIC_IPv6) \
+		--load-balancer-outbound-ips $(PUBLIC_IPv6),$(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--subscription $(SUB) \
-		--ip-families ipv4,ipv6 \
+		--ip-families ipv6,ipv4 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
 		--yes
