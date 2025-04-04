@@ -58,11 +58,11 @@ ip:
 		--tier Regional \
 		--version IP$(IPVERSION)
 
-ipv4: IPVERSION = v4
-ipv4: ip
+ipv4:
+	@$(MAKE) ip IPVERSION=v4
 
-ipv6: IPVERSION = v6
-ipv6: ip
+ipv6:
+	@$(MAKE) ip IPVERSION=v6
 
 
 set-kubeconf: ## Adds the kubeconf for $CLUSTER
