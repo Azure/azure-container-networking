@@ -758,9 +758,8 @@ RESTART_CASE ?= false
 CNI_TYPE ?= cilium
 
 test-all: ## run all unit tests.
-	@$(eval COVER_FILTER=`go list $(COVER_PKG)/... | tr '\n' ','`)
-	@echo Test coverpkg: $(COVER_FILTER)
-	go test -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -coverpkg=$(COVER_FILTER) -race -covermode atomic -coverprofile=coverage.out $(COVER_PKG)/...
+	go test -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=coverage-all.out $(COVER_PKG)/...
+	go tool cover -func=coverage-all.out
 
 test-integration: ## run all integration tests.
 	AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \

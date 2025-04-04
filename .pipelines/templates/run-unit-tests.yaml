@@ -12,8 +12,12 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
+              set -e
               make tools
-              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
+
+              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml),
+              # stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code.
+              # Read all output from fd 4 (output from tee) and write to top stdout
               { { { {
                     sudo -E env "PATH=$PATH" make test-all;
                     echo $? >&3;
@@ -21,9 +25,15 @@ stages:
                   } 3>&1;
                 } | { read xs; exit $xs; }
               } 4>&1
+
+              mv coverage-all.out linux-coverage.out
             retryCountOnTaskFailure: 3
             name: "Test"
             displayName: "Run Tests"
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: 'linux-coverage.out'
+              artifactName: 'linux-coverage'
 
   - stage: test_windows
     displayName: Test ACN Windows
@@ -40,7 +50,66 @@ stages:
           # Only run one go test per script
           - script: |
               cd azure-container-networking/
-              go test -timeout 30m ./npm/... ./cni/... ./platform/...
+              go test -timeout 30m -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/...
+              go tool cover -func=windows-coverage.out
             retryCountOnTaskFailure: 3
             name: "TestWindows"
             displayName: "Run Windows Tests"
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: 'windows-coverage.out'
+              artifactName: 'windows-coverage'
+
+  - stage: code_coverage
+    displayName: Code Coverage Check
+    dependsOn:
+      - test
+      - test_windows
+    jobs:
+      - job: coverage
+        displayName: Check Coverage
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: 'linux-coverage'
+              path: './'
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: 'windows-coverage'
+              path: './'
+          - bash: |
+              make tools
+              sudo ln -s $(pwd)/build/tools/bin/gocov /usr/local/bin/gocov
+              sudo ln -s $(pwd)/build/tools/bin/gocov-xml /usr/local/bin/gocov-xml
+
+              GOOS=linux gocov convert linux-coverage.out > linux-coverage.json
+              GOOS=linux gocov-xml < linux-coverage.json > linux-coverage.xml
+
+              GOOS=windows gocov convert windows-coverage.out > windows-coverage.json
+              GOOS=windows gocov-xml < windows-coverage.json > windows-coverage.xml
+
+              mkdir coverage
+
+              mv linux-coverage.xml coverage/
+              mv windows-coverage.xml coverage/
+            name: "Coverage"
+            displayName: "Generate Coverage Report"
+            condition: always()
+          - task: PublishCodeCoverageResults@2
+            displayName: "Publish Code Coverage Report"
+            condition: always()
+            inputs:
+              summaryFileLocation: coverage/*
+          - task: BuildQualityChecks@8
+            displayName: "Check Code Coverage Regression"
+            condition: always()
+            inputs:
+              checkCoverage: true
+              coverageFailOption: "build"
+              coverageType: "lines"
+              fallbackOnPRTargetBranch: false
+              baseBranchRef: "master"
+              allowCoverageVariance: true
+              coverageVariance: 0.25

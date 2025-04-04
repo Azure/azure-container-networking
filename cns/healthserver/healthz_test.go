@@ -198,6 +198,7 @@ func TestNewHealthzHandlerWithChecks(t *testing.T) {
 
 			responseRecorder := httptest.NewRecorder()
 			healthHandler, err := NewHealthzHandlerWithChecks(tt.cnsConfig)
+			healthHandler = http.StripPrefix("/healthz", healthHandler)
 			require.NoError(t, err)
 
 			healthHandler.ServeHTTP(responseRecorder, httptest.NewRequest("GET", "/healthz", http.NoBody))
