@@ -94,8 +94,8 @@ jobs:
               processes: 8
               attempts: 3
 
-      - ? ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cni') ) }}
-        : - template: k8s-e2e.steps.yaml@ACNTools
+      - ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cni') ) }}:
+          - template: k8s-e2e.steps.yaml@ACNTools
             parameters:
               testName: Service Conformance
               name: service
@@ -105,8 +105,8 @@ jobs:
               processes: 8
               attempts: 3
 
-      - ? ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cilium') ) }}
-        : - template: k8s-e2e.steps.yaml@ACNTools
+      - ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cilium') ) }}:
+          - template: k8s-e2e.steps.yaml@ACNTools
             parameters:
               testName: Service Conformance|Cilium
               name: service
@@ -127,8 +127,8 @@ jobs:
               processes: 1 # Has a short serial test
               attempts: 3
 
-      - ? ${{ if and(eq(parameters.hybridWin, true), eq(parameters.os, 'windows')) }}
-        : - template: k8s-e2e.steps.yaml@ACNTools
+      - ${{ if and(eq(parameters.hybridWin, true), eq(parameters.os, 'windows')) }}:
+          - template: k8s-e2e.steps.yaml@ACNTools
             parameters:
               testName: Hybrid Network
               name: hybrid
@@ -138,8 +138,8 @@ jobs:
               processes: 8
               attempts: 3
 
-      - ? ${{ if and( eq(parameters.dualstack, true), eq(contains(parameters.cni, 'cilium'), false) ) }}
-        : - template: k8s-e2e.steps.yaml@ACNTools
+      - ${{ if and( eq(parameters.dualstack, true), eq(contains(parameters.cni, 'cilium'), false) ) }}:
+          - template: k8s-e2e.steps.yaml@ACNTools
             parameters:
               testName: DualStack Test
               name: DualStack
@@ -150,8 +150,8 @@ jobs:
               processes: 8
               attempts: 3
 
-      - ? ${{ if and( eq(parameters.dualstack, true), contains(parameters.cni, 'cilium') ) }}
-        : - template: k8s-e2e.steps.yaml@ACNTools
+      - ${{ if and( eq(parameters.dualstack, true), contains(parameters.cni, 'cilium') ) }}:
+          - template: k8s-e2e.steps.yaml@ACNTools
             parameters:
               testName: DualStack Test|Cilium
               name: DualStack

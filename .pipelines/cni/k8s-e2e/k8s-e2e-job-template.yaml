@@ -79,8 +79,8 @@ jobs:
               os: ${{ parameters.os }}
               processes: 8
               attempts: 3
-      - ? ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cni') ) }}
-        : - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+      - ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cni') ) }}:
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
             parameters:
               testName: Service Conformance
               name: service
@@ -89,8 +89,8 @@ jobs:
               os: ${{ parameters.os }}
               processes: 8
               attempts: 3
-      - ? ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cilium') ) }}
-        : - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+      - ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cilium') ) }}:
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
             parameters:
               testName: Service Conformance|Cilium
               name: service
@@ -109,8 +109,8 @@ jobs:
               os: ${{ parameters.os }}
               processes: 1 # Has a short serial test
               attempts: 3
-      - ? ${{ if and(eq(parameters.hybridWin, true), eq(parameters.os, 'windows')) }}
-        : - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+      - ${{ if and(eq(parameters.hybridWin, true), eq(parameters.os, 'windows')) }}:
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
             parameters:
               testName: Hybrid Network
               name: hybrid
@@ -119,8 +119,8 @@ jobs:
               os: ${{ parameters.os }}
               processes: 8
               attempts: 3
-      - ? ${{ if and( eq(parameters.dualstack, true), eq(contains(parameters.cni, 'cilium'), false) ) }}
-        : - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+      - ${{ if and( eq(parameters.dualstack, true), eq(contains(parameters.cni, 'cilium'), false) ) }}:
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
             parameters:
               testName: DualStack Test
               name: DualStack
@@ -130,8 +130,8 @@ jobs:
               os: ${{ parameters.os }}
               processes: 8
               attempts: 3
-      - ? ${{ if and( eq(parameters.dualstack, true), contains(parameters.cni, 'cilium') ) }}
-        : - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+      - ${{ if and( eq(parameters.dualstack, true), contains(parameters.cni, 'cilium') ) }}:
+          - template: ../k8s-e2e/k8s-e2e-step-template.yaml
             parameters:
               testName: DualStack Test|Cilium
               name: DualStack
