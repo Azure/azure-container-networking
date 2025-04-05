@@ -81,7 +81,6 @@ func TestNewAndDeleteEndpointImplHnsV2(t *testing.T) {
 	}
 
 	err = nw.deleteEndpointImplHnsV2(ep)
-
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)
@@ -137,8 +136,8 @@ func TestDeleteEndpointImplHnsV2WithEmptyHNSID(t *testing.T) {
 	mockCli := NewMockEndpointClient(nil)
 	err := nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli,
 		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, &ep)
-	if err != nil {
-		t.Fatal("endpoint deletion gets executed")
+	if !errors.Is(err, ErrMissingHNSID) {
+		t.Fatalf("unexpected error when deleting endpoint with empty HNS ID: %v", err)
 	}
 }
 

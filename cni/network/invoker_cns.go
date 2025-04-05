@@ -205,8 +205,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 				}
 			}
 
-			overlayMode := (invoker.ipamMode == util.V4Overlay) || (invoker.ipamMode == util.DualStackOverlay) || (invoker.ipamMode == util.Overlay)
-			if err := configureDefaultAddResult(&info, &addConfig, &addResult, overlayMode, key); err != nil {
+			if err := configureDefaultAddResult(&info, &addConfig, &addResult, key); err != nil {
 				return IPAMAddResult{}, err
 			}
 		default:
@@ -379,32 +378,49 @@ func getRoutes(cnsRoutes []cns.Route, skipDefaultRoutes bool) ([]network.RouteIn
 	return routes, nil
 }
 
-func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, addResult *IPAMAddResult, overlayMode bool, key string) error {
+func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, addResult *IPAMAddResult, key string) error {
+	ipamMode := util.IpamMode(addConfig.nwCfg.IPAM.Mode)
 	// set the NC Primary IP in options
 	// SNATIPKey is not set for ipv6
-	if net.ParseIP(info.ncPrimaryIP).To4() != nil {
+	if ipamMode != util.Nodesubnet && net.ParseIP(info.ncPrimaryIP).To4() != nil {
 		addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
 	}
 
+	if ipamMode == util.Nodesubnet {
+		logger.Info("IPAM mode is nodesubnet, using host IP configuration info")
+		info.ncGatewayIPAddress = info.hostGateway
+		info.ncPrimaryIP = info.hostPrimaryIP
+		_, ncIPNet, err := net.ParseCIDR(info.hostSubnet)
+		if err != nil {
+			return errors.Wrap(err, "Unable to parse hostSubnet from response: "+info.hostSubnet+" with err %w")
+		}
+
+		maskLen, _ := ncIPNet.Mask.Size()
+		info.ncSubnetPrefix = uint8(maskLen) //nolint:gosec // length of mask, at most 128
+	}
+
 	ip, ncIPNet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
+
 	if ip == nil || err != nil {
 		return errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
 	}
 
-	ncgw := net.ParseIP(info.ncGatewayIPAddress)
-	if ncgw == nil {
-		// TODO: Remove v4overlay and dualstackoverlay options, after 'overlay' rolls out in AKS-RP
-		if !overlayMode {
+	podGateway := net.ParseIP(info.ncGatewayIPAddress)
+	// TODO: Remove v4overlay and dualstackoverlay options, after 'overlay' rolls out in AKS-RP
+	isPodSubnetMode := ipamMode != util.V4Overlay && ipamMode != util.DualStackOverlay && ipamMode != util.Overlay && ipamMode != util.Nodesubnet
+
+	if podGateway == nil {
+		if isPodSubnetMode {
 			return errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
 		}
 
 		if net.ParseIP(info.podIPAddress).To4() != nil { //nolint:gocritic
-			ncgw, err = getOverlayGateway(ncIPNet)
+			podGateway, err = getOverlayGateway(ncIPNet)
 			if err != nil {
 				return err
 			}
 		} else if net.ParseIP(info.podIPAddress).To16() != nil {
-			ncgw = net.ParseIP(overlayGatewayV6IP)
+			podGateway = net.ParseIP(overlayGatewayV6IP)
 		} else {
 			return errors.Wrap(err, "No podIPAddress is found: %w")
 		}
@@ -430,7 +446,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 					IP:   ip,
 					Mask: ncIPNet.Mask,
 				},
-				Gateway: ncgw,
+				Gateway: podGateway,
 			})
 
 		routes, getRoutesErr := getRoutes(info.routes, info.skipDefaultRoutes)
@@ -444,7 +460,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 		} else { // add default routes if none are provided
 			resRoute = append(resRoute, network.RouteInfo{
 				Dst: defaultRouteDstPrefix,
-				Gw:  ncgw,
+				Gw:  podGateway,
 			})
 		}
 
@@ -461,9 +477,8 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 	}
 
 	// set subnet prefix for host vm
-	// setHostOptions will execute if IPAM mode is not v4 overlay and not dualStackOverlay mode
-	// TODO: Remove v4overlay and dualstackoverlay options, after 'overlay' rolls out in AKS-RP
-	if !overlayMode {
+	// setHostOptions will execute if IPAM mode is podsubnet
+	if isPodSubnetMode {
 		if err := setHostOptions(ncIPNet, addConfig.options, info); err != nil {
 			return err
 		}

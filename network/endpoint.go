@@ -218,7 +218,9 @@ func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.Exec
 	// Call the platform implementation.
 	// Pass nil for epClient and will be initialized in deleteEndpointImpl
 	err = nw.deleteEndpointImpl(nl, plc, nil, nioc, nsc, iptc, dhcpc, ep)
-	if err != nil {
+	if errors.Is(err, ErrMissingHNSID) {
+		logger.Info("HNS ID is missing, skipping endpoint deletion")
+	} else if err != nil {
 		return err
 	}
 

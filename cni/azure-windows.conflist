@@ -10,7 +10,8 @@
                 "dns": true
             },
             "ipam": {
-                "type": "azure-vnet-ipam"
+                "type": "azure-vnet-ipam",
+                "mode": "nodesubnet"
             },
             "dns": {
                 "Nameservers": [

@@ -16,6 +16,7 @@ const (
 	V4Overlay        IpamMode = "v4overlay"
 	DualStackOverlay IpamMode = "dualStackOverlay"
 	Overlay          IpamMode = "overlay" // Nothing changes between 'v4overlay' and 'dualStackOverlay' mode, so consolidating to one
+	Nodesubnet       IpamMode = "nodesubnet"
 )
 
 // Overlay consolidation plan
