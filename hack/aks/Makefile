@@ -313,6 +313,7 @@ vnetscale-swift-byocni-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet 
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
+		--pod-ip-allocation-mode StaticBlock \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -330,6 +331,7 @@ vnetscale-swift-byocni-nokubeproxy-up: rg-up ipv4 vnetscale-swift-net-up ## Brin
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
+		--pod-ip-allocation-mode StaticBlock \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -347,6 +349,7 @@ vnetscale-swift-cilium-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet 
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
+		--pod-ip-allocation-mode StaticBlock \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -362,6 +365,7 @@ vnetscale-swift-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale S
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
+		--pod-ip-allocation-mode StaticBlock \
 		--yes
 	@$(MAKE) set-kubeconf
 
