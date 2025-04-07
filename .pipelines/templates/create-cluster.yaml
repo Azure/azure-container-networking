@@ -33,7 +33,7 @@ jobs:
             fi
 
             if ! [ -z ${K8S_VERSION} ]; then
-              echo "Default k8s version, $(make -C ./hack/aks vars | grep K8S | cut -d'=' -f 2), is being overwritten by ${K8S_VERSION}"
+              echo "Default k8s version, $(make -C ./hack/aks vars | grep K8S | cut -d'=' -f 2), is manually set to ${K8S_VERSION}"
               export K8S_VER=${K8S_VERSION}
             fi
 
