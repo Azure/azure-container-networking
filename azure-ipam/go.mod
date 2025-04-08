@@ -88,7 +88,7 @@ require (
 
 require (
 	github.com/Azure/azure-container-networking v1.4.54
-	github.com/containernetworking/cni v1.2.3
+	github.com/containernetworking/cni v1.3.0
 	github.com/containernetworking/plugins v1.6.1
 	go.uber.org/multierr v1.11.0 // indirect
 )
