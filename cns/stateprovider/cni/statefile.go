@@ -1,4 +1,4 @@
-package cnireconciler
+package cni
 
 import (
 	"encoding/json"
