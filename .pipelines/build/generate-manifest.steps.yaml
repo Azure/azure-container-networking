@@ -13,8 +13,8 @@ steps:
         .args = [ ("--os "   + .args[0]     ), ("--platform " + .args[1]     ) ] | 
         if .osVersion then .args += ["--os-version " + .osVersion] else . end    |
         { image: .imageReference, annotate: .args }' | \
-      jq -rs)
-    echo >&2 "##vso[task.setvariable variable=MANIFEST_JSON]$MANIFEST_DATA"
+      jq -rcs)
+    echo >&2 "##vso[task.setvariable variable=MANIFEST_JSON;isOutput=true]$MANIFEST_DATA"
     echo "$MANIFEST_DATA" | jq -r .
   displayName: "Populate Image Manifest Data"
   name: data

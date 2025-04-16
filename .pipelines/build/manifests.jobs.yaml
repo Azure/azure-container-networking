@@ -26,9 +26,11 @@ jobs:
     variables:
       ob_outputDirectory: $(Build.SourcesDirectory)/out
       ob_git_checkout: false
+
+      MANIFEST_JSON: $[ dependencies.${{ job_data.job }}_generate_manifest.outputs['data.MANIFEST_JSON'] ]
     steps:
     - template: /.pipelines/build/publish-manifest.steps.yaml
       parameters:
         image_repository: $(IMAGE_REPO_PATH)/${{ job_data.templateContext.name }}
         image_tag: ${{ job_data.templateContext.image_tag }}
-        manifest_data: $[ dependencies.${{ job_data.job }}_generate_manifest.outputs['data.MANIFEST_JSON'] ]
+        manifest_data: $(MANIFEST_JSON)
