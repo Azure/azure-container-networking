@@ -1,3 +1,15 @@
+parameters:
+- name: target
+  type: string
+  values:
+  - acncli 
+  - azure-cni-plugin 
+  - azure-cns 
+  - azure-npm 
+  - azure-ipam 
+  - ipv6-hp-bpf
+
+
 steps:
 - task: GoTool@0
   inputs:
@@ -5,13 +17,15 @@ steps:
 
 - bash: |
     make ipv6-hp-bpf-lib
-    make all-binaries-platforms
+    make "$TARGET"
   displayName: "Build all platform binaries"
   workingDirectory: $(ACN_DIR)
+  env:
+    TARGET: ${{ parameters.target }}
 
 - script: |
-    mkdir -p ./output/bins
-    cd ./output
+    mkdir -p ./out/bins
+    cd ./out
     find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
     find . -name '*.zip' -print -exec mv -t ./bins/ {} +
     shopt -s extglob
@@ -21,5 +35,5 @@ steps:
 
 - task: CopyFiles@2
   inputs:
-    sourceFolder: "$(ACN_DIR)/output"
-    targetFolder: $(Build.ArtifactStagingDirectory)/output
+    sourceFolder: "$(ACN_DIR)/out"
+    targetFolder: $(Build.ArtifactStagingDirectory)/out
