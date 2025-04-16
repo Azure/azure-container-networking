@@ -41,66 +41,6 @@ stages:
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
       NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
     jobs:
-    - job: binaries_windows_arm64
-      displayName: "Build Windows/ARM64 Binaries"
-      pool:
-        type: windows
-        hostArchitecture: arm64
-      variables:
-        ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
-        ob_git_checkout: true
-        ob_artifactSuffix: _$(name)_windows_arm64
-    
-        ACN_DIR: azure-container-networking
-        ARCH: arm64
-        OS: windows
-      strategy:
-        maxParallel: 5
-        matrix:
-          cni:
-            target: cni
-          cns:
-            target: cns
-          npm:
-            target: npm
-      steps:
-      - checkout: azure-container-networking
-      - template: build/binaries.steps.yaml
-        parameters:
-          target: $(target)
-    - job: binaries_linux_arm64
-      displayName: "Build Linux/ARM64 Binaries"
-      pool:
-        type: linux
-        vmImage: $(LinuxContainerImage2)
-        hostArchitecture: arm64
-      variables:
-        ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
-        ob_git_checkout: true
-        ob_enable_qemu: true
-        ob_artifactSuffix: _$(name)_linux_arm64
-    
-        ACN_DIR: azure-container-networking
-        ARCH: arm64
-        OS: linux
-      strategy:
-        maxParallel: 5
-        matrix:
-          azure_ipam:
-            target: azure-ipam
-          cni:
-            target: cni
-          cns:
-            target: cns
-          ipv6_hp_bpf:
-            target: ipv6-hp-bpf
-          npm:
-            target: npm
-      steps:
-      - checkout: azure-container-networking
-      - template: build/binaries.steps.yaml
-        parameters:
-          target: $(target)
     - job: binaries_linux_amd64
       displayName: "Build Linux/AMD64 Binaries"
       pool:
@@ -126,6 +66,67 @@ stages:
             target: cns
           ipv6_hp_bpf:
             target: ipv6-hp-bpf
+          npm:
+            target: npm
+      steps:
+      - checkout: azure-container-networking
+      - template: build/binaries.steps.yaml
+        parameters:
+          target: $(target)
+
+    - job: binaries_linux_arm64
+      displayName: "Build Linux/ARM64 Binaries"
+      pool:
+        type: linux
+        vmImage: $(LinuxContainerImage2)
+        hostArchitecture: arm64
+      variables:
+        ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+        ob_git_checkout: true
+        ob_artifactSuffix: _$(name)_linux_arm64
+    
+        ACN_DIR: azure-container-networking
+        ARCH: arm64
+        OS: linux
+      strategy:
+        maxParallel: 5
+        matrix:
+          azure_ipam:
+            target: azure-ipam
+          cni:
+            target: cni
+          cns:
+            target: cns
+          ipv6_hp_bpf:
+            target: ipv6-hp-bpf
+          npm:
+            target: npm
+      steps:
+      - checkout: azure-container-networking
+      - template: build/binaries.steps.yaml
+        parameters:
+          target: $(target)
+
+    - job: binaries_windows_amd64
+      displayName: "Build Windows/AMD64 Binaries"
+      pool:
+        type: windows
+        hostArchitecture: amd64
+      variables:
+        ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+        ob_git_checkout: true
+        ob_artifactSuffix: _$(name)_windows_amd64
+    
+        ACN_DIR: azure-container-networking
+        ARCH: amd64
+        OS: windows
+      strategy:
+        maxParallel: 5
+        matrix:
+          cni:
+            target: cni
+          cns:
+            target: cns
           npm:
             target: npm
       steps:
