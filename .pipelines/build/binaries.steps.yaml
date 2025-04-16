@@ -1,13 +1,13 @@
 parameters:
 - name: target
   type: string
-  values:
-  - acncli 
-  - azure-cni-plugin 
-  - azure-cns 
-  - azure-npm 
-  - azure-ipam 
-  - ipv6-hp-bpf
+  #values:
+  #- acncli 
+  #- azure-cni-plugin 
+  #- azure-cns 
+  #- azure-npm 
+  #- azure-ipam 
+  #- ipv6-hp-bpf
 
 
 steps:
