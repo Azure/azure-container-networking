@@ -275,10 +275,9 @@ stages:
       IPV6_LINUX_AMD64_REF: $(ACR).azurecr.io/$(IMAGE_REPO_PATH)/linux-amd64/ipv6-hp-bpf:$(IPV6_HP_BPF_VERSION)
       IPV6_LINUX_ARM64_REF: $(ACR).azurecr.io/$(IMAGE_REPO_PATH)/linux-arm64/ipv6-hp-bpf:$(IPV6_HP_BPF_VERSION)
 
-      NPM_REF: $[ stageDependencies.build.images_linux_amd64.outputs ]
-      NPM_LINUX_AMD64_REF: $[ stageDependencies.build.images_linux_amd64.outputs['npm.detail.IMAGE_REFERENCE'] ]
-      NPM_LINUX_ARM64_REF: $[ stageDependencies.build.images_linux_arm64.outputs['npm.detail.IMAGE_REFERENCE'] ]
-      NPM_WINDOWS_AMD64_REF: $[ stageDependencies.build.images_windows_amd64.outputs['npm.detail.IMAGE_REFERENCE'] ]
+      NPM_LINUX_AMD64_REF: $(ACR).azurecr.io/$(IMAGE_REPO_PATH)/linux-amd64/npm:$(NPM_VERSION)
+      NPM_LINUX_ARM64_REF: $(ACR).azurecr.io/$(IMAGE_REPO_PATH)/linux-arm64/npm:$(NPM_VERSION)
+      NPM_WINDOWS_AMD64_REF: $(ACR).azurecr.io/$(IMAGE_REPO_PATH)/windows-amd64/npm:$(NPM_VERSION)
     jobs:
     - template: build/manifests.jobs.yaml
       parameters:
