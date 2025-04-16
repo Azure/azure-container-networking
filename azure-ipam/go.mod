@@ -4,7 +4,7 @@ go 1.23
 
 require (
 	github.com/Azure/azure-container-networking v1.6.22
-	github.com/containernetworking/cni v1.2.3
+	github.com/containernetworking/cni v1.3.0
 	github.com/containernetworking/plugins v1.6.2
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
@@ -66,7 +66,7 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.33.0 // indirect
-	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
