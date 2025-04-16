@@ -80,11 +80,11 @@ steps:
     enable_pull: true
     build_tag: ${{ parameters.build_tag }}
     enable_acr_push: true
-    #enable_isolated_acr_push: true
 
-    #compress: true
     saveImageToPath: images/$(os)-$(arch)/${{ parameters.archive_file }}.tar.gz
+    #compress: true
     #saveMetadataToPath: images/$(os)-$(arch)/metadata/${{ parameters.archive_file }}-metadata.json
+    #enable_isolated_acr_push: true
 
     # Docker Build Arguments
     ${{ if parameters.common_build_args }}:
