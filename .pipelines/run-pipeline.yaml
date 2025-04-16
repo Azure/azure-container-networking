@@ -59,20 +59,49 @@ stages:
         maxParallel: 5
         matrix:
           azure_ipam:
-            target: azure-ipam
+            name: azure-ipam
           cni:
-            target: cni
+            name: cni
           cns:
-            target: cns
+            name: cns
           ipv6_hp_bpf:
-            target: ipv6-hp-bpf
+            name: ipv6-hp-bpf
           npm:
-            target: npm
+            name: npm
       steps:
       - checkout: azure-container-networking
       - template: build/binaries.steps.yaml
         parameters:
-          target: $(target)
+          target: $(name)
+
+    - job: binaries_windows_amd64
+      displayName: "Build Windows Binaries"
+      pool:
+        type: linux
+        vmImage: $(LinuxContainerImage2)
+      variables:
+        ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+        ob_git_checkout: true
+        ob_enable_qemu: true
+        ob_artifactSuffix: _$(name)_windows_amd64
+    
+        ACN_DIR: azure-container-networking
+        ARCH: amd64
+        OS: windows
+      strategy:
+        maxParallel: 5
+        matrix:
+          cni:
+            name: cni
+          cns:
+            name: cns
+          npm:
+            name: npm
+      steps:
+      - checkout: azure-container-networking
+      - template: build/binaries.steps.yaml
+        parameters:
+          target: $(name)
 
     - job: binaries_linux_arm64
       displayName: "Build Linux/ARM64 Binaries"
@@ -92,48 +121,20 @@ stages:
         maxParallel: 5
         matrix:
           azure_ipam:
-            target: azure-ipam
+            name: azure-ipam
           cni:
-            target: cni
+            name: cni
           cns:
-            target: cns
+            name: cns
           ipv6_hp_bpf:
-            target: ipv6-hp-bpf
+            name: ipv6-hp-bpf
           npm:
-            target: npm
+            name: npm
       steps:
       - checkout: azure-container-networking
       - template: build/binaries.steps.yaml
         parameters:
-          target: $(target)
-
-    - job: binaries_windows_amd64
-      displayName: "Build Windows/AMD64 Binaries"
-      pool:
-        type: windows
-        hostArchitecture: amd64
-      variables:
-        ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
-        ob_git_checkout: true
-        ob_artifactSuffix: _$(name)_windows_amd64
-    
-        ACN_DIR: azure-container-networking
-        ARCH: amd64
-        OS: windows
-      strategy:
-        maxParallel: 5
-        matrix:
-          cni:
-            target: cni
-          cns:
-            target: cns
-          npm:
-            target: npm
-      steps:
-      - checkout: azure-container-networking
-      - template: build/binaries.steps.yaml
-        parameters:
-          target: $(target)
+          target: $(name)
 
 
     - job: images_linux_amd64
