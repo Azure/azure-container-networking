@@ -141,7 +141,7 @@ stages:
       displayName: "Build Linux/AMD64 Images"
       pool:
         os: linux
-        type: docker
+        vmImage: $(LinuxContainerImage2)
       variables:
         ob_outputDirectory: $(Build.SourcesDirectory)/out
         ob_artifactSuffix: _$(name)_linux_amd64
@@ -201,7 +201,7 @@ stages:
       displayName: "Build Windows Images"
       pool:
         os: linux
-        type: docker
+        vmImage: $(LinuxContainerImage2)
       variables:
         ob_outputDirectory: $(Build.SourcesDirectory)/out
         ob_artifactSuffix: _$(name)_windows_amd64
