@@ -79,9 +79,10 @@ steps:
     enable_network: true
     enable_pull: true
     build_tag: ${{ parameters.build_tag }}
-    enable_acr_push:  true
+    enable_acr_push: true
+    #enable_isolated_acr_push: true
 
-    compress: true
+    #compress: true
     saveImageToPath: images/$(os)-$(arch)/${{ parameters.archive_file }}.tar.gz
     #saveMetadataToPath: images/$(os)-$(arch)/metadata/${{ parameters.archive_file }}-metadata.json
 
