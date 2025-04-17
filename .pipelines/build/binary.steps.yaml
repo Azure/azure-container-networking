@@ -52,8 +52,8 @@ steps:
     GOARCH: ${{ parameters.arch }}
 
 - script: |
-    mkdir -p ./out/bins
-    cd ./out
+    mkdir -p ./output/bins
+    cd ./output
     find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
     find . -name '*.zip' -print -exec mv -t ./bins/ {} +
     shopt -s extglob
@@ -63,5 +63,5 @@ steps:
 
 - task: CopyFiles@2
   inputs:
-    sourceFolder: "$(ACN_DIR)/out"
+    sourceFolder: "$(ACN_DIR)/output"
     targetFolder: $(Build.ArtifactStagingDirectory)/out
