@@ -4,10 +4,11 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"net/netip"
 	"os"
+	"strconv"
+	"sync"
 
-	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -37,22 +38,35 @@ var (
 		genericclioptions.ConfigFlags
 		subnet     string
 		subnetGUID string
+		vnetGUID   string
 		nodes      int
+		nodesubnet string
+		pods       int
 		cleanup    bool
+		overlay    bool
+		vnetblock  bool
+		loglevel   string
 	}{}
 )
 
 func init() {
 	rootopts.ConfigFlags = *genericclioptions.NewConfigFlags(true)
+	rootcmd.PersistentFlags().StringVar(&rootopts.loglevel, "log-level", "debug", "Log level")
 	rootopts.AddFlags(rootcmd.PersistentFlags())
+	rootcmd.Flags().BoolVar(&rootopts.overlay, "overlay", false, "Set overlay labels on nodes")
+	rootcmd.Flags().BoolVar(&rootopts.vnetblock, "vnet-block", false, "Set vnet block labels on nodes")
 	rootcmd.Flags().StringVar(&rootopts.subnet, "subnet", "", "Subnet to use for the nodes")
 	rootcmd.Flags().StringVar(&rootopts.subnetGUID, "subnet-guid", "", "Subnet GUID to use for the nodes")
+	rootcmd.Flags().StringVar(&rootopts.vnetGUID, "vnet-guid", "", "VNet GUID to use for the nodes")
 	rootcmd.Flags().IntVar(&rootopts.nodes, "nodes", 10, "Number of nodes to create")
+	rootcmd.Flags().StringVar(&rootopts.nodesubnet, "node-subnet", "", "Subnet to use for the nodes")
 	rootcmd.Flags().BoolVar(&rootopts.cleanup, "cleanup", false, "Cleanup nodes after test")
+	rootcmd.Flags().IntVar(&rootopts.pods, "max-pods", 250, "Max pods per node")
 }
 
 func setup(*cobra.Command, []string) error {
 	kubeConfig, err := ctrl.GetConfig()
+	kubeConfig.QPS = 1000
 	if err != nil {
 		return errors.Wrap(err, "failed to get kubeconfig")
 	}
@@ -68,7 +82,9 @@ func setup(*cobra.Command, []string) error {
 	dynacli = d
 	zcfg := zap.NewProductionEncoderConfig()
 	zcfg.EncodeTime = zapcore.ISO8601TimeEncoder
-	z = zap.New(zapcore.NewCore(zaplogfmt.NewEncoder(zcfg), os.Stdout, zapcore.DebugLevel)).With(zap.String("cluster", kubeConfig.Host))
+	zcfg.EncodeDuration = zapcore.StringDurationEncoder
+	lvl, _ := zapcore.ParseLevel(rootopts.loglevel)
+	z = zap.New(zapcore.NewCore(zapcore.NewJSONEncoder(zcfg), os.Stdout, lvl)).With(zap.String("cluster", kubeConfig.Host))
 	return nil
 }
 
@@ -76,16 +92,13 @@ func run(ctx context.Context) error {
 	z.Debug("starting with opts", zap.String("subnet", rootopts.subnet), zap.String("subnetGUID", rootopts.subnetGUID), zap.Int("nodes", rootopts.nodes))
 	fakeNode := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "skale-node",
 			Annotations: map[string]string{
 				"kwok.x-k8s.io/node": "fake",
 			},
 			Labels: map[string]string{
 				"type": "kwok",
-				"kubernetes.azure.com/podnetwork-delegationguid": rootopts.subnetGUID, // "cf649a07-6690-41ff-b9ef-a5be9582de4f",
-				"kubernetes.azure.com/podnetwork-max-pods":       "63",
-				"kubernetes.azure.com/podnetwork-subnet":         rootopts.subnet, // "pod-subnet"
-				"topology.kubernetes.io/zone":                    "0",
+				"kubernetes.azure.com/podnetwork-max-pods": strconv.Itoa(rootopts.pods),
+				"topology.kubernetes.io/zone":              "0",
 			},
 		},
 		Spec: corev1.NodeSpec{
@@ -98,35 +111,60 @@ func run(ctx context.Context) error {
 			},
 		},
 	}
-
-	nodes := generateNodes(fakeNode, rootopts.nodes)
-	if !rootopts.cleanup {
-		for _, node := range nodes {
-			if _, err := kubecli.CoreV1().Nodes().Create(ctx, node, metav1.CreateOptions{}); err != nil && !k8serr.IsAlreadyExists(err) {
-				return errors.Wrap(err, "failed to create node")
-			}
-			z.Info("created node", zap.String("name", node.Name))
+	if rootopts.overlay {
+		fakeNode.ObjectMeta.Labels["kubernetes.azure.com/podnetwork-type"] = "overlay"
+		fakeNode.ObjectMeta.Labels["kubernetes.azure.com/azure-cni-overlay"] = "true"
+		fakeNode.ObjectMeta.Labels["kubernetes.azure.com/nodenetwork-vnetguid"] = rootopts.vnetGUID
+	} else {
+		if rootopts.vnetblock {
+			fakeNode.ObjectMeta.Labels["kubernetes.azure.com/podnetwork-type"] = "vnetblock"
 		}
+		fakeNode.ObjectMeta.Labels["kubernetes.azure.com/podnetwork-delegationguid"] = rootopts.subnetGUID
+		fakeNode.ObjectMeta.Labels["kubernetes.azure.com/podnetwork-subnet"] = rootopts.subnet
+	}
+
+	if !rootopts.cleanup {
+		prefix, err := netip.ParsePrefix(rootopts.nodesubnet)
+		if err != nil {
+			return errors.Wrap(err, "failed to parse nodesubnet prefix")
+		}
+		nodeip := prefix.Masked().Addr()
+		wg := sync.WaitGroup{}
+		for i := range rootopts.nodes {
+			wg.Add(1)
+			fakeNode.Name = "skale-" + strconv.Itoa(i)
+			go func(node corev1.Node, ip string) {
+				_, err := kubecli.CoreV1().Nodes().Create(ctx, &node, metav1.CreateOptions{})
+				if err != nil && !k8serr.IsAlreadyExists(err) {
+					z.Error("failed to create node", zap.Error(err))
+				}
+				_, err = kubecli.CoreV1().Nodes().PatchStatus(ctx, node.Name, []byte(`{"status":{"addresses":[{"type":"InternalIP","address":"`+ip+`"}]}}`))
+				if err != nil {
+					z.Error("failed to patch node status", zap.Error(err))
+				}
+				z.Debug("created node", zap.String("name", node.Name))
+				wg.Done()
+			}(*fakeNode, nodeip.String())
+			nodeip = nodeip.Next()
+		}
+		wg.Wait()
 		z.Info("created nodes")
 		return nil
 	}
 	// TODO: this is where we will put the tests
-	for _, node := range nodes {
-		if err := kubecli.CoreV1().Nodes().Delete(ctx, node.Name, metav1.DeleteOptions{}); err != nil && !k8serr.IsNotFound(err) {
-			return errors.Wrap(err, "failed to delete node")
-		}
-		z.Info("deleted node", zap.String("name", node.Name))
+	wg := sync.WaitGroup{}
+	for i := range rootopts.nodes {
+		wg.Add(1)
+		go func(i int) {
+			name := "skale-" + strconv.Itoa(i)
+			if err := kubecli.CoreV1().Nodes().Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !k8serr.IsNotFound(err) {
+				z.Error("failed to delete node", zap.Error(err))
+			}
+			z.Debug("deleted node", zap.String("name", name))
+			wg.Done()
+		}(i)
 	}
+	wg.Wait()
 	z.Info("deleted nodes")
 	return nil
-}
-
-func generateNodes(skel *corev1.Node, num int) []*corev1.Node {
-	nodes := make([]*corev1.Node, num)
-	for i := range num {
-		node := *skel.DeepCopy()
-		node.Name = fmt.Sprintf("%s-%d", node.Name, i)
-		nodes[i] = &node
-	}
-	return nodes
 }
