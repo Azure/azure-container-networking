@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -113,44 +115,58 @@ func process(ctx context.Context, nncch <-chan *v1alpha.NodeNetworkConfig, nodec
 }
 
 type stats struct {
-	avg, min, max, p50, p99 int64
+	total, avg, min, max, p50, p99 time.Duration
 }
 
-func (s stats) MarshalLogObject(o zapcore.ObjectEncoder) error {
-	o.AddInt64("avg", s.avg)
-	o.AddInt64("min", s.min)
-	o.AddInt64("max", s.max)
-	o.AddInt64("p50", s.p50)
-	o.AddInt64("p99", s.p99)
+func (s *stats) MarshalLogObject(o zapcore.ObjectEncoder) error {
+	o.AddInt64("total", int64(s.total))
+	o.AddDuration("avg", s.avg)
+	o.AddDuration("min", s.min)
+	o.AddDuration("max", s.max)
+	o.AddDuration("p50", s.p50)
+	o.AddDuration("p99", s.p99)
 	return nil
 }
 
+type snapshot struct {
+	node, created, ready int
+	t                    time.Time
+}
+
+type totals struct {
+	nodes          int
+	nncCreateStats stats
+	nncReadyStats  stats
+}
+
+var timeline = map[int]snapshot{}
+
 func pretty(events map[string]event) {
-	totals := struct {
-		created        int64
-		ready          int64
-		nncCreateStats stats
-		nncReadyStats  stats
-	}{}
-	var createVals, readyVals []int64
+	totals := totals{}
+	var createVals, readyVals []time.Duration
 	for i := range events {
 		if events[i].created() {
-			totals.created++
+			totals.nncCreateStats.total++
 		}
 		if events[i].ready() {
-			totals.ready++
+			totals.nncReadyStats.total++
 		}
-		if val := events[i].nncCreateLatencyMs(); val > 0 {
-			totals.nncCreateStats.avg = totals.nncCreateStats.avg*(totals.created-1)/totals.created + val/totals.created
+		if val := events[i].nncCreateLatency(); val > 0 {
+			totals.nncCreateStats.avg = totals.nncCreateStats.avg*(totals.nncCreateStats.total-1)/totals.nncCreateStats.total + val/totals.nncCreateStats.total
 			createVals = append(createVals, val)
 		}
-		if val := events[i].nncReadyLatencyMs(); val > 0 {
-			totals.nncReadyStats.avg = totals.nncReadyStats.avg*(totals.ready-1)/totals.ready + val/totals.ready
+		if val := events[i].nncReadyLatency(); val > 0 {
+			totals.nncReadyStats.avg = totals.nncReadyStats.avg*(totals.nncReadyStats.total-1)/totals.nncReadyStats.total + val/totals.nncReadyStats.total
 			readyVals = append(readyVals, val)
 		}
 	}
+	if len(createVals) == 0 || len(readyVals) == 0 {
+		z.Debug("no values")
+		return
+	}
 	slices.Sort(createVals)
 	slices.Sort(readyVals)
+	totals.nodes = len(events)
 	totals.nncCreateStats.max = createVals[len(createVals)-1]
 	totals.nncCreateStats.min = createVals[0]
 	totals.nncCreateStats.p50 = createVals[len(createVals)/2]
@@ -159,7 +175,33 @@ func pretty(events map[string]event) {
 	totals.nncReadyStats.min = readyVals[0]
 	totals.nncReadyStats.p50 = readyVals[len(readyVals)/2]
 	totals.nncReadyStats.p99 = readyVals[len(readyVals)*99/100]
-	z.Debug("recalculated", zap.Int("total", len(events)), zap.Object("create", totals.nncCreateStats), zap.Object("ready", totals.nncReadyStats))
+	z.Info("new recalculated", zap.Int("total", len(events)), zap.Object("create", &totals.nncCreateStats), zap.Object("ready", &totals.nncReadyStats))
+	if totals.nncReadyStats.total == 100 {
+		record(totals)
+	}
+}
+
+func record2(events map[string]event) {
+	// print node creation, nnc creation, nnc ready timestamps as csv columns
+	for k, v := range events {
+		fmt.Printf("%s,%d,%d,%d\n", k, v.nodeCreation.Unix(), v.nncCreation.Unix(), v.nncReady.Unix())
+	}
+	os.Exit(0)
+}
+
+func record(totals totals) {
+	timeline[int(totals.nncReadyStats.total)] = snapshot{
+		t:       time.Now(),
+		node:    totals.nodes,
+		created: int(totals.nncCreateStats.total),
+		ready:   int(totals.nncReadyStats.total),
+	}
+	if totals.nncReadyStats.total%5000 == 0 {
+		for _, s := range timeline {
+			fmt.Printf("%d,%d,%d,%d\n", s.t.Unix(), s.node, s.created, s.ready)
+		}
+		os.Exit(0)
+	}
 }
 
 type event struct {
@@ -168,18 +210,18 @@ type event struct {
 	nncReady     time.Time
 }
 
-func (e event) nncCreateLatencyMs() int64 {
+func (e event) nncCreateLatency() time.Duration {
 	if e.nodeCreation.IsZero() || e.nncCreation.IsZero() {
 		return -1
 	}
-	return e.nncCreation.Sub(e.nodeCreation).Milliseconds()
+	return e.nncCreation.Sub(e.nodeCreation)
 }
 
-func (e event) nncReadyLatencyMs() int64 {
+func (e event) nncReadyLatency() time.Duration {
 	if e.nncCreation.IsZero() || e.nncReady.IsZero() {
 		return -1
 	}
-	return e.nncReady.Sub(e.nncCreation).Milliseconds()
+	return e.nncReady.Sub(e.nncCreation)
 }
 
 func (e event) created() bool {
