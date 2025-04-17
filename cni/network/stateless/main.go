@@ -24,11 +24,10 @@ import (
 var logger = zapLog.CNILogger.With(zap.String("component", "cni-main"))
 
 const (
-	hostNetAgentURL = "http://168.63.129.16/machine/plugins?comp=netagent&type=cnireport"
-	ipamQueryURL    = "http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
-	pluginName      = "CNI"
-	name            = "azure-vnet"
-	stateless       = true
+	ipamQueryURL = "http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
+	pluginName   = "CNI"
+	name         = "azure-vnet"
+	stateless    = true
 )
 
 // Version is populated by make during build.
@@ -51,10 +50,7 @@ func printVersion() {
 }
 
 func rootExecute() error {
-	var (
-		config common.PluginConfig
-		tb     *telemetry.TelemetryBuffer
-	)
+	var config common.PluginConfig
 
 	log.SetName(name)
 	log.SetLevel(log.LevelInfo)
@@ -67,14 +63,10 @@ func rootExecute() error {
 	config.Stateless = stateless
 
 	reportManager := &telemetry.ReportManager{
-		HostNetAgentURL: hostNetAgentURL,
-		ContentType:     telemetry.ContentType,
 		Report: &telemetry.CNIReport{
-			Context:          "AzureCNI",
-			SystemDetails:    telemetry.SystemInfo{},
-			InterfaceDetails: telemetry.InterfaceInfo{},
-			BridgeDetails:    telemetry.BridgeInfo{},
-			Version:          version,
+			Context:       "AzureCNI",
+			SystemDetails: telemetry.SystemInfo{},
+			Version:       version,
 		},
 	}
 
@@ -112,19 +104,17 @@ func rootExecute() error {
 			}
 		}()
 
-		// Connect to the telemetry process.
-		tb = telemetry.NewTelemetryBuffer(logger)
-		tb.ConnectToTelemetry()
-		defer tb.Close()
-
-		netPlugin.SetCNIReport(cniReport, tb)
+		// Connect to the telemetry process. Does not start the telemetry service if it is not running.
+		telemetry.AIClient.ConnectTelemetry(logger)
+		defer telemetry.AIClient.DisconnectTelemetry()
+		telemetry.AIClient.SetSettings(cniReport)
 
 		t := time.Now()
 		cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
 
 		if err = netPlugin.Start(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to start network plugin, err:%v.\n", err))
-			network.ReportPluginError(reportManager, tb, err)
+			telemetry.AIClient.SendError(err)
 			panic("network plugin start fatal error")
 		}
 	}
@@ -150,10 +140,6 @@ func rootExecute() error {
 		return errors.Wrap(err, "Failed to execute network plugin")
 	}
 	netPlugin.Stop()
-
-	if err != nil {
-		network.ReportPluginError(reportManager, tb, err)
-	}
 
 	return errors.Wrap(err, "Execute netplugin failure")
 }
