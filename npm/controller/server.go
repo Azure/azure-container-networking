@@ -88,10 +88,10 @@ func NewNetworkPolicyServer(
 		},
 	}
 
-	n.NpmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
-	n.PodControllerV2 = controllersv2.NewPodController(n.PodInformer, dp, n.NpmNamespaceCacheV2)
-	n.NamespaceControllerV2 = controllersv2.NewNamespaceController(n.NsInformer, dp, n.NpmNamespaceCacheV2)
-	n.NetPolControllerV2 = controllersv2.NewNetworkPolicyController(n.NpInformer, dp)
+	n.K8SControllersV2.NpmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
+	n.K8SControllersV2.PodControllerV2 = controllersv2.NewPodController(n.Informers.PodInformer, dp, n.K8SControllersV2.NpmNamespaceCacheV2)
+	n.K8SControllersV2.NamespaceControllerV2 = controllersv2.NewNamespaceController(n.Informers.NsInformer, dp, n.K8SControllersV2.NpmNamespaceCacheV2)
+	n.K8SControllersV2.NetPolControllerV2 = controllersv2.NewNetworkPolicyController(n.Informers.NpInformer, dp)
 
 	return n, nil
 }
@@ -101,7 +101,7 @@ func (n *NetworkPolicyServer) MarshalJSON() ([]byte, error) {
 
 	var npmNamespaceCacheRaw []byte
 	var err error
-	npmNamespaceCacheRaw, err = json.Marshal(n.NpmNamespaceCacheV2)
+	npmNamespaceCacheRaw, err = json.Marshal(n.K8SControllersV2.NpmNamespaceCacheV2)
 
 	if err != nil {
 		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
@@ -109,14 +109,14 @@ func (n *NetworkPolicyServer) MarshalJSON() ([]byte, error) {
 	m[models.NsMap] = npmNamespaceCacheRaw
 
 	var podControllerRaw []byte
-	podControllerRaw, err = json.Marshal(n.PodControllerV2)
+	podControllerRaw, err = json.Marshal(n.K8SControllersV2.PodControllerV2)
 
 	if err != nil {
 		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
 	}
 	m[models.PodMap] = podControllerRaw
 
-	nodeNameRaw, err := json.Marshal(n.NodeName)
+	nodeNameRaw, err := json.Marshal(n.AzureConfig.NodeName)
 	if err != nil {
 		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
 	}
@@ -131,30 +131,30 @@ func (n *NetworkPolicyServer) MarshalJSON() ([]byte, error) {
 }
 
 func (n *NetworkPolicyServer) GetAppVersion() string {
-	return n.Version
+	return n.AzureConfig.Version
 }
 
 func (n *NetworkPolicyServer) Start(config npmconfig.Config, stopCh <-chan struct{}) error {
 	// Starts all informers manufactured by n's InformerFactory.
-	n.InformerFactory.Start(stopCh)
+	n.Informers.InformerFactory.Start(stopCh)
 
 	// Wait for the initial sync of local cache.
-	if !cache.WaitForCacheSync(stopCh, n.PodInformer.Informer().HasSynced) {
+	if !cache.WaitForCacheSync(stopCh, n.Informers.PodInformer.Informer().HasSynced) {
 		return fmt.Errorf("Pod informer error: %w", models.ErrInformerSyncFailure)
 	}
 
-	if !cache.WaitForCacheSync(stopCh, n.NsInformer.Informer().HasSynced) {
+	if !cache.WaitForCacheSync(stopCh, n.Informers.NsInformer.Informer().HasSynced) {
 		return fmt.Errorf("Namespace informer error: %w", models.ErrInformerSyncFailure)
 	}
 
-	if !cache.WaitForCacheSync(stopCh, n.NpInformer.Informer().HasSynced) {
+	if !cache.WaitForCacheSync(stopCh, n.Informers.NpInformer.Informer().HasSynced) {
 		return fmt.Errorf("NetworkPolicy informer error: %w", models.ErrInformerSyncFailure)
 	}
 
 	// start v2 NPM controllers after synced
-	go n.PodControllerV2.Run(stopCh)
-	go n.NamespaceControllerV2.Run(stopCh)
-	go n.NetPolControllerV2.Run(stopCh)
+	go n.K8SControllersV2.PodControllerV2.Run(stopCh)
+	go n.K8SControllersV2.NamespaceControllerV2.Run(stopCh)
+	go n.K8SControllersV2.NetPolControllerV2.Run(stopCh)
 
 	// start the transport layer (gRPC) server
 	// We block the main thread here until the server is stopped.

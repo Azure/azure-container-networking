@@ -52,7 +52,7 @@ func InterfaceExists(iFaceName string) (bool, error) {
 	_, err := net.InterfaceByName(iFaceName)
 	if err != nil {
 		errMsg := fmt.Sprintf("[Azure CNS] Unable to get interface by name %s. Error: %v", iFaceName, err)
-		logger.Printf(errMsg)
+		logger.Printf("%s", errMsg)
 		return false, errors.New(errMsg)
 	}
 
@@ -126,7 +126,7 @@ func getNetworkConfig(configFilePath string) ([]byte, error) {
 
 	if flatNetConfigMap == nil {
 		msg := "[Azure CNS] " + pluginsStr + " section of the network configuration cannot be empty."
-		logger.Printf(msg)
+		logger.Printf("%s", msg)
 		return nil, errors.New(msg)
 	}
 

@@ -10,25 +10,25 @@ import (
 )
 
 /*
-	dirtyCacheInterface will maintain the dirty cache.
-	It may maintain membersToAdd and membersToDelete.
-	Members are either IPs, CIDRs, IP-Port pairs, or prefixed set names if the parent is a list.
+dirtyCacheInterface will maintain the dirty cache.
+It may maintain membersToAdd and membersToDelete.
+Members are either IPs, CIDRs, IP-Port pairs, or prefixed set names if the parent is a list.
 
-	Assumptions:
-	- if the set becomes dirty via update or destroy, then the set WAS in the kernel before
-	- if the set becomes dirty via create, then the set was NOT in the kernel before
+Assumptions:
+- if the set becomes dirty via update or destroy, then the set WAS in the kernel before
+- if the set becomes dirty via create, then the set was NOT in the kernel before
 
-	Usage:
-	- create, addMember, deleteMember, and destroy are idempotent
-	- create should not be called if the set becomes dirty via add/delete or the set is removed from the deleteCache via add/update
-	- deleteMember should not be called if the set is in the deleteCache
-	- deleteMember is safe to call on members in the kernel and members added via addMember
-	- deleteMember is also safe to call on members not in the kernel if the set isn't in the kernel yet (became dirty via create)
+Usage:
+- create, addMember, deleteMember, and destroy are idempotent
+- create should not be called if the set becomes dirty via add/delete or the set is removed from the deleteCache via add/update
+- deleteMember should not be called if the set is in the deleteCache
+- deleteMember is safe to call on members in the kernel and members added via addMember
+- deleteMember is also safe to call on members not in the kernel if the set isn't in the kernel yet (became dirty via create)
 
-	Examples of Expected Behavior:
-	- if a set is created and then destroyed, that set will not be in the dirty cache anymore
-	- if a set is updated and then destroyed, that set will be in the delete cache
-	- if the only operations on a set are adding and removing the same member, the set may still be in the dirty cache, but the member will be untracked
+Examples of Expected Behavior:
+- if a set is created and then destroyed, that set will not be in the dirty cache anymore
+- if a set is updated and then destroyed, that set will be in the delete cache
+- if the only operations on a set are adding and removing the same member, the set may still be in the dirty cache, but the member will be untracked
 */
 type dirtyCacheInterface interface {
 	// reset empties dirty cache
@@ -96,7 +96,7 @@ func (dc *dirtyCache) create(set *IPSet) {
 	if _, ok := dc.toUpdateCache[set.Name]; ok {
 		msg := fmt.Sprintf("create should not be called for set %s since it's in the toUpdateCache", set.Name)
 		klog.Warning(msg)
-		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "%s", msg)
 		return
 	}
 
@@ -136,7 +136,7 @@ func (dc *dirtyCache) deleteMember(set *IPSet, member string) {
 	if dc.isSetToDelete(set.Name) {
 		msg := fmt.Sprintf("attempting to delete member %s for set %s in the toDestroyCache", member, set.Name)
 		klog.Warning(msg)
-		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "%s", msg)
 		return
 	}
 	if diff, ok := dc.toCreateCache[set.Name]; ok {

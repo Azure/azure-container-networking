@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 
 	dataplane "github.com/Azure/azure-container-networking/npm/pkg/dataplane/debug"
@@ -37,8 +39,28 @@ type testCases struct {
 }
 
 func testCommand(t *testing.T, tests []*testCases) {
+	// Create a temporary config file
+	configContent := `{
+        "ResyncPeriodInMinutes": 15,
+        "ListeningPort": 10091,
+        "ListeningAddress": "0.0.0.0",
+        "Toggles": {
+            "EnablePrometheusMetrics": true,
+            "EnablePprof": true,
+            "EnableHTTPDebugAPI": true,
+            "EnableV2NPM": true,
+            "PlaceAzureChainFirst": true
+        }
+    }`
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "azure-npm.json")
+	err := os.WriteFile(configPath, []byte(configContent), 0o600)
+	require.NoError(t, err)
+	// Set the environment variable to point to our temp config
+	oldNPMConfig := os.Getenv("NPM_CONFIG")
+	os.Setenv("NPM_CONFIG", configPath)
+	defer os.Setenv("NPM_CONFIG", oldNPMConfig)
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			rootCMD := NewRootCmd()
 			b := bytes.NewBufferString("")

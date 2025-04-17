@@ -1,5 +1,6 @@
 ARG OS_VERSION
-FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.23 AS builder
+# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24.1-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
+FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang@sha256:82f110263e6110403fbbef97153f7532780b01afd44d5906753ac31a6b1b9e90 AS builder
 ARG VERSION
 ARG CNI_AI_PATH
 ARG CNI_AI_ID
