@@ -115,7 +115,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	p.logger.Debug("Received CNS IP config response", zap.Any("response", resp))
 
 	// Get Pod IP and gateway IP from ip config response
-	podIPNet, err := ipconfig.ProcessIPConfigsResp(resp)
+	podIPNet, gatewayIP, err := ipconfig.ProcessIPConfigsResp(resp)
 	if err != nil {
 		p.logger.Error("Failed to interpret CNS IPConfigResponse", zap.Error(err), zap.Any("response", resp))
 		return cniTypes.NewError(ErrProcessIPConfigResponse, err.Error(), "failed to interpret CNS IPConfigResponse")
@@ -136,7 +136,32 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 				Mask: net.CIDRMask(ipNet.Bits(), 128), // nolint
 			}
 		}
+		ipConfig.Gateway = (*gatewayIP)[i]
 		cniResult.IPs[i] = ipConfig
+	}
+
+	cniResult.Interfaces = []*types100.Interface{}
+	seenInterfaces := map[string]bool{}
+
+	for _, podIPInfo := range resp.PodIPInfo {
+		// Skip if interface already seen
+		// This is to avoid duplicate interfaces in the result
+		// which can happen if multiple IPs are assigned to the same interface
+		// or if multiple interfaces are assigned to the same pod
+		if podIPInfo.MacAddress == "" || seenInterfaces[podIPInfo.MacAddress] {
+			continue
+		}
+
+		infMac, err := net.ParseMAC(podIPInfo.MacAddress)
+		if err != nil {
+			p.logger.Error("Failed to parse interface MAC address", zap.Error(err), zap.String("macAddress", podIPInfo.MacAddress))
+			return cniTypes.NewError(cniTypes.ErrUnsupportedField, err.Error(), "failed to parse interface MAC address")
+		}
+
+		cniResult.Interfaces = append(cniResult.Interfaces, &types100.Interface{
+			Mac: infMac.String(),
+		})
+		seenInterfaces[podIPInfo.MacAddress] = true
 	}
 
 	// Get versioned result
