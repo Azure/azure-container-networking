@@ -45,7 +45,7 @@ stages:
       displayName: "Build Linux/AMD64 Binaries"
       pool:
         type: linux
-        vmImage: $(LinuxContainerImage2)
+        vmImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
       variables:
         LinuxContainerImage: $(LinuxContainerImage2)
         ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
@@ -81,7 +81,7 @@ stages:
       displayName: "Build Windows Binaries"
       pool:
         type: linux
-        vmImage: $(LinuxContainerImage2)
+        vmImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
       variables:
         LinuxContainerImage: $(LinuxContainerImage2)
         ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
@@ -113,7 +113,7 @@ stages:
       displayName: "Build Linux/ARM64 Binaries"
       pool:
         type: linux
-        vmImage: $(LinuxContainerImage3)
+        vmImage: 'onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest'
         hostArchitecture: arm64
       variables:
         LinuxContainerImage: $(LinuxContainerImage3)
