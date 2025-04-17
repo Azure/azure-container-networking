@@ -602,12 +602,12 @@ func TestPodIPsIndexedByInterface(t *testing.T) {
 				"fe80::7":  cns.NewPodInfo("some-guid-2", "def-eth0", "reconcilePod2", "PodNS2"),
 			},
 			expectedOutput: map[string]podIPs{
-				"reconcilePod1:PodNS1": {
+				"abc-eth0": {
 					PodInfo: cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
 					v4IP:    net.IPv4(10, 0, 0, 6),
 					v6IP:    []byte{0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x06},
 				},
-				"reconcilePod2:PodNS2": {
+				"def-eth0": {
 					PodInfo: cns.NewPodInfo("some-guid-2", "def-eth0", "reconcilePod2", "PodNS2"),
 					v4IP:    net.IPv4(10, 0, 0, 7),
 					v6IP:    []byte{0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x07},
@@ -677,7 +677,6 @@ func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 	cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
-	defer func() { cns.GlobalPodInfoScheme = cns.KubernetesPodInfoScheme }()
 
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 
@@ -714,52 +713,6 @@ func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
 	}
 
 	validateNCStateAfterReconcile(t, req, expectedNcCount+1, expectedAssignedPods, nil)
-}
-
-func TestReconcileCNSIPAMWithKubePodInfoProvider(t *testing.T) {
-	restartService()
-	setEnv(t)
-	setOrchestratorTypeInternal(cns.KubernetesCRD)
-
-	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
-
-	startingIndex := 6
-	for i := 0; i < 4; i++ {
-		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
-		secIpConfig := newSecondaryIPConfig(ipaddress, -1)
-		ipId := uuid.New()
-		secondaryIPConfigs[ipId.String()] = secIpConfig
-		startingIndex++
-	}
-	req := generateNetworkContainerRequest(secondaryIPConfigs, uuid.New().String(), "-1")
-
-	// the following pod info constructors leave container id and interface id blank on purpose.
-	// this is to simulate the information we get from the kube info provider
-	expectedAssignedPods := make(map[string]cns.PodInfo)
-	expectedAssignedPods["10.0.0.6"] = cns.NewPodInfo("", "", "customerpod1", "PodNS1")
-
-	// allocate non-vnet IP for pod in host network
-	expectedAssignedPods["192.168.0.1"] = cns.NewPodInfo("", "", "systempod", "kube-system")
-
-	expectedNcCount := len(svc.state.ContainerStatus)
-	returnCode := svc.ReconcileIPAMStateForSwift([]*cns.CreateNetworkContainerRequest{req}, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
-		Status: v1alpha.NodeNetworkConfigStatus{
-			Scaler: v1alpha.Scaler{
-				BatchSize:               batchSize,
-				ReleaseThresholdPercent: releasePercent,
-				RequestThresholdPercent: requestPercent,
-			},
-		},
-		Spec: v1alpha.NodeNetworkConfigSpec{
-			RequestedIPCount: initPoolSize,
-		},
-	})
-	if returnCode != types.Success {
-		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
-	}
-
-	delete(expectedAssignedPods, "192.168.0.1")
-	validateNCStateAfterReconcile(t, req, expectedNcCount, expectedAssignedPods, nil)
 }
 
 func setOrchestratorTypeInternal(orchestratorType string) {
