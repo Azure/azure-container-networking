@@ -113,7 +113,7 @@ stages:
       displayName: "Build Linux/ARM64 Binaries"
       pool:
         type: linux
-        vmImage: $(LinuxContainerImage2)
+        vmImage: $(LinuxContainerImage3)
         hostArchitecture: arm64
       variables:
         LinuxContainerImage: $(LinuxContainerImage3)
