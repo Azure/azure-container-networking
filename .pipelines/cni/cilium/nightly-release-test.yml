@@ -144,12 +144,37 @@ stages:
           service: true
 
       - job: logs
-        displayName: "Failure Logs"
+        displayName: "Nightly Logs"
         dependsOn:
           - cilium_nightly
           - cni_linux
-        condition: failed()
+        condition: always()
         steps:
+          - template: ../../templates/cilium-cli.yaml
+
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+                set -e
+                echo "Run Cilium Connectivity Tests"
+                cilium status
+                cilium connectivity test --test check-log-errors --log-check-levels error
+              name: "ciliumConnectivityTests"
+              displayName: "Run Cilium Connectivity Tests"
+              condition: always()
+
+          - template: ../../templates/log-check-template.yaml # Operator Check
+            parameters:
+              clusterName: $(clusterName)-$(commitID)
+              podLabel: "name=cilium-operator"
+              logGrep: "level=error"
+
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ciliumnightly-$(commitID)

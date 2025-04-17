@@ -1,0 +1,23 @@
+parameters:
+  clusterName: ""
+  podLabel: ""
+  logGrep: ""
+
+steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+        if ! [ -z "$(kubectl logs -n kube-system -l ${{ parameters.podLabel }} --tail=-1 | grep ${{ parameters.logGrep }})" ]; then
+          kubectl logs -n kube-system -l ${{ parameters.podLabel }} --tail=-1 | grep ${{ parameters.logGrep }}
+          echo "Logs found with ${{ parameters.logGrep }}"
+          exit 1
+        fi
+    # Leaving "name:" blank as this template could be called multiple times in a single job with the same parameters.
+    displayName: "Check pod with ${{ parameters.podLabel }} label for ${{ parameters.logGrep }}"
+    condition: always()
