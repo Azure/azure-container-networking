@@ -25,8 +25,15 @@ steps:
     tdnf upgrade --refresh
     if [[ $GOARCH =~ amd64 ]]; then
       tdnf install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
+      for dir in /usr/include/x86_64-linux-gnu/*; do 
+        sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
+      done
+
     elif [[ $GOARCH =~ arm64 ]]; then
       tdnf install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
+      for dir in /usr/include/aarch64-linux-gnu/*; do 
+        sudo ln -sfn "$dir" /usr/include/$(basename "$dir")
+      done
     fi
   displayName: "Install Binary Pre-Reqs"
   workingDirectory: $(ACN_DIR)
