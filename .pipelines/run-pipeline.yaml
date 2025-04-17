@@ -62,13 +62,13 @@ stages:
           azure_ipam:
             name: azure-ipam
           cni:
-            name: cni
+            name: azure-cni-plugin
           cns:
-            name: cns
+            name: azure-cns
           ipv6_hp_bpf:
             name: ipv6-hp-bpf
           npm:
-            name: npm
+            name: azure-npm
       steps:
       - checkout: azure-container-networking
       - template: build/binary.steps.yaml
@@ -96,11 +96,11 @@ stages:
         maxParallel: 5
         matrix:
           cni:
-            name: cni
+            name: azure-cni-plugin
           cns:
-            name: cns
+            name: azure-cns
           npm:
-            name: npm
+            name: azure-npm
       steps:
       - checkout: azure-container-networking
       - template: build/binary.steps.yaml
@@ -130,13 +130,13 @@ stages:
           azure_ipam:
             name: azure-ipam
           cni:
-            name: cni
+            name: azure-cni-plugin
           cns:
-            name: cns
+            name: azure-cns
           ipv6_hp_bpf:
             name: ipv6-hp-bpf
           npm:
-            name: npm
+            name: azure-npm
       steps:
       - checkout: azure-container-networking
       - template: build/binary.steps.yaml
