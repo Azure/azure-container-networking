@@ -70,9 +70,11 @@ stages:
             name: npm
       steps:
       - checkout: azure-container-networking
-      - template: build/binaries.steps.yaml
+      - template: build/binary.steps.yaml
         parameters:
           target: $(name)
+          os: $(OS)
+          arch: $(ARCH)
 
     - job: binaries_windows_amd64
       displayName: "Build Windows Binaries"
@@ -99,9 +101,11 @@ stages:
             name: npm
       steps:
       - checkout: azure-container-networking
-      - template: build/binaries.steps.yaml
+      - template: build/binary.steps.yaml
         parameters:
           target: $(name)
+          os: $(OS)
+          arch: $(ARCH)
 
     - job: binaries_linux_arm64
       displayName: "Build Linux/ARM64 Binaries"
@@ -132,9 +136,11 @@ stages:
             name: npm
       steps:
       - checkout: azure-container-networking
-      - template: build/binaries.steps.yaml
+      - template: build/binary.steps.yaml
         parameters:
           target: $(name)
+          os: $(OS)
+          arch: $(ARCH)
 
 
     - job: images_linux_amd64
