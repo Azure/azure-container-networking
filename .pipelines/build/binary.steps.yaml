@@ -1,0 +1,60 @@
+parameters:
+- name: target
+  type: string
+  #values:
+  #- acncli 
+  #- azure-cni-plugin 
+  #- azure-cns 
+  #- azure-npm 
+  #- azure-ipam 
+  #- ipv6-hp-bpf
+
+- name: os
+  type: string
+
+- name: arch
+  type: string
+
+
+steps:
+- task: GoTool@0
+  inputs:
+    version: '$(GOVERSION)'
+
+- bash: |
+    tdnf upgrade --refresh
+    if [[ $GOARCH =~ amd64 ]]; then
+      tdnf install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
+    elif [[ $GOARCH =~ arm64 ]]; then
+      tdnf install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
+    fi
+  displayName: "Install Binary Pre-Reqs"
+  workingDirectory: $(ACN_DIR)
+  env:
+    TARGET: ${{ parameters.target }}
+    GOOS: ${{ parameters.os }}
+    GOARCH: ${{ parameters.arch }}
+
+- bash: |
+    make "$TARGET"
+  displayName: "Build Binary - ${{ parameters.target }}"
+  workingDirectory: $(ACN_DIR)
+  env:
+    TARGET: ${{ parameters.target }}
+    GOOS: ${{ parameters.os }}
+    GOARCH: ${{ parameters.arch }}
+
+- script: |
+    mkdir -p ./out/bins
+    cd ./out
+    find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
+    find . -name '*.zip' -print -exec mv -t ./bins/ {} +
+    shopt -s extglob
+    rm -rf !("bins")
+  displayName: "Prepare Artifacts"
+  workingDirectory: $(ACN_DIR)
+
+- task: CopyFiles@2
+  inputs:
+    sourceFolder: "$(ACN_DIR)/out"
+    targetFolder: $(Build.ArtifactStagingDirectory)/out
