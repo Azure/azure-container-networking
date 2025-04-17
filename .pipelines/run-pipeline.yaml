@@ -44,7 +44,8 @@ stages:
     - job: binaries_linux_amd64
       displayName: "Build Linux/AMD64 Binaries"
       pool:
-        type: linux
+        os: linux
+        type: docker
         vmImage: $(LinuxContainerImage2)
       variables:
         ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
@@ -79,7 +80,8 @@ stages:
     - job: binaries_windows_amd64
       displayName: "Build Windows Binaries"
       pool:
-        type: linux
+        os: linux
+        type: docker
         vmImage: $(LinuxContainerImage2)
       variables:
         ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
@@ -110,8 +112,9 @@ stages:
     - job: binaries_linux_arm64
       displayName: "Build Linux/ARM64 Binaries"
       pool:
-        type: linux
-        vmImage: $(LinuxContainerImage2)
+        os: linux
+        type: docker
+        vmImage: $(LinuxContainerImage3)
         hostArchitecture: arm64
       variables:
         ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out

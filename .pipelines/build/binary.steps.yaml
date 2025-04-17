@@ -22,16 +22,15 @@ steps:
     version: '$(GOVERSION)'
 
 - bash: |
-    tdnf upgrade -y --refresh
+    sudo apt-get update -y
     if [[ $GOARCH =~ amd64 ]]; then
-      tdnf install -y llvm clang gnulib-devel gcc gcc-c++ kernel-devel libbpf-devel glibc-devel nftables iproute #gcc-multilib
+      sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
       for dir in /usr/include/x86_64-linux-gnu/*; do 
         sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
       done
 
     elif [[ $GOARCH =~ arm64 ]]; then
-      tdnf install -y llvm clang gnulib-devel gcc gcc-c++ kernel-devel libbpf-devel glibc-devel nftables iproute #gcc-multilib
-      #tdnf install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 #gcc-aarch64-linux-gnu
+      sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
       for dir in /usr/include/aarch64-linux-gnu/*; do 
         sudo ln -sfn "$dir" /usr/include/$(basename "$dir")
       done
