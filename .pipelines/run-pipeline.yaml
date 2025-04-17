@@ -44,10 +44,10 @@ stages:
     - job: binaries_linux_amd64
       displayName: "Build Linux/AMD64 Binaries"
       pool:
-        os: linux
-        type: docker
+        type: linux
         vmImage: $(LinuxContainerImage2)
       variables:
+        LinuxContainerImage: $(LinuxContainerImage2)
         ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
         ob_git_checkout: true
         ob_enable_qemu: true
@@ -80,10 +80,10 @@ stages:
     - job: binaries_windows_amd64
       displayName: "Build Windows Binaries"
       pool:
-        os: linux
-        type: docker
+        type: linux
         vmImage: $(LinuxContainerImage2)
       variables:
+        LinuxContainerImage: $(LinuxContainerImage2)
         ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
         ob_git_checkout: true
         ob_enable_qemu: true
@@ -112,11 +112,11 @@ stages:
     - job: binaries_linux_arm64
       displayName: "Build Linux/ARM64 Binaries"
       pool:
-        os: linux
-        type: docker
-        vmImage: $(LinuxContainerImage3)
+        type: linux
+        vmImage: $(LinuxContainerImage2)
         hostArchitecture: arm64
       variables:
+        LinuxContainerImage: $(LinuxContainerImage3)
         ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
         ob_git_checkout: true
         ob_artifactSuffix: _$(name)_linux_arm64
