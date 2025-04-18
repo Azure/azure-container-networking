@@ -698,9 +698,7 @@ cns-archive: azure-cns-binary
 # Create a NPM archive for the target platform. Only Linux is supported for now.
 .PHONY: npm-archive
 npm-archive: azure-npm-binary
-ifeq ($(GOOS),linux)
 	cd $(NPM_BUILD_DIR) && $(ARCHIVE_CMD) $(NPM_ARCHIVE_NAME) azure-npm$(EXE_EXT)
-endif
 
 # Create a azure-ipam archive for the target platform.
 .PHONY: azure-ipam-archive

@@ -59,15 +59,15 @@ stages:
         maxParallel: 5
         matrix:
           azure_ipam:
-            name: azure-ipam
+            name: azure-ipam-archive
           cni:
-            name: azure-cni-plugin
+            name: cni-archive
           cns:
-            name: azure-cns
+            name: cns-archive
           ipv6_hp_bpf:
-            name: ipv6-hp-bpf
+            name: ipv6-hp-bpf-archive
           npm:
-            name: azure-npm
+            name: npm-archive
       steps:
       - checkout: azure-container-networking
       - template: build/binary.steps.yaml
@@ -94,11 +94,11 @@ stages:
         maxParallel: 5
         matrix:
           cni:
-            name: azure-cni-plugin
+            name: cni-archive
           cns:
-            name: azure-cns
+            name: cns-archive
           npm:
-            name: azure-npm
+            name: npm-archive
       steps:
       - checkout: azure-container-networking
       - template: build/binary.steps.yaml
@@ -125,15 +125,15 @@ stages:
         maxParallel: 5
         matrix:
           azure_ipam:
-            name: azure-ipam
+            name: azure-ipam-archive
           cni:
-            name: azure-cni-plugin
+            name: cni-archive
           cns:
-            name: azure-cns
+            name: cns-archive
           ipv6_hp_bpf:
-            name: ipv6-hp-bpf
+            name: ipv6-hp-bpf-archive
           npm:
-            name: azure-npm
+            name: npm-archive
       steps:
       - checkout: azure-container-networking
       - template: build/binary.steps.yaml
