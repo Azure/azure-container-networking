@@ -25,7 +25,7 @@ stages:
     displayName: "Build Project"
     dependsOn:
       - setup
-      - test
+      - unittest
     variables:
       ACN_DIR: drop_setup_env_source
       ACN_PACKAGE_PATH: github.com/Azure/azure-container-networking
