@@ -5,10 +5,12 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/Azure/azure-container-networking/test/scale/skale/cmd"
 )
 
 func main() {
-	if err := rootcmd.Execute(); err != nil {
+	if err := cmd.Skale.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
