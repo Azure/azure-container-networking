@@ -1,5 +1,5 @@
 // embed kwok
-package main
+package cmd
 
 import (
 	"context"
@@ -9,5 +9,5 @@ import (
 
 func init() {
 	kwok := cmd.NewCommand(context.Background())
-	rootcmd.AddCommand(kwok)
+	Skale.AddCommand(kwok)
 }

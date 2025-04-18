@@ -4,7 +4,7 @@ go 1.24rc2
 
 require (
 	github.com/Azure/azure-container-networking v1.6.20
-	github.com/jsternberg/zap-logfmt v1.3.0
+	github.com/avast/retry-go/v4 v4.6.0
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.9.1
 	go.uber.org/zap v1.27.0

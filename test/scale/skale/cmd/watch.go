@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"context"
@@ -22,6 +22,12 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 )
 
+var (
+	downsample int
+	ctx        context.Context
+	cancel     context.CancelFunc
+)
+
 var watchcmd = &cobra.Command{
 	Use:   "watch",
 	Short: "Collect metrics for NNC and Node events",
@@ -29,11 +35,12 @@ var watchcmd = &cobra.Command{
 }
 
 func init() {
-	rootcmd.AddCommand(watchcmd)
+	watchcmd.Flags().IntVar(&downsample, "downsample", 100, "Downsample the output")
+	Skale.AddCommand(watchcmd)
 }
 
 func watchE(cmd *cobra.Command, _ []string) error {
-	ctx := cmd.Context()
+	ctx, cancel = context.WithCancel(cmd.Context())
 	z.Debug("opening watches")
 	nncch := make(chan *v1alpha.NodeNetworkConfig)
 	nncw, err := dynacli.Resource(schema.GroupVersionResource{
@@ -54,8 +61,8 @@ func watchE(cmd *cobra.Command, _ []string) error {
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 	go process(ctx, nncch, nodech, wg.Done)
-	go pipe(nncw, nncch, convNNC, wg.Done)
-	go pipe(nodew, nodech, convNode, wg.Done)
+	go pipe(ctx, nncw, nncch, convNNC, wg.Done)
+	go pipe(ctx, nodew, nodech, convNode, wg.Done)
 	wg.Wait()
 	return nil
 }
@@ -72,23 +79,32 @@ func convNode(obj runtime.Object) *corev1.Node {
 	return obj.(*corev1.Node)
 }
 
-func pipe[T runtime.Object](src watch.Interface, sink chan<- T, conv func(runtime.Object) T, done func()) {
+func pipe[T runtime.Object](ctx context.Context, src watch.Interface, sink chan<- T, conv func(runtime.Object) T, done func()) {
 	defer done()
 	for {
-		e, open := <-src.ResultChan()
-		if !open {
+		select {
+		case <-ctx.Done():
 			z.Debug("watch closed")
-			break
+			return
+		case e, open := <-src.ResultChan():
+			if !open {
+				z.Debug("watch closed")
+				break
+			}
+			z.Debug("watch event", zap.String("object", e.Object.GetObjectKind().GroupVersionKind().String()))
+			sink <- conv(e.Object)
 		}
-		z.Debug("watch event", zap.String("object", e.Object.GetObjectKind().GroupVersionKind().String()))
-		sink <- conv(e.Object)
 	}
 }
 
 func process(ctx context.Context, nncch <-chan *v1alpha.NodeNetworkConfig, nodech <-chan *corev1.Node, done func()) {
 	defer done()
 	events := map[string]event{}
+	readyCount := 0
 	for {
+		if readyCount >= rootopts.nodes {
+			break
+		}
 		select {
 		case nnc := <-nncch:
 			// ignore non kwok nnc
@@ -100,7 +116,11 @@ func process(ctx context.Context, nncch <-chan *v1alpha.NodeNetworkConfig, nodec
 			for _, f := range nnc.GetManagedFields() {
 				if f.Manager == "dnc-rc" && f.Operation == "Update" && f.Subresource == "status" {
 					e.nncReady = f.Time.Time
+					readyCount++
 				}
+			}
+			if readyCount%downsample == 0 {
+				z.Info("ready count", zap.Int("count", readyCount))
 			}
 			events[nnc.Name] = e
 		case node := <-nodech:
@@ -110,7 +130,29 @@ func process(ctx context.Context, nncch <-chan *v1alpha.NodeNetworkConfig, nodec
 		case <-ctx.Done():
 			return
 		}
-		pretty(events)
+		// pretty(events)
+	}
+	pretty(events)
+	serialize(events)
+	cancel()
+}
+
+func serialize(events map[string]event) {
+	fmt.Println("--report.csv--")
+	node, nnc, ready := []int64{}, []int64{}, []int64{}
+	for i := range events {
+		node = append(node, events[i].nodeCreation.Unix())
+		nnc = append(nnc, events[i].nncCreation.Unix())
+		ready = append(ready, events[i].nncReady.Unix())
+	}
+	slices.Sort(node)
+	slices.Sort(nnc)
+	slices.Sort(ready)
+	for i := range len(ready) {
+		if i == 0 || i%downsample == 0 || i == len(ready)-1 {
+			fmt.Printf("%d,%d,,%d,%d,,%d,%d\n", node[i]-node[0], i+1, nnc[i]-node[0], i+1, ready[i]-node[0], i+1)
+			// fmt.Printf("%d,%d,,%d,%d,,%d,%d\n", node[i], i+1, nnc[i], i+1, ready[i], i+1)
+		}
 	}
 }
 
@@ -176,9 +218,9 @@ func pretty(events map[string]event) {
 	totals.nncReadyStats.p50 = readyVals[len(readyVals)/2]
 	totals.nncReadyStats.p99 = readyVals[len(readyVals)*99/100]
 	z.Info("new recalculated", zap.Int("total", len(events)), zap.Object("create", &totals.nncCreateStats), zap.Object("ready", &totals.nncReadyStats))
-	if totals.nncReadyStats.total == 100 {
-		record(totals)
-	}
+	// if totals.nncReadyStats.total == 100 {
+	// 	record(totals)
+	// }
 }
 
 func record2(events map[string]event) {
