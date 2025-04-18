@@ -102,7 +102,6 @@ stages:
         # stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code.
         # Read all output from fd 4 (output from tee) and write to to stdout
         { { { {
-$(COVER_PKG)/...
               go test -timeout 30m -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/...
               go tool cover -func=windows-coverage.out
               echo $? >&3;
