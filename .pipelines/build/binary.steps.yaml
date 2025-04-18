@@ -1,13 +1,6 @@
 parameters:
 - name: target
   type: string
-  #values:
-  #- acncli 
-  #- azure-cni-plugin 
-  #- azure-cns 
-  #- azure-npm 
-  #- azure-ipam 
-  #- ipv6-hp-bpf
 
 - name: os
   type: string
@@ -44,6 +37,7 @@ steps:
 
 - bash: |
     make "$TARGET"
+    ls -la output
   displayName: "Build Binary - ${{ parameters.target }}"
   workingDirectory: $(ACN_DIR)
   env:
@@ -52,16 +46,11 @@ steps:
     GOARCH: ${{ parameters.arch }}
 
 - script: |
-    mkdir -p ./output/bins
-    cd ./output
-    find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
-    find . -name '*.zip' -print -exec mv -t ./bins/ {} +
-    shopt -s extglob
-    rm -rf !("bins")
+    SOURCE_DIR="./output"
+    TARGET_DIR="$BUILD_ARTIFACTSTAGINGDIRECTORY"/out
+    mkdir -p "$TARGET_DIR"
+    find "$SOURCE_DIR" -name '*.tgz*' -print -exec mv -t "$TARGET_DIR"/ {} +
+    find "$SOURCE_DIR" -name '*.zip' -print -exec mv -t "$TARGET_DIR"/ {} +
+    ls -la "$TARGET_DIR"
   displayName: "Prepare Artifacts"
   workingDirectory: $(ACN_DIR)
-
-- task: CopyFiles@2
-  inputs:
-    sourceFolder: "$(ACN_DIR)/output"
-    targetFolder: $(Build.ArtifactStagingDirectory)/out
