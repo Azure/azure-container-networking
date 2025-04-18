@@ -88,6 +88,9 @@ const (
 	// NodeNetworkInterfaceAccelnetFrontendNIC is a type of front-end nic that offers accelerated networking performance
 	NodeNetworkInterfaceAccelnetFrontendNIC NICType = "FrontendNIC_Accelnet"
 
+	// APIPA is the type of nic that is used for APIPA
+	NodeNetworkInterfaceAPIPANIC NICType = "APIPANIC"
+
 	// TODO: These two const are currently unused due to version compatibility with DNC. DelegatedVMNIC and NodeNetworkInterfaceBackendNIC should be renamed to align with the naming convention with DNC
 	// NodeNetworkInterfaceFrontendNIC is the new name for DelegatedVMNIC
 	NodeNetworkInterfaceFrontendNIC NICType = "FrontendNIC"

@@ -614,6 +614,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		ifInfo := ipamAddResult.interfaceInfo[key]
 		logger.Info("Processing interfaceInfo:", zap.Any("ifInfo", ifInfo))
 
+		if ifInfo.NICType == cns.DelegatedVMNIC {
+			logger.Info("The NIC type is Delegated VM NIC, we will also create the APIPA endpoint")
+		}
+
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
 		networkID, _ := plugin.getNetworkID(args.Netns, &ifInfo, nwCfg)
 

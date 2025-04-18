@@ -462,6 +462,14 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 		}
 	}()
 
+	// when using delegated nics, automatically allow inbound from nc to host
+	if (epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC || epInfo.NICType == cns.NodeNetworkInterfaceAPIPANIC) {
+		if !epInfo.AllowInboundFromNCToHost {
+			logger.Info("setting AllowInboundFromNCToHost to true since the NC has a delegated nic", zap.String("PODName", epInfo.PODName), zap.String("NetworkContainerID", epInfo.NetworkContainerID))
+			epInfo.AllowInboundFromNCToHost = true
+		}	
+	}
+
 	// If the Host - container connectivity is requested, create endpoint in HostNCApipaNetwork
 	if epInfo.AllowInboundFromHostToNC || epInfo.AllowInboundFromNCToHost {
 		if err = nw.createHostNCApipaEndpoint(cli, epInfo); err != nil {
