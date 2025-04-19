@@ -1,115 +1,255 @@
 stages:
-  - stage: test
-    displayName: Test ACN
+- stage: unittest
+  displayName: "Project Unit Tests"
+  dependsOn:
+  - setup
+  variables:
+    STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+    ACN_DIR: azure-container-networking
+  jobs:
+  - job: linux
+    displayName: "Run All"
+    pool:
+      type: linux
+      isCustom: true
+      name: "$(BUILD_POOL_NAME_DEFAULT)"
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/linux-unittest
+
+      REPORT_DIR: $(Build.ArtifactStagingDirectory)/linux-unittest
+      REPORT_XML: $(Build.ArtifactStagingDirectory)/linux-unittest/report.xml
+      COVERAGE_OUT: $(Build.ArtifactStagingDirectory)/linux-unittest/linux-coverage.out
+    steps:
+    - checkout: azure-container-networking
+
+    - task: GoTool@0
+      inputs:
+        version: '$(GOVERSION)'
+
+    - script: |
+        set -e
+        BIN_INSTALL_DIR=$(realpath bin)
+        GOBIN="$BIN_INSTALL_DIR" go install github.com/jstemmer/go-junit-report/v2@latest
+        JUNIT_REPORT_BIN="$BIN_INSTALL_DIR/go-junit-report"
+
+        mkdir -p "$REPORT_DIR"
+        touch "$REPORT_XML"
+        make tools
+
+        # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml),
+        # stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code.
+        # Read all output from fd 4 (output from tee) and write to to stdout
+        { { { {
+              sudo -E env "PATH=$PATH" make test-all;
+              echo $? >&3;
+              } | tee >($JUNIT_REPORT_BIN > "$REPORT_XML") >&4;
+            } 3>&1;
+          } | { read xs; exit $xs; }
+        } 4>&1
+
+        ls -la "$REPORT_DIR"
+        mv coverage-all.out "$COVERAGE_OUT"
+        ls -la "$REPORT_DIR"
+      retryCountOnTaskFailure: 3
+      displayName: "Run Unit Tests - Linux"
+      #workingDirectory: $(ACN_DIR)
+
+    - script: |
+        BIN_INSTALL_DIR=$(realpath bin)
+        GOBIN="$BIN_INSTALL_DIR" go install github.com/axw/gocov/gocov@latest
+        GOBIN="$BIN_INSTALL_DIR" go install github.com/AlekSi/gocov-xml@latest
+
+        GOCOV_BIN="$BIN_INSTALL_DIR/gocov"
+        GOCOV_XML_BIN="$BIN_INSTALL_DIR/gocov-xml"
+
+        $GOCOV_BIN convert "$COVERAGE_OUT" > "$REPORT_DIR"/linux-coverage.json
+        $GOCOV_XML_BIN < "$REPORT_DIR"/linux-coverage.json > "$REPORT_DIR"/linux-coverage.gocov.xml
+
+        echo "##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]$(cat $REPORT_DIR/linux-coverage.xml)"
+        echo "##vso[task.setvariable variable=GOCOV_OUT_XML;isOutput=true]$(cat $REPORT_DIR/linux-coverage.gocov.xml)"
+      name: report
+      displayName: "Generate Test Reporting"
+
+
+  - job: windows
+    displayName: "Run Tests - Windows"
+    pool:
+      isCustom: true
+      type: windows
+      name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/windows-unittest
+
+      REPORT_DIR: $(Build.ArtifactStagingDirectory)/windows-unittest
+      REPORT_XML: $(Build.ArtifactStagingDirectory)/windows-unittest/report.xml
+      COVERAGE_OUT: $(Build.ArtifactStagingDirectory)/windows-unittest/windows-coverage.out
+    steps:
+    - checkout: azure-container-networking
+
+    - task: GoTool@0
+      inputs:
+        version: '$(GOVERSION)'
+
+    - task: PythonScript@0
+      displayName: "Run Unit Tests - Windows"
+      retryCountOnTaskFailure: 3
+      inputs:
+        scriptSource: 'inline'
+        script: |
+          import os
+          import subprocess
+          import shutil
+          import sys
+          
+          # Set environment variables and directories
+          bin_install_dir = os.path.realpath('bin')
+          os.environ['GOBIN'] = bin_install_dir
+          
+          # Install the go-junit-report tool
+          subprocess.check_call(['go', 'install', 'github.com/jstemmer/go-junit-report/v2@latest'])
+          junit_report_bin = os.path.join(bin_install_dir, 'go-junit-report')
+          
+          # Create report directory and touch report XML file
+          report_dir = os.environ['REPORT_DIR']
+          os.makedirs(report_dir, exist_ok=True)
+          report_xml = os.path.join(report_dir, 'report.xml')
+          open(report_xml, 'a').close()
+          
+          # Run make tools
+          subprocess.check_call(['make', 'tools'])
+          
+          # Function to run the test and capture output
+          def run_test():
+              command = 'go test -timeout 30m -mod=readonly -buildvcs=false -tags "unit" ' +
+                          "--skip 'TestE2E*' -race -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/...;" +
+                        'go tool cover -func=windows-coverage.out'
+              result = subprocess.run(command, capture_output=True, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+              test_exit_code = result.returncode
+          
+              # Write output to report XML using go-junit-report
+              with open(report_xml, 'w') as report_file:
+                  junit_process = subprocess.Popen(
+                      [junit_report_bin],
+                      stdin=subprocess.PIPE,
+                      stdout=report_file
+                  )
+                  junit_process.communicate(input=stdout)
+          
+              sys.exit(test_exit_code)
+          
+          # Run the test function
+          run_test()
+          
+          # Move coverage output file
+          coverage_out = os.environ['COVERAGE_OUT']
+          shutil.move('windows-coverage.out', coverage_out)
+          
+          # List report directory contents again
+          print(os.listdir(report_dir))
+        
+    - task: PythonScript@0
+      displayName: "Generate Test Reporting"
+      name: report
+      inputs:
+        scriptSource: 'inline'
+        script: |
+          import os
+          import subprocess
+          
+          # Define the necessary variables
+          bin_install_dir = os.path.realpath('bin')
+          report_dir = os.environ['REPORT_DIR']
+          coverage_out = os.environ['COVERAGE_OUT']
+          coverage_json = os.path.join(report_dir, 'windows-coverage.json')
+          gocov_xml_file = os.path.join(report_dir, 'windows-coverage.gocov.xml')
+          
+          # Set the GOBIN environment variable
+          os.environ['GOBIN'] = BIN_INSTALL_DIR
+          
+          # Install gocov and gocov-xml
+          subprocess.run(['go', 'install', 'github.com/axw/gocov/gocov@latest'], check=True)
+          subprocess.run(['go', 'install', 'github.com/AlekSi/gocov-xml@latest'], check=True)
+          
+          # Define the paths to the installed binaries
+          GOCOV_BIN = os.path.join(bin_install_dir, 'gocov')
+          GOCOV_XML_BIN = os.path.join(bin_install_dir, 'gocov-xml')
+          
+          # Create the report directory if it doesn't exist
+          os.makedirs(report_dir, exist_ok=True)
+          
+          # Convert coverage output to JSON
+          with open(coverage_json, 'w') as json_file:
+              subprocess.run([gocov_bin, 'convert', coverage_out], stdout=json_file, check=True)
+          
+          # Convert JSON to XML
+          with open(gocov_xml_file, 'w') as xml_file:
+              with open(coverage_json, 'r') as json_file:
+                  subprocess.run([gocov_xml_bin], stdin=json_file, stdout=xml_file, check=True)
+          
+          # Set the coverage output XML variable
+          with open(coverage_out, 'r') as f:
+              coverage_out_xml_content = f.read()
+          print(f"##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]{coverage_out_xml_content}")
+          
+          # Print the XML content to the console
+          with open(gocov_xml_file, 'r') as xml_file:
+              xml_content = xml_file.read()
+              print(f"##vso[task.setvariable variable=GOCOV_OUT_XML;isOutput=true]{xml_content}")
+
+
+  - job: coverage
+    displayName: "Check Test Coverage"
+    condition: always()
     dependsOn:
-      - setup
-    jobs:
-      - job: test
-        displayName: Run Tests
-        variables:
-          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - script: |
-              set -e
-              make tools
+    - windows
+    - linux
+    pool:
+      type: linux
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
 
-              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml),
-              # stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code.
-              # Read all output from fd 4 (output from tee) and write to top stdout
-              { { { {
-                    sudo -E env "PATH=$PATH" make test-all;
-                    echo $? >&3;
-                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
-                  } 3>&1;
-                } | { read xs; exit $xs; }
-              } 4>&1
+      WINDOWS_COVERAGE_OUT: $[ dependencies.windows.outputs['report.COVERAGE_OUT_XML'] ]
+      WINDOWS_GOCOV_OUT: $[ dependencies.windows.outputs['report.GOCOV_OUT_XML'] ]
+      LINUX_COVERAGE_OUT: $[ dependencies.linux.outputs['report.COVERAGE_OUT_XML'] ]
+      LINUX_GOCOV_OUT: $[ dependencies.linux.outputs['report.GOCOV_OUT_XML'] ]
+    steps:
+    - script: |
+        mkdir "$COV_DIR"
+        echo "$LINUX_COVERAGE_OUT" > "$COV_DIR"/linux-coverage.xml
+        echo "$LINUX_GOCOV_OUT" > "$COV_DIR"/linux-coverage.gocov.xml
+        echo "$WIN_COVERAGE_OUT" > "$COV_DIR"/windows-coverage.xml
+        echo "$WIN_GOCOV_OUT" > "$COV_DIR"/windows-coverage.gocov.xml
+      env:
+        COV_DIR: $(Build.ArtifactStagingDirectory)/coverage
 
-              mv coverage-all.out linux-coverage.out
-            retryCountOnTaskFailure: 3
-            name: "Test"
-            displayName: "Run Tests"
-          - task: PublishPipelineArtifact@1
-            inputs:
-              targetPath: 'linux-coverage.out'
-              artifactName: 'linux-coverage'
+    - task: PublishTestResults@2
+      displayName: "Publish Test Results"
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles:  # string. Required. Test results files. Default: **/TEST-*.xml.
+        searchFolder: coverage/**/*.gocov.xml
+        failTaskOnFailedTests: true
+        failTaskOnMissingResultsFile: false
+        #testRunTitle: # Name of the test runs
+        #mergeTestResults: false # boolean. Merge test results. Default: false.
+        #failTaskOnFailureToPublishResults: false # boolean. Fail if there is failure in publishing test results. Default: false.
+      # Advanced
+        #buildPlatform: windows/amd64
+        #buildConfiguration: # string. Alias: configuration. Build Configuration.
+        publishRunAttachments: true
 
-  - stage: test_windows
-    displayName: Test ACN Windows
-    dependsOn:
-      - setup
-    jobs:
-      - job: test
-        displayName: Run Tests
-        variables:
-          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
-        steps:
-          # Only run one go test per script
-          - script: |
-              cd azure-container-networking/
-              go test -timeout 30m -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/...
-              go tool cover -func=windows-coverage.out
-            retryCountOnTaskFailure: 3
-            name: "TestWindows"
-            displayName: "Run Windows Tests"
-          - task: PublishPipelineArtifact@1
-            inputs:
-              targetPath: 'windows-coverage.out'
-              artifactName: 'windows-coverage'
+    - task: PublishCodeCoverageResults@2
+      displayName: "Publish Code Coverage Report"
+      inputs:
+        summaryFileLocation: coverage/*
 
-  - stage: code_coverage
-    displayName: Code Coverage Check
-    dependsOn:
-      - test
-      - test_windows
-    jobs:
-      - job: coverage
-        displayName: Check Coverage
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              artifact: 'linux-coverage'
-              path: './'
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              artifact: 'windows-coverage'
-              path: './'
-          - bash: |
-              make tools
-              sudo ln -s $(pwd)/build/tools/bin/gocov /usr/local/bin/gocov
-              sudo ln -s $(pwd)/build/tools/bin/gocov-xml /usr/local/bin/gocov-xml
-
-              GOOS=linux gocov convert linux-coverage.out > linux-coverage.json
-              GOOS=linux gocov-xml < linux-coverage.json > linux-coverage.xml
-
-              GOOS=windows gocov convert windows-coverage.out > windows-coverage.json
-              GOOS=windows gocov-xml < windows-coverage.json > windows-coverage.xml
-
-              mkdir coverage
-
-              mv linux-coverage.xml coverage/
-              mv windows-coverage.xml coverage/
-            name: "Coverage"
-            displayName: "Generate Coverage Report"
-            condition: always()
-          - task: PublishCodeCoverageResults@2
-            displayName: "Publish Code Coverage Report"
-            condition: always()
-            inputs:
-              summaryFileLocation: coverage/*
-          - task: BuildQualityChecks@8
-            displayName: "Check Code Coverage Regression"
-            condition: always()
-            inputs:
-              checkCoverage: true
-              coverageFailOption: "build"
-              coverageType: "lines"
-              fallbackOnPRTargetBranch: false
-              baseBranchRef: "master"
-              allowCoverageVariance: true
-              coverageVariance: 0.25
+    - task: BuildQualityChecks@8
+      displayName: "Check Code Coverage Regression"
+      inputs:
+        checkCoverage: true
+        coverageFailOption: "build"
+        coverageType: "lines"
+        fallbackOnPRTargetBranch: false
+        baseBranchRef: "master"
+        allowCoverageVariance: true
+        coverageVariance: 0.25

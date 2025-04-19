@@ -1,0 +1,23 @@
+parameters:
+- name: platforms
+  type: object
+  default: []
+
+
+steps:
+- bash: |
+    set -e
+    MANIFEST_DATA=$(echo "$IMAGE_PLATFORM_DATA" | \
+      jq -r '.[] | 
+        .args = [ (.platform | split("/")[0]), (.platform     | split("/")[1]) ] | 
+        .args = [ ("--os "   + .args[0]     ), ("--arch " + .args[1]     ) ] | 
+        if .osVersion then .args += ["--os-version " + .osVersion] else . end    |
+        { image: .imageReference, annotate: .args }' | \
+      jq -rcs)
+    echo >&2 "##vso[task.setvariable variable=MANIFEST_JSON;isOutput=true]$MANIFEST_DATA"
+    echo "$MANIFEST_DATA" | jq -r .
+  displayName: "Populate Image Manifest Data"
+  name: data
+  env:
+    IMAGE_PLATFORM_DATA: '${{ convertToJson(parameters.platforms) }}'
+

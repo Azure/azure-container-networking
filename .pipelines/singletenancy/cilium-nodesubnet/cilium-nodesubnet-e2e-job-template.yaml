@@ -18,6 +18,8 @@ stages:
       - ${{ parameters.dependsOn }}
       - setup
     pool:
+      isCustom: true
+      type: linux
       name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
@@ -43,10 +45,7 @@ stages:
     condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     dependsOn:
     - setup
-    - publish
     - ${{ parameters.clusterName }}
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}
         displayName: Nodesubnet with Cilium - (${{ parameters.name }})
@@ -56,7 +55,10 @@ stages:
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
+          isCustom: true
+          type: linux
         steps:
+          - checkout: azure-container-networking
           - template: cilium-nodesubnet-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
@@ -83,7 +85,12 @@ stages:
           - ${{ parameters.name }}
           - cni_${{ parameters.os }}
         condition: failed()
+        pool:
+          type: linux
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
         steps:
+          - checkout: azure-container-networking
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)

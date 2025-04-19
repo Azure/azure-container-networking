@@ -6,16 +6,16 @@ stages:
     jobs:
       - job: test
         displayName: Run Tests
-        variables:
-          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-          ob_git_checkout: true
         pool:
           isCustom: true
           type: linux
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+        variables:
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+          ob_git_checkout: true
         steps:
           # Test changes under review
-          - checkout: ACNReviewChanges
+          - checkout: azure-container-networking
             clean: true
 
           - script: |
@@ -49,7 +49,7 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
         steps:
           # Test changes under review; only run one go test per script
-          - checkout: ACNReviewChanges
+          - checkout: azure-container-networking
             clean: true
           - script: |
               cd azure-container-networking/

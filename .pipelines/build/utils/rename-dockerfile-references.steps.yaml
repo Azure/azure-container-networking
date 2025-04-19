@@ -1,0 +1,171 @@
+################################################################################
+#################### Rename Dockerfile References Template #####################
+################################################################################
+#
+# Description: 
+#   OneBranch requires that dockerfiles used in their builds are named 
+#   'Dockerfile'. This fascilitates the creation of this template in order to 
+#   easily create new folders for each operating system required for build.
+#
+#   This template also has the ability to conduct simple naming replacements for
+#   the updated Dockerfile name within a specified directory.
+#
+#   For improved clarity, all other top-level dockerfiles are removed from the 
+#   target - or replacement - directory.
+#
+# Parameters:
+#   source_path (string) - The path (absolute or relative to $working_directory) 
+#     to the desired source folder. If the folder does not exist, a new one will
+#     be created. Any matching files will be overwritten.
+#
+#   source_dockerfile (string) - The file name of the source dockerfile. 
+#     Filename only.
+#
+#   target_path (string) - The path (absolute or relative to $working_directory) 
+#     to the desired target folder. If the folder does not exist, a new one will 
+#     be created. Any matching files will be overwritten.
+#
+#   target_dockerfile (string|default) - The new file name of the dockerfile. 
+#     Filename only. Will likely never need to be used.
+#
+#   working_directory (string|default) - The directory to perform the 
+#     operations.
+#
+#   replace_references (boolean|default) - If this is set to true, this module 
+#     will rename references to the moved Dockerfile to the new 
+#     $target_dockerfile. This is a dumb sed replace; set with care.
+#
+#   replace_path (string|default) - The directory for which to search for 
+#     references to the old dockerfile name. Replce will default to $target_path 
+#     if not provided.
+#
+#   dockerfile_cleanup (boolean|default) - If this is set to true, this module
+#     will remove any dockerfiles that are unrelated to the $target_dockerfile.
+#
+#   topic (string|default) - Appends a provided topic string to the display 
+#     name. Need not be unique. Defaults to empty string.
+#
+# Outputs: None
+#
+################################################################################
+parameters:
+- name: source_path
+  type: string
+
+- name: source_dockerfile
+  type: string
+
+- name: target_path
+  type: string
+
+- name: target_dockerfile
+  type: string
+  default: 'Dockerfile'
+
+- name: working_directory
+  type: string
+  default: '$(Build.SourcesDirectory)'
+
+- name: replace_references
+  type: boolean
+  default: false
+
+- name: replace_path
+  type: string
+  default: ''
+
+- name: dockerfile_cleanup
+  type: boolean
+  default: true
+
+- name: topic
+  type: string
+  default: ''
+
+
+steps:
+
+- bash: |
+    set -e; # - Not set here because '-d' will cause non-zero exit break.
+    [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ ^[T|t]rue$ ]] && set -x
+
+    if ! [[ -d "$TARGET_REL_PATH" ]]; then
+      echo >&2 "##[info]Target path ('$TARGET_REL_PATH') does not exist, copying source contents to new folder."
+      mkdir -p "$TARGET_REL_PATH"
+      cp -r "$SOURCE_REL_PATH"/* "$TARGET_REL_PATH"
+    else
+      echo >&2 "##[info]Target path ('$TARGET_REL_PATH') exits. Nothing to do."
+    fi
+    ls -la "$TARGET_REL_PATH"
+    ls -la "$SOURCE_REL_PATH"
+  workingDirectory: $(ACR_DIR)
+  env: 
+    SOURCE_REL_PATH: ${{ parameters.source_path }}
+    TARGET_REL_PATH: ${{ parameters.target_path }}
+  ${{ if parameters.topic }}:
+    displayName: "Create OneBranch Docker Workspace"
+  ${{ else }}:
+    displayName: "Create OneBranch Docker Workspace - ${{ parameters.topic }}"
+
+
+- bash: |
+    set -e; [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ ^[T|t]rue$ ]] && set -x
+
+    echo >&2 "##[info]Renaming source dockerfile ('$SOURCE_DOCKERFILE') to desired name ('$TARGET_DOCKERFILE')."
+    mv "$SOURCE_REL_PATH"/"$SOURCE_DOCKERFILE" "$TARGET_REL_PATH"/"$TARGET_DOCKERFILE"
+  workingDirectory: $(ACR_DIR)
+  env: 
+    SOURCE_REL_PATH: ${{ parameters.source_path }}
+    TARGET_REL_PATH: ${{ parameters.target_path }}
+    SOURCE_DOCKERFILE: ${{ parameters.source_dockerfile }}
+    TARGET_DOCKERFILE: ${{ parameters.target_dockerfile }}
+  ${{ if parameters.topic }}:
+    displayName: "Move Dockerfile to OneBranch Approved Naming Format - ${{ parameters.topic }}"
+  ${{ else }}:
+    displayName: "Move Dockerfile to OneBranch Approved Naming Format"
+
+
+- bash: |
+    set -e; [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ ^[T|t]rue$ ]] && set -x
+
+    count=$(grep -rl "$SOURCE_DOCKERFILE" "$REPLACE_PATH" | wc -l)
+    if (( $count > 0 )); then
+      FILE_REFERENCES=( $(grep -rl "$SOURCE_DOCKERFILE" "$REPLACE_PATH") )
+      echo >&2 "##[debug]Found '$count' files with references to '$SOURCE_DOCKERFILE'."
+      printf "%s\n" "${FILE_REFERENCES[@]}" | sed "s/^/$(printf '%*s' 4)/" >&2
+
+      echo >&2 "##[info]Replacing references to old source dockerfile ('$SOURCE_DOCKERFILE') to the new target name ('$TARGET_DOCKERFILE')."
+      sed -i "s|$SOURCE_DOCKERFILE|$TARGET_DOCKERFILE|g" "${FILE_REFERENCES[@]}"
+    else
+      echo >&2 "##[info]No other dockerfiles found."
+    fi
+  workingDirectory: $(ACR_DIR)
+  condition: and(succeeded(), '${{ parameters.replace_references }}')
+  env: 
+    REPLACE_PATH: ${{ coalesce(parameters.replace_path, parameters.target_path) }}
+    SOURCE_REL_PATH: ${{ parameters.source_path }}
+    TARGET_REL_PATH: ${{ parameters.target_path }}
+    SOURCE_DOCKERFILE: ${{ parameters.source_dockerfile }}
+    TARGET_DOCKERFILE: ${{ parameters.target_dockerfile }}
+  ${{ if parameters.topic }}:
+    displayName: "Replace References to Updated Dockerfile - ${{ parameters.topic }}"
+  ${{ else }}:
+    displayName: "Replace References to Updated Dockerfile"
+
+
+- bash: |
+    set -e; [[ -n $SYSTEM_DEBUG ]] && [[ $SYSTEM_DEBUG =~ ^[T|t]rue$ ]] && set -x
+
+    echo >&2 "##[info]Deleting top-level dockerfiles that are -not- the target ('$TARGET_DOCKERFILE')."
+    find "$TARGET_REL_PATH" -maxdepth 1 -type f -name '*Dockerfile' ! -wholename "$TARGET_REL_PATH"/"$TARGET_DOCKERFILE" -delete
+  workingDirectory: $(ACR_DIR)
+  condition: and(succeeded(), '${{ parameters.dockerfile_cleanup }}')
+  env: 
+    SOURCE_REL_PATH: ${{ parameters.source_path }}
+    TARGET_REL_PATH: ${{ parameters.target_path }}
+    SOURCE_DOCKERFILE: ${{ parameters.source_dockerfile }}
+    TARGET_DOCKERFILE: ${{ parameters.target_dockerfile }}
+  ${{ if parameters.topic }}:
+    displayName: "Remove Extra Dockerfile References - ${{ parameters.topic }}"
+  ${{ else }}:
+    displayName: "Remove Extra Dockerfile References"
