@@ -65,8 +65,8 @@ stages:
         touch "$REPORT_XML"
         make tools
 
-       $GOCOV_BIN convert "$COVERAGE_OUT" > "$REPORT_DIR"/linux-coverage.json
-       $GOCOV_XML_BIN < "$REPORT_DIR"/linux-coverage.json > "$REPORT_DIR"/linux-coverage.gocov.xml
+        $GOCOV_BIN convert "$COVERAGE_OUT" > "$REPORT_DIR"/linux-coverage.json
+        $GOCOV_XML_BIN < "$REPORT_DIR"/linux-coverage.json > "$REPORT_DIR"/linux-coverage.gocov.xml
       displayName: "Generate Test Reporting"
       workingDirectory: $(ACN_DIR)
 
