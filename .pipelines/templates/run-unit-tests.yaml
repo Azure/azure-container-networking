@@ -50,6 +50,7 @@ stages:
         ls -la "$REPORT_DIR"
         mv coverage-all.out "$COVERAGE_OUT"
         ls -la "$REPORT_DIR"
+        echo "##vso[task.setvariable variable=LINUX_COVERAGE_OUT;isOutput=true]$(cat $REPORT_DIR/linux-coverage.xml)"
       retryCountOnTaskFailure: 3
       displayName: "Run Unit Tests - Linux"
       #workingDirectory: $(ACN_DIR)
@@ -67,17 +68,19 @@ stages:
 
         $GOCOV_BIN convert "$COVERAGE_OUT" > "$REPORT_DIR"/linux-coverage.json
         $GOCOV_XML_BIN < "$REPORT_DIR"/linux-coverage.json > "$REPORT_DIR"/linux-coverage.gocov.xml
+
+        echo "##vso[task.setvariable variable=LINUX_GOCOV_OUT;isOutput=true]$(cat $REPORT_DIR/linux-coverage.gocov.xml)"
       displayName: "Generate Test Reporting"
       #workingDirectory: $(ACN_DIR)
 
-    - task: PublishPipelineArtifact@1
-      displayName: "\U0001F512 Publish to Pipeline Artifact"
-      target:
-        container: host
-      condition: eq('True', 'True')
-      inputs:
-        artifactName: drop_unittest_linux
-        targetPath: $(Build.ArtifactStagingDirectory)/linux-unittest
+#    - task: PublishPipelineArtifact@1
+#      displayName: "\U0001F512 Publish to Pipeline Artifact"
+#      target:
+#        container: host
+#      condition: eq('True', 'True')
+#      inputs:
+#        artifactName: drop_unittest_linux
+#        targetPath: $(Build.ArtifactStagingDirectory)/linux-unittest
 
 
   - job: windows
@@ -151,6 +154,7 @@ stages:
         # List files in report directory again
         Get-ChildItem -Path $env:REPORT_DIR -Force | Select-Object -ExpandProperty FullName | ForEach-Object { Write-Host $_ }
 
+        echo "##vso[task.setvariable variable=WIN_COVERAGE_OUT;isOutput=true]$(cat $env:REPORT_DIR/windows-coverage.xml)"
       retryCountOnTaskFailure: 3
       displayName: "Run Unit Tests - Windows"
       #workingDirectory: $(ACN_DIR)
@@ -177,17 +181,19 @@ stages:
         
         & Invoke-Expression $env:GOCOV_BIN convert $env:COVERAGE_OUT | Out-File -FilePath (Join-Path -Path $env:REPORT_DIR -ChildPath "windows-coverage.json")
         & Invoke-Expression $env:GOCOV_XML_BIN < (Join-Path -Path $env:REPORT_DIR -ChildPath "windows-coverage.json") | Out-File -FilePath (Join-Path -Path $env:REPORT_DIR -ChildPath "windows-coverage.gocov.xml")
+
+        echo "##vso[task.setvariable variable=WIN_GOCOV_OUT;isOutput=true]$(cat $env:REPORT_DIR/windows-coverage.gocov.xml)"
       displayName: "Generate Test Reporting"
       #workingDirectory: $(ACN_DIR)
 
-    - task: PublishPipelineArtifact@1
-      displayName: "\U0001F512 Publish to Pipeline Artifact"
-      target:
-        container: host
-      condition: eq('True', 'True')
-      inputs:
-        artifactName: drop_unittest_windows
-        targetPath: $(Build.ArtifactStagingDirectory)/linux-unittest
+#    - task: PublishPipelineArtifact@1
+#      displayName: "\U0001F512 Publish to Pipeline Artifact"
+#      target:
+#        container: host
+#      condition: eq('True', 'True')
+#      inputs:
+#        artifactName: drop_unittest_windows
+#        targetPath: $(Build.ArtifactStagingDirectory)/linux-unittest
 
 
   - job: coverage
@@ -200,19 +206,20 @@ stages:
       type: linux
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+
+      LINUX_COVERAGE_OUT: $(LINUX_COVERAGE_OUT)
+      LINUX_GOCOV_OUT: $(LINUX_GOCOV_OUT)
+      WIN_COVERAGE_OUT: $(WIN_COVERAGE_OUT)
+      WIN_GOCOV_OUT: $(WIN_GOCOV_OUT)
     steps:
     - script: |
-        mkdir coverage
-
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifact: drop_unittest_linux
-        targetPath: coverage
-
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifact: drop_unittest_windows
-        targetPath: coverage
+        mkdir "$COV_DIR"
+        echo "$LINUX_COVERAGE_OUT" > "$COV_DIR"/linux-coverage.xml
+        echo "$LINUX_GOCOV_OUT" > "$COV_DIR"/linux-coverage.gocov.xml
+        echo "$WIN_COVERAGE_OUT" > "$COV_DIR"/windows-coverage.xml
+        echo "$WIN_GOCOV_OUT" > "$COV_DIR"/windows-coverage.gocov.xml
+      env:
+        COV_DIR: $(Build.ArtifactStagingDirectory)/coverage
 
     - task: PublishTestResults@2
       displayName: "Publish Test Results"
