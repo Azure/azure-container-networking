@@ -15,6 +15,8 @@ stages:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/linux-unittest
+      ob_artifactSuffix: drop_unittest_linux
+
       REPORT_DIR: $(Build.ArtifactStagingDirectory)/linux-unittest
       REPORT_XML: $(Build.ArtifactStagingDirectory)/linux-unittest/report.xml
       COVERAGE_OUT: $(Build.ArtifactStagingDirectory)/linux-unittest/linux-coverage.out
@@ -63,17 +65,16 @@ stages:
 
         mkdir -p "$REPORT_DIR"
         touch "$REPORT_XML"
-        make tools
 
         $GOCOV_BIN convert "$COVERAGE_OUT" > "$REPORT_DIR"/linux-coverage.json
         $GOCOV_XML_BIN < "$REPORT_DIR"/linux-coverage.json > "$REPORT_DIR"/linux-coverage.gocov.xml
       displayName: "Generate Test Reporting"
       #workingDirectory: $(ACN_DIR)
 
-    #- task: PublishPipelineArtifact@1
-    #  inputs:
-    #    targetPath: $(REPORT_DIR)
-    #    artifactName: "drop_unittest_linux"
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(REPORT_DIR)
+        artifactName: "drop_unittest_linux"
 
 
   - job: windows
@@ -84,6 +85,7 @@ stages:
       name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/windows-unittest
+      ob_artifactSuffix: drop_unittest_windows
 
       REPORT_DIR: $(Build.ArtifactStagingDirectory)/windows-unittest
       REPORT_XML: $(Build.ArtifactStagingDirectory)/windows-unittest/report.xml
@@ -95,39 +97,39 @@ stages:
       inputs:
         version: '$(GOVERSION)'
 
-    - script: |
+    - pwsh: |
         # Define variables
-        $BIN_INSTALL_DIR = (Resolve-Path -Path "bin").Path
-        $PRE_BIN = $GOBIN
+        $env:BIN_INSTALL_DIR = (Resolve-Path -Path "bin").Path
+        $env:PRE_BIN = $env:GOBIN
         # Install go-junit-report
-        $env:GOBIN = $GOBIN
+        $env:GOBIN = $env:BIN_INSTALL_DIR
         go install github.com/jstemmer/go-junit-report/v2@latest
 
-        $JUNIT_REPORT_BIN = Join-Path -Path $BIN_INSTALL_DIR -ChildPath "go-junit-report"
+        $env:JUNIT_REPORT_BIN = Join-Path -Path $env:BIN_INSTALL_DIR -ChildPath "go-junit-report"
         
         # Create report directory and report.xml file
-        if (!(Test-Path -Path $REPORT_DIR)) {
-            New-Item -Path $REPORT_DIR -ItemType Directory
+        if (!(Test-Path -Path $env:REPORT_DIR)) {
+            New-Item -Path $env:REPORT_DIR -ItemType Directory
         }
-        if (!(Test-Path -Path $REPORT_XML)) {
-            New-Item -Path $REPORT_XML -ItemType File
+        if (!(Test-Path -Path $env:REPORT_XML)) {
+            New-Item -Path $env:REPORT_XML -ItemType File
         }
         
-        $env:GOBIN = $PRE_BIN
+        $env:GOBIN = $env:PRE_BIN
         # Run make tools
         make tools
         
         # Run tests and generate report
         try {
             # Run test, capture output and exit code
-            $testOutput = @(
+            $env:testOutput = @(
                 go test -timeout 30m -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/...
                 go tool cover -func=windows-coverage.out
             )
-            $exitCode = $LASTEXITCODE
+            $env:exitCode = $LASTEXITCODE
         
             # Write test output to report.xml using go-junit-report
-            $testOutput | & $JUNIT_REPORT_BIN | Out-File -FilePath $REPORT_XML -Encoding utf8
+            $env:testOutput | & Invoke-Expression $env:JUNIT_REPORT_BIN | Out-File -FilePath $env:REPORT_XML -Encoding utf8
         
             # Exit with test exit code
             if ($exitCode -ne 0) {
@@ -139,54 +141,47 @@ stages:
         }
         
         # List files in report directory
-        Get-ChildItem -Path $REPORT_DIR -Force | Select-Object -ExpandProperty FullName | ForEach-Object { Write-Host $_ }
+        Get-ChildItem -Path $env:REPORT_DIR -Force | Select-Object -ExpandProperty FullName | ForEach-Object { Write-Host $_ }
         
         # Move coverage.out to COVERAGE_OUT
-        Move-Item -Path "windows-coverage.out" -Destination $COVERAGE_OUT -Force
+        Move-Item -Path "windows-coverage.out" -Destination $env:COVERAGE_OUT -Force
         
         # List files in report directory again
-        Get-ChildItem -Path $REPORT_DIR -Force | Select-Object -ExpandProperty FullName | ForEach-Object { Write-Host $_ }
+        Get-ChildItem -Path $env:REPORT_DIR -Force | Select-Object -ExpandProperty FullName | ForEach-Object { Write-Host $_ }
 
       retryCountOnTaskFailure: 3
       displayName: "Run Unit Tests - Windows"
       #workingDirectory: $(ACN_DIR)
 
-    - script: |
-        # Define the installation directory for binaries
-        $BIN_INSTALL_DIR = (Resolve-Path -Path "bin").Path
-        $PRE_BIN = $GOBIN
+    - pwsh: |
+        $env:BIN_INSTALL_DIR = (Resolve-Path -Path "bin").Path
+        $env:PRE_BIN = $env:GOBIN
         
-        # Install required Go packages
-        $env:GOBIN = $BIN_INSTALL_DIR
+        $env:GOBIN = $env:BIN_INSTALL_DIR
         go install github.com/axw/gocov/gocov@latest
         go install github.com/AlekSi/gocov-xml@latest
         
-        # Define paths to the installed binaries
-        $GOCOV_BIN = Join-Path -Path $BIN_INSTALL_DIR -ChildPath "gocov"
-        $GOCOV_XML_BIN = Join-Path -Path $BIN_INSTALL_DIR -ChildPath "gocov-xml"
+        $env:GOCOV_BIN = Join-Path -Path $env:BIN_INSTALL_DIR -ChildPath "gocov"
+        $env:GOCOV_XML_BIN = Join-Path -Path $env:BIN_INSTALL_DIR -ChildPath "gocov-xml"
         
-        # Create the report directory and initialize the report XML file
-        if (!(Test-Path -Path $REPORT_DIR)) {
-            New-Item -Path $REPORT_DIR -ItemType Directory
+        if (!(Test-Path -Path $env:REPORT_DIR)) {
+            New-Item -Path $env:REPORT_DIR -ItemType Directory
         }
-        if (!(Test-Path -Path $REPORT_XML)) {
-            New-Item -Path $REPORT_XML -ItemType File
+        if (!(Test-Path -Path $env:REPORT_XML)) {
+            New-Item -Path $env:REPORT_XML -ItemType File
         }
         
-        $env:GOBIN = $PRE_BIN
-        # Run the 'make tools' command (assuming 'make' is available in the system's PATH)
-        make tools
+        $env:GOBIN = $env:PRE_BIN
         
-        # Convert coverage data and generate reports
-        & $GOCOV_BIN convert $COVERAGE_OUT | Out-File -FilePath (Join-Path -Path $REPORT_DIR -ChildPath "windows-coverage.json")
-        & $GOCOV_XML_BIN < (Join-Path -Path $REPORT_DIR -ChildPath "windows-coverage.json") | Out-File -FilePath (Join-Path -Path $REPORT_DIR -ChildPath "windows-coverage.gocov.xml")
+        & Invoke-Expression $env:GOCOV_BIN convert $env:COVERAGE_OUT | Out-File -FilePath (Join-Path -Path $env:REPORT_DIR -ChildPath "windows-coverage.json")
+        & Invoke-Expression $env:GOCOV_XML_BIN < (Join-Path -Path $env:REPORT_DIR -ChildPath "windows-coverage.json") | Out-File -FilePath (Join-Path -Path $env:REPORT_DIR -ChildPath "windows-coverage.gocov.xml")
       displayName: "Generate Test Reporting"
       #workingDirectory: $(ACN_DIR)
 
-    #- task: PublishPipelineArtifact@1
-    #  inputs:
-    #    targetPath: $(REPORT_DIR)
-    #    artifactName: "drop_unittest_windows"
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(REPORT_DIR)
+        artifactName: "drop_unittest_windows"
 
 
   - job: coverage
