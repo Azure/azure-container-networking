@@ -70,10 +70,10 @@ stages:
       displayName: "Generate Test Reporting"
       workingDirectory: $(ACN_DIR)
 
-     task: PublishPipelineArtifact@1
-     inputs:
-       targetPath: $(REPORT_DIR)
-       artifactName: drop_unittest_linux
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(REPORT_DIR)
+        artifactName: drop_unittest_linux
 
 
   - job: windows
@@ -183,10 +183,10 @@ stages:
       displayName: "Generate Test Reporting"
       workingDirectory: $(ACN_DIR)
 
-     task: PublishPipelineArtifact@1
-     inputs:
-       targetPath: $(REPORT_DIR)
-       artifactName: drop_unittest_windows
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(REPORT_DIR)
+        artifactName: drop_unittest_windows
 
 
   - job: coverage
