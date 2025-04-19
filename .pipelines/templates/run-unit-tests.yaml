@@ -73,7 +73,7 @@ stages:
     - task: PublishPipelineArtifact@1
       inputs:
         targetPath: $(REPORT_DIR)
-        artifactName: drop_unittest_linux
+        artifactName: "drop_unittest_linux"
 
 
   - job: windows
@@ -186,7 +186,7 @@ stages:
     - task: PublishPipelineArtifact@1
       inputs:
         targetPath: $(REPORT_DIR)
-        artifactName: drop_unittest_windows
+        artifactName: "drop_unittest_windows"
 
 
   - job: coverage
