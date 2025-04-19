@@ -50,8 +50,6 @@ stages:
         ls -la "$REPORT_DIR"
         mv coverage-all.out "$COVERAGE_OUT"
         ls -la "$REPORT_DIR"
-        echo "##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]$(cat $REPORT_DIR/linux-coverage.xml)"
-      name: test_results
       retryCountOnTaskFailure: 3
       displayName: "Run Unit Tests - Linux"
       #workingDirectory: $(ACN_DIR)
@@ -64,25 +62,13 @@ stages:
         GOCOV_BIN="$BIN_INSTALL_DIR/gocov"
         GOCOV_XML_BIN="$BIN_INSTALL_DIR/gocov-xml"
 
-        mkdir -p "$REPORT_DIR"
-        touch "$REPORT_XML"
-
         $GOCOV_BIN convert "$COVERAGE_OUT" > "$REPORT_DIR"/linux-coverage.json
         $GOCOV_XML_BIN < "$REPORT_DIR"/linux-coverage.json > "$REPORT_DIR"/linux-coverage.gocov.xml
 
+        echo "##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]$(cat $REPORT_DIR/linux-coverage.xml)"
         echo "##vso[task.setvariable variable=GOCOV_OUT_XML;isOutput=true]$(cat $REPORT_DIR/linux-coverage.gocov.xml)"
       name: report
       displayName: "Generate Test Reporting"
-      #workingDirectory: $(ACN_DIR)
-
-#    - task: PublishPipelineArtifact@1
-#      displayName: "\U0001F512 Publish to Pipeline Artifact"
-#      target:
-#        container: host
-#      condition: eq('True', 'True')
-#      inputs:
-#        artifactName: drop_unittest_linux
-#        targetPath: $(Build.ArtifactStagingDirectory)/linux-unittest
 
 
   - job: windows
@@ -104,100 +90,111 @@ stages:
       inputs:
         version: '$(GOVERSION)'
 
-    - pwsh: |
-        # Define variables
-        $env:BIN_INSTALL_DIR = (Resolve-Path -Path "bin").Path
-        $env:PRE_BIN = $env:GOBIN
-        # Install go-junit-report
-        $env:GOBIN = $env:BIN_INSTALL_DIR
-        go install github.com/jstemmer/go-junit-report/v2@latest
-
-        $env:JUNIT_REPORT_BIN = Join-Path -Path $env:BIN_INSTALL_DIR -ChildPath "go-junit-report"
-        
-        # Create report directory and report.xml file
-        if (!(Test-Path -Path $env:REPORT_DIR)) {
-            New-Item -Path $env:REPORT_DIR -ItemType Directory
-        }
-        if (!(Test-Path -Path $env:REPORT_XML)) {
-            New-Item -Path $env:REPORT_XML -ItemType File
-        }
-        
-        $env:GOBIN = $env:PRE_BIN
-        # Run make tools
-        make tools
-        
-        # Run tests and generate report
-        try {
-            # Run test, capture output and exit code
-            $env:testOutput = @(
-                go test -timeout 30m -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/...
-                go tool cover -func=windows-coverage.out
-            )
-            $env:exitCode = $LASTEXITCODE
-        
-            # Write test output to report.xml using go-junit-report
-            $env:testOutput | & Invoke-Expression $env:JUNIT_REPORT_BIN | Out-File -FilePath $env:REPORT_XML -Encoding utf8
-        
-            # Exit with test exit code
-            if ($exitCode -ne 0) {
-                exit $exitCode
-            }
-        } catch {
-            Write-Error $_
-            exit 1
-        }
-        
-        # List files in report directory
-        Get-ChildItem -Path $env:REPORT_DIR -Force | Select-Object -ExpandProperty FullName | ForEach-Object { Write-Host $_ }
-        
-        # Move coverage.out to COVERAGE_OUT
-        Move-Item -Path "windows-coverage.out" -Destination $env:COVERAGE_OUT -Force
-        
-        # List files in report directory again
-        Get-ChildItem -Path $env:REPORT_DIR -Force | Select-Object -ExpandProperty FullName | ForEach-Object { Write-Host $_ }
-
-        echo "##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]$(cat $env:REPORT_DIR/windows-coverage.xml)"
-      retryCountOnTaskFailure: 3
-      name: test_results
+    - task: PythonScript@0
       displayName: "Run Unit Tests - Windows"
-      #workingDirectory: $(ACN_DIR)
-
-    - pwsh: |
-        $env:BIN_INSTALL_DIR = (Resolve-Path -Path "bin").Path
-        $env:PRE_BIN = $env:GOBIN
+      retryCountOnTaskFailure: 3
+      inputs:
+        scriptSource: 'inline'
+        script: |
+          import os
+          import subprocess
+          import shutil
+          import sys
+          
+          # Set environment variables and directories
+          bin_install_dir = os.path.realpath('bin')
+          os.environ['GOBIN'] = bin_install_dir
+          
+          # Install the go-junit-report tool
+          subprocess.check_call(['go', 'install', 'github.com/jstemmer/go-junit-report/v2@latest'])
+          junit_report_bin = os.path.join(bin_install_dir, 'go-junit-report')
+          
+          # Create report directory and touch report XML file
+          report_dir = os.environ['REPORT_DIR']
+          os.makedirs(report_dir, exist_ok=True)
+          report_xml = os.path.join(report_dir, 'report.xml')
+          open(report_xml, 'a').close()
+          
+          # Run make tools
+          subprocess.check_call(['make', 'tools'])
+          
+          # Function to run the test and capture output
+          def run_test():
+              test_str = 'go test -timeout 30m -mod=readonly -buildvcs=false -tags "unit" ' +
+                           "--skip 'TestE2E*' -race -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/...;" +
+                         'go tool cover -func=windows-coverage.out'
+              result = subprocess.run(command, capture_output=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+              test_exit_code = result.returncode
+          
+              # Write output to report XML using go-junit-report
+              with open(report_xml, 'w') as report_file:
+                  junit_process = subprocess.Popen(
+                      [junit_report_bin],
+                      stdin=subprocess.PIPE,
+                      stdout=report_file
+                  )
+                  junit_process.communicate(input=stdout)
+          
+              sys.exit(test_exit_code)
+          
+          # Run the test function
+          run_test()
+          
+          # Move coverage output file
+          coverage_out = os.environ['COVERAGE_OUT']
+          shutil.move('windows-coverage.out', coverage_out)
+          
+          # List report directory contents again
+          print(os.listdir(report_dir))
         
-        $env:GOBIN = $env:BIN_INSTALL_DIR
-        go install github.com/axw/gocov/gocov@latest
-        go install github.com/AlekSi/gocov-xml@latest
-        
-        $env:GOCOV_BIN = Join-Path -Path $env:BIN_INSTALL_DIR -ChildPath "gocov"
-        $env:GOCOV_XML_BIN = Join-Path -Path $env:BIN_INSTALL_DIR -ChildPath "gocov-xml"
-        
-        if (!(Test-Path -Path $env:REPORT_DIR)) {
-            New-Item -Path $env:REPORT_DIR -ItemType Directory
-        }
-        if (!(Test-Path -Path $env:REPORT_XML)) {
-            New-Item -Path $env:REPORT_XML -ItemType File
-        }
-        
-        $env:GOBIN = $env:PRE_BIN
-        
-        & Invoke-Expression $env:GOCOV_BIN convert $env:COVERAGE_OUT | Out-File -FilePath (Join-Path -Path $env:REPORT_DIR -ChildPath "windows-coverage.json")
-        & Invoke-Expression $env:GOCOV_XML_BIN < (Join-Path -Path $env:REPORT_DIR -ChildPath "windows-coverage.json") | Out-File -FilePath (Join-Path -Path $env:REPORT_DIR -ChildPath "windows-coverage.gocov.xml")
-
-        echo "##vso[task.setvariable variable=GOCOV_OUT_XML;isOutput=true]$(cat $env:REPORT_DIR/windows-coverage.gocov.xml)"
-      name: report
+    - task: PythonScript@0
       displayName: "Generate Test Reporting"
-      #workingDirectory: $(ACN_DIR)
-
-#    - task: PublishPipelineArtifact@1
-#      displayName: "\U0001F512 Publish to Pipeline Artifact"
-#      target:
-#        container: host
-#      condition: eq('True', 'True')
-#      inputs:
-#        artifactName: drop_unittest_windows
-#        targetPath: $(Build.ArtifactStagingDirectory)/linux-unittest
+      name: report
+      inputs:
+        scriptSource: 'inline'
+        script: |
+          import os
+          import subprocess
+          
+          # Define the necessary variables
+          bin_install_dir = os.path.realpath('bin')
+          report_dir = os.environ['REPORT_DIR']
+          coverage_out = os.environ['COVERAGE_OUT']
+          coverage_json = os.path.join(report_dir, 'windows-coverage.json')
+          gocov_xml_file = os.path.join(report_dir, 'windows-coverage.gocov.xml')
+          
+          # Set the GOBIN environment variable
+          os.environ['GOBIN'] = BIN_INSTALL_DIR
+          
+          # Install gocov and gocov-xml
+          subprocess.run(['go', 'install', 'github.com/axw/gocov/gocov@latest'], check=True)
+          subprocess.run(['go', 'install', 'github.com/AlekSi/gocov-xml@latest'], check=True)
+          
+          # Define the paths to the installed binaries
+          GOCOV_BIN = os.path.join(bin_install_dir, 'gocov')
+          GOCOV_XML_BIN = os.path.join(bin_install_dir, 'gocov-xml')
+          
+          # Create the report directory if it doesn't exist
+          os.makedirs(report_dir, exist_ok=True)
+          
+          # Convert coverage output to JSON
+          with open(coverage_json, 'w') as json_file:
+              subprocess.run([gocov_bin, 'convert', coverage_out], stdout=json_file, check=True)
+          
+          # Convert JSON to XML
+          with open(gocov_xml_file, 'w') as xml_file:
+              with open(coverage_json, 'r') as json_file:
+                  subprocess.run([gocov_xml_bin], stdin=json_file, stdout=xml_file, check=True)
+          
+          # Set the coverage output XML variable
+          with open(coverage_out, 'r') as f:
+              coverage_out_xml_content = f.read()
+          print(f"##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]{coverage_out_xml_content}")
+          
+          # Print the XML content to the console
+          with open(gocov_xml_file, 'r') as xml_file:
+              xml_content = xml_file.read()
+              print(f"##vso[task.setvariable variable=GOCOV_OUT_XML;isOutput=true]{xml_content}")
 
 
   - job: coverage
@@ -211,9 +208,9 @@ stages:
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
 
-      WINDOWS_COVERAGE_OUT: $[ dependencies.windows.outputs['test_results.COVERAGE_OUT_XML'] ]
+      WINDOWS_COVERAGE_OUT: $[ dependencies.windows.outputs['report.COVERAGE_OUT_XML'] ]
       WINDOWS_GOCOV_OUT: $[ dependencies.windows.outputs['report.GOCOV_OUT_XML'] ]
-      LINUX_COVERAGE_OUT: $[ dependencies.linux.outputs['test_results.COVERAGE_OUT_XML'] ]
+      LINUX_COVERAGE_OUT: $[ dependencies.linux.outputs['report.COVERAGE_OUT_XML'] ]
       LINUX_GOCOV_OUT: $[ dependencies.linux.outputs['report.GOCOV_OUT_XML'] ]
     steps:
     - script: |
