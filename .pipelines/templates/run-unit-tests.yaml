@@ -15,7 +15,6 @@ stages:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/linux-unittest
-      ob_artifactSuffix: drop_unittest_linux
 
       REPORT_DIR: $(Build.ArtifactStagingDirectory)/linux-unittest
       REPORT_XML: $(Build.ArtifactStagingDirectory)/linux-unittest/report.xml
@@ -71,10 +70,8 @@ stages:
       displayName: "Generate Test Reporting"
       #workingDirectory: $(ACN_DIR)
 
-    - task: PublishPipelineArtifact@1
-      inputs:
-        targetPath: $(REPORT_DIR)
-        artifactName: "drop_unittest_linux"
+    - publish: $(REPORT_DIR)
+      artifact: drop_unittest_linux
 
 
   - job: windows
@@ -178,10 +175,8 @@ stages:
       displayName: "Generate Test Reporting"
       #workingDirectory: $(ACN_DIR)
 
-    - task: PublishPipelineArtifact@1
-      inputs:
-        targetPath: $(REPORT_DIR)
-        artifactName: "drop_unittest_windows"
+    - publish: $(REPORT_DIR)
+      artifact: drop_unittest_windows
 
 
   - job: coverage
