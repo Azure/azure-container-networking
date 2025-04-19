@@ -70,8 +70,14 @@ stages:
       displayName: "Generate Test Reporting"
       #workingDirectory: $(ACN_DIR)
 
-    - publish: $(REPORT_DIR)
-      artifact: drop_unittest_linux
+    - task: PublishPipelineArtifact@1
+      displayName: "\U0001F512 Publish to Pipeline Artifact"
+      target:
+        container: host
+      condition: eq('True', 'True')
+      inputs:
+        artifactName: drop_unittest_linux
+        targetPath: $(Build.ArtifactStagingDirectory)/linux-unittest
 
 
   - job: windows
@@ -174,8 +180,14 @@ stages:
       displayName: "Generate Test Reporting"
       #workingDirectory: $(ACN_DIR)
 
-    - publish: $(REPORT_DIR)
-      artifact: drop_unittest_windows
+    - task: PublishPipelineArtifact@1
+      displayName: "\U0001F512 Publish to Pipeline Artifact"
+      target:
+        container: host
+      condition: eq('True', 'True')
+      inputs:
+        artifactName: drop_unittest_windows
+        targetPath: $(Build.ArtifactStagingDirectory)/linux-unittest
 
 
   - job: coverage
