@@ -120,10 +120,10 @@ stages:
           
           # Function to run the test and capture output
           def run_test():
-              test_str = 'go test -timeout 30m -mod=readonly -buildvcs=false -tags "unit" ' +
-                           "--skip 'TestE2E*' -race -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/...;" +
-                         'go tool cover -func=windows-coverage.out'
-              result = subprocess.run(command, capture_output=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+              command = 'go test -timeout 30m -mod=readonly -buildvcs=false -tags "unit" ' +
+                          "--skip 'TestE2E*' -race -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/...;" +
+                        'go tool cover -func=windows-coverage.out'
+              result = subprocess.run(command, capture_output=True, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
               test_exit_code = result.returncode
           
               # Write output to report XML using go-junit-report
