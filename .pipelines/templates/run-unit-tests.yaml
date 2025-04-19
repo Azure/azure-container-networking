@@ -50,7 +50,8 @@ stages:
         ls -la "$REPORT_DIR"
         mv coverage-all.out "$COVERAGE_OUT"
         ls -la "$REPORT_DIR"
-        echo "##vso[task.setvariable variable=LINUX_COVERAGE_OUT;isOutput=true]$(cat $REPORT_DIR/linux-coverage.xml)"
+        echo "##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]$(cat $REPORT_DIR/linux-coverage.xml)"
+      name: test_results
       retryCountOnTaskFailure: 3
       displayName: "Run Unit Tests - Linux"
       #workingDirectory: $(ACN_DIR)
@@ -69,7 +70,8 @@ stages:
         $GOCOV_BIN convert "$COVERAGE_OUT" > "$REPORT_DIR"/linux-coverage.json
         $GOCOV_XML_BIN < "$REPORT_DIR"/linux-coverage.json > "$REPORT_DIR"/linux-coverage.gocov.xml
 
-        echo "##vso[task.setvariable variable=LINUX_GOCOV_OUT;isOutput=true]$(cat $REPORT_DIR/linux-coverage.gocov.xml)"
+        echo "##vso[task.setvariable variable=GOCOV_OUT_XML;isOutput=true]$(cat $REPORT_DIR/linux-coverage.gocov.xml)"
+      name: report
       displayName: "Generate Test Reporting"
       #workingDirectory: $(ACN_DIR)
 
@@ -154,8 +156,9 @@ stages:
         # List files in report directory again
         Get-ChildItem -Path $env:REPORT_DIR -Force | Select-Object -ExpandProperty FullName | ForEach-Object { Write-Host $_ }
 
-        echo "##vso[task.setvariable variable=WIN_COVERAGE_OUT;isOutput=true]$(cat $env:REPORT_DIR/windows-coverage.xml)"
+        echo "##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]$(cat $env:REPORT_DIR/windows-coverage.xml)"
       retryCountOnTaskFailure: 3
+      name: test_results
       displayName: "Run Unit Tests - Windows"
       #workingDirectory: $(ACN_DIR)
 
@@ -182,7 +185,8 @@ stages:
         & Invoke-Expression $env:GOCOV_BIN convert $env:COVERAGE_OUT | Out-File -FilePath (Join-Path -Path $env:REPORT_DIR -ChildPath "windows-coverage.json")
         & Invoke-Expression $env:GOCOV_XML_BIN < (Join-Path -Path $env:REPORT_DIR -ChildPath "windows-coverage.json") | Out-File -FilePath (Join-Path -Path $env:REPORT_DIR -ChildPath "windows-coverage.gocov.xml")
 
-        echo "##vso[task.setvariable variable=WIN_GOCOV_OUT;isOutput=true]$(cat $env:REPORT_DIR/windows-coverage.gocov.xml)"
+        echo "##vso[task.setvariable variable=GOCOV_OUT_XML;isOutput=true]$(cat $env:REPORT_DIR/windows-coverage.gocov.xml)"
+      name: report
       displayName: "Generate Test Reporting"
       #workingDirectory: $(ACN_DIR)
 
@@ -207,10 +211,10 @@ stages:
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
 
-      LINUX_COVERAGE_OUT: $(LINUX_COVERAGE_OUT)
-      LINUX_GOCOV_OUT: $(LINUX_GOCOV_OUT)
-      WIN_COVERAGE_OUT: $(WIN_COVERAGE_OUT)
-      WIN_GOCOV_OUT: $(WIN_GOCOV_OUT)
+      WINDOWS_COVERAGE_OUT: $[ dependencies.windows.outputs['test_results.COVERAGE_OUT_XML'] ]
+      WINDOWS_GOCOV_OUT: $[ dependencies.windows.outputs['report.GOCOV_OUT_XML'] ]
+      LINUX_COVERAGE_OUT: $[ dependencies.linux.outputs['test_results.COVERAGE_OUT_XML'] ]
+      LINUX_GOCOV_OUT: $[ dependencies.linux.outputs['report.GOCOV_OUT_XML'] ]
     steps:
     - script: |
         mkdir "$COV_DIR"
