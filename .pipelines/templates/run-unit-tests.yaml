@@ -51,7 +51,7 @@ stages:
         ls -la "$REPORT_DIR"
       retryCountOnTaskFailure: 3
       displayName: "Run Unit Tests - Linux"
-      workingDirectory: $(ACN_DIR)
+      #workingDirectory: $(ACN_DIR)
 
     - script: |
         BIN_INSTALL_DIR=$(realpath bin)
@@ -68,7 +68,7 @@ stages:
         $GOCOV_BIN convert "$COVERAGE_OUT" > "$REPORT_DIR"/linux-coverage.json
         $GOCOV_XML_BIN < "$REPORT_DIR"/linux-coverage.json > "$REPORT_DIR"/linux-coverage.gocov.xml
       displayName: "Generate Test Reporting"
-      workingDirectory: $(ACN_DIR)
+      #workingDirectory: $(ACN_DIR)
 
     #- task: PublishPipelineArtifact@1
     #  inputs:
@@ -149,7 +149,7 @@ stages:
 
       retryCountOnTaskFailure: 3
       displayName: "Run Unit Tests - Windows"
-      workingDirectory: $(ACN_DIR)
+      #workingDirectory: $(ACN_DIR)
 
     - script: |
         # Define the installation directory for binaries
@@ -181,7 +181,7 @@ stages:
         & $GOCOV_BIN convert $COVERAGE_OUT | Out-File -FilePath (Join-Path -Path $REPORT_DIR -ChildPath "windows-coverage.json")
         & $GOCOV_XML_BIN < (Join-Path -Path $REPORT_DIR -ChildPath "windows-coverage.json") | Out-File -FilePath (Join-Path -Path $REPORT_DIR -ChildPath "windows-coverage.gocov.xml")
       displayName: "Generate Test Reporting"
-      workingDirectory: $(ACN_DIR)
+      #workingDirectory: $(ACN_DIR)
 
     #- task: PublishPipelineArtifact@1
     #  inputs:
