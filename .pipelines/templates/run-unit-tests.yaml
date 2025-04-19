@@ -82,7 +82,6 @@ stages:
       name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/windows-unittest
-      ob_artifactSuffix: drop_unittest_windows
 
       REPORT_DIR: $(Build.ArtifactStagingDirectory)/windows-unittest
       REPORT_XML: $(Build.ArtifactStagingDirectory)/windows-unittest/report.xml
