@@ -140,7 +140,7 @@ stages:
                       stdin=subprocess.PIPE,
                       stdout=report_file
                   )
-                  junit_process.communicate(input=stdout)
+                  junit_process.communicate(input=report_file)
           
               sys.exit(test_exit_code)
           
