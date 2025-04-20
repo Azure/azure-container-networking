@@ -1,6 +1,6 @@
 stages:
 - stage: unittest
-  displayName: "Project Unit Tests"
+  displayName: "Unit Tests"
   dependsOn:
   - setup
   variables:
@@ -90,11 +90,16 @@ stages:
       inputs:
         version: '$(GOVERSION)'
 
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
+        addToPath: true
+
     - task: PythonScript@0
       displayName: "Run Unit Tests - Windows"
       retryCountOnTaskFailure: 3
       inputs:
-        pythonInterpreter: '/usr/bin/python3'
+        pythonInterpreter: $(pythonLocation)
         scriptSource: 'inline'
         script: |
           import os
