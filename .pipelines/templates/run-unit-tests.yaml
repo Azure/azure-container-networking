@@ -149,7 +149,7 @@ stages:
               print(result)
               print(test_exit_code)
               print(os.listdir(cwd))
-              test_exit_code = result.returncode
+              test_exit_code = 1 # result.returncode
           
               cov_out = os.path.join(cwd, 'windows-coverage.out')
               # Write output to report XML using go-junit-report
