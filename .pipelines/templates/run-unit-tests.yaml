@@ -111,15 +111,16 @@ stages:
           cwd = sys.argv[1]
           bin_install_dir = os.path.join(cwd, 'bin')
           os.environ['GOBIN'] = bin_install_dir
+          coverage_out = os.environ['COVERAGE_OUT']
+          report_dir = os.environ['REPORT_DIR']
+          report_xml = os.path.join(report_dir, 'report.xml')
           
           # Install the go-junit-report tool
           subprocess.check_call(['go', 'install', 'github.com/jstemmer/go-junit-report/v2@latest'])
           junit_report_bin = os.path.join(bin_install_dir, 'go-junit-report')
           
           # Create report directory and touch report XML file
-          report_dir = os.environ['REPORT_DIR']
           os.makedirs(report_dir, exist_ok=True)
-          report_xml = os.path.join(report_dir, 'report.xml')
           open(report_xml, 'a').close()
           
           # Run make tools
@@ -135,20 +136,19 @@ stages:
           
               # Write output to report XML using go-junit-report
               with open(report_xml, 'w') as report_file:
-                  junit_process = subprocess.Popen(
+                with open('windows-coverage.out', 'r') as cov_out_file:
+                  subprocess.run(
                       [junit_report_bin],
-                      stdin=subprocess.PIPE,
-                      stdout=report_file
+                      stdin=cov_out_file,
+                      stdout=report_file,
+                      check=True
                   )
-                  junit_process.communicate(input=report_file)
-          
               sys.exit(test_exit_code)
           
           # Run the test function
           run_test()
           
           # Move coverage output file
-          coverage_out = os.environ['COVERAGE_OUT']
           shutil.move('windows-coverage.out', coverage_out)
           
           # List report directory contents again
