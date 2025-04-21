@@ -132,12 +132,11 @@ stages:
               command += "--skip 'TestE2E*' -race -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/..."
               testing_process = subprocess.Popen(command, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
               out, err = testing_process.communicate()
-              test_exit_code = result.returncode
+              #test_exit_code = result.returncode
               print("Out:")
               print(out)
               print("Error:")
               print(err)
-              print(test_exit_code)
 
               command = 'go tool cover -func=windows-coverage.out'
               result = subprocess.Popen(command, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
