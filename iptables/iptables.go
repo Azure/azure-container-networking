@@ -198,7 +198,14 @@ func (c *Client) AppendIptableRule(version, tableName, chainName, match, target 
 	}
 
 	cmd := c.GetAppendIptableRuleCmd(version, tableName, chainName, match, target)
-	return c.RunCmd(version, cmd.Params)
+	err := c.RunCmd(version, cmd.Params)
+	if err != nil {
+		return err
+	}
+	if !c.RuleExists(version, tableName, chainName, match, target) {
+		return errCouldNotValidateRuleExists
+	}
+	return nil
 }
 
 // Delete matched iptable rule
