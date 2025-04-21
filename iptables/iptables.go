@@ -3,6 +3,7 @@ package iptables
 // This package contains wrapper functions to program iptables rules
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/cni/log"
@@ -11,6 +12,7 @@ import (
 )
 
 var logger = log.CNILogger.With(zap.String("component", "cni-iptables"))
+var errCouldNotValidateRuleExists = errors.New("could not validate iptable rule exists after insertion")
 
 // cni iptable chains
 const (
@@ -171,7 +173,14 @@ func (c *Client) InsertIptableRule(version, tableName, chainName, match, target 
 	}
 
 	cmd := c.GetInsertIptableRuleCmd(version, tableName, chainName, match, target)
-	return c.RunCmd(version, cmd.Params)
+	err := c.RunCmd(version, cmd.Params)
+	if err != nil {
+		return err
+	}
+	if !c.RuleExists(version, tableName, chainName, match, target) {
+		return errCouldNotValidateRuleExists
+	}
+	return nil
 }
 
 func (c *Client) GetAppendIptableRuleCmd(version, tableName, chainName, match, target string) IPTableEntry {
