@@ -91,9 +91,6 @@ stages:
       inputs:
         version: '$(GOVERSION)'
 
-    - script: |
-        where gcc
-
     - task: UsePythonVersion@0
       inputs:
         versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
@@ -143,7 +140,7 @@ stages:
           
           # Function to run the test and capture output
           def run_test():
-              os.environ['CGO_ENABLED'] = "1"
+              #os.environ['CGO_ENABLED'] = "1"
               cmd_gotest = 'go test -timeout 30m -mod=readonly -buildvcs=false -tags "unit" '
               cmd_gotest += f"--skip 'TestE2E*' -race -covermode atomic -coverprofile={coverage_out} ./npm/... ./cni/... ./platform/..."
               cmd_junitreport = f'{junit_report_bin} -set-exit-code -in {report_dir}/test.log -out {junit_xml} -iocopy'
