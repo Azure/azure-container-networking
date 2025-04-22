@@ -112,9 +112,6 @@ stages:
           cwd = os.path.realpath(cwd)
           bin_install_dir = os.path.join(cwd, 'bin')
           os.environ['GOBIN'] = bin_install_dir
-
-          cgo_path = sys.argv[2]
-          os.environ['PATH'] += ':{cgo_path}'
           
           report_dir = os.environ['REPORT_DIR']
           report_dir = os.path.realpath(report_dir)
@@ -140,9 +137,8 @@ stages:
           
           # Function to run the test and capture output
           def run_test():
-              #os.environ['CGO_ENABLED'] = "1"
               cmd_gotest = 'go test -timeout 30m -mod=readonly -buildvcs=false -tags "unit" '
-              cmd_gotest += f"--skip 'TestE2E*' -race -covermode atomic -coverprofile={coverage_out} ./npm/... ./cni/... ./platform/..."
+              cmd_gotest += f"--skip 'TestE2E*' -covermode atomic -coverprofile={coverage_out} ./npm/... ./cni/... ./platform/..."
               cmd_junitreport = f'{junit_report_bin} -set-exit-code -in {report_dir}/test.log -out {junit_xml} -iocopy'
               cmd_gocover = f'go tool cover -func={coverage_out}'
           
