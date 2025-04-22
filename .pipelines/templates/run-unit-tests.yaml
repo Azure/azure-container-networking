@@ -92,8 +92,7 @@ stages:
         version: '$(GOVERSION)'
 
     - script: |
-        which gcc
-        echo "##vso[task.setvariable variable=CGO_PATH;]$(dirname $(which gcc))"
+        where gcc
 
     - task: UsePythonVersion@0
       inputs:
