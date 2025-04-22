@@ -81,8 +81,9 @@ stages:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/windows-unittest
 
       REPORT_DIR: $(Build.ArtifactStagingDirectory)/windows-unittest
-      REPORT_XML: $(Build.ArtifactStagingDirectory)/windows-unittest/report.xml
-      COVERAGE_OUT: $(Build.ArtifactStagingDirectory)/windows-unittest/windows-coverage.out
+      REPORT_XML: report.xml
+      GOCOV_OUT: windows-gocov.out
+      COVERAGE_OUT: windows-coverage.out
     steps:
     - checkout: azure-container-networking
 
@@ -104,16 +105,25 @@ stages:
         script: |
           import os
           import subprocess
-          import shutil
           import sys
           
           # Set environment variables and directories
           cwd = sys.argv[1]
+          cwd = os.path.realpath(cwd)
           bin_install_dir = os.path.join(cwd, 'bin')
           os.environ['GOBIN'] = bin_install_dir
-          coverage_out = os.environ['COVERAGE_OUT']
+          
           report_dir = os.environ['REPORT_DIR']
-          report_xml = os.path.join(report_dir, 'report.xml')
+          report_dir = os.path.realpath(report_dir)
+          
+          coverage_file = os.environ['COVERAGE_OUT']
+          coverage_out = os.path.join(report_dir, coverage_file)
+          
+          gocover_file = os.environ['GOCOV_OUT']
+          gocover_out = os.path.join(report_dir, gocover_file)
+          
+          junit_file = os.environ['REPORT_XML']
+          junit_xml = os.path.join(report_dir, junit_file)
           
           # Install the go-junit-report tool
           subprocess.check_call(['go', 'install', 'github.com/jstemmer/go-junit-report/v2@latest'])
@@ -121,54 +131,33 @@ stages:
           
           # Create report directory and touch report XML file
           os.makedirs(report_dir, exist_ok=True)
-          open(report_xml, 'a').close()
           
           # Run make tools
           subprocess.run('make tools', shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
           
           # Function to run the test and capture output
           def run_test():
-              os.environ['CGO_ENABLED'] = 1
-              command = 'go test -timeout 30m -mod=readonly -buildvcs=false -tags "unit" '
-              command += "--skip 'TestE2E*' -race -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/..."
-              testing_process = subprocess.Popen(command, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
-              out, err = testing_process.communicate()
-              #test_exit_code = result.returncode
-              print("Out:")
-              print(out)
-              print("Error:")
-              print(err)
-
-              command = 'go tool cover -func=windows-coverage.out'
-              result = subprocess.Popen(command, shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
-              out, err = result.communicate()
-              print("Out:")
-              print(out)
-              print("Error:")
-              print(err)
-              print(result)
-              #print(test_exit_code)
-              print(os.listdir(cwd))
-              test_exit_code = 1 # result.returncode
+              os.environ['CGO_ENABLED'] = "1"
+              cmd_gotest = 'go test -timeout 30m -mod=readonly -buildvcs=false -tags "unit" '
+              cmd_gotest += f"--skip 'TestE2E*' -race -covermode atomic -coverprofile={coverage_out} ./npm/... ./cni/... ./platform/..."
+              cmd_junitreport = f'{junit_report_bin} -set-exit-code -in {report_dir}/test.log -out {junit_xml} -iocopy'
+              cmd_gocover = f'go tool cover -func={coverage_out}'
           
-              cov_out = os.path.join(cwd, 'windows-coverage.out')
-              # Write output to report XML using go-junit-report
-              with open(report_xml, 'w') as report_file:
-                with open(cov_out, 'r') as cov_out_file:
-                  subprocess.run(
-                      [junit_report_bin],
-                      stdin=cov_out_file,
-                      stdout=report_file,
-                      check=True
-                  )
+              print(cmd_gotest)
+              gotest_process = subprocess.run(cmd_gotest, shell=True, stdout=open(f'{report_dir}/test.log', 'w'), text=True, cwd=cwd)
+          
+              print(cmd_junitreport)
+              junit_process = subprocess.run(cmd_junitreport, shell=True, stdout=sys.stdout, stderr=sys.stderr, text=True, cwd=cwd)
+          
+              print(cmd_gocover)
+              gocover_process = subprocess.run(cmd_gocover, shell=True, text=True, stdout=open(gocover_out, "w"), cwd=cwd)
+          
+              test_exit_code = gotest_process.returncode
               sys.exit(test_exit_code)
           
           # Run the test function
           run_test()
-          
-          # Move coverage output file
-          shutil.move('windows-coverage.out', coverage_out)
-          
+
           # List report directory contents again
           print(os.listdir(report_dir))
         
@@ -182,13 +171,25 @@ stages:
           import os
           import subprocess
           
-          cwd = sys.argv[1]
           # Define the necessary variables
+          cwd = sys.argv[1]
+          cwd = os.path.realpath(cwd)
           bin_install_dir = os.path.join(cwd, 'bin')
+          os.environ['GOBIN'] = bin_install_dir
+          
           report_dir = os.environ['REPORT_DIR']
-          coverage_out = os.environ['COVERAGE_OUT']
+          report_dir = os.path.realpath(report_dir)
+          
+          coverage_file = os.environ['COVERAGE_OUT']
+          coverage_out = os.path.join(report_dir, coverage_file)
           coverage_json = os.path.join(report_dir, 'windows-coverage.json')
-          gocov_xml_file = os.path.join(report_dir, 'windows-coverage.gocov.xml')
+          coverage_xml = os.path.join(report_dir, 'windows-coverage.xml')
+          
+          gocover_file = os.environ['GOCOV_OUT']
+          gocover_out = os.path.join(report_dir, gocover_file)
+          
+          junit_file = os.environ['REPORT_XML']
+          junit_xml = os.path.join(report_dir, junit_file)
           
           # Set the GOBIN environment variable
           os.environ['GOBIN'] = BIN_INSTALL_DIR
@@ -206,22 +207,28 @@ stages:
           
           # Convert coverage output to JSON
           with open(coverage_json, 'w') as json_file:
-              subprocess.run([gocov_bin, 'convert', coverage_out], stdout=json_file, check=True)
+            subprocess.run([gocov_bin, 'convert', coverage_out], stdout=json_file, check=True)
           
-          # Convert JSON to XML
-          with open(gocov_xml_file, 'w') as xml_file:
+          # create coverage xml
+          with open(coverage_xml, 'w') as xml_file:
               with open(coverage_json, 'r') as json_file:
                   subprocess.run([gocov_xml_bin], stdin=json_file, stdout=xml_file, check=True)
-          
-          # Set the coverage output XML variable
-          with open(coverage_out, 'r') as f:
-              coverage_out_xml_content = f.read()
-          print(f"##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]{coverage_out_xml_content}")
-          
-          # Print the XML content to the console
-          with open(gocov_xml_file, 'r') as xml_file:
-              xml_content = xml_file.read()
-              print(f"##vso[task.setvariable variable=GOCOV_OUT_XML;isOutput=true]{xml_content}")
+          # coverage json
+          with open(coverage_json, 'r') as f:
+            coverage_out_json_content = f.read()
+            print(f"##vso[task.setvariable variable=COVERAGE_OUT_JSON;isOutput=true]{coverage_out_json_content}")
+          # coverage xml
+          with open(coverage_xml, 'r') as xml_file:
+            xml_content = xml_file.read()
+            print(f"##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]{xml_content}")
+          # go cover 
+          with open(gocover_out, 'r') as f:
+            gocover_out_content = f.read()
+            print(f"##vso[task.setvariable variable=GOCOV_OUT;isOutput=true]{gocover_out_content}")
+          # junit xml
+          with open(junit_xml, 'r') as f:
+            junit_xml_content = f.read()
+            print(f"##vso[task.setvariable variable=JUNIT_XML;isOutput=true]{junit_xml_content}")
 
 
   - job: coverage
@@ -235,8 +242,9 @@ stages:
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
 
+      WINDOWS_JUNIT_XML: $[ dependencies.windows.outputs['report.JUNIT_XML'] ]
       WINDOWS_COVERAGE_OUT: $[ dependencies.windows.outputs['report.COVERAGE_OUT_XML'] ]
-      WINDOWS_GOCOV_OUT: $[ dependencies.windows.outputs['report.GOCOV_OUT_XML'] ]
+      WINDOWS_GOCOV_OUT: $[ dependencies.windows.outputs['report.GOCOV_OUT'] ]
       LINUX_COVERAGE_OUT: $[ dependencies.linux.outputs['report.COVERAGE_OUT_XML'] ]
       LINUX_GOCOV_OUT: $[ dependencies.linux.outputs['report.GOCOV_OUT_XML'] ]
     steps:
@@ -244,8 +252,9 @@ stages:
         mkdir "$COV_DIR"
         echo "$LINUX_COVERAGE_OUT" > "$COV_DIR"/linux-coverage.xml
         echo "$LINUX_GOCOV_OUT" > "$COV_DIR"/linux-coverage.gocov.xml
-        echo "$WIN_COVERAGE_OUT" > "$COV_DIR"/windows-coverage.xml
-        echo "$WIN_GOCOV_OUT" > "$COV_DIR"/windows-coverage.gocov.xml
+        echo "$WINDOWS_COVERAGE_OUT" > "$COV_DIR"/windows-coverage.xml
+        echo "$WINDOWS_GOCOV_OUT" > "$COV_DIR"/windows-coverage.gocov.xml
+        echo "$WINDOWS_JUNIT_XML" > "$COV_DIR"/windows-coverage.junit.xml
       env:
         COV_DIR: $(Build.ArtifactStagingDirectory)/coverage
 
@@ -254,11 +263,12 @@ stages:
       inputs:
         testResultsFormat: 'JUnit'
         testResultsFiles:  # string. Required. Test results files. Default: **/TEST-*.xml.
-        searchFolder: coverage/**/*.gocov.xml
+        searchFolder: coverage/**/*.xml
         failTaskOnFailedTests: true
         failTaskOnMissingResultsFile: false
         #testRunTitle: # Name of the test runs
-        #mergeTestResults: false # boolean. Merge test results. Default: false.
+        # boolean. Merge test results. Default: false.
+        mergeTestResults: true
         #failTaskOnFailureToPublishResults: false # boolean. Fail if there is failure in publishing test results. Default: false.
       # Advanced
         #buildPlatform: windows/amd64
