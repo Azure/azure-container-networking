@@ -91,6 +91,10 @@ stages:
       inputs:
         version: '$(GOVERSION)'
 
+    - shell: |
+        which gcc
+        echo "##vso[task.setvariable variable=CGO_PATH;]$(dirname $(which gcc))"
+
     - task: UsePythonVersion@0
       inputs:
         versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
@@ -101,7 +105,7 @@ stages:
       retryCountOnTaskFailure: 3
       inputs:
         scriptSource: 'inline'
-        arguments: $(Build.SourcesDirectory)
+        arguments: $(Build.SourcesDirectory) $(CGO_PATH)
         script: |
           import os
           import subprocess
@@ -112,6 +116,9 @@ stages:
           cwd = os.path.realpath(cwd)
           bin_install_dir = os.path.join(cwd, 'bin')
           os.environ['GOBIN'] = bin_install_dir
+
+          cgo_path = sys.argv[2]
+          os.environ['PATH'] += ':{cgo_path}'
           
           report_dir = os.environ['REPORT_DIR']
           report_dir = os.path.realpath(report_dir)
