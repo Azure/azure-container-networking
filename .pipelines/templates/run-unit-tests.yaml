@@ -116,6 +116,8 @@ stages:
           report_dir = os.environ['REPORT_DIR']
           report_dir = os.path.realpath(report_dir)
           
+          log_file = os.path.join(report_dir, 'test.stdout.log')
+
           coverage_file = os.environ['COVERAGE_OUT']
           coverage_out = os.path.join(report_dir, coverage_file)
           
@@ -137,12 +139,12 @@ stages:
           
           # Function to run the test and capture output
           def run_test():
-              cmd_gotest = "go test -timeout 30m -covermode atomic -coverprofile={coverage_out} ./npm/... ./cni/... ./platform/..."
-              cmd_junitreport = f'{junit_report_bin} -set-exit-code -in {report_dir}/test.log -out {junit_xml} -iocopy'
+              cmd_gotest = f"go test -timeout 30m -covermode atomic -coverprofile={coverage_out} ./npm/... ./cni/... ./platform/..."
+              cmd_junitreport = f'{junit_report_bin} -set-exit-code -in {log_file} -out {junit_xml} -iocopy'
               cmd_gocover = f'go tool cover -func={coverage_out}'
           
               print(cmd_gotest)
-              gotest_process = subprocess.run(cmd_gotest, shell=True, stdout=open(f'{report_dir}/test.log', 'w'), text=True, cwd=cwd)
+              gotest_process = subprocess.run(cmd_gotest, shell=True, stdout=open(log_file, 'w'), text=True, cwd=cwd)
           
               print(cmd_junitreport)
               junit_process = subprocess.run(cmd_junitreport, shell=True, stdout=sys.stdout, stderr=sys.stderr, text=True, cwd=cwd)
