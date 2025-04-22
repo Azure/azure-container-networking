@@ -91,7 +91,7 @@ stages:
       inputs:
         version: '$(GOVERSION)'
 
-    - shell: |
+    - script: |
         which gcc
         echo "##vso[task.setvariable variable=CGO_PATH;]$(dirname $(which gcc))"
 
