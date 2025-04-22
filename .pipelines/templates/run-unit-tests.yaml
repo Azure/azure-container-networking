@@ -101,7 +101,7 @@ stages:
       retryCountOnTaskFailure: 3
       inputs:
         scriptSource: 'inline'
-        arguments: $(Build.SourcesDirectory) $(CGO_PATH)
+        arguments: $(Build.SourcesDirectory)
         script: |
           import os
           import subprocess
@@ -168,6 +168,7 @@ stages:
         script: |
           import os
           import subprocess
+          import sys
           
           # Define the necessary variables
           cwd = sys.argv[1]
