@@ -53,7 +53,11 @@ steps:
       else
           CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
       fi
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load \
+        SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true \
+        INSTALL_CNS=true INSTALL_OVERLAY=true CLEANUP=true \
+        AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_VERSION=$(CNS_VERSION) \
+        IPAM_IMAGE_NAME_OVERRIDE=$(IMAGE_REPO_PATH)/azure-ipam CNS_IMAGE_NAME_OVERRIDE=$(IMAGE_REPO_PATH)/cns
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"

@@ -372,31 +372,32 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 	cnsRoleBindingPath := cnsManifestFolder + "/rolebinding.yaml"
 	cnsServiceAccountPath := cnsManifestFolder + "/serviceaccount.yaml"
 
-	cniImageName := os.Getenv(string(envCNIImageNameOverride))
-	if len(cniImageName) < 1 {
-		cniImageName = "azure-cni"
-	}
-	cniImageName += ":"
-
 	url, key := imageRepoURL[os.Getenv(string(envCNIImageRepo))]
 	if !key {
 		log.Printf("%s not set to expected value \"ACN\", \"MCR\". Default to %s", envCNIImageRepo, imageRepoURL["ACN"])
 		url = imageRepoURL["ACN"]
 	}
+
+	cniImageName := "azure-cni"
+	if len(os.Getenv(string(envCNIImageNameOverride))) > 1 {
+		cniImageName = os.Getenv(string(envCNIImageNameOverride))
+	}
+	cniImageName += ":"
 	initContainerNameCNI := path.Join(url, cniImageName) + os.Getenv(envCNIVersion)
 	log.Printf("CNI init container image - %v", initContainerNameCNI)
-
-	ipamImageName := os.Getenv(string(envIPAMImageNameOverride))
-	if len(ipamImageName) < 1 {
-		ipamImageName = "azure-ipam"
-	}
-	ipamImageName += ":"
 
 	url, key = imageRepoURL[os.Getenv(string(envAzureIPAMImageRepo))]
 	if !key {
 		log.Printf("%s not set to expected value \"ACN\", \"MCR\". Default to %s", envAzureIPAMImageRepo, imageRepoURL["ACN"])
 		url = imageRepoURL["ACN"]
 	}
+
+	ipamImageName := "azure-ipam"
+	if len(os.Getenv(string(envIPAMImageNameOverride))) > 1 {
+		ipamImageName = os.Getenv(string(envIPAMImageNameOverride))
+	}
+	ipamImageName += ":"
+
 	initContainerNameIPAM := path.Join(url, ipamImageName) + os.Getenv(envAzureIPAMVersion)
 	log.Printf("IPAM init container image - %v", initContainerNameIPAM)
 
@@ -683,17 +684,17 @@ func parseCNSDaemonset(cnsScenarioMap map[CNSScenario]map[corev1.OSName]cnsDetai
 
 		cns := MustParseDaemonSet(cnsScenarioDetails.daemonsetPath)
 
-		cnsImageName := os.Getenv(string(envIPAMImageNameOverride))
-		if len(cnsImageName) < 1 {
-			cnsImageName = "azure-cns"
-		}
-		cnsImageName += ":"
-
 		url, key := imageRepoURL[os.Getenv(string(envCNSImageRepo))]
 		if !key {
 			log.Printf("%s not set to expected value \"ACN\", \"MCR\". Default to %s", envCNSImageRepo, imageRepoURL["ACN"])
 			url = imageRepoURL["ACN"]
 		}
+
+		cnsImageName := "azure-cns"
+		if len(os.Getenv(string(envCNSImageNameOverride))) > 1 {
+			cnsImageName = os.Getenv(string(envCNSImageNameOverride))
+		}
+		cnsImageName += ":"
 
 		cns.Spec.Template.Spec.Containers[0].Image = path.Join(url, cnsImageName) + cnsVersion
 
