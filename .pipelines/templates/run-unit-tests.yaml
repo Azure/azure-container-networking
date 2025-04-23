@@ -92,7 +92,7 @@ stages:
           report_dir = os.path.realpath(report_dir)
           
           convert_vars = [
-            { 'var_name': 'LINUX_GOCOV_OUT', 'file_path': f'{report_dir}/coverage-all.out' },
+            { 'var_name': 'LINUX_GOCOV_OUT', 'file_path': f'{report_dir}/linux-coverage.out' },
             { 'var_name': 'LINUX_COVERAGE_OUT_XML', 'file_path': f'{report_dir}/linux-coverage.gocov.xml' },
             { 'var_name': 'LINUX_COVERAGE_OUT_JSON', 'file_path': f'{report_dir}/linux-coverage.gocov.json' },
             { 'var_name': 'LINUX_JUNIT_XML', 'file_path': f'{report_dir}/report.xml' }
@@ -316,7 +316,6 @@ stages:
         arguments: $(Build.ArtifactStagingDirectory)/out
         script: |
           import os
-          import subprocess
           import sys
           import zlib
           
