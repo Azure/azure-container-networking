@@ -23,6 +23,7 @@ jobs:
     - ${{ job_data.job }}_generate_manifest
     pool:
       type: docker
+      os: windows
     variables:
       ob_outputDirectory: $(Build.SourcesDirectory)/out
       ob_git_checkout: false
