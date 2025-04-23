@@ -289,7 +289,7 @@ stages:
     - windows
     - linux
     pool:
-      type: linux
+      type: windows
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
 
