@@ -192,16 +192,13 @@ stages:
           junit_file = os.environ['REPORT_XML']
           junit_xml = os.path.join(report_dir, junit_file)
           
-          # Set the GOBIN environment variable
-          os.environ['GOBIN'] = BIN_INSTALL_DIR
-          
           # Install gocov and gocov-xml
           subprocess.run(['go', 'install', 'github.com/axw/gocov/gocov@latest'], check=True)
           subprocess.run(['go', 'install', 'github.com/AlekSi/gocov-xml@latest'], check=True)
           
           # Define the paths to the installed binaries
-          GOCOV_BIN = os.path.join(bin_install_dir, 'gocov')
-          GOCOV_XML_BIN = os.path.join(bin_install_dir, 'gocov-xml')
+          gocov_bin = os.path.join(bin_install_dir, 'gocov')
+          gocov_xml_bin = os.path.join(bin_install_dir, 'gocov-xml')
           
           # Create the report directory if it doesn't exist
           os.makedirs(report_dir, exist_ok=True)
