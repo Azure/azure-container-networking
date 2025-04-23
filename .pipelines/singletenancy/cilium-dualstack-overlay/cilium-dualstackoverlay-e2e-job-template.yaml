@@ -41,6 +41,11 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      IMAGE_REPO_PATH: '/artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy'
+      AZURE_IPAM_VERSION: "v0.3.0-341-g0de9285b1"
+      CNI_VERSION: "v1.6.24-73-g0de9285b1"
+      CNS_VERSION: "v1.6.24-73-g0de9285b1"
+      IPV6_HP_BPF_VERSION: "v0.0.1-434-g0de9285b1"
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Dualstack Overlay Test Suite - (${{ parameters.name }})

@@ -12,7 +12,9 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         echo "Deleting cluster"
-        make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
+        # make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
+        #Temp fix for azcli aks preview bug
+        az extension add --name aks-preview --version 14.0.0b3
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         make -C ./hack/aks down AZCLI=az REGION=${{ parameters.region }} SUB=${{ parameters.sub }} CLUSTER=${{ parameters.clusterName }}
         echo "Cluster and resources down"

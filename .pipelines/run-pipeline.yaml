@@ -226,7 +226,7 @@ stages:
           build_tag: $(imageTag)
           extra_args: $(extraArgs)
           archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
-  
+
     - job: images_linux_arm64
       displayName: "Build Linux/ARM64 Images"
       pool:
@@ -462,7 +462,7 @@ stages:
       k8sVersion: ""
       dependsOn: manifests
       scaleup: 100
-  
+
   - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
     parameters:
       name: "win_azure_overlay_e2e"
