@@ -43,7 +43,7 @@ steps:
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
 
         export CILIUM_VERSION_TAG=${CILIUM_DUALSTACK_VERSION}
-        export IPV6_HP_BPF_VERSION=$(make ipv6-hp-bpf-version)
+        export IPV6_HP_BPF_VERSION=$(IPV6_HP_BPF_VERSION)
         echo "install Cilium ${CILIUM_DUALSTACK_VERSION} onto Overlay Cluster"
         envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
         envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
@@ -55,7 +55,11 @@ steps:
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cilium_dualstack VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load \
+        SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cilium_dualstack VALIDATE_STATEFILE=true \
+        INSTALL_CNS=true INSTALL_OVERLAY=true CLEANUP=true \
+        AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_VERSION=$(CNS_VERSION) \
+        IPAM_IMAGE_NAME_OVERRIDE=$(IMAGE_REPO_PATH)/azure-ipam CNS_IMAGE_NAME_OVERRIDE=$(IMAGE_REPO_PATH)/cns
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
