@@ -78,6 +78,7 @@ stages:
         scriptSource: 'inline'
         script: |
           import os
+          import sys
           import zlib
           
           def output_var(var_name, is_output, var_value):
