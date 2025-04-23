@@ -65,8 +65,10 @@ stages:
         $GOCOV_BIN convert "$COVERAGE_OUT" > "$REPORT_DIR"/linux-coverage.json
         $GOCOV_XML_BIN < "$REPORT_DIR"/linux-coverage.json > "$REPORT_DIR"/linux-coverage.gocov.xml
 
-        echo "##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]$(cat $REPORT_DIR/linux-coverage.xml)"
-        echo "##vso[task.setvariable variable=GOCOV_OUT_XML;isOutput=true]$(cat $REPORT_DIR/linux-coverage.gocov.xml)"
+        echo "##vso[task.setvariable variable=JUNIT_XML;isOutput=true]$(cat $REPORT_XML | base64 -w 0)"
+        echo "##vso[task.setvariable variable=COVERAGE_OUT_JSON;isOutput=true]$(cat $REPORT_DIR/linux-coverage.json | base64 -w 0)"
+        echo "##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]$(cat $REPORT_DIR/linux-coverage.xml | base64 -w 0)"
+        echo "##vso[task.setvariable variable=GOCOV_OUT_XML;isOutput=true]$(cat $REPORT_DIR/linux-coverage.gocov.xml | base64 -w 0)"
       name: report
       displayName: "Generate Test Reporting"
 
@@ -168,6 +170,7 @@ stages:
         arguments: $(Build.SourcesDirectory)
         scriptSource: 'inline'
         script: |
+          import base64
           import os
           import subprocess
           import sys
@@ -211,22 +214,28 @@ stages:
           with open(coverage_xml, 'w') as xml_file:
               with open(coverage_json, 'r') as json_file:
                   subprocess.run([gocov_xml_bin], stdin=json_file, stdout=xml_file, check=True)
+          
+          # Encoding function to convert long multi-line files to single line for setting vso variable.
+          def encode_file_to_base64(file_path):
+            with open(file_path, 'rb') as file:
+              encoded_string = base64.b64encode(file.read()).decode('utf-8')
+            return encoded_string
+          
           # coverage json
-          with open(coverage_json, 'r') as f:
-            coverage_out_json_content = f.read()
-            print(f"##vso[task.setvariable variable=COVERAGE_OUT_JSON;isOutput=true]{coverage_out_json_content}")
+          coverage_out_json_content = encode_file_to_base64(coverage_json)
+          print(f"##vso[task.setvariable variable=COVERAGE_OUT_JSON;isOutput=true]{coverage_out_json_content}")
+          
           # coverage xml
-          with open(coverage_xml, 'r') as xml_file:
-            xml_content = xml_file.read()
-            print(f"##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]{xml_content}")
+          coverage_xml_content = encode_file_to_base64(coverage_json)
+          print(f"##vso[task.setvariable variable=COVERAGE_OUT_XML;isOutput=true]{coverage_xml_content}")
+          
           # go cover 
-          with open(gocover_out, 'r') as f:
-            gocover_out_content = f.read()
-            print(f"##vso[task.setvariable variable=GOCOV_OUT;isOutput=true]{gocover_out_content}")
+          gocover_out_content = encode_file_to_base64(gocover_out)
+          print(f"##vso[task.setvariable variable=GOCOV_OUT;isOutput=true]{gocover_out_content}")
+          
           # junit xml
-          with open(junit_xml, 'r') as f:
-            junit_xml_content = f.read()
-            print(f"##vso[task.setvariable variable=JUNIT_XML;isOutput=true]{junit_xml_content}")
+          junit_xml_content = encode_file_to_base64(junit_xml)
+          print(f"##vso[task.setvariable variable=JUNIT_XML;isOutput=true]{junit_xml_content}")
 
 
   - job: coverage
@@ -241,18 +250,26 @@ stages:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
 
       WINDOWS_JUNIT_XML: $[ dependencies.windows.outputs['report.JUNIT_XML'] ]
-      WINDOWS_COVERAGE_OUT: $[ dependencies.windows.outputs['report.COVERAGE_OUT_XML'] ]
+      WINDOWS_COVERAGE_OUT_XML: $[ dependencies.windows.outputs['report.COVERAGE_OUT_XML'] ]
+      WINDOWS_COVERAGE_OUT_JSON: $[ dependencies.windows.outputs['report.COVERAGE_OUT_JSON'] ]
       WINDOWS_GOCOV_OUT: $[ dependencies.windows.outputs['report.GOCOV_OUT'] ]
-      LINUX_COVERAGE_OUT: $[ dependencies.linux.outputs['report.COVERAGE_OUT_XML'] ]
+
+      LINUX_COVERAGE_OUT_JSON: $[ dependencies.linux.outputs['report.COVERAGE_OUT_JSON'] ]
+      LINUX_COVERAGE_OUT_XML: $[ dependencies.linux.outputs['report.COVERAGE_OUT_XML'] ]
       LINUX_GOCOV_OUT: $[ dependencies.linux.outputs['report.GOCOV_OUT_XML'] ]
+      LINUX_JUNIT_XML: $[ dependencies.linux.outputs['report.JUNIT_XML'] ]
     steps:
     - script: |
         mkdir "$COV_DIR"
-        echo "$LINUX_COVERAGE_OUT" > "$COV_DIR"/linux-coverage.xml
-        echo "$LINUX_GOCOV_OUT" > "$COV_DIR"/linux-coverage.gocov.xml
-        echo "$WINDOWS_COVERAGE_OUT" > "$COV_DIR"/windows-coverage.xml
-        echo "$WINDOWS_GOCOV_OUT" > "$COV_DIR"/windows-coverage.gocov.xml
-        echo "$WINDOWS_JUNIT_XML" > "$COV_DIR"/windows-coverage.junit.xml
+        echo "$LINUX_COVERAGE_OUT_XML" | base64 -d > "$COV_DIR"/linux-coverage.xml
+        echo "$LINUX_COVERAGE_OUT_JSON" | base64 -d > "$COV_DIR"/linux-coverage.json
+        echo "$LINUX_GOCOV_OUT" | base64 -d > "$COV_DIR"/linux-coverage.gocov.xml
+        echo "$LINUX_JUNIT_XML" | base64 -d > "$COV_DIR"/linux-coverage.junit.xml
+
+        echo "$WINDOWS_COVERAGE_OUT_XML" | base64 -d > "$COV_DIR"/windows-coverage.xml
+        echo "$WINDOWS_COVERAGE_OUT_JSON" | base64 -d > "$COV_DIR"/windows-coverage.json
+        echo "$WINDOWS_GOCOV_OUT" | base64 -d > "$COV_DIR"/windows-coverage.gocov.xml
+        echo "$WINDOWS_JUNIT_XML" | base64 -d > "$COV_DIR"/windows-coverage.junit.xml
       env:
         COV_DIR: $(Build.ArtifactStagingDirectory)/coverage
 
@@ -261,7 +278,7 @@ stages:
       inputs:
         testResultsFormat: 'JUnit'
         testResultsFiles:  # string. Required. Test results files. Default: **/TEST-*.xml.
-        searchFolder: coverage/**/*.xml
+        searchFolder: coverage/**/*.junit.xml
         failTaskOnFailedTests: true
         failTaskOnMissingResultsFile: false
         #testRunTitle: # Name of the test runs
