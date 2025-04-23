@@ -256,7 +256,7 @@ stages:
           
           
           def output_var(var_name, is_output, var_value):
-            os.environ[var_name] = val
+            os.environ[var_name] = var_value
             print(f"##vso[task.setvariable variable={var_name};isOutput={is_output}]{var_value}")
           
           def encode_and_compress(file_path):
@@ -303,10 +303,10 @@ stages:
       LINUX_GOCOV_OUT: $[ dependencies.linux.outputs['report.GOCOV_OUT_XML'] ]
       LINUX_JUNIT_XML: $[ dependencies.linux.outputs['report.JUNIT_XML'] ]
     steps:
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
-        addToPath: true
+#    - task: UsePythonVersion@0
+#      inputs:
+#        versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
+#        addToPath: true
     
     - task: PythonScript@0
       displayName: "Write Test Output Artifacts"
