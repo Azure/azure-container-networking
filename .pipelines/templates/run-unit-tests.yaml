@@ -65,6 +65,7 @@ stages:
         $GOCOV_XML_BIN < "$REPORT_DIR"/linux-coverage.gocov.json > "$REPORT_DIR"/linux-coverage.gocov.xml
     
     - task: UsePythonVersion@0
+      retryCountOnTaskFailure: 3
       inputs:
         versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
         addToPath: true
@@ -106,6 +107,8 @@ stages:
             val = encode_and_compress(item['file_path'])
             output_var(item['var_name'], True, val)
 
+          sys.exit()
+
 
   - job: windows
     displayName: "Run Tests - Windows"
@@ -129,6 +132,7 @@ stages:
         version: '$(GOVERSION)'
     
     - task: UsePythonVersion@0
+      retryCountOnTaskFailure: 3
       inputs:
         versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
         addToPath: true
@@ -281,6 +285,8 @@ stages:
           junit_xml_content = encode_and_compress(junit_xml)
           output_var('JUNIT_XML', True, junit_xml_content)
 
+          sys.exit()
+
 
   - job: coverage
     displayName: "Check Test Coverage"
@@ -303,10 +309,11 @@ stages:
       LINUX_GOCOV_OUT: $[ dependencies.linux.outputs['report.GOCOV_OUT_XML'] ]
       LINUX_JUNIT_XML: $[ dependencies.linux.outputs['report.JUNIT_XML'] ]
     steps:
-#    - task: UsePythonVersion@0
-#      inputs:
-#        versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
-#        addToPath: true
+    - task: UsePythonVersion@0
+      retryCountOnTaskFailure: 3
+      inputs:
+        versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
+        addToPath: true
     
     - task: PythonScript@0
       displayName: "Write Test Output Artifacts"
@@ -349,6 +356,8 @@ stages:
               var_value = bytes.fromhex(os.environ[item['var_name']])
               print(f'Decompressing data and writing variable value to file {item["file_path"]}')
               file_io.write(decompress_and_decode(var_value))
+
+          sys.exit()
 
     - task: PublishTestResults@2
       displayName: "Publish Test Results"
