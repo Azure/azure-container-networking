@@ -15,7 +15,7 @@ jobs:
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
       ob_git_checkout: true
-      ob_artifactSuffix: _$(artifact)_${{ job_data.job }}
+      ob_artifactSuffix: _$(artifact)
       ACN_DIR: azure-container-networking
       ${{ if eq(job_data.job, 'linux_amd64') }}:
         LinuxContainerImage: $(LinuxContainerImage2)
@@ -52,6 +52,7 @@ jobs:
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
       ob_artifactSuffix: _$(artifact)_${{ job_data.job }}_signed
+      ob_artifactSuffix: _$(artifact)_signed
       ${{ if eq(job_data.job, 'linux_amd64') }}:
         LinuxContainerImage: $(LinuxContainerImage2)
         ARCH: amd64
@@ -71,11 +72,11 @@ jobs:
     - task: DownloadPipelineArtifact@2
       inputs:
         targetPath: $(Build.ArtifactStagingDirectory)/out
-        artifact: drop_build_binaries_$(artifact)_${{ job_data.job }}
+        artifact: drop_build_binaries_${{ job_data.job }}_$(artifact)
     
     - task: onebranch.pipeline.signing@1
       inputs:
         command: 'sign'
-        signing_profile: 'internal_azure_service'
+        signing_profile: 'external_distribution'
         files_to_sign: '**/*'
         search_root: '$(Build.ArtifactStagingDirectory)/out'
