@@ -34,7 +34,7 @@ jobs:
 
     steps:
     - checkout: azure-container-networking
-    - template: build/binary.steps.yaml
+    - template: binary.steps.yaml
       parameters:
         target: $(name)
         os: $(OS)
