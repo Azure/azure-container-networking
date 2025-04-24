@@ -21,12 +21,12 @@ jobs:
         LinuxContainerImage: $(LinuxContainerImage2)
         ARCH: amd64
         OS: linux
-      ${{ else if eq(job_data.job, 'windows_amd64') }}:
+      ${{ elseif eq(job_data.job, 'windows_amd64') }}:
         LinuxContainerImage: $(LinuxContainerImage2)
         ob_enable_qemu: true
         ARCH: amd64
         OS: windows
-      ${{ else if eq(job_data.job, 'linux_arm64') }}:
+      ${{ elseif eq(job_data.job, 'linux_arm64') }}:
         LinuxContainerImage: $(LinuxContainerImage3)
         ob_enable_qemu: true
         ARCH: arm64
@@ -56,12 +56,12 @@ jobs:
         LinuxContainerImage: $(LinuxContainerImage2)
         ARCH: amd64
         OS: linux
-      ${{ else if eq(job_data.job, 'windows_amd64') }}:
+      ${{ elseif eq(job_data.job, 'windows_amd64') }}:
         LinuxContainerImage: $(LinuxContainerImage2)
         ob_enable_qemu: true
         ARCH: amd64
         OS: windows
-      ${{ else if eq(job_data.job, 'linux_arm64') }}:
+      ${{ elseif eq(job_data.job, 'linux_arm64') }}:
         LinuxContainerImage: $(LinuxContainerImage3)
         ob_enable_qemu: true
         ARCH: arm64
