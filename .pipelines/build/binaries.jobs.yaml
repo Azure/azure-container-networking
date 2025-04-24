@@ -4,7 +4,7 @@ parameters:
 
 
 jobs:
-- ${{ each job_data in parameters.generate }}:
+- ${{ each job_data in parameters.binaries }}:
   - job: binaries_${{ job_data.job }}
     displayName: "Build Binary - ${{ job_data.displayName }}"
     strategy: ${{ job_data.strategy }}
