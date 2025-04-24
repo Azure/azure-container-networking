@@ -41,106 +41,63 @@ stages:
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
       NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
     jobs:
-    - job: binaries_linux_amd64
-      displayName: "Build Linux/AMD64 Binaries"
-      pool:
-        type: linux
-      variables:
-        LinuxContainerImage: $(LinuxContainerImage2)
-        ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
-        ob_git_checkout: true
-        ob_enable_qemu: true
-        ob_artifactSuffix: _$(name)_linux_amd64
-    
-        ACN_DIR: azure-container-networking
-        ARCH: amd64
-        OS: linux
-      strategy:
-        maxParallel: 5
-        matrix:
-          azure_ipam:
-            name: azure-ipam-archive
-          cni:
-            name: cni-archive
-          cns:
-            name: cns-archive
-          ipv6_hp_bpf:
-            name: ipv6-hp-bpf-archive
-          npm:
-            name: npm-archive
-      steps:
-      - checkout: azure-container-networking
-      - template: build/binary.steps.yaml
-        parameters:
-          target: $(name)
-          os: $(OS)
-          arch: $(ARCH)
-
-    - job: binaries_windows_amd64
-      displayName: "Build Windows Binaries"
-      pool:
-        type: linux
-      variables:
-        LinuxContainerImage: $(LinuxContainerImage2)
-        ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
-        ob_git_checkout: true
-        ob_enable_qemu: true
-        ob_artifactSuffix: _$(name)_windows_amd64
-    
-        ACN_DIR: azure-container-networking
-        ARCH: amd64
-        OS: windows
-      strategy:
-        maxParallel: 5
-        matrix:
-          cni:
-            name: cni-archive
-          cns:
-            name: cns-archive
-          npm:
-            name: npm-archive
-      steps:
-      - checkout: azure-container-networking
-      - template: build/binary.steps.yaml
-        parameters:
-          target: $(name)
-          os: $(OS)
-          arch: $(ARCH)
-
-    - job: binaries_linux_arm64
-      displayName: "Build Linux/ARM64 Binaries"
-      pool:
-        type: linux
-        hostArchitecture: arm64
-      variables:
-        LinuxContainerImage: $(LinuxContainerImage3)
-        ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
-        ob_git_checkout: true
-        ob_artifactSuffix: _$(name)_linux_arm64
-    
-        ACN_DIR: azure-container-networking
-        ARCH: arm64
-        OS: linux
-      strategy:
-        maxParallel: 5
-        matrix:
-          azure_ipam:
-            name: azure-ipam-archive
-          cni:
-            name: cni-archive
-          cns:
-            name: cns-archive
-          ipv6_hp_bpf:
-            name: ipv6-hp-bpf-archive
-          npm:
-            name: npm-archive
-      steps:
-      - checkout: azure-container-networking
-      - template: build/binary.steps.yaml
-        parameters:
-          target: $(name)
-          os: $(OS)
-          arch: $(ARCH)
+    - template: build/binaries.jobs.yaml
+      parameters:
+        binaries:
+        - job: linux_amd64
+          displayName: "Linux/AMD64"
+          strategy:
+            maxParallel: 5
+            matrix:
+              azure_ipam:
+                name: azure-ipam-archive
+                artifact: azure-ipam
+              cni:
+                name: cni-archive
+                artifact: cni
+              cns:
+                name: cns-archive
+                artifact: cns
+              ipv6_hp_bpf:
+                name: ipv6-hp-bpf-archive
+                artifact: ipv6-hp-bpf
+              npm:
+                name: npm-archive
+                artifact: npm
+        - job: windows_amd64
+          displayName: "Windows/AMD64"
+          strategy:
+            maxParallel: 5
+            matrix:
+              cni:
+                name: cni-archive
+                artifact: cni
+              cns:
+                name: cns-archive
+                artifact: cns
+              npm:
+                name: npm-archive
+                artifact: npm
+        - job: linux_arm64
+          displayName: "Linux/ARM64"
+          strategy:
+            maxParallel: 5
+            matrix:
+              azure_ipam:
+                name: azure-ipam-archive
+                artifact: azure-ipam
+              cni:
+                name: cni-archive
+                artifact: cni
+              cns:
+                name: cns-archive
+                artifact: cns
+              ipv6_hp_bpf:
+                name: ipv6-hp-bpf-archive
+                artifact: ipv6-hp-bpf
+              npm:
+                name: npm-archive
+                artifact: npm
 
 
     - job: images_linux_amd64

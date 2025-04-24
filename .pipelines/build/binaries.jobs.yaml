@@ -1,0 +1,81 @@
+parameters:
+- name: binaries
+  type: jobList
+
+
+jobs:
+- ${{ each job_data in parameters.generate }}:
+  - job: binaries_${{ job_data.job }}
+    displayName: "Build Binary - ${{ job_data.displayName }}"
+    strategy: ${{ job_data.strategy }}
+    pool:
+      type: linux
+      ${{ if eq(job_data.job, 'linux_arm64') }}:
+        hostArchitecture: arm64
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+      ob_git_checkout: true
+      ob_artifactSuffix: _$(artifact)_${{ job_data.job }}
+      ACN_DIR: azure-container-networking
+      ${{ if eq(job_data.job, 'linux_amd64') }}:
+        LinuxContainerImage: $(LinuxContainerImage2)
+        ARCH: amd64
+        OS: linux
+      ${{ else if eq(job_data.job, 'windows_amd64') }}:
+        LinuxContainerImage: $(LinuxContainerImage2)
+        ob_enable_qemu: true
+        ARCH: amd64
+        OS: windows
+      ${{ else if eq(job_data.job, 'linux_arm64') }}:
+        LinuxContainerImage: $(LinuxContainerImage3)
+        ob_enable_qemu: true
+        ARCH: arm64
+        OS: linux
+
+    steps:
+    - checkout: azure-container-networking
+    - template: build/binary.steps.yaml
+      parameters:
+        target: $(name)
+        os: $(OS)
+        arch: $(ARCH)
+
+
+  - job: sign_${{ job_data.job }}
+    displayName: "Sign Binary - ${{ job_data.displayName }}"
+    strategy: ${{ job_data.strategy }}
+    pool:
+      type: docker
+      os: linux
+      ${{ if eq(job_data.job, 'linux_arm64') }}:
+        hostArchitecture: arm64
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+      ob_artifactSuffix: _$(artifact)_${{ job_data.job }}_signed
+      ${{ if eq(job_data.job, 'linux_amd64') }}:
+        LinuxContainerImage: $(LinuxContainerImage2)
+        ARCH: amd64
+        OS: linux
+      ${{ else if eq(job_data.job, 'windows_amd64') }}:
+        LinuxContainerImage: $(LinuxContainerImage2)
+        ob_enable_qemu: true
+        ARCH: amd64
+        OS: windows
+      ${{ else if eq(job_data.job, 'linux_arm64') }}:
+        LinuxContainerImage: $(LinuxContainerImage3)
+        ob_enable_qemu: true
+        ARCH: arm64
+        OS: linux
+
+    steps:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        targetPath: $(Build.ArtifactStagingDirectory)/out
+        artifact: drop_build_binaries_$(artifact)_${{ job_data.job }}
+    
+    - task: onebranch.pipeline.signing@1
+      inputs:
+        command: 'sign'
+        signing_profile: 'internal_azure_service'
+        files_to_sign: '**/*'
+        search_root: '$(Build.ArtifactStagingDirectory)/out'
