@@ -54,6 +54,7 @@ jobs:
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
       ob_artifactSuffix: _$(artifact)
+      ob_extract_root_artifact: true
       ${{ if eq(job_data.job, 'linux_amd64') }}:
         LinuxContainerImage: $(LinuxContainerImage2)
         ARCH: amd64
