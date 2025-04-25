@@ -8,10 +8,10 @@ ARG OS
 FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:ef7a44dce2c01bcbd93c4a9d760ae55c93c6bf6028e123db47d604cecb7e1935 AS go
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:b46476be0b5c9691ad20f78871819950c01433bdfad81d72c61618f4a6202b25 AS mariner-core
+FROM mcr.microsoft.com/azurelinux/base/core@sha256:b46476be0b5c9691ad20f78871819950c01433bdfad81d72c61618f4a6202b25 AS mariner-core
 
-# mcr.microsoft.com/azurelinux/distroless/base:3.0
-FROM mcr.microsoft.com/azurelinux/distroless/base@sha256:dd242a2410e85daa1cae885ad0ab8783fb9a24f589e1992360c59fdb1b7dfb15 AS mariner-distroless
+# mcr.microsoft.com/azurelinux/distroless/minimal:3.0
+FROM mcr.microsoft.com/azurelinux/distroless/minimal@sha256:97574c5b2a0554838fdbd31fcc2a1288276b443cee023b743af38caf84b7b427 AS mariner-distroless
 
 FROM --platform=linux/${ARCH} go AS builder
 ARG OS
