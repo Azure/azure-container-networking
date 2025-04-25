@@ -46,6 +46,9 @@ stages:
         binaries:
         - job: linux_amd64
           displayName: "Linux/AMD64"
+          templateContext:
+            action: build
+            repositoryArtifact: drop_setup_env_source
           strategy:
             maxParallel: 5
             matrix:
@@ -66,6 +69,9 @@ stages:
                 artifact: npm
         - job: windows_amd64
           displayName: "Windows/AMD64"
+          templateContext:
+            action: build
+            repositoryArtifact: drop_setup_env_source
           strategy:
             maxParallel: 5
             matrix:
@@ -80,6 +86,9 @@ stages:
                 artifact: npm
         - job: linux_arm64
           displayName: "Linux/ARM64"
+          templateContext:
+            action: build
+            repositoryArtifact: drop_setup_env_source
           strategy:
             maxParallel: 5
             matrix:
