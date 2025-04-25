@@ -129,6 +129,14 @@ func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
 		t.Fatalf("Failed to create KeyValueStore %v\n", err)
 	}
 
+	defer os.Remove(testFileName)
+
+	// Dump empty store.
+	_, err = kvs.Dump()
+	if err == nil {
+		t.Fatal("Expected store to be empty")
+	}
+
 	// Write a key value pair.
 	err = kvs.Write(testKey1, &writtenValue)
 	if err != nil {
@@ -153,8 +161,17 @@ func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
 			testKey1, readValue, testKey1, writtenValue)
 	}
 
-	// Cleanup.
-	os.Remove(testFileName)
+	// Dump populated store.
+	val, err := kvs.Dump()
+	if err != nil {
+		t.Fatalf("Failed to dump store %v", err)
+	}
+	val = strings.ReplaceAll(val, " ", "")
+	val = strings.ReplaceAll(val, "\t", "")
+	val = strings.ReplaceAll(val, "\n", "")
+	if val != `{"key1":{"Field1":"test","Field2":42},"key2":{"Field1":"any","Field2":14}}` {
+		t.Errorf("Dumped data not expected: %v", val)
+	}
 }
 
 // test case for testing newjsonfilestore idempotent

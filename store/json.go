@@ -70,29 +70,9 @@ func (kvs *jsonFileStore) Read(key string, value interface{}) error {
 
 	// Read contents from file if memory is not in sync.
 	if !kvs.inSync {
-		// Open and parse the file if it exists.
-		file, err := os.Open(kvs.fileName)
-		if err != nil {
-			if os.IsNotExist(err) {
-				return ErrKeyNotFound
-			}
-			return err
-		}
-		defer file.Close()
-
-		b, err := io.ReadAll(file)
+		b, err := kvs.readBytes()
 		if err != nil {
 			return err
-		}
-
-		if len(b) == 0 {
-			if kvs.logger != nil {
-				kvs.logger.Info("Unable to read empty file", zap.String("fileName", kvs.fileName))
-			} else {
-				log.Printf("Unable to read file %s, was empty", kvs.fileName)
-			}
-
-			return ErrStoreEmpty
 		}
 
 		// Decode to raw JSON messages.
@@ -264,4 +244,45 @@ func (kvs *jsonFileStore) Remove() {
 		log.Errorf("could not remove file %s. Error: %v", kvs.fileName, err)
 	}
 	kvs.Mutex.Unlock()
+}
+
+func (kvs *jsonFileStore) Dump() (string, error) {
+	kvs.Mutex.Lock()
+	defer kvs.Mutex.Unlock()
+
+	b, err := kvs.readBytes()
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
+}
+
+func (kvs *jsonFileStore) readBytes() ([]byte, error) {
+	// Open and parse the file if it exists.
+	file, err := os.Open(kvs.fileName)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []byte{}, ErrKeyNotFound
+		}
+		return []byte{}, errors.Wrap(err, "could not open file")
+	}
+	defer file.Close()
+
+	b, err := io.ReadAll(file)
+	if err != nil {
+		return []byte{}, errors.Wrap(err, "could not read file")
+	}
+
+	if len(b) == 0 {
+		if kvs.logger != nil {
+			kvs.logger.Info("Unable to read empty file", zap.String("fileName", kvs.fileName))
+		} else {
+			log.Printf("Unable to read file %s, was empty", kvs.fileName)
+		}
+
+		return []byte{}, ErrStoreEmpty
+	}
+
+	return b, nil
 }

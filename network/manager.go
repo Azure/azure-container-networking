@@ -204,6 +204,12 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 		} else if errors.As(err, &syntaxErr) {
 			// if null chars detected or failed to parse, state is unrecoverable; delete it
 			logger.Error("Failed to parse corrupted state, deleting", zap.Error(err))
+			contents, readErr := nm.store.Dump()
+			if readErr != nil {
+				logger.Error("Could not read corrupted state", zap.Error(readErr))
+			} else {
+				logger.Info("Logging state", zap.String("stateFile", contents))
+			}
 			nm.store.Remove()
 			return errors.Wrap(err, "failed to parse corrupted state")
 		} else {
