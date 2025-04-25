@@ -11,10 +11,6 @@ parameters:
   type: string
   default: ""
 
-- name: os_version
-  type: string
-  default: ""
-
 - name: build_tag
   type: string
   default: ""

@@ -27,7 +27,7 @@ stages:
       - setup
       - unittest
     variables:
-      ACN_DIR: azure-container-networking
+      ACN_DIR: drop_setup_env_source
       ACN_PACKAGE_PATH: github.com/Azure/azure-container-networking
       CNI_AI_PATH: $(ACN_PACKAGE_PATH)/telemetry.aiMetadata
       CNS_AI_PATH: $(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
@@ -177,11 +177,10 @@ stages:
         matrix:
           azure_ipam:
             name: azure-ipam
-            osVersion: ltsc2022
             dockerfilePath: $(ACN_DIR)/azure-ipam
             extraArgs: ''
             archiveName: azure-ipam
-            archiveVersion: $(OS)-$(ARCH)-$(AZURE_IPAM_VERSION)-ltsc2022
+            archiveVersion: $(OS)-$(ARCH)-$(AZURE_IPAM_VERSION)
             imageTag: $(Build.BuildNumber)
           cni:
             name: cni
@@ -213,7 +212,6 @@ stages:
         parameters:
           arch: $(ARCH)
           os: $(OS)
-          os_version: $(osVersion)
           name: $(name)
           dockerfile_path: $(dockerfilePath)
           build_tag: $(imageTag)
