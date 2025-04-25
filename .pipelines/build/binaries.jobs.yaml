@@ -6,7 +6,7 @@ parameters:
 jobs:
 - ${{ each job_data in parameters.binaries }}:
   - job: binaries_${{ job_data.job }}
-    displayName: "Build Binary - ${{ job_data.displayName }}"
+    displayName: "Build Binary - ${{ job_data.displayName }} -"
     strategy: ${{ job_data.strategy }}
     pool:
       type: linux
@@ -39,48 +39,3 @@ jobs:
         target: $(name)
         os: $(OS)
         arch: $(ARCH)
-
-
-  - job: sign_${{ job_data.job }}
-    displayName: "Sign Binary - ${{ job_data.displayName }}"
-    strategy: ${{ job_data.strategy }}
-    dependsOn:
-    - binaries_${{ job_data.job }}
-    pool:
-      type: docker
-      os: linux
-      ${{ if eq(job_data.job, 'linux_arm64') }}:
-        hostArchitecture: arm64
-      ${{ else }}:
-        hostArchitecture: amd64
-    variables:
-      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
-      ob_artifactSuffix: _$(artifact)
-      ob_extract_root_artifact: true
-      ${{ if eq(job_data.job, 'linux_amd64') }}:
-        LinuxContainerImage: $(LinuxContainerImage2)
-        ARCH: amd64
-        OS: linux
-      ${{ elseif eq(job_data.job, 'windows_amd64') }}:
-        LinuxContainerImage: $(LinuxContainerImage2)
-        ob_enable_qemu: true
-        ARCH: amd64
-        OS: windows
-      ${{ elseif eq(job_data.job, 'linux_arm64') }}:
-        LinuxContainerImage: $(LinuxContainerImage3)
-        ob_enable_qemu: true
-        ARCH: arm64
-        OS: linux
-
-    steps:
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        targetPath: $(Build.ArtifactStagingDirectory)/out
-        artifact: drop_build_binaries_${{ job_data.job }}_$(artifact)
-    
-    - task: onebranch.pipeline.signing@1
-      inputs:
-        command: 'sign'
-        signing_profile: 'external_distribution'
-        files_to_sign: '**/*'
-        search_root: '$(Build.ArtifactStagingDirectory)/out'
