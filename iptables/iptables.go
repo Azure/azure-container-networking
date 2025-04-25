@@ -11,8 +11,10 @@ import (
 	"go.uber.org/zap"
 )
 
-var logger = log.CNILogger.With(zap.String("component", "cni-iptables"))
-var errCouldNotValidateRuleExists = errors.New("could not validate iptable rule exists after insertion")
+var (
+	logger                        = log.CNILogger.With(zap.String("component", "cni-iptables"))
+	errCouldNotValidateRuleExists = errors.New("could not validate iptable rule exists after insertion")
+)
 
 // cni iptable chains
 const (
@@ -89,17 +91,20 @@ type IPTableEntry struct {
 	Params  string
 }
 
-type Client struct{}
+type Client struct {
+	pl platform.ExecClient
+}
 
 func NewClient() *Client {
-	return &Client{}
+	return &Client{
+		pl: platform.NewExecClient(logger),
+	}
 }
 
 // Run iptables command
 func (c *Client) RunCmd(version, params string) error {
 	var cmd string
 
-	p := platform.NewExecClient(logger)
 	iptCmd := iptables
 	if version == V6 {
 		iptCmd = ip6tables
@@ -111,7 +116,7 @@ func (c *Client) RunCmd(version, params string) error {
 		cmd = fmt.Sprintf("%s -w %d %s", iptCmd, lockTimeout, params)
 	}
 
-	if _, err := p.ExecuteRawCommand(cmd); err != nil {
+	if _, err := c.pl.ExecuteRawCommand(cmd); err != nil {
 		return err
 	}
 
