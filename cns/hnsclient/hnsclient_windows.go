@@ -316,7 +316,7 @@ func createHostNCApipaNetwork(
 				hostNCLoopbackAdapterName,
 				ipconfig,
 				false, /* Flag to setWeakHostOnInterface */
-				"" /* Empty primary Interface Identifier as setWeakHostOnInterface is not needed*/); err != nil {
+				""     /* Empty primary Interface Identifier as setWeakHostOnInterface is not needed*/); err != nil {
 				return nil, fmt.Errorf("Failed to create loopback adapter. Error: %v", err)
 			}
 
@@ -507,7 +507,6 @@ func configureHostNCApipaEndpoint(
 	}
 
 	networkContainerApipaIP := localIPConfiguration.IPSubnet.IPAddress
-	hostApipaIP := localIPConfiguration.GatewayIPAddress
 	protocolList := []string{protocolICMPv4, protocolTCP, protocolUDP}
 
 	endpointPolicies, err := configureAclSettingHostNCApipaEndpoint(
@@ -527,7 +526,7 @@ func configureHostNCApipaEndpoint(
 	}
 
 	hcnRoute := hcn.Route{
-		NextHop:           hostApipaIP,
+		NextHop:           hnsLoopbackAdapterIPAddress,
 		DestinationPrefix: "0.0.0.0/0",
 	}
 
