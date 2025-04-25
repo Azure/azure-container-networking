@@ -115,8 +115,9 @@ stages:
         os: linux
         type: docker
       variables:
-        ob_outputDirectory: $(Build.SourcesDirectory)/out
-        ob_artifactSuffix: _$(name)_linux_amd64
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+        ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
+        ob_artifactSuffix: _$(name)
 
         ARCH: amd64
         OS: linux
@@ -175,8 +176,9 @@ stages:
         os: linux
         type: docker
       variables:
-        ob_outputDirectory: $(Build.SourcesDirectory)/out
-        ob_artifactSuffix: _$(name)_windows_amd64
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+        ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
+        ob_artifactSuffix: _$(name)
         ob_enable_qemu: true
 
         ARCH: amd64
@@ -193,7 +195,6 @@ stages:
             imageTag: $(Build.BuildNumber)
           cni:
             name: cni
-            osVersion: ltsc2022
             dockerfilePath: $(ACN_DIR)/cni
             extraArgs: '--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
             archiveName: azure-cni
@@ -201,7 +202,6 @@ stages:
             imageTag: $(Build.BuildNumber)
           cns:
             name: cns
-            osVersion: ltsc2022
             dockerfilePath: $(ACN_DIR)/cns
             extraArgs: '--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)'
             archiveName: azure-cns
@@ -209,12 +209,10 @@ stages:
             imageTag: $(Build.BuildNumber)
           npm:
             name: npm
-            osVersion: ltsc2022
             dockerfilePath: $(ACN_DIR)/npm-windows
             extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
             archiveName: azure-npm
             archiveVersion: $(NPM_VERSION)
-            # Note: Double check, I didn't notice a windows platform tag for npm in the Makefile
             imageTag: $(Build.BuildNumber)
       steps:
       - template: build/image.steps.yaml
@@ -233,12 +231,12 @@ stages:
         os: linux
         type: docker
         hostArchitecture: arm64
+        LinuxHostVersion:
+          distribution: mariner
+          architecture: arm64
       variables:
-        # Use if Mariner does not work.
-        # This agent has qemu enabled, so it should be ok.
-        #LinuxContainerImage: $(LinuxContainerImage3) 
-        ob_outputDirectory: $(Build.SourcesDirectory)/out
-        ob_artifactSuffix: _$(name)_linux_arm64
+        ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
+        ob_artifactSuffix: _$(name)
         ob_build_container: true
 
         ARCH: arm64
@@ -344,7 +342,6 @@ stages:
             - platform: linux/arm64
               imageReference: $(IPAM_LINUX_ARM64_REF)
             - platform: windows/amd64
-              osVersion: ltsc2022
               imageReference: $(IPAM_WINDOWS_AMD64_REF)
         - job: cni
           templateContext:
@@ -356,7 +353,6 @@ stages:
             - platform: linux/arm64
               imageReference: $(CNI_LINUX_ARM64_REF)
             - platform: windows/amd64
-              osVersion: ltsc2022
               imageReference: $(CNI_WINDOWS_AMD64_REF)
         - job: cns
           templateContext:
@@ -368,7 +364,6 @@ stages:
             - platform: linux/arm64
               imageReference: $(CNS_LINUX_ARM64_REF)
             - platform: windows/amd64
-              osVersion: ltsc2022
               imageReference: $(CNS_WINDOWS_AMD64_REF)
         - job: ipv6_hp_bpf
           templateContext:
@@ -389,7 +384,6 @@ stages:
             - platform: linux/arm64
               imageReference: $(NPM_LINUX_ARM64_REF)
             - platform: windows/amd64
-              osVersion: ltsc2022
               imageReference: $(NPM_WINDOWS_AMD64_REF)
 
 

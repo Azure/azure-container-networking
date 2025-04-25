@@ -11,6 +11,7 @@ steps:
       jq -r '.[] | 
         .args = [ (.platform | split("/")[0]), (.platform     | split("/")[1]) ] | 
         .args = [ ("--os "   + .args[0]     ), ("--arch " + .args[1]     ) ] | 
+        if .osVersion then .args += ["--os-version " + .osVersion] else . end    |
         { image: .imageReference, annotate: .args }' | \
       jq -rcs)
     echo >&2 "##vso[task.setvariable variable=MANIFEST_JSON;isOutput=true]$MANIFEST_DATA"

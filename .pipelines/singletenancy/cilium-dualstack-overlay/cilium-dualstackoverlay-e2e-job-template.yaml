@@ -41,11 +41,17 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      IMAGE_REPO_PATH: '/artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy'
-      AZURE_IPAM_VERSION: "v0.3.0-341-g0de9285b1"
-      CNI_VERSION: "v1.6.24-73-g0de9285b1"
-      CNS_VERSION: "v1.6.24-73-g0de9285b1"
-      IPV6_HP_BPF_VERSION: "v0.0.1-434-g0de9285b1"
+
+      IPV6_IMAGE_REGISTRY: acnpublic.azurecr.io
+      IMAGE_REPO_PATH: 'artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy'
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
+      IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
+      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
+      IPV6_HP_BPF_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/ipv6-hp-bpf
+      CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
+      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Dualstack Overlay Test Suite - (${{ parameters.name }})

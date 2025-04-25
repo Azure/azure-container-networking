@@ -13,21 +13,21 @@ jobs:
         type: linux
         ${{ if eq(job_data.job, 'linux_arm64') }}:
           hostArchitecture: arm64
+
       variables:
         ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
         ob_artifactSuffix: _$(artifact)
         ob_git_checkout: false
+        REPO_ROOT: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
         ${{ if eq(job_data.job, 'linux_amd64') }}:
-          LinuxContainerImage: $(LinuxContainerImage2)
+          LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
           ARCH: amd64
           OS: linux
         ${{ elseif eq(job_data.job, 'windows_amd64') }}:
-          LinuxContainerImage: $(LinuxContainerImage2)
-          ob_enable_qemu: true
+          LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
           ARCH: amd64
           OS: windows
         ${{ elseif eq(job_data.job, 'linux_arm64') }}:
-          LinuxContainerImage: $(LinuxContainerImage3)
           ob_enable_qemu: true
           ARCH: arm64
           OS: linux

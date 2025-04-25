@@ -15,21 +15,35 @@ steps:
     version: '$(GOVERSION)'
 
 - bash: |
-    sudo apt-get update -y
-    if [[ $GOARCH =~ amd64 ]]; then
-      sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
-      for dir in /usr/include/x86_64-linux-gnu/*; do 
-        sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
-      done
-
-    elif [[ $GOARCH =~ arm64 ]]; then
-      sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
+    if [[ -f /etc/debian_version ]];then
+      # Ubuntu
+      sudo apt-get update -y
+      if [[ $GOARCH =~ amd64 ]]; then
+        sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
+        for dir in /usr/include/x86_64-linux-gnu/*; do 
+          sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
+        done
+  
+      elif [[ $GOARCH =~ arm64 ]]; then
+        sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
+        for dir in /usr/include/aarch64-linux-gnu/*; do 
+          sudo ln -sfn "$dir" /usr/include/$(basename "$dir")
+        done
+      fi
+    else
+      # Mariner
+      sudo tdnf install -y llvm clang libbpf-devel nftables
       for dir in /usr/include/aarch64-linux-gnu/*; do 
-        sudo ln -sfn "$dir" /usr/include/$(basename "$dir")
+        if [[ -d $dir ]]; then
+          sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
+        elif [[ -f "$dir" ]]; then
+          sudo ln -Tsfn "$dir" /usr/include/$(basename "$dir") 
+        fi
       done
     fi
   displayName: "Install Binary Pre-Reqs"
   workingDirectory: $(ACN_DIR)
+  continueOnError: true
   env:
     TARGET: ${{ parameters.target }}
     GOOS: ${{ parameters.os }}
@@ -41,6 +55,7 @@ steps:
   displayName: "Build Binary - ${{ parameters.target }}"
   workingDirectory: $(ACN_DIR)
   env:
+    REPO_ROOT: $(ACN_DIR)
     TARGET: ${{ parameters.target }}
     GOOS: ${{ parameters.os }}
     GOARCH: ${{ parameters.arch }}

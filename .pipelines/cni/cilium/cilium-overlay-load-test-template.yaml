@@ -64,6 +64,15 @@ stages:
       - publish
       - setup
     displayName: "Cilium Test - ${{ parameters.name }}"
+    variables:
+      IMAGE_REPO_PATH: 'artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy'
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
+      IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
+      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
+      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+      IPV6_HP_BPF_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/ipv6-hp-bpf
     jobs:
       - ${{if eq(parameters.hubbleEnabled, false)}}:
         - job: deploy_cilium_components
@@ -102,14 +111,17 @@ stages:
                     kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
                   fi
 
+                  [[ -z $IPV6_HP_BPF_VERSION ]] && IPV6_HP_BPF_VERSION=$(make ipv6-hp-bpf-version)
+                  [[ -z $IPV6_HP_BPF_IMAGE_NAME_OVERRIDE ]] && IPV6_HP_BPF_IMAGE_NAME_OVERRIDE=ipv6-hp-bpf
+                  [[ -z $IPV6_IMAGE_REGISTRY ]] && IPV6_IMAGE_REGISTRY=acnpublic.azurecr.io
+
                   # Passes Cilium image to daemonset and deployment
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
 
                   if [ ! -z ${{ parameters.dualstackVersion }} ]; then
                     echo "Use dualstack daemonset for Cilium"
-                    export IPV6_HP_BPF_VERSION=$(make ipv6-hp-bpf-version)
-                    envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
+                    envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_IMAGE_REGISTRY},${IPV6_HP_BPF_IMAGE_NAME_OVERRIDE},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
                   else
                     envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
                   fi
