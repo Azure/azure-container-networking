@@ -24,7 +24,9 @@ jobs:
     pool:
       type: docker
       os: linux
+      vmImage: $(LinuxContainerImage)
     variables:
+      LinuxContainerImage: $(LinuxContainerImage)
       ob_outputDirectory: $(Build.SourcesDirectory)/out
       ob_git_checkout: false
 

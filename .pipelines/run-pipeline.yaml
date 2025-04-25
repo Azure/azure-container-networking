@@ -27,7 +27,6 @@ stages:
       - setup
       - unittest
     variables:
-      ACN_DIR: drop_setup_env_source
       ACN_PACKAGE_PATH: github.com/Azure/azure-container-networking
       CNI_AI_PATH: $(ACN_PACKAGE_PATH)/telemetry.aiMetadata
       CNS_AI_PATH: $(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
