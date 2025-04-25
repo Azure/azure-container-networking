@@ -27,6 +27,7 @@ stages:
       - setup
       - unittest
     variables:
+      ACN_DIR: azure-container-networking
       ACN_PACKAGE_PATH: github.com/Azure/azure-container-networking
       CNI_AI_PATH: $(ACN_PACKAGE_PATH)/telemetry.aiMetadata
       CNS_AI_PATH: $(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
@@ -226,7 +227,9 @@ stages:
         type: docker
         hostArchitecture: arm64
       variables:
-        #LinuxContainerImage: $(LinuxContainerImage3) # Use if Mariner does not work.
+        # Use if Mariner does not work.
+        # This agent has qemu enabled, so it should be ok.
+        #LinuxContainerImage: $(LinuxContainerImage3) 
         ob_outputDirectory: $(Build.SourcesDirectory)/out
         ob_artifactSuffix: _$(name)_linux_arm64
         ob_build_container: true
