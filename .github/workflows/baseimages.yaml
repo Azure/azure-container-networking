@@ -26,6 +26,7 @@ jobs:
       run: make dockerfiles
     - name: Fail if base images are outdated
       run: |
+        git status --porcelain
         if [ -n "$(git status --porcelain)" ]; then
           echo "Changes detected. Please run 'make dockerfiles' locally to update the base images."
           exit 1
