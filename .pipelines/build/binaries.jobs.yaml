@@ -13,7 +13,6 @@ jobs:
         type: linux
         ${{ if eq(job_data.job, 'linux_arm64') }}:
           hostArchitecture: arm64
-        ${{ else }}:
 
       variables:
         ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
