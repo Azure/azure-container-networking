@@ -24,9 +24,8 @@ jobs:
     pool:
       type: docker
       os: linux
-      vmImage: $(LinuxContainerImage)
+      vmImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
     variables:
-      LinuxContainerImage: $(LinuxContainerImage)
       ob_outputDirectory: $(Build.SourcesDirectory)/out
       ob_git_checkout: false
 
