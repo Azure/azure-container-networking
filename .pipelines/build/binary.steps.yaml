@@ -41,6 +41,7 @@ steps:
   displayName: "Build Binary - ${{ parameters.target }}"
   workingDirectory: $(ACN_DIR)
   env:
+    REPO_ROOT: $(ACN_DIR)
     TARGET: ${{ parameters.target }}
     GOOS: ${{ parameters.os }}
     GOARCH: ${{ parameters.arch }}

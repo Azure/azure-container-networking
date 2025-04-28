@@ -30,7 +30,7 @@ EXE_EXT 	= .exe
 endif
 
 # Interrogate the git repo and set some variables
-REPO_ROOT				 = $(shell git rev-parse --show-toplevel)
+REPO_ROOT				?= $(shell git rev-parse --show-toplevel)
 REVISION				?= $(shell git rev-parse --short HEAD)
 ACN_VERSION				?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --tags --always)
 IPV6_HP_BPF_VERSION		?= $(notdir $(shell git describe --match "ipv6-hp-bpf*" --tags --always))
