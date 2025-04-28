@@ -114,8 +114,8 @@ stages:
       pool:
         os: linux
         type: docker
-        vmImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
       variables:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
         ob_outputDirectory: $(Build.SourcesDirectory)/out
         ob_artifactSuffix: _$(name)_linux_amd64
 
@@ -175,8 +175,8 @@ stages:
       pool:
         os: linux
         type: docker
-        vmImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
       variables:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
         ob_outputDirectory: $(Build.SourcesDirectory)/out
         ob_artifactSuffix: _$(name)_windows_amd64
         ob_enable_qemu: true
@@ -231,8 +231,8 @@ stages:
         os: linux
         type: docker
         hostArchitecture: arm64
-        vmImage: 'onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest'
       variables:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest'
         ob_outputDirectory: $(Build.SourcesDirectory)/out
         ob_artifactSuffix: _$(name)_linux_arm64
         ob_build_container: true
