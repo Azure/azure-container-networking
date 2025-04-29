@@ -232,7 +232,6 @@ stages:
         type: docker
         hostArchitecture: arm64
       variables:
-        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest'
         ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)-$(arch)
         ob_artifactSuffix: _$(name)
         ob_build_container: true
