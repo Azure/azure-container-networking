@@ -45,8 +45,8 @@ stages:
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       IMAGE_REPO_PATH: '/artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy'
       AZURE_IPAM_VERSION: "v0.3.0-341-g0de9285b1"
-      CNI_VERSION: "v1.6.24-73-g0de9285b1"
-      CNS_VERSION: "v1.6.24-73-g0de9285b1"
+      CNI_VERSION: "v1.6.24-95-gb6a8b2adb"
+      CNS_VERSION: "v1.6.24-95-gb6a8b2adb"
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Overlay Test Suite - (${{ parameters.name }})
