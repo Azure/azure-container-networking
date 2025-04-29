@@ -25,11 +25,11 @@ jobs:
           OS: linux
         ${{ elseif eq(job_data.job, 'windows_amd64') }}:
           LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
-          ob_enable_qemu: true
           ARCH: amd64
           OS: windows
         ${{ elseif eq(job_data.job, 'linux_arm64') }}:
           LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+          ob_enable_qemu: true
           ARCH: arm64
           OS: linux
   
