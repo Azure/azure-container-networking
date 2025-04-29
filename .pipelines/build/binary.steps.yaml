@@ -34,7 +34,11 @@ steps:
       # Mariner
       sudo tdnf install -y llvm clang libbpf-devel nftables
       for dir in /usr/include/aarch64-linux-gnu/*; do 
-        sudo ln -sfn "$dir" /usr/include/$(basename "$dir")
+        if [[ -d $dir ]]; then
+          sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
+        elif [[ -f "$dir" ]]; then
+          sudo ln -Tsfn "$dir" /usr/include/$(basename "$dir") 
+        fi
       done
     fi
   displayName: "Install Binary Pre-Reqs"
