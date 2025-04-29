@@ -116,7 +116,7 @@ stages:
         type: docker
       variables:
         LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
-        ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)-$(arch)
+        ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
         ob_artifactSuffix: _$(name)
 
         ARCH: amd64
@@ -177,7 +177,7 @@ stages:
         type: docker
       variables:
         LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
-        ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)-$(arch)
+        ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
         ob_artifactSuffix: _$(name)
         ob_enable_qemu: true
 
@@ -232,7 +232,7 @@ stages:
         type: docker
         hostArchitecture: arm64
       variables:
-        ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)-$(arch)
+        ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
         ob_artifactSuffix: _$(name)
         ob_build_container: true
 
