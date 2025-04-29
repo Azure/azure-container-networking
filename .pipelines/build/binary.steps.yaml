@@ -30,6 +30,7 @@ steps:
     fi
   displayName: "Install Binary Pre-Reqs"
   workingDirectory: $(ACN_DIR)
+  continueOnError: true
   env:
     TARGET: ${{ parameters.target }}
     GOOS: ${{ parameters.os }}
