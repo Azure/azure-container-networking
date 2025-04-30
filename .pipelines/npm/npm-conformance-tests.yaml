@@ -166,6 +166,9 @@ stages:
               chmod +x kubectl
               echo Cluster $(AZURE_CLUSTER)
               echo Resource $(RESOURCE_GROUP)
+              echo Public IP $(PUBLIC_IP_NAME)
+              export PUBLIC_IP_ID=$(az network public-ip show -g $(RESOURCE_GROUP) -n $(PUBLIC_IP_NAME) --query id -o tsv)
+              echo Public IP ID $PUBLIC_IP_ID
 
               if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
               then
@@ -183,7 +186,7 @@ stages:
                     --vm-set-type VirtualMachineScaleSets \
                     --node-vm-size Standard_D4s_v3 \
                     --node-count 1 \
-                    --load-balancer-outbound-ips $(PUBLIC_IP_ID)
+                    --load-balancer-outbound-ips $PUBLIC_IP_ID
 
                 if [ $? != 0 ]
                 then
@@ -231,7 +234,7 @@ stages:
                 --resource-group $(RESOURCE_GROUP) \
                 --name $(AZURE_CLUSTER) \
                 --network-plugin azure \
-                --load-balancer-outbound-ips $(PUBLIC_IP_ID)
+                --load-balancer-outbound-ips $PUBLIC_IP_ID
 
                 if [ $? != 0 ]
                 then

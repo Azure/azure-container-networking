@@ -148,7 +148,7 @@ jobs:
                 --ip-tags 'FirstPartyUsage=/DelegatedNetworkControllerTest' \
                 --location $(LOCATION) --sku Standard --tier Regional \
                 --version IPv4
-            export PUBLIC_IP_ID=$(az network public-ip show -g $(RESOURCE_GROUP) -n $(PUBLIC_IP_NAME) --query id -o tsv)
+            export PUBLIC_IP_ID=$(az network public-ip show -g $(RESOURCE_GROUP) -n $PUBLIC_IP_NAME --query id -o tsv)
 
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             echo "Creating cluster named $CLUSTER_NAME"
