@@ -230,7 +230,9 @@ stages:
       pool:
         os: linux
         type: docker
-        hostArchitecture: arm64
+        LinuxHostVersion:
+          distribution: mariner
+          architecture: arm64
       variables:
         ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
         ob_artifactSuffix: _$(name)
