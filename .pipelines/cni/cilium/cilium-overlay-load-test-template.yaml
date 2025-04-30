@@ -111,6 +111,10 @@ stages:
                     kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
                   fi
 
+                  [[ -z $IPV6_HP_BPF_VERSION ]] && IPV6_HP_BPF_VERSION=$(make ipv6-hp-bpf-version)
+                  [[ -z $IPV6_HP_BPF_IMAGE_NAME_OVERRIDE ]] && IPV6_HP_BPF_IMAGE_NAME_OVERRIDE=ipv6-hp-bpf
+                  [[ -z $IPV6_IMAGE_REGISTRY ]] && IPV6_IMAGE_REGISTRY=acnpublic.azurecr.io
+
                   # Passes Cilium image to daemonset and deployment
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
