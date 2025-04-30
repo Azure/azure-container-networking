@@ -123,6 +123,7 @@ stages:
         RESOURCE_GROUP: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
         TAG: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.TAG'] ]
         FQDN: empty
+        PUBLIC_IP_NAME: $(RESOURCE_GROUP)-public-ip
       steps:
         - checkout: self
 
@@ -136,6 +137,21 @@ stages:
               az group create -n $(RESOURCE_GROUP) -l $(LOCATION) -o table
               echo created RG $(RESOURCE_GROUP) in $(LOCATION)
               az version
+
+        - task: AzureCLI@2
+          displayName: "Create public IP with a service tag"
+          inputs:
+            azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+            scriptType: "bash"
+            scriptLocation: "inlineScript"
+            inlineScript: |
+              az network public-ip create \
+                --name $(PUBLIC_IP_NAME) \
+                --resource-group $(RESOURCE_GROUP) \
+                --allocation-method Static \
+                --ip-tags 'FirstPartyUsage=/DelegatedNetworkControllerTest' \
+                --location $(LOCATION) --sku Standard --tier Regional \
+                --version IPv4
 
         - task: AzureCLI@2
           displayName: "Deploy NPM to Test Cluster"
@@ -166,7 +182,8 @@ stages:
                     --network-plugin azure \
                     --vm-set-type VirtualMachineScaleSets \
                     --node-vm-size Standard_D4s_v3 \
-                    --node-count 1
+                    --node-count 1 \
+                    --load-balancer-outbound-ips $(PUBLIC_IP_ID)
 
                 if [ $? != 0 ]
                 then
@@ -213,7 +230,8 @@ stages:
                 az aks create --no-ssh-key \
                 --resource-group $(RESOURCE_GROUP) \
                 --name $(AZURE_CLUSTER) \
-                --network-plugin azure
+                --network-plugin azure \
+                --load-balancer-outbound-ips $(PUBLIC_IP_ID)
 
                 if [ $? != 0 ]
                 then
