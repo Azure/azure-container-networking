@@ -7,7 +7,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/stretchr/testify/require"
 )
 
@@ -162,30 +161,30 @@ const nncResult = `{
 func TestNewHealthzHandlerWithChecks(t *testing.T) {
 	tests := []struct {
 		name            string
-		cnsConfig       *configuration.CNSConfig
+		config          *Config
 		apiStatusCode   int
 		expectedHealthy bool
 	}{
 		{
 			name: "list NNC gives 200 should indicate healthy",
-			cnsConfig: &configuration.CNSConfig{
-				ChannelMode: "CRD",
+			config: &Config{
+				PingAPIServer: true,
 			},
 			apiStatusCode:   http.StatusOK,
 			expectedHealthy: true,
 		},
 		{
 			name: "unauthorized (401) from apiserver should be unhealthy",
-			cnsConfig: &configuration.CNSConfig{
-				ChannelMode: "CRD",
+			config: &Config{
+				PingAPIServer: true,
 			},
 			apiStatusCode:   http.StatusUnauthorized,
 			expectedHealthy: false,
 		},
 		{
 			name: "channel nodesubnet should not call apiserver so it doesn't matter if the status code is a 401",
-			cnsConfig: &configuration.CNSConfig{
-				ChannelMode: "AzureHost",
+			config: &Config{
+				PingAPIServer: false,
 			},
 			apiStatusCode:   http.StatusUnauthorized,
 			expectedHealthy: true,
@@ -197,7 +196,7 @@ func TestNewHealthzHandlerWithChecks(t *testing.T) {
 			configureLocalAPIServer(t, tt.apiStatusCode)
 
 			responseRecorder := httptest.NewRecorder()
-			healthHandler, err := NewHealthzHandlerWithChecks(tt.cnsConfig)
+			healthHandler, err := NewHealthzHandlerWithChecks(tt.config)
 			healthHandler = http.StripPrefix("/healthz", healthHandler)
 			require.NoError(t, err)
 

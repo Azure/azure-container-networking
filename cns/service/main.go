@@ -638,7 +638,7 @@ func main() {
 	}
 
 	// start the healthz/readyz/metrics server
-	readyCh := make(chan interface{})
+	readyCh := make(chan any)
 	readyChecker := healthz.CheckHandler{
 		Checker: healthz.Checker(func(*http.Request) error {
 			select {
@@ -650,7 +650,7 @@ func main() {
 		}),
 	}
 
-	healthzHandler, err := healthserver.NewHealthzHandlerWithChecks(cnsconfig)
+	healthzHandler, err := healthserver.NewHealthzHandlerWithChecks(&healthserver.Config{PingAPIServer: cnsconfig.EnableAPIServerHealthPing})
 	if err != nil {
 		logger.Errorf("unable to initialize a healthz handler: %v", err)
 		return
