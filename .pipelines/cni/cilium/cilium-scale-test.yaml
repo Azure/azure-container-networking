@@ -33,7 +33,7 @@ stages:
     dependsOn:
     - setup
     variables:
-      IMAGE_REPO_PATH: '/artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy'
+      IMAGE_REPO_PATH: 'artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy'
       AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
       CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]

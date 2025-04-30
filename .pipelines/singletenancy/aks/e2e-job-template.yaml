@@ -46,7 +46,7 @@ stages:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
 
       AZURE_REGISTRY: acnpublic.azurecr.io
-      IMAGE_REPO_PATH: '/artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy'
+      IMAGE_REPO_PATH: 'artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy'
       AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
       CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
       CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
