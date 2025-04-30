@@ -38,6 +38,7 @@ stages:
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
       CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
       CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
       CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
       CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
       IPV6_HP_BPF_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/ipv6-hp-bpf
@@ -89,7 +90,7 @@ stages:
                 kubectl get po -owide -A
 
                 echo "Deploy Azure-CNS"
-                sudo -E env "PATH=$PATH" make test-load AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_ONLY=true CNS_VERSION=$(CNS_VERSION) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
+                sudo -E env "PATH=$PATH" make test-load AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_ONLY=true CNI_VERSION=$(CNI_VERSION) CNS_VERSION=$(CNS_VERSION) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
                 kubectl get po -owide -A
                 kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=10m || {
                   echo "Not all pods ready"
