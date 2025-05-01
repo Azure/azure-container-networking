@@ -19,12 +19,20 @@ OS_SKU_WIN      ?= Windows2022
 REGION          ?= westus2
 VM_SIZE	        ?= Standard_B2s
 VM_SIZE_WIN     ?= Standard_B2s
+LTS				?= true
 
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
 CLUSTER    ?= $(USER)-$(REGION)
 GROUP      ?= $(CLUSTER)
 VNET       ?= $(CLUSTER)
+
+# Long Term Support (LTS)
+ifeq ($(LTS),true)
+	LTS = --k8s-support-plan AKSLongTermSupport --tier premium
+else
+	LTS =
+endif
 
 ##@ Help
 
@@ -64,6 +72,7 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo VM_SIZE=$(VM_SIZE)
 	@echo NODE_COUNT=$(NODE_COUNT)
 	@echo VMSS_NAME=$(VMSS_NAME)
+	@echo LTS=$(if $(LTS),$(LTS),empty)
 
 
 ##@ SWIFT Infra
@@ -103,14 +112,13 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku standard \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
+		$(LTS) \
 		--yes
 ifeq ($(OS),windows)
 	@$(MAKE) windows-nodepool-up
