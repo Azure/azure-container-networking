@@ -2,9 +2,6 @@
 
 NAMESPACE="kube-system"
 
-# Deploy nginx pods for MTU testing
-kubectl apply -f ../manifests/nginx.yaml
-kubectl wait --for=condition=available --timeout=60s -n $NAMESPACE deployment/nginx
 
 echo "Checking MTU for pods in namespace: $NAMESPACE using Cilium agent and nginx MTU"
 
