@@ -198,6 +198,13 @@ steps:
       fi
     name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"
+  
+  - script: |
+      cd hack/scripts
+      chmod +x cilium-mtu-validation.sh
+      ./cilium-mtu-validation.sh
+    name: "CiliumMTUValidation"
+    displayName: "Run Cilium MTU Validation"
 
   - script: |
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
