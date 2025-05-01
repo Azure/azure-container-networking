@@ -166,7 +166,6 @@ jobs:
                 --node-count 1 \
                 --tier standard \
                 --max-pods 100 \
-                --load-balancer-sku standard \ 
                 --load-balancer-outbound-ips $PUBLIC_IP_ID
 
             echo "Getting credentials to $CLUSTER_NAME"
