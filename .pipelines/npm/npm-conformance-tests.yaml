@@ -108,7 +108,7 @@ stages:
             IS_STRESS_TEST: "false"
           v2-linux-stress:
             AZURE_CLUSTER: "conformance-v2-linux-stress"
-            PROFILE: "v2-background"
+            PROFILE: "v2-linux-stress"
             IS_STRESS_TEST: "true"
           v2-place-first:
             AZURE_CLUSTER: "conformance-v2-place-first"
