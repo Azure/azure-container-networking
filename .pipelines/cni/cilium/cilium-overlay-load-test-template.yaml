@@ -78,8 +78,7 @@ stages:
                 addSpnToEnvironment: true
                 inlineScript: |
                   set -ex
-                  az extension remove --name aks-preview || true
-                  az extension add --name aks-preview --version 14.0.0b3 --yes
+                  az extension add --name aks-preview
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   ls -lah
                   pwd
@@ -152,8 +151,7 @@ stages:
                 addSpnToEnvironment: true
                 inlineScript: |
                   set -ex
-                  az extension remove --name aks-preview || true
-                  az extension add --name aks-preview --version 14.0.0b3 --yes
+                  az extension add --name aks-preview
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   ls -lah
                   pwd
@@ -269,6 +267,10 @@ stages:
             name: "testAsyncDelete"
             displayName: "Verify Async Delete when CNS is down"
           - script: |
+              echo "Deploy nginx pods for MTU testing"
+              kubectl apply -f hack/manifests/nginx.yaml
+              kubectl wait --for=condition=available --timeout=60s -n kube-system deployment/nginx
+              kubectl scale deployment nginx --replicas=25 -n kube-system
               cd hack/scripts
               chmod +x cilium-mtu-validation.sh
               ./cilium-mtu-validation.sh
