@@ -123,7 +123,7 @@ stages:
         RESOURCE_GROUP: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
         TAG: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.TAG'] ]
         FQDN: empty
-        PUBLIC_IP_NAME: $(RESOURCE_GROUP)-public-ip
+        PUBLIC_IP_NAME: $(RESOURCE_GROUP)-$(PROFILE)-public-ip
       steps:
         - checkout: self
 
