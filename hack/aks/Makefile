@@ -132,14 +132,13 @@ overlay-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO 
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--kube-proxy-config ./kube-proxy.json \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -150,14 +149,13 @@ overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay Cilium cluster
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -168,13 +166,12 @@ overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -186,13 +183,12 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku standard \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
+		$(LTS) \
 		--yes
 ifeq ($(OS),windows)
 	@$(MAKE) windows-swift-nodepool-up
@@ -206,14 +202,13 @@ swift-byocni-nokubeproxy-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI clus
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
 		--kube-proxy-config ./kube-proxy.json \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -224,14 +219,13 @@ swift-cilium-up: rg-up swift-net-up ## Bring up a SWIFT Cilium cluster
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/CiliumDataplanePreview \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -242,12 +236,11 @@ swift-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -258,11 +251,10 @@ swiftv2-multitenancy-cluster-up: rg-up
 		--kubernetes-version 1.28 \
 		--nodepool-name "mtapool" \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--node-count 2 \
 		--nodepool-tags fastpathenabled=true \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -285,13 +277,12 @@ vnetscale-swift-byocni-up: rg-up vnetscale-swift-net-up ## Bring up a Vnet Scale
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -302,14 +293,13 @@ vnetscale-swift-byocni-nokubeproxy-up: rg-up vnetscale-swift-net-up ## Bring up 
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
 		--kube-proxy-config ./kube-proxy.json \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -320,14 +310,13 @@ vnetscale-swift-cilium-up: rg-up vnetscale-swift-net-up ## Bring up a Vnet Scale
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/CiliumDataplanePreview \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -338,8 +327,6 @@ vnetscale-swift-up: rg-up vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT 
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
@@ -354,13 +341,12 @@ windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin azure \
 		--windows-admin-password $(WINDOWS_PASSWORD) \
 		--windows-admin-username $(WINDOWS_USERNAME) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) windows-nodepool-up
 	@$(MAKE) set-kubeconf
@@ -372,13 +358,12 @@ linux-cniv1-up: rg-up overlay-net-up ## Bring up a Linux CNIv1 cluster
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--max-pods 250 \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--os-sku $(OS_SKU) \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -389,14 +374,13 @@ dualstack-overlay-up: rg-up overlay-net-up ## Brings up an dualstack Overlay clu
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -407,14 +391,13 @@ dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Over
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -425,8 +408,6 @@ cilium-dualstack-up: rg-up overlay-net-up ## Brings up a Cilium Dualstack Overla
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--network-dataplane cilium \
@@ -434,6 +415,7 @@ cilium-dualstack-up: rg-up overlay-net-up ## Brings up a Cilium Dualstack Overla
 		--ip-families ipv4,ipv6 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -444,8 +426,6 @@ dualstack-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up a Dualstack o
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--k8s-support-plan AKSLongTermSupport \
-		--tier premium \
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--subscription $(SUB) \
@@ -453,6 +433,7 @@ dualstack-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up a Dualstack o
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
 		--kube-proxy-config ./kube-proxy.json \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
