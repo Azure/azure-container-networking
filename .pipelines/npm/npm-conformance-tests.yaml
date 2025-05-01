@@ -110,7 +110,7 @@ stages:
             IS_STRESS_TEST: "false"
           v2-linux-stress:
             AZURE_CLUSTER: "conformance-v2-linux-stress"
-            PROFILE: "v2-background"
+            PROFILE: "v2-linux-stress"
             IS_STRESS_TEST: "true"
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
