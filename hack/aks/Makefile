@@ -45,10 +45,8 @@ azlogin: ## Login and set account to $SUB
 	@$(AZCLI) account set -s $(SUB)
 
 azcfg: ## Set the $AZCLI to use aks-preview
-## 	Remove the extension if it exists so we can install the set version
-	@$(AZCLI) extension remove --name aks-preview || true
-	@$(AZCLI) extension add --name aks-preview --version 14.0.0b3 --yes
-##	@$(AZCLI) extension update --name aks-preview
+	@$(AZCLI) extension add --name aks-preview --yes
+	@$(AZCLI) extension update --name aks-preview
 
 ip:
 	$(AZCLI) network public-ip create --name $(IP_PREFIX)-$(CLUSTER)-$(IPVERSION) \
