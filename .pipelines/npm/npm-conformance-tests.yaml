@@ -150,7 +150,9 @@ stages:
                 --resource-group $(RESOURCE_GROUP) \
                 --allocation-method Static \
                 --ip-tags 'FirstPartyUsage=/DelegatedNetworkControllerTest' \
-                --location $(LOCATION) --sku Standard --tier Regional \
+                --location $(LOCATION) \
+                --sku Standard \
+                --tier Regional \
                 --version IPv4
 
         - task: AzureCLI@2
@@ -186,6 +188,7 @@ stages:
                     --vm-set-type VirtualMachineScaleSets \
                     --node-vm-size Standard_D4s_v3 \
                     --node-count 1 \
+                    --load-balancer-sku standard \ 
                     --load-balancer-outbound-ips $PUBLIC_IP_ID
 
                 if [ $? != 0 ]
@@ -234,6 +237,7 @@ stages:
                 --resource-group $(RESOURCE_GROUP) \
                 --name $(AZURE_CLUSTER) \
                 --network-plugin azure \
+                --load-balancer-sku standard \ 
                 --load-balancer-outbound-ips $PUBLIC_IP_ID
 
                 if [ $? != 0 ]

@@ -146,7 +146,9 @@ jobs:
                 --resource-group $(RESOURCE_GROUP) \
                 --allocation-method Static \
                 --ip-tags 'FirstPartyUsage=/DelegatedNetworkControllerTest' \
-                --location $(LOCATION) --sku Standard --tier Regional \
+                --location $(LOCATION) \
+                --sku Standard \
+                --tier Regional \
                 --version IPv4
             export PUBLIC_IP_ID=$(az network public-ip show -g $(RESOURCE_GROUP) -n $PUBLIC_IP_NAME --query id -o tsv)
 
@@ -164,6 +166,7 @@ jobs:
                 --node-count 1 \
                 --tier standard \
                 --max-pods 100 \
+                --load-balancer-sku standard \ 
                 --load-balancer-outbound-ips $PUBLIC_IP_ID
 
             echo "Getting credentials to $CLUSTER_NAME"
