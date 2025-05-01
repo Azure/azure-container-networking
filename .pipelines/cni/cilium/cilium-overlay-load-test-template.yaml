@@ -78,7 +78,8 @@ stages:
                 addSpnToEnvironment: true
                 inlineScript: |
                   set -ex
-                  az extension add --name aks-preview
+                  az extension remove --name aks-preview || true
+                  az extension add --name aks-preview --version 14.0.0b3 --yes
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   ls -lah
                   pwd
@@ -151,7 +152,8 @@ stages:
                 addSpnToEnvironment: true
                 inlineScript: |
                   set -ex
-                  az extension add --name aks-preview
+                  az extension remove --name aks-preview || true
+                  az extension add --name aks-preview --version 14.0.0b3 --yes
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   ls -lah
                   pwd
@@ -266,6 +268,12 @@ stages:
               fi
             name: "testAsyncDelete"
             displayName: "Verify Async Delete when CNS is down"
+          - script: |
+              cd hack/scripts
+              chmod +x cilium-mtu-validation.sh
+              ./cilium-mtu-validation.sh
+            name: "CiliumMTUValidation"
+            displayName: "Run Cilium MTU Validation"
       - template: ../k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)

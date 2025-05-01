@@ -3,7 +3,7 @@
 NAMESPACE="kube-system"
 
 # Deploy nginx pods for MTU testing
-kubectl apply -f hack/manifests/nginx.yaml
+kubectl apply -f ../manifests/nginx.yaml
 kubectl wait --for=condition=available --timeout=60s -n $NAMESPACE deployment/nginx
 
 echo "Checking MTU for pods in namespace: $NAMESPACE using Cilium agent and nginx MTU"
@@ -32,7 +32,7 @@ for node in $nodes; do
 
     echo "Cilium agent eth0 MTU: $cilium_mtu"
 
-    # Get the nginx pod running on this node
+    # Get an nginx pod running on this node
     nginx_pod=$(kubectl get pods -n $NAMESPACE -o wide --field-selector spec.nodeName=$node -l app=nginx -o jsonpath='{.items[0].metadata.name}')
     if [ -z "$nginx_pod" ]; then
         echo "Failed to find nginx pod on node $node"
