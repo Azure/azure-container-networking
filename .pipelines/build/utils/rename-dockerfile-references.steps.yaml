@@ -94,7 +94,7 @@ steps:
       mkdir -p "$TARGET_REL_PATH"
       cp -r "$SOURCE_REL_PATH"/* "$TARGET_REL_PATH"
     else
-      echo >&2 "##[info]Target path ('$TARGET_REL_PATH') exits. Nothing to do."
+      echo >&2 "##[info]Target path ('$TARGET_REL_PATH') exists. Nothing to do."
     fi
     ls -la "$TARGET_REL_PATH"
     ls -la "$SOURCE_REL_PATH"
