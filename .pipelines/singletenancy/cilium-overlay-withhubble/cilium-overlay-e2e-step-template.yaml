@@ -5,6 +5,12 @@ parameters:
   scaleup: ""
 
 steps:
+  - bash: |
+      echo $UID
+      sudo rm -rf $(System.DefaultWorkingDirectory)/*
+    displayName: "Set up OS environment"
+
+  - checkout: self
 
   - bash: |
       go version
@@ -53,12 +59,7 @@ steps:
       else
           CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
       fi
-      sudo -E env "PATH=$PATH" make test-load \
-        SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true \
-        INSTALL_CNS=true INSTALL_OVERLAY=true CLEANUP=true \
-        AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNI_VERSION=$(CNI_VERSION) CNS_VERSION=$(CNS_VERSION) \
-        IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) \
-        CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
