@@ -18,7 +18,6 @@ jobs:
       - checkout: azure-container-networking
       - task: AzureCLI@2
         inputs:
-          workingDirectory: $(ACR_DIR)
           azureSubscription: ${{ parameters.sub }}
           scriptLocation: "inlineScript"
           scriptType: "bash"
@@ -53,7 +52,6 @@ jobs:
             name: kubeproxy
             displayName: Restart Kubeproxy on Windows nodes
             retryCountOnTaskFailure: 3
-            workingDirectory: $(ACR_DIR)
       - ${{ if eq(parameters.datapath, true) }}:
           - template: ../k8s-e2e/k8s-e2e.steps.yaml
             parameters:
