@@ -49,9 +49,9 @@ stages:
       CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
       CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
       IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
-      IPV6_HP_BPF_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/ipv6-hp-bpf
       CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
       CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+      IPV6_HP_BPF_REPO_PATH: $(IMAGE_REPO_PATH)/
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Dualstack Overlay Test Suite - (${{ parameters.name }})
