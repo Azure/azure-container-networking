@@ -112,7 +112,6 @@ spec:
             - name: tmp
               mountPath: /tmp
       hostNetwork: true
-      hostUsers: false
       nodeSelector:
         kubernetes.io/os: linux
       volumes:
