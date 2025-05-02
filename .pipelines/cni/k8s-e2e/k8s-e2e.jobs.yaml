@@ -14,8 +14,6 @@ jobs:
       type: linux
       isCustom: true
       name: $(BUILD_POOL_NAME_DEFAULT)
-    variables:
-      ACN_DIR: $(Build.SourcesDirectory)
     steps:
       - checkout: azure-container-networking
       - task: AzureCLI@2
