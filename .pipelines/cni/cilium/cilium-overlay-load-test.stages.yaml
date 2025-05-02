@@ -245,7 +245,7 @@ stages:
               fi
             name: "testAsyncDelete"
             displayName: "Verify Async Delete when CNS is down"
-      - template: ../k8s-e2e/k8s-e2e.stages.yaml
+      - template: ../k8s-e2e/k8s-e2e.jobs.yaml
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)

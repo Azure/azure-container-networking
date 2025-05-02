@@ -69,7 +69,7 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               scaleup: 100
 
-      - template: ../../cni/k8s-e2e/k8s-e2e.stages.yaml
+      - template: ../../cni/k8s-e2e/k8s-e2e.jobs.yaml
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
