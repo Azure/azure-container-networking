@@ -96,7 +96,7 @@ stages:
           ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
         steps:
           - checkout: azure-container-networking
-          - template: ../../templates/log-template.yaml
+          - template: ../../templates/log.steps.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}

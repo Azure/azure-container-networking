@@ -17,7 +17,7 @@ stages:
     - checkout: azure-container-networking
     - template: build/ob-prepare.steps.yaml
 
-- template: templates/run-unit-tests.yaml
+- template: templates/run-unit-tests.stages.yaml
 
 
 - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:

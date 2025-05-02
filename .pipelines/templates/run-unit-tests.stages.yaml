@@ -1,0 +1,387 @@
+stages:
+- stage: unittest
+  displayName: "Unit Tests"
+  dependsOn:
+  - setup
+  variables:
+    STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+    ACN_DIR: azure-container-networking
+  jobs:
+  - job: linux
+    displayName: "Run All"
+    pool:
+      type: linux
+      isCustom: true
+      name: "$(BUILD_POOL_NAME_DEFAULT)"
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/linux-unittest
+
+      REPORT_DIR: $(Build.ArtifactStagingDirectory)/linux-unittest
+      REPORT_XML: $(Build.ArtifactStagingDirectory)/linux-unittest/report.xml
+      COVERAGE_OUT: $(Build.ArtifactStagingDirectory)/linux-unittest/linux-coverage.out
+    steps:
+    - checkout: azure-container-networking
+
+    - task: GoTool@0
+      inputs:
+        version: '$(GOVERSION)'
+
+    - script: |
+        set -e
+        BIN_INSTALL_DIR=$(realpath bin)
+        GOBIN="$BIN_INSTALL_DIR" go install github.com/jstemmer/go-junit-report/v2@latest
+        JUNIT_REPORT_BIN="$BIN_INSTALL_DIR/go-junit-report"
+
+        mkdir -p "$REPORT_DIR"
+        touch "$REPORT_XML"
+        make tools
+
+        # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml),
+        # stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code.
+        # Read all output from fd 4 (output from tee) and write to to stdout
+        { { { {
+              sudo -E env "PATH=$PATH" make test-all;
+              echo $? >&3;
+              } | tee >($JUNIT_REPORT_BIN > "$REPORT_XML") >&4;
+            } 3>&1;
+          } | { read xs; exit $xs; }
+        } 4>&1
+
+        cp coverage-all.out "$COVERAGE_OUT"
+        ls -la "$REPORT_DIR"
+      retryCountOnTaskFailure: 3
+      displayName: "Run Unit Tests - Linux"
+      #workingDirectory: $(ACN_DIR)
+
+#    - script: |
+#        BIN_INSTALL_DIR=$(realpath bin)
+#        GOBIN="$BIN_INSTALL_DIR" go install github.com/axw/gocov/gocov@latest
+#        GOBIN="$BIN_INSTALL_DIR" go install github.com/AlekSi/gocov-xml@latest
+#
+#        GOCOV_BIN="$BIN_INSTALL_DIR/gocov"
+#        GOCOV_XML_BIN="$BIN_INSTALL_DIR/gocov-xml"
+#
+#        $GOCOV_BIN convert "$COVERAGE_OUT" > "$REPORT_DIR"/linux-coverage.gocov.json
+#        $GOCOV_XML_BIN < "$REPORT_DIR"/linux-coverage.gocov.json > "$REPORT_DIR"/linux-coverage.gocov.xml
+#    
+#    - task: UsePythonVersion@0
+#      retryCountOnTaskFailure: 3
+#      inputs:
+#        versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
+#        addToPath: true
+#        
+#    - task: PythonScript@0
+#      displayName: "Generate Test Reporting"
+#      name: report
+#      inputs:
+#        arguments: $(Build.SourcesDirectory)
+#        scriptSource: 'inline'
+#        script: |
+#          import os
+#          import zlib
+#          
+#          def output_var(var_name, is_output, var_value):
+#            os.environ[var_name] = var_value
+#            print(f"##vso[task.setvariable variable={var_name};isOutput={is_output}]{var_value}")
+#          
+#          def encode_and_compress(file_path):
+#            with open(file_path, 'rb') as file:
+#              compressed_data = zlib.compress(file.read(), level=9)
+#            return compressed_data.hex()
+#          
+#          report_dir = os.environ['REPORT_DIR']
+#          report_dir = os.path.realpath(report_dir)
+#          
+#          convert_vars = [
+#            { 'var_name': 'LINUX_GOCOV_OUT', 'file_path': f'{report_dir}/linux-coverage.out' },
+#            { 'var_name': 'LINUX_COVERAGE_OUT_XML', 'file_path': f'{report_dir}/linux-coverage.gocov.xml' },
+#            { 'var_name': 'LINUX_COVERAGE_OUT_JSON', 'file_path': f'{report_dir}/linux-coverage.gocov.json' },
+#            { 'var_name': 'LINUX_JUNIT_XML', 'file_path': f'{report_dir}/report.xml' }
+#          ]
+#          
+#          for item in convert_vars:
+#            val = encode_and_compress(item['file_path'])
+#            output_var(item['var_name'], True, val)
+
+
+  - job: windows
+    displayName: "Run Tests - Windows"
+    pool:
+      isCustom: true
+      type: windows
+      name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/windows-unittest
+
+      INPUT_TEST_MODULES: './npm/... ./cni/... ./platform/...'
+      REPORT_DIR: $(Build.ArtifactStagingDirectory)/windows-unittest
+      REPORT_XML: report.xml
+      GOCOV_OUT: windows-gocov.out
+      COVERAGE_OUT: windows-coverage.out
+    steps:
+    - checkout: azure-container-networking
+
+    - task: GoTool@0
+      inputs:
+        version: '$(GOVERSION)'
+    
+    - task: UsePythonVersion@0
+      retryCountOnTaskFailure: 3
+      inputs:
+        versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
+        addToPath: true
+    
+    - task: PythonScript@0
+      displayName: "Run Unit Tests - Windows"
+      retryCountOnTaskFailure: 3
+      inputs:
+        scriptSource: 'inline'
+        arguments: $(Build.SourcesDirectory) $(INPUT_TEST_MODULES)
+        script: |
+          import os
+          import subprocess
+          import sys
+          
+          # Set environment variables and directories
+          cwd = sys.argv[1]
+          cwd = os.path.realpath(cwd)
+          gotest_packages = sys.argv[2]
+          bin_install_dir = os.path.join(cwd, 'bin')
+          os.environ['GOBIN'] = bin_install_dir
+          
+          report_dir = os.environ['REPORT_DIR']
+          report_dir = os.path.realpath(report_dir)
+          
+          log_file = os.path.join(report_dir, 'test.stdout.log')
+    
+          coverage_file = os.environ['COVERAGE_OUT']
+          coverage_out = os.path.join(report_dir, coverage_file)
+          
+          gocover_file = os.environ['GOCOV_OUT']
+          gocover_out = os.path.join(report_dir, gocover_file)
+          
+          junit_file = os.environ['REPORT_XML']
+          junit_xml = os.path.join(report_dir, junit_file)
+          
+          # Install the go-junit-report tool
+          subprocess.check_call(['go', 'install', 'github.com/jstemmer/go-junit-report/v2@latest'])
+          junit_report_bin = os.path.join(bin_install_dir, 'go-junit-report')
+          
+          # Create report directory and touch report XML file
+          os.makedirs(report_dir, exist_ok=True)
+          
+          # Run make tools
+          subprocess.run('make tools', shell=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+          
+          # Function to run the test and capture output
+          def run_test(packages_to_test):
+              go_pkgs = ' '.join(packages_to_test) if isinstance(packages_to_test, list) else packages_to_test
+
+              cmd_gotest = f"go test -timeout 30m -covermode atomic -coverprofile={coverage_out} {go_pkgs}"
+              cmd_junitreport = f'{junit_report_bin} -set-exit-code -in {log_file} -out {junit_xml} -iocopy'
+              cmd_gocover = f'go tool cover -func={coverage_out}'
+          
+              print(cmd_gotest)
+              gotest_process = subprocess.run(cmd_gotest, shell=True, stdout=open(log_file, 'w'), text=True, cwd=cwd)
+          
+              print(cmd_junitreport)
+              junit_process = subprocess.run(cmd_junitreport, shell=True, stdout=sys.stdout, stderr=sys.stderr, text=True, cwd=cwd)
+          
+              print(cmd_gocover)
+              gocover_process = subprocess.run(cmd_gocover, shell=True, text=True, stdout=open(gocover_out, "w"), cwd=cwd)
+          
+              return gotest_process.returncode
+          
+          # Run the test function
+          return_code = run_test(gotest_packages)
+    
+          # List report directory contents again
+          print(os.listdir(report_dir))
+
+          sys.exit(return_code)
+        
+#    - task: PythonScript@0
+#      displayName: "Generate Test Reporting"
+#      name: report
+#      inputs:
+#        arguments: $(Build.SourcesDirectory)
+#        scriptSource: 'inline'
+#        script: |
+#          import os
+#          import subprocess
+#          import sys
+#          import zlib
+#          
+#          # Define the necessary variables
+#          cwd = sys.argv[1]
+#          cwd = os.path.realpath(cwd)
+#          bin_install_dir = os.path.join(cwd, 'bin')
+#          os.environ['GOBIN'] = bin_install_dir
+#    
+#          report_dir = os.environ['REPORT_DIR']
+#          report_dir = os.path.realpath(report_dir)
+#          
+#          coverage_file = os.environ['COVERAGE_OUT']
+#          coverage_out = os.path.join(report_dir, coverage_file)
+#          coverage_json = os.path.join(report_dir, 'windows-coverage.json')
+#          coverage_xml = os.path.join(report_dir, 'windows-coverage.xml')
+#          
+#          gocover_file = os.environ['GOCOV_OUT']
+#          gocover_out = os.path.join(report_dir, gocover_file)
+#          
+#          junit_file = os.environ['REPORT_XML']
+#          junit_xml = os.path.join(report_dir, junit_file)
+#          
+#          # Install gocov and gocov-xml
+#          subprocess.run(['go', 'install', 'github.com/axw/gocov/gocov@latest'], check=True)
+#          subprocess.run(['go', 'install', 'github.com/AlekSi/gocov-xml@latest'], check=True)
+#          
+#          # Define the paths to the installed binaries
+#          gocov_bin = os.path.join(bin_install_dir, 'gocov')
+#          gocov_xml_bin = os.path.join(bin_install_dir, 'gocov-xml')
+#          
+#          # Create the report directory if it doesn't exist
+#          os.makedirs(report_dir, exist_ok=True)
+#          
+#          # Convert coverage output to JSON
+#          with open(coverage_json, 'w') as json_file:
+#            subprocess.run([gocov_bin, 'convert', coverage_out], stdout=json_file, check=True)
+#          
+#          # create coverage xml
+#          with open(coverage_xml, 'w') as xml_file:
+#              with open(coverage_json, 'r') as json_file:
+#                  subprocess.run([gocov_xml_bin], stdin=json_file, stdout=xml_file, check=True)
+#          
+#          
+#          def output_var(var_name, is_output, var_value):
+#            os.environ[var_name] = var_value
+#            print(f"##vso[task.setvariable variable={var_name};isOutput={is_output}]{var_value}")
+#          
+#          def encode_and_compress(file_path):
+#            with open(file_path, 'rb') as file:
+#              compressed_data = zlib.compress(file.read(), level=9)
+#            return compressed_data.hex()
+#          
+#          
+#          # coverage json
+#          coverage_json_content = encode_and_compress(coverage_json)
+#          output_var('COVERAGE_OUT_JSON', True, coverage_json_content)
+#          
+#          # coverage xml
+#          coverage_xml_content = encode_and_compress(coverage_xml)
+#          output_var('COVERAGE_OUT_XML', True, coverage_xml_content)
+#          
+#          # go cover 
+#          gocover_out_content = encode_and_compress(gocover_out)
+#          output_var('GOCOV_OUT', True, gocover_out_content)
+#          
+#          # junit xml
+#          junit_xml_content = encode_and_compress(junit_xml)
+#          output_var('JUNIT_XML', True, junit_xml_content)
+#
+#          sys.exit()
+
+
+#  - job: coverage
+#    displayName: "Check Test Coverage"
+#    condition: always()
+#    dependsOn:
+#    - windows
+#    - linux
+#    pool:
+#      type: windows
+#    variables:
+#      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+#
+#      WINDOWS_JUNIT_XML: $[ dependencies.windows.outputs['report.JUNIT_XML'] ]
+#      WINDOWS_COVERAGE_OUT_XML: $[ dependencies.windows.outputs['report.COVERAGE_OUT_XML'] ]
+#      WINDOWS_COVERAGE_OUT_JSON: $[ dependencies.windows.outputs['report.COVERAGE_OUT_JSON'] ]
+#      WINDOWS_GOCOV_OUT: $[ dependencies.windows.outputs['report.GOCOV_OUT'] ]
+#
+#      LINUX_COVERAGE_OUT_JSON: $[ dependencies.linux.outputs['report.COVERAGE_OUT_JSON'] ]
+#      LINUX_COVERAGE_OUT_XML: $[ dependencies.linux.outputs['report.COVERAGE_OUT_XML'] ]
+#      LINUX_GOCOV_OUT: $[ dependencies.linux.outputs['report.GOCOV_OUT_XML'] ]
+#      LINUX_JUNIT_XML: $[ dependencies.linux.outputs['report.JUNIT_XML'] ]
+#    steps:
+#    - task: UsePythonVersion@0
+#      retryCountOnTaskFailure: 3
+#      inputs:
+#        versionSpec: '3.x' # string. Required. Version spec. Default: 3.x.
+#        addToPath: true
+#    
+#    - task: PythonScript@0
+#      displayName: "Write Test Output Artifacts"
+#      retryCountOnTaskFailure: 3
+#      inputs:
+#        scriptSource: 'inline'
+#        arguments: $(Build.ArtifactStagingDirectory)/out
+#        script: |
+#          import os
+#          import sys
+#          import zlib
+#          
+#          # Define the necessary variables
+#          cwd = sys.argv[1]
+#          cwd = os.path.realpath(cwd)
+#    
+#          report_dir = os.environ['REPORT_DIR']
+#          report_dir = os.path.realpath(report_dir)
+#
+#          # Create the report directory if it doesn't exist
+#          os.makedirs(report_dir, exist_ok=True)
+#
+#          def decompress_and_decode(compressed_string):
+#            encoded_string = zlib.decompress(compressed_string)
+#            return encoded_string
+#
+#          convert_vars = [
+#            { var_name: 'LINUX_GOCOV_OUT', file_path: f'{report_dir}/coverage-all.out' },
+#            { var_name: 'LINUX_COVERAGE_OUT_XML', file_path: f'{report_dir}/coverage-all.xml' },
+#            { var_name: 'LINUX_COVERAGE_OUT_JSON', file_path: f'{report_dir}/coverage-all.json' },
+#            { var_name: 'LINUX_JUNIT_XML', file_path: f'{report_dir}/coverage-all.junit.xml' },
+#            { var_name: 'WINDOWS_COVERAGE_OUT_XML', file_path: f'{report_dir}/windows-coverage.xml' },
+#            { var_name: 'WINDOWS_COVERAGE_OUT_JSON', file_path: f'{report_dir}/windows-coverage.json' },
+#            { var_name: 'WINDOWS_GOCOV_OUT', file_path: f'{report_dir}/windows-coverage.out' },
+#            { var_name: 'WINDOWS_JUNIT_XML', file_path: f'{report_dir}/windows-coverage.junit.xml' }
+#          ]
+#          for item in convert_vars:
+#            with open(item['file_path'], 'wb') as file_io:
+#              print(f'Retrieving variable value from env var {item["var_name"]}')
+#              var_value = bytes.fromhex(os.environ[item['var_name']])
+#              print(f'Decompressing data and writing variable value to file {item["file_path"]}')
+#              file_io.write(decompress_and_decode(var_value))
+#
+#          sys.exit()
+#
+#    - task: PublishTestResults@2
+#      displayName: "Publish Test Results"
+#      inputs:
+#        testResultsFormat: 'JUnit'
+#        testResultsFiles:  # string. Required. Test results files. Default: **/TEST-*.xml.
+#        searchFolder: $(Build.ArtifactStagingDirectory)/out/**/*.junit.xml
+#        failTaskOnFailedTests: true
+#        failTaskOnMissingResultsFile: false
+#        #testRunTitle: # Name of the test runs
+#        # boolean. Merge test results. Default: false.
+#        mergeTestResults: true
+#        #failTaskOnFailureToPublishResults: false # boolean. Fail if there is failure in publishing test results. Default: false.
+#      # Advanced
+#        #buildPlatform: windows/amd64
+#        #buildConfiguration: # string. Alias: configuration. Build Configuration.
+#        publishRunAttachments: true
+#
+#    - task: PublishCodeCoverageResults@2
+#      displayName: "Publish Code Coverage Report"
+#      inputs:
+#        summaryFileLocation: $(Build.ArtifactStagingDirectory)/out/*
+#
+#    - task: BuildQualityChecks@8
+#      displayName: "Check Code Coverage Regression"
+#      inputs:
+#        checkCoverage: true
+#        coverageFailOption: "build"
+#        coverageType: "lines"
+#        fallbackOnPRTargetBranch: false
+#        baseBranchRef: "master"
+#        allowCoverageVariance: true
+#        coverageVariance: 0.25

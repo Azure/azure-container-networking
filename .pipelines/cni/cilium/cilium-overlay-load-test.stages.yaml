@@ -270,7 +270,7 @@ stages:
           - cni_${{ parameters.os }}
         condition: failed()
         steps:
-          - template: ../../templates/log-template.yaml
+          - template: ../../templates/log.steps.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: linux
