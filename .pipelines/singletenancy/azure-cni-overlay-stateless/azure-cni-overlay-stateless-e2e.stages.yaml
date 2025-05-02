@@ -30,7 +30,7 @@ stages:
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
           region: $(REGION_AKS_CLUSTER_TEST)
-      - template: ../../templates/add-windows-nodepool-job.jobs.yaml
+      - template: ../../templates/add-windows-nodepool.jobs.yaml
         parameters:
           depend: ${{ parameters.name }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
