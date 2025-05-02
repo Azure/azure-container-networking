@@ -50,7 +50,6 @@ steps:
 
 - bash: |
     make "$TARGET"
-    ls -la output
   displayName: "Build Binary - ${{ parameters.target }}"
   workingDirectory: $(ACN_DIR)
   env:
