@@ -36,7 +36,7 @@
 #     $target_dockerfile. This is a dumb sed replace; set with care.
 #
 #   replace_path (string|default) - The directory for which to search for 
-#     references to the old dockerfile name. Replce will default to $target_path 
+#     references to the old dockerfile name. Replace will default to $target_path 
 #     if not provided.
 #
 #   dockerfile_cleanup (boolean|default) - If this is set to true, this module
