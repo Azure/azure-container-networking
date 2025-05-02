@@ -44,36 +44,40 @@ steps:
 
     STORAGE_ID=$(echo "${BUILD_BUILDNUMBER//./-}")
     echo "##vso[task.setvariable variable=StorageID;isOutput=true]$STORAGE_ID"
-    echo "STORAGE_ID: $STORAGE_ID"
+    echo "StorageID: $STORAGE_ID"
     
     COMMITID=$(git rev-parse --short HEAD)
     COMMITID="$COMMITID"-"$(date "+%d%H%M")"
     echo "##vso[task.setvariable variable=commitID;isOutput=true]$COMMITID"
-    echo "COMMITID: $COMMITID"
+    echo "commitID: $COMMITID"
 
     TAG=$(make version)
     echo "##vso[task.setvariable variable=Tag;isOutput=true]$TAG"
-    echo "TAG: $TAG"
+    echo "Tag: $TAG"
+
+    IMAGEREPOPATH="artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy"
+    echo "##vso[task.setvariable variable=imageRepositoryPath;isOutput=true]$IMAGEREPOPATH"
+    echo "imageRepositoryPath: $IMAGEREPOPATH"
 
     AZUREIPAMVERSION=$(make azure-ipam-version)
     echo "##vso[task.setvariable variable=azureIpamVersion;isOutput=true]$AZUREIPAMVERSION"
-    echo "AZUREIPAMVERSION: $AZUREIPAMVERSION"
+    echo "azureIpamVersion: $AZUREIPAMVERSION"
 
     CNIVERSION=$(make cni-version)
     echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$CNIVERSION"
-    echo "CNIVERSION: $CNIVERSION"
+    echo "cniVersion: $CNIVERSION"
 
     CNSVERSION=$(make cns-version)
     echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$CNSVERSION"
-    echo "CNSVERSION: $CNSVERSION"
+    echo "cnsVersion: $CNSVERSION"
 
     IPV6HPBPFVERSION=$(make ipv6-hp-bpf-version)
     echo "##vso[task.setvariable variable=ipv6HpBpfVersion;isOutput=true]$IPV6HPBPFVERSION"
-    echo "IPV6HPBPFVERSION: $IPV6HPBPFVERSION"
+    echo "ipv6HpBpfVersion: $IPV6HPBPFVERSION"
 
     NPMVERSION=$(make npm-version)
     echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$NPMVERSION"
-    echo "NPMVERSION: $NPMVERSION"
+    echo "npmVersion: $NPMVERSION"
 
     cat /etc/os-release
     uname -a
