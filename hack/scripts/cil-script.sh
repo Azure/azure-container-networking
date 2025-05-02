@@ -18,35 +18,18 @@ for unique in $sufixes; do
         POD_CIDR=192.${unique}0.0.0/16 SVC_CIDR=192.${unique}1.0.0/16 DNS_IP=192.${unique}1.0.10 \
         VNET_PREFIX=10.${unique}0.0.0/16 SUBNET_PREFIX=10.${unique}0.0.0/16
 
+    kubectl config use-context ${clusterPrefix}-${unique}
+
     if [ $install == "helm" ]; then
-        cilium install -n kube-system cilium cilium/cilium --version v1.16.1 \
-        --set azure.resourceGroup=${clusterPrefix}-${unique}-rg --set cluster.id=${unique} \
+        helm upgrade --install -n kube-system cilium cilium/cilium \
+        --version v1.16.1 \
+        --set cluster.name=${clusterPrefix}-${unique} \
+        --set azure.resourceGroup=${clusterPrefix}-${unique}-rg \
+        --set cluster.id=${unique} \
         --set ipam.operator.clusterPoolIPv4PodCIDRList='{192.'${unique}'0.0.0/16}' \
         --set hubble.enabled=false \
         --set envoy.enabled=false
-
-    else # Ignore this block for now, was testing internal resources.
-        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
-        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
-        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
-        export CILIUM_VERSION_TAG=v1.16-240904
-        export CILIUM_IMAGE_REGISTRY=acnpublic.azurecr.io
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
-
-        export CILIUM_VERSION_TAG=v1.16-240904
-        export CILIUM_IMAGE_REGISTRY=acnpublic.azurecr.io
-        DIR=1.16
-        kubectl apply -f test/manifests/v${DIR}/cilium-agent/files
-        kubectl apply -f test/manifests/v${DIR}/cilium-operator/files
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/manifests/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/manifests/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
     fi
-
-    make test-load CNS_ONLY=true \
-        AZURE_IPAM_VERSION=v0.2.0 CNS_VERSION=v1.5.32 \
-        INSTALL_CNS=true INSTALL_OVERLAY=true \
-        CNS_IMAGE_REPO=MCR IPAM_IMAGE_REPO=MCR
 done
 
 cd hack/scripts
