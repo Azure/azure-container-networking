@@ -19,8 +19,8 @@ jobs:
     steps:
       - checkout: azure-container-networking
       - task: AzureCLI@2
-        workingDirectory: $(ACR_DIR)
         inputs:
+          workingDirectory: $(ACR_DIR)
           azureSubscription: ${{ parameters.sub }}
           scriptLocation: "inlineScript"
           scriptType: "bash"
