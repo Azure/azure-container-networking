@@ -14,12 +14,7 @@ parameters:
 jobs:
   - job: ${{ parameters.name }}
     displayName: Cluster - ${{ parameters.name }}
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
-      isCustom: true
-      type: linux
     steps:
-      - checkout: azure-container-networking
       - task: AzureCLI@2
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -30,13 +25,12 @@ jobs:
             set -e
             echo "Check az version"
             az version
-            # if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
-            # then
-            #   echo "Install az cli extension preview"
-            #   az extension add --name aks-preview
-            #   az extension update --name aks-preview
-            # fi
-
+            if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
+            then
+              echo "Install az cli extension preview"
+              az extension add --name aks-preview
+              az extension update --name aks-preview
+            fi
 
             if ! [ -z ${K8S_VERSION} ]; then
               echo "Default k8s version, $(make -C ./hack/aks vars | grep K8S | cut -d'=' -f 2), is manually set to ${K8S_VERSION}"
@@ -44,10 +38,7 @@ jobs:
             fi
 
             mkdir -p ~/.kube/
-            # make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
-
-            #Temp fix for azcli aks preview bug
-            az extension add --name aks-preview --version 14.0.0b3
+            make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
 
             make -C ./hack/aks ${{ parameters.clusterType }} \
             AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \

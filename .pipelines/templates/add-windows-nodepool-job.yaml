@@ -8,15 +8,12 @@ jobs:
   displayName: Add Windows Nodepool
   dependsOn: ${{ parameters.depend }}
   pool:
-    isCustom: true
-    type: linux
     name: $(BUILD_POOL_NAME_DEFAULT)
     demands:
     - agent.os -equals Linux
     - Role -equals $(CUSTOM_E2E_ROLE)
   timeoutInMinutes: 30
   steps:
-    - checkout: azure-container-networking
     - task: AzureCLI@2
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)

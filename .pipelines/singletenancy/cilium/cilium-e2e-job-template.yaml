@@ -14,6 +14,8 @@ stages:
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
@@ -32,6 +34,7 @@ stages:
     displayName: E2E - ${{ parameters.displayName }}
     dependsOn:
     - setup
+    - publish
     - ${{ parameters.clusterName }}
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
@@ -40,15 +43,9 @@ stages:
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-
-      IMAGE_REPO_PATH: 'artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy'
-      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
-      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
-      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
-      IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
-      CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
-      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
     condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Test Suite - (${{ parameters.name }})
@@ -58,10 +55,7 @@ stages:
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-          isCustom: true
-          type: linux
         steps:
-          - checkout: azure-container-networking
           - template: cilium-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
@@ -86,14 +80,7 @@ stages:
           - ${{ parameters.name }}
           - cni_${{ parameters.os }}
         condition: failed()
-        pool:
-          type: linux
-          isCustom: true
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        variables:
-          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
         steps:
-          - checkout: azure-container-networking
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)

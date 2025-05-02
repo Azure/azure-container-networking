@@ -39,12 +39,7 @@ steps:
             kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
         fi
       done
-      sudo -E env "PATH=$PATH" make test-load \
-        SCALE_UP=32 OS_TYPE=linux CNI_TYPE=stateless VALIDATE_STATEFILE=true VALIDATE_V4OVERLAY=true \
-        INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true CLEANUP=true \
-        AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
-        IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) \
-        CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=stateless VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
     name: "WindowsOverlayControlPlaneScaleTests"
     displayName: "Windows v4Overlay ControlPlane Scale Tests"
     retryCountOnTaskFailure: 2

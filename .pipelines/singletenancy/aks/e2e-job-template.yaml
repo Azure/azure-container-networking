@@ -18,8 +18,6 @@ stages:
       - ${{ parameters.dependsOn }}
       - setup
     pool:
-      isCustom: true
-      type: linux
       name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
@@ -44,17 +42,12 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-
-      AZURE_REGISTRY: acnpublic.azurecr.io
-      IMAGE_REPO_PATH: 'artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy'
-      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
-      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
-      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
-      CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
-      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
     dependsOn:
     - setup
+    - publish
     - ${{ parameters.clusterName }}
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}
         displayName: Singletenancy AKS - (${{ parameters.name }})
@@ -64,10 +57,7 @@ stages:
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-          isCustom: true
-          type: linux
         steps:
-          - checkout: azure-container-networking
           - template: e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
@@ -96,10 +86,6 @@ stages:
           - ${{ parameters.name }}
           - cni_${{ parameters.os }}
         condition: failed()
-        pool:
-          type: linux
-        variables:
-          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
