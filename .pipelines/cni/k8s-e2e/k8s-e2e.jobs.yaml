@@ -14,9 +14,12 @@ jobs:
       type: linux
       isCustom: true
       name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      ACN_DIR: $(Build.SourcesDirectory)
     steps:
       - checkout: azure-container-networking
       - task: AzureCLI@2
+        workingDirectory: $(ACR_DIR)
         inputs:
           azureSubscription: ${{ parameters.sub }}
           scriptLocation: "inlineScript"
@@ -52,6 +55,7 @@ jobs:
             name: kubeproxy
             displayName: Restart Kubeproxy on Windows nodes
             retryCountOnTaskFailure: 3
+            workingDirectory: $(ACR_DIR)
       - ${{ if eq(parameters.datapath, true) }}:
           - template: ../k8s-e2e/k8s-e2e.steps.yaml
             parameters:
