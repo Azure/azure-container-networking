@@ -271,6 +271,7 @@ stages:
               kubectl apply -f hack/manifests/nginx.yaml
               kubectl wait --for=condition=available --timeout=60s -n kube-system deployment/nginx
               kubectl scale deployment nginx --replicas=25 -n kube-system
+              kubectl rollout status deployment nginx -n kube-system
               cd hack/scripts
               chmod +x cilium-mtu-validation.sh
               ./cilium-mtu-validation.sh
