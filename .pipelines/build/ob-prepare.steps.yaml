@@ -38,10 +38,6 @@ steps:
     targetFolder: $(Build.ArtifactStagingDirectory)
 
 - script: |
-    export CONTAINER_BUILDER=docker
-    export CONTAINER_RUNTIME=docker
-    export CONTAINER_TRANSPORT=docker
-
     STORAGE_ID=$(echo "${BUILD_BUILDNUMBER//./-}")
     echo "##vso[task.setvariable variable=StorageID;isOutput=true]$STORAGE_ID"
     echo "StorageID: $STORAGE_ID"

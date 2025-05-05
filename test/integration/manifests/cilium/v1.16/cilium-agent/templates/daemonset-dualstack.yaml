@@ -320,7 +320,7 @@ spec:
           name: host-usr-lib
           readOnly: true
       - name: start-ipv6-hp-bpf
-        image: $IPV6_IMAGE_REGISTRY/$IPV6_HP_BPF_IMAGE_REPO_PATHipv6-hp-bpf:$IPV6_HP_BPF_VERSION
+        image: $IPV6_IMAGE_REGISTRY/ipv6-hp-bpf:$IPV6_HP_BPF_VERSION
         imagePullPolicy: IfNotPresent
         command: [/ipv6-hp-bpf]
         securityContext:
