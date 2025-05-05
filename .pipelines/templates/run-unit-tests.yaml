@@ -97,10 +97,11 @@ stages:
             name: "Coverage"
             displayName: "Generate Coverage Report"
             condition: always()
-          - task: PublishCodeCoverageResults@2
+          - task: PublishCodeCoverageResults@1
             displayName: "Publish Code Coverage Report"
             condition: always()
             inputs:
+              codeCoverageTool: 'Cobertura'
               summaryFileLocation: coverage/*
           - task: BuildQualityChecks@8
             displayName: "Check Code Coverage Regression"
