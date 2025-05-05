@@ -17,6 +17,6 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: nginx:latest
+        image: mcr.microsoft.com/azurelinux/base/nginx:1
         ports:
           - containerPort: 80
