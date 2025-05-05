@@ -117,6 +117,22 @@ stages:
                   envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
 
+                  if [ -z "$AZURE_IPAM_VERSION" ]
+                  then
+                    echo "AZURE_IPAM_VERSION is not set, using default value"
+                    IPAM=$(make azure-ipam-version)
+                  else
+                    IPAM=$(AZURE_IPAM_VERSION)
+                    echo "AZURE_IPAM_VERSION is set to $IPAM"
+                  fi
+                  if [ -z "$CNS_VERSION" ]
+                  then
+                    echo "CNS_VERSION is not set, using default value"
+                    CNS=$(make cns-version)
+                  else
+                    CNS=$(CNS_VERSION)
+                    echo "CNS_VERSION is set to $CNS"
+                  fi
                   echo "Deploy Azure-CNS"
                   sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   kubectl get po -owide -A
