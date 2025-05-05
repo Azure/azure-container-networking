@@ -171,13 +171,4 @@ steps:
     name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"
   
-  - script: |
-      echo "Deploy nginx pods for MTU testing"
-      kubectl apply -f hack/manifests/nginx.yaml
-      kubectl wait --for=condition=available --timeout=60s -n kube-system deployment/nginx
-      cd hack/scripts
-      chmod +x cilium-mtu-validation.sh
-      ./cilium-mtu-validation.sh
-    workingDirectory: $(ACN_DIR)
-    name: "CiliumMTUValidation"
-    displayName: "Run Cilium MTU Validation"
+  - template: ../../templates/cilium-mtu-check.yaml
