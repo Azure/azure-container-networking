@@ -161,3 +161,5 @@ steps:
       fi
     name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"
+  
+  - template: ../../templates/cilium-mtu-check.yaml
