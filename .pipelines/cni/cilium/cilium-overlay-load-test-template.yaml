@@ -134,7 +134,7 @@ stages:
                     echo "CNS_VERSION is set to $CNS"
                   fi
                   echo "Deploy Azure-CNS"
-                  sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO) IPAM=${IPAM} CNS=${CNS}
                   kubectl get po -owide -A
                   kubectl get crd -A
       - ${{if eq(parameters.hubbleEnabled, true)}}:
