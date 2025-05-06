@@ -51,7 +51,7 @@ stages:
       IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
       CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
       CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
-      IPV6_HP_BPF_REPO_PATH: $(IMAGE_REPO_PATH)/
+      IPV6_HP_BPF_IMAGE_REPO_PATH: $(IMAGE_REPO_PATH)/
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Dualstack Overlay Test Suite - (${{ parameters.name }})
