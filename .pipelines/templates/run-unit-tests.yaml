@@ -111,6 +111,6 @@ stages:
               coverageFailOption: "build"
               coverageType: "lines"
               fallbackOnPRTargetBranch: false
-              baseBranchRef: "alew/ut-coverage-2"
+              baseBranchRef: "master"
               allowCoverageVariance: true
               coverageVariance: 0.25
