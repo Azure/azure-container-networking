@@ -64,7 +64,6 @@ stages:
     displayName: Code Coverage Check
     dependsOn:
       - test
-      - test_windows
     jobs:
       - job: coverage
         displayName: Check Coverage
@@ -75,10 +74,6 @@ stages:
             inputs:
               artifact: 'linux-coverage'
               path: './'
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              artifact: 'windows-coverage'
-              path: './'
           - bash: |
               make tools
               sudo ln -s $(pwd)/build/tools/bin/gocov /usr/local/bin/gocov
@@ -87,13 +82,9 @@ stages:
               GOOS=linux gocov convert linux-coverage.out > linux-coverage.json
               GOOS=linux gocov-xml < linux-coverage.json > linux-coverage.xml
 
-              GOOS=windows gocov convert windows-coverage.out > windows-coverage.json
-              GOOS=windows gocov-xml < windows-coverage.json > windows-coverage.xml
-
               mkdir coverage
 
               mv linux-coverage.xml coverage/
-              mv windows-coverage.xml coverage/
             name: "Coverage"
             displayName: "Generate Coverage Report"
             condition: always()
@@ -102,7 +93,7 @@ stages:
             condition: always()
             inputs:
               codeCoverageTool: 'Cobertura'
-              summaryFileLocation: coverage/*
+              summaryFileLocation: coverage/linux-coverage.xml
           - task: BuildQualityChecks@8
             displayName: "Check Code Coverage Regression"
             condition: always()
