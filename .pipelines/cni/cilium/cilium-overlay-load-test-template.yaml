@@ -108,8 +108,9 @@ stages:
 
                   if [ ! -z ${{ parameters.dualstackVersion }} ]; then
                     echo "Use dualstack daemonset for Cilium"
+                    export IPV6_IMAGE_REGISTRY=acnpublic.azurecr.io
                     export IPV6_HP_BPF_VERSION=$(make ipv6-hp-bpf-version)
-                    envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
+                    envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
                   else
                     envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
                   fi

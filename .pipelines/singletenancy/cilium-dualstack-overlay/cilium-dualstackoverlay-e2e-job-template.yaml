@@ -40,6 +40,7 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      IPV6_IMAGE_REGISTRY: acnpublic.azurecr.io
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
