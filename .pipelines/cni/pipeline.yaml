@@ -20,7 +20,7 @@ stages:
               go version
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
-              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
+              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(make cns-version | cut -d'-' -f1)"
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
