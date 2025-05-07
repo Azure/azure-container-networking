@@ -255,14 +255,14 @@ func (plugin *NetPlugin) getPodInfo(args string) (name, ns string, err error) {
 	if len(k8sNamespace) == 0 {
 		errMsg := "Pod Namespace not specified in CNI Args"
 		log.Printf(errMsg)
-		return "", "", plugin.Errorf(errMsg)
+		return "", "", plugin.Errorf("%s", errMsg)
 	}
 
 	k8sPodName := string(podCfg.K8S_POD_NAME)
 	if len(k8sPodName) == 0 {
 		errMsg := "Pod Name not specified in CNI Args"
 		log.Printf(errMsg)
-		return "", "", plugin.Errorf(errMsg)
+		return "", "", plugin.Errorf("%s", errMsg)
 	}
 
 	return k8sPodName, k8sNamespace, nil
@@ -400,14 +400,14 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	if len(k8sContainerID) == 0 {
 		errMsg := "Container ID not specified in CNI Args"
 		log.Printf(errMsg)
-		return plugin.Errorf(errMsg)
+		return plugin.Errorf("%s", errMsg)
 	}
 
 	k8sIfName := args.IfName
 	if len(k8sIfName) == 0 {
 		errMsg := "Interfacename not specified in CNI Args"
 		log.Printf(errMsg)
-		return plugin.Errorf(errMsg)
+		return plugin.Errorf("%s", errMsg)
 	}
 
 	platformInit(nwCfg)
@@ -759,7 +759,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	cnsclient, err := cnscli.New(opt.nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		log.Printf("failed to initialized cns client with URL %s: %v", opt.nwCfg.CNSUrl, err.Error())
-		return epInfo, plugin.Errorf(err.Error())
+		return epInfo, plugin.Errorf("%s", err.Error())
 	}
 
 	// Create the endpoint.
@@ -1087,14 +1087,14 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	if len(k8sNamespace) == 0 {
 		errMsg := "Required parameter Pod Namespace not specified in CNI Args during UPDATE"
 		log.Printf(errMsg)
-		return plugin.Errorf(errMsg)
+		return plugin.Errorf("%s", errMsg)
 	}
 
 	k8sPodName := string(podCfg.K8S_POD_NAME)
 	if len(k8sPodName) == 0 {
 		errMsg := "Required parameter Pod Name not specified in CNI Args during UPDATE"
 		log.Printf(errMsg)
-		return plugin.Errorf(errMsg)
+		return plugin.Errorf("%s", errMsg)
 	}
 
 	// Initialize values from network config.
@@ -1104,7 +1104,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	if _, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
 		errMsg := fmt.Sprintf("Failed to query network during CNI UPDATE: %v", err)
 		log.Printf(errMsg)
-		return plugin.Errorf(errMsg)
+		return plugin.Errorf("%s", errMsg)
 	}
 
 	// Query the existing endpoint since this is an update.
@@ -1127,18 +1127,18 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	}
 	if orchestratorContext, err = json.Marshal(podInfo); err != nil {
 		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)
-		return plugin.Errorf(err.Error())
+		return plugin.Errorf("%s", err.Error())
 	}
 
 	cnsclient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		log.Printf("failed to initialized cns client with URL %s: %v", nwCfg.CNSUrl, err.Error())
-		return plugin.Errorf(err.Error())
+		return plugin.Errorf("%s", err.Error())
 	}
 
 	if targetNetworkConfig, err = cnsclient.GetNetworkConfiguration(context.TODO(), orchestratorContext); err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
-		return plugin.Errorf(err.Error())
+		return plugin.Errorf("%s", err.Error())
 	}
 
 	log.Printf("Network config received from cns for [name=%v, namespace=%v] is as follows -> %+v", k8sPodName, k8sNamespace, targetNetworkConfig)
