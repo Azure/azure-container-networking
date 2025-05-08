@@ -1,6 +1,9 @@
 pr: none
 trigger: none
 
+variables:
+- group: ACN-CNI-Pipeline
+
 stages:
   - stage: setup
     displayName: Variable Group POC
