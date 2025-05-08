@@ -31,7 +31,7 @@ stages:
                 az devops configure --list
                 az devops configure --defaults organization='$(System.TeamFoundationCollectionUri)' project='$(System.TeamProject)'
                 az devops configure --list
-                az pipelines variable-group show --id $(CNI_VAR_GROUP)
+                az pipelines variable-group show --id $(CNI_VAR_GROUP) --debug
 
             displayName: "Restart Nodes"
             condition: always()
