@@ -17,7 +17,7 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                az pipelines variable-group show --id $(CNI_VAR_GROUP)
+                az pipelines variable-group show --id $(CNI_VAR_GROUP) --organization $(ORG)
 
             displayName: "Restart Nodes"
             condition: always()
