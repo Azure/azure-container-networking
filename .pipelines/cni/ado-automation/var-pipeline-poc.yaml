@@ -1,0 +1,20 @@
+pr: none
+trigger: none
+
+
+# stage: setup
+# displayName: Variable Group POC
+jobs:
+  - job: vgroup
+    displayName: View Variable Group
+    pool:
+      name: "$(BUILD_POOL_NAME_DEFAULT)"
+    steps:
+      - script: |
+          az pipelines variable-group show --id $(CNI_VAR_GROUP)
+
+
+        name: "EnvironmentalVariables"
+        displayName: "View Variable Group"
+        condition: always()
+
