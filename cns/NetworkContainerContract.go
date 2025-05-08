@@ -201,14 +201,14 @@ func (f PodInfoByIPProviderFunc) PodInfoByIP() (map[string]PodInfo, error) {
 	return f()
 }
 
-var GlobalPodInfoScheme podInfoScheme
+var GlobalPodInfoScheme podInfoScheme = InterfaceIDPodInfoScheme
 
 // podInfoScheme indicates which schema should be used when generating
 // the map key in the Key() function on a podInfo object.
 type podInfoScheme int
 
 const (
-	KubernetesPodInfoScheme podInfoScheme = iota
+	_ podInfoScheme = iota
 	InterfaceIDPodInfoScheme
 	InfraIDPodInfoScheme
 )
@@ -285,12 +285,8 @@ func (p *podInfo) Key() string {
 	switch p.Version {
 	case InfraIDPodInfoScheme:
 		return p.PodInfraContainerID
-	case InterfaceIDPodInfoScheme:
-		return p.PodInterfaceID
-	case KubernetesPodInfoScheme:
-		return p.PodName + ":" + p.PodNamespace
 	default:
-		return p.PodName + ":" + p.PodNamespace
+		return p.PodInterfaceID
 	}
 }
 
@@ -314,6 +310,21 @@ func (p *podInfo) SecondaryInterfacesExist() bool {
 	return p.SecondaryInterfaceSet
 }
 
+func (p *podInfo) UnmarshalJSON(b []byte) error {
+	type alias podInfo
+	// Unmarshal into a temporary struct to avoid infinite recursion
+	a := &struct {
+		*alias
+	}{
+		alias: (*alias)(p),
+	}
+	if err := json.Unmarshal(b, a); err != nil {
+		return err
+	}
+	p.Version = GlobalPodInfoScheme
+	return nil
+}
+
 // NewPodInfo returns an implementation of PodInfo that returns the passed
 // configuration for their namesake functions.
 func NewPodInfo(infraContainerID, interfaceID, name, namespace string) PodInfo {
@@ -328,14 +339,12 @@ func NewPodInfo(infraContainerID, interfaceID, name, namespace string) PodInfo {
 	}
 }
 
-// UnmarshalPodInfo wraps json.Unmarshal to return an implementation of
-// PodInfo.
 func UnmarshalPodInfo(b []byte) (PodInfo, error) {
 	p := &podInfo{}
-	if err := json.Unmarshal(b, p); err != nil {
+	err := json.Unmarshal(b, p)
+	if err != nil {
 		return nil, err
 	}
-	p.Version = GlobalPodInfoScheme
 	return p, nil
 }
 
