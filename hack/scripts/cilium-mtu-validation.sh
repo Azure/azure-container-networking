@@ -10,7 +10,7 @@ node_count=$(kubectl get nodes --no-headers | wc -l)
 # in CNI release test scenario scale deployments to 3 * node count to get replicas on each node
 if [ "$node_count" -gt 1 ]; then
     echo "Scaling nginx deployment to $((3 * node_count)) replicas"
-    kubectl scale deployment nginx --replicas=$((2 * node_count)) -n kube-system
+    kubectl scale deployment nginx --replicas=$((3 * node_count)) -n kube-system
 fi
 # Wait for nginx pods to be ready
 kubectl wait --for=condition=available --timeout=60s -n kube-system deployment/nginx
