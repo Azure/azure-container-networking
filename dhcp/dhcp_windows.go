@@ -22,5 +22,5 @@ func (c *DHCP) DiscoverRequest(_ context.Context, _ net.HardwareAddr, _ string) 
 }
 
 func (c *DHCP) DHCPRehydrationFeatureOnHost(_ context.Context) (bool, error) {
-	return false, nil
+	return true, nil
 }

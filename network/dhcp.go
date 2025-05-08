@@ -17,5 +17,5 @@ func (d *mockDHCP) DiscoverRequest(context.Context, net.HardwareAddr, string) er
 }
 
 func (d *mockDHCP) DHCPRehydrationFeatureOnHost(context.Context) (bool, error) {
-	return false, nil
+	return true, nil
 }
