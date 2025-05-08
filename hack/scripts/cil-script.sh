@@ -3,8 +3,8 @@
 # sufix1 - unique single digit whole number 1-9. Cannot match sufix2
 # sufix2 - unique single digit whole number 1-9. Cannot match sufix1
 # SUB - GUID for subscription
-# clusterType - overlay-byocni-nokubeproxy-up-mesh is primary atm, but leaving for testing later.
-# Example command: clusterPrefix=<alais> sufix1=1 sufix2=2 SUB=<GUID> clusterType=overlay-byocni-nokubeproxy-up-mesh ./cil-script.sh
+# clusterType - swift-byocni-nokubeproxy-up is primary atm, but leaving for testing later.
+# Example command: clusterPrefix=<alais> sufix1=1 sufix2=2 SUB=<GUID> clusterType=swift-byocni-nokubeproxy-up ./cil-script.sh
 
 sufixes="${sufix1} ${sufix2}"
 install=helm
@@ -15,8 +15,10 @@ for unique in $sufixes; do
     make -C ./hack/aks $clusterType \
         AZCLI=az REGION=westus2 SUB=$SUB \
         CLUSTER=${clusterPrefix}-${unique} \
-        POD_CIDR=192.${unique}0.0.0/16 SVC_CIDR=192.${unique}1.0.0/16 DNS_IP=192.${unique}1.0.10 \
-        VNET_PREFIX=10.${unique}0.0.0/16 SUBNET_PREFIX=10.${unique}0.0.0/16
+        KUBE_PROXY_JSON_PATH=./kube-proxy.json \
+        VNET_PREFIX=10.${unique}0.0.0/16 \
+        NODE_SUBNET_PREFIX=10.${unique}.1.0/24 \
+        POD_SUBNET_PREFIX=10.${unique}.2.0/24
 
     kubectl config use-context ${clusterPrefix}-${unique}
 
@@ -68,4 +70,7 @@ cilium clustermesh status --context ${clusterPrefix}-${sufix2} --wait
 
 # # CA is passed between clusters in this step
 cilium clustermesh connect --context ${clusterPrefix}-${sufix1} --destination-context ${clusterPrefix}-${sufix2}
+
+# For 3+ clusters
+# cilium clustermesh connect --context ${clusterPrefix}-${sufix1} --destination-context ${clusterPrefix}-${sufix2}  --connection-mode mesh
 # These can be run in parallel in different bash shells
