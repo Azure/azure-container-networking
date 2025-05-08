@@ -121,6 +121,11 @@ overlay-net-up: ## Create vnet, nodenet subnets
 	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefix 10.10.0.0/16 -o none
 
+cilium-net-up: ## Create vnet, nodenet and podnet subnets
+  $(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes $(VNET_PREFIX) -o none
+  $(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes $(NODE_SUBNET_PREFIX) -o none
+  $(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet --address-prefixes $(POD_SUBNET_PREFIX) -o none
+
 ##@ AKS Clusters
 
 byocni-up: swift-byocni-up ## Alias to swift-byocni-up
@@ -257,6 +262,26 @@ swift-byocni-nokubeproxy-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI
 		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
+
+cilium-clustermesh-byocni-nokubeproxy-up: rg-up cilium-net-up ## Bring up a Cilium BYO CNI cluster without kube-proxy
+  $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+    --auto-upgrade-channel $(AUTOUPGRADE) \
+    --node-os-upgrade-channel $(NODEUPGRADE) \
+    --kubernetes-version $(K8S_VER) \
+    --node-count $(NODE_COUNT) \
+    --node-vm-size $(VM_SIZE) \
+    --load-balancer-sku basic \
+    --network-plugin none \
+    --pod-cidr $(POD_CIDR) \
+    --service-cidr $(SVC_CIDR) \
+    --dns-service-ip $(DNS_IP) \
+    --vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+    --pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+    --no-ssh-key \
+    --os-sku $(OS_SKU) \
+    --kube-proxy-config ./kube-proxy.json \
+    --yes
+		@$(MAKE) set-kubeconf
 
 swift-cilium-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
