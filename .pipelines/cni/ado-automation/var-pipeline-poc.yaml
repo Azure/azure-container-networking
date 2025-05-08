@@ -29,6 +29,8 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 az devops configure --list
+                az devops configure --defaults organization='$(System.TeamFoundationCollectionUri)' project='$(System.TeamProject)' --use-git-aliases true
+                az devops configure --list
                 az pipelines variable-group show --id $(CNI_VAR_GROUP)
 
             displayName: "Restart Nodes"
