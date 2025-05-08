@@ -20,8 +20,7 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                az devops configure --defaults organization='$(System.TeamFoundationCollectionUri)' project='$(System.TeamProject)'
-                az pipelines variable-group show --id $(CNI_VAR_GROUP) --debug
+                az pipelines variable-group show --id $(CNI_VAR_GROUP) --org $(System.TeamFoundationCollectionUri) --project $(System.TeamProject) --debug
 
             displayName: "Configure Defaults and List"
             condition: always()
@@ -29,13 +28,13 @@ stages:
               AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
 
           - bash: |
-              az pipelines variable-group variable update --id $(CNI_VAR_GROUP) --name CILIUM_IMAGE_REGISTRY --value "Changed it was"
+              az pipelines variable-group variable update --id $(CNI_VAR_GROUP) --org $(System.TeamFoundationCollectionUri) --project $(System.TeamProject) --name CILIUM_IMAGE_REGISTRY --value "Changed it was"
             displayName: "Change Variable"
             env:
               AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
 
           - bash: |
-              az pipelines variable-group show --id $(CNI_VAR_GROUP) --debug
+              az pipelines variable-group show --id $(CNI_VAR_GROUP) --org $(System.TeamFoundationCollectionUri) --project $(System.TeamProject) --debug
             displayName: "List Variable Group"
             env:
               AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
