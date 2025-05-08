@@ -17,7 +17,7 @@ stages:
             displayName: "Build Cilium Image"
 
           - bash: |
-              az devops configure --defaults organization='$(System.TeamFoundationCollectionUri)' project='$(System.TeamProject)' --use-git-aliases true
+              az devops configure --defaults organization='$(System.TeamFoundationCollectionUri)' project='$(System.TeamProject)'
               az devops configure --list
             displayName: 'Set default Azure DevOps organization and project'
 
@@ -29,7 +29,7 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 az devops configure --list
-                az devops configure --defaults organization='$(System.TeamFoundationCollectionUri)' project='$(System.TeamProject)' --use-git-aliases true
+                az devops configure --defaults organization='$(System.TeamFoundationCollectionUri)' project='$(System.TeamProject)'
                 az devops configure --list
                 az pipelines variable-group show --id $(CNI_VAR_GROUP)
 
