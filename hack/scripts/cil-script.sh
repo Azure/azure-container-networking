@@ -16,7 +16,7 @@ for unique in $sufixes; do
         AZCLI=az REGION=westus2 SUB=$SUB \
         CLUSTER=${clusterPrefix}-${unique} \
         KUBE_PROXY_JSON_PATH=./kube-proxy.json \
-        VNET_PREFIX=10.${unique}0.0.0/16 \
+        VNET_PREFIX=10.${unique}.0.0/16 \
         NODE_SUBNET_PREFIX=10.${unique}.1.0/24 \
         POD_SUBNET_PREFIX=10.${unique}.2.0/24
 
