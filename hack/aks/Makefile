@@ -219,6 +219,9 @@ overlay-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay AzCNI cluster
 		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	$(MAKE) windows-nodepool-up
+endif
 
 swift-byocni-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
