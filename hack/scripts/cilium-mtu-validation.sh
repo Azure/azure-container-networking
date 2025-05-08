@@ -1,8 +1,9 @@
 #!/bin/bash
+NAMESPACE="kube-system"
 
 echo "Deploy nginx pods for MTU testing"
 kubectl apply -f ../manifests/nginx.yaml
-kubectl wait --for=condition=available --timeout=60s -n kube-system deployment/nginx
+kubectl wait --for=condition=available --timeout=60s -n $NAMESPACE deployment/nginx
 
 # Check node count
 node_count=$(kubectl get nodes --no-headers | wc -l)
@@ -10,12 +11,11 @@ node_count=$(kubectl get nodes --no-headers | wc -l)
 # in CNI release test scenario scale deployments to 3 * node count to get replicas on each node
 if [ "$node_count" -gt 1 ]; then
     echo "Scaling nginx deployment to $((3 * node_count)) replicas"
-    kubectl scale deployment nginx --replicas=$((3 * node_count)) -n kube-system
+    kubectl scale deployment nginx --replicas=$((3 * node_count)) -n $NAMESPACE
 fi
 # Wait for nginx pods to be ready
-kubectl wait --for=condition=available --timeout=60s -n kube-system deployment/nginx
+kubectl wait --for=condition=available --timeout=60s -n $NAMESPACE deployment/nginx
 
-NAMESPACE="kube-system"
 
 
 echo "Checking MTU for pods in namespace: $NAMESPACE using Cilium agent and nginx MTU"
@@ -31,7 +31,8 @@ for node in $nodes; do
 
     if [ -z "$cilium_pod" ]; then
         echo "Failed to find Cilium agent pod on node $node"
-        continue
+        echo "##[error]Failed to find Cilium agent pod on node $node"
+        exit 1
     fi
 
     # Get the MTU of eth0 in the Cilium agent pod
@@ -39,7 +40,8 @@ for node in $nodes; do
 
     if [ -z "$cilium_mtu" ]; then
         echo "Failed to get MTU from Cilium agent pod on node $node"
-        continue
+        echo "##[error]Failed to get MTU from Cilium agent pod on node $node"
+        exit 1
     fi
 
     echo "Cilium agent eth0 MTU: $cilium_mtu"
@@ -48,13 +50,15 @@ for node in $nodes; do
     nginx_pod=$(kubectl get pods -n $NAMESPACE -o wide --field-selector spec.nodeName=$node -l app=nginx -o jsonpath='{.items[0].metadata.name}')
     if [ -z "$nginx_pod" ]; then
         echo "Failed to find nginx pod on node $node"
-        continue
+        echo "##[error]Failed to find nginx pod on node $node"
+        exit 1
     fi
     # Get the MTU of eth0 in the nginx pod
     nginx_mtu=$(kubectl exec -n $NAMESPACE $nginx_pod -- cat /sys/class/net/eth0/mtu 2>/dev/null)
     if [ -z "$nginx_mtu" ]; then
         echo "Failed to get MTU from nginx pod on node $node"
-        continue
+        echo "##[error]Failed to get MTU from nginx pod on node $node"
+        exit 1
     fi
     echo "Nginx pod eth0 MTU: $nginx_mtu"
 
@@ -63,7 +67,8 @@ for node in $nodes; do
 
     if [ -z "$node_mtu" ]; then
         echo "Failed to get MTU from node $node"
-        continue
+        echo "##[error]Failed to get MTU from node $node"
+        exit 1
     fi
     echo "Node eth0 MTU: $node_mtu"
 
