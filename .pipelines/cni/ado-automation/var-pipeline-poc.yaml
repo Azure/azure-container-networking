@@ -13,17 +13,6 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
-          - bash: |
-              echo $(System.TeamFoundationCollectionUri)
-              echo $(System.TeamProject)
-            name: BuildCiliumImage
-            displayName: "Build Cilium Image"
-
-          - bash: |
-              az devops configure --defaults organization='$(System.TeamFoundationCollectionUri)' project='$(System.TeamProject)'
-              az devops configure --list
-            displayName: 'Set default Azure DevOps organization and project'
-
           - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -31,13 +20,23 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                az devops configure --list
                 az devops configure --defaults organization='$(System.TeamFoundationCollectionUri)' project='$(System.TeamProject)'
-                az devops configure --list
                 az pipelines variable-group show --id $(CNI_VAR_GROUP) --debug
 
-            displayName: "Restart Nodes"
+            displayName: "Configure Defaults and List"
             condition: always()
+            env:
+              AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+
+          - bash: |
+              az pipelines variable-group variable update --id $(CNI_VAR_GROUP) --name CILIUM_IMAGE_REGISTRY --value "Changed it was"
+            displayName: "Change Variable"
+            env:
+              AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+
+          - bash: |
+              az pipelines variable-group show --id $(CNI_VAR_GROUP) --debug
+            displayName: "List Variable Group"
             env:
               AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
 
