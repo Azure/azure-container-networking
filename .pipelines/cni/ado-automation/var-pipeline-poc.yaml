@@ -16,7 +16,9 @@ stages:
             name: BuildCiliumImage
             displayName: "Build Cilium Image"
 
-          - bash: az devops configure --defaults organization='$(System.TeamFoundationCollectionUri)' project='$(System.TeamProject)' --use-git-aliases true
+          - bash: |
+              az devops configure --defaults organization='$(System.TeamFoundationCollectionUri)' project='$(System.TeamProject)' --use-git-aliases true
+              az devops configure --list
             displayName: 'Set default Azure DevOps organization and project'
 
           - task: AzureCLI@2
@@ -26,16 +28,13 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                az account get-access-token \
-                  --resource 499b84ac-1321-427f-aa17-267ca6975798 \
-                  --query "accessToken" \
-                  -o tsv
-
-                az devops login
+                az devops configure --list
                 az pipelines variable-group show --id $(CNI_VAR_GROUP)
 
             displayName: "Restart Nodes"
             condition: always()
+            env:
+              AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
 
 
   - stage: init
