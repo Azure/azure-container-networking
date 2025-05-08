@@ -1,20 +1,36 @@
 pr: none
 trigger: none
 
+stages:
+  - stage: setup
+    displayName: Variable Group POC
+    jobs:
+      - job: vgroup
+        displayName: View Variable Group
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                az pipelines variable-group show --id $(CNI_VAR_GROUP)
 
-# stage: setup
-# displayName: Variable Group POC
-jobs:
-  - job: vgroup
-    displayName: View Variable Group
-    pool:
-      name: "$(BUILD_POOL_NAME_DEFAULT)"
-    steps:
-      - script: |
-          az pipelines variable-group show --id $(CNI_VAR_GROUP)
+            displayName: "Restart Nodes"
+            condition: always()
 
 
-        name: "EnvironmentalVariables"
-        displayName: "View Variable Group"
-        condition: always()
-
+  - stage: init
+    displayName: "Build and Push Cilium Image"
+    jobs:
+      - job: build_and_push_cilium_image
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - bash: |
+              echo hi
+            name: BuildCiliumImage
+            displayName: "Build Cilium Image"
