@@ -16,7 +16,7 @@ for unique in $sufixes; do
         AZCLI=az REGION=westus2 SUB=$SUB \
         CLUSTER=${clusterPrefix}-${unique} \
         KUBE_PROXY_JSON_PATH=./kube-proxy.json \
-        NODE_COUNT=1 \
+        NODE_COUNT=2 \
         VNET_PREFIX=10.${unique}.0.0/16 \
         NODE_SUBNET_PREFIX=10.${unique}.1.0/24 \
         POD_SUBNET_PREFIX=10.${unique}.2.0/24
@@ -25,7 +25,7 @@ for unique in $sufixes; do
 
     if [ $install == "helm" ]; then
         helm upgrade --install -n kube-system cilium cilium/cilium \
-        --version v1.16.1 \
+        --version v1.17.3 \
         --set cluster.name=${clusterPrefix}-${unique} \
         --set azure.resourceGroup=${clusterPrefix}-${unique}-rg \
         --set cluster.id=${unique} \
