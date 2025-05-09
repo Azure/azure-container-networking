@@ -9,6 +9,7 @@ package netlink
 import (
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
@@ -285,6 +286,10 @@ func TestAddRemoveStaticArp(t *testing.T) {
 	mac, _ := net.ParseMAC("aa:b3:4d:5e:e2:4a")
 	nl := NewNetlink()
 
+	// wait for interface to fully come up
+	// if it isn't fully up it might wipe the arp entry we're about to add
+	time.Sleep(time.Millisecond * 100)
+
 	linkInfo := LinkInfo{
 		Name:       ifName,
 		IPAddr:     ip,
@@ -301,6 +306,9 @@ func TestAddRemoveStaticArp(t *testing.T) {
 		IPAddr:     ip,
 		MacAddress: mac,
 	}
+
+	// ensure arp address remains for a period of time
+	time.Sleep(time.Millisecond * 100)
 
 	err = nl.SetOrRemoveLinkAddress(linkInfo, REMOVE, NUD_INCOMPLETE)
 	if err != nil {
