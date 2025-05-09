@@ -24,7 +24,7 @@ for unique in $sufixes; do
 
     if [ $install == "helm" ]; then
         helm upgrade --install -n kube-system cilium cilium/cilium \
-        --version v1.16.1 \
+        --version v1.17.3 \
         --set cluster.name=${clusterPrefix}-${unique} \
         --set azure.resourceGroup=${clusterPrefix}-${unique}-rg \
         --set cluster.id=${unique} \
