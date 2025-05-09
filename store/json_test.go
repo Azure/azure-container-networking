@@ -134,7 +134,7 @@ func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
 	// Dump empty store.
 	_, err = kvs.Dump()
 	if err == nil {
-		t.Fatal("Expected store to be empty")
+		t.Fatal("Expected store to not exist")
 	}
 
 	// Write a key value pair.

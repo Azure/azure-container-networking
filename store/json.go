@@ -246,6 +246,7 @@ func (kvs *jsonFileStore) Remove() {
 	kvs.Mutex.Unlock()
 }
 
+// Dump returns the contents of the store in string format, erroring if it could not be read
 func (kvs *jsonFileStore) Dump() (string, error) {
 	kvs.Mutex.Lock()
 	defer kvs.Mutex.Unlock()
