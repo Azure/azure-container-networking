@@ -10,11 +10,12 @@ import (
 )
 
 type FileConfig struct {
-	Filepath   string        `json:"filepath"`
-	Level      string        `json:"level"`
-	level      zapcore.Level `json:"-"`
-	MaxBackups int           `json:"maxBackups"`
-	MaxSize    int           `json:"maxSize"`
+	Filepath   string          `json:"filepath"`
+	Level      string          `json:"level"`
+	level      zapcore.Level   `json:"-"`
+	MaxBackups int             `json:"maxBackups"`
+	MaxSize    int             `json:"maxSize"`
+	Fields     []zapcore.Field `json:"fields"`
 }
 
 // UnmarshalJSON implements json.Unmarshaler for the Config.
