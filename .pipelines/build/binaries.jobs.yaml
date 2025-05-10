@@ -43,3 +43,29 @@ jobs:
           target: $(name)
           os: $(OS)
           arch: $(ARCH)
+
+
+  - ${{ elseif and(eq(job_data.templateContext.action, 'sign'), eq(parameters.official, 'true')) }}:
+    - job: sign_${{ job_data.job }}
+      displayName: "Sign Binary - ${{ job_data.displayName }} -"
+      strategy: ${{ job_data.strategy }}
+      dependsOn:
+      - binaries_${{ job_data.job }}
+      pool:
+        type: linux
+      variables:
+        ob_outputDirectory: $(Build.SourcesDirectory)
+        ob_artifactSuffix: _$(artifact)
+        ob_git_checkout: false
+      steps:
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          targetPath: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
+          artifact: '${{ job_data.templateContext.repositoryArtifact }}'
+
+      - task: onebranch.pipeline.signing@1
+        inputs:
+          command: 'sign'
+          signing_profile: 'external_distribution'
+          files_to_sign: '**/*'
+          search_root: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
