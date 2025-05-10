@@ -49,10 +49,11 @@ jobs:
     - job: sign_${{ job_data.job }}
       displayName: "Sign Binary - ${{ job_data.displayName }} -"
       strategy: ${{ job_data.strategy }}
-      dependsOn:
-      - binaries_${{ job_data.job }}
       pool:
-        type: linux
+        ${{ if eq(job_data.job, 'windows_amd64') }}:
+          type: windows
+        ${{ else }}:
+          type: linux
       variables:
         ob_outputDirectory: $(Build.SourcesDirectory)
         ob_artifactSuffix: _$(artifact)
