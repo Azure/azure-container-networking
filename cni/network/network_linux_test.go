@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/telemetry"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/stretchr/testify/assert"
@@ -261,8 +260,6 @@ func TestPluginLinuxAdd(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:             resources.Plugin,
 				nm:                 network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				tb:                 &telemetry.TelemetryBuffer{},
-				report:             &telemetry.CNIReport{},
 				multitenancyClient: NewMockMultitenancy(false, []*cns.GetNetworkContainerResponse{GetTestCNSResponse3()}),
 			},
 			args: &cniSkel.CmdArgs{
@@ -341,8 +338,6 @@ func TestPluginLinuxAdd(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin: resources.Plugin,
 				nm:     network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				tb:     &telemetry.TelemetryBuffer{},
-				report: &telemetry.CNIReport{},
 				ipamInvoker: &MockIpamInvoker{
 					add: func(opt IPAMAddConfig) (ipamAddResult IPAMAddResult, err error) {
 						ipamAddResult = IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
