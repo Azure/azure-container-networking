@@ -316,7 +316,7 @@ func createHostNCApipaNetwork(
 				hostNCLoopbackAdapterName,
 				ipconfig,
 				false, /* Flag to setWeakHostOnInterface */
-				""     /* Empty primary Interface Identifier as setWeakHostOnInterface is not needed*/); err != nil {
+				"" /* Empty primary Interface Identifier as setWeakHostOnInterface is not needed*/); err != nil {
 				return nil, fmt.Errorf("Failed to create loopback adapter. Error: %v", err)
 			}
 
