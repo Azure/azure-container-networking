@@ -45,7 +45,7 @@ jobs:
           arch: $(ARCH)
 
 
-  - ${{ elseif and(eq(job_data.templateContext.action, 'sign'), eq(parameters.official, 'true')) }}:
+  - ${{ elseif and(eq(job_data.templateContext.action, 'sign'), eq(parameters.isOfficial, 'true')) }}:
     - job: sign_${{ job_data.job }}
       displayName: "Sign Binary - ${{ job_data.displayName }} -"
       strategy: ${{ job_data.strategy }}

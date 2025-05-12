@@ -13,6 +13,10 @@ stages:
       ob_artifactSuffix: _source
 
       ACR_DIR: $(Build.SourcesDirectory)/azure-container-networking
+      ${{ if parameters.isOfficial }}:
+        BUILD_TYPE: official
+      ${{ else }}:
+        BUILD_TYPE: buddy
     steps:
     - checkout: azure-container-networking
     - template: build/ob-prepare.steps.yaml
