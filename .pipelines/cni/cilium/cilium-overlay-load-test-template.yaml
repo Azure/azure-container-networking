@@ -30,8 +30,7 @@ stages:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     dependsOn:
       - setup
-      - ${{if eq(parameters.upgradeScenario, false)}}:
-        - build_images
+      - build_images
     displayName: "Create Cluster - ${{ parameters.clusterName }}"
     jobs:
       - job: create_aks_cluster_with_${{ parameters.name }}
@@ -64,8 +63,7 @@ stages:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     dependsOn:
       - create_${{ parameters.name }}
-      - ${{if eq(parameters.upgradeScenario, false)}}:
-        - publish
+      - publish
       - setup
     displayName: "Cilium Test - ${{ parameters.name }}"
     jobs:

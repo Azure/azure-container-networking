@@ -29,142 +29,140 @@ stages:
             displayName: "Set Environment Variables"
             condition: always()
   
-  - ${{if eq(parameters.upgradeScenario, false)}}:
-    - stage: build_images
-      dependsOn: setup
-      displayName: "Build Images"
-      jobs:
-        - job: containerize_amd64
-          displayName: Build Images
-          pool:
-            name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
-          strategy:
-            matrix:
-              azure_ipam_linux_amd64:
-                arch: amd64
-                name: azure-ipam
-                os: linux
-              azure_ipam_windows_amd64:
-                arch: amd64
-                name: azure-ipam
-                os: windows
-              cni_linux_amd64:
-                arch: amd64
-                name: cni
-                os: linux
-              cni_windows_amd64:
-                arch: amd64
-                name: cni
-                os: windows
-              ipv6_hp_bpf_linux_amd64:
-                arch: amd64
-                name: ipv6-hp-bpf
-                os: linux
-              npm_linux_amd64:
-                arch: amd64
-                name: npm
-                os: linux
-              npm_windows_amd64:
-                arch: amd64
-                name: npm
-                os: windows
-          steps:
-            - template: ../containers/container-template.yaml
-              parameters:
-                arch: $(arch)
-                name: $(name)
-                os: $(os)
-        - job: containerize_linux_arm64
-          displayName: Build Images
-          pool:
-            name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
-          strategy:
-            matrix:
-              azure_ipam_linux_arm64:
-                arch: arm64
-                name: azure-ipam
-                os: linux
-              cni_linux_arm64:
-                arch: arm64
-                name: cni
-                os: linux
-              ipv6_hp_bpf_linux_arm64:
-                arch: arm64
-                name: ipv6-hp-bpf
-                os: linux
-              npm_linux_arm64:
-                arch: arm64
-                name: npm
-                os: linux
-          steps:
-            - template: ../containers/container-template.yaml
-              parameters:
-                arch: $(arch)
-                name: $(name)
-                os: $(os)
+  - stage: build_images
+    dependsOn: setup
+    displayName: "Build Images"
+    jobs:
+      - job: containerize_amd64
+        displayName: Build Images
+        pool:
+          name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+        strategy:
+          matrix:
+            azure_ipam_linux_amd64:
+              arch: amd64
+              name: azure-ipam
+              os: linux
+            azure_ipam_windows_amd64:
+              arch: amd64
+              name: azure-ipam
+              os: windows
+            cni_linux_amd64:
+              arch: amd64
+              name: cni
+              os: linux
+            cni_windows_amd64:
+              arch: amd64
+              name: cni
+              os: windows
+            ipv6_hp_bpf_linux_amd64:
+              arch: amd64
+              name: ipv6-hp-bpf
+              os: linux
+            npm_linux_amd64:
+              arch: amd64
+              name: npm
+              os: linux
+            npm_windows_amd64:
+              arch: amd64
+              name: npm
+              os: windows
+        steps:
+          - template: ../containers/container-template.yaml
+            parameters:
+              arch: $(arch)
+              name: $(name)
+              os: $(os)
+      - job: containerize_linux_arm64
+        displayName: Build Images
+        pool:
+          name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+        strategy:
+        matrix:
+            azure_ipam_linux_arm64:
+              arch: arm64
+              name: azure-ipam
+              os: linux
+            cni_linux_arm64:
+              arch: arm64
+              name: cni
+              os: linux
+            ipv6_hp_bpf_linux_arm64:
+              arch: arm64
+              name: ipv6-hp-bpf
+              os: linux
+            npm_linux_arm64:
+              arch: arm64
+              name: npm
+              os: linux
+        steps:
+          - template: ../containers/container-template.yaml
+            parameters:
+              arch: $(arch)
+              name: $(name)
+              os: $(os)
+              
+  - stage: binaries
+    displayName: Build Binaries
+    dependsOn: setup
+    pool:
+    name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+        - Role -equals Build
+    jobs:
+      - job:
+        displayName: "Build k8s NPM Linux Test Suite Binary"
+        steps:
+          - bash: |
+              git clone https://github.com/kubernetes/kubernetes.git --depth=1
+              cd kubernetes
+              export PATH=$PATH:/usr/local/go/bin/
+              make WHAT=test/e2e/e2e.test
+            displayName: "Build Kubernetes e2e.test"
+          - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
+            artifact: npm_k8s
+      - job:
+        displayName: "Build k8s NPM Windows Test Suite Binary"
+        steps:
+          - bash: |
+              git clone https://github.com/kubernetes/kubernetes.git --depth=1
+              cd kubernetes
+              export PATH=$PATH:/usr/local/go/bin/
+              make WHAT=test/e2e/e2e.test
+            displayName: "Build Kubernetes e2e.test"
+          - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
+            artifact: npm_k8s_windows
 
-    - stage: binaries
-      displayName: Build Binaries
-      dependsOn: setup
-      pool:
-        name: $(BUILD_POOL_NAME_DEFAULT)
-        demands:
-          - agent.os -equals Linux
-          - Role -equals Build
-      jobs:
-        - job:
-          displayName: "Build k8s NPM Linux Test Suite Binary"
-          steps:
-            - bash: |
-                git clone https://github.com/kubernetes/kubernetes.git --depth=1
-                cd kubernetes
-                export PATH=$PATH:/usr/local/go/bin/
-                make WHAT=test/e2e/e2e.test
-              displayName: "Build Kubernetes e2e.test"
-            - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
-              artifact: npm_k8s
-        - job:
-          displayName: "Build k8s NPM Windows Test Suite Binary"
-          steps:
-            - bash: |
-                git clone https://github.com/kubernetes/kubernetes.git --depth=1
-                cd kubernetes
-                export PATH=$PATH:/usr/local/go/bin/
-                make WHAT=test/e2e/e2e.test
-              displayName: "Build Kubernetes e2e.test"
-            - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
-              artifact: npm_k8s_windows
-
-    - stage: publish
-      displayName: Publish Multiarch Manifests
-      dependsOn:
-        - ${{if eq(parameters.upgradeScenario, false)}}:
-          - build_images
-      jobs:
-        - job: manifest
-          displayName: Compile Manifests
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-          strategy:
-            matrix:
-              azure-ipam:
-                name: azure-ipam
-                platforms: linux/amd64 linux/arm64 windows/amd64
-              cni:
-                name: cni
-                platforms: linux/amd64 linux/arm64 windows/amd64
-              ipv6-hp-bpf:
-                name: ipv6-hp-bpf
-                platforms: linux/amd64 linux/arm64
-              npm:
-                name: npm
-                platforms: linux/amd64 linux/arm64 windows/amd64
-          steps:
-            - template: ../containers/manifest-template.yaml
-              parameters:
-                name: $(name)
-                os_versions: $(os_versions)
-                platforms: $(platforms)
+  - stage: publish
+    displayName: Publish Multiarch Manifests
+    dependsOn:
+      - build_images
+    jobs:
+      - job: manifest
+        displayName: Compile Manifests
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            azure-ipam:
+              name: azure-ipam
+              platforms: linux/amd64 linux/arm64 windows/amd64
+            cni:
+              name: cni
+              platforms: linux/amd64 linux/arm64 windows/amd64
+            ipv6-hp-bpf:
+              name: ipv6-hp-bpf
+              platforms: linux/amd64 linux/arm64
+            npm:
+              name: npm
+              platforms: linux/amd64 linux/arm64 windows/amd64
+        steps:
+          - template: ../containers/manifest-template.yaml
+            parameters:
+              name: $(name)
+              os_versions: $(os_versions)
+              platforms: $(platforms)
 
 ## Windows E2E
   - template: singletenancy/cniv1-template.yaml
