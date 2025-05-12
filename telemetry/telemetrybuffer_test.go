@@ -190,7 +190,7 @@ func TestStartTelemetryService(t *testing.T) {
 }
 
 // TestExtraneousClose checks that closing potentially multiple times after a failed connect won't panic
-func TestExtraneousClose(t *testing.T) {
+func TestExtraneousClose(_ *testing.T) {
 	tb := NewTelemetryBuffer(nil)
 
 	tb.Close()
