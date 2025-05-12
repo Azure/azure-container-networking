@@ -17,33 +17,33 @@ parameters:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
 # CONTROL_CNI either contains 'cniv1' or 'all'. It is not case sensitive
 stages:
-- ${{if eq(parameters.upgradeScenario, false)}}:
-  - stage: create_${{ parameters.name }}
-    condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cilium') , contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'linux'), contains(variables.CONTROL_OS, 'all') ) ) )
-    variables:
-      ${{ if contains(parameters.clusterName, 'rdma') }}:
-        location: $(LOCATION_RDMA)
-      ${{ elseif eq(parameters.arch, 'arm64') }}:
-        location: $(LOCATION_ARM64)
-      ${{ else }}:
-        location: $(LOCATION_AMD64)
-      commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
-    dependsOn:
-      - setup
-      - build_images
-    displayName: "Create Cluster - ${{ parameters.clusterName }}"
-    jobs:
-      - job: create_aks_cluster_with_${{ parameters.name }}
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - template: ../load-test-templates/create-cluster-template.yaml
-            parameters:
-              clusterType: ${{ parameters.clusterType }}
-              clusterName: ${{ parameters.clusterName }}-$(commitID)
-              nodeCount: ${{ parameters.nodeCount }}
-              vmSize: ${{ parameters.vmSize }}
-              region: $(location)
+  - ${{if eq(parameters.upgradeScenario, false)}}:
+    - stage: create_${{ parameters.name }}
+      condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cilium') , contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'linux'), contains(variables.CONTROL_OS, 'all') ) ) )
+      variables:
+        ${{ if contains(parameters.clusterName, 'rdma') }}:
+          location: $(LOCATION_RDMA)
+        ${{ elseif eq(parameters.arch, 'arm64') }}:
+          location: $(LOCATION_ARM64)
+        ${{ else }}:
+          location: $(LOCATION_AMD64)
+        commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      dependsOn:
+        - setup
+        - build_images
+      displayName: "Create Cluster - ${{ parameters.clusterName }}"
+      jobs:
+        - job: create_aks_cluster_with_${{ parameters.name }}
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          steps:
+            - template: ../load-test-templates/create-cluster-template.yaml
+              parameters:
+                clusterType: ${{ parameters.clusterType }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                nodeCount: ${{ parameters.nodeCount }}
+                vmSize: ${{ parameters.vmSize }}
+                region: $(location)
 
 # Conditions for below E2E test scenarios confirm that:
 # Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn:
@@ -62,7 +62,8 @@ stages:
     pool:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     dependsOn:
-      - create_${{ parameters.name }}
+      - ${{ if eq(parameters.upgradeScenario, false) }}:
+        - create_${{ parameters.name }}
       - publish
       - setup
     displayName: "Cilium Test - ${{ parameters.name }}"
