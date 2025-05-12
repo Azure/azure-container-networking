@@ -106,10 +106,10 @@ stages:
     displayName: Build Binaries
     dependsOn: setup
     pool:
-    name: $(BUILD_POOL_NAME_DEFAULT)
-    demands:
-      - agent.os -equals Linux
-      - Role -equals Build
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+        - Role -equals Build
     jobs:
       - job:
         displayName: "Build k8s NPM Linux Test Suite Binary"
