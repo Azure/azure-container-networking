@@ -309,6 +309,7 @@ stages:
       arch: amd64
       cni: "cilium"
       upgradeAzureIpam: ''
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -321,6 +322,7 @@ stages:
       arch: amd64
       cni: "cilium"
       upgradeAzureIpam: ''
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -333,6 +335,7 @@ stages:
       osSKU: AzureLinux
       cni: "cilium"
       upgradeAzureIpam: ''
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -344,6 +347,7 @@ stages:
       arch: arm64
       cni: "cilium"
       upgradeAzureIpam: ''
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -355,6 +359,7 @@ stages:
       arch: amd64
       cni: "cilium"
       upgradeAzureIpam: ''
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -367,6 +372,7 @@ stages:
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
       upgradeAzureIpam: ''
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -379,6 +385,7 @@ stages:
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
       upgradeAzureIpam: ''
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -392,6 +399,7 @@ stages:
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
       upgradeAzureIpam: ''
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -404,6 +412,7 @@ stages:
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
       upgradeAzureIpam: ''
+      upgradeScenario: false
 
 
   ## If upgrade_scenario is set, redeploy new IPAM version to existing clusters and run tests
