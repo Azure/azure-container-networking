@@ -308,6 +308,7 @@ stages:
       vmSize: ${VM_SIZE_CILIUM}
       arch: amd64
       cni: "cilium"
+      upgradeAzureIpam: ''
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -319,6 +320,7 @@ stages:
       vmSize: ${VM_SIZE_CILIUM}
       arch: amd64
       cni: "cilium"
+      upgradeAzureIpam: ''
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -330,6 +332,7 @@ stages:
       arch: amd64
       osSKU: AzureLinux
       cni: "cilium"
+      upgradeAzureIpam: ''
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -340,6 +343,7 @@ stages:
       vmSize: Standard_D8ps_v5
       arch: arm64
       cni: "cilium"
+      upgradeAzureIpam: ''
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -350,6 +354,7 @@ stages:
       vmSize: Standard_HC44-16rs
       arch: amd64
       cni: "cilium"
+      upgradeAzureIpam: ''
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -361,6 +366,7 @@ stages:
       arch: amd64
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
+      upgradeAzureIpam: ''
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -372,6 +378,7 @@ stages:
       arch: arm64
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
+      upgradeAzureIpam: ''
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -384,6 +391,7 @@ stages:
       osSKU: AzureLinux
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
+      upgradeAzureIpam: ''
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -395,6 +403,7 @@ stages:
       arch: amd64
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
+      upgradeAzureIpam: ''
 
 
   ## If upgrade_scenario is set, redeploy new IPAM version to existing clusters and run tests
