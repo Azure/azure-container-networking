@@ -25,7 +25,7 @@ stages:
             displayName: "Set Environment Variables"
             condition: always()
   
-  - ${{if eq(parameters.upgradeScenario, false)}}:
+  - ${{if eq($(UPGRADE_SCENARIO), false)}}:
     - stage: build_images
       dependsOn: setup
       displayName: "Build Images"
@@ -395,7 +395,7 @@ stages:
 
 
   ## If upgrade_scenario is set, redeploy new IPAM version to existing clusters and run tests
-  - ${{if eq(parameters.upgradeScenario, true)}}:
+  - ${{if eq($(UPGRADE_SCENARIO), false)}}:
     - template: cilium/cilium-overlay-load-test-template.yaml
       dependsOn: cilium_overlay
       parameters:
@@ -546,7 +546,7 @@ stages:
       - windows_overlay_HNS
       - windows19_overlay_HNS
       - setup
-      - ${{if eq(parameters.upgradeScenario, true)}}:
+      - ${{if eq($(UPGRADE_SCENARIO), false)}}:
         - cilium_overlay_upgrade
         - cilium_overlay_hubble_upgrade
         - cilium_overlay_mariner_upgrade

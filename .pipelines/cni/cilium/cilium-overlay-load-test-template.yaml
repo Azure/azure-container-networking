@@ -11,9 +11,7 @@ parameters:
   hubbleEnabled: false
   dualstackVersion: ""
   cni: "cilium"
-  upgradeAzureIpam: ""
-  upgradeScenario: false
-
+  
 # Condition confirms that:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
 # CONTROL_CNI either contains 'cniv1' or 'all'. It is not case sensitive
@@ -205,7 +203,7 @@ stages:
                       echo "TEST_CNS_VERSION is set to $CNS"
                     fi
                   fi
-                  
+
                   echo "Deploy Azure-CNS"
                   sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO) 
                   kubectl get po -owide -A
