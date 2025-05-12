@@ -973,7 +973,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		logger.Info("DEL command completed",
 			zap.String("pod", k8sPodName),
 			zap.Error(log.NewErrorWithoutStackTrace(err)))
-		telemetryClient.SendEvent(fmt.Sprintf("DEL command completed: [released ip]: %+v [podname]: %s [namespace]: %s [error]: %v", nwCfg.IPAM.Address, k8sPodName, k8sNamespace, err))
+		telemetryClient.SendEvent(fmt.Sprintf("DEL command completed: [podname]: %s [namespace]: %s [error]: %v", k8sPodName, k8sNamespace, err))
 	}()
 
 	// Parse network configuration from stdin.

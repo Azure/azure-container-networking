@@ -54,4 +54,12 @@ func TestClient(t *testing.T) {
 	// ...and doesn't affect the cni report
 	require.Regexp(t, allowedEventMsg, emptyClient.Settings().EventMessage)
 	require.Equal(t, "", emptyClient.Settings().ErrorMessage)
+
+	emptyClient.Settings().Context = "abc"
+	require.Equal(t, "abc", emptyClient.Settings().Context)
+
+	myClient := &Client{
+		tb: &TelemetryBuffer{},
+	}
+	require.NotPanics(t, func() { myClient.DisconnectTelemetry() })
 }

@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
 	zaplog "github.com/Azure/azure-container-networking/cni/log"
@@ -16,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -93,30 +91,19 @@ func rootExecute() error {
 			cniReport.VMUptime = upTime.Format("2006-01-02 15:04:05")
 		}
 
-		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
-		// end up creating/killing telemetry process results in undesired state.
-		telemetry.AIClient.StartAndConnectTelemetry(logger)
-		defer telemetry.AIClient.DisconnectTelemetry()
-		telemetry.AIClient.SetSettings(cniReport)
-
-		// CNI Acquires lock
+		// CNI attempts to acquire lock
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
+			// Error acquiring lock
 			network.PrintCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
 
-			if !telemetry.AIClient.IsConnected() {
-				logger.Error("Not connected to telemetry service, skipping sending error to application insights")
-				return errors.Wrap(err, "lock acquire error")
-			}
-			telemetry.AIClient.SendError(err)
+			// Connect to telemetry service if it is running, otherwise skips telemetry
+			telemetry.AIClient.ConnectTelemetry(logger)
+			defer telemetry.AIClient.DisconnectTelemetry()
 
-			if errors.Is(err, store.ErrTimeoutLockingStore) {
-				var cniMetric telemetry.AIMetric
-				cniMetric.Metric = aitelemetry.Metric{
-					Name:             telemetry.CNILockTimeoutStr,
-					Value:            1.0,
-					CustomDimensions: make(map[string]string),
-				}
-				telemetry.AIClient.SendMetric(&cniMetric)
+			if telemetry.AIClient.IsConnected() {
+				telemetry.AIClient.SendError(err)
+			} else {
+				logger.Error("Not connected to telemetry service, skipping sending error to application insights")
 			}
 			return errors.Wrap(err, "lock acquire error")
 		}
@@ -130,6 +117,12 @@ func rootExecute() error {
 				os.Exit(1)
 			}
 		}()
+		// At this point, lock is acquired
+		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
+		// end up creating/killing telemetry process results in undesired state.
+		telemetry.AIClient.StartAndConnectTelemetry(logger)
+		defer telemetry.AIClient.DisconnectTelemetry()
+		telemetry.AIClient.SetSettings(cniReport)
 
 		t := time.Now()
 		cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
