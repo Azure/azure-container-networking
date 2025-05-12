@@ -63,7 +63,7 @@ stages:
     pool:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     dependsOn:
-      - ${{ if eq(parameters.upgradeScenario, false) }}:
+      - ${{ if and(eq(parameters.upgradeAzureIpam, ''), eq(parameters.upgradeScenario, false)) }}:
         - create_${{ parameters.name }}
       - publish
       - setup
