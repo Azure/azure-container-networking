@@ -78,23 +78,23 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
         strategy:
-        matrix:
-            azure_ipam_linux_arm64:
-              arch: arm64
-              name: azure-ipam
-              os: linux
-            cni_linux_arm64:
-              arch: arm64
-              name: cni
-              os: linux
-            ipv6_hp_bpf_linux_arm64:
-              arch: arm64
-              name: ipv6-hp-bpf
-              os: linux
-            npm_linux_arm64:
-              arch: arm64
-              name: npm
-              os: linux
+          matrix:
+              azure_ipam_linux_arm64:
+                arch: arm64
+                name: azure-ipam
+                os: linux
+              cni_linux_arm64:
+                arch: arm64
+                name: cni
+                os: linux
+              ipv6_hp_bpf_linux_arm64:
+                arch: arm64
+                name: ipv6-hp-bpf
+                os: linux
+              npm_linux_arm64:
+                arch: arm64
+                name: npm
+                os: linux
         steps:
           - template: ../containers/container-template.yaml
             parameters:
