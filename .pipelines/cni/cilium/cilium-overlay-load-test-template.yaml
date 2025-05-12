@@ -64,8 +64,6 @@ stages:
     dependsOn:
       - ${{ if eq(parameters.upgradeScenario, false) }}:
         - create_${{ parameters.name }}
-      - ${{ if eq(parameters.upgradeScenario, true) }}:
-        - ${{ parameters.name }}
       - publish
       - setup
     displayName: "Cilium Test - ${{ parameters.name }}"

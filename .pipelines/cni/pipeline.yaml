@@ -410,6 +410,7 @@ stages:
         cni: "cilium"
         upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: ${{ parameters.upgradeScenario }}
+        dependsOn: cilium_overlay
 
     - template: cilium/cilium-overlay-load-test-template.yaml
       parameters:
@@ -423,6 +424,7 @@ stages:
         cni: "cilium"
         upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: ${{ parameters.upgradeScenario }}
+        dependsOn: cilium_overlay_hubble
 
     - template: cilium/cilium-overlay-load-test-template.yaml
       parameters:
@@ -436,6 +438,7 @@ stages:
         cni: "cilium"
         upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: ${{ parameters.upgradeScenario }}
+        dependsOn: cilium_overlay_mariner
 
     - template: cilium/cilium-overlay-load-test-template.yaml
       parameters:
@@ -448,6 +451,7 @@ stages:
         cni: "cilium"
         upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: ${{ parameters.upgradeScenario }}
+        dependsOn: cilium_overlay_arm
 
     - template: cilium/cilium-overlay-load-test-template.yaml
       parameters:
@@ -460,6 +464,7 @@ stages:
         cni: "cilium"
         upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: ${{ parameters.upgradeScenario }}
+        dependsOn: cilium_overlay_rdma
 
     - template: cilium/cilium-overlay-load-test-template.yaml
       parameters:
@@ -473,6 +478,7 @@ stages:
         cni: "cilium_dualstack"
         upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: ${{ parameters.upgradeScenario }}
+        dependsOn: cilium_overlay_ds
 
     - template: cilium/cilium-overlay-load-test-template.yaml
       parameters:
@@ -486,6 +492,7 @@ stages:
         cni: "cilium_dualstack"
         upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: ${{ parameters.upgradeScenario }}
+        dependsOn: cilium_ds_arm
 
     - template: cilium/cilium-overlay-load-test-template.yaml
       parameters:
@@ -500,6 +507,7 @@ stages:
         cni: "cilium_dualstack"
         upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: ${{ parameters.upgradeScenario }}
+        dependsOn: cilium_ds_mariner
 
     - template: cilium/cilium-overlay-load-test-template.yaml
       parameters:
@@ -513,6 +521,7 @@ stages:
         cni: "cilium_dualstack"
         upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: ${{ parameters.upgradeScenario }}
+        dependsOn: cilium_ds_rdma
 
   - stage: delete_resources
     displayName: "Delete Resources"
