@@ -401,7 +401,6 @@ stages:
   ## If upgrade_scenario is set, redeploy new IPAM version to existing clusters and run tests
   - ${{if eq(parameters.upgradeScenario, true)}}:
     - template: cilium/cilium-overlay-load-test-template.yaml
-      dependsOn: cilium_overlay
       parameters:
         name: cilium_overlay_upgrade
         clusterType: overlay-byocni-nokubeproxy-up
@@ -414,7 +413,6 @@ stages:
         upgradeScenario: ${{ parameters.upgradeScenario }}
 
     - template: cilium/cilium-overlay-load-test-template.yaml
-      dependsOn: cilium_overlay_hubble
       parameters:
         name: cilium_overlay_hubble_upgrade
         clusterType: overlay-byocni-nokubeproxy-up
@@ -428,7 +426,6 @@ stages:
         upgradeScenario: ${{ parameters.upgradeScenario }}
 
     - template: cilium/cilium-overlay-load-test-template.yaml
-      dependsOn: cilium_overlay_mariner
       parameters:
         name: cilium_overlay_mariner_upgrade
         clusterType: overlay-byocni-nokubeproxy-up
@@ -442,7 +439,6 @@ stages:
         upgradeScenario: ${{ parameters.upgradeScenario }}
 
     - template: cilium/cilium-overlay-load-test-template.yaml
-      dependsOn: cilium_overlay_arm
       parameters:
         name: cilium_overlay_arm_upgrade
         clusterType: overlay-byocni-nokubeproxy-up
@@ -455,7 +451,6 @@ stages:
         upgradeScenario: ${{ parameters.upgradeScenario }}
 
     - template: cilium/cilium-overlay-load-test-template.yaml
-      dependsOn: cilium_overlay_rdma
       parameters:
         name: cilium_overlay_rdma_upgrade
         clusterType: overlay-byocni-nokubeproxy-up
@@ -468,7 +463,6 @@ stages:
         upgradeScenario: ${{ parameters.upgradeScenario }}
 
     - template: cilium/cilium-overlay-load-test-template.yaml
-      dependsOn: cilium_overlay_ds
       parameters:
         name: cilium_overlay_ds_upgrade
         clusterType: dualstack-byocni-nokubeproxy-up
@@ -482,7 +476,6 @@ stages:
         upgradeScenario: ${{ parameters.upgradeScenario }}
 
     - template: cilium/cilium-overlay-load-test-template.yaml
-      dependsOn: cilium_ds_arm
       parameters:
         name: cilium_ds_arm_upgrade
         clusterType: dualstack-byocni-nokubeproxy-up
@@ -496,7 +489,6 @@ stages:
         upgradeScenario: ${{ parameters.upgradeScenario }}
 
     - template: cilium/cilium-overlay-load-test-template.yaml
-      dependsOn: cilium_ds_mariner
       parameters:
         name: cilium_ds_mariner_upgrade
         clusterType: dualstack-byocni-nokubeproxy-up
@@ -511,7 +503,6 @@ stages:
         upgradeScenario: ${{ parameters.upgradeScenario }}
 
     - template: cilium/cilium-overlay-load-test-template.yaml
-      dependsOn: cilium_ds_rdma
       parameters:
         name: cilium_ds_rdma_upgrade
         clusterType: dualstack-byocni-nokubeproxy-up
