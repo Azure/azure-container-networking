@@ -242,12 +242,17 @@ func (iMgr *IPSetManager) applyIPSets() error {
 // networkPolicyBuild which contains the new setPolicies to be added, updated and deleted
 // Assumes that the dirty cache is locked (or equivalently, the ipsetmanager itself).
 // toAddSets:
-//      this function will loop through the dirty cache and adds non-existing sets to toAddSets
+//
+//	this function will loop through the dirty cache and adds non-existing sets to toAddSets
+//
 // toUpdateSets:
-//      this function will loop through the dirty cache and adds existing sets in HNS to toUpdateSets
-//      this function will update all existing sets in HNS with their latest goal state irrespective of any change to the object
+//
+//	this function will loop through the dirty cache and adds existing sets in HNS to toUpdateSets
+//	this function will update all existing sets in HNS with their latest goal state irrespective of any change to the object
+//
 // toDeleteSets:
-//      this function will loop through the dirty delete cache and adds existing set obj in HNS to toDeleteSets
+//
+//	this function will loop through the dirty delete cache and adds existing set obj in HNS to toDeleteSets
 func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkPolicy) (*networkPolicyBuilder, error) {
 	setPolicyBuilder := &networkPolicyBuilder{
 		toAddSets:    map[string]*hcn.SetPolicySetting{},
@@ -438,15 +443,15 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 
 func isValidIPSet(set *IPSet) error {
 	if set.Name == "" {
-		return fmt.Errorf("IPSet " + set.Name + " is missing Name")
+		return fmt.Errorf("IPSet %s is missing Name", set.Name) //nolint:err113 // static err not required
 	}
 
 	if set.Type == UnknownType {
-		return fmt.Errorf("IPSet " + set.Type.String() + " is missing Type")
+		return fmt.Errorf("IPSet %s is missing Type", set.Type.String()) //nolint:err113 // static err not required
 	}
 
 	if set.HashedName == "" {
-		return fmt.Errorf("IPSet " + set.HashedName + " is missing HashedName")
+		return fmt.Errorf("IPSet %s is missing HashedName", set.HashedName) //nolint:err113 // static err not required
 	}
 
 	return nil
