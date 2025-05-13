@@ -227,6 +227,7 @@ stages:
               iterations: ${ITERATIONS_CILIUM}
               nodeCount: ${{ parameters.nodeCount }}
               cni: cilium
+              upgradeScenario: ${{ parameters.upgradeScenario }}
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
