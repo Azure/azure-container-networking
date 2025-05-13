@@ -55,19 +55,20 @@ jobs:
         ${{ else }}:
           type: linux
       variables:
-        ob_outputDirectory: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
+        ob_outputDirectory: $(Build.SourcesDirectory)
         ob_artifactSuffix: _$(artifact)
         ob_git_checkout: false
       steps:
       - task: DownloadPipelineArtifact@2
         inputs:
-          targetPath: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
+          targetPath: $(Build.SourcesDirectory)
           artifact: '${{ job_data.templateContext.repositoryArtifact }}'
 
       - task: ExtractFiles@1
         inputs:
           archiveFilePatterns: '**/*.tgz;**/*.tgz.gz;**/*.zip'
           destinationFolder: $(Build.SourcesDirectory)
+          cleanDestinationFolder: false
           overwriteExistingFiles: true
 
       - task: onebranch.pipeline.signing@1
@@ -75,4 +76,4 @@ jobs:
           command: 'sign'
           signing_profile: 'external_distribution'
           files_to_sign: '**/*'
-          search_root: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
+          search_root: $(Build.SourcesDirectory)
