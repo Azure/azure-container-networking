@@ -90,8 +90,3 @@ steps:
   displayName: "Set environmental variables"
   condition: always()
   workingDirectory: $(ACN_DIR)
-  env:
-    ${{ if parameters.official }}:
-      BUILD_TYPE: official
-    ${{ else }}:
-      BUILD_TYPE: buddy
