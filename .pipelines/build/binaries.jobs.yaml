@@ -50,21 +50,25 @@ jobs:
       displayName: "Sign Binary - ${{ job_data.displayName }} -"
       strategy: ${{ job_data.strategy }}
       pool:
-        type: docker
         ${{ if eq(job_data.job, 'windows_amd64') }}:
-          os: windows
+          type: windows
         ${{ else }}:
-          os: linux
+          type: linux
       variables:
-        ob_outputDirectory: $(Build.SourcesDirectory)
+        ob_outputDirectory: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
         ob_artifactSuffix: _$(artifact)
         ob_git_checkout: false
-        ob_extract_root_artifact: true
       steps:
       - task: DownloadPipelineArtifact@2
         inputs:
           targetPath: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
           artifact: '${{ job_data.templateContext.repositoryArtifact }}'
+
+      - task: ExtractFiles@1
+        inputs:
+          archiveFilePatterns: '**/*.tgz;**/*.tgz.gz;**/*.zip'
+          destinationFolder: $(Build.SourcesDirectory)
+          overwriteExistingFiles: true
 
       - task: onebranch.pipeline.signing@1
         inputs:
