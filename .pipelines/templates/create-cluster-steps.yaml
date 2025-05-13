@@ -22,6 +22,8 @@ steps:
       inlineScript: |
         set -e
         echo "Check az version"
+        echo "Para check parameter | ${{ lower(parameters.LTS) }}"
+        echo " Para check parameter | ${{ parameters.k8sVersion }}"
         az version
         if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
         then
@@ -48,7 +50,7 @@ steps:
         CLUSTER=${{ parameters.clusterName }} \
         VM_SIZE=${{ parameters.vmSize }} VM_SIZE_WIN=${{ parameters.vmSizeWin }} \
         OS_SKU_WIN=${{ parameters.osSkuWin }} OS=${{ parameters.os }} \
-        LTS=${{ parameters.os }}
+        LTS=${{ lower(parameters.LTS) }}
 
         echo "Cluster successfully created"
     displayName: Cluster - ${{ parameters.clusterType }}
