@@ -567,16 +567,16 @@ stages:
       - windows_overlay_HNS
       - windows19_overlay_HNS
       - setup
-      #- ${{if eq(parameters.upgradeScenario, true)}}:
-      #  - cilium_overlay_upgrade
-      #  - cilium_overlay_hubble_upgrade
-      #  - cilium_overlay_mariner_upgrade
-      #  - cilium_overlay_arm_upgrade
-      #  - cilium_overlay_rdma_upgrade
-      #  - cilium_overlay_ds_upgrade
-      #  - cilium_ds_arm_upgrade
-      #  - cilium_ds_mariner_upgrade
-      #  - cilium_ds_rdma_upgrade
+      - ${{if eq(parameters.upgradeScenario, true)}}:
+        - cilium_overlay_upgrade
+        - cilium_overlay_hubble_upgrade
+        - cilium_overlay_mariner_upgrade
+        - cilium_overlay_arm_upgrade
+        - cilium_overlay_rdma_upgrade
+        - cilium_overlay_ds_upgrade
+        - cilium_ds_arm_upgrade
+        - cilium_ds_mariner_upgrade
+        - cilium_ds_rdma_upgrade
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     jobs:

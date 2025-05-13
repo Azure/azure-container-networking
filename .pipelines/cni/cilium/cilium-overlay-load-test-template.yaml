@@ -65,6 +65,8 @@ stages:
     dependsOn:
       - ${{ if and(eq(parameters.upgradeAzureIpam, ''), eq(parameters.upgradeScenario, false)) }}:
         - create_${{ parameters.name }}
+      - ${{ else }}:
+        - ${{ parameters.dependsOn }} 
       - publish
       - setup
     displayName: "Cilium Test - ${{ parameters.name }}"
