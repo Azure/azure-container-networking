@@ -54,6 +54,7 @@ stages:
           displayName: "Linux/AMD64"
           templateContext:
             action: build
+            isOfficial: ${{ parameters.isOfficial }}
             repositoryArtifact: drop_setup_env_source
           strategy:
             maxParallel: 5
@@ -77,6 +78,7 @@ stages:
           displayName: "Windows/AMD64"
           templateContext:
             action: build
+            isOfficial: ${{ parameters.isOfficial }}
             repositoryArtifact: drop_setup_env_source
           strategy:
             maxParallel: 5
@@ -94,6 +96,7 @@ stages:
           displayName: "Linux/ARM64"
           templateContext:
             action: build
+            isOfficial: ${{ parameters.isOfficial }}
             repositoryArtifact: drop_setup_env_source
           strategy:
             maxParallel: 5
@@ -342,6 +345,7 @@ stages:
           displayName: "Linux/AMD64"
           templateContext:
             action: sign
+            isOfficial: ${{ parameters.isOfficial }}
             repositoryArtifact: drop_build_binaries_linux_amd64_$(artifact)
           strategy:
             matrix:
@@ -359,6 +363,7 @@ stages:
           displayName: "Windows/AMD64"
           templateContext:
             action: sign
+            isOfficial: ${{ parameters.isOfficial }}
             repositoryArtifact: drop_build_binaries_windows_amd64_$(artifact)
           strategy:
             matrix:
@@ -372,6 +377,7 @@ stages:
           displayName: "Linux/ARM64"
           templateContext:
             action: sign
+            isOfficial: ${{ parameters.isOfficial }}
             repositoryArtifact: drop_build_binaries_linux_arm64_$(artifact)
           strategy:
             matrix:
