@@ -159,7 +159,7 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clusterName)-$(commitID)
 
                 set -e
                 echo "Run Cilium Connectivity Tests"
