@@ -96,7 +96,7 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo NODE_COUNT=$(NODE_COUNT)
 	@echo VMSS_NAME=$(VMSS_NAME)
 	@echo K8S_VER=$(K8S_VER)
-	@echo LTS_ARGS=$(if $(LTS),$(LTS_ARGS),$(LTS))
+	@echo LTS_ARGS=$(if $(LTS_ARGS),$(LTS_ARGS),$(LTS))
 
 
 ##@ SWIFT Infra
