@@ -56,7 +56,7 @@ jobs:
         cleanDestinationFolder: false
         overwriteExistingFiles: true
 
-    - shell: |
+    - script: |
         cp "$SOURCE" "$DEST"
       env:
         SOURCE: $(REPO_ROOT)/${{ job_data.templateContext.obDockerfile }}
