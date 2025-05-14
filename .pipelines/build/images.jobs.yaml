@@ -101,7 +101,7 @@ jobs:
         OS: linux
 
     steps:
-    - template: build/image.steps.yaml
+    - template: image.steps.yaml
       parameters:
         arch: $(ARCH)
         os: $(OS)
