@@ -38,7 +38,10 @@ steps:
   - template: ../../templates/log-template.yaml
     parameters:
       clusterName: ${{ parameters.clusterName }}
-      logType: restartCNS
+      ${{ if eq(parameters.upgradeScenario, 'true') }}:
+        logType: upgradeRestartCNS
+      ${{ else }}:
+        logType: restartCNS
       os: ${{ parameters.os }}
       cni: ${{ parameters.cni }}
       jobName: ${{ parameters.jobName }}

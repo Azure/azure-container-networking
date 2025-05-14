@@ -56,7 +56,10 @@ steps:
   - template: ../../templates/log-template.yaml
     parameters:
       clusterName: ${{ parameters.clusterName }}
-      logType: restartNode
+      ${{ if eq(parameters.upgradeScenario, 'true') }}:
+        logType: upgradeRestartNode
+      ${{ else }}:
+        logType: restartNode
       os: ${{ parameters.os }}
       cni: ${{ parameters.cni }}
       jobName: ${{ parameters.jobName }}
