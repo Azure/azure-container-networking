@@ -1,56 +1,34 @@
 #!/bin/bash
+set -nex
 
 mkdir -p "$OUT_DIR"/bins
 mkdir -p "$OUT_DIR"/lib
 
+# Package up Needed C Files
 if [[ -f /etc/debian_version ]];then
-  sudo apt-get update -y
+  apt-get update -y
   if [[ $GOARCH =~ amd64 ]]; then
     apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
     #apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib tree
     for dir in /usr/include/x86_64-linux-gnu/*; do 
-      sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
+      ln -sfn "$dir" /usr/include/$(basename "$dir") 
     done
   
   elif [[ $GOARCH =~ arm64 ]]; then
-    sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu tree
+    apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu tree
     for dir in /usr/include/aarch64-linux-gnu/*; do 
-      sudo ln -sfn "$dir" /usr/include/$(basename "$dir")
+      ln -sfn "$dir" /usr/include/$(basename "$dir")
     done
   fi
 # Mariner
 else
-  sudo tdnf install -y llvm clang libbpf-devel nftables tree
+  tdnf install -y llvm clang libbpf-devel nftables tree
   for dir in /usr/include/aarch64-linux-gnu/*; do 
     if [[ -d $dir ]]; then
-      sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
+      ln -sfn "$dir" /usr/include/$(basename "$dir") 
     elif [[ -f "$dir" ]]; then
-      sudo ln -Tsfn "$dir" /usr/include/$(basename "$dir") 
+      ln -Tsfn "$dir" /usr/include/$(basename "$dir") 
     fi
-  done
-fi
-
-# Copy Needed Library Binaries
-cp /usr/sbin/nft "$OUT_DIR"/bins/nft
-cp /sbin/ip "$OUT_DIR"/bins/ip
-
-# Package up Needed C Files
-if [ "$ARCH" = "arm64" ]; then
-  apt-get install -y gcc-aarch64-linux-gnu
-  ARCH=aarch64-linux-gnu
-  cp /lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/
-
-  for dir in /usr/include/"$ARCH"/*; do 
-    ln -s "$dir" /usr/include/$(basename "$dir")
-  done
-
-elif [ "$ARCH" = "amd64" ]; then
-  apt-get install -y gcc-multilib
-  ARCH=x86_64-linux-gnu
-  cp /lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
-
-  for dir in /usr/include/"$ARCH"/*; do 
-    ln -s "$dir" /usr/include/$(basename "$dir")
   done
 fi
 
@@ -66,6 +44,10 @@ cp /lib/"$ARCH"/libgmp.so.10 "$OUT_DIR"/lib/
 cp /lib/"$ARCH"/libtinfo.so.6 "$OUT_DIR"/lib/
 cp /lib/"$ARCH"/libbsd.so.0 "$OUT_DIR"/lib/
 cp /lib/"$ARCH"/libmd.so.0 "$OUT_DIR"/lib/
+
+# Add Needed Binararies
+cp /usr/sbin/nft "$OUT_DIR"/bins/nft
+cp /sbin/ip "$OUT_DIR"/bins/ip
 
 
 # Build IPv6 HP BPF
