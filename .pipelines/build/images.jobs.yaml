@@ -115,6 +115,6 @@ jobs:
         name: $(name)
         dockerfile_path: ${{ job_data.templateContext.pkgArtifact }}
         build_tag: $(imageTag)
-        extra_args: $(extraArgs)
+        extra_args: $(extraArgs) --build-arg ARTIFACT_DIR="${{ job_data.templateContext.pkgArtifact }}"
         archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
         source: ${{ job_data.templateContext.pkgArtifact }}
