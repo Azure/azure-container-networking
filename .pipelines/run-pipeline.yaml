@@ -125,7 +125,7 @@ stages:
           displayName: "Linux/AMD64"
           templateContext:
             repositoryArtifact: drop_setup_env_source
-            pkgArtifact: drop_pkg_linux_amd64_$(name)
+            pkgArtifact: drop_build_pkg_$(os)_$(arch)_$(name)
             buildScript: .pipelines/build/scripts/$(name).sh
             obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
           strategy:
@@ -166,7 +166,7 @@ stages:
           displayName: "Windows"
           templateContext:
             repositoryArtifact: drop_setup_env_source
-            pkgArtifact: drop_pkg_windows_amd64_$(name)
+            pkgArtifact: drop_build_pkg_$(os)_$(arch)_$(name)
             buildScript: .pipelines/build/scripts/$(name).sh
             obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
           strategy:
@@ -201,7 +201,7 @@ stages:
           displayName: "Linux/ARM64"
           templateContext:
             repositoryArtifact: drop_setup_env_source
-            pkgArtifact: drop_pkg_linux_arm64_$(name)
+            pkgArtifact: drop_build_pkg_$(os)_$(arch)_$(name)
             buildScript: .pipelines/build/scripts/$(name).sh
             obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
           strategy:

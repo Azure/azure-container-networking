@@ -54,12 +54,12 @@ jobs:
       inputs:
         scriptPath: ${{ job_data.templateContext.repositoryArtifact }}/${{ job_data.templateContext.buildScript }}
 
-    - task: ExtractFiles@1
-      inputs:
-        archiveFilePatterns: '**/*.?(tgz|tgz.gz|zip)'
-        destinationFolder: $(OUT_DIR)
-        cleanDestinationFolder: false
-        overwriteExistingFiles: true
+#    - task: ExtractFiles@1
+#      inputs:
+#        archiveFilePatterns: '**/*.?(tgz|tgz.gz|zip)'
+#        destinationFolder: $(OUT_DIR)
+#        cleanDestinationFolder: false
+#        overwriteExistingFiles: true
 
     - script: |
         cp "$SOURCE" "$DEST"
