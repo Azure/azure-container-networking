@@ -36,7 +36,6 @@ jobs:
         OS: linux
         GOOS: linux
       # keep these variables concerned with instrumentation.
-      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       GEN_DIR: $(Build.SourcesDirectory)/temp
       REPO_ROOT: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
       OUT_DIR: $(Build.ArtifactStagingDirectory)
