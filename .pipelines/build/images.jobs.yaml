@@ -15,7 +15,7 @@ jobs:
 
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
-      ob_artifactSuffix: _$(artifact)
+      ob_artifactSuffix: _$(name)
       ob_git_checkout: false
       ${{ if eq(job_data.job, 'linux_amd64') }}:
         LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
