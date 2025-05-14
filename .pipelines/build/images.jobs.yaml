@@ -14,9 +14,14 @@ jobs:
         hostArchitecture: arm64
 
     variables:
-      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       ob_artifactSuffix: _$(name)
       ob_git_checkout: false
+      # keep these variables concerned with instrumentation.
+      GEN_DIR: $(Build.SourcesDirectory)/temp
+      REPO_ROOT: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
+      OUT_DIR: $(Build.ArtifactStagingDirectory)
+      DROPGZ_VERSION: v0.0.12
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       ${{ if eq(job_data.job, 'linux_amd64') }}:
         LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
         ARCH: amd64
@@ -35,10 +40,6 @@ jobs:
         GOARCH: arm64
         OS: linux
         GOOS: linux
-      # keep these variables concerned with instrumentation.
-      GEN_DIR: $(Build.SourcesDirectory)/temp
-      REPO_ROOT: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
-      OUT_DIR: $(Build.ArtifactStagingDirectory)
     steps:
     - task: DownloadPipelineArtifact@2
       inputs:
@@ -62,6 +63,8 @@ jobs:
 
     - script: |
         cp "$SOURCE" "$DEST"
+        ls -la "$DEST"
+        ls -la "$SOURCE"
       env:
         SOURCE: $(REPO_ROOT)/${{ job_data.templateContext.obDockerfile }}
         DEST: $(OUT_DIR)/Dockerfile

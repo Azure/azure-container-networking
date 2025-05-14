@@ -1,6 +1,8 @@
 #!/bin/bash
 set -nex
 
+pwd
+ls -la
 mkdir -p "$OUT_DIR"/files
 mkdir -p "$OUT_DIR"/bins
 

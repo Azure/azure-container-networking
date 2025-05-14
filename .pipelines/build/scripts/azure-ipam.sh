@@ -1,7 +1,11 @@
 #!/bin/bash
 set -nex
 
+pwd
+ls -la
+
 mkdir -p "$OUT_DIR"/bins
+mkdir -p "$GEN_DIR"
 
 DROPGZ_VERSION="${DROPGZ_VERSION:-v0.0.12}"
 IPAM_BUILD_DIR=$(mktemp -d -p "$GEN_DIR")
