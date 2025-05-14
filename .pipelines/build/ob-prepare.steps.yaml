@@ -27,7 +27,7 @@ steps:
     source_dockerfile: linux.Dockerfile
 
 - bash: |
-    rm -rf .pipelines .hooks .github
+    rm -rf .hooks .github
   displayName: "Remove Unnecessary Dirs from Source"
   workingDirectory: $(Build.SourcesDirectory)/azure-container-networking
 
