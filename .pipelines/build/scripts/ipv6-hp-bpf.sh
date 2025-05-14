@@ -3,8 +3,32 @@
 mkdir -p "$OUT_DIR"/bins
 mkdir -p "$OUT_DIR"/lib
 
-apt-get update -y
-apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
+if [[ -f /etc/debian_version ]];then
+  sudo apt-get update -y
+  if [[ $GOARCH =~ amd64 ]]; then
+    apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
+    #apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib tree
+    for dir in /usr/include/x86_64-linux-gnu/*; do 
+      sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
+    done
+  
+  elif [[ $GOARCH =~ arm64 ]]; then
+    sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu tree
+    for dir in /usr/include/aarch64-linux-gnu/*; do 
+      sudo ln -sfn "$dir" /usr/include/$(basename "$dir")
+    done
+  fi
+# Mariner
+else
+  sudo tdnf install -y llvm clang libbpf-devel nftables tree
+  for dir in /usr/include/aarch64-linux-gnu/*; do 
+    if [[ -d $dir ]]; then
+      sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
+    elif [[ -f "$dir" ]]; then
+      sudo ln -Tsfn "$dir" /usr/include/$(basename "$dir") 
+    fi
+  done
+fi
 
 # Copy Needed Library Binaries
 cp /usr/sbin/nft "$OUT_DIR"/bins/nft

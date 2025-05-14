@@ -45,9 +45,13 @@ jobs:
         targetPath: $(REPO_ROOT)
         artifact: '${{ job_data.templateContext.repositoryArtifact }}'
 
+    - task: GoTool@0
+      inputs:
+        version: '$(GOVERSION)'
+
     - task: ShellScript@2
       inputs:
-        scriptPath: ${{ job_data.templateContext.buildScript }}
+        scriptPath: ${{ job_data.templateContext.repositoryArtifact }}/${{ job_data.templateContext.buildScript }}
 
     - task: ExtractFiles@1
       inputs:
