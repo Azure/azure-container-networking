@@ -1,0 +1,114 @@
+parameters:
+- name: images
+  type: jobList
+
+
+jobs:
+- ${{ each job_data in parameters.images }}:
+  - job: pkg_${{ job_data.job }}
+    displayName: "Build Image Package - ${{ job_data.displayName }} -"
+    strategy: ${{ job_data.strategy }}
+    pool:
+      type: linux
+      ${{ if eq(job_data.job, 'linux_arm64') }}:
+        hostArchitecture: arm64
+
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
+      ob_artifactSuffix: _$(artifact)
+      ob_git_checkout: false
+      ${{ if eq(job_data.job, 'linux_amd64') }}:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+        ARCH: amd64
+        GOARCH: amd64
+        OS: linux
+        GOOS: linux
+      ${{ elseif eq(job_data.job, 'windows_amd64') }}:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+        ARCH: amd64
+        GOARCH: amd64
+        OS: windows
+        GOOS: windows
+      ${{ elseif eq(job_data.job, 'linux_arm64') }}:
+        ob_enable_qemu: true
+        ARCH: arm64
+        GOARCH: arm64
+        OS: linux
+        GOOS: linux
+      # keep these variables concerned with instrumentation.
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
+      GEN_DIR: $(Build.SourcesDirectory)/temp
+      REPO_ROOT: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
+      OUT_DIR: $(Build.ArtifactStagingDirectory)
+    steps:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        targetPath: $(REPO_ROOT)
+        artifact: '${{ job_data.templateContext.repositoryArtifact }}'
+
+    - task: ShellScript@2
+      inputs:
+        scriptPath: ${{ job_data.templateContext.buildScript }}
+
+    - task: ExtractFiles@1
+      inputs:
+        archiveFilePatterns: '**/*.?(tgz|tgz.gz|zip)'
+        destinationFolder: $(OUT_DIR)
+        cleanDestinationFolder: false
+        overwriteExistingFiles: true
+
+    - shell: |
+        cp "$SOURCE" "$DEST"
+      env:
+        SOURCE: $(REPO_ROOT)/${{ job_data.templateContext.obDockerfile }}
+        DEST: $(OUT_DIR)/Dockerfile
+
+    - task: onebranch.pipeline.signing@1
+      inputs:
+        command: 'sign'
+        signing_profile: 'external_distribution'
+        files_to_sign: '**/*'
+        search_root: $(OUT_DIR)
+
+
+  - job: images_${{ job_data.job }}
+    displayName: "Build Images - ${{ job_data.displayName }} -"
+    dependsOn:
+    - pkg_${{ job_data.job }}
+    strategy: ${{ job_data.strategy }}
+    pool:
+      os: linux
+      type: docker
+      ${{ if eq(job_data.job, 'linux_arm64') }}:
+        hostArchitecture: arm64
+        LinuxHostVersion:
+          distribution: mariner
+          architecture: arm64
+    variables:
+      ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
+      ob_artifactSuffix: _$(name)
+      ob_git_checkout: false
+      ${{ if eq(job_data.job, 'linux_amd64') }}:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+        ARCH: amd64
+        OS: linux
+      ${{ elseif eq(job_data.job, 'windows_amd64') }}:
+        ob_enable_qemu: true
+        ARCH: amd64
+        OS: windows
+      ${{ elseif eq(job_data.job, 'linux_arm64') }}:
+        ob_build_container: true
+        ARCH: arm64
+        OS: linux
+
+    steps:
+    - template: build/image.steps.yaml
+      parameters:
+        arch: $(ARCH)
+        os: $(OS)
+        name: $(name)
+        dockerfile_path: ${{ job_data.templateContext.pkgArtifact }}
+        build_tag: $(imageTag)
+        extra_args: $(extraArgs)
+        archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
+        source: ${{ job_data.templateContext.pkgArtifact }}
