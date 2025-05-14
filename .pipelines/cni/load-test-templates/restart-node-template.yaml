@@ -4,6 +4,7 @@ parameters:
   cni: ""
   jobName: "restart_nodes"
   region: ""
+  upgradeScenario: ""
 
 steps:
   - task: AzureCLI@2
