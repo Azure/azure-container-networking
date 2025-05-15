@@ -4,7 +4,7 @@ go 1.23.2
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.9.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.0
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.12.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Microsoft/go-winio v0.6.2
@@ -102,7 +102,7 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.38.0
-	golang.org/x/net v0.39.0
+	golang.org/x/net v0.40.0
 	golang.org/x/oauth2 v0.25.0 // indirect
 	golang.org/x/term v0.32.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
