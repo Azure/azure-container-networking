@@ -50,8 +50,18 @@ jobs:
       inputs:
         version: '$(GOVERSION)'
 
-    - script: |
+    - bash: |
+        echo "Start"
+        set -x
+        echo "List"
+        ls -la
+        ls -la .pipelines
+        ls -la .pipelines/build
+        ls -la .pipelines/build/scripts
+        ls -la .pipelines/build/dockerfiles
+        echo "Chown"
         chmod +x "$SCRIPT_SRC"
+        echo "Execute"
         ./"$SCRIPT_SRC"
       displayName: "Build Package" 
       workingDirectory: $(REPO_ROOT)
