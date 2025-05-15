@@ -50,23 +50,10 @@ jobs:
       inputs:
         version: '$(GOVERSION)'
 
-    - bash: |
-        echo "Start"
-        set -x
-        echo "List"
-        ls -la
-        ls -la .pipelines
-        ls -la .pipelines/build
-        ls -la .pipelines/build/scripts
-        ls -la .pipelines/build/dockerfiles
-        echo "Chown"
-        chmod +x "$SCRIPT_SRC"
-        echo "Execute"
-        ./"$SCRIPT_SRC"
-      displayName: "Build Package" 
-      workingDirectory: $(REPO_ROOT)
-      env:
-        SCRIPT_SRC: ${{ job_data.templateContext.buildScript }}
+    - task: ShellScript@2
+      inputs:
+        scriptPath: '${{ job_data.templateContext.buildScript }}'
+        workingDirectory: $(REPO_ROOT)
 
 #    - task: ExtractFiles@1
 #      inputs:
@@ -76,9 +63,9 @@ jobs:
 #        overwriteExistingFiles: true
 
     - script: |
+        ls -la "$SOURCE"
         cp "$SOURCE" "$DEST"
         ls -la "$DEST"
-        ls -la "$SOURCE"
       env:
         SOURCE: $(REPO_ROOT)/${{ job_data.templateContext.obDockerfile }}
         DEST: $(OUT_DIR)/Dockerfile
@@ -127,7 +114,6 @@ jobs:
         arch: $(ARCH)
         os: $(OS)
         name: $(name)
-        dockerfile_path: ${{ job_data.templateContext.pkgArtifact }}
         build_tag: $(imageTag)
         extra_args: $(extraArgs) --build-arg ARTIFACT_DIR="${{ job_data.templateContext.pkgArtifact }}"
         archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)

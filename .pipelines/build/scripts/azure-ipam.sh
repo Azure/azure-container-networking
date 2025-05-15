@@ -1,8 +1,5 @@
 #!/bin/bash
-set -nex
-
-pwd
-ls -la
+set -eux
 
 export GOOS=$OS
 export GOARCH=$ARCH

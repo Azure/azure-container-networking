@@ -1,7 +1,5 @@
 #!/bin/bash
-set -nex
-pwd
-ls -la
+set -eux
 
 mkdir -p "$OUT_DIR"/files
 mkdir -p "$OUT_DIR"/bin

@@ -1,5 +1,5 @@
 #!/bin/bash
-set -nex
+set -eux
 
 export GOOS=$OS
 export GOARCH=$ARCH

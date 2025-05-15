@@ -15,10 +15,6 @@ parameters:
   type: string
   default: ""
 
-- name: dockerfile_path
-  type: string
-  default: ""
-
 - name: archive_file
   type: string
   default: '$(name)-$(os)-$(platform)-$(Tag)'
@@ -70,7 +66,7 @@ steps:
     repositoryName: $(os)-$(arch)/${{ parameters.name }}
     os: '${{ parameters.os }}'
     buildkit: 1
-    dockerFileRelPath: ${{ parameters.dockerfile_path }}/Dockerfile
+    dockerFileRelPath: Dockerfile
     dockerFileContextPath: ${{ parameters.source }}
     enable_network: true
     enable_pull: true
