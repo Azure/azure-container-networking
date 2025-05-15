@@ -6,7 +6,7 @@ parameters:
 jobs:
 - ${{ each job_data in parameters.images }}:
   - job: pkg_${{ job_data.job }}
-    displayName: "Build Image Package - ${{ job_data.displayName }} -"
+    displayName: "Prepare Image Package - ${{ job_data.displayName }} -"
     strategy: ${{ job_data.strategy }}
     pool:
       type: linux
@@ -50,9 +50,12 @@ jobs:
       inputs:
         version: '$(GOVERSION)'
 
-    - task: ShellScript@2
-      inputs:
-        scriptPath: ${{ job_data.templateContext.repositoryArtifact }}/${{ job_data.templateContext.buildScript }}
+    - script: |
+        ./"$SCRIPT_SRC"
+      displayName: "Build Package" 
+      workingDirectory: $(REPO_ROOT)
+      env:
+        SCRIPT_SRC: ${{ job_data.templateContext.buildScript }}
 
 #    - task: ExtractFiles@1
 #      inputs:
