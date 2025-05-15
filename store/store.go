@@ -18,6 +18,7 @@ type KeyValueStore interface {
 	Unlock() error
 	GetModificationTime() (time.Time, error)
 	Remove()
+	Dump() (string, error)
 }
 
 var (
