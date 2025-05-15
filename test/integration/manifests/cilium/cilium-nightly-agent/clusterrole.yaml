@@ -102,3 +102,12 @@ rules:
   - ciliumendpoints
   verbs:
   - patch
+- apiGroups:
+  - ""
+  resourceNames:
+  - cilium-config
+  resources:
+  - configmaps
+  verbs:
+  - list
+  - watch
