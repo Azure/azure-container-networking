@@ -12,14 +12,15 @@ mkdir -p "$OUT_DIR"/lib
 # Package up Needed C Files
 if [[ -f /etc/debian_version ]];then
   apt-get update -y
+  apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
   if [[ $ARCH =~ amd64 ]]; then
-    apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib build-essential binutils 
+    apt-get install -y  gcc-multilib build-essential binutils 
 
     ARCH=x86_64-linux-gnu
     cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
   
   elif [[ $ARCH =~ arm64 ]]; then
-    apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
+    apt-get install -y gcc-aarch64-linux-gnu
 
     ARCH=aarch64-linux-gnu
     cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/
@@ -32,13 +33,15 @@ if [[ -f /etc/debian_version ]];then
 
 # Mariner
 else
-  tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute glibc-devel
+  tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute cross-gcc
   if [[ $ARCH =~ amd64 ]]; then
     ARCH=x86_64-linux-gnu
-    cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
+    #tdnf install -y gcc-x86_64-linux-gnu
+    cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/ || find /usr/lib/ -name 'ld-linux-x86-64.so.2'
   elif [[ $ARCH =~ arm64 ]]; then
     ARCH=aarch64-linux-gnu
-    cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/
+    #tdnf install -y gcc-aarch64-linux-gnu
+    cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/ || find /usr/lib/ -name 'ld-linux-aarch64.so.1'
   fi
   for dir in /usr/include/"$ARCH"/*; do 
     if [[ -d $dir ]]; then
@@ -65,8 +68,8 @@ cp /lib/"$ARCH"/libbsd.so.0 "$OUT_DIR"/lib/
 cp /lib/"$ARCH"/libmd.so.0 "$OUT_DIR"/lib/
 
 # Add Needed Binararies
-cp /usr/sbin/nft "$OUT_DIR"/bin/nft
-cp /sbin/ip "$OUT_DIR"/bin/ip
+cp /usr/sbin/nft "$OUT_DIR"/bin/nft.exe
+cp /sbin/ip "$OUT_DIR"/bin/ip.exe
 
 
 # Build IPv6 HP BPF
@@ -79,7 +82,7 @@ pushd "$REPO_ROOT"/bpf-prog/ipv6-hp-bpf
 
   go generate ./...
   go build -v -a -trimpath \
-    -o "$OUT_DIR"/bin/ipv6-hp-bpf \
+    -o "$OUT_DIR"/bin/ipv6-hp-bpf.exe \
     -ldflags "-X main.version="$IPV6_HP_BPF_VERSION"" \
     -gcflags="-dwarflocationlists=true" .
 popd

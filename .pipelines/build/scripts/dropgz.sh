@@ -19,6 +19,7 @@ mkdir -p "$DROPGZ_BUILD_DIR"
 echo >&2 "##[section]Construct DropGZ Embedded Payload"
 pushd "$PAYLOAD_DIR"
   [[ -n $(stat "$OUT_DIR"/files 2>/dev/null || true) ]] && cp "$OUT_DIR"/files/* .
+  [[ -n $(stat "$OUT_DIR"/scripts 2>/dev/null || true) ]] && cp "$OUT_DIR"/scripts/* .
   [[ -n $(stat "$OUT_DIR"/bin 2>/dev/null || true) ]] && cp "$OUT_DIR"/bin/* .
   
   sha256sum * > sum.txt
@@ -42,7 +43,7 @@ echo >&2 "##[section]Build DropGZ with Embedded Payload"
 pushd "$DROPGZ_BUILD_DIR"/pkg/mod/"$DROPGZ_MOD_DOWNLOAD_PATH"
   mv "$PAYLOAD_DIR"/* pkg/embed/fs/
   go build -v -trimpath -a \
-    -o "$OUT_DIR"/bin/dropgz \
+    -o "$OUT_DIR"/bin/dropgz.exe \
     -ldflags "-X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$DROPGZ_VERSION"" \
     -gcflags="-dwarflocationlists=true" \
     main.go

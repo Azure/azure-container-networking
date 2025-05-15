@@ -2,7 +2,7 @@ ARG ARCH
 ARG ARTIFACT_DIR
 
 FROM scratch AS linux
-ADD ${ARTIFACT_DIR}/bin/dropgz dropgz
+ADD ${ARTIFACT_DIR}/bin/dropgz.exe dropgz
 ENTRYPOINT [ "/dropgz" ]
 
 
@@ -10,7 +10,5 @@ ENTRYPOINT [ "/dropgz" ]
 FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b as hpc
 
 FROM hpc as windows
-ADD ${ARTIFACT_DIR}/bin/dropgz dropgz.exe
+ADD ${ARTIFACT_DIR}/bin/dropgz.exe dropgz.exe
 ENTRYPOINT [ "/dropgz.exe" ]
-
-

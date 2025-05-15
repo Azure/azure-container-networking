@@ -7,7 +7,7 @@ RUN apt-get update && \
   apt-get autoremove -y && \
   apt-get clean
 
-COPY ${ARTIFACT_DIR}/bin/azure-npm /usr/bin/azure-npm
+COPY ${ARTIFACT_DIR}/bin/azure-npm.exe /usr/bin/azure-npm
 RUN chmod +x /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
 
@@ -16,8 +16,8 @@ ENTRYPOINT ["/usr/bin/azure-npm", "start"]
 FROM mcr.microsoft.com/windows/servercore@sha256:45952938708fbde6ec0b5b94de68bcdec3f8c838be018536b1e9e5bd95e6b943 as windows
 
 COPY ${ARTIFACT_DIR}/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
-COPY ${ARTIFACT_DIR}/files/setkubeconfigpath.ps1 setkubeconfigpath.ps1
-COPY ${ARTIFACT_DIR}/files/setkubeconfigpath-capz.ps1 setkubeconfigpath-capz.ps1
-COPY ${ARTIFACT_DIR}/bin/azure-npm npm.exe
+COPY ${ARTIFACT_DIR}/scripts/setkubeconfigpath.ps1 setkubeconfigpath.ps1
+COPY ${ARTIFACT_DIR}/scripts/setkubeconfigpath-capz.ps1 setkubeconfigpath-capz.ps1
+COPY ${ARTIFACT_DIR}/bin/azure-npm.exe npm.exe
 
 CMD ["npm.exe", "start" "--kubeconfig=.\\kubeconfig"]
