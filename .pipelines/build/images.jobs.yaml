@@ -52,8 +52,7 @@ jobs:
 
     - task: ShellScript@2
       inputs:
-        scriptPath: '${{ job_data.templateContext.buildScript }}'
-        workingDirectory: $(REPO_ROOT)
+        scriptPath: $(REPO_ROOT)/${{ job_data.templateContext.buildScript }}
 
 #    - task: ExtractFiles@1
 #      inputs:
