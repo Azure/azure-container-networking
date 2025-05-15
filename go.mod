@@ -103,7 +103,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.38.0
 	golang.org/x/net v0.39.0
-	golang.org/x/oauth2 v0.25.0 // indirect
+	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/term v0.32.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/time v0.11.0
@@ -126,7 +126,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.11.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v5 v5.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
-	github.com/cilium/cilium v1.15.15
+	github.com/cilium/cilium v1.15.16
 	github.com/jsternberg/zap-logfmt v1.3.0
 	golang.org/x/sync v0.14.0
 	gotest.tools/v3 v3.5.2
