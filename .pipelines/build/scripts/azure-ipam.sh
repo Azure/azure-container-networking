@@ -8,11 +8,12 @@ export CGO_ENABLED=0
 mkdir -p "$OUT_DIR"/bin
 mkdir -p "$OUT_DIR"/files
 
-pushd "$ROOT_DIR"/azure-ipam
+pushd "$REPO_ROOT"/azure-ipam
   go build -v -a -trimpath \
     -o "$OUT_DIR"/bin/azure-ipam \
-     -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version="$AZURE_IPAM_VERSION" -X main.version="$AZURE_IPAM_VERSION"" \
-     -gcflags="-dwarflocationlists=true" \
+    -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version="$AZURE_IPAM_VERSION" -X main.version="$AZURE_IPAM_VERSION"" \
+    -gcflags="-dwarflocationlists=true" \
+    main.go
 
   cp *.conflist "$OUT_DIR"/files/
 popd

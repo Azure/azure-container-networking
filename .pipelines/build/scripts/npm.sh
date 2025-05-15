@@ -8,7 +8,7 @@ export CGO_ENABLED=0
 mkdir -p "$OUT_DIR"/files
 mkdir -p "$OUT_DIR"/bin
 
-pushd "$ROOT_DIR"/npm
+pushd "$REPO_ROOT"/npm
   go build -a -v -trimpath \
     -o "$OUT_DIR"/bin/azure-npm \
     -ldflags "-X main.version="$NPM_VERSION" -X "$NPM_AI_PATH"="$NPM_AI_ID"" \

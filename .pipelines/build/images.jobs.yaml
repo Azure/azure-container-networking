@@ -54,13 +54,6 @@ jobs:
       inputs:
         scriptPath: $(REPO_ROOT)/${{ job_data.templateContext.buildScript }}
 
-#    - task: ExtractFiles@1
-#      inputs:
-#        archiveFilePatterns: '**/*.?(tgz|tgz.gz|zip)'
-#        destinationFolder: $(OUT_DIR)
-#        cleanDestinationFolder: false
-#        overwriteExistingFiles: true
-
     - script: |
         ls -la "$SOURCE"
         cp "$SOURCE" "$DEST"
