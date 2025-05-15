@@ -68,6 +68,12 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 
 	// use any secondary ip + the nnc prefix length to get an iptables rule to allow dns and imds traffic from the pods
 	for _, v := range req.SecondaryIPConfigs {
+		// check if the ip address is IPv4
+		if net.ParseIP(v.IPAddress).To4() == nil {
+			// skip if the ip address is not IPv4
+			continue
+		}
+
 		// put the ip address in standard cidr form (where we zero out the parts that are not relevant)
 		_, podSubnet, _ := net.ParseCIDR(v.IPAddress + "/" + fmt.Sprintf("%d", req.IPConfiguration.IPSubnet.PrefixLength))
 
