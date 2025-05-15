@@ -13,14 +13,15 @@ mkdir -p "$OUT_DIR"/lib
 if [[ -f /etc/debian_version ]];then
   apt-get update -y
   if [[ $GOARCH =~ amd64 ]]; then
-    apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
-    #apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib tree
+    apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib tree
+    cp /lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
     for dir in /usr/include/x86_64-linux-gnu/*; do 
       ln -sfn "$dir" /usr/include/$(basename "$dir") 
     done
   
   elif [[ $GOARCH =~ arm64 ]]; then
     apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu tree
+    cp /lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/
     for dir in /usr/include/aarch64-linux-gnu/*; do 
       ln -sfn "$dir" /usr/include/$(basename "$dir")
     done
@@ -28,7 +29,8 @@ if [[ -f /etc/debian_version ]];then
 # Mariner
 else
   tdnf install -y llvm clang libbpf-devel nftables tree
-  for dir in /usr/include/aarch64-linux-gnu/*; do 
+  cp /lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
+  for dir in /usr/include/x86_64-linux-gnu/*; do 
     if [[ -d $dir ]]; then
       ln -sfn "$dir" /usr/include/$(basename "$dir") 
     elif [[ -f "$dir" ]]; then

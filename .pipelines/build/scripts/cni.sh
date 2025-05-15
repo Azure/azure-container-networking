@@ -39,7 +39,7 @@ popd
 CNI_IPAMV6_DIR="$REPO_ROOT"/cni/ipam/pluginv6
 pushd "$CNI_IPAMV6_DIR"
   go build -v -a -trimpath \
-    -o "$OUT_DIR"/bin/azure-vnet-ipamv6 
+    -o "$OUT_DIR"/bin/azure-vnet-ipamv6 \
     -ldflags "-X main.version="$CNI_VERSION"" \
     -gcflags="-dwarflocationlists=true" \
     ./main.go
@@ -62,8 +62,6 @@ pushd "$REPO_ROOT"/cni
   cp azure-$OS-swift-overlay-dualstack.conflist "$OUT_DIR"/files/azure-swift-overlay-dualstack.conflist
   cp azure-$OS-multitenancy.conflist "$OUT_DIR"/files/multitenancy.conflist
   cp "$REPO_ROOT"/telemetry/azure-vnet-telemetry.config "$OUT_DIR"/files/azure-vnet-telemetry.config
-  #sha256sum * > sum.txt
-  #gzip --verbose --best --recursive "$OUT_DIR" && for f in *.gz; do mv -- "$f" "${f%%.gz}"; done
 popd
 
 # Build with DropGZ
