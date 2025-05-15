@@ -1,3 +1,6 @@
+#!/bin/bash
+set -eux
+
 export GOOS=$OS
 export GOARCH=$ARCH
 export CGO_ENABLED=0 

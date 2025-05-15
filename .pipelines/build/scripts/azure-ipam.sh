@@ -13,11 +13,7 @@ pushd "$REPO_ROOT"/azure-ipam
     -o "$OUT_DIR"/bin/azure-ipam \
     -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version="$AZURE_IPAM_VERSION" -X main.version="$AZURE_IPAM_VERSION"" \
     -gcflags="-dwarflocationlists=true" \
-    main.go
+    .
 
   cp *.conflist "$OUT_DIR"/files/
 popd
-
-
-# Build with DropGZ
-./dropgz.sh

@@ -70,6 +70,21 @@ jobs:
         search_root: $(OUT_DIR)
 
 
+    - task: ShellScript@2
+      displayName: "Package with DropGZ"
+      condition: and(succeeded(), eq('$(packageWithDropGZ)', 'True'))
+      inputs:
+        scriptPath: $(REPO_ROOT)/.pipelines/build/scripts/dropgz.sh
+
+    - task: onebranch.pipeline.signing@1
+      condition: and(succeeded(), eq('$(packageWithDropGZ)', 'True'))
+      inputs:
+        command: 'sign'
+        signing_profile: 'external_distribution'
+        files_to_sign: '**/dropgz'
+        search_root: $(OUT_DIR)
+
+
   - job: images_${{ job_data.job }}
     displayName: "Build Images - ${{ job_data.displayName }} -"
     dependsOn:

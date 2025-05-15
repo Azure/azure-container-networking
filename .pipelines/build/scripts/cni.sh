@@ -63,6 +63,3 @@ pushd "$REPO_ROOT"/cni
   cp azure-$OS-multitenancy.conflist "$OUT_DIR"/files/multitenancy.conflist
   cp "$REPO_ROOT"/telemetry/azure-vnet-telemetry.config "$OUT_DIR"/files/azure-vnet-telemetry.config
 popd
-
-# Build with DropGZ
-./dropgz.sh
