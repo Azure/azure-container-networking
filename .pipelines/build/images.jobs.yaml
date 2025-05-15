@@ -73,12 +73,12 @@ jobs:
 
     - task: ShellScript@2
       displayName: "Package with DropGZ"
-      condition: and(succeeded(), eq('$(packageWithDropGZ)', 'True'))
+      condition: and(succeeded(), eq(variables.packageWithDropGZ, 'True'))
       inputs:
         scriptPath: $(REPO_ROOT)/.pipelines/build/scripts/dropgz.sh
 
     - task: onebranch.pipeline.signing@1
-      condition: and(succeeded(), eq('$(packageWithDropGZ)', 'True'))
+      condition: and(succeeded(), eq(variables.packageWithDropGZ, 'True'))
       inputs:
         command: 'sign'
         signing_profile: 'external_distribution'
