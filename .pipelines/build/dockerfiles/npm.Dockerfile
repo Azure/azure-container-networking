@@ -1,3 +1,5 @@
+ARG ARTIFACT_DIR
+
 FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 as linux
 
 RUN apt-get update && \
@@ -5,6 +7,7 @@ RUN apt-get update && \
   apt-get autoremove -y && \
   apt-get clean
 
+COPY ${ARTIFACT_DIR}/bin/azure-npm /usr/bin/azure-npm
 RUN chmod +x /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
 
@@ -15,6 +18,6 @@ FROM mcr.microsoft.com/windows/servercore@sha256:45952938708fbde6ec0b5b94de68bcd
 COPY ${ARTIFACT_DIR}/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
 COPY ${ARTIFACT_DIR}/files/setkubeconfigpath.ps1 setkubeconfigpath.ps1
 COPY ${ARTIFACT_DIR}/files/setkubeconfigpath-capz.ps1 setkubeconfigpath-capz.ps1
-COPY ${ARTIFACT_DIR}/bins/azure-npm.exe npm.exe
+COPY ${ARTIFACT_DIR}/bin/azure-npm npm.exe
 
 CMD ["npm.exe", "start" "--kubeconfig=.\\kubeconfig"]

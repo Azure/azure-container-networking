@@ -6,11 +6,11 @@ export GOARCH=$ARCH
 export CGO_ENABLED=0 
 
 mkdir -p "$OUT_DIR"/files
-mkdir -p "$OUT_DIR"/bins
+mkdir -p "$OUT_DIR"/bin
 
 pushd "$REPO_ROOT"/cns
   go build -v -a \
-    -o "$OUT_DIR"/bins/azure-cns \
+    -o "$OUT_DIR"/bin/azure-cns \
     -ldflags "-X main.version="$CNS_VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID"" \
     -gcflags="-dwarflocationlists=true" \
     service/*.go

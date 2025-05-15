@@ -1,9 +1,12 @@
 #!/bin/bash
 set -nex
-pwd
-ls -la
 
-mkdir -p "$OUT_DIR"/bins
+export GOOS=$OS
+export GOARCH=$ARCH
+export CGO_ENABLED=0 
+export C_INCLUDE_PATH=/usr/include/bpf
+
+mkdir -p "$OUT_DIR"/bin
 mkdir -p "$OUT_DIR"/lib
 
 # Package up Needed C Files
@@ -48,19 +51,21 @@ cp /lib/"$ARCH"/libbsd.so.0 "$OUT_DIR"/lib/
 cp /lib/"$ARCH"/libmd.so.0 "$OUT_DIR"/lib/
 
 # Add Needed Binararies
-cp /usr/sbin/nft "$OUT_DIR"/bins/nft
-cp /sbin/ip "$OUT_DIR"/bins/ip
+cp /usr/sbin/nft "$OUT_DIR"/bin/nft
+cp /sbin/ip "$OUT_DIR"/bin/ip
 
 
 # Build IPv6 HP BPF
-export C_INCLUDE_PATH=/usr/include/bpf
 pushd "$REPO_ROOT"/bpf-prog/ipv6-hp-bpf
-  cp ./cmd/ipv6-hp-bpf/*.go ./
+  cp ./cmd/ipv6-hp-bpf/*.go .
 
   if [ "$DEBUG" = "true" ]; then 
     echo "\n#define DEBUG" >> ./include/helper.h
   fi
 
-  GOOS=$OS CGO_ENABLED=0 go generate ./...
-  GOOS=$OS CGO_ENABLED=0 go build -a -o "$OUT_DIR"/bins/ipv6-hp-bpf -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
+  go generate ./...
+  go build -v -a -trimpath \
+    -o "$OUT_DIR"/bin/ipv6-hp-bpf \
+     -ldflags "-X main.version="$IPV6_HP_BPF_VERSION"" \
+     -gcflags="-dwarflocationlists=true" .
 popd

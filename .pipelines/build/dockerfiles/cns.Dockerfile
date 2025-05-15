@@ -9,7 +9,7 @@ RUN tdnf install -y iptables
 FROM mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:7778a86d86947d5f64c1280a7ee0cf36c6c6d76b5749dd782fbcc14f113961bf AS linux
 COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
 COPY --from=iptables /usr/lib /usr/lib
-COPY ${ARTIFACT_DIR}/bins/azure-cns /usr/local/bin/azure-cns
+COPY ${ARTIFACT_DIR}/bin/azure-cns /usr/local/bin/azure-cns
 ENTRYPOINT [ "/usr/local/bin/azure-cns" ]
 EXPOSE 10090
 
@@ -18,6 +18,6 @@ EXPOSE 10090
 FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b AS windows
 COPY ${ARTIFACT_DIR}/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
 COPY ${ARTIFACT_DIR}/files/setkubeconfigpath.ps1 setkubeconfigpath.ps1
-COPY ${ARTIFACT_DIR}/bins/azure-cns /azure-cns.exe
+COPY ${ARTIFACT_DIR}/bin/azure-cns /azure-cns.exe
 ENTRYPOINT ["azure-cns.exe"]
 EXPOSE 10090
