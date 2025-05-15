@@ -1,6 +1,8 @@
 #!/bin/bash
 set -eux
 
+[[ $OS =~ windows ]] && FILE_EXT='exe' || FILE_EXT='bin'
+
 export GOOS=$OS
 export GOARCH=$ARCH
 export CGO_ENABLED=0 
@@ -11,7 +13,7 @@ mkdir -p "$OUT_DIR"/scripts
 
 pushd "$REPO_ROOT"/npm
   go build -a -v -trimpath \
-    -o "$OUT_DIR"/bin/azure-npm.exe \
+    -o "$OUT_DIR"/bin/azure-npm."$FILE_EXT" \
     -ldflags "-X main.version="$NPM_VERSION" -X "$NPM_AI_PATH"="$NPM_AI_ID"" \
     -gcflags="-dwarflocationlists=true" \
     ./cmd/*.go

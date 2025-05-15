@@ -1,6 +1,8 @@
 #!/bin/bash
 set -eux
 
+[[ $OS =~ windows ]] && FILE_EXT='exe' || FILE_EXT='bin'
+
 export GOOS=$OS
 export GOARCH=$ARCH
 export CGO_ENABLED=0 
@@ -43,7 +45,7 @@ echo >&2 "##[section]Build DropGZ with Embedded Payload"
 pushd "$DROPGZ_BUILD_DIR"/pkg/mod/"$DROPGZ_MOD_DOWNLOAD_PATH"
   mv "$PAYLOAD_DIR"/* pkg/embed/fs/
   go build -v -trimpath -a \
-    -o "$OUT_DIR"/bin/dropgz.exe \
+    -o "$OUT_DIR"/bin/dropgz."$FILE_EXT" \
     -ldflags "-X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$DROPGZ_VERSION"" \
     -gcflags="-dwarflocationlists=true" \
     main.go

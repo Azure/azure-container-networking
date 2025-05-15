@@ -2,7 +2,7 @@ ARG ARCH
 ARG ARTIFACT_DIR
 
 FROM scratch AS linux
-ADD ${ARTIFACT_DIR}/bin/dropgz.exe dropgz
+ADD ${ARTIFACT_DIR}/bin/dropgz.bin dropgz
 ENTRYPOINT [ "/dropgz" ]
 
 

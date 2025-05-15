@@ -9,7 +9,7 @@ RUN tdnf install -y iptables
 FROM mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:7778a86d86947d5f64c1280a7ee0cf36c6c6d76b5749dd782fbcc14f113961bf AS linux
 COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
 COPY --from=iptables /usr/lib /usr/lib
-COPY ${ARTIFACT_DIR}/bin/azure-cns.exe /usr/local/bin/azure-cns
+COPY ${ARTIFACT_DIR}/bin/azure-cns.bin /usr/local/bin/azure-cns
 ENTRYPOINT [ "/usr/local/bin/azure-cns" ]
 EXPOSE 10090
 

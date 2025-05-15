@@ -1,6 +1,8 @@
 #!/bin/bash
 set -eux
 
+[[ $OS =~ windows ]] && FILE_EXT='exe' || FILE_EXT='bin'
+
 export GOOS=$OS
 export GOARCH=$ARCH
 export CGO_ENABLED=0 
@@ -68,8 +70,8 @@ cp /lib/"$ARCH"/libbsd.so.0 "$OUT_DIR"/lib/
 cp /lib/"$ARCH"/libmd.so.0 "$OUT_DIR"/lib/
 
 # Add Needed Binararies
-cp /usr/sbin/nft "$OUT_DIR"/bin/nft.exe
-cp /sbin/ip "$OUT_DIR"/bin/ip.exe
+cp /usr/sbin/nft "$OUT_DIR"/bin/nft."$FILE_EXT"
+cp /sbin/ip "$OUT_DIR"/bin/ip."$FILE_EXT"
 
 
 # Build IPv6 HP BPF
@@ -82,7 +84,7 @@ pushd "$REPO_ROOT"/bpf-prog/ipv6-hp-bpf
 
   go generate ./...
   go build -v -a -trimpath \
-    -o "$OUT_DIR"/bin/ipv6-hp-bpf.exe \
+    -o "$OUT_DIR"/bin/ipv6-hp-bpf."$FILE_EXT" \
     -ldflags "-X main.version="$IPV6_HP_BPF_VERSION"" \
     -gcflags="-dwarflocationlists=true" .
 popd
