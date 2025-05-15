@@ -33,7 +33,7 @@ if [[ -f /etc/debian_version ]];then
 
 # Mariner
 else
-  tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute glibc-devel.i686
+  tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute glibc-devel
   ARCH=x86_64-linux-gnu
   cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
   for dir in /usr/include/"$ARCH"/*; do 
