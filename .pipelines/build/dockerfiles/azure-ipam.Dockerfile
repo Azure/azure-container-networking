@@ -1,7 +1,7 @@
 ARG ARTIFACT_DIR
 
 FROM scratch AS linux
-COPY ${ARTIFACT_DIR}/bin/dropgz.bin dropgz
+COPY ${ARTIFACT_DIR}/bin/dropgz dropgz
 ENTRYPOINT [ "/dropgz" ]
 
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eux
 
-[[ $OS =~ windows ]] && FILE_EXT='exe' || FILE_EXT='bin'
+[[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
 export GOOS=$OS
 export GOARCH=$ARCH
@@ -13,7 +13,7 @@ mkdir -p "$OUT_DIR"/scripts
 
 pushd "$REPO_ROOT"/cns
   go build -v -a \
-    -o "$OUT_DIR"/bin/azure-cns."$FILE_EXT" \
+    -o "$OUT_DIR"/bin/azure-cns"$FILE_EXT" \
     -ldflags "-X main.version="$CNS_VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID"" \
     -gcflags="-dwarflocationlists=true" \
     service/*.go

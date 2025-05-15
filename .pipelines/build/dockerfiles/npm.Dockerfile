@@ -7,7 +7,7 @@ RUN apt-get update && \
   apt-get autoremove -y && \
   apt-get clean
 
-COPY ${ARTIFACT_DIR}/bin/azure-npm.bin /usr/bin/azure-npm
+COPY ${ARTIFACT_DIR}/bin/azure-npm /usr/bin/azure-npm
 RUN chmod +x /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
 

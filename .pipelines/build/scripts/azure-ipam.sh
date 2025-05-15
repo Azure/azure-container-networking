@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eux
 
-[[ $OS =~ windows ]] && FILE_EXT='exe' || FILE_EXT='bin'
+[[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
 export GOOS=$OS
 export GOARCH=$ARCH
@@ -12,7 +12,7 @@ mkdir -p "$OUT_DIR"/files
 
 pushd "$REPO_ROOT"/azure-ipam
   go build -v -a -trimpath \
-    -o "$OUT_DIR"/bin/azure-ipam."$FILE_EXT" \
+    -o "$OUT_DIR"/bin/azure-ipam"$FILE_EXT" \
     -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version="$AZURE_IPAM_VERSION" -X main.version="$AZURE_IPAM_VERSION"" \
     -gcflags="-dwarflocationlists=true" \
     .
