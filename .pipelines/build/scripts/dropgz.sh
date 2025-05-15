@@ -32,6 +32,11 @@ echo >&2 "##[section]Download DropGZ ($DROPGZ_VERSION)"
 GOPATH="$DROPGZ_BUILD_DIR" \
   go mod download "$DROPGZ_MOD_DOWNLOAD_PATH"
 
+ls -la
+ls -la "$GEN_DIR"
+ls -la "$DROPGZ_BUILD_DIR"
+apt-get install -y tree || tdnf install -y tree
+tree "$GEN_DIR"
 echo >&2 "##[section]Build DropGZ with Embedded Payload"
 pushd "$DROPGZ_BUILD_DIR"/pkg/mod/"$DROPGZ_MOD_DOWNLOAD_PATH"
   mv "$PAYLOAD_DIR"/* pkg/embed/fs/

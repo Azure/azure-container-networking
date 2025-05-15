@@ -74,7 +74,7 @@ pushd "$REPO_ROOT"/bpf-prog/ipv6-hp-bpf
   cp ./cmd/ipv6-hp-bpf/*.go .
 
   if [[ "$DEBUG" =~ ^[T|t]rue$ ]]; then 
-    echo "#define DEBUG" >> ./include/helper.h
+    echo -e "\n#define DEBUG" >> ./include/helper.h
   fi
 
   go generate ./...
