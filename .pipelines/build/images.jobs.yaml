@@ -51,6 +51,7 @@ jobs:
         version: '$(GOVERSION)'
 
     - script: |
+        chmod +x "$SCRIPT_SRC"
         ./"$SCRIPT_SRC"
       displayName: "Build Package" 
       workingDirectory: $(REPO_ROOT)
