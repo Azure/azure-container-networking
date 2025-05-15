@@ -5,12 +5,14 @@ export GOOS=$OS
 export GOARCH=$ARCH
 export CGO_ENABLED=0 
 
+mkdir -p "$GEN_DIR"
+mkdir -p "$OUT_DIR"/bin
+
 DROPGZ_BUILD_DIR=$(mktemp -d -p "$GEN_DIR")
 PAYLOAD_DIR=$(mktemp -d -p "$GEN_DIR")
 DROPGZ_VERSION="${DROPGZ_VERSION:-v0.0.12}"
 DROPGZ_MOD_DOWNLOAD_PATH=""$ACN_PACKAGE_PATH"/dropgz@"$DROPGZ_VERSION""
 
-mkdir -p "$OUT_DIR"/bin
 mkdir -p "$DROPGZ_BUILD_DIR"
 
 echo >&2 "##[section]Construct DropGZ Embedded Payload"
