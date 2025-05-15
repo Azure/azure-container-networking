@@ -22,7 +22,6 @@ if [[ -f /etc/debian_version ]];then
     apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
 
     ARCH=aarch64-linux-gnu
-    PLAT=linux-aarch64
     cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/
   fi
 
@@ -34,8 +33,13 @@ if [[ -f /etc/debian_version ]];then
 # Mariner
 else
   tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute glibc-devel
-  ARCH=x86_64-linux-gnu
-  cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
+  if [[ $ARCH =~ amd64 ]]; then
+    ARCH=x86_64-linux-gnu
+    cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
+  elif [[ $ARCH =~ arm64 ]]; then
+    ARCH=aarch64-linux-gnu
+    cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/
+  fi
   for dir in /usr/include/"$ARCH"/*; do 
     if [[ -d $dir ]]; then
       ln -sfn "$dir" /usr/include/$(basename "$dir") 
