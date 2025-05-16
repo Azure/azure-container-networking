@@ -266,6 +266,7 @@ stages:
               fi
             name: "testAsyncDelete"
             displayName: "Verify Async Delete when CNS is down"
+          - template: ../../templates/cilium-mtu-check.yaml
       - template: ../k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
