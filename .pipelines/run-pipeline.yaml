@@ -189,7 +189,7 @@ stages:
       NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
 
       IPAM_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-ipam:$(Build.BuildNumber)
-      #IPAM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ipam:$(Build.BuildNumber)
+      IPAM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ipam:$(Build.BuildNumber)
       IPAM_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/azure-ipam:$(Build.BuildNumber)
 
       CNI_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cni:$(Build.BuildNumber)
@@ -201,7 +201,7 @@ stages:
       CNS_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/cns:$(Build.BuildNumber)
 
       IPV6_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/ipv6-hp-bpf:$(Build.BuildNumber)
-      IPV6_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/ipv6-hp-bpf:$(Build.BuildNumber)
+      #IPV6_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/ipv6-hp-bpf:$(Build.BuildNumber)
 
       NPM_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/npm:$(Build.BuildNumber)
       NPM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/npm:$(Build.BuildNumber)
