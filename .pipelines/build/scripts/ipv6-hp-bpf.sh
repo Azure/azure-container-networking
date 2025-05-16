@@ -23,7 +23,10 @@ if [[ -f /etc/debian_version ]];then
     apt-get install -y gcc-aarch64-linux-gnu
 
     ARCH=aarch64-linux-gnu
-    cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/
+    ls -la /usr/lib
+    ls -la /usr/lib/"$ARCH" || true
+    ls -la /usr/lib/"$GOARCH" || true
+    cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/ || true
   fi
 
   for dir in /usr/include/"$ARCH"/*; do 
