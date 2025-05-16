@@ -82,6 +82,8 @@ stages:
               GOOS=linux gocov convert linux-coverage.out > linux-coverage.json
               GOOS=linux gocov-xml < linux-coverage.json > linux-coverage.xml
 
+              # TODO: Add windows coverage back in once PublishCodeCoverageResults v2 works with BuildQualityChecks
+
               mkdir coverage
 
               mv linux-coverage.xml coverage/
