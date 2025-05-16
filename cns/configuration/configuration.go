@@ -10,6 +10,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	loggerv2 "github.com/Azure/azure-container-networking/cns/logger/v2"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/pkg/errors"
 )
@@ -31,12 +32,14 @@ type CNSConfig struct {
 	EnableCNIConflistGeneration bool
 	EnableIPAMv2                bool
 	EnableK8sDevicePlugin       bool
+	EnableLoggerV2              bool
 	EnablePprof                 bool
 	EnableStateMigration        bool
 	EnableSubnetScarcity        bool
 	EnableSwiftV2               bool
 	InitializeFromCNI           bool
 	KeyVaultSettings            KeyVaultSettings
+	Logger                      loggerv2.Config
 	MSISettings                 MSISettings
 	ManageEndpointState         bool
 	ManagedSettings             ManagedSettings
