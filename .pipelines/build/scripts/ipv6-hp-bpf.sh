@@ -13,13 +13,13 @@ mkdir -p "$OUT_DIR"/lib
 if [[ -f /etc/debian_version ]];then
   apt-get update -y
   apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
-  if [[ $GOARCH =~ amd64 ]]; then
-    apt-get install -y  gcc-multilib build-essential binutils 
+  if [[ $ARCH =~ amd64 ]]; then
+    apt-get install -y  gcc-multilib
 
     ARCH=x86_64-linux-gnu
     cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
   
-  elif [[ $GOARCH =~ arm64 ]]; then
+  elif [[ $ARCH =~ arm64 ]]; then
     apt-get install -y gcc-aarch64-linux-gnu
 
     ARCH=aarch64-linux-gnu
@@ -35,7 +35,6 @@ if [[ -f /etc/debian_version ]];then
 
 
 # Mariner
-# This is not set up to build on arm _hosts_
 else
   tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute glibc
   if [[ $GOARCH =~ amd64 ]]; then

@@ -10,6 +10,9 @@ jobs:
     strategy: ${{ job_data.strategy }}
     pool:
       type: linux
+      ${{ if eq(job_data.job, 'linux_arm64') }}:
+        hostArchitecture: arm64
+
     variables:
       ob_artifactSuffix: _$(name)
       ob_git_checkout: false
@@ -35,7 +38,7 @@ jobs:
       ${{ elseif eq(job_data.job, 'linux_arm64') }}:
         ob_enable_qemu: true
         OS: linux
-        ARCH: amd64
+        ARCH: arm64
         GOOS: linux
         GOARCH: arm64
     steps:
