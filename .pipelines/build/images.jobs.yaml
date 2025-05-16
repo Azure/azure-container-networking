@@ -1,0 +1,132 @@
+parameters:
+- name: images
+  type: jobList
+
+
+jobs:
+- ${{ each job_data in parameters.images }}:
+  - job: pkg_${{ job_data.job }}
+    displayName: "Prepare Image Package - ${{ job_data.displayName }} -"
+    strategy: ${{ job_data.strategy }}
+    pool:
+      type: linux
+      ${{ if eq(job_data.job, 'linux_arm64') }}:
+        hostArchitecture: arm64
+
+    variables:
+      ob_artifactSuffix: _$(name)
+      ob_git_checkout: false
+      # keep these variables concerned with instrumentation.
+      GEN_DIR: $(Build.SourcesDirectory)/temp
+      REPO_ROOT: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
+      OUT_DIR: $(Build.ArtifactStagingDirectory)
+      DROPGZ_VERSION: v0.0.12
+      DEBUG: $[ coalesce(variables['System.Debug'], 'False') ]
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
+      ${{ if eq(job_data.job, 'linux_amd64') }}:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+        OS: linux
+        ARCH: amd64
+        GOOS: linux
+        GOARCH: amd64
+      ${{ elseif eq(job_data.job, 'windows_amd64') }}:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+        ob_enable_qemu: true
+        OS: linux
+        ARCH: amd64
+        GOOS: windows
+        GOARCH: amd64
+      ${{ elseif eq(job_data.job, 'linux_arm64') }}:
+        ob_enable_qemu: true
+        OS: linux
+        ARCH: arm64
+        GOOS: linux
+        GOARCH: arm64
+    steps:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        targetPath: $(REPO_ROOT)
+        artifact: '${{ job_data.templateContext.repositoryArtifact }}'
+
+    - task: GoTool@0
+      inputs:
+        version: '$(GOVERSION)'
+
+    - task: ShellScript@2
+      inputs:
+        scriptPath: $(REPO_ROOT)/${{ job_data.templateContext.buildScript }}
+
+    - script: |
+        ls -la "$SOURCE"
+        cp "$SOURCE" "$DEST"
+        ls -la "$DEST"
+      env:
+        SOURCE: $(REPO_ROOT)/${{ job_data.templateContext.obDockerfile }}
+        DEST: $(OUT_DIR)/Dockerfile
+
+    - task: onebranch.pipeline.signing@1
+      inputs:
+        command: 'sign'
+        signing_profile: 'external_distribution'
+        files_to_sign: '**/*'
+        search_root: $(OUT_DIR)
+
+
+    - task: ShellScript@2
+      displayName: "Package with DropGZ"
+      condition: and(succeeded(), eq(variables.packageWithDropGZ, 'True'))
+      inputs:
+        scriptPath: $(REPO_ROOT)/.pipelines/build/scripts/dropgz.sh
+
+    - task: onebranch.pipeline.signing@1
+      condition: and(
+        succeeded(), 
+        eq(variables.os, 'windows'),
+        eq(variables.packageWithDropGZ, 'True'))
+      inputs:
+        command: 'sign'
+        signing_profile: 'external_distribution'
+        files_to_sign: '**/dropgz'
+        search_root: $(OUT_DIR)
+
+
+  - job: images_${{ job_data.job }}
+    displayName: "Build Images - ${{ job_data.displayName }} -"
+    dependsOn:
+    - pkg_${{ job_data.job }}
+    strategy: ${{ job_data.strategy }}
+    pool:
+      os: linux
+      type: docker
+      ${{ if eq(job_data.job, 'linux_arm64') }}:
+        hostArchitecture: arm64
+        LinuxHostVersion:
+          distribution: mariner
+          architecture: arm64
+    variables:
+      ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
+      ob_artifactSuffix: _$(name)
+      ob_git_checkout: false
+      ${{ if eq(job_data.job, 'linux_amd64') }}:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+        ARCH: amd64
+        OS: linux
+      ${{ elseif eq(job_data.job, 'windows_amd64') }}:
+        ob_enable_qemu: true
+        ARCH: amd64
+        OS: windows
+      ${{ elseif eq(job_data.job, 'linux_arm64') }}:
+        ob_build_container: true
+        ARCH: arm64
+        OS: linux
+
+    steps:
+    - template: image.steps.yaml
+      parameters:
+        arch: $(ARCH)
+        os: $(OS)
+        name: $(name)
+        build_tag: $(imageTag)
+        extra_args: $(extraArgs) --build-arg ARTIFACT_DIR="${{ job_data.templateContext.pkgArtifact }}"
+        archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
+        source: ${{ job_data.templateContext.pkgArtifact }}

@@ -27,7 +27,7 @@ steps:
     source_dockerfile: linux.Dockerfile
 
 - bash: |
-    rm -rf .pipelines .hooks .github
+    rm -rf .hooks .github
   displayName: "Remove Unnecessary Dirs from Source"
   workingDirectory: $(Build.SourcesDirectory)/azure-container-networking
 
@@ -51,7 +51,7 @@ steps:
     echo "##vso[task.setvariable variable=Tag;isOutput=true]$TAG"
     echo "Tag: $TAG"
 
-    IMAGEREPOPATH="artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy"
+    IMAGEREPOPATH="artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/$BUILD_TYPE"
     echo "##vso[task.setvariable variable=imageRepositoryPath;isOutput=true]$IMAGEREPOPATH"
     echo "imageRepositoryPath: $IMAGEREPOPATH"
 
