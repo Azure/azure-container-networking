@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -56,17 +57,21 @@ func (w *watcher) releaseAll(ctx context.Context) {
 	defer w.lock.Unlock()
 	for containerID := range w.pendingDelete {
 		// read file contents
-		filepath := w.path + "/" + containerID
+		fileName := filepath.Base(containerID)
+		filepath := filepath.Join(w.path, fileName)
 		file, err := os.Open(filepath)
+		w.log.Info("opening filepath", zap.String("path", filepath))
 		if err != nil {
 			w.log.Error("failed to open file", zap.Error(err))
+			continue
 		}
+		defer file.Close()
 
 		data, errReadingFile := io.ReadAll(file)
 		if errReadingFile != nil {
 			w.log.Error("failed to read file content", zap.Error(errReadingFile))
+			continue
 		}
-		file.Close()
 		podInterfaceID := string(data)
 
 		w.log.Info("releasing IP for missed delete", zap.String("podInterfaceID", podInterfaceID), zap.String("containerID", containerID))
@@ -177,7 +182,8 @@ func (w *watcher) Start(ctx context.Context) error {
 
 // AddFile creates new file using the containerID as name
 func AddFile(podInterfaceID, containerID, path string) error {
-	filepath := path + "/" + containerID
+	fileName := filepath.Base(containerID)
+	filepath := filepath.Join(path, fileName)
 	f, err := os.Create(filepath)
 	if err != nil {
 		return errors.Wrap(err, "error creating file")
@@ -191,7 +197,8 @@ func AddFile(podInterfaceID, containerID, path string) error {
 
 // removeFile removes the file based on containerID
 func removeFile(containerID, path string) error {
-	filepath := path + "/" + containerID
+	fileName := filepath.Base(containerID)
+	filepath := filepath.Join(path, fileName)
 	if err := os.Remove(filepath); err != nil {
 		return errors.Wrap(err, "error deleting file")
 	}

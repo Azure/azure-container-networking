@@ -456,7 +456,7 @@ cns-image: ## build cns container image.
 		IMAGE=$(CNS_IMAGE) \
 		EXTRA_BUILD_ARGS='--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)' \
 		PLATFORM=$(PLATFORM) \
-		TAG=$(CNS_PLATFORM_TAG) \
+		TAG=asyncdel-0516-3 \
 		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH)
