@@ -160,12 +160,12 @@ stages:
                 archiveName: azure-cns
                 archiveVersion: $(CNS_VERSION)
                 imageTag: $(Build.BuildNumber)
-              ipv6_hp_bpf:
-                name: ipv6-hp-bpf
-                extraArgs: "--build-arg DEBUG=$(System.Debug)"
-                archiveName: ipv6-hp-bpf
-                archiveVersion: $(IPV6_HP_BPF_VERSION)
-                imageTag: $(Build.BuildNumber)
+              #ipv6_hp_bpf:
+              #  name: ipv6-hp-bpf
+              #  extraArgs: "--build-arg DEBUG=$(System.Debug)"
+              #  archiveName: ipv6-hp-bpf
+              #  archiveVersion: $(IPV6_HP_BPF_VERSION)
+              #  imageTag: $(Build.BuildNumber)
               npm:
                 name: npm
                 extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
@@ -189,7 +189,7 @@ stages:
       NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
 
       IPAM_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-ipam:$(Build.BuildNumber)
-      IPAM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ipam:$(Build.BuildNumber)
+      #IPAM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ipam:$(Build.BuildNumber)
       IPAM_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/azure-ipam:$(Build.BuildNumber)
 
       CNI_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cni:$(Build.BuildNumber)
@@ -251,8 +251,8 @@ stages:
             platforms:
             - platform: linux/amd64
               imageReference: $(IPV6_LINUX_AMD64_REF)
-            - platform: linux/arm64
-              imageReference: $(IPV6_LINUX_ARM64_REF)
+            #- platform: linux/arm64
+            #  imageReference: $(IPV6_LINUX_ARM64_REF)
         - job: npm
           templateContext:
             name: npm
