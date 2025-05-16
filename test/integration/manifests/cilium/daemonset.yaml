@@ -7,6 +7,7 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: Helm
     k8s-app: cilium
+    app.kubernetes.io/part-of: cilium
   name: cilium
   namespace: kube-system
 spec:
@@ -38,12 +39,6 @@ spec:
                 operator: In
                 values:
                 - linux
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchLabels:
-                k8s-app: cilium
-            topologyKey: kubernetes.io/hostname
       containers:
       - args:
         - --config-dir=/tmp/cilium/config-map
@@ -98,7 +93,7 @@ spec:
           timeoutSeconds: 5
         resources: {}
         securityContext:
-          appArmorProfile: 
+          appArmorProfile:
             type: Unconfined
           capabilities:
             add:
@@ -157,6 +152,9 @@ spec:
           readOnly: true
         - mountPath: /run/xtables.lock
           name: xtables-lock
+        - mountPath: /var/run/cilium/netns
+          name: cilium-netns
+          mountPropagation: HostToContainer
       dnsPolicy: ClusterFirst
       hostNetwork: true
       initContainers:
@@ -195,7 +193,7 @@ spec:
         name: mount-cgroup
         resources: {}
         securityContext:
-          appArmorProfile: 
+          appArmorProfile:
             type: Unconfined
           capabilities:
             add:
@@ -229,7 +227,7 @@ spec:
         name: apply-sysctl-overwrites
         resources: {}
         securityContext:
-          appArmorProfile: 
+          appArmorProfile:
             type: Unconfined
           capabilities:
             add:
@@ -289,7 +287,7 @@ spec:
             cpu: 100m
             memory: 100Mi
         securityContext:
-          appArmorProfile: 
+          appArmorProfile:
             type: Unconfined
           capabilities:
             add:
@@ -312,26 +310,6 @@ spec:
           name: cilium-cgroup
         - mountPath: /var/run/cilium
           name: cilium-run
-      - command:
-        - bash
-        - -cex
-        - |
-          export LD_LIBRARY_PATH=/host/lib/systemd:/host/usr/lib/aarch64-linux-gnu:/host/usr/lib/x86_64-linux-gnu
-          export SYSTEMD_VERSION="$(/host/lib/systemd/systemd --version | head -n 1 | cut -d' ' -f2)"
-          [[ $SYSTEMD_VERSION -ge 249 ]] && {
-              mkdir -p /host/etc/systemd/networkd.conf.d
-              echo -e "[Network]\nManageForeignRoutes=no\nManageForeignRoutingPolicyRules=no\n" \
-                >/host/etc/systemd/networkd.conf.d/99-cilium-foreign-routes.conf
-              chmod -R u+rwX,go+rX /host/etc/systemd/networkd.conf.d
-            } || exit 0
-        image: mcr.microsoft.com/cbl-mariner/base/core:2.0
-        imagePullPolicy: IfNotPresent
-        name: systemd-networkd-overrides
-        resources: {}
-        securityContext:
-          privileged: true
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
         volumeMounts:
         - mountPath: /host/etc/systemd
           name: host-etc-systemd
@@ -440,6 +418,10 @@ spec:
           path: /proc/sys/kernel
           type: Directory
         name: host-proc-sys-kernel
+      - hostPath: 
+          path: /var/run/netns
+          type: DirectoryOrCreate
+        name: cilium-netns
   updateStrategy:
     rollingUpdate:
       maxSurge: 0
