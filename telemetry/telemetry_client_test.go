@@ -50,7 +50,7 @@ func TestClient(t *testing.T) {
 	require.Equal(t, "", emptyClient.Settings().ErrorMessage)
 
 	// test sending aimetrics doesn't panic...
-	require.NotPanics(t, func() { emptyClient.SendMetric(&AIMetric{}) })
+	require.NotPanics(t, func() { emptyClient.SendMetric("", 0, nil) })
 	// ...and doesn't affect the cni report
 	require.Regexp(t, allowedEventMsg, emptyClient.Settings().EventMessage)
 	require.Equal(t, "", emptyClient.Settings().ErrorMessage)

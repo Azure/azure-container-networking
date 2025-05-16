@@ -358,6 +358,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		epInfos          []*network.EndpointInfo
 	)
 
+	startTime := time.Now()
 	logger.Info("Processing ADD command",
 		zap.String("containerId", args.ContainerID),
 		zap.String("netNS", args.Netns),
@@ -438,6 +439,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			zap.Error(log.NewErrorWithoutStackTrace(err)))
 
 		telemetryClient.SendEvent(fmt.Sprintf("ADD command completed with [ipamAddResult]: %s [epInfos]: %s [error]: %v ", ipamAddResult.PrettyString(), network.FormatSliceOfPointersToString(epInfos), err))
+
+		operationTimeMs := time.Since(startTime).Milliseconds()
+		telemetryClient.SendMetric(telemetry.CNIAddTimeMetricStr, float64(operationTimeMs), make(map[string]string))
 	}()
 
 	ipamAddResult = IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
@@ -960,7 +964,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		networkID    string
 		nwInfo       network.EndpointInfo
 	)
-
+	startTime := time.Now()
 	logger.Info("Processing DEL command",
 		zap.String("containerId", args.ContainerID),
 		zap.String("netNS", args.Netns),
@@ -974,6 +978,8 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			zap.String("pod", k8sPodName),
 			zap.Error(log.NewErrorWithoutStackTrace(err)))
 		telemetryClient.SendEvent(fmt.Sprintf("DEL command completed: [podname]: %s [namespace]: %s [error]: %v", k8sPodName, k8sNamespace, err))
+		operationTimeMs := time.Since(startTime).Milliseconds()
+		telemetryClient.SendMetric(telemetry.CNIDelTimeMetricStr, float64(operationTimeMs), make(map[string]string))
 	}()
 
 	// Parse network configuration from stdin.

@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/Azure/azure-container-networking/aitelemetry"
 	"go.uber.org/zap"
 )
 
@@ -94,11 +95,18 @@ func (c *Client) SendError(err error) {
 	c.sendEvent(err.Error())
 }
 
-func (c *Client) SendMetric(cniMetric *AIMetric) {
-	if c.tb == nil || cniMetric == nil {
+func (c *Client) SendMetric(name string, value float64, customDims map[string]string) {
+	if c.tb == nil {
 		return
 	}
-	err := SendCNIMetric(cniMetric, c.tb)
+	err := SendCNIMetric(&AIMetric{
+		aitelemetry.Metric{
+			Name:             name,
+			Value:            value,
+			AppVersion:       c.Settings().Version,
+			CustomDimensions: customDims,
+		},
+	}, c.tb)
 	if err != nil {
 		c.sendLog("Couldn't send metric: " + err.Error())
 	}
