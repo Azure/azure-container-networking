@@ -23,13 +23,14 @@ jobs:
       DROPGZ_VERSION: v0.0.12
       DEBUG: $[ coalesce(variables['System.Debug'], 'False') ]
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
-      LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
       ${{ if eq(job_data.job, 'linux_amd64') }}:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
         OS: linux
         ARCH: amd64
         GOOS: linux
         GOARCH: amd64
       ${{ elseif eq(job_data.job, 'windows_amd64') }}:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
         ob_enable_qemu: true
         OS: linux
         ARCH: amd64

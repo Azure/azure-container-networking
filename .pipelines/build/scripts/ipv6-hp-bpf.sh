@@ -40,9 +40,9 @@ else
   if [[ $GOARCH =~ amd64 ]]; then
     ARCH=x86_64-linux-gnu
     cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/ || find /usr/lib/ -name 'ld-linux-x86-64.so.2'
-  elif [[ $GOARCH =~ arm64 ]]; then
-    ARCH=aarch64-linux-gnu
-    cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/ || find /usr/lib/ -name 'ld-linux-aarch64.so.1'
+  #elif [[ $GOARCH =~ arm64 ]]; then
+  #  ARCH=aarch64-linux-gnu
+  #  cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/ || find /usr/lib/ -name 'ld-linux-aarch64.so.1'
   fi
   for dir in /usr/include/"$ARCH"/*; do 
     if [[ -d $dir ]]; then
