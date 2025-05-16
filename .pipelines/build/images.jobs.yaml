@@ -10,9 +10,6 @@ jobs:
     strategy: ${{ job_data.strategy }}
     pool:
       type: linux
-      ${{ if eq(job_data.job, 'linux_arm64') }}:
-        hostArchitecture: arm64
-
     variables:
       ob_artifactSuffix: _$(name)
       ob_git_checkout: false
@@ -25,22 +22,22 @@ jobs:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       ${{ if eq(job_data.job, 'linux_amd64') }}:
         LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
-        ARCH: amd64
-        GOARCH: amd64
         OS: linux
+        ARCH: amd64
         GOOS: linux
+        GOARCH: amd64
       ${{ elseif eq(job_data.job, 'windows_amd64') }}:
         LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
-        ARCH: amd64
-        GOARCH: amd64
         OS: windows
+        ARCH: amd64
         GOOS: windows
+        GOARCH: amd64
       ${{ elseif eq(job_data.job, 'linux_arm64') }}:
         ob_enable_qemu: true
-        ARCH: arm64
-        GOARCH: arm64
         OS: linux
+        ARCH: amd64
         GOOS: linux
+        GOARCH: arm64
     steps:
     - task: DownloadPipelineArtifact@2
       inputs:
