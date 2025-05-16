@@ -1,10 +1,8 @@
 #!/bin/bash
 set -eux
 
-[[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
+[[ $GOOS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
-export GOOS=$OS
-export GOARCH=$ARCH
 export CGO_ENABLED=0 
 export C_INCLUDE_PATH=/usr/include/bpf
 
@@ -20,6 +18,7 @@ if [[ -f /etc/debian_version ]];then
 
     ARCH=x86_64-linux-gnu
     cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
+    cp /usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/ || echo "Skipped."
   
   elif [[ $ARCH =~ arm64 ]]; then
     apt-get install -y gcc-aarch64-linux-gnu

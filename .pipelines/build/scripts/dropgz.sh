@@ -1,10 +1,8 @@
 #!/bin/bash
 set -eux
 
-[[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
+[[ $GOOS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
-export GOOS=$OS
-export GOARCH=$ARCH
 export CGO_ENABLED=0 
 
 mkdir -p "$GEN_DIR"

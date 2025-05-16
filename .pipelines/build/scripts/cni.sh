@@ -1,13 +1,11 @@
 #!/bin/bash
 set -eux
 
-[[ $OS =~ windows ]] && FILE_EXT='exe' || FILE_EXT='bin'
+[[ $GOOS =~ windows ]] && FILE_EXT='exe' || FILE_EXT='bin'
 
 mkdir -p "$OUT_DIR"/files
 mkdir -p "$OUT_DIR"/bin
 
-export GOOS=$OS
-export GOARCH=$ARCH
 export CGO_ENABLED=0 
 
 
