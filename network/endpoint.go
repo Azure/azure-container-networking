@@ -151,15 +151,35 @@ type apipaClient interface {
 	CreateHostNCApipaEndpoint(ctx context.Context, networkContainerID string) (string, error)
 }
 
+// FormatSliceOfPointersToString takes in a slice of pointers, and for each pointer, dereferences the pointer if not nil
+// and then formats it to its string representation, returning a string where each line is a separate item in the slice.
+// This is used for convenience to get a string representation of the actual structs and their fields
+// in slices of pointers since the default string representation of a slice of pointers is a list of memory addresses.
+func FormatSliceOfPointersToString[T any](slice []*T) string {
+	var builder strings.Builder
+	for _, ptr := range slice {
+		if ptr != nil {
+			fmt.Fprintf(&builder, "%+v \n", *ptr)
+		}
+	}
+	return builder.String()
+}
+
 func (epInfo *EndpointInfo) PrettyString() string {
-	return fmt.Sprintf("EndpointID:%s ContainerID:%s NetNsPath:%s IfName:%s IfIndex:%d MacAddr:%s IPAddrs:%v Gateways:%v Data:%+v NICType: %s NetworkContainerID: %s HostIfName: %s NetNs: %s Options: %v",
+	return fmt.Sprintf("EndpointID:%s ContainerID:%s NetNsPath:%s IfName:%s IfIndex:%d MacAddr:%s IPAddrs:%v Gateways:%v Data:%+v NICType: %s "+
+		"NetworkContainerID: %s HostIfName: %s NetNs: %s Options: %v MasterIfName: %s HNSEndpointID: %s HNSNetworkID: %s",
 		epInfo.EndpointID, epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName, epInfo.IfIndex, epInfo.MacAddress.String(), epInfo.IPAddresses,
-		epInfo.Gateways, epInfo.Data, epInfo.NICType, epInfo.NetworkContainerID, epInfo.HostIfName, epInfo.NetNs, epInfo.Options)
+		epInfo.Gateways, epInfo.Data, epInfo.NICType, epInfo.NetworkContainerID, epInfo.HostIfName, epInfo.NetNs, epInfo.Options, epInfo.MasterIfName,
+		epInfo.HNSEndpointID, epInfo.HNSNetworkID)
 }
 
 func (ifInfo *InterfaceInfo) PrettyString() string {
-	return fmt.Sprintf("Name:%s NICType:%v MacAddr:%s IPConfigs:%+v Routes:%+v DNSInfo:%+v",
-		ifInfo.Name, ifInfo.NICType, ifInfo.MacAddress.String(), ifInfo.IPConfigs, ifInfo.Routes, ifInfo.DNS)
+	var ncresponse string
+	if ifInfo.NCResponse != nil {
+		ncresponse = fmt.Sprintf("%+v", *ifInfo.NCResponse)
+	}
+	return fmt.Sprintf("Name:%s NICType:%v MacAddr:%s IPConfigs:%s Routes:%+v DNSInfo:%+v NCResponse: %s",
+		ifInfo.Name, ifInfo.NICType, ifInfo.MacAddress.String(), FormatSliceOfPointersToString(ifInfo.IPConfigs), ifInfo.Routes, ifInfo.DNS, ncresponse)
 }
 
 // NewEndpoint creates a new endpoint in the network.
