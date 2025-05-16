@@ -34,8 +34,17 @@ steps:
           done
         fi
 
+        # Restart cilium if it is installed, bpf maps and endpoint states can be stale after a node restart (versions < v1.17)
+        if [ ${{ parameters.cni }} = 'cilium' ]; then
+          echo "Restart Cilium and ensure it is ready and available. "
+          kubectl rollout restart ds -n kube-system cilium
+          kubectl rollout status ds -n kube-system cilium
+          kubectl get pods -n kube-system -l k8s-app=cilium -owide
+        fi
+
         echo "Ensure Load-Test deployment pods are marked as ready"
         kubectl rollout status deploy -n load-test
+
     name: "RestartNodes"
     displayName: "Restart Nodes"
 
