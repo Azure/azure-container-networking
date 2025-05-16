@@ -36,7 +36,7 @@ if [[ -f /etc/debian_version ]];then
 # Mariner
 # This is not set up to build on arm _hosts_
 else
-  tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute cross-gcc
+  tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute glibc
   if [[ $GOARCH =~ amd64 ]]; then
     ARCH=x86_64-linux-gnu
     cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/ || find /usr/lib/ -name 'ld-linux-x86-64.so.2'
