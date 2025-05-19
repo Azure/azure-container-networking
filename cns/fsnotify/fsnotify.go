@@ -60,13 +60,15 @@ func (w *watcher) releaseAll(ctx context.Context) {
 		file, err := os.Open(filepath)
 		if err != nil {
 			w.log.Error("failed to open file", zap.Error(err))
+			continue
 		}
 
 		data, errReadingFile := io.ReadAll(file)
+		file.Close()
 		if errReadingFile != nil {
 			w.log.Error("failed to read file content", zap.Error(errReadingFile))
+			continue
 		}
-		file.Close()
 		podInterfaceID := string(data)
 
 		w.log.Info("releasing IP for missed delete", zap.String("podInterfaceID", podInterfaceID), zap.String("containerID", containerID))
