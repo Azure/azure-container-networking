@@ -22,8 +22,6 @@ steps:
       inlineScript: |
         set -e
         echo "Check az version"
-        echo "Para check parameter | ${{ lower(parameters.LTS) }}"
-        echo " Para check parameter | ${{ parameters.k8sVersion }}"
         az version
         if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
         then
