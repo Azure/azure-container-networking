@@ -3,42 +3,39 @@ parameters:
   type: jobList
 
 jobs:
-  #- ${{ each job_data in parameters.images }}:
+- ${{ each job_data in parameters.images }}:
   - template: inner-replicate.jobs.yaml
     parameters:
       topic:
-        job: image_acn
-        templateContext:
-          action: pkg
+        job: image_${{ job_data.job }}
+        pool:
+          type: linux
+  
       sub_topics:
-      - job: pkg
-        steps:
-        - ${{ each job_data in parameters.images }}:
+      - ${{ if eq(job_data.templateContext.action, 'pkg') }}:
+        - job: pkg
+          steps:
           - ${{ job_data.steps }}
-#      - ${{ if eq(job_data.templateContext.action, 'pkg') }}:
-#        - job: pkg
-#          steps:
-#          - ${{ job_data.steps }}
-#      - ${{ elseif eq(job_data.templateContext.action, 'build') }}:
-#        - job: build
-#          dependsOn:
-#          - pkg
-#          steps:
-#          - ${{ job_data.steps }}
-#      - ${{ elseif eq(job_data.templateContext.action, 'manifest') }}:
-#        - job: manifest
-#          dependsOn:
-#          - build
-#          steps:
-#          - ${{ job_data.steps }}
-#      - ${{ elseif eq(job_data.templateContext.action, 'sign') }}:
-#        - job: sign
-#          dependsOn:
-#          - build
-#          steps:
-#          - ${{ job_data.steps }}
-#      - ${{ else }}:
-#        - job:
-#          steps:
-#          - bash: |
-#              echo "template problem"
+      - ${{ elseif eq(job_data.templateContext.action, 'build') }}:
+        - job: build
+          dependsOn:
+          - pkg
+          steps:
+          - ${{ job_data.steps }}
+      - ${{ elseif eq(job_data.templateContext.action, 'manifest') }}:
+        - job: manifest
+          dependsOn:
+          - build
+          steps:
+          - ${{ job_data.steps }}
+      - ${{ elseif eq(job_data.templateContext.action, 'sign') }}:
+        - job: sign
+          dependsOn:
+          - build
+          steps:
+          - ${{ job_data.steps }}
+      - ${{ else }}:
+        - job:
+          steps:
+          - bash: |
+              echo "template problem"
