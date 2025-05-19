@@ -50,61 +50,61 @@ jobs:
           pool:
             type: linux
 
-      # displayName
-      ${{ if parameters.topic.displayName }}:
-        ${{ if sub_topic.displayName }}:
-          displayName: "${{ parameters.topic.displayName }} - ${{ sub_topic.displayName }}"
-        ${{ else }}:
-          displayName: "${{ parameters.topic.displayName }} - ${{ sub_topic.job }}"
-      ${{ else }}:
-        ${{ if sub_topic.displayName }}:
-          displayName: "${{ sub_topic.displayName }}"
+#      # displayName
+#      ${{ if parameters.topic.displayName }}:
+#        ${{ if sub_topic.displayName }}:
+#          displayName: "${{ parameters.topic.displayName }} - ${{ sub_topic.displayName }}"
+#        ${{ else }}:
+#          displayName: "${{ parameters.topic.displayName }} - ${{ sub_topic.job }}"
+#      ${{ else }}:
+#        ${{ if sub_topic.displayName }}:
+#          displayName: "${{ sub_topic.displayName }}"
 
-      # dependsOn
-      ${{ if parameters.topic.dependsOn }}:
-        dependsOn:
-        - ${{ each dep in parameters.dependsOn }}:
-          # Translate the short job name to the full dependency name.
-          - ${{ if eq(dep, topic.job) }}:
-            - ${{ parameters.topic.job }}_${{ sub_topic.job }}
-          - ${{ else }}:
-            - ${{ dep }}
+#      # dependsOn
+#      ${{ if parameters.topic.dependsOn }}:
+#        dependsOn:
+#        - ${{ each dep in parameters.dependsOn }}:
+#          # Translate the short job name to the full dependency name.
+#          - ${{ if eq(dep, topic.job) }}:
+#            - ${{ parameters.topic.job }}_${{ sub_topic.job }}
+#          - ${{ else }}:
+#            - ${{ dep }}
+#
+#      ${{ if sub_topic.dependsOn }}:
+#        - ${{ each dep in sub_topic.dependsOn }}:
+#          - ${{ if not(containsValue(parameters.topic.dependsOn, dep)) }}:
+#            - ${{ dep }}
 
-      ${{ if sub_topic.dependsOn }}:
-        - ${{ each dep in sub_topic.dependsOn }}:
-          - ${{ if not(containsValue(parameters.topic.dependsOn, dep)) }}:
-            - ${{ dep }}
+#      # condition
+#      ${{ if parameters.topic.condition }}:
+#        ${{ if sub_topic.condition }}:
+#          condition: and(${{ parameters.topic.condition }}, ${{ sub_topic.condition }})
+#        ${{ else }}:
+#          condition: ${{ parameters.topic.condition }}
+#      ${{ else }}:
+#        ${{ if sub_topic.condition }}:
+#          condition: ${{ sub_topic.condition }}
 
-      # condition
-      ${{ if parameters.topic.condition }}:
-        ${{ if sub_topic.condition }}:
-          condition: and(${{ parameters.topic.condition }}, ${{ sub_topic.condition }})
-        ${{ else }}:
-          condition: ${{ parameters.topic.condition }}
-      ${{ else }}:
-        ${{ if sub_topic.condition }}:
-          condition: ${{ sub_topic.condition }}
+#      # variables
+#      variables:
+#        ob_artifactSuffix: _${{ parameters.topic.job }}_${{ sub_topic.job }}
+#        ${{ if parameters.topic.variables }}:
+#          ${{ each dep in parameters.variables }}:
+#            ${{ if not(containsValue(sub_topic.variables, dep)) }}:
+#              ${{ if ne(dep.key, 'ob_artifactSuffix') }}:
+#                ${{ dep.key }}: ${{ dep.value }}
+#        ${{ if sub_topic.variables }}:
+#          ${{ each dep in sub_topic.variables }}:
+#            ${{ if ne(dep.key, 'ob_artifactSuffix') }}:
+#                ${{ dep.key }}: ${{ dep.value }}
 
-      # variables
-      variables:
-        ob_artifactSuffix: _${{ parameters.topic.job }}_${{ sub_topic.job }}
-        ${{ if parameters.topic.variables }}:
-          ${{ each dep in parameters.variables }}:
-            ${{ if not(containsValue(sub_topic.variables, dep)) }}:
-              ${{ if ne(dep.key, 'ob_artifactSuffix') }}:
-                ${{ dep.key }}: ${{ dep.value }}
-        ${{ if sub_topic.variables }}:
-          ${{ each dep in sub_topic.variables }}:
-            ${{ if ne(dep.key, 'ob_artifactSuffix') }}:
-                ${{ dep.key }}: ${{ dep.value }}
+#      # templateContext
+#      ${{ if sub_topic.templateContext }}:
+#        templateContext: ${{ sub_topic.templateContext }}
 
-      # templateContext
-      ${{ if sub_topic.templateContext }}:
-        templateContext: ${{ sub_topic.templateContext }}
-
-      ${{ each prop in sub_topic }}:
-        ${{ if not(containsValue(parameters._modifiable_parameters, prop)) }}:
-          ${{ prop.key }}: ${{ prop.value }}
+#      ${{ each prop in sub_topic }}:
+#        ${{ if not(containsValue(parameters._modifiable_parameters, prop)) }}:
+#          ${{ prop.key }}: ${{ prop.value }}
 
       # steps
       #
@@ -112,11 +112,11 @@ jobs:
       # You can modify the implementation of this by adding other templates to deal
       # with the steps property of the 'replicator'. Think 'builder' design pattern.
       steps:
-      - ${{ each step in sub_topic.steps }}:
-        - ${{ if eq(step.preTopic, True) }}:
-          - ${{ if or(not(step.topicTarget), eq(step.topicTarget, topic.job)) }}:
-            - ${{ if not(containsValue(parameters._ignore_steps, step)) }}:
-              - ${{ step }}
+#      - ${{ each step in sub_topic.steps }}:
+#        - ${{ if eq(step.preTopic, True) }}:
+#          - ${{ if or(not(step.topicTarget), eq(step.topicTarget, topic.job)) }}:
+#            - ${{ if not(containsValue(parameters._ignore_steps, step)) }}:
+#              - ${{ step }}
 
       - ${{ topic.steps }}
 
