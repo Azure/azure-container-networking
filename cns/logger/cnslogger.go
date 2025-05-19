@@ -131,16 +131,14 @@ func (c *CNSLogger) Errorf(format string, args ...any) {
 	c.sendTraceInternal(msg, ai.ErrorLevel)
 }
 
-
-
 func (c *CNSLogger) Request(tag string, request any, err error) {
 	c.logger.Request(tag, request, err)
 	if c.th == nil || c.disableTraceLogging {
 		return
 	}
-	
+
 	requestString := log.ToJSONString(request)
-	
+
 	var msg string
 	lvl := ai.InfoLevel
 	if err == nil {
@@ -157,9 +155,9 @@ func (c *CNSLogger) Response(tag string, response any, returnCode types.Response
 	if c.th == nil || c.disableTraceLogging {
 		return
 	}
-	
+
 	responseString := log.ToJSONString(response)
-	
+
 	var msg string
 	lvl := ai.InfoLevel
 	switch {
@@ -179,10 +177,10 @@ func (c *CNSLogger) ResponseEx(tag string, request, response any, returnCode typ
 	if c.th == nil || c.disableTraceLogging {
 		return
 	}
-	
+
 	requestString := log.ToJSONString(request)
 	responseString := log.ToJSONString(response)
-	
+
 	var msg string
 	lvl := ai.InfoLevel
 	switch {
