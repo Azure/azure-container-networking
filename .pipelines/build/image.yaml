@@ -1,35 +1,10 @@
 parameters:
 - name: images
   type: jobList
-  default:
-  - job: acn
-    templateContext:
-      action: pkg
-    steps:
-    - bash: |
-        echo "pkg test"
-  - job: acn
-    templateContext:
-      action: build
-    steps:
-    - bash: |
-        echo "build test"
-  - job: acn
-    templateContext:
-      action: manifest
-    steps:
-    - bash: |
-        echo "pkg test"
-  - job: acn
-    templateContext:
-      action: sign
-    steps:
-    - bash: |
-        echo "pkg test"
 
 jobs:
 - ${{ each job_data in parameters.images }}:
-  - template: replicator.jobs.yaml
+  - template: inner-replicate.jobs.yaml
     parameters:
       topics:
       - job: image_${{ job_data.job }}

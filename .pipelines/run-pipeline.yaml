@@ -5,6 +5,32 @@ stages:
     ACN_DIR: azure-container-networking
   jobs:
   - template: build/image.yaml
+    parameters:
+      images:
+      - job: acn
+        templateContext:
+          action: pkg
+        steps:
+        - bash: |
+            echo "pkg test"
+      - job: acn
+        templateContext:
+          action: build
+        steps:
+        - bash: |
+            echo "build test"
+      - job: acn
+        templateContext:
+          action: manifest
+        steps:
+        - bash: |
+            echo "pkg test"
+      - job: acn
+        templateContext:
+          action: sign
+        steps:
+        - bash: |
+            echo "pkg test"
 
   - job: env
     displayName: Setup
