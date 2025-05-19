@@ -32,9 +32,9 @@ jobs:
   - template: replicator.jobs.yaml
     parameters:
       topics:
-        - job: image_${{ job_data.job }}
-          pool:
-            type: linux
+      - job: image_${{ job_data.job }}
+        pool:
+          type: linux
   
       sub_topics:
       - ${{ if eq(job_data.templateContext.action, 'pkg') }}:

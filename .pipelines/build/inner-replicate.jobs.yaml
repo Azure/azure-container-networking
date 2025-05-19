@@ -32,7 +32,7 @@ parameters:
 
 jobs:
 - ${{ if gt(length(parameters.sub_topics), 0) }}:
-  - ${{ for sub_topic in parameters.sub_topics }}:
+  - ${{ each sub_topic in parameters.sub_topics }}:
     - job: ${{ parameters.topic.job }}_${{ sub_topic.job }}
 
       # pool
@@ -100,8 +100,8 @@ jobs:
       ${{ if sub_topic.templateContext }}:
         templateContext: ${{ sub_topic.templateContext }}
 
-      ${{ for prop in sub_topic }}:
-        ${{ if not(containsValue(parameters._modifiable_parameters, prop }}:
+      ${{ each prop in sub_topic }}:
+        ${{ if not(containsValue(parameters._modifiable_parameters, prop)) }}:
           ${{ prop.key }}: ${{ prop.value }}
 
       # steps

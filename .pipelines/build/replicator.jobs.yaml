@@ -14,7 +14,7 @@ parameters:
 
 
 jobs:
-- ${{ for topic in parameters.topics }}:
+- ${{ each topic in parameters.topics }}:
   - template: /.pipelines/build/replicator-impl.jobs.yaml
     parameters:
       topic: ${{ topic }}
