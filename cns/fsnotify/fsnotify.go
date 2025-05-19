@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -56,7 +57,7 @@ func (w *watcher) releaseAll(ctx context.Context) {
 	defer w.lock.Unlock()
 	for containerID := range w.pendingDelete {
 		// read file contents
-		filepath := w.path + "/" + containerID
+		filepath := filepath.Join(w.path, containerID)
 		file, err := os.Open(filepath)
 		if err != nil {
 			w.log.Error("failed to open file", zap.Error(err))
@@ -179,7 +180,7 @@ func (w *watcher) Start(ctx context.Context) error {
 
 // AddFile creates new file using the containerID as name
 func AddFile(podInterfaceID, containerID, path string) error {
-	filepath := path + "/" + containerID
+	filepath := filepath.Join(path, containerID)
 	f, err := os.Create(filepath)
 	if err != nil {
 		return errors.Wrap(err, "error creating file")
@@ -193,7 +194,7 @@ func AddFile(podInterfaceID, containerID, path string) error {
 
 // removeFile removes the file based on containerID
 func removeFile(containerID, path string) error {
-	filepath := path + "/" + containerID
+	filepath := filepath.Join(path, containerID)
 	if err := os.Remove(filepath); err != nil {
 		return errors.Wrap(err, "error deleting file")
 	}
