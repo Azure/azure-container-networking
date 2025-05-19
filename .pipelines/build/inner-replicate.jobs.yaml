@@ -118,7 +118,8 @@ jobs:
 #            - ${{ if not(containsValue(parameters._ignore_steps, step)) }}:
 #              - ${{ step }}
 
-      - ${{ parameters.topic.steps }}
+      - ${{ if parameters.topic.steps }:
+        - ${{ parameters.topic.steps }}
 
       - ${{ each step in sub_topic.steps }}:
         - ${{ if or(eq(step.postTopic, True), not(step.preTopic)) }}:
