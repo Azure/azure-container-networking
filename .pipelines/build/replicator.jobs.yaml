@@ -15,7 +15,7 @@ parameters:
 
 jobs:
 - ${{ each topic in parameters.topics }}:
-  - template: /.pipelines/build/replicator-impl.jobs.yaml
+  - template: /.pipelines/build/inner-replicate.jobs.yaml
     parameters:
       topic: ${{ topic }}
       sub_topics: ${{ parameters.sub_topics }}
