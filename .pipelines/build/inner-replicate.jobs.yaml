@@ -112,18 +112,16 @@ jobs:
       # You can modify the implementation of this by adding other templates to deal
       # with the steps property of the 'replicator'. Think 'builder' design pattern.
       steps:
-        - ${{ each step in sub_topic.steps }}:
-          - ${{ if eq(step.preTopic, True) }}:
-            - ${{ if or(not(step.topicTarget), eq(step.topicTarget, topic.job)) }}:
-              - ${{ each prop in step }}:
-                - ${{ if not(containsValue(parameters._ignore_steps, prop.key)) }}:
-                  - ${{ prop.key }}: ${{ prop.value }}
+      - ${{ each step in sub_topic.steps }}:
+        - ${{ if eq(step.preTopic, True) }}:
+          - ${{ if or(not(step.topicTarget), eq(step.topicTarget, topic.job)) }}:
+            - ${{ if not(containsValue(parameters._ignore_steps, step)) }}:
+              - ${{ step }}
 
-        - ${{ topic.steps }}
+      - ${{ topic.steps }}
 
-        - ${{ each step in sub_topic.steps }}:
-          - ${{ if or(eq(step.postTopic, True), not(step.preTopic)) }}:
-            - ${{ if or(not(step.topicTarget), eq(step.topicTarget, topic.job)) }}:
-              - ${{ each prop in step }}:
-                - ${{ if not(containsValue(parameters._ignore_steps, prop.key)) }}:
-                  - ${{ prop.key }}: ${{ prop.value }}
+      - ${{ each step in sub_topic.steps }}:
+        - ${{ if or(eq(step.postTopic, True), not(step.preTopic)) }}:
+          - ${{ if or(not(step.topicTarget), eq(step.topicTarget, topic.job)) }}:
+            - ${{ if not(containsValue(parameters._ignore_steps, step)) }}:
+              - ${{ step }}
