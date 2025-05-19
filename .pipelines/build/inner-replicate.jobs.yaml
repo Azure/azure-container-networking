@@ -14,6 +14,7 @@ parameters:
 
 
 - name: _modifiable_properties
+  type: object
   default:
   - job
   - displayName
@@ -24,6 +25,7 @@ parameters:
   - templateContext
 
 - name: _ignore_steps
+  type: object
   default:
   - postTopic
   - preTopic
