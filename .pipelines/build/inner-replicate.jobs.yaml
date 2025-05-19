@@ -85,18 +85,19 @@ jobs:
 #        ${{ if sub_topic.condition }}:
 #          condition: ${{ sub_topic.condition }}
 
-#      # variables
-#      variables:
-#        ob_artifactSuffix: _${{ parameters.topic.job }}_${{ sub_topic.job }}
-#        ${{ if parameters.topic.variables }}:
-#          ${{ each dep in parameters.variables }}:
-#            ${{ if not(containsValue(sub_topic.variables, dep)) }}:
-#              ${{ if ne(dep.key, 'ob_artifactSuffix') }}:
-#                ${{ dep.key }}: ${{ dep.value }}
-#        ${{ if sub_topic.variables }}:
-#          ${{ each dep in sub_topic.variables }}:
-#            ${{ if ne(dep.key, 'ob_artifactSuffix') }}:
-#                ${{ dep.key }}: ${{ dep.value }}
+      # variables
+      variables:
+        ob_artifactSuffix: _${{ parameters.topic.job }}_${{ sub_topic.job }}
+        ob_outputDirectory: $(Build.SourcesDirectory)/out
+        ${{ if parameters.topic.variables }}:
+          ${{ each dep in parameters.variables }}:
+            ${{ if not(containsValue(sub_topic.variables, dep)) }}:
+              ${{ if ne(dep.key, 'ob_artifactSuffix') }}:
+                ${{ dep.key }}: ${{ dep.value }}
+        ${{ if sub_topic.variables }}:
+          ${{ each dep in sub_topic.variables }}:
+            ${{ if ne(dep.key, 'ob_artifactSuffix') }}:
+                ${{ dep.key }}: ${{ dep.value }}
 
 #      # templateContext
 #      ${{ if sub_topic.templateContext }}:
