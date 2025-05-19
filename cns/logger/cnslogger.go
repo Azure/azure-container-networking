@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
@@ -158,27 +157,13 @@ func (c *logger) Errorf(format string, args ...any) {
 	c.sendTraceInternal(msg, ai.ErrorLevel)
 }
 
-// toJSONString converts objects to JSON for trace logging and falls back to Go formatting.
-func toJSONString(obj any) string {
-	if obj == nil {
-		return "null"
-	}
-
-	bytes, err := json.Marshal(obj)
-	if err != nil {
-		return fmt.Sprintf("%+v", obj)
-	}
-
-	return string(bytes)
-}
-
 func (c *logger) Request(tag string, request any, err error) {
 	c.logger.Request(tag, request, err)
 	if c.th == nil || c.disableTraceLogging {
 		return
 	}
 
-	requestString := toJSONString(request)
+	requestString := log.ToJSONString(request)
 	var msg string
 	lvl := ai.InfoLevel
 	if err == nil {
@@ -196,7 +181,7 @@ func (c *logger) Response(tag string, response any, returnCode types.ResponseCod
 		return
 	}
 
-	responseString := toJSONString(response)
+	responseString := log.ToJSONString(response)
 	var msg string
 	lvl := ai.InfoLevel
 	switch {
@@ -217,8 +202,8 @@ func (c *logger) ResponseEx(tag string, request, response any, returnCode types.
 		return
 	}
 
-	requestString := toJSONString(request)
-	responseString := toJSONString(response)
+	requestString := log.ToJSONString(request)
+	responseString := log.ToJSONString(response)
 	var msg string
 	lvl := ai.InfoLevel
 	switch {
