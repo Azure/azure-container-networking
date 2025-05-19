@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
@@ -157,17 +158,33 @@ func (c *logger) Errorf(format string, args ...any) {
 	c.sendTraceInternal(msg, ai.ErrorLevel)
 }
 
+// toJSONString converts objects to JSON for trace logging and falls back to Go formatting.
+func toJSONString(obj any) string {
+	if obj == nil {
+		return "null"
+	}
+
+	bytes, err := json.Marshal(obj)
+	if err != nil {
+		return fmt.Sprintf("%+v", obj)
+	}
+
+	return string(bytes)
+}
+
 func (c *logger) Request(tag string, request any, err error) {
 	c.logger.Request(tag, request, err)
 	if c.th == nil || c.disableTraceLogging {
 		return
 	}
+
+	requestString := toJSONString(request)
 	var msg string
 	lvl := ai.InfoLevel
 	if err == nil {
-		msg = fmt.Sprintf("[%s] Received %T %+v.", tag, request, request)
+		msg = fmt.Sprintf("[%s] Received %T %s.", tag, request, requestString)
 	} else {
-		msg = fmt.Sprintf("[%s] Failed to decode %T %+v %s.", tag, request, request, err.Error())
+		msg = fmt.Sprintf("[%s] Failed to decode %T %s %s.", tag, request, requestString, err.Error())
 		lvl = ai.ErrorLevel
 	}
 	c.sendTraceInternal(msg, lvl)
@@ -178,16 +195,18 @@ func (c *logger) Response(tag string, response any, returnCode types.ResponseCod
 	if c.th == nil || c.disableTraceLogging {
 		return
 	}
+
+	responseString := toJSONString(response)
 	var msg string
 	lvl := ai.InfoLevel
 	switch {
 	case err == nil && returnCode == 0:
-		msg = fmt.Sprintf("[%s] Sent %T %+v.", tag, response, response)
+		msg = fmt.Sprintf("[%s] Sent %T %s.", tag, response, responseString)
 	case err != nil:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v %s.", tag, returnCode.String(), response, err.Error())
+		msg = fmt.Sprintf("[%s] Code:%s, %s %s.", tag, returnCode.String(), responseString, err.Error())
 		lvl = ai.ErrorLevel
 	default:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v.", tag, returnCode.String(), response)
+		msg = fmt.Sprintf("[%s] Code:%s, %s.", tag, returnCode.String(), responseString)
 	}
 	c.sendTraceInternal(msg, lvl)
 }
@@ -197,16 +216,19 @@ func (c *logger) ResponseEx(tag string, request, response any, returnCode types.
 	if c.th == nil || c.disableTraceLogging {
 		return
 	}
+
+	requestString := toJSONString(request)
+	responseString := toJSONString(response)
 	var msg string
 	lvl := ai.InfoLevel
 	switch {
 	case err == nil && returnCode == 0:
-		msg = fmt.Sprintf("[%s] Sent %T %+v %T %+v.", tag, request, request, response, response)
+		msg = fmt.Sprintf("[%s] Sent %T %s %T %s.", tag, request, requestString, response, responseString)
 	case err != nil:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v, %s.", tag, returnCode.String(), request, response, err.Error())
+		msg = fmt.Sprintf("[%s] Code:%s, %s, %s, %s.", tag, returnCode.String(), requestString, responseString, err.Error())
 		lvl = ai.ErrorLevel
 	default:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v.", tag, returnCode.String(), request, response)
+		msg = fmt.Sprintf("[%s] Code:%s, %s, %s.", tag, returnCode.String(), requestString, responseString)
 	}
 	c.sendTraceInternal(msg, lvl)
 }
