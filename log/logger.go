@@ -207,7 +207,7 @@ func ToJSONString(obj interface{}) string {
 	if obj == nil {
 		return "null"
 	}
-	
+
 	bytes, err := json.Marshal(obj)
 	if err != nil {
 		// Fall back to standard formatting if JSON marshaling fails
