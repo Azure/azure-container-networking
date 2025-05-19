@@ -8,8 +8,9 @@ jobs:
     parameters:
       topic:
         job: image_${{ job_data.job }}
-        pool:
-          type: linux
+        ${{ each prop in job_data }}:
+          ${{ if ne(prop.key, 'job') }}:
+            ${{ prop }}
   
       sub_topics:
       - ${{ if eq(job_data.templateContext.action, 'pkg') }}:
@@ -20,16 +21,12 @@ jobs:
         - job: build
           dependsOn:
           - pkg
+          variables:
+
           steps:
           - ${{ job_data.steps }}
       - ${{ elseif eq(job_data.templateContext.action, 'manifest') }}:
         - job: manifest
-          dependsOn:
-          - build
-          steps:
-          - ${{ job_data.steps }}
-      - ${{ elseif eq(job_data.templateContext.action, 'sign') }}:
-        - job: sign
           dependsOn:
           - build
           steps:
