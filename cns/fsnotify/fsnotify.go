@@ -60,14 +60,20 @@ func (w *watcher) releaseAll(ctx context.Context) {
 		filepath := filepath.Join(w.path, containerID)
 		file, err := os.Open(filepath)
 		if err != nil {
-			w.log.Error("failed to open file", zap.Error(err))
+			w.log.Error("failed to open container file for IP release", 
+				zap.String("filepath", filepath), 
+				zap.String("containerID", containerID), 
+				zap.Error(err))
 			continue
 		}
 
 		data, errReadingFile := io.ReadAll(file)
 		file.Close()
 		if errReadingFile != nil {
-			w.log.Error("failed to read file content", zap.Error(errReadingFile))
+			w.log.Error("failed to read container file content for IP release", 
+				zap.String("filepath", filepath), 
+				zap.String("containerID", containerID), 
+				zap.Error(errReadingFile))
 			continue
 		}
 		podInterfaceID := string(data)
@@ -80,7 +86,10 @@ func (w *watcher) releaseAll(ctx context.Context) {
 		w.log.Info("successfully released IP for missed delete", zap.String("containerID", containerID))
 		delete(w.pendingDelete, containerID)
 		if err := removeFile(containerID, w.path); err != nil {
-			w.log.Error("failed to remove file for missed delete", zap.Error(err))
+			w.log.Error("failed to remove container file after IP release", 
+				zap.String("containerID", containerID),
+				zap.String("path", w.path),
+				zap.Error(err))
 		}
 	}
 }
