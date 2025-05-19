@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
@@ -132,21 +131,7 @@ func (c *CNSLogger) Errorf(format string, args ...any) {
 	c.sendTraceInternal(msg, ai.ErrorLevel)
 }
 
-// toJSONString converts any object to a JSON string for logging purposes.
-// When the object contains json.RawMessage fields, they will be properly formatted
-// instead of being shown as byte arrays. Falls back to %+v if JSON marshaling fails.
-func toJSONString(obj any) string {
-	if obj == nil {
-		return "null"
-	}
-	
-	bytes, err := json.Marshal(obj)
-	if err != nil {
-		// Fall back to standard formatting if JSON marshaling fails
-		return fmt.Sprintf("%+v", obj)
-	}
-	return string(bytes)
-}
+
 
 func (c *CNSLogger) Request(tag string, request any, err error) {
 	c.logger.Request(tag, request, err)
@@ -154,7 +139,7 @@ func (c *CNSLogger) Request(tag string, request any, err error) {
 		return
 	}
 	
-	requestString := toJSONString(request)
+	requestString := log.ToJSONString(request)
 	
 	var msg string
 	lvl := ai.InfoLevel
@@ -173,7 +158,7 @@ func (c *CNSLogger) Response(tag string, response any, returnCode types.Response
 		return
 	}
 	
-	responseString := toJSONString(response)
+	responseString := log.ToJSONString(response)
 	
 	var msg string
 	lvl := ai.InfoLevel
@@ -195,8 +180,8 @@ func (c *CNSLogger) ResponseEx(tag string, request, response any, returnCode typ
 		return
 	}
 	
-	requestString := toJSONString(request)
-	responseString := toJSONString(response)
+	requestString := log.ToJSONString(request)
+	responseString := log.ToJSONString(response)
 	
 	var msg string
 	lvl := ai.InfoLevel
