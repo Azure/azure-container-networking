@@ -13,24 +13,24 @@ stages:
         steps:
         - bash: |
             echo "pkg test"
-#      - job: acn
-#        templateContext:
-#          action: build
-#        steps:
-#        - bash: |
-#            echo "build test"
-#      - job: acn
-#        templateContext:
-#          action: manifest
-#        steps:
-#        - bash: |
-#            echo "pkg test"
-#      - job: acn
-#        templateContext:
-#          action: sign
-#        steps:
-#        - bash: |
-#            echo "pkg test"
+      - job: acn
+        templateContext:
+          action: build
+        steps:
+        - bash: |
+            echo "build test"
+      - job: acn
+        templateContext:
+          action: manifest
+        steps:
+        - bash: |
+            echo "pkg test"
+      - job: acn
+        templateContext:
+          action: sign
+        steps:
+        - bash: |
+            echo "pkg test"
 
 #  - job: env
 #    displayName: Setup
