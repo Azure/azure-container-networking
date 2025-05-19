@@ -133,8 +133,6 @@ steps:
   - script: |
       echo "validate pod IP assignment and check systemd-networkd restart"
       kubectl get pod -owide -A
-      # Deleting echo-external-node deployment until cilium version matches TODO. https://github.com/cilium/cilium-cli/issues/67 is addressing the change.
-      # Saves 17 minutes
       kubectl delete deploy -n $(ciliumNamespace) echo-external-node
       cd test/integration/load
       CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$

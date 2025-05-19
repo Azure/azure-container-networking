@@ -62,10 +62,6 @@ steps:
       echo "validate pod IP assignment and check systemd-networkd restart"
       kubectl get pod -owide -A
       make test-validate-state
-      echo "delete cilium connectivity test resources and re-validate state" # TODO Delete this and the next 4 lines if connectivity no longer has bug
-      kubectl delete ns $(ciliumNamespace)
-      kubectl get pod -owide -A
-      make test-validate-state
     name: "validatePods"
     displayName: "Validate Pods"
 
