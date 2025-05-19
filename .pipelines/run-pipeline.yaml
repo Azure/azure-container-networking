@@ -4,6 +4,8 @@ stages:
   variables:
     ACN_DIR: azure-container-networking
   jobs:
+  - template: build/image.yaml
+
   - job: env
     displayName: Setup
     pool:
@@ -47,6 +49,39 @@ stages:
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
       NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
     jobs:
+    - template: build/replicator.jobs.yaml
+      parameters:
+        topics:
+        - job: linux_amd64
+          pool:
+            type: linux
+          variables:
+            OS: linux
+            GOOS: linux
+            ARCH: amd64
+            GOARCH: amd64
+        - job: windows_amd64
+          variables:
+            OS: windows
+            GOOS: windows
+            ARCH: amd64
+            GOARCH: amd64
+        - job: linux_arm64
+          variables:
+            OS: linux
+            GOOS: linux
+            ARCH: arm64
+            GOARCH: arm64
+        sub_topics:
+          dropgz:
+          azure_ipam:
+            dependsOn: dropgz
+          cni:
+            dependsOn: dropgz
+          cns:
+          ipv6_hp_bpf:
+          npm:
+
     - template: /.pipelines/build/images.jobs.yaml
       parameters:
         images:
@@ -160,12 +195,12 @@ stages:
                 archiveName: azure-cns
                 archiveVersion: $(CNS_VERSION)
                 imageTag: $(Build.BuildNumber)
-              #ipv6_hp_bpf:
-              #  name: ipv6-hp-bpf
-              #  extraArgs: "--build-arg DEBUG=$(System.Debug)"
-              #  archiveName: ipv6-hp-bpf
-              #  archiveVersion: $(IPV6_HP_BPF_VERSION)
-              #  imageTag: $(Build.BuildNumber)
+              ipv6_hp_bpf:
+                name: ipv6-hp-bpf
+                extraArgs: "--build-arg DEBUG=$(System.Debug)"
+                archiveName: ipv6-hp-bpf
+                archiveVersion: $(IPV6_HP_BPF_VERSION)
+                imageTag: $(Build.BuildNumber)
               npm:
                 name: npm
                 extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'

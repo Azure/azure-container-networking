@@ -1,0 +1,21 @@
+parameters:
+- name: topics
+  type: jobList
+
+- name: sub_topics
+  type: jobList
+  default: []
+  #  - job: job1
+  #    steps:
+  #    - bash: echo "Job1"
+  # - job: job2
+  #   steps:
+  #   - bash: echo "Job2"
+
+
+jobs:
+- ${{ for topic in parameters.topics }}:
+  - template: /.pipelines/build/replicator-impl.jobs.yaml
+    parameters:
+      topic: ${{ topic }}
+      sub_topics: ${{ parameters.sub_topics }}
