@@ -552,7 +552,7 @@ func configureHostNCApipaEndpoint(
 
 	endpoint.IpConfigurations = append(endpoint.IpConfigurations, ipConfiguration)
 
-	logger.Printf("[Azure CNS] Configured HostNCApipaEndpoint: %+v", endpoint)
+	logger.Printf("[Azure CNS] Configured HostNCApipaEndpoint with ID: %s, Name: %s, Network: %s", endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
 
 	return endpoint, nil
 }
@@ -689,10 +689,10 @@ func deleteEndpointByNameHnsV2(
 	}
 
 	if err = endpoint.Delete(); err != nil {
-		return fmt.Errorf("Failed to delete endpoint: %+v. Error: %v", endpoint, err)
+		return fmt.Errorf("Failed to delete endpoint: %s (%s). Error: %v", endpoint.Name, endpoint.Id, err)
 	}
 
-	logger.Errorf("[Azure CNS] Successfully deleted endpoint: %+v", endpoint)
+	logger.Errorf("[Azure CNS] Successfully deleted endpoint with ID: %s, Name: %s", endpoint.Id, endpoint.Name)
 
 	return nil
 }
