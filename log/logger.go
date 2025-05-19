@@ -4,6 +4,7 @@
 package log
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -199,34 +200,50 @@ func (logger *Logger) rotate() error {
 	return nil
 }
 
+// toJSONString converts any object to a JSON string for logging purposes.
+// When the object contains json.RawMessage fields, they will be properly formatted
+// instead of being shown as byte arrays. Falls back to %+v if JSON marshaling fails.
+func toJSONString(obj interface{}) string {
+	if obj == nil {
+		return "null"
+	}
+	
+	bytes, err := json.Marshal(obj)
+	if err != nil {
+		// Fall back to standard formatting if JSON marshaling fails
+		return fmt.Sprintf("%+v", obj)
+	}
+	return string(bytes)
+}
+
 // Request logs a structured request.
 func (logger *Logger) Request(tag string, request interface{}, err error) {
 	if err == nil {
-		logger.Printf("[%s] Received %T %+v.", tag, request, request)
+		logger.Printf("[%s] Received %T %s.", tag, request, toJSONString(request))
 	} else {
-		logger.Errorf("[%s] Failed to decode %T %+v %s.", tag, request, request, err.Error())
+		logger.Errorf("[%s] Failed to decode %T %s %s.", tag, request, toJSONString(request), err.Error())
 	}
 }
 
 // Response logs a structured response.
 func (logger *Logger) Response(tag string, response interface{}, returnCode int, returnStr string, err error) {
 	if err == nil && returnCode == 0 {
-		logger.Printf("[%s] Sent %T %+v.", tag, response, response)
+		logger.Printf("[%s] Sent %T %s.", tag, response, toJSONString(response))
 	} else if err != nil {
-		logger.Errorf("[%s] Code:%s, %+v %s.", tag, returnStr, response, err.Error())
+		logger.Errorf("[%s] Code:%s, %s %s.", tag, returnStr, toJSONString(response), err.Error())
 	} else {
-		logger.Errorf("[%s] Code:%s, %+v.", tag, returnStr, response)
+		logger.Errorf("[%s] Code:%s, %s.", tag, returnStr, toJSONString(response))
 	}
 }
 
 // ResponseEx logs a structured response and the request associate with it.
 func (logger *Logger) ResponseEx(tag string, request interface{}, response interface{}, returnCode int, returnStr string, err error) {
 	if err == nil && returnCode == 0 {
-		logger.Printf("[%s] Sent %T %+v %T %+v.", tag, request, request, response, response)
+		logger.Printf("[%s] Sent %T %s %T %s.", tag, request, toJSONString(request), response, toJSONString(response))
 	} else if err != nil {
-		logger.Errorf("[%s] Code:%s, %+v, %+v %s.", tag, returnStr, request, response, err.Error())
+		logger.Errorf("[%s] Code:%s, %s, %s %s.", tag, returnStr, toJSONString(request), toJSONString(response), err.Error())
 	} else {
-		logger.Errorf("[%s] Code:%s, %+v, %+v.", tag, returnStr, request, response)
+		logger.Errorf("[%s] Code:%s, %s, %s.", tag, returnStr, toJSONString(request), toJSONString(response))
 	}
 }
 
