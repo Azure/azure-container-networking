@@ -6,7 +6,7 @@ jobs:
 - ${{ each job_data in parameters.images }}:
   - template: inner-replicate.jobs.yaml
     parameters:
-      topics:
+      topic:
       - job: image_${{ job_data.job }}
         pool:
           type: linux
