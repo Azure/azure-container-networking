@@ -67,7 +67,7 @@ jobs:
         SOURCE: $(REPO_ROOT)/${{ job_data.templateContext.obDockerfile }}
         DEST: $(OUT_DIR)/Dockerfile
 
-    - ${{ if not(job_data.job, 'linux_arm64') }}:
+    - ${{ if not(eq(job_data.job, 'linux_arm64')) }}:
       - task: onebranch.pipeline.signing@1
         inputs:
           command: 'sign'
@@ -82,7 +82,7 @@ jobs:
       inputs:
         scriptPath: $(REPO_ROOT)/.pipelines/build/scripts/dropgz.sh
 
-    - ${{ if not(job_data.job, 'linux_arm64') }}:
+    - ${{ if not(eq(job_data.job, 'linux_arm64')) }}:
       - task: onebranch.pipeline.signing@1
         condition: and(
           succeeded(), 
