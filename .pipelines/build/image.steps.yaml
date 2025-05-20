@@ -48,7 +48,7 @@ steps:
   inputs:
     targetPath: $(Build.SourcesDirectory)/dst/${{ parameters.source }}
     artifact: '${{ parameters.source }}'
-    patterns: '*.tar'
+    patterns: '**/*.tar'
 
 - task: onebranch.pipeline.containercontrol@1
   displayName: "Login to ACR"
