@@ -33,9 +33,9 @@ jobs:
         GOOS: linux
         GOARCH: amd64
       ${{ elseif eq(job_data.job, 'windows_amd64') }}:
-        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2004:latest'
         ob_enable_qemu: true
-        OS: linux
+        OS: windows
         ARCH: amd64
         GOOS: windows
         GOARCH: amd64
@@ -67,12 +67,13 @@ jobs:
         SOURCE: $(REPO_ROOT)/${{ job_data.templateContext.obDockerfile }}
         DEST: $(OUT_DIR)/Dockerfile
 
-    - task: onebranch.pipeline.signing@1
-      inputs:
-        command: 'sign'
-        signing_profile: 'external_distribution'
-        files_to_sign: '**/*'
-        search_root: $(OUT_DIR)
+    - ${{ if not(job_data.job, 'linux_arm64') }}:
+      - task: onebranch.pipeline.signing@1
+        inputs:
+          command: 'sign'
+          signing_profile: 'external_distribution'
+          files_to_sign: '**/*'
+          search_root: $(OUT_DIR)
 
 
     - task: ShellScript@2
@@ -81,16 +82,17 @@ jobs:
       inputs:
         scriptPath: $(REPO_ROOT)/.pipelines/build/scripts/dropgz.sh
 
-    - task: onebranch.pipeline.signing@1
-      condition: and(
-        succeeded(), 
-        eq(variables.os, 'windows'),
-        eq(variables.packageWithDropGZ, 'True'))
-      inputs:
-        command: 'sign'
-        signing_profile: 'external_distribution'
-        files_to_sign: '**/dropgz'
-        search_root: $(OUT_DIR)
+    - ${{ if not(job_data.job, 'linux_arm64') }}:
+      - task: onebranch.pipeline.signing@1
+        condition: and(
+          succeeded(), 
+          eq(variables.os, 'windows'),
+          eq(variables.packageWithDropGZ, 'True'))
+        inputs:
+          command: 'sign'
+          signing_profile: 'external_distribution'
+          files_to_sign: '**/dropgz'
+          search_root: $(OUT_DIR)
 
     - script: |
         tar cvf "$OUT_DIR"/"$TAR_NAME".tar --exclude="$TAR_NAME".tar "$OUT_DIR"/.
