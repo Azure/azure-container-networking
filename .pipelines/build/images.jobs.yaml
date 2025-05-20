@@ -94,6 +94,13 @@ jobs:
           files_to_sign: '**/dropgz'
           search_root: $(OUT_DIR)
 
+    # OneBranch artifacts are stored on a Windows machine which obliterates
+    # Linux file permissions.
+    # This task is added (along with ob_extract_root_artifact in jobs that 
+    # download the artifact) to protect those file permissions from changing
+    # during image build time.
+    #
+    # See: https://eng.ms/docs/products/onebranch/build/containerbasedworkflow/dockerimagesandacr/preservefilepermissionsfordockerbuild
     - script: |
         tar cvf "$OUT_DIR"/root_artifact.tar --exclude=root_artifact.tar "$OUT_DIR"/.
       displayName: "Zip to Preserve Linux File Permissions"

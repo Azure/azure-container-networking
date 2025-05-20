@@ -7,7 +7,7 @@ function findcp::shared_library() {
   local copy_to
   copy_to="${2}"
   local search_dirs
-  search_dirs="{@:3}"
+  search_dirs="${@:3}"
 
   for dir in $search_dirs; do
     if [[ -d "$dir" ]]; then
@@ -65,7 +65,6 @@ if [[ -f /etc/debian_version ]];then
 
 ls -la /lib/$ARCH || true
 ls -la /usr/lib || true
-ls -la /usr/lib/ldscripts || true
 
   # Copy Shared Library Files
   ln -sfn /usr/include/"$ARCH"/asm /usr/include/asm
