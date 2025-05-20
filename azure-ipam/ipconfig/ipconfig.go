@@ -7,6 +7,7 @@ import (
 	"net/netip"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/pkg/errors"
@@ -90,6 +91,8 @@ func ProcessIPConfigsResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, *[]net.
 
 		if gatewayIP != nil {
 			gatewaysIPs[i] = gatewayIP
+		} else {
+			logger.Printf("gatewayIP is nil or gateway ip parse failed for pod ip %s", resp.PodIPInfo[i].PodIPConfig.IPAddress)
 		}
 	}
 
