@@ -62,7 +62,7 @@ else
 fi
 
 ls -la /lib/$ARCH
-ls -la /uar/lib
+ls -la /usr/lib
 
 # Copy Library Files
 ln -sfn /usr/include/"$ARCH"/asm /usr/include/asm
