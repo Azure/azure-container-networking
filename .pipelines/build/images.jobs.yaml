@@ -7,7 +7,10 @@ jobs:
 - ${{ each job_data in parameters.images }}:
   - job: pkg_${{ job_data.job }}
     displayName: "Prepare Image Package - ${{ job_data.displayName }} -"
-    strategy: ${{ job_data.strategy }}
+    ${{ if job_data.strategy }}:
+      strategy: ${{ job_data.strategy }}
+    ${{ if job_data.dependsOn }}:
+      dependsOn: ${{ job_data.dependsOn }}
     pool:
       type: linux
       ${{ if eq(job_data.job, 'linux_arm64') }}:
@@ -37,6 +40,7 @@ jobs:
         GOOS: windows
         GOARCH: amd64
       ${{ elseif eq(job_data.job, 'linux_arm64') }}:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
         ob_enable_qemu: true
         OS: linux
         ARCH: arm64
@@ -107,6 +111,7 @@ jobs:
       ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
       ob_artifactSuffix: _$(name)
       ob_git_checkout: false
+      ob_extract_root_artifact: true
       ${{ if eq(job_data.job, 'linux_amd64') }}:
         LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
         ARCH: amd64
@@ -127,6 +132,7 @@ jobs:
         os: $(OS)
         name: $(name)
         build_tag: $(imageTag)
-        extra_args: $(extraArgs) --build-arg ARTIFACT_DIR="${{ job_data.templateContext.pkgArtifact }}"
+        # Artifact dir is added here since it is specific to the images this file was created for.
+        extra_args: $(extraArgs) --build-arg ARTIFACT_DIR="${{ job_data.job }}_$(name)"
         archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
-        source: ${{ job_data.templateContext.pkgArtifact }}
+        source: ${{ job_data.job }}_$(name)

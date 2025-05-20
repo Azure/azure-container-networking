@@ -54,7 +54,6 @@ stages:
           displayName: "Linux/AMD64"
           templateContext:
             repositoryArtifact: drop_setup_env_source
-            pkgArtifact: drop_build_pkg_$(os)_$(arch)_$(name)
             buildScript: .pipelines/build/scripts/$(name).sh
             obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
           strategy:
@@ -97,7 +96,6 @@ stages:
           displayName: "Windows"
           templateContext:
             repositoryArtifact: drop_setup_env_source
-            pkgArtifact: drop_build_pkg_$(os)_$(arch)_$(name)
             buildScript: .pipelines/build/scripts/$(name).sh
             obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
           strategy:
@@ -134,7 +132,6 @@ stages:
           displayName: "Linux/ARM64"
           templateContext:
             repositoryArtifact: drop_setup_env_source
-            pkgArtifact: drop_build_pkg_$(os)_$(arch)_$(name)
             buildScript: .pipelines/build/scripts/$(name).sh
             obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
           strategy:
@@ -160,12 +157,12 @@ stages:
                 archiveName: azure-cns
                 archiveVersion: $(CNS_VERSION)
                 imageTag: $(Build.BuildNumber)
-              #ipv6_hp_bpf:
-              #  name: ipv6-hp-bpf
-              #  extraArgs: "--build-arg DEBUG=$(System.Debug)"
-              #  archiveName: ipv6-hp-bpf
-              #  archiveVersion: $(IPV6_HP_BPF_VERSION)
-              #  imageTag: $(Build.BuildNumber)
+              ipv6_hp_bpf:
+                name: ipv6-hp-bpf
+                extraArgs: "--build-arg DEBUG=$(System.Debug)"
+                archiveName: ipv6-hp-bpf
+                archiveVersion: $(IPV6_HP_BPF_VERSION)
+                imageTag: $(Build.BuildNumber)
               npm:
                 name: npm
                 extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
@@ -201,7 +198,7 @@ stages:
       CNS_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/cns:$(Build.BuildNumber)
 
       IPV6_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/ipv6-hp-bpf:$(Build.BuildNumber)
-      #IPV6_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/ipv6-hp-bpf:$(Build.BuildNumber)
+      IPV6_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/ipv6-hp-bpf:$(Build.BuildNumber)
 
       NPM_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/npm:$(Build.BuildNumber)
       NPM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/npm:$(Build.BuildNumber)
