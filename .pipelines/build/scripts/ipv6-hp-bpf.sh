@@ -114,7 +114,7 @@ ls -la /usr/lib/ldscripts || true
   # Copy Shared Library Files
   ln -sfn /usr/include/"$ARCH"/asm /usr/include/asm
   cp /usr/lib/libnftables.so.1 "$OUT_DIR"/lib/
-  cp /usr/lib/libedit.so.2 "$OUT_DIR"/lib/
+  cp /usr/lib/libedit.so.0 "$OUT_DIR"/lib/
   cp /usr/lib/libc.so.6 "$OUT_DIR"/lib/
   cp /usr/lib/libmnl.so.0 "$OUT_DIR"/lib/
   cp /usr/lib/libnftnl.so.11 "$OUT_DIR"/lib/
