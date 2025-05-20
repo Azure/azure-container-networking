@@ -95,10 +95,8 @@ jobs:
           search_root: $(OUT_DIR)
 
     - script: |
-        tar cvf "$OUT_DIR"/"$TAR_NAME".tar --exclude="$TAR_NAME".tar "$OUT_DIR"/.
+        tar cvf "$OUT_DIR"/root_artifact.tar --exclude=root_artifact.tar "$OUT_DIR"/.
       displayName: "Zip to Preserve Linux File Permissions"
-      env:
-        TAR_NAME: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
 
 
   - job: images_${{ job_data.job }}
