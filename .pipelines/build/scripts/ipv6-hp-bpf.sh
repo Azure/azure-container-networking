@@ -61,8 +61,9 @@ else
   done
 fi
 
-ls -la /lib/$ARCH
-ls -la /usr/lib
+ls -la /lib/$ARCH || true
+ls -la /usr/lib || true
+ls -la /usr/lib/ldscripts || true
 
 # Copy Library Files
 ln -sfn /usr/include/"$ARCH"/asm /usr/include/asm
