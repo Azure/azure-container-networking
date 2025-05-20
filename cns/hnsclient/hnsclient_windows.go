@@ -552,7 +552,7 @@ func configureHostNCApipaEndpoint(
 
 	endpoint.IpConfigurations = append(endpoint.IpConfigurations, ipConfiguration)
 
-	logger.Printf("[Azure CNS] Configured HostNCApipaEndpoint with ID: %s, Name: %s, Network: %s", 
+	logger.Printf("[Azure CNS] Configured HostNCApipaEndpoint with ID: %s, Name: %s, Network: %s",
 		endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
 	logger.Printf("[Azure CNS] Endpoint IpConfigurations:%v, Dns:%v, Routes:%v, MacAddress:%s, Flags:%d",
 		endpoint.IpConfigurations, endpoint.Dns, endpoint.Routes, endpoint.MacAddress, endpoint.Flags)
@@ -692,13 +692,13 @@ func deleteEndpointByNameHnsV2(
 	}
 
 	if err = endpoint.Delete(); err != nil {
-		return fmt.Errorf("Failed to delete endpoint: %s (%s). Error: %v", 
+		return fmt.Errorf("Failed to delete endpoint: %s (%s). Error: %v",
 			endpoint.Name, endpoint.Id, err)
 	}
 
-	logger.Errorf("[Azure CNS] Successfully deleted endpoint with ID: %s, Name: %s", 
+	logger.Errorf("[Azure CNS] Successfully deleted endpoint with ID: %s, Name: %s",
 		endpoint.Id, endpoint.Name)
-	logger.Debugf("[Azure CNS] Endpoint details - IpConfigurations:%v, Dns:%v, Routes:%v, MacAddress:%s, Flags:%d", 
+	logger.Debugf("[Azure CNS] Endpoint details - IpConfigurations:%v, Dns:%v, Routes:%v, MacAddress:%s, Flags:%d",
 		endpoint.IpConfigurations, endpoint.Dns, endpoint.Routes, endpoint.MacAddress, endpoint.Flags)
 
 	return nil
