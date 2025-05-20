@@ -39,10 +39,10 @@ else
   tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute glibc
   if [[ $GOARCH =~ amd64 ]]; then
     ARCH=x86_64-linux-gnu
-    cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/ || find /usr/lib/ -name 'ld-linux-x86-64.so.2'
-  #elif [[ $GOARCH =~ arm64 ]]; then
-  #  ARCH=aarch64-linux-gnu
-  #  cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/ || find /usr/lib/ -name 'ld-linux-aarch64.so.1'
+    cp /usr/lib64/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/ || find /usr/lib/ -name 'ld-linux-x86-64.so.2' || true
+  elif [[ $GOARCH =~ arm64 ]]; then
+    ARCH=aarch64-linux-gnu
+    cp /lib64/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/ || find /usr/lib/ -name 'ld-linux-aarch64.so.1' || true
   fi
   for dir in /usr/include/"$ARCH"/*; do 
     if [[ -d $dir ]]; then

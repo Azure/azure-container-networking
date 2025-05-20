@@ -137,7 +137,6 @@ jobs:
         os: $(OS)
         name: $(name)
         build_tag: $(imageTag)
-        # Artifact dir is added here since it is specific to the images this file was created for.
-        extra_args: $(extraArgs) --build-arg ARTIFACT_DIR="${{ job_data.job }}_$(name)"
+        extra_args: $(extraArgs) --build-arg ARTIFACT_DIR="drop_pkg_${{ job_data.job }}_$(name)"
         archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
-        source: ${{ job_data.job }}_$(name)
+        source: drop_pkg_${{ job_data.job }}_$(name)
