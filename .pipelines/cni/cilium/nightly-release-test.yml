@@ -159,7 +159,7 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clusterName)-$(commitID)
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=ciliumnightly-$(commitID)
 
                 set -e
                 echo "Run Cilium Connectivity Tests"
@@ -171,7 +171,7 @@ stages:
 
           - template: ../../templates/log-check-template.yaml # Operator Check
             parameters:
-              clusterName: $(clusterName)-$(commitID)
+              clusterName: ciliumnightly-$(commitID)
               podLabel: "name=cilium-operator"
               logGrep: "level=error"
 
