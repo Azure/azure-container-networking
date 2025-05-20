@@ -16,6 +16,10 @@ function findcp::shared_library() {
       else
         found=$(find "$dir" -name ""$filename".so*")
       fi
+
+      if [[ -n $found ]]; then
+        break;
+      fi
     else
       echo >&2 "##[debug]Not a directory. Skipping..."
       echo >&2 "##[debug]Dir: "$dir""
@@ -53,18 +57,22 @@ if [[ -f /etc/debian_version ]];then
     apt-get install -y gcc-aarch64-linux-gnu
 
     ARCH=aarch64-linux-gnu
-    ls -la /usr/lib
-    ls -la /usr/lib/"$ARCH" || true
-    ls -la /usr/lib/"$GOARCH" || true
-    cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/ || true
+    cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/
   fi
 
   for dir in /usr/include/"$ARCH"/*; do 
     ln -sfn "$dir" /usr/include/$(basename "$dir")
   done
 
-ls -la /lib/$ARCH || true
-ls -la /usr/lib || true
+  echo >&2 "##[group]lib $ARCH directory list"
+    ls -la /lib/"$ARCH" || true
+  echo >&2 "##[endgroup]"
+  echo >&2 "##[group]usr lib directory list"
+    ls -la /usr/lib || true
+  echo >&2 "##[endgroup]"
+  echo >&2 "##[group]usr lib $ARCH directory list"
+    ls -la /usr/lib/"$ARCH" || true
+  echo >&2 "##[endgroup]"
 
   # Copy Shared Library Files
   ln -sfn /usr/include/"$ARCH"/asm /usr/include/asm
@@ -93,8 +101,6 @@ else
     ARCH=aarch64-linux-gnu
     if [[ -f '/usr/lib/ld-linux-aarch64.so.1' ]]; then
       cp /usr/lib/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/ 
-    else
-      find /usr/lib -name 'ld-linux-aarch64.so.1' || find /lib64 -name 'ld-linux-aarch64.so.1' || true
     fi
   fi
   for dir in /usr/include/"$ARCH"/*; do 
@@ -105,10 +111,15 @@ else
     fi
   done
 
-  ls -la /usr/
-ls -la /usr/include || true
-ls -la /usr/lib || true
-ls -la /usr/lib/ldscripts || true
+  echo >&2 "##[group]usr include $ARCH directory list"
+    ls -la /usr/include/"$ARCH" || true
+  echo >&2 "##[endgroup]"
+  echo >&2 "##[group]usr lib directory list"
+    ls -la /usr/lib || true
+  echo >&2 "##[endgroup]"
+  echo >&2 "##[group]usr lib ldscripts directory list"
+    ls -la /usr/lib/ldscripts || true
+  echo >&2 "##[endgroup]"
 
   # Copy Shared Library Files
   ln -sfn /usr/include/"$ARCH"/asm /usr/include/asm
@@ -122,10 +133,10 @@ ls -la /usr/lib/ldscripts || true
   cp /usr/lib/libgmp.so.10 "$OUT_DIR"/lib/
   cp /usr/lib/libtinfo.so.6 "$OUT_DIR"/lib/
 
-  cp /usr/lib/libbsd.so.0 "$OUT_DIR"/lib/ || tdnf install -y libbsd-devel || true
-  findcp::shared_library libbsd.so.0 "$OUT_DIR"/lib /usr/lib /lib /lib32 /lib64 || true
-  cp /usr/lib/libmd.so.0 "$OUT_DIR"/lib/ || tdnf install -y libmd-devel || true
-  findcp::shared_library libmd.so.0 "$OUT_DIR"/lib /usr/lib /lib /lib32 /lib64 || true
+  cp /usr/lib/libbsd.so.0 "$OUT_DIR"/lib/ || tdnf install -y libbsd-devel
+  findcp::shared_library libbsd.so "$OUT_DIR"/lib/ /usr/lib /lib /lib32 /lib64
+  cp /usr/lib/libmd.so.0 "$OUT_DIR"/lib/ || tdnf install -y libmd-devel
+  findcp::shared_library libmd.so "$OUT_DIR"/lib/ /usr/lib /lib /lib32 /lib64
 fi
 
 
