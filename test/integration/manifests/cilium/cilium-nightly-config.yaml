@@ -88,7 +88,6 @@ data:
   proxy-max-requests-per-connection: "0"
   proxy-max-connection-duration-seconds: "0"
   set-cilium-node-taints: "true"
-  unmanaged-pod-watcher-interval: "15"
 ## new values added for 1.16 below
   enable-ipv4-big-tcp: "false"
   enable-ipv6-big-tcp: "false"
