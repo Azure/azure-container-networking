@@ -40,7 +40,6 @@ jobs:
         GOOS: windows
         GOARCH: amd64
       ${{ elseif eq(job_data.job, 'linux_arm64') }}:
-        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
         ob_enable_qemu: true
         OS: linux
         ARCH: arm64
@@ -92,6 +91,12 @@ jobs:
         signing_profile: 'external_distribution'
         files_to_sign: '**/dropgz'
         search_root: $(OUT_DIR)
+
+    - script: |
+        tar cvf "$OUT_DIR"/"$TAR_NAME".tar --exclude="$TAR_NAME".tar "$OUT_DIR"/.
+      displayName: "Zip to Preserve Linux File Permissions"
+      env:
+        TAR_NAME: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
 
 
   - job: images_${{ job_data.job }}
