@@ -46,7 +46,7 @@ parameters:
 steps:
 - task: DownloadPipelineArtifact@2
   inputs:
-    targetPath: '$(Build.SourcesDirectory)/dst/artifacts'
+    targetPath: '$(Build.ArtifactStagingDirectory)/artifacts'
     artifact: '${{ parameters.source }}'
     patterns: '**/*.tar'
 
