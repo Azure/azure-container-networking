@@ -407,25 +407,9 @@ nodesubnet-cilium-up: rg-up ipv4 overlay-net-up ## Brings up a Nodesubnet Cilium
 		--no-ssh-key \
 		$(LTS_ARGS) \
 		--yes
-	@$(MAKE) set-kubeconf	
-
-windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
-		--network-plugin azure \
-		--windows-admin-password $(WINDOWS_PASSWORD) \
-		--windows-admin-username $(WINDOWS_USERNAME) \
-		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		--yes
-	@$(MAKE) windows-nodepool-up
 	@$(MAKE) set-kubeconf
 
-cniv1-up: rg-up ipv4 overlay-net-up ## Bring up a Linux CNIv1 cluster
+cniv1-up: rg-up ipv4 overlay-net-up ## Bring up a CNIv1 cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
