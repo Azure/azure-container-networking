@@ -37,6 +37,7 @@ AKS Clusters
   vnetscale-swift-byocni-nokubeproxy-up     Bring up a Vnet Scale SWIFT BYO CNI cluster without kube-proxy
   vnetscale-swift-cilium-up                 Bring up a Vnet Scale SWIFT Cilium cluster
   vnetscale-swift-up                        Bring up a Vnet Scale SWIFT AzCNI cluster
+  nodesubnet-cilium-up                      Bring up a Nodesubnet Cilium cluster
   cniv1-up                                  Bring up a AzCNIv1 cluster
   dualstack-overlay-byocni-up               Bring up an dualstack overlay cluster without CNS and CNI installed
   cilium-dualstack-up                       Brings up a Cilium Dualstack Overlay cluster with Linux node only
