@@ -11,37 +11,40 @@ parameters:
   hubbleEnabled: false
   dualstackVersion: ""
   cni: "cilium"
+  upgradeScenario: ""
+  upgradeAzureIpam: ""
 
 # Condition confirms that:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
 # CONTROL_CNI either contains 'cniv1' or 'all'. It is not case sensitive
 stages:
-  - stage: create_${{ parameters.name }}
-    condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cilium') , contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'linux'), contains(variables.CONTROL_OS, 'all') ) ) )
-    variables:
-      ${{ if contains(parameters.clusterName, 'rdma') }}:
-        location: $(LOCATION_RDMA)
-      ${{ elseif eq(parameters.arch, 'arm64') }}:
-        location: $(LOCATION_ARM64)
-      ${{ else }}:
-        location: $(LOCATION_AMD64)
-      commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
-    dependsOn:
-      - setup
-      - build_images
-    displayName: "Create Cluster - ${{ parameters.clusterName }}"
-    jobs:
-      - job: create_aks_cluster_with_${{ parameters.name }}
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - template: ../load-test-templates/create-cluster-template.yaml
-            parameters:
-              clusterType: ${{ parameters.clusterType }}
-              clusterName: ${{ parameters.clusterName }}-$(commitID)
-              nodeCount: ${{ parameters.nodeCount }}
-              vmSize: ${{ parameters.vmSize }}
-              region: $(location)
+  - ${{if eq(parameters.upgradeAzureIpam, '')}}:
+    - stage: create_${{ parameters.name }}
+      condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cilium') , contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'linux'), contains(variables.CONTROL_OS, 'all') ) ) )
+      variables:
+        ${{ if contains(parameters.clusterName, 'rdma') }}:
+          location: $(LOCATION_RDMA)
+        ${{ elseif eq(parameters.arch, 'arm64') }}:
+          location: $(LOCATION_ARM64)
+        ${{ else }}:
+          location: $(LOCATION_AMD64)
+        commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      dependsOn:
+        - setup
+        - build_images
+      displayName: "Create Cluster - ${{ parameters.clusterName }}"
+      jobs:
+        - job: create_aks_cluster_with_${{ parameters.name }}
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          steps:
+            - template: ../load-test-templates/create-cluster-template.yaml
+              parameters:
+                clusterType: ${{ parameters.clusterType }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                nodeCount: ${{ parameters.nodeCount }}
+                vmSize: ${{ parameters.vmSize }}
+                region: $(location)
 
 # Conditions for below E2E test scenarios confirm that:
 # Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn:
@@ -60,7 +63,10 @@ stages:
     pool:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     dependsOn:
-      - create_${{ parameters.name }}
+      - ${{ if and(eq(parameters.upgradeAzureIpam, ''), eq(parameters.upgradeScenario, false)) }}:
+        - create_${{ parameters.name }}
+      - ${{ else }}:
+        - ${{ parameters.dependsOn }} 
       - publish
       - setup
     displayName: "Cilium Test - ${{ parameters.name }}"
@@ -118,22 +124,33 @@ stages:
                   envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
 
-                  if [ -z "$TEST_AZURE_IPAM_VERSION" ]
+                  if [ "$UPGRADE_SCENARIO" = "true" ]
                   then
-                    echo "TEST_AZURE_IPAM_VERSION is not set, using default value"
-                    IPAM=$(make azure-ipam-version)
+                    echo "Upgrade scenario is true, using upgrade azure ipam and cns version from pipeline variables"
+                    IPAM=$(UPGRADE_AZURE_IPAM_VERSION)
+                    IPAM_IMAGE_REPO=$(UPGRADE_IPAM_IMAGE_REPO)
+                    CNS=$(UPGRADE_CNS_VERSION)
+                    CNS_IMAGE_REPO=$(UPGRADE_CNS_IMAGE_REPO)
+                    echo Deploying with Azure Ipam version $IPAM from $IPAM_IMAGE_REPO and CNS version $CNS from $CNS_IMAGE_REPO
                   else
-                    IPAM=$(TEST_AZURE_IPAM_VERSION)
-                    echo "TEST_AZURE_IPAM_VERSION is set to $IPAM"
+                    if [ -z "$TEST_AZURE_IPAM_VERSION" ]
+                    then
+                      echo "TEST_AZURE_IPAM_VERSION is not set, using default value"
+                      IPAM=$(make azure-ipam-version)
+                    else
+                      IPAM=$(TEST_AZURE_IPAM_VERSION)
+                      echo "TEST_AZURE_IPAM_VERSION is set to $IPAM"
+                    fi
+                    if [ -z "$TEST_CNS_VERSION" ]
+                    then
+                      echo "TEST_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$(TEST_CNS_VERSION)
+                      echo "TEST_CNS_VERSION is set to $CNS"
+                    fi
                   fi
-                  if [ -z "$TEST_CNS_VERSION" ]
-                  then
-                    echo "TEST_CNS_VERSION is not set, using default value"
-                    CNS=$(make cns-version)
-                  else
-                    CNS=$(TEST_CNS_VERSION)
-                    echo "TEST_CNS_VERSION is set to $CNS"
-                  fi
+                  
                   echo "Deploy Azure-CNS"
                   sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO) 
                   kubectl get po -owide -A
@@ -169,22 +186,33 @@ stages:
                   envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
 
-                  if [ -z "$TEST_AZURE_IPAM_VERSION" ]
+                  if [ "$UPGRADE_SCENARIO" = "true" ]
                   then
-                    echo "TEST_AZURE_IPAM_VERSION is not set, using default value"
-                    IPAM=$(make azure-ipam-version)
+                    echo "Upgrade scenario is true, using upgrade azure ipam and cns version from pipeline variables"
+                    IPAM=$(UPGRADE_AZURE_IPAM_VERSION)
+                    IPAM_IMAGE_REPO=$(UPGRADE_IPAM_IMAGE_REPO)
+                    CNS=$(UPGRADE_CNS_VERSION)
+                    CNS_IMAGE_REPO=$(UPGRADE_CNS_IMAGE_REPO)
+                    echo Deploying with Azure Ipam version $IPAM from $IPAM_IMAGE_REPO and CNS version $CNS from $CNS_IMAGE_REPO
                   else
-                    IPAM=$(TEST_AZURE_IPAM_VERSION)
-                    echo "TEST_AZURE_IPAM_VERSION is set to $IPAM"
+                    if [ -z "$TEST_AZURE_IPAM_VERSION" ]
+                    then
+                      echo "TEST_AZURE_IPAM_VERSION is not set, using default value"
+                      IPAM=$(make azure-ipam-version)
+                    else
+                      IPAM=$(TEST_AZURE_IPAM_VERSION)
+                      echo "TEST_AZURE_IPAM_VERSION is set to $IPAM"
+                    fi
+                    if [ -z "$TEST_CNS_VERSION" ]
+                    then
+                      echo "TEST_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$(TEST_CNS_VERSION)
+                      echo "TEST_CNS_VERSION is set to $CNS"
+                    fi
                   fi
-                  if [ -z "$TEST_CNS_VERSION" ]
-                  then
-                    echo "TEST_CNS_VERSION is not set, using default value"
-                    CNS=$(make cns-version)
-                  else
-                    CNS=$(TEST_CNS_VERSION)
-                    echo "TEST_CNS_VERSION is set to $CNS"
-                  fi
+
                   echo "Deploy Azure-CNS"
                   sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO) 
                   kubectl get po -owide -A
@@ -203,6 +231,7 @@ stages:
               iterations: ${ITERATIONS_CILIUM}
               nodeCount: ${{ parameters.nodeCount }}
               cni: cilium
+              upgradeScenario: ${{ parameters.upgradeScenario }}
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -218,6 +247,7 @@ stages:
               os: ${{ parameters.os }}
               cni: cilium
               region: $(location)
+              upgradeScenario: ${{ parameters.upgradeScenario }}
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -235,6 +265,7 @@ stages:
               scaleup: ${SCALEUP_CILIUM}
               nodeCount: ${{ parameters.nodeCount }}
               cni: ${{ parameters.cni }}
+              upgradeScenario: ${{ parameters.upgradeScenario }}
       - job: cni_tests
         displayName: "Cilium Test"
         dependsOn: restart_cns
