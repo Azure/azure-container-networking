@@ -120,7 +120,7 @@ jobs:
           distribution: mariner
           architecture: arm64
     variables:
-      ob_outputDirectory: out
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       ob_artifactSuffix: _$(name)
       ob_git_checkout: false
       ob_extract_root_artifact: true
