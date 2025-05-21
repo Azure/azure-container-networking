@@ -102,7 +102,7 @@ jobs:
     #
     # See: https://eng.ms/docs/products/onebranch/build/containerbasedworkflow/dockerimagesandacr/preservefilepermissionsfordockerbuild
     - script: |
-        tar cvf "$OUT_DIR"/root_artifact.tar --exclude=root_artifact.tar "$OUT_DIR"/.
+        tar cvf "$OUT_DIR"/root_artifact.tar --exclude=root_artifact.tar "$OUT_DIR"
       displayName: "Zip to Preserve Linux File Permissions"
 
 
