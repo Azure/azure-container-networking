@@ -46,6 +46,7 @@ parameters:
 steps:
 - task: DownloadPipelineArtifact@2
   inputs:
+    targetPath: artifact/
     artifact: '${{ parameters.source }}'
     patterns: '**/*.tar'
 
