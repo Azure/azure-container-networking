@@ -46,7 +46,7 @@ parameters:
 steps:
 - task: DownloadPipelineArtifact@2
   inputs:
-    buildTYpe: current
+    buildType: current
     targetPath: '$(Build.SourcesDirectory)/dst/${{ parameters.source }}'
     artifact: '${{ parameters.source }}'
     patterns: '**/*.tar'
@@ -68,8 +68,8 @@ steps:
     repositoryName: $(os)-$(arch)/${{ parameters.name }}
     os: '${{ parameters.os }}'
     buildkit: 1
-    dockerFileRelPath: ${{ parameters.source }}/Dockerfile
-    dockerFileContextPath: ${{ parameters.source }}
+    dockerFileRelPath: Dockerfile
+    #dockerFileContextPath: ${{ parameters.source }}
     enable_network: true
     enable_pull: true
     build_tag: ${{ parameters.build_tag }}
