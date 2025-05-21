@@ -144,6 +144,6 @@ jobs:
         os: $(OS)
         name: $(name)
         build_tag: $(imageTag)
-        extra_args: $(extraArgs) --build-arg ARTIFACT_DIR="drop_build_pkg_${{ job_data.job }}_$(name)"
+        extra_args: $(extraArgs) --build-arg ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)"
         archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
         source: drop_build_pkg_${{ job_data.job }}_$(name)
