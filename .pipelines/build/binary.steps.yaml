@@ -1,0 +1,72 @@
+parameters:
+- name: target
+  type: string
+
+- name: os
+  type: string
+
+- name: arch
+  type: string
+
+
+steps:
+- task: GoTool@0
+  inputs:
+    version: '$(GOVERSION)'
+
+- bash: |
+    # Ubuntu
+    if [[ -f /etc/debian_version ]];then
+      sudo apt-get update -y
+      if [[ $GOARCH =~ amd64 ]]; then
+        sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib tree
+        for dir in /usr/include/x86_64-linux-gnu/*; do 
+          sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
+        done
+  
+      elif [[ $GOARCH =~ arm64 ]]; then
+        sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu tree
+        for dir in /usr/include/aarch64-linux-gnu/*; do 
+          sudo ln -sfn "$dir" /usr/include/$(basename "$dir")
+        done
+      fi
+    # Mariner
+    else
+      sudo tdnf install -y llvm clang libbpf-devel nftables tree
+      for dir in /usr/include/aarch64-linux-gnu/*; do 
+        if [[ -d $dir ]]; then
+          sudo ln -sfn "$dir" /usr/include/$(basename "$dir") 
+        elif [[ -f "$dir" ]]; then
+          sudo ln -Tsfn "$dir" /usr/include/$(basename "$dir") 
+        fi
+      done
+    fi
+  displayName: "Install Binary Pre-Reqs"
+  workingDirectory: $(ACN_DIR)
+  continueOnError: true
+  env:
+    GOOS: ${{ parameters.os }}
+    GOARCH: ${{ parameters.arch }}
+
+- bash: |
+    make "$TARGET"
+  displayName: "Build Binary - ${{ parameters.target }}"
+  workingDirectory: $(ACN_DIR)
+  env:
+    REPO_ROOT: $(ACN_DIR)
+    TARGET: ${{ parameters.target }}
+    GOOS: ${{ parameters.os }}
+    GOARCH: ${{ parameters.arch }}
+
+- script: |
+    SOURCE_DIR="./output"
+    TARGET_DIR="$BUILD_ARTIFACTSTAGINGDIRECTORY"/out
+    tree "$SOURCE_DIR"
+
+    mkdir -p "$TARGET_DIR"
+    find "$SOURCE_DIR" -name '*.tgz*' -print -exec mv -t "$TARGET_DIR"/ {} +
+    find "$SOURCE_DIR" -name '*.zip' -print -exec mv -t "$TARGET_DIR"/ {} +
+
+    tree "$TARGET_DIR"
+  displayName: "Prepare Artifacts"
+  workingDirectory: $(ACN_DIR)

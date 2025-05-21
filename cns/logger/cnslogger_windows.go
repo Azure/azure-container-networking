@@ -19,7 +19,7 @@ func getPlatformCores(loggingLevel zapcore.Level, encoder zapcore.Encoder) (zapc
 }
 
 func getETWCore(loggingLevel zapcore.Level, encoder zapcore.Encoder) (zapcore.Core, error) {
-	etwcore, err := zapetw.NewETWCore(etwCNSEventName, encoder, loggingLevel)
+	etwcore, _, err := zapetw.New("ACN-Monitoring", etwCNSEventName, encoder, loggingLevel)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create ETW core")
 	}

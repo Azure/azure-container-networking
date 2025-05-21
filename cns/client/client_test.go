@@ -152,7 +152,7 @@ func TestMain(m *testing.M) {
 	config := common.ServiceConfig{}
 
 	httpRestService, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{},
-		&fakes.WireserverProxyFake{}, &fakes.NMAgentClientFake{}, nil, nil, nil,
+		&fakes.WireserverProxyFake{}, &restserver.IPtablesProvider{}, &fakes.NMAgentClientFake{}, nil, nil, nil,
 		fakes.NewMockIMDSClient())
 	svc = httpRestService
 	httpRestService.Name = "cns-test-server"

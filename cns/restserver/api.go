@@ -1300,3 +1300,40 @@ func (service *HTTPRestService) getVMUniqueID(w http.ResponseWriter, r *http.Req
 		})
 	}
 }
+
+// This function is used to query all NCs on a node from NMAgent
+func (service *HTTPRestService) nmAgentNCListHandler(w http.ResponseWriter, r *http.Request) {
+	logger.Request(service.Name, "nmAgentNCListHandler", nil)
+	var (
+		returnCode           types.ResponseCode
+		networkContainerList []string
+	)
+
+	returnMessage := "Successfully fetched NC list from NMAgent"
+	ctx := r.Context()
+	switch r.Method {
+	case http.MethodGet:
+		ncVersionList, ncVersionerr := service.nma.GetNCVersionList(ctx)
+		if ncVersionerr != nil {
+			returnCode = types.NmAgentNCVersionListError
+			returnMessage = "[Azure-CNS] " + ncVersionerr.Error()
+			break
+		}
+
+		for _, container := range ncVersionList.Containers {
+			networkContainerList = append(networkContainerList, container.NetworkContainerID)
+		}
+
+	default:
+		returnMessage = "[Azure-CNS] NmAgentNCList API expects a GET method."
+	}
+
+	resp := cns.Response{ReturnCode: returnCode, Message: returnMessage}
+	NCListResponse := &cns.NCListResponse{
+		Response: resp,
+		NCList:   networkContainerList,
+	}
+
+	serviceErr := common.Encode(w, &NCListResponse)
+	logger.Response(service.Name, NCListResponse, resp.ReturnCode, serviceErr)
+}

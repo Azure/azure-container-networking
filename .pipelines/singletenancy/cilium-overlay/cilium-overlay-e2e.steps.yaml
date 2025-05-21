@@ -2,10 +2,12 @@ parameters:
   name: ""
   clusterName: ""
   testHubble: false
+  testLRP: false
   scaleup: ""
 
 
 steps:
+
   - bash: |
       go version
       go env
@@ -26,7 +28,6 @@ steps:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
@@ -64,7 +65,7 @@ steps:
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
 
-  - template: ../../templates/cilium-cli.steps.yaml@ACNTools
+  - template: ../../templates/cilium-cli.yaml
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
@@ -75,8 +76,11 @@ steps:
           CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
       fi
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
-    workingDirectory: $(ACN_DIR)
+      sudo -E env "PATH=$PATH" make test-load \
+        SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true \
+        INSTALL_CNS=true INSTALL_OVERLAY=true CLEANUP=true \
+        AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_VERSION=$(CNS_VERSION) \
+        IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) 
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
@@ -86,16 +90,26 @@ steps:
       echo "Waiting < 2 minutes for cilium to be ready"
       # Ensure Cilium is ready Xm\Xs
       cilium status --wait --wait-duration 2m
+      kubectl get crd -A
     retryCountOnTaskFailure: 3
     name: "CiliumStatus"
     displayName: "Cilium Status"
+  # Run LRP test after cns and config with lrp enabled config deployed
+  - ${{ if eq( parameters['testLRP'], true) }}:
+    - script: |
+        set -e
+        cd test/integration/lrp/
+        go test ./lrp_test.go -v -tags "lrp" -count=1 -run ^TestLRP$
+        kubectl get pods -Aowide
+      retryCountOnTaskFailure: 3
+      name: "LRPTest"
+      displayName: "Run Cilium Local Redirect Policy Test"
 
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
@@ -112,7 +126,6 @@ steps:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
-      workingDirectory: $(ACN_DIR)
       addSpnToEnvironment: true
       inlineScript: |
         set -e
@@ -133,12 +146,7 @@ steps:
       set -e
       echo "Run Cilium Connectivity Tests"
       cilium status
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
-      then
-          cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors' --force-deploy
-      else
-          cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption' --force-deploy
-      fi
+      cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors' --force-deploy
       ns=`kubectl get ns | grep cilium-test | awk '{print $1}'`
       echo "##vso[task.setvariable variable=ciliumNamespace]$ns"
     retryCountOnTaskFailure: 3
@@ -156,7 +164,6 @@ steps:
           kubectl get pods -Aowide
           echo "verify Hubble metrics endpoint is usable"
           go test ./test/integration/networkobservability -count=1 -v -tags=networkobservability
-        workingDirectory: $(ACN_DIR)
         retryCountOnTaskFailure: 3
         name: "HubbleConnectivityTests"
         displayName: "Run Hubble Connectivity Tests"
@@ -171,11 +178,10 @@ steps:
         kubectl get ciliumidentity | grep cilium-test
       fi
       make test-validate-state
-      echo "delete cilium connectivity test resources and re-validate state" # TODO Delete this and the next 4 lines if connectivity no longer has bug
+      echo "delete cilium connectivity test resources and re-validate state"
       kubectl delete ns $(ciliumNamespace)
       kubectl get pod -owide -A
       make test-validate-state
-    workingDirectory: $(ACN_DIR)
     name: "validatePods"
     displayName: "Validate Pods"
 
@@ -217,14 +223,12 @@ steps:
       kubectl get pod -owide -A
       echo "validate pods after CNS restart"
       make test-validate-state
-    workingDirectory: $(ACN_DIR)
     name: "restartCNS"
     displayName: "Restart CNS and validate pods"
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"
       bash test/network/wireserver_metadata_test.sh
-    workingDirectory: $(ACN_DIR)
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
@@ -240,7 +244,5 @@ steps:
           kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
         fi
       fi
-    workingDirectory: $(ACN_DIR)
     name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"
-

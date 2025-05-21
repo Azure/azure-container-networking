@@ -16,10 +16,6 @@ spec:
   template:
     metadata:
       annotations:
-        container.apparmor.security.beta.kubernetes.io/apply-sysctl-overwrites: unconfined
-        container.apparmor.security.beta.kubernetes.io/cilium-agent: unconfined
-        container.apparmor.security.beta.kubernetes.io/clean-cilium-state: unconfined
-        container.apparmor.security.beta.kubernetes.io/mount-cgroup: unconfined
         prometheus.io/port: "9962"
         prometheus.io/scrape: "true"
       creationTimestamp: null
@@ -102,6 +98,8 @@ spec:
           timeoutSeconds: 5
         resources: {}
         securityContext:
+          appArmorProfile: 
+            type: Unconfined
           capabilities:
             add:
             - CHOWN
@@ -197,6 +195,8 @@ spec:
         name: mount-cgroup
         resources: {}
         securityContext:
+          appArmorProfile: 
+            type: Unconfined
           capabilities:
             add:
             - SYS_ADMIN
@@ -229,6 +229,8 @@ spec:
         name: apply-sysctl-overwrites
         resources: {}
         securityContext:
+          appArmorProfile: 
+            type: Unconfined
           capabilities:
             add:
             - SYS_ADMIN
@@ -287,6 +289,8 @@ spec:
             cpu: 100m
             memory: 100Mi
         securityContext:
+          appArmorProfile: 
+            type: Unconfined
           capabilities:
             add:
             - NET_ADMIN

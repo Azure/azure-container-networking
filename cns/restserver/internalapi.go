@@ -225,6 +225,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	for _, nc := range ncVersionListResp.Containers {
 		nmaNCs[strings.ToLower(nc.NetworkContainerID)] = nc.Version
 	}
+	hasNC.Set(float64(len(nmaNCs)))
 	for ncID := range outdatedNCs {
 		nmaNCVersionStr, ok := nmaNCs[ncID]
 		if !ok {

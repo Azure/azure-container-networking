@@ -16,7 +16,7 @@ spec:
         app: agent-pod-8085-tcp-host
     spec:
       nodeSelector:
-        beta.kubernetes.io/os: linux
+        kubernetes.io/os: linux
         kubernetes.io/role: agent
       hostNetwork: true
       containers:
@@ -47,7 +47,7 @@ spec:
         app: agent-pod-8085-tcp
     spec:
       nodeSelector:
-        beta.kubernetes.io/os: linux
+        kubernetes.io/os: linux
         kubernetes.io/role: agent
       containers:
         - name: agent-pod-8085-tcp
@@ -77,7 +77,7 @@ spec:
         app: agent-pod-8086-udp
     spec:
       nodeSelector:
-        beta.kubernetes.io/os: linux
+        kubernetes.io/os: linux
         kubernetes.io/role: agent
       containers:
         - name: agent-pod-8086-udp

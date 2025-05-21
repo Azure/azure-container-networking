@@ -638,7 +638,7 @@ func main() {
 	}
 
 	// start the healthz/readyz/metrics server
-	readyCh := make(chan interface{})
+	readyCh := make(chan any)
 	readyChecker := healthz.CheckHandler{
 		Checker: healthz.Checker(func(*http.Request) error {
 			select {
@@ -649,7 +649,13 @@ func main() {
 			return nil
 		}),
 	}
-	go healthserver.Start(z, cnsconfig.MetricsBindAddress, &healthz.Handler{}, readyChecker)
+
+	healthzHandler, err := healthserver.NewHealthzHandlerWithChecks(&healthserver.Config{PingAPIServer: cnsconfig.EnableAPIServerHealthPing})
+	if err != nil {
+		logger.Errorf("unable to initialize a healthz handler: %v", err)
+		return
+	}
+	go healthserver.Start(z, cnsconfig.MetricsBindAddress, healthzHandler, readyChecker)
 
 	nmaConfig, err := nmagent.NewConfig(cnsconfig.WireserverIP)
 	if err != nil {
@@ -747,7 +753,7 @@ func main() {
 	}
 
 	imdsClient := imds.NewClient()
-	httpRemoteRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, nmaClient,
+	httpRemoteRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, &restserver.IPtablesProvider{}, nmaClient,
 		endpointStateStore, conflistGenerator, homeAzMonitor, imdsClient)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
@@ -804,6 +810,7 @@ func main() {
 		logger.Errorf("Failed to set remote ARP MAC address: %v", err)
 		return
 	}
+
 	// We are only setting the PriorityVLANTag in 'cns.Direct' mode, because it neatly maps today, to 'isUsingMultitenancy'
 	// In the future, we would want to have a better CNS flag, to explicitly say, this CNS is using multitenancy
 	if cnsconfig.ChannelMode == cns.Direct {
@@ -824,6 +831,8 @@ func main() {
 	// Initialze state in if CNS is running in CRD mode
 	// State must be initialized before we start HTTPRestService
 	if config.ChannelMode == cns.CRD {
+		// Add APIServer FQDN to Log metadata
+		logger.Log.SetAPIServer(os.Getenv("KUBERNETES_SERVICE_HOST"))
 
 		// Check the CNI statefile mount, and if the file is empty
 		// stub an empty JSON object

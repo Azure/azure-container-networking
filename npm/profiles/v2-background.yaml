@@ -6,18 +6,18 @@ metadata:
 data:
   azure-npm.json: |
     {
-        "ResyncPeriodInMinutes":          15,
-        "ListeningPort":                  10091,
-        "ListeningAddress":               "0.0.0.0",
-        "NetPolInvervalInMilliseconds":   500,
-        "MaxPendingNetPols":              100,
-        "Toggles": {
-            "EnablePrometheusMetrics": true,
-            "EnablePprof":             true,
-            "EnableHTTPDebugAPI":      true,
-            "EnableV2NPM":             true,
-            "PlaceAzureChainFirst":    true,
-            "ApplyIPSetsOnNeed":       false,
-            "NetPolInBackground":      true
+      "ResyncPeriodInMinutes":          15,
+      "ListeningPort":                  10091,
+      "ListeningAddress":               "0.0.0.0",
+      "NetPolInvervalInMilliseconds":   500,
+      "MaxPendingNetPols":              100,
+      "Toggles": {
+          "EnablePrometheusMetrics": true,
+          "EnablePprof":             true,
+          "EnableHTTPDebugAPI":      true,
+          "EnableV2NPM":             true,
+          "PlaceAzureChainFirst":    false,
+          "ApplyIPSetsOnNeed":       false,
+          "NetPolInBackground":      true
         }
     }

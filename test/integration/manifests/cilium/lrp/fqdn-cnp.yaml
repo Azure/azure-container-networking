@@ -1,0 +1,24 @@
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "to-fqdn"
+  namespace: "default"
+spec:
+  endpointSelector:
+    matchLabels:
+      lrp-test: "true"
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            "k8s:io.kubernetes.pod.namespace": kube-system
+            "k8s:k8s-app": node-local-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*.google.com"
+              - matchPattern: "*.cloudflare.com"
+    - toFQDNs:
+        - matchPattern: "*.google.com"

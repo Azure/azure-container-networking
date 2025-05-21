@@ -878,6 +878,12 @@ func GetTestCNSResponseSecondaryWindows(macAddress string) map[string]network.In
 			SkipDefaultRoutes: true,
 			NICType:           cns.InfraNIC,
 			HostSubnetPrefix:  *getCIDRNotationForAddress("20.224.0.0/16"),
+			EndpointPolicies: []policy.Policy{
+				{
+					Type: policy.EndpointPolicy,
+					Data: GetRawACLPolicy(),
+				},
+			},
 		},
 		macAddress: {
 			MacAddress: parsedMAC,
@@ -895,6 +901,12 @@ func GetTestCNSResponseSecondaryWindows(macAddress string) map[string]network.In
 				},
 			},
 			NICType: cns.NodeNetworkInterfaceFrontendNIC,
+			EndpointPolicies: []policy.Policy{
+				{
+					Type: policy.EndpointPolicy,
+					Data: GetRawOutBoundNATPolicy(),
+				},
+			},
 		},
 	}
 }
@@ -1226,6 +1238,12 @@ func TestPluginWindowsAdd(t *testing.T) {
 								Gateway: net.ParseIP("10.244.2.1"),
 							},
 						},
+						EndpointPolicies: []policy.Policy{
+							{
+								Type: policy.EndpointPolicy,
+								Data: GetRawACLPolicy(),
+							},
+						},
 					},
 					epIDRegex: `.*`,
 				},
@@ -1267,6 +1285,12 @@ func TestPluginWindowsAdd(t *testing.T) {
 								Prefix: *getIPNetWithString("10.241.0.21/16"),
 								// matches cns ip configuration gateway ip address
 								Gateway: net.ParseIP("10.241.0.1"),
+							},
+						},
+						EndpointPolicies: []policy.Policy{
+							{
+								Type: policy.EndpointPolicy,
+								Data: GetRawOutBoundNATPolicy(),
 							},
 						},
 					},
@@ -1326,6 +1350,8 @@ func TestPluginWindowsAdd(t *testing.T) {
 					epInfo1.EndpointPolicies[0] = policy.Policy{
 						Type: policy.ACLPolicy,
 					}
+					require.Len(t, epInfo1.EndpointPolicies, 1)
+					require.Len(t, epInfo2.EndpointPolicies, 1)
 					require.NotEqual(t, epInfo1.EndpointPolicies, epInfo2.EndpointPolicies)
 				}
 				// ensure the network policy slices are separate entities when in separate endpoint infos

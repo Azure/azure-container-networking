@@ -3,6 +3,7 @@ package iptables
 // This package contains wrapper functions to program iptables rules
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/cni/log"
@@ -10,7 +11,10 @@ import (
 	"go.uber.org/zap"
 )
 
-var logger = log.CNILogger.With(zap.String("component", "cni-iptables"))
+var (
+	logger                        = log.CNILogger.With(zap.String("component", "cni-iptables"))
+	errCouldNotValidateRuleExists = errors.New("could not validate iptable rule exists after insertion")
+)
 
 // cni iptable chains
 const (
@@ -87,17 +91,20 @@ type IPTableEntry struct {
 	Params  string
 }
 
-type Client struct{}
+type Client struct {
+	pl platform.ExecClient
+}
 
 func NewClient() *Client {
-	return &Client{}
+	return &Client{
+		pl: platform.NewExecClient(logger),
+	}
 }
 
 // Run iptables command
 func (c *Client) RunCmd(version, params string) error {
 	var cmd string
 
-	p := platform.NewExecClient(logger)
 	iptCmd := iptables
 	if version == V6 {
 		iptCmd = ip6tables
@@ -109,7 +116,7 @@ func (c *Client) RunCmd(version, params string) error {
 		cmd = fmt.Sprintf("%s -w %d %s", iptCmd, lockTimeout, params)
 	}
 
-	if _, err := p.ExecuteRawCommand(cmd); err != nil {
+	if _, err := c.pl.ExecuteRawCommand(cmd); err != nil {
 		return err
 	}
 
@@ -171,7 +178,14 @@ func (c *Client) InsertIptableRule(version, tableName, chainName, match, target 
 	}
 
 	cmd := c.GetInsertIptableRuleCmd(version, tableName, chainName, match, target)
-	return c.RunCmd(version, cmd.Params)
+	err := c.RunCmd(version, cmd.Params)
+	if err != nil {
+		return err
+	}
+	if !c.RuleExists(version, tableName, chainName, match, target) {
+		return errCouldNotValidateRuleExists
+	}
+	return nil
 }
 
 func (c *Client) GetAppendIptableRuleCmd(version, tableName, chainName, match, target string) IPTableEntry {
@@ -189,7 +203,14 @@ func (c *Client) AppendIptableRule(version, tableName, chainName, match, target 
 	}
 
 	cmd := c.GetAppendIptableRuleCmd(version, tableName, chainName, match, target)
-	return c.RunCmd(version, cmd.Params)
+	err := c.RunCmd(version, cmd.Params)
+	if err != nil {
+		return err
+	}
+	if !c.RuleExists(version, tableName, chainName, match, target) {
+		return errCouldNotValidateRuleExists
+	}
+	return nil
 }
 
 // Delete matched iptable rule

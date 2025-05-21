@@ -1,22 +1,31 @@
 package middlewares
 
 import (
+	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/Azure/azure-container-networking/network/policy"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 	"gotest.tools/v3/assert"
 )
 
 func TestSetRoutesSuccess(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.10/16")
+	t.Setenv(configuration.EnvPodCIDRs, "10.1.0.10/24") // make sure windows swiftv2 does not set pod cidr route
 
 	podIPInfo := []cns.PodIpInfo{
 		{
 			PodIPConfig: cns.IPSubnet{
-				IPAddress:    "10.0.1.10",
+				IPAddress:    "10.0.1.100",
 				PrefixLength: 32,
 			},
 			NICType: cns.InfraNIC,
@@ -30,6 +39,30 @@ func TestSetRoutesSuccess(t *testing.T) {
 			MacAddress: "12:34:56:78:9a:bc",
 		},
 	}
+
+	desiredPodIPInfo := []cns.PodIpInfo{
+		{
+			PodIPConfig: cns.IPSubnet{
+				IPAddress:    "10.0.1.100",
+				PrefixLength: 32,
+			},
+			NICType: cns.InfraNIC,
+			Routes: []cns.Route{
+				{
+					IPAddress:        "10.0.0.0/16",
+					GatewayIPAddress: "0.0.0.0",
+				},
+				{
+					IPAddress:        "10.240.0.10/16",
+					GatewayIPAddress: "0.0.0.0",
+				},
+				{
+					IPAddress:        "0.0.0.0/0",
+					GatewayIPAddress: "0.0.0.0",
+				},
+			},
+		},
+	}
 	for i := range podIPInfo {
 		ipInfo := &podIPInfo[i]
 		err := middleware.setRoutes(ipInfo)
@@ -40,6 +73,9 @@ func TestSetRoutesSuccess(t *testing.T) {
 			assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
 		}
 	}
+
+	// check if the routes are set as expected
+	reflect.DeepEqual(podIPInfo[0].Routes, desiredPodIPInfo[0].Routes)
 }
 
 func TestAssignSubnetPrefixSuccess(t *testing.T) {
@@ -99,4 +135,87 @@ func TestAddDefaultRoute(t *testing.T) {
 	if !reflect.DeepEqual(ipInfo.Routes, expectedRoutes) {
 		t.Errorf("got '%+v', expected '%+v'", ipInfo.Routes, expectedRoutes)
 	}
+}
+
+func TestAddDefaultDenyACL(t *testing.T) {
+	const policyType = "ACL"
+	const action = "Block"
+	const ingressDir = "In"
+	const egressDir = "Out"
+	const priority = 10000
+
+	valueIn := []byte(fmt.Sprintf(`{
+		"Type": "%s",
+		"Action": "%s",
+		"Direction": "%s",
+		"Priority": %d
+	}`,
+		policyType,
+		action,
+		ingressDir,
+		priority,
+	))
+
+	valueOut := []byte(fmt.Sprintf(`{
+		"Type": "%s",
+		"Action": "%s",
+		"Direction": "%s",
+		"Priority": %d
+	}`,
+		policyType,
+		action,
+		egressDir,
+		priority,
+	))
+
+	expectedDefaultDenyEndpoint := []policy.Policy{
+		{
+			Type: policy.EndpointPolicy,
+			Data: valueOut,
+		},
+		{
+			Type: policy.EndpointPolicy,
+			Data: valueIn,
+		},
+	}
+	var allEndpoints []policy.Policy
+	var defaultDenyEgressPolicy, defaultDenyIngressPolicy policy.Policy
+	var err error
+
+	defaultDenyEgressPolicy = mustGetEndpointPolicy("Out")
+	defaultDenyIngressPolicy = mustGetEndpointPolicy("In")
+
+	allEndpoints = append(allEndpoints, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
+
+	// Normalize both slices so there is no extra spacing, new lines, etc
+	normalizedExpected := normalizeKVPairs(t, expectedDefaultDenyEndpoint)
+	normalizedActual := normalizeKVPairs(t, allEndpoints)
+	if !cmp.Equal(normalizedExpected, normalizedActual) {
+		t.Error("received policy differs from expectation: diff", cmp.Diff(normalizedExpected, normalizedActual))
+	}
+	assert.Equal(t, err, nil)
+}
+
+// normalizeKVPairs normalizes the JSON values in the KV pairs by unmarshaling them into a map, then marshaling them back to compact JSON to remove any extra space, new lines, etc
+func normalizeKVPairs(t *testing.T, policies []policy.Policy) []policy.Policy {
+	normalized := make([]policy.Policy, len(policies))
+
+	for i, kv := range policies {
+		var unmarshaledValue map[string]interface{}
+		// Unmarshal the Value into a map
+		err := json.Unmarshal(kv.Data, &unmarshaledValue)
+		require.NoError(t, err, "Failed to unmarshal JSON value")
+
+		// Marshal it back to compact JSON
+		normalizedValue, err := json.Marshal(unmarshaledValue)
+		require.NoError(t, err, "Failed to re-marshal JSON value")
+
+		// Replace Value with the normalized compact JSON
+		normalized[i] = policy.Policy{
+			Type: policy.EndpointPolicy,
+			Data: normalizedValue,
+		}
+	}
+
+	return normalized
 }

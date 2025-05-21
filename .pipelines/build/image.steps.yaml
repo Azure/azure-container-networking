@@ -1,0 +1,89 @@
+parameters:
+- name: arch
+  type: string
+  default: ""
+
+- name: name
+  type: string
+  default: ""
+
+- name: os
+  type: string
+  default: ""
+
+- name: build_tag
+  type: string
+  default: ""
+
+- name: dockerfile_path
+  type: string
+  default: ""
+
+- name: archive_file
+  type: string
+  default: '$(name)-$(os)-$(platform)-$(Tag)'
+
+- name: source
+  type: string
+  default: drop_setup_env_source
+
+- name: extra_args
+  type: string
+  default: ''
+
+
+- name: default_args
+  type: object
+  default:
+    - "--target $(os) "
+    - "--platform $(os)/$(arch) "
+
+- name: common_build_args
+  type: object
+  default:
+    - "PLATFORM=$(os)/$(arch) "
+    - "ARCH=$(arch) "
+    - "OS=$(os) "
+    - "VERSION=$(Tag) "
+
+
+steps:
+- task: DownloadPipelineArtifact@2
+  inputs:
+    targetPath: $(Build.SourcesDirectory)/dst/${{ parameters.source }}
+    artifact: '${{ parameters.source }}'
+
+- task: onebranch.pipeline.containercontrol@1
+  displayName: "Login to ACR"
+  inputs:
+    command: login
+    endpoint: $(ACR_ARM_SERVICE_CONNECTION)
+
+# Build and push the Docker image
+- task: onebranch.pipeline.imagebuildinfo@1
+  displayName: Image Build
+  retryCountOnTaskFailure: 3
+  timeoutInMinutes: 30
+  inputs:
+    endpoint: $(ACR_ARM_SERVICE_CONNECTION)
+    registry: $(ACR).azurecr.io
+    repositoryName: $(os)-$(arch)/${{ parameters.name }}
+    os: '${{ parameters.os }}'
+    buildkit: 1
+    dockerFileRelPath: ${{ parameters.dockerfile_path }}/Dockerfile
+    dockerFileContextPath: ${{ parameters.source }}
+    enable_network: true
+    enable_pull: true
+    build_tag: ${{ parameters.build_tag }}
+    enable_acr_push: true
+
+    saveImageToPath: images/$(os)-$(arch)/${{ parameters.archive_file }}.tar.gz
+    #compress: true
+    #saveMetadataToPath: images/$(os)-$(arch)/metadata/${{ parameters.archive_file }}-metadata.json
+    #enable_isolated_acr_push: true
+
+    # Docker Build Arguments
+    ${{ if parameters.common_build_args }}:
+      arguments: --build-arg ${{ join('--build-arg ', parameters.common_build_args) }} ${{ parameters.extra_args }} ${{ join(' ', parameters.default_args) }}
+    ${{ else }}:
+      arguments: ${{ parameters.extra_args }} ${{ join(' ', parameters.default_args) }}

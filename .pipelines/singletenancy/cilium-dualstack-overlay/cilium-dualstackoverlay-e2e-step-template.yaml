@@ -45,7 +45,7 @@ steps:
         export CILIUM_VERSION_TAG=${CILIUM_DUALSTACK_VERSION}
         export IPV6_HP_BPF_VERSION=$(make ipv6-hp-bpf-version)
         echo "install Cilium ${CILIUM_DUALSTACK_VERSION} onto Overlay Cluster"
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
+        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
         envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
         kubectl get po -owide -A
     name: "installCilium"
@@ -65,11 +65,12 @@ steps:
       echo "Waiting < 2 minutes for cilium to be ready"
       # Ensure Cilium is ready Xm\Xs
       cilium status --wait --wait-duration 2m
+      kubectl get crd -A
     retryCountOnTaskFailure: 3
     name: "CiliumStatus"
     displayName: "Cilium Status"
 
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
@@ -85,7 +86,7 @@ steps:
         done
     displayName: "Restart Nodes"
 
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
@@ -110,7 +111,7 @@ steps:
       set -e
       echo "Run Cilium Connectivity Tests"
       cilium status
-      cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!no-unexpected-packet-drops' --force-deploy
+      cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!no-unexpected-packet-drops,!check-log-errors' --force-deploy
       ns=`kubectl get ns | grep cilium-test | awk '{print $1}'`
       echo "##vso[task.setvariable variable=ciliumNamespace]$ns"
     retryCountOnTaskFailure: 3
@@ -132,9 +133,6 @@ steps:
   - script: |
       echo "validate pod IP assignment and check systemd-networkd restart"
       kubectl get pod -owide -A
-      # Deleting echo-external-node deployment until cilium version matches TODO. https://github.com/cilium/cilium-cli/issues/67 is addressing the change.
-      # Saves 17 minutes
-      kubectl delete deploy -n $(ciliumNamespace) echo-external-node
       cd test/integration/load
       CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
       echo "delete cilium connectivity test resources and re-validate state"

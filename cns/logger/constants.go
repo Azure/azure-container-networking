@@ -7,14 +7,16 @@ const (
 	ConfigSnapshotMetricsStr = "ConfigSnapshot"
 
 	// Dimensions
-	OrchestratorTypeStr             = "OrchestratorType"
-	NodeIDStr                       = "NodeID"
+	orchestratorTypeKey             = "OrchestratorType"
+	nodeIDKey                       = "NodeID"
 	HomeAZStr                       = "HomeAZ"
 	IsAZRSupportedStr               = "IsAZRSupported"
+	IsAZRDualStackFixPresentStr     = "IsAZRDualStackFixPresent"
 	HomeAZErrorCodeStr              = "HomeAZErrorCode"
 	HomeAZErrorMsgStr               = "HomeAZErrorMsg"
 	CNSConfigPropertyStr            = "CNSConfiguration"
 	CNSConfigMD5CheckSumPropertyStr = "CNSConfigurationMD5Checksum"
+	apiServerKey                    = "APIServer"
 
 	// CNS NC Snspshot properties
 	CnsNCSnapshotEventStr         = "CNSNCSnapshot"

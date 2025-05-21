@@ -1,0 +1,104 @@
+parameters:
+  name: ""
+  displayName: ""
+  clusterType: ""
+  clusterName: ""
+  vmSize: ""
+  k8sVersion: ""
+  dependsOn: ""
+  os: ""
+  scaleup: ""
+
+stages:
+  - stage: ${{ parameters.clusterName }}
+    displayName: Create Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    pool:
+      isCustom: true
+      type: linux
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - template: ../../templates/create-cluster.jobs.yaml
+        parameters:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
+          vmSizeWin: ${{ parameters.vmSize }}
+          k8sVersion: ${{ parameters.k8sVersion }}
+          dependsOn: ${{ parameters.dependsOn }}
+          os: ${{ parameters.os }}
+          region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) # Dualstack has a specific region requirement
+
+  - stage: ${{ parameters.name }}
+    displayName: E2E - ${{ parameters.displayName }}
+    dependsOn:
+    - setup
+    - ${{ parameters.clusterName }}
+    variables:
+      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+      GOBIN: "$(GOPATH)/bin" # Go binaries path
+      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+
+      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
+      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
+      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+    jobs:
+      - job: ${{ parameters.name }}_${{ parameters.os }}
+        displayName: DualStack Overlay Test Suite | ${{ parameters.os }} - (${{ parameters.name }})
+        timeoutInMinutes: 120
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+          isCustom: true
+          type: linux
+        steps:
+          - checkout: azure-container-networking
+          - template: dualstackoverlay-e2e.steps.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              scaleup: ${{ parameters.scaleup }} # 50 in windows or 100 in linux
+
+      - template: ../../cni/k8s-e2e/k8s-e2e.jobs.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          dependsOn: ${{ parameters.name }}_${{ parameters.os }}
+          dualstack: ${{ eq(parameters.os, 'linux') }} # RUN IN LINUX not WINDOWS Currently broken for scenario and blocking releases, HNS is investigating. Covered by go test in E2E step template
+          dns: true
+          portforward: true
+          service: ${{ eq(parameters.os, 'linux') }}  # RUN IN LINUX NOT WINDOWS Currently broken for scenario and blocking releases, HNS is investigating.
+          hostport: true
+          hybridWin: ${{ eq(parameters.os, 'windows') }}
+
+      - job: failedE2ELogs_${{ parameters.os }}
+        displayName: "${{ parameters.os }} Failure Logs"
+        dependsOn:
+          - ${{ parameters.name }}_${{ parameters.os }}
+          - CNI_${{ parameters.os }}
+        condition: in(dependencies.${{ parameters.name }}_${{ parameters.os }}.result, 'Failed')
+        pool:
+          type: linux
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+        steps:
+          - checkout: azure-container-networking
+          - template: ../../templates/log.steps.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cniv2

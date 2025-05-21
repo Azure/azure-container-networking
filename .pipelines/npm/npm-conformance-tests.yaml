@@ -108,8 +108,12 @@ stages:
             IS_STRESS_TEST: "false"
           v2-linux-stress:
             AZURE_CLUSTER: "conformance-v2-linux-stress"
-            PROFILE: "v2-background"
+            PROFILE: "v2-linux-stress"
             IS_STRESS_TEST: "true"
+          v2-place-first:
+            AZURE_CLUSTER: "conformance-v2-place-first"
+            PROFILE: "v2-place-first"
+            IS_STRESS_TEST: "false"
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
         demands:
@@ -119,6 +123,7 @@ stages:
         RESOURCE_GROUP: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
         TAG: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.TAG'] ]
         FQDN: empty
+        PUBLIC_IP_NAME: $(RESOURCE_GROUP)-$(PROFILE)-public-ip
       steps:
         - checkout: self
 
@@ -134,6 +139,23 @@ stages:
               az version
 
         - task: AzureCLI@2
+          displayName: "Create public IP with a service tag"
+          inputs:
+            azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+            scriptType: "bash"
+            scriptLocation: "inlineScript"
+            inlineScript: |
+              az network public-ip create \
+                --name $(PUBLIC_IP_NAME) \
+                --resource-group $(RESOURCE_GROUP) \
+                --allocation-method Static \
+                --ip-tags 'FirstPartyUsage=/DelegatedNetworkControllerTest' \
+                --location $(LOCATION) \
+                --sku Standard \
+                --tier Regional \
+                --version IPv4
+
+        - task: AzureCLI@2
           displayName: "Deploy NPM to Test Cluster"
           inputs:
             azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -146,6 +168,9 @@ stages:
               chmod +x kubectl
               echo Cluster $(AZURE_CLUSTER)
               echo Resource $(RESOURCE_GROUP)
+              echo Public IP $(PUBLIC_IP_NAME)
+              export PUBLIC_IP_ID=$(az network public-ip show -g $(RESOURCE_GROUP) -n $(PUBLIC_IP_NAME) --query id -o tsv)
+              echo Public IP ID $PUBLIC_IP_ID
 
               if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
               then
@@ -162,7 +187,8 @@ stages:
                     --network-plugin azure \
                     --vm-set-type VirtualMachineScaleSets \
                     --node-vm-size Standard_D4s_v3 \
-                    --node-count 1
+                    --node-count 1 \
+                    --load-balancer-outbound-ips $PUBLIC_IP_ID
 
                 if [ $? != 0 ]
                 then
@@ -209,7 +235,8 @@ stages:
                 az aks create --no-ssh-key \
                 --resource-group $(RESOURCE_GROUP) \
                 --name $(AZURE_CLUSTER) \
-                --network-plugin azure
+                --network-plugin azure \
+                --load-balancer-outbound-ips $PUBLIC_IP_ID
 
                 if [ $? != 0 ]
                 then
@@ -251,15 +278,23 @@ stages:
               set -e
               make -C ./hack/aks set-kubeconf AZCLI=az GROUP=$(RESOURCE_GROUP) CLUSTER=$(AZURE_CLUSTER)
 
-              # sig-release provides test suite tarball(s) per k8s release. Just need to provide k8s version "v1.xx.xx"
-              # pulling k8s version from AKS.
-              eval k8sVersion="v"$( az aks show -g $(RESOURCE_GROUP) -n $(AZURE_CLUSTER) --query "currentKubernetesVersion")
-              echo $k8sVersion
-              curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
+              if [ $(PROFILE) == "v2-place-first" ]; then
+                git clone --depth=1 --branch=huntergregory/service-types https://github.com/huntergregory/network-policy-api.git
+                cd network-policy-api/cmd/policy-assistant
+                make policy-assistant
+                cd ../../..
+                mv network-policy-api/cmd/policy-assistant/cmd/policy-assistant/policy-assistant .
+              else
+                # sig-release provides test suite tarball(s) per k8s release. Just need to provide k8s version "v1.xx.xx"
+                # pulling k8s version from AKS.
+                eval k8sVersion="v"$( az aks show -g $(RESOURCE_GROUP) -n $(AZURE_CLUSTER) --query "currentKubernetesVersion")
+                echo $k8sVersion
+                curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
 
-              # https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
-              # explictly unzip and strip directories from ginkgo and e2e.test
-              tar -xvzf kubernetes-test-linux-amd64.tar.gz --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
+                # https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
+                # explictly unzip and strip directories from ginkgo and e2e.test
+                tar -xvzf kubernetes-test-linux-amd64.tar.gz --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
+              fi
 
           displayName: "Setup Environment"
 
@@ -280,8 +315,13 @@ stages:
             echo $FQDN
 
             runConformance () {
-                KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
-                # there can't be a command after e2e.test because the exit code is important
+                if [ $(PROFILE) == "v2-place-first" ]; then
+                  # 15 minute timeout for creating LoadBalancer with Azure-internal "external IPs"
+                  ./policy-assistant generate --noisy=true --job-timeout-seconds=2 --pod-creation-timeout-seconds 900 --server-protocol TCP,UDP --ignore-loopback --include special-services --exclude cni-brings-source-pod-info-to-other-node
+                else
+                  KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
+                fi
+                # there can't be a command after e2e.test/policy-assistant because the exit code is important
             }
 
             runConformanceWindows () {

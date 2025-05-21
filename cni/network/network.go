@@ -833,6 +833,10 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	// create endpoint policies by appending to network policies
 	// the value passed into NetworkPolicies should be unaffected since we reassign here
 	opt.policies = append(opt.policies, endpointPolicies...)
+
+	// appends endpoint policies specific to this interface
+	opt.policies = append(opt.policies, opt.ifInfo.EndpointPolicies...)
+
 	endpointInfo.EndpointPolicies = opt.policies
 	// add even more endpoint policies
 	epPolicies, err := getPoliciesFromRuntimeCfg(opt.nwCfg, opt.ipamAddResult.ipv6Enabled) // not specific to delegated or infra

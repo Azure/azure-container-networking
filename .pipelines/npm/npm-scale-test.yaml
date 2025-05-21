@@ -139,6 +139,19 @@ jobs:
             echo "Creating resource group named $(RESOURCE_GROUP)"
             az group create --name $(RESOURCE_GROUP) -l $(LOCATION) -o table
 
+            export PUBLIC_IP_NAME=$(RESOURCE_GROUP)-$(PROFILE)-public-ip
+            echo "Creating public IP with a service tag named $PUBLIC_IP_NAME"
+            az network public-ip create \
+                --name $PUBLIC_IP_NAME \
+                --resource-group $(RESOURCE_GROUP) \
+                --allocation-method Static \
+                --ip-tags 'FirstPartyUsage=/DelegatedNetworkControllerTest' \
+                --location $(LOCATION) \
+                --sku Standard \
+                --tier Regional \
+                --version IPv4
+            export PUBLIC_IP_ID=$(az network public-ip show -g $(RESOURCE_GROUP) -n $PUBLIC_IP_NAME --query id -o tsv)
+
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             echo "Creating cluster named $CLUSTER_NAME"
             az aks create \
@@ -152,7 +165,8 @@ jobs:
                 --node-vm-size Standard_D4s_v3 \
                 --node-count 1 \
                 --tier standard \
-                --max-pods 100
+                --max-pods 100 \
+                --load-balancer-outbound-ips $PUBLIC_IP_ID
 
             echo "Getting credentials to $CLUSTER_NAME"
             az aks get-credentials -g $(RESOURCE_GROUP) -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig

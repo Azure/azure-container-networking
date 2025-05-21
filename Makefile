@@ -30,7 +30,7 @@ EXE_EXT 	= .exe
 endif
 
 # Interrogate the git repo and set some variables
-REPO_ROOT				 = $(shell git rev-parse --show-toplevel)
+REPO_ROOT				?= $(shell git rev-parse --show-toplevel)
 REVISION				?= $(shell git rev-parse --short HEAD)
 ACN_VERSION				?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --tags --always)
 IPV6_HP_BPF_VERSION		?= $(notdir $(shell git describe --match "ipv6-hp-bpf*" --tags --always))
@@ -87,6 +87,7 @@ GOFUMPT         := $(TOOLS_BIN_DIR)/gofumpt
 GOLANGCI_LINT   := $(TOOLS_BIN_DIR)/golangci-lint
 GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
 MOCKGEN         := $(TOOLS_BIN_DIR)/mockgen
+RENDERKIT		:= $(TOOLS_BIN_DIR)/renderkit
 
 # Archive file names.
 ACNCLI_ARCHIVE_NAME = acncli-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
@@ -627,7 +628,7 @@ npm-skopeo-archive: ## export tar archive of multiplat container manifest.
 
 # Create a CNI archive for the target platform.
 .PHONY: cni-archive
-cni-archive: azure-vnet-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary azure-vnet-telemetry-binary
+cni-archive: azure-vnet-binary azure-vnet-stateless-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary azure-vnet-telemetry-binary
 	$(MKDIR) $(CNI_BUILD_DIR)
 	cp cni/azure-$(GOOS).conflist $(CNI_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_BUILD_DIR)/azure-vnet-telemetry.config
@@ -698,9 +699,7 @@ cns-archive: azure-cns-binary
 # Create a NPM archive for the target platform. Only Linux is supported for now.
 .PHONY: npm-archive
 npm-archive: azure-npm-binary
-ifeq ($(GOOS),linux)
 	cd $(NPM_BUILD_DIR) && $(ARCHIVE_CMD) $(NPM_ARCHIVE_NAME) azure-npm$(EXE_EXT)
-endif
 
 # Create a azure-ipam archive for the target platform.
 .PHONY: azure-ipam-archive
@@ -758,9 +757,8 @@ RESTART_CASE ?= false
 CNI_TYPE ?= cilium
 
 test-all: ## run all unit tests.
-	@$(eval COVER_FILTER=`go list $(COVER_PKG)/... | tr '\n' ','`)
-	@echo Test coverpkg: $(COVER_FILTER)
-	go test -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -coverpkg=$(COVER_FILTER) -race -covermode atomic -coverprofile=coverage.out $(COVER_PKG)/...
+	go test -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=coverage-all.out $(COVER_PKG)/...
+	go tool cover -func=coverage-all.out
 
 test-integration: ## run all integration tests.
 	AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \
@@ -772,7 +770,7 @@ test-load: ## run all load tests
 	AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \
 		CNI_VERSION=$(CNI_VERSION)
 		CNS_VERSION=$(CNS_VERSION) \
-		go test -timeout 30m -race -tags=load ./test/integration/load... -v
+		go test -timeout 40m -race -tags=load ./test/integration/load... -v
 
 test-validate-state:
 	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load --skip 'TestE2E*' -run ^TestValidateState
@@ -807,6 +805,11 @@ test-k8se2e-only: ## Run k8s network conformance test, use TYPE=basic for only d
 	cd ../..
 
 ##@ Utilities
+
+dockerfiles: tools ## Render all Dockerfile templates with current state of world
+	@make -f build/images.mk render PATH=cns
+	@make -f build/images.mk render PATH=cni
+
 
 $(REPO_ROOT)/.git/hooks/pre-push:
 	@ln -s $(REPO_ROOT)/.hooks/pre-push $(REPO_ROOT)/.git/hooks/
@@ -867,10 +870,15 @@ $(MOCKGEN): $(TOOLS_DIR)/go.mod
 
 mockgen: $(MOCKGEN) ## Build mockgen
 
+$(RENDERKIT): $(TOOLS_DIR)/go.mod
+	cd $(TOOLS_DIR); go mod download; go build -o bin/renderkit github.com/orellazri/renderkit
+
+renderkit: $(RENDERKIT) ## Build renderkit
+
 clean-tools:
 	rm -r build/tools/bin
 
-tools: acncli gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools
+tools: acncli gocov gocov-xml go-junit-report golangci-lint gofumpt protoc renderkit ## Build bins for build tools
 
 
 ##@ Help

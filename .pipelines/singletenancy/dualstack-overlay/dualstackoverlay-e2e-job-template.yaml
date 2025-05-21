@@ -6,6 +6,8 @@ parameters:
   vmSize: ""
   k8sVersion: ""
   dependsOn: ""
+  os: ""
+  scaleup: ""
 
 stages:
   - stage: ${{ parameters.clusterName }}
@@ -25,12 +27,13 @@ stages:
           clusterType: ${{ parameters.clusterType }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           vmSize: ${{ parameters.vmSize }}
+          vmSizeWin: ${{ parameters.vmSize }}
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
+          os: ${{ parameters.os }}
           region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) # Dualstack has a specific region requirement
 
   - stage: ${{ parameters.name }}
-    condition: and( succeeded(), not(eq(dependencies.dualstackoverlaye2e.result,'SucceededWithIssues')) ) # Cant use parameters in dependencies
     displayName: E2E - ${{ parameters.displayName }}
     dependsOn:
     - setup
@@ -44,8 +47,8 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
-      - job: ${{ parameters.name }}_linux
-        displayName: DualStack Overlay Test Suite | Linux - (${{ parameters.name }})
+      - job: ${{ parameters.name }}_${{ parameters.os }}
+        displayName: DualStack Overlay Test Suite | ${{ parameters.os }} - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
@@ -57,77 +60,31 @@ stages:
             parameters:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: linux
-              scaleup: 100
-      - template: ../../templates/add-windows-nodepool-job.yaml
-        parameters:
-          depend: ${{ parameters.name }}_linux
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          vmSize: "Standard_D2_v3"
-      - job: ${{ parameters.name }}_windows
-        displayName: DualStack Overlay Test Suite | Windows - (${{ parameters.name }})
-        timeoutInMinutes: 120
-        dependsOn: windows_nodepool
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-          demands:
-          - agent.os -equals Linux
-          - Role -equals $(CUSTOM_E2E_ROLE)
-        steps:
-          - template: dualstackoverlay-e2e-step-template.yaml
-            parameters:
-              name: ${{ parameters.name }}
-              clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: windows
-              scaleup: 50
+              os: ${{ parameters.os }}
+              scaleup: ${{ parameters.scaleup }} # 50 in windows or 100 in linux
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: linux
-          dependsOn: ${{ parameters.name }}_windows
-          dualstack: true
+          os: ${{ parameters.os }}
+          dependsOn: ${{ parameters.name }}_${{ parameters.os }}
+          dualstack: ${{ eq(parameters.os, 'linux') }} # RUN IN LINUX not WINDOWS Currently broken for scenario and blocking releases, HNS is investigating. Covered by go test in E2E step template
           dns: true
           portforward: true
+          service: ${{ eq(parameters.os, 'linux') }}  # RUN IN LINUX NOT WINDOWS Currently broken for scenario and blocking releases, HNS is investigating.
           hostport: true
-          service: true
+          hybridWin: ${{ eq(parameters.os, 'windows') }}
 
-      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
-        parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: windows
-          dependsOn: cni_linux
-          # dualstack: true # Currently broken for scenario and blocking releases, HNS is investigating. Covered by go test in E2E step template
-          dns: true
-          portforward: true
-          # service: true  # Currently broken for scenario and blocking releases, HNS is investigating.
-          hostport: true
-          hybridWin: true
-
-      - job: failedE2ELogs_linux
-        displayName: "Linux Failure Logs"
+      - job: failedE2ELogs_${{ parameters.os }}
+        displayName: "${{ parameters.os }} Failure Logs"
         dependsOn:
-          - ${{ parameters.name }}_linux
-          - cni_linux
-        condition: in(dependencies.${{ parameters.name }}_linux.result, 'Failed')
+          - ${{ parameters.name }}_${{ parameters.os }}
+          - CNI_${{ parameters.os }}
+        condition: in(dependencies.${{ parameters.name }}_${{ parameters.os }}.result, 'Failed')
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: linux
-              cni: cniv2
-
-      - job: failedE2ELogs_windows
-        displayName: "Windows Failure Logs"
-        dependsOn:
-          - ${{ parameters.name }}_windows
-          - cni_windows
-        condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed')
-        steps:
-          - template: ../../templates/log-template.yaml
-            parameters:
-              clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: windows
+              os: ${{ parameters.os }}
               cni: cniv2

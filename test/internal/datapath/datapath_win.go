@@ -19,7 +19,7 @@ var ipv6PrefixPolicy = []string{"powershell", "-c", "curl.exe", "-6", "-v", "www
 
 func podTest(ctx context.Context, clientset *kubernetes.Clientset, srcPod *apiv1.Pod, cmd []string, rc *restclient.Config, passFunc func(string) error) error {
 	logrus.Infof("podTest() - %v %v", srcPod.Name, cmd)
-	output, err := acnk8s.ExecCmdOnPod(ctx, clientset, srcPod.Namespace, srcPod.Name, "", cmd, rc)
+	output, _, err := acnk8s.ExecCmdOnPod(ctx, clientset, srcPod.Namespace, srcPod.Name, "", cmd, rc, true)
 	if err != nil {
 		return errors.Wrapf(err, "failed to execute command on pod: %v", srcPod.Name)
 	}

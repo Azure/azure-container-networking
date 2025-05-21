@@ -46,6 +46,7 @@ const (
 	FailedToAllocateBackendConfig          ResponseCode = 44
 	ConnectionError                        ResponseCode = 45
 	UnexpectedError                        ResponseCode = 99
+	NmAgentNCVersionListError              ResponseCode = 100
 )
 
 // nolint:gocyclo

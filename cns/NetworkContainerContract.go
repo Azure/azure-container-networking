@@ -19,6 +19,7 @@ import (
 const (
 	SetOrchestratorType                      = "/network/setorchestratortype"
 	GetHomeAz                                = "/homeaz"
+	GetNCList                                = "/nclist"
 	GetVMUniqueID                            = "/metadata/vmuniqueid"
 	CreateOrUpdateNetworkContainer           = "/network/createorupdatenetworkcontainer"
 	DeleteNetworkContainer                   = "/network/deletenetworkcontainer"

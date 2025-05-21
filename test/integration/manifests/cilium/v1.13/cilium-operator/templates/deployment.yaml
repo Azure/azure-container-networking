@@ -38,6 +38,8 @@ spec:
         - --debug=$(CILIUM_DEBUG)
         - --identity-gc-interval=0m20s
         - --identity-heartbeat-timeout=0m20s
+        - --enable-cilium-endpoint-slice=true
+        - --ces-slice-mode=cesSliceModeFCFS
         env:
         - name: K8S_NODE_NAME
           valueFrom:
@@ -150,6 +152,10 @@ spec:
       tolerations:
       - key: "CriticalAddonsOnly"
         operator: "Exists"
+      - operator: "Exists"
+        effect: NoExecute
+      - operator: "Exists"
+        effect: NoSchedule
       volumes:
         # To read the configuration from the config map
       - name: cilium-config-path

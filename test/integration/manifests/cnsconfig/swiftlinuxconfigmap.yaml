@@ -25,7 +25,9 @@ data:
       "ChannelMode": "CRD",
       "EnableAsyncPodDelete": true,
       "EnableIPAMv2": true,
+      "EnableStateMigration": false,
+      "EnableSubnetScarcity": false,
       "InitializeFromCNI": true,
       "ManageEndpointState": false,
-      "ProgramSNATIPTables" : false
+      "ProgramSNATIPTables": false
     }

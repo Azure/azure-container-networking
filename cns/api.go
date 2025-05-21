@@ -28,6 +28,7 @@ const (
 	CreateHostNCApipaEndpointPath = "/network/createhostncapipaendpoint"
 	DeleteHostNCApipaEndpointPath = "/network/deletehostncapipaendpoint"
 	NmAgentSupportedApisPath      = "/network/nmagentsupportedapis"
+	NMAgentGetNCListAPIPath       = "/nclist"
 	V1Prefix                      = "/v0.1"
 	V2Prefix                      = "/v0.2"
 	EndpointPath                  = "/network/endpoints/"
@@ -351,6 +352,11 @@ type NmAgentSupportedApisRequest struct {
 type NmAgentSupportedApisResponse struct {
 	Response      Response
 	SupportedApis []string
+}
+
+type NCListResponse struct {
+	Response Response `json:"response"`
+	NCList   []string `json:"ncList"`
 }
 
 type HomeAzResponse struct {

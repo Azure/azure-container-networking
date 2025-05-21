@@ -1,0 +1,38 @@
+parameters:
+- name: generate
+  type: jobList
+
+
+jobs:
+- ${{ each job_data in parameters.generate }}:
+  - job: ${{ job_data.job }}_generate_manifest
+    displayName: "Generate Image Manifest - ${{ job_data.job }}"
+    pool:
+      type: linux
+    variables:
+      ob_outputDirectory: $(Build.SourcesDirectory)/out
+      ob_git_checkout: false
+    steps:
+    - template: /.pipelines/build/generate-manifest.steps.yaml
+      parameters:
+        platforms: ${{ job_data.templateContext.platforms }}
+
+  - job: ${{ job_data.job }}_publish_manifest
+    displayName: "Publish Image Manifest - ${{ job_data.job }}"
+    dependsOn:
+    - ${{ job_data.job }}_generate_manifest
+    pool:
+      type: docker
+      os: linux
+    variables:
+      LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
+      ob_outputDirectory: $(Build.SourcesDirectory)/out
+      ob_git_checkout: false
+
+      MANIFEST_JSON: $[ dependencies.${{ job_data.job }}_generate_manifest.outputs['data.MANIFEST_JSON'] ]
+    steps:
+    - template: /.pipelines/build/publish-manifest.steps.yaml
+      parameters:
+        image_repository: ${{ job_data.templateContext.name }}
+        image_tag: ${{ job_data.templateContext.image_tag }}
+        manifest_data: $(MANIFEST_JSON)

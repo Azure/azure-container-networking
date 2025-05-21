@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
+	"github.com/microsoft/ApplicationInsights-Go/appinsights/contracts"
 )
 
 const (
@@ -33,6 +34,17 @@ const (
 	defaultGetEnvRetryCount          = 5
 	defaultGetEnvRetryWaitTimeInSecs = 3
 	defaultRefreshTimeoutInSecs      = 10
+)
+
+type Level = contracts.SeverityLevel
+
+const (
+	DebugLevel Level = contracts.Verbose
+	InfoLevel  Level = contracts.Information
+	WarnLevel  Level = contracts.Warning
+	ErrorLevel Level = contracts.Error
+	PanicLevel Level = contracts.Critical
+	FatalLevel Level = contracts.Critical
 )
 
 var debugMode bool
@@ -203,7 +215,7 @@ func NewAITelemetry(
 // and for rest it uses custom dimesion
 func (th *telemetryHandle) TrackLog(report Report) {
 	// Initialize new trace message
-	trace := appinsights.NewTraceTelemetry(report.Message, appinsights.Warning)
+	trace := appinsights.NewTraceTelemetry(report.Message, report.Level)
 
 	// will be empty if cns used as telemetry service for cni
 	if th.appVersion == "" {

@@ -1,0 +1,92 @@
+
+steps:
+- template: utils/rename-dockerfile-references.steps.yaml
+  parameters:
+    topic: "Linux - ipv6-hp-bpf"
+    replace_references: true
+    source_path: bpf-prog/ipv6-hp-bpf
+    target_path: bpf-prog/ipv6-hp-bpf
+    source_dockerfile: linux.Dockerfile
+
+- template: utils/rename-dockerfile-references.steps.yaml
+  parameters:
+    topic: "Windows - npm"
+    replace_references: true
+    working_directory: $(ACN_DIR)
+    source_path: npm
+    target_path: npm-windows
+    source_dockerfile: windows.Dockerfile
+
+- template: utils/rename-dockerfile-references.steps.yaml
+  parameters:
+    topic: "Linux - npm"
+    replace_references: true
+    working_directory: $(ACN_DIR)
+    source_path: npm
+    target_path: npm
+    source_dockerfile: linux.Dockerfile
+
+- bash: |
+    rm -rf .pipelines .hooks .github
+  displayName: "Remove Unnecessary Dirs from Source"
+  workingDirectory: $(Build.SourcesDirectory)/azure-container-networking
+
+- task: CopyFiles@2
+  displayName: "Add Repo to Container Artifacts"
+  inputs:
+    sourceFolder: $(Build.SourcesDirectory)/azure-container-networking
+    targetFolder: $(Build.ArtifactStagingDirectory)
+
+- script: |
+    STORAGE_ID=$(echo "${BUILD_BUILDNUMBER//./-}")
+    echo "##vso[task.setvariable variable=StorageID;isOutput=true]$STORAGE_ID"
+    echo "StorageID: $STORAGE_ID"
+    
+    COMMITID=$(git rev-parse --short HEAD)
+    COMMITID="$COMMITID"-"$(date "+%d%H%M")"
+    echo "##vso[task.setvariable variable=commitID;isOutput=true]$COMMITID"
+    echo "commitID: $COMMITID"
+
+    TAG=$(make version)
+    echo "##vso[task.setvariable variable=Tag;isOutput=true]$TAG"
+    echo "Tag: $TAG"
+
+    IMAGEREPOPATH="artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy"
+    echo "##vso[task.setvariable variable=imageRepositoryPath;isOutput=true]$IMAGEREPOPATH"
+    echo "imageRepositoryPath: $IMAGEREPOPATH"
+
+    AZUREIPAMVERSION=$(make azure-ipam-version)
+    echo "##vso[task.setvariable variable=azureIpamVersion;isOutput=true]$AZUREIPAMVERSION"
+    echo "azureIpamVersion: $AZUREIPAMVERSION"
+
+    CNIVERSION=$(make cni-version)
+    echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$CNIVERSION"
+    echo "cniVersion: $CNIVERSION"
+
+    CNSVERSION=$(make cns-version)
+    echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$CNSVERSION"
+    echo "cnsVersion: $CNSVERSION"
+
+    IPV6HPBPFVERSION=$(make ipv6-hp-bpf-version)
+    echo "##vso[task.setvariable variable=ipv6HpBpfVersion;isOutput=true]$IPV6HPBPFVERSION"
+    echo "ipv6HpBpfVersion: $IPV6HPBPFVERSION"
+
+    NPMVERSION=$(make npm-version)
+    echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$NPMVERSION"
+    echo "npmVersion: $NPMVERSION"
+
+    cat /etc/os-release
+    uname -a
+    sudo chown -R $(whoami):$(whoami) .
+    go version
+    go env
+    which go
+    echo $PATH
+    echo "------"
+    echo $(Build.QueuedBy)
+    echo $(Build.Reason) # manual, PR, IndividualCI
+    echo $(Build.SourceBranch)
+  name: "EnvironmentalVariables"
+  displayName: "Set environmental variables"
+  condition: always()
+  workingDirectory: $(ACN_DIR)

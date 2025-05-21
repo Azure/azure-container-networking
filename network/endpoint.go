@@ -138,6 +138,7 @@ type InterfaceInfo struct {
 	HostSubnetPrefix  net.IPNet // Move this field from ipamAddResult
 	NCResponse        *cns.GetNetworkContainerResponse
 	PnPID             string
+	EndpointPolicies  []policy.Policy
 }
 
 type IPConfig struct {

@@ -65,6 +65,12 @@ var (
 		},
 		[]string{"ok"},
 	)
+	hasNC = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "has_networkcontainer",
+			Help: "Number of Network Containers retrieved from NMA",
+		},
+	)
 	allocatedIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_allocated_ips_v2",
@@ -114,6 +120,7 @@ func init() {
 		ipConfigStatusStateTransitionTime,
 		syncHostNCVersionCount,
 		syncHostNCVersionLatency,
+		hasNC,
 		allocatedIPCount,
 		assignedIPCount,
 		availableIPCount,

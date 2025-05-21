@@ -1,483 +1,654 @@
-parameters:
-
-- name: triggerBuildSourceBranch
-  type: string
-  default: ''
-
-- name: triggerBuildReason
-  type: string
-  default: ''
-
-- name: triggerBuildGitRef
-  type: string
-  default: ''
-
-- name: triggerBuildQueuedBy
-  type: string
-  default: ''
-
-
 stages:
-  - stage: setup
-    displayName: ACN
-    # Block build start until pre-build validation occurs.
-    dependsOn: pre_build
+- stage: setup
+  displayName: ACN
+  variables:
+    ACN_DIR: azure-container-networking
+  jobs:
+  - job: env
+    displayName: Setup
+    pool:
+      type: linux
     variables:
-      ACN_DIR: $(Build.SourcesDirectory)
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
+      ob_artifactSuffix: _source
+
+      ACR_DIR: $(Build.SourcesDirectory)/azure-container-networking
+    steps:
+    - checkout: azure-container-networking
+    - template: build/ob-prepare.steps.yaml
+
+- template: templates/run-unit-tests.stages.yaml
+
+
+- ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
+  - stage: build
+    displayName: "Build Project"
+    dependsOn:
+      - setup
+      - unittest
+    variables:
+      ACN_DIR: drop_setup_env_source
+      ACN_PACKAGE_PATH: github.com/Azure/azure-container-networking
+      CNI_AI_PATH: $(ACN_PACKAGE_PATH)/telemetry.aiMetadata
+      CNS_AI_PATH: $(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
+      NPM_AI_PATH: $(ACN_PACKAGE_PATH)/npm.aiMetadata
+
+      STORAGE_ID: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+      TAG: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+
+      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
+      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
+      NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
     jobs:
-      - job: env
-        displayName: Setup
-        pool:
-          isCustom: true
-          type: linux
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - checkout: ACNTools
-            clean: true
-
-          - script: |
-              # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
-              BUILD_NUMBER=$(Build.BuildNumber)
-              echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
-              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
-              echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
-              echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
-              cat /etc/os-release
-              uname -a
-              sudo chown -R $(whoami):$(whoami) .
-              go version
-              go env
-              which go
-              echo $PATH
-            name: "EnvironmentalVariables"
-            displayName: "Set environmental variables"
-
-  - template: templates/unit-tests.stages.yaml@ACNTools
-
-  - ${{ if not(contains(parameters.triggerBuildSourceBranch, 'refs/pull')) }}:
-    - stage: binaries
-      displayName: Build Binaries
-      dependsOn:
-        - setup
-        - test
-      variables:
-        ACN_DIR: $(Build.SourcesDirectory)
-      jobs:
-        - job: build
-          displayName: Build Binaries
-          variables:
-            STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-            ob_outputDirectory: $(Build.ArtifactStagingDirectory)
-            ob_git_checkout: true
-          pool:
-            isCustom: true
-            type: linux
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-          steps:
-            - checkout: ACNReviewChanges
-              clean: true
-
-            - script: |
-                make ipv6-hp-bpf-lib
-                make all-binaries-platforms
-              name: "BuildAllPlatformBinaries"
-              displayName: "Build all platform binaries"
-              workingDirectory: $(ACN_DIR)
-
-            - script: |
-                mkdir -p ./output/bins
-                cd ./output
-                find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
-                find . -name '*.zip' -print -exec mv -t ./bins/ {} +
-                shopt -s extglob
-                rm -rf !("bins")
-              name: "PrepareArtifacts"
-              displayName: "Prepare Artifacts"
-
-            - task: CopyFiles@2
-              inputs:
-                sourceFolder: "output"
-                targetFolder: $(Build.ArtifactStagingDirectory)
-              condition: succeeded()
-
-    - stage: containerize
-      displayName: Build Images
-      dependsOn:
-        - setup
-        - test
-      variables:
-        ACN_DIR: $(Build.SourcesDirectory)
-      jobs:
-        - job: containerize_amd64
-          displayName: Build Images
-          pool:
-            isCustom: true
-            type: linux
-            name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+    - template: build/binaries.jobs.yaml
+      parameters:
+        binaries:
+        - job: linux_amd64
+          displayName: "Linux/AMD64"
+          templateContext:
+            action: build
+            repositoryArtifact: drop_setup_env_source
           strategy:
-            maxParallel: 4
-            matrix:
-              azure_ipam_linux_amd64:
-                Suffix: azure_ipam_linux_amd64
-                arch: amd64
-                name: azure-ipam
-                os: linux
-              azure_ipam_windows_amd64:
-                Suffix: azure_ipam_windows_amd64
-                arch: amd64
-                name: azure-ipam
-                os: windows
-              cni_linux_amd64:
-                Suffix: cni_linux_amd64
-                arch: amd64
-                name: cni
-                os: linux
-              cni_windows_amd64:
-                Suffix: cni_windows_amd64
-                arch: amd64
-                name: cni
-                os: windows
-              cns_linux_amd64:
-                Suffix: cns_linux_amd64
-                arch: amd64
-                name: cns
-                os: linux
-              cns_windows_amd64:
-                Suffix: cns_windows_amd64
-                arch: amd64
-                name: cns
-                os: windows
-              ipv6_hp_bpf_linux_amd64:
-                Suffix: ipv6_hp_bpf_linux_amd64
-                arch: amd64
-                name: ipv6-hp-bpf
-                os: linux
-              npm_linux_amd64:
-                Suffix: npm_linux_amd64
-                arch: amd64
-                name: npm
-                os: linux
-              npm_windows_amd64:
-                Suffix: npm_windows_amd64
-                arch: amd64
-                name: npm
-                os: windows
-          variables:
-            ob_git_checkout: true
-            ob_artifactSuffix: $(Suffix) # this is needed to not collide published artifact containers
-            ob_outputDirectory: $(System.ArtifactStagingDirectory)
-          steps:
-            - checkout: ACNReviewChanges
-              clean: true
-
-            - template: containers/container-template.steps.yaml@ACNTools
-              parameters:
-                arch: $(arch)
-                name: $(name)
-                os: $(os)
-
-        - job: containerize_linux_arm64
-          displayName: Build Images
-          pool:
-            isCustom: true
-            type: linux
-            name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
-          strategy:
-            maxParallel: 4
-            matrix:
-              azure_ipam_linux_arm64:
-                arch: arm64
-                name: azure-ipam
-                os: linux
-                Suffix: azure-ipam-linux-arm64
-              cni_linux_arm64:
-                arch: arm64
-                name: cni
-                os: linux
-                Suffix: cni-linux-arm64
-              cns_linux_arm64:
-                arch: arm64
-                name: cns
-                os: linux
-                Suffix: cns
-              ipv6_hp_bpf_linux_arm64:
-                arch: arm64
-                name: ipv6-hp-bpf
-                os: linux
-                Suffix: ipv6-hp-bpf-linux-arm64
-              npm_linux_arm64:
-                arch: arm64
-                name: npm
-                os: linux
-                Suffix: npm-linux-arm64
-          variables:
-            STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-            ob_outputDirectory: $(Build.ArtifactStagingDirectory)
-            ob_git_checkout: true
-            ob_artifactSuffix: $(Suffix)
-          steps:
-            - checkout: ACNReviewChanges
-              clean: true
-
-            - template: containers/container-template.steps.yaml@ACNTools
-              parameters:
-                arch: $(arch)
-                name: $(name)
-                os: $(os)
-
-
-    - stage: publish
-      displayName: Publish Multiarch Manifests
-      dependsOn:
-        - containerize
-      variables:
-        Packaging.EnableSBOMSigning: false
-        ACN_DIR: $(Build.SourcesDirectory)
-      jobs:
-        - job: manifest
-          displayName: Compile Manifests
-          pool:
-            isCustom: true
-            type: linux
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-          strategy:
-            maxParallel: 4
+            maxParallel: 5
             matrix:
               azure_ipam:
-                name: azure-ipam
-                platforms: linux/amd64 linux/arm64 windows/amd64
-                Suffix: azure-ipam
+                name: azure-ipam-archive
+                artifact: azure-ipam
               cni:
-                name: cni
-                platforms: linux/amd64 linux/arm64 windows/amd64
-                Suffix: cni
+                name: cni-archive
+                artifact: cni
               cns:
-                name: cns
-                platforms: linux/amd64 linux/arm64 windows/amd64
-                Suffix: cns
+                name: cns-archive
+                artifact: cns
               ipv6_hp_bpf:
-                name: ipv6-hp-bpf
-                platforms: linux/amd64 linux/arm64
-                Suffix: ipv6-hp-bpf
+                name: ipv6-hp-bpf-archive
+                artifact: ipv6-hp-bpf
               npm:
-                name: npm
-                platforms: linux/amd64 linux/arm64 windows/amd64
-                Suffix: npm
-          variables:
-            ob_outputDirectory: $(Build.ArtifactStagingDirectory)
-            ob_git_checkout: true
-            STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-            # this is needed to not collide published artifact containers
-            #ob_artifactBaseName: drop_$(Job.StageName)_$(Job.JobName)_
-            ob_artifactSuffix: $(Suffix)
-            #artifactName: ${{ ob_artifactBaseName }}${{ name }}
-          steps:
-            - checkout: ACNReviewChanges
-              clean: true
-
-            - template: containers/manifest-template.steps.yaml@ACNTools
-              parameters:
-                name: $(name)
-                platforms: $(platforms)
-
-    # Cilium Podsubnet E2E tests
-    - template: singletenancy/cilium/cilium-e2e.jobs.yaml@ACNTools
-      parameters:
-        name: "cilium_e2e"
-        displayName: Cilium
-        clusterType: swift-byocni-nokubeproxy-up
-        clusterName: "ciliume2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: "containerize"
-
-    # Cilium Overlay E2E tests
-    - template: singletenancy/cilium-overlay/cilium-overlay-e2e.jobs.yaml@ACNTools
-      parameters:
-        name: "cilium_overlay_e2e"
-        displayName: Cilium on AKS Overlay
-        clusterType: overlay-byocni-nokubeproxy-up
-        clusterName: "cilovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: "containerize"
-
-    # Cilium Dualstack Overlay E2E tests
-    - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e.jobs.yaml@ACNTools
-      parameters:
-        name: "cilium_dualstackoverlay_e2e"
-        displayName: Cilium on AKS DualStack Overlay
-        os: linux
-        clusterType: dualstack-byocni-nokubeproxy-up
-        clusterName: "cildsovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: "containerize"
-
-    # Cilium Overlay with hubble E2E tests
-    - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e.jobs.yaml@ACNTools
-      parameters:
-        name: "cilium_h_overlay_e2e"
-        displayName: Cilium on AKS Overlay with Hubble
-        clusterType: overlay-byocni-nokubeproxy-up
-        clusterName: "cilwhleovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: "containerize"
-        testHubble: true
-
-    # Azure Overlay E2E tests
-    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e.jobs.yaml@ACNTools
-      parameters:
-        name: "azure_overlay_e2e"
-        displayName: Azure Overlay
-        os: linux
-        clusterType: overlay-byocni-up
-        clusterName: "azovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: "containerize"
-
-    # AKS Swift E2E tests
-    - template: singletenancy/aks-swift/aks-swift-e2e.jobs.yaml@ACNTools
-      parameters:
-        name: "aks_swift_e2e"
-        displayName: AKS Swift Ubuntu
-        os: linux
-        clusterType: swift-byocni-up
-        clusterName: "swifte2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: "containerize"
-
-    # AKS Swift Vnet Scale E2E tests
-    - template: singletenancy/aks-swift/aks-swift-e2e.jobs.yaml@ACNTools
-      parameters:
-        name: "aks_swift_vnetscale_e2e"
-        displayName: AKS Swift Vnet Scale Ubuntu
-        os: linux
-        clusterType: vnetscale-swift-byocni-up
-        clusterName: "vscaleswifte2e"
-        vmSize: Standard_B2ms
-        k8sVersion: "1.28"
-        dependsOn: "containerize"
-
-    # CNIv1 E2E tests
-    - template: singletenancy/aks/aks-e2e.jobs.yaml@ACNTools
-      parameters:
-        name: "aks_ubuntu_22_linux_e2e"
-        displayName: AKS Ubuntu 22
-        arch: "amd64"
-        os: "linux"
-        clusterType: linux-cniv1-up
-        clusterName: "ubuntu22e2e"
-        vmSize: Standard_B2s
-        k8sVersion: 1.25
-        scaleup: 100
-        dependsOn: "containerize"
-
-    - template: singletenancy/aks/aks-e2e.jobs.yaml@ACNTools
-      parameters:
-        name: "aks_windows_22_e2e"
-        displayName: AKS Windows 2022
-        arch: amd64
-        os: windows
-        clusterType: windows-cniv1-up
-        clusterName: "win22e2e"
-        vmSize: Standard_B2ms
-        os_version: "ltsc2022"
-        scaleup: 50
-        dependsOn: "containerize"
-
-    # CNI dual stack overlay E2E tests
-    - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e.jobs.yaml@ACNTools
-      parameters:
-        name: "dualstackoverlay_e2e"
-        displayName: AKS DualStack Overlay
-        os: linux
-        clusterType: dualstack-overlay-byocni-up
-        clusterName: "dsovere2e"
-        vmSize: Standard_B2ms
-        dependsOn: "containerize"
-
-    - stage: delete
-      displayName: Delete Clusters
-      condition: always()
-      dependsOn:
-        - setup
-        - azure_overlay_e2e
-        - aks_swift_e2e
-        - cilium_e2e
-        - cilium_overlay_e2e
-        - cilium_h_overlay_e2e
-        - aks_ubuntu_22_linux_e2e
-        - aks_swift_vnetscale_e2e
-        - aks_windows_22_e2e
-        - dualstackoverlay_e2e
-        - cilium_dualstackoverlay_e2e
-      variables:
-        ACN_DIR: $(Build.SourcesDirectory)
-        commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      jobs:
-        - job: delete
-          displayName: Delete Cluster
-          pool:
-            isCustom: true
-            type: linux
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
+                name: npm-archive
+                artifact: npm
+        - job: windows_amd64
+          displayName: "Windows/AMD64"
+          templateContext:
+            action: build
+            repositoryArtifact: drop_setup_env_source
           strategy:
+            maxParallel: 5
             matrix:
-              cilium_e2e:
-                name: cilium_e2e
-                clusterName: "ciliume2e"
-                Suffix: cilium_e2e
-              cilium_overlay_e2e:
-                name: cilium_overlay_e2e
-                clusterName: "cilovere2e"
-                Suffix: cilium_overlay_e2e
-              cilium_h_overlay_e2e:
-                name: cilium_h_overlay_e2e
-                clusterName: "cilwhleovere2e"
-                Suffix: cilium_h_overlay_e2e
-              azure_overlay_e2e:
-                name: azure_overlay_e2e
-                clusterName: "azovere2e"
-                Suffix: azure_overlay_e2e
-              aks_swift_e2e:
-                name: aks_swift_e2e
-                clusterName: "swifte2e"
-                Suffix: aks_swift_e2e
-              aks_swift_vnetscale_e2e:
-                name: aks_swift_vnetscale_e2e
-                clusterName: "vscaleswifte2e"
-                Suffix: aks_swift_vnetscale_e2e
-              aks_ubuntu_22_linux_e2e:
-                name: aks_ubuntu_22_linux_e2e
-                clusterName: "ubuntu22e2e"
-                Suffix: aks_ubuntu_22_linux_e2e
-              aks_windows_22_e2e:
-                name: aks_windows_22_e2e
-                clusterName: "win22e2e"
-                Suffix: aks_windows_22_e2e
-              dualstackoverlay_e2e:
-                name: dualstackoverlay_e2e
-                clusterName: "dsovere2e"
-                Suffix: dualstackoverlay_e2e
-              cilium_dualstackoverlay_e2e:
-                name: cilium_dualstackoverlay_e2e
-                clusterName: "cildsovere2e"
-                Suffix: cilium_dualstackoverlay_e2e
-          variables:
-            STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-            ob_outputDirectory: $(Build.ArtifactStagingDirectory)
-            ob_git_checkout: true
-            ob_artifactSuffix: $(Suffix) # this is needed to not collide published artifact containers
-          steps:
-            - checkout: ACNReviewChanges
-              clean: true
+              cni:
+                name: cni-archive
+                artifact: cni
+              cns:
+                name: cns-archive
+                artifact: cns
+              npm:
+                name: npm-archive
+                artifact: npm
+        - job: linux_arm64
+          displayName: "Linux/ARM64"
+          templateContext:
+            action: build
+            repositoryArtifact: drop_setup_env_source
+          strategy:
+            maxParallel: 5
+            matrix:
+              azure_ipam:
+                name: azure-ipam-archive
+                artifact: azure-ipam
+              cni:
+                name: cni-archive
+                artifact: cni
+              cns:
+                name: cns-archive
+                artifact: cns
+              ipv6_hp_bpf:
+                name: ipv6-hp-bpf-archive
+                artifact: ipv6-hp-bpf
+              npm:
+                name: npm-archive
+                artifact: npm
 
-            - template: templates/delete-cluster.steps.yaml@ACNTools
-              parameters:
-                name: $(name)
-                clusterName: $(clusterName)-$(commitID)
-                region: $(REGION_AKS_CLUSTER_TEST)
+
+    - job: images_linux_amd64
+      displayName: "Build Linux/AMD64 Images"
+      pool:
+        os: linux
+        type: docker
+      variables:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+        ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
+        ob_artifactSuffix: _$(name)
+
+        ARCH: amd64
+        OS: linux
+      strategy:
+        maxParallel: 5
+        matrix:
+          azure_ipam:
+            name: azure-ipam
+            dockerfilePath: $(ACN_DIR)/azure-ipam
+            extraArgs: ''
+            archiveName: azure-ipam
+            archiveVersion: $(AZURE_IPAM_VERSION)
+            imageTag: $(Build.BuildNumber)
+          cni:
+            name: cni
+            dockerfilePath: $(ACN_DIR)/cni
+            extraArgs: '--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
+            archiveName: azure-cni
+            archiveVersion: $(CNI_VERSION)
+            imageTag: $(Build.BuildNumber)
+          cns:
+            name: cns
+            dockerfilePath: $(ACN_DIR)/cns
+            extraArgs: '--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)'
+            archiveName: azure-cns
+            archiveVersion: $(CNS_VERSION)
+            imageTag: $(Build.BuildNumber)
+          ipv6_hp_bpf:
+            name: ipv6-hp-bpf
+            dockerfilePath: $(ACN_DIR)/bpf-prog/ipv6-hp-bpf
+            extraArgs: "--build-arg DEBUG=$(System.Debug)"
+            archiveName: ipv6-hp-bpf
+            archiveVersion: $(IPV6_HP_BPF_VERSION)
+            imageTag: $(Build.BuildNumber)
+          npm:
+            name: npm
+            dockerfilePath: $(ACN_DIR)/npm
+            extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
+            archiveName: azure-npm
+            archiveVersion: $(NPM_VERSION)
+            imageTag: $(Build.BuildNumber)
+      steps:
+      - template: build/image.steps.yaml
+        parameters:
+          arch: $(ARCH)
+          os: $(OS)
+          name: $(name)
+          dockerfile_path: $(dockerfilePath)
+          build_tag: $(imageTag)
+          extra_args: $(extraArgs)
+          archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
+
+    - job: images_windows_amd64
+      displayName: "Build Windows Images"
+      pool:
+        os: linux
+        type: docker
+      variables:
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+        ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
+        ob_artifactSuffix: _$(name)
+        ob_enable_qemu: true
+
+        ARCH: amd64
+        OS: windows
+      strategy:
+        maxParallel: 5
+        matrix:
+          azure_ipam:
+            name: azure-ipam
+            dockerfilePath: $(ACN_DIR)/azure-ipam
+            extraArgs: ''
+            archiveName: azure-ipam
+            archiveVersion: $(OS)-$(ARCH)-$(AZURE_IPAM_VERSION)
+            imageTag: $(Build.BuildNumber)
+          cni:
+            name: cni
+            dockerfilePath: $(ACN_DIR)/cni
+            extraArgs: '--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
+            archiveName: azure-cni
+            archiveVersion: $(CNI_VERSION)
+            imageTag: $(Build.BuildNumber)
+          cns:
+            name: cns
+            dockerfilePath: $(ACN_DIR)/cns
+            extraArgs: '--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)'
+            archiveName: azure-cns
+            archiveVersion: $(CNS_VERSION)
+            imageTag: $(Build.BuildNumber)
+          npm:
+            name: npm
+            dockerfilePath: $(ACN_DIR)/npm-windows
+            extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
+            archiveName: azure-npm
+            archiveVersion: $(NPM_VERSION)
+            imageTag: $(Build.BuildNumber)
+      steps:
+      - template: build/image.steps.yaml
+        parameters:
+          arch: $(ARCH)
+          os: $(OS)
+          name: $(name)
+          dockerfile_path: $(dockerfilePath)
+          build_tag: $(imageTag)
+          extra_args: $(extraArgs)
+          archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
+
+    - job: images_linux_arm64
+      displayName: "Build Linux/ARM64 Images"
+      pool:
+        os: linux
+        type: docker
+        hostArchitecture: arm64
+        LinuxHostVersion:
+          distribution: mariner
+          architecture: arm64
+      variables:
+        ob_outputDirectory: $(Build.SourcesDirectory)/out/images/$(os)_$(arch)
+        ob_artifactSuffix: _$(name)
+        ob_build_container: true
+
+        ARCH: arm64
+        OS: linux
+      strategy:
+        maxParallel: 3
+        matrix:
+          azure_ipam:
+            name: azure-ipam
+            os: linux
+            dockerfilePath: $(ACN_DIR)/azure-ipam
+            archiveName: azure-ipam
+            archiveVersion: $(AZURE_IPAM_VERSION)
+            extraArgs: ''
+            imageTag: $(Build.BuildNumber)
+          cni:
+            name: cni
+            os: linux
+            dockerfilePath: $(ACN_DIR)/cni
+            extraArgs: '--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
+            archiveName: azure-cni
+            archiveVersion: $(CNI_VERSION)
+            imageTag: $(Build.BuildNumber)
+          cns:
+            name: cns
+            os: linux
+            dockerfilePath: $(ACN_DIR)/cns
+            extraArgs: '--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)'
+            archiveName: azure-cns
+            archiveVersion: $(CNS_VERSION)
+            imageTag: $(Build.BuildNumber)
+          ipv6_hp_bpf:
+            name: ipv6-hp-bpf
+            os: linux
+            dockerfilePath: $(ACN_DIR)/bpf-prog/ipv6-hp-bpf
+            extraArgs: "--build-arg DEBUG=$(System.Debug)"
+            archiveName: ipv6-hp-bpf
+            archiveVersion: $(IPV6_HP_BPF_VERSION)
+            imageTag: $(Build.BuildNumber)
+          npm:
+            name: npm
+            os: linux
+            dockerfilePath: $(ACN_DIR)/npm
+            extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
+            archiveName: azure-npm
+            archiveVersion: $(NPM_VERSION)
+            imageTag: $(Build.BuildNumber)
+      steps:
+      - template: build/image.steps.yaml
+        parameters:
+          arch: $(ARCH)
+          os: $(OS)
+          name: $(name)
+          dockerfile_path: $(dockerfilePath)
+          build_tag: $(imageTag)
+          extra_args: $(extraArgs)
+          archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
+
+
+  - stage: manifests
+    displayName: "Image Manifests"
+    dependsOn:
+    - setup
+    - build
+    variables:
+      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
+
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
+      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
+      NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
+
+      IPAM_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-ipam:$(Build.BuildNumber)
+      IPAM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ipam:$(Build.BuildNumber)
+      IPAM_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/azure-ipam:$(Build.BuildNumber)
+
+      CNI_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cni:$(Build.BuildNumber)
+      CNI_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cni:$(Build.BuildNumber)
+      CNI_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/cni:$(Build.BuildNumber)
+
+      CNS_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cns:$(Build.BuildNumber)
+      CNS_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cns:$(Build.BuildNumber)
+      CNS_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/cns:$(Build.BuildNumber)
+
+      IPV6_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/ipv6-hp-bpf:$(Build.BuildNumber)
+      IPV6_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/ipv6-hp-bpf:$(Build.BuildNumber)
+
+      NPM_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/npm:$(Build.BuildNumber)
+      NPM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/npm:$(Build.BuildNumber)
+      NPM_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/npm:$(Build.BuildNumber)
+    jobs:
+    - template: build/manifests.jobs.yaml
+      parameters:
+        generate:
+        - job: azure_ipam
+          templateContext:
+            name: azure-ipam
+            image_tag: $(AZURE_IPAM_VERSION)
+            platforms:
+            - platform: linux/amd64
+              imageReference: $(IPAM_LINUX_AMD64_REF)
+            - platform: linux/arm64
+              imageReference: $(IPAM_LINUX_ARM64_REF)
+            - platform: windows/amd64
+              imageReference: $(IPAM_WINDOWS_AMD64_REF)
+        - job: cni
+          templateContext:
+            name: cni
+            image_tag: $(CNI_VERSION)
+            platforms:
+            - platform: linux/amd64
+              imageReference: $(CNI_LINUX_AMD64_REF)
+            - platform: linux/arm64
+              imageReference: $(CNI_LINUX_ARM64_REF)
+            - platform: windows/amd64
+              imageReference: $(CNI_WINDOWS_AMD64_REF)
+        - job: cns
+          templateContext:
+            name: cns
+            image_tag: $(CNS_VERSION)
+            platforms:
+            - platform: linux/amd64
+              imageReference: $(CNS_LINUX_AMD64_REF)
+            - platform: linux/arm64
+              imageReference: $(CNS_LINUX_ARM64_REF)
+            - platform: windows/amd64
+              imageReference: $(CNS_WINDOWS_AMD64_REF)
+        - job: ipv6_hp_bpf
+          templateContext:
+            name: ipv6-hp-bpf
+            image_tag: $(IPV6_HP_BPF_VERSION)
+            platforms:
+            - platform: linux/amd64
+              imageReference: $(IPV6_LINUX_AMD64_REF)
+            - platform: linux/arm64
+              imageReference: $(IPV6_LINUX_ARM64_REF)
+        - job: npm
+          templateContext:
+            name: npm
+            image_tag: $(NPM_VERSION)
+            platforms:
+            - platform: linux/amd64
+              imageReference: $(NPM_LINUX_AMD64_REF)
+            - platform: linux/arm64
+              imageReference: $(NPM_LINUX_ARM64_REF)
+            - platform: windows/amd64
+              imageReference: $(NPM_WINDOWS_AMD64_REF)
+
+
+  # Cilium Podsubnet E2E tests
+  - template: singletenancy/cilium/cilium-e2e.stages.yaml
+    parameters:
+      name: "cilium_e2e"
+      displayName: Cilium
+      clusterType: swift-byocni-nokubeproxy-up
+      clusterName: "ciliume2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: manifests
+
+  # Cilium Nodesubnet E2E tests
+  - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e.stages.yaml
+    parameters:
+      name: "cilium_nodesubnet_e2e"
+      displayName: Cilium NodeSubnet
+      clusterType: nodesubnet-byocni-nokubeproxy-up
+      clusterName: "cilndsubnete2e"
+      vmSize: Standard_B2s
+      k8sVersion: ""
+      dependsOn: manifests
+
+  # Cilium Overlay E2E tests
+  - template: singletenancy/cilium-overlay/cilium-overlay-e2e.stages.yaml
+    parameters:
+      name: "cilium_overlay_e2e"
+      displayName: Cilium on AKS Overlay
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cilovere2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: manifests
+
+  # Cilium Dualstack Overlay E2E tests
+  - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e.stages.yaml
+    parameters:
+      name: "cilium_dualstackoverlay_e2e"
+      displayName: Cilium on AKS DualStack Overlay
+      os: linux
+      clusterType: dualstack-byocni-nokubeproxy-up
+      clusterName: "cildsovere2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: manifests
+
+      # Cilium Overlay with hubble E2E tests
+  - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e.stages.yaml
+    parameters:
+      name: "cilium_h_overlay_e2e"
+      displayName: Cilium on AKS Overlay with Hubble
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cilwhleovere2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: manifests
+      testHubble: true
+
+  # Azure Overlay E2E tests
+  - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e.stages.yaml
+    parameters:
+      name: "linux_azure_overlay_e2e"
+      displayName: Azure Overlay Linux
+      os: linux
+      clusterType: overlay-byocni-up
+      clusterName: "linuxazovere2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: manifests
+      scaleup: 100
+
+  - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e.stages.yaml
+    parameters:
+      name: "win_azure_overlay_e2e"
+      displayName: Azure Overlay Windows
+      os: windows
+      clusterType: overlay-byocni-up
+      clusterName: "winazovere2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: manifests
+      scaleup: 50
+
+  # Azure Overlay E2E Stateless CNI tests
+  - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e.stages.yaml
+    parameters:
+      name: "azure_overlay_stateless_e2e"
+      displayName: Azure Stateless CNI Overlay
+      os: windows
+      clusterType: overlay-byocni-up
+      clusterName: "statelesswin"
+      vmSize: Standard_B2ms
+      dependsOn: manifests
+
+  # AKS Swift E2E tests
+  - template: singletenancy/aks-swift/e2e.stages.yaml
+    parameters:
+      name: "aks_swift_e2e"
+      displayName: AKS Swift Ubuntu
+      os: linux
+      clusterType: swift-byocni-up
+      clusterName: "swifte2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: manifests
+
+  # AKS Swift Vnet Scale E2E tests
+  - template: singletenancy/aks-swift/e2e.stages.yaml
+    parameters:
+      name: "aks_swift_vnetscale_e2e"
+      displayName: AKS Swift Vnet Scale Ubuntu
+      os: linux
+      clusterType: vnetscale-swift-byocni-up
+      clusterName: "vscaleswifte2e"
+      vmSize: Standard_B2ms
+      k8sVersion: "1.30"
+      dependsOn: manifests
+
+  # CNIv1 E2E tests
+  - template: singletenancy/aks/e2e.stages.yaml
+    parameters:
+      name: "aks_ubuntu_22_linux_e2e"
+      displayName: AKS Ubuntu 22
+      arch: "amd64"
+      os: "linux"
+      clusterType: cniv1-up
+      clusterName: "ubuntu22e2e"
+      vmSize: Standard_B2s
+      k8sVersion: 1.25
+      scaleup: 100
+      dependsOn: manifests
+
+  - template: singletenancy/aks/e2e.stages.yaml
+    parameters:
+      name: "aks_windows_22_e2e"
+      displayName: AKS Windows 2022
+      arch: amd64
+      os: "windows"
+      clusterType: cniv1-up
+      clusterName: "win22e2e"
+      vmSize: Standard_B2ms
+      os_version: "ltsc2022"
+      scaleup: 50
+      dependsOn: manifests
+
+  # CNI dual stack overlay E2E tests
+  - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e.stages.yaml
+    parameters:
+      name: "linux_dualstackoverlay_e2e"
+      displayName: AKS DualStack Overlay Linux
+      os: linux
+      clusterType: dualstack-overlay-byocni-up
+      clusterName: "linuxdsovere2e"
+      vmSize: Standard_B2ms
+      dependsOn: manifests
+      scaleup: 100
+
+  - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e.stages.yaml
+    parameters:
+      name: "win_dualstackoverlay_e2e"
+      displayName: AKS DualStack Overlay Windows
+      os: windows
+      clusterType: dualstack-overlay-byocni-up
+      clusterName: "windsovere2e"
+      vmSize: Standard_B2ms
+      dependsOn: manifests
+      scaleup: 50
+
+
+  - stage: delete
+    displayName: Delete Clusters
+    condition: always()
+    dependsOn:
+      - setup
+      - linux_azure_overlay_e2e
+      - win_azure_overlay_e2e
+      - azure_overlay_stateless_e2e
+      - aks_swift_e2e
+      - cilium_e2e
+      - cilium_nodesubnet_e2e
+      - cilium_overlay_e2e
+      - cilium_h_overlay_e2e
+      - aks_ubuntu_22_linux_e2e
+      - aks_swift_vnetscale_e2e
+      - aks_windows_22_e2e
+      - linux_dualstackoverlay_e2e
+      - win_dualstackoverlay_e2e
+      - cilium_dualstackoverlay_e2e
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+    - job: delete_build
+      displayName: Delete Cluster
+      pool:
+        name: "$(BUILD_POOL_NAME_DEFAULT)"
+        isCustom: true
+        type: linux
+      strategy:
+        matrix:
+          cilium_e2e:
+            name: cilium_e2e
+            clusterName: "ciliume2e"
+            region: $(REGION_AKS_CLUSTER_TEST)
+          cilium_nodesubnet_e2e:
+            name: cilium_nodesubnet_e2e
+            clusterName: "cilndsubnete2e"
+            region: $(REGION_AKS_CLUSTER_TEST)
+          cilium_overlay_e2e:
+            name: cilium_overlay_e2e
+            clusterName: "cilovere2e"
+            region: $(REGION_AKS_CLUSTER_TEST)
+          cilium_h_overlay_e2e:
+            name: cilium_h_overlay_e2e
+            clusterName: "cilwhleovere2e"
+            region: $(REGION_AKS_CLUSTER_TEST)
+          linux_azure_overlay_e2e:
+            name: linux_azure_overlay_e2e
+            clusterName: "linuxazovere2e"
+            region: $(REGION_AKS_CLUSTER_TEST)
+          windows_azure_overlay_e2e:
+            name: win_azure_overlay_e2e
+            clusterName: "winazovere2e"
+            region: $(REGION_AKS_CLUSTER_TEST)
+          azure_overlay_stateless_e2e:
+            name: azure_overlay_stateless_e2e
+            clusterName: "statelesswin"
+            region: $(REGION_AKS_CLUSTER_TEST)
+          aks_swift_e2e:
+            name: aks_swift_e2e
+            clusterName: "swifte2e"
+            region: $(REGION_AKS_CLUSTER_TEST)
+          aks_swift_vnetscale_e2e:
+            name: aks_swift_vnetscale_e2e
+            clusterName: "vscaleswifte2e"
+            region: $(REGION_AKS_CLUSTER_TEST)
+          aks_ubuntu_22_linux_e2e:
+            name: aks_ubuntu_22_linux_e2e
+            clusterName: "ubuntu22e2e"
+            region: $(REGION_AKS_CLUSTER_TEST)
+          aks_windows_22_e2e:
+            name: aks_windows_22_e2e
+            clusterName: "win22e2e"
+            region: $(REGION_AKS_CLUSTER_TEST)
+          linux_dualstackoverlay_e2e:
+            name: linux_dualstackoverlay_e2e
+            clusterName: "linuxdsovere2e"
+            region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+          windows_dualstackoverlay_e2e:
+            name: windows_dualstackoverlay_e2e
+            clusterName: "windsovere2e"
+            region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+          cilium_dualstackoverlay_e2e:
+            name: cilium_dualstackoverlay_e2e
+            clusterName: "cildsovere2e"
+            region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+      steps:
+      - checkout: azure-container-networking
+      - template: templates/delete-cluster.steps.yaml
+        parameters:
+          name: $(name)
+          clusterName: $(clusterName)-$(commitID)
+          region: $(region)
+          sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+          svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)

@@ -1,0 +1,102 @@
+parameters:
+  name: ""
+  displayName: ""
+  clusterType: ""
+  clusterName: ""
+  vmSize: ""
+  k8sVersion: ""
+  dependsOn: ""
+  os: "linux"
+  testHubble: false
+
+stages:
+  - stage: ${{ parameters.clusterName }}
+    displayName: Create Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    pool:
+      isCustom: true
+      type: linux
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - template: ../../templates/create-cluster.jobs.yaml
+        parameters:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
+          k8sVersion: ${{ parameters.k8sVersion }}
+          dependsOn: ${{ parameters.dependsOn }}
+          region: $(REGION_AKS_CLUSTER_TEST)
+
+  - stage: ${{ parameters.name }}
+    displayName: E2E - ${{ parameters.displayName }}
+    dependsOn:
+    - setup
+    - ${{ parameters.clusterName }}
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+      GOBIN: "$(GOPATH)/bin" # Go binaries path
+      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+
+      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
+      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
+      CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
+      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+    jobs:
+      - job: ${{ parameters.name }}
+        displayName: Cilium Overlay Test Suite - (${{ parameters.name }})
+        timeoutInMinutes: 120
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+          isCustom: true
+          type: linux
+        steps:
+          - checkout: azure-container-networking
+          - template: cilium-overlay-e2e.steps.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              testHubble: ${{ parameters.testHubble }}
+              scaleup: 100
+
+      - template: ../../cni/k8s-e2e/k8s-e2e.jobs.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          cni: cilium
+          dependsOn: ${{ parameters.name }}
+          datapath: true
+          dns: true
+          portforward: true
+          service: true
+
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
+        dependsOn:
+          - ${{ parameters.name }}
+          - cni_${{ parameters.os }}
+        condition: failed()
+        pool:
+          type: linux
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+        steps:
+          - checkout: azure-container-networking
+          - template: ../../templates/log.steps.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cilium

@@ -54,11 +54,24 @@ type imdsClient interface {
 	GetVMUniqueID(ctx context.Context) (string, error)
 }
 
+type iptablesClient interface {
+	ChainExists(table string, chain string) (bool, error)
+	NewChain(table string, chain string) error
+	Append(table string, chain string, rulespec ...string) error
+	Exists(table string, chain string, rulespec ...string) (bool, error)
+	Insert(table string, chain string, pos int, rulespec ...string) error
+}
+
+type iptablesGetter interface {
+	GetIPTables() (iptablesClient, error)
+}
+
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
 	dockerClient             *dockerclient.Client
 	wscli                    interfaceGetter
+	iptables                 iptablesGetter
 	nma                      nmagentClient
 	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
@@ -167,7 +180,7 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, nmagentClient nmagentClient,
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, iptg iptablesGetter, nmagentClient nmagentClient,
 	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
 	imdsClient imdsClient,
 ) (*HTTPRestService, error) {
@@ -214,6 +227,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		store:                    service.Service.Store,
 		dockerClient:             dc,
 		wscli:                    wscli,
+		iptables:                 iptg,
 		nma:                      nmagentClient,
 		wsproxy:                  wsproxy,
 		networkContainer:         nc,
@@ -278,9 +292,10 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.NetworkContainersURLPath, service.getOrRefreshNetworkContainers)
 	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.EndpointPath, service.EndpointHandlerAPI)
-	// This API is only needed for Direct channel mode with Swift v2.
+	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
 		listener.AddHandler(cns.GetVMUniqueID, service.getVMUniqueID)
+		listener.AddHandler(cns.GetNCList, service.nmAgentNCListHandler)
 	}
 
 	// handlers for v0.2
@@ -304,9 +319,10 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.V2Prefix+cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.V2Prefix+cns.EndpointPath, service.EndpointHandlerAPI)
-	// This API is only needed for Direct channel mode with Swift v2.
+	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
 		listener.AddHandler(cns.V2Prefix+cns.GetVMUniqueID, service.getVMUniqueID)
+		listener.AddHandler(cns.V2Prefix+cns.GetNCList, service.nmAgentNCListHandler)
 	}
 
 	// Initialize HTTP client to be reused in CNS

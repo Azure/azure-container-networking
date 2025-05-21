@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strconv"
 
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	typedciliumv2 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/cilium.io/v2"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -51,17 +53,20 @@ type cnsDetails struct {
 }
 
 const (
-	envAzureIPAMVersion     = "AZURE_IPAM_VERSION"
-	envCNIVersion           = "CNI_VERSION"
-	envCNSVersion           = "CNS_VERSION"
-	envCNIImageRepo         = "CNI_IMAGE_REPO"
-	envCNSImageRepo         = "CNS_IMAGE_REPO"
-	envAzureIPAMImageRepo   = "IPAM_IMAGE_REPO"
-	EnvInstallCNS           = "INSTALL_CNS"
-	cnsLinuxLabelSelector   = "k8s-app=azure-cns"
-	cnsWindowsLabelSelector = "k8s-app=azure-cns-win"
-	acnImageRepoURL         = "acnpublic.azurecr.io"
-	mcrImageRepoURL         = "mcr.microsoft.com/containernetworking"
+	envAzureIPAMVersion      = "AZURE_IPAM_VERSION"
+	envCNIVersion            = "CNI_VERSION"
+	envCNSVersion            = "CNS_VERSION"
+	envCNIImageRepo          = "CNI_IMAGE_REPO"
+	envCNSImageRepo          = "CNS_IMAGE_REPO"
+	envAzureIPAMImageRepo    = "IPAM_IMAGE_REPO"
+	envCNIImageNameOverride  = "CNI_IMAGE_NAME_OVERRIDE"
+	envCNSImageNameOverride  = "CNS_IMAGE_NAME_OVERRIDE"
+	envIPAMImageNameOverride = "IPAM_IMAGE_NAME_OVERRIDE"
+	EnvInstallCNS            = "INSTALL_CNS"
+	cnsLinuxLabelSelector    = "k8s-app=azure-cns"
+	cnsWindowsLabelSelector  = "k8s-app=azure-cns-win"
+	acnImageRepoURL          = "acnpublic.azurecr.io"
+	mcrImageRepoURL          = "mcr.microsoft.com/containernetworking"
 )
 
 var imageRepoURL = map[string]string{
@@ -160,6 +165,30 @@ func mustCreateConfigMap(ctx context.Context, cmi typedcorev1.ConfigMapInterface
 	log.Printf("Creating ConfigMap %v", cm.Name)
 	if _, err := cmi.Create(ctx, &cm, metav1.CreateOptions{}); err != nil {
 		log.Fatal(errors.Wrap(err, "failed to create configmap"))
+	}
+}
+
+func mustCreateService(ctx context.Context, svci typedcorev1.ServiceInterface, svc corev1.Service) {
+	MustDeleteService(ctx, svci, svc)
+	log.Printf("Creating Service %v", svc.Name)
+	if _, err := svci.Create(ctx, &svc, metav1.CreateOptions{}); err != nil {
+		panic(errors.Wrap(err, "failed to create service"))
+	}
+}
+
+func mustCreateCiliumLocalRedirectPolicy(ctx context.Context, lrpClient typedciliumv2.CiliumLocalRedirectPolicyInterface, clrp ciliumv2.CiliumLocalRedirectPolicy) {
+	MustDeleteCiliumLocalRedirectPolicy(ctx, lrpClient, clrp)
+	log.Printf("Creating CiliumLocalRedirectPolicy %v", clrp.Name)
+	if _, err := lrpClient.Create(ctx, &clrp, metav1.CreateOptions{}); err != nil {
+		panic(errors.Wrap(err, "failed to create cilium local redirect policy"))
+	}
+}
+
+func mustCreateCiliumNetworkPolicy(ctx context.Context, cnpClient typedciliumv2.CiliumNetworkPolicyInterface, cnp ciliumv2.CiliumNetworkPolicy) {
+	MustDeleteCiliumNetworkPolicy(ctx, cnpClient, cnp)
+	log.Printf("Creating CiliumNetworkPolicy %v", cnp.Name)
+	if _, err := cnpClient.Create(ctx, &cnp, metav1.CreateOptions{}); err != nil {
+		panic(errors.Wrap(err, "failed to create cilium network policy"))
 	}
 }
 
@@ -348,7 +377,13 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 		log.Printf("%s not set to expected value \"ACN\", \"MCR\". Default to %s", envCNIImageRepo, imageRepoURL["ACN"])
 		url = imageRepoURL["ACN"]
 	}
-	initContainerNameCNI := path.Join(url, "azure-cni:") + os.Getenv(envCNIVersion)
+
+	cniImageName := "azure-cni"
+	if len(os.Getenv(string(envCNIImageNameOverride))) > 1 {
+		cniImageName = os.Getenv(string(envCNIImageNameOverride))
+	}
+	cniImageName += ":"
+	initContainerNameCNI := path.Join(url, cniImageName) + os.Getenv(envCNIVersion)
 	log.Printf("CNI init container image - %v", initContainerNameCNI)
 
 	url, key = imageRepoURL[os.Getenv(string(envAzureIPAMImageRepo))]
@@ -356,7 +391,14 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 		log.Printf("%s not set to expected value \"ACN\", \"MCR\". Default to %s", envAzureIPAMImageRepo, imageRepoURL["ACN"])
 		url = imageRepoURL["ACN"]
 	}
-	initContainerNameIPAM := path.Join(url, "azure-ipam:") + os.Getenv(envAzureIPAMVersion)
+
+	ipamImageName := "azure-ipam"
+	if len(os.Getenv(string(envIPAMImageNameOverride))) > 1 {
+		ipamImageName = os.Getenv(string(envIPAMImageNameOverride))
+	}
+	ipamImageName += ":"
+
+	initContainerNameIPAM := path.Join(url, ipamImageName) + os.Getenv(envAzureIPAMVersion)
 	log.Printf("IPAM init container image - %v", initContainerNameIPAM)
 
 	// cns scenario map
@@ -648,7 +690,13 @@ func parseCNSDaemonset(cnsScenarioMap map[CNSScenario]map[corev1.OSName]cnsDetai
 			url = imageRepoURL["ACN"]
 		}
 
-		cns.Spec.Template.Spec.Containers[0].Image = path.Join(url, "azure-cns:") + cnsVersion
+		cnsImageName := "azure-cns"
+		if len(os.Getenv(string(envCNSImageNameOverride))) > 1 {
+			cnsImageName = os.Getenv(string(envCNSImageNameOverride))
+		}
+		cnsImageName += ":"
+
+		cns.Spec.Template.Spec.Containers[0].Image = path.Join(url, cnsImageName) + cnsVersion
 
 		log.Printf("Checking environment scenario")
 		cns.Spec.Template.Spec.InitContainers[0].Image = cnsScenarioDetails.initContainerName

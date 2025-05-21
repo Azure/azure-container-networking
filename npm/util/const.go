@@ -238,8 +238,6 @@ const (
 	AiInitializeRetryCount    int = 3
 	AiInitializeRetryInMin    int = 1
 
-	DebugMode bool = true
-
 	ErrorValue float64 = 1
 )
 

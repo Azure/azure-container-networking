@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/require"
+	"k8s.io/klog"
 )
 
 var netpolInBackgroundCfg = &Config{
@@ -75,20 +76,27 @@ func TestNetPolInBackgroundUpdatePolicy(t *testing.T) {
 	calls = append(calls, getAddPolicyTestCallsForDP(&updatedTestPolicyobj)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, nil)
+
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(2000 * time.Millisecond)
+		klog.Info("defer for TestNetPolInBackgroundUpdatePolicy finished")
+	}()
 
 	dp.RunPeriodicTasks()
 
 	err = dp.AddPolicy(&testPolicyobj)
 	require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 
 	err = dp.UpdatePolicy(&updatedTestPolicyobj)
 	require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 
 	linuxPromVals{2, 1, 0, 0, 1}.assert(t)
 }
@@ -99,8 +107,14 @@ func TestNetPolInBackgroundSkipAddAfterRemove(t *testing.T) {
 	calls := getBootupTestCalls()
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, nil)
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+		klog.Info("defer for TestNetPolInBackgroundSkipAddAfterRemove finished")
+	}()
 
 	require.NoError(t, dp.AddPolicy(&testPolicyobj))
 	require.NoError(t, dp.RemovePolicy(testPolicyobj.PolicyKey))
@@ -159,8 +173,13 @@ func TestNetPolInBackgroundFailureToAddFirstTime(t *testing.T) {
 	)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, nil)
+	stopCh := make(chan struct{}, 1)
+	dp, err := NewDataPlane("testnode", ioshim, netpolInBackgroundCfg, stopCh)
 	require.NoError(t, err)
+	defer func() {
+		stopCh <- struct{}{}
+		time.Sleep(100 * time.Millisecond)
+	}()
 
 	require.NoError(t, dp.AddPolicy(&testPolicyobj))
 	require.NoError(t, dp.AddPolicy(&testPolicy2))

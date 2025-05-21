@@ -61,3 +61,19 @@ func GetDeploymentAvailableReplicas(ctx context.Context, deploymentsClient typed
 
 	return deployment.Status.AvailableReplicas, nil
 }
+
+func GetService(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string) (*corev1.Service, error) {
+	service, err := clientset.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return service, errors.Wrap(err, "could not get service")
+	}
+	return service, nil
+}
+
+func GetConfigmap(ctx context.Context, clientset *kubernetes.Clientset, namespace, name string) (*corev1.ConfigMap, error) {
+	configmap, err := clientset.CoreV1().ConfigMaps(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return configmap, errors.Wrap(err, "could not get configmap")
+	}
+	return configmap, nil
+}

@@ -1,0 +1,107 @@
+parameters:
+  dependsOn: ""
+  name: "cilium_nodesubnet_e2e"
+  clusterType: "nodesubnet-byocni-nokubeproxy-up"
+  clusterName: "cilndsubnete2e"
+  vmSize: ""
+  os: "linux"
+  arch: ""
+  osSKU: Ubuntu
+  hubbleEnabled: false
+  dualstackVersion: ""
+  cni: "cilium"
+
+stages:
+  - stage: ${{ parameters.clusterName }}
+    displayName: Create Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    pool:
+      isCustom: true
+      type: linux
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - template: ../../templates/create-cluster.jobs.yaml
+        parameters:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
+          region: $(REGION_AKS_CLUSTER_TEST)
+
+  - stage: ${{ parameters.name }}
+    displayName: E2E - ${{ parameters.displayName }}
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+      GOBIN: "$(GOPATH)/bin" # Go binaries path
+      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+
+      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
+      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
+      NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
+      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
+      CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
+      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
+    dependsOn:
+    - setup
+    - ${{ parameters.clusterName }}
+    jobs:
+      - job: ${{ parameters.name }}
+        displayName: Nodesubnet with Cilium - (${{ parameters.name }})
+        timeoutInMinutes: 120
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+          isCustom: true
+          type: linux
+        steps:
+          - checkout: azure-container-networking
+          - template: cilium-nodesubnet-e2e.steps.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              arch: ${{ parameters.arch }}
+              os: ${{ parameters.os }}
+              scaleup: ${{ parameters.scaleup }}
+
+      - template: ../../cni/k8s-e2e/k8s-e2e.jobs.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          datapath: true
+          dns: true
+          cni: cilium
+          portforward: true
+          service: true
+          dependsOn: ${{ parameters.name }}
+
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
+        dependsOn:
+          - ${{ parameters.name }}
+          - cni_${{ parameters.os }}
+        condition: failed()
+        pool:
+          type: linux
+        variables:
+          ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+        steps:
+          - checkout: azure-container-networking
+          - template: ../../templates/log.steps.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cilium

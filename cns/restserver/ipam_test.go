@@ -76,7 +76,7 @@ type ncState struct {
 func getTestService(orchestratorType string) *HTTPRestService {
 	var config common.ServiceConfig
 	httpsvc, _ := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{},
-		&fakes.NMAgentClientFake{}, store.NewMockStore(""), nil, nil,
+		&IPtablesProvider{}, &fakes.NMAgentClientFake{}, store.NewMockStore(""), nil, nil,
 		fakes.NewMockIMDSClient())
 	svc = httpsvc
 	setOrchestratorTypeInternal(orchestratorType)

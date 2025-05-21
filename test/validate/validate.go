@@ -142,7 +142,7 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		podName := pod.Items[0].Name
 		// exec into the pod to get the state file
 		log.Printf("Executing command %s on pod %s, container %s", cmd, podName, containerName)
-		result, err := acnk8s.ExecCmdOnPod(ctx, v.clientset, namespace, podName, containerName, cmd, v.config)
+		result, _, err := acnk8s.ExecCmdOnPod(ctx, v.clientset, namespace, podName, containerName, cmd, v.config, true)
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod - %s", podName)
 		}
