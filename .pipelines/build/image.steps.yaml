@@ -46,6 +46,7 @@ parameters:
 steps:
 - task: DownloadPipelineArtifact@2
   inputs:
+    targetPath: artifacts
     artifact: '${{ parameters.source }}'
 
 - task: onebranch.pipeline.containercontrol@1
@@ -65,8 +66,7 @@ steps:
     repositoryName: $(os)-$(arch)/${{ parameters.name }}
     os: '${{ parameters.os }}'
     buildkit: 1
-    dockerFileRelPath: ${{ parameters.source }}/Dockerfile
-    dockerFileContextPath: root_artifacts/
+    dockerFileRelPath: artifacts/Dockerfile
     enable_network: true
     enable_pull: true
     build_tag: ${{ parameters.build_tag }}
