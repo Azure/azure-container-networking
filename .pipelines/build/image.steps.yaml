@@ -46,7 +46,6 @@ parameters:
 steps:
 - task: DownloadPipelineArtifact@2
   inputs:
-    targetPath: '$(Build.SourcesDirectory)/dst/${{ parameters.source }}'
     artifact: '${{ parameters.source }}'
 
 - task: onebranch.pipeline.containercontrol@1
