@@ -67,7 +67,7 @@ steps:
     os: '${{ parameters.os }}'
     buildkit: 1
     dockerFileRelPath: ${{ parameters.source }}/Dockerfile
-    #dockerFileContextPath: ${{ parameters.source }}/root_artifacts
+    dockerFileContextPath: ${{ parameters.source }}/root_artifacts
     enable_network: true
     enable_pull: true
     build_tag: ${{ parameters.build_tag }}
