@@ -393,7 +393,7 @@ vnetscale-swift-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale S
 		--yes
 	@$(MAKE) set-kubeconf
 
-nodesubnet-cilium-up: rg-up ipv4 overlay-net-up ## Brings up a Nodesubnet Cilium cluster
+nodesubnet-cilium-up: rg-up ipv4 overlay-net-up ## Bring up a Nodesubnet Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
