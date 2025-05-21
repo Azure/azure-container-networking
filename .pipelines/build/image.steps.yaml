@@ -50,6 +50,13 @@ steps:
     artifact: '${{ parameters.source }}'
     patterns: '**/*.tar'
 
+- task: ExtractFiles@1
+  inputs:
+    archiveFilePatterns: '**/*.?(tar|tgz|gz|zip)'
+    destinationFolder: $(Build.SourcesDirectory)/dst/${{ parameters.source }}
+    cleanDestinationFolder: false
+    overwriteExistingFiles: true
+
 - task: onebranch.pipeline.containercontrol@1
   displayName: "Login to ACR"
   inputs:
@@ -67,8 +74,8 @@ steps:
     repositoryName: $(os)-$(arch)/${{ parameters.name }}
     os: '${{ parameters.os }}'
     buildkit: 1
-    dockerFileRelPath: artifacts/Dockerfile
-    dockerFileContextPath: artifacts/
+    dockerFileRelPath: ${{ parameters.source }}/Dockerfile
+    dockerFileContextPath: ${{ parameters.source }}
     enable_network: true
     enable_pull: true
     build_tag: ${{ parameters.build_tag }}
