@@ -67,8 +67,8 @@ steps:
     repositoryName: $(os)-$(arch)/${{ parameters.name }}
     os: '${{ parameters.os }}'
     buildkit: 1
-    dockerFileRelPath: ${{ parameters.source }}/Dockerfile
-    dockerFileContextPath: ${{ parameters.source }}
+    dockerFileRelPath: root_artifact/${{ parameters.source }}/Dockerfile
+    dockerFileContextPath: root_artifact/${{ parameters.source }}
     enable_network: true
     enable_pull: true
     build_tag: ${{ parameters.build_tag }}
