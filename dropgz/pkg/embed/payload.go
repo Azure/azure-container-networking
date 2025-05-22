@@ -21,6 +21,13 @@ const (
 
 var ErrArgsMismatched = errors.New("mismatched argument count")
 
+type Compression string
+
+const (
+	None Compression = "none"
+	Gzip Compression = "gzip"
+)
+
 // embedfs contains the embedded files for deployment, as a read-only FileSystem containing only "embedfs/".
 //
 //nolint:typecheck // dir is populated at build.
@@ -70,20 +77,25 @@ func (c *compoundReadCloser) Close() error {
 	return nil
 }
 
-func Extract(p string) (*compoundReadCloser, error) {
+func Extract(p string, compression Compression) (*compoundReadCloser, error) {
 	f, err := embedfs.Open(path.Join(cwd, p))
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to open file %s", p)
 	}
-	r, err := gzip.NewReader(bufio.NewReader(f))
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to build reader")
+	var rc io.ReadCloser = f
+	switch compression {
+	case Gzip:
+		rc, err = gzip.NewReader(bufio.NewReader(f))
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to build reader")
+		}
+	default:
 	}
-	return &compoundReadCloser{closer: f, readcloser: r}, nil
+	return &compoundReadCloser{closer: f, readcloser: rc}, nil
 }
 
-func deploy(src, dest string) error {
-	rc, err := Extract(src)
+func deploy(src, dest string, compression Compression) error {
+	rc, err := Extract(src, compression)
 	if err != nil {
 		return err
 	}
@@ -104,14 +116,14 @@ func deploy(src, dest string) error {
 	return errors.Wrapf(err, "failed to copy %s to %s", src, dest)
 }
 
-func Deploy(log *zap.Logger, srcs, dests []string) error {
+func Deploy(log *zap.Logger, srcs, dests []string, compression Compression) error {
 	if len(srcs) != len(dests) {
 		return errors.Wrapf(ErrArgsMismatched, "%d and %d", len(srcs), len(dests))
 	}
 	for i := range srcs {
 		src := srcs[i]
 		dest := dests[i]
-		if err := deploy(src, dest); err != nil {
+		if err := deploy(src, dest, compression); err != nil {
 			return err
 		}
 		log.Info("wrote file", zap.String("src", src), zap.String("dest", dest))
