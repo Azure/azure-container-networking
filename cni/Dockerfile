@@ -5,11 +5,11 @@ ARG DROPGZ_VERSION=v0.0.12
 ARG OS_VERSION
 ARG OS
 
-# mcr.microsoft.com/oss/go/microsoft/golang:1.23-cbl-mariner2.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:b06999cae63b9b6f43bcb16bd16bcbedae847684515317e15607a601ed108030 AS go
+# mcr.microsoft.com/oss/go/microsoft/golang:1.23-azurelinux3.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:ef7a44dce2c01bcbd93c4a9d760ae55c93c6bf6028e123db47d604cecb7e1935 AS go
 
-# mcr.microsoft.com/cbl-mariner/base/core:2.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core@sha256:961bfedbbbdc0da51bc664f51d959da292eced1ad46c3bf674aba43b9be8c703 AS mariner-core
+# mcr.microsoft.com/azurelinux/base/core:3.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:b46476be0b5c9691ad20f78871819950c01433bdfad81d72c61618f4a6202b25 AS mariner-core
 
 FROM go AS azure-vnet
 ARG OS
