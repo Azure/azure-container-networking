@@ -24,7 +24,7 @@ ARG ARTIFACT_DIR .
 RUN ls -la /
 RUN ls -la /artifacts
 RUN ls -la /__w/1/a
-RUN ls -la /${ARTIFACT_DIR}
+RUN ls -la ${ARTIFACT_DIR}
 COPY --from=build-helper /usr/sbin/*tables* /usr/sbin/
 COPY --from=build-helper /usr/lib /usr/lib
 ADD ${ARTIFACT_DIR}/bin/azure-cns /usr/local/bin/azure-cns
