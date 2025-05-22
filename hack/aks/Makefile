@@ -19,12 +19,20 @@ OS_SKU_WIN      ?= Windows2022
 REGION          ?= westus2
 VM_SIZE	        ?= Standard_B2s
 VM_SIZE_WIN     ?= Standard_B2s
+LTS				?= true
 
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
 CLUSTER    ?= $(USER)-$(REGION)
 GROUP      ?= $(CLUSTER)
 VNET       ?= $(CLUSTER)
+
+# Long Term Support (LTS)
+ifeq ($(LTS),true)
+	LTS = --k8s-support-plan AKSLongTermSupport --tier premium
+else
+	LTS =
+endif
 
 ##@ Help
 
@@ -64,6 +72,7 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo VM_SIZE=$(VM_SIZE)
 	@echo NODE_COUNT=$(NODE_COUNT)
 	@echo VMSS_NAME=$(VMSS_NAME)
+	@echo LTS=$(if $(LTS),$(LTS),empty)
 
 
 ##@ SWIFT Infra
@@ -109,6 +118,7 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
+		$(LTS) \
 		--yes
 ifeq ($(OS),windows)
 	@$(MAKE) windows-nodepool-up
@@ -128,6 +138,7 @@ overlay-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO 
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--kube-proxy-config ./kube-proxy.json \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -144,6 +155,7 @@ overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay Cilium cluster
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -159,6 +171,7 @@ overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -175,6 +188,7 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
+		$(LTS) \
 		--yes
 ifeq ($(OS),windows)
 	@$(MAKE) windows-swift-nodepool-up
@@ -194,6 +208,7 @@ swift-byocni-nokubeproxy-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI clus
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
 		--kube-proxy-config ./kube-proxy.json \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -210,6 +225,7 @@ swift-cilium-up: rg-up swift-net-up ## Bring up a SWIFT Cilium cluster
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -224,6 +240,7 @@ swift-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -237,6 +254,7 @@ swiftv2-multitenancy-cluster-up: rg-up
 		--node-count 2 \
 		--nodepool-tags fastpathenabled=true \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -264,6 +282,7 @@ vnetscale-swift-byocni-up: rg-up vnetscale-swift-net-up ## Bring up a Vnet Scale
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -280,6 +299,7 @@ vnetscale-swift-byocni-nokubeproxy-up: rg-up vnetscale-swift-net-up ## Bring up 
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
 		--kube-proxy-config ./kube-proxy.json \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -296,6 +316,7 @@ vnetscale-swift-cilium-up: rg-up vnetscale-swift-net-up ## Bring up a Vnet Scale
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -325,6 +346,7 @@ windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
 		--windows-admin-username $(WINDOWS_USERNAME) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) windows-nodepool-up
 	@$(MAKE) set-kubeconf
@@ -341,6 +363,7 @@ linux-cniv1-up: rg-up overlay-net-up ## Bring up a Linux CNIv1 cluster
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--os-sku $(OS_SKU) \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -357,6 +380,7 @@ dualstack-overlay-up: rg-up overlay-net-up ## Brings up an dualstack Overlay clu
 		--ip-families ipv4,ipv6 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -373,6 +397,7 @@ dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Over
 		--ip-families ipv4,ipv6 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -390,6 +415,7 @@ cilium-dualstack-up: rg-up overlay-net-up ## Brings up a Cilium Dualstack Overla
 		--ip-families ipv4,ipv6 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -407,6 +433,7 @@ dualstack-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up a Dualstack o
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
 		--kube-proxy-config ./kube-proxy.json \
+		$(LTS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
