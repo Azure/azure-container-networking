@@ -46,8 +46,8 @@ parameters:
 steps:
 - task: DownloadPipelineArtifact@2
   inputs:
-    targetPath: artifacts
-    artifact: '${{ parameters.source }}'
+    targetPath: $(Build.SourcesDirectory)/dst/artifacts
+    artifact: ${{ parameters.source }}
 
 - task: onebranch.pipeline.containercontrol@1
   displayName: "Login to ACR"
@@ -67,6 +67,7 @@ steps:
     os: '${{ parameters.os }}'
     buildkit: 1
     dockerFileRelPath: artifacts/Dockerfile
+    dockerFileContextPath: artifacts/
     enable_network: true
     enable_pull: true
     build_tag: ${{ parameters.build_tag }}

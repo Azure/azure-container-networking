@@ -1,14 +1,24 @@
 ARG ARTIFACT_DIR
 
+FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 as archive-helper
+ARG ARTIFACT_DIR .
+
+COPY ${ARTIFACT_DIR}/root_artifact.tar .
+RUN tar xvf root_artifact.tar /artifacts/
+
 FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 as linux
 
 RUN apt-get update && \
-  apt-get install -y libc-bin=2.31-0ubuntu9.17 libc6=2.31-0ubuntu9.17 libtasn1-6=4.16.0-2ubuntu0.1 libgnutls30=3.6.13-2ubuntu1.12 iptables ipset ca-certificates && \
-  apt-get autoremove -y && \
-  apt-get clean
+    apt-get install -y \
+      libc-bin=2.31-0ubuntu9.17 \
+      libc6=2.31-0ubuntu9.17 \
+      libtasn1-6=4.16.0-2ubuntu0.1 \
+      libgnutls30=3.6.13-2ubuntu1.12 \
+      iptables ipset ca-certificates && \
+    apt-get autoremove -y && \
+    apt-get clean
 
-COPY ${ARTIFACT_DIR}/bin/azure-npm /usr/bin/azure-npm
-RUN chmod +x /usr/bin/azure-npm
+COPY --from=archive-helper /artifacts/bin/azure-npm /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
 
 
