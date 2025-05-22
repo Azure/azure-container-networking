@@ -21,10 +21,6 @@ RUN tdnf install -y iptables
 FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:7778a86d86947d5f64c1280a7ee0cf36c6c6d76b5749dd782fbcc14f113961bf AS linux
 ARG ARTIFACT_DIR .
 
-RUN ls -la /
-RUN ls -la /artifacts
-RUN ls -la /__w/1/a
-RUN ls -la ${ARTIFACT_DIR}
 COPY --from=build-helper /usr/sbin/*tables* /usr/sbin/
 COPY --from=build-helper /usr/lib /usr/lib
 ADD ${ARTIFACT_DIR}/bin/azure-cns /usr/local/bin/azure-cns

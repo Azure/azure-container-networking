@@ -3,6 +3,11 @@ ARG ARTIFACT_DIR
 FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 as archive-helper
 ARG ARTIFACT_DIR .
 
+RUN ls -la
+ADD . .
+RUN ls -la
+RUN ls -la /
+RUN ls -la /
 COPY ${ARTIFACT_DIR}/root_artifact.tar .
 RUN tar xvf root_artifact.tar /artifacts/
 
