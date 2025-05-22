@@ -12,16 +12,16 @@ RUN apt-get update && \
     apt-get autoremove -y && \
     apt-get clean
 
-COPY artifacts/bin/azure-npm /usr/bin/azure-npm
+COPY /artifacts/bin/azure-npm /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
 
 
 # intermediate for win-ltsc2022
 FROM --platform=linux/${ARCH} mcr.microsoft.com/windows/servercore@sha256:45952938708fbde6ec0b5b94de68bcdec3f8c838be018536b1e9e5bd95e6b943 as windows
 
-COPY artifacts/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
-COPY artifacts/scripts/setkubeconfigpath.ps1 setkubeconfigpath.ps1
-COPY artifacts/scripts/setkubeconfigpath-capz.ps1 setkubeconfigpath-capz.ps1
-COPY artifacts/bin/azure-npm.exe npm.exe
+COPY /artifacts/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
+COPY /artifacts/scripts/setkubeconfigpath.ps1 setkubeconfigpath.ps1
+COPY /artifacts/scripts/setkubeconfigpath-capz.ps1 setkubeconfigpath-capz.ps1
+COPY /artifacts/bin/azure-npm.exe npm.exe
 
 CMD ["npm.exe", "start", "--kubeconfig=.\\kubeconfig"]

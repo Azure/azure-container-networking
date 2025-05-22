@@ -4,9 +4,9 @@ ARG ARCH
 # mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
 FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b AS windows
 
-COPY artifacts/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
-COPY artifacts/scripts/setkubeconfigpath.ps1 setkubeconfigpath.ps1
-COPY artifacts/bin/azure-cns.exe /azure-cns.exe
+COPY /artifacts/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
+COPY /artifacts/scripts/setkubeconfigpath.ps1 setkubeconfigpath.ps1
+COPY /artifacts/bin/azure-cns.exe /azure-cns.exe
 ENTRYPOINT ["azure-cns.exe"]
 EXPOSE 10090
 
@@ -21,6 +21,6 @@ FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/distroless/minimal@s
 
 COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
 COPY --from=iptables /usr/lib /usr/lib
-COPY artifacts/bin/azure-cns /usr/local/bin/azure-cns
+COPY /artifacts/bin/azure-cns /usr/local/bin/azure-cns
 ENTRYPOINT [ "/usr/local/bin/azure-cns" ]
 EXPOSE 10090
