@@ -133,7 +133,6 @@ jobs:
         ARCH: amd64
         OS: windows
       ${{ elseif eq(job_data.job, 'linux_arm64') }}:
-        ob_build_container: true
         ARCH: arm64
         OS: linux
 
@@ -144,6 +143,6 @@ jobs:
         os: $(OS)
         name: $(name)
         build_tag: $(imageTag)
-        extra_args: $(extraArgs) --build-arg ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)"
+        extra_args: $(extraArgs)
         archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
         source: drop_build_pkg_${{ job_data.job }}_$(name)

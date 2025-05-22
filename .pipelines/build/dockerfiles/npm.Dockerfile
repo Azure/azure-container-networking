@@ -1,12 +1,6 @@
-ARG ARTIFACT_DIR
+ARG ARCH
 
-FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 as archive-helper
-ARG ARTIFACT_DIR .
-
-COPY ${ARTIFACT_DIR}/root_artifact.tar .
-RUN tar xvf root_artifact.tar /artifacts/
-
-FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 as linux
+FROM --platform=linux/${ARCH} mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 as linux
 
 RUN apt-get update && \
     apt-get install -y \
@@ -18,16 +12,16 @@ RUN apt-get update && \
     apt-get autoremove -y && \
     apt-get clean
 
-COPY --from=archive-helper /artifacts/bin/azure-npm /usr/bin/azure-npm
+COPY artifacts/bin/azure-npm /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
 
 
 # intermediate for win-ltsc2022
-FROM mcr.microsoft.com/windows/servercore@sha256:45952938708fbde6ec0b5b94de68bcdec3f8c838be018536b1e9e5bd95e6b943 as windows
+FROM --platform=linux/${ARCH} mcr.microsoft.com/windows/servercore@sha256:45952938708fbde6ec0b5b94de68bcdec3f8c838be018536b1e9e5bd95e6b943 as windows
 
-COPY ${ARTIFACT_DIR}/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
-COPY ${ARTIFACT_DIR}/scripts/setkubeconfigpath.ps1 setkubeconfigpath.ps1
-COPY ${ARTIFACT_DIR}/scripts/setkubeconfigpath-capz.ps1 setkubeconfigpath-capz.ps1
-COPY ${ARTIFACT_DIR}/bin/azure-npm.exe npm.exe
+COPY artifacts/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
+COPY artifacts/scripts/setkubeconfigpath.ps1 setkubeconfigpath.ps1
+COPY artifacts/scripts/setkubeconfigpath-capz.ps1 setkubeconfigpath-capz.ps1
+COPY artifacts/bin/azure-npm.exe npm.exe
 
-CMD ["npm.exe", "start" "--kubeconfig=.\\kubeconfig"]
+CMD ["npm.exe", "start", "--kubeconfig=.\\kubeconfig"]
