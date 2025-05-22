@@ -124,7 +124,7 @@ stages:
                   envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
 
-                  if [ "$UPGRADE_SCENARIO" = "true" ]
+                  if [ ${{parameters.upgradeScenario}} = "true" ]
                   then
                     echo "Upgrade scenario is true, using upgrade azure ipam and cns version from pipeline variables"
                     IPAM=$(UPGRADE_AZURE_IPAM_VERSION)
@@ -186,7 +186,7 @@ stages:
                   envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
 
-                  if [ "$UPGRADE_SCENARIO" = "true" ]
+                  if [ ${{parameters.upgradeScenario}} = "true" ]
                   then
                     echo "Upgrade scenario is true, using upgrade azure ipam and cns version from pipeline variables"
                     IPAM=$(UPGRADE_AZURE_IPAM_VERSION)

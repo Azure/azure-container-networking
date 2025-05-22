@@ -415,7 +415,7 @@ stages:
       upgradeScenario: false
 
 
-  ## If upgrade_scenario is set, redeploy new IPAM version to existing clusters and run tests
+  ## If upgradeScenario is set, redeploy new IPAM version to existing clusters and run tests
   - ${{if eq(parameters.upgradeScenario, true)}}:
     - template: cilium/cilium-overlay-load-test-template.yaml
       parameters:
