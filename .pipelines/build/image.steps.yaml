@@ -71,8 +71,8 @@ steps:
     enable_pull: true
     build_tag: ${{ parameters.build_tag }}
     enable_acr_push: true
-
     saveImageToPath: images/$(os)-$(arch)/${{ parameters.archive_file }}.tar.gz
+    enabled_cache: false
     #compress: true
     #saveMetadataToPath: images/$(os)-$(arch)/metadata/${{ parameters.archive_file }}-metadata.json
     #enable_isolated_acr_push: true
