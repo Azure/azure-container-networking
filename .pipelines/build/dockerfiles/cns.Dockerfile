@@ -15,17 +15,19 @@ EXPOSE 10090
 # mcr.microsoft.com/cbl-mariner/base/core:2.0
 # skopeo inspect docker://mcr.microsoft.com/cbl-mariner/base/core:2.0 --format "{{.Name}}@{{.Digest}}"
 FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core@sha256:961bfedbbbdc0da51bc664f51d959da292eced1ad46c3bf674aba43b9be8c703 AS build-helper
-ARG ARTIFACT_DIR .
-
-COPY ${ARTIFACT_DIR}/root_artifact.tar .
-RUN tar xvf root_artifact.tar /artifacts/
 RUN tdnf install -y iptables
 
 # mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0
 FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:7778a86d86947d5f64c1280a7ee0cf36c6c6d76b5749dd782fbcc14f113961bf AS linux
+ARG ARTIFACT_DIR .
 
+RUN ls -la /
+RUN ls -la /artifacts
+RUN ls -la /__w/1/a
+RUN ls -la /${ARTIFACT_DIR}
 COPY --from=build-helper /usr/sbin/*tables* /usr/sbin/
 COPY --from=build-helper /usr/lib /usr/lib
-COPY --from=build-helper /artifacts/bin/azure-cns /usr/local/bin/azure-cns
+ADD ${ARTIFACT_DIR}/bin/azure-cns /usr/local/bin/azure-cns
+COPY ${ARTIFACT_DIR}/bin/azure-cns /usr/local/bin/azure-cns
 ENTRYPOINT [ "/usr/local/bin/azure-cns" ]
 EXPOSE 10090
