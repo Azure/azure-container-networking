@@ -9,13 +9,13 @@ COPY ${ARTIFACT_DIR}/bin/dropgz.exe /dropgz.exe
 ENTRYPOINT [ "/dropgz.exe" ]
 
 
-# skopeo inspect docker://mcr.microsoft.com/cbl-mariner/base/core:2.0 --format "{{.Name}}@{{.Digest}}"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core@sha256:a490e0b0869dc570ae29782c2bc17643aaaad1be102aca83ce0b96e0d0d2d328 AS archive-helper
+FROM scratch AS linux
 ARG ARTIFACT_DIR .
 
-COPY ${ARTIFACT_DIR}/root_artifact.tar .
-RUN tar xvf root_artifact.tar /artifacts/
+RUN ls -la /
+RUN ls -la /artifacts
+RUN ls -la /__w/1/a
+RUN ls -la /${ARTIFACT_DIR}
 
-FROM scratch AS linux
-COPY --from=archive-helper /artifacts/bin/dropgz /dropgz
+COPY ${ARTIFACT_DIR}/bin/dropgz /dropgz
 ENTRYPOINT [ "/dropgz" ]
