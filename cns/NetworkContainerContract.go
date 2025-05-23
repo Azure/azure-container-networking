@@ -389,9 +389,10 @@ type NetworkInterfaceInfo struct {
 
 // IPConfiguration contains details about ip config to provision in the VM.
 type IPConfiguration struct {
-	IPSubnet         IPSubnet
-	DNSServers       []string
-	GatewayIPAddress string
+	IPSubnet           IPSubnet
+	DNSServers         []string
+	GatewayIPAddress   string
+	GatewayIPv6Address string
 }
 
 // SecondaryIPConfig contains IP info of SecondaryIP
@@ -746,3 +747,11 @@ type NodeRegisterRequest struct {
 	NumCores             int
 	NmAgentSupportedApis []string
 }
+
+// IPFamily - Enum for determining IPFamily when retrieving IPs from network containers
+type IPFamily string
+
+const (
+	IPv4 IPFamily = "ipv4"
+	IPv6 IPFamily = "ipv6"
+)
