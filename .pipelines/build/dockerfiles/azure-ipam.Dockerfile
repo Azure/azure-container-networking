@@ -12,10 +12,5 @@ ENTRYPOINT [ "/dropgz.exe" ]
 FROM scratch AS linux
 ARG ARTIFACT_DIR .
 
-RUN ls -la /
-RUN ls -la /artifacts
-RUN ls -la /__w/1/a
-RUN ls -la /${ARTIFACT_DIR}
-
 COPY ${ARTIFACT_DIR}/bin/dropgz /dropgz
 ENTRYPOINT [ "/dropgz" ]

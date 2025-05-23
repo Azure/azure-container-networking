@@ -1,17 +1,6 @@
-ARG ARTIFACT_DIR
-
-FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 as archive-helper
-ARG ARTIFACT_DIR .
-
-RUN ls -la
-ADD . .
-RUN ls -la
-RUN ls -la /
-RUN ls -la /
-COPY ${ARTIFACT_DIR}/root_artifact.tar .
-RUN tar xvf root_artifact.tar /artifacts/
 
 FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 as linux
+ARG ARTIFACT_DIR
 
 RUN apt-get update && \
     apt-get install -y \
@@ -23,12 +12,13 @@ RUN apt-get update && \
     apt-get autoremove -y && \
     apt-get clean
 
-COPY --from=archive-helper /artifacts/bin/azure-npm /usr/bin/azure-npm
+COPY ${ARTIFACT_DIR}/bin/azure-npm /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
 
 
 # intermediate for win-ltsc2022
 FROM mcr.microsoft.com/windows/servercore@sha256:45952938708fbde6ec0b5b94de68bcdec3f8c838be018536b1e9e5bd95e6b943 as windows
+ARG ARTIFACT_DIR
 
 COPY ${ARTIFACT_DIR}/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
 COPY ${ARTIFACT_DIR}/scripts/setkubeconfigpath.ps1 setkubeconfigpath.ps1
