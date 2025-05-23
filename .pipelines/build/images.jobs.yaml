@@ -77,9 +77,9 @@ jobs:
 
     - task: ShellScript@2
       displayName: "Package with DropGZ"
-        condition: and(
-          succeeded(), 
-          eq(variables.packageWithDropGZ, 'True'))
+      condition: and(
+        succeeded(), 
+        eq(variables.packageWithDropGZ, 'True'))
       inputs:
         scriptPath: $(REPO_ROOT)/.pipelines/build/scripts/dropgz.sh
 
