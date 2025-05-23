@@ -91,7 +91,7 @@ jobs:
         inputs:
           command: 'sign'
           signing_profile: 'external_distribution'
-          files_to_sign: '**/dropgz'
+          files_to_sign: '**/dropgz*'
           search_root: $(OUT_DIR)
 
     # OneBranch artifacts are stored on a Windows machine which obliterates
