@@ -1,3 +1,4 @@
+ARG ARCH
 
 FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0 AS linux
 ARG ARTIFACT_DIR
