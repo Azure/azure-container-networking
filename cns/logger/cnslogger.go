@@ -136,12 +136,15 @@ func (c *CNSLogger) Request(tag string, request any, err error) {
 	if c.th == nil || c.disableTraceLogging {
 		return
 	}
+
+	requestString := log.ToJSONString(request)
+
 	var msg string
 	lvl := ai.InfoLevel
 	if err == nil {
-		msg = fmt.Sprintf("[%s] Received %T %+v.", tag, request, request)
+		msg = fmt.Sprintf("[%s] Received %T %s.", tag, request, requestString)
 	} else {
-		msg = fmt.Sprintf("[%s] Failed to decode %T %+v %s.", tag, request, request, err.Error())
+		msg = fmt.Sprintf("[%s] Failed to decode %T %s %s.", tag, request, requestString, err.Error())
 		lvl = ai.ErrorLevel
 	}
 	c.sendTraceInternal(msg, lvl)
@@ -152,16 +155,19 @@ func (c *CNSLogger) Response(tag string, response any, returnCode types.Response
 	if c.th == nil || c.disableTraceLogging {
 		return
 	}
+
+	responseString := log.ToJSONString(response)
+
 	var msg string
 	lvl := ai.InfoLevel
 	switch {
 	case err == nil && returnCode == 0:
-		msg = fmt.Sprintf("[%s] Sent %T %+v.", tag, response, response)
+		msg = fmt.Sprintf("[%s] Sent %T %s.", tag, response, responseString)
 	case err != nil:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v %s.", tag, returnCode.String(), response, err.Error())
+		msg = fmt.Sprintf("[%s] Code:%s, %s %s.", tag, returnCode.String(), responseString, err.Error())
 		lvl = ai.ErrorLevel
 	default:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v.", tag, returnCode.String(), response)
+		msg = fmt.Sprintf("[%s] Code:%s, %s.", tag, returnCode.String(), responseString)
 	}
 	c.sendTraceInternal(msg, lvl)
 }
@@ -171,16 +177,20 @@ func (c *CNSLogger) ResponseEx(tag string, request, response any, returnCode typ
 	if c.th == nil || c.disableTraceLogging {
 		return
 	}
+
+	requestString := log.ToJSONString(request)
+	responseString := log.ToJSONString(response)
+
 	var msg string
 	lvl := ai.InfoLevel
 	switch {
 	case err == nil && returnCode == 0:
-		msg = fmt.Sprintf("[%s] Sent %T %+v %T %+v.", tag, request, request, response, response)
+		msg = fmt.Sprintf("[%s] Sent %T %s %T %s.", tag, request, requestString, response, responseString)
 	case err != nil:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v, %s.", tag, returnCode.String(), request, response, err.Error())
+		msg = fmt.Sprintf("[%s] Code:%s, %s, %s, %s.", tag, returnCode.String(), requestString, responseString, err.Error())
 		lvl = ai.ErrorLevel
 	default:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v.", tag, returnCode.String(), request, response)
+		msg = fmt.Sprintf("[%s] Code:%s, %s, %s.", tag, returnCode.String(), requestString, responseString)
 	}
 	c.sendTraceInternal(msg, lvl)
 }
