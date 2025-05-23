@@ -67,26 +67,26 @@ jobs:
         SOURCE: $(REPO_ROOT)/${{ job_data.templateContext.obDockerfile }}
         DEST: $(OUT_DIR)/Dockerfile
 
-    - ${{ if not(eq(job_data.job, 'linux_arm64')) }}:
-      - task: onebranch.pipeline.signing@1
-        inputs:
-          command: 'sign'
-          signing_profile: 'external_distribution'
-          files_to_sign: '**/*'
-          search_root: $(OUT_DIR)
+    - task: onebranch.pipeline.signing@1
+      inputs:
+        command: 'sign'
+        signing_profile: 'external_distribution'
+        files_to_sign: '**/*'
+        search_root: $(OUT_DIR)
 
 
     - task: ShellScript@2
       displayName: "Package with DropGZ"
-      condition: and(succeeded(), eq(variables.packageWithDropGZ, 'True'))
+        condition: and(
+          succeeded(), 
+          eq(variables.packageWithDropGZ, 'True'))
       inputs:
         scriptPath: $(REPO_ROOT)/.pipelines/build/scripts/dropgz.sh
 
-    - ${{ if not(eq(job_data.job, 'linux_arm64')) }}:
+    - ${{ if not(contains(job_data.job, 'linux')) }}:
       - task: onebranch.pipeline.signing@1
         condition: and(
           succeeded(), 
-          eq(variables.os, 'windows'),
           eq(variables.packageWithDropGZ, 'True'))
         inputs:
           command: 'sign'
