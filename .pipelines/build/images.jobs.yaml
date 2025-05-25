@@ -13,6 +13,8 @@ jobs:
       dependsOn: ${{ job_data.dependsOn }}
     pool:
       type: linux
+      ${{ if eq(job_data.job, 'linux_arm64') }}:
+        hostArchitecture: arm64
 
     variables:
       ob_artifactSuffix: _$(name)
