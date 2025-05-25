@@ -111,8 +111,8 @@ jobs:
     pool:
       os: linux
       type: docker
-     ${{ if eq(job_data.job, 'linux_arm64') }}:
-       hostArchitecture: arm64
+      ${{ if eq(job_data.job, 'linux_arm64') }}:
+        hostArchitecture: arm64
 #      ${{ else }}:
 #        LinuxHostVersion: 'AzLinux3.0AMD64'
     variables:
