@@ -26,6 +26,7 @@ jobs:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       ${{ if eq(job_data.job, 'linux_amd64') }}:
         LinuxContainerImage: 'mcr.microsoft.com/mirror/docker/library/ubuntu:24.04'
+          #LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         OS: linux
         ARCH: amd64
         GOOS: linux
@@ -121,8 +122,7 @@ jobs:
       ob_git_checkout: false
       ob_extract_root_artifact: true
       ${{ if eq(job_data.job, 'linux_amd64') }}:
-        #LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
-        LinuxContainerImage: 'mcr.microsoft.com/mirror/docker/library/ubuntu:24.04'
+        LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         ARCH: amd64
         OS: linux
       ${{ elseif eq(job_data.job, 'windows_amd64') }}:
