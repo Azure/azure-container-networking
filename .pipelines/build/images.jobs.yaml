@@ -13,8 +13,6 @@ jobs:
       dependsOn: ${{ job_data.dependsOn }}
     pool:
       type: linux
-      ${{ if eq(job_data.job, 'linux_arm64') }}:
-        hostArchitecture: arm64
 
     variables:
       ob_artifactSuffix: _$(name)
@@ -33,7 +31,6 @@ jobs:
         GOOS: linux
         GOARCH: amd64
       ${{ elseif eq(job_data.job, 'windows_amd64') }}:
-        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2004:latest'
         ob_enable_qemu: true
         OS: windows
         ARCH: amd64
