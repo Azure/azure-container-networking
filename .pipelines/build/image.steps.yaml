@@ -15,10 +15,6 @@ parameters:
   type: string
   default: ""
 
-- name: dockerfile_path
-  type: string
-  default: ""
-
 - name: archive_file
   type: string
   default: '$(name)-$(os)-$(platform)-$(Tag)'
@@ -50,8 +46,8 @@ parameters:
 steps:
 - task: DownloadPipelineArtifact@2
   inputs:
-    targetPath: $(Build.SourcesDirectory)/dst/${{ parameters.source }}
-    artifact: '${{ parameters.source }}'
+    targetPath: $(Build.SourcesDirectory)/dst/artifacts
+    artifact: ${{ parameters.source }}
 
 - task: onebranch.pipeline.containercontrol@1
   displayName: "Login to ACR"
@@ -70,14 +66,13 @@ steps:
     repositoryName: $(os)-$(arch)/${{ parameters.name }}
     os: '${{ parameters.os }}'
     buildkit: 1
-    dockerFileRelPath: ${{ parameters.dockerfile_path }}/Dockerfile
-    dockerFileContextPath: ${{ parameters.source }}
+    dockerFileRelPath: artifacts/Dockerfile
     enable_network: true
     enable_pull: true
     build_tag: ${{ parameters.build_tag }}
     enable_acr_push: true
-
     saveImageToPath: images/$(os)-$(arch)/${{ parameters.archive_file }}.tar.gz
+    enabled_cache: false
     #compress: true
     #saveMetadataToPath: images/$(os)-$(arch)/metadata/${{ parameters.archive_file }}-metadata.json
     #enable_isolated_acr_push: true
