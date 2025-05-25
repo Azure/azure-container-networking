@@ -37,14 +37,14 @@ jobs:
         ob_enable_qemu: true
         OS: windows
         ARCH: amd64
-        GOOS: windows
-        GOARCH: amd64
+        #GOOS: windows
+        #GOARCH: amd64
       ${{ elseif eq(job_data.job, 'linux_arm64') }}:
         ob_enable_qemu: true
         OS: linux
         ARCH: arm64
-        GOOS: linux
-        GOARCH: arm64
+        #GOOS: linux
+        #GOARCH: arm64
     steps:
     - task: DownloadPipelineArtifact@2
       inputs:
