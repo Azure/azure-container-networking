@@ -25,7 +25,7 @@ jobs:
       DEBUG: $[ coalesce(variables['System.Debug'], 'False') ]
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       ${{ if eq(job_data.job, 'linux_amd64') }}:
-        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
+        #LinuxContainerImage: 'mcr.microsoft.com/mirror/docker/library/ubuntu:24.04'
         OS: linux
         ARCH: amd64
         GOOS: linux
@@ -127,7 +127,6 @@ jobs:
         OS: linux
       ${{ elseif eq(job_data.job, 'windows_amd64') }}:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
-        #LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2204:latest'
         ob_enable_qemu: true
         ARCH: amd64
         OS: windows
