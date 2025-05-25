@@ -46,15 +46,15 @@ mkdir -p "$OUT_DIR"/lib
 # Package up Needed C Files
 if [[ -f /etc/debian_version ]];then
   apt-get update -y
-  apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
+  apt-get install -y --no-install-recommends llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
   if [[ $ARCH =~ amd64 ]]; then
-    apt-get install -y  gcc-multilib
+    apt-get install -y --no-install-recommends gcc-multilib
 
     ARCH=x86_64-linux-gnu
     cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
   
   elif [[ $ARCH =~ arm64 ]]; then
-    apt-get install -y gcc-aarch64-linux-gnu
+    apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu
 
     ARCH=aarch64-linux-gnu
     cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/
@@ -114,9 +114,11 @@ else
   echo >&2 "##[group]usr include $ARCH directory list"
     ls -la /usr/include/"$ARCH" || true
   echo >&2 "##[endgroup]"
+
   echo >&2 "##[group]usr lib directory list"
     ls -la /usr/lib || true
   echo >&2 "##[endgroup]"
+
   echo >&2 "##[group]usr lib ldscripts directory list"
     ls -la /usr/lib/ldscripts || true
   echo >&2 "##[endgroup]"
