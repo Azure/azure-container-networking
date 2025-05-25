@@ -112,13 +112,9 @@ jobs:
       os: linux
       type: docker
       ${{ if eq(job_data.job, 'linux_arm64') }}:
-        hostArchitecture: arm64
-        LinuxHostVersion:
-          distribution: mariner
-          architecture: arm64
+        LinuxHostVersion: 'AzLinux3.0ARM64'
       ${{ else }}:
-        LinuxHostVersion:
-          distribution: mariner
+        LinuxHostVersion: 'AzLinux3.0AMD64'
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       ob_artifactSuffix: _$(name)
