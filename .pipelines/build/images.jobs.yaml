@@ -26,7 +26,6 @@ jobs:
       DROPGZ_VERSION: v0.0.12
       DEBUG: $[ coalesce(variables['System.Debug'], 'False') ]
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
-      ob_containers_signing_enabled: false
       ${{ if eq(job_data.job, 'linux_amd64') }}:
         DEBIAN_FRONTEND: noninteractive
         LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2404:latest'
@@ -34,21 +33,16 @@ jobs:
         #LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         OS: linux
         ARCH: amd64
-        GOOS: linux
-        GOARCH: amd64
       ${{ elseif eq(job_data.job, 'windows_amd64') }}:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         ob_enable_qemu: true
         OS: windows
         ARCH: amd64
-        GOOS: windows
-        #GOARCH: amd64
       ${{ elseif eq(job_data.job, 'linux_arm64') }}:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         OS: linux
         ARCH: arm64
-        GOOS: linux
-        #GOARCH: arm64
+        GOARCH: arm64
     steps:
     - task: DownloadPipelineArtifact@2
       inputs:
@@ -118,8 +112,8 @@ jobs:
     pool:
       os: linux
       type: docker
-      ${{ if eq(job_data.job, 'linux_arm64') }}:
-        hostArchitecture: arm64
+#      ${{ if eq(job_data.job, 'linux_arm64') }}:
+#        hostArchitecture: arm64
 #      ${{ else }}:
 #        LinuxHostVersion: 'AzLinux3.0AMD64'
     variables:
@@ -138,9 +132,10 @@ jobs:
         OS: windows
       ${{ elseif eq(job_data.job, 'linux_arm64') }}:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
-        ob_build_container: true
+        ob_enable_qemu: true
         ARCH: arm64
         OS: linux
+        GOARCH: arm64
 
     steps:
     - template: image.steps.yaml
