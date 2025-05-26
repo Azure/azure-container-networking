@@ -35,7 +35,7 @@ function findcp::shared_library() {
 }
 
 
-[[ $GOOS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
+[[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
 export CGO_ENABLED=0 
 export C_INCLUDE_PATH=/usr/include/bpf
@@ -157,7 +157,7 @@ pushd "$REPO_ROOT"/bpf-prog/ipv6-hp-bpf
   fi
 
   go generate ./...
-  go build -v -a -trimpath \
+  GOOS="$OS" go build -v -a -trimpath \
     -o "$OUT_DIR"/bin/ipv6-hp-bpf"$FILE_EXT" \
     -ldflags "-X main.version="$IPV6_HP_BPF_VERSION"" \
     -gcflags="-dwarflocationlists=true" .

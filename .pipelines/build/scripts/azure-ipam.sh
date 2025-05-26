@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eux
 
-[[ $GOOS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
+[[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
 export CGO_ENABLED=0 
 
