@@ -92,13 +92,14 @@ if [[ -f /etc/debian_version ]];then
 # Mariner
 else
   tdnf install -y llvm clang libbpf-devel nftables gcc binutils iproute glibc
-  if [[ $GOARCH =~ amd64 ]]; then
+  if [[ $ARCH =~ amd64 ]]; then
     ARCH=x86_64-linux-gnu
     if [[ -f '/usr/lib/ld-linux-x86-64.so.2' ]]; then
       cp /usr/lib/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
     fi
-  elif [[ $GOARCH =~ arm64 ]]; then
+  elif [[ $ARCH =~ arm64 ]]; then
     ARCH=aarch64-linux-gnu
+    tdnf install -y glibc-devel.i386
     if [[ -f '/usr/lib/ld-linux-aarch64.so.1' ]]; then
       cp /usr/lib/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/ 
     fi
