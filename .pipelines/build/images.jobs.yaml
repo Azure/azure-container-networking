@@ -40,13 +40,13 @@ jobs:
         ob_enable_qemu: true
         OS: windows
         ARCH: amd64
-        #GOOS: windows
+        GOOS: windows
         #GOARCH: amd64
       ${{ elseif eq(job_data.job, 'linux_arm64') }}:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         OS: linux
         ARCH: arm64
-        #GOOS: linux
+        GOOS: linux
         #GOARCH: arm64
     steps:
     - task: DownloadPipelineArtifact@2
