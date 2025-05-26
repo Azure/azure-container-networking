@@ -28,7 +28,8 @@ jobs:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       ${{ if eq(job_data.job, 'linux_amd64') }}:
         DEBIAN_FRONTEND: noninteractive
-        LinuxContainerImage: 'mcr.microsoft.com/mirror/docker/library/ubuntu:24.04'
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2404:latest'
+        #mcr.microsoft.com/mirror/docker/library/ubuntu:24.04'
         #LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         OS: linux
         ARCH: amd64
