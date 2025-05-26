@@ -99,7 +99,7 @@ else
     fi
   elif [[ $ARCH =~ arm64 ]]; then
     ARCH=aarch64-linux-gnu
-    tdnf install -y glibc-devel.i386
+    #tdnf install -y glibc-devel.i386
     if [[ -f '/usr/lib/ld-linux-aarch64.so.1' ]]; then
       cp /usr/lib/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/ 
     fi
