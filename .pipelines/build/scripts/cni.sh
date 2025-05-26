@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eux
 
-[[ $OS =~ windows ]] && FILE_EXT='exe' || FILE_EXT=''
+[[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
 mkdir -p "$OUT_DIR"/files
 mkdir -p "$OUT_DIR"/bin
