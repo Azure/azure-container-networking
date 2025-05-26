@@ -23,7 +23,6 @@ ARG ARTIFACT_DIR .
 
 COPY --from=build-helper /usr/sbin/*tables* /usr/sbin/
 COPY --from=build-helper /usr/lib /usr/lib
-ADD ${ARTIFACT_DIR}/bin/azure-cns /usr/local/bin/azure-cns
 COPY ${ARTIFACT_DIR}/bin/azure-cns /usr/local/bin/azure-cns
 ENTRYPOINT [ "/usr/local/bin/azure-cns" ]
 EXPOSE 10090
