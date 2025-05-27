@@ -1,6 +1,23 @@
 #!/bin/bash
 set -eux
 
+function _remove_exe_extension() {
+  local file_path
+  file_path="${1}"
+  file_dir=$(dirname "$file_path")
+  file_dir=$(realpath "$file_dir")
+  file_basename=$(basename "$file_path" '.exe')
+  mv "$file_path" "$file_dir"/"$file_basename"
+}
+function files::remove_exe_extensions() {
+  local target_dir
+  target_dir="${1}"
+
+  for file in $(find "$target_dir" -type f -name '*.exe'); do
+    _remove_exe_extension "$file"
+  done
+}
+
 [[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
 export CGO_ENABLED=0 
@@ -18,9 +35,11 @@ mkdir -p "$DROPGZ_BUILD_DIR"
 
 echo >&2 "##[section]Construct DropGZ Embedded Payload"
 pushd "$PAYLOAD_DIR"
-  [[ -n $(stat "$OUT_DIR"/files 2>/dev/null || true) ]] && cp "$OUT_DIR"/files/* .
-  [[ -n $(stat "$OUT_DIR"/scripts 2>/dev/null || true) ]] && cp "$OUT_DIR"/scripts/* .
-  [[ -n $(stat "$OUT_DIR"/bin 2>/dev/null || true) ]] && cp "$OUT_DIR"/bin/* .
+  [[ -d "$OUT_DIR"/files ]] && cp "$OUT_DIR"/files/* . || true
+  [[ -d "$OUT_DIR"/scripts ]] && cp "$OUT_DIR"/scripts/* . || true
+  [[ -d "$OUT_DIR"/bin ]] && cp "$OUT_DIR"/bin/* . || true
+
+  [[ $OS =~ windows ]] && files::remove_exe_extensions .
   
   sha256sum * > sum.txt
   gzip --verbose --best --recursive .
