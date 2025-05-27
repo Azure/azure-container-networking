@@ -1257,30 +1257,76 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 		return err
 	}
 
+	// Set a timeout for the multiTenantController to start
+	controllerStartTimeout := 5 * time.Minute
+	startTimeoutCtx, startCancel := context.WithTimeout(ctx, controllerStartTimeout)
+	defer startCancel()
+
+	// Error channel for the controller start goroutine
+	startErrCh := make(chan error, 1)
+
 	// Wait for multiTenantController to start.
 	go func() {
-		for {
+		// Use a done channel to track if we've successfully started
+		done := make(chan struct{})
+		defer close(done)
+
+		go func() {
+			// Try to start the controller
 			if err := multiTenantController.Start(ctx); err != nil {
-				logger.Errorf("Failed to start multiTenantController: %v", err)
+				startErrCh <- err
 			} else {
 				logger.Printf("Exiting multiTenantController")
-				return
+				// Close the done channel to signal successful completion
+				close(done)
 			}
+		}()
 
-			// Retry after 1sec
-			time.Sleep(time.Second)
+		select {
+		case <-startTimeoutCtx.Done():
+			if startTimeoutCtx.Err() == context.DeadlineExceeded {
+				logger.Errorf("Timed out waiting for multiTenantController to start after %v", controllerStartTimeout)
+				multitenantControllerStartTimeouts.Inc()
+				os.Exit(1)
+			}
+		case err := <-startErrCh:
+			logger.Errorf("Failed to start multiTenantController: %v", err)
+			os.Exit(1)
+		case <-done:
+			// Controller started successfully and exited
+			return
 		}
 	}()
+
+	// Wait for the controller to report it has started
+	startedCtx, startedCancel := context.WithTimeout(ctx, controllerStartTimeout)
+	defer startedCancel()
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
 	for {
-		if multiTenantController.IsStarted() {
-			logger.Printf("MultiTenantController is started")
-			break
+		select {
+		case <-ticker.C:
+			if multiTenantController.IsStarted() {
+				logger.Printf("MultiTenantController is started")
+				// Start the sync loop
+				initSyncHostNCVersion(ctx, httpRestServiceImpl, cnsconfig)
+				return nil
+			}
+			logger.Printf("Waiting for multiTenantController to start...")
+		case <-startedCtx.Done():
+			logger.Errorf("Timed out waiting for multiTenantController to report started after %v", controllerStartTimeout)
+			multitenantControllerStartTimeouts.Inc()
+			return fmt.Errorf("timed out waiting for multiTenantController to report started")
+		case err := <-startErrCh:
+			return fmt.Errorf("failed to start multiTenantController: %w", err)
 		}
-
-		logger.Printf("Waiting for multiTenantController to start...")
-		time.Sleep(time.Millisecond * 500)
 	}
+}
 
+// initSyncHostNCVersion starts a goroutine to periodically poll and sync NC versions
+func initSyncHostNCVersion(ctx context.Context, httpRestServiceImpl *restserver.HTTPRestService, cnsconfig configuration.CNSConfig) {
 	// TODO: do we need this to be running?
 	logger.Printf("Starting SyncHostNCVersion")
 	go func() {
@@ -1297,8 +1343,6 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 			}
 		}
 	}()
-
-	return nil
 }
 
 type nodeNetworkConfigGetter interface {
@@ -1611,18 +1655,29 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// Monitor's internal loop.
 	go func() {
 		logger.Printf("Starting controller-manager.")
-		for {
-			if err := manager.Start(ctx); err != nil {
-				logger.Errorf("Failed to start controller-manager: %v", err)
-				// retry to start the request controller
-				// inc the managerStartFailures metric for failure tracking
-				managerStartFailures.Inc()
-			} else {
-				logger.Printf("Stopped controller-manager.")
-				return
+		
+		// Set a timeout for the controller-manager to start
+		managerStartTimeout := 5 * time.Minute
+		startTimeoutCtx, startCancel := context.WithTimeout(ctx, managerStartTimeout)
+		defer startCancel()
+		
+		// Start the controller manager with the timeout context
+		if err := manager.Start(startTimeoutCtx); err != nil {
+			if startTimeoutCtx.Err() == context.DeadlineExceeded {
+				logger.Errorf("Timed out waiting for controller-manager to start after %v", managerStartTimeout)
+				managerStartTimeouts.Inc()
+				// Exit the process since this is a terminal failure state
+				os.Exit(1)
 			}
-			time.Sleep(time.Second) // TODO(rbtr): make this exponential backoff
+			
+			logger.Errorf("Failed to start controller-manager: %v", err)
+			// inc the managerStartFailures metric for failure tracking
+			managerStartFailures.Inc()
+			// Exit the process since any failure here is terminal
+			os.Exit(1)
 		}
+		
+		logger.Printf("Stopped controller-manager.")
 	}()
 	logger.Printf("Initialized controller-manager.")
 	for {
