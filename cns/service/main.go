@@ -1259,54 +1259,36 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 
 	// Set a timeout for the multiTenantController to start
 	controllerStartTimeout := 5 * time.Minute
-	startTimeoutCtx, startCancel := context.WithTimeout(ctx, controllerStartTimeout)
-	defer startCancel()
 
-	// Error channel for the controller start goroutine
+	// Create a channel to receive start errors
 	startErrCh := make(chan error, 1)
 
-	// Wait for multiTenantController to start.
+	// Start the controller in a goroutine
+	startCtx, startCancel := context.WithTimeout(ctx, controllerStartTimeout)
+	defer startCancel()
+
 	go func() {
-		// Use a done channel to track if we've successfully started
-		done := make(chan struct{})
-		defer close(done)
-
-		go func() {
-			// Try to start the controller
-			if err := multiTenantController.Start(ctx); err != nil {
-				startErrCh <- err
-			} else {
-				logger.Printf("Exiting multiTenantController")
-				// Close the done channel to signal successful completion
-				close(done)
-			}
-		}()
-
-		select {
-		case <-startTimeoutCtx.Done():
-			if startTimeoutCtx.Err() == context.DeadlineExceeded {
-				logger.Errorf("Timed out waiting for multiTenantController to start after %v", controllerStartTimeout)
-				multitenantControllerStartTimeouts.Inc()
-				os.Exit(1)
-			}
-		case err := <-startErrCh:
-			logger.Errorf("Failed to start multiTenantController: %v", err)
-			os.Exit(1)
-		case <-done:
-			// Controller started successfully and exited
-			return
+		if err := multiTenantController.Start(ctx); err != nil {
+			startErrCh <- err
+		} else {
+			logger.Printf("MultiTenantController stopped normally")
+			startErrCh <- nil
 		}
 	}()
 
 	// Wait for the controller to report it has started
-	startedCtx, startedCancel := context.WithTimeout(ctx, controllerStartTimeout)
-	defer startedCancel()
-
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
+		case err := <-startErrCh:
+			if err != nil {
+				logger.Errorf("Failed to start multiTenantController: %v", err)
+				return fmt.Errorf("failed to start multiTenantController: %w", err)
+			}
+			// Controller exited normally
+			return nil
 		case <-ticker.C:
 			if multiTenantController.IsStarted() {
 				logger.Printf("MultiTenantController is started")
@@ -1315,12 +1297,10 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 				return nil
 			}
 			logger.Printf("Waiting for multiTenantController to start...")
-		case <-startedCtx.Done():
-			logger.Errorf("Timed out waiting for multiTenantController to report started after %v", controllerStartTimeout)
+		case <-startCtx.Done():
+			logger.Errorf("Timed out waiting for multiTenantController to start after %v", controllerStartTimeout)
 			multitenantControllerStartTimeouts.Inc()
-			return fmt.Errorf("timed out waiting for multiTenantController to report started")
-		case err := <-startErrCh:
-			return fmt.Errorf("failed to start multiTenantController: %w", err)
+			return fmt.Errorf("timed out waiting for multiTenantController to start")
 		}
 	}
 }
@@ -1653,67 +1633,89 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// Start the Manager which starts the reconcile loop.
 	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the
 	// Monitor's internal loop.
+	managerStartTimeout := 5 * time.Minute
+	startManagerCtx, startManagerCancel := context.WithTimeout(ctx, managerStartTimeout)
+	defer startManagerCancel()
+	managerErrCh := make(chan error, 1)
+	
 	go func() {
 		logger.Printf("Starting controller-manager.")
-		
-		// Set a timeout for the controller-manager to start
-		managerStartTimeout := 5 * time.Minute
-		startTimeoutCtx, startCancel := context.WithTimeout(ctx, managerStartTimeout)
-		defer startCancel()
-		
-		// Start the controller manager with the timeout context
-		if err := manager.Start(startTimeoutCtx); err != nil {
-			if startTimeoutCtx.Err() == context.DeadlineExceeded {
+		if err := manager.Start(startManagerCtx); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) || startManagerCtx.Err() == context.DeadlineExceeded {
 				logger.Errorf("Timed out waiting for controller-manager to start after %v", managerStartTimeout)
 				managerStartTimeouts.Inc()
-				// Exit the process since this is a terminal failure state
-				os.Exit(1)
+				managerErrCh <- fmt.Errorf("controller-manager start timed out: %w", err)
+				return
 			}
 			
 			logger.Errorf("Failed to start controller-manager: %v", err)
-			// inc the managerStartFailures metric for failure tracking
 			managerStartFailures.Inc()
-			// Exit the process since any failure here is terminal
-			os.Exit(1)
+			managerErrCh <- fmt.Errorf("controller-manager failed to start: %w", err)
+			return
 		}
 		
 		logger.Printf("Stopped controller-manager.")
+		managerErrCh <- nil
 	}()
-	logger.Printf("Initialized controller-manager.")
-	for {
-		logger.Printf("Waiting for NodeNetworkConfig reconciler to start.")
-		// wait for the Reconciler to run once on a NNC that was made for this Node.
-		// the nncReadyCtx has a timeout of 15 minutes, after which we will consider
-		// this false and the NNC Reconciler stuck/failed, log and retry.
-		nncReadyCtx, cancel := context.WithTimeout(ctx, 15*time.Minute) // nolint // it will time out and not leak
-		if started, err := nncReconciler.Started(nncReadyCtx); !started {
-			logger.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
-			nncReconcilerStartFailures.Inc()
-			continue
-		}
-		logger.Printf("NodeNetworkConfig reconciler has started.")
-		cancel()
-		break
-	}
-
+	
+	// Wait for the NodeNetworkConfig reconciler to start or the manager to fail
+	nncReconcilerStartCtx, nncReconcilerStartCancel := context.WithCancel(ctx)
+	defer nncReconcilerStartCancel()
+	
 	go func() {
-		logger.Printf("Starting SyncHostNCVersion loop.")
-		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
-		for {
-			select {
-			case <-tickerChannel:
-				timedCtx, cancel := context.WithTimeout(ctx, time.Duration(cnsconfig.SyncHostNCVersionIntervalMs)*time.Millisecond)
-				httpRestServiceImplementation.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
-				cancel()
-			case <-ctx.Done():
-				logger.Printf("Stopping SyncHostNCVersion loop.")
+		// Check if we get an error from the manager
+		select {
+		case err := <-managerErrCh:
+			if err != nil {
+				logger.Errorf("Controller manager error: %v", err)
+				rootErrCh <- err
 				return
 			}
+		case <-nncReconcilerStartCtx.Done():
+			// The NNC reconciler started successfully, so we can exit this goroutine
+			return
 		}
 	}()
-	logger.Printf("Initialized SyncHostNCVersion loop.")
-	return nil
+	logger.Printf("Initialized controller-manager.")
+	
+	// Wait for the Reconciler to run once on a NNC that was made for this Node
+	nncReadyTimeout := 15 * time.Minute
+	waitStartTime := time.Now()
+	
+	for {
+		select {
+		case err := <-managerErrCh:
+			if err != nil {
+				return fmt.Errorf("controller-manager failed: %w", err)
+			}
+			logger.Printf("Controller-manager exited normally")
+			return nil
+		default:
+			// Check if NNC reconciler has started
+			checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			started, err := nncReconciler.Started(checkCtx)
+			cancel()
+			
+			if started {
+				logger.Printf("NodeNetworkConfig reconciler has started.")
+				nncReconcilerStartCancel() // Signal the manager error watcher that NNC started successfully
+				
+				// Start the sync host NC version goroutine
+				initSyncHostNncVersion(ctx, httpRestServiceImplementation, cnsconfig)
+				return nil
+			}
+			
+			// Check if we've waited too long
+			if time.Since(waitStartTime) > nncReadyTimeout {
+				logger.Errorf("NNC reconciler has not started after %v, does the NNC exist? err: %v", nncReadyTimeout, err)
+				nncReconcilerStartFailures.Inc()
+				return fmt.Errorf("timed out waiting for NNC reconciler to start: %w", err)
+			}
+			
+			logger.Printf("Waiting for NodeNetworkConfig reconciler to start.")
+			time.Sleep(3 * time.Second)
+		}
+	}
 }
 
 // getPodInfoByIPProvider returns a PodInfoByIPProvider that reads endpoint state from the configured source
