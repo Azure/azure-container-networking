@@ -13,10 +13,7 @@ stages:
       ob_artifactSuffix: _source
 
       ACR_DIR: $(Build.SourcesDirectory)/azure-container-networking
-      ${{ if parameters.isOfficial }}:
-        BUILD_TYPE: official
-      ${{ else }}:
-        BUILD_TYPE: buddy
+      BUILD_TYPE: $(BUILD_TYPE)
     steps:
     - checkout: azure-container-networking
     - template: build/ob-prepare.steps.yaml
@@ -105,7 +102,7 @@ stages:
                 name: azure-ipam
                 extraArgs: ''
                 archiveName: azure-ipam
-                archiveVersion: $(OS)-$(ARCH)-$(AZURE_IPAM_VERSION)
+                archiveVersion: $(AZURE_IPAM_VERSION)
                 imageTag: $(Build.BuildNumber)
                 packageWithDropGZ: True
               cni:
