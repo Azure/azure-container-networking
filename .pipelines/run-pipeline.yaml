@@ -13,7 +13,7 @@ stages:
       ob_artifactSuffix: _source
 
       ACR_DIR: $(Build.SourcesDirectory)/azure-container-networking
-      BUILD_TYPE: $(BUILD_TYPE)
+      BUILD_TYPE: $(IMAGE_ACR_TYPE)
     steps:
     - checkout: azure-container-networking
     - template: build/ob-prepare.steps.yaml
