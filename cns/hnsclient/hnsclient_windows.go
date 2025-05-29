@@ -52,6 +52,9 @@ const (
 	// Name of the loopback adapter needed to create Host NC apipa network
 	hostNCLoopbackAdapterName = "LoopbackAdapterHostNCConnectivity"
 
+	// Name of the loopback adapter needed to search for Host NC apipa network
+	vEthernethostNCLoopbackAdapterName = "vEthernet (LoopbackAdapterHostNCConnectivity)"
+
 	// protocolTCP indicates the TCP protocol identifier in HCN
 	protocolTCP = "6"
 
@@ -294,7 +297,7 @@ func createHostNCApipaNetwork(
 		}
 
 		// Create loopback adapter needed for this HNS network
-		if interfaceExists, _ := networkcontainers.InterfaceExists(hostNCLoopbackAdapterName); !interfaceExists {
+		if interfaceExists, _ := networkcontainers.InterfaceExists(vEthernethostNCLoopbackAdapterName); !interfaceExists {
 			ipconfig := cns.IPConfiguration{
 				IPSubnet: cns.IPSubnet{
 					IPAddress:    localIPConfiguration.GatewayIPAddress,
