@@ -22,7 +22,7 @@ func (c *Config) normalize() {
 			c.ETW.EventName = "AzureCNS"
 		}
 		if c.ETW.ProviderName == "" {
-			c.ETW.ProviderName = "ACN-Monitoring-CNS"
+			c.ETW.ProviderName = "ACN-Monitoring"
 		}
 	}
 }
