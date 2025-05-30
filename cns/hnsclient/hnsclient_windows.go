@@ -1,3 +1,6 @@
+//go:build windows
+// +build windows
+
 package hnsclient
 
 import (
@@ -52,6 +55,9 @@ const (
 
 	// Name of the loopback adapter needed to create Host NC apipa network
 	hostNCLoopbackAdapterName = "LoopbackAdapterHostNCConnectivity"
+
+	// Name of the loopback adapter created by HNS for Host NC apipa network
+	vEthernethostNCLoopbackAdapterName = "vEthernet (" + hostNCLoopbackAdapterName + ")"
 
 	// HNS rehydration issue requires this GW to be different than the loopback adapter ip, so we set it to .2
 	defaultHnsGwIPAddress       = "169.254.128.2"
@@ -301,7 +307,12 @@ func createHostNCApipaNetwork(
 		}
 
 		// Create loopback adapter needed for this HNS network
-		if interfaceExists, _ := networkcontainers.InterfaceExists(hostNCLoopbackAdapterName); !interfaceExists {
+		// We need to first check the existence of either "LoopbackAdapterHostNCConnectivity" or the vEthernet(LoopbackAdapterHostNCConnectivity) interfaces
+		// If neither exists, we create the loopback adapter with the specified IP configuration.
+		shouldCreate, logMessage := shouldCreateLoopbackAdapter(networkcontainers.InterfaceExists)
+		logger.Printf(logMessage)
+		
+		if shouldCreate {
 			ipconfig := cns.IPConfiguration{
 				IPSubnet: cns.IPSubnet{
 					IPAddress:    hnsLoopbackAdapterIPAddress,
@@ -337,6 +348,24 @@ func createHostNCApipaNetwork(
 	}
 
 	return network, err
+}
+
+// shouldCreateLoopbackAdapter determines whether a loopback adapter should be created
+// based on the existence of either the hostNCLoopbackAdapterName or vEthernethostNCLoopbackAdapterName interfaces
+func shouldCreateLoopbackAdapter(
+	interfaceExistsFunc func(string) (bool, error)) (bool, string) {
+	loopbackInterfaceExists, _ := interfaceExistsFunc(hostNCLoopbackAdapterName)
+	vethernetLoopbackInterfaceExists, _ := interfaceExistsFunc(vEthernethostNCLoopbackAdapterName)
+	
+	if loopbackInterfaceExists {
+		return false, hostNCLoopbackAdapterName + " already created, skipping loopback interface creation"
+	}
+	if vethernetLoopbackInterfaceExists {
+		return false, vEthernethostNCLoopbackAdapterName + " already created, skipping loopback interface creation"
+	}
+	
+	// Neither interface exists, so we should create the loopback adapter
+	return true, "Creating loopback adapter"
 }
 
 // LogNetworkInterfaces logs the host's network interfaces in the default namespace.
