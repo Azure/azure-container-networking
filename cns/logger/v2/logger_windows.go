@@ -5,7 +5,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// platformCore returns a zapcore.Core that sends logs to ETW.
+// On Windows, platformCore returns a zapcore.Core that sends logs to ETW.
 func platformCore(cfg *Config) (zapcore.Core, func(), error) {
 	if cfg.ETW == nil {
 		return zapcore.NewNopCore(), func() {}, nil
