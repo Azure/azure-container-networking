@@ -5,7 +5,7 @@ ARG OS_VERSION
 ARG OS
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.23-cbl-mariner2.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:bc9d564dc7279c749a9bb1abfa03f872d24f60bf7e37e61f35dda98c2ccec0c4 AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:f1cb092e89f5f3448b6db87729039c61541cb85747c690f760b3017218d449bb AS go
 
 # mcr.microsoft.com/cbl-mariner/base/core:2.0
 FROM mcr.microsoft.com/cbl-mariner/base/core@sha256:12480ee9f027c304fabc17d70afc7d5da6c49ad46f0401947478e7218ea0ff6c AS mariner-core
