@@ -31,11 +31,13 @@ jobs:
         LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2404:latest'
         #LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         OS: linux
+        ARCH: amd64
       ${{ elseif eq(job_data.job, 'windows_amd64') }}:
         LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2404:latest'
         #LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         ob_enable_qemu: true
         OS: windows
+        ARCH: amd64
       ${{ elseif eq(job_data.job, 'linux_arm64') }}:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         OS: linux
