@@ -2,6 +2,7 @@ package hnsclient
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -89,6 +90,11 @@ const (
 
 // Named Lock for network and endpoint creation/deletion
 var namedLock = common.InitNamedLock()
+
+// Error definitions
+var (
+	ErrDeleteEndpoint = errors.New("failed to delete endpoint")
+)
 
 // CreateHnsNetwork creates the HNS network with the provided configuration
 func CreateHnsNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
@@ -692,8 +698,8 @@ func deleteEndpointByNameHnsV2(
 	}
 
 	if err = endpoint.Delete(); err != nil {
-		return fmt.Errorf("Failed to delete endpoint: %s (%s). Error: %v",
-			endpoint.Name, endpoint.Id, err)
+		return fmt.Errorf("%w: %s (%s): %w",
+			ErrDeleteEndpoint, endpoint.Name, endpoint.Id, err)
 	}
 
 	logger.Errorf("[Azure CNS] Successfully deleted endpoint with ID: %s, Name: %s",
