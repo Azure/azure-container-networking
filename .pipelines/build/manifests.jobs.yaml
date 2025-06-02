@@ -36,3 +36,4 @@ jobs:
         image_repository: ${{ job_data.templateContext.name }}
         image_tag: ${{ job_data.templateContext.image_tag }}
         manifest_data: $(MANIFEST_JSON)
+        is_release_image: ${{ job_data.templateContext.isReleaseImage }}
