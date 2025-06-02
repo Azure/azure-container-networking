@@ -66,8 +66,6 @@ steps:
   retryCountOnTaskFailure: 3
   timeoutInMinutes: 30
   inputs:
-    ${{ if parameters.registry_endpoint }}:
-    registry: ${{ parameters.registry }}.azurecr.io
     os: '${{ parameters.os }}'
     buildkit: 1
     dockerFileRelPath: artifacts/Dockerfile
