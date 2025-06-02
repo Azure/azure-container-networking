@@ -1,4 +1,8 @@
 parameters:
+- name: is_release_image
+  type: boolean
+  default: false
+
 - name: arch
   type: string
   default: ""
@@ -17,7 +21,7 @@ parameters:
 
 - name: archive_file
   type: string
-  default: '$(name)-$(os)-$(platform)-$(Tag)'
+  default: '$(name)-$(platform)-$(Tag)'
 
 - name: source
   type: string
@@ -49,11 +53,12 @@ steps:
     targetPath: $(Build.SourcesDirectory)/dst/artifacts
     artifact: ${{ parameters.source }}
 
-- task: onebranch.pipeline.containercontrol@1
-  displayName: "Login to ACR"
-  inputs:
-    command: login
-    endpoint: $(ACR_ARM_SERVICE_CONNECTION)
+- ${{ if not(parameters.is_release_image) }}:
+  - task: onebranch.pipeline.containercontrol@1
+    displayName: "Login to ACR"
+    inputs:
+      command: login
+      endpoint: $(ACR_ARM_SERVICE_CONNECTION)
 
 # Build and push the Docker image
 - task: onebranch.pipeline.imagebuildinfo@1
@@ -61,21 +66,33 @@ steps:
   retryCountOnTaskFailure: 3
   timeoutInMinutes: 30
   inputs:
-    endpoint: $(ACR_ARM_SERVICE_CONNECTION)
-    registry: $(ACR).azurecr.io
-    repositoryName: $(os)-$(arch)/${{ parameters.name }}
+    ${{ if parameters.registry_endpoint }}:
+    registry: ${{ parameters.registry }}.azurecr.io
     os: '${{ parameters.os }}'
     buildkit: 1
     dockerFileRelPath: artifacts/Dockerfile
     enable_network: true
-    enable_pull: true
-    build_tag: ${{ parameters.build_tag }}
-    enable_acr_push: true
-    saveImageToPath: images/$(os)-$(arch)/${{ parameters.archive_file }}.tar.gz
-    enabled_cache: false
     #compress: true
-    #saveMetadataToPath: images/$(os)-$(arch)/metadata/${{ parameters.archive_file }}-metadata.json
-    #enable_isolated_acr_push: true
+    ${{ if parameters.is_release_image }}:
+      registry: $(ACR_PROD).azurecr.io
+      repositoryName: ${{ parameters.name }}
+      build_tag: $(archiveVersion)-$(os)-$(arch)
+      enable_acr_push: false
+      enable_cache: true
+      enable_pull: false
+      enable_service_tree_acr_path: false
+      saveImageToPath: images/release/${{ parameters.archive_file }}.tar
+      saveMetadataToPath: images/release/metadata/${{ parameters.archive_file }}-metadata.json
+    ${{ else }}:
+      registry: $(ACR).azurecr.io
+      endpoint: '$(ACR_ARM_SERVICE_CONNECTION)'
+      repositoryName: $(os)-$(arch)/${{ parameters.name }}
+      build_tag: ${{ parameters.build_tag }}
+      enable_acr_push: true
+      enable_cache: false
+      enable_pull: true
+      saveImageToPath: images/$(os)-$(arch)/${{ parameters.archive_file }}.tar.gz
+      #saveMetadataToPath: images/$(os)-$(arch)/metadata/${{ parameters.archive_file }}-metadata.json
 
     # Docker Build Arguments
     ${{ if parameters.common_build_args }}:
