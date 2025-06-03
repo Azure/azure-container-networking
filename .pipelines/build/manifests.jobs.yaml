@@ -53,24 +53,25 @@ jobs:
         MANIFEST_JSON: $[ dependencies.${{ job_data.job }}_generate_manifest.outputs['data.MANIFEST_JSON'] ]
       steps:
       - download: current
-        targetPath: $(ob_outputDirectory)/images
         patterns: |
           drop_build_images_${{ replace(job_data.job, 'prod_', '') }}/images/release/**/*
 
       - bash: |
           set -e
-          MANIFEST_LIST_IMAGE_REF="$IMAGE_REPO"/"$IMAGE_NAME":"$IMAGE_TAG"
-          docker manifest create "$MANIFEST_LIST_IMAGE_REF"
+          available_platform_images=
           for image_tar in $(find . -name '*.tar'); do
-            cp "$image_tar" "$OUTPUT_DIR"
-            image_load_out=$(docker load -i "$image_tar")
+            cp "$image_tar" "$OUTPUT_DIR"/images
+            image_load_out=$(docker load -i "$OUTPUT_DIR"/images/"$image_tar")
             image_ref=$(echo "$image_load_out" | grep -Goi '[a-z\-_0-9]*\.azurecr\.io\/[a-z\-_0-9\/-]*:[a-z\-_0-9.\/-]*')
-            docker manifest annotate "$MANIFEST_LIST_IMAGE_REF" "$image_ref"
+            available_platform_images+="$image_ref "
           done
-          docker manifest inspect "$MANIFEST_LIST_IMAGE_REF" > "$DOWNLOAD_DIR"/prod-"$IMAGE_NAME"-"$IMAGE_TAG".json
-          docker save "$MANIFEST_LIST_IMAGE_REF" -o "$DOWNLOAD_DIR"/"$IMAGE_NAME"-"$IMAGE_TAG"
+          MANIFEST_LIST_IMAGE_REF="$IMAGE_REPO"/"$IMAGE_NAME":"$IMAGE_TAG"
+          docker image save -o "$OUT_DIR"/"$IMAGE_NAME"-"$IMAGE_TAG" \
+                            "$MANIFEST_LIST_IMAGE_REF" \
+                            "$available_platform_images"
+          docker manifest inspect "$MANIFEST_LIST_IMAGE_REF" > "$OUT_DIR"/prod-"$IMAGE_NAME"-"$IMAGE_TAG".json
         env:
-          DOWNLOAD_DIR: $(ob_outputDirectory)
+          OUT_DIR: $(ob_outputDirectory)
           IMAGE_REPO: $(ACN_PROD).azurecr.io
           IMAGE_NAME: ${{ job_data.templateContext.name }}
           IMAGE_TAG: ${{ job_data.templateContext.image_tag }}
