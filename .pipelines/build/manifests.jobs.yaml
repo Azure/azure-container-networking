@@ -42,20 +42,19 @@ jobs:
     - job: ${{ job_data.job }}_manifest
       displayName: "Prepare Prod Image Drop - ${{ job_data.job }}"
       pool:
-        type: docker
-        os: linux
+        type: linux
       variables:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         ob_outputDirectory: $(Build.SourcesDirectory)/out
         ob_git_checkout: false
   
         MANIFEST_JSON: $[ dependencies.${{ job_data.job }}_generate_manifest.outputs['data.MANIFEST_JSON'] ]
-      steps:
-#      - task: Docker@2
-#        displayName: Login to ACR
-#        inputs:
-#          command: login
-#          containerRegistry: dockerRegistryServiceConnection1
+     steps:
+      - task: Docker@2
+        displayName: Login to ACR
+        inputs:
+          command: login
+          endpoint: $(ACR_ARM_SERVICE_CONNECTION)
       - download: current
         patterns: |
           drop_build_images_*_*_${{ job_data.templateContext.name }}_*/images/release/**/*
