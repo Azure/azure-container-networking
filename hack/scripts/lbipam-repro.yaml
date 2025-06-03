@@ -1,0 +1,186 @@
+##!/bin/bash
+
+## Variables
+#RESOURCE_GROUP="man-lbipam"
+#CLUSTER_NAME="man-lbipam"
+#LOCATION="westus2"
+#NODE_SIZE="Standard_DS4_v2"
+#NODE_COUNT=3
+#K8S_VERSION="1.31"
+#IDENTITY_NAME="${CLUSTER_NAME}-identity"
+#SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+## Create resource group
+#az group create --name $RESOURCE_GROUP --location $LOCATION --subscription $SUBSCRIPTION_ID
+
+## Create managed identity for BYO-CNI
+#az identity create --name $IDENTITY_NAME --resource-group $RESOURCE_GROUP --location $LOCATION --subscription $SUBSCRIPTION_ID
+
+## Get the identity resource ID
+#IDENTITY_ID=$(az identity show --name $IDENTITY_NAME --resource-group $RESOURCE_GROUP --query id -o tsv) 
+
+## Create the AKS cluster with no CNI
+#az aks create \
+#  --resource-group $RESOURCE_GROUP \
+#  --name $CLUSTER_NAME \
+#  --location $LOCATION \
+#  --kubernetes-version $K8S_VERSION \
+#  --enable-managed-identity \
+#  --assign-identity $IDENTITY_ID \
+#  --node-vm-size $NODE_SIZE \
+#  --node-count $NODE_COUNT \
+#  --pod-cidr 192.168.0.0/16 \
+#  --generate-ssh-keys \
+#  --network-plugin azure \
+#  --network-plugin-mode overlay \
+#  --network-dataplane cilium \
+#  --subscription $SUBSCRIPTION_ID 
+
+##az aks create \
+##  --resource-group $RESOURCE_GROUP \
+##  --name $CLUSTER_NAME \
+##  --location $LOCATION \
+##  --kubernetes-version $K8S_VERSION \
+##  --enable-managed-identity \
+##  --assign-identity $IDENTITY_ID \
+##  --node-vm-size $NODE_SIZE \
+##  --node-count $NODE_COUNT \
+##  --pod-cidr 192.168.0.0/16 \
+##  --generate-ssh-keys \
+##  --network-plugin-mode overlay \
+##  --network-plugin none \
+##  --subscription $SUBSCRIPTION_ID \
+
+### Install Cilium and CNS
+##echo "install Cilium"
+##export CILIUM_VERSION_TAG=v1.16.8-250325
+##export CILIUM_IMAGE_REGISTRY=mcr.microsoft.com/containernetworking
+##export DIR=1.16
+##echo "installing files from ${DIR}"
+##kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
+##kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+##kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
+##envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+##envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+##kubectl get po -owide -A
+
+##sudo -E env "PATH=$PATH" make test-load AZURE_IPAM_VERSION=v0.3.0 CNS_VERSION=v1.6.24 INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=MCR IPAM_IMAGE_REPO=MCR
+
+## Get kubeconfig
+#az aks get-credentials --resource-group $RESOURCE_GROUP --name $CLUSTER_NAME
+
+## Confirm nodes are running
+#kubectl get nodes
+
+## Create NGINX deployment
+#kubectl create deployment nginx-demo --image=nginx:latest --namespace=default
+#kubectl scale deployment/nginx-demo --replicas=2 --namespace=default
+
+## Expose the deployment as a LoadBalancer service
+#kubectl expose deployment nginx-demo \
+#  --name=nginx-service \
+#  --port=80 \
+#  --target-port=80 \
+#  --type=LoadBalancer \
+#  --namespace=default
+
+#kubectl get service nginx-service --namespace=default 
+### Sleep a bit to let azure give a real ip 
+#echo "wait 50 sec while it gets an ip "
+#sleep 50
+#kubectl get service nginx-service --namespace=default 
+## Apply CiliumLoadBalancerIPPool
+
+#kubectl apply -f - <<EOF
+#apiVersion: "cilium.io/v2alpha1"
+#kind: CiliumLoadBalancerIPPool
+#metadata:
+#  name: "blue-pool2"
+#spec:
+#  blocks:
+#  - cidr: "10.0.10.0/24"
+#  - cidr: "2004::0/64"
+#  - start: "20.0.20.100"
+#    stop: "20.0.20.200"
+#  - start: "1.2.3.4"
+#EOF
+#echo "watch service as it goes into pending state"
+#kubectl get service nginx-service --namespace=default --watch
+
+
+#!/bin/bash
+
+# Variables
+RESOURCE_GROUP="man-lbipam2"
+CLUSTER_NAME="man-lbipam2"
+LOCATION="westus2"
+NODE_SIZE="Standard_DS4_v2"
+NODE_COUNT=3
+K8S_VERSION="1.31"
+IDENTITY_NAME="${CLUSTER_NAME}-identity"
+
+# Create resource group
+az group create --name $RESOURCE_GROUP --location $LOCATION
+
+# Create managed identity for BYO-CNI
+az identity create --name $IDENTITY_NAME --resource-group $RESOURCE_GROUP --location $LOCATION
+
+# Get the identity resource ID
+IDENTITY_ID=$(az identity show --name $IDENTITY_NAME --resource-group $RESOURCE_GROUP --query id -o tsv)
+
+# Create the AKS cluster with no CNI
+az aks create \
+  --resource-group $RESOURCE_GROUP \
+  --name $CLUSTER_NAME \
+  --location $LOCATION \
+  --kubernetes-version $K8S_VERSION \
+  --enable-managed-identity \
+  --assign-identity $IDENTITY_ID \
+  --node-vm-size $NODE_SIZE \
+  --node-count $NODE_COUNT \
+  --pod-cidr 192.168.0.0/16 \
+  --generate-ssh-keys \
+  --network-plugin azure \
+  --network-plugin-mode overlay \
+  --network-dataplane cilium
+
+# Get kubeconfig
+az aks get-credentials --resource-group $RESOURCE_GROUP --name $CLUSTER_NAME
+
+# Confirm nodes are running
+kubectl get nodes
+
+# Create NGINX deployment
+kubectl create deployment nginx-demo --image=nginx:latest --namespace=default
+kubectl scale deployment/nginx-demo --replicas=2 --namespace=default
+
+# Expose the deployment as a LoadBalancer service
+kubectl expose deployment nginx-demo \
+  --name=nginx-service \
+  --port=80 \
+  --target-port=80 \
+  --type=LoadBalancer \
+  --namespace=default
+
+kubectl get service nginx-service --namespace=default 
+## Sleep a bit to let azure give a real ip 
+echo "wait 50 sec while it gets an ip "
+sleep 50
+kubectl get service nginx-service --namespace=default 
+# Apply CiliumLoadBalancerIPPool
+
+kubectl apply -f - <<EOF
+apiVersion: "cilium.io/v2alpha1"
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: "blue-pool2"
+spec:
+  blocks:
+  - cidr: "10.0.10.0/24"
+  - cidr: "2004::0/64"
+  - start: "20.0.20.100"
+    stop: "20.0.20.200"
+  - start: "1.2.3.4"
+EOF
+echo "watch service as it goes into pending state"
+kubectl get service nginx-service --namespace=default --watch
