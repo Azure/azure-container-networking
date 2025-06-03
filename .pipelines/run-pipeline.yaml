@@ -258,55 +258,6 @@ stages:
         #       imageReference: $(NPM_LINUX_ARM64_REF)
         #     - platform: windows/amd64
         #       imageReference: $(NPM_WINDOWS_AMD64_REF)
-    - template: build/manifests.jobs.yaml
-      parameters:
-        generate:
-        - job: prod_azure_ipam
-          templateContext:
-            name: azure-ipam
-            image_tag: $(AZURE_IPAM_VERSION)
-            isReleaseImage: true
-            platforms:
-            - platform: linux/amd64
-              imageReference: azure-ipam:$(AZURE_IPAM_VERSION)-linux-amd64
-            - platform: linux/arm64
-              imageReference: azure-ipam:$(AZURE_IPAM_VERSION)-linux-arm64
-            - platform: windows/amd64
-              imageReference: azure-ipam:$(AZURE_IPAM_VERSION)-windows-amd64
-        - job: prod_cni
-          templateContext:
-            name: cni
-            image_tag: $(CNI_VERSION)
-            isReleaseImage: true
-            platforms:
-            - platform: linux/amd64
-              imageReference: cni:$(CNI_VERSION)-linux-amd64
-            - platform: linux/arm64
-              imageReference: cni:$(CNI_VERSION)-linux-arm64
-            - platform: windows/amd64
-              imageReference: cni:$(CNI_VERSION)-windows-amd64
-        - job: prod_cns
-          templateContext:
-            name: cns
-            image_tag: $(CNS_VERSION)
-            isReleaseImage: true
-            platforms:
-            - platform: linux/amd64
-              imageReference: cns:$(CNS_VERSION)-linux-amd64
-            - platform: linux/arm64
-              imageReference: cns:$(CNS_VERSION)-linux-arm64
-            - platform: windows/amd64
-              imageReference: cns:$(CNS_VERSION)-windows-amd64
-        - job: prod_ipv6_hp_bpf
-          templateContext:
-            name: ipv6-hp-bpf
-            image_tag: $(IPV6_HP_BPF_VERSION)
-            isReleaseImage: true
-            platforms:
-            - platform: linux/amd64
-              imageReference: ipv6-hp-bpf:$(IPV6_HP_BPF_VERSION)-linux-amd64
-            - platform: linux/arm64
-              imageReference: ipv6-hp-bpf:$(IPV6_HP_BPF_VERSION)-linux-arm64
 
 
   # Cilium Podsubnet E2E tests

@@ -117,22 +117,19 @@ jobs:
       ob_artifactSuffix: _$(name)
       ob_git_checkout: false
       ob_extract_root_artifact: true
+      LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
       ${{ if eq(job_data.job, 'linux_amd64') }}:
-        LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         ARCH: amd64
         OS: linux
       ${{ elseif eq(job_data.job, 'windows_amd64') }}:
-        #LinuxContainerImage: 'mcr.microsoft.com/onebranch/linux/ubuntu-2404:latest'
-        LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         ob_enable_qemu: true
         ARCH: amd64
         OS: windows
       ${{ elseif eq(job_data.job, 'linux_arm64') }}:
-        LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         ob_enable_qemu: true
         ARCH: arm64
-        GOARCH: arm64
         OS: linux
+        GOARCH: arm64
 
     steps:
     - template: image.steps.yaml
