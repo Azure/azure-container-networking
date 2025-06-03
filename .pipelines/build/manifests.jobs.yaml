@@ -5,35 +5,70 @@ parameters:
 
 jobs:
 - ${{ each job_data in parameters.generate }}:
-  - job: ${{ job_data.job }}_generate_manifest
-    displayName: "Generate Image Manifest - ${{ job_data.job }}"
-    pool:
-      type: linux
-    variables:
-      ob_outputDirectory: $(Build.SourcesDirectory)/out
-      ob_git_checkout: false
-    steps:
-    - template: /.pipelines/build/generate-manifest.steps.yaml
-      parameters:
-        platforms: ${{ job_data.templateContext.platforms }}
+  - ${{ if not(job_data.templateContext.isReleaseImage) }}:
+    - job: ${{ job_data.job }}_generate_manifest
+      displayName: "Generate Image Manifest - ${{ job_data.job }}"
+      pool:
+        type: linux
+      variables:
+        ob_outputDirectory: $(Build.SourcesDirectory)/out
+        ob_git_checkout: false
+      steps:
+      - template: /.pipelines/build/generate-manifest.steps.yaml
+        parameters:
+          platforms: ${{ job_data.templateContext.platforms }}
 
-  - job: ${{ job_data.job }}_publish_manifest
-    displayName: "Publish Image Manifest - ${{ job_data.job }}"
-    dependsOn:
-    - ${{ job_data.job }}_generate_manifest
-    pool:
-      type: docker
-      os: linux
-    variables:
-      LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
-      ob_outputDirectory: $(Build.SourcesDirectory)/out
-      ob_git_checkout: false
+    - job: ${{ job_data.job }}_publish_manifest
+      displayName: "Publish Image Manifest - ${{ job_data.job }}"
+      dependsOn:
+      - ${{ job_data.job }}_generate_manifest
+      pool:
+        type: docker
+        os: linux
+      variables:
+        LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
+        ob_outputDirectory: $(Build.SourcesDirectory)/out
+        ob_git_checkout: false
+  
+        MANIFEST_JSON: $[ dependencies.${{ job_data.job }}_generate_manifest.outputs['data.MANIFEST_JSON'] ]
+      steps:
+      - template: /.pipelines/build/publish-manifest.steps.yaml
+        parameters:
+          image_repository: ${{ job_data.templateContext.name }}
+          image_tag: ${{ job_data.templateContext.image_tag }}
+          manifest_data: $(MANIFEST_JSON)
 
-      MANIFEST_JSON: $[ dependencies.${{ job_data.job }}_generate_manifest.outputs['data.MANIFEST_JSON'] ]
-    steps:
-    - template: /.pipelines/build/publish-manifest.steps.yaml
-      parameters:
-        image_repository: ${{ job_data.templateContext.name }}
-        image_tag: ${{ job_data.templateContext.image_tag }}
-        manifest_data: $(MANIFEST_JSON)
-        is_release_image: ${{ job_data.templateContext.isReleaseImage }}
+  - ${{ else }}:
+    - job: ${{ job_data.job }}_create_manifest
+      displayName: "Prepare Prod Image Manifest - ${{ job_data.job }}"
+      dependsOn:
+      - ${{ job_data.job }}_generate_manifest
+      pool:
+        type: linux
+      variables:
+        LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
+        ob_outputDirectory: $(Build.SourcesDirectory)/out
+        ob_git_checkout: false
+  
+        MANIFEST_JSON: $[ dependencies.${{ job_data.job }}_generate_manifest.outputs['data.MANIFEST_JSON'] ]
+      steps:
+      - download: current
+        targetPath: $(ob_outputDirectory)/images
+        patterns: |
+          drop_build_images_${{ replace(job_data.job, 'prod_', '') }}/images/release/**/*
+
+      - bash: |
+          set -e
+          MANIFEST_LIST_IMAGE_REF="$IMAGE_REPO"/"$IMAGE_NAME":"$IMAGE_TAG"
+          docker manifest create "$MANIFEST_LIST_IMAGE_REF"
+          for image_tar in $(find . -name '*.tar'); do
+            image_load_out=$(docker load -i "$image_tar")
+            image_ref=$(echo "$image_load_out" | grep -Goi '[a-z\-_0-9]*\.azurecr\.io\/[a-z\-_0-9\/-]*:[a-z\-_0-9.\/-]*')
+            docker manifest annotate "$MANIFEST_LIST_IMAGE_REF" "$image_ref"
+          done
+          docker manifest inspect "$MANIFEST_LIST_IMAGE_REF" > "$DOWNLOAD_DIR"/prod-"$IMAGE_NAME"-"$IMAGE_TAG".json
+        env:
+          DOWNLOAD_DIR: $(ob_outputDirectory)
+          IMAGE_REPO: $(ACN_PROD).azurecr.io
+          IMAGE_NAME: ${{ job_data.templateContext.name }}
+          IMAGE_TAG: ${{ job_data.templateContext.image_tag }}

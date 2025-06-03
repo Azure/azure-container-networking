@@ -20,7 +20,7 @@ stages:
 
 - template: templates/run-unit-tests.stages.yaml
 
-- ${{ else }}:
+- ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
   - stage: build
     displayName: "Build Project"
     dependsOn:
@@ -219,7 +219,6 @@ stages:
           templateContext:
             name: cni
             image_tag: $(CNI_VERSION)
-            isReleaseImage: true
             platforms:
             - platform: linux/amd64
               imageReference: $(CNI_LINUX_AMD64_REF)
@@ -231,7 +230,6 @@ stages:
           templateContext:
             name: cns
             image_tag: $(CNS_VERSION)
-            isReleaseImage: true
             platforms:
             - platform: linux/amd64
               imageReference: $(CNS_LINUX_AMD64_REF)
@@ -243,7 +241,6 @@ stages:
           templateContext:
             name: ipv6-hp-bpf
             image_tag: $(IPV6_HP_BPF_VERSION)
-            isReleaseImage: true
             platforms:
             - platform: linux/amd64
               imageReference: $(IPV6_LINUX_AMD64_REF)
@@ -271,35 +268,35 @@ stages:
             isReleaseImage: true
             platforms:
             - platform: linux/amd64
-              imageReference: $(ACN_PROD)/azure-ipam:$(AZURE_IPAM_VERSION)-linux-amd64
+              imageReference: azure-ipam:$(AZURE_IPAM_VERSION)-linux-amd64
             - platform: linux/arm64
-              imageReference: $(ACN_PROD)/azure-ipam:$(AZURE_IPAM_VERSION)-linux-arm64
+              imageReference: azure-ipam:$(AZURE_IPAM_VERSION)-linux-arm64
             - platform: windows/amd64
-              imageReference: $(ACN_PROD)/azure-ipam:$(AZURE_IPAM_VERSION)-windows-amd64
+              imageReference: azure-ipam:$(AZURE_IPAM_VERSION)-windows-amd64
         - job: prod_cni
           templateContext:
-            name: cni
+            name: azure-cni
             image_tag: $(CNI_VERSION)
             isReleaseImage: true
             platforms:
             - platform: linux/amd64
-              imageReference: $(ACN_PROD)/cni:$(CNI_VERSION)-linux-amd64
+              imageReference: cni:$(CNI_VERSION)-linux-amd64
             - platform: linux/arm64
-              imageReference: $(ACN_PROD)/cni:$(CNI_VERSION)-linux-arm64
+              imageReference: cni:$(CNI_VERSION)-linux-arm64
             - platform: windows/amd64
-              imageReference: $(ACN_PROD)/cni:$(CNI_VERSION)-windows-amd64
+              imageReference: cni:$(CNI_VERSION)-windows-amd64
         - job: prod_cns
           templateContext:
-            name: cns
+            name: azure-cns
             image_tag: $(CNS_VERSION)
             isReleaseImage: true
             platforms:
             - platform: linux/amd64
-              imageReference: $(ACN_PROD)/cns:$(CNS_VERSION)-linux-amd64
+              imageReference: cns:$(CNS_VERSION)-linux-amd64
             - platform: linux/arm64
-              imageReference: $(ACN_PROD)/cns:$(CNS_VERSION)-linux-arm64
+              imageReference: cns:$(CNS_VERSION)-linux-arm64
             - platform: windows/amd64
-              imageReference: $(ACN_PROD)/cns:$(CNS_VERSION)-windows-amd64
+              imageReference: cns:$(CNS_VERSION)-windows-amd64
         - job: prod_ipv6_hp_bpf
           templateContext:
             name: ipv6-hp-bpf
@@ -307,9 +304,9 @@ stages:
             isReleaseImage: true
             platforms:
             - platform: linux/amd64
-              imageReference: $(ACN_PROD)/ipv6-hp-bpf:$(IPV6_HP_BPF_VERSION)-linux-amd64
+              imageReference: ipv6-hp-bpf:$(IPV6_HP_BPF_VERSION)-linux-amd64
             - platform: linux/arm64
-              imageReference: $(ACN_PROD)/ipv6-hp-bpf:$(IPV6_HP_BPF_VERSION)-linux-arm64
+              imageReference: ipv6-hp-bpf:$(IPV6_HP_BPF_VERSION)-linux-arm64
 
 
   # Cilium Podsubnet E2E tests
