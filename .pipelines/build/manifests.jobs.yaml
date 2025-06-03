@@ -39,10 +39,8 @@ jobs:
           manifest_data: $(MANIFEST_JSON)
 
   - ${{ else }}:
-    - job: ${{ job_data.job }}_create_manifest
-      displayName: "Prepare Prod Image Manifest - ${{ job_data.job }}"
-      dependsOn:
-      - ${{ job_data.job }}_generate_manifest
+    - job: ${{ job_data.job }}_manifest
+      displayName: "Prepare Prod Image Drop - ${{ job_data.job }}"
       pool:
         type: linux
       variables:

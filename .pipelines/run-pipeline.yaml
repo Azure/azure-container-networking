@@ -275,7 +275,7 @@ stages:
               imageReference: azure-ipam:$(AZURE_IPAM_VERSION)-windows-amd64
         - job: prod_cni
           templateContext:
-            name: azure-cni
+            name: cni
             image_tag: $(CNI_VERSION)
             isReleaseImage: true
             platforms:
@@ -287,7 +287,7 @@ stages:
               imageReference: cni:$(CNI_VERSION)-windows-amd64
         - job: prod_cns
           templateContext:
-            name: azure-cns
+            name: cns
             image_tag: $(CNS_VERSION)
             isReleaseImage: true
             platforms:
