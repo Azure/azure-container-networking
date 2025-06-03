@@ -62,11 +62,13 @@ jobs:
           MANIFEST_LIST_IMAGE_REF="$IMAGE_REPO"/"$IMAGE_NAME":"$IMAGE_TAG"
           docker manifest create "$MANIFEST_LIST_IMAGE_REF"
           for image_tar in $(find . -name '*.tar'); do
+            cp "$image_tar" "$OUTPUT_DIR"
             image_load_out=$(docker load -i "$image_tar")
             image_ref=$(echo "$image_load_out" | grep -Goi '[a-z\-_0-9]*\.azurecr\.io\/[a-z\-_0-9\/-]*:[a-z\-_0-9.\/-]*')
             docker manifest annotate "$MANIFEST_LIST_IMAGE_REF" "$image_ref"
           done
           docker manifest inspect "$MANIFEST_LIST_IMAGE_REF" > "$DOWNLOAD_DIR"/prod-"$IMAGE_NAME"-"$IMAGE_TAG".json
+          docker save "$MANIFEST_LIST_IMAGE_REF" -o "$DOWNLOAD_DIR"/"$IMAGE_NAME"-"$IMAGE_TAG"
         env:
           DOWNLOAD_DIR: $(ob_outputDirectory)
           IMAGE_REPO: $(ACN_PROD).azurecr.io
