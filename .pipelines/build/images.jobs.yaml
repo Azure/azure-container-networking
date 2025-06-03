@@ -29,12 +29,12 @@ jobs:
       ${{ if eq(job_data.job, 'linux_amd64') }}:
         DEBIAN_FRONTEND: noninteractive
         LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2404:latest'
-        #LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         OS: linux
         ARCH: amd64
       ${{ elseif eq(job_data.job, 'windows_amd64') }}:
-        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2404:latest'
+        #LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2404:latest'
         #LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
+        LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         ob_enable_qemu: true
         OS: windows
         ARCH: amd64
@@ -42,6 +42,7 @@ jobs:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         OS: linux
         ARCH: arm64
+        GOARCH: arm64
     steps:
     - task: DownloadPipelineArtifact@2
       inputs:
@@ -130,6 +131,7 @@ jobs:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         ob_enable_qemu: true
         ARCH: arm64
+        GOARCH: arm64
         OS: linux
 
     steps:
