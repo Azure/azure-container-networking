@@ -52,7 +52,7 @@ jobs:
       steps:
       - download: current
         patterns: |
-          drop_build_images_${{ replace(job_data.job, 'prod_', '') }}/images/release/**/*
+          drop_build_images_*_*_${{ job_data.templateContext.name }}_*/images/release/**/*
 
       - bash: |
           set -e
@@ -68,6 +68,7 @@ jobs:
                             "$MANIFEST_LIST_IMAGE_REF" \
                             "$available_platform_images"
           docker manifest inspect "$MANIFEST_LIST_IMAGE_REF" > "$OUT_DIR"/prod-"$IMAGE_NAME"-"$IMAGE_TAG".json
+        target: linux_build_container
         env:
           OUT_DIR: $(ob_outputDirectory)
           IMAGE_REPO: $(ACN_PROD).azurecr.io
