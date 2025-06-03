@@ -189,9 +189,24 @@ stages:
                   if [ ${{parameters.upgradeScenario}} = "true" ]
                   then
                     echo "Upgrade scenario is true, using upgrade azure ipam and cns version from pipeline variables"
-                    IPAM=$(UPGRADE_AZURE_IPAM_VERSION)
+                    if [ -z "$UPGRADE_AZURE_IPAM_VERSION" ]
+                    then
+                      echo "UPGRADE_AZURE_IPAM_VERSION is not set, using default value"
+                      IPAM=$(make azure-ipam-version)
+                    else
+                      IPAM=$(UPGRADE_AZURE_IPAM_VERSION)
+                      echo "UPGRADE_AZURE_IPAM_VERSION is set to $IPAM"
+                    fi
+                    
+                    if [ -z "$UPGRADE_CNS_VERSION" ]
+                    then
+                      echo "UPGRADE_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$(UPGRADE_CNS_VERSION)
+                      echo "UPGRADE_CNS_VERSION is set to $CNS"
+                    fi
                     IPAM_IMAGE_REPO=$(UPGRADE_IPAM_IMAGE_REPO)
-                    CNS=$(UPGRADE_CNS_VERSION)
                     CNS_IMAGE_REPO=$(UPGRADE_CNS_IMAGE_REPO)
                     echo Deploying with Azure Ipam version $IPAM from $IPAM_IMAGE_REPO and CNS version $CNS from $CNS_IMAGE_REPO
                   else
