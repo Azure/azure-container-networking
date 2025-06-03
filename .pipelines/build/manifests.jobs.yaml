@@ -42,7 +42,8 @@ jobs:
     - job: ${{ job_data.job }}_manifest
       displayName: "Prepare Prod Image Drop - ${{ job_data.job }}"
       pool:
-        type: linux
+        type: docker
+        os: linux
       variables:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         ob_outputDirectory: $(Build.SourcesDirectory)/out
@@ -50,12 +51,18 @@ jobs:
   
         MANIFEST_JSON: $[ dependencies.${{ job_data.job }}_generate_manifest.outputs['data.MANIFEST_JSON'] ]
       steps:
+#      - task: Docker@2
+#        displayName: Login to ACR
+#        inputs:
+#          command: login
+#          containerRegistry: dockerRegistryServiceConnection1
       - download: current
         patterns: |
           drop_build_images_*_*_${{ job_data.templateContext.name }}_*/images/release/**/*
 
       - bash: |
           set -e
+          mkdir -p "$OUT_DIR"
           available_platform_images=
           for image_tar in $(find . -name '*.tar'); do
             cp "$image_tar" "$OUTPUT_DIR"/images
@@ -66,11 +73,11 @@ jobs:
           MANIFEST_LIST_IMAGE_REF="$IMAGE_REPO"/"$IMAGE_NAME":"$IMAGE_TAG"
           docker image save -o "$OUT_DIR"/"$IMAGE_NAME"-"$IMAGE_TAG" \
                             "$MANIFEST_LIST_IMAGE_REF" \
-                            "$available_platform_images"
+                            $available_platform_images
           docker manifest inspect "$MANIFEST_LIST_IMAGE_REF" > "$OUT_DIR"/prod-"$IMAGE_NAME"-"$IMAGE_TAG".json
         target: linux_build_container
         env:
-          OUT_DIR: $(ob_outputDirectory)
+          OUT_DIR: /__w/1/s/out
           IMAGE_REPO: $(ACN_PROD).azurecr.io
           IMAGE_NAME: ${{ job_data.templateContext.name }}
           IMAGE_TAG: ${{ job_data.templateContext.image_tag }}
