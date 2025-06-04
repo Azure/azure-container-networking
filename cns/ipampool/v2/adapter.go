@@ -31,6 +31,14 @@ func (m *adapter) GetStateSnapshot() cns.IpamPoolMonitorStateSnapshot {
 
 func PodIPDemandListener(ch chan<- int) func([]v1.Pod) {
 	return func(pods []v1.Pod) {
-		ch <- len(pods)
+		// Filter out Pods in terminal phases (Succeeded/Failed) since they no longer
+		// have network sandboxes and don't contribute to IP demand
+		activePods := 0
+		for _, pod := range pods {
+			if pod.Status.Phase != v1.PodSucceeded && pod.Status.Phase != v1.PodFailed {
+				activePods++
+			}
+		}
+		ch <- activePods
 	}
 }
