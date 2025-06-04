@@ -42,3 +42,12 @@ func PodIPDemandListener(ch chan<- int) func([]v1.Pod) {
 		ch <- activePods
 	}
 }
+
+// PodIPDemandListenerNoFilter counts all pods without client-side filtering.
+// This is used when server-side filtering has already excluded terminal pods.
+func PodIPDemandListenerNoFilter(ch chan<- int) func([]v1.Pod) {
+	return func(pods []v1.Pod) {
+		// All pods are already filtered server-side to exclude terminal phases
+		ch <- len(pods)
+	}
+}

@@ -98,3 +98,63 @@ func TestPodIPDemandListener(t *testing.T) {
 		})
 	}
 }
+
+func TestPodIPDemandListenerNoFilter(t *testing.T) {
+	tests := []struct {
+		name     string
+		pods     []v1.Pod
+		expected int
+	}{
+		{
+			name:     "empty pod list",
+			pods:     []v1.Pod{},
+			expected: 0,
+		},
+		{
+			name: "single pod",
+			pods: []v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
+					Status:     v1.PodStatus{Phase: v1.PodRunning},
+				},
+			},
+			expected: 1,
+		},
+		{
+			name: "multiple pods - counts all since filtering is done server-side",
+			pods: []v1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
+					Status:     v1.PodStatus{Phase: v1.PodRunning},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "pod2"},
+					Status:     v1.PodStatus{Phase: v1.PodPending},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "pod3"},
+					Status:     v1.PodStatus{Phase: v1.PodUnknown},
+				},
+			},
+			expected: 3, // All pods counted since server-side filtering already excluded terminal pods
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ch := make(chan int, 1)
+			listener := PodIPDemandListenerNoFilter(ch)
+
+			listener(tt.pods)
+
+			select {
+			case result := <-ch:
+				if result != tt.expected {
+					t.Errorf("expected %d, got %d", tt.expected, result)
+				}
+			default:
+				t.Error("expected value in channel")
+			}
+		})
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -50,7 +51,7 @@ type limiter interface {
 	Allow() bool
 }
 
-// NotifierFunc returns a reconcile.Func that lists Pods to get the latest
+// NewNotifierFunc returns a reconcile.Func that lists Pods to get the latest
 // state and notifies listeners of the resulting Pods.
 // listOpts are passed to the client.List call to filter the Pod list.
 // limiter is an optional rate limiter which may be used to limit the
@@ -80,6 +81,54 @@ func (p *watcher) NewNotifierFunc(listOpts *client.ListOptions, limiter limiter,
 	}
 }
 
+// NewPodIPDemandNotifierFunc returns a reconcile.Func optimized for IP demand calculation
+// that uses server-side filtering to exclude terminal Pods (Succeeded/Failed) from the results.
+// This avoids client-side iteration over all pods by using multiple targeted queries.
+func (p *watcher) NewPodIPDemandNotifierFunc(baseListOpts *client.ListOptions, limiter limiter, listeners ...func([]v1.Pod)) reconcile.Func {
+	p.z.Info("adding pod IP demand notifier for listeners", zap.Int("listeners", len(listeners)))
+	return func(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+		if !limiter.Allow() {
+			// rate limit exceeded, requeue
+			p.z.Info("rate limit exceeded")
+			return ctrl.Result{Requeue: true}, nil
+		}
+
+		// Create field selectors for active pod phases (exclude Succeeded and Failed)
+		activePhases := []v1.PodPhase{v1.PodRunning, v1.PodPending, v1.PodUnknown}
+		var allActivePods []v1.Pod
+
+		for _, phase := range activePhases {
+			// Clone base list options and add phase filter
+			listOpts := &client.ListOptions{}
+			if baseListOpts.FieldSelector != nil {
+				// Combine existing field selector with phase filter
+				phaseSelector := fields.SelectorFromSet(fields.Set{"status.phase": string(phase)})
+				combinedSelector := fields.AndSelectors(baseListOpts.FieldSelector, phaseSelector)
+				listOpts.FieldSelector = combinedSelector
+			} else {
+				listOpts.FieldSelector = fields.SelectorFromSet(fields.Set{"status.phase": string(phase)})
+			}
+			
+			// Copy other options from base
+			listOpts.LabelSelector = baseListOpts.LabelSelector
+			listOpts.Namespace = baseListOpts.Namespace
+			listOpts.Limit = baseListOpts.Limit
+			listOpts.Continue = baseListOpts.Continue
+
+			podList := &v1.PodList{}
+			if err := p.cli.List(ctx, podList, listOpts); err != nil {
+				return ctrl.Result{}, errors.Wrapf(err, "failed to list pods with phase %s", phase)
+			}
+			allActivePods = append(allActivePods, podList.Items...)
+		}
+
+		for _, l := range listeners {
+			l(allActivePods)
+		}
+		return ctrl.Result{}, nil
+	}
+}
+
 var hostNetworkIndexer = client.IndexerFunc(func(o client.Object) []string {
 	pod, ok := o.(*v1.Pod)
 	if !ok {
@@ -88,11 +137,22 @@ var hostNetworkIndexer = client.IndexerFunc(func(o client.Object) []string {
 	return []string{strconv.FormatBool(pod.Spec.HostNetwork)}
 })
 
+var statusPhaseIndexer = client.IndexerFunc(func(o client.Object) []string {
+	pod, ok := o.(*v1.Pod)
+	if !ok {
+		return nil
+	}
+	return []string{string(pod.Status.Phase)}
+})
+
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter on nodeName.
 func (p *watcher) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	p.cli = mgr.GetClient()
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &v1.Pod{}, "spec.hostNetwork", hostNetworkIndexer); err != nil {
 		return errors.Wrap(err, "failed to set up hostNetwork indexer")
+	}
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &v1.Pod{}, "status.phase", statusPhaseIndexer); err != nil {
+		return errors.Wrap(err, "failed to set up status.phase indexer")
 	}
 	if err := ctrl.NewControllerManagedBy(mgr).
 		For(&v1.Pod{}).
