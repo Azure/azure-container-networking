@@ -34,8 +34,8 @@ func PodIPDemandListener(ch chan<- int) func([]v1.Pod) {
 		// Filter out Pods in terminal phases (Succeeded/Failed) since they no longer
 		// have network sandboxes and don't contribute to IP demand
 		activePods := 0
-		for _, pod := range pods {
-			if pod.Status.Phase != v1.PodSucceeded && pod.Status.Phase != v1.PodFailed {
+		for i := range pods {
+			if pods[i].Status.Phase != v1.PodSucceeded && pods[i].Status.Phase != v1.PodFailed {
 				activePods++
 			}
 		}
