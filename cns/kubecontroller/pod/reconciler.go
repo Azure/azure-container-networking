@@ -7,7 +7,6 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -81,53 +80,7 @@ func (p *watcher) NewNotifierFunc(listOpts *client.ListOptions, limiter limiter,
 	}
 }
 
-// NewPodIPDemandNotifierFunc returns a reconcile.Func optimized for IP demand calculation
-// that uses server-side filtering to exclude terminal Pods (Succeeded/Failed) from the results.
-// This avoids client-side iteration over all pods by using multiple targeted queries.
-func (p *watcher) NewPodIPDemandNotifierFunc(baseListOpts *client.ListOptions, limiter limiter, listeners ...func([]v1.Pod)) reconcile.Func {
-	p.z.Info("adding pod IP demand notifier for listeners", zap.Int("listeners", len(listeners)))
-	return func(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-		if !limiter.Allow() {
-			// rate limit exceeded, requeue
-			p.z.Info("rate limit exceeded")
-			return ctrl.Result{Requeue: true}, nil
-		}
 
-		// Create field selectors for active pod phases (exclude Succeeded and Failed)
-		activePhases := []v1.PodPhase{v1.PodRunning, v1.PodPending, v1.PodUnknown}
-		var allActivePods []v1.Pod
-
-		for _, phase := range activePhases {
-			// Clone base list options and add phase filter
-			listOpts := &client.ListOptions{}
-			if baseListOpts.FieldSelector != nil {
-				// Combine existing field selector with phase filter
-				phaseSelector := fields.SelectorFromSet(fields.Set{"status.phase": string(phase)})
-				combinedSelector := fields.AndSelectors(baseListOpts.FieldSelector, phaseSelector)
-				listOpts.FieldSelector = combinedSelector
-			} else {
-				listOpts.FieldSelector = fields.SelectorFromSet(fields.Set{"status.phase": string(phase)})
-			}
-			
-			// Copy other options from base
-			listOpts.LabelSelector = baseListOpts.LabelSelector
-			listOpts.Namespace = baseListOpts.Namespace
-			listOpts.Limit = baseListOpts.Limit
-			listOpts.Continue = baseListOpts.Continue
-
-			podList := &v1.PodList{}
-			if err := p.cli.List(ctx, podList, listOpts); err != nil {
-				return ctrl.Result{}, errors.Wrapf(err, "failed to list pods with phase %s", phase)
-			}
-			allActivePods = append(allActivePods, podList.Items...)
-		}
-
-		for _, l := range listeners {
-			l(allActivePods)
-		}
-		return ctrl.Result{}, nil
-	}
-}
 
 var hostNetworkIndexer = client.IndexerFunc(func(o client.Object) []string {
 	pod, ok := o.(*v1.Pod)

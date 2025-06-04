@@ -1576,16 +1576,10 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if cnsconfig.WatchPods {
 		pw := podctrl.New(z)
 		if cnsconfig.EnableIPAMv2 {
-			// Create field selector to filter only podsubnet pods
-			fieldSet := fields.Set{
-				"spec.hostNetwork": "false",
-			}
-			hostNetworkSelector := fields.SelectorFromSet(fieldSet)
-			baseListOpts := &client.ListOptions{FieldSelector: hostNetworkSelector}
+			hostNetworkListOpt := &client.ListOptions{FieldSelector: fields.SelectorFromSet(fields.Set{"spec.hostNetwork": "false"})} // filter only podsubnet pods
 			// don't relist pods more than every 500ms
 			limit := rate.NewLimiter(rate.Every(500*time.Millisecond), 1) //nolint:gomnd // clearly 500ms
-			// Use specialized notifier that filters terminal pods server-side
-			pw.With(pw.NewPodIPDemandNotifierFunc(baseListOpts, limit, ipampoolv2.PodIPDemandListenerNoFilter(ipDemandCh)))
+			pw.With(pw.NewNotifierFunc(hostNetworkListOpt, limit, ipampoolv2.PodIPDemandListener(ipDemandCh)))
 		}
 		if err := pw.SetupWithManager(ctx, manager); err != nil {
 			return errors.Wrapf(err, "failed to setup pod watcher with manager")
