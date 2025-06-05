@@ -8,8 +8,6 @@ parameters:
 - name: manifest_data
   type: string
 
-- name: manifest_dir
-  type: string
 
 steps:
 - task: onebranch.pipeline.containercontrol@1
@@ -17,7 +15,7 @@ steps:
   inputs:
     command: login
     endpoint: $(ACR_ARM_SERVICE_CONNECTION)
-
+  
 - task: onebranch.pipeline.imagebuildinfo@1
   inputs:
     repositoryName: ${{ parameters.image_repository }}
@@ -25,4 +23,3 @@ steps:
     build_tag: ${{ parameters.image_tag }}
     manifest_push: true
     manifest: ${{ parameters.manifest_data }}
-    saveImageToPath: images/${{ parameters.manifest_dir }}/${{ parameters.image_tag }}.tar.gz
