@@ -3,6 +3,7 @@ vendor/
 # Binaries
 out/*
 output/*
+cns/service/service
 
 # Artifacts
 azure-*.json
