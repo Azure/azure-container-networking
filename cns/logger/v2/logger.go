@@ -1,3 +1,5 @@
+// Package logger provides an opinionated logger for CNS which knows how to
+// log to Application Insights, file, stdout and ETW (based on platform).
 package logger
 
 import (
@@ -14,6 +16,7 @@ func (c compoundCloser) Close() {
 	}
 }
 
+// New creates a v2 CNS logger built with Zap.
 func New(cfg *Config) (*zap.Logger, func(), error) {
 	cfg.Normalize()
 	core := cores.StdoutCore(cfg.level)

@@ -17,7 +17,7 @@ import (
 // wait time for closing AI telemetry session.
 const waitTimeInSecs = 10
 
-type CNSLogger struct {
+type logger struct {
 	logger    *log.Logger
 	zapLogger *zap.Logger
 	th        ai.TelemetryHandle
@@ -30,7 +30,8 @@ type CNSLogger struct {
 	metadata map[string]string
 }
 
-func New(fileName string, logLevel, logTarget int, logDir string) (*CNSLogger, error) {
+// Deprecated: The v1 logger is deprecated. Migrate to zap using the cns/logger/v2 package.
+func New(fileName string, logLevel, logTarget int, logDir string) (loggershim, error) {
 	l, err := log.NewLoggerE(fileName, logLevel, logTarget, logDir)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not get new logger")
@@ -46,18 +47,18 @@ func New(fileName string, logLevel, logTarget int, logDir string) (*CNSLogger, e
 	}
 	zapLogger := zap.New(platformCore, zap.AddCaller()).With(zap.Int("pid", os.Getpid()))
 
-	return &CNSLogger{
+	return &logger{
 		logger:    l,
 		zapLogger: zapLogger,
 		metadata:  map[string]string{},
 	}, nil
 }
 
-func (c *CNSLogger) InitAI(aiConfig ai.AIConfig, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
+func (c *logger) InitAI(aiConfig ai.AIConfig, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
 	c.InitAIWithIKey(aiConfig, aiMetadata, disableTraceLogging, disableMetricLogging, disableEventLogging)
 }
 
-func (c *CNSLogger) InitAIWithIKey(aiConfig ai.AIConfig, instrumentationKey string, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
+func (c *logger) InitAIWithIKey(aiConfig ai.AIConfig, instrumentationKey string, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
 	th, err := ai.NewAITelemetry("", instrumentationKey, aiConfig)
 	if err != nil {
 		c.logger.Errorf("Error initializing AI Telemetry:%v", err)
@@ -70,14 +71,14 @@ func (c *CNSLogger) InitAIWithIKey(aiConfig ai.AIConfig, instrumentationKey stri
 	c.disableEventLogging = disableEventLogging
 }
 
-func (c *CNSLogger) Close() {
+func (c *logger) Close() {
 	c.logger.Close()
 	if c.th != nil {
 		c.th.Close(waitTimeInSecs)
 	}
 }
 
-func (c *CNSLogger) SetContextDetails(orchestrator, nodeID string) {
+func (c *logger) SetContextDetails(orchestrator, nodeID string) {
 	c.logger.Logf("SetContext details called with: %v orchestrator nodeID %v", orchestrator, nodeID)
 	c.m.Lock()
 	c.metadata[orchestratorTypeKey] = orchestrator
@@ -85,13 +86,13 @@ func (c *CNSLogger) SetContextDetails(orchestrator, nodeID string) {
 	c.m.Unlock()
 }
 
-func (c *CNSLogger) SetAPIServer(apiserver string) {
+func (c *logger) SetAPIServer(apiserver string) {
 	c.m.Lock()
 	c.metadata[apiServerKey] = apiserver
 	c.m.Unlock()
 }
 
-func (c *CNSLogger) Printf(format string, args ...any) {
+func (c *logger) Printf(format string, args ...any) {
 	c.logger.Logf(format, args...)
 	c.zapLogger.Info(fmt.Sprintf(format, args...))
 	if c.th == nil || c.disableTraceLogging {
@@ -101,7 +102,7 @@ func (c *CNSLogger) Printf(format string, args ...any) {
 	c.sendTraceInternal(msg, ai.InfoLevel)
 }
 
-func (c *CNSLogger) Debugf(format string, args ...any) {
+func (c *logger) Debugf(format string, args ...any) {
 	c.logger.Debugf(format, args...)
 	c.zapLogger.Debug(fmt.Sprintf(format, args...))
 	if c.th == nil || c.disableTraceLogging {
@@ -111,7 +112,7 @@ func (c *CNSLogger) Debugf(format string, args ...any) {
 	c.sendTraceInternal(msg, ai.DebugLevel)
 }
 
-func (c *CNSLogger) Warnf(format string, args ...any) {
+func (c *logger) Warnf(format string, args ...any) {
 	c.logger.Warnf(format, args...)
 	c.zapLogger.Warn(fmt.Sprintf(format, args...))
 	if c.th == nil || c.disableTraceLogging {
@@ -121,7 +122,7 @@ func (c *CNSLogger) Warnf(format string, args ...any) {
 	c.sendTraceInternal(msg, ai.WarnLevel)
 }
 
-func (c *CNSLogger) Errorf(format string, args ...any) {
+func (c *logger) Errorf(format string, args ...any) {
 	c.logger.Errorf(format, args...)
 	c.zapLogger.Error(fmt.Sprintf(format, args...))
 	if c.th == nil || c.disableTraceLogging {
@@ -131,7 +132,7 @@ func (c *CNSLogger) Errorf(format string, args ...any) {
 	c.sendTraceInternal(msg, ai.ErrorLevel)
 }
 
-func (c *CNSLogger) Request(tag string, request any, err error) {
+func (c *logger) Request(tag string, request any, err error) {
 	c.logger.Request(tag, request, err)
 	if c.th == nil || c.disableTraceLogging {
 		return
@@ -147,7 +148,7 @@ func (c *CNSLogger) Request(tag string, request any, err error) {
 	c.sendTraceInternal(msg, lvl)
 }
 
-func (c *CNSLogger) Response(tag string, response any, returnCode types.ResponseCode, err error) {
+func (c *logger) Response(tag string, response any, returnCode types.ResponseCode, err error) {
 	c.logger.Response(tag, response, int(returnCode), returnCode.String(), err)
 	if c.th == nil || c.disableTraceLogging {
 		return
@@ -166,7 +167,7 @@ func (c *CNSLogger) Response(tag string, response any, returnCode types.Response
 	c.sendTraceInternal(msg, lvl)
 }
 
-func (c *CNSLogger) ResponseEx(tag string, request, response any, returnCode types.ResponseCode, err error) {
+func (c *logger) ResponseEx(tag string, request, response any, returnCode types.ResponseCode, err error) {
 	c.logger.ResponseEx(tag, request, response, int(returnCode), returnCode.String(), err)
 	if c.th == nil || c.disableTraceLogging {
 		return
@@ -185,7 +186,7 @@ func (c *CNSLogger) ResponseEx(tag string, request, response any, returnCode typ
 	c.sendTraceInternal(msg, lvl)
 }
 
-func (c *CNSLogger) sendTraceInternal(msg string, lvl ai.Level) {
+func (c *logger) sendTraceInternal(msg string, lvl ai.Level) {
 	report := ai.Report{
 		Message:          msg,
 		Level:            lvl,
@@ -198,7 +199,7 @@ func (c *CNSLogger) sendTraceInternal(msg string, lvl ai.Level) {
 	c.th.TrackLog(report)
 }
 
-func (c *CNSLogger) LogEvent(event ai.Event) {
+func (c *logger) LogEvent(event ai.Event) {
 	if c.th == nil || c.disableEventLogging {
 		return
 	}
@@ -208,7 +209,7 @@ func (c *CNSLogger) LogEvent(event ai.Event) {
 	c.th.TrackEvent(event)
 }
 
-func (c *CNSLogger) SendMetric(metric ai.Metric) {
+func (c *logger) SendMetric(metric ai.Metric) {
 	if c.th == nil || c.disableMetricLogging {
 		return
 	}
