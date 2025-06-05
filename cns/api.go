@@ -167,7 +167,8 @@ func (i *IPConfigurationStatus) UnmarshalJSON(b []byte) error {
 		}
 	}
 	if s, ok := m["PodInfo"]; ok {
-		pi, err := UnmarshalPodInfo(s)
+		pi := NewPodInfo("", "", "", "")
+		err := json.Unmarshal(s, pi)
 		if err != nil {
 			return errors.Wrap(err, "failed to unmarshal key PodInfo to PodInfo")
 		}
