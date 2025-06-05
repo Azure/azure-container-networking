@@ -312,6 +312,40 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 	}
 }
 
+func TestSyncHostNCVersion_SkipsNCVersionForPrefixOnNICSwiftV2(t *testing.T) {
+	orchestratorTypes := []string{cns.Kubernetes, cns.KubernetesCRD}
+	for _, orchestratorType := range orchestratorTypes {
+		orchestratorType := orchestratorType
+		t.Run(orchestratorType, func(t *testing.T) {
+			restartService()
+			setEnv(t)
+			setOrchestratorTypeInternal(orchestratorType)
+
+			ncID := "swiftv2-ncid"
+			svc.state.ContainerStatus = map[string]containerstatus{
+				ncID: {
+					ID:          ncID,
+					HostVersion: "2",
+					CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+						NetworkContainerid: ncID,
+						Version:            "1",
+						NetworkInterfaceInfo: cns.NetworkInterfaceInfo{
+							MACAddress: "00:11:22:33:44:55",
+						},
+					},
+				},
+			}
+
+			// Should not error, and should not attempt version check
+			svc.SyncHostNCVersion(context.Background(), orchestratorType)
+			// HostVersion and Version should remain unchanged
+			containerStatus := svc.state.ContainerStatus[ncID]
+			assert.Equal(t, "2", containerStatus.HostVersion)
+			assert.Equal(t, "1", containerStatus.CreateNetworkContainerRequest.Version)
+		})
+	}
+}
+
 func createNCReqeustForSyncHostNCVersion(t *testing.T) cns.CreateNetworkContainerRequest {
 	restartService()
 	setEnv(t)

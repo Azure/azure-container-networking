@@ -191,6 +191,13 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	outdatedNCs := map[string]struct{}{}
 	programmedNCs := map[string]struct{}{}
 	for idx := range service.state.ContainerStatus {
+
+		// For prefix-on-NIC SwiftV2 NIC scenario, the NC details is published to different path in NMAgent and call to NMA here creates error. So Skipping nma check, synchost version logic.
+		ncStatus := service.state.ContainerStatus[idx]
+		if mac := ncStatus.CreateNetworkContainerRequest.NetworkInterfaceInfo.MACAddress; mac != "" {
+			logger.Printf("NC %s has MAC address for prefix on nic swiftv2 scenario, skipping syncHostNCVersion", ncStatus.ID)
+			continue
+		}
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
 		localNCVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].HostVersion)
 		if err != nil {
