@@ -17,12 +17,12 @@ jobs:
         with:
           ascending: true
           close-pr-message: 'Pull request closed due to inactivity.'
-          days-before-close: 7
           days-before-stale: 14
+          days-before-issue-close: -1
+          days-before-pr-close: 7
           delete-branch: true
           exempt-issue-labels: 'exempt-stale'
           exempt-pr-labels: 'exempt-stale,dependencies,ci'
-          exempt-pr-authors: 'dependabot[bot]'
           operations-per-run: 100
           stale-issue-message: 'This issue is stale because it has been open for 2 weeks with no activity. Remove stale label or comment to keep it open.'
           stale-pr-message: 'This pull request is stale because it has been open for 2 weeks with no activity. Remove stale label or comment or this will be closed in 7 days'
