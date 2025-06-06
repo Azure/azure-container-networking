@@ -42,5 +42,3 @@ func PodIPDemandListener(ch chan<- int) func([]v1.Pod) {
 		ch <- activePods
 	}
 }
-
-

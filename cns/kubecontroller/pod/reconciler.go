@@ -80,8 +80,6 @@ func (p *watcher) NewNotifierFunc(listOpts *client.ListOptions, limiter limiter,
 	}
 }
 
-
-
 var hostNetworkIndexer = client.IndexerFunc(func(o client.Object) []string {
 	pod, ok := o.(*v1.Pod)
 	if !ok {
