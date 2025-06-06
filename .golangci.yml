@@ -10,10 +10,8 @@ linters:
   - performance
   - unused
   disable:
-  - maligned
-  - scopelint
   enable:
-  - exportloopref
+  - copyloopvar
   - goconst
   - gocritic
   - gocyclo
