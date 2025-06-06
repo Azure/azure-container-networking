@@ -77,18 +77,18 @@ func TestReportToBytes(t *testing.T) {
 }
 
 func TestSendReport(t *testing.T) {
-	tb, closeTBServer := createTBServer(t)
+	_, closeTBServer, socketPath := createTBServer(t)
 	defer closeTBServer()
 
-	err := tb.Connect()
-	require.NoError(t, err)
+	client := connectToTestSocket(t, socketPath)
+	defer client.Close()
 
 	reportManager := &ReportManager{}
 	for _, tt := range telemetryTests {
 		tt := tt
 		reportManager.Report = tt.Data
 		t.Run(tt.name, func(t *testing.T) {
-			err := reportManager.SendReport(tb)
+			err := reportManager.SendReport(client)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -99,11 +99,11 @@ func TestSendReport(t *testing.T) {
 }
 
 func TestSendCNIMetric(t *testing.T) {
-	tb, closeTBServer := createTBServer(t)
+	_, closeTBServer, socketPath := createTBServer(t)
 	defer closeTBServer()
 
-	err := tb.Connect()
-	require.NoError(t, err)
+	client := connectToTestSocket(t, socketPath)
+	defer client.Close()
 
 	tests := []struct {
 		name    string
@@ -131,7 +131,7 @@ func TestSendCNIMetric(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := SendCNIMetric(tt.metric, tb)
+			err := SendCNIMetric(tt.metric, client)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

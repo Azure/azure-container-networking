@@ -3,6 +3,7 @@ package v2
 import (
 	"net"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 
@@ -21,7 +22,7 @@ import (
 func TestStartServerWithCNSPort(t *testing.T) {
 	var err error
 
-	logger.InitLogger("testlogs", 0, 0, "./")
+	logger.InitLogger("testlogs", 0, 0, os.TempDir())
 	cnsPort := "8000"
 
 	// Create the service with -p 8000
@@ -33,7 +34,7 @@ func TestStartServerWithCNSPort(t *testing.T) {
 func TestStartServerWithCNSURL(t *testing.T) {
 	var err error
 
-	logger.InitLogger("testlogs", 0, 0, "./")
+	logger.InitLogger("testlogs", 0, 0, os.TempDir())
 
 	// Create the service with -c "localhost:8000"
 	cnsURL := "tcp://localhost:8500"
@@ -89,7 +90,7 @@ func startService(cnsPort, cnsURL string) error {
 		urls = "localhost:" + port
 	}
 
-	_, err = net.DialTimeout("tcp", urls, 10*time.Millisecond)
+	_, err = net.DialTimeout("tcp", urls, 1*time.Second)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to check reachability to urls %+v", urls)
 	}

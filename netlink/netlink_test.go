@@ -1,8 +1,8 @@
 // Copyright 2017 Microsoft. All rights reserved.
 // MIT License
 
-//go:build linux
-// +build linux
+//go:build linux && integration
+// +build linux,integration
 
 package netlink
 
