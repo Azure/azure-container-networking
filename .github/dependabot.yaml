@@ -5,8 +5,6 @@ updates:
   directory: "/"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
   commit-message:
     prefix: "ci"
   labels: [ "ci", "dependencies" ]
@@ -15,8 +13,6 @@ updates:
   directory: "/"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
   commit-message:
     prefix: "ci"
   labels: [ "ci", "dependencies" ]
@@ -25,8 +21,6 @@ updates:
   directory: "/"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies" ]
@@ -35,8 +29,6 @@ updates:
   directory: "/azure-ipam"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies", "azure-ipam" ]
@@ -45,8 +37,6 @@ updates:
   directory: "/build/tools"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies" ]
@@ -71,8 +61,6 @@ updates:
   directory: "/"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies", "release/1.5" ]
@@ -82,8 +70,6 @@ updates:
   directory: "/azure-ipam"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies", "azure-ipam", "release/1.5" ]
@@ -93,8 +79,6 @@ updates:
   directory: "/"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies", "release/1.4" ]
@@ -104,8 +88,6 @@ updates:
   directory: "/azure-ipam"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies", "azure-ipam", "release/1.4" ]
