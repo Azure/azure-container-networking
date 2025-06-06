@@ -9,7 +9,6 @@ linters:
   - format
   - performance
   - unused
-  disable:
   enable:
   - copyloopvar
   - goconst
