@@ -39,80 +39,63 @@ $ make all-binaries
 Then follow the instructions for the plugin in [Documentation](docs/).
 
 ## Docker Image Generation
-This repository supports building Docker container images for the core networking components. The build system uses Docker or Podman to create multi-platform images.
+This repository supports building Docker container images for networking components using standardized make recipes. The build system uses Docker or Podman to create multi-platform images.
 
 ### Prerequisites
 - Docker or Podman installed and running
 - For multi-platform builds: `make qemu-user-static` (Linux only)
 
 ### Available Components
+- **acncli** - CNI manager
+- **azure-ipam** - Azure IP Address Management
+- **cni** - Container Network Interface
+- **cns** - Container Network Service
+- **npm** - Network Policy Manager
+- **ipv6-hp-bpf** - IPv6 Host Policy BPF
 
-#### Container Network Service (CNS)
+### Generic Build Pattern
+All components follow the same make recipe pattern:
+
 ```bash
-# Build CNS container image
-$ make cns-image
+# Build container image
+$ make <component>-image
 
 # View image name and tag
-$ make cns-image-name-and-tag
-```
+$ make <component>-image-name-and-tag
 
-#### Container Network Interface (CNI)
-```bash
-# Build CNI container image
-$ make cni-image
-
-# View image name and tag
-$ make cni-image-name-and-tag
-```
-
-#### Network Policy Manager (NPM)
-```bash
-# Build NPM container image
-$ make npm-image
-
-# View image name and tag
-$ make npm-image-name-and-tag
-```
-
-#### Azure IP Address Management (Azure-IPAM)
-```bash
-# Build Azure-IPAM container image
-$ make azure-ipam-image
-
-# View image name and tag
-$ make azure-ipam-image-name-and-tag
-```
-
-### Customization Options
-You can customize the build by setting environment variables:
-
-```bash
-# Build for different platform/architecture
-$ PLATFORM=linux/arm64 make cns-image
-
-# Use custom image registry
-$ IMAGE_REGISTRY=myregistry.azurecr.io make cns-image
-
-# Use Podman instead of Docker
-$ CONTAINER_BUILDER=podman make cns-image
-```
-
-### Image Operations
-Each component supports additional operations:
-
-```bash
 # Push image to registry
-$ make cns-image-push
+$ make <component>-image-push
 
 # Pull image from registry
-$ make cns-image-pull
+$ make <component>-image-pull
 
 # Build multi-platform manifest
-$ make cns-manifest-build
-$ make cns-manifest-push
+$ make <component>-manifest-build
+$ make <component>-manifest-push
 ```
 
-Images are tagged with platform and version information (e.g., `linux-amd64-v1.2.3`) and published to the `acnpublic.azurecr.io` registry by default.
+### Example Usage
+```bash
+# Build CNS image
+$ make cns-image
+
+# Build NPM image with custom platform
+$ PLATFORM=linux/arm64 make npm-image
+
+# Build Azure-IPAM image with custom registry
+$ IMAGE_REGISTRY=myregistry.azurecr.io make azure-ipam-image
+
+# Use Podman instead of Docker
+$ CONTAINER_BUILDER=podman make cni-image
+```
+
+### Customization
+Environment variables for customizing builds:
+- `PLATFORM` - Target platform/architecture (default: linux/amd64)
+- `IMAGE_REGISTRY` - Custom registry (default: acnpublic.azurecr.io)
+- `CONTAINER_BUILDER` - Container builder (default: docker, alternative: podman)
+
+Images are tagged with platform and version information and published to the configured registry.
 
 ## Contributions
 Contributions in the form of bug reports, feature requests and PRs are always welcome.
