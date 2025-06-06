@@ -59,7 +59,7 @@ jobs:
 
     # Generate tarball
     - bash: |
-        TARGET_DIR=$(Build.SourcesDirectory)/out
+        TARGET_DIR=$(ob_outputDirectory)
         mkdir -p "$TARGET_DIR"
         tar -cvzf ${TARGET_DIR}/${{ job_data.templateContext.image_tag }}_artifact.tar.gz ./${{ job_data.templateContext.image_tag }}_artifact
       name: tarball
