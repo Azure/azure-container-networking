@@ -10,7 +10,7 @@ import (
 func TestAddFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	validPath := tmpDir + "/we/want"
-	badPath := "/nonexistent/bad/path"
+	badPath := tmpDir + "/nonexistent/bad/path"
 
 	type args struct {
 		podInterfaceID string
@@ -57,7 +57,7 @@ func TestAddFile(t *testing.T) {
 func TestWatcherRemoveFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	validPath := tmpDir + "/we/want"
-	badPath := "/nonexistent/bad/path"
+	badPath := tmpDir + "/nonexistent/bad/path"
 
 	type args struct {
 		containerID string
