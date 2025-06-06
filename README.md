@@ -39,7 +39,7 @@ $ make all-binaries
 Then follow the instructions for the plugin in [Documentation](docs/).
 
 ## Docker Image Generation
-See [Docker Image Generation](doc/README.md) for instructions on building container images for networking components.
+See [Docker Image Generation](docs/README.md#docker-image-generation) for instructions on building container images for networking components.
 
 ## Contributions
 Contributions in the form of bug reports, feature requests and PRs are always welcome.
