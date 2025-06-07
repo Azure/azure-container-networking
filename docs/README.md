@@ -93,8 +93,8 @@ $ make npm-image
 # Build Windows image
 $ GOOS=windows make npm-image
 
-# Build Windows image for ARM64
-$ GOOS=windows PLATFORM=windows/arm64 make npm-image
+# Build Windows image for AMD64
+$ GOOS=windows PLATFORM=windows/amd64 make npm-image
 
 # Cross-compile Windows binary in Linux container
 $ GOOS=windows make cns-image
