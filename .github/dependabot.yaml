@@ -79,6 +79,20 @@ updates:
     prefix: "deps"
   labels: [ "dependencies" ]
   open-pull-requests-limit: 10
+  ignore:
+    # Constrain Kubernetes dependencies to v1.30-v1.32 compatibility range
+    - dependency-name: "k8s.io/api"
+      versions: [">=0.33.0"]
+    - dependency-name: "k8s.io/apiextensions-apiserver"
+      versions: [">=0.33.0"]
+    - dependency-name: "k8s.io/apimachinery"
+      versions: [">=0.33.0"]
+    - dependency-name: "k8s.io/client-go"
+      versions: [">=0.33.0"]
+    - dependency-name: "k8s.io/kubelet"
+      versions: [">=0.33.0"]
+    - dependency-name: "k8s.io/kubectl"
+      versions: [">=0.33.0"]
 - package-ecosystem: "gomod"
   directory: "/dropgz"
   schedule:
@@ -95,6 +109,28 @@ updates:
     prefix: "deps"
   labels: [ "dependencies" ]
   open-pull-requests-limit: 10
+- package-ecosystem: "gomod"
+  directory: "/tools/azure-npm-to-cilium-validator"
+  schedule:
+    interval: "daily"
+  commit-message:
+    prefix: "deps"
+  labels: [ "dependencies" ]
+  open-pull-requests-limit: 10
+  ignore:
+    # Constrain Kubernetes dependencies to v1.30-v1.32 compatibility range
+    - dependency-name: "k8s.io/api"
+      versions: [">=0.33.0"]
+    - dependency-name: "k8s.io/apiextensions-apiserver"
+      versions: [">=0.33.0"]
+    - dependency-name: "k8s.io/apimachinery"
+      versions: [">=0.33.0"]
+    - dependency-name: "k8s.io/client-go"
+      versions: [">=0.33.0"]
+    - dependency-name: "k8s.io/kubelet"
+      versions: [">=0.33.0"]
+    - dependency-name: "k8s.io/kubectl"
+      versions: [">=0.33.0"]
 - package-ecosystem: "gomod"
   directory: "/"
   schedule:
