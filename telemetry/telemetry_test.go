@@ -55,6 +55,7 @@ var telemetryTests = []struct {
 func TestMain(m *testing.M) {
 	telemetryLog := log.CNILogger.With(zap.String("component", "cni-telemetry"))
 	tb := NewTelemetryBuffer(telemetryLog)
+	// Cleanup may fail on Windows, ignore the error
 	_ = tb.Cleanup(FdName)
 	exitCode := m.Run()
 	os.Exit(exitCode)
