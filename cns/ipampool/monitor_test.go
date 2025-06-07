@@ -3,6 +3,7 @@ package ipampool
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -53,7 +54,7 @@ type testState struct {
 }
 
 func initFakes(state testState, nnccli nodeNetworkConfigSpecUpdater) (*fakes.HTTPServiceFake, *fakes.RequestControllerFake, *Monitor) {
-	logger.InitLogger("testlogs", 0, 0, "./")
+	logger.InitLogger("testlogs", 0, 0, os.TempDir())
 
 	scalarUnits := v1alpha.Scaler{
 		BatchSize:               state.batch,

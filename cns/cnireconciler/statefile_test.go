@@ -11,11 +11,10 @@ import (
 )
 
 func TestWriteObjectToFile(t *testing.T) {
-	name := "testdata/test"
-	err := os.MkdirAll(path.Dir(name), 0o666)
-	require.NoError(t, err)
-
-	_, err = os.Stat(name)
+	tmpDir := t.TempDir()
+	name := path.Join(tmpDir, "test")
+	
+	_, err := os.Stat(name)
 	require.ErrorIs(t, err, os.ErrNotExist)
 
 	// create empty file
