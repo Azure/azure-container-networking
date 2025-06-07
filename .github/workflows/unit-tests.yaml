@@ -22,12 +22,21 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     name: Unit Tests
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+          cache: true
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Setup test environment
+        run: |
+          go version
+          go env
+      - name: Download dependencies
+        run: go mod download
       - name: Run unit tests
         run: make test-all
+        timeout-minutes: 25
