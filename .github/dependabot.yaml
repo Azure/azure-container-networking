@@ -109,7 +109,6 @@ updates:
     prefix: "deps"
   labels: [ "dependencies" ]
   open-pull-requests-limit: 10
-
 - package-ecosystem: "gomod"
   directory: "/"
   schedule:
