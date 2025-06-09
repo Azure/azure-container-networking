@@ -19,7 +19,6 @@ This repository supports building Docker container images for networking compone
 - For multi-platform builds: `make qemu-user-static` (Linux only)
 
 ### Available Components
-- **acncli** - CNI manager
 - **azure-ipam** - Azure IP Address Management
 - **cni** - Container Network Interface
 - **cns** - Container Network Service
@@ -67,7 +66,6 @@ Environment variables for customizing builds:
 - `PLATFORM` - Target platform/architecture (default: linux/amd64)
 - `IMAGE_REGISTRY` - Custom registry (default: acnpublic.azurecr.io)
 - `CONTAINER_BUILDER` - Container builder (default: docker, alternative: podman)
-- `GOOS` - Target operating system for cross-compilation (default: linux)
 
 Images are tagged with platform and version information and published to the configured registry.
 
