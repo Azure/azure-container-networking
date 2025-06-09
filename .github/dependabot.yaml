@@ -32,19 +32,19 @@ updates:
   labels: [ "dependencies" ]
   open-pull-requests-limit: 10
   ignore:
-    # Constrain Kubernetes dependencies to v1.30-v1.32 compatibility range
+    # Constrain Kubernetes dependencies to v1.31 ±1 compatibility (v1.30-v1.32)
     - dependency-name: "k8s.io/api"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
 - package-ecosystem: "gomod"
   directory: "/azure-ipam"
   schedule:
@@ -56,19 +56,19 @@ updates:
   labels: [ "dependencies", "azure-ipam" ]
   open-pull-requests-limit: 10
   ignore:
-    # Constrain Kubernetes dependencies to v1.30-v1.32 compatibility range
+    # Constrain Kubernetes dependencies to v1.31 ±1 compatibility (v1.30-v1.32)
     - dependency-name: "k8s.io/api"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
 - package-ecosystem: "gomod"
   directory: "/build/tools"
   schedule:
@@ -80,19 +80,19 @@ updates:
   labels: [ "dependencies" ]
   open-pull-requests-limit: 10
   ignore:
-    # Constrain Kubernetes dependencies to v1.30-v1.32 compatibility range
+    # Constrain Kubernetes dependencies to v1.31 ±1 compatibility (v1.30-v1.32)
     - dependency-name: "k8s.io/api"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.33.0"]
+      versions: [">=0.33.0", "<0.30.0"]
 - package-ecosystem: "gomod"
   directory: "/dropgz"
   schedule:
@@ -122,19 +122,19 @@ updates:
   open-pull-requests-limit: 10
   target-branch: "release/v1.5"
   ignore:
-    # Constrain Kubernetes dependencies to v1.28-v1.30 compatibility range
+    # Constrain Kubernetes dependencies to v1.29 ±1 compatibility (v1.28-v1.30)
     - dependency-name: "k8s.io/api"
-      versions: [">=0.31.0"]
+      versions: [">=0.31.0", "<0.28.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.31.0"]
+      versions: [">=0.31.0", "<0.28.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.31.0"]
+      versions: [">=0.31.0", "<0.28.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.31.0"]
+      versions: [">=0.31.0", "<0.28.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.31.0"]
+      versions: [">=0.31.0", "<0.28.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.31.0"]
+      versions: [">=0.31.0", "<0.28.0"]
 - package-ecosystem: "gomod"
   directory: "/azure-ipam"
   schedule:
@@ -147,19 +147,19 @@ updates:
   open-pull-requests-limit: 10
   target-branch: "release/v1.5"
   ignore:
-    # Constrain Kubernetes dependencies to v1.28-v1.30 compatibility range
+    # Constrain Kubernetes dependencies to v1.29 ±1 compatibility (v1.28-v1.30)
     - dependency-name: "k8s.io/api"
-      versions: [">=0.31.0"]
+      versions: [">=0.31.0", "<0.28.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.31.0"]
+      versions: [">=0.31.0", "<0.28.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.31.0"]
+      versions: [">=0.31.0", "<0.28.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.31.0"]
+      versions: [">=0.31.0", "<0.28.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.31.0"]
+      versions: [">=0.31.0", "<0.28.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.31.0"]
+      versions: [">=0.31.0", "<0.28.0"]
 - package-ecosystem: "gomod"
   directory: "/"
   schedule:
@@ -172,19 +172,19 @@ updates:
   open-pull-requests-limit: 10
   target-branch: "release/v1.4"
   ignore:
-    # Constrain Kubernetes dependencies to v1.25-v1.27 compatibility range
+    # Constrain Kubernetes dependencies to v1.26 ±1 compatibility (v1.25-v1.27)
     - dependency-name: "k8s.io/api"
-      versions: [">=0.28.0"]
+      versions: [">=0.28.0", "<0.25.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.28.0"]
+      versions: [">=0.28.0", "<0.25.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.28.0"]
+      versions: [">=0.28.0", "<0.25.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.28.0"]
+      versions: [">=0.28.0", "<0.25.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.28.0"]
+      versions: [">=0.28.0", "<0.25.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.28.0"]
+      versions: [">=0.28.0", "<0.25.0"]
 - package-ecosystem: "gomod"
   directory: "/azure-ipam"
   schedule:
@@ -197,16 +197,16 @@ updates:
   open-pull-requests-limit: 10
   target-branch: "release/v1.4"
   ignore:
-    # Constrain Kubernetes dependencies to v1.25-v1.27 compatibility range
+    # Constrain Kubernetes dependencies to v1.26 ±1 compatibility (v1.25-v1.27)
     - dependency-name: "k8s.io/api"
-      versions: [">=0.28.0"]
+      versions: [">=0.28.0", "<0.25.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.28.0"]
+      versions: [">=0.28.0", "<0.25.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.28.0"]
+      versions: [">=0.28.0", "<0.25.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.28.0"]
+      versions: [">=0.28.0", "<0.25.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.28.0"]
+      versions: [">=0.28.0", "<0.25.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.28.0"]
+      versions: [">=0.28.0", "<0.25.0"]
