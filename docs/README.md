@@ -69,40 +69,5 @@ Environment variables for customizing builds:
 
 Images are tagged with platform and version information and published to the configured registry.
 
-### Windows Image Generation
-The `GOOS` environment variable has specific impacts on image generation:
-
-#### Operating System Targeting
-- **Linux (default)**: `GOOS=linux` builds Linux container images using Ubuntu/Mariner base images
-- **Windows**: `GOOS=windows` builds Windows container images using Windows Server Core base images
-
-#### Cross-compilation Behavior
-When `GOOS=windows` is set:
-- Go binaries are cross-compiled for Windows with `.exe` extensions
-- Docker builds use Windows-specific base images (Windows Server Core, Host Process Containers)
-- Different Dockerfiles may be used (e.g., `npm/windows.Dockerfile` vs `npm/linux.Dockerfile`)
-- The Docker `--target` parameter selects the appropriate build stage (e.g., `windows` vs `linux`)
-
-#### Examples
-```bash
-# Build Linux image (default)
-$ make npm-image
-
-# Build Windows image
-$ GOOS=windows make npm-image
-
-# Build Windows image for AMD64
-$ GOOS=windows PLATFORM=windows/amd64 make npm-image
-
-# Cross-compile Windows binary in Linux container
-$ GOOS=windows make cns-image
-```
-
-#### Component-Specific Considerations
-- **NPM**: Uses separate Dockerfiles (`linux.Dockerfile`, `windows.Dockerfile`)
-- **CNS**: Uses multi-stage Dockerfile with `linux` and `windows` targets
-- **CNI**: Supports both Linux and Windows builds from the same Dockerfile
-- **Azure-IPAM**: Primarily Linux-focused but supports Windows cross-compilation
-
 ## Code of Conduct
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
