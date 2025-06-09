@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 
@@ -1009,14 +1010,14 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 				break
 			}
 
-			ip := net.ParseIP(secIPConfig.IPAddress)
-			if ip == nil {
+			addr, err := netip.ParseAddr(secIPConfig.IPAddress)
+			if err != nil {
 				continue
 			}
 
-			if ip.To4() != nil {
+			if addr.Is4() {
 				ncIPFamilies[cns.IPv4] = struct{}{}
-			} else {
+			} else if addr.Is6() {
 				ncIPFamilies[cns.IPv6] = struct{}{}
 			}
 		}
