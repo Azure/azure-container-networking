@@ -84,9 +84,9 @@ func ProcessIPConfigsResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, *[]net.
 		podIPNets[i] = podIPNet
 
 		if podIPNet.Addr().Is4() {
-			gatewayIP = net.ParseIP(resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
+			gatewayIP, err : = net.ParseIP(resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
 		} else if podIPNet.Addr().Is6() {
-			gatewayIP = net.ParseIP(resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPv6Address)
+			gatewayIP, err : = net.ParseIP(resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPv6Address)
 		}
 
 		if gatewayIP != nil {
@@ -94,6 +94,19 @@ func ProcessIPConfigsResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, *[]net.
 		} else {
 			logger.Printf("gatewayIP is nil or gateway ip parse failed for pod ip %s", resp.PodIPInfo[i].PodIPConfig.IPAddress)
 		}
+
+		var gatewayStr string
+        if podIPNet.Addr().Is4() {
+            gatewayStr = podInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress
+        } else if podIPNet.Addr().Is6() {
+            gatewayStr = podInfo.NetworkContainerPrimaryIPConfig.GatewayIPv6Address
+        }
+
+        gatewayIP := net.ParseIP(gatewayStr)
+        if gatewayIP == nil {
+            return nil, nil, errors.Errorf("failed to parse gateway IP %q for pod ip %s", gatewayStr, podInfo.PodIPConfig.IPAddress)
+        }
+        gatewaysIPs[i] = gatewayIP
 	}
 
 	return &podIPNets, &gatewaysIPs, nil
