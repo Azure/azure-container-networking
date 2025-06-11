@@ -72,7 +72,7 @@ func TestRotateFailure(t *testing.T) {
 
 // Tests that the log file rotates when size limit is reached.
 func TestLogFileRotatesWhenSizeLimitIsReached(t *testing.T) {
-	logDirectory := "" // This sets the current location for logs
+	logDirectory := t.TempDir() // Use temporary directory for tests
 	l := NewLogger(logName, LevelInfo, TargetLogfile, logDirectory)
 	if l == nil {
 		t.Fatalf("Failed to create logger.\n")
@@ -86,21 +86,21 @@ func TestLogFileRotatesWhenSizeLimitIsReached(t *testing.T) {
 
 	l.Close()
 
-	fn := l.GetLogDirectory() + logName + ".log"
+	fn := path.Join(l.GetLogDirectory(), logName + ".log")
 	_, err := os.Stat(fn)
 	if err != nil {
 		t.Errorf("Failed to find active log file.")
 	}
 	os.Remove(fn)
 
-	fn = l.GetLogDirectory() + logName + ".log.1"
+	fn = path.Join(l.GetLogDirectory(), logName + ".log.1")
 	_, err = os.Stat(fn)
 	if err != nil {
 		t.Errorf("Failed to find the 1st rotated log file.")
 	}
 	os.Remove(fn)
 
-	fn = l.GetLogDirectory() + logName + ".log.2"
+	fn = path.Join(l.GetLogDirectory(), logName + ".log.2")
 	_, err = os.Stat(fn)
 	if err == nil {
 		t.Errorf("Found the 2nd rotated log file which should have been deleted.")
@@ -109,7 +109,7 @@ func TestLogFileRotatesWhenSizeLimitIsReached(t *testing.T) {
 }
 
 func TestPid(t *testing.T) {
-	logDirectory := "" // This sets the current location for logs
+	logDirectory := t.TempDir() // Use temporary directory for tests
 	l := NewLogger(logName, LevelInfo, TargetLogfile, logDirectory)
 	if l == nil {
 		t.Fatalf("Failed to create logger.")
@@ -117,7 +117,7 @@ func TestPid(t *testing.T) {
 
 	l.Printf("LogText %v", 1)
 	l.Close()
-	fn := l.GetLogDirectory() + logName + ".log"
+	fn := path.Join(l.GetLogDirectory(), logName + ".log")
 	defer os.Remove(fn)
 
 	logBytes, err := os.ReadFile(fn)
