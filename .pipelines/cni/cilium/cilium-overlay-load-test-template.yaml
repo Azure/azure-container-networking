@@ -12,13 +12,12 @@ parameters:
   dualstackVersion: ""
   cni: "cilium"
   upgradeScenario: ""
-  upgradeAzureIpam: ""
 
 # Condition confirms that:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
 # CONTROL_CNI either contains 'cniv1' or 'all'. It is not case sensitive
 stages:
-  - ${{if eq(parameters.upgradeAzureIpam, '')}}:
+  - ${{if eq(parameters.upgradeScenario, false)}}:
     - stage: create_${{ parameters.name }}
       condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cilium') , contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'linux'), contains(variables.CONTROL_OS, 'all') ) ) )
       variables:
@@ -63,7 +62,7 @@ stages:
     pool:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     dependsOn:
-      - ${{ if and(eq(parameters.upgradeAzureIpam, ''), eq(parameters.upgradeScenario, false)) }}:
+      - ${{ if eq(parameters.upgradeScenario, false) }}:
         - create_${{ parameters.name }}
       - ${{ else }}:
         - ${{ parameters.dependsOn }} 

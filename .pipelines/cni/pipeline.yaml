@@ -308,7 +308,6 @@ stages:
       vmSize: ${VM_SIZE_CILIUM}
       arch: amd64
       cni: "cilium"
-      upgradeAzureIpam: ''
       upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
@@ -321,7 +320,6 @@ stages:
       vmSize: ${VM_SIZE_CILIUM}
       arch: amd64
       cni: "cilium"
-      upgradeAzureIpam: ''
       upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
@@ -334,7 +332,6 @@ stages:
       arch: amd64
       osSKU: AzureLinux
       cni: "cilium"
-      upgradeAzureIpam: ''
       upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
@@ -346,7 +343,6 @@ stages:
       vmSize: Standard_D8ps_v5
       arch: arm64
       cni: "cilium"
-      upgradeAzureIpam: ''
       upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
@@ -358,7 +354,6 @@ stages:
       vmSize: Standard_HC44-16rs
       arch: amd64
       cni: "cilium"
-      upgradeAzureIpam: ''
       upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
@@ -371,7 +366,6 @@ stages:
       arch: amd64
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
-      upgradeAzureIpam: ''
       upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
@@ -384,7 +378,6 @@ stages:
       arch: arm64
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
-      upgradeAzureIpam: ''
       upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
@@ -398,7 +391,6 @@ stages:
       osSKU: AzureLinux
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
-      upgradeAzureIpam: ''
       upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
@@ -411,7 +403,6 @@ stages:
       arch: amd64
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
-      upgradeAzureIpam: ''
       upgradeScenario: false
 
 
@@ -426,7 +417,6 @@ stages:
         vmSize: ${VM_SIZE_CILIUM}
         arch: amd64
         cni: "cilium"
-        upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: true
         dependsOn: cilium_overlay
 
@@ -440,7 +430,6 @@ stages:
         vmSize: ${VM_SIZE_CILIUM}
         arch: amd64
         cni: "cilium"
-        upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: true
         dependsOn: cilium_overlay_hubble
 
@@ -454,7 +443,6 @@ stages:
         arch: amd64
         osSKU: AzureLinux
         cni: "cilium"
-        upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: true
         dependsOn: cilium_overlay_mariner
 
@@ -467,7 +455,6 @@ stages:
         vmSize: Standard_D8ps_v5
         arch: arm64
         cni: "cilium"
-        upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: true
         dependsOn: cilium_overlay_arm
 
@@ -480,7 +467,6 @@ stages:
         vmSize: Standard_HC44-16rs
         arch: amd64
         cni: "cilium"
-        upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: true
         dependsOn: cilium_overlay_rdma
 
@@ -494,7 +480,6 @@ stages:
         arch: amd64
         dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
         cni: "cilium_dualstack"
-        upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: true
         dependsOn: cilium_overlay_ds
 
@@ -508,7 +493,6 @@ stages:
         arch: arm64
         dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
         cni: "cilium_dualstack"
-        upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: true
         dependsOn: cilium_ds_arm
 
@@ -523,7 +507,6 @@ stages:
         osSKU: AzureLinux
         dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
         cni: "cilium_dualstack"
-        upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: true
         dependsOn: cilium_ds_mariner
 
@@ -537,7 +520,6 @@ stages:
         arch: amd64
         dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
         cni: "cilium_dualstack"
-        upgradeAzureIpam: ${UPGRADE_AZURE_IPAM}
         upgradeScenario: true
         dependsOn: cilium_ds_rdma
 
