@@ -1,41 +1,4 @@
 steps:
-- template: utils/rename-dockerfile-references.steps.yaml
-  parameters:
-    topic: "Linux - ipv6-hp-bpf"
-    replace_references: true
-    source_path: bpf-prog/ipv6-hp-bpf
-    target_path: bpf-prog/ipv6-hp-bpf
-    source_dockerfile: linux.Dockerfile
-
-# - template: utils/rename-dockerfile-references.steps.yaml
-#   parameters:
-#     topic: "Windows - npm"
-#     replace_references: true
-#     working_directory: $(ACN_DIR)
-#     source_path: npm
-#     target_path: npm-windows
-#     source_dockerfile: windows.Dockerfile
-
-# - template: utils/rename-dockerfile-references.steps.yaml
-#   parameters:
-#     topic: "Linux - npm"
-#     replace_references: true
-#     working_directory: $(ACN_DIR)
-#     source_path: npm
-#     target_path: npm
-#     source_dockerfile: linux.Dockerfile
-
-- bash: |
-    rm -rf .hooks .github
-  displayName: "Remove Unnecessary Dirs from Source"
-  workingDirectory: $(Build.SourcesDirectory)/azure-container-networking
-
-- task: CopyFiles@2
-  displayName: "Add Repo to Container Artifacts"
-  inputs:
-    sourceFolder: $(Build.SourcesDirectory)/azure-container-networking
-    targetFolder: $(Build.ArtifactStagingDirectory)
-
 - script: |
     STORAGE_ID=$(echo "${BUILD_BUILDNUMBER//./-}")
     echo "##vso[task.setvariable variable=StorageID;isOutput=true]$STORAGE_ID"
@@ -92,4 +55,18 @@ steps:
   name: "EnvironmentalVariables"
   displayName: "Set environmental variables"
   condition: always()
+  # Use dev version of Makefile for development version
   workingDirectory: $(ACN_DIR)
+
+- bash: |
+    rm -rf .hooks .github .pipelines .git
+  displayName: "Remove Unnecessary Dirs from Source"
+  workingDirectory: $(ACN_DIR)
+
+
+- task: CopyFiles@2
+  displayName: "Add Pipeline Orchestration to Container Artifacts"
+  inputs:
+    sourceFolder: $(ACN_DEVOPS_DIR)/.pipelines
+    targetFolder: $(ACN_DIR)/.pipelines
+    CleanTargetFolder: false
