@@ -2,7 +2,6 @@ package hnsclient
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
