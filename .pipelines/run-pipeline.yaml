@@ -16,7 +16,8 @@ stages:
       BUILD_TYPE: $(IMAGE_ACR_TYPE)
     steps:
     - checkout: azure-container-networking
-    - template: build/ob-prepare.steps.yaml
+    - checkout: acn-devops
+    - template: build/ob-prepare.steps.yaml@acn-devops
 
 - template: templates/run-unit-tests.stages.yaml
 
@@ -44,7 +45,7 @@ stages:
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
       NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
     jobs:
-    - template: /.pipelines/build/images.jobs.yaml
+    - template: /.pipelines/build/images.jobs.yaml@acn-devops
       parameters:
         images:
         - job: linux_amd64
@@ -202,7 +203,7 @@ stages:
       NPM_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/npm:$(Build.BuildNumber)
     jobs:
 
-    - template: build/manifests.jobs.yaml
+    - template: build/manifests.jobs.yaml@acn-devops
       parameters:
         generate:
         - job: azure_ipam

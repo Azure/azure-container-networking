@@ -27,7 +27,7 @@ steps:
 #     source_dockerfile: linux.Dockerfile
 
 - bash: |
-    rm -rf .hooks .github
+    rm -rf .hooks .github .pipelines
   displayName: "Remove Unnecessary Dirs from Source"
   workingDirectory: $(Build.SourcesDirectory)/azure-container-networking
 
@@ -36,6 +36,12 @@ steps:
   inputs:
     sourceFolder: $(Build.SourcesDirectory)/azure-container-networking
     targetFolder: $(Build.ArtifactStagingDirectory)
+
+- task: CopyFiles@2
+  displayName: "Add Repo to Container Artifacts"
+  inputs:
+    sourceFolder: $(Build.SourcesDirectory)/acn-devops/.pipelines
+    targetFolder: $(Build.ArtifactStagingDirectory)/.pipelines
 
 - script: |
     STORAGE_ID=$(echo "${BUILD_BUILDNUMBER//./-}")
