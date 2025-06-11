@@ -2,7 +2,8 @@ stages:
 - stage: setup
   displayName: ACN
   variables:
-    ACN_DIR: azure-container-networking
+    ACN_DIR: $(Build.SourcesDirectory)/azure-container-networking
+    ACN_DEVOPS_DIR: $(Build.SourcesDirectory)/acn-devops
   jobs:
   - job: env
     displayName: Setup
@@ -11,10 +12,15 @@ stages:
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       ob_artifactSuffix: _source
+      ob_git_checkout: true
 
-      ACR_DIR: $(Build.SourcesDirectory)/azure-container-networking
       BUILD_TYPE: $(IMAGE_ACR_TYPE)
     steps:
+    - checkout: azure-container-networking
+      path: $(ACN_DIR)
+    - checkout: acn-devops
+      path: $(ACN_DEVOPS_DIR)
+
     - template: build/ob-prepare.steps.yaml@acn-devops
 
 - template: templates/run-unit-tests.stages.yaml@acn-devops

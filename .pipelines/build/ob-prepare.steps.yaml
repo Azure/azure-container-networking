@@ -1,42 +1,5 @@
 
 steps:
-
-# Copy development version files of the repo to output staging
-- checkout: azure-container-networking
-
-- template: utils/rename-dockerfile-references.steps.yaml
-  parameters:
-    topic: "Linux - ipv6-hp-bpf"
-    replace_references: true
-    source_path: bpf-prog/ipv6-hp-bpf
-    target_path: bpf-prog/ipv6-hp-bpf
-    source_dockerfile: linux.Dockerfile
-
-- bash: |
-    rm -rf .hooks .github .pipelines
-  displayName: "Remove Unnecessary Dirs from Source"
-  workingDirectory: $(Build.SourcesDirectory)/azure-container-networking
-
-- task: CopyFiles@2
-  displayName: "Add Repo to Container Artifacts"
-  inputs:
-    sourceFolder: $(Build.SourcesDirectory)/azure-container-networking
-    targetFolder: $(Build.ArtifactStagingDirectory)
-
-
-# Update pipeline files to devops version in artifacts staging
-- checkout: acn-devops
-
-- task: CopyFiles@2
-  displayName: "Add Repo to Container Artifacts"
-  inputs:
-    sourceFolder: $(Build.SourcesDirectory)/azure-container-networking/.pipelines
-    targetFolder: $(Build.ArtifactStagingDirectory)/.pipelines
-
-
-# Update Makefile to development version and make versions
-- checkout: azure-container-networking
-
 - script: |
     STORAGE_ID=$(echo "${BUILD_BUILDNUMBER//./-}")
     echo "##vso[task.setvariable variable=StorageID;isOutput=true]$STORAGE_ID"
@@ -89,4 +52,23 @@ steps:
   name: "EnvironmentalVariables"
   displayName: "Set environmental variables"
   condition: always()
+  # Use dev version of Makefile for development version
   workingDirectory: $(ACN_DIR)
+
+- bash: |
+    rm -rf .hooks .github .pipelines .git
+  displayName: "Remove Unnecessary Dirs from Source"
+  workingDirectory: $(ACN_DIR)
+
+- task: CopyFiles@2
+  displayName: "Add Development Src to Container Artifacts"
+  inputs:
+    sourceFolder: $(ACN_DIR)
+    targetFolder: $(Build.ArtifactStagingDirectory)
+
+
+- task: CopyFiles@2
+  displayName: "Add Pipeline Orchestration to Container Artifacts"
+  inputs:
+    sourceFolder: $(ACN_DEVOPS_DIR)/.pipelines
+    targetFolder: $(Build.ArtifactStagingDirectory)/.pipelines
