@@ -326,7 +326,7 @@ func (nm *networkManager) EndpointCreate(cnsclient apipaClient, epInfos []*Endpo
 			logger.Info("Found master interface", zap.String("masterIfName", epInfo.MasterIfName))
 
 			// Add the master as an external interface.
-			err := nm.AddExternalInterface(epInfo.MasterIfName, epInfo.HostSubnetPrefix, string(epInfo.NICType))
+			err := nm.AddExternalInterface(epInfo.MasterIfName, epInfo.HostSubnetPrefix, string(epInfo.NICType)) //HostSubnetPrefix is wrong
 			if err != nil {
 				return err
 			}

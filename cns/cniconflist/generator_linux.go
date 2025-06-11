@@ -148,6 +148,7 @@ func (v *SWIFTGenerator) Generate() error {
 				IPAM: cni.IPAM{
 					Type: network.AzureCNS,
 				},
+				Master: "eth1",
 			},
 			portmapConfig,
 		},

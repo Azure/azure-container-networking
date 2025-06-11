@@ -57,7 +57,9 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 		}
 	}
 	return &cns.CreateNetworkContainerRequest{
-		HostPrimaryIP:        nc.NodeIP,
+		HostPrimaryIP:        nc.PrimaryIP,
+		HostGatewayIP:        nc.DefaultGateway,
+		HostSubnet:           nc.SubnetAddressSpace,
 		SecondaryIPConfigs:   secondaryIPConfigs,
 		NetworkContainerid:   nc.ID,
 		NetworkContainerType: cns.Docker,

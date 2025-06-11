@@ -837,14 +837,14 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 	}
 
 	podIPInfo.NetworkContainerPrimaryIPConfig = primaryIPCfg
-	primaryHostInterface, err := service.getPrimaryHostInterface(context.TODO())
-	if err != nil {
-		return err
-	}
+	// primaryHostInterface, err := service.getPrimaryHostInterface(context.TODO())
+	// if err != nil {
+	// 	return err
+	// }
 
-	podIPInfo.HostPrimaryIPInfo.PrimaryIP = primaryHostInterface.PrimaryIP
-	podIPInfo.HostPrimaryIPInfo.Subnet = primaryHostInterface.Subnet
-	podIPInfo.HostPrimaryIPInfo.Gateway = primaryHostInterface.Gateway
+	podIPInfo.HostPrimaryIPInfo.PrimaryIP = ncStatus.CreateNetworkContainerRequest.HostPrimaryIP
+	podIPInfo.HostPrimaryIPInfo.Subnet = ncStatus.CreateNetworkContainerRequest.HostSubnet
+	podIPInfo.HostPrimaryIPInfo.Gateway = ncStatus.CreateNetworkContainerRequest.HostGatewayIP
 	podIPInfo.NICType = cns.InfraNIC
 
 	return nil

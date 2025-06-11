@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"reflect"
 	"strconv"
 	"strings"
@@ -216,15 +217,17 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	if len(outdatedNCs) == 0 {
 		return len(programmedNCs), nil
 	}
-	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
+	_, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
-		return len(programmedNCs), errors.Wrap(err, "failed to get nc version list from nmagent")
+		logger.Errorf("failed to get nc version list from nmagent: %v", err)
 	}
 
 	nmaNCs := map[string]string{}
-	for _, nc := range ncVersionListResp.Containers {
-		nmaNCs[strings.ToLower(nc.NetworkContainerID)] = nc.Version
+	for idx := range service.state.ContainerStatus {
+		// pretend that NMA has programmed the NC at the version that DNC expects
+		nmaNCs[strings.ToLower(service.state.ContainerStatus[idx].ID)] = service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version
 	}
+
 	hasNC.Set(float64(len(nmaNCs)))
 	for ncID := range outdatedNCs {
 		nmaNCVersionStr, ok := nmaNCs[ncID]
@@ -607,6 +610,16 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 				req.IPConfiguration.IPSubnet.IPAddress,
 				req.IPConfiguration.IPSubnet.PrefixLength)
 			return types.PrimaryCANotSame
+		}
+	} else {
+		// set the eth1 interface with primary NC IP and subnet and mark it up
+		cmdAdd := exec.Command("ip", "addr", "add", fmt.Sprintf("%s/%d", req.IPConfiguration.IPSubnet.IPAddress, req.IPConfiguration.IPSubnet.PrefixLength), "dev", "eth1")
+		if err := cmdAdd.Run(); err != nil {
+			logger.Errorf("error running command: %v", err)
+		}
+		cmdUp := exec.Command("ip", "link", "set", "eth1", "up")
+		if err := cmdUp.Run(); err != nil {
+			logger.Errorf("error running command: %v", err)
 		}
 	}
 
