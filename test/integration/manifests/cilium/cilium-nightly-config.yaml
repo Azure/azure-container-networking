@@ -1,4 +1,4 @@
-apiVersion: v1
+apiVersion: v1 #Not verified, placeholder
 data:
   agent-not-ready-taint-key: node.cilium.io/agent-not-ready
   arping-refresh-period: 30s
@@ -9,7 +9,6 @@ data:
   bpf-map-dynamic-size-ratio: "0.0025"
   bpf-policy-map-max: "16384"
   bpf-root: /sys/fs/bpf
-  ces-slice-mode: fcfs
   cgroup-root: /run/cilium/cgroupv2
   cilium-endpoint-gc-interval: 5m0s
   cluster-id: "0"
@@ -20,7 +19,6 @@ data:
   enable-auto-protect-node-port-range: "true"
   enable-bgp-control-plane: "false"
   enable-bpf-clock-probe: "true"
-  enable-cilium-endpoint-slice: "true"
   enable-endpoint-health-checking: "false"
   enable-endpoint-routes: "true"
   enable-health-check-nodeport: "true"
@@ -35,7 +33,7 @@ data:
   enable-l2-neigh-discovery: "true"
   enable-l7-proxy: "false"
   enable-local-node-route: "false"
-  enable-local-redirect-policy: "true"
+  enable-local-redirect-policy: "true" # set to true for lrp test
   enable-metrics: "true"
   enable-policy: default
   enable-session-affinity: "true"
@@ -48,7 +46,7 @@ data:
   install-no-conntrack-iptables-rules: "false"
   ipam: delegated-plugin
   kube-proxy-replacement: "true"
-  kube-proxy-replacement-healthz-bind-address: ""
+  kube-proxy-replacement-healthz-bind-address: "0.0.0.0:10256"
   local-router-ipv4: 169.254.23.0
   metrics: +cilium_bpf_map_pressure
   monitor-aggregation: medium
@@ -63,21 +61,72 @@ data:
   prometheus-serve-addr: :9962
   remove-cilium-node-taints: "true"
   set-cilium-is-up-condition: "true"
+  sidecar-istio-proxy-image: cilium/istio_proxy
   synchronize-k8s-nodes: "true"
   tofqdns-dns-reject-response-code: refused
   tofqdns-enable-dns-compression: "true"
-  tofqdns-endpoint-max-ip-per-hostname: "50"
+  tofqdns-endpoint-max-ip-per-hostname: "1000"
   tofqdns-idle-connection-grace-period: 0s
   tofqdns-max-deferred-connection-deletes: "10000"
-  tofqdns-min-ttl: "3600"
+  tofqdns-min-ttl: "0"
   tofqdns-proxy-response-max-delay: 100ms
-  #Replaces tunnel: disabled in v1.15
-  routing-mode: "native"
+  routing-mode: native
   unmanaged-pod-watcher-interval: "15"
   vtep-cidr: ""
   vtep-endpoint: ""
   vtep-mac: ""
   vtep-mask: ""
+  enable-sctp: "false"
+  external-envoy-proxy: "false"
+  k8s-client-qps: "10"
+  k8s-client-burst: "20"
+  mesh-auth-enabled: "true"
+  mesh-auth-queue-size: "1024"
+  mesh-auth-rotated-identities-queue-size: "1024"
+  mesh-auth-gc-interval: "5m0s"
+  proxy-connect-timeout: "2"
+  proxy-max-requests-per-connection: "0"
+  proxy-max-connection-duration-seconds: "0"
+  set-cilium-node-taints: "true"
+## new values added for 1.16 below
+  enable-ipv4-big-tcp: "false"
+  enable-ipv6-big-tcp: "false"
+  enable-masquerade-to-route-source: "false"
+  enable-health-check-loadbalancer-ip: "false"
+  bpf-lb-acceleration: "disabled"
+  enable-k8s-networkpolicy: "true"
+  cni-exclusive: "false" # Cilium takes ownership of /etc/cni/net.d, pods cannot be scheduled with any other cni if cilium is down
+  cni-log-file: "/var/run/cilium/cilium-cni.log"
+  ipam-cilium-node-update-rate: "15s"
+  egress-gateway-reconciliation-trigger-interval: "1s"
+  nat-map-stats-entries: "32" 
+  nat-map-stats-interval: "30s" 
+  bpf-events-drop-enabled: "true" # exposes drop events to cilium monitor/hubble
+  bpf-events-policy-verdict-enabled: "true" # exposes policy verdict events to cilium monitor/hubble
+  bpf-events-trace-enabled: "true" # exposes trace events to cilium monitor/hubble
+  enable-tcx: "false" # attach endpoint programs with tcx if supported by kernel
+  datapath-mode: "veth" 
+  direct-routing-skip-unreachable: "false"
+  enable-runtime-device-detection: "false"
+  bpf-lb-sock: "false" 
+  bpf-lb-sock-terminate-pod-connections: "false" 
+  nodeport-addresses: "" 
+  k8s-require-ipv4-pod-cidr: "false"
+  k8s-require-ipv6-pod-cidr: "false"
+  enable-node-selector-labels: "false" 
+## new values for 1.17
+  ces-slice-mode: "fcfs"
+  enable-cilium-endpoint-slice: "true"
+  bpf-lb-source-range-all-types: "false"
+  bpf-algorithm-annotation: "false"
+  bpf-lb-mode-annotation: "false"
+  enable-experimental-lb: "false"
+  enable-endpoint-lockdown-on-policy-overflow: "false"
+  health-check-icmp-failure-threshold: "3"
+  enable-internal-traffic-policy: "true"
+  enable-lb-ipam: "true"
+  enable-non-default-deny-policies: "true"
+  enable-source-ip-verification: "true"
 kind: ConfigMap
 metadata:
   annotations:

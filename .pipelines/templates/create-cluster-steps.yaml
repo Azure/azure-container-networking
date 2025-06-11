@@ -1,0 +1,55 @@
+parameters:
+  name: ""
+  displayName: ""
+  clusterType: ""
+  clusterName: "" # Recommended to pass in unique identifier
+  vmSize: ""
+  vmSizeWin: ""
+  k8sVersion: ""
+  osSkuWin: "Windows2022" # Currently we only support Windows2022
+  dependsOn: ""
+  region: ""
+  os: linux
+
+
+steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        echo "Check az version"
+        az version
+        if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
+        then
+          echo "Install az cli extension preview"
+          az extension add --name aks-preview
+          az extension update --name aks-preview
+        fi
+
+        if ! [ -z ${{ parameters.k8sVersion }} ]; then
+          echo "Set K8S_VER with ${{ parameters.k8sVersion }}"
+          export K8S_VER=${{ parameters.k8sVersion }}
+        fi
+
+        if ! [ -z ${K8S_VERSION} ]; then
+          echo "Default k8s version, $(make -C ./hack/aks vars | grep K8S | cut -d'=' -f 2), is manually set to ${K8S_VERSION}"
+          export K8S_VER=${K8S_VERSION}
+        fi
+
+        mkdir -p ~/.kube/
+        make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
+
+        make -C ./hack/aks ${{ parameters.clusterType }} \
+        AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
+        CLUSTER=${{ parameters.clusterName }} \
+        VM_SIZE=${{ parameters.vmSize }} VM_SIZE_WIN=${{ parameters.vmSizeWin }} \
+        OS_SKU_WIN=${{ parameters.osSkuWin }} OS=${{ parameters.os }} \
+        LTS=${{ lower(parameters.LTS) }}
+
+        echo "Cluster successfully created"
+    displayName: Cluster - ${{ parameters.clusterType }}
+    continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}

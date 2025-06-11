@@ -1,0 +1,149 @@
+parameters:
+- name: images
+  type: jobList
+
+
+jobs:
+- ${{ each job_data in parameters.images }}:
+  - job: pkg_${{ job_data.job }}
+    displayName: "Prepare Image Package - ${{ job_data.displayName }} -"
+    ${{ if job_data.strategy }}:
+      strategy: ${{ job_data.strategy }}
+    ${{ if job_data.dependsOn }}:
+      dependsOn: ${{ job_data.dependsOn }}
+    pool:
+      type: linux
+      ${{ if eq(job_data.job, 'linux_arm64') }}:
+        hostArchitecture: arm64
+
+    variables:
+      ob_artifactSuffix: _$(name)
+      ob_git_checkout: false
+      # keep these variables concerned with instrumentation.
+      GEN_DIR: $(Build.SourcesDirectory)/temp
+      REPO_ROOT: $(Build.SourcesDirectory)/${{ job_data.templateContext.repositoryArtifact }}
+      OUT_DIR: $(Build.ArtifactStagingDirectory)
+      DROPGZ_VERSION: v0.0.12
+      DEBUG: $[ coalesce(variables['System.Debug'], 'False') ]
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
+      ${{ if eq(job_data.job, 'linux_amd64') }}:
+        DEBIAN_FRONTEND: noninteractive
+        LinuxContainerImage: 'onebranch.azurecr.io/linux/ubuntu-2404:latest'
+        #mcr.microsoft.com/mirror/docker/library/ubuntu:24.04'
+        #LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
+        OS: linux
+        ARCH: amd64
+      ${{ elseif eq(job_data.job, 'windows_amd64') }}:
+        LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
+        ob_enable_qemu: true
+        OS: windows
+        ARCH: amd64
+      ${{ elseif eq(job_data.job, 'linux_arm64') }}:
+        LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
+        OS: linux
+        ARCH: arm64
+        GOARCH: arm64
+    steps:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        targetPath: $(REPO_ROOT)
+        artifact: '${{ job_data.templateContext.repositoryArtifact }}'
+
+    - task: GoTool@0
+      inputs:
+        version: '$(GOVERSION)'
+
+    - task: ShellScript@2
+      inputs:
+        scriptPath: $(REPO_ROOT)/${{ job_data.templateContext.buildScript }}
+
+    - script: |
+        ls -la "$SOURCE"
+        cp "$SOURCE" "$DEST"
+        ls -la "$DEST"
+      env:
+        SOURCE: $(REPO_ROOT)/${{ job_data.templateContext.obDockerfile }}
+        DEST: $(OUT_DIR)/Dockerfile
+
+    - task: onebranch.pipeline.signing@1
+      inputs:
+        command: 'sign'
+        signing_profile: 'external_distribution'
+        files_to_sign: '**/*'
+        search_root: $(OUT_DIR)
+
+
+    - task: ShellScript@2
+      displayName: "Package with DropGZ"
+      condition: and(
+        succeeded(), 
+        eq(variables.packageWithDropGZ, 'True'))
+      inputs:
+        scriptPath: $(REPO_ROOT)/.pipelines/build/scripts/dropgz.sh
+
+    - ${{ if not(contains(job_data.job, 'linux')) }}:
+      - task: onebranch.pipeline.signing@1
+        condition: and(
+          succeeded(), 
+          eq(variables.packageWithDropGZ, 'True'))
+        inputs:
+          command: 'sign'
+          signing_profile: 'external_distribution'
+          files_to_sign: '**/dropgz*'
+          search_root: $(OUT_DIR)
+
+    # OneBranch artifacts are stored on a Windows machine which obliterates
+    # Linux file permissions.
+    # This task is added (along with ob_extract_root_artifact in jobs that 
+    # download the artifact) to protect those file permissions from changing
+    # during image build time.
+    #
+    # See: https://eng.ms/docs/products/onebranch/build/containerbasedworkflow/dockerimagesandacr/preservefilepermissionsfordockerbuild
+    - script: |
+        tar cvf "$OUT_DIR"/root_artifact.tar --exclude=root_artifact.tar "$OUT_DIR"
+      displayName: "Zip to Preserve Linux File Permissions"
+
+
+  - job: images_${{ job_data.job }}
+    displayName: "Build Images - ${{ job_data.displayName }} -"
+    dependsOn:
+    - pkg_${{ job_data.job }}
+    strategy: ${{ job_data.strategy }}
+    pool:
+      os: linux
+      type: docker
+#      ${{ if eq(job_data.job, 'linux_arm64') }}:
+#        hostArchitecture: arm64
+#      ${{ else }}:
+#        LinuxHostVersion: 'AzLinux3.0AMD64'
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
+      ob_artifactSuffix: _$(name)
+      ob_git_checkout: false
+      ob_extract_root_artifact: true
+      ${{ if eq(job_data.job, 'linux_amd64') }}:
+        LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
+        ARCH: amd64
+        OS: linux
+      ${{ elseif eq(job_data.job, 'windows_amd64') }}:
+        LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
+        ob_enable_qemu: true
+        ARCH: amd64
+        OS: windows
+      ${{ elseif eq(job_data.job, 'linux_arm64') }}:
+        LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
+        ob_enable_qemu: true
+        ARCH: arm64
+        OS: linux
+        GOARCH: arm64
+
+    steps:
+    - template: image.steps.yaml
+      parameters:
+        arch: $(ARCH)
+        os: $(OS)
+        name: $(name)
+        build_tag: $(imageTag)
+        extra_args: $(extraArgs) --build-arg ARTIFACT_DIR="/__w/1/a"
+        archive_file: $(archiveName)-$(OS)-$(ARCH)-$(archiveVersion)
+        source: drop_build_pkg_${{ job_data.job }}_$(name)

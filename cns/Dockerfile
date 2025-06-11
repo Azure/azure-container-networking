@@ -5,13 +5,13 @@ ARG OS_VERSION
 ARG OS
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.23-cbl-mariner2.0
-FROM --platform=linux/${ARCH}  AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:f1cb092e89f5f3448b6db87729039c61541cb85747c690f760b3017218d449bb AS go
 
 # mcr.microsoft.com/cbl-mariner/base/core:2.0
-FROM  AS mariner-core
+FROM mcr.microsoft.com/cbl-mariner/base/core@sha256:12480ee9f027c304fabc17d70afc7d5da6c49ad46f0401947478e7218ea0ff6c AS mariner-core
 
 # mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0
-FROM  AS mariner-distroless
+FROM mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:a2529d152e75b29502a8de264a4f3dfb8fd126d870c9bf4456d03b7a7dab7268 AS mariner-distroless
 
 FROM --platform=linux/${ARCH} go AS builder
 ARG OS

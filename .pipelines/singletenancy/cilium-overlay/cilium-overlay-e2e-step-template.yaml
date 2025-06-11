@@ -158,8 +158,11 @@ steps:
   - ${{ if eq( parameters['testHubble'], true) }}:
       - script: |
           echo "enable Hubble metrics server"
+          export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
+          export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
+          echo "installing files from ${DIR}"
           kubectl apply -f test/integration/manifests/cilium/hubble/hubble-peer-svc.yaml
-          kubectl apply -f test/integration/manifests/cilium/cilium-config-hubble.yaml
+          kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
           kubectl rollout restart ds cilium -n kube-system
           echo "wait <3 minutes for pods to be ready after restart"
           kubectl rollout status ds cilium -n kube-system --timeout=3m
@@ -214,20 +217,6 @@ steps:
     name: "CiliumIdentities"
     displayName: "Verify Cilium Identities Deletion"
 
-  - script: | # TODO REMOVE THIS STEP, make test-load covers this
-      set -e
-      echo "validate pod IP assignment before CNS restart"
-      kubectl get pod -owide -A
-      make test-validate-state
-      echo "restart CNS"
-      kubectl rollout restart ds azure-cns -n kube-system
-      kubectl rollout status ds azure-cns -n kube-system
-      kubectl get pod -owide -A
-      echo "validate pods after CNS restart"
-      make test-validate-state
-    name: "restartCNS"
-    displayName: "Restart CNS and validate pods"
-
   - script: |
       echo "Run wireserver and metadata connectivity Tests"
       bash test/network/wireserver_metadata_test.sh
@@ -248,3 +237,5 @@ steps:
       fi
     name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"
+
+  - template: ../../templates/cilium-mtu-check.yaml

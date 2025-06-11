@@ -8,26 +8,26 @@ steps:
     target_path: bpf-prog/ipv6-hp-bpf
     source_dockerfile: linux.Dockerfile
 
-- template: utils/rename-dockerfile-references.steps.yaml
-  parameters:
-    topic: "Windows - npm"
-    replace_references: true
-    working_directory: $(ACN_DIR)
-    source_path: npm
-    target_path: npm-windows
-    source_dockerfile: windows.Dockerfile
+# - template: utils/rename-dockerfile-references.steps.yaml
+#   parameters:
+#     topic: "Windows - npm"
+#     replace_references: true
+#     working_directory: $(ACN_DIR)
+#     source_path: npm
+#     target_path: npm-windows
+#     source_dockerfile: windows.Dockerfile
 
-- template: utils/rename-dockerfile-references.steps.yaml
-  parameters:
-    topic: "Linux - npm"
-    replace_references: true
-    working_directory: $(ACN_DIR)
-    source_path: npm
-    target_path: npm
-    source_dockerfile: linux.Dockerfile
+# - template: utils/rename-dockerfile-references.steps.yaml
+#   parameters:
+#     topic: "Linux - npm"
+#     replace_references: true
+#     working_directory: $(ACN_DIR)
+#     source_path: npm
+#     target_path: npm
+#     source_dockerfile: linux.Dockerfile
 
 - bash: |
-    rm -rf .pipelines .hooks .github
+    rm -rf .hooks .github
   displayName: "Remove Unnecessary Dirs from Source"
   workingDirectory: $(Build.SourcesDirectory)/azure-container-networking
 
@@ -41,7 +41,7 @@ steps:
     STORAGE_ID=$(echo "${BUILD_BUILDNUMBER//./-}")
     echo "##vso[task.setvariable variable=StorageID;isOutput=true]$STORAGE_ID"
     echo "StorageID: $STORAGE_ID"
-    
+
     COMMITID=$(git rev-parse --short HEAD)
     COMMITID="$COMMITID"-"$(date "+%d%H%M")"
     echo "##vso[task.setvariable variable=commitID;isOutput=true]$COMMITID"
@@ -51,7 +51,7 @@ steps:
     echo "##vso[task.setvariable variable=Tag;isOutput=true]$TAG"
     echo "Tag: $TAG"
 
-    IMAGEREPOPATH="artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/buddy"
+    IMAGEREPOPATH="artifact/dd590928-4e04-48cb-9d3d-ee06c5f0e17f/$BUILD_TYPE"
     echo "##vso[task.setvariable variable=imageRepositoryPath;isOutput=true]$IMAGEREPOPATH"
     echo "imageRepositoryPath: $IMAGEREPOPATH"
 

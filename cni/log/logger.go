@@ -17,7 +17,7 @@ var (
 const (
 	maxLogFileSizeInMb = 5
 	maxLogFileCount    = 8
-	etwCNIEventName    = "Azure-CNI"
+	etwCNIEventName    = "AzureCNI"
 	loggingLevel       = zapcore.DebugLevel
 )
 

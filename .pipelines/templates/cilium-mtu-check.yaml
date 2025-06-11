@@ -1,0 +1,7 @@
+steps:
+  - script: |
+      cd hack/scripts
+      chmod +x cilium-mtu-validation.sh
+      ./cilium-mtu-validation.sh
+    name: "CiliumMTUValidation"
+    displayName: "Run Cilium MTU Validation"

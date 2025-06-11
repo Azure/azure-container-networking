@@ -219,6 +219,9 @@ overlay-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay AzCNI cluster
 		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	$(MAKE) windows-nodepool-up
+endif
 
 swift-byocni-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -389,6 +392,22 @@ vnetscale-swift-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale S
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--pod-ip-allocation-mode StaticBlock \
+		$(LTS_ARGS) \
+		--yes
+	@$(MAKE) set-kubeconf
+
+nodesubnet-cilium-up: rg-up ipv4 overlay-net-up ## Bring up a Nodesubnet Cilium cluster
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--auto-upgrade-channel $(AUTOUPGRADE) \
+		--node-os-upgrade-channel $(NODEUPGRADE) \
+		--kubernetes-version $(K8S_VER) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
+		--network-plugin azure \
+		--network-dataplane cilium \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--no-ssh-key \
 		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf

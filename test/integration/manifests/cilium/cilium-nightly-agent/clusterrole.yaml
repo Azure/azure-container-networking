@@ -2,6 +2,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: cilium
+  labels:
+    app.kubernetes.io/part-of: cilium 
 rules:
 - apiGroups:
   - networking.k8s.io
@@ -45,8 +47,6 @@ rules:
 - apiGroups:
   - cilium.io
   resources:
-  #Naming changed from ciliumbgploadbalancerippools
-  - ciliumloadbalancerippools
   - ciliumbgppeeringpolicies
   - ciliumclusterwideenvoyconfigs
   - ciliumclusterwidenetworkpolicies
@@ -59,8 +59,13 @@ rules:
   - ciliumnetworkpolicies
   - ciliumnodes
   - ciliumnodeconfigs
-  #Added in 1.14.0 snapshot 2
+  - ciliumloadbalancerippools
   - ciliumcidrgroups
+  - ciliuml2announcementpolicies
+  - ciliumpodippools
+  - ciliumbgpnodeconfigs
+  - ciliumbgpadvertisements
+  - ciliumbgppeerconfigs
   verbs:
   - list
   - watch
@@ -74,6 +79,7 @@ rules:
   - create
 - apiGroups:
   - cilium.io
+  # To synchronize garbage collection of such resources
   resources:
   - ciliumidentities
   verbs:
@@ -100,5 +106,16 @@ rules:
   - ciliumclusterwidenetworkpolicies/status
   - ciliumendpoints/status
   - ciliumendpoints
+  - ciliuml2announcementpolicies/status
+  - ciliumbgpnodeconfigs/status
   verbs:
   - patch
+- apiGroups:
+  - ""
+  resourceNames:
+  - cilium-config
+  resources:
+  - configmaps
+  verbs:
+  - list
+  - watch
