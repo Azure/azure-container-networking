@@ -35,6 +35,7 @@ REVISION				?= $(shell git rev-parse --short HEAD)
 ACN_VERSION				?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --tags --always)
 IPV6_HP_BPF_VERSION		?= $(notdir $(shell git describe --match "ipv6-hp-bpf*" --tags --always))
 AZURE_IPAM_VERSION		?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
+AZURE_IP_MASQ_MERGER_VERSION		?= $(notdir $(shell git describe --match "azure-ip-masq-merger*" --tags --always))
 CNI_VERSION				?= $(ACN_VERSION)
 CNS_VERSION				?= $(ACN_VERSION)
 NPM_VERSION				?= $(ACN_VERSION)
@@ -42,6 +43,7 @@ ZAPAI_VERSION			?= $(notdir $(shell git describe --match "zapai*" --tags --alway
 
 # Build directories.
 AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam
+AZURE_IP_MASQ_MERGER_DIR = $(REPO_ROOT)/azure-ip-masq-merger
 IPV6_HP_BPF_DIR = $(REPO_ROOT)/bpf-prog/ipv6-hp-bpf
 
 CNI_NET_DIR = $(REPO_ROOT)/cni/network/plugin
@@ -55,6 +57,7 @@ NPM_DIR = $(REPO_ROOT)/npm/cmd
 OUTPUT_DIR = $(REPO_ROOT)/output
 BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
 AZURE_IPAM_BUILD_DIR = $(BUILD_DIR)/azure-ipam
+AZURE_IP_MASQ_MERGER_BUILD_DIR = $(BUILD_DIR)/azure-ip-masq-merger
 IPV6_HP_BPF_BUILD_DIR = $(BUILD_DIR)/bpf-prog/ipv6-hp-bpf
 IMAGE_DIR  = $(OUTPUT_DIR)/images
 
@@ -102,6 +105,7 @@ CNI_DUALSTACK_ARCHIVE_NAME = azure-vnet-cni-overlay-dualstack-$(GOOS)-$(GOARCH)-
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(CNS_VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(NPM_VERSION).$(ARCHIVE_EXT)
 AZURE_IPAM_ARCHIVE_NAME = azure-ipam-$(GOOS)-$(GOARCH)-$(AZURE_IPAM_VERSION).$(ARCHIVE_EXT)
+AZURE_IP_MASQ_MERGER_ARCHIVE_NAME = azure-ip-masq-merger-$(GOOS)-$(GOARCH)-$(AZURE_IP_MASQ_MERGER_VERSION).$(ARCHIVE_EXT)
 IPV6_HP_BPF_ARCHIVE_NAME = ipv6-hp-bpf-$(GOOS)-$(GOARCH)-$(IPV6_HP_BPF_VERSION).$(ARCHIVE_EXT)
 
 # Image info file names.
@@ -119,8 +123,8 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam ipv6-hp-bpf
-all-images: npm-image cns-image cni-manager-image ipv6-hp-bpf-image
+all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger ipv6-hp-bpf
+all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image ipv6-hp-bpf-image
 else
 all-binaries: azure-cni-plugin azure-cns azure-npm
 all-images:
@@ -134,6 +138,7 @@ acncli: acncli-binary acncli-archive
 azure-npm: azure-npm-binary npm-archive
 azure-ipam: azure-ipam-binary azure-ipam-archive
 ipv6-hp-bpf: ipv6-hp-bpf-binary ipv6-hp-bpf-archive
+azure-ip-masq-merger: azure-ip-masq-merger-binary azure-ip-masq-merger-archive
 
 
 ##@ Versioning
@@ -148,6 +153,9 @@ acncli-version: version
 
 azure-ipam-version: ## prints the azure-ipam version
 	@echo $(AZURE_IPAM_VERSION)
+
+azure-ip-masq-merger-version: ## prints the azure-ip-masq-merger version
+	@echo $(AZURE_IP_MASQ_MERGER_VERSION)
 
 ipv6-hp-bpf-version: ## prints the ipv6-hp-bpf version
 	@echo $(IPV6_HP_BPF_VERSION)
@@ -218,6 +226,10 @@ azure-npm-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION)" -gcflags="-dwarflocationlists=true"
 	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
 
+# Build the azure-ip-masq-merger binary.
+azure-ip-masq-merger-binary:
+	cd $(AZURE_IP_MASQ_MERGER_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IP_MASQ_MERGER_BUILD_DIR)/azure-ip-masq-merger$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IP_MASQ_MERGER_VERSION)" -gcflags="-dwarflocationlists=true"
+
 ##@ Containers
 
 ## Common variables for all containers.
@@ -262,6 +274,7 @@ IPV6_HP_BPF_IMAGE	= ipv6-hp-bpf
 CNI_IMAGE			= azure-cni
 CNS_IMAGE			= azure-cns
 NPM_IMAGE			= azure-npm
+AZURE_IP_MASQ_MERGER_IMAGE	= azure-ip-masq-merger
 
 ## Image platform tags.
 ACNCLI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))-$(ACN_VERSION)
@@ -273,6 +286,7 @@ CNI_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))-$(CNI_VERSION)-$(OS_SKU_WI
 CNS_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)
 CNS_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)-$(OS_SKU_WIN)
 NPM_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))-$(NPM_VERSION)
+AZURE_IP_MASQ_MERGER_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))-$(AZURE_IP_MASQ_MERGER_VERSION)
 
 
 qemu-user-static: ## Set up the host to run qemu multiplatform container builds.
@@ -382,6 +396,34 @@ azure-ipam-image-pull: ## pull azure-ipam container image.
 	$(MAKE) container-pull \
 		IMAGE=$(AZURE_IPAM_IMAGE) \
 		TAG=$(AZURE_IPAM_PLATFORM_TAG)
+
+# azure-ip-masq-merger
+azure-ip-masq-merger-image-name: # util target to print the azure-ip-masq-merger image name.
+	@echo $(AZURE_IP_MASQ_MERGER_IMAGE)
+
+azure-ip-masq-merger-image-name-and-tag: # util target to print the azure-ip-masq-merger image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(AZURE_IP_MASQ_MERGER_IMAGE):$(AZURE_IP_MASQ_MERGER_PLATFORM_TAG)
+
+azure-ip-masq-merger-image: ## build azure-ip-masq-merger container image.
+	$(MAKE) container \
+		DOCKERFILE=azure-ip-masq-merger/Dockerfile \
+		IMAGE=$(AZURE_IP_MASQ_MERGER_IMAGE) \
+		PLATFORM=$(PLATFORM) \
+		TAG=$(AZURE_IP_MASQ_MERGER_PLATFORM_TAG) \
+		TARGET=$(OS) \
+		OS=$(OS) \
+		ARCH=$(ARCH)
+
+azure-ip-masq-merger-image-push: ## push azure-ip-masq-merger container image.
+	$(MAKE) container-push \
+		IMAGE=$(AZURE_IP_MASQ_MERGER_IMAGE) \
+		TAG=$(AZURE_IP_MASQ_MERGER_PLATFORM_TAG)
+
+azure-ip-masq-merger-image-pull: ## pull azure-ip-masq-merger container image.
+	$(MAKE) container-pull \
+		IMAGE=$(AZURE_IP_MASQ_MERGER_IMAGE) \
+		TAG=$(AZURE_IP_MASQ_MERGER_PLATFORM_TAG)
+
 
 # ipv6-hp-bpf
 
@@ -559,6 +601,22 @@ azure-ipam-skopeo-archive: ## export tar archive of azure-ipam multiplat contain
 		IMAGE=$(AZURE_IPAM_IMAGE) \
 		TAG=$(AZURE_IPAM_VERSION)
 
+azure-ip-masq-merger-manifest-build: ## build azure-ip-masq-merger multiplat container manifest.
+	$(MAKE) manifest-build \
+		PLATFORMS="$(PLATFORMS)" \
+		IMAGE=$(AZURE_IP_MASQ_MERGER_IMAGE) \
+		TAG=$(AZURE_IP_MASQ_MERGER_VERSION)
+
+azure-ip-masq-merger-manifest-push: ## push azure-ip-masq-merger multiplat container manifest
+	$(MAKE) manifest-push \
+		IMAGE=$(AZURE_IP_MASQ_MERGER_IMAGE) \
+		TAG=$(AZURE_IP_MASQ_MERGER_VERSION)
+
+azure-ip-masq-merger-skopeo-archive: ## export tar archive of azure-ip-masq-merger multiplat container manifest.
+	$(MAKE) manifest-skopeo-archive \
+		IMAGE=$(AZURE_IP_MASQ_MERGER_IMAGE) \
+		TAG=$(AZURE_IP_MASQ_MERGER_VERSION)
+
 ipv6-hp-bpf-manifest-build: ## build ipv6-hp-bpf multiplat container manifest.
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
@@ -707,6 +765,14 @@ azure-ipam-archive: azure-ipam-binary
 ifeq ($(GOOS),linux)
 	$(MKDIR) $(AZURE_IPAM_BUILD_DIR)
 	cd $(AZURE_IPAM_BUILD_DIR) && $(ARCHIVE_CMD) $(AZURE_IPAM_ARCHIVE_NAME) azure-ipam$(EXE_EXT)
+endif
+
+# Create a azure-ip-masq-merger archive for the target platform.
+.PHONY: azure-ip-masq-merger-archive
+azure-ip-masq-merger-archive: azure-ip-masq-merger-binary
+ifeq ($(GOOS),linux)
+	$(MKDIR) $(AZURE_IP_MASQ_MERGER_BUILD_DIR)
+	cd $(AZURE_IP_MASQ_MERGER_BUILD_DIR) && $(ARCHIVE_CMD) $(AZURE_IP_MASQ_MERGER_ARCHIVE_NAME) azure-ip-masq-merger$(EXE_EXT)
 endif
 
 # Create a ipv6-hp-bpf archive for the target platform.
