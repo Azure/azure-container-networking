@@ -1,5 +1,9 @@
 
 steps:
+
+# Copy development version files of the repo to output staging
+- checkout: azure-container-networking
+
 - template: utils/rename-dockerfile-references.steps.yaml
   parameters:
     topic: "Linux - ipv6-hp-bpf"
@@ -7,24 +11,6 @@ steps:
     source_path: bpf-prog/ipv6-hp-bpf
     target_path: bpf-prog/ipv6-hp-bpf
     source_dockerfile: linux.Dockerfile
-
-# - template: utils/rename-dockerfile-references.steps.yaml
-#   parameters:
-#     topic: "Windows - npm"
-#     replace_references: true
-#     working_directory: $(ACN_DIR)
-#     source_path: npm
-#     target_path: npm-windows
-#     source_dockerfile: windows.Dockerfile
-
-# - template: utils/rename-dockerfile-references.steps.yaml
-#   parameters:
-#     topic: "Linux - npm"
-#     replace_references: true
-#     working_directory: $(ACN_DIR)
-#     source_path: npm
-#     target_path: npm
-#     source_dockerfile: linux.Dockerfile
 
 - bash: |
     rm -rf .hooks .github .pipelines
@@ -37,11 +23,19 @@ steps:
     sourceFolder: $(Build.SourcesDirectory)/azure-container-networking
     targetFolder: $(Build.ArtifactStagingDirectory)
 
+
+# Update pipeline files to devops version in artifacts staging
+- checkout: acn-devops
+
 - task: CopyFiles@2
   displayName: "Add Repo to Container Artifacts"
   inputs:
-    sourceFolder: $(Build.SourcesDirectory)/acn-devops/.pipelines
+    sourceFolder: $(Build.SourcesDirectory)/azure-container-networking/.pipelines
     targetFolder: $(Build.ArtifactStagingDirectory)/.pipelines
+
+
+# Update Makefile to development version and make versions
+- checkout: azure-container-networking
 
 - script: |
     STORAGE_ID=$(echo "${BUILD_BUILDNUMBER//./-}")

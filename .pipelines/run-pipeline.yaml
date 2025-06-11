@@ -15,11 +15,9 @@ stages:
       ACR_DIR: $(Build.SourcesDirectory)/azure-container-networking
       BUILD_TYPE: $(IMAGE_ACR_TYPE)
     steps:
-    - checkout: azure-container-networking
-    - checkout: acn-devops
     - template: build/ob-prepare.steps.yaml@acn-devops
 
-- template: templates/run-unit-tests.stages.yaml
+- template: templates/run-unit-tests.stages.yaml@acn-devops
 
 
 - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
