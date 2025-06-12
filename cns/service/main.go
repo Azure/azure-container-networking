@@ -1657,8 +1657,10 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 			if managerErr != nil {
 				return errors.Wrap(managerErr, "controller-manager failed")
 			}
-		default:
-			// Manager is healthy and nncReconciler has started, safe to break
+			// If managerErr is nil, the manager stopped normally (unexpected at this point)
+			return errors.New("controller-manager stopped unexpectedly")
+		case <-time.After(1 * time.Second):
+			// No error after reasonable time, assume manager is healthy
 		}
 		break
 	}
