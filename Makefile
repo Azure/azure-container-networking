@@ -857,6 +857,9 @@ test-extended-cyclonus: ## run the cyclonus test for npm.
 test-azure-ipam: ## run the unit test for azure-ipam
 	cd $(AZURE_IPAM_DIR) && go test
 
+test-azure-ip-masq-merger: ## run the unit test for azure-ip-masq-merger
+	cd $(AZURE_IP_MASQ_MERGER_DIR) && go test
+
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
 
