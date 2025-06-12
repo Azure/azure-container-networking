@@ -1627,16 +1627,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}()
 	logger.Printf("Initialized controller-manager.")
 	
-	// Check if manager startup failed before proceeding
-	select {
-	case managerErr := <-managerErrCh:
-		if managerErr != nil {
-			return errors.Wrap(managerErr, "controller-manager failed to start")
-		}
-	case <-time.After(100 * time.Millisecond):
-		// Continue if no immediate error
-	}
-	
 	for {
 		// Check if manager failed during startup or runtime
 		select {
@@ -1655,12 +1645,21 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		nncReadyCtx, cancel := context.WithTimeout(ctx, 15*time.Minute) // nolint // it will time out and not leak
 		if started, err := nncReconciler.Started(nncReadyCtx); !started {
 			logger.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
-			nncReconcilerStartFailures.Inc()
 			cancel()
 			continue
 		}
 		logger.Printf("NodeNetworkConfig reconciler has started.")
 		cancel()
+		
+		// Ensure manager is still healthy after nncReconciler started
+		select {
+		case managerErr := <-managerErrCh:
+			if managerErr != nil {
+				return errors.Wrap(managerErr, "controller-manager failed")
+			}
+		default:
+			// Manager is healthy and nncReconciler has started, safe to break
+		}
 		break
 	}
 
