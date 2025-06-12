@@ -1609,6 +1609,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// Start the Manager which starts the reconcile loop.
 	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the
 	// Monitor's internal loop.
+	managerErrCh := make(chan error, 1)
 	go func() {
 		logger.Printf("Starting controller-manager.")
 		// Add timeout for controller startup
@@ -1618,14 +1619,35 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		
 		if err := manager.Start(startManagerCtx); err != nil {
 			logger.Errorf("Failed to start controller-manager: %v", err)
-			managerStartFailures.Inc()
-			// Terminate the entire process if controller fails to start
-			os.Exit(1)
+			managerErrCh <- err
+			return
 		}
 		logger.Printf("Stopped controller-manager.")
+		managerErrCh <- nil
 	}()
 	logger.Printf("Initialized controller-manager.")
+	
+	// Check if manager startup failed before proceeding
+	select {
+	case managerErr := <-managerErrCh:
+		if managerErr != nil {
+			return errors.Wrap(managerErr, "controller-manager failed to start")
+		}
+	case <-time.After(100 * time.Millisecond):
+		// Continue if no immediate error
+	}
+	
 	for {
+		// Check if manager failed during startup or runtime
+		select {
+		case managerErr := <-managerErrCh:
+			if managerErr != nil {
+				return errors.Wrap(managerErr, "controller-manager failed")
+			}
+		default:
+			// Continue with normal flow if no manager error
+		}
+		
 		logger.Printf("Waiting for NodeNetworkConfig reconciler to start.")
 		// wait for the Reconciler to run once on a NNC that was made for this Node.
 		// the nncReadyCtx has a timeout of 15 minutes, after which we will consider
@@ -1634,6 +1656,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		if started, err := nncReconciler.Started(nncReadyCtx); !started {
 			logger.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
 			nncReconcilerStartFailures.Inc()
+			cancel()
 			continue
 		}
 		logger.Printf("NodeNetworkConfig reconciler has started.")
