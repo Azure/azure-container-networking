@@ -2,6 +2,7 @@ package main
 
 import (
 	utiljson "encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -11,12 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/component-base/logs"
 	"k8s.io/component-base/version/verflag"
 	"k8s.io/klog/v2"
-
-	"gopkg.in/yaml.v2"
 )
 
 // Version is populated by make during build.
@@ -41,25 +41,23 @@ type FileSystem interface {
 type OSFileSystem struct{}
 
 func (OSFileSystem) ReadFile(name string) ([]byte, error) {
-	return os.ReadFile(name)
+	return os.ReadFile(name) // nolint
 }
 
 func (OSFileSystem) WriteFile(name string, data []byte, perm fs.FileMode) error {
-	return os.WriteFile(name, data, perm)
+	return os.WriteFile(name, data, perm) // nolint
 }
 
 func (OSFileSystem) ReadDir(dirname string) ([]fs.DirEntry, error) {
-	return os.ReadDir(dirname)
+	return os.ReadDir(dirname) // nolint
 }
 
 func (OSFileSystem) DeleteFile(name string) error {
-	return os.Remove(name)
+	return os.Remove(name) // nolint
 }
 
-var (
-	// name of nat chain for iptables masquerade rules
-	resyncInterval = flag.Int("resync-interval", 60, "How often to refresh the config (in seconds)")
-)
+// name of nat chain for iptables masquerade rules
+var resyncInterval = flag.Int("resync-interval", 60, "How often to refresh the config (in seconds)")
 
 // MasqConfig object
 type MasqConfig struct {
@@ -105,13 +103,11 @@ func main() {
 
 	m := NewMasqDaemon(c)
 	err := m.Run()
-
 	if err != nil {
 		klog.Fatalf("the daemon encountered an error: %v", err)
 	}
 }
 
-// Run ...
 func (m *MasqDaemon) Run() error {
 	// Periodically resync
 	for {
@@ -132,49 +128,57 @@ func (m *MasqDaemon) osMergeConfig() error {
 
 // Syncs the config to the file at ConfigPath, or uses defaults if the file could not be found
 // Error if the file is found but cannot be parsed.
-func (m *MasqDaemon) mergeConfig(fs FileSystem) error {
+func (m *MasqDaemon) mergeConfig(fileSys FileSystem) error {
 	var err error
 	c := EmptyMasqConfig()
 	defer func() {
 		if err == nil {
-			json, _ := utiljson.Marshal(c)
-			klog.V(2).Infof("using config: %s", string(json))
+			json, marshalErr := utiljson.Marshal(c)
+			if marshalErr == nil {
+				klog.V(2).Infof("using config: %s", string(json))
+			} else {
+				klog.V(2).Info("could not marshal final config")
+			}
 		}
 	}()
 
-	files, err := fs.ReadDir(configPath)
+	files, err := fileSys.ReadDir(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to read config directory, error: %w", err)
 	}
 
 	var configAdded bool
 	for _, file := range files {
-		if strings.HasPrefix(file.Name(), configFilePrefix) {
-			klog.V(2).Infof("syncing config file %q at %q", file.Name(), configPath)
-			yaml, err := fs.ReadFile(filepath.Join(configPath, file.Name()))
-			if err != nil {
-				return fmt.Errorf("failed to read config file %q, error: %w", file.Name(), err)
-			}
-
-			json, err := utilyaml.ToJSON(yaml)
-			if err != nil {
-				return fmt.Errorf("failed to convert config file %q to JSON, error: %w", file.Name(), err)
-			}
-
-			var newConfig MasqConfig
-			err = utiljson.Unmarshal(json, &newConfig)
-			if err != nil {
-				return fmt.Errorf("failed to unmarshal config file %q, error: %w", file.Name(), err)
-			}
-
-			err = newConfig.validate()
-			if err != nil {
-				return fmt.Errorf("config file %q is invalid: %w", file.Name(), err)
-			}
-			c.merge(&newConfig)
-
-			configAdded = true
+		if !strings.HasPrefix(file.Name(), configFilePrefix) {
+			continue
 		}
+		var yaml []byte
+		var json []byte
+
+		klog.V(2).Infof("syncing config file %q at %q", file.Name(), configPath)
+		yaml, err = fileSys.ReadFile(filepath.Join(configPath, file.Name()))
+		if err != nil {
+			return fmt.Errorf("failed to read config file %q, error: %w", file.Name(), err)
+		}
+
+		json, err = utilyaml.ToJSON(yaml)
+		if err != nil {
+			return fmt.Errorf("failed to convert config file %q to JSON, error: %w", file.Name(), err)
+		}
+
+		var newConfig MasqConfig
+		err = utiljson.Unmarshal(json, &newConfig)
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal config file %q, error: %w", file.Name(), err)
+		}
+
+		err = newConfig.validate()
+		if err != nil {
+			return fmt.Errorf("config file %q is invalid: %w", file.Name(), err)
+		}
+		c.merge(&newConfig)
+
+		configAdded = true
 	}
 
 	mergedPath := filepath.Join(outputPath, "ip-masq-agent")
@@ -183,8 +187,8 @@ func (m *MasqDaemon) mergeConfig(fs FileSystem) error {
 		// no valid config files found to merge-- remove any existing merged config file so ip masq agent uses defaults
 		// the default config map is different from an empty config map
 		klog.V(2).Infof("no valid config files found at %q, removing existing config map", configPath)
-		err = fs.DeleteFile(mergedPath)
-		if err != nil && !os.IsNotExist(err) {
+		err = fileSys.DeleteFile(mergedPath)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("failed to remove existing config file: %w", err)
 		}
 		return nil
@@ -198,7 +202,7 @@ func (m *MasqDaemon) mergeConfig(fs FileSystem) error {
 		return fmt.Errorf("failed to marshal merged config to YAML: %w", err)
 	}
 
-	err = fs.WriteFile(mergedPath, out, 0644)
+	err = fileSys.WriteFile(mergedPath, out, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write merged config: %w", err)
 	}
@@ -219,7 +223,11 @@ func (c *MasqConfig) validate() error {
 
 // merge combines the existing MasqConfig with newConfig. The bools are OR'd together.
 func (c *MasqConfig) merge(newConfig *MasqConfig) {
-	if newConfig.NonMasqueradeCIDRs != nil && len(newConfig.NonMasqueradeCIDRs) > 0 {
+	if newConfig == nil {
+		return
+	}
+
+	if len(newConfig.NonMasqueradeCIDRs) > 0 {
 		c.NonMasqueradeCIDRs = mergeCIDRs(c.NonMasqueradeCIDRs, newConfig.NonMasqueradeCIDRs)
 	}
 
@@ -239,7 +247,7 @@ func mergeCIDRs(cidrs1, cidrs2 []string) []string {
 		cidrsSet[cidr] = struct{}{}
 	}
 
-	var cidrsList []string
+	cidrsList := []string{}
 	for cidr := range cidrsSet {
 		cidrsList = append(cidrsList, cidr)
 	}
@@ -247,8 +255,12 @@ func mergeCIDRs(cidrs1, cidrs2 []string) []string {
 	return cidrsList
 }
 
-const cidrParseErrFmt = "CIDR %q could not be parsed, %v"
-const cidrAlignErrFmt = "CIDR %q is not aligned to a CIDR block, ip: %q network: %q"
+const (
+	cidrParseErrFmt = "CIDR %q could not be parsed: %w"
+	cidrAlignErrFmt = "CIDR %q is not aligned to a CIDR block, ip: %q network: %q: %w"
+)
+
+var errAlignment = errors.New("ip not aligned to CIDR block")
 
 func validateCIDR(cidr string) error {
 	// parse test
@@ -258,7 +270,7 @@ func validateCIDR(cidr string) error {
 	}
 	// alignment test
 	if !ip.Equal(ipnet.IP) {
-		return fmt.Errorf(cidrAlignErrFmt, cidr, ip, ipnet.String())
+		return fmt.Errorf(cidrAlignErrFmt, cidr, ip, ipnet.String(), errAlignment)
 	}
 	return nil
 }
