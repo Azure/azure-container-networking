@@ -121,6 +121,10 @@ stages:
                 arch: amd64
                 name: azure-ipam
                 os: windows
+              azure_ip_masq_merger_linux_amd64:
+                arch: amd64
+                name: azure-ip-masq-merger
+                os: linux
               cni_linux_amd64:
                 arch: amd64
                 name: cni
@@ -165,6 +169,10 @@ stages:
               azure_ipam_linux_arm64:
                 arch: arm64
                 name: azure-ipam
+                os: linux
+              azure_ip_masq_merger_linux_arm64:
+                arch: arm64
+                name: azure-ip-masq-merger
                 os: linux
               cni_linux_arm64:
                 arch: arm64
@@ -217,6 +225,9 @@ stages:
               npm:
                 name: npm
                 platforms: linux/amd64 linux/arm64 windows/amd64
+              azure_ip_masq_merger:
+                name: azure-ip-masq-merger
+                platforms: linux/amd64 linux/arm64
           steps:
             - template: containers/manifest-template.yaml
               parameters:
