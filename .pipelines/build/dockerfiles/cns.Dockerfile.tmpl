@@ -1,0 +1,27 @@
+# {{.RENDER_MSG}}
+# SOURCE: {{.SRC_PIPE}}
+ARG ARCH
+
+# {{.WIN_HPC_IMG}}
+FROM --platform=windows/${ARCH} {{.WIN_HPC_PIN}} AS windows
+ARG ARTIFACT_DIR .
+
+COPY ${ARTIFACT_DIR}/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
+COPY ${ARTIFACT_DIR}/scripts/setkubeconfigpath.ps1 setkubeconfigpath.ps1
+COPY ${ARTIFACT_DIR}/bin/azure-cns.exe /azure-cns.exe
+ENTRYPOINT ["azure-cns.exe"]
+EXPOSE 10090
+
+# {{.MARINER_CORE_IMG}}
+FROM --platform=linux/${ARCH} {{.MARINER_CORE_PIN}} AS build-helper
+RUN tdnf install -y iptables
+
+# {{.MARINER_DISTROLESS_IMG}}
+FROM --platform=linux/${ARCH} {{.MARINER_DISTROLESS_PIN}} AS linux
+ARG ARTIFACT_DIR .
+
+COPY --from=build-helper /usr/sbin/*tables* /usr/sbin/
+COPY --from=build-helper /usr/lib /usr/lib
+COPY ${ARTIFACT_DIR}/bin/azure-cns /usr/local/bin/azure-cns
+ENTRYPOINT [ "/usr/local/bin/azure-cns" ]
+EXPOSE 10090
