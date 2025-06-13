@@ -1645,7 +1645,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		nncReadyCtx, cancel := context.WithTimeout(ctx, 15*time.Minute) // nolint // it will time out and not leak
 		if started, err := nncReconciler.Started(nncReadyCtx); !started {
 			logger.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
-			cancel()
 			continue
 		}
 		logger.Printf("NodeNetworkConfig reconciler has started.")
