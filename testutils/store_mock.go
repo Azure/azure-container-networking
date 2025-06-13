@@ -54,3 +54,7 @@ func (mockst *KeyValueStoreMock) GetModificationTime() (time.Time, error) {
 }
 
 func (mockst *KeyValueStoreMock) Remove() {}
+
+func (mockst *KeyValueStoreMock) Dump() (string, error) {
+	return "", nil
+}
