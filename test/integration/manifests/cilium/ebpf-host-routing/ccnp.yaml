@@ -1,0 +1,24 @@
+apiVersion: "cilium.io/v2"
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: block-azure-destinations
+spec:
+  description: "Block TCP access to Azure destinations from all pods"
+  endpointSelector: {}  # Applies to all pods in all namespaces
+  enableDefaultDeny:
+    egress: false
+    ingress: false  
+  egressDeny:
+    - toCIDR:
+        - 168.63.129.16/32    # Azure DNS
+      toPorts:
+        - ports:
+            - port: "0"
+              endPort: 65535
+              protocol: TCP
+    - toCIDR:
+        - 169.254.169.254/32    # Azure IMDS server
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP              

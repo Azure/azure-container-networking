@@ -245,6 +245,18 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "containerize"
+
+    # Cilium eBPF Host Routing E2E tests
+    - template: singletenancy/cilium-ebpf-host-routing/cilium-ebpfhostrouting-e2e-job-template.yaml
+      parameters:
+        name: "cilium_ebpfhostrouting_e2e"
+        displayName: Cilium eBPF Host Routing  
+        os: linux
+        clusterType: vnetscale-swift-byocni-nokubeproxy-up
+        clusterName: "ciliumebpfhre2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: "containerize"        
   
     
     # Cilium Nodesubnet E2E tests
