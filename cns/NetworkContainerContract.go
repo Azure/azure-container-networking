@@ -201,7 +201,7 @@ func (f PodInfoByIPProviderFunc) PodInfoByIP() (map[string]PodInfo, error) {
 	return f()
 }
 
-var GlobalPodInfoScheme podInfoScheme = InterfaceIDPodInfoScheme
+var GlobalPodInfoScheme = InterfaceIDPodInfoScheme
 
 // podInfoScheme indicates which schema should be used when generating
 // the map key in the Key() function on a podInfo object.
@@ -319,7 +319,7 @@ func (p *podInfo) UnmarshalJSON(b []byte) error {
 		alias: (*alias)(p),
 	}
 	if err := json.Unmarshal(b, a); err != nil {
-		return err
+		return errors.Wrap(err, "failed to unmarshal podInfo")
 	}
 	p.Version = GlobalPodInfoScheme
 	return nil

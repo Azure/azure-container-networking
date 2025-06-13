@@ -91,7 +91,7 @@ func newSecondaryIPConfig(ipAddress string, ncVersion int) cns.SecondaryIPConfig
 	}
 }
 
-func newPodState(ipaddress, id, ncid string, state types.IPState, ncVersion int) cns.IPConfigurationStatus {
+func newPodState(ipaddress, id, ncid string, state types.IPState, ncVersion int) cns.IPConfigurationStatus { //nolint:unparam // ignore unused parameter
 	ipconfig := newSecondaryIPConfig(ipaddress, ncVersion)
 	status := &cns.IPConfigurationStatus{
 		IPAddress: ipconfig.IPAddress,
@@ -131,7 +131,8 @@ func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigsRequest) ([]cns.
 	return ipConfigStatus, nil
 }
 
-func newPodStateWithOrchestratorContext(ipaddress, id, ncid string, state types.IPState, prefixLength uint8, ncVersion int, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
+// nolint:unparam // ignore unused inputs
+func newPodStateWithOrchestratorContext(ipaddress, id, ncid string, state types.IPState, _ uint8, ncVersion int, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
 	ipconfig := newSecondaryIPConfig(ipaddress, ncVersion)
 	status := &cns.IPConfigurationStatus{
 		IPAddress: ipconfig.IPAddress,
@@ -144,6 +145,7 @@ func newPodStateWithOrchestratorContext(ipaddress, id, ncid string, state types.
 }
 
 // Test function to populate the IPConfigState
+// nolint: unparam // ignore unused return
 func updatePodIPConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[string]cns.IPConfigurationStatus, ncID string) error {
 	// Create the NC
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)

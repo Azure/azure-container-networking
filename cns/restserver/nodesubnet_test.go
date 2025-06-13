@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/stateprovider/cns"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/cns/stateprovider/cns"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/store"
 )
