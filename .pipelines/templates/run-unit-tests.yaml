@@ -98,12 +98,20 @@ stages:
               summaryFileLocation: coverage/linux-coverage.xml
           - task: BuildQualityChecks@8
             displayName: "Check Code Coverage Regression"
-            condition: always()
             inputs:
               checkCoverage: true
-              coverageFailOption: "build"
-              coverageType: "lines"
-              fallbackOnPRTargetBranch: false
-              baseBranchRef: "master"
-              allowCoverageVariance: true
-              coverageVariance: 0.25
+              coverageFailOption: fixed
+              coverageThreshold: 43
+              coverageType: lines
+          # TODO: Add this back in, just as it is, when ADO team fixes their API for PublishCodeCoverageResultsv2:
+          # - task: BuildQualityChecks@8
+          #   displayName: "Check Code Coverage Regression"
+          #   condition: always()
+          #   inputs:
+          #     checkCoverage: true
+          #     coverageFailOption: "build"
+          #     coverageType: "lines"
+          #     fallbackOnPRTargetBranch: false
+          #     baseBranchRef: "master"
+          #     allowCoverageVariance: true
+          #     coverageVariance: 0.25
