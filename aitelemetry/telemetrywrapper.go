@@ -3,6 +3,7 @@ package aitelemetry
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -35,6 +36,8 @@ const (
 	defaultGetEnvRetryWaitTimeInSecs = 3
 	defaultRefreshTimeoutInSecs      = 10
 )
+
+var MetadataFile = filepath.Join(os.TempDir(), "azuremetadata.json")
 
 type Level = contracts.SeverityLevel
 
@@ -98,7 +101,7 @@ func getMetadata(th *telemetryHandle) {
 
 	// check if metadata in memory otherwise initiate wireserver request
 	for {
-		metadata, err = common.GetHostMetadata(metadataFile)
+		metadata, err = common.GetHostMetadata(MetadataFile)
 		if err == nil || th.disableMetadataRefreshThread {
 			break
 		}
@@ -117,14 +120,14 @@ func getMetadata(th *telemetryHandle) {
 	th.metadata = metadata
 	th.rwmutex.Unlock()
 
-	lockclient, err := processlock.NewFileLock(metadataFile + store.LockExtension)
+	lockclient, err := processlock.NewFileLock(MetadataFile + store.LockExtension)
 	if err != nil {
 		log.Printf("Error initializing file lock:%v", err)
 		return
 	}
 
 	// Save metadata retrieved from wireserver to a file
-	kvs, err := store.NewJsonFileStore(metadataFile, lockclient, nil)
+	kvs, err := store.NewJsonFileStore(MetadataFile, lockclient, nil)
 	if err != nil {
 		debugLog("[AppInsights] Error initializing kvs store: %v", err)
 		return
@@ -134,7 +137,7 @@ func getMetadata(th *telemetryHandle) {
 		log.Errorf("getMetadata: Not able to acquire lock:%v", err)
 		return
 	}
-	metadataErr := common.SaveHostMetadata(th.metadata, metadataFile)
+	metadataErr := common.SaveHostMetadata(th.metadata, MetadataFile)
 	err = kvs.Unlock()
 	if err != nil {
 		log.Errorf("getMetadata: Not able to release lock:%v", err)
