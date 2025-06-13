@@ -22,11 +22,14 @@ import (
 // Version is populated by make during build.
 var version string
 
-const (
+var (
 	// path to a yaml or json files
-	configPath = "/etc/config/"
+	configPath = flag.String("input", "/etc/config/", `Name of the directory with configs to merge`)
 	// merged config written to this directory
-	outputPath = "/etc/merged-config/"
+	outputPath = flag.String("output", "/etc/merged-config/", `Name of the directory to output the merged config`)
+)
+
+const (
 	// config files in this path must start with this to be read
 	configFilePrefix = "ip-masq"
 )
@@ -142,7 +145,7 @@ func (m *MasqDaemon) mergeConfig(fileSys FileSystem) error {
 		}
 	}()
 
-	files, err := fileSys.ReadDir(configPath)
+	files, err := fileSys.ReadDir(*configPath)
 	if err != nil {
 		return fmt.Errorf("failed to read config directory, error: %w", err)
 	}
@@ -155,8 +158,8 @@ func (m *MasqDaemon) mergeConfig(fileSys FileSystem) error {
 		var yaml []byte
 		var json []byte
 
-		klog.V(2).Infof("syncing config file %q at %q", file.Name(), configPath)
-		yaml, err = fileSys.ReadFile(filepath.Join(configPath, file.Name()))
+		klog.V(2).Infof("syncing config file %q at %q", file.Name(), *configPath)
+		yaml, err = fileSys.ReadFile(filepath.Join(*configPath, file.Name()))
 		if err != nil {
 			return fmt.Errorf("failed to read config file %q, error: %w", file.Name(), err)
 		}
@@ -181,12 +184,12 @@ func (m *MasqDaemon) mergeConfig(fileSys FileSystem) error {
 		configAdded = true
 	}
 
-	mergedPath := filepath.Join(outputPath, "ip-masq-agent")
+	mergedPath := filepath.Join(*outputPath, "ip-masq-agent")
 
 	if !configAdded {
 		// no valid config files found to merge-- remove any existing merged config file so ip masq agent uses defaults
 		// the default config map is different from an empty config map
-		klog.V(2).Infof("no valid config files found at %q, removing existing config map", configPath)
+		klog.V(2).Infof("no valid config files found at %q, removing existing config map", *configPath)
 		err = fileSys.DeleteFile(mergedPath)
 		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("failed to remove existing config file: %w", err)

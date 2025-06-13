@@ -213,11 +213,11 @@ masqLinkLocalIPv6: false`,
 			fs := newMockFS()
 			var configFiles []string
 			for _, f := range tt.files {
-				full := filepath.Join(configPath, f.name)
+				full := filepath.Join(*configPath, f.name)
 				fs.files[full] = mockFile{data: []byte(f.data)}
 				configFiles = append(configFiles, f.name)
 			}
-			fs.dirs[configPath] = configFiles
+			fs.dirs[*configPath] = configFiles
 
 			daemon := &MasqDaemon{}
 			err := daemon.mergeConfig(fs)
@@ -227,7 +227,7 @@ masqLinkLocalIPv6: false`,
 			}
 			require.NoError(t, err, errUnexpected, err)
 
-			mergedPath := filepath.Join(outputPath, "ip-masq-agent")
+			mergedPath := filepath.Join(*outputPath, "ip-masq-agent")
 			mergedFile, ok := fs.files[mergedPath]
 			if tt.want.expectFile {
 				require.True(t, ok, "expected merged config file at %q", mergedPath)
@@ -291,15 +291,15 @@ func TestMergeConfigAddAndRemove(t *testing.T) {
 	fs := newMockFS()
 	cfgA := `{"nonMasqueradeCIDRs":["10.0.0.0/8"],"masqLinkLocal":false,"masqLinkLocalIPv6":true}`
 	cfgB := `{"nonMasqueradeCIDRs":["192.168.0.0/16"],"masqLinkLocal":true,"masqLinkLocalIPv6":false}`
-	fs.files[filepath.Join(configPath, "ip-masq-a.yaml")] = mockFile{data: []byte(cfgA)}
-	fs.files[filepath.Join(configPath, "ip-masq-b.yaml")] = mockFile{data: []byte(cfgB)}
-	fs.dirs[configPath] = []string{"ip-masq-a.yaml", "ip-masq-b.yaml"}
+	fs.files[filepath.Join(*configPath, "ip-masq-a.yaml")] = mockFile{data: []byte(cfgA)}
+	fs.files[filepath.Join(*configPath, "ip-masq-b.yaml")] = mockFile{data: []byte(cfgB)}
+	fs.dirs[*configPath] = []string{"ip-masq-a.yaml", "ip-masq-b.yaml"}
 
 	daemon := &MasqDaemon{}
 	// merge with both configs present
 	err := daemon.mergeConfig(fs)
 	require.NoError(t, err)
-	mergedPath := filepath.Join(outputPath, "ip-masq-agent")
+	mergedPath := filepath.Join(*outputPath, "ip-masq-agent")
 	mergedFile, ok := fs.files[mergedPath]
 	require.True(t, ok, "expected merged config file at %q", mergedPath)
 	var got MasqConfig
@@ -309,9 +309,9 @@ func TestMergeConfigAddAndRemove(t *testing.T) {
 	require.True(t, got.MasqLinkLocalIPv6, "expected MasqLinkLocalIPv6 true")
 
 	// remove both config files
-	delete(fs.files, filepath.Join(configPath, "ip-masq-a.yaml"))
-	delete(fs.files, filepath.Join(configPath, "ip-masq-b.yaml"))
-	fs.dirs[configPath] = []string{}
+	delete(fs.files, filepath.Join(*configPath, "ip-masq-a.yaml"))
+	delete(fs.files, filepath.Join(*configPath, "ip-masq-b.yaml"))
+	fs.dirs[*configPath] = []string{}
 
 	// merge again, should remove merged config file
 	err = daemon.mergeConfig(fs)
