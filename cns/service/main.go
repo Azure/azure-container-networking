@@ -1651,16 +1651,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		logger.Printf("NodeNetworkConfig reconciler has started.")
 		cancel()
 		
-		// Ensure manager is still healthy after nncReconciler started
-		select {
-		case managerErr := <-managerErrCh:
-			if managerErr != nil {
-				return errors.Wrap(managerErr, "controller-manager failed")
-			}
-			// If managerErr is nil, the manager stopped normally (unexpected at this point)
-			return errors.New("controller-manager stopped unexpectedly")
-		case <-time.After(1 * time.Second):
-			// No error after reasonable time, assume manager is healthy
+		err := <-managerErrCh
+		if err != nil {
+			return errors.Wrap(err, "controller-manager failed")
 		}
 		break
 	}
