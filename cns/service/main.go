@@ -1628,16 +1628,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	logger.Printf("Initialized controller-manager.")
 	
 	for {
-		// Check if manager failed during startup or runtime
-		select {
-		case managerErr := <-managerErrCh:
-			if managerErr != nil {
-				return errors.Wrap(managerErr, "controller-manager failed")
-			}
-		default:
-			// Continue with normal flow if no manager error
-		}
-		
 		logger.Printf("Waiting for NodeNetworkConfig reconciler to start.")
 		// wait for the Reconciler to run once on a NNC that was made for this Node.
 		// the nncReadyCtx has a timeout of 15 minutes, after which we will consider
