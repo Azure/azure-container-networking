@@ -1616,7 +1616,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		managerStartTimeout := 5 * time.Minute
 		startManagerCtx, startManagerCancel := context.WithTimeout(ctx, managerStartTimeout)
 		defer startManagerCancel()
-		
 		if err := manager.Start(startManagerCtx); err != nil {
 			logger.Errorf("Failed to start controller-manager: %v", err)
 			managerErrCh <- err
@@ -1626,7 +1625,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		managerErrCh <- nil
 	}()
 	logger.Printf("Initialized controller-manager.")
-	
 	for {
 		logger.Printf("Waiting for NodeNetworkConfig reconciler to start.")
 		// wait for the Reconciler to run once on a NNC that was made for this Node.
@@ -1639,7 +1637,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 		logger.Printf("NodeNetworkConfig reconciler has started.")
 		cancel()
-		
 		err := <-managerErrCh
 		if err != nil {
 			return errors.Wrap(err, "controller-manager failed")
