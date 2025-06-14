@@ -1609,20 +1609,20 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	// Start the Manager which starts the reconcile loop.
 	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the
 	// Monitor's internal loop.
+	managerErrCh := make(chan error, 1)
 	go func() {
 		logger.Printf("Starting controller-manager.")
-		for {
-			if err := manager.Start(ctx); err != nil {
-				logger.Errorf("Failed to start controller-manager: %v", err)
-				// retry to start the request controller
-				// inc the managerStartFailures metric for failure tracking
-				managerStartFailures.Inc()
-			} else {
-				logger.Printf("Stopped controller-manager.")
-				return
-			}
-			time.Sleep(time.Second) // TODO(rbtr): make this exponential backoff
+		// Add timeout for controller startup
+		managerStartTimeout := 5 * time.Minute
+		startManagerCtx, startManagerCancel := context.WithTimeout(ctx, managerStartTimeout)
+		defer startManagerCancel()
+		if err := manager.Start(startManagerCtx); err != nil {
+			logger.Errorf("Failed to start controller-manager: %v", err)
+			managerErrCh <- err
+			return
 		}
+		logger.Printf("Stopped controller-manager.")
+		managerErrCh <- nil
 	}()
 	logger.Printf("Initialized controller-manager.")
 	for {
@@ -1633,11 +1633,14 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		nncReadyCtx, cancel := context.WithTimeout(ctx, 15*time.Minute) // nolint // it will time out and not leak
 		if started, err := nncReconciler.Started(nncReadyCtx); !started {
 			logger.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
-			nncReconcilerStartFailures.Inc()
 			continue
 		}
 		logger.Printf("NodeNetworkConfig reconciler has started.")
 		cancel()
+		err := <-managerErrCh
+		if err != nil {
+			return errors.Wrap(err, "controller-manager failed")
+		}
 		break
 	}
 
