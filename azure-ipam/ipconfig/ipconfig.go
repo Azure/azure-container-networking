@@ -84,14 +84,16 @@ func ProcessIPConfigsResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, *[]net.
 
 		var gatewayStr string
 		if podIPNet.Addr().Is4() {
-			gatewayStr = podInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress
+			gatewayStr = resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress
 		} else if podIPNet.Addr().Is6() {
-			gatewayStr = podInfo.NetworkContainerPrimaryIPConfig.GatewayIPv6Address
+			gatewayStr = resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPv6Address
 		}
 
-		gatewayIP := net.ParseIP(gatewayStr)
-		if gatewayIP == nil {
-			return nil, nil, errors.Errorf("failed to parse gateway IP %q for pod ip %s", gatewayStr, podInfo.PodIPConfig.IPAddress)
+		if gatewayStr != "" {
+			gatewayIP = net.ParseIP(gatewayStr)
+			if gatewayIP == nil {
+				return nil, nil, errors.Errorf("failed to parse gateway IP %q for pod ip %s", gatewayStr, resp.PodIPInfo[i].PodIPConfig.IPAddress)
+			}
 		}
 		gatewaysIPs[i] = gatewayIP
 	}
