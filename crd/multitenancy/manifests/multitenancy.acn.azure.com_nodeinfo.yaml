@@ -59,6 +59,9 @@ spec:
                       - acn.azure.com/vnet-nic
                       - acn.azure.com/infiniband-nic
                       type: string
+                    homeAZ:
+                      pattern: ^AZ\d{2}$
+                      type: string
                     macAddress:
                       type: string
                   required:
