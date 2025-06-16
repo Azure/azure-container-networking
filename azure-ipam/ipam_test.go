@@ -347,21 +347,9 @@ func TestCmdAdd(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "CNI add with nil gateway IP",
-			args: buildArgs("nilGateway", happyPodArgs, happyNetConfByteArr),
-			want: &types100.Result{
-				CNIVersion: "1.0.0",
-				IPs: []*types100.IPConfig{
-					{
-						Address: net.IPNet{
-							IP:   net.IPv4(10, 0, 1, 10),
-							Mask: net.CIDRMask(24, 32),
-						},
-					},
-				},
-				DNS: cniTypes.DNS{},
-			},
-			wantErr: false,
+			name:    "CNI add with nil gateway IP",
+			args:    buildArgs("nilGateway", happyPodArgs, happyNetConfByteArr),
+			wantErr: true,
 		},
 		{
 			name:    "Fail request CNS ipconfig during CmdAdd",

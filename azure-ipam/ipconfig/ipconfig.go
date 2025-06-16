@@ -89,11 +89,9 @@ func ProcessIPConfigsResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, *[]net.
 			gatewayStr = resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPv6Address
 		}
 
-		if gatewayStr != "" {
-			gatewayIP = net.ParseIP(gatewayStr)
-			if gatewayIP == nil {
-				return nil, nil, errors.Errorf("failed to parse gateway IP %q for pod ip %s", gatewayStr, resp.PodIPInfo[i].PodIPConfig.IPAddress)
-			}
+		gatewayIP = net.ParseIP(gatewayStr)
+		if gatewayIP == nil {
+			return nil, nil, errors.Errorf("failed to parse gateway IP %q for pod ip %s", gatewayStr, resp.PodIPInfo[i].PodIPConfig.IPAddress)
 		}
 		gatewaysIPs[i] = gatewayIP
 	}
