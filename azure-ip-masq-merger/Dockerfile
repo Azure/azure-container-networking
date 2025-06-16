@@ -16,7 +16,7 @@ COPY ./azure-ip-masq-merger .
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/ip-masq-merger -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
 
 # TODO: Replace with scratch later
-FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core@sha256:a490e0b0869dc570ae29782c2bc17643aaaad1be102aca83ce0b96e0d0d2d328 AS linux
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:b46476be0b5c9691ad20f78871819950c01433bdfad81d72c61618f4a6202b25 AS linux
 COPY --from=azure-ip-masq-merger /go/bin/ip-masq-merger ip-masq-merger
 ENTRYPOINT [ "/ip-masq-merger" ]
 

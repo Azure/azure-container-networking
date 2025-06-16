@@ -27,11 +27,16 @@ var (
 	configPath = flag.String("input", "/etc/config/", `Name of the directory with configs to merge`)
 	// merged config written to this directory
 	outputPath = flag.String("output", "/etc/merged-config/", `Name of the directory to output the merged config`)
+	// errors
+	errAlignment = errors.New("ip not aligned to CIDR block")
 )
 
 const (
 	// config files in this path must start with this to be read
 	configFilePrefix = "ip-masq"
+	// error formats
+	cidrParseErrFmt = "CIDR %q could not be parsed: %w"
+	cidrAlignErrFmt = "CIDR %q is not aligned to a CIDR block, ip: %q network: %q: %w"
 )
 
 type FileSystem interface {
@@ -257,13 +262,6 @@ func mergeCIDRs(cidrs1, cidrs2 []string) []string {
 
 	return cidrsList
 }
-
-const (
-	cidrParseErrFmt = "CIDR %q could not be parsed: %w"
-	cidrAlignErrFmt = "CIDR %q is not aligned to a CIDR block, ip: %q network: %q: %w"
-)
-
-var errAlignment = errors.New("ip not aligned to CIDR block")
 
 func validateCIDR(cidr string) error {
 	// parse test
