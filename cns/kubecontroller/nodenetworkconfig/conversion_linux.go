@@ -16,15 +16,12 @@ import (
 func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 
-	// in the case of vnet prefix on swift v2 the primary IP is a /32 and should not be added to secondary IP configs
-	if !primaryIPPrefix.IsSingleIP() {
-		// iterate through all IP addresses in the subnet described by primaryPrefix and
-		// add them to the request as secondary IPConfigs.
-		for addr := primaryIPPrefix.Masked().Addr(); primaryIPPrefix.Contains(addr); addr = addr.Next() {
-			secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
-				IPAddress: addr.String(),
-				NCVersion: int(nc.Version),
-			}
+	// iterate through all IP addresses in the subnet described by primaryPrefix and
+	// add them to the request as secondary IPConfigs.
+	for addr := primaryIPPrefix.Masked().Addr(); primaryIPPrefix.Contains(addr); addr = addr.Next() {
+		secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
+			IPAddress: addr.String(),
+			NCVersion: int(nc.Version),
 		}
 	}
 
