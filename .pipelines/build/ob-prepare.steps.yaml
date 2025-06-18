@@ -67,9 +67,14 @@ steps:
     targetFolder: $(Build.ArtifactStagingDirectory)
 
 
-- task: CopyFiles@2
+- bash: |
+    cp -rf .pipelines "$OUT_DIR"/.pipelines
   displayName: "Add Pipeline Orchestration to Container Artifacts"
-  inputs:
-    sourceFolder: $(ACN_DEVOPS_DIR)/.pipelines
-    targetFolder: $(Build.ArtifactStagingDirectory)/azure-container-networking/.pipelines
-    OverWrite: True
+  workingDirectory: $(ACN_DEVOPS_DIR)
+
+#- task: CopyFiles@2
+#  displayName: "Add Pipeline Orchestration to Container Artifacts"
+#  inputs:
+#    sourceFolder: $(ACN_DEVOPS_DIR)/.pipelines
+#    targetFolder: $(Build.ArtifactStagingDirectory)/.pipelines
+#    OverWrite: True
