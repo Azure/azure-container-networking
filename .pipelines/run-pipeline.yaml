@@ -24,6 +24,7 @@ stages:
     displayName: Setup
     pool:
       type: linux
+    dependsOn: copy
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       ob_artifactSuffix: _source
