@@ -71,5 +71,5 @@ steps:
   displayName: "Add Pipeline Orchestration to Container Artifacts"
   inputs:
     sourceFolder: $(ACN_DEVOPS_DIR)/.pipelines
-    targetFolder: $(Build.ArtifactStagingDirectory)/.pipelines
+    targetFolder: $(Build.ArtifactStagingDirectory)/azure-container-networking/.pipelines
     OverWrite: True
