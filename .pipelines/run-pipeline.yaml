@@ -32,7 +32,7 @@ stages:
       ob_git_checkout: true
 
       ACN_DIR: $(Build.SourcesDirectory)
-      ACN_DEVOPS_DIR: $(Build.SourcesDirectory)/drop_setup_copy
+      ACN_DEVOPS_DIR: $(Agent.BuildDirectory)/drop_setup_copy
       BUILD_TYPE: $(IMAGE_ACR_TYPE)
     steps:
     - checkout: azure-container-networking
