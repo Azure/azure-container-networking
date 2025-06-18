@@ -2,8 +2,7 @@ stages:
 - stage: setup
   displayName: ACN
   variables:
-    ACN_DIR: $(Build.SourcesDirectory)/azure-container-networking
-    ACN_DEVOPS_DIR: $(Build.SourcesDirectory)/acn-devops
+    ACN_DEVOPS_DIR: $(Build.SourcesDirectory)/azure-container-networking
   jobs:
   - job: copy
     displayName: Copy Pipeline Files
