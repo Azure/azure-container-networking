@@ -27,11 +27,11 @@ stages:
       type: linux
     dependsOn: copy
     variables:
-      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/azure-container-networking
       ob_artifactSuffix: _source
       ob_git_checkout: true
 
-      ACN_DIR: $(Build.SourcesDirectory)
+      ACN_DIR: $(Build.SourcesDirectory)/azure-container-networking
       ACN_DEVOPS_DIR: $(Agent.BuildDirectory)/drop_setup_copy
       BUILD_TYPE: $(IMAGE_ACR_TYPE)
     steps:
@@ -74,8 +74,8 @@ stages:
           displayName: "Linux/AMD64"
           templateContext:
             repositoryArtifact: drop_setup_env_source
-            buildScript: azure-container-networking/.pipelines/build/scripts/$(name).sh
-            obDockerfile: azure-container-networking/.pipelines/build/dockerfiles/$(name).Dockerfile
+            buildScript: .pipelines/build/scripts/$(name).sh
+            obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
           strategy:
             maxParallel: 5
             matrix:
@@ -116,8 +116,8 @@ stages:
           displayName: "Windows"
           templateContext:
             repositoryArtifact: drop_setup_env_source
-            buildScript: azure-container-networking/.pipelines/build/scripts/$(name).sh
-            obDockerfile: azure-container-networking/.pipelines/build/dockerfiles/$(name).Dockerfile
+            buildScript: .pipelines/build/scripts/$(name).sh
+            obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
           strategy:
             maxParallel: 5
             matrix:
@@ -152,8 +152,8 @@ stages:
           displayName: "Linux/ARM64"
           templateContext:
             repositoryArtifact: drop_setup_env_source
-            buildScript: azure-container-networking/.pipelines/build/scripts/$(name).sh
-            obDockerfile: azure-container-networking/.pipelines/build/dockerfiles/$(name).Dockerfile
+            buildScript: .pipelines/build/scripts/$(name).sh
+            obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
           strategy:
             maxParallel: 3
             matrix:
