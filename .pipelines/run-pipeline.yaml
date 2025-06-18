@@ -5,6 +5,21 @@ stages:
     ACN_DIR: $(Build.SourcesDirectory)/azure-container-networking
     ACN_DEVOPS_DIR: $(Build.SourcesDirectory)/acn-devops
   jobs:
+  - job: copy
+    displayName: Copy Pipeline Files
+    pool:
+      type: linux
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
+    steps:
+    - checkout: acn-devops
+
+    - task: CopyFiles@2
+      displayName: "Add Pipeline Orchestration to Container Artifacts"
+      inputs:
+        sourceFolder: $(ACN_DEVOPS_DIR)/.pipelines
+        targetFolder: $(Build.ArtifactStagingDirectory)/.pipelines
+
   - job: env
     displayName: Setup
     pool:
@@ -17,9 +32,8 @@ stages:
       BUILD_TYPE: $(IMAGE_ACR_TYPE)
     steps:
     - checkout: azure-container-networking
-      path: $(ACN_DIR)
-    - checkout: acn-devops
-      path: $(ACN_DEVOPS_DIR)
+    - download: current
+      artifact: drop_setup_copy
 
     - template: build/ob-prepare.steps.yaml@acn-devops
 
