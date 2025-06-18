@@ -11,6 +11,7 @@ stages:
       type: linux
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
+      ob_git_checkout: true
     steps:
     - checkout: acn-devops
 
