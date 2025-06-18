@@ -60,15 +60,16 @@ steps:
   displayName: "Remove Unnecessary Dirs from Source"
   workingDirectory: $(ACN_DIR)
 
-- task: CopyFiles@2
-  displayName: "Add Development Src to Container Artifacts"
-  inputs:
-    sourceFolder: $(ACN_DIR)
-    targetFolder: $(OUT_DIR)
+#- task: CopyFiles@2
+#  displayName: "Add Development Src to Container Artifacts"
+#  inputs:
+#    sourceFolder: $(ACN_DIR)
+#    targetFolder: $(OUT_DIR)
 
 
 - task: CopyFiles@2
   displayName: "Add Pipeline Orchestration to Container Artifacts"
   inputs:
     sourceFolder: $(ACN_DEVOPS_DIR)/.pipelines
-    targetFolder: $(OUT_DIR)/.pipelines
+    targetFolder: $(ACN_DIR)/.pipelines
+    CleanTargetFolder: false
