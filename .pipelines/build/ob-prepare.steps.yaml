@@ -72,3 +72,4 @@ steps:
   inputs:
     sourceFolder: $(ACN_DEVOPS_DIR)/.pipelines
     targetFolder: $(Build.ArtifactStagingDirectory)/.pipelines
+    OverWrite: True

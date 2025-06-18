@@ -2,6 +2,7 @@ stages:
 - stage: setup
   displayName: ACN
   variables:
+    
     ACN_DEVOPS_DIR: $(Build.SourcesDirectory)/azure-container-networking
   jobs:
   - job: copy
@@ -30,6 +31,8 @@ stages:
       ob_artifactSuffix: _source
       ob_git_checkout: true
 
+      ACN_DIR: $(Build.SourcesDirectory)
+      ACN_DEVOPS_DIR: $(Build.SourcesDirectory)/drop_setup_copy
       BUILD_TYPE: $(IMAGE_ACR_TYPE)
     steps:
     - checkout: azure-container-networking
