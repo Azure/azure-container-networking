@@ -31,6 +31,7 @@ stages:
       ob_artifactSuffix: _source
       ob_git_checkout: true
 
+      OUT_DIR: $(Build.ArtifactStagingDirectory)
       ACN_DIR: $(Build.SourcesDirectory)/azure-container-networking
       ACN_DEVOPS_DIR: $(Agent.BuildDirectory)/drop_setup_copy
       BUILD_TYPE: $(IMAGE_ACR_TYPE)
