@@ -116,8 +116,8 @@ stages:
           displayName: "Windows"
           templateContext:
             repositoryArtifact: drop_setup_env_source
-            buildScript: .pipelines/build/scripts/$(name).sh
-            obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
+            buildScript: azure-container-networking/.pipelines/build/scripts/$(name).sh
+            obDockerfile: azure-container-networking/.pipelines/build/dockerfiles/$(name).Dockerfile
           strategy:
             maxParallel: 5
             matrix:
@@ -152,8 +152,8 @@ stages:
           displayName: "Linux/ARM64"
           templateContext:
             repositoryArtifact: drop_setup_env_source
-            buildScript: .pipelines/build/scripts/$(name).sh
-            obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
+            buildScript: azure-container-networking/.pipelines/build/scripts/$(name).sh
+            obDockerfile: azure-container-networking/.pipelines/build/dockerfiles/$(name).Dockerfile
           strategy:
             maxParallel: 3
             matrix:
