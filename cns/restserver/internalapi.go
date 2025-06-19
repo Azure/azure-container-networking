@@ -29,6 +29,12 @@ import (
 // internal APIs (definde in internalapi.go).
 // This will be used internally (say by RequestController in case of AKS)
 
+// ncVersionInfo holds expected and actual version information for an NC
+type ncVersionInfo struct {
+	expected string
+	actual   string
+}
+
 // GetPartitionKey - Get dnc/service partition key
 func (service *HTTPRestService) GetPartitionKey() (dncPartitionKey string) {
 	service.RLock()
@@ -228,8 +234,8 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	hasNC.Set(float64(len(nmaNCs)))
 	
 	// Track NCs missing from NMAgent response and outdated NCs for better error reporting
-	missingNCs := make(map[string]string)       // ncID -> expected version
-	outdatedNMaNCs := make(map[string]string)   // ncID -> "expected:actual" version info
+	missingNCs := make(map[string]string)            // ncID -> expected version
+	outdatedNMaNCs := make(map[string]ncVersionInfo) // ncID -> version info with expected and actual
 	
 	for ncID := range outdatedNCs {
 		nmaNCVersionStr, ok := nmaNCs[ncID]
@@ -276,7 +282,10 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		
 		// Check if NMAgent version is still outdated compared to expected DNC version
 		if nmaNCVersion < expectedVersionInt {
-			outdatedNMaNCs[ncID] = fmt.Sprintf("expected:%s,actual:%s", expectedVersion, nmaNCVersionStr)
+			outdatedNMaNCs[ncID] = ncVersionInfo{
+				expected: expectedVersion,
+				actual:   nmaNCVersionStr,
+			}
 			continue
 		}
 		
