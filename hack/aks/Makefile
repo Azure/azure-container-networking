@@ -8,24 +8,24 @@ AZIMG   = mcr.microsoft.com/azure-cli
 AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(PWD):/root/tmpsrc $(AZIMG) az
 
 # overrideable defaults
-AUTOUPGRADE     	 ?= patch
-K8S_VER         	 ?= 1.29
-NODE_COUNT      	 ?= 2
-NODE_COUNT_WIN		 ?= $(NODE_COUNT)
-NODEUPGRADE     	 ?= NodeImage
-OS					 ?= linux # Used to signify if you want to bring up a windows nodePool on byocni clusters
-OS_SKU          	 ?= Ubuntu
-OS_SKU_WIN      	 ?= Windows2022
-REGION          	 ?= westus2
-VM_SIZE    	         ?= Standard_B2s
-VM_SIZE_WIN		     ?= Standard_B2s
-LTS					 ?= true
-IP_TAG               ?= FirstPartyUsage=/NonProd
-IP_PREFIX            ?= serviceTaggedIp
-PUBLIC_IP_ID         ?= /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/publicIPAddresses
-PUBLIC_IPv4          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v4
-PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
-KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
+AUTOUPGRADE				?= patch
+K8S_VER					?= 1.29
+NODE_COUNT				?= 2
+NODE_COUNT_WIN			?= $(NODE_COUNT)
+NODEUPGRADE				?= NodeImage
+OS						?= linux # Used to signify if you want to bring up a windows nodePool on byocni clusters
+OS_SKU					?= Ubuntu
+OS_SKU_WIN				?= Windows2022
+REGION					?= westus2
+VM_SIZE					?= Standard_B2s
+VM_SIZE_WIN				?= Standard_B2s
+LTS						?= true
+IP_TAG					?= FirstPartyUsage=/NonProd
+IP_PREFIX				?= serviceTaggedIp
+PUBLIC_IP_ID			?= /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/publicIPAddresses
+PUBLIC_IPv4				?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v4
+PUBLIC_IPv6				?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
+KUBE_PROXY_JSON_PATH	?= ./kube-proxy.json
 
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
@@ -96,6 +96,7 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo NODE_COUNT=$(NODE_COUNT)
 	@echo VMSS_NAME=$(VMSS_NAME)
 	@echo LTS=$(if $(LTS),$(LTS),empty)
+
 
 
 ##@ SWIFT Infra
