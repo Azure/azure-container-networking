@@ -11,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -328,6 +329,86 @@ func createNCReqeustForSyncHostNCVersion(t *testing.T) cns.CreateNetworkContaine
 	secondaryIPConfigs[ipID.String()] = secIPConfig
 	req := createNCReqInternal(t, secondaryIPConfigs, ncID, strconv.Itoa(ncVersion))
 	return req
+}
+
+func TestSyncHostNCVersionErrorMessages(t *testing.T) {
+	tests := []struct {
+		name              string
+		ncVersionInDNC    string
+		nmaResponse       nma.NCVersionList
+		expectedErrorSubstring string
+	}{
+		{
+			name:           "missing NC from NMAgent response",
+			ncVersionInDNC: "2",
+			nmaResponse: nma.NCVersionList{
+				Containers: []nma.NCVersion{}, // Empty response - NC is missing
+			},
+			expectedErrorSubstring: "missing NCs from NMAgent response",
+		},
+		{
+			name:           "outdated NC in NMAgent response",
+			ncVersionInDNC: "2",
+			nmaResponse: nma.NCVersionList{
+				Containers: []nma.NCVersion{
+					{
+						NetworkContainerID: ncID,
+						Version:            "1", // Outdated version compared to DNC version 2
+					},
+				},
+			},
+			expectedErrorSubstring: "outdated NCs in NMAgent response",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create NC request with specified DNC version
+			restartService()
+			setEnv(t)
+			setOrchestratorTypeInternal(cns.KubernetesCRD)
+
+			secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+			ipAddress := "10.0.0.16"
+			secIPConfig := newSecondaryIPConfig(ipAddress, 0)
+			ipID := uuid.New()
+			secondaryIPConfigs[ipID.String()] = secIPConfig
+			_ = createNCReqInternal(t, secondaryIPConfigs, ncID, tt.ncVersionInDNC)
+
+			// Set up mock NMAgent with the specified response
+			mnma := &fakes.NMAgentClientFake{
+				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
+					return tt.nmaResponse, nil
+				},
+			}
+			cleanup := setMockNMAgent(svc, mnma)
+			defer cleanup()
+
+			// Call syncHostNCVersion and verify it returns the expected error
+			programmedCount, err := svc.syncHostNCVersion(context.Background(), cns.KubernetesCRD)
+			
+			t.Logf("Test case: %s, programmedCount: %d, error: %v", tt.name, programmedCount, err)
+			
+			if err == nil {
+				t.Errorf("Expected error but got none")
+				return
+			}
+			
+			if !strings.Contains(err.Error(), tt.expectedErrorSubstring) {
+				t.Errorf("Expected error message to contain '%s', but got: %s", tt.expectedErrorSubstring, err.Error())
+			}
+			
+			// In the outdated case, NMAgent has a version of the NC so it counts as programmed, just not up-to-date
+			expectedProgrammedCount := 0
+			if tt.name == "outdated NC in NMAgent response" {
+				expectedProgrammedCount = 1 // NMAgent has version 1, so it's programmed to some version
+			}
+			
+			if programmedCount != expectedProgrammedCount {
+				t.Errorf("Expected programmedCount to be %d, but got %d", expectedProgrammedCount, programmedCount)
+			}
+		})
+	}
 }
 
 func TestReconcileNCWithEmptyState(t *testing.T) {

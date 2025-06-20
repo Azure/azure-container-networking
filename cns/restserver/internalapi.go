@@ -29,6 +29,12 @@ import (
 // internal APIs (definde in internalapi.go).
 // This will be used internally (say by RequestController in case of AKS)
 
+// ncVersionInfo holds expected and actual version information for an NC
+type ncVersionInfo struct {
+	expected string
+	actual   string
+}
+
 // GetPartitionKey - Get dnc/service partition key
 func (service *HTTPRestService) GetPartitionKey() (dncPartitionKey string) {
 	service.RLock()
@@ -226,10 +232,18 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		nmaNCs[strings.ToLower(nc.NetworkContainerID)] = nc.Version
 	}
 	hasNC.Set(float64(len(nmaNCs)))
+	
+	// Track NCs missing from NMAgent response and outdated NCs for better error reporting
+	missingNCs := make(map[string]string)            // ncID -> expected version
+	outdatedNMaNCs := make(map[string]ncVersionInfo) // ncID -> version info with expected and actual
+	
 	for ncID := range outdatedNCs {
 		nmaNCVersionStr, ok := nmaNCs[ncID]
 		if !ok {
-			// NMA doesn't have this NC that we need programmed yet, bail out
+			// NMA doesn't have this NC that we need programmed yet, track as missing
+			if ncInfo, exists := service.state.ContainerStatus[ncID]; exists {
+				missingNCs[ncID] = ncInfo.CreateNetworkContainerRequest.Version
+			}
 			continue
 		}
 		nmaNCVersion, err := strconv.Atoi(nmaNCVersionStr)
@@ -258,6 +272,23 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 			logger.Errorf("NC version from NMA is decreasing: have %d, got %d", localNCVersion, nmaNCVersion)
 			continue
 		}
+		
+		expectedVersion := ncInfo.CreateNetworkContainerRequest.Version
+		expectedVersionInt, err := strconv.Atoi(expectedVersion)
+		if err != nil {
+			logger.Errorf("failed to parse expected NC version string %s: %s", expectedVersion, err)
+			continue
+		}
+		
+		// Check if NMAgent version is still outdated compared to expected DNC version
+		if nmaNCVersion < expectedVersionInt {
+			outdatedNMaNCs[ncID] = ncVersionInfo{
+				expected: expectedVersion,
+				actual:   nmaNCVersionStr,
+			}
+			continue
+		}
+		
 		if channelMode == cns.CRD {
 			service.MarkIpsAsAvailableUntransacted(ncInfo.ID, nmaNCVersion)
 		}
@@ -271,7 +302,18 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	// if we didn't empty out the needs update set, NMA has not programmed all the NCs we are expecting, and we
 	// need to return an error indicating that
 	if len(outdatedNCs) > 0 {
-		return len(programmedNCs), errors.Errorf("unabled to update some NCs: %v, missing or bad response from NMA", outdatedNCs)
+		var errorParts []string
+		if len(missingNCs) > 0 {
+			errorParts = append(errorParts, fmt.Sprintf("missing NCs from NMAgent response: %v", missingNCs))
+		}
+		if len(outdatedNMaNCs) > 0 {
+			errorParts = append(errorParts, fmt.Sprintf("outdated NCs in NMAgent response: %v", outdatedNMaNCs))
+		}
+		if len(errorParts) == 0 {
+			// Fallback for any unexpected cases
+			errorParts = append(errorParts, fmt.Sprintf("unable to update NCs: %v", outdatedNCs))
+		}
+		return len(programmedNCs), errors.Errorf("unable to update some NCs - %s", strings.Join(errorParts, "; "))
 	}
 
 	return len(programmedNCs), nil
