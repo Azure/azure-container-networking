@@ -47,6 +47,10 @@ type NodeInfoStatus struct {
 type DeviceInfo struct {
 	DeviceType DeviceType `json:"deviceType,omitempty"`
 	MacAddress string     `json:"macAddress"`
+
+	// +kubebuilder:validation:optional
+	// +kubebuilder:validation:Pattern=`^AZ\d{2}$`
+	HomeAZ string `json:"homeAZ,omitempty"`
 }
 
 func init() {
