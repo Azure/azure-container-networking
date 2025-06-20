@@ -1,4 +1,3 @@
-
 steps:
 - template: utils/rename-dockerfile-references.steps.yaml
   parameters:
@@ -58,6 +57,10 @@ steps:
     AZUREIPAMVERSION=$(make azure-ipam-version)
     echo "##vso[task.setvariable variable=azureIpamVersion;isOutput=true]$AZUREIPAMVERSION"
     echo "azureIpamVersion: $AZUREIPAMVERSION"
+
+    AZUREIPMASQMERGERVERSION=$(make azure-ip-masq-merger-version)
+    echo "##vso[task.setvariable variable=azureIpMasqMergerVersion;isOutput=true]$AZUREIPMASQMERGERVERSION"
+    echo "azureIpMasqMergerVersion: $AZUREIPMASQMERGERVERSION"
 
     CNIVERSION=$(make cni-version)
     echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$CNIVERSION"
