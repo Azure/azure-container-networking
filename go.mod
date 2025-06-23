@@ -14,7 +14,7 @@ require (
 	github.com/billgraziano/dpapi v0.5.0
 	github.com/containernetworking/cni v1.3.0
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
-	github.com/go-logr/zapr v1.3.0 // indirect
+	github.com/go-logr/zapr v1.3.0
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.4
 	github.com/google/gnostic-models v0.6.8 // indirect
@@ -89,7 +89,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/common v0.64.0
+	github.com/prometheus/common v0.65.0
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/afero v1.12.0 // indirect
