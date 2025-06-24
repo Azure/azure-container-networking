@@ -25,8 +25,10 @@ stages:
                   } 3>&1;
                 } | { read xs; exit $xs; }
               } 4>&1
-
-              mv coverage-all.out linux-coverage.out
+              
+              # combine coverage from multiple modules
+              (echo "mode: atomic"; tail -q -n +2 coverage-*.out) > coverage.cover
+              mv coverage.cover linux-coverage.out
             retryCountOnTaskFailure: 3
             name: "Test"
             displayName: "Run Tests"
@@ -75,6 +77,9 @@ stages:
               artifact: 'linux-coverage'
               path: './'
           - bash: |
+              # use go work to include multiple modules or gocov will omit results from those modules
+              make workspace
+
               make tools
               sudo ln -s $(pwd)/build/tools/bin/gocov /usr/local/bin/gocov
               sudo ln -s $(pwd)/build/tools/bin/gocov-xml /usr/local/bin/gocov-xml
