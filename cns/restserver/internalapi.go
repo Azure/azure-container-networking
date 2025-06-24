@@ -25,6 +25,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	// Known API names we care about
+	nmAgentSwiftV2API = "SwiftV2DhcpRehydrationFromGoalState"
+)
+
 // This file contains the internal functions called by either HTTP APIs (api.go) or
 // internal APIs (definde in internalapi.go).
 // This will be used internally (say by RequestController in case of AKS)
@@ -167,6 +172,7 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	service.Lock()
 	defer service.Unlock()
 	start := time.Now()
+
 	programmedNCCount, err := service.syncHostNCVersion(ctx, channelMode)
 	// even if we get an error, we want to write the CNI conflist if we have any NC programmed to any version
 	if programmedNCCount > 0 {
@@ -202,6 +208,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 			logger.Errorf("Received err when change nc version %s in containerstatus to int, err msg %v", service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version, err)
 			continue
 		}
+		logger.Printf("NC %s: local NC version %d, DNC NC version %d", service.state.ContainerStatus[idx].ID, localNCVersion, dncNCVersion)
 		// host NC version is the NC version from NMAgent, if it's smaller than NC version from DNC, then append it to indicate it needs update.
 		if localNCVersion < dncNCVersion {
 			outdatedNCs[service.state.ContainerStatus[idx].ID] = struct{}{}
@@ -216,23 +223,43 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	if len(outdatedNCs) == 0 {
 		return len(programmedNCs), nil
 	}
+	logger.Printf("outdatedNCs: %v", outdatedNCs)
 	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
 		return len(programmedNCs), errors.Wrap(err, "failed to get nc version list from nmagent")
+	}
+
+	// Get IMDS NC versions for delegated NIC scenarios
+	imdsNCVersions, err := service.GetIMDSNCVersions(ctx)
+	if err != nil {
+		logger.Printf("Failed to get NC versions from IMDS: %v", err)
+		// If any of the NMA API check calls, imds calls fails assume that nma build doesn't have the latest changes and create empty map
+		imdsNCVersions = make(map[string]string)
 	}
 
 	nmaNCs := map[string]string{}
 	for _, nc := range ncVersionListResp.Containers {
 		nmaNCs[strings.ToLower(nc.NetworkContainerID)] = nc.Version
 	}
-	hasNC.Set(float64(len(nmaNCs)))
+
+	// Consolidate both maps - NMA takes precedence, IMDS as fallback
+	consolidatedNCs := make(map[string]string)
+	for ncID, version := range nmaNCs {
+		consolidatedNCs[ncID] = version
+	}
+	for ncID, version := range imdsNCVersions {
+		if _, exists := consolidatedNCs[ncID]; !exists {
+			consolidatedNCs[ncID] = version
+		}
+	}
+	hasNC.Set(float64(len(consolidatedNCs)))
 	for ncID := range outdatedNCs {
-		nmaNCVersionStr, ok := nmaNCs[ncID]
+		consolidatedNCVersionStr, ok := consolidatedNCs[ncID]
 		if !ok {
-			// NMA doesn't have this NC that we need programmed yet, bail out
+			// Neither NMA nor IMDS has this NC that we need programmed yet, bail out
 			continue
 		}
-		nmaNCVersion, err := strconv.Atoi(nmaNCVersionStr)
+		consolidatedNCVersion, err := strconv.Atoi(consolidatedNCVersionStr)
 		if err != nil {
 			logger.Errorf("failed to parse container version of %s: %s", ncID, err)
 			continue
@@ -245,7 +272,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 			return len(programmedNCs), errors.Wrapf(errNonExistentContainerStatus, "can't find NC with ID %s in service state, stop updating this host NC version", ncID)
 		}
 		// if the NC still exists in state and is programmed to some version (doesn't have to be latest), add it to our set of NCs that have been programmed
-		if nmaNCVersion > -1 {
+		if consolidatedNCVersion > -1 {
 			programmedNCs[ncID] = struct{}{}
 		}
 
@@ -254,15 +281,15 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 			logger.Errorf("failed to parse host nc version string %s: %s", ncInfo.HostVersion, err)
 			continue
 		}
-		if localNCVersion > nmaNCVersion {
-			logger.Errorf("NC version from NMA is decreasing: have %d, got %d", localNCVersion, nmaNCVersion)
+		if localNCVersion > consolidatedNCVersion {
+			logger.Errorf("NC version from consolidated sources is decreasing: have %d, got %d", localNCVersion, consolidatedNCVersion)
 			continue
 		}
 		if channelMode == cns.CRD {
-			service.MarkIpsAsAvailableUntransacted(ncInfo.ID, nmaNCVersion)
+			service.MarkIpsAsAvailableUntransacted(ncInfo.ID, consolidatedNCVersion)
 		}
-		logger.Printf("Updating NC %s host version from %s to %s", ncID, ncInfo.HostVersion, nmaNCVersionStr)
-		ncInfo.HostVersion = nmaNCVersionStr
+		logger.Printf("Updating NC %s host version from %s to %s", ncID, ncInfo.HostVersion, consolidatedNCVersionStr)
+		ncInfo.HostVersion = consolidatedNCVersionStr
 		logger.Printf("Updated NC %s host version to %s", ncID, ncInfo.HostVersion)
 		service.state.ContainerStatus[ncID] = ncInfo
 		// if we successfully updated the NC, pop it from the needs update set.
@@ -271,7 +298,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	// if we didn't empty out the needs update set, NMA has not programmed all the NCs we are expecting, and we
 	// need to return an error indicating that
 	if len(outdatedNCs) > 0 {
-		return len(programmedNCs), errors.Errorf("unabled to update some NCs: %v, missing or bad response from NMA", outdatedNCs)
+		return len(programmedNCs), errors.Errorf("unabled to update some NCs: %v, missing or bad response from NMA or ipam", outdatedNCs)
 	}
 
 	return len(programmedNCs), nil
@@ -633,4 +660,60 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 
 func (service *HTTPRestService) SetVFForAccelnetNICs() error {
 	return service.setVFForAccelnetNICs()
+}
+
+// checkNMAgentAPISupport checks if specific APIs are supported by NMAgent using the existing client
+func (service *HTTPRestService) checkNMAgentAPISupport(ctx context.Context) (swiftV2Support bool, err error) {
+	// Use the existing NMAgent client instead of direct HTTP calls
+	if service.nma == nil {
+		return false, fmt.Errorf("NMAgent client is not available")
+	}
+
+	apis, err := service.nma.SupportedAPIs(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get supported APIs from NMAgent client: %w", err)
+	}
+
+	logger.Printf("[checkNMAgentAPISupport] Found %d APIs from NMAgent client", len(apis))
+	for i, api := range apis {
+		logger.Printf("[checkNMAgentAPISupport] API %d: %s", i+1, api)
+
+		if strings.Contains(api, nmAgentSwiftV2API) { // change
+			swiftV2Support = true
+		}
+	}
+
+	logger.Printf("[checkNMAgentAPISupport] Support check - SwiftV2: %t", swiftV2Support)
+	return swiftV2Support, nil
+}
+
+// GetIMDSNCVersions gets NC versions from IMDS and returns them as a map
+func (service *HTTPRestService) GetIMDSNCVersions(ctx context.Context) (map[string]string, error) {
+	logger.Printf("[GetIMDSNCVersions] Getting NC versions from IMDS")
+
+	// Check NMAgent API support for SwiftV2, if it fails return empty map assuming support might not be available in that nma build
+	swiftV2Support, err := service.checkNMAgentAPISupport(ctx)
+	if err != nil {
+		logger.Printf("[GetIMDSNCVersions] Failed to check NMAgent API support, returning empty map: %v", err)
+		return make(map[string]string), nil
+	}
+
+	if !swiftV2Support {
+		logger.Printf("[GetIMDSNCVersions] SwiftV2 API not supported, returning empty NC versions map")
+		return make(map[string]string), nil
+	}
+
+	logger.Printf("[GetIMDSNCVersions] SwiftV2 support API exists (%t), proceeding to get NC versions from IMDS", swiftV2Support)
+
+	imdsClient := service.imdsClient
+
+	// Get all NC versions from IMDS
+	ncVersions, err := imdsClient.GetNCVersionsFromIMDS(ctx)
+	if err != nil {
+		logger.Printf("[GetIMDSNCVersions] Failed to get NC versions from IMDS: %v", err)
+		return make(map[string]string), nil
+	}
+
+	logger.Printf("[GetIMDSNCVersions] Successfully got %d NC versions from IMDS", len(ncVersions))
+	return ncVersions, nil
 }
