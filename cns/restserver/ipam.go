@@ -997,34 +997,13 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 		return nil, ErrNoNCs
 	}
 
-	//  Map used to get the number of IPFamilies across all NCs
-	ncIPFamilies := map[cns.IPFamily]struct{}{}
-	// Gets the IPFamilies from all NCs and store them in a map. This will be used to determine the number of IPs to return
-	for ncID := range service.state.ContainerStatus {
-		if len(ncIPFamilies) == 2 {
-			break
-		}
+	// Get the number of distinct IP families (IPv4/IPv6) across all NC's
+	numOfIPFamilies := service.GetIpFamilyCount()
 
-		for _, secIPConfig := range service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.SecondaryIPConfigs {
-			if len(ncIPFamilies) == 2 {
-				break
-			}
+	// Get the actual IP families map for validation
+	ncIPFamilies := service.getIPFamiliesMap()
 
-			addr, err := netip.ParseAddr(secIPConfig.IPAddress)
-			if err != nil {
-				continue
-			}
-
-			if addr.Is4() {
-				ncIPFamilies[cns.IPv4] = struct{}{}
-			} else if addr.Is6() {
-				ncIPFamilies[cns.IPv6] = struct{}{}
-			}
-		}
-	}
-	// Makes sure we have at least one IPFamily across all NCs
-	numOfIPFamilies := len(ncIPFamilies)
-
+	// Determine the number of IPs to assign based on IP families found
 	numberOfIPs := numOfNCs
 	if numOfIPFamilies != 0 {
 		numberOfIPs = numOfIPFamilies
@@ -1378,4 +1357,42 @@ func verifyUpdateEndpointStateRequest(req map[string]*IPInfo) error {
 		}
 	}
 	return nil
+}
+
+// getIPFamiliesMap returns a map of IP families present across all NC's
+func (service *HTTPRestService) getIPFamiliesMap() map[cns.IPFamily]struct{} {
+	ncIPFamilies := map[cns.IPFamily]struct{}{}
+
+	for ncID := range service.state.ContainerStatus {
+		// Exit if we already found both IPv4 and IPv6
+		if len(ncIPFamilies) == 2 {
+			break
+		}
+
+		for _, secIPConfig := range service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.SecondaryIPConfigs {
+			// Exit if we already found both IPv4 and IPv6
+			if len(ncIPFamilies) == 2 {
+				break
+			}
+			addr, err := netip.ParseAddr(secIPConfig.IPAddress)
+			if err != nil {
+				continue
+			}
+			if addr.Is4() {
+				ncIPFamilies[cns.IPv4] = struct{}{}
+			} else if addr.Is6() {
+				ncIPFamilies[cns.IPv6] = struct{}{}
+			}
+		}
+	}
+
+	return ncIPFamilies
+}
+
+// GetIpFamilyCount returns the number of distinct IP families (IPv4/IPv6) across all NC's.
+// This is used to determine how many IPs to assign per pod:
+// - In single-stack: 1 IP per pod
+// - In dual-stack: 2 IPs per pod (one IPv4, one IPv6)
+func (service *HTTPRestService) GetIpFamilyCount() int {
+	return len(service.getIPFamiliesMap())
 }

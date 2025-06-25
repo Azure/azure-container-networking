@@ -92,6 +92,7 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 					IPAddress:    "10.0.1.10",
 					PrefixLength: 24,
 				},
+				MacAddress: "00:11:22:33:44:55",
 				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 					IPSubnet: cns.IPSubnet{
 						IPAddress:    "10.0.1.0",
@@ -124,6 +125,56 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 		e.Code = types.UnsupportedAPI
 		e.Err = errUnsupportedAPI
 		return nil, e
+	case "happyArgsDual":
+		result := &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "10.0.1.10",
+						PrefixLength: 24,
+					},
+					MacAddress: "00:11:22:33:44:55",
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "10.0.1.0",
+							PrefixLength: 24,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "10.0.0.1",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "10.0.0.1",
+						PrimaryIP: "10.0.0.1",
+						Subnet:    "10.0.0.0/24",
+					},
+				},
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "fd11:1234::1",
+						PrefixLength: 120,
+					},
+					MacAddress: "00:11:22:33:44:55", // Same MAC for dual-stack scenario
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "fd11:1234::",
+							PrefixLength: 120,
+						},
+						DNSServers:         nil,
+						GatewayIPv6Address: "fe80::1234:5678:9abc",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "fe80::1234:5678:9abc",
+						PrimaryIP: "fe80::1234:5678:9abc",
+						Subnet:    "fd11:1234::/120",
+					},
+				},
+			},
+			Response: cns.Response{
+				ReturnCode: 0,
+				Message:    "",
+			},
+		}
+		return result, nil
 	case "failProcessCNSResp":
 		result := &cns.IPConfigsResponse{
 			PodIPInfo: []cns.PodIpInfo{
@@ -180,6 +231,7 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 						IPAddress:    "10.0.1.10",
 						PrefixLength: 24,
 					},
+					MacAddress: "00:11:22:33:44:55",
 					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 						IPSubnet: cns.IPSubnet{
 							IPAddress:    "10.0.1.0",
@@ -199,6 +251,7 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 						IPAddress:    "fd11:1234::1",
 						PrefixLength: 120,
 					},
+					MacAddress: "00:11:22:33:44:55", // Same MAC for dual-stack scenario
 					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 						IPSubnet: cns.IPSubnet{
 							IPAddress:    "fd11:1234::",
@@ -211,6 +264,46 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 						Gateway:   "fe80::1234:5678:9abc",
 						PrimaryIP: "fe80::1234:5678:9abc",
 						Subnet:    "fd11:1234::/120",
+					},
+				},
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "192.168.1.10",
+						PrefixLength: 24,
+					},
+					MacAddress: "aa:bb:cc:dd:ee:ff",
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "192.168.1.0",
+							PrefixLength: 24,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "192.168.1.1",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "192.168.1.1",
+						PrimaryIP: "192.168.1.1",
+						Subnet:    "192.168.1.0/24",
+					},
+				},
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "172.16.1.10",
+						PrefixLength: 24,
+					},
+					MacAddress: "",
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "172.16.1.0",
+							PrefixLength: 24,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "172.16.1.1",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "172.16.1.1",
+						PrimaryIP: "172.16.1.1",
+						Subnet:    "172.16.1.0/24",
 					},
 				},
 			},
@@ -308,6 +401,11 @@ func TestCmdAdd(t *testing.T) {
 			args: buildArgs("happyArgsSingle", happyPodArgs, happyNetConfByteArr),
 			want: &types100.Result{
 				CNIVersion: "1.0.0",
+				Interfaces: []*types100.Interface{
+					{
+						Mac: "00:11:22:33:44:55",
+					},
+				},
 				IPs: []*types100.IPConfig{
 					{
 						Address: net.IPNet{
@@ -326,6 +424,11 @@ func TestCmdAdd(t *testing.T) {
 			args: buildArgs("happyArgsDual", happyPodArgs, happyNetConfByteArr),
 			want: &types100.Result{
 				CNIVersion: "1.0.0",
+				Interfaces: []*types100.Interface{
+					{
+						Mac: "00:11:22:33:44:55", // Single interface for dual-stack
+					},
+				},
 				IPs: []*types100.IPConfig{
 					{
 						Address: net.IPNet{
@@ -340,6 +443,53 @@ func TestCmdAdd(t *testing.T) {
 							Mask: net.CIDRMask(120, 128),
 						},
 						Gateway: net.ParseIP("fe80::1234:5678:9abc"),
+					},
+				},
+				DNS: cniTypes.DNS{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Test MAC address deduplication and multi-interface",
+			args: buildArgs("happyArgsMultiInterface", happyPodArgs, happyNetConfByteArr),
+			want: &types100.Result{
+				CNIVersion: "1.0.0",
+				Interfaces: []*types100.Interface{
+					{
+						Mac: "00:11:22:33:44:55", // First unique MAC (dual-stack)
+					},
+					{
+						Mac: "aa:bb:cc:dd:ee:ff", // Second unique MAC
+					},
+				},
+				IPs: []*types100.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.IPv4(10, 0, 1, 10),
+							Mask: net.CIDRMask(24, 32),
+						},
+						Gateway: net.IPv4(10, 0, 0, 1),
+					},
+					{
+						Address: net.IPNet{
+							IP:   net.ParseIP("fd11:1234::1"),
+							Mask: net.CIDRMask(120, 128),
+						},
+						Gateway: net.ParseIP("fe80::1234:5678:9abc"),
+					},
+					{
+						Address: net.IPNet{
+							IP:   net.IPv4(192, 168, 1, 10),
+							Mask: net.CIDRMask(24, 32),
+						},
+						Gateway: net.IPv4(192, 168, 1, 1),
+					},
+					{
+						Address: net.IPNet{
+							IP:   net.IPv4(172, 16, 1, 10),
+							Mask: net.CIDRMask(24, 32),
+						},
+						Gateway: net.IPv4(172, 16, 1, 1),
 					},
 				},
 				DNS: cniTypes.DNS{},

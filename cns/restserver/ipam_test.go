@@ -2310,6 +2310,91 @@ func setupMockNMAgent(t *testing.T, svc *HTTPRestService, mockNMAgent *fakes.NMA
 	})
 }
 
+func TestIPAMRequestIPConfigsTwoFamiliesSameNC(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	// Add single NC with both IPv4 and IPv6 IPs
+	mixedConfigs := map[string]cns.IPConfigurationStatus{
+		"ipv4-1": NewPodState("10.0.0.1", "ipv4-1", testNCID, types.Available, 0),
+		"ipv4-2": NewPodState("10.0.0.2", "ipv4-2", testNCID, types.Available, 0),
+		"ipv6-1": NewPodState("2001:db8::1", "ipv6-1", testNCID, types.Available, 0),
+		"ipv6-2": NewPodState("2001:db8::2", "ipv6-2", testNCID, types.Available, 0),
+	}
+
+	err := UpdatePodIPConfigState(t, svc, mixedConfigs, testNCID)
+	require.NoError(t, err)
+
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	b, _ := testPod1Info.OrchestratorContext()
+	req.OrchestratorContext = b
+
+	podIPs, err := requestIPConfigsHelper(svc, req)
+	require.NoError(t, err)
+
+	// Should assign 2 IPs (one of each family) of same NC
+	assert.Len(t, podIPs, 2)
+
+	// Verify we got one of each family
+	hasIPv4 := false
+	hasIPv6 := false
+	for _, podIP := range podIPs {
+		ip := net.ParseIP(podIP.PodIPConfig.IPAddress)
+		if ip.To4() != nil {
+			hasIPv4 = true
+		} else {
+			hasIPv6 = true
+		}
+	}
+	assert.True(t, hasIPv4, "Should have IPv4 address")
+	assert.True(t, hasIPv6, "Should have IPv6 address")
+}
+
+func TestIPAMRequestIPConfigsProgrammingPendingFailure(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	// Add IPv4 NC with available IP
+	ipv4configs := map[string]cns.IPConfigurationStatus{
+		"ipv4-1": NewPodState("10.0.0.1", "ipv4-1", testNCID, types.Available, 0),
+	}
+
+	// Add IPv6 NC with IP initially available
+	ipv6configs := map[string]cns.IPConfigurationStatus{
+		"ipv6-1": NewPodState("2001:db8::1", "ipv6-1", testNCIDv6, types.Available, 0),
+	}
+
+	err := UpdatePodIPConfigState(t, svc, ipv4configs, testNCID)
+	require.NoError(t, err)
+	err = UpdatePodIPConfigState(t, svc, ipv6configs, testNCIDv6)
+	require.NoError(t, err)
+
+	// Manually set IPv6 IP to PendingProgramming state after NC creation
+	ipv6State := svc.PodIPConfigState["ipv6-1"]
+	ipv6State.SetState(types.PendingProgramming)
+	svc.PodIPConfigState["ipv6-1"] = ipv6State
+
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	b, _ := testPod1Info.OrchestratorContext()
+	req.OrchestratorContext = b
+
+	_, err = requestIPConfigsHelper(svc, req)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not enough IPs available")
+
+	// Verify no IPs were assigned
+	assignedIPs := svc.GetAssignedIPConfigs()
+	assert.Empty(t, assignedIPs)
+
+	// Verify IPv4 IP is still available and ipv6 is not available as the programming failed
+	availableIPs := svc.GetAvailableIPConfigs()
+	assert.Len(t, availableIPs, 1)
+}
+
 func createAndSaveMockNCRequest(t *testing.T, svc *HTTPRestService, ncID string, orchestratorContext json.RawMessage, desiredIP, mockGatewayIP, mockMACAddress string) {
 	t.Helper()
 
