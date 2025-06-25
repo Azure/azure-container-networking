@@ -998,7 +998,7 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	}
 
 	// Get the number of distinct IP families (IPv4/IPv6) across all NC's
-	numOfIPFamilies := service.GetIpFamilyCount()
+	numOfIPFamilies := service.GetIPFamilyCount()
 
 	// Get the actual IP families map for validation
 	ncIPFamilies := service.getIPFamiliesMap()
@@ -1088,7 +1088,11 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 		return podIPInfo, fmt.Errorf("not enough IPs available, waiting on Azure CNS to allocate more")
 	}
 
-	logger.Printf("[AssignAvailableIPConfigs] Successfully assigned IPs for pod %+v", podInfo)
+	//lint:ignore SA1019 suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+	logger.Printf(
+		"[AssignAvailableIPConfigs] Successfully assigned IPs for pod %+v",
+		podInfo,
+	)
 	return podIPInfo, nil
 }
 
@@ -1389,10 +1393,10 @@ func (service *HTTPRestService) getIPFamiliesMap() map[cns.IPFamily]struct{} {
 	return ncIPFamilies
 }
 
-// GetIpFamilyCount returns the number of distinct IP families (IPv4/IPv6) across all NC's.
+// GetIPFamilyCount returns the number of distinct IP families (IPv4/IPv6) across all NC's.
 // This is used to determine how many IPs to assign per pod:
 // - In single-stack: 1 IP per pod
 // - In dual-stack: 2 IPs per pod (one IPv4, one IPv6)
-func (service *HTTPRestService) GetIpFamilyCount() int {
+func (service *HTTPRestService) GetIPFamilyCount() int {
 	return len(service.getIPFamiliesMap())
 }

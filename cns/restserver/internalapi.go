@@ -649,6 +649,7 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	} else {
 		logger.Errorf(returnMessage)
 	}
+
 	if service.Options[common.OptProgramSNATIPTables] == true {
 		returnCode, returnMessage = service.programSNATRules(req)
 		if returnCode != 0 {
