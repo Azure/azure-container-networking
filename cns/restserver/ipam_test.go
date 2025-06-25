@@ -91,7 +91,7 @@ func newSecondaryIPConfig(ipAddress string, ncVersion int) cns.SecondaryIPConfig
 	}
 }
 
-func newPodState(ipaddress, id, ncid string, state types.IPState, ncVersion int) cns.IPConfigurationStatus { //nolint:unparam // ignore unused parameter
+func newPodState(ipaddress, id, ncid string, state types.IPState, ncVersion int) cns.IPConfigurationStatus {
 	ipconfig := newSecondaryIPConfig(ipaddress, ncVersion)
 	status := &cns.IPConfigurationStatus{
 		IPAddress: ipconfig.IPAddress,
@@ -131,8 +131,7 @@ func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigsRequest) ([]cns.
 	return ipConfigStatus, nil
 }
 
-// nolint:unparam // ignore unused inputs
-func newPodStateWithOrchestratorContext(ipaddress, id, ncid string, state types.IPState, _ uint8, ncVersion int, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
+func newPodStateWithOrchestratorContext(ipaddress, id, ncid string, state types.IPState, prefixLength uint8, ncVersion int, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
 	ipconfig := newSecondaryIPConfig(ipaddress, ncVersion)
 	status := &cns.IPConfigurationStatus{
 		IPAddress: ipconfig.IPAddress,
@@ -145,7 +144,6 @@ func newPodStateWithOrchestratorContext(ipaddress, id, ncid string, state types.
 }
 
 // Test function to populate the IPConfigState
-// nolint: unparam // ignore unused return
 func updatePodIPConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[string]cns.IPConfigurationStatus, ncID string) error {
 	// Create the NC
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
@@ -216,7 +214,7 @@ func TestEndpointStateReadAndWrite(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		EndpointStateReadAndWrite(t, ncState)
+		endpointStateReadAndWrite(t, ncState)
 	}
 }
 
@@ -330,7 +328,7 @@ func TestIPAMGetAvailableIPConfig(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		IPAMGetAvailableIPConfig(t, ncState)
+		ipamGetAvailableIPConfig(t, ncState)
 	}
 }
 
@@ -423,7 +421,7 @@ func TestIPAMGetNextAvailableIPConfig(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		IPAMGetNextAvailableIPConfig(t, ncState)
+		getNextAvailableIPConfig(t, ncState)
 	}
 }
 
@@ -515,7 +513,7 @@ func TestIPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		IPAMGetAlreadyAssignedIPConfigForSamePod(t, ncState)
+		ipamGetAlreadyAssignedIPConfigForSamePod(t, ncState)
 	}
 }
 
@@ -607,7 +605,7 @@ func TestIPAMAttemptToRequestIPNotFoundInPool(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		IPAMAttemptToRequestIPNotFoundInPool(t, ncState)
+		ipamAttemptToRequestIPNotFoundInPool(t, ncState)
 	}
 }
 
@@ -679,7 +677,7 @@ func TestIPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		IPAMGetDesiredIPConfigWithSpecfiedIP(t, ncState)
+		ipamGetDesiredIPConfigWithSpecfiedIP(t, ncState)
 	}
 }
 
@@ -770,7 +768,7 @@ func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T)
 		},
 	}
 	for _, ncState := range testNcs {
-		IPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t, ncState)
+		ipamFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t, ncState)
 	}
 }
 
@@ -848,7 +846,7 @@ func TestIPAMFailToGetIPWhenAllIPsAreAssigned(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		IPAMFailToGetIPWhenAllIPsAreAssigned(t, ncState)
+		ipamFailToGetIPWhenAllIPsAreAssigned(t, ncState)
 	}
 }
 
@@ -917,7 +915,7 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		IPAMRequestThenReleaseThenRequestAgain(t, ncState)
+		ipamRequestThenReleaseThenRequestAgain(t, ncState)
 	}
 }
 
@@ -1038,7 +1036,7 @@ func TestIPAMReleaseIPIdempotency(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		IPAMReleaseIPIdempotency(t, ncState)
+		ipamReleaseIPIdempotency(t, ncState)
 	}
 }
 
@@ -1106,7 +1104,7 @@ func TestIPAMAllocateIPIdempotency(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		IPAMAllocateIPIdempotency(t, ncState)
+		ipamAllocateIPIdempotency(t, ncState)
 	}
 }
 
@@ -1177,7 +1175,7 @@ func TestAvailableIPConfigs(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		AvailableIPConfigs(t, ncState)
+		availableIPConfigs(t, ncState)
 	}
 }
 
@@ -1302,7 +1300,7 @@ func TestIPAMMarkIPCountAsPending(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		IPAMMarkIPCountAsPending(t, ncState)
+		ipamMarkIPCountAsPending(t, ncState)
 	}
 }
 
@@ -1478,7 +1476,7 @@ func TestIPAMMarkExistingIPConfigAsPending(t *testing.T) {
 		},
 	}
 	for _, ncState := range testNcs {
-		IPAMMarkExistingIPConfigAsPending(t, ncState)
+		ipamMarkExistingIPConfigAsPending(t, ncState)
 	}
 }
 
@@ -1611,13 +1609,13 @@ func TestIPAMReleaseOneIPWhenExpectedToHaveTwo(t *testing.T) {
 func TestIPAMFailToRequestOneIPWhenExpectedToHaveTwo(t *testing.T) {
 	svc := getTestService(cns.KubernetesCRD)
 	// set state as already assigned
-	testState1, _ := NewPodStateWithOrchestratorContext(testIP1, testIPID1, testNCID, types.Assigned, 24, 0, testPod1Info)
-	testState2 := NewPodState(testIP2, testIPID2, testNCID, types.Available, 0)
+	testState1, _ := newPodStateWithOrchestratorContext(testIP1, testIPID1, testNCID, types.Assigned, 24, 0, testPod1Info)
+	testState2 := newPodState(testIP2, testIPID2, testNCID, types.Available, 0)
 	ipconfigs := map[string]cns.IPConfigurationStatus{
 		testState1.ID: testState1,
 		testState2.ID: testState2,
 	}
-	testState1v6, _ := NewPodStateWithOrchestratorContext(testIP1v6, testIPID1v6, testNCIDv6, types.Assigned, 120, 0, testPod1Info)
+	testState1v6, _ := newPodStateWithOrchestratorContext(testIP1v6, testIPID1v6, testNCIDv6, types.Assigned, 120, 0, testPod1Info)
 	// setting v6 IPs to Assigned so there are none available
 	ipconfigsV6 := map[string]cns.IPConfigurationStatus{
 		testState1v6.ID: testState1v6,
@@ -1628,7 +1626,7 @@ func TestIPAMFailToRequestOneIPWhenExpectedToHaveTwo(t *testing.T) {
 		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
-	err = UpdatePodIPConfigState(t, svc, ipconfigsV6, testNCIDv6)
+	err = updatePodIPConfigState(t, svc, ipconfigsV6, testNCIDv6)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
 	}
@@ -2315,13 +2313,13 @@ func TestIPAMRequestIPConfigsTwoFamiliesSameNC(t *testing.T) {
 
 	// Add single NC with both IPv4 and IPv6 IPs
 	mixedConfigs := map[string]cns.IPConfigurationStatus{
-		"ipv4-1": NewPodState("10.0.0.1", "ipv4-1", testNCID, types.Available, 0),
-		"ipv4-2": NewPodState("10.0.0.2", "ipv4-2", testNCID, types.Available, 0),
-		"ipv6-1": NewPodState("2001:db8::1", "ipv6-1", testNCID, types.Available, 0),
-		"ipv6-2": NewPodState("2001:db8::2", "ipv6-2", testNCID, types.Available, 0),
+		"ipv4-1": newPodState("10.0.0.1", "ipv4-1", testNCID, types.Available, 0),
+		"ipv4-2": newPodState("10.0.0.2", "ipv4-2", testNCID, types.Available, 0),
+		"ipv6-1": newPodState("2001:db8::1", "ipv6-1", testNCID, types.Available, 0),
+		"ipv6-2": newPodState("2001:db8::2", "ipv6-2", testNCID, types.Available, 0),
 	}
 
-	err := UpdatePodIPConfigState(t, svc, mixedConfigs, testNCID)
+	err := updatePodIPConfigState(t, svc, mixedConfigs, testNCID)
 	require.NoError(t, err)
 
 	req := cns.IPConfigsRequest{
@@ -2357,17 +2355,17 @@ func TestIPAMRequestIPConfigsProgrammingPendingFailure(t *testing.T) {
 
 	// Add IPv4 NC with available IP
 	ipv4configs := map[string]cns.IPConfigurationStatus{
-		"ipv4-1": NewPodState("10.0.0.1", "ipv4-1", testNCID, types.Available, 0),
+		"ipv4-1": newPodState("10.0.0.1", "ipv4-1", testNCID, types.Available, 0),
 	}
 
 	// Add IPv6 NC with IP initially available
 	ipv6configs := map[string]cns.IPConfigurationStatus{
-		"ipv6-1": NewPodState("2001:db8::1", "ipv6-1", testNCIDv6, types.Available, 0),
+		"ipv6-1": newPodState("2001:db8::1", "ipv6-1", testNCIDv6, types.Available, 0),
 	}
 
-	err := UpdatePodIPConfigState(t, svc, ipv4configs, testNCID)
+	err := updatePodIPConfigState(t, svc, ipv4configs, testNCID)
 	require.NoError(t, err)
-	err = UpdatePodIPConfigState(t, svc, ipv6configs, testNCIDv6)
+	err = updatePodIPConfigState(t, svc, ipv6configs, testNCIDv6)
 	require.NoError(t, err)
 
 	// Manually set IPv6 IP to PendingProgramming state after NC creation
