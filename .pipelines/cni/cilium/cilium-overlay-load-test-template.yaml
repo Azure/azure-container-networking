@@ -233,7 +233,8 @@ stages:
               iterations: ${ITERATIONS_CILIUM}
               nodeCount: ${{ parameters.nodeCount }}
               cni: cilium
-              upgradeScenario: ${{ parameters.upgradeScenario }}
+              ${{ if eq(parameters.upgradeScenario, 'true') }}:
+                logType: upgradeScaleTest
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -249,7 +250,8 @@ stages:
               os: ${{ parameters.os }}
               cni: cilium
               region: $(location)
-              upgradeScenario: ${{ parameters.upgradeScenario }}
+              ${{ if eq(parameters.upgradeScenario, 'true') }}:
+                logType: upgradeRestartNode
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)

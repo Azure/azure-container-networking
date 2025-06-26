@@ -4,7 +4,7 @@ parameters:
   cni: ""
   jobName: "restart_nodes"
   region: ""
-  upgradeScenario: ""
+  logType: "restartNode"
 
 steps:
   - task: AzureCLI@2
@@ -57,10 +57,7 @@ steps:
   - template: ../../templates/log-template.yaml
     parameters:
       clusterName: ${{ parameters.clusterName }}
-      ${{ if eq(parameters.upgradeScenario, 'true') }}:
-        logType: upgradeRestartNode
-      ${{ else }}:
-        logType: restartNode
+      logType: ${{ parameters.logType }}
       os: ${{ parameters.os }}
       cni: ${{ parameters.cni }}
       jobName: ${{ parameters.jobName }}

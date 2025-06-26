@@ -6,7 +6,7 @@ parameters:
   nodeCount: 10
   cni: ""
   jobName: "deploy_pods"
-  upgradeScenario: ""
+  logType: "scaleTest"
 
 steps:
   - task: AzureCLI@2
@@ -30,7 +30,4 @@ steps:
       os: ${{ parameters.os }}
       cni: ${{ parameters.cni }}
       jobName: ${{ parameters.jobName }}
-      ${{ if eq(parameters.upgradeScenario, 'true') }}:
-        logType: upgradeScaleTest
-      ${{ else }}:
-        logType: scaleTest
+      logType: ${{ parameters.logType }}
