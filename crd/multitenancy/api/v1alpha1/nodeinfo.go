@@ -32,13 +32,19 @@ type NodeInfoList struct {
 	Items           []NodeInfo `json:"items"`
 }
 
-// NodeInfoSpec defines the desired state of NodeInfo
+// NodeInfoSpec defines the desired state of NodeInfo. This is information
+// provided by CNS.
 type NodeInfoSpec struct {
 	// +kubebuilder:validation:Optional
 	VMUniqueID string `json:"vmUniqueID,omitempty"`
+
+	// +kubebuilder:validation:optional
+	// +kubebuilder:validation:Pattern=`^AZ\d{2}$`
+	HomeAZ string `json:"homeAZ,omitempty"`
 }
 
-// NodeInfoStatus defines the observed state of NodeInfo
+// NodeInfoStatus defines the observed state of NodeInfo. This is information
+// provided by DNC.
 type NodeInfoStatus struct {
 	// +kubebuilder:validation:Optional
 	DeviceInfos []DeviceInfo `json:"deviceInfos,omitempty"`
@@ -47,10 +53,6 @@ type NodeInfoStatus struct {
 type DeviceInfo struct {
 	DeviceType DeviceType `json:"deviceType,omitempty"`
 	MacAddress string     `json:"macAddress"`
-
-	// +kubebuilder:validation:optional
-	// +kubebuilder:validation:Pattern=`^AZ\d{2}$`
-	HomeAZ string `json:"homeAZ,omitempty"`
 }
 
 func init() {
