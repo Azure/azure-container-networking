@@ -132,7 +132,7 @@ require (
 	golang.org/x/sync v0.15.0
 	gotest.tools/v3 v3.5.2
 	k8s.io/kubectl v0.28.5
-	sigs.k8s.io/yaml v1.4.0
+	sigs.k8s.io/yaml v1.5.0
 )
 
 require (
@@ -147,6 +147,7 @@ require (
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
 )
 
 replace (
