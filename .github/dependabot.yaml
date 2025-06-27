@@ -125,17 +125,17 @@ updates:
   target-branch: "release/v1.6"
   ignore:
     - dependency-name: "k8s.io/api"
-      versions: [">=0.31.0"]
+      versions: [">=0.32.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.31.0"]
+      versions: [">=0.32.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.31.0"]
+      versions: [">=0.32.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.31.0"]
+      versions: [">=0.32.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.31.0"]
+      versions: [">=0.32.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.31.0"]
+      versions: [">=0.32.0"]
 - package-ecosystem: "gomod"
   directory: "/azure-ipam"
   schedule:
@@ -146,19 +146,20 @@ updates:
     prefix: "deps"
   labels: [ "dependencies", "azure-ipam" ]
   open-pull-requests-limit: 10
+  target-branch: "release/v1.6"
   ignore:
     - dependency-name: "k8s.io/api"
-      versions: [">=0.31.0"]
+      versions: [">=0.32.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.31.0"]
+      versions: [">=0.32.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.31.0"]
+      versions: [">=0.32.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.31.0"]
+      versions: [">=0.32.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.31.0"]
+      versions: [">=0.32.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.31.0"]
+      versions: [">=0.32.0"]
 
 
 # Constrain Kubernetes dependencies to compatibility with release/v1.5 branch - v1.28-v1.30
@@ -175,17 +176,17 @@ updates:
   target-branch: "release/v1.5"
   ignore:
     - dependency-name: "k8s.io/api"
-      versions: [">=0.29.0"]
+      versions: [">=0.30.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.29.0"]
+      versions: [">=0.30.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.29.0"]
+      versions: [">=0.30.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.29.0"]
+      versions: [">=0.30.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.29.0"]
+      versions: [">=0.30.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.29.0"]
+      versions: [">=0.30.0"]
 - package-ecosystem: "gomod"
   directory: "/azure-ipam"
   schedule:
@@ -199,17 +200,17 @@ updates:
   target-branch: "release/v1.5"
   ignore:
     - dependency-name: "k8s.io/api"
-      versions: [">=0.29.0"]
+      versions: [">=0.30.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.29.0"]
+      versions: [">=0.30.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.29.0"]
+      versions: [">=0.30.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.29.0"]
+      versions: [">=0.30.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.29.0"]
+      versions: [">=0.30.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.29.0"]
+      versions: [">=0.30.0"]
 
 
 # Constrain Kubernetes dependencies to compatibility with release/v1.4 branch - v1.25-v1.27
@@ -226,17 +227,17 @@ updates:
   target-branch: "release/v1.4"
   ignore:
     - dependency-name: "k8s.io/api"
-      versions: [">=0.26.0"]
+      versions: [">=0.27.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.26.0"]
+      versions: [">=0.27.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.26.0"]
+      versions: [">=0.27.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.26.0"]
+      versions: [">=0.27.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.26.0"]
+      versions: [">=0.27.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.26.0"]
+      versions: [">=0.27.0"]
 - package-ecosystem: "gomod"
   directory: "/azure-ipam"
   schedule:
@@ -250,14 +251,14 @@ updates:
   target-branch: "release/v1.4"
   ignore:
     - dependency-name: "k8s.io/api"
-      versions: [">=0.26.0"]
+      versions: [">=0.27.0"]
     - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.26.0"]
+      versions: [">=0.27.0"]
     - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.26.0"]
+      versions: [">=0.27.0"]
     - dependency-name: "k8s.io/client-go"
-      versions: [">=0.26.0"]
+      versions: [">=0.27.0"]
     - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.26.0"]
+      versions: [">=0.27.0"]
     - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.26.0"]
+      versions: [">=0.27.0"]
