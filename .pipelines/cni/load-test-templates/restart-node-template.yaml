@@ -4,6 +4,7 @@ parameters:
   cni: ""
   jobName: "restart_nodes"
   region: ""
+  logType: "restartNode"
 
 steps:
   - task: AzureCLI@2
@@ -56,7 +57,7 @@ steps:
   - template: ../../templates/log-template.yaml
     parameters:
       clusterName: ${{ parameters.clusterName }}
-      logType: restartNode
+      logType: ${{ parameters.logType }}
       os: ${{ parameters.os }}
       cni: ${{ parameters.cni }}
       jobName: ${{ parameters.jobName }}
