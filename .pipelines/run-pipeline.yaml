@@ -2,23 +2,46 @@ stages:
 - stage: setup
   displayName: ACN
   variables:
-    ACN_DIR: azure-container-networking
+    
+    ACN_DEVOPS_DIR: $(Build.SourcesDirectory)/azure-container-networking
   jobs:
-  - job: env
-    displayName: Setup
+  - job: copy
+    displayName: Copy Pipeline Files
     pool:
       type: linux
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
-      ob_artifactSuffix: _source
+      ob_git_checkout: true
+    steps:
+    - checkout: acn-devops
 
-      ACR_DIR: $(Build.SourcesDirectory)/azure-container-networking
+    - task: CopyFiles@2
+      displayName: "Add Pipeline Orchestration to Container Artifacts"
+      inputs:
+        sourceFolder: $(ACN_DEVOPS_DIR)/.pipelines
+        targetFolder: $(Build.ArtifactStagingDirectory)/.pipelines
+
+  - job: env
+    displayName: Setup
+    pool:
+      type: linux
+    dependsOn: copy
+    variables:
+      ob_outputDirectory: $(Build.SourcesDirectory)/azure-container-networking
+      ob_artifactSuffix: _source
+      ob_git_checkout: true
+
+      ACN_DIR: $(Build.SourcesDirectory)/azure-container-networking
+      ACN_DEVOPS_DIR: $(Agent.BuildDirectory)/drop_setup_copy
       BUILD_TYPE: $(IMAGE_ACR_TYPE)
     steps:
     - checkout: azure-container-networking
-    - template: build/ob-prepare.steps.yaml
+    - download: current
+      artifact: drop_setup_copy
 
-- template: templates/run-unit-tests.stages.yaml
+    - template: build/ob-prepare.steps.yaml@acn-devops
+
+- template: templates/run-unit-tests.stages.yaml@acn-devops
 
 
 - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
@@ -45,7 +68,7 @@ stages:
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
       NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
     jobs:
-    - template: /.pipelines/build/images.jobs.yaml
+    - template: /.pipelines/build/images.jobs.yaml@acn-devops
       parameters:
         images:
         - job: linux_amd64
@@ -219,7 +242,7 @@ stages:
       NPM_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/npm:$(Build.BuildNumber)
     jobs:
 
-    - template: build/manifests.jobs.yaml
+    - template: build/manifests.jobs.yaml@acn-devops
       parameters:
         generate:
         - job: azure_ipam
