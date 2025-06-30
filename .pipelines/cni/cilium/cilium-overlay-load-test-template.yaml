@@ -269,7 +269,8 @@ stages:
               scaleup: ${SCALEUP_CILIUM}
               nodeCount: ${{ parameters.nodeCount }}
               cni: ${{ parameters.cni }}
-              upgradeScenario: ${{ parameters.upgradeScenario }}
+              ${{ if eq(parameters.upgradeScenario, 'true') }}:
+                logType: upgradeRestartCNS
       - job: cni_tests
         displayName: "Cilium Test"
         dependsOn: restart_cns

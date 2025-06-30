@@ -5,7 +5,7 @@ parameters:
   nodeCount: 10
   os: ""
   jobName: "restart_cns"
-  upgradeScenario: ""
+  logType: "restartCNS"
 
 steps:
   - task: AzureCLI@2
@@ -39,10 +39,7 @@ steps:
   - template: ../../templates/log-template.yaml
     parameters:
       clusterName: ${{ parameters.clusterName }}
-      ${{ if eq(parameters.upgradeScenario, 'true') }}:
-        logType: upgradeRestartCNS
-      ${{ else }}:
-        logType: restartCNS
+      logType: ${{ parameters.logType }}
       os: ${{ parameters.os }}
       cni: ${{ parameters.cni }}
       jobName: ${{ parameters.jobName }}
