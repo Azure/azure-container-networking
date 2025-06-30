@@ -161,7 +161,7 @@ func isPublicEnvironment(url string, retryCount, waitTimeInSecs int) (bool, erro
 			return true, nil
 		} else if err == nil {
 			debugLog("[AppInsights] This is not azure public cloud:%s", cloudName)
-			return false, fmt.Errorf("Not an azure public cloud: %s", cloudName)
+			return false, fmt.Errorf("not an azure public cloud: %s", cloudName)
 		}
 
 		debugLog("GetAzureCloud returned err :%v", err)
@@ -193,6 +193,42 @@ func NewAITelemetry(
 	}
 
 	telemetryConfig := appinsights.NewTelemetryConfiguration(id)
+	telemetryConfig.MaxBatchSize = aiConfig.BatchSize
+	telemetryConfig.MaxBatchInterval = time.Duration(aiConfig.BatchInterval) * time.Second
+
+	th := &telemetryHandle{
+		client:                       appinsights.NewTelemetryClientFromConfig(telemetryConfig),
+		appName:                      aiConfig.AppName,
+		appVersion:                   aiConfig.AppVersion,
+		diagListener:                 messageListener(),
+		disableMetadataRefreshThread: aiConfig.DisableMetadataRefreshThread,
+		refreshTimeout:               aiConfig.RefreshTimeout,
+	}
+
+	if th.disableMetadataRefreshThread {
+		getMetadata(th)
+	} else {
+		go getMetadata(th)
+	}
+
+	return th, nil
+}
+
+// NewAITelemetry creates telemetry handle with user specified appinsights connection string.
+func NewAITelemetryWithConnectionString(
+	cString string,
+	aiConfig AIConfig,
+) (TelemetryHandle, error) {
+	debugMode = aiConfig.DebugMode
+
+	if cString == "" {
+		debugLog("Empty connection string")
+		return nil, fmt.Errorf("AI connection string is empty")
+	}
+
+	setAIConfigDefaults(&aiConfig)
+
+	telemetryConfig := appinsights.NewTelemetryConfigurationWithConnectionString(cString)
 	telemetryConfig.MaxBatchSize = aiConfig.BatchSize
 	telemetryConfig.MaxBatchInterval = time.Duration(aiConfig.BatchInterval) * time.Second
 
