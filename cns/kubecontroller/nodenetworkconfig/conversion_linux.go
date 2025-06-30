@@ -52,9 +52,13 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 		NetworkContainerType: cns.Docker,
 		Version:              strconv.FormatInt(nc.Version, 10), //nolint:gomnd // it's decimal
 		IPConfiguration: cns.IPConfiguration{
-			IPSubnet:         subnet,
-			GatewayIPAddress: nc.DefaultGateway,
+			IPSubnet:           subnet,
+			GatewayIPAddress:   nc.DefaultGateway,
+			GatewayIPv6Address: nc.DefaultGatewayV6,
 		},
 		NCStatus: nc.Status,
+		NetworkInterfaceInfo: cns.NetworkInterfaceInfo{
+			MACAddress: nc.MacAddress,
+		},
 	}, nil
 }
