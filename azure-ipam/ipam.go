@@ -146,7 +146,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	for _, podIPInfo := range resp.PodIPInfo {
 		// Skip if interface already seen
 		// This is to avoid duplicate interfaces in the result
-		// Deduplication is necessary because there is one podIPInfo entry for each IP family(IPv4 and IPv6), and both may point to the same interface or if multiple interfaces are assigned to the same pod
+		// Deduplication is necessary because there is one podIPInfo entry for each IP family(IPv4 and IPv6), and both may point to the same interface
 		if podIPInfo.MacAddress == "" || seenInterfaces[podIPInfo.MacAddress] {
 			continue
 		}

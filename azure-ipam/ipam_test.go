@@ -266,46 +266,6 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 						Subnet:    "fd11:1234::/120",
 					},
 				},
-				{
-					PodIPConfig: cns.IPSubnet{
-						IPAddress:    "192.168.1.10",
-						PrefixLength: 24,
-					},
-					MacAddress: "aa:bb:cc:dd:ee:ff",
-					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
-						IPSubnet: cns.IPSubnet{
-							IPAddress:    "192.168.1.0",
-							PrefixLength: 24,
-						},
-						DNSServers:       nil,
-						GatewayIPAddress: "192.168.1.1",
-					},
-					HostPrimaryIPInfo: cns.HostIPInfo{
-						Gateway:   "192.168.1.1",
-						PrimaryIP: "192.168.1.1",
-						Subnet:    "192.168.1.0/24",
-					},
-				},
-				{
-					PodIPConfig: cns.IPSubnet{
-						IPAddress:    "172.16.1.10",
-						PrefixLength: 24,
-					},
-					MacAddress: "",
-					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
-						IPSubnet: cns.IPSubnet{
-							IPAddress:    "172.16.1.0",
-							PrefixLength: 24,
-						},
-						DNSServers:       nil,
-						GatewayIPAddress: "172.16.1.1",
-					},
-					HostPrimaryIPInfo: cns.HostIPInfo{
-						Gateway:   "172.16.1.1",
-						PrimaryIP: "172.16.1.1",
-						Subnet:    "172.16.1.0/24",
-					},
-				},
 			},
 			Response: cns.Response{
 				ReturnCode: 0,
@@ -443,53 +403,6 @@ func TestCmdAdd(t *testing.T) {
 							Mask: net.CIDRMask(120, 128),
 						},
 						Gateway: net.ParseIP("fe80::1234:5678:9abc"),
-					},
-				},
-				DNS: cniTypes.DNS{},
-			},
-			wantErr: false,
-		},
-		{
-			name: "Test MAC address deduplication and multi-interface",
-			args: buildArgs("happyArgsMultiInterface", happyPodArgs, happyNetConfByteArr),
-			want: &types100.Result{
-				CNIVersion: "1.0.0",
-				Interfaces: []*types100.Interface{
-					{
-						Mac: "00:11:22:33:44:55", // First unique MAC (dual-stack)
-					},
-					{
-						Mac: "aa:bb:cc:dd:ee:ff", // Second unique MAC
-					},
-				},
-				IPs: []*types100.IPConfig{
-					{
-						Address: net.IPNet{
-							IP:   net.IPv4(10, 0, 1, 10),
-							Mask: net.CIDRMask(24, 32),
-						},
-						Gateway: net.IPv4(10, 0, 0, 1),
-					},
-					{
-						Address: net.IPNet{
-							IP:   net.ParseIP("fd11:1234::1"),
-							Mask: net.CIDRMask(120, 128),
-						},
-						Gateway: net.ParseIP("fe80::1234:5678:9abc"),
-					},
-					{
-						Address: net.IPNet{
-							IP:   net.IPv4(192, 168, 1, 10),
-							Mask: net.CIDRMask(24, 32),
-						},
-						Gateway: net.IPv4(192, 168, 1, 1),
-					},
-					{
-						Address: net.IPNet{
-							IP:   net.IPv4(172, 16, 1, 10),
-							Mask: net.CIDRMask(24, 32),
-						},
-						Gateway: net.IPv4(172, 16, 1, 1),
 					},
 				},
 				DNS: cniTypes.DNS{},

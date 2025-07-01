@@ -16,6 +16,8 @@ import (
 func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 
+	// Todo: Segregate the NIC’s primary IP from the list of secondary IPs to ensure the primary IP is not assigned to pods
+	// WorkItem: https://msazure.visualstudio.com/One/_workitems/edit/33460135
 	// iterate through all IP addresses in the subnet described by primaryPrefix and
 	// add them to the request as secondary IPConfigs.
 	for addr := primaryIPPrefix.Masked().Addr(); primaryIPPrefix.Contains(addr); addr = addr.Next() {
