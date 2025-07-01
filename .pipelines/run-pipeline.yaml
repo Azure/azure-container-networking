@@ -1,8 +1,9 @@
 stages:
 - stage: setup
   displayName: ACN
+  dependsOn:
+  - prebuild
   variables:
-    
     ACN_DEVOPS_DIR: $(Build.SourcesDirectory)/azure-container-networking
   jobs:
   - job: copy
