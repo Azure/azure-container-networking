@@ -47,7 +47,6 @@ stages:
           } | { read xs; exit $xs; }
         } 4>&1
 
-        cp coverage-all.out "$COVERAGE_OUT"
         ls -la "$REPORT_DIR"
       retryCountOnTaskFailure: 3
       displayName: "Run Unit Tests - Linux"
