@@ -1,0 +1,13 @@
+parameters:
+  skipTests: '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors,!no-unexpected-packet-drops,!to-fqdns'
+
+steps:
+  - script: |
+      if ! cilium connectivity test --connect-timeout 4s --request-timeout 30s --test ${{ parameters.skipTests }} --force-deploy
+      then
+        echo "--- Connectivity Tests failed! ---"
+        echo "--- Running Connectivity Tests with --debug ---"
+        cilium connectivity test --debug --connect-timeout 4s --request-timeout 30s --test ${{ parameters.skipTests }} --force-deploy
+      fi
+    name: "CiliumConnectivityTests"
+    displayName: "Run Cilium Connectivity Tests"
