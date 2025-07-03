@@ -18,7 +18,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
-	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/dhcp"
 	"github.com/Azure/azure-container-networking/iptables"
@@ -719,7 +718,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		*opt.infraSeen = true
 	} else {
 		ifName = "eth" + strconv.Itoa(opt.endpointIndex)
-		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, ifName)
+		endpointID = plugin.nm.GetEndpointIDByNicType(opt.args.ContainerID, ifName, opt.ifInfo.NICType)
 	}
 
 	endpointInfo := network.EndpointInfo{
@@ -1075,33 +1074,45 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if plugin.nm.IsStatelessCNIMode() {
 		// network ID is passed in and used only for migration
 		// otherwise, in stateless, we don't need the network id for deletion
-		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID)
-		// if stateless CNI fail to get the endpoint from CNS for any reason other than  Endpoint Not found
+		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID, args.Netns)
+		// if stateless CNI fail to get the endpoint from CNS for any reason other than Endpoint Not found or CNS connection failure
+		// return a retriable error so the container runtime will retry this DEL later
+		// the implementation of this function returns nil if the endpoint doesn't exist, so
+		// we don't have to check that here
 		if err != nil {
-			// async delete should be disabled for standalone scenario
-			if errors.Is(err, network.ErrConnectionFailure) && !nwCfg.DisableAsyncDelete {
-				logger.Info("failed to connect to CNS", zap.String("containerID", args.ContainerID), zap.Error(err))
-				addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
-				logger.Info("add containerid file for Asynch delete", zap.String("containerID", args.ContainerID), zap.Error(addErr))
-				if addErr != nil {
-					logger.Error("failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
-					return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s", args.ContainerID))
+			switch {
+			case errors.Is(err, network.ErrConnectionFailure):
+				logger.Error("Failed to connect to CNS", zap.Error(err))
+				logger.Info("Endpoint will be deleted from state file asynchronously", zap.String("containerID", args.ContainerID))
+				// In SwiftV2 Linux stateless CNI mode, if the plugin cannot connect to CNS,
+				// we asynchronously remove the secondary (delegated) interface from the pod’s network namespace in the absence of the endpoint state.
+				// This is necessary because leaving the delegated NIC in the pod netns can cause the kernel to block rtnetlink operations.
+				// When that happens, kubelet and containerd hang during sandbox creation or teardown.
+				// The delegated NIC (SR-IOV VF) used by SwiftV2 for multitenant pods remains tied to the pod namespace,
+				// triggering hot-unplug/re-register events and leaving the node in an unhealthy state.
+				// This workaround mitigates the issue by removing the secondary NIC from the pod netns when CNS is unreachable during DEL to provide the endpoint state.
+				if err = plugin.nm.RemoveSecondaryEndpointFromPodNetNS(args.IfName, args.Netns); err != nil {
+					logger.Error("Failed to remove secondary endpoint from pod netns", zap.String("netns", args.Netns), zap.Error(err))
+					return plugin.RetriableError(fmt.Errorf("failed to remove secondary endpoint from pod netns: %w", err))
 				}
-				return nil
-			}
-			if errors.Is(err, network.ErrEndpointStateNotFound) {
+			case errors.Is(err, network.ErrEndpointStateNotFound):
 				logger.Info("Endpoint Not found", zap.String("containerID", args.ContainerID), zap.Error(err))
 				return nil
+			default:
+				logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
+				return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 			}
-			logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
-			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
+		} else {
+			for _, epInfo := range epInfos {
+				logger.Info("Found endpoint to delete", zap.String("IfName", epInfo.IfName), zap.String("EndpointID", epInfo.EndpointID), zap.Any("NICType", epInfo.NICType))
+			}
 		}
 	} else {
 		epInfos = plugin.nm.GetEndpointInfosFromContainerID(args.ContainerID)
 	}
 
-	// for when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
-	// this block is not applied to stateless CNI
+	// for Stateful CNI when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
+	// this block is applied to stateless CNI only if there was a connection failure in previous block and asynchronous delete by CNS will remover the endpoint from state file
 	if len(epInfos) == 0 {
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		if !nwCfg.MultiTenancy {
@@ -1127,7 +1138,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		if err = plugin.nm.DeleteEndpoint(epInfo.NetworkID, epInfo.EndpointID, epInfo); err != nil {
 			// An error will not be returned if the endpoint is not found
 			// return a retriable error so the container runtime will retry this DEL later
-			// the implementation of this function returns nil if the endpoint doens't exist, so
+			// the implementation of this function returns nil if the endpoint doesn't exist, so
 			// we don't have to check that here
 			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 		}
