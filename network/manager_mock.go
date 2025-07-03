@@ -1,6 +1,7 @@
 package network
 
 import (
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/common"
 )
 
@@ -92,6 +93,16 @@ func (nm *MockNetworkManager) GetEndpointID(containerID, ifName string) string {
 		return ""
 	}
 	return containerID + "-" + ifName
+}
+
+// GetEndpointIDByNicType returns a unique endpoint ID based on the CNI mode and NIC type.
+func (nm *MockNetworkManager) GetEndpointIDByNicType(containerID, ifName string, nicType cns.NICType) string {
+	// For stateless CNI, secondary NICs use containerID-ifName as endpointID.
+	if nm.IsStatelessCNIMode() && nicType != cns.InfraNIC {
+		return containerID + "-" + ifName
+	}
+	// For InfraNIC, use GetEndpointID() logic.
+	return nm.GetEndpointID(containerID, ifName)
 }
 
 func (nm *MockNetworkManager) GetAllEndpoints(networkID string) (map[string]*EndpointInfo, error) {
@@ -207,6 +218,10 @@ func (nm *MockNetworkManager) GetEndpointInfosFromContainerID(containerID string
 	return ret
 }
 
-func (nm *MockNetworkManager) GetEndpointState(_, _ string) ([]*EndpointInfo, error) {
+func (nm *MockNetworkManager) GetEndpointState(_, _, _ string) ([]*EndpointInfo, error) {
 	return []*EndpointInfo{}, nil
+}
+
+func (nm *MockNetworkManager) RemoveSecondaryEndpointFromPodNetNS(_, _ string) error {
+	return nil
 }
