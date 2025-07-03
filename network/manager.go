@@ -115,7 +115,7 @@ type NetworkManager interface {
 	DetachEndpoint(networkID string, endpointID string) error
 	UpdateEndpoint(networkID string, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) error
 	GetNumberOfEndpoints(ifName string, networkID string) int
-	GetEndpointID(containerID, ifName string) string
+	GetEndpointID(containerID, ifName string, nicType cns.NICType) string
 	IsStatelessCNIMode() bool
 	SaveState(eps []*endpoint) error
 	DeleteState(epInfos []*EndpointInfo) error
@@ -732,8 +732,11 @@ func (nm *networkManager) GetNumberOfEndpoints(ifName string, networkId string) 
 }
 
 // GetEndpointID returns a unique endpoint ID based on the CNI mode.
-func (nm *networkManager) GetEndpointID(containerID, ifName string) string {
+func (nm *networkManager) GetEndpointID(containerID, ifName string, nicType cns.NICType) string {
 	if nm.IsStatelessCNIMode() {
+		if nicType == cns.DelegatedVMNIC {
+			return containerID + "-" + ifName
+		}
 		return containerID
 	}
 	if len(containerID) > ContainerIDLength {
