@@ -1,0 +1,15 @@
+language: go
+
+go:
+  - 1.13.x
+  - 1.14.x
+  - 1.15.x
+
+sudo: false
+
+os:
+  - osx
+  - linux
+
+script:
+  - go test -v ./appinsights/...
