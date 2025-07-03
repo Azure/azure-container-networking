@@ -78,7 +78,7 @@ execute() {
         echo "DRY-RUN: $*"
     else
         log "Executing: $*"
-        eval "$@"
+        bash -c "$*"
     fi
 }
 
@@ -133,7 +133,8 @@ validate_cilium_dir() {
     if [[ ! -d "${cilium_path}" ]]; then
         error "Cilium directory v${CILIUM_DIR} not found at ${cilium_path}"
         error "Available Cilium versions:"
-        ls -1 "${REPO_ROOT}/test/integration/manifests/cilium/" | grep "^v" || true
+        # Use a more robust way to list versions
+        find "${REPO_ROOT}/test/integration/manifests/cilium/" -maxdepth 1 -type d -name "v*" -printf "%f\n" | sort || true
         exit 1
     fi
     
