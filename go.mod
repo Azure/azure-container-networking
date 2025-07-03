@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking
 
-go 1.23.2
+go 1.24.4
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
@@ -22,10 +22,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-version v1.7.0
-	github.com/microsoft/ApplicationInsights-Go v0.4.4
 	github.com/nxadm/tail v1.4.11
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/gomega v1.34.1
+	github.com/onsi/gomega v1.37.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.22.0
@@ -52,7 +51,7 @@ require (
 )
 
 require (
-	code.cloudfoundry.org/clock v1.0.0 // indirect
+	code.cloudfoundry.org/clock v1.41.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.1 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 // indirect
@@ -62,11 +61,11 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-openapi/jsonpointer v0.20.2 // indirect
 	github.com/go-openapi/jsonreference v0.20.4 // indirect
 	github.com/go-openapi/swag v0.22.7 // indirect
-	github.com/gofrs/uuid v4.2.0+incompatible // indirect
+	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
@@ -128,6 +127,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/cilium/cilium v1.15.16
 	github.com/jsternberg/zap-logfmt v1.3.0
+	github.com/microsoft/ApplicationInsights-Go v0.4.4
 	golang.org/x/sync v0.15.0
 	gotest.tools/v3 v3.5.2
 	k8s.io/kubectl v0.28.5
@@ -250,7 +250,7 @@ require (
 )
 
 replace (
-	github.com/microsoft/ApplicationInsights-Go => github.com/beegiik/ApplicationInsights-Go v1.8.0
+	github.com/microsoft/ApplicationInsights-Go => ./application-insights
 	github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )
