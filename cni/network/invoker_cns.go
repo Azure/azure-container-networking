@@ -279,7 +279,7 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 }
 
 // Delete calls into the releaseipconfiguration API in CNS
-func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error { //nolint
+func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, options map[string]interface{}) error { //nolint
 	var connectionErr *cnscli.ConnectionFailureErr
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
@@ -300,6 +300,11 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 		OrchestratorContext: orchestratorContext,
 		PodInterfaceID:      GetEndpointID(args),
 		InfraContainerID:    args.ContainerID,
+	}
+	if options != nil {
+		if v, ok := options["asyncDeleteFileID"].(string); ok && v != "" {
+			ipConfigs.PodInterfaceID = v
+		}
 	}
 
 	if address != nil {
