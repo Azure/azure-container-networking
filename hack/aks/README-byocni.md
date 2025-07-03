@@ -53,6 +53,7 @@ Preview the commands that would be executed without actually running them:
 | `--cluster` | Name of the AKS cluster | `byocni-cluster` |
 | `--subscription` | Azure subscription ID | *Required* |
 | `--azcli` | Azure CLI command | `az` |
+| `--kubernetes-version` | Kubernetes version for the cluster | `1.29` |
 | `--networking-mode` | Networking mode (overlay, swift, nodesubnet, dualstack-overlay, vnetscale-swift) | `overlay` |
 | `--no-kube-proxy` | Create cluster without kube-proxy | `true` |
 | `--with-kube-proxy` | Create cluster with kube-proxy | Overrides --no-kube-proxy |
@@ -133,14 +134,23 @@ The script supports the following Cilium versions based on available manifests (
     --cilium-version-tag v1.17.0
 ```
 
-### Example 6: Only cluster and CNS, no CNI plugin
+### Example 6: Cluster with specific Kubernetes version
+```bash
+./create-byocni-cluster.sh \
+    --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f \
+    --kubernetes-version 1.30 \
+    --networking-mode overlay \
+    --cni-plugin cilium
+```
+
+### Example 7: Only cluster and CNS, no CNI plugin
 ```bash
 ./create-byocni-cluster.sh \
     --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f \
     --cni-plugin none
 ```
 
-### Example 7: Using different image registry
+### Example 8: Using different image registry
 ```bash
 ./create-byocni-cluster.sh \
     --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f \

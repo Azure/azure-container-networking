@@ -20,6 +20,7 @@ DEFAULT_CILIUM_VERSION_TAG=""
 DEFAULT_IPV6_HP_BPF_VERSION=""
 DEFAULT_CNS_IMAGE_REPO="MCR"
 DEFAULT_AZCLI="az"
+DEFAULT_KUBERNETES_VERSION="1.29"
 
 # Script configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,6 +40,7 @@ OPTIONS:
     -c, --cluster CLUSTER_NAME      Name of the AKS cluster (default: ${DEFAULT_CLUSTER_NAME})
     -s, --subscription SUB_ID       Azure subscription ID (required)
     -z, --azcli AZCLI_COMMAND      Azure CLI command (default: ${DEFAULT_AZCLI})
+    -k, --kubernetes-version VER    Kubernetes version for the cluster (default: ${DEFAULT_KUBERNETES_VERSION})
     -n, --networking-mode MODE      Networking mode: overlay, swift, nodesubnet, dualstack-overlay, vnetscale-swift (default: ${DEFAULT_NETWORKING_MODE})
     --no-kube-proxy                 Create cluster without kube-proxy (default: ${DEFAULT_NO_KUBE_PROXY})
     --with-kube-proxy               Create cluster with kube-proxy (overrides --no-kube-proxy)
@@ -300,7 +302,7 @@ create_cluster() {
             ;;
     esac
     
-    local make_cmd="AZCLI=${AZCLI} CLUSTER=${CLUSTER_NAME} SUB=${SUBSCRIPTION} make ${make_target}"
+    local make_cmd="AZCLI=${AZCLI} CLUSTER=${CLUSTER_NAME} SUB=${SUBSCRIPTION} K8S_VER=${KUBERNETES_VERSION} make ${make_target}"
     
     log "Using make target: ${make_target}"
     execute "cd '${SCRIPT_DIR}' && ${make_cmd}"
@@ -472,6 +474,7 @@ CILIUM_VERSION_TAG="${DEFAULT_CILIUM_VERSION_TAG}"
 IPV6_HP_BPF_VERSION="${DEFAULT_IPV6_HP_BPF_VERSION}"
 CNS_IMAGE_REPO="${DEFAULT_CNS_IMAGE_REPO}"
 AZCLI="${DEFAULT_AZCLI}"
+KUBERNETES_VERSION="${DEFAULT_KUBERNETES_VERSION}"
 DRY_RUN="false"
 
 while [[ $# -gt 0 ]]; do
@@ -486,6 +489,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -z|--azcli)
             AZCLI="$2"
+            shift 2
+            ;;
+        -k|--kubernetes-version)
+            KUBERNETES_VERSION="$2"
             shift 2
             ;;
         -n|--networking-mode)
@@ -562,6 +569,7 @@ main() {
     log "  Cluster Name: ${CLUSTER_NAME}"
     log "  Subscription: ${SUBSCRIPTION}"
     log "  Azure CLI: ${AZCLI}"
+    log "  Kubernetes Version: ${KUBERNETES_VERSION}"
     log "  Networking Mode: ${NETWORKING_MODE}"
     log "  No Kube-proxy: ${NO_KUBE_PROXY}"
     log "  CNI Plugin: ${CNI_PLUGIN}"
