@@ -1,6 +1,7 @@
 package network
 
 import (
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/common"
 )
 
@@ -82,7 +83,7 @@ func (nm *MockNetworkManager) IsStatelessCNIMode() bool {
 }
 
 // GetEndpointID returns the ContainerID value
-func (nm *MockNetworkManager) GetEndpointID(containerID, ifName string) string {
+func (nm *MockNetworkManager) GetEndpointID(containerID, ifName string, _ cns.NICType) string {
 	if nm.IsStatelessCNIMode() {
 		return containerID
 	}
