@@ -17,7 +17,9 @@ import (
 )
 
 var (
-	errMTPNCNotReady            = errors.New("mtpnc is not ready")
+	// In AKS, for kubelet to retry faster it is particularly looking for "network is not ready" error string.
+	// https://github.com/kubernetes/kubernetes/blob/efd2a0d1f514be96a2f012fc3cb40f7c872b4e67/pkg/kubelet/pod_workers.go#L1495C2-L1501C3
+	errMTPNCNotReady            = errors.New("network is not ready - mtpnc is not ready")
 	errInvalidSWIFTv2NICType    = errors.New("invalid NIC type for SWIFT v2 scenario")
 	errInvalidMTPNCPrefixLength = errors.New("invalid prefix length for MTPNC primaryIP, must be 32")
 )
