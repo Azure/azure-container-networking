@@ -25,9 +25,6 @@ var (
 	errInvalidMTPNCPrefixLength = errors.New("invalid prefix length for MTPNC primaryIP, must be 32")
 )
 
-// In AKS, for kubelet to retry faster it is particularly looking for "network is not ready" error string.
-// https://github.com/kubernetes/kubernetes/blob/efd2a0d1f514be96a2f012fc3cb40f7c872b4e67/pkg/kubelet/pod_workers.go#L1495C2-L1501C3
-
 var getMTPNCNotFoundErr = func(err error) error {
 	return fmt.Errorf("%w: %v", errMTPNCNotFound, err)
 }

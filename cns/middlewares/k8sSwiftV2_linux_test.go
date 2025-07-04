@@ -41,6 +41,8 @@ var (
 
 	testPod9GUID = "2006cad4-e54d-472e-863d-c4bac66200a7"
 	testPod9Info = cns.NewPodInfo("2006cad4-eth0", testPod9GUID, "testpod9", "testpod9namespace")
+
+	kubeletExpectedString = "network is not ready"
 )
 
 func TestMain(m *testing.M) {
@@ -204,7 +206,6 @@ func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
 	_, respCode, _ = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
 
-	kubeletExpectedString := "network is not ready"
 	// Failed to get MTPNC
 	b, _ = testPod3Info.OrchestratorContext()
 	failReq.OrchestratorContext = b
@@ -245,12 +246,12 @@ func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
 	// Pod's MTPNC doesn't exist in cache test
 	_, err := middleware.getIPConfig(context.TODO(), testPod3Info)
 	assert.Assert(t, errors.Is(err, errMTPNCNotFound), "expected error to wrap errMTPNCNotFound, got: %v", err)
-	assert.ErrorContains(t, err, "network is not ready")
+	assert.ErrorContains(t, err, kubeletExpectedString)
 
 	// Pod's MTPNC is not ready test
 	_, err = middleware.getIPConfig(context.TODO(), testPod4Info)
-	assert.Error(t, err, errMTPNCNotReady.Error())
-	assert.ErrorContains(t, err, "network is not ready")
+	assert.Assert(t, errors.Is(err, errMTPNCNotReady), "expected error to wrap errMTPNCNotReady, got: %v", err)
+	assert.ErrorContains(t, err, kubeletExpectedString)
 }
 
 func TestSetRoutesSuccess(t *testing.T) {
