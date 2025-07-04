@@ -26,7 +26,7 @@ var (
 )
 
 var getMTPNCNotFoundErr = func(err error) error {
-	return fmt.Errorf("%w: %s", errMTPNCNotFound, err)
+	return fmt.Errorf("%w: %v", errMTPNCNotFound, err.Error())
 }
 
 const (
