@@ -361,7 +361,7 @@ spec:
       volumes:
       - configMap:
           defaultMode: 420
-          name: ip-masq-agent
+          name: azure-ip-masq-agent-config
         name: ip-masq-config
       - hostPath:
           path: /etc/systemd

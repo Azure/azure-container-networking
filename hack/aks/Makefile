@@ -130,8 +130,6 @@ up: swift-up ## Alias to swift-up
 
 nodesubnet-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an NodeSubnet BYO CNI cluster without kube-proxy
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
 		--kubernetes-version $(K8S_VER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
@@ -139,6 +137,7 @@ nodesubnet-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Node
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/UseCustomizedOSImage,OSImageSubscriptionID=c4c3550e-a965-4993-a50c-628fd38cd3e1,OSImageResourceGroup=aksvhdtestbuildrg,OSImageGallery=PackerSigGalleryEastUS,OSImageName=2404gen2containerd,OSImageVersion=1.1751066173.11329 \
 		--os-sku $(OS_SKU) \
 		--no-ssh-key \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
