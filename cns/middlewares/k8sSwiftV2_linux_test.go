@@ -3,6 +3,7 @@ package middlewares
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -241,6 +242,17 @@ func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
 	// Pod's MTPNC is not ready test
 	_, err = middleware.getIPConfig(context.TODO(), testPod4Info)
 	assert.Error(t, err, errMTPNCNotReady.Error())
+}
+
+// In AKS, for kubelet to retry faster it is particularly looking for "network is not ready" error string.
+// https://github.com/kubernetes/kubernetes/blob/efd2a0d1f514be96a2f012fc3cb40f7c872b4e67/pkg/kubelet/pod_workers.go#L1495C2-L1501C3
+// This test is to ensure that the error string errMTPNCNotReady contains "network is not ready"
+func TestMTPNCNotReadyErrorMessage(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	// Pod's MTPNC is not ready test
+	_, err := middleware.getIPConfig(context.TODO(), testPod4Info)
+
+	assert.Equal(t, strings.Contains(err.Error(), "network is not ready"), true)
 }
 
 func TestSetRoutesSuccess(t *testing.T) {
