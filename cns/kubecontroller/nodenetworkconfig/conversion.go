@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
@@ -73,7 +74,7 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 // CreateNCRequestFromStaticNC generates a CreateNetworkContainerRequest from a static NetworkContainer.
 //
 //nolint:gocritic //ignore hugeparam
-func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetworkContainerRequest, error) {
+func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer, config *configuration.CNSConfig) (*cns.CreateNetworkContainerRequest, error) {
 	if nc.Type == v1alpha.Overlay {
 		nc.Version = 0 // fix for NMA always giving us version 0 for Overlay NCs
 	}
@@ -97,7 +98,7 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwor
 		subnet.IPAddress = primaryPrefix.Addr().String()
 	}
 
-	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet)
+	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet, config)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error while creating NC request from static NC")
 	}

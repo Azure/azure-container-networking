@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -339,12 +341,148 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CreateNCRequestFromStaticNC(tt.input)
+			config := &configuration.CNSConfig{}
+			got, err := CreateNCRequestFromStaticNC(tt.input, config)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
 			}
 			assert.NoError(t, err)
+			assert.EqualValues(t, tt.want, got)
+		})
+	}
+}
+
+func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   v1alpha.NetworkContainer
+		config  *configuration.CNSConfig
+		want    *cns.CreateNetworkContainerRequest
+		wantErr bool
+	}{
+		{
+			name: "SwiftV2 enabled with VNETBlock - should NOT process all IPs in prefix",
+			input: v1alpha.NetworkContainer{
+				ID:                 ncID,
+				PrimaryIP:          "10.0.0.0/32",
+				NodeIP:             "10.0.0.1",
+				Type:               v1alpha.VNETBlock,
+				SubnetAddressSpace: "10.0.0.0/24",
+				DefaultGateway:     "10.0.0.1",
+				Version:            1,
+				Status:             "Available",
+			},
+			config: &configuration.CNSConfig{
+				EnableSwiftV2: true,
+			},
+			want: &cns.CreateNetworkContainerRequest{
+				NetworkContainerid:   ncID,
+				NetworkContainerType: cns.Docker,
+				Version:              "1",
+				HostPrimaryIP:        "10.0.0.1",
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "10.0.0.1",
+						PrefixLength: 24,
+					},
+					GatewayIPAddress: "10.0.0.1",
+				},
+				SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+					// No IPs from primary prefix
+				},
+				NCStatus: "Available",
+			},
+			wantErr: false,
+		},
+		{
+			name: "SwiftV2 disabled with VNETBlock - should process all IP in prefix",
+			input: v1alpha.NetworkContainer{
+				ID:                 ncID,
+				PrimaryIP:          "10.0.0.0/32",
+				NodeIP:             "10.0.0.1",
+				Type:               v1alpha.VNETBlock,
+				SubnetAddressSpace: "10.0.0.0/24",
+				DefaultGateway:     "10.0.0.1",
+				Version:            1,
+				Status:             "Available",
+				IPAssignments: []v1alpha.IPAssignment{
+					{
+						Name: "test-ip",
+						IP:   "10.0.0.10/32",
+					},
+				},
+			},
+			config: &configuration.CNSConfig{},
+			want: &cns.CreateNetworkContainerRequest{
+				NetworkContainerid:   ncID,
+				NetworkContainerType: cns.Docker,
+				Version:              "1",
+				HostPrimaryIP:        "10.0.0.1",
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "10.0.0.1",
+						PrefixLength: 24,
+					},
+					GatewayIPAddress: "10.0.0.1",
+				},
+				SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+					"10.0.0.0": {IPAddress: "10.0.0.0", NCVersion: 1},
+					// IP assignments
+					"10.0.0.10": {IPAddress: "10.0.0.10", NCVersion: 1},
+				},
+				NCStatus: "Available",
+			},
+			wantErr: false,
+		},
+		{
+			name: "SwiftV2 disabled with non-VNETBlock type - should process IP in prefix",
+			input: v1alpha.NetworkContainer{
+				ID:                 ncID,
+				PrimaryIP:          "10.0.0.0/32",
+				NodeIP:             "10.0.0.1",
+				Type:               v1alpha.Overlay,
+				SubnetAddressSpace: "10.0.0.0/24",
+				DefaultGateway:     "10.0.0.1",
+				Version:            1,
+				Status:             "Available",
+				IPAssignments: []v1alpha.IPAssignment{
+					{
+						Name: "test-ip",
+						IP:   "10.0.0.10/32",
+					},
+				},
+			},
+			config: &configuration.CNSConfig{},
+			want: &cns.CreateNetworkContainerRequest{
+				NetworkContainerid:   ncID,
+				NetworkContainerType: cns.Docker,
+				Version:              "0",
+				HostPrimaryIP:        "10.0.0.1",
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "10.0.0.0",
+						PrefixLength: 24,
+					},
+					GatewayIPAddress: "10.0.0.1",
+				},
+				SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+					"10.0.0.0": {IPAddress: "10.0.0.0", NCVersion: 0},
+				},
+				NCStatus: "Available",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := CreateNCRequestFromStaticNC(tt.input, tt.config)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 			assert.EqualValues(t, tt.want, got)
 		})
 	}
