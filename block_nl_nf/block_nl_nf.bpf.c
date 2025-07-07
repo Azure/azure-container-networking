@@ -13,6 +13,7 @@ char LICENSE[] SEC("license") = "GPL";
 #define NETLINK_NETFILTER 12
 #define NFT_MSG_NEWRULE 0x0A
 #define NFNL_SUBSYS_NFTABLES 10
+#define NFNL_SUBSYS_NFT_COMPAT 11
 
 #define NFNL_SUBSYS_ID(type) ((type) >> 8)
 #define NFNL_MSG_TYPE(type)  ((type) & 0xFF)
@@ -38,9 +39,9 @@ int BPF_PROG(check_netns, int family, int type, int protocol)
     netns_ino = BPF_CORE_READ(net_ns, ns.inum);
 
     if (netns_ino == host_netns_inode) {
-        bpf_printk("In host netns\n");
+    //    bpf_printk("In host netns\n");
     } else {
-        bpf_printk("In non-host netns: %u\n", netns_ino);
+    //    bpf_printk("In non-host netns: %u\n", netns_ino);
     }
 
     return 0;
@@ -92,7 +93,7 @@ int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
     }
 
 
-    bpf_printk("setsockopt called %d %d\n", level, optname);
+    //bpf_printk("setsockopt called %d %d\n", level, optname);
     if(level == 0 /*IPPROTO_IP*/ || level == 41 /*IPPROTO_IP6*/) {
         if(optname == 64) { // 64 represents IPT_SO_SET_REPLACE or IP6T_SO_SET_REPLACE, depending on the level
             if(is_host_ns()) {
@@ -130,31 +131,45 @@ int BPF_PROG(on_socket_sendmsg, struct socket *sock, struct msghdr *msg, size_t 
     if (!is_host_ns()) {
         return 0;
     }
+    bpf_printk("send called on netfilter socket5\n");
 
     struct iov_iter iter;
     if (bpf_core_read(&iter, sizeof(iter), &msg->msg_iter))
         return 0;
+    bpf_printk("read iterator %d %d %d", iter.iter_type, ITER_IOVEC, iter.nr_segs);
 
-    // Ensure it's ITER_IOVEC (usually the case for sendmsg from user space)
-    if (iter.count == 0 || !iter.iov)
-        return 0;
+    if (iter.iter_type != ITER_UBUF)
+        return 0; // Not a normal user buffer
 
-    struct iovec iov;
-    if (bpf_core_read(&iov, sizeof(iov), iter.iov))
-        return 0;
+    bpf_printk("reading ubuf");
+    void *ubuf_ptr = BPF_CORE_READ(&iter, ubuf);
+    
+    if (ubuf_ptr == NULL) {
+	return 0;
+    }
 
-    if (iov.iov_len < sizeof(struct nlmsghdr) || !iov.iov_base)
-        return 0;
+    bpf_printk("reading ubuf1");
+    size_t buf_size = BPF_CORE_READ(&iter, count);
 
+    if (buf_size < sizeof(struct nlmsghdr)) {
+	return 0;
+    }
+    bpf_printk("reading ubuf2");
     struct nlmsghdr nlh;
-    if (bpf_probe_read_user(&nlh, sizeof(nlh), iov.iov_base))
+    if(bpf_probe_read_user(&nlh, sizeof(nlh), ubuf_ptr))
         return 0;
-
+    bpf_printk("reading ubuf3 %d", nlh.nlmsg_type);
     __u16 subsys_id = NFNL_SUBSYS_ID(nlh.nlmsg_type);
     __u16 cmd_type  = NFNL_MSG_TYPE(nlh.nlmsg_type);
+    bpf_printk("vals %d %d", subsys_id, cmd_type);
+    if (subsys_id == NFNL_SUBSYS_NFTABLES || subsys_id == NFNL_SUBSYS_NFT_COMPAT) {
+	return -EINVAL;
+    }
 
-    if (subsys_id == NFNL_SUBSYS_NFTABLES && cmd_type == NFT_MSG_NEWRULE)
+    if (subsys_id == NFNL_SUBSYS_NFTABLES && cmd_type == NFT_MSG_NEWRULE) {
+	bpf_printk("stooooppp!!!");
         return -EINVAL;
+    }
 
 
 //    bpf_printk("send called on netfilter socket\n");
