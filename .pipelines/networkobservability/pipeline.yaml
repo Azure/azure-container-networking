@@ -113,14 +113,9 @@ stages:
           displayName: "Wait for all pods to be running"
           retryCountOnTaskFailure: 3
 
-        - script: |
-              echo "Run Cilium Connectivity Tests"
-              cilium status
-              cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors'
-          retryCountOnTaskFailure: 3
-          name: "ciliumConnectivityTests"
-          displayName: "Run Cilium Connectivity Tests"
-          enabled: true
+        - template: ../templates/cilium-connectivity-tests.yaml
+          parameters:
+            skipTests: '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors,!to-fqdns'
 
         - script: |
             export DIR=${CILIUM_VERSION_TAG%.*}

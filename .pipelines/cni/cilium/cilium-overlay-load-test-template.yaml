@@ -65,7 +65,7 @@ stages:
       - ${{ if eq(parameters.upgradeScenario, false) }}:
         - create_${{ parameters.name }}
       - ${{ else }}:
-        - ${{ parameters.dependsOn }} 
+        - ${{ parameters.dependsOn }}
       - publish
       - setup
     displayName: "Cilium Test - ${{ parameters.name }}"
@@ -122,7 +122,7 @@ stages:
 
                   envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
-                  
+
       - ${{if eq(parameters.hubbleEnabled, true)}}:
         - job: deploy_cilium_components
           displayName: Deploy Cilium with Hubble
@@ -184,7 +184,7 @@ stages:
                       IPAM=$(UPGRADE_AZURE_IPAM_VERSION)
                       echo "UPGRADE_AZURE_IPAM_VERSION is set to $IPAM"
                     fi
-                    
+
                     if [ -z "$UPGRADE_CNS_VERSION" ]
                     then
                       echo "UPGRADE_CNS_VERSION is not set, using default value"
@@ -214,9 +214,9 @@ stages:
                       echo "TEST_CNS_VERSION is set to $CNS"
                     fi
                 fi
-                  
+
                 echo "Deploy Azure-CNS"
-                sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO) 
+                sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO)
                 kubectl get po -owide -A
                 kubectl get crd -A
 
@@ -287,12 +287,7 @@ stages:
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
             name: "GetCluster"
             displayName: "Get AKS Cluster"
-          - script: |
-              kubectl delete ns load-test
-              cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors,!no-unexpected-packet-drops'
-            retryCountOnTaskFailure: 6
-            name: "CiliumConnectivityTests"
-            displayName: "Run Cilium Connectivity Tests"
+          - template: ../../templates/cilium-connectivity-tests.yaml
           - script: |
               cd hack/scripts
               chmod +x async-delete-test.sh

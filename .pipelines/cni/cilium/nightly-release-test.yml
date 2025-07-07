@@ -162,11 +162,11 @@ stages:
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=ciliumnightly-$(commitID)
 
                 set -e
-                echo "Run Cilium Connectivity Tests"
+                echo "Check Cilium Connectivity Test Logs"
                 cilium status
                 cilium connectivity test --test check-log-errors --log-check-levels error
-              name: "ciliumConnectivityTests"
-              displayName: "Run Cilium Connectivity Tests"
+              name: "ciliumConnectivityLogs"
+              displayName: "Check Cilium Connectivity Test Logs"
               condition: always()
 
           - template: ../../templates/log-check-template.yaml # Operator Check
