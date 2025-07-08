@@ -32,10 +32,11 @@ endif
 # Interrogate the git repo and set some variables
 REPO_ROOT							?= $(shell git rev-parse --show-toplevel)
 REVISION							?= $(shell git rev-parse --short HEAD)
-ACN_VERSION							?= $(shell git describe --exclude "azure-ip-masq-merger*" --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --tags --always)
+ACN_VERSION							?= $(shell git describe --exclude "azure-iptables-monitor*" --exclude "azure-ip-masq-merger*" --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --tags --always)
 IPV6_HP_BPF_VERSION					?= $(notdir $(shell git describe --match "ipv6-hp-bpf*" --tags --always))
 AZURE_IPAM_VERSION					?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
 AZURE_IP_MASQ_MERGER_VERSION		?= $(notdir $(shell git describe --match "azure-ip-masq-merger*" --tags --always))
+AZURE_IPTABLES_MONITOR_VERSION		?= $(notdir $(shell git describe --match "azure-iptables-monitor*" --tags --always))
 CNI_VERSION							?= $(ACN_VERSION)
 CNS_VERSION							?= $(ACN_VERSION)
 NPM_VERSION							?= $(ACN_VERSION)
@@ -44,6 +45,7 @@ ZAPAI_VERSION						?= $(notdir $(shell git describe --match "zapai*" --tags --al
 # Build directories.
 AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam
 AZURE_IP_MASQ_MERGER_DIR = $(REPO_ROOT)/azure-ip-masq-merger
+AZURE_IPTABLES_MONITOR_DIR = $(REPO_ROOT)/azure-iptables-monitor
 IPV6_HP_BPF_DIR = $(REPO_ROOT)/bpf-prog/ipv6-hp-bpf
 
 CNI_NET_DIR = $(REPO_ROOT)/cni/network/plugin
@@ -58,6 +60,7 @@ OUTPUT_DIR = $(REPO_ROOT)/output
 BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
 AZURE_IPAM_BUILD_DIR = $(BUILD_DIR)/azure-ipam
 AZURE_IP_MASQ_MERGER_BUILD_DIR = $(BUILD_DIR)/azure-ip-masq-merger
+AZURE_IPTABLES_MONITOR_BUILD_DIR = $(BUILD_DIR)/azure-iptables-monitor
 IPV6_HP_BPF_BUILD_DIR = $(BUILD_DIR)/bpf-prog/ipv6-hp-bpf
 IMAGE_DIR  = $(OUTPUT_DIR)/images
 
@@ -106,6 +109,7 @@ CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(CNS_VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(NPM_VERSION).$(ARCHIVE_EXT)
 AZURE_IPAM_ARCHIVE_NAME = azure-ipam-$(GOOS)-$(GOARCH)-$(AZURE_IPAM_VERSION).$(ARCHIVE_EXT)
 AZURE_IP_MASQ_MERGER_ARCHIVE_NAME = azure-ip-masq-merger-$(GOOS)-$(GOARCH)-$(AZURE_IP_MASQ_MERGER_VERSION).$(ARCHIVE_EXT)
+AZURE_IPTABLES_MONITOR_ARCHIVE_NAME = azure-iptables-monitor-$(GOOS)-$(GOARCH)-$(AZURE_IPTABLES_MONITOR_VERSION).$(ARCHIVE_EXT)
 IPV6_HP_BPF_ARCHIVE_NAME = ipv6-hp-bpf-$(GOOS)-$(GOARCH)-$(IPV6_HP_BPF_VERSION).$(ARCHIVE_EXT)
 
 # Image info file names.
@@ -123,8 +127,8 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger ipv6-hp-bpf
-all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image ipv6-hp-bpf-image
+all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf
+all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image azure-iptables-monitor-image ipv6-hp-bpf-image
 else
 all-binaries: azure-cni-plugin azure-cns azure-npm
 all-images:
@@ -139,6 +143,7 @@ azure-npm: azure-npm-binary npm-archive
 azure-ipam: azure-ipam-binary azure-ipam-archive
 ipv6-hp-bpf: ipv6-hp-bpf-binary ipv6-hp-bpf-archive
 azure-ip-masq-merger: azure-ip-masq-merger-binary azure-ip-masq-merger-archive
+azure-iptables-monitor: azure-iptables-monitor-binary azure-iptables-monitor-archive
 
 
 ##@ Versioning
@@ -156,6 +161,9 @@ azure-ipam-version: ## prints the azure-ipam version
 
 azure-ip-masq-merger-version: ## prints the azure-ip-masq-merger version
 	@echo $(AZURE_IP_MASQ_MERGER_VERSION)
+
+azure-iptables-monitor-version: ## prints the azure-iptables-monitor version
+	@echo $(AZURE_IPTABLES_MONITOR_VERSION)
 
 ipv6-hp-bpf-version: ## prints the ipv6-hp-bpf version
 	@echo $(IPV6_HP_BPF_VERSION)
@@ -230,6 +238,10 @@ azure-npm-binary:
 azure-ip-masq-merger-binary:
 	cd $(AZURE_IP_MASQ_MERGER_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IP_MASQ_MERGER_BUILD_DIR)/azure-ip-masq-merger$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IP_MASQ_MERGER_VERSION)" -gcflags="-dwarflocationlists=true"
 
+# Build the azure-iptables-monitor binary.
+azure-iptables-monitor-binary:
+	cd $(AZURE_IPTABLES_MONITOR_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPTABLES_MONITOR_BUILD_DIR)/azure-iptables-monitor$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IPTABLES_MONITOR_VERSION)" -gcflags="-dwarflocationlists=true"
+
 ##@ Containers
 
 ## Common variables for all containers.
@@ -268,25 +280,27 @@ CONTAINER_TRANSPORT = docker
 endif
 
 ## Image name definitions.
-ACNCLI_IMAGE				= acncli
-AZURE_IPAM_IMAGE			= azure-ipam
-IPV6_HP_BPF_IMAGE			= ipv6-hp-bpf
-CNI_IMAGE					= azure-cni
-CNS_IMAGE					= azure-cns
-NPM_IMAGE					= azure-npm
-AZURE_IP_MASQ_MERGER_IMAGE	= azure-ip-masq-merger
+ACNCLI_IMAGE					= acncli
+AZURE_IPAM_IMAGE				= azure-ipam
+IPV6_HP_BPF_IMAGE				= ipv6-hp-bpf
+CNI_IMAGE						= azure-cni
+CNS_IMAGE						= azure-cns
+NPM_IMAGE						= azure-npm
+AZURE_IP_MASQ_MERGER_IMAGE		= azure-ip-masq-merger
+AZURE_IPTABLES_MONITOR_IMAGE	= azure-iptables-monitor
 
 ## Image platform tags.
-ACNCLI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))-$(ACN_VERSION)
-AZURE_IPAM_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))-$(AZURE_IPAM_VERSION)
-AZURE_IPAM_WINDOWS_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))-$(AZURE_IPAM_VERSION)-$(OS_SKU_WIN)
-IPV6_HP_BPF_IMAGE_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))-$(IPV6_HP_BPF_VERSION)
-CNI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))-$(CNI_VERSION)
-CNI_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))-$(CNI_VERSION)-$(OS_SKU_WIN)
-CNS_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)
-CNS_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)-$(OS_SKU_WIN)
-NPM_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))-$(NPM_VERSION)
+ACNCLI_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(ACN_VERSION)
+AZURE_IPAM_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))-$(AZURE_IPAM_VERSION)
+AZURE_IPAM_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))-$(AZURE_IPAM_VERSION)-$(OS_SKU_WIN)
+IPV6_HP_BPF_IMAGE_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))-$(IPV6_HP_BPF_VERSION)
+CNI_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(CNI_VERSION)
+CNI_WINDOWS_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))-$(CNI_VERSION)-$(OS_SKU_WIN)
+CNS_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)
+CNS_WINDOWS_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)-$(OS_SKU_WIN)
+NPM_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(NPM_VERSION)
 AZURE_IP_MASQ_MERGER_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))-$(AZURE_IP_MASQ_MERGER_VERSION)
+AZURE_IPTABLES_MONITOR_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))-$(AZURE_IPTABLES_MONITOR_VERSION)
 
 
 qemu-user-static: ## Set up the host to run qemu multiplatform container builds.
@@ -424,6 +438,32 @@ azure-ip-masq-merger-image-pull: ## pull azure-ip-masq-merger container image.
 		IMAGE=$(AZURE_IP_MASQ_MERGER_IMAGE) \
 		TAG=$(AZURE_IP_MASQ_MERGER_PLATFORM_TAG)
 
+# azure-iptables-monitor
+azure-iptables-monitor-image-name: # util target to print the azure-iptables-monitor image name.
+	@echo $(AZURE_IPTABLES_MONITOR_IMAGE)
+
+azure-iptables-monitor-image-name-and-tag: # util target to print the azure-iptables-monitor image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(AZURE_IPTABLES_MONITOR_IMAGE):$(AZURE_IPTABLES_MONITOR_PLATFORM_TAG)
+
+azure-iptables-monitor-image: ## build azure-iptables-monitor container image.
+	$(MAKE) container \
+		DOCKERFILE=azure-iptables-monitor/Dockerfile \
+		IMAGE=$(AZURE_IPTABLES_MONITOR_IMAGE) \
+		PLATFORM=$(PLATFORM) \
+		TAG=$(AZURE_IPTABLES_MONITOR_PLATFORM_TAG) \
+		TARGET=$(OS) \
+		OS=$(OS) \
+		ARCH=$(ARCH)
+
+azure-iptables-monitor-image-push: ## push azure-iptables-monitor container image.
+	$(MAKE) container-push \
+		IMAGE=$(AZURE_IPTABLES_MONITOR_IMAGE) \
+		TAG=$(AZURE_IPTABLES_MONITOR_PLATFORM_TAG)
+
+azure-iptables-monitor-image-pull: ## pull azure-iptables-monitor container image.
+	$(MAKE) container-pull \
+		IMAGE=$(AZURE_IPTABLES_MONITOR_IMAGE) \
+		TAG=$(AZURE_IPTABLES_MONITOR_PLATFORM_TAG)
 
 # ipv6-hp-bpf
 
@@ -617,6 +657,22 @@ azure-ip-masq-merger-skopeo-archive: ## export tar archive of azure-ip-masq-merg
 		IMAGE=$(AZURE_IP_MASQ_MERGER_IMAGE) \
 		TAG=$(AZURE_IP_MASQ_MERGER_VERSION)
 
+azure-iptables-monitor-manifest-build: ## build azure-iptables-monitor multiplat container manifest.
+	$(MAKE) manifest-build \
+		PLATFORMS="$(PLATFORMS)" \
+		IMAGE=$(AZURE_IPTABLES_MONITOR_IMAGE) \
+		TAG=$(AZURE_IPTABLES_MONITOR_VERSION)
+
+azure-iptables-monitor-manifest-push: ## push azure-iptables-monitor multiplat container manifest
+	$(MAKE) manifest-push \
+		IMAGE=$(AZURE_IPTABLES_MONITOR_IMAGE) \
+		TAG=$(AZURE_IPTABLES_MONITOR_VERSION)
+
+azure-iptables-monitor-skopeo-archive: ## export tar archive of azure-iptables-monitor multiplat container manifest.
+	$(MAKE) manifest-skopeo-archive \
+		IMAGE=$(AZURE_IPTABLES_MONITOR_IMAGE) \
+		TAG=$(AZURE_IPTABLES_MONITOR_VERSION)
+
 ipv6-hp-bpf-manifest-build: ## build ipv6-hp-bpf multiplat container manifest.
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
@@ -775,6 +831,14 @@ ifeq ($(GOOS),linux)
 	cd $(AZURE_IP_MASQ_MERGER_BUILD_DIR) && $(ARCHIVE_CMD) $(AZURE_IP_MASQ_MERGER_ARCHIVE_NAME) azure-ip-masq-merger$(EXE_EXT)
 endif
 
+# Create a azure-iptables-monitor archive for the target platform.
+.PHONY: azure-iptables-monitor-archive
+azure-iptables-monitor-archive: azure-iptables-monitor-binary
+ifeq ($(GOOS),linux)
+	$(MKDIR) $(AZURE_IPTABLES_MONITOR_BUILD_DIR)
+	cd $(AZURE_IPTABLES_MONITOR_BUILD_DIR) && $(ARCHIVE_CMD) $(AZURE_IPTABLES_MONITOR_ARCHIVE_NAME) azure-iptables-monitor$(EXE_EXT)
+endif
+
 # Create a ipv6-hp-bpf archive for the target platform.
 .PHONY: ipv6-hp-bpf-archive
 ipv6-hp-bpf-archive: ipv6-hp-bpf-binary
@@ -811,6 +875,7 @@ workspace: ## Set up the Go workspace.
 	go work use .
 	go work use ./azure-ipam
 	go work use ./azure-ip-masq-merger
+	go work use ./azure-iptables-monitor
 	go work use ./build/tools
 	go work use ./dropgz
 	go work use ./zapai
@@ -823,7 +888,7 @@ RESTART_CASE ?= false
 # CNI type is a key to direct the types of state validation done on a cluster.
 CNI_TYPE ?= cilium
 
-test-all: test-azure-ipam test-azure-ip-masq-merger test-main ## run all unit tests.
+test-all: test-azure-ipam test-azure-ip-masq-merger test-azure-iptables-monitor test-main ## run all unit tests.
 
 test-main: 
 	go test -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=coverage-main.out $(COVER_PKG)/...
@@ -862,6 +927,9 @@ test-azure-ipam: ## run the unit test for azure-ipam
 
 test-azure-ip-masq-merger: ## run the unit test for azure-ip-masq-merger
 	cd $(AZURE_IP_MASQ_MERGER_DIR) && go test -race -covermode atomic -coverprofile=../coverage-azure-ip-masq-merger.out && go tool cover -func=../coverage-azure-ip-masq-merger.out
+
+test-azure-iptables-monitor: ## run the unit test for azure-iptables-monitor
+	cd $(AZURE_IPTABLES_MONITOR_DIR) && go test -race -covermode atomic -coverprofile=../coverage-azure-iptables-monitor.out && go tool cover -func=../coverage-azure-iptables-monitor.out
 
 kind:
 	kind create cluster --config ./test/kind/kind.yaml

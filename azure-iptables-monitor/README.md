@@ -1,0 +1,63 @@
+# azure-iptables-monitor
+
+`azure-iptables-monitor` is a utility for monitoring iptables rules on Kubernetes nodes and labeling nodes based on whether they contain user-defined iptables rules.
+
+## Description
+
+The goal of this program is to periodically scan iptables rules across all tables (nat, mangle, filter, raw, security) and determine if any rules exist that don't match expected patterns. When unexpected rules are found, the node is labeled to indicate the presence of user-defined iptables rules.
+
+## Usage
+
+Follow the steps below to build and run the program:
+
+1. Build the binary using `make`:
+    ```bash
+    make azure-iptables-monitor
+    ```
+    or make an image:
+    ```bash
+    make azure-iptables-monitor-image
+    ```
+
+2. Deploy or copy the binary to your node(s).
+
+3. Prepare your allowed pattern files in the input directory. Each file should be named after an iptables table (`nat`, `mangle`, `filter`, `raw`, `security`) or `global` and contain regex patterns that match expected iptables rules. You may want to mount a configmap for this purpose.
+
+4. Start the program with:
+    ```bash
+    ./azure-iptables-monitor --input=/etc/config/ --interval=600
+    ```
+    - The `--input` flag specifies the directory containing allowed regex pattern files. Default: `/etc/config/`
+    - The `--interval` flag specifies how often to check iptables rules in seconds. Default: `600`
+    - The program must be in a k8 environment and `NODE_NAME` must be a set environment variable with the current node.
+
+5. The program will set the `user-iptables-rules` label on the current node to `true` if unexpected rules are found, or `false` if all rules match expected patterns. Proper RBAC is required for patching the node.
+
+
+## Pattern File Format
+
+Each pattern file should contain one regex pattern per line:
+```
+^-A INPUT -i lo -j ACCEPT$
+^-A FORWARD -j DOCKER.*
+^-A POSTROUTING -s 10\.0\.0\.0/8 -j MASQUERADE$
+```
+
+- `global`: Patterns that can match rules in any iptables table
+- `nat`, `mangle`, `filter`, `raw`, `security`: Patterns specific to each iptables table
+- Empty lines are ignored
+- Each line should be a valid Go regex pattern
+
+## Debugging
+
+Logs are output to standard error. Increase verbosity with the `-v` flag:
+```bash
+./azure-iptables-monitor -v 3
+```
+
+## Development
+
+To run tests at the repository level:
+```bash
+make test-azure-iptables-monitor
+```
