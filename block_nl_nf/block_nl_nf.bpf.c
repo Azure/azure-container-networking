@@ -70,6 +70,10 @@ int BPF_PROG(block_nf_netlink, struct sock *sk, struct sk_buff *skb) {
     if (proto != 12) // Not NETLINK_NETFILTER
         return 0;
 
+    if (!is_host_ns()) {
+	return 0;
+    }
+
     struct nlmsghdr nlh = {};
     void *data = NULL;
     __u32 skb_len = 0;
