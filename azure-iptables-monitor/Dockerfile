@@ -20,7 +20,6 @@ RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/iptables-monitor -trimpath -ld
 FROM mariner-core AS iptables
 RUN tdnf install -y iptables
 
-# TODO: change to mariner distroless
 FROM mariner-distroless AS linux
 COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
 COPY --from=iptables /usr/lib /usr/lib

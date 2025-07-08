@@ -221,14 +221,14 @@ func main() {
 	var fileReader FileLineReader = OSFileLineReader{}
 
 	for {
-		nodeHasUserIPTablesRules := nodeHasUserIPTablesRules(fileReader, iptablesClient)
+		userIPTablesRulesFound := nodeHasUserIPTablesRules(fileReader, iptablesClient)
 
 		// update node label based on whether user iptables rules were found
-		err = patchNodeLabel(clientset, nodeHasUserIPTablesRules, currentNodeName)
+		err = patchNodeLabel(clientset, userIPTablesRulesFound, currentNodeName)
 		if err != nil {
 			klog.Errorf("failed to patch node label: %v", err)
 		} else {
-			klog.V(2).Infof("Successfully updated node label for %s: %s=%v", currentNodeName, nodeLabel, nodeHasUserIPTablesRules)
+			klog.V(2).Infof("Successfully updated node label for %s: %s=%v", currentNodeName, nodeLabel, userIPTablesRulesFound)
 		}
 
 		time.Sleep(time.Duration(*checkInterval) * time.Second)
