@@ -82,22 +82,18 @@ int BPF_PROG(block_nf_netlink, struct sock *sk, struct sk_buff *skb) {
     if (bpf_core_read(&skb_len, sizeof(skb_len), &skb->len) < 0)
         return 0;
 
-    bpf_printk("step1");
     if (skb_len < sizeof(struct nlmsghdr))
         return 0;
-    bpf_printk("step2");
+
     // Step 2: Read skb->data pointer safely
     if (bpf_core_read(&data, sizeof(data), &skb->data) < 0)
         return 0;
-    bpf_printk("step3");
     // Step 3: Validate that skb->data is not NULL
     if (!data)
         return 0;
-    bpf_printk("step4");
     // Step 4: Read the nlmsghdr from skb->data
     if (bpf_probe_read_kernel(&nlh, sizeof(nlh), data) < 0)
         return 0;
-    bpf_printk("step5");
     // Step 5: Extract subsystem ID from nlmsg_type
     __u16 type = nlh.nlmsg_type;
     __u8 subsys_id = type >> 8;
@@ -105,12 +101,10 @@ int BPF_PROG(block_nf_netlink, struct sock *sk, struct sk_buff *skb) {
     // Step 6: Optionally validate nlmsg_len (sanity check)
     if (nlh.nlmsg_len < sizeof(struct nlmsghdr) || nlh.nlmsg_len > skb_len)
         return 0;
-    bpf_printk("step6");
     // Step 7: Block known netfilter-related subsystems
     if (subsys_id == 0x0A /* NFNL_SUBSYS_NFTABLES */ ||
         subsys_id == 0x0B /* NFNL_SUBSYS_NFT_COMPAT */) {
         return -EINVAL;
     }
-    bpf_printk("step7");
     return 0;
 }
