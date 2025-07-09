@@ -27,8 +27,6 @@ PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
 LTS					 ?= false
 
-
-
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
 CLUSTER    ?= $(USER)-$(REGION)
