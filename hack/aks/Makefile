@@ -179,6 +179,7 @@ overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
+                --aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/UseCustomizedOSImage,OSImageSubscriptionID=c4c3550e-a965-4993-a50c-628fd38cd3e1,OSImageResourceGroup=aksvhdtestbuildrg,OSImageGallery=PackerSigGalleryEastUS,OSImageName=2404gen2containerd,OSImageVersion=1.1751066173.11329 \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		$(LTS_ARGS) \
 		--yes
