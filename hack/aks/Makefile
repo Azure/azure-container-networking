@@ -250,6 +250,8 @@ swiftv2-multitenancy-cluster-up: rg-up ipv4
 		--node-count 2 \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--nodepool-tags fastpathenabled=true \
+		--no-ssh-key \
+		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -259,6 +261,7 @@ swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI clus
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
+		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
 
