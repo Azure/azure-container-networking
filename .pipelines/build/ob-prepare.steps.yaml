@@ -62,6 +62,10 @@ steps:
     echo "##vso[task.setvariable variable=azureIpMasqMergerVersion;isOutput=true]$AZUREIPMASQMERGERVERSION"
     echo "azureIpMasqMergerVersion: $AZUREIPMASQMERGERVERSION"
 
+    AZUREIPTABLESMONITORVERSION=$(make azure-iptables-monitor-version)
+    echo "##vso[task.setvariable variable=azureIptablesMonitorVersion;isOutput=true]$AZUREIPTABLESMONITORVERSION"
+    echo "azureIptablesMonitorVersion: $AZUREIPTABLESMONITORVERSION"
+
     CNIVERSION=$(make cni-version)
     echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$CNIVERSION"
     echo "cniVersion: $CNIVERSION"

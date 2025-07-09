@@ -38,6 +38,7 @@ stages:
     IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
     AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
     AZURE_IP_MASQ_MERGER_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpMasqMergerVersion'] ]
+    AZURE_IPTABLES_MONITOR_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIptablesMonitorVersion'] ]
     CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
     CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
     IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
@@ -67,6 +68,12 @@ stages:
               extraArgs: ''
               archiveName: azure-ip-masq-merger
               archiveVersion: $(AZURE_IP_MASQ_MERGER_VERSION)
+              imageTag: $(Build.BuildNumber)
+            azure_iptables_monitor:
+              name: azure-iptables-monitor
+              extraArgs: ''
+              archiveName: azure-iptables-monitor
+              archiveVersion: $(AZURE_IPTABLES_MONITOR_VERSION)
               imageTag: $(Build.BuildNumber)
             cni:
               name: cni
@@ -152,6 +159,12 @@ stages:
               archiveName: azure-ip-masq-merger
               archiveVersion: $(AZURE_IP_MASQ_MERGER_VERSION)
               imageTag: $(Build.BuildNumber)
+            azure_iptables_monitor:
+              name: azure-iptables-monitor
+              extraArgs: ''
+              archiveName: azure-iptables-monitor
+              archiveVersion: $(AZURE_IPTABLES_MONITOR_VERSION)
+              imageTag: $(Build.BuildNumber)
             cni:
               name: cni
               extraArgs: '--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
@@ -190,6 +203,7 @@ stages:
 
       AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
       AZURE_IP_MASQ_MERGER_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpMasqMergerVersion'] ]
+      AZURE_IPTABLES_MONITOR_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIptablesMonitorVersion'] ]
       CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
       CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
@@ -201,6 +215,9 @@ stages:
 
       IP_MASQ_MERGER_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-ip-masq-merger:$(Build.BuildNumber)
       IP_MASQ_MERGER_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ip-masq-merger:$(Build.BuildNumber)
+
+      IPTABLES_MONITOR_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-iptables-monitor:$(Build.BuildNumber)
+      IPTABLES_MONITOR_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-iptables-monitor:$(Build.BuildNumber)
 
       CNI_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cni:$(Build.BuildNumber)
       CNI_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cni:$(Build.BuildNumber)
@@ -241,6 +258,15 @@ stages:
               imageReference: $(IP_MASQ_MERGER_LINUX_AMD64_REF)
             - platform: linux/arm64
               imageReference: $(IP_MASQ_MERGER_LINUX_ARM64_REF)
+        - job: azure_iptables_monitor
+          templateContext:
+            name: azure-iptables-monitor
+            image_tag: $(AZURE_IPTABLES_MONITOR_VERSION)
+            platforms:
+            - platform: linux/amd64
+              imageReference: $(IPTABLES_MONITOR_LINUX_AMD64_REF)
+            - platform: linux/arm64
+              imageReference: $(IPTABLES_MONITOR_LINUX_ARM64_REF)
         - job: cni
           templateContext:
             name: cni
