@@ -4,7 +4,7 @@
 #include <bpf/bpf_tracing.h>
 
 #define sk_family __sk_common.skc_family
-#define EINVAL 13
+#define EPERM 1
 char LICENSE[] SEC("license") = "GPL";
 
 __u32 host_netns_inode = 4026531840;  // Initialized by userspace, not const
@@ -45,7 +45,7 @@ int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
     if(level == 0 /*IPPROTO_IP*/ || level == 41 /*IPPROTO_IP6*/) {
         if(optname == 64) { // 64 represents IPT_SO_SET_REPLACE or IP6T_SO_SET_REPLACE, depending on the level
             if(is_host_ns()) {
-                return -EINVAL;
+                return -EPERM;
             }
         }
     }
@@ -77,34 +77,40 @@ int BPF_PROG(block_nf_netlink, struct sock *sk, struct sk_buff *skb) {
     struct nlmsghdr nlh = {};
     void *data = NULL;
     __u32 skb_len = 0;
-
-    // Step 1: Read skb->len to ensure there's enough data
-    if (bpf_core_read(&skb_len, sizeof(skb_len), &skb->len) < 0)
-        return 0;
-
-    if (skb_len < sizeof(struct nlmsghdr))
-        return 0;
-
-    // Step 2: Read skb->data pointer safely
+        
     if (bpf_core_read(&data, sizeof(data), &skb->data) < 0)
         return 0;
-    // Step 3: Validate that skb->data is not NULL
+
     if (!data)
         return 0;
-    // Step 4: Read the nlmsghdr from skb->data
-    if (bpf_probe_read_kernel(&nlh, sizeof(nlh), data) < 0)
-        return 0;
-    // Step 5: Extract subsystem ID from nlmsg_type
-    __u16 type = nlh.nlmsg_type;
-    __u8 subsys_id = type >> 8;
 
-    // Step 6: Optionally validate nlmsg_len (sanity check)
-    if (nlh.nlmsg_len < sizeof(struct nlmsghdr) || nlh.nlmsg_len > skb_len)
-        return 0;
-    // Step 7: Block known netfilter-related subsystems
-    if (subsys_id == 0x0A /* NFNL_SUBSYS_NFTABLES */ ||
-        subsys_id == 0x0B /* NFNL_SUBSYS_NFT_COMPAT */) {
-        return -EINVAL;
+    if (bpf_core_read(&skb_len, sizeof(skb_len), &skb->len) < 0)
+        return 0;    
+    
+    #pragma unroll
+    for (int i = 0; i < 4; i++) {
+        if (skb_len < sizeof(struct nlmsghdr))
+            return 0;
+	bpf_printk("Iteration: %d", i);
+
+        if (bpf_probe_read_kernel(&nlh, sizeof(nlh), data) < 0)
+            return 0;
+        __u16 type = nlh.nlmsg_type;
+        __u8 subsys_id = type >> 8;
+        __u8 cmd = type & 0xFF;
+	__u32 nlmsg_len = nlh.nlmsg_len;
+
+        //if (subsys_id == 0 || subsys_id == 0x0A) { // /* NFNL_SUBSYS_NFTABLES */ && (cmd == 0 || cmd == 3 || cmd == 6 || cmd == 9 || cmd == 12 || cmd == 15 || cmd == 18 || cmd == 22)) {
+	    bpf_printk("new additions %d %d", subsys_id, cmd);
+        //}
+	if (subsys_id == 10 && cmd == 6) {
+	    return -EPERM;
+	}
+
+	data = data + nlmsg_len;
+	skb_len = skb_len - nlmsg_len;
+
     }
+
     return 0;
 }
