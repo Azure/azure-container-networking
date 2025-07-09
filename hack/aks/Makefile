@@ -43,7 +43,7 @@ else
 endif
 
 # Common az aks create fields
-COMMON_AKS_FIELDS = \
+COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--auto-upgrade-channel $(AUTOUPGRADE) \
 	--node-os-upgrade-channel $(NODEUPGRADE) \
 	--kubernetes-version $(K8S_VER) \
@@ -143,8 +143,7 @@ up: swift-up ## Alias to swift-up
 
 
 nodesubnet-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an NodeSubnet BYO CNI cluster without kube-proxy
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--max-pods 250 \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
@@ -154,8 +153,7 @@ nodesubnet-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Node
 	@$(MAKE) set-kubeconf
 
 overlay-byocni-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay BYO CNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
@@ -168,8 +166,7 @@ ifeq ($(OS),windows)
 endif
 
 overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
@@ -180,8 +177,7 @@ overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay
 	@$(MAKE) set-kubeconf
 
 overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-dataplane cilium \
@@ -192,8 +188,7 @@ overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium clus
 	@$(MAKE) set-kubeconf
 
 overlay-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay AzCNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
@@ -206,8 +201,7 @@ ifeq ($(OS),windows)
 endif
 
 swift-byocni-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
@@ -219,8 +213,7 @@ endif
 	@$(MAKE) set-kubeconf
 
 swift-byocni-nokubeproxy-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI cluster without kube-proxy, add managed identity and public ip
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
@@ -230,8 +223,7 @@ swift-byocni-nokubeproxy-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI
 	@$(MAKE) set-kubeconf
 
 swift-cilium-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT Cilium cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-dataplane cilium \
@@ -242,8 +234,7 @@ swift-cilium-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT Cilium cluster
 	@$(MAKE) set-kubeconf
 
 swift-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
@@ -277,8 +268,7 @@ swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI clus
 # These AKS clusters can only be created in a limited subscription listed here:
 # https://dev.azure.com/msazure/CloudNativeCompute/_git/aks-rp?path=/resourceprovider/server/microsoft.com/containerservice/flags/network_flags.go&version=GBmaster&line=134&lineEnd=135&lineStartColumn=1&lineEndColumn=1&lineStyle=plain&_a=contents
 vnetscale-swift-byocni-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT BYO CNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
@@ -288,8 +278,7 @@ vnetscale-swift-byocni-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet 
 	@$(MAKE) set-kubeconf
 
 vnetscale-swift-byocni-nokubeproxy-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT BYO CNI cluster without kube-proxy
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
@@ -300,8 +289,7 @@ vnetscale-swift-byocni-nokubeproxy-up: rg-up ipv4 vnetscale-swift-net-up ## Brin
 	@$(MAKE) set-kubeconf
 
 vnetscale-swift-cilium-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT Cilium cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-dataplane cilium \
@@ -313,8 +301,7 @@ vnetscale-swift-cilium-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet 
 	@$(MAKE) set-kubeconf
 
 vnetscale-swift-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT AzCNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
@@ -324,8 +311,7 @@ vnetscale-swift-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale S
 	@$(MAKE) set-kubeconf
 
 nodesubnet-cilium-up: rg-up ipv4 overlay-net-up ## Bring up a Nodesubnet Cilium cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-dataplane cilium \
@@ -334,8 +320,7 @@ nodesubnet-cilium-up: rg-up ipv4 overlay-net-up ## Bring up a Nodesubnet Cilium 
 	@$(MAKE) set-kubeconf
 
 cniv1-up: rg-up ipv4 overlay-net-up ## Bring up a CNIv1 cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--max-pods 250 \
 		--network-plugin azure \
@@ -347,8 +332,7 @@ ifeq ($(OS),windows)
 endif
 
 dualstack-overlay-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dualstack Overlay cluster with Linux node only
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4),$(PUBLIC_IPv6) \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
@@ -359,8 +343,7 @@ dualstack-overlay-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dualstack O
 	@$(MAKE) set-kubeconf
 
 dualstack-overlay-byocni-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dualstack Overlay BYO CNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4),$(PUBLIC_IPv6) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
@@ -374,8 +357,7 @@ ifeq ($(OS),windows)
 endif
 
 cilium-dualstack-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a Cilium Dualstack Overlay cluster with Linux node only
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4),$(PUBLIC_IPv6) \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
@@ -387,8 +369,7 @@ cilium-dualstack-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a Cilium Dualst
 	@$(MAKE) set-kubeconf
 
 dualstack-byocni-nokubeproxy-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a Dualstack overlay BYOCNI cluster with Linux node only and no kube-proxy
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		$(COMMON_AKS_FIELDS) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4),$(PUBLIC_IPv6) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
