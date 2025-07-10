@@ -128,7 +128,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/cilium/cilium v1.15.16
 	github.com/jsternberg/zap-logfmt v1.3.0
-	golang.org/x/sync v0.15.0
+	golang.org/x/sync v0.16.0
 	gotest.tools/v3 v3.5.2
 	k8s.io/kubectl v0.28.5
 	k8s.io/kubernetes v1.30.7
