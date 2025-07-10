@@ -142,7 +142,7 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 	logger.Info("Sending DHCP packet", zap.Any("macAddress", epInfo.MacAddress), zap.String("ifName", epInfo.IfName))
 	err := client.dhcpClient.DiscoverRequest(ctx, epInfo.MacAddress, epInfo.IfName)
 	if err != nil {
-		return errors.Wrapf(err, kubelet.NetworkNotReadyErrorMsg+" - failed to issue dhcp discover packet to create mapping in host")
+		return errors.Wrap(err, kubelet.NetworkNotReadyErrorMsg+" - failed to issue dhcp discover packet to create mapping in host")
 	}
 	logger.Info("Finished configuring container interfaces and routes for secondary endpoint client")
 
