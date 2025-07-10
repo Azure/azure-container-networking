@@ -936,7 +936,7 @@ func TestDetectIptablesVersion(t *testing.T) {
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 0,
 				},
 			},
@@ -954,11 +954,11 @@ func TestDetectIptablesVersion(t *testing.T) {
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 			},
@@ -976,11 +976,11 @@ func TestDetectIptablesVersion(t *testing.T) {
 					ExitCode: 2,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 2,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
 					ExitCode: 2,
 				},
 			},
@@ -1027,12 +1027,12 @@ func TestCleanupOtherChains(t *testing.T) {
 			name:         "cleanup legacy jump no chains",
 			startWithNft: true,
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}}, // deprecated rule existed
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}}, // deprecated rule existed
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
 					ExitCode: 1,
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:      []string{"grep", "Chain AZURE-NPM"},
 					ExitCode: 1,
@@ -1044,19 +1044,19 @@ func TestCleanupOtherChains(t *testing.T) {
 			name:         "cleanup legacy jump and chains",
 			startWithNft: true,
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}}, // deprecated rule existed
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}}, // deprecated rule existed
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
 					ExitCode: 1,
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: grepOutputTwoAzureChains,
 				},
-				{Cmd: []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"}},
-				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM"}},
-				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"}},
+				{Cmd: []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-X", "AZURE-NPM"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-X", "AZURE-NPM-INGRESS"}},
 			},
 			expectedErr: false,
 		},
@@ -1065,30 +1065,30 @@ func TestCleanupOtherChains(t *testing.T) {
 			startWithNft: true,
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
 					ExitCode: 1,
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: grepOutputTwoAzureChains,
 				},
 				{
-					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					Cmd:      []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					Cmd:      []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"},
 					ExitCode: 1,
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM"}},
-				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"}},
-				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM"}},
-				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-F", "AZURE-NPM"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-F", "AZURE-NPM-INGRESS"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-X", "AZURE-NPM"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-X", "AZURE-NPM-INGRESS"}},
 			},
 			expectedErr: false,
 		},
@@ -1097,28 +1097,28 @@ func TestCleanupOtherChains(t *testing.T) {
 			startWithNft: true,
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
 					ExitCode: 1,
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: grepOutputTwoAzureChains,
 				},
 				{
-					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					Cmd:      []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					Cmd:      []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-F", "AZURE-NPM"},
 					ExitCode: 1,
 				},
 			},
@@ -1129,28 +1129,28 @@ func TestCleanupOtherChains(t *testing.T) {
 			startWithNft: true,
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
 					ExitCode: 1,
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: "Chain AZURE-NPM-INGRESS (1 references)\n",
 				},
 				{
-					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					Cmd:      []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					Cmd:      []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"},
 					ExitCode: 1,
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"}},
-				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-F", "AZURE-NPM-INGRESS"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-X", "AZURE-NPM-INGRESS"}},
 			},
 			expectedErr: false,
 		},
@@ -1159,37 +1159,37 @@ func TestCleanupOtherChains(t *testing.T) {
 			startWithNft: true,
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
 					ExitCode: 1,
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: grepOutputTwoAzureChains,
 				},
 				{
-					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					Cmd:      []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					Cmd:      []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-F", "AZURE-NPM"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-F", "AZURE-NPM-INGRESS"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-X", "AZURE-NPM"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-X", "AZURE-NPM"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-X", "AZURE-NPM-INGRESS"},
 					ExitCode: 1,
 				},
 			},
@@ -1199,38 +1199,38 @@ func TestCleanupOtherChains(t *testing.T) {
 			name:         "cleanup legacy errors ok if deleted jump (deprecated)",
 			startWithNft: true,
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
 					ExitCode: 1,
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 				{
 					Cmd:    []string{"grep", "Chain AZURE-NPM"},
 					Stdout: grepOutputTwoAzureChains,
 				},
 				{
-					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					Cmd:      []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					Cmd:      []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-F", "AZURE-NPM"},
 					ExitCode: 2,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-F", "AZURE-NPM-INGRESS"},
 					ExitCode: 2,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-X", "AZURE-NPM"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-X", "AZURE-NPM"},
 					ExitCode: 2,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-X", "AZURE-NPM-INGRESS"},
 					ExitCode: 2,
 				},
 			},
@@ -1240,13 +1240,13 @@ func TestCleanupOtherChains(t *testing.T) {
 			name:         "cleanup legacy other flush errors ok",
 			startWithNft: true,
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
 					ExitCode: 1,
 				},
 				{
-					Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true,
+					Cmd: []string{"iptables-legacy", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true,
 					ExitCode: 1,
 				},
 				{
@@ -1254,21 +1254,21 @@ func TestCleanupOtherChains(t *testing.T) {
 					Stdout: grepOutputTwoAzureChains,
 				},
 				{
-					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					Cmd:      []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"},
+					Cmd:      []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"},
 					ExitCode: 1,
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-F", "AZURE-NPM"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-F", "AZURE-NPM"}},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-F", "AZURE-NPM-INGRESS"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-F", "AZURE-NPM-INGRESS"},
 					ExitCode: 1,
 				},
-				{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM"}},
+				{Cmd: []string{"iptables-legacy", "-w", "60", "-X", "AZURE-NPM"}},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-X", "AZURE-NPM-INGRESS"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-X", "AZURE-NPM-INGRESS"},
 					ExitCode: 1,
 				},
 			},
@@ -1279,15 +1279,15 @@ func TestCleanupOtherChains(t *testing.T) {
 			startWithNft: true,
 			calls: []testutils.TestCmd{
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"},
 					ExitCode: 1,
 				},
 				{
-					Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true, HasStartError: true,
+					Cmd: []string{"iptables-legacy", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true, HasStartError: true,
 					ExitCode: 1,
 				},
 				{Cmd: []string{"grep", "Chain AZURE-NPM"}},

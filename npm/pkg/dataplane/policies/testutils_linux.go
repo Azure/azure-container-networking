@@ -57,17 +57,17 @@ func GetBootupTestCalls() []testutils.TestCmd {
 			ExitCode: 0,
 		},
 		// legacy clean up
-		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2},                                        //nolint // AZURE-NPM chain didn't exist
-		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 2}, //nolint // AZURE-NPM chain didn't exist
-		{Cmd: []string{"iptables", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
+		{Cmd: []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2},                                        //nolint // AZURE-NPM chain didn't exist
+		{Cmd: []string{"iptables-legacy", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM", "-m", "conntrack", "--ctstate", "NEW"}, ExitCode: 2}, //nolint // AZURE-NPM chain didn't exist
+		{Cmd: []string{"iptables-legacy", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
 		{
 			// 1 AZURE-NPM chain
 			Cmd: []string{"grep", "Chain AZURE-NPM"},
 			Stdout: `Chain AZURE-NPM (0 references)
 `,
 		},
-		{Cmd: []string{"iptables-restore", "-w", "60", "-T", "filter", "--noflush"}},
-		{Cmd: []string{"iptables", "-w", "60", "-X", "AZURE-NPM"}},
+		{Cmd: []string{"iptables-legacy-restore", "-w", "60", "-T", "filter", "--noflush"}},
+		{Cmd: []string{"iptables-legacy", "-w", "60", "-X", "AZURE-NPM"}},
 		// nft bootup
 		{Cmd: []string{"iptables-nft", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, //nolint // AZURE-NPM chain didn't exist
 		{Cmd: []string{"iptables-nft", "-w", "60", "-t", "filter", "-n", "-L"}, PipedToCommand: true},
