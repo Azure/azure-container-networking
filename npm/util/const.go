@@ -36,9 +36,9 @@ const (
 	IptablesNft                string = "iptables-nft"
 	Ip6tablesLegacy            string = "ip6tables" //nolint (avoid warning to capitalize this p)
 	IptablesSaveNft            string = "iptables-nft-save"
-	IptablesRestoreNft         string = "iptables-nft-restore"
-	IptablesLegacy             string = "iptables"
-	IptablesSaveLegacy         string = "iptables-save"
+	IptablesRestoreNft         string = "iptables-legacy-nft-restore"
+	IptablesLegacy             string = "iptables-legacy"
+	IptablesSaveLegacy         string = "iptables-legacy-save"
 	IptablesRestoreLegacy      string = "iptables-restore"
 	IptablesRestoreNoFlushFlag string = "--noflush"
 	IptablesRestoreTableFlag   string = "-T"
