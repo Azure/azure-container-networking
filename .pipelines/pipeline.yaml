@@ -2,7 +2,7 @@ pr:
   branches:
     include:
       - master
-      - release/v*
+      - release/*
   paths:
     exclude:
       - ".devcontainer"
@@ -15,7 +15,7 @@ trigger:
   branches:
     include:
       - gh-readonly-queue/master/*
-      - gh-readonly-queue/release/v*/*
+      - gh-readonly-queue/release/*/*
   tags:
     include:
       - "*"
