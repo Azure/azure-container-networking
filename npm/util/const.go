@@ -38,6 +38,7 @@ const (
 	IptablesSaveNft            string = "iptables-nft-save"
 	IptablesRestoreNft         string = "iptables-nft-restore"
 	IptablesLegacy             string = "iptables"
+	IptablesLegacyCmd          string = "iptables-legacy"
 	IptablesSaveLegacy         string = "iptables-save"
 	IptablesRestoreLegacy      string = "iptables-restore"
 	IptablesRestoreNoFlushFlag string = "--noflush"

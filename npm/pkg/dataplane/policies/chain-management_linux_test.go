@@ -936,7 +936,7 @@ func TestDetectIptablesVersion(t *testing.T) {
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 0,
 				},
 			},
@@ -954,11 +954,11 @@ func TestDetectIptablesVersion(t *testing.T) {
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
 					ExitCode: 1,
 				},
 			},
@@ -976,11 +976,11 @@ func TestDetectIptablesVersion(t *testing.T) {
 					ExitCode: 2,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-L", "KUBE-IPTABLES-HINT", "-t", "mangle", "-n"},
 					ExitCode: 2,
 				},
 				{
-					Cmd:      []string{"iptables", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
+					Cmd:      []string{"iptables-legacy", "-w", "60", "-L", "KUBE-KUBELET-CANARY", "-t", "mangle", "-n"},
 					ExitCode: 2,
 				},
 			},
