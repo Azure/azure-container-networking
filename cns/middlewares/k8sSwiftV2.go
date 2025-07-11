@@ -2,7 +2,6 @@ package middlewares
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
@@ -13,11 +12,13 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/kubernetes/pkg/kubelet"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
-	errMTPNCNotReady            = errors.New("mtpnc is not ready")
+	errMTPNCNotReady            = errors.New(kubelet.NetworkNotReadyErrorMsg + " - mtpnc is not ready")
+	errGetMTPNC                 = errors.New(kubelet.NetworkNotReadyErrorMsg + " - failed to get MTPNC")
 	errInvalidSWIFTv2NICType    = errors.New("invalid NIC type for SWIFT v2 scenario")
 	errInvalidMTPNCPrefixLength = errors.New("invalid prefix length for MTPNC primaryIP, must be 32")
 )
@@ -72,7 +73,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 	mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
 	mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
 	if err := k.Cli.Get(ctx, mtpncNamespacedName, &mtpnc); err != nil {
-		return nil, errors.Wrapf(err, "failed to get pod's mtpnc from cache")
+		return nil, errors.Wrap(err, errGetMTPNC.Error())
 	}
 
 	// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
@@ -190,7 +191,7 @@ func (k *K8sSWIFTv2Middleware) getMTPNC(ctx context.Context, podInfo cns.PodInfo
 	mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
 	mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
 	if err := k.Cli.Get(ctx, mtpncNamespacedName, &mtpnc); err != nil {
-		return v1alpha1.MultitenantPodNetworkConfig{}, types.UnexpectedError, fmt.Errorf("failed to get pod's mtpnc from cache : %w", err).Error()
+		return v1alpha1.MultitenantPodNetworkConfig{}, types.UnexpectedError, errors.Wrap(err, errGetMTPNC.Error()).Error()
 	}
 	// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
 	if !mtpnc.IsReady() {
