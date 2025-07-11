@@ -845,6 +845,7 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 	podIPInfo.HostPrimaryIPInfo.PrimaryIP = primaryHostInterface.PrimaryIP
 	podIPInfo.HostPrimaryIPInfo.Subnet = primaryHostInterface.Subnet
 	podIPInfo.HostPrimaryIPInfo.Gateway = primaryHostInterface.Gateway
+	podIPInfo.MacAddress = ncStatus.CreateNetworkContainerRequest.NetworkInterfaceInfo.MACAddress
 	podIPInfo.NICType = cns.InfraNIC
 
 	return nil

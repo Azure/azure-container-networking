@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -192,7 +193,8 @@ func TestReconcile(t *testing.T) {
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
-			r := NewReconciler(&tt.cnsClient, &tt.cnsClient, tt.nodeIP)
+			config := &configuration.CNSConfig{} // Use default config for tests
+			r := NewReconciler(&tt.cnsClient, &tt.cnsClient, tt.nodeIP, config)
 			r.nnccli = &tt.ncGetter
 			got, err := r.Reconcile(context.Background(), tt.in)
 			if tt.wantErr {
@@ -249,7 +251,8 @@ func TestReconcileStaleNCs(t *testing.T) {
 		return &nncLog[len(nncLog)-1], nil
 	}
 
-	r := NewReconciler(&cnsClient, &cnsClient, nodeIP)
+	config := &configuration.CNSConfig{} // Use default config for tests
+	r := NewReconciler(&cnsClient, &cnsClient, nodeIP, config)
 	r.nnccli = &mockNCGetter{get: nncIterator}
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{})
