@@ -111,12 +111,12 @@ stages:
               archiveName: ipv6-hp-bpf
               archiveVersion: $(IPV6_HP_BPF_VERSION)
               imageTag: $(Build.BuildNumber)
-            # npm:
-            #   name: npm
-            #   extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
-            #   archiveName: azure-npm
-            #   archiveVersion: $(NPM_VERSION)
-            #   imageTag: $(Build.BuildNumber)
+            npm:
+              name: npm
+              extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
+              archiveName: azure-npm
+              archiveVersion: $(NPM_VERSION)
+              imageTag: $(Build.BuildNumber)
 
       - job: windows_amd64
         displayName: "Windows"
@@ -147,12 +147,12 @@ stages:
               archiveName: azure-cns
               archiveVersion: $(CNS_VERSION)
               imageTag: $(Build.BuildNumber)
-            # npm:
-            #   name: npm
-            #   extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
-            #   archiveName: azure-npm
-            #   archiveVersion: $(NPM_VERSION)
-            #   imageTag: $(Build.BuildNumber)
+            npm:
+              name: npm
+              extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
+              archiveName: azure-npm
+              archiveVersion: $(NPM_VERSION)
+              imageTag: $(Build.BuildNumber)
 
       - job: linux_arm64
         displayName: "Linux/ARM64"
@@ -195,12 +195,12 @@ stages:
               archiveName: ipv6-hp-bpf
               archiveVersion: $(IPV6_HP_BPF_VERSION)
               imageTag: $(Build.BuildNumber)
-            # npm:
-            #   name: npm
-            #   extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
-            #   archiveName: azure-npm
-            #   archiveVersion: $(NPM_VERSION)
-            #   imageTag: $(Build.BuildNumber)
+            npm:
+              name: npm
+              extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
+              archiveName: azure-npm
+              archiveVersion: $(NPM_VERSION)
+              imageTag: $(Build.BuildNumber)
 
 
 - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
@@ -296,17 +296,17 @@ stages:
               imageReference: $(IPV6_LINUX_AMD64_REF)
             - platform: linux/arm64
               imageReference: $(IPV6_LINUX_ARM64_REF)
-        # - job: npm
-        #   templateContext:
-        #     name: npm
-        #     image_tag: $(NPM_VERSION)
-        #     platforms:
-        #     - platform: linux/amd64
-        #       imageReference: $(NPM_LINUX_AMD64_REF)
-        #     - platform: linux/arm64
-        #       imageReference: $(NPM_LINUX_ARM64_REF)
-        #     - platform: windows/amd64
-        #       imageReference: $(NPM_WINDOWS_AMD64_REF)
+        - job: npm
+          templateContext:
+            name: npm
+            image_tag: $(NPM_VERSION)
+            platforms:
+            - platform: linux/amd64
+              imageReference: $(NPM_LINUX_AMD64_REF)
+            - platform: linux/arm64
+              imageReference: $(NPM_LINUX_ARM64_REF)
+            - platform: windows/amd64
+              imageReference: $(NPM_WINDOWS_AMD64_REF)
 
 
   # Cilium Podsubnet E2E tests
