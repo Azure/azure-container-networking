@@ -57,3 +57,15 @@ func (m *MockIMDSClient) GetVMUniqueID(ctx context.Context) (string, error) {
 
 	return "55b8499d-9b42-4f85-843f-24ff69f4a643", nil
 }
+
+func (m *MockIMDSClient) GetNCVersionsFromIMDS(ctx context.Context) (map[string]string, error) {
+	if ctx.Value(SimulateError) != nil {
+		return nil, imds.ErrUnexpectedStatusCode
+	}
+
+	// Return some mock NC versions for testing
+	return map[string]string{
+		"nc1": "1",
+		"nc2": "2",
+	}, nil
+}
