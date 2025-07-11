@@ -30,4 +30,4 @@ jobs:
       uses: golangci/golangci-lint-action@v6
       with:
         version: v1.61
-        args: --new-from-rev=origin/master --config=.golangci.yml --timeout=25m 
+        args: ${{ github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref) || '' }} --config=.golangci.yml --timeout=25m 
