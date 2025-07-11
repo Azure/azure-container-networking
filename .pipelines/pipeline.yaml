@@ -14,7 +14,7 @@ pr:
 trigger:
   branches:
     include:
-      - gh-readonly-queue/master/*
+      - gh-readonly-queue/release/v1.6/*
   tags:
     include:
       - "*"
@@ -245,8 +245,8 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "containerize"
-  
-    
+
+
     # Cilium Nodesubnet E2E tests
     - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml
       parameters:
@@ -305,7 +305,7 @@ stages:
         k8sVersion: ""
         dependsOn: "containerize"
         scaleup: 100
-    
+
     - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
       parameters:
         name: "win_azure_overlay_e2e"
