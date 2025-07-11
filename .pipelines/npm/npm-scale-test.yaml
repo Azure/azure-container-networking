@@ -2,7 +2,7 @@ pr:
   branches:
     include:
       - master
-      - release/*
+      - release/v*
   paths:
     include:
       - npm/*
