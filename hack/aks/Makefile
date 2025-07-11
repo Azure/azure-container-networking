@@ -177,6 +177,7 @@ overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
+		--os-sku $(OS_SKU) \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		$(LTS_ARGS) \
 		--yes
