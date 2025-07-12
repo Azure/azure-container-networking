@@ -58,7 +58,7 @@ pushd "$DROPGZ_BUILD_DIR"/pkg/mod/"$DROPGZ_MOD_DOWNLOAD_PATH"
   mv "$PAYLOAD_DIR"/* pkg/embed/fs/
   GOOS="$OS" go build -v -trimpath -a \
     -o "$OUT_DIR"/bin/dropgz"$FILE_EXT" \
-    -ldflags "-s -w" "-X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$DROPGZ_VERSION"" \
+    -ldflags "-s -w -X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$DROPGZ_VERSION"" \
     -gcflags="-dwarflocationlists=true" \
     main.go
 popd

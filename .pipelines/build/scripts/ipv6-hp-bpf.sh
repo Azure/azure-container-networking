@@ -159,6 +159,6 @@ pushd "$REPO_ROOT"/bpf-prog/ipv6-hp-bpf
   go generate ./...
   GOOS="$OS" go build -v -a -trimpath \
     -o "$OUT_DIR"/bin/ipv6-hp-bpf"$FILE_EXT" \
-    -ldflags "-s -w" "-X main.version="$IPV6_HP_BPF_VERSION"" \
+    -ldflags "-s -w -X main.version="$IPV6_HP_BPF_VERSION"" \
     -gcflags="-dwarflocationlists=true" .
 popd
