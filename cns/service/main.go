@@ -494,7 +494,7 @@ func startTelemetryService(ctx context.Context, cnsconfig *configuration.CNSConf
 	tb := telemetry.NewTelemetryBuffer(nil)
 
 	var err error
-	if aiKey := cnsconfig.TelemetrySettings.AppInsightsInstrumentationKey; aiKey != "" {
+	if cnsconfig.TelemetrySettings.AppInsightsInstrumentationKey != "" {
 		err = tb.CreateAITelemetryHandle(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
 	} else {
 		logger.Printf("No Application Insights key provided for CNI telemetry service")
