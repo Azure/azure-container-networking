@@ -53,7 +53,6 @@ const (
 	metadataHeaderValue   = "true"
 	defaultRetryAttempts  = 3
 	defaultIMDSEndpoint   = "http://169.254.169.254"
-	ncVersion             = "ncVersion"
 )
 
 var (
@@ -104,7 +103,7 @@ func (c *Client) GetVMUniqueID(ctx context.Context) (string, error) {
 	return vmUniqueID, nil
 }
 
-func (c *Client) GetNCVersionsFromIMDS(ctx context.Context) (map[string]string, error) {
+func (c *Client) GetNCVersions(ctx context.Context) ([]NetworkInterface, error) {
 	var networkData NetworkMetadata
 	err := retry.Do(func() error {
 		networkMetadata, err := c.getInstanceMetadata(ctx, imdsNetworkPath)
@@ -128,20 +127,7 @@ func (c *Client) GetNCVersionsFromIMDS(ctx context.Context) (map[string]string, 
 		return nil, err
 	}
 
-	ncVersions := make(map[string]string)
-	for _, iface := range networkData.Interface {
-		// IMDS only returns compartment fields (interfaceCompartmentId, interfaceCompartmentVersion)
-		// We map these to NC ID and NC version concepts
-		// Standard fields (ncId, ncVersion) are ignored even if present
-		ncId := iface.InterfaceCompartmentId
-		ncVersion := iface.InterfaceCompartmentVersion
-
-		if ncId != "" {
-			ncVersions[ncId] = ncVersion
-		}
-	}
-
-	return ncVersions, nil
+	return networkData.Interface, nil
 }
 
 func (c *Client) getInstanceMetadata(ctx context.Context, imdsComputePath string) (map[string]any, error) {

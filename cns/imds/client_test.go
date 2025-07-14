@@ -101,7 +101,7 @@ func TestInvalidVMUniqueID(t *testing.T) {
 	require.Equal(t, "", vmUniqueID)
 }
 
-func TestGetNCVersionsFromIMDS(t *testing.T) {
+func TestGetNCVersions(t *testing.T) {
 	networkMetadata := []byte(`{
 		"interface": [
 			{
@@ -111,8 +111,8 @@ func TestGetNCVersionsFromIMDS(t *testing.T) {
 			},
 			{
 				"macAddress": "00:0D:3A:CD:EF:12",
-				"interfaceCompartmentVersion": "",
-				"interfaceCompartmentId": "nc-abcdef-123456"
+				"interfaceCompartmentVersion": "1",
+				"interfaceCompartmentId": ""
 			}
 		]
 	}`)
@@ -138,23 +138,30 @@ func TestGetNCVersionsFromIMDS(t *testing.T) {
 	defer mockIMDSServer.Close()
 
 	imdsClient := imds.NewClient(imds.Endpoint(mockIMDSServer.URL))
-	ncVersions, err := imdsClient.GetNCVersionsFromIMDS(context.Background())
+	interfaces, err := imdsClient.GetNCVersions(context.Background())
 	require.NoError(t, err, "error querying testserver")
 
-	expectedNCVersions := map[string]string{
-		"nc-12345-67890":   "1",
-		"nc-abcdef-123456": "", // empty version
-	}
-	require.Equal(t, expectedNCVersions, ncVersions)
+	// Verify we got the expected interfaces
+	require.Len(t, interfaces, 2, "expected 2 interfaces")
+
+	// Check first interface
+	assert.Equal(t, "00:0D:3A:12:34:56", interfaces[0].MacAddress)
+	assert.Equal(t, "nc-12345-67890", interfaces[0].InterfaceCompartmentId)
+	assert.Equal(t, "1", interfaces[0].InterfaceCompartmentVersion)
+
+	// Check second interface
+	assert.Equal(t, "00:0D:3A:CD:EF:12", interfaces[1].MacAddress)
+	assert.Equal(t, "", interfaces[1].InterfaceCompartmentId)
+	assert.Equal(t, "1", interfaces[1].InterfaceCompartmentVersion)
 }
 
-func TestGetNCVersionsFromIMDSInvalidEndpoint(t *testing.T) {
+func TestGetNCVersionsInvalidEndpoint(t *testing.T) {
 	imdsClient := imds.NewClient(imds.Endpoint(string([]byte{0x7f})), imds.RetryAttempts(1))
-	_, err := imdsClient.GetNCVersionsFromIMDS(context.Background())
+	_, err := imdsClient.GetNCVersions(context.Background())
 	require.Error(t, err, "expected invalid path")
 }
 
-func TestGetNCVersionsFromIMDSInvalidJSON(t *testing.T) {
+func TestGetNCVersionsInvalidJSON(t *testing.T) {
 	mockIMDSServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("not json"))
@@ -163,11 +170,11 @@ func TestGetNCVersionsFromIMDSInvalidJSON(t *testing.T) {
 	defer mockIMDSServer.Close()
 
 	imdsClient := imds.NewClient(imds.Endpoint(mockIMDSServer.URL), imds.RetryAttempts(1))
-	_, err := imdsClient.GetNCVersionsFromIMDS(context.Background())
+	_, err := imdsClient.GetNCVersions(context.Background())
 	require.Error(t, err, "expected json decoding error")
 }
 
-func TestGetNCVersionsFromIMDSNoNCIDs(t *testing.T) {
+func TestGetNCVersionsNoNCIDs(t *testing.T) {
 	networkMetadataNoNC := []byte(`{
 		"interface": [
 			{
@@ -176,17 +183,6 @@ func TestGetNCVersionsFromIMDSNoNCIDs(t *testing.T) {
 					"ipAddress": [
 						{
 							"privateIpAddress": "10.0.0.4",
-							"publicIpAddress": ""
-						}
-					]
-				}
-			},
-			{
-				"macAddress": "00:0D:3A:78:90:AB",
-				"ipv4": {
-					"ipAddress": [
-						{
-							"privateIpAddress": "10.0.1.4",
 							"publicIpAddress": ""
 						}
 					]
@@ -206,7 +202,13 @@ func TestGetNCVersionsFromIMDSNoNCIDs(t *testing.T) {
 	defer mockIMDSServer.Close()
 
 	imdsClient := imds.NewClient(imds.Endpoint(mockIMDSServer.URL))
-	ncVersions, err := imdsClient.GetNCVersionsFromIMDS(context.Background())
+	interfaces, err := imdsClient.GetNCVersions(context.Background())
 	require.NoError(t, err, "error querying testserver")
-	require.Empty(t, ncVersions, "expected empty NC versions map when no NC IDs present")
+
+	// Verify we got interfaces but they don't have compartment IDs
+	require.Len(t, interfaces, 1, "expected 1 interface")
+
+	// Check that interfaces have MAC addresses but no compartment IDs
+	assert.Equal(t, "00:0D:3A:12:34:56", interfaces[0].MacAddress)
+	assert.Equal(t, "", interfaces[0].InterfaceCompartmentId)
 }

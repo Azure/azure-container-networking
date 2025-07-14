@@ -249,7 +249,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	}
 	for ncID, version := range imdsNCVersions {
 		if _, exists := consolidatedNCs[ncID]; !exists {
-			consolidatedNCs[ncID] = version
+			consolidatedNCs[strings.ToLower(ncID)] = version
 		}
 	}
 	hasNC.Set(float64(len(consolidatedNCs)))
@@ -298,7 +298,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	// if we didn't empty out the needs update set, NMA has not programmed all the NCs we are expecting, and we
 	// need to return an error indicating that
 	if len(outdatedNCs) > 0 {
-		return len(programmedNCs), errors.Errorf("unabled to update some NCs: %v, missing or bad response from NMA or ipam", outdatedNCs)
+		return len(programmedNCs), errors.Errorf("unable to update some NCs: %v, missing or bad response from NMA or IMDS", outdatedNCs)
 	}
 
 	return len(programmedNCs), nil
@@ -708,10 +708,23 @@ func (service *HTTPRestService) GetIMDSNCVersions(ctx context.Context) (map[stri
 	imdsClient := service.imdsClient
 
 	// Get all NC versions from IMDS
-	ncVersions, err := imdsClient.GetNCVersionsFromIMDS(ctx)
+	networkInterfaces, err := imdsClient.GetNCVersions(ctx)
 	if err != nil {
 		logger.Printf("[GetIMDSNCVersions] Failed to get NC versions from IMDS: %v", err)
 		return make(map[string]string), nil
+	}
+
+	// Build ncVersions map from the network interfaces
+	ncVersions := make(map[string]string)
+	for _, iface := range networkInterfaces {
+		// IMDS only returns compartment fields (interfaceCompartmentId, interfaceCompartmentVersion)
+		// We map these to NC ID and NC version concepts
+		ncId := iface.InterfaceCompartmentId
+		ncVersion := iface.InterfaceCompartmentVersion
+
+		if ncId != "" {
+			ncVersions[ncId] = ncVersion
+		}
 	}
 
 	logger.Printf("[GetIMDSNCVersions] Successfully got %d NC versions from IMDS", len(ncVersions))
