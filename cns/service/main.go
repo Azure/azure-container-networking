@@ -1282,6 +1282,7 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 	}
 
 	// TODO: do we need this to be running?
+	logger.Printf("Starting SyncHostNCVersion")
 	go func() {
 		// Periodically poll vfp programmed NC version from NMAgent
 		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
@@ -1641,6 +1642,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 
 	go func() {
+		logger.Printf("Starting SyncHostNCVersion loop.")
 		// Periodically poll vfp programmed NC version from NMAgent
 		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
 		for {

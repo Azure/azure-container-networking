@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	nma "github.com/Azure/azure-container-networking/nmagent"
@@ -271,11 +272,14 @@ func TestSyncHostNCVersion(t *testing.T) {
 
 			// Create a custom IMDS mock that returns the second NC
 			mockIMDS := &struct {
-				ncVersions func(ctx context.Context) (map[string]string, error)
+				ncVersions func(_ context.Context) ([]imds.NetworkInterface, error)
 			}{
-				ncVersions: func(ctx context.Context) (map[string]string, error) {
-					return map[string]string{
-						imdsNCID: "2",
+				ncVersions: func(_ context.Context) ([]imds.NetworkInterface, error) {
+					return []imds.NetworkInterface{
+						{
+							InterfaceCompartmentID:      imdsNCID,
+							InterfaceCompartmentVersion: "2",
+						},
 					}, nil
 				},
 			}
@@ -368,11 +372,14 @@ func TestSyncHostNCVersionErrorMissingNC(t *testing.T) {
 
 	// Create IMDS mock that returns 1 NC but with different ID (not matching the outdated NC)
 	mockIMDS := &struct {
-		ncVersions func(ctx context.Context) (map[string]string, error)
+		ncVersions func(_ context.Context) ([]imds.NetworkInterface, error)
 	}{
-		ncVersions: func(ctx context.Context) (map[string]string, error) {
-			return map[string]string{
-				"different-nc-id": "1", // IMDS has a different NC, not the outdated one
+		ncVersions: func(_ context.Context) ([]imds.NetworkInterface, error) {
+			return []imds.NetworkInterface{
+				{
+					InterfaceCompartmentID:      "different-nc-id",
+					InterfaceCompartmentVersion: "1", // IMDS has a different NC, not the outdated one
+				},
 			}, nil
 		},
 	}
@@ -401,7 +408,7 @@ func TestSyncHostNCVersionErrorMissingNC(t *testing.T) {
 	}
 
 	// Check that the error message contains the expected text
-	expectedErrorText := "unabled to update some NCs"
+	expectedErrorText := "unable to update some NCs"
 	if !strings.Contains(err.Error(), expectedErrorText) {
 		t.Errorf("Expected error to contain '%s', but got: %v", expectedErrorText, err)
 	}
@@ -427,11 +434,14 @@ func TestSyncHostNCVersionLocalVersionHigher(t *testing.T) {
 
 	// Create IMDS mock that returns lower version(2) than local host version(3)
 	mockIMDS := &struct {
-		ncVersions func(ctx context.Context) (map[string]string, error)
+		ncVersions func(_ context.Context) ([]imds.NetworkInterface, error)
 	}{
-		ncVersions: func(ctx context.Context) (map[string]string, error) {
-			return map[string]string{
-				req.NetworkContainerid: "1", // IMDS has version 1, which is lower than local version 3
+		ncVersions: func(_ context.Context) ([]imds.NetworkInterface, error) {
+			return []imds.NetworkInterface{
+				{
+					InterfaceCompartmentID:      req.NetworkContainerid,
+					InterfaceCompartmentVersion: "1", // IMDS has version 1, which is lower than local version 3
+				},
 			}, nil
 		},
 	}
@@ -482,10 +492,10 @@ func TestSyncHostNCVersionLocalHigherThanDNC(t *testing.T) {
 	svc.Unlock()
 
 	mockIMDS := &struct {
-		ncVersions func(ctx context.Context) (map[string]string, error)
+		ncVersions func(_ context.Context) ([]imds.NetworkInterface, error)
 	}{
-		ncVersions: func(ctx context.Context) (map[string]string, error) {
-			return map[string]string{}, nil
+		ncVersions: func(_ context.Context) ([]imds.NetworkInterface, error) {
+			return []imds.NetworkInterface{}, nil
 		},
 	}
 
@@ -540,10 +550,10 @@ func TestSyncHostNCVersionNMAgentAPICallFailed(t *testing.T) {
 
 	// Create IMDS mock that returns empty, as nma api call failed
 	mockIMDS := &struct {
-		ncVersions func(ctx context.Context) (map[string]string, error)
+		ncVersions func(_ context.Context) ([]imds.NetworkInterface, error)
 	}{
-		ncVersions: func(ctx context.Context) (map[string]string, error) {
-			return map[string]string{}, nil
+		ncVersions: func(_ context.Context) ([]imds.NetworkInterface, error) {
+			return []imds.NetworkInterface{}, nil
 		},
 	}
 
@@ -564,7 +574,8 @@ func TestSyncHostNCVersionNMAgentAPICallFailed(t *testing.T) {
 		},
 		SupportedAPIsF: func(_ context.Context) ([]string, error) {
 			// NMAgent SupportedAPIs call fails
-			return nil, fmt.Errorf("failed to connect to NMAgent API endpoint")
+			var errNMAgentAPI = errors.New("failed to connect to NMAgent API endpoint")
+			return nil, fmt.Errorf("%w", errNMAgentAPI)
 		},
 	}
 	cleanup := setMockNMAgent(svc, mnma)
@@ -595,11 +606,11 @@ func TestSyncHostNCVersionSwiftV2APINotSupported(t *testing.T) {
 
 	// Create IMDS mock - this should not be called since SwiftV2 is not supported
 	mockIMDS := &struct {
-		ncVersions func(ctx context.Context) (map[string]string, error)
+		ncVersions func(_ context.Context) ([]imds.NetworkInterface, error)
 	}{
-		ncVersions: func(ctx context.Context) (map[string]string, error) {
+		ncVersions: func(_ context.Context) ([]imds.NetworkInterface, error) {
 			t.Errorf("IMDS should not be called when SwiftV2 API is not supported")
-			return map[string]string{}, nil
+			return []imds.NetworkInterface{}, nil
 		},
 	}
 
@@ -1770,14 +1781,14 @@ func TestMustEnsureNoStaleNCs_PanicsWhenIPsFromStaleNCAreAssigned(t *testing.T) 
 // mockIMDSAdapter adapts the anonymous struct to implement the imdsClient interface
 type mockIMDSAdapter struct {
 	mock *struct {
-		ncVersions func(ctx context.Context) (map[string]string, error)
+		ncVersions func(_ context.Context) ([]imds.NetworkInterface, error)
 	}
 }
 
-func (m *mockIMDSAdapter) GetVMUniqueID(ctx context.Context) (string, error) {
+func (m *mockIMDSAdapter) GetVMUniqueID(_ context.Context) (string, error) {
 	panic("GetVMUniqueID should not be called in syncHostNCVersion tests, adding mockIMDSAdapter  implements the full IMDS interface")
 }
 
-func (m *mockIMDSAdapter) GetNCVersionsFromIMDS(ctx context.Context) (map[string]string, error) {
+func (m *mockIMDSAdapter) GetNCVersions(ctx context.Context) ([]imds.NetworkInterface, error) {
 	return m.mock.ncVersions(ctx)
 }
