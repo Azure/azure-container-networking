@@ -15,6 +15,12 @@ service CNS {
   // Retrieves detailed information about a specific node.
   // Primarily used for health checks.
   rpc GetNodeInfo(NodeInfoRequest) returns (NodeInfoResponse);
+
+  // Assigns InfiniBand devices to a pod.
+  rpc AssignIBDevicesToPod(AssignIBDevicesToPodRequest) returns (AssignIBDevicesToPodResponse);
+
+  // Retrieves information about a specific InfiniBand device.
+  rpc GetIBDeviceInfo(GetIBDeviceInfoRequest) returns (GetIBDeviceInfoResponse);
 }
 
 // SetOrchestratorInfoRequest is the request message for setting the orchestrator information.
@@ -40,4 +46,30 @@ message NodeInfoResponse {
   bool isHealthy = 4; // Indicates whether the node is healthy or not.
   string status = 5; // The current status of the node (e.g., running, stopped).
   string message = 6; // Additional information about the node's health or status.
+}
+
+// AssignIBDevicesToPodRequest is the request message for assigning InfiniBand devices to a pod.
+message AssignIBDevicesToPodRequest {
+  string podID = 1; // The pod ID in format podname-podnamespace.
+  repeated string deviceIds = 2; // List of device MAC addresses.
+}
+
+// AssignIBDevicesToPodResponse is the response message for assigning InfiniBand devices to a pod.
+message AssignIBDevicesToPodResponse {
+  int32 errorCode = 1; // Error code (0 for success).
+  string message = 2; // Response message.
+}
+
+// GetIBDeviceInfoRequest is the request message for retrieving InfiniBand device information.
+message GetIBDeviceInfoRequest {
+  string deviceID = 1; // The device ID (MAC address).
+}
+
+// GetIBDeviceInfoResponse is the response message containing InfiniBand device information.
+message GetIBDeviceInfoResponse {
+  string deviceID = 1; // The device ID (MAC address).
+  string podID = 2; // The pod ID that the device is assigned to.
+  string status = 3; // The status of the device.
+  int32 errorCode = 4; // Error code if applicable.
+  string msg = 5; // Additional message or error description.
 }
