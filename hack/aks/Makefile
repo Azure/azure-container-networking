@@ -178,6 +178,7 @@ overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
+		--tags customImage=bpfHostRouting \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		$(LTS_ARGS) \
 		--yes
