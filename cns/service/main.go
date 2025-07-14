@@ -94,6 +94,7 @@ const (
 	// Service name.
 	name                              = "azure-cns"
 	pluginName                        = "azure-vnet"
+	aiPluginName                      = "AzureCNI"
 	endpointStoreName                 = "azure-endpoints"
 	endpointStoreLocationLinux        = "/var/run/azure-cns/"
 	endpointStoreLocationWindows      = "/k/azurecns/"
@@ -470,11 +471,36 @@ func sendRegisterNodeRequest(ctx context.Context, httpClient httpDoer, httpRestS
 	return nil
 }
 
-func startTelemetryService(ctx context.Context) {
-	var config aitelemetry.AIConfig
+func startTelemetryService(ctx context.Context, cnsconfig *configuration.CNSConfig) {
+	// Use the same telemetry settings as the main CNS service
+	ts := cnsconfig.TelemetrySettings
+
+	// Check if telemetry is disabled
+	if ts.DisableAll {
+		logger.Printf("Telemetry is disabled, skipping CNI telemetry service")
+		return
+	}
+
+	aiConfig := aitelemetry.AIConfig{
+		AppName:                      aiPluginName,
+		AppVersion:                   version,
+		BatchSize:                    ts.TelemetryBatchSizeBytes,
+		BatchInterval:                ts.TelemetryBatchIntervalInSecs,
+		RefreshTimeout:               ts.RefreshIntervalInSecs,
+		DisableMetadataRefreshThread: ts.DisableMetadataRefreshThread,
+		DebugMode:                    ts.DebugMode,
+	}
 
 	tb := telemetry.NewTelemetryBuffer(nil)
-	err := tb.CreateAITelemetryHandle(config, false, false, false)
+
+	var err error
+	if aiKey := cnsconfig.TelemetrySettings.AppInsightsInstrumentationKey; aiKey != "" {
+		err = tb.CreateAITelemetryHandle(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
+	} else {
+		logger.Printf("No Application Insights key provided for CNI telemetry service")
+		return
+	}
+
 	if err != nil {
 		logger.Errorf("AI telemetry handle creation failed: %v", err)
 		return
@@ -705,7 +731,7 @@ func main() {
 
 	if telemetryDaemonEnabled {
 		logger.Printf("CNI Telemetry is enabled")
-		go startTelemetryService(rootCtx)
+		go startTelemetryService(rootCtx, cnsconfig)
 	}
 
 	// Log platform information.
