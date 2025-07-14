@@ -120,6 +120,69 @@ paths:
               schema:
                 $ref: "#/components/schemas/UnpublishNetworkContainerResponse"
 
+  /ibdevices/pod:
+    post:
+      summary: Assigns IB devices to a pod
+      description: >-
+        Assigns the specified IB devices to the pod identified by PodID. The
+        MAC addresses of the devices are provided in the request body.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignIBDevicesToPodRequest"
+      responses:
+        '200':
+          description: >-
+            The request passed initial validation and CNS was able to propagate its state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignIBDevicesToPodResponse"
+        '404':
+          description: >-
+            The pod specified by PodID was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignIBDevicesToPodResponse"
+        '400':
+          description: >-
+            One of the IB devices specified is not available
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignIBDevicesToPodResponse"
+  
+  /ibdevices/{macaddress}:
+    get:
+      summary: Get status about an IB device
+      description: >-
+        Retrieves the current status of the specified IB device.
+      parameters:
+        - name: macaddress
+          in: path
+          required: true
+          description: The MAC address of the IB device (with colons ":")
+          schema:
+            type: string
+      responses:
+        '200':
+          description: >-
+            The request was successful and the status of the IB device is returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetIBDeviceStatusResponse"
+        '404':
+          description: >-
+            The IB device specified by MAC address was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetIBDeviceStatusResponse"
+
 components:
   schemas:
     UnpublishNetworkContainerResponse:
@@ -351,3 +414,99 @@ components:
         Message:
           type: string
           description: The error message
+
+    AssignIBDevicesToPodRequest:
+      type: object
+      required:
+        - PodID
+        - MACAddresses
+      properties:
+        PodID:
+          type: string
+          description: podname-podnamespace of which pod to attach these devices through
+        MACAddresses:
+          type: array
+          description: MAC addresses of IB devices such as "60:45:bd:a4:b5:7a"
+          items:
+            type: string
+
+    AssignIBDevicesToPodResponse:
+      type: object
+      required:
+        - ErrorCode
+        - Message
+      properties:
+        ErrorCode:
+          $ref: "#/components/schemas/ErrorCode"
+        Message:
+          type: string
+          description: Human-readable message or error description
+
+    GetIBDeviceStatusResponse:
+      type: object
+      required:
+        - MACAddress
+        - PodID
+        - Status
+        - ErrorCode
+        - Message
+      properties:
+        MACAddress:
+          type: string
+          description: MAC address of the IB device
+        PodID:
+          type: string
+          description: podname-podnamespace of the pod to which the device is assigned, if any
+        Status:
+          $ref: "#/components/schemas/Status"
+        ErrorCode:
+          $ref: "#/components/schemas/ErrorCode"
+        Message:
+          type: string
+          description: Human-readable message or error description
+    
+    ErrorCode:
+      type: integer
+      description: Pre-defined error code of what went wrong, if anything (see cns/types/infiniband/errorcodes.go)
+      oneOf:
+      - title: Success
+        const: 0
+        description: Successful operation
+      - title: PodNotFound
+        const: 1
+        description: Pod not found
+      - title: DeviceUnavailable
+        const: 2
+        description: Device is unavailable
+      - title: DeviceNotFound
+        const: 3
+        description: Device not found
+      - title: AnnotationNotFound
+        const: 4
+        description: Annotation not found on pod
+      - title: PodAlreadyAllocated
+        const: 5
+        description: Pod was already assigned IB devices (and new ones don't match)
+      - title: InternalProgrammingError
+        const: 6
+        description: Something went wrong programming the devices
+      
+    Status:
+      type: integer
+      description: Status of IB device (see cns/types/infiniband/status.go)
+      oneOf:
+      - title: ProgrammingPending
+        const: 0
+        description: Programming of device is pending
+      - title: ProgrammingFailed
+        const: 1
+        description: Programming of device failed
+      - title: ProgrammingComplete  
+        const: 2
+        description: Programming of device is complete
+      - title: ReleasePending
+        const: 3
+        description: Release of device is pending
+      - title: Available
+        const: 4
+        description: Device is available for use

@@ -11,6 +11,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/cns/types/infiniband"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
@@ -32,6 +33,9 @@ const (
 	V1Prefix                      = "/v0.1"
 	V2Prefix                      = "/v0.2"
 	EndpointPath                  = "/network/endpoints/"
+	// IBDevice API paths
+	IBDevicesPodPath = "/ibdevices/pod" // POST /ibdevices/pod
+	IBDevicesPath    = "/ibdevices/"    // GET /ibdevices/{mac-address-of-device}
 	// Service Fabric SWIFTV2 mode
 	StandaloneSWIFTV2 SWIFTV2Mode = "StandaloneSWIFTV2"
 	// K8s SWIFTV2 mode
@@ -381,4 +385,29 @@ type EndpointRequest struct {
 type GetVMUniqueIDResponse struct {
 	Response   Response `json:"response"`
 	VMUniqueID string   `json:"vmuniqueid"`
+}
+
+// IBDevice API Contracts
+
+// AssignIBDevicesToPodRequest represents the request to assign InfiniBand devices to a pod
+// POST /ibdevices/pod
+type AssignIBDevicesToPodRequest struct {
+	PodID        string   `json:"podID"`        // podname-podnamespace format
+	MACAddresses []string `json:"macAddresses"` // Array of MAC addresses like ["60:45:bd:a4:b5:7a", "7c:1e:52:07:11:36"]
+}
+
+// AssignIBDevicesToPodResponse represents the response for assigning InfiniBand devices to a pod
+type AssignIBDevicesToPodResponse struct {
+	ErrorCode infiniband.ErrorCode `json:"errorCode"` // Error code if applicable
+	Message   string               `json:"message"`   // Additional message or error description
+}
+
+// GET /ibdevices/{mac-address-of-device}
+// GetIBDeviceStatusResponse represents the response containing InfiniBand device programming status
+type GetIBDeviceStatusResponse struct {
+	MACAddress string               `json:"macAddress"` // MAC address of the device
+	PodID      string               `json:"podID"`      // Pod that the device is assigned to
+	Status     infiniband.Status    `json:"status"`     // Device status (e.g., "pendingProgramming", "error", "programmed", "pendingDeletion", "available")
+	ErrorCode  infiniband.ErrorCode `json:"errorCode"`  // Error code if applicable
+	Message    string               `json:"message"`    // Additional message or error description
 }
