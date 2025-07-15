@@ -112,9 +112,10 @@ type KeyVaultSettings struct {
 }
 
 type GRPCSettings struct {
-	Enable    bool
-	IPAddress string
-	Port      uint16
+	Enable     bool
+	IPAddress  string
+	Port       uint16
+	SocketPath string
 }
 
 func getConfigFilePath(cmdPath string) (string, error) {
