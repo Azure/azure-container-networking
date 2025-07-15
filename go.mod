@@ -22,6 +22,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-version v1.7.0
+	github.com/microsoft/ApplicationInsights-Go v0.4.4
 	github.com/nxadm/tail v1.4.11
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.37.0
@@ -127,7 +128,6 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/cilium/cilium v1.15.16
 	github.com/jsternberg/zap-logfmt v1.3.0
-	github.com/microsoft/ApplicationInsights-Go v0.4.4
 	golang.org/x/sync v0.15.0
 	gotest.tools/v3 v3.5.2
 	k8s.io/kubectl v0.28.5
@@ -223,6 +223,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/dig v1.17.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250324211829-b45e905df463 // indirect
 	k8s.io/apiserver v0.30.14 // indirect
@@ -250,7 +251,6 @@ require (
 )
 
 replace (
-	github.com/microsoft/ApplicationInsights-Go => ./application-insights
 	github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )

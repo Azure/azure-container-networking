@@ -228,7 +228,14 @@ func NewAITelemetryWithConnectionString(
 
 	setAIConfigDefaults(&aiConfig)
 
-	telemetryConfig := appinsights.NewTelemetryConfigurationWithConnectionString(cString)
+	connectionVars, err := parseConnectionString(cString)
+	if err != nil {
+		debugLog("Error parsing connection string: %v", err)
+		return nil, err
+	}
+
+	telemetryConfig := appinsights.NewTelemetryConfiguration(connectionVars.InstrumentationKey)
+	telemetryConfig.EndpointUrl = connectionVars.IngestionUrl
 	telemetryConfig.MaxBatchSize = aiConfig.BatchSize
 	telemetryConfig.MaxBatchInterval = time.Duration(aiConfig.BatchInterval) * time.Second
 
