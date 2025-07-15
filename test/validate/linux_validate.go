@@ -22,7 +22,7 @@ var (
 	cnsManagedStateFileCmd      = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
 	azureVnetStateFileCmd       = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
 	azureVnetIpamStateCmd       = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
-	ciliumStateFileCmd          = []string{"bash", "-c", "cilium endpoint list -o json"}
+	ciliumStateFileCmd          = []string{"cilium", "endpoint", "list", "-o", "json"}
 	cnsCachedAssignedIPStateCmd = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
 )
 
