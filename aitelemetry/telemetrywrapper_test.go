@@ -19,7 +19,7 @@ var (
 	hostAgentUrl     = "localhost:3501"
 	getCloudResponse = "AzurePublicCloud"
 	httpURL          = "http://" + hostAgentUrl
-	connectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://ingestion.endpoint.com/;LiveEndpoint=https://live.endpoint.com/;ApplicationId=11111111-1111-1111-1111-111111111111"
+	// connectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://ingestion.endpoint.com/;LiveEndpoint=https://live.endpoint.com/;ApplicationId=11111111-1111-1111-1111-111111111111"
 )
 
 func TestMain(m *testing.M) {
