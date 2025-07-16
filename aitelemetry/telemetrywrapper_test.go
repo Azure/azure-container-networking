@@ -19,7 +19,6 @@ var (
 	hostAgentUrl     = "localhost:3501"
 	getCloudResponse = "AzurePublicCloud"
 	httpURL          = "http://" + hostAgentUrl
-	// connectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://ingestion.endpoint.com/;LiveEndpoint=https://live.endpoint.com/;ApplicationId=11111111-1111-1111-1111-111111111111"
 )
 
 func TestMain(m *testing.M) {
@@ -93,7 +92,7 @@ func TestEmptyAIKey(t *testing.T) {
 		t.Errorf("Error initializing AI telemetry:%v", err)
 	}
 
-	_, err = NewAITelemetryWithConnectionString("", aiConfig)
+	_, err = NewWithConnectionString("", aiConfig)
 	if err == nil {
 		t.Errorf("Error initializing AI telemetry with connection string:%v", err)
 	}
@@ -118,7 +117,7 @@ func TestNewAITelemetry(t *testing.T) {
 		t.Errorf("Error initializing AI telemetry: %v", err)
 	}
 
-	th2, err := NewAITelemetryWithConnectionString(connectionString, aiConfig)
+	th2, err := NewWithConnectionString(connectionString, aiConfig)
 	if th2 == nil {
 		t.Errorf("Error initializing AI telemetry with connection string: %v", err)
 	}
@@ -185,7 +184,7 @@ func TestClosewithoutSend(t *testing.T) {
 		t.Errorf("Error initializing AI telemetry:%v", err)
 	}
 
-	thtest2, err := NewAITelemetryWithConnectionString(connectionString, aiConfig)
+	thtest2, err := NewWithConnectionString(connectionString, aiConfig)
 	if thtest2 == nil {
 		t.Errorf("Error initializing AI telemetry with connection string:%v", err)
 	}
