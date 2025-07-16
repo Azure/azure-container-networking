@@ -22,6 +22,10 @@ static const char ALLOWED_CHAINS[][MAX_CHAIN_LEN] = {
     "IP-MASQ-AGENT",
     "CILIUM"
 };
+static const int ALLOWED_CHAINS_SIZES[MAX_CHAIN_LEN] = {
+    sizeof("IP-MASQ-AGENT") - 1,
+    sizeof("CILIUM") - 1
+};
 
 static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_len) {
     // Check we can read nfgenmsg
@@ -37,7 +41,7 @@ static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_le
         if (remaining < sizeof(struct nlattr))
             break;
 
-	bpf_printk("reading 1 attribute");
+        bpf_printk("reading 1 attribute");
 
         struct nlattr attr = {};
         if (bpf_probe_read_kernel(&attr, sizeof(attr), attr_ptr) < 0)
@@ -46,7 +50,7 @@ static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_le
         __u16 attr_len = attr.nla_len;
         __u16 attr_type = attr.nla_type & 0x3fff;
 
-	bpf_printk("read %d", attr_type);
+        bpf_printk("read %d", attr_type);
 
         if (attr_len < sizeof(struct nlattr) || attr_len > remaining)
             break;
@@ -59,11 +63,11 @@ static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_le
 
             if (bpf_probe_read_kernel(chain, copy_len, attr_ptr + sizeof(struct nlattr)) < 0)
                 break;
-	    bpf_printk("chain is %s", chain);
+            bpf_printk("chain is %s", chain);
 
             #pragma unroll
-            for (int j = 0; j < sizeof(ALLOWED_CHAINS) / MAX_CHAIN_LEN; j++) {
-                if (__builtin_memcmp(chain, ALLOWED_CHAINS[j], MAX_CHAIN_LEN) == 0) {
+            for (int j = 0; j < 2; j++) {
+                if (__builtin_memcmp(chain, ALLOWED_CHAINS[j], ALLOWED_CHAINS_SIZES[j]) == 0) {
                     return 1; // explicitly allowed
                 }
             }
