@@ -42,7 +42,7 @@ data:
   enable-well-known-identities: "false"
   enable-xt-socket-fallback: "true"
   identity-allocation-mode: crd
-  install-iptables-rules: "true"
+  install-iptables-rules: "false"
   install-no-conntrack-iptables-rules: "false"
   ipam: delegated-plugin
   kube-proxy-replacement: "true"
