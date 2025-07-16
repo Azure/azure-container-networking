@@ -19,8 +19,8 @@ func TestParseConnectionString(t *testing.T) {
 			name:             "Valid connection string and instrumentation key",
 			connectionString: connectionString,
 			want: &connectionVars{
-				InstrumentationKey: "00000000-0000-0000-0000-000000000000",
-				IngestionUrl:       "https://ingestion.endpoint.com/v2.1/track",
+				instrumentationKey: "00000000-0000-0000-0000-000000000000",
+				ingestionUrl:       "https://ingestion.endpoint.com/v2.1/track",
 			},
 			wantErr: false,
 		},
@@ -32,13 +32,13 @@ func TestParseConnectionString(t *testing.T) {
 		},
 		{
 			name:             "Valid instrumentation key with missing ingestion endpoint",
-			connectionString: "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=;",
+			connectionString: "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=",
 			want:             nil,
 			wantErr:          true,
 		},
 		{
 			name:             "Missing instrumentation key with valid ingestion endpoint",
-			connectionString: "InstrumentationKey=;IngestionEndpoint=https://ingestion.endpoint.com/;LiveEndpoint=https://live.endpoint.com/;",
+			connectionString: "InstrumentationKey=;IngestionEndpoint=https://ingestion.endpoint.com/",
 			want:             nil,
 			wantErr:          true,
 		},
@@ -58,8 +58,8 @@ func TestParseConnectionString(t *testing.T) {
 			} else {
 				require.NoError(t, err, "Expected no error but got one")
 				require.NotNil(t, got, "Expected a non-nil result")
-				require.Equal(t, tt.want.InstrumentationKey, got.InstrumentationKey, "Instrumentation Key does not match")
-				require.Equal(t, tt.want.IngestionUrl, got.IngestionUrl, "Ingestion URL does not match")
+				require.Equal(t, tt.want.instrumentationKey, got.instrumentationKey, "Instrumentation Key does not match")
+				require.Equal(t, tt.want.ingestionUrl, got.ingestionUrl, "Ingestion URL does not match")
 			}
 		})
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights/contracts"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -214,28 +215,25 @@ func NewAITelemetry(
 	return th, nil
 }
 
-// NewAITelemetry creates telemetry handle with user specified appinsights connection string.
-func NewAITelemetryWithConnectionString(
-	cString string,
-	aiConfig AIConfig,
-) (TelemetryHandle, error) {
+// NewWithConnectionString creates telemetry handle with user specified appinsights connection string.
+func NewWithConnectionString(connectionString string, aiConfig AIConfig) (TelemetryHandle, error) {
 	debugMode = aiConfig.DebugMode
 
-	if cString == "" {
+	if connectionString == "" {
 		debugLog("Empty connection string")
-		return nil, fmt.Errorf("AI connection string is empty")
+		return nil, errors.New("AI connection string is empty")
 	}
 
 	setAIConfigDefaults(&aiConfig)
 
-	connectionVars, err := parseConnectionString(cString)
+	connectionVars, err := parseConnectionString(connectionString)
 	if err != nil {
 		debugLog("Error parsing connection string: %v", err)
 		return nil, err
 	}
 
-	telemetryConfig := appinsights.NewTelemetryConfiguration(connectionVars.InstrumentationKey)
-	telemetryConfig.EndpointUrl = connectionVars.IngestionUrl
+	telemetryConfig := appinsights.NewTelemetryConfiguration(connectionVars.instrumentationKey)
+	telemetryConfig.EndpointUrl = connectionVars.ingestionUrl
 	telemetryConfig.MaxBatchSize = aiConfig.BatchSize
 	telemetryConfig.MaxBatchInterval = time.Duration(aiConfig.BatchInterval) * time.Second
 
