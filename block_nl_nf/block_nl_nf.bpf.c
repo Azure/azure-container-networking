@@ -11,6 +11,9 @@ __u32 host_netns_inode = 4026531840;  // Initialized by userspace, not const
 
 #define MAX_CHAIN_LEN 32
 #define NFTA_RULE_CHAIN 2
+#define NLA_ALIGNTO		4
+#define NLA_ALIGN(len)		(((len) + NLA_ALIGNTO - 1) & ~(NLA_ALIGNTO - 1))
+#define NLA_HDRLEN		((int) NLA_ALIGN(sizeof(struct nlattr)))
 
 struct nfgenmsg {
         __u8  nfgen_family;             /* AF_xxx */
@@ -75,11 +78,11 @@ static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_le
             return 0; // explicitly found and disallowed
         }
 
-        attr_ptr += attr_len;
-        remaining -= attr_len;
+        attr_ptr += NLA_ALIGN(attr_len);
+        remaining -= NLA_ALIGN(attr_len);
     }
 
-    return 1; // no NFTA_RULE_CHAIN found → allow
+    return 0; // no NFTA_RULE_CHAIN found → allow
 }
 
 
