@@ -21,6 +21,27 @@ stages:
       inputs:
         sourceFolder: $(ACN_DEVOPS_DIR)/.pipelines
         targetFolder: $(Build.ArtifactStagingDirectory)/.pipelines
+    - script: |
+
+        echo "------"
+        echo $(Build.QueuedBy)
+        echo $(Build.Reason) # manual, PR, IndividualCI
+        echo $(Build.SourceBranch)
+        echo $(resources.repositories.azure-container-networking.ref)
+        echo $(resources.repositories.acn-devops.ref)
+        echo $(resources.repositories.acn-devops.ref)
+        echo ${{ parameters.triggerBuildSourceBranch }}
+        echo ${{ parameters.triggerBuildReason }}
+        echo ${{ parameters.triggerBuildGitRef }}
+        echo ${{ parameters.triggerBuildQueuedBy }}
+
+
+
+      name: "EnvironmentalVariables"
+      displayName: "Set environmental variables"
+      condition: always()
+      # Use dev version of Makefile for development version
+      workingDirectory: $(ACN_DIR)
 
   - job: env
     displayName: Setup
