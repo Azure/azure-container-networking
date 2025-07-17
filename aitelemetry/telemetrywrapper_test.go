@@ -15,8 +15,6 @@ import (
 )
 
 var (
-	th1              TelemetryHandle
-	th2              TelemetryHandle
 	aiConfig         AIConfig
 	hostAgentUrl     = "localhost:3501"
 	getCloudResponse = "AzurePublicCloud"
@@ -68,16 +66,6 @@ func TestMain(m *testing.M) {
 		DisableMetadataRefreshThread: true,
 	}
 
-	th1, err = NewAITelemetry(httpURL, "00ca2a73-c8d6-4929-a0c2-cf84545ec225", aiConfig)
-	if th1 == nil {
-		fmt.Printf("Error initializing AI telemetry: %v", err)
-	}
-
-	th2, err = NewWithConnectionString(connectionString, aiConfig)
-	if th2 == nil {
-		fmt.Printf("Error initializing AI telemetry with connection string: %v", err)
-	}
-
 	exitCode := m.Run()
 
 	if runtime.GOOS == "linux" {
@@ -99,6 +87,20 @@ func handleGetCloud(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(getCloudResponse))
 }
 
+func initTelemetry(t *testing.T) (TelemetryHandle, TelemetryHandle) {
+	th1, err1 := NewAITelemetry(httpURL, "00ca2a73-c8d6-4929-a0c2-cf84545ec225", aiConfig)
+	if err1 != nil {
+		fmt.Printf("Error initializing AI telemetry: %v", err1)
+	}
+
+	th2, err2 := NewWithConnectionString(connectionString, aiConfig)
+	if err2 != nil {
+		fmt.Printf("Error initializing AI telemetry with connection string: %v", err2)
+	}
+
+	return th1, th2
+}
+
 func TestEmptyAIKey(t *testing.T) {
 	var err error
 
@@ -116,18 +118,19 @@ func TestEmptyAIKey(t *testing.T) {
 func TestNewAITelemetry(t *testing.T) {
 	var err error
 
-	th1, err := NewAITelemetry(httpURL, "00ca2a73-c8d6-4929-a0c2-cf84545ec225", aiConfig)
+	th1, th2 := initTelemetry(t)
 	if th1 == nil {
 		t.Errorf("Error initializing AI telemetry: %v", err)
 	}
 
-	th2, err := NewWithConnectionString(connectionString, aiConfig)
 	if th2 == nil {
 		t.Errorf("Error initializing AI telemetry with connection string: %v", err)
 	}
 }
 
 func TestTrackMetric(t *testing.T) {
+	th1, th2 := initTelemetry(t)
+
 	metric := Metric{
 		Name:             "test",
 		Value:            1.0,
@@ -140,6 +143,8 @@ func TestTrackMetric(t *testing.T) {
 }
 
 func TestTrackLog(t *testing.T) {
+	th1, th2 := initTelemetry(t)
+
 	report := Report{
 		Message:          "test",
 		Context:          "10a",
@@ -152,6 +157,8 @@ func TestTrackLog(t *testing.T) {
 }
 
 func TestTrackEvent(t *testing.T) {
+	th1, th2 := initTelemetry(t)
+
 	event := Event{
 		EventName:  "testEvent",
 		ResourceID: "SomeResourceId",
@@ -165,28 +172,15 @@ func TestTrackEvent(t *testing.T) {
 }
 
 func TestFlush(t *testing.T) {
+	th1, th2 := initTelemetry(t)
+
 	th1.Flush()
 	th2.Flush()
 }
 
 func TestClose(t *testing.T) {
+	th1, th2 := initTelemetry(t)
+
 	th1.Close(10)
 	th2.Close(10)
-}
-
-func TestClosewithoutSend(t *testing.T) {
-	var err error
-
-	thtest, err := NewAITelemetry(httpURL, "00ca2a73-c8d6-4929-a0c2-cf84545ec225", aiConfig)
-	if thtest == nil {
-		t.Errorf("Error initializing AI telemetry:%v", err)
-	}
-
-	thtest2, err := NewWithConnectionString(connectionString, aiConfig)
-	if thtest2 == nil {
-		t.Errorf("Error initializing AI telemetry with connection string:%v", err)
-	}
-
-	thtest.Close(10)
-	thtest2.Close(10)
 }
