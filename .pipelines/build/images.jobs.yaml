@@ -78,10 +78,10 @@ jobs:
       env:
         SOURCE: $(REPO_ROOT)/${{ job_data.templateContext.obDockerfile }}
         DEST: $(OUT_DIR)/Dockerfile
-      condition: and( succeeded(), eq(variables['archiveVersionValid';isOutput=true], 'true'))
+      condition: and( succeeded(), eq(variables['archiveVersionValid'], 'true'))
 
     - task: onebranch.pipeline.signing@1
-      condition: and( succeeded(), eq(variables['archiveVersionValid';isOutput=true], 'true'))
+      condition: and( succeeded(), eq(variables['archiveVersionValid'], 'true'))
       inputs:
         command: 'sign'
         signing_profile: 'external_distribution'
