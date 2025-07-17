@@ -9,7 +9,7 @@ ARG OS
 ARG VERSION
 WORKDIR /azure-ip-masq-merger
 COPY ./azure-ip-masq-merger .
-RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/ip-masq-merger -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
+RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/ip-masq-merger -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
 
 FROM scratch AS linux
 COPY --from=azure-ip-masq-merger /go/bin/ip-masq-merger azure-ip-masq-merger

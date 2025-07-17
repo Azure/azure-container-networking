@@ -20,7 +20,7 @@ ARG CNS_AI_PATH
 ARG VERSION
 WORKDIR /azure-container-networking
 COPY . .
-RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-cns -ldflags "-X main.version="$VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID"" -gcflags="-dwarflocationlists=true" cns/service/*.go
+RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-cns -ldflags "-s -w -X main.version="$VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID"" -gcflags="-dwarflocationlists=true" cns/service/*.go
 
 FROM mariner-core AS iptables
 RUN tdnf install -y iptables
