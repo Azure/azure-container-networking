@@ -46,6 +46,10 @@ stages:
       condition: always()
       # Use dev version of Makefile for development version
       workingDirectory: $(ACN_DIR)
+  - ${{ if contains(resources.repositories['azure-container-networking'].ref, 'v') }}:
+    - script: echo "This is a release branch"
+      displayName: "Release Branch Processing"
+
 
   - job: env
     displayName: Setup
