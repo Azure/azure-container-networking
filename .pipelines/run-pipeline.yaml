@@ -43,8 +43,9 @@ stages:
 
       name: "EnvironmentalVariables"
       displayName: "Set environmental variables"
-
-
+    - ${{ if contains( parameters.triggerBuildSourceBranch , 'v') }}:
+      - script: echo "This is a release branch"
+        displayName: "Release Branch Processing"
 
   - job: env
     displayName: Setup
