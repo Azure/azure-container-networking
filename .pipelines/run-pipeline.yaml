@@ -86,14 +86,14 @@ stages:
               archiveVersion: $(AZURE_IPAM_VERSION)
               imageTag: $(Build.BuildNumber)
               packageWithDropGZ: True
-              condition: and(succeeded(), ne($(AZURE_IPAM_VERSION), ''))
+              condition: and(succeeded(), contains($(AZURE_IPAM_VERSION), 'v'))
             azure_ip_masq_merger:
               name: azure-ip-masq-merger
               extraArgs: ''
               archiveName: azure-ip-masq-merger
               archiveVersion: $(AZURE_IP_MASQ_MERGER_VERSION)
               imageTag: $(Build.BuildNumber)
-              condition: and(succeeded(), ne($(AZURE_IP_MASQ_MERGER_VERSION), ''))
+              condition: and(succeeded(), contains($(AZURE_IP_MASQ_MERGER_VERSION), 'v'))
             cni:
               name: cni
               extraArgs: '--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
@@ -101,28 +101,28 @@ stages:
               archiveVersion: $(CNI_VERSION)
               imageTag: $(Build.BuildNumber)
               packageWithDropGZ: True
-              condition: and(succeeded(), ne($(CNI_VERSION), ''))
+              condition: and(succeeded(), contains($(CNI_VERSION), 'v'))
             cns:
               name: cns
               extraArgs: '--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)'
               archiveName: azure-cns
               archiveVersion: $(CNS_VERSION)
               imageTag: $(Build.BuildNumber)
-              condition: and(succeeded(), ne($(CNS_VERSION), ''))
+              condition: and(succeeded(), contains($(CNS_VERSION), 'v'))
             ipv6_hp_bpf:
               name: ipv6-hp-bpf
               extraArgs: "--build-arg DEBUG=$(System.Debug)"
               archiveName: ipv6-hp-bpf
               archiveVersion: $(IPV6_HP_BPF_VERSION)
               imageTag: $(Build.BuildNumber)
-              condition: and(succeeded(), ne($(IPV6_HP_BPF_VERSION), ''))
+              condition: and(succeeded(), contains($(IPV6_HP_BPF_VERSION), 'v'))
             npm:
               name: npm
               extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
               archiveName: azure-npm
               archiveVersion: $(NPM_VERSION)
               imageTag: $(Build.BuildNumber)
-              condition: and(succeeded(), ne($(NPM_VERSION), ''))
+              condition: and(succeeded(), contains($(NPM_VERSION), 'v'))
 
       - job: windows_amd64
         displayName: "Windows"
@@ -140,7 +140,7 @@ stages:
               archiveVersion: $(AZURE_IPAM_VERSION)
               imageTag: $(Build.BuildNumber)
               packageWithDropGZ: True
-              condition: and(succeeded(), ne($(AZURE_IPAM_VERSION), ''))
+              condition: and(succeeded(), contains($(AZURE_IPAM_VERSION), 'v'))
             cni:
               name: cni
               extraArgs: '--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
@@ -148,21 +148,21 @@ stages:
               archiveVersion: $(CNI_VERSION)
               imageTag: $(Build.BuildNumber)
               packageWithDropGZ: True
-              condition: and(succeeded(), ne($(CNI_VERSION), ''))
+              condition: and(succeeded(), contains($(CNI_VERSION), 'v'))
             cns:
               name: cns
               extraArgs: '--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)'
               archiveName: azure-cns
               archiveVersion: $(CNS_VERSION)
               imageTag: $(Build.BuildNumber)
-              condition: and(succeeded(), ne($(CNS_VERSION), ''))
+              condition: and(succeeded(), contains($(CNS_VERSION), 'v'))
             npm:
               name: npm
               extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
               archiveName: azure-npm
               archiveVersion: $(NPM_VERSION)
               imageTag: $(Build.BuildNumber)
-              condition: and(succeeded(), ne($(NPM_VERSION), ''))
+              condition: and(succeeded(), contains($(NPM_VERSION), 'v'))
 
       - job: linux_arm64
         displayName: "Linux/ARM64"
@@ -180,14 +180,14 @@ stages:
               extraArgs: ''
               imageTag: $(Build.BuildNumber)
               packageWithDropGZ: True
-              condition: and(succeeded(), ne($(AZURE_IPAM_VERSION), ''))
+              condition: and(succeeded(), contains($(AZURE_IPAM_VERSION), 'v'))
             azure_ip_masq_merger:
               name: azure-ip-masq-merger
               extraArgs: ''
               archiveName: azure-ip-masq-merger
               archiveVersion: $(AZURE_IP_MASQ_MERGER_VERSION)
               imageTag: $(Build.BuildNumber)
-              condition: and(succeeded(), ne($(AZURE_IP_MASQ_MERGER_VERSION), ''))
+              condition: and(succeeded(), contains($(AZURE_IP_MASQ_MERGER_VERSION), 'v'))
             cni:
               name: cni
               extraArgs: '--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
@@ -195,28 +195,28 @@ stages:
               archiveVersion: $(CNI_VERSION)
               imageTag: $(Build.BuildNumber)
               packageWithDropGZ: True
-              condition: and(succeeded(), ne($(CNI_VERSION), ''))
+              condition: and(succeeded(), contains($(CNI_VERSION), 'v'))
             cns:
               name: cns
               extraArgs: '--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)'
               archiveName: azure-cns
               archiveVersion: $(CNS_VERSION)
               imageTag: $(Build.BuildNumber)
-              condition: and(succeeded(), ne($(CNS_VERSION), ''))
+              condition: and(succeeded(), contains($(CNS_VERSION), 'v'))
             ipv6_hp_bpf:
               name: ipv6-hp-bpf
               extraArgs: "--build-arg DEBUG=$(System.Debug)"
               archiveName: ipv6-hp-bpf
               archiveVersion: $(IPV6_HP_BPF_VERSION)
               imageTag: $(Build.BuildNumber)
-              condition: and(succeeded(), ne($(IPV6_HP_BPF_VERSION), ''))
+              condition: and(succeeded(), contains($(IPV6_HP_BPF_VERSION), 'v'))
             npm:
               name: npm
               extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
               archiveName: azure-npm
               archiveVersion: $(NPM_VERSION)
               imageTag: $(Build.BuildNumber)
-              condition: and(succeeded(), ne($(NPM_VERSION), ''))
+              condition: and(succeeded(), contains($(NPM_VERSION), 'v'))
 
 - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
   - stage: manifests
