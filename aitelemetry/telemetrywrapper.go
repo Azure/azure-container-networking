@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights/contracts"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -161,7 +162,7 @@ func isPublicEnvironment(url string, retryCount, waitTimeInSecs int) (bool, erro
 			return true, nil
 		} else if err == nil {
 			debugLog("[AppInsights] This is not azure public cloud:%s", cloudName)
-			return false, fmt.Errorf("Not an azure public cloud: %s", cloudName)
+			return false, fmt.Errorf("not an azure public cloud: %s", cloudName)
 		}
 
 		debugLog("GetAzureCloud returned err :%v", err)
@@ -193,6 +194,46 @@ func NewAITelemetry(
 	}
 
 	telemetryConfig := appinsights.NewTelemetryConfiguration(id)
+	telemetryConfig.MaxBatchSize = aiConfig.BatchSize
+	telemetryConfig.MaxBatchInterval = time.Duration(aiConfig.BatchInterval) * time.Second
+
+	th := &telemetryHandle{
+		client:                       appinsights.NewTelemetryClientFromConfig(telemetryConfig),
+		appName:                      aiConfig.AppName,
+		appVersion:                   aiConfig.AppVersion,
+		diagListener:                 messageListener(),
+		disableMetadataRefreshThread: aiConfig.DisableMetadataRefreshThread,
+		refreshTimeout:               aiConfig.RefreshTimeout,
+	}
+
+	if th.disableMetadataRefreshThread {
+		getMetadata(th)
+	} else {
+		go getMetadata(th)
+	}
+
+	return th, nil
+}
+
+// NewWithConnectionString creates telemetry handle with user specified appinsights connection string.
+func NewWithConnectionString(connectionString string, aiConfig AIConfig) (TelemetryHandle, error) {
+	debugMode = aiConfig.DebugMode
+
+	if connectionString == "" {
+		debugLog("Empty connection string")
+		return nil, errors.New("AI connection string is empty")
+	}
+
+	setAIConfigDefaults(&aiConfig)
+
+	connectionVars, err := parseConnectionString(connectionString)
+	if err != nil {
+		debugLog("Error parsing connection string: %v", err)
+		return nil, err
+	}
+
+	telemetryConfig := appinsights.NewTelemetryConfiguration(connectionVars.instrumentationKey)
+	telemetryConfig.EndpointUrl = connectionVars.ingestionUrl
 	telemetryConfig.MaxBatchSize = aiConfig.BatchSize
 	telemetryConfig.MaxBatchInterval = time.Duration(aiConfig.BatchInterval) * time.Second
 
