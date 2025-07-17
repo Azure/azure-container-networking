@@ -7,8 +7,6 @@ jobs:
 - ${{ each job_data in parameters.images }}:
   - job: pkg_${{ job_data.job }}
     displayName: "Prepare Image Package - ${{ job_data.displayName }} -"
-    # If archiveVersion is empty then the respective component does not exist in that release train
-    condition: and(succeeded(), ne(variables['archiveVersion'], ''))
     ${{ if job_data.strategy }}:
       strategy: ${{ job_data.strategy }}
     ${{ if job_data.dependsOn }}:
