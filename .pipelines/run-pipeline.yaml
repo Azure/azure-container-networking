@@ -13,6 +13,8 @@ stages:
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       ob_git_checkout: true
+      test-acndevops: $[ resources.repositories['acn-devops'].ref ]
+      test-acn: $[ resources.repositories['azure-container-networking'].ref ]
     steps:
     - checkout: acn-devops
 
@@ -34,6 +36,8 @@ stages:
         echo ${{ parameters.triggerBuildReason }}
         echo ${{ parameters.triggerBuildGitRef }}
         echo ${{ parameters.triggerBuildQueuedBy }}
+        echo $(test-acndevops)
+        echo $(test-acn)
 
 
 
