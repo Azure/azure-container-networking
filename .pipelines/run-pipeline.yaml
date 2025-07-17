@@ -43,9 +43,7 @@ stages:
 
       name: "EnvironmentalVariables"
       displayName: "Set environmental variables"
-      condition: always()
-      # Use dev version of Makefile for development version
-      workingDirectory: $(ACN_DIR)
+
 
 
   - job: env
