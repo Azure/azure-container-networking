@@ -257,7 +257,7 @@ func (pMgr *PolicyManager) detectIptablesVersion() error {
 	}
 
 	klog.Info("second attempt detecting iptables version. looking for hint/canary chain in iptables-legacy")
-	if pMgr.hintOrCanaryChainExist(util.IptablesLegacy) {
+	if pMgr.hintOrCanaryChainExist(util.IptablesLegacyCmd) {
 		util.SetIptablesToLegacy()
 		return nil
 	}
