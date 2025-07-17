@@ -45,11 +45,13 @@ parameters:
 
 steps:
 - task: DownloadPipelineArtifact@2
+  condition: and( succeeded(), eq(variables['archiveVersionValid'], 'true'))
   inputs:
     targetPath: $(Build.SourcesDirectory)/dst/artifacts
     artifact: ${{ parameters.source }}
 
 - task: onebranch.pipeline.containercontrol@1
+  condition: and( succeeded(), eq(variables['archiveVersionValid'], 'true'))
   displayName: "Login to ACR"
   inputs:
     command: login
@@ -57,6 +59,7 @@ steps:
 
 # Build and push the Docker image
 - task: onebranch.pipeline.imagebuildinfo@1
+  condition: and( succeeded(), eq(variables['archiveVersionValid'], 'true'))
   displayName: Image Build
   retryCountOnTaskFailure: 3
   timeoutInMinutes: 30
