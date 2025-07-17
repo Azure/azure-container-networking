@@ -67,6 +67,18 @@ stages:
     IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
     NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
   jobs:
+  - job: dummy
+    displayName: dummy
+    pool:
+      type: linux
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)
+      ob_git_checkout: true
+    steps:
+    - script: |
+        echo "This is a dummy job to ensure the build stage runs."
+      displayName: "Dummy Job"
+
   - ${{ if contains(variables['resources.repositories.azure-container-networking.ref'], 'v1.7') }}:
     - template: /.pipelines/build/images.jobs.yaml@acn-devops
       parameters:
