@@ -5,7 +5,36 @@ stages:
   - prebuild
   variables:
     ACN_DEVOPS_DIR: $(Build.SourcesDirectory)/azure-container-networking
+    acn-ref: $[ resources.repositories['azure-container-networking'].ref ]
   jobs:
+
+  - template: /.pipelines/build/images.jobs.yaml
+    parameters:
+      images:
+      - job: linux_amd64
+        displayName: "Linux/AMD64"
+        templateContext:
+          repositoryArtifact: drop_setup_env_source
+          buildScript: .pipelines/build/scripts/$(name).sh
+          obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
+        strategy:
+          maxParallel: 5
+          matrix:
+            azure_ip_masq_merger:
+              name: azure-ip-masq-merger
+              extraArgs: ''
+              archiveName: azure-ip-masq-merger
+              archiveVersion: $(AZURE_IP_MASQ_MERGER_VERSION)
+              imageTag: $(Build.BuildNumber)
+              condition: contains( variables['acn-ref'] , 'v1.7')
+            npm:
+              name: npm
+              extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
+              archiveName: azure-npm
+              archiveVersion: $(NPM_VERSION)
+              imageTag: $(Build.BuildNumber)
+              condition: contains( variables['acn-ref'] , 'v1.6')
+
   - job: copy
     displayName: Copy Pipeline Files
     pool:
