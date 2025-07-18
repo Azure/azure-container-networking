@@ -119,8 +119,8 @@ static __always_inline int is_cilium_comment(void *attr1_ptr, __u32 remaining) {
         return 0;
 
     bpf_printk("payload: %s", payload);
-    if (payload[0] == 'C' && payload[1] == 'I' && payload[2] == 'L' &&
-        payload[3] == 'I' && payload[4] == 'U' && payload[5] == 'M') {
+    if (payload[0] == 'c' && payload[1] == 'i' && payload[2] == 'l' &&
+        payload[3] == 'i' && payload[4] == 'u' && payload[5] == 'm') {
         bpf_printk("found cilium");
         return 1;
     } else {
@@ -160,7 +160,7 @@ static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_le
             void *attr2_ptr = attr1_ptr + NLA_HDRLEN;
             __u32 remaining2 = remaining1 - NLA_HDRLEN;
 
-            for (int k = 0; k < 4; k++) {
+            for (int k = 0; k < 6; k++) {
                 if (remaining2 < sizeof(struct nlattr))
                     break;
 
