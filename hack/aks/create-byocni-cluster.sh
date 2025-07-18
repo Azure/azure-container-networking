@@ -14,13 +14,13 @@ DEFAULT_NO_KUBE_PROXY="true"
 DEFAULT_CNI_PLUGIN="cilium"
 DEFAULT_CNS_VERSION="v1.5.38"
 DEFAULT_AZURE_IPAM_VERSION="v0.3.0"
-DEFAULT_CILIUM_DIR="1.14"
+DEFAULT_CILIUM_DIR="1.17"
 DEFAULT_CILIUM_IMAGE_REGISTRY="acnpublic.azurecr.io"
 DEFAULT_CILIUM_VERSION_TAG=""
 DEFAULT_IPV6_HP_BPF_VERSION=""
 DEFAULT_CNS_IMAGE_REPO="MCR"
 DEFAULT_AZCLI="az"
-DEFAULT_KUBERNETES_VERSION="1.29"
+DEFAULT_KUBERNETES_VERSION="1.33"
 
 # Script configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -302,7 +302,24 @@ create_cluster() {
             ;;
     esac
     
-    local make_cmd="AZCLI=${AZCLI} CLUSTER=${CLUSTER_NAME} SUB=${SUBSCRIPTION} K8S_VER=${KUBERNETES_VERSION} make ${make_target}"
+    # Determine LTS setting based on Kubernetes version
+    local lts_setting="false"
+    local k8s_major_minor
+    k8s_major_minor=$(echo "${KUBERNETES_VERSION}" | cut -d'.' -f1-2)
+    
+    # Convert version to comparable number (e.g., "1.30" -> 130)
+    local version_number
+    version_number=$(echo "${k8s_major_minor}" | sed 's/\.//g')
+    
+    # Set LTS=true for versions less than 1.31 (i.e., 131)
+    if [[ "${version_number}" -lt 131 ]]; then
+        lts_setting="true"
+        log "Kubernetes version ${KUBERNETES_VERSION} is < 1.31, setting LTS=true"
+    else
+        log "Kubernetes version ${KUBERNETES_VERSION} is >= 1.31, setting LTS=false"
+    fi
+    
+    local make_cmd="AZCLI=${AZCLI} CLUSTER=${CLUSTER_NAME} SUB=${SUBSCRIPTION} K8S_VER=${KUBERNETES_VERSION} LTS=${lts_setting} make ${make_target}"
     
     log "Using make target: ${make_target}"
     execute "cd '${SCRIPT_DIR}' && ${make_cmd}"

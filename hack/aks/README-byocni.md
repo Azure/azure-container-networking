@@ -21,15 +21,20 @@ Before running the script, ensure you have:
 ### Basic Usage
 
 Create a cluster with default settings (overlay networking with Cilium):
+
+**Note**: The script must be run from the root directory of the azure-container-networking repository.
+
 ```bash
-./create-byocni-cluster.sh --subscription YOUR_SUBSCRIPTION_ID
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh --subscription YOUR_SUBSCRIPTION_ID
 ```
 
 ### Advanced Usage
 
 Create a cluster with custom configuration:
 ```bash
-./create-byocni-cluster.sh \
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh \
     --cluster my-cluster \
     --subscription YOUR_SUBSCRIPTION_ID \
     --networking-mode swift \
@@ -43,7 +48,8 @@ Create a cluster with custom configuration:
 
 Preview the commands that would be executed without actually running them:
 ```bash
-./create-byocni-cluster.sh --subscription YOUR_SUBSCRIPTION_ID --dry-run
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh --subscription YOUR_SUBSCRIPTION_ID --dry-run
 ```
 
 ## Configuration Options
@@ -53,14 +59,14 @@ Preview the commands that would be executed without actually running them:
 | `--cluster` | Name of the AKS cluster | `byocni-cluster` |
 | `--subscription` | Azure subscription ID | *Required* |
 | `--azcli` | Azure CLI command | `az` |
-| `--kubernetes-version` | Kubernetes version for the cluster | `1.29` |
+| `--kubernetes-version` | Kubernetes version for the cluster | `1.33` |
 | `--networking-mode` | Networking mode (overlay, swift, nodesubnet, dualstack-overlay, vnetscale-swift) | `overlay` |
 | `--no-kube-proxy` | Create cluster without kube-proxy | `true` |
 | `--with-kube-proxy` | Create cluster with kube-proxy | Overrides --no-kube-proxy |
 | `--cni-plugin` | CNI plugin (cilium, azure-cni, none) | `cilium` |
 | `--cns-version` | CNS version to deploy | `v1.5.38` |
 | `--azure-ipam-version` | Azure IPAM version | `v0.3.0` |
-| `--cilium-dir` | Cilium version directory | `1.14` |
+| `--cilium-dir` | Cilium version directory | `1.17` |
 | `--cilium-registry` | Cilium image registry | `acnpublic.azurecr.io` |
 | `--cilium-version-tag` | Cilium version tag | Auto-detected |
 | `--ipv6-hp-bpf-version` | IPv6 HP BPF version | Auto-detected |
@@ -86,20 +92,22 @@ Preview the commands that would be executed without actually running them:
 The script supports the following Cilium versions based on available manifests (when using --cni-plugin cilium):
 - v1.12
 - v1.13
-- v1.14 (default)
+- v1.14 
 - v1.16
-- v1.17
+- v1.17 (default)
 
 ## Examples
 
 ### Example 1: Basic cluster creation with Cilium (default)
 ```bash
-./create-byocni-cluster.sh --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f
 ```
 
 ### Example 2: Swift networking with Azure CNI Manager
 ```bash
-./create-byocni-cluster.sh \
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh \
     --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f \
     --networking-mode swift \
     --cni-plugin azure-cni
@@ -107,7 +115,8 @@ The script supports the following Cilium versions based on available manifests (
 
 ### Example 3: Custom cluster with specific CNS version and Cilium
 ```bash
-./create-byocni-cluster.sh \
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh \
     --cluster production-cluster \
     --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f \
     --networking-mode overlay \
@@ -119,7 +128,8 @@ The script supports the following Cilium versions based on available manifests (
 
 ### Example 4: Cluster with kube-proxy enabled
 ```bash
-./create-byocni-cluster.sh \
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh \
     --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f \
     --networking-mode overlay \
     --with-kube-proxy
@@ -127,7 +137,8 @@ The script supports the following Cilium versions based on available manifests (
 
 ### Example 5: Dualstack cluster with Cilium
 ```bash
-./create-byocni-cluster.sh \
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh \
     --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f \
     --networking-mode dualstack-overlay \
     --cilium-dir 1.17 \
@@ -136,7 +147,8 @@ The script supports the following Cilium versions based on available manifests (
 
 ### Example 6: Cluster with specific Kubernetes version
 ```bash
-./create-byocni-cluster.sh \
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh \
     --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f \
     --kubernetes-version 1.30 \
     --networking-mode overlay \
@@ -145,14 +157,16 @@ The script supports the following Cilium versions based on available manifests (
 
 ### Example 7: Only cluster and CNS, no CNI plugin
 ```bash
-./create-byocni-cluster.sh \
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh \
     --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f \
     --cni-plugin none
 ```
 
 ### Example 8: Using different image registry
 ```bash
-./create-byocni-cluster.sh \
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh \
     --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f \
     --cilium-registry mcr.microsoft.com/containernetworking \
     --cilium-version-tag v1.14.8
@@ -191,7 +205,8 @@ After successful cluster creation, you can:
 
 Use the `--dry-run` flag to see exactly what commands would be executed:
 ```bash
-./create-byocni-cluster.sh --subscription YOUR_SUBSCRIPTION_ID --dry-run
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh --subscription YOUR_SUBSCRIPTION_ID --dry-run
 ```
 
 Check the logs for detailed information about each step of the process.
