@@ -56,18 +56,15 @@ jobs:
       continueOnError: true
 
     - task: DownloadPipelineArtifact@2
-      condition: and( succeeded(), eq(variables['archiveVersionValid'], 'true'))
       inputs:
         targetPath: $(REPO_ROOT)
         artifact: '${{ job_data.templateContext.repositoryArtifact }}'
 
     - task: GoTool@0
-      condition: and( succeeded(), eq(variables['archiveVersionValid'], 'true'))
       inputs:
         version: '$(GOVERSION)'
 
     - task: ShellScript@2
-      condition: and( succeeded(), eq(variables['archiveVersionValid'], 'true'))
       inputs:
         scriptPath: $(REPO_ROOT)/${{ job_data.templateContext.buildScript }}
 
@@ -78,10 +75,8 @@ jobs:
       env:
         SOURCE: $(REPO_ROOT)/${{ job_data.templateContext.obDockerfile }}
         DEST: $(OUT_DIR)/Dockerfile
-      condition: and( succeeded(), eq(variables['archiveVersionValid'], 'true'))
 
     - task: onebranch.pipeline.signing@1
-      condition: and( succeeded(), eq(variables['archiveVersionValid'], 'true'))
       inputs:
         command: 'sign'
         signing_profile: 'external_distribution'
