@@ -52,10 +52,6 @@ steps:
     echo $(Build.QueuedBy)
     echo $(Build.Reason) # manual, PR, IndividualCI
     echo $(Build.SourceBranch)
-    echo $(variables.REPO_REF)
-    echo $(REPO_REF)
-    echo $(variables.REPO_NAME)
-    echo $(REPO_NAME)
 
   name: "EnvironmentalVariables"
   displayName: "Set environmental variables"
