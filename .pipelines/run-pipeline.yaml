@@ -26,14 +26,14 @@ stages:
               archiveName: azure-ip-masq-merger
               archiveVersion: $(AZURE_IP_MASQ_MERGER_VERSION)
               imageTag: $(Build.BuildNumber)
-              condition: contains( variables['acn-ref'] , 'v1.7')
+              shouldRun: contains( variables['acn-ref'] , 'v1.7')
             npm:
               name: npm
               extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
               archiveName: azure-npm
               archiveVersion: $(NPM_VERSION)
               imageTag: $(Build.BuildNumber)
-              condition: contains( variables['acn-ref'] , 'v1.6')
+              shouldRun: contains( variables['acn-ref'] , 'v1.6')
 
   - job: copy
     displayName: Copy Pipeline Files
