@@ -52,7 +52,6 @@ steps:
     echo $(Build.QueuedBy)
     echo $(Build.Reason) # manual, PR, IndividualCI
     echo $(Build.SourceBranch)
-
   name: "EnvironmentalVariables"
   displayName: "Set environmental variables"
   condition: always()
