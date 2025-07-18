@@ -33,6 +33,17 @@ CLUSTER    ?= $(USER)-$(REGION)
 GROUP      ?= $(CLUSTER)
 VNET       ?= $(CLUSTER)
 
+# BYO CNI cluster configuration
+CNI_TYPE               ?= cilium
+CNS_VERSION            ?= v1.5.38
+AZURE_IPAM_VERSION     ?= v0.3.0
+CNS_IMAGE_REPO         ?= MCR
+CILIUM_DIR             ?= 1.14
+CILIUM_VERSION_TAG     ?= v1.14.8
+CILIUM_IMAGE_REGISTRY  ?= acnpublic.azurecr.io
+IPV6_HP_BPF_VERSION    ?= v0.0.3
+REPO_ROOT              ?= $(shell git rev-parse --show-toplevel)
+
 # Long Term Support (LTS)
 ifeq ($(LTS),true)
 	LTS_ARGS=--k8s-support-plan AKSLongTermSupport --tier premium
@@ -109,6 +120,15 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo K8S_VER=$(K8S_VER)
 	@echo LTS_ARGS=$(if $(LTS_ARGS),$(LTS_ARGS),$(LTS))
 	@echo COMMON_AKS_FIELDS=$(COMMON_AKS_FIELDS)
+	@echo CNI_TYPE=$(CNI_TYPE)
+	@echo CNS_VERSION=$(CNS_VERSION)
+	@echo AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION)
+	@echo CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+	@echo CILIUM_DIR=$(CILIUM_DIR)
+	@echo CILIUM_VERSION_TAG=$(CILIUM_VERSION_TAG)
+	@echo CILIUM_IMAGE_REGISTRY=$(CILIUM_IMAGE_REGISTRY)
+	@echo IPV6_HP_BPF_VERSION=$(IPV6_HP_BPF_VERSION)
+	@echo REPO_ROOT=$(REPO_ROOT)
 
 
 ##@ SWIFT Infra
@@ -413,3 +433,88 @@ restart-vmss: ## Restarts the nodes in the cluster
 
 scale-nodes: ## Scales the nodes in the cluster
 	$(AZCLI) aks nodepool scale --resource-group $(GROUP) --cluster-name $(CLUSTER) --name $(NODEPOOL) --node-count $(NODE_COUNT)
+
+##@ BYO CNI Automation
+
+byocni-cluster-up: ## Create complete BYO CNI cluster with CNS and CNI (default: Cilium)
+	@echo "Creating BYO CNI cluster with CNS and $(CNI_TYPE)..."
+	@echo "Variables: CLUSTER=$(CLUSTER), CNS_VERSION=$(CNS_VERSION), CNI_TYPE=$(CNI_TYPE)"
+	@$(MAKE) validate-cni-type
+	@$(MAKE) overlay-byocni-nokubeproxy-up
+	@echo "Cluster created successfully. Deploying CNS..."
+	@$(MAKE) deploy-cns
+	@echo "CNS deployed successfully. Deploying $(CNI_TYPE)..."
+ifeq ($(CNI_TYPE),cilium)
+	@$(MAKE) deploy-cilium
+else
+	@echo "Warning: CNI_TYPE=$(CNI_TYPE) not supported yet. Only cilium is currently supported."
+	@echo "Available CNI types: cilium"
+	@exit 1
+endif
+	@echo "BYO CNI cluster setup completed successfully!"
+
+validate-cni-type: ## Validate the CNI type
+ifeq ($(CNI_TYPE),cilium)
+	@echo "✓ CNI type validation passed: $(CNI_TYPE)"
+else
+	@echo "✗ Error: CNI_TYPE=$(CNI_TYPE) is not supported."
+	@echo "Available CNI types: cilium"
+	@echo "Example: make byocni-cluster-up CNI_TYPE=cilium"
+	@exit 1
+endif
+
+deploy-cns: ## Deploy CNS to the cluster
+	@echo "Deploying CNS with version $(CNS_VERSION)..."
+	cd $(REPO_ROOT) && sudo -E env "PATH=$$PATH" make test-load \
+		CNS_ONLY=true \
+		CNS_VERSION=$(CNS_VERSION) \
+		AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \
+		INSTALL_CNS=true \
+		INSTALL_OVERLAY=true \
+		CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+
+deploy-cilium: ## Deploy Cilium to the cluster
+	@echo "Deploying Cilium $(CILIUM_VERSION_TAG) from directory v$(CILIUM_DIR)..."
+	@if [ ! -d "$(REPO_ROOT)/test/integration/manifests/cilium/v$(CILIUM_DIR)" ]; then \
+		echo "Error: Cilium directory v$(CILIUM_DIR) not found."; \
+		echo "Available versions: $$(ls $(REPO_ROOT)/test/integration/manifests/cilium/ | grep '^v' | tr '\n' ' ')"; \
+		exit 1; \
+	fi
+	kubectl apply -f $(REPO_ROOT)/test/integration/manifests/cilium/v$(CILIUM_DIR)/cilium-config/cilium-config.yaml
+	kubectl apply -f $(REPO_ROOT)/test/integration/manifests/cilium/v$(CILIUM_DIR)/cilium-operator/files
+	kubectl apply -f $(REPO_ROOT)/test/integration/manifests/cilium/v$(CILIUM_DIR)/cilium-agent/files
+	@export CILIUM_VERSION_TAG=$(CILIUM_VERSION_TAG) && \
+	export CILIUM_IMAGE_REGISTRY=$(CILIUM_IMAGE_REGISTRY) && \
+	export IPV6_HP_BPF_VERSION=$(IPV6_HP_BPF_VERSION) && \
+	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION}' < $(REPO_ROOT)/test/integration/manifests/cilium/v$(CILIUM_DIR)/cilium-operator/templates/deployment.yaml | kubectl apply -f - && \
+	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION}' < $(REPO_ROOT)/test/integration/manifests/cilium/v$(CILIUM_DIR)/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+
+byocni-cluster-vars: ## Show variables for BYO CNI cluster setup
+	@echo "=== BYO CNI Cluster Configuration ==="
+	@echo "Basic cluster settings:"
+	@echo "  CLUSTER=$(CLUSTER)"
+	@echo "  GROUP=$(GROUP)"
+	@echo "  REGION=$(REGION)"
+	@echo "  SUB=$(SUB)"
+	@echo "  VNET=$(VNET)"
+	@echo ""
+	@echo "CNI configuration:"
+	@echo "  CNI_TYPE=$(CNI_TYPE)"
+	@echo ""
+	@echo "CNS configuration:"
+	@echo "  CNS_VERSION=$(CNS_VERSION)"
+	@echo "  AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION)"
+	@echo "  CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)"
+	@echo ""
+	@echo "Cilium configuration:"
+	@echo "  CILIUM_DIR=$(CILIUM_DIR)"
+	@echo "  CILIUM_VERSION_TAG=$(CILIUM_VERSION_TAG)"
+	@echo "  CILIUM_IMAGE_REGISTRY=$(CILIUM_IMAGE_REGISTRY)"
+	@echo "  IPV6_HP_BPF_VERSION=$(IPV6_HP_BPF_VERSION)"
+	@echo ""
+	@echo "Repository root:"
+	@echo "  REPO_ROOT=$(REPO_ROOT)"
+	@echo ""
+	@echo "Example usage:"
+	@echo "  make byocni-cluster-up CLUSTER=my-cluster SUB=<subscription-id>"
+	@echo "  make byocni-cluster-up CLUSTER=my-cluster SUB=<subscription-id> CNS_VERSION=v1.6.0 CILIUM_DIR=1.16 CILIUM_VERSION_TAG=v1.16.5"
