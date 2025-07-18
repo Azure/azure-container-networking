@@ -177,7 +177,7 @@ static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_le
             void *attr2_ptr = attr1_ptr + NLA_HDRLEN;
             __u32 remaining2 = remaining1 - NLA_HDRLEN;
 
-            for (int k = 0; k < 6; k++) {
+            for (int k = 0; k < 4; k++) {
                bpf_printk("k=%d",k);
                 if (remaining2 < sizeof(struct nlattr))
                     break;
