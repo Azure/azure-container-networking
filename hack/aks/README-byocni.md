@@ -38,6 +38,7 @@ cd /path/to/azure-container-networking
     --cluster my-cluster \
     --subscription YOUR_SUBSCRIPTION_ID \
     --networking-mode swift \
+    --vm-size Standard_D2s_v3 \
     --cni-plugin cilium \
     --cns-version v1.6.0 \
     --cilium-dir 1.16 \
@@ -54,6 +55,8 @@ cd /path/to/azure-container-networking
 
 ## Configuration Options
 
+All parameters have sensible defaults as specified below. Only the `--subscription` parameter is required.
+
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `--cluster` | Name of the AKS cluster | `byocni-cluster` |
@@ -61,6 +64,7 @@ cd /path/to/azure-container-networking
 | `--resource-group` | Resource group name | Same as cluster name |
 | `--azcli` | Azure CLI command | `az` |
 | `--kubernetes-version` | Kubernetes version for the cluster | `1.33` |
+| `--vm-size` | Azure VM size for cluster nodes | `Standard_B2s` |
 | `--networking-mode` | Networking mode (overlay, swift, nodesubnet, dualstack-overlay, vnetscale-swift) | `overlay` |
 | `--no-kube-proxy` | Create cluster without kube-proxy | `true` |
 | `--with-kube-proxy` | Create cluster with kube-proxy | Overrides --no-kube-proxy |

@@ -22,6 +22,7 @@ DEFAULT_IPV6_HP_BPF_VERSION=""
 DEFAULT_CNS_IMAGE_REPO="MCR"
 DEFAULT_AZCLI="az"
 DEFAULT_KUBERNETES_VERSION="1.33"
+DEFAULT_VM_SIZE="Standard_B2s"
 
 # Script configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,6 +44,7 @@ OPTIONS:
     -g, --resource-group GROUP      Resource group name (default: same as cluster name)
     -z, --azcli AZCLI_COMMAND      Azure CLI command (default: ${DEFAULT_AZCLI})
     -k, --kubernetes-version VER    Kubernetes version for the cluster (default: ${DEFAULT_KUBERNETES_VERSION})
+    -v, --vm-size VM_SIZE           Azure VM size for cluster nodes (default: ${DEFAULT_VM_SIZE})
     -n, --networking-mode MODE      Networking mode: overlay, swift, nodesubnet, dualstack-overlay, vnetscale-swift (default: ${DEFAULT_NETWORKING_MODE})
     --no-kube-proxy                 Create cluster without kube-proxy (default: ${DEFAULT_NO_KUBE_PROXY})
     --with-kube-proxy               Create cluster with kube-proxy (overrides --no-kube-proxy)
@@ -325,7 +327,7 @@ create_cluster() {
     fi
     
     # Build make command with optional GROUP parameter
-    local make_cmd="AZCLI=${AZCLI} CLUSTER=${CLUSTER_NAME} SUB=${SUBSCRIPTION} K8S_VER=${KUBERNETES_VERSION} LTS=${lts_setting}"
+    local make_cmd="AZCLI=${AZCLI} CLUSTER=${CLUSTER_NAME} SUB=${SUBSCRIPTION} K8S_VER=${KUBERNETES_VERSION} VM_SIZE=${VM_SIZE} LTS=${lts_setting}"
     if [[ -n "${RESOURCE_GROUP}" ]]; then
         make_cmd="${make_cmd} GROUP=${RESOURCE_GROUP}"
     fi
@@ -503,6 +505,7 @@ IPV6_HP_BPF_VERSION="${DEFAULT_IPV6_HP_BPF_VERSION}"
 CNS_IMAGE_REPO="${DEFAULT_CNS_IMAGE_REPO}"
 AZCLI="${DEFAULT_AZCLI}"
 KUBERNETES_VERSION="${DEFAULT_KUBERNETES_VERSION}"
+VM_SIZE="${DEFAULT_VM_SIZE}"
 DRY_RUN="false"
 
 while [[ $# -gt 0 ]]; do
@@ -525,6 +528,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -k|--kubernetes-version)
             KUBERNETES_VERSION="$2"
+            shift 2
+            ;;
+        -v|--vm-size)
+            VM_SIZE="$2"
             shift 2
             ;;
         -n|--networking-mode)
@@ -603,6 +610,7 @@ main() {
     log "  Resource Group: ${RESOURCE_GROUP:-${CLUSTER_NAME}}"
     log "  Azure CLI: ${AZCLI}"
     log "  Kubernetes Version: ${KUBERNETES_VERSION}"
+    log "  VM Size: ${VM_SIZE}"
     log "  Networking Mode: ${NETWORKING_MODE}"
     log "  No Kube-proxy: ${NO_KUBE_PROXY}"
     log "  CNI Plugin: ${CNI_PLUGIN}"
