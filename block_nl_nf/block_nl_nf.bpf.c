@@ -140,7 +140,8 @@ static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_le
     __u32 remaining1 = data_len - sizeof(struct nfgenmsg);
 
     #pragma unroll
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 3; i++) {
+       bpf_printk("i=%d",i);
         if (remaining1 < sizeof(struct nlattr))
             break;
 
@@ -156,11 +157,28 @@ static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_le
         if (attr1_len < sizeof(struct nlattr) || attr1_len > remaining1)
             break;
 
-        if ((attr1.nla_type & NLA_F_NESTED) && attr1_type == 0x4) {
+        if (attr1_type == NFTA_RULE_CHAIN) {
+            char chain[MAX_CHAIN_LEN] = {};
+            __u32 copy_len = attr1_len - sizeof(struct nlattr);
+            if (copy_len >= MAX_CHAIN_LEN)
+                copy_len = MAX_CHAIN_LEN - 1;
+
+            if (bpf_probe_read_kernel(chain, copy_len, attr1_ptr + sizeof(struct nlattr)) < 0)
+                break;
+            bpf_printk("chain is %s", chain);
+
+            #pragma unroll
+            for (int j = 0; j < 2; j++) {
+                if (__builtin_memcmp(chain, ALLOWED_CHAINS[j], ALLOWED_CHAINS_SIZES[j]) == 0) {
+                    return 1; // explicitly allowed
+                }
+            }
+        } else if ((attr1.nla_type & NLA_F_NESTED) && attr1_type == 0x4) {
             void *attr2_ptr = attr1_ptr + NLA_HDRLEN;
             __u32 remaining2 = remaining1 - NLA_HDRLEN;
 
             for (int k = 0; k < 6; k++) {
+               bpf_printk("k=%d",k);
                 if (remaining2 < sizeof(struct nlattr))
                     break;
 
@@ -177,7 +195,8 @@ static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_le
                     void *attr3_ptr = attr2_ptr + NLA_HDRLEN;
                     __u32 remaining3 = remaining2 - NLA_HDRLEN;
 
-                    for (int l = 0; l < 3; l++) {
+                    for (int l = 0; l < 2; l++) {
+                       bpf_printk("l=%d",l);
                         if (remaining3 < sizeof(struct nlattr))
                             break;
 
@@ -194,7 +213,8 @@ static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_le
                             void *attr4_ptr = attr3_ptr + NLA_HDRLEN;
                             __u32 remaining4 = remaining3 - NLA_HDRLEN;
 
-                            for (int m = 0; m < 3; m++) {
+                            for (int m = 0; m < 2; m++) {
+                               bpf_printk("m=%d",m);
                                 if (remaining4 < sizeof(struct nlattr))
                                     break;
 
