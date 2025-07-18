@@ -66,8 +66,6 @@ All parameters have sensible defaults as specified below. Only the `--subscripti
 | `--kubernetes-version` | Kubernetes version for the cluster | `1.33` |
 | `--vm-size` | Azure VM size for cluster nodes | `Standard_B2s` |
 | `--networking-mode` | Networking mode (overlay, swift, nodesubnet, dualstack-overlay, vnetscale-swift) | `overlay` |
-| `--no-kube-proxy` | Create cluster without kube-proxy | `true` |
-| `--with-kube-proxy` | Create cluster with kube-proxy | Overrides --no-kube-proxy |
 | `--cni-plugin` | CNI plugin (cilium, azure-cni, none) | `cilium` |
 | `--cns-version` | CNS version to deploy | `v1.5.38` |
 | `--azure-ipam-version` | Azure IPAM version | `v0.3.0` |
@@ -80,17 +78,17 @@ All parameters have sensible defaults as specified below. Only the `--subscripti
 
 ## Networking Modes
 
-- **overlay**: Standard overlay networking mode (supports kube-proxy and no-kube-proxy)
-- **swift**: SWIFT networking mode (supports kube-proxy and no-kube-proxy)
-- **nodesubnet**: NodeSubnet networking mode (only supports no-kube-proxy)
-- **dualstack-overlay**: Dualstack overlay networking mode (supports kube-proxy and no-kube-proxy)
-- **vnetscale-swift**: VNet Scale SWIFT networking mode (supports kube-proxy and no-kube-proxy)
+- **overlay**: Standard overlay networking mode
+- **swift**: SWIFT networking mode  
+- **nodesubnet**: NodeSubnet networking mode
+- **dualstack-overlay**: Dualstack overlay networking mode
+- **vnetscale-swift**: VNet Scale SWIFT networking mode
 
 ## CNI Plugins
 
-- **cilium**: Deploy Cilium CNI with configurable versions (default)
-- **azure-cni**: Deploy Azure CNI Manager
-- **none**: Deploy only cluster and CNS, no CNI plugin
+- **cilium**: Deploy Cilium CNI with configurable versions (default, automatically disables kube-proxy)
+- **azure-cni**: Deploy Azure CNI Manager (automatically enables kube-proxy)
+- **none**: Deploy only cluster and CNS, no CNI plugin (automatically disables kube-proxy)
 
 ## Supported Cilium Versions
 
@@ -140,16 +138,7 @@ cd /path/to/azure-container-networking
     --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f
 ```
 
-### Example 5: Cluster with kube-proxy enabled
-```bash
-cd /path/to/azure-container-networking
-./hack/aks/create-byocni-cluster.sh \
-    --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f \
-    --networking-mode overlay \
-    --with-kube-proxy
-```
-
-### Example 6: Dualstack cluster with Cilium
+### Example 5: Dualstack cluster with Cilium
 ```bash
 cd /path/to/azure-container-networking
 ./hack/aks/create-byocni-cluster.sh \
@@ -159,7 +148,7 @@ cd /path/to/azure-container-networking
     --cilium-version-tag v1.17.0
 ```
 
-### Example 7: Cluster with specific Kubernetes version
+### Example 6: Cluster with specific Kubernetes version
 ```bash
 cd /path/to/azure-container-networking
 ./hack/aks/create-byocni-cluster.sh \

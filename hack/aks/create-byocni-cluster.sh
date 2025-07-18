@@ -46,8 +46,6 @@ OPTIONS:
     -k, --kubernetes-version VER    Kubernetes version for the cluster (default: ${DEFAULT_KUBERNETES_VERSION})
     -v, --vm-size VM_SIZE           Azure VM size for cluster nodes (default: ${DEFAULT_VM_SIZE})
     -n, --networking-mode MODE      Networking mode: overlay, swift, nodesubnet, dualstack-overlay, vnetscale-swift (default: ${DEFAULT_NETWORKING_MODE})
-    --no-kube-proxy                 Create cluster without kube-proxy (default: ${DEFAULT_NO_KUBE_PROXY})
-    --with-kube-proxy               Create cluster with kube-proxy (overrides --no-kube-proxy)
     --cni-plugin PLUGIN             CNI plugin to deploy: cilium, azure-cni, none (default: ${DEFAULT_CNI_PLUGIN})
     --cns-version VERSION           CNS version to deploy (default: ${DEFAULT_CNS_VERSION})
     --azure-ipam-version VERSION    Azure IPAM version (default: ${DEFAULT_AZURE_IPAM_VERSION})
@@ -86,9 +84,6 @@ EXAMPLES:
 
     # Custom cluster name and resource group
     $0 --cluster my-cluster --resource-group my-rg --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f
-
-    # Cluster with kube-proxy enabled
-    $0 --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f --with-kube-proxy
 
     # Using different Cilium version
     $0 --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f --cilium-dir 1.16 --cilium-version-tag v1.16.0
@@ -538,14 +533,6 @@ while [[ $# -gt 0 ]]; do
             NETWORKING_MODE="$2"
             shift 2
             ;;
-        --no-kube-proxy)
-            NO_KUBE_PROXY="true"
-            shift
-            ;;
-        --with-kube-proxy)
-            NO_KUBE_PROXY="false"
-            shift
-            ;;
         --cni-plugin)
             CNI_PLUGIN="$2"
             shift 2
@@ -599,6 +586,13 @@ if [[ -z "${SUBSCRIPTION}" ]]; then
     error "Subscription ID is required. Use --subscription to specify it."
     usage
     exit 1
+fi
+
+# Set kube-proxy configuration based on CNI plugin
+if [[ "${CNI_PLUGIN}" == "cilium" || "${CNI_PLUGIN}" == "none" ]]; then
+    NO_KUBE_PROXY="true"
+else
+    NO_KUBE_PROXY="false"
 fi
 
 # Main execution
