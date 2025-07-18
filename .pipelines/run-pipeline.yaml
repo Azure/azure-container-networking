@@ -158,7 +158,6 @@ stages:
                 archiveName: azure-ip-masq-merger
                 archiveVersion: $(AZURE_IP_MASQ_MERGER_VERSION)
                 imageTag: $(Build.BuildNumber)
-                condition: contains( variables['acn-ref'] , 'v1.7')
               cni:
                 name: cni
                 extraArgs: '--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
@@ -184,7 +183,6 @@ stages:
                 archiveName: azure-npm
                 archiveVersion: $(NPM_VERSION)
                 imageTag: $(Build.BuildNumber)
-                condition: contains( variables['acn-ref'] , 'v1.6')
 
         - job: windows_amd64
           displayName: "Windows"
@@ -221,7 +219,6 @@ stages:
                 archiveName: azure-npm
                 archiveVersion: $(NPM_VERSION)
                 imageTag: $(Build.BuildNumber)
-                condition: contains( variables['acn-ref'] , 'v1.6')
 
         - job: linux_arm64
           displayName: "Linux/ARM64"
@@ -245,7 +242,6 @@ stages:
                 archiveName: azure-ip-masq-merger
                 archiveVersion: $(AZURE_IP_MASQ_MERGER_VERSION)
                 imageTag: $(Build.BuildNumber)
-                condition: contains( variables['acn-ref'] , 'v1.7')
               cni:
                 name: cni
                 extraArgs: '--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
@@ -271,7 +267,6 @@ stages:
                 archiveName: azure-npm
                 archiveVersion: $(NPM_VERSION)
                 imageTag: $(Build.BuildNumber)
-                condition: contains( variables['acn-ref'] , 'v1.6')
 
 - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
   - stage: manifests
