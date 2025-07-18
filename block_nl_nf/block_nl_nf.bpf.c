@@ -16,6 +16,18 @@ __u32 host_netns_inode = 4026531840;  // Initialized by userspace, not const
 #define NLA_HDRLEN ((int) NLA_ALIGN(sizeof(struct nlattr)))
 #define NLA_F_NESTED (1 << 15)
 
+// Macro for reading and validating netlink attributes
+#define READ_ATTR(attr_var, attr_ptr, remaining_var) \
+    if (remaining_var < sizeof(struct nlattr)) \
+        break; \
+    struct nlattr attr_var = {}; \
+    if (bpf_probe_read_kernel(&attr_var, sizeof(attr_var), attr_ptr) < 0) \
+        break; \
+    __u16 attr_var##_len = attr_var.nla_len; \
+    __u16 attr_var##_type = attr_var.nla_type & 0x3fff; \
+    if (attr_var##_len < sizeof(struct nlattr) || attr_var##_len > remaining_var) \
+        break;
+
 struct nfgenmsg {
     __u8 nfgen_family;    /* AF_xxx */
     __u8 version;         /* nfnetlink version */
@@ -68,53 +80,43 @@ static __always_inline int is_comment(void *attr1_ptr, __u32 remaining1) {
     }
 }
 
-static __always_inline int is_cilium_comment(void *attr1_ptr, __u32 remaining) {
+static __always_inline int is_cilium_comment(void *attr_ptr, __u32 remaining) {
+    for(int i = 0; i < 2; i++) { // Skip first two attributes
+        if (remaining < NLA_HDRLEN) {
+            return 0;
+        }
+
+        struct nlattr attr = {};
+        if (bpf_probe_read_kernel(&attr, sizeof(attr), attr_ptr) < 0)
+            return 0;
+
+        __u16 attr_len = attr.nla_len;
+        if (attr_len < sizeof(struct nlattr) || attr_len > remaining)
+            return 0;
+
+        attr_ptr += NLA_ALIGN(attr_len);
+        remaining -= NLA_ALIGN(attr_len);
+    }
+
     if (remaining < NLA_HDRLEN) {
         return 0;
     }
 
-    struct nlattr attr1 = {};
-    if (bpf_probe_read_kernel(&attr1, sizeof(attr1), attr1_ptr) < 0)
+    struct nlattr attr = {};
+    if (bpf_probe_read_kernel(&attr, sizeof(attr), attr_ptr) < 0)
         return 0;
 
-    __u16 attr1_len = attr1.nla_len;
-    __u16 attr1_type = attr1.nla_type & 0x3fff;
+    __u16 attr_len = attr.nla_len;
 
-    if (attr1_len < sizeof(struct nlattr) || attr1_len > remaining)
+    if (attr_len < sizeof(struct nlattr) || attr_len > remaining)
         return 0;
 
-    void *attr2_ptr = attr1_ptr + NLA_ALIGN(attr1_len);
-    remaining = remaining - NLA_ALIGN(attr1_len);
-
-    if (remaining < sizeof(struct nlattr))
-        return 0;
-
-    struct nlattr attr2 = {};
-    if (bpf_probe_read_kernel(&attr2, sizeof(attr2), attr2_ptr) < 0)
-        return 0;
-
-    __u16 attr2_len = attr2.nla_len;
-    remaining -= NLA_ALIGN(attr2_len);
-    if (remaining < NLA_HDRLEN) {
-        return 0;
-    }
-
-    struct nlattr attr3 = {};
-    void *attr3_ptr = attr2_ptr + NLA_ALIGN(attr2_len);
-    if (bpf_probe_read_kernel(&attr3, sizeof(attr3), attr3_ptr) < 0)
-        return 0;
-
-    __u16 attr3_len = attr3.nla_len;
-
-    if (attr3_len < sizeof(struct nlattr) || attr3_len > remaining)
-        return 0;
-
-    int copy_len = attr3_len - NLA_HDRLEN;
+    int copy_len = attr_len - NLA_HDRLEN;
     if (copy_len > 32) {
         copy_len = 32;
     }
 
-    void *payload_ptr = attr3_ptr + NLA_HDRLEN;
+    void *payload_ptr = attr_ptr + NLA_HDRLEN;
     if (bpf_probe_read_kernel(payload, copy_len, payload_ptr) < 0)
         return 0;
 
@@ -130,128 +132,107 @@ static __always_inline int is_cilium_comment(void *attr1_ptr, __u32 remaining) {
     return 0;
 }
 
-static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_len) {
+
+static __always_inline int is_chain_allowed(void *data, __u32 data_len) {
     // Check we can read nfgenmsg
     if (data_len < sizeof(struct nfgenmsg))
         return 1;
 
-    bpf_printk("read past nfgenmsg");
+    // Read nfgenmsg
     void *attr1_ptr = data + sizeof(struct nfgenmsg);
     __u32 remaining1 = data_len - sizeof(struct nfgenmsg);
 
     #pragma unroll
     for (int i = 0; i < 3; i++) {
-       bpf_printk("i=%d",i);
-        if (remaining1 < sizeof(struct nlattr))
-            break;
-
-        struct nlattr attr1 = {};
-        if (bpf_probe_read_kernel(&attr1, sizeof(attr1), attr1_ptr) < 0)
-            break;
-
-        __u16 attr1_len = attr1.nla_len;
-        __u16 attr1_type = attr1.nla_type & 0x3fff;
-
-        bpf_printk("attr1 type: %d", attr1_type);
-
-        if (attr1_len < sizeof(struct nlattr) || attr1_len > remaining1)
-            break;
+        READ_ATTR(attr1, attr1_ptr, remaining1);
 
         if (attr1_type == NFTA_RULE_CHAIN) {
             char chain[MAX_CHAIN_LEN] = {};
-            __u32 copy_len = attr1_len - sizeof(struct nlattr);
+            __u32 copy_len = attr1_len - NLA_HDRLEN;
             if (copy_len >= MAX_CHAIN_LEN)
                 copy_len = MAX_CHAIN_LEN - 1;
 
-            if (bpf_probe_read_kernel(chain, copy_len, attr1_ptr + sizeof(struct nlattr)) < 0)
+            if (bpf_probe_read_kernel(chain, copy_len, attr1_ptr + NLA_HDRLEN) < 0)
                 break;
             bpf_printk("chain is %s", chain);
 
             #pragma unroll
             for (int j = 0; j < 2; j++) {
                 if (__builtin_memcmp(chain, ALLOWED_CHAINS[j], ALLOWED_CHAINS_SIZES[j]) == 0) {
+                    bpf_printk("Found allowed chain %s", chain);
                     return 1; // explicitly allowed
                 }
             }
-        } else if ((attr1.nla_type & NLA_F_NESTED) && attr1_type == 0x4) {
+        }
+
+        attr1_ptr += NLA_ALIGN(attr1_len);
+        remaining1 -= NLA_ALIGN(attr1_len);
+    }
+
+    return 0; // no NFTA_RULE_CHAIN found → allow
+}
+
+
+
+static __always_inline int is_comment_allowed(void *data, __u32 data_len) {
+    // Check we can read nfgenmsg
+    if (data_len < sizeof(struct nfgenmsg))
+        return 1;
+
+    void *attr1_ptr = data + sizeof(struct nfgenmsg);
+    __u32 remaining1 = data_len - sizeof(struct nfgenmsg);
+
+    for(int i = 0; i < 2; i++){ // skip 2 attributes - Rule table and chain
+       READ_ATTR(attr1, attr1_ptr, remaining1);
+       attr1_ptr += NLA_ALIGN(attr1_len);
+       remaining1 -= NLA_ALIGN(attr1_len);
+    }
+
+
+    for(int i = 0; i < 1; i++){ // 3rd attribute contains comments
+        READ_ATTR(attr1, attr1_ptr, remaining1);
+
+        if ((attr1.nla_type & NLA_F_NESTED) && attr1_type == 0x4) {
             void *attr2_ptr = attr1_ptr + NLA_HDRLEN;
             __u32 remaining2 = remaining1 - NLA_HDRLEN;
 
             for (int k = 0; k < 4; k++) {
-               bpf_printk("k=%d",k);
-                if (remaining2 < sizeof(struct nlattr))
-                    break;
-
-                struct nlattr attr2 = {};
-                if (bpf_probe_read_kernel(&attr2, sizeof(attr2), attr2_ptr) < 0)
-                    break;
-
-                __u16 attr2_len = attr2.nla_len;
-                __u16 attr2_type = attr2.nla_type & 0x3fff;
-                bpf_printk("read attr2 type %d is nested? %d", attr2_type, (attr2.nla_type & NLA_F_NESTED));
-                bpf_printk("attr2 len %d", attr2_len);
+                READ_ATTR(attr2, attr2_ptr, remaining2);
 
                 if (attr2.nla_type & NLA_F_NESTED) {
                     void *attr3_ptr = attr2_ptr + NLA_HDRLEN;
                     __u32 remaining3 = remaining2 - NLA_HDRLEN;
 
                     for (int l = 0; l < 2; l++) {
-                       bpf_printk("l=%d",l);
-                        if (remaining3 < sizeof(struct nlattr))
-                            break;
-
-                        struct nlattr attr3 = {};
-                        if (bpf_probe_read_kernel(&attr3, sizeof(attr3), attr3_ptr) < 0)
-                            break;
-
-                        __u16 attr3_len = attr3.nla_len;
-                        __u16 attr3_type = attr3.nla_type & 0x3fff;
-                        bpf_printk("read attr3 type %d is nested? %d", attr3_type, (attr3.nla_type & NLA_F_NESTED));
-                        bpf_printk("attr3 len %d", attr3_len);
+                        READ_ATTR(attr3, attr3_ptr, remaining3);
 
                         if (attr3.nla_type & NLA_F_NESTED) {
                             void *attr4_ptr = attr3_ptr + NLA_HDRLEN;
                             __u32 remaining4 = remaining3 - NLA_HDRLEN;
 
                             for (int m = 0; m < 2; m++) {
-                               bpf_printk("m=%d",m);
-                                if (remaining4 < sizeof(struct nlattr))
-                                    break;
-
-                                struct nlattr attr4 = {};
-                                if (bpf_probe_read_kernel(&attr4, sizeof(attr4), attr4_ptr) < 0)
-                                    break;
-
-                                __u16 attr4_len = attr4.nla_len;
-                                __u16 attr4_type = attr4.nla_type & 0x3fff;
-                                bpf_printk("read attr4 type %d is nested? %d", attr4_type, (attr4.nla_type & NLA_F_NESTED));
-                                bpf_printk("attr4 len %d", attr4_len);
+                                READ_ATTR(attr4, attr4_ptr, remaining4);
 
                                 if (attr4.nla_type & NLA_F_NESTED) {
                                     // We don't handle deeper nesting, so we just skip it
-                                    bpf_printk("skipping deeper nested attr4");
+                                    bpf_printk("Skipping deeper nested attribute past level 4");
                                 } else {
                                     if (is_comment(attr4_ptr, remaining4)) {
                                         if (is_cilium_comment(attr4_ptr, remaining4)) {
-                                            bpf_printk("found cilium comment in attr4");
+                                            bpf_printk("Found cilium comment, allow iptables rule");
                                             return 1; // allow because we found cilium comment
                                         }
                                     }
                                 }
-                                bpf_printk("attr4 payload %s", attr4_ptr + NLA_HDRLEN);
 
                                 attr4_ptr += NLA_ALIGN(attr4_len);
                                 remaining4 -= NLA_ALIGN(attr4_len);
                             }
-                        } else {
-                            bpf_printk("attr3 payload %s", attr3_ptr + NLA_HDRLEN);
                         }
 
                         attr3_ptr += NLA_ALIGN(attr3_len);
                         remaining3 -= NLA_ALIGN(attr3_len);
                     }
-                } else {
-                    bpf_printk("attr2 payload %s", attr2_ptr + NLA_HDRLEN);
                 }
 
                 attr2_ptr += NLA_ALIGN(attr2_len);
@@ -262,6 +243,7 @@ static __always_inline int is_chain_allowed_or_missing(void *data, __u32 data_le
         attr1_ptr += NLA_ALIGN(attr1_len);
         remaining1 -= NLA_ALIGN(attr1_len);
     }
+
 
     return 0; // no NFTA_RULE_CHAIN found → allow
 }
@@ -356,7 +338,11 @@ int BPF_PROG(block_nf_netlink, struct sock *sk, struct sk_buff *skb) {
         __u32 nlmsg_len = nlh.nlmsg_len;
 
         if (subsys_id == 10 && cmd == 6) {
-            if (is_chain_allowed_or_missing(data + sizeof(nlh), skb_len - sizeof(nlh))) {
+            if(is_chain_allowed(data + sizeof(nlh), skb_len - sizeof(nlh))) {
+                return 0;
+            }
+
+            if (is_comment_allowed(data + sizeof(nlh), skb_len - sizeof(nlh))) {
                 return 0;
             }
             return -EPERM;
