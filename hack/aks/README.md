@@ -65,6 +65,11 @@ Create a BYO CNI cluster with Cilium (default):
 make byocni-cluster-up CLUSTER=my-cluster SUB=<subscription-id>
 ```
 
+Create a BYO CNI cluster with Azure CNI:
+```bash
+make byocni-cluster-up CLUSTER=my-cluster SUB=<subscription-id> CNI_TYPE=azurecni
+```
+
 ### Customization
 
 All parameters are configurable:
@@ -72,21 +77,44 @@ All parameters are configurable:
 make byocni-cluster-up \
     CLUSTER=my-cilium-cluster \
     SUB=<subscription-id> \
+    VM_SIZE=Standard_D2s_v3 \
     CNS_VERSION=v1.6.0 \
     CILIUM_DIR=1.16 \
     CILIUM_VERSION_TAG=v1.16.5 \
     CILIUM_IMAGE_REGISTRY=mcr.microsoft.com/containernetworking
 ```
 
+Using different image repositories:
+```bash
+# Using MCR for both CNS and Cilium
+make byocni-cluster-up \
+    CLUSTER=my-cluster \
+    SUB=<subscription-id> \
+    CNS_IMAGE_REPO=MCR \
+    CILIUM_IMAGE_REGISTRY=mcr.microsoft.com/containernetworking
+
+# Using ACR for CNS and custom registry for Cilium  
+make byocni-cluster-up \
+    CLUSTER=my-cluster \
+    SUB=<subscription-id> \
+    CNS_IMAGE_REPO=ACR \
+    CILIUM_IMAGE_REGISTRY=my-registry.azurecr.io/cilium
+```
+
 ### Available Configuration
 
-- `CNI_TYPE`: cilium (default) - Future CNI types can be added
+- `CNI_TYPE`: cilium, azurecni (default: cilium)
+- `VM_SIZE`: Node VM size (default: Standard_B2s)
 - `CNS_VERSION`: CNS version to deploy (default: v1.5.38)
 - `AZURE_IPAM_VERSION`: Azure IPAM version (default: v0.3.0)
 - `CNS_IMAGE_REPO`: CNS image repository - MCR or ACR (default: MCR)
+  - MCR: Uses Microsoft Container Registry paths
+  - ACR: Uses Azure Container Registry paths  
 - `CILIUM_DIR`: Cilium version directory - 1.12, 1.13, 1.14, 1.16, 1.17 (default: 1.14)
 - `CILIUM_VERSION_TAG`: Cilium image tag (default: v1.14.8)
 - `CILIUM_IMAGE_REGISTRY`: Cilium image registry (default: acnpublic.azurecr.io)
+  - Can be set to mcr.microsoft.com/containernetworking for MCR
+  - Or custom registry URL
 - `IPV6_HP_BPF_VERSION`: IPv6 HP BPF version for dual stack (default: v0.0.3)
 - `DUALSTACK`: Enable dual-stack configuration (default: false)
 
@@ -97,11 +125,17 @@ make byocni-cluster-vars
 
 ### Workflow
 
-The `byocni-cluster-up` target orchestrates three main steps:
+The `byocni-cluster-up` target orchestrates the complete setup workflow:
 
-1. **Cluster Creation**: Uses `overlay-byocni-nokubeproxy-up` to create AKS cluster
+**For Cilium CNI (default):**
+1. **Cluster Creation**: Uses `overlay-byocni-nokubeproxy-up` to create AKS cluster without CNI
 2. **CNS Deployment**: Uses root makefile `test-load` target with CNS-specific parameters  
 3. **CNI Deployment**: Deploys Cilium using manifests from `test/integration/manifests/cilium/`
+
+**For Azure CNI:**
+1. **Cluster Creation**: Uses `overlay-up` to create AKS cluster with Azure CNI pre-configured
+2. **CNS Deployment**: Uses root makefile `test-load` target with CNS-specific parameters
+3. **CNI Configuration**: Azure CNI is already configured - no additional deployment needed
 
 Individual steps can also be run separately:
 ```bash

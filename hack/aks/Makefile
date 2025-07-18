@@ -442,15 +442,21 @@ byocni-cluster-up: ## Create complete BYO CNI cluster with CNS and CNI (default:
 	@echo "Creating BYO CNI cluster with CNS and $(CNI_TYPE)..."
 	@echo "Variables: CLUSTER=$(CLUSTER), CNS_VERSION=$(CNS_VERSION), CNI_TYPE=$(CNI_TYPE)"
 	@$(MAKE) validate-cni-type
+ifeq ($(CNI_TYPE),azurecni)
+	@$(MAKE) overlay-up
+else
 	@$(MAKE) overlay-byocni-nokubeproxy-up
+endif
 	@echo "Cluster created successfully. Deploying CNS..."
 	@$(MAKE) deploy-cns
 	@echo "CNS deployed successfully. Deploying $(CNI_TYPE)..."
 ifeq ($(CNI_TYPE),cilium)
 	@$(MAKE) deploy-cilium
+else ifeq ($(CNI_TYPE),azurecni)
+	@echo "Azure CNI is already configured in the cluster. No additional CNI deployment needed."
 else
-	@echo "Warning: CNI_TYPE=$(CNI_TYPE) not supported yet. Only cilium is currently supported."
-	@echo "Available CNI types: cilium"
+	@echo "Warning: CNI_TYPE=$(CNI_TYPE) not supported yet."
+	@echo "Available CNI types: cilium, azurecni"
 	@exit 1
 endif
 	@echo "BYO CNI cluster setup completed successfully!"
@@ -458,10 +464,13 @@ endif
 validate-cni-type: ## Validate the CNI type
 ifeq ($(CNI_TYPE),cilium)
 	@echo "✓ CNI type validation passed: $(CNI_TYPE)"
+else ifeq ($(CNI_TYPE),azurecni)
+	@echo "✓ CNI type validation passed: $(CNI_TYPE)"
 else
 	@echo "✗ Error: CNI_TYPE=$(CNI_TYPE) is not supported."
-	@echo "Available CNI types: cilium"
+	@echo "Available CNI types: cilium, azurecni"
 	@echo "Example: make byocni-cluster-up CNI_TYPE=cilium"
+	@echo "Example: make byocni-cluster-up CNI_TYPE=azurecni"
 	@exit 1
 endif
 
@@ -504,6 +513,7 @@ byocni-cluster-vars: ## Show variables for BYO CNI cluster setup
 	@echo "  REGION=$(REGION)"
 	@echo "  SUB=$(SUB)"
 	@echo "  VNET=$(VNET)"
+	@echo "  VM_SIZE=$(VM_SIZE)"
 	@echo ""
 	@echo "CNI configuration:"
 	@echo "  CNI_TYPE=$(CNI_TYPE)"
@@ -511,7 +521,7 @@ byocni-cluster-vars: ## Show variables for BYO CNI cluster setup
 	@echo "CNS configuration:"
 	@echo "  CNS_VERSION=$(CNS_VERSION)"
 	@echo "  AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION)"
-	@echo "  CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)"
+	@echo "  CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) (MCR/ACR - affects CNS image paths)"
 	@echo ""
 	@echo "Cilium configuration:"
 	@echo "  CILIUM_DIR=$(CILIUM_DIR)"
@@ -520,9 +530,15 @@ byocni-cluster-vars: ## Show variables for BYO CNI cluster setup
 	@echo "  IPV6_HP_BPF_VERSION=$(IPV6_HP_BPF_VERSION)"
 	@echo "  DUALSTACK=$(DUALSTACK)"
 	@echo ""
+	@echo "Image registry options:"
+	@echo "  - MCR: mcr.microsoft.com/containernetworking"
+	@echo "  - ACR: acnpublic.azurecr.io (default for Cilium)"
+	@echo "  - Custom: your-registry.azurecr.io/path"
+	@echo ""
 	@echo "Repository root:"
 	@echo "  REPO_ROOT=$(REPO_ROOT)"
 	@echo ""
 	@echo "Example usage:"
 	@echo "  make byocni-cluster-up CLUSTER=my-cluster SUB=<subscription-id>"
+	@echo "  make byocni-cluster-up CLUSTER=my-cluster SUB=<subscription-id> CNI_TYPE=azurecni"  
 	@echo "  make byocni-cluster-up CLUSTER=my-cluster SUB=<subscription-id> CNS_VERSION=v1.6.0 CILIUM_DIR=1.16 CILIUM_VERSION_TAG=v1.16.5"
