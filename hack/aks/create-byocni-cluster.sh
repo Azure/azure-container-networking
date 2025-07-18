@@ -9,6 +9,7 @@ set -euo pipefail
 # Default configuration
 DEFAULT_CLUSTER_NAME="byocni-cluster"
 DEFAULT_SUB=""
+DEFAULT_RESOURCE_GROUP=""
 DEFAULT_NETWORKING_MODE="overlay"
 DEFAULT_NO_KUBE_PROXY="true"
 DEFAULT_CNI_PLUGIN="cilium"
@@ -39,6 +40,7 @@ Creates a BYO CNI cluster with the following steps:
 OPTIONS:
     -c, --cluster CLUSTER_NAME      Name of the AKS cluster (default: ${DEFAULT_CLUSTER_NAME})
     -s, --subscription SUB_ID       Azure subscription ID (required)
+    -g, --resource-group GROUP      Resource group name (default: same as cluster name)
     -z, --azcli AZCLI_COMMAND      Azure CLI command (default: ${DEFAULT_AZCLI})
     -k, --kubernetes-version VER    Kubernetes version for the cluster (default: ${DEFAULT_KUBERNETES_VERSION})
     -n, --networking-mode MODE      Networking mode: overlay, swift, nodesubnet, dualstack-overlay, vnetscale-swift (default: ${DEFAULT_NETWORKING_MODE})
@@ -79,6 +81,9 @@ EXAMPLES:
 
     # Custom cluster name and CNS version
     $0 --cluster my-cluster --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f --cns-version v1.6.0
+
+    # Custom cluster name and resource group
+    $0 --cluster my-cluster --resource-group my-rg --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f
 
     # Cluster with kube-proxy enabled
     $0 --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f --with-kube-proxy
@@ -319,7 +324,12 @@ create_cluster() {
         log "Kubernetes version ${KUBERNETES_VERSION} is >= 1.31, setting LTS=false"
     fi
     
-    local make_cmd="AZCLI=${AZCLI} CLUSTER=${CLUSTER_NAME} SUB=${SUBSCRIPTION} K8S_VER=${KUBERNETES_VERSION} LTS=${lts_setting} make ${make_target}"
+    # Build make command with optional GROUP parameter
+    local make_cmd="AZCLI=${AZCLI} CLUSTER=${CLUSTER_NAME} SUB=${SUBSCRIPTION} K8S_VER=${KUBERNETES_VERSION} LTS=${lts_setting}"
+    if [[ -n "${RESOURCE_GROUP}" ]]; then
+        make_cmd="${make_cmd} GROUP=${RESOURCE_GROUP}"
+    fi
+    make_cmd="${make_cmd} make ${make_target}"
     
     log "Using make target: ${make_target}"
     execute "cd '${SCRIPT_DIR}' && ${make_cmd}"
@@ -480,6 +490,7 @@ show_completion_message() {
 # Parse command line arguments
 CLUSTER_NAME="${DEFAULT_CLUSTER_NAME}"
 SUBSCRIPTION="${DEFAULT_SUB}"
+RESOURCE_GROUP="${DEFAULT_RESOURCE_GROUP}"
 NETWORKING_MODE="${DEFAULT_NETWORKING_MODE}"
 NO_KUBE_PROXY="${DEFAULT_NO_KUBE_PROXY}"
 CNI_PLUGIN="${DEFAULT_CNI_PLUGIN}"
@@ -502,6 +513,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -s|--subscription)
             SUBSCRIPTION="$2"
+            shift 2
+            ;;
+        -g|--resource-group)
+            RESOURCE_GROUP="$2"
             shift 2
             ;;
         -z|--azcli)
@@ -585,6 +600,7 @@ main() {
     log "Configuration:"
     log "  Cluster Name: ${CLUSTER_NAME}"
     log "  Subscription: ${SUBSCRIPTION}"
+    log "  Resource Group: ${RESOURCE_GROUP:-${CLUSTER_NAME}}"
     log "  Azure CLI: ${AZCLI}"
     log "  Kubernetes Version: ${KUBERNETES_VERSION}"
     log "  Networking Mode: ${NETWORKING_MODE}"

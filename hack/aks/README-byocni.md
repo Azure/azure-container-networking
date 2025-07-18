@@ -58,6 +58,7 @@ cd /path/to/azure-container-networking
 |-----------|-------------|---------|
 | `--cluster` | Name of the AKS cluster | `byocni-cluster` |
 | `--subscription` | Azure subscription ID | *Required* |
+| `--resource-group` | Resource group name | Same as cluster name |
 | `--azcli` | Azure CLI command | `az` |
 | `--kubernetes-version` | Kubernetes version for the cluster | `1.33` |
 | `--networking-mode` | Networking mode (overlay, swift, nodesubnet, dualstack-overlay, vnetscale-swift) | `overlay` |
@@ -126,7 +127,16 @@ cd /path/to/azure-container-networking
     --cilium-dir 1.16
 ```
 
-### Example 4: Cluster with kube-proxy enabled
+### Example 4: Custom cluster and resource group
+```bash
+cd /path/to/azure-container-networking
+./hack/aks/create-byocni-cluster.sh \
+    --cluster my-aks-cluster \
+    --resource-group my-resource-group \
+    --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f
+```
+
+### Example 5: Cluster with kube-proxy enabled
 ```bash
 cd /path/to/azure-container-networking
 ./hack/aks/create-byocni-cluster.sh \
@@ -135,7 +145,7 @@ cd /path/to/azure-container-networking
     --with-kube-proxy
 ```
 
-### Example 5: Dualstack cluster with Cilium
+### Example 6: Dualstack cluster with Cilium
 ```bash
 cd /path/to/azure-container-networking
 ./hack/aks/create-byocni-cluster.sh \
@@ -145,7 +155,7 @@ cd /path/to/azure-container-networking
     --cilium-version-tag v1.17.0
 ```
 
-### Example 6: Cluster with specific Kubernetes version
+### Example 7: Cluster with specific Kubernetes version
 ```bash
 cd /path/to/azure-container-networking
 ./hack/aks/create-byocni-cluster.sh \
@@ -155,7 +165,7 @@ cd /path/to/azure-container-networking
     --cni-plugin cilium
 ```
 
-### Example 7: Only cluster and CNS, no CNI plugin
+### Example 8: Only cluster and CNS, no CNI plugin
 ```bash
 cd /path/to/azure-container-networking
 ./hack/aks/create-byocni-cluster.sh \
@@ -163,7 +173,7 @@ cd /path/to/azure-container-networking
     --cni-plugin none
 ```
 
-### Example 8: Using different image registry
+### Example 9: Using different image registry
 ```bash
 cd /path/to/azure-container-networking
 ./hack/aks/create-byocni-cluster.sh \
