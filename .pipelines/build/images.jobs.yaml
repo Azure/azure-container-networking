@@ -7,10 +7,8 @@ jobs:
 - ${{ each job_data in parameters.images }}:
   - job: pkg_${{ job_data.job }}
     displayName: "Prepare Image Package - ${{ job_data.displayName }} -"
-    ${{ if job_data.strategy.matrix.azure_ip_masq_merger }}:
-      condition: ${{ job_data.strategy.matrix.azure_ip_masq_merger.shouldRun }}
-    ${{ if job_data.strategy.matrix.npm }}:
-      condition: ${{ job_data.strategy.matrix.npm.shouldRun }}
+    ${{ if job_data.condition }}:
+      condition: ${{ job_data.condition }}
     ${{ if job_data.strategy }}:
       strategy: ${{ job_data.strategy }}
     ${{ if job_data.dependsOn }}:

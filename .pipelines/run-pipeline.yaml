@@ -17,6 +17,7 @@ stages:
           repositoryArtifact: drop_setup_env_source
           buildScript: .pipelines/build/scripts/$(name).sh
           obDockerfile: .pipelines/build/dockerfiles/$(name).Dockerfile
+        condition: contains( variables['acn-ref'] , variables['version'])
         strategy:
           maxParallel: 5
           matrix:
@@ -26,14 +27,14 @@ stages:
               archiveName: azure-ip-masq-merger
               archiveVersion: $(AZURE_IP_MASQ_MERGER_VERSION)
               imageTag: $(Build.BuildNumber)
-              shouldRun: contains( variables['acn-ref'] , 'v1.7')
+              version: 'v1.7'
             npm:
               name: npm
               extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
               archiveName: azure-npm
               archiveVersion: $(NPM_VERSION)
               imageTag: $(Build.BuildNumber)
-              shouldRun: contains( variables['acn-ref'] , 'v1.6')
+              version: 'v1.6'
 
   - job: copy
     displayName: Copy Pipeline Files
