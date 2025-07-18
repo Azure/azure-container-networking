@@ -15,6 +15,7 @@ trigger:
   branches:
     include:
       - gh-readonly-queue/master/*
+      - gh-readonly-queue/release/*
   tags:
     include:
       - "*"
