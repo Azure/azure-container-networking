@@ -29,6 +29,7 @@ Follow the steps below to build and run the program:
     ```
     - The `--input` flag specifies the directory containing allowed regex pattern files. Default: `/etc/config/`
     - The `--interval` flag specifies how often to check iptables rules in seconds. Default: `600`
+    - The `--events` flag enables Kubernetes event creation for rule violations. Default: `false`
     - The program must be in a k8 environment and `NODE_NAME` must be a set environment variable with the current node.
 
 5. The program will set the `user-iptables-rules` label on the current node to `true` if unexpected rules are found, or `false` if all rules match expected patterns. Proper RBAC is required for patching the node.

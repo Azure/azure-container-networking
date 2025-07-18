@@ -11,6 +11,7 @@ import (
 	"time"
 
 	goiptables "github.com/coreos/go-iptables/iptables"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -26,6 +27,7 @@ var version string
 var (
 	configPath    = flag.String("input", "/etc/config/", "Name of the directory with the allowed regex files")
 	checkInterval = flag.Int("interval", 600, "How often to check iptables rules (in seconds)")
+	sendEvents    = flag.Bool("events", false, "Whether to send node events if unexpected iptables rules are detected")
 )
 
 const nodeLabel = "user-iptables-rules"
@@ -83,6 +85,49 @@ func patchNodeLabel(clientset *kubernetes.Clientset, labelValue bool, nodeName s
 	if err != nil {
 		return fmt.Errorf("failed to patch node %s with label %s=%v: %w", nodeName, nodeLabel, labelValue, err)
 	}
+	return nil
+}
+
+// createNodeEvent creates a Kubernetes event for the specified node
+func createNodeEvent(clientset *kubernetes.Clientset, nodeName, reason, message, eventType string) error {
+	node, err := clientset.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get node %s: %w", nodeName, err)
+	}
+
+	now := metav1.NewTime(time.Now())
+
+	event := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s.%d", nodeName, now.Unix()),
+			Namespace: "default",
+		},
+		InvolvedObject: corev1.ObjectReference{
+			Kind:       "Node",
+			Name:       nodeName,
+			UID:        node.UID, // required for event to show up in node describe
+			APIVersion: "v1",
+		},
+		Reason:         reason,
+		Message:        message,
+		Type:           eventType,
+		FirstTimestamp: now,
+		LastTimestamp:  now,
+		Count:          1,
+		Source: corev1.EventSource{
+			Component: "azure-iptables-monitor",
+		},
+	}
+	_, err = clientset.CoreV1().Events("default").Create(
+		context.TODO(),
+		event,
+		metav1.CreateOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create event for node %s: %w", nodeName, err)
+	}
+
+	klog.V(2).Infof("Created event for node %s: %s - %s", nodeName, reason, message)
 	return nil
 }
 
@@ -229,6 +274,13 @@ func main() {
 			klog.Errorf("failed to patch node label: %v", err)
 		} else {
 			klog.V(2).Infof("Successfully updated node label for %s: %s=%v", currentNodeName, nodeLabel, userIPTablesRulesFound)
+		}
+
+		if *sendEvents && userIPTablesRulesFound {
+			err = createNodeEvent(clientset, currentNodeName, "UnexpectedIPTablesRules", "Node has unexpected iptables rules", corev1.EventTypeWarning)
+			if err != nil {
+				klog.Errorf("failed to create event: %v", err)
+			}
 		}
 
 		time.Sleep(time.Duration(*checkInterval) * time.Second)
