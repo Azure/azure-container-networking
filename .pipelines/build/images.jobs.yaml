@@ -46,17 +46,6 @@ jobs:
         ARCH: arm64
         GOARCH: arm64
     steps:
-    - script: |
-        if [ -z "$(archiveVersion)" ] || [ "$(archiveVersion)" = "undefined" ] || [ "$(archiveVersion)" = "null" ]; then
-          echo "##vso[task.logissue type=error]archiveVersion is invalid or empty: '$(archiveVersion)'"
-          echo "##vso[task.setvariable variable=archiveVersionValid]false"
-        else
-          echo "archiveVersion is valid: $(archiveVersion)"
-          echo "##vso[task.setvariable variable=archiveVersionValid]true"
-        fi
-      displayName: "Validate Archive Version"
-      continueOnError: true
-
     - task: DownloadPipelineArtifact@2
       inputs:
         targetPath: $(REPO_ROOT)
@@ -90,8 +79,7 @@ jobs:
       displayName: "Package with DropGZ"
       condition: and(
         succeeded(),
-        eq(variables.packageWithDropGZ, 'True'),
-        eq(variables['archiveVersionValid'], 'true'))
+        eq(variables.packageWithDropGZ, 'True'))
       inputs:
         scriptPath: $(REPO_ROOT)/.pipelines/build/scripts/dropgz.sh
 
@@ -99,8 +87,7 @@ jobs:
       - task: onebranch.pipeline.signing@1
         condition: and(
           succeeded(),
-          eq(variables.packageWithDropGZ, 'True'),
-          eq(variables['archiveVersionValid'], 'true'))
+          eq(variables.packageWithDropGZ, 'True'))
         inputs:
           command: 'sign'
           signing_profile: 'external_distribution'
@@ -136,7 +123,6 @@ jobs:
       ob_artifactSuffix: _$(name)
       ob_git_checkout: false
       ob_extract_root_artifact: true
-      archiveVersionValid: $[ dependencies.pkg_${{ job_data.job }}.outputs['validateArchive.archiveVersionValid'] ]
       ${{ if eq(job_data.job, 'linux_amd64') }}:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
         ARCH: amd64
