@@ -44,7 +44,7 @@ stages:
 
 - template: templates/run-unit-tests.stages.yaml@acn-devops
 
-- ${{ if eq(parameters.releaseTrain, 'v1.7') }}:
+- ${{ if eq(parameters.triggerBuildSourceBranch, 'v1.7') }}:
   - stage: build
     displayName: "Build Project"
     dependsOn:
@@ -203,7 +203,7 @@ stages:
                 archiveVersion: $(NPM_VERSION)
                 imageTag: $(Build.BuildNumber)
 
-- ${{ if eq(parameters.releaseTrain, 'v1.6') }}:
+- ${{ if eq(parameters.triggerBuildSourceBranch, 'v1.6') }}:
   - stage: build
     displayName: "Build Project"
     dependsOn:
@@ -350,7 +350,7 @@ stages:
                 archiveVersion: $(NPM_VERSION)
                 imageTag: $(Build.BuildNumber)
 
-- ${{ if eq(parameters.releaseTrain, 'v1.5') }}:
+- ${{ if eq(parameters.triggerBuildSourceBranch, 'v1.5') }}:
 
   - stage: build
     displayName: "Build Project"
