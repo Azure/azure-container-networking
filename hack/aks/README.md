@@ -88,6 +88,7 @@ make byocni-cluster-up \
 - `CILIUM_VERSION_TAG`: Cilium image tag (default: v1.14.8)
 - `CILIUM_IMAGE_REGISTRY`: Cilium image registry (default: acnpublic.azurecr.io)
 - `IPV6_HP_BPF_VERSION`: IPv6 HP BPF version for dual stack (default: v0.0.3)
+- `DUALSTACK`: Enable dual-stack configuration (default: false)
 
 View all configuration variables:
 ```bash

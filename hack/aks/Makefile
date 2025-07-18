@@ -42,6 +42,7 @@ CILIUM_DIR             ?= 1.14
 CILIUM_VERSION_TAG     ?= v1.14.8
 CILIUM_IMAGE_REGISTRY  ?= acnpublic.azurecr.io
 IPV6_HP_BPF_VERSION    ?= v0.0.3
+DUALSTACK              ?= false
 REPO_ROOT              ?= $(shell git rev-parse --show-toplevel)
 
 # Long Term Support (LTS)
@@ -128,6 +129,7 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo CILIUM_VERSION_TAG=$(CILIUM_VERSION_TAG)
 	@echo CILIUM_IMAGE_REGISTRY=$(CILIUM_IMAGE_REGISTRY)
 	@echo IPV6_HP_BPF_VERSION=$(IPV6_HP_BPF_VERSION)
+	@echo DUALSTACK=$(DUALSTACK)
 	@echo REPO_ROOT=$(REPO_ROOT)
 
 
@@ -480,7 +482,12 @@ deploy-cilium: ## Deploy Cilium to the cluster
 		echo "Available versions: $$(ls $(REPO_ROOT)/test/integration/manifests/cilium/ | grep '^v' | tr '\n' ' ')"; \
 		exit 1; \
 	fi
+ifeq ($(DUALSTACK),true)
+	@echo "Deploying Cilium with dual-stack configuration..."
+	kubectl apply -f $(REPO_ROOT)/test/integration/manifests/cilium/v$(CILIUM_DIR)/cilium-config/cilium-config-dualstack.yaml
+else
 	kubectl apply -f $(REPO_ROOT)/test/integration/manifests/cilium/v$(CILIUM_DIR)/cilium-config/cilium-config.yaml
+endif
 	kubectl apply -f $(REPO_ROOT)/test/integration/manifests/cilium/v$(CILIUM_DIR)/cilium-operator/files
 	kubectl apply -f $(REPO_ROOT)/test/integration/manifests/cilium/v$(CILIUM_DIR)/cilium-agent/files
 	@export CILIUM_VERSION_TAG=$(CILIUM_VERSION_TAG) && \
@@ -511,6 +518,7 @@ byocni-cluster-vars: ## Show variables for BYO CNI cluster setup
 	@echo "  CILIUM_VERSION_TAG=$(CILIUM_VERSION_TAG)"
 	@echo "  CILIUM_IMAGE_REGISTRY=$(CILIUM_IMAGE_REGISTRY)"
 	@echo "  IPV6_HP_BPF_VERSION=$(IPV6_HP_BPF_VERSION)"
+	@echo "  DUALSTACK=$(DUALSTACK)"
 	@echo ""
 	@echo "Repository root:"
 	@echo "  REPO_ROOT=$(REPO_ROOT)"
