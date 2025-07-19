@@ -8,7 +8,7 @@
 #include <bpf/libbpf.h>
 #include "block_nl_nf.skel.h"
 
-#define DEFAULT_CONFIG_FILE "/etc/conf/net.d/iptables-allow-list"
+#define DEFAULT_CONFIG_FILE "/etc/cni/net.d/iptables-allow-list"
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define BUF_LEN (1024 * (EVENT_SIZE + 16))
 
