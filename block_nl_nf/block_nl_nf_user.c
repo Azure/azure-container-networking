@@ -25,20 +25,6 @@ static __u32 get_host_netns_inode(void) {
     return (__u32)st.st_ino;
 }
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/inotify.h>
-#include <sys/stat.h>
-#include <bpf/libbpf.h>
-#include "block_nl_nf.skel.h"
-
-#define DEFAULT_CONFIG_FILE "/etc/cni/net.d/iptables-allow-list"
-#define EVENT_SIZE (sizeof(struct inotify_event))
-#define BUF_LEN (1024 * (EVENT_SIZE + 16))
-
 static int is_file_empty_or_missing(const char *filename) {
     struct stat st;
     
