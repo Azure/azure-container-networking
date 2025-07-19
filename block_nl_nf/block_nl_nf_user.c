@@ -1,4 +1,29 @@
-// block_nl_nf_user.c
+//#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <errno.h>
+#include <sys/inotify.h>
+#include <sys/stat.h>
+#include <bpf/libbpf.h>
+#include "block_nl_nf.skel.h"
+
+#define DEFAULT_CONFIG_FILE "/etc/conf/net.d/iptables-allow-list"
+#define EVENT_SIZE (sizeof(struct inotify_event))
+#define BUF_LEN (1024 * (EVENT_SIZE + 16))
+
+static __u32 get_host_netns_inode(void) {
+    struct stat st;
+    
+    // Read the network namespace inode of the current process (which should be host ns)
+    if (stat("/proc/self/ns/net", &st) != 0) {
+        fprintf(stderr, "Failed to stat /proc/self/ns/net: %s\n", strerror(errno));
+        return 0;
+    }
+    
+    printf("Host network namespace inode: %lu\n", (unsigned long)st.st_ino);
+    return (__u32)st.st_ino;
+}
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,6 +65,7 @@ static int is_file_empty_or_missing(const char *filename) {
 static int attach_bpf_program(struct block_nl_nf **skel_ptr) {
     struct block_nl_nf *skel;
     int err;
+    __u32 host_netns_inode;
     
     if (*skel_ptr) {
         printf("BPF program already attached\n");
@@ -53,6 +79,17 @@ static int attach_bpf_program(struct block_nl_nf **skel_ptr) {
         fprintf(stderr, "Failed to open BPF skeleton\n");
         return -1;
     }
+    
+    // Get the host network namespace inode
+    host_netns_inode = get_host_netns_inode();
+    if (host_netns_inode == 0) {
+        fprintf(stderr, "Failed to get host network namespace inode\n");
+        block_nl_nf__destroy(skel);
+        return -1;
+    }
+    
+    // Set the host_netns_inode in the BPF program before loading
+    skel->data->host_netns_inode = host_netns_inode;
     
     err = block_nl_nf__load(skel);
     if (err) {
@@ -69,7 +106,7 @@ static int attach_bpf_program(struct block_nl_nf **skel_ptr) {
     }
     
     *skel_ptr = skel;
-    printf("BPF program attached successfully\n");
+    printf("BPF program attached successfully with host_netns_inode=%u\n", host_netns_inode);
     return 0;
 }
 
