@@ -119,10 +119,10 @@ stages:
     dependsOn:
       - ${{ if and(eq(parameters.os, 'linux'), not(parameters.upgradeScenario)) }}:
         - create_${{ parameters.name }}
-      - ${{ else }}:
-        - ${{ parameters.dependsOn }}
       - ${{ if eq(parameters.os, 'windows') }}:
         - create_${{ parameters.name }}
+      - ${{ if parameters.upgradeScenario }}:
+        - ${{ parameters.dependsOn }}
       - publish
       - setup
     displayName: "CNIv2 Test - ${{ parameters.name }}"
