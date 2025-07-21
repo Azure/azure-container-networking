@@ -117,12 +117,17 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
-      - ${{ if and(eq(parameters.os, 'linux'), not(parameters.upgradeScenario)) }}:
-        - create_${{ parameters.name }}
-      - ${{ if eq(parameters.os, 'windows') }}:
-        - create_${{ parameters.name }}
-      - ${{ if parameters.upgradeScenario }}:
+      ${{ if parameters.upgradeScenario }}:
+      dependsOn:
         - ${{ parameters.dependsOn }}
+        - publish
+        - setup
+    ${{ else }}:
+      dependsOn:
+        - ${{ if eq(parameters.os, 'linux') }}:
+          - create_${{ parameters.name }}
+        - ${{ if eq(parameters.os, 'windows') }}:
+          - create_${{ parameters.name }}
       - publish
       - setup
     displayName: "CNIv2 Test - ${{ parameters.name }}"
