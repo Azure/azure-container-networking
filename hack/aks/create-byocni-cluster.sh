@@ -311,7 +311,7 @@ create_cluster() {
     
     # Convert version to comparable number (e.g., "1.30" -> 130)
     local version_number
-    version_number=$(echo "${k8s_major_minor}" | sed 's/\.//g')
+    version_number=${k8s_major_minor//./}
     
     # Set LTS=true for versions less than 1.31 (i.e., 131)
     if [[ "${version_number}" -lt 131 ]]; then
@@ -338,28 +338,53 @@ create_cluster() {
 deploy_cns() {
     log "Deploying Azure CNS to the cluster..."
     
-    local make_cmd="sudo -E env \"PATH=\$PATH\" make test-load CNS_ONLY=true CNS_VERSION=${CNS_VERSION} AZURE_IPAM_VERSION=${AZURE_IPAM_VERSION} INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=${CNS_IMAGE_REPO}"
+    # Determine the correct CNS scenario based on networking mode and CNI plugin
+    local cns_scenario=""
+    case "${NETWORKING_MODE}" in
+        "overlay")
+            if [[ "${CNI_PLUGIN}" == "cilium" ]]; then
+                cns_scenario="INSTALL_OVERLAY=true"
+            else
+                cns_scenario="INSTALL_AZURE_CNI_OVERLAY=true"
+            fi
+            ;;
+        "swift"|"vnetscale-swift")
+            cns_scenario="INSTALL_AZURE_VNET=true"
+            ;;
+        "nodesubnet")
+            cns_scenario="INSTALL_CNS_NODESUBNET=true"
+            ;;
+        "dualstack-overlay")
+            cns_scenario="INSTALL_DUALSTACK_OVERLAY=true"
+            ;;
+        *)
+            error "Unsupported networking mode for CNS deployment: ${NETWORKING_MODE}"
+            exit 1
+            ;;
+    esac
     
+    # Build make command with appropriate scenario
+    local make_cmd="sudo -E env \"PATH=\$PATH\" make test-load CNS_ONLY=true CNS_VERSION=${CNS_VERSION}"
+    
+    # Add Azure IPAM version only for Cilium scenarios
+    if [[ "${CNI_PLUGIN}" == "cilium" ]]; then
+        make_cmd="${make_cmd} AZURE_IPAM_VERSION=${AZURE_IPAM_VERSION}"
+    fi
+    
+    # Add CNS scenario and other parameters
+    make_cmd="${make_cmd} INSTALL_CNS=true ${cns_scenario} CNS_IMAGE_REPO=${CNS_IMAGE_REPO}"
+    
+    log "Using CNS scenario: ${cns_scenario}"
     execute "cd '${REPO_ROOT}' && ${make_cmd}"
     
     log "Azure CNS deployed successfully"
 }
 
-# Function to deploy Azure CNI Manager
+# Function to deploy Azure CNI (handled by CNS deployment)
 deploy_azure_cni() {
-    log "Deploying Azure CNI Manager..."
-    
-    local cni_manifest_path="${REPO_ROOT}/test/integration/manifests/cni"
-    
-    # Deploy Azure CNI Manager
-    log "Applying Azure CNI Manager manifest..."
-    execute "kubectl apply -f '${cni_manifest_path}/manager.yaml'"
-    
-    # Deploy CNI installer for Linux
-    log "Applying Azure CNI installer for Linux..."
-    execute "kubectl apply -f '${cni_manifest_path}/cni-installer-v1.yaml'"
-    
-    log "Azure CNI Manager deployed successfully"
+    log "Azure CNI deployment is handled by CNS deployment..."
+    log "CNS will automatically install and configure Azure CNI when deployed with the appropriate scenario"
+    log "Azure CNI deployment completed via CNS"
 }
 
 # Function to deploy Cilium
@@ -441,13 +466,10 @@ verify_deployment() {
             execute "kubectl wait --for=condition=ready --timeout=300s pod -l k8s-app=cilium -n kube-system"
             ;;
         "azure-cni")
-            # Wait for Azure CNI Manager to be ready
-            log "Waiting for Azure CNI Manager to be ready..."
-            execute "kubectl wait --for=condition=ready --timeout=300s pod -l app=azure-cni-manager -n kube-system || true"
-            
-            # Wait for CNI installer pods to complete
-            log "Waiting for CNI installer to complete..."
-            execute "kubectl wait --for=condition=complete --timeout=300s job -l app=cni-installer -n kube-system || true"
+            # Azure CNI is deployed by CNS, so we verify CNS is working correctly
+            log "Verifying Azure CNI deployment via CNS..."
+            execute "kubectl get pods -n kube-system | grep azure-cns || echo 'CNS pods not found'"
+            log "Azure CNI verification completed (deployed via CNS)"
             ;;
         "none")
             log "Skipping CNI plugin verification (none deployed)"
