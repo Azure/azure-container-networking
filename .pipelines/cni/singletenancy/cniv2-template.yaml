@@ -121,6 +121,8 @@ stages:
         - create_${{ parameters.name }}
       - ${{ else }}:
         - ${{ parameters.dependsOn }}
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - create_${{ parameters.name }}
       - publish
       - setup
     displayName: "CNIv2 Test - ${{ parameters.name }}"
