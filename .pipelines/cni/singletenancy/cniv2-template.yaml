@@ -12,6 +12,7 @@ parameters:
   iterations: 3
   osSKU: Ubuntu
   osSkuWin: Windows2022
+  upgradeScenario: ""
 
 # CNIv2
 # + Should be able to scale up/down the pods successfully certain number of times.
@@ -28,7 +29,7 @@ parameters:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
 # CONTROL_OS either contains 'linux' or 'all' and CONTROL_CNI either contains 'cniv1' or 'all'. Both must be true and are not case sensitive
 stages:
-  - ${{ if eq(parameters.os, 'linux') }}:
+  - ${{ if and(eq(parameters.os, 'linux'), not(parameters.upgradeScenario)) }}:
     - stage: create_${{ parameters.name }}
       condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cniv2'), contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'linux'), contains(variables.CONTROL_OS, 'all') ) ) )
       variables:
@@ -116,7 +117,10 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
-      - create_${{ parameters.name }}
+      - ${{ if eq(parameters.upgradeScenario, false) }}:
+        - create_${{ parameters.name }}
+      - ${{ else }}:
+        - ${{ parameters.dependsOn }}
       - publish
       - setup
     displayName: "CNIv2 Test - ${{ parameters.name }}"
@@ -140,6 +144,25 @@ stages:
                     sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   else
                     sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                    if [ ${{parameters.upgradeScenario}} == "true" ]; then
+                      if [ -z "$UPGRADE_CNS_VERSION" ]
+                      then
+                        echo "UPGRADE_CNS_VERSION is not set, using default value"
+                        CNS=$(make cns-version)
+                      else
+                        CNS=$(UPGRADE_CNS_VERSION)
+                        echo "UPGRADE_CNS_VERSION is set to $CNS"
+                      fi
+                    fi
+                    else
+                      if [ -z "$TEST_CNS_VERSION" ]
+                      then
+                        echo "TEST_CNS_VERSION is not set, using default value"
+                        CNS=$(make cns-version)
+                      else
+                        CNS=$(TEST_CNS_VERSION)
+                        echo "TEST_CNS_VERSION is set to $CNS"
+                      fi
                   fi
               name: "overlaye2e"
               displayName: "Overlay Integration"
