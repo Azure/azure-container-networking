@@ -106,11 +106,9 @@ updates:
   directory: "/"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
-  labels: [ "dependencies" ]
+  labels: [ "dependencies", "release/1.6"  ]
   open-pull-requests-limit: 10
   target-branch: "release/v1.6"
   ignore:
@@ -130,11 +128,9 @@ updates:
   directory: "/azure-ipam"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
-  labels: [ "dependencies", "azure-ipam" ]
+  labels: [ "dependencies", "azure-ipam", "release/1.6" ]
   open-pull-requests-limit: 10
   target-branch: "release/v1.6"
   ignore:
