@@ -117,14 +117,12 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
-      ${{ if parameters.upgradeScenario }}:
-        - ${{ parameters.dependsOn }}
-        - publish
-        - setup
-      ${{ else }}:
-        - ${{ if eq(parameters.os, 'linux') }}:
+      dependsOn:
+        - ${{ if parameters.upgradeScenario }}:
+          - ${{ parameters.dependsOn }}
+        - ${{ if and(not(parameters.upgradeScenario), eq(parameters.os, 'linux')) }}:
           - create_${{ parameters.name }}
-        - ${{ if eq(parameters.os, 'windows') }}:
+        - ${{ if and(not(parameters.upgradeScenario), eq(parameters.os, 'windows')) }}:
           - create_${{ parameters.name }}
         - publish
         - setup
