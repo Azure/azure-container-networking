@@ -116,13 +116,12 @@ stages:
         location: $(LOCATION_AMD64)
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
-      ${{ if parameters.upgradeScenario }}:
       dependsOn:
+      ${{ if parameters.upgradeScenario }}:
         - ${{ parameters.dependsOn }}
         - publish
         - setup
       ${{ else }}:
-      dependsOn:
         - ${{ if eq(parameters.os, 'linux') }}:
           - create_${{ parameters.name }}
         - ${{ if eq(parameters.os, 'windows') }}:
