@@ -116,20 +116,19 @@ stages:
         location: $(LOCATION_AMD64)
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
-    dependsOn:
       ${{ if parameters.upgradeScenario }}:
       dependsOn:
         - ${{ parameters.dependsOn }}
         - publish
         - setup
-    ${{ else }}:
+      ${{ else }}:
       dependsOn:
         - ${{ if eq(parameters.os, 'linux') }}:
           - create_${{ parameters.name }}
         - ${{ if eq(parameters.os, 'windows') }}:
           - create_${{ parameters.name }}
-      - publish
-      - setup
+        - publish
+        - setup
     displayName: "CNIv2 Test - ${{ parameters.name }}"
     jobs:
       - job: integration
