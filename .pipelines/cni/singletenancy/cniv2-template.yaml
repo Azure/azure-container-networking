@@ -116,7 +116,7 @@ stages:
         location: $(LOCATION_AMD64)
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
-      dependsOn:
+    dependsOn:
       ${{ if parameters.upgradeScenario }}:
         - ${{ parameters.dependsOn }}
         - publish
