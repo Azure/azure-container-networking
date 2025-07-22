@@ -88,6 +88,10 @@ ACN_PACKAGE_PATH = github.com/Azure/azure-container-networking
 CNI_AI_PATH=$(ACN_PACKAGE_PATH)/telemetry.aiMetadata
 CNS_AI_PATH=$(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
 NPM_AI_PATH=$(ACN_PACKAGE_PATH)/npm.aiMetadata
+CNI_TELEMETRY_SIDECAR_DIR = $(REPO_ROOT)/cns/cni-telemetry-sidecar
+CNI_TELEMETRY_SIDECAR_BUILD_DIR = $(BUILD_DIR)/cni-telemetry-sidecar
+CNI_TELEMETRY_SIDECAR_AI_ID = $(CNI_AI_ID)  # Reuse CNI AI ID
+CNI_TELEMETRY_SIDECAR_VERSION = $(CNS_VERSION)  # Version follows CNS
 
 # Tool paths
 CONTROLLER_GEN  := $(TOOLS_BIN_DIR)/controller-gen
@@ -234,6 +238,10 @@ azure-vnet-ipamv6-binary:
 # Build the Azure CNI telemetry binary.
 azure-vnet-telemetry-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+
+# Build the Azure CNI Telemetry Sidecar binary.
+cni-telemetry-sidecar-binary:
+	cd $(CNI_TELEMETRY_SIDECAR_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_TELEMETRY_SIDECAR_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) -ldflags "-X main.version=$(CNI_TELEMETRY_SIDECAR_VERSION) -X $(CNI_AI_PATH)=$(CNI_TELEMETRY_SIDECAR_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CLI network binary.
 acncli-binary:
@@ -596,6 +604,35 @@ npm-image-pull: ## pull cns container image.
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(NPM_PLATFORM_TAG)
 
+# cni-telemetry-sidecar
+
+cni-telemetry-sidecar-image-name: # util target to print the CNI telemetry sidecar image name
+	@echo $(CNI_TELEMETRY_SIDECAR_IMAGE)
+
+cni-telemetry-sidecar-image-name-and-tag: # util target to print the CNI telemetry sidecar image name and tag.
+    @echo $(IMAGE_REGISTRY)/$(CNI_TELEMETRY_SIDECAR_IMAGE):$(CNI_TELEMETRY_SIDECAR_PLATFORM_TAG)
+
+cni-telemetry-sidecar-image: ## build cni-telemetry-sidecar container image.
+	$(MAKE) container \
+        DOCKERFILE=cns/cni-telemetry-sidecar/Dockerfile \
+        IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
+        EXTRA_BUILD_ARGS='--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_TELEMETRY_SIDECAR_AI_ID)' \
+        PLATFORM=$(PLATFORM) \
+        TAG=$(CNI_TELEMETRY_SIDECAR_PLATFORM_TAG) \
+        TARGET=$(OS) \
+        OS=$(OS) \
+        ARCH=$(ARCH)
+
+cni-telemetry-sidecar-image-push: ## push cni-telemetry-sidecar container image.
+	$(MAKE) container-push \
+        IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
+        TAG=$(CNI_TELEMETRY_SIDECAR_PLATFORM_TAG)
+
+cni-telemetry-sidecar-image-pull: ## pull cni-telemetry-sidecar container image.
+	$(MAKE) container-pull \
+        IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
+        TAG=$(CNI_TELEMETRY_SIDECAR_PLATFORM_TAG)
+
 ## Reusable targets for building multiplat container image manifests.
 
 IMAGE_ARCHIVE_DIR ?= $(shell pwd)
@@ -751,6 +788,21 @@ npm-skopeo-archive: ## export tar archive of multiplat container manifest.
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(NPM_VERSION)
 
+cni-telemetry-sidecar-manifest-build: ## build cni-telemetry-sidecar multiplat container manifest.
+	$(MAKE) manifest-build \
+        PLATFORMS="$(PLATFORMS)" \
+        IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
+        TAG=$(CNI_TELEMETRY_SIDECAR_VERSION)
+
+cni-telemetry-sidecar-manifest-push: ## push cni-telemetry-sidecar multiplat container manifest
+	$(MAKE) manifest-push \
+        IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
+        TAG=$(CNI_TELEMETRY_SIDECAR_VERSION)
+
+cni-telemetry-sidecar-skopeo-archive: ## export tar archive of cni-telemetry-sidecar multiplat container manifest.
+	$(MAKE) manifest-skopeo-archive \
+        IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
+        TAG=$(CNI_TELEMETRY_SIDECAR_VERSION)
 
 ########################### Archives ################################
 
