@@ -3,26 +3,27 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
+	"time"
 
-	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cns/configuration"
-	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/telemetry"
+	"go.uber.org/zap"
 )
 
 const (
-	// CNI telemetry constants aligned with azure-vnet-telemetry
+	// CNI telemetry constants
 	cniTelemetryAppName = "azure-vnet-telemetry"
 	cniTelemetryVersion = "1.0.0"
-	telemetrySocket     = "/var/run/azure-vnet-telemetry.sock"
+	telemetrySocketPath = "/var/run/azure-vnet-telemetry.sock" // Socket path that azure-vnet expects
 )
 
 // TelemetrySidecar manages the lifecycle of the CNI telemetry service
 type TelemetrySidecar struct {
-	configPath      string
-	configManager   *ConfigManager
-	telemetryBuffer *telemetry.TelemetryBuffer
+	configPath     string
+	configManager  *ConfigManager
+	logger         *zap.Logger
+	socketListener net.Listener
 }
 
 // NewTelemetrySidecar creates a new telemetry sidecar instance
@@ -33,9 +34,26 @@ func NewTelemetrySidecar(configPath string) *TelemetrySidecar {
 	}
 }
 
+// SetLogger sets the zap logger for the sidecar
+func (s *TelemetrySidecar) SetLogger(logger *zap.Logger) error {
+	if logger == nil {
+		return fmt.Errorf("logger cannot be nil")
+	}
+	s.logger = logger
+
+	// Also set the logger for the config manager
+	s.configManager.SetLogger(logger)
+
+	return nil
+}
+
 // Run starts the telemetry sidecar and manages its lifecycle
 func (s *TelemetrySidecar) Run(ctx context.Context) error {
-	logger.Printf("Initializing Azure CNI Telemetry Sidecar for azure-vnet-telemetry")
+	if s.logger == nil {
+		return fmt.Errorf("logger not initialized - call SetLogger() first")
+	}
+
+	s.logger.Info("Initializing Azure CNI Telemetry Sidecar")
 
 	// Load CNS configuration from shared mount
 	config, err := s.configManager.LoadConfig()
@@ -45,136 +63,170 @@ func (s *TelemetrySidecar) Run(ctx context.Context) error {
 
 	// Determine if telemetry should run based on configuration and environment
 	if !s.shouldRunTelemetry(config) {
-		logger.Printf("CNI Telemetry disabled, entering sleep mode")
+		s.logger.Info("CNI Telemetry disabled, entering sleep mode")
 		return s.sleepUntilShutdown(ctx)
 	}
 
-	// Initialize CNI telemetry using existing Azure packages
-	if err := s.initializeCNITelemetry(config); err != nil {
-		return fmt.Errorf("failed to initialize CNI telemetry: %w", err)
+	// Create the telemetry socket that azure-vnet CNI expects
+	if err := s.createTelemetrySocket(); err != nil {
+		return fmt.Errorf("failed to create telemetry socket: %w", err)
 	}
+	defer s.cleanupSocket()
 
-	// Start telemetry service mimicking azure-vnet-telemetry behavior
-	logger.Printf("Starting Azure VNet Telemetry service (CNI mode)")
-	return s.runCNITelemetryService(ctx)
+	s.logger.Info("Starting Azure CNI Telemetry collection with socket server")
+	return s.runTelemetryService(ctx)
 }
 
-// initializeCNITelemetry sets up telemetry specifically for CNI operations
-func (s *TelemetrySidecar) initializeCNITelemetry(config *configuration.CNSConfig) error {
-	ts := config.TelemetrySettings
-
-	// Create AI configuration matching azure-vnet-telemetry behavior
-	aiConfig := aitelemetry.AIConfig{
-		AppName:                      cniTelemetryAppName,
-		AppVersion:                   cniTelemetryVersion,
-		BatchSize:                    ts.TelemetryBatchSizeBytes,
-		BatchInterval:                ts.TelemetryBatchIntervalInSecs,
-		RefreshTimeout:               ts.RefreshIntervalInSecs,
-		DisableMetadataRefreshThread: ts.DisableMetadataRefreshThread,
-		DebugMode:                    ts.DebugMode,
+// createTelemetrySocket creates the Unix socket that azure-vnet CNI connects to
+func (s *TelemetrySidecar) createTelemetrySocket() error {
+	// Remove any existing socket file
+	if err := os.RemoveAll(telemetrySocketPath); err != nil {
+		s.logger.Warn("Failed to remove existing socket file", zap.Error(err))
 	}
 
-	// Create telemetry buffer for CNI-specific data collection
-	s.telemetryBuffer = telemetry.NewTelemetryBuffer(nil)
-
-	// Validate Application Insights instrumentation key
-	if config.TelemetrySettings.AppInsightsInstrumentationKey == "" {
-		return fmt.Errorf("Application Insights instrumentation key is required for CNI telemetry")
+	// Create the directory if it doesn't exist
+	if err := os.MkdirAll("/var/run", 0755); err != nil {
+		return fmt.Errorf("failed to create /var/run directory: %w", err)
 	}
 
-	// Initialize AI telemetry handle with Azure-specific configuration
-	err := s.telemetryBuffer.CreateAITelemetryHandle(
-		aiConfig,
-		ts.DisableTrace,
-		ts.DisableMetric,
-		ts.DisableEvent,
-	)
+	// Create Unix socket listener
+	listener, err := net.Listen("unix", telemetrySocketPath)
 	if err != nil {
-		return fmt.Errorf("failed to create AI telemetry handle for CNI: %w", err)
+		return fmt.Errorf("failed to create Unix socket at %s: %w", telemetrySocketPath, err)
 	}
 
-	logger.Printf("CNI Telemetry initialized with Application Insights (App: %s, Version: %s, BatchSize: %d)",
-		cniTelemetryAppName, cniTelemetryVersion, ts.TelemetryBatchSizeBytes)
+	s.socketListener = listener
+	s.logger.Info("Created telemetry socket", zap.String("path", telemetrySocketPath))
+
+	// Set socket permissions so azure-vnet can access it
+	if err := os.Chmod(telemetrySocketPath, 0666); err != nil {
+		s.logger.Warn("Failed to set socket permissions", zap.Error(err))
+	}
+
 	return nil
 }
 
-// runCNITelemetryService runs the telemetry service mimicking azure-vnet-telemetry
-func (s *TelemetrySidecar) runCNITelemetryService(ctx context.Context) error {
-	// Cleanup any existing CNI telemetry instances
-	s.cleanupExistingInstances()
+// runTelemetryService runs both the socket server and telemetry collection
+func (s *TelemetrySidecar) runTelemetryService(ctx context.Context) error {
+	// Start socket server in background
+	go s.handleSocketConnections(ctx)
 
-	// Start telemetry server on the expected socket for CNI integration
-	if err := s.telemetryBuffer.StartServer(); err != nil {
-		return fmt.Errorf("failed to start CNI telemetry server: %w", err)
-	}
-
-	logger.Printf("Azure VNet Telemetry server started successfully on socket: %s", telemetrySocket)
-
-	// Start telemetry data collection in background (non-blocking)
-	go s.telemetryBuffer.PushData(ctx)
-
-	// Log readiness for CNI network event collection
-	logger.Printf("CNI Telemetry sidecar ready to collect Azure network interface events")
-
-	// Wait for context cancellation (graceful shutdown signal)
-	<-ctx.Done()
-
-	// Perform cleanup and graceful shutdown
-	logger.Printf("Shutting down Azure CNI Telemetry service")
-	return s.shutdownTelemetry()
+	// Start telemetry collection loop
+	return s.runTelemetryLoop(ctx)
 }
 
-// cleanupExistingInstances cleans up any leftover telemetry instances
-func (s *TelemetrySidecar) cleanupExistingInstances() {
-	// Create temporary buffer for cleanup operations
-	tempBuffer := telemetry.NewTelemetryBuffer(nil)
+// handleSocketConnections handles incoming connections from azure-vnet CNI
+func (s *TelemetrySidecar) handleSocketConnections(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			// Accept connection with timeout
+			if conn, err := s.socketListener.Accept(); err == nil {
+				go s.handleConnection(conn)
+			}
+		}
+	}
+}
 
-	// Use the same FdName that azure-vnet-telemetry uses for consistency
-	if err := tempBuffer.Cleanup(telemetry.FdName); err != nil {
-		logger.Printf("Warning: Failed to cleanup existing CNI telemetry instances: %v", err)
+// handleConnection handles a single connection from azure-vnet CNI
+func (s *TelemetrySidecar) handleConnection(conn net.Conn) {
+	defer conn.Close()
+
+	s.logger.Debug("Azure CNI telemetry connection established")
+
+	// Read telemetry data from azure-vnet CNI
+	buffer := make([]byte, 4096)
+	for {
+		n, err := conn.Read(buffer)
+		if err != nil {
+			s.logger.Debug("Connection closed", zap.Error(err))
+			break
+		}
+
+		if n > 0 {
+			// Process telemetry data received from azure-vnet
+			s.processTelemetryData(buffer[:n])
+		}
+	}
+}
+
+// processTelemetryData processes telemetry data received from azure-vnet CNI
+func (s *TelemetrySidecar) processTelemetryData(data []byte) {
+	s.logger.Debug("Received CNI telemetry data",
+		zap.Int("bytes", len(data)),
+		zap.String("data", string(data)))
+
+	// TODO: Parse and process the actual telemetry data
+	// This could include:
+	// - JSON parsing of CNI events
+	// - Metrics extraction
+	// - Forwarding to Azure Monitor/Application Insights
+}
+
+// runTelemetryLoop runs the main telemetry collection loop
+func (s *TelemetrySidecar) runTelemetryLoop(ctx context.Context) error {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	s.logger.Info("CNI Telemetry collection started with socket server")
+
+	for {
+		select {
+		case <-ctx.Done():
+			s.logger.Info("Shutting down Azure CNI Telemetry service")
+			return nil
+		case <-ticker.C:
+			s.collectTelemetry()
+		}
+	}
+}
+
+// collectTelemetry performs telemetry collection
+func (s *TelemetrySidecar) collectTelemetry() {
+	s.logger.Debug("Collecting CNI telemetry data")
+	// TODO: Implement actual telemetry collection logic here
+	// This could include:
+	// - Reading CNI metrics
+	// - Collecting network statistics
+	// - Gathering Azure CNI specific data
+}
+
+// cleanupSocket removes the telemetry socket file
+func (s *TelemetrySidecar) cleanupSocket() {
+	if s.socketListener != nil {
+		s.socketListener.Close()
+	}
+	if err := os.RemoveAll(telemetrySocketPath); err != nil {
+		s.logger.Warn("Failed to cleanup socket file", zap.Error(err))
 	} else {
-		logger.Printf("Successfully cleaned up existing CNI telemetry instances")
+		s.logger.Info("Telemetry socket cleaned up")
 	}
-}
-
-// shutdownTelemetry handles graceful shutdown of telemetry resources
-func (s *TelemetrySidecar) shutdownTelemetry() error {
-	if s.telemetryBuffer != nil {
-		// Close telemetry buffer (ensures data is flushed to Azure)
-		s.telemetryBuffer.Close()
-		logger.Printf("CNI Telemetry buffer closed and remaining data flushed to Azure")
-	}
-	return nil
 }
 
 // shouldRunTelemetry determines if CNI telemetry should be enabled
 func (s *TelemetrySidecar) shouldRunTelemetry(config *configuration.CNSConfig) bool {
 	// Check global telemetry disable flag in CNS configuration
 	if config.TelemetrySettings.DisableAll {
-		logger.Printf("CNI Telemetry disabled globally in CNS configuration")
+		s.logger.Info("CNI Telemetry disabled globally in CNS configuration")
 		return false
 	}
 
-	// Check CNI telemetry specific enable flag (replaces old "ts" option)
+	// Check CNI telemetry specific enable flag
 	cniTelemetryEnabled := os.Getenv("CNI_TELEMETRY_ENABLED")
 	if cniTelemetryEnabled != "true" {
-		logger.Printf("CNI Telemetry not enabled via CNI_TELEMETRY_ENABLED environment variable")
+		s.logger.Info("CNI Telemetry not enabled via CNI_TELEMETRY_ENABLED environment variable")
 		return false
 	}
 
-	// Validate Application Insights key availability
-	if config.TelemetrySettings.AppInsightsInstrumentationKey == "" {
-		logger.Printf("No Application Insights instrumentation key configured for CNI telemetry")
-		return false
-	}
-
-	logger.Printf("CNI Telemetry enabled - will collect Azure network interface events")
+	s.logger.Info("CNI Telemetry enabled - will collect Azure network interface events")
 	return true
 }
 
 // sleepUntilShutdown keeps the container running when telemetry is disabled
 func (s *TelemetrySidecar) sleepUntilShutdown(ctx context.Context) error {
-	logger.Printf("CNI Telemetry sidecar sleeping until shutdown signal received")
+	s.logger.Info("CNI Telemetry sidecar sleeping until shutdown signal received")
 	<-ctx.Done()
 	return ctx.Err()
 }
