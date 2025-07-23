@@ -592,7 +592,8 @@ func CreateHostNCApipaEndpoint(
 	}
 
 	if endpoint != nil {
-		logger.Debugf("[Azure CNS] Found existing endpoint: %+v", endpoint)
+		logger.Debugf("[Azure CNS] Found existing endpoint with ID: %s, Name: %s, Network: %s",
+			endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
 		return endpoint.Id, nil
 	}
 
@@ -616,14 +617,18 @@ func CreateHostNCApipaEndpoint(
 		return "", err
 	}
 
-	logger.Printf("[Azure CNS] Creating HostNCApipaEndpoint for host container connectivity: %+v", endpoint)
+	logger.Printf("[Azure CNS] Creating HostNCApipaEndpoint with ID: %s, Name: %s, Network: %s",
+		endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
 	if endpoint, err = endpoint.Create(); err != nil {
 		err = fmt.Errorf("Failed to create HostNCApipaEndpoint: %s. Error: %v", endpointName, err)
 		logger.Errorf("[Azure CNS] %s", err.Error())
 		return "", err
 	}
 
-	logger.Printf("[Azure CNS] Successfully created HostNCApipaEndpoint: %+v", endpoint)
+	logger.Printf("[Azure CNS] Successfully created HostNCApipaEndpoint with ID: %s, Name: %s, Network: %s",
+		endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
+	logger.Debugf("[Azure CNS] Endpoint details - IpConfigurations:%v, Dns:%v, Routes:%v, MacAddress:%s, Flags:%d",
+		endpoint.IpConfigurations, endpoint.Dns, endpoint.Routes, endpoint.MacAddress, endpoint.Flags)
 
 	return endpoint.Id, nil
 }
@@ -697,7 +702,7 @@ func deleteEndpointByNameHnsV2(
 	}
 
 	if err = endpoint.Delete(); err != nil {
-		return fmt.Errorf("%w: %s (%s): %w",
+		return fmt.Errorf("%w: %s (%s): %v",
 			ErrDeleteEndpoint, endpoint.Name, endpoint.Id, err)
 	}
 
