@@ -7,12 +7,13 @@
 # review a PR in an area.
 #
 # Rules are evaluated in this order, and the last match is used for auto-assignment.
-*                       @azure/azure-sdn-members
-/.github/               @azure/acn-admins
-/cns/                   @azure/acn-cns-reviewers
-/cni/                   @azure/acn-cni-reviewers
-/dropgz/                @rbtr @camrynl @paulyufan2 @ashvindeodhar @thatmattlong
-/npm/                   @azure/acn-npm-reviewers
-/zapai/                 @rbtr @ZetaoZhuang
-/bpf-prog/              @camrynl
-/azure-ip-masq-merger/  @QxBytes @santhoshmprabhu
+*                           @azure/azure-sdn-members
+/.github/                   @azure/acn-admins
+/cns/                       @azure/acn-cns-reviewers
+/cni/                       @azure/acn-cni-reviewers
+/dropgz/                    @rbtr @camrynl @paulyufan2 @ashvindeodhar @thatmattlong
+/npm/                       @azure/acn-npm-reviewers
+/zapai/                     @rbtr @ZetaoZhuang
+/bpf-prog/                  @camrynl
+/azure-ip-masq-merger/      @QxBytes @santhoshmprabhu
+/azure-iptables-monitor/    @QxBytes @santhoshmprabhu
