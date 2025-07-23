@@ -92,7 +92,12 @@ func patchNodeLabel(clientset dynamic.Interface, labelValue bool, nodeName strin
 }
 
 // createNodeEvent creates a Kubernetes event for the specified node
-func createNodeEvent(clientset *kubernetes.Clientset, nodeName string, nodeUID types.UID, reason, message, eventType string) error {
+func createNodeEvent(clientset *kubernetes.Clientset, nodeName string, reason, message, eventType string) error {
+	node, err := clientset.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get node UID for %s: %w", nodeName, err)
+	}
+
 	now := metav1.NewTime(time.Now())
 
 	event := &corev1.Event{
@@ -103,7 +108,7 @@ func createNodeEvent(clientset *kubernetes.Clientset, nodeName string, nodeUID t
 		InvolvedObject: corev1.ObjectReference{
 			Kind:       "Node",
 			Name:       nodeName,
-			UID:        nodeUID, // required for event to show up in node describe
+			UID:        node.UID, // required for event to show up in node describe
 			APIVersion: "v1",
 		},
 		Reason:         reason,
@@ -116,7 +121,7 @@ func createNodeEvent(clientset *kubernetes.Clientset, nodeName string, nodeUID t
 			Component: "azure-iptables-monitor",
 		},
 	}
-	_, err := clientset.CoreV1().Events("default").Create(
+	_, err = clientset.CoreV1().Events("default").Create(
 		context.TODO(),
 		event,
 		metav1.CreateOptions{},
@@ -263,13 +268,6 @@ func main() {
 		klog.Fatalf("NODE_NAME environment variable not set")
 	}
 
-	// get current node uid from environment variable
-	currentNodeUIDStr := os.Getenv("NODE_UID")
-	if currentNodeUIDStr == "" {
-		klog.Fatalf("NODE_UID environment variable not set")
-	}
-	currentNodeUID := types.UID(currentNodeUIDStr)
-
 	klog.Infof("Starting iptables monitor for node: %s", currentNodeName)
 
 	var fileReader FileLineReader = OSFileLineReader{}
@@ -286,7 +284,7 @@ func main() {
 		}
 
 		if *sendEvents && userIPTablesRulesFound {
-			err = createNodeEvent(clientset, currentNodeName, currentNodeUID, "UnexpectedIPTablesRules", "Node has unexpected iptables rules", corev1.EventTypeWarning)
+			err = createNodeEvent(clientset, currentNodeName, "UnexpectedIPTablesRules", "Node has unexpected iptables rules", corev1.EventTypeWarning)
 			if err != nil {
 				klog.Errorf("failed to create event: %v", err)
 			}
