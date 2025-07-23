@@ -8,11 +8,11 @@ import (
 
 type connectionVars struct {
 	instrumentationKey string
-	ingestionUrl       string
+	ingestionURL       string
 }
 
 func (c *connectionVars) String() string {
-	return "InstrumentationKey=" + c.instrumentationKey + ";IngestionEndpoint=" + c.ingestionUrl
+	return "InstrumentationKey=" + c.instrumentationKey + ";IngestionEndpoint=" + c.ingestionURL
 }
 
 func parseConnectionString(connectionString string) (*connectionVars, error) {
@@ -39,12 +39,12 @@ func parseConnectionString(connectionString string) (*connectionVars, error) {
 			connectionVars.instrumentationKey = value
 		case "ingestionendpoint":
 			if value != "" {
-				connectionVars.ingestionUrl = value + "v2.1/track"
+				connectionVars.ingestionURL = value + "v2.1/track"
 			}
 		}
 	}
 
-	if connectionVars.instrumentationKey == "" || connectionVars.ingestionUrl == "" {
+	if connectionVars.instrumentationKey == "" || connectionVars.ingestionURL == "" {
 		return nil, errors.Errorf("missing required fields in connection string: %s", connectionVars)
 	}
 

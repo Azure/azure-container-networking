@@ -162,7 +162,7 @@ func isPublicEnvironment(url string, retryCount, waitTimeInSecs int) (bool, erro
 			return true, nil
 		} else if err == nil {
 			debugLog("[AppInsights] This is not azure public cloud:%s", cloudName)
-			return false, fmt.Errorf("not an azure public cloud: %s", cloudName)
+			return false, errors.Errorf("not an azure public cloud: %s", cloudName)
 		}
 
 		debugLog("GetAzureCloud returned err :%v", err)
@@ -233,7 +233,7 @@ func NewWithConnectionString(connectionString string, aiConfig AIConfig) (Teleme
 	}
 
 	telemetryConfig := appinsights.NewTelemetryConfiguration(connectionVars.instrumentationKey)
-	telemetryConfig.EndpointUrl = connectionVars.ingestionUrl
+	telemetryConfig.EndpointUrl = connectionVars.ingestionURL
 	telemetryConfig.MaxBatchSize = aiConfig.BatchSize
 	telemetryConfig.MaxBatchInterval = time.Duration(aiConfig.BatchInterval) * time.Second
 

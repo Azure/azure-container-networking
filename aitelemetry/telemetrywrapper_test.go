@@ -87,7 +87,7 @@ func handleGetCloud(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(getCloudResponse))
 }
 
-func initTelemetry(t *testing.T) (TelemetryHandle, TelemetryHandle) {
+func initTelemetry(_ *testing.T) (th1, th2 TelemetryHandle) {
 	th1, err1 := NewAITelemetry(httpURL, "00ca2a73-c8d6-4929-a0c2-cf84545ec225", aiConfig)
 	if err1 != nil {
 		fmt.Printf("Error initializing AI telemetry: %v", err1)
@@ -98,7 +98,7 @@ func initTelemetry(t *testing.T) (TelemetryHandle, TelemetryHandle) {
 		fmt.Printf("Error initializing AI telemetry with connection string: %v", err2)
 	}
 
-	return th1, th2
+	return
 }
 
 func TestEmptyAIKey(t *testing.T) {

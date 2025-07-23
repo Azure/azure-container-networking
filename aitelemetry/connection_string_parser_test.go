@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const connectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://ingestion.endpoint.com/;LiveEndpoint=https://live.endpoint.com/;ApplicationId=11111111-1111-1111-1111-111111111111"
+const connectionString = "InstrumentationKey=0000-0000-0000-0000-0000;IngestionEndpoint=https://ingestion.endpoint.com/;LiveEndpoint=https://live.endpoint.com/;ApplicationId=1111-1111-1111-1111-1111"
 
 func TestParseConnectionString(t *testing.T) {
 	tests := []struct {
@@ -19,8 +19,8 @@ func TestParseConnectionString(t *testing.T) {
 			name:             "Valid connection string and instrumentation key",
 			connectionString: connectionString,
 			want: &connectionVars{
-				instrumentationKey: "00000000-0000-0000-0000-000000000000",
-				ingestionUrl:       "https://ingestion.endpoint.com/v2.1/track",
+				instrumentationKey: "0000-0000-0000-0000-0000",
+				ingestionURL:       "https://ingestion.endpoint.com/v2.1/track",
 			},
 			wantErr: false,
 		},
@@ -32,7 +32,7 @@ func TestParseConnectionString(t *testing.T) {
 		},
 		{
 			name:             "Valid instrumentation key with missing ingestion endpoint",
-			connectionString: "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=",
+			connectionString: "InstrumentationKey=0000-0000-0000-0000-0000;IngestionEndpoint=",
 			want:             nil,
 			wantErr:          true,
 		},
@@ -59,7 +59,7 @@ func TestParseConnectionString(t *testing.T) {
 				require.NoError(t, err, "Expected no error but got one")
 				require.NotNil(t, got, "Expected a non-nil result")
 				require.Equal(t, tt.want.instrumentationKey, got.instrumentationKey, "Instrumentation Key does not match")
-				require.Equal(t, tt.want.ingestionUrl, got.ingestionUrl, "Ingestion URL does not match")
+				require.Equal(t, tt.want.ingestionURL, got.ingestionURL, "Ingestion URL does not match")
 			}
 		})
 	}
