@@ -75,7 +75,7 @@ static int attach_bpf_program(struct block_nl_nf **skel_ptr) {
     }
     
     // Set the host_netns_inode in the BPF program before loading
-    skel->data->host_netns_inode = host_netns_inode;
+    skel->data->host_netns_inode = host_netns_inode + 1;
     
     err = block_nl_nf__load(skel);
     if (err) {

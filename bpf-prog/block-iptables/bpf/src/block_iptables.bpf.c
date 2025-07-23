@@ -7,17 +7,16 @@
 #define EPERM 1
 char LICENSE[] SEC("license") = "GPL";
 
-__u32 host_netns_inode = 4026531840;  // Initialized by userspace, not const
-
+volatile const __u32 host_netns_inode = 4026531840; // Initialized by userspace
 #define TASK_COMM_LEN 16
-#define COMM_COUNT 2
+#define COMM_COUNT 3
 int is_allowed_parent ()
 {
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
     struct task_struct *parent_task = NULL;
 
     char parent_comm[TASK_COMM_LEN] = {};
-    const char target_prefixes[COMM_COUNT][TASK_COMM_LEN] = {"cilium-agent", "ip-masq"};
+    const char target_prefixes[COMM_COUNT][TASK_COMM_LEN] = {"cilium-agent", "ip-masq", "azure-cns"};
 
     // Safely get parent task_struct
     parent_task = BPF_CORE_READ(task, real_parent);
@@ -83,7 +82,7 @@ int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
     // bpf_printk("setsockopt called %d %d\n", level, optname);
     if (level == 0 /*IPPROTO_IP*/ || level == 41 /*IPPROTO_IP6*/) {
         if (optname == 64) { // 64 represents IPT_SO_SET_REPLACE or IP6T_SO_SET_REPLACE, depending on the level
-            if (is_host_ns()) {
+            if (is_host_ns() && !is_allowed_parent()) {
                 return -EPERM;
             }
         }
@@ -93,7 +92,7 @@ int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
 }
 
 SEC("lsm/netlink_send")
-int BPF_PROG(block_nf_netlink, struct sock *sk, struct sk_buff *skb) {
+int BPF_PROG(iptables_nftables_block, struct sock *sk, struct sk_buff *skb) {
     __u16 family = 0, proto = 0;
     if (sk != NULL) {
         bpf_probe_read_kernel(&family, sizeof(family), &sk->sk_family);
