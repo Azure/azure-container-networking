@@ -28,11 +28,11 @@ var version string
 
 var (
 	configPath    = flag.String("input", "/etc/config/", "Name of the directory with the allowed regex files")
-	checkInterval = flag.Int("interval", 600, "How often to check iptables rules (in seconds)")
+	checkInterval = flag.Int("interval", 300, "How often to check iptables rules (in seconds)")
 	sendEvents    = flag.Bool("events", false, "Whether to send node events if unexpected iptables rules are detected")
 )
 
-const nodeLabel = "user-iptables-rules"
+const label = "user-iptables-rules"
 
 type FileLineReader interface {
 	Read(filename string) ([]string, error)
@@ -66,9 +66,9 @@ func (OSFileLineReader) Read(filename string) ([]string, error) {
 	return lines, nil
 }
 
-// patchNodeLabel sets a specified node label to a certain value by patching it
-// Requires proper rbac (node patch)
-func patchNodeLabel(clientset dynamic.Interface, labelValue bool, nodeName string) error {
+// patchLabel sets a specified label to a certain value on a ciliumnode resource by patching it
+// Requires proper rbac
+func patchLabel(clientset dynamic.Interface, labelValue bool, nodeName string) error {
 	gvr := schema.GroupVersionResource{
 		Group:    "cilium.io",
 		Version:  "v2",
@@ -81,18 +81,18 @@ func patchNodeLabel(clientset dynamic.Interface, labelValue bool, nodeName strin
 		"%s": "%v"
 		}
 	}
-	}`, nodeLabel, labelValue))
+	}`, label, labelValue))
 
 	_, err := clientset.Resource(gvr).
 		Patch(context.TODO(), nodeName, types.MergePatchType, patch, metav1.PatchOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to patch %s with label %s=%v: %w", nodeName, nodeLabel, labelValue, err)
+		return fmt.Errorf("failed to patch %s with label %s=%v: %w", nodeName, label, labelValue, err)
 	}
 	return nil
 }
 
 // createNodeEvent creates a Kubernetes event for the specified node
-func createNodeEvent(clientset *kubernetes.Clientset, nodeName string, reason, message, eventType string) error {
+func createNodeEvent(clientset *kubernetes.Clientset, nodeName, reason, message, eventType string) error {
 	node, err := clientset.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get node UID for %s: %w", nodeName, err)
@@ -275,12 +275,12 @@ func main() {
 	for {
 		userIPTablesRulesFound := nodeHasUserIPTablesRules(fileReader, iptablesClient)
 
-		// update node label based on whether user iptables rules were found
-		err = patchNodeLabel(dynamicClient, userIPTablesRulesFound, currentNodeName)
+		// update label based on whether user iptables rules were found
+		err = patchLabel(dynamicClient, userIPTablesRulesFound, currentNodeName)
 		if err != nil {
-			klog.Errorf("failed to patch node label: %v", err)
+			klog.Errorf("failed to patch label: %v", err)
 		} else {
-			klog.V(2).Infof("Successfully updated node label for %s: %s=%v", currentNodeName, nodeLabel, userIPTablesRulesFound)
+			klog.V(2).Infof("Successfully updated label for %s: %s=%v", currentNodeName, label, userIPTablesRulesFound)
 		}
 
 		if *sendEvents && userIPTablesRulesFound {
