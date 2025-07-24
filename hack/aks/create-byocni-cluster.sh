@@ -1,0 +1,663 @@
+#!/usr/bin/env bash
+
+# Script to create a BYO CNI cluster with Azure CNS and configurable CNI deployment
+# This script orchestrates the creation of an AKS cluster with BYO CNI,
+# deploys Azure CNS, and installs the specified CNI networking components.
+
+set -euo pipefail
+
+# Default configuration
+DEFAULT_CLUSTER_NAME="byocni-cluster"
+DEFAULT_SUB=""
+DEFAULT_RESOURCE_GROUP=""
+DEFAULT_NETWORKING_MODE="overlay"
+DEFAULT_NO_KUBE_PROXY="true"
+DEFAULT_CNI_PLUGIN="cilium"
+DEFAULT_CNS_VERSION="v1.5.38"
+DEFAULT_AZURE_IPAM_VERSION="v0.3.0"
+DEFAULT_CILIUM_DIR="1.17"
+DEFAULT_CILIUM_IMAGE_REGISTRY="acnpublic.azurecr.io"
+DEFAULT_CILIUM_VERSION_TAG=""
+DEFAULT_IPV6_HP_BPF_VERSION=""
+DEFAULT_CNS_IMAGE_REPO="MCR"
+DEFAULT_AZCLI="az"
+DEFAULT_KUBERNETES_VERSION="1.33"
+DEFAULT_VM_SIZE="Standard_B2s"
+
+# Script configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+# Function to display usage
+usage() {
+    cat << EOF
+Usage: $0 [OPTIONS]
+
+Creates a BYO CNI cluster with the following steps:
+1. Creates an AKS cluster with configurable networking mode
+2. Deploys Azure CNS to the cluster
+3. Deploys the specified CNI networking components
+
+OPTIONS:
+    -c, --cluster CLUSTER_NAME      Name of the AKS cluster (default: ${DEFAULT_CLUSTER_NAME})
+    -s, --subscription SUB_ID       Azure subscription ID (required)
+    -g, --resource-group GROUP      Resource group name (default: same as cluster name)
+    -z, --azcli AZCLI_COMMAND      Azure CLI command (default: ${DEFAULT_AZCLI})
+    -k, --kubernetes-version VER    Kubernetes version for the cluster (default: ${DEFAULT_KUBERNETES_VERSION})
+    -v, --vm-size VM_SIZE           Azure VM size for cluster nodes (default: ${DEFAULT_VM_SIZE})
+    -n, --networking-mode MODE      Networking mode: overlay, swift, nodesubnet, dualstack-overlay, vnetscale-swift (default: ${DEFAULT_NETWORKING_MODE})
+    --cni-plugin PLUGIN             CNI plugin to deploy: cilium, azure-cni, none (default: ${DEFAULT_CNI_PLUGIN})
+    --cns-version VERSION           CNS version to deploy (default: ${DEFAULT_CNS_VERSION})
+    --azure-ipam-version VERSION    Azure IPAM version (default: ${DEFAULT_AZURE_IPAM_VERSION})
+    --cilium-dir DIR                Cilium version directory (default: ${DEFAULT_CILIUM_DIR})
+    --cilium-registry REGISTRY      Cilium image registry (default: ${DEFAULT_CILIUM_IMAGE_REGISTRY})
+    --cilium-version-tag TAG        Cilium version tag (default: auto-detected)
+    --ipv6-hp-bpf-version VERSION   IPv6 HP BPF version for dualstack (default: auto-detected)
+    --cns-image-repo REPO           CNS image repository (default: ${DEFAULT_CNS_IMAGE_REPO})
+    --dry-run                       Show commands that would be executed without running them
+    -h, --help                      Display this help message
+
+NETWORKING MODES:
+    overlay                         Overlay BYO CNI cluster
+    swift                           SWIFT BYO CNI cluster  
+    nodesubnet                      NodeSubnet BYO CNI cluster
+    dualstack-overlay               Dualstack Overlay BYO CNI cluster
+    vnetscale-swift                 VNet Scale SWIFT BYO CNI cluster
+
+CNI PLUGINS:
+    cilium                          Deploy Cilium CNI (default)
+    azure-cni                       Deploy Azure CNI Manager
+    none                            Deploy only cluster and CNS, no CNI plugin
+
+EXAMPLES:
+    # Basic usage with Cilium (default)
+    $0 --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f
+
+    # Swift networking with Cilium
+    $0 --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f --networking-mode swift
+
+    # Overlay with Azure CNI Manager instead of Cilium
+    $0 --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f --cni-plugin azure-cni
+
+    # Custom cluster name and CNS version
+    $0 --cluster my-cluster --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f --cns-version v1.6.0
+
+    # Custom cluster name and resource group
+    $0 --cluster my-cluster --resource-group my-rg --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f
+
+    # Using different Cilium version
+    $0 --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f --cilium-dir 1.16 --cilium-version-tag v1.16.0
+
+    # Dry run to see what commands would be executed
+    $0 --subscription 9b8218f9-902a-4d20-a65c-e98acec5362f --dry-run
+
+EOF
+}
+
+# Function to log messages
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >&2
+}
+
+# Function to log errors
+error() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $*" >&2
+}
+
+# Function to execute commands with optional dry-run
+execute() {
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        echo "DRY-RUN: $*"
+    else
+        log "Executing: $*"
+        bash -c "$*"
+    fi
+}
+
+# Function to check prerequisites
+check_prerequisites() {
+    log "Checking prerequisites..."
+    
+    # Check if we're in the right directory
+    if [[ ! -f "${REPO_ROOT}/Makefile" ]]; then
+        error "Not in the azure-container-networking repository root"
+        exit 1
+    fi
+    
+    # Check if Azure CLI is available
+    if ! command -v "${AZCLI}" &> /dev/null; then
+        error "Azure CLI (${AZCLI}) not found. Please install Azure CLI."
+        exit 1
+    fi
+    
+    # Check if kubectl is available
+    if ! command -v kubectl &> /dev/null; then
+        error "kubectl not found. Please install kubectl."
+        exit 1
+    fi
+    
+    # Check if envsubst is available
+    if ! command -v envsubst &> /dev/null; then
+        error "envsubst not found. Please install gettext package."
+        exit 1
+    fi
+    
+    # Check if make is available
+    if ! command -v make &> /dev/null; then
+        error "make not found. Please install make."
+        exit 1
+    fi
+    
+    # Verify Azure CLI is logged in
+    if [[ "${DRY_RUN}" != "true" ]]; then
+        if ! "${AZCLI}" account show &> /dev/null; then
+            error "Azure CLI is not logged in. Please run '${AZCLI} login' first."
+            exit 1
+        fi
+    fi
+    
+    log "Prerequisites check passed"
+}
+
+# Function to validate networking mode
+validate_networking_mode() {
+    local valid_modes=("overlay" "swift" "nodesubnet" "dualstack-overlay" "vnetscale-swift")
+    local mode_found=false
+    
+    for valid_mode in "${valid_modes[@]}"; do
+        if [[ "${NETWORKING_MODE}" == "${valid_mode}" ]]; then
+            mode_found=true
+            break
+        fi
+    done
+    
+    if [[ "${mode_found}" != "true" ]]; then
+        error "Invalid networking mode: ${NETWORKING_MODE}"
+        error "Valid networking modes: ${valid_modes[*]}"
+        exit 1
+    fi
+    
+    log "Networking mode '${NETWORKING_MODE}' validation passed"
+}
+
+# Function to validate CNI plugin
+validate_cni_plugin() {
+    local valid_plugins=("cilium" "azure-cni" "none")
+    local plugin_found=false
+    
+    for valid_plugin in "${valid_plugins[@]}"; do
+        if [[ "${CNI_PLUGIN}" == "${valid_plugin}" ]]; then
+            plugin_found=true
+            break
+        fi
+    done
+    
+    if [[ "${plugin_found}" != "true" ]]; then
+        error "Invalid CNI plugin: ${CNI_PLUGIN}"
+        error "Valid CNI plugins: ${valid_plugins[*]}"
+        exit 1
+    fi
+    
+    log "CNI plugin '${CNI_PLUGIN}' validation passed"
+}
+
+# Function to validate Cilium manifest directory
+validate_cilium_dir() {
+    # Skip validation if not using Cilium
+    if [[ "${CNI_PLUGIN}" != "cilium" ]]; then
+        return 0
+    fi
+    
+    local cilium_path="${REPO_ROOT}/test/integration/manifests/cilium/v${CILIUM_DIR}"
+    if [[ ! -d "${cilium_path}" ]]; then
+        error "Cilium directory v${CILIUM_DIR} not found at ${cilium_path}"
+        error "Available Cilium versions:"
+        # Use a more robust way to list versions
+        find "${REPO_ROOT}/test/integration/manifests/cilium/" -maxdepth 1 -type d -name "v*" -printf "%f\n" | sort || true
+        exit 1
+    fi
+    
+    # Check required directories exist
+    local required_dirs=("cilium-config" "cilium-operator/files" "cilium-operator/templates" "cilium-agent/files" "cilium-agent/templates")
+    for dir in "${required_dirs[@]}"; do
+        if [[ ! -d "${cilium_path}/${dir}" ]]; then
+            error "Required Cilium directory ${dir} not found in v${CILIUM_DIR}"
+            exit 1
+        fi
+    done
+    
+    log "Cilium directory v${CILIUM_DIR} validation passed"
+}
+
+# Function to auto-detect versions if not provided
+detect_versions() {
+    if [[ -z "${CILIUM_VERSION_TAG}" ]]; then
+        # Try to extract version from directory name or use a sensible default
+        case "${CILIUM_DIR}" in
+            "1.14") CILIUM_VERSION_TAG="v1.14.8" ;;
+            "1.16") CILIUM_VERSION_TAG="v1.16.0" ;;
+            "1.17") CILIUM_VERSION_TAG="v1.17.0" ;;
+            *) CILIUM_VERSION_TAG="v${CILIUM_DIR}.0" ;;
+        esac
+        log "Auto-detected Cilium version tag: ${CILIUM_VERSION_TAG}"
+    fi
+    
+    if [[ -z "${IPV6_HP_BPF_VERSION}" ]]; then
+        # Try to get from git tags or use default
+        if command -v git &> /dev/null && [[ -d "${REPO_ROOT}/.git" ]]; then
+            IPV6_HP_BPF_VERSION=$(cd "${REPO_ROOT}" && git describe --match "ipv6-hp-bpf*" --tags --always 2>/dev/null | head -1 || echo "")
+        fi
+        if [[ -z "${IPV6_HP_BPF_VERSION}" ]]; then
+            IPV6_HP_BPF_VERSION="ipv6-hp-bpf-v0.1.0"
+        fi
+        log "Auto-detected IPv6 HP BPF version: ${IPV6_HP_BPF_VERSION}"
+    fi
+}
+
+# Function to create AKS cluster
+create_cluster() {
+    log "Creating AKS cluster with BYO CNI..."
+    
+    # Determine the make target based on networking mode and kube-proxy setting
+    local make_target=""
+    
+    case "${NETWORKING_MODE}" in
+        "overlay")
+            if [[ "${NO_KUBE_PROXY}" == "true" ]]; then
+                make_target="overlay-byocni-nokubeproxy-up"
+            else
+                make_target="overlay-byocni-up"
+            fi
+            ;;
+        "swift")
+            if [[ "${NO_KUBE_PROXY}" == "true" ]]; then
+                make_target="swift-byocni-nokubeproxy-up"
+            else
+                make_target="swift-byocni-up"
+            fi
+            ;;
+        "nodesubnet")
+            if [[ "${NO_KUBE_PROXY}" == "true" ]]; then
+                make_target="nodesubnet-byocni-nokubeproxy-up"
+            else
+                error "NodeSubnet mode only supports no-kube-proxy configuration"
+                exit 1
+            fi
+            ;;
+        "dualstack-overlay")
+            if [[ "${NO_KUBE_PROXY}" == "true" ]]; then
+                make_target="dualstack-byocni-nokubeproxy-up"
+            else
+                make_target="dualstack-overlay-byocni-up"
+            fi
+            ;;
+        "vnetscale-swift")
+            if [[ "${NO_KUBE_PROXY}" == "true" ]]; then
+                make_target="vnetscale-swift-byocni-nokubeproxy-up"
+            else
+                make_target="vnetscale-swift-byocni-up"
+            fi
+            ;;
+        *)
+            error "Unsupported networking mode: ${NETWORKING_MODE}"
+            exit 1
+            ;;
+    esac
+    
+    # Determine LTS setting based on Kubernetes version
+    local lts_setting="false"
+    local k8s_major_minor
+    k8s_major_minor=$(echo "${KUBERNETES_VERSION}" | cut -d'.' -f1-2)
+    
+    # Convert version to comparable number (e.g., "1.30" -> 130)
+    local version_number
+    version_number=${k8s_major_minor//./}
+    
+    # Set LTS=true for versions less than 1.31 (i.e., 131)
+    if [[ "${version_number}" -lt 131 ]]; then
+        lts_setting="true"
+        log "Kubernetes version ${KUBERNETES_VERSION} is < 1.31, setting LTS=true"
+    else
+        log "Kubernetes version ${KUBERNETES_VERSION} is >= 1.31, setting LTS=false"
+    fi
+    
+    # Build make command with optional GROUP parameter
+    local make_cmd="AZCLI=${AZCLI} CLUSTER=${CLUSTER_NAME} SUB=${SUBSCRIPTION} K8S_VER=${KUBERNETES_VERSION} VM_SIZE=${VM_SIZE} LTS=${lts_setting}"
+    if [[ -n "${RESOURCE_GROUP}" ]]; then
+        make_cmd="${make_cmd} GROUP=${RESOURCE_GROUP}"
+    fi
+    make_cmd="${make_cmd} make ${make_target}"
+    
+    log "Using make target: ${make_target}"
+    execute "cd '${SCRIPT_DIR}' && ${make_cmd}"
+    
+    log "AKS cluster created successfully"
+}
+
+# Function to deploy CNS
+deploy_cns() {
+    log "Deploying Azure CNS to the cluster..."
+    
+    # Determine the correct CNS scenario based on networking mode and CNI plugin
+    local cns_scenario=""
+    case "${NETWORKING_MODE}" in
+        "overlay")
+            if [[ "${CNI_PLUGIN}" == "cilium" ]]; then
+                cns_scenario="INSTALL_OVERLAY=true"
+            else
+                cns_scenario="INSTALL_AZURE_CNI_OVERLAY=true"
+            fi
+            ;;
+        "swift"|"vnetscale-swift")
+            cns_scenario="INSTALL_AZURE_VNET=true"
+            ;;
+        "nodesubnet")
+            cns_scenario="INSTALL_CNS_NODESUBNET=true"
+            ;;
+        "dualstack-overlay")
+            cns_scenario="INSTALL_DUALSTACK_OVERLAY=true"
+            ;;
+        *)
+            error "Unsupported networking mode for CNS deployment: ${NETWORKING_MODE}"
+            exit 1
+            ;;
+    esac
+    
+    # Build make command with appropriate scenario
+    local make_cmd="sudo -E env \"PATH=\$PATH\" make test-load CNS_ONLY=true CNS_VERSION=${CNS_VERSION}"
+    
+    # Add Azure IPAM version only for Cilium scenarios
+    if [[ "${CNI_PLUGIN}" == "cilium" ]]; then
+        make_cmd="${make_cmd} AZURE_IPAM_VERSION=${AZURE_IPAM_VERSION}"
+    fi
+    
+    # Add CNS scenario and other parameters
+    make_cmd="${make_cmd} INSTALL_CNS=true ${cns_scenario} CNS_IMAGE_REPO=${CNS_IMAGE_REPO}"
+    
+    log "Using CNS scenario: ${cns_scenario}"
+    execute "cd '${REPO_ROOT}' && ${make_cmd}"
+    
+    log "Azure CNS deployed successfully"
+}
+
+# Function to deploy Azure CNI (handled by CNS deployment)
+deploy_azure_cni() {
+    log "Azure CNI deployment is handled by CNS deployment..."
+    log "CNS will automatically install and configure Azure CNI when deployed with the appropriate scenario"
+    log "Azure CNI deployment completed via CNS"
+}
+
+# Function to deploy Cilium
+deploy_cilium() {
+    log "Deploying Cilium networking components..."
+    
+    local cilium_path="${REPO_ROOT}/test/integration/manifests/cilium/v${CILIUM_DIR}"
+    
+    # Set environment variables for templating
+    export DIR="${CILIUM_DIR}"
+    export CILIUM_IMAGE_REGISTRY="${CILIUM_IMAGE_REGISTRY}"
+    export CILIUM_VERSION_TAG="${CILIUM_VERSION_TAG}"
+    export IPV6_HP_BPF_VERSION="${IPV6_HP_BPF_VERSION}"
+    
+    # Deploy Cilium config
+    log "Applying Cilium configuration..."
+    execute "kubectl apply -f '${cilium_path}/cilium-config/cilium-config.yaml'"
+    
+    # Deploy Cilium operator files
+    log "Applying Cilium operator files..."
+    execute "kubectl apply -f '${cilium_path}/cilium-operator/files'"
+    
+    # Deploy Cilium agent files
+    log "Applying Cilium agent files..."
+    execute "kubectl apply -f '${cilium_path}/cilium-agent/files'"
+    
+    # Deploy Cilium operator with environment substitution
+    log "Applying Cilium operator deployment with templating..."
+    execute "envsubst '\${CILIUM_VERSION_TAG},\${CILIUM_IMAGE_REGISTRY},\${IPV6_HP_BPF_VERSION}' < '${cilium_path}/cilium-operator/templates/deployment.yaml' | kubectl apply -f -"
+    
+    # Deploy Cilium agent with environment substitution
+    log "Applying Cilium agent daemonset with templating..."
+    execute "envsubst '\${CILIUM_VERSION_TAG},\${CILIUM_IMAGE_REGISTRY},\${IPV6_HP_BPF_VERSION}' < '${cilium_path}/cilium-agent/templates/daemonset.yaml' | kubectl apply -f -"
+    
+    log "Cilium networking components deployed successfully"
+}
+
+# Function to deploy CNI plugin
+deploy_cni_plugin() {
+    case "${CNI_PLUGIN}" in
+        "cilium")
+            deploy_cilium
+            ;;
+        "azure-cni")
+            deploy_azure_cni
+            ;;
+        "none")
+            log "Skipping CNI plugin deployment (none specified)"
+            ;;
+        *)
+            error "Unsupported CNI plugin: ${CNI_PLUGIN}"
+            exit 1
+            ;;
+    esac
+}
+
+# Function to verify deployment
+verify_deployment() {
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        log "Skipping deployment verification in dry-run mode"
+        return
+    fi
+    
+    log "Verifying deployment..."
+    
+    # Verify CNS deployment
+    log "Waiting for Azure CNS to be ready..."
+    execute "kubectl wait --for=condition=ready --timeout=300s pod -l app=azure-cns -n kube-system || true"
+    
+    # Verify CNI plugin deployment based on type
+    case "${CNI_PLUGIN}" in
+        "cilium")
+            # Wait for Cilium operator to be ready
+            log "Waiting for Cilium operator to be ready..."
+            execute "kubectl wait --for=condition=available --timeout=300s deployment/cilium-operator -n kube-system"
+            
+            # Wait for Cilium agents to be ready
+            log "Waiting for Cilium agents to be ready..."
+            execute "kubectl wait --for=condition=ready --timeout=300s pod -l k8s-app=cilium -n kube-system"
+            ;;
+        "azure-cni")
+            # Azure CNI is deployed by CNS, so we verify CNS is working correctly
+            log "Verifying Azure CNI deployment via CNS..."
+            execute "kubectl get pods -n kube-system | grep azure-cns || echo 'CNS pods not found'"
+            log "Azure CNI verification completed (deployed via CNS)"
+            ;;
+        "none")
+            log "Skipping CNI plugin verification (none deployed)"
+            ;;
+    esac
+    
+    # Show deployment status
+    log "Deployment status:"
+    execute "kubectl get pods -n kube-system | grep -E '(azure-cns|cilium|azure-cni)' || echo 'No CNI pods found'"
+    
+    log "Deployment verification completed"
+}
+
+# Function to show completion message
+show_completion_message() {
+    log "BYO CNI cluster setup completed successfully!"
+    echo ""
+    echo "Cluster details:"
+    echo "  Name: ${CLUSTER_NAME}"
+    echo "  Subscription: ${SUBSCRIPTION}"
+    echo "  Networking Mode: ${NETWORKING_MODE}"
+    echo "  Kube-proxy Disabled: ${NO_KUBE_PROXY}"
+    echo "  CNI Plugin: ${CNI_PLUGIN}"
+    echo "  CNS Version: ${CNS_VERSION}"
+    if [[ "${CNI_PLUGIN}" == "cilium" ]]; then
+        echo "  Cilium Version: ${CILIUM_VERSION_TAG}"
+    fi
+    echo ""
+    echo "To get the kubeconfig for this cluster, run:"
+    echo "  ${AZCLI} aks get-credentials --resource-group ${CLUSTER_NAME} --name ${CLUSTER_NAME}"
+    echo ""
+    echo "To verify the installation:"
+    echo "  kubectl get pods -n kube-system"
+    echo "  kubectl get nodes"
+}
+
+# Parse command line arguments
+CLUSTER_NAME="${DEFAULT_CLUSTER_NAME}"
+SUBSCRIPTION="${DEFAULT_SUB}"
+RESOURCE_GROUP="${DEFAULT_RESOURCE_GROUP}"
+NETWORKING_MODE="${DEFAULT_NETWORKING_MODE}"
+NO_KUBE_PROXY="${DEFAULT_NO_KUBE_PROXY}"
+CNI_PLUGIN="${DEFAULT_CNI_PLUGIN}"
+CNS_VERSION="${DEFAULT_CNS_VERSION}"
+AZURE_IPAM_VERSION="${DEFAULT_AZURE_IPAM_VERSION}"
+CILIUM_DIR="${DEFAULT_CILIUM_DIR}"
+CILIUM_IMAGE_REGISTRY="${DEFAULT_CILIUM_IMAGE_REGISTRY}"
+CILIUM_VERSION_TAG="${DEFAULT_CILIUM_VERSION_TAG}"
+IPV6_HP_BPF_VERSION="${DEFAULT_IPV6_HP_BPF_VERSION}"
+CNS_IMAGE_REPO="${DEFAULT_CNS_IMAGE_REPO}"
+AZCLI="${DEFAULT_AZCLI}"
+KUBERNETES_VERSION="${DEFAULT_KUBERNETES_VERSION}"
+VM_SIZE="${DEFAULT_VM_SIZE}"
+DRY_RUN="false"
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -c|--cluster)
+            CLUSTER_NAME="$2"
+            shift 2
+            ;;
+        -s|--subscription)
+            SUBSCRIPTION="$2"
+            shift 2
+            ;;
+        -g|--resource-group)
+            RESOURCE_GROUP="$2"
+            shift 2
+            ;;
+        -z|--azcli)
+            AZCLI="$2"
+            shift 2
+            ;;
+        -k|--kubernetes-version)
+            KUBERNETES_VERSION="$2"
+            shift 2
+            ;;
+        -v|--vm-size)
+            VM_SIZE="$2"
+            shift 2
+            ;;
+        -n|--networking-mode)
+            NETWORKING_MODE="$2"
+            shift 2
+            ;;
+        --cni-plugin)
+            CNI_PLUGIN="$2"
+            shift 2
+            ;;
+        --cns-version)
+            CNS_VERSION="$2"
+            shift 2
+            ;;
+        --azure-ipam-version)
+            AZURE_IPAM_VERSION="$2"
+            shift 2
+            ;;
+        --cilium-dir)
+            CILIUM_DIR="$2"
+            shift 2
+            ;;
+        --cilium-registry)
+            CILIUM_IMAGE_REGISTRY="$2"
+            shift 2
+            ;;
+        --cilium-version-tag)
+            CILIUM_VERSION_TAG="$2"
+            shift 2
+            ;;
+        --ipv6-hp-bpf-version)
+            IPV6_HP_BPF_VERSION="$2"
+            shift 2
+            ;;
+        --cns-image-repo)
+            CNS_IMAGE_REPO="$2"
+            shift 2
+            ;;
+        --dry-run)
+            DRY_RUN="true"
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            error "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+# Validate required parameters
+if [[ -z "${SUBSCRIPTION}" ]]; then
+    error "Subscription ID is required. Use --subscription to specify it."
+    usage
+    exit 1
+fi
+
+# Set kube-proxy configuration based on CNI plugin
+if [[ "${CNI_PLUGIN}" == "cilium" || "${CNI_PLUGIN}" == "none" ]]; then
+    NO_KUBE_PROXY="true"
+else
+    NO_KUBE_PROXY="false"
+fi
+
+# Main execution
+main() {
+    log "Starting BYO CNI cluster creation..."
+    log "Configuration:"
+    log "  Cluster Name: ${CLUSTER_NAME}"
+    log "  Subscription: ${SUBSCRIPTION}"
+    log "  Resource Group: ${RESOURCE_GROUP:-${CLUSTER_NAME}}"
+    log "  Azure CLI: ${AZCLI}"
+    log "  Kubernetes Version: ${KUBERNETES_VERSION}"
+    log "  VM Size: ${VM_SIZE}"
+    log "  Networking Mode: ${NETWORKING_MODE}"
+    log "  No Kube-proxy: ${NO_KUBE_PROXY}"
+    log "  CNI Plugin: ${CNI_PLUGIN}"
+    log "  CNS Version: ${CNS_VERSION}"
+    log "  Azure IPAM Version: ${AZURE_IPAM_VERSION}"
+    log "  CNS Image Repo: ${CNS_IMAGE_REPO}"
+    log "  Dry Run: ${DRY_RUN}"
+    
+    if [[ "${CNI_PLUGIN}" == "cilium" ]]; then
+        log "  Cilium Directory: ${CILIUM_DIR}"
+        log "  Cilium Registry: ${CILIUM_IMAGE_REGISTRY}"
+    fi
+    
+    check_prerequisites
+    validate_networking_mode
+    validate_cni_plugin
+    validate_cilium_dir
+    detect_versions
+    
+    if [[ "${CNI_PLUGIN}" == "cilium" ]]; then
+        log "Final Cilium configuration:"
+        log "  Cilium Version Tag: ${CILIUM_VERSION_TAG}"
+        log "  IPv6 HP BPF Version: ${IPV6_HP_BPF_VERSION}"
+    fi
+    
+    create_cluster
+    deploy_cns
+    deploy_cni_plugin
+    verify_deployment
+    show_completion_message
+}
+
+# Run main function
+main "$@"
