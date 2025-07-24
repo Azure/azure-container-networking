@@ -402,14 +402,14 @@ type AssignIBDevicesToPodResponse struct {
 	Message   string               `json:"message"`   // Additional message or error description
 }
 
-// GetIBDeviceInfoRequest represents the request to get InfiniBand device information
+// GetIBDeviceStatusRequest represents the request to get InfiniBand device information
 // GET /ibdevices/{mac-address-of-device} - no request body needed for GET
-type GetIBDeviceInfoRequest struct {
+type GetIBDeviceStatusRequest struct {
 	MACAddress string `json:"macAddress"` // MAC address of the device (from URL path)
 }
 
-// GetIBDeviceInfoResponse represents the response containing InfiniBand device information
-type GetIBDeviceInfoResponse struct {
+// GetIBDeviceStatusResponse represents the response containing InfiniBand device information
+type GetIBDeviceStatusResponse struct {
 	MACAddress string               `json:"macAddress"` // MAC address of the device
 	PodID      string               `json:"podID"`      // Pod that the device is assigned to
 	Status     infiniband.Status    `json:"status"`     // Device status (e.g., "pendingProgramming", "error", "programmed", "pendingDeletion", "available")
