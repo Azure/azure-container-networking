@@ -90,6 +90,11 @@ const (
 // Named Lock for network and endpoint creation/deletion
 var namedLock = common.InitNamedLock()
 
+// Error definitions
+var (
+	ErrDeleteEndpoint = errors.New("failed to delete endpoint")
+)
+
 // CreateHnsNetwork creates the HNS network with the provided configuration
 func CreateHnsNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
 	logger.Printf("[Azure CNS] CreateHnsNetwork")
@@ -552,7 +557,10 @@ func configureHostNCApipaEndpoint(
 
 	endpoint.IpConfigurations = append(endpoint.IpConfigurations, ipConfiguration)
 
-	logger.Printf("[Azure CNS] Configured HostNCApipaEndpoint: %+v", endpoint)
+	logger.Printf("[Azure CNS] Configured HostNCApipaEndpoint with ID: %s, Name: %s, Network: %s",
+		endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
+	logger.Printf("[Azure CNS] Endpoint IpConfigurations:%v, Dns:%v, Routes:%v, MacAddress:%s, Flags:%d",
+		endpoint.IpConfigurations, endpoint.Dns, endpoint.Routes, endpoint.MacAddress, endpoint.Flags)
 
 	return endpoint, nil
 }
@@ -584,7 +592,8 @@ func CreateHostNCApipaEndpoint(
 	}
 
 	if endpoint != nil {
-		logger.Debugf("[Azure CNS] Found existing endpoint: %+v", endpoint)
+		logger.Debugf("[Azure CNS] Found existing endpoint with ID: %s, Name: %s, Network: %s",
+			endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
 		return endpoint.Id, nil
 	}
 
@@ -608,14 +617,18 @@ func CreateHostNCApipaEndpoint(
 		return "", err
 	}
 
-	logger.Printf("[Azure CNS] Creating HostNCApipaEndpoint for host container connectivity: %+v", endpoint)
+	logger.Printf("[Azure CNS] Creating HostNCApipaEndpoint with ID: %s, Name: %s, Network: %s",
+		endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
 	if endpoint, err = endpoint.Create(); err != nil {
 		err = fmt.Errorf("Failed to create HostNCApipaEndpoint: %s. Error: %v", endpointName, err)
 		logger.Errorf("[Azure CNS] %s", err.Error())
 		return "", err
 	}
 
-	logger.Printf("[Azure CNS] Successfully created HostNCApipaEndpoint: %+v", endpoint)
+	logger.Printf("[Azure CNS] Successfully created HostNCApipaEndpoint with ID: %s, Name: %s, Network: %s",
+		endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
+	logger.Debugf("[Azure CNS] Endpoint details - IpConfigurations:%v, Dns:%v, Routes:%v, MacAddress:%s, Flags:%d",
+		endpoint.IpConfigurations, endpoint.Dns, endpoint.Routes, endpoint.MacAddress, endpoint.Flags)
 
 	return endpoint.Id, nil
 }
@@ -689,10 +702,14 @@ func deleteEndpointByNameHnsV2(
 	}
 
 	if err = endpoint.Delete(); err != nil {
-		return fmt.Errorf("Failed to delete endpoint: %+v. Error: %v", endpoint, err)
+		return fmt.Errorf("%w: %s (%s): %v",
+			ErrDeleteEndpoint, endpoint.Name, endpoint.Id, err)
 	}
 
-	logger.Errorf("[Azure CNS] Successfully deleted endpoint: %+v", endpoint)
+	logger.Errorf("[Azure CNS] Successfully deleted endpoint with ID: %s, Name: %s",
+		endpoint.Id, endpoint.Name)
+	logger.Debugf("[Azure CNS] Endpoint details - IpConfigurations:%v, Dns:%v, Routes:%v, MacAddress:%s, Flags:%d",
+		endpoint.IpConfigurations, endpoint.Dns, endpoint.Routes, endpoint.MacAddress, endpoint.Flags)
 
 	return nil
 }
