@@ -385,12 +385,8 @@ func determineWinVer() {
 func getNATInfo(nwCfg *cni.NetworkConfig, ncPrimaryIPIface interface{}, enableSnatForDNS bool) (natInfo []policy.NATInfo) {
 	// TODO: Remove v4overlay and dualstackoverlay options, after 'overlay' rolls out in AKS-RP
 	if nwCfg.ExecutionMode == string(util.V4Swift) && nwCfg.IPAM.Mode != string(util.V4Overlay) && nwCfg.IPAM.Mode != string(util.DualStackOverlay) && nwCfg.IPAM.Mode != string(util.Overlay) {
-		ncPrimaryIP := ""
-		if ncPrimaryIPIface != nil {
-			ncPrimaryIP = ncPrimaryIPIface.(string)
-		}
-
-		natInfo = append(natInfo, []policy.NATInfo{{VirtualIP: ncPrimaryIP, Destinations: []string{networkutils.AzureDNS}}, {Destinations: []string{networkutils.AzureIMDS}}}...)
+		// if swift non-overlay mode...
+		natInfo = append(natInfo, []policy.NATInfo{{Destinations: []string{networkutils.AzureDNS}}, {Destinations: []string{networkutils.AzureIMDS}}}...)
 	} else if nwCfg.MultiTenancy && enableSnatForDNS {
 		natInfo = append(natInfo, policy.NATInfo{Destinations: []string{networkutils.AzureDNS}})
 	}
