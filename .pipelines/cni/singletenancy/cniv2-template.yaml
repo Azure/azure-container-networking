@@ -155,7 +155,6 @@ stages:
                         CNS=$(UPGRADE_CNS_VERSION)
                         echo "UPGRADE_CNS_VERSION is set to $CNS"
                       fi
-                    fi
                     else
                       if [ -z "$TEST_CNS_VERSION" ]
                       then
@@ -165,6 +164,7 @@ stages:
                         CNS=$(TEST_CNS_VERSION)
                         echo "TEST_CNS_VERSION is set to $CNS"
                       fi
+                    fi
                   fi
               name: "overlaye2e"
               displayName: "Overlay Integration"
