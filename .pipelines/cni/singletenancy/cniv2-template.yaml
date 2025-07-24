@@ -145,7 +145,6 @@ stages:
                   if [ "${{parameters.os}}" == "windows" ]; then
                     sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   else
-                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                     if [ ${{parameters.upgradeScenario}} == "true" ]; then
                       if [ -z "$UPGRADE_CNS_VERSION" ]
                       then
@@ -165,7 +164,9 @@ stages:
                         echo "TEST_CNS_VERSION is set to $CNS"
                       fi
                     fi
+                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   fi
+
               name: "overlaye2e"
               displayName: "Overlay Integration"
           - ${{ if contains(parameters.clusterType, 'swift') }}:
