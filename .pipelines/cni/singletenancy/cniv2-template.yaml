@@ -117,7 +117,7 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
-      - ${{ if and(parameters.upgradeScenario, eq(parameters.dependsOn, '')) }}:
+      - ${{ if and(parameters.upgradeScenario, ne(parameters.dependsOn, '')) }}:
         - ${{ parameters.dependsOn }}
       - ${{ if and(not(parameters.upgradeScenario), eq(parameters.os, 'linux')) }}:
         - create_${{ parameters.name }}
