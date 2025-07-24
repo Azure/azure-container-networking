@@ -29,7 +29,7 @@ parameters:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
 # CONTROL_OS either contains 'linux' or 'all' and CONTROL_CNI either contains 'cniv1' or 'all'. Both must be true and are not case sensitive
 stages:
-  - ${{ if and(eq(parameters.os, 'linux'), not(parameters.upgradeScenario)) }}:
+  - ${{ if and(eq(parameters.os, 'linux'), eq(parameters.upgradeScenario, false)) }}:
     - stage: create_${{ parameters.name }}
       condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cniv2'), contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'linux'), contains(variables.CONTROL_OS, 'all') ) ) )
       variables:
@@ -117,11 +117,11 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
-      - ${{ if and(parameters.upgradeScenario, ne(parameters.dependsOn, '')) }}:
+      - ${{ if and(eq(parameters.upgradeScenario, true), ne(parameters.dependsOn, '')) }}:
         - ${{ parameters.dependsOn }}
-      - ${{ if and(not(parameters.upgradeScenario), eq(parameters.os, 'linux')) }}:
+      - ${{ if and(eq(parameters.upgradeScenario, false), eq(parameters.os, 'linux')) }}:
         - create_${{ parameters.name }}
-      - ${{ if and(not(parameters.upgradeScenario), eq(parameters.os, 'windows')) }}:
+      - ${{ if and(eq(parameters.upgradeScenario, false), eq(parameters.os, 'windows')) }}:
         - create_${{ parameters.name }}
       - publish
       - setup
