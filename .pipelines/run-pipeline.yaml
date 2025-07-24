@@ -14,7 +14,7 @@ stages:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)
       ob_git_checkout: true
     steps:
-    - checkout: acn-devops
+    # - checkout: acn-devops
 
     - task: CopyFiles@2
       displayName: "Add Pipeline Orchestration to Container Artifacts"
@@ -39,10 +39,12 @@ stages:
     - checkout: azure-container-networking
     - download: current
       artifact: drop_setup_copy
+    #  Testing madness
+    - template: build/ob-prepare.steps.yaml
 
-    - template: build/ob-prepare.steps.yaml@acn-devops
+#  Testing madness
+- template: templates/run-unit-tests.stages.yaml
 
-- template: templates/run-unit-tests.stages.yaml@acn-devops
 
 - stage: build
   displayName: "Build Project"
@@ -67,7 +69,8 @@ stages:
     IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
     NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
   jobs:
-  - template: /.pipelines/build/images.jobs.yaml@acn-devops
+  #  Testing madness
+  - template: /.pipelines/build/images.jobs.yaml
     parameters:
       images:
       - job: linux_amd64
@@ -400,7 +403,8 @@ stages:
       NPM_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/npm:$(Build.BuildNumber)
     jobs:
 
-    - template: build/manifests.jobs.yaml@acn-devops
+    #  Testing madness
+    - template: build/manifests.jobs.yaml
       parameters:
         generate:
         - job: azure_ipam
