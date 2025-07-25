@@ -351,6 +351,17 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "containerize"
+    
+    - template: singletenancy/aks-swift/e2e-job-template.yaml
+      parameters:
+        name: "aks_win_swift_e2e"
+        displayName: AKS Podsubnet Swift Windows
+        os: windows
+        clusterType: swift-byocni-up
+        clusterName: "winswifte2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: "containerize"
 
     # AKS Swift Vnet Scale E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
@@ -360,6 +371,17 @@ stages:
         os: linux
         clusterType: vnetscale-swift-byocni-up
         clusterName: "vscaleswifte2e"
+        vmSize: Standard_B2ms
+        k8sVersion: "1.30"
+        dependsOn: "containerize"
+    
+    - template: singletenancy/aks-swift/e2e-job-template.yaml
+      parameters:
+        name: "aks_win_swift_vnetscale_e2e"
+        displayName: AKS Swift Vnet Scale Windows
+        os: windows
+        clusterType: vnetscale-swift-byocni-up
+        clusterName: "winvscaleswifte2e"
         vmSize: Standard_B2ms
         k8sVersion: "1.30"
         dependsOn: "containerize"
