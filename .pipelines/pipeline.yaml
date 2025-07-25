@@ -445,6 +445,8 @@ stages:
         - win_azure_overlay_e2e
         - azure_overlay_stateless_e2e
         - aks_swift_e2e
+        - aks_win_swift_e2e
+        - aks_win_swift_vnetscale_e2e
         - cilium_e2e
         - cilium_vnetscale_e2e
         - cilium_nodesubnet_e2e
@@ -501,9 +503,17 @@ stages:
                 name: aks_swift_e2e
                 clusterName: "swifte2e"
                 region: $(REGION_AKS_CLUSTER_TEST)
+              aks_win_swift_e2e:
+                name: aks_win_swift_e2e
+                clusterName: "winswifte2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
               aks_swift_vnetscale_e2e:
                 name: aks_swift_vnetscale_e2e
                 clusterName: "vscaleswifte2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
+              aks_win_swift_vnetscale_e2e:
+                name: aks_win_swift_vnetscale_e2e
+                clusterName: "winvscaleswifte2e"
                 region: $(REGION_AKS_CLUSTER_TEST)
               aks_ubuntu_22_linux_e2e:
                 name: aks_ubuntu_22_linux_e2e
