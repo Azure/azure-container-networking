@@ -26,6 +26,7 @@ stages:
           clusterType: ${{ parameters.clusterType }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           vmSize: ${{ parameters.vmSize }}
+          vmSizeWin: ${{ parameters.vmSize }}
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
           os: ${{ parameters.os }}
