@@ -132,7 +132,7 @@ require (
 	golang.org/x/sync v0.16.0
 	gotest.tools/v3 v3.5.2
 	k8s.io/kubectl v0.28.5
-	sigs.k8s.io/yaml v1.5.0
+	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
