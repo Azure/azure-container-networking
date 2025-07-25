@@ -39,15 +39,41 @@ steps:
     name: "kubeconfig"
     displayName: "Set Kubeconfig"
 
-  - script: |
-      ls -lah
-      pwd
-      kubectl cluster-info
-      kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=${{ parameters.os }} CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
-    retryCountOnTaskFailure: 3
-    name: "aksswifte2e"
-    displayName: "Run AKS Swift E2E"
+  - ${{ if eq(parameters.os, 'linux') }}:
+    - script: |
+        ls -lah
+        pwd
+        kubectl cluster-info
+        kubectl get po -owide -A
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=${{ parameters.os }} CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+      retryCountOnTaskFailure: 3
+      name: "aksswifte2e"
+      displayName: "Run AKS Swift E2E"
+
+  - ${{ if eq(parameters.os, 'windows') }}:
+    # replicate overlay behavior of untainting the nodes
+    - script: |
+        nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
+        for node in $nodeList; do
+            taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
+            if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
+                kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+            fi
+        done
+        kubectl cluster-info
+        kubectl get po -owide -A
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=${{ parameters.os }} CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+      retryCountOnTaskFailure: 3
+      name: "aksswifte2e"
+      displayName: "Run AKS Swift E2E"
+
+    - script: |
+        echo "IPv4 Overlay DataPath Test"
+        cd test/integration/datapath
+        sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
+      name: "WindowsDatapathTests"
+      displayName: "Windows Datapath Tests"
+      retryCountOnTaskFailure: 3
 
   - task: AzureCLI@1
     inputs:
