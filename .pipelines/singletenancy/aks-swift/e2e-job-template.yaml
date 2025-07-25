@@ -48,8 +48,8 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
-      - job: ${{ parameters.name }}
-        displayName: Singletenancy AKS Swift Suite - (${{ parameters.name }})
+      - job: ${{ parameters.name }}_${{ parameters.os }}
+        displayName: Singletenancy AKS Swift Suite | ${{ parameters.os }} - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
@@ -68,17 +68,17 @@ stages:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
-          dependsOn: ${{ parameters.name }}
+          dependsOn: ${{ parameters.name }}_${{ parameters.os }}
           datapath: true
           dns: true
           portforward: true
           hostport: true
           service: true
 
-      - job: failedE2ELogs
-        displayName: "Failure Logs"
+      - job: failedE2ELogs_${{ parameters.os }}
+        displayName: "${{ parameters.os }} Failure Logs"
         dependsOn:
-          - ${{ parameters.name }}
+          - ${{ parameters.name }}_${{ parameters.os }}
           - cni_${{ parameters.os }}
         condition: failed()
         steps:
