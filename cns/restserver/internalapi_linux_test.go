@@ -62,7 +62,7 @@ func TestAddSNATRules(t *testing.T) {
 					chain: SWIFT,
 					rule: []string{
 						"-m", "addrtype", "!", "--dst-type", "local", "-s", "240.1.2.0/24", "-d",
-						networkutils.AzureDNS, "-p", iptables.UDP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", "240.1.2.1",
+						networkutils.AzureDNS, "-p", iptables.UDP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", "10.0.0.4",
 					},
 				},
 				{
@@ -70,7 +70,7 @@ func TestAddSNATRules(t *testing.T) {
 					chain: SWIFT,
 					rule: []string{
 						"-m", "addrtype", "!", "--dst-type", "local", "-s", "240.1.2.0/24", "-d",
-						networkutils.AzureDNS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", "240.1.2.1",
+						networkutils.AzureDNS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", "10.0.0.4",
 					},
 				},
 				{
