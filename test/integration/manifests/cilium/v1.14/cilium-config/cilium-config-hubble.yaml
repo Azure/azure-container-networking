@@ -10,7 +10,8 @@ data:
   bpf-policy-map-max: "16384"
   bpf-root: /sys/fs/bpf
   cgroup-root: /run/cilium/cgroupv2
-  cilium-endpoint-gc-interval: 5m0s
+  cilium-endpoint-gc-interval: 3m      # Fast post-restart recovery
+  nodes-gc-interval: 3m               # Also speed up node cleanup 
   cluster-id: "0"
   cluster-name: default
   debug: "false"
@@ -59,7 +60,6 @@ data:
   monitor-aggregation-flags: all
   monitor-aggregation-interval: 5s
   node-port-bind-protection: "true"
-  nodes-gc-interval: 5m0s
   operator-api-serve-addr: 127.0.0.1:9234
   operator-prometheus-serve-addr: :9963
   preallocate-bpf-maps: "false"
