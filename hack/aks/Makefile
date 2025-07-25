@@ -51,6 +51,16 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--os-sku $(OS_SKU) \
 	$(LTS_ARGS)
 
+# Common az aks nodepool add fields for Windows
+COMMON_WINDOWS_NODEPOOL_FIELDS = $(AZCLI) aks nodepool add -g $(GROUP) -n npwin \
+	--node-count $(NODE_COUNT_WIN) \
+	--node-vm-size $(VM_SIZE_WIN) \
+	--cluster-name $(CLUSTER) \
+	--os-type Windows \
+	--os-sku $(OS_SKU_WIN) \
+	--max-pods 250 \
+	--subscription $(SUB)
+
 ##@ Help
 
 help:  ## Display this help
@@ -239,6 +249,9 @@ swift-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI cluster
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--yes
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	$(MAKE) windows-swift-nodepool-up
+endif
 
 swiftv2-multitenancy-cluster-up: rg-up ipv4
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -277,6 +290,9 @@ vnetscale-swift-byocni-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet 
 		--pod-ip-allocation-mode StaticBlock \
 		--yes
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	$(MAKE) windows-vnetscale-nodepool-up
+endif
 
 vnetscale-swift-byocni-nokubeproxy-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT BYO CNI cluster without kube-proxy
 	$(COMMON_AKS_FIELDS) \
@@ -310,6 +326,9 @@ vnetscale-swift-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale S
 		--pod-ip-allocation-mode StaticBlock \
 		--yes
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	$(MAKE) windows-vnetscale-nodepool-up
+endif
 
 nodesubnet-cilium-up: rg-up ipv4 overlay-net-up ## Bring up a Nodesubnet Cilium cluster
 	$(COMMON_AKS_FIELDS) \
@@ -342,6 +361,9 @@ dualstack-overlay-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dualstack O
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--yes
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	$(MAKE) windows-nodepool-up
+endif
 
 dualstack-overlay-byocni-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dualstack Overlay BYO CNI cluster
 	$(COMMON_AKS_FIELDS) \
@@ -383,25 +405,16 @@ dualstack-byocni-nokubeproxy-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a D
 
 windows-nodepool-up: ## Add windows node pool
 	AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh
-	$(AZCLI) aks nodepool add -g $(GROUP) -n npwin \
-		--node-count $(NODE_COUNT_WIN) \
-		--node-vm-size $(VM_SIZE_WIN) \
-		--cluster-name $(CLUSTER) \
-		--os-type Windows \
-		--os-sku $(OS_SKU_WIN) \
-		--max-pods 250 \
-		--subscription $(SUB)
+	$(COMMON_WINDOWS_NODEPOOL_FIELDS)
 
 windows-swift-nodepool-up: ## Add windows node pool
-	$(AZCLI) aks nodepool add -g $(GROUP) -n npwin \
-		--node-count $(NODE_COUNT_WIN) \
-		--node-vm-size $(VM_SIZE_WIN) \
-		--cluster-name $(CLUSTER) \
-		--os-type Windows \
-		--os-sku $(OS_SKU_WIN) \
-		--max-pods 250 \
-		--subscription $(SUB) \
+	$(COMMON_WINDOWS_NODEPOOL_FIELDS) \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
+
+windows-vnetscale-nodepool-up: ## Add windows node pool
+	$(COMMON_WINDOWS_NODEPOOL_FIELDS) \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--pod-ip-allocation-mode StaticBlock
 
 down: ## Delete the cluster
 	$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
