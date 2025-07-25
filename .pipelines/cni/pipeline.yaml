@@ -5,6 +5,10 @@ trigger:
     - dropgz/*
     - azure-ipam/*
     - v*
+  branches:
+    include:
+    - master
+    - release/*
 parameters:
   - name: upgradeScenario
     type: boolean
