@@ -37,7 +37,7 @@ function findcp::shared_library() {
 
 [[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
-export CGO_ENABLED=0 
+export CGO_ENABLED=0
 export C_INCLUDE_PATH=/usr/include/bpf
 
 mkdir -p "$OUT_DIR"/bin
@@ -52,7 +52,7 @@ if [[ -f /etc/debian_version ]];then
 
     ARCH=x86_64-linux-gnu
     cp /usr/lib/"$ARCH"/ld-linux-x86-64.so.2 "$OUT_DIR"/lib/
-  
+
   elif [[ $ARCH =~ arm64 ]]; then
     apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu
 
@@ -60,7 +60,7 @@ if [[ -f /etc/debian_version ]];then
     cp /usr/lib/"$ARCH"/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/
   fi
 
-  for dir in /usr/include/"$ARCH"/*; do 
+  for dir in /usr/include/"$ARCH"/*; do
     ln -sfn "$dir" /usr/include/$(basename "$dir")
   done
 
@@ -101,14 +101,14 @@ else
     ARCH=aarch64-linux-gnu
     #tdnf install -y glibc-devel.i386
     if [[ -f '/usr/lib/ld-linux-aarch64.so.1' ]]; then
-      cp /usr/lib/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/ 
+      cp /usr/lib/ld-linux-aarch64.so.1 "$OUT_DIR"/lib/
     fi
   fi
-  for dir in /usr/include/"$ARCH"/*; do 
+  for dir in /usr/include/"$ARCH"/*; do
     if [[ -d $dir ]]; then
-      ln -sfn "$dir" /usr/include/$(basename "$dir") 
+      ln -sfn "$dir" /usr/include/$(basename "$dir")
     elif [[ -f "$dir" ]]; then
-      ln -Tsfn "$dir" /usr/include/$(basename "$dir") 
+      ln -Tsfn "$dir" /usr/include/$(basename "$dir")
     fi
   done
 
@@ -152,13 +152,13 @@ cp /sbin/ip "$OUT_DIR"/bin/ip"$FILE_EXT"
 pushd "$REPO_ROOT"/bpf-prog/ipv6-hp-bpf
   cp ./cmd/ipv6-hp-bpf/*.go .
 
-  if [[ "$DEBUG" =~ ^[T|t]rue$ ]]; then 
+  if [[ "$DEBUG" =~ ^[T|t]rue$ ]]; then
     echo -e "\n#define DEBUG" >> ./include/helper.h
   fi
 
   go generate ./...
   GOOS="$OS" go build -v -a -trimpath \
     -o "$OUT_DIR"/bin/ipv6-hp-bpf"$FILE_EXT" \
-    -ldflags "-X main.version="$IPV6_HP_BPF_VERSION"" \
+    -ldflags "-s -w -X main.version="$IPV6_HP_BPF_VERSION"" \
     -gcflags="-dwarflocationlists=true" .
 popd

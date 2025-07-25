@@ -20,7 +20,7 @@ function files::remove_exe_extensions() {
 
 [[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
-export CGO_ENABLED=0 
+export CGO_ENABLED=0
 
 mkdir -p "$GEN_DIR"
 mkdir -p "$OUT_DIR"/bin
@@ -40,11 +40,11 @@ pushd "$PAYLOAD_DIR"
   [[ -d "$OUT_DIR"/bin ]] && cp "$OUT_DIR"/bin/* . || true
 
   [[ $OS =~ windows ]] && files::remove_exe_extensions .
-  
+
   sha256sum * > sum.txt
   gzip --verbose --best --recursive .
 
-  for file in $(find . -name '*.gz'); do 
+  for file in $(find . -name '*.gz'); do
     mv "$file" "${file%%.gz}"
   done
 popd
@@ -58,7 +58,7 @@ pushd "$DROPGZ_BUILD_DIR"/pkg/mod/"$DROPGZ_MOD_DOWNLOAD_PATH"
   mv "$PAYLOAD_DIR"/* pkg/embed/fs/
   GOOS="$OS" go build -v -trimpath -a \
     -o "$OUT_DIR"/bin/dropgz"$FILE_EXT" \
-    -ldflags "-X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$DROPGZ_VERSION"" \
+    -ldflags "-s -w -X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$DROPGZ_VERSION"" \
     -gcflags="-dwarflocationlists=true" \
     main.go
 popd
