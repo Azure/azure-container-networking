@@ -216,6 +216,8 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	if len(outdatedNCs) == 0 {
 		return len(programmedNCs), nil
 	}
+	// Todo: Query NMA for the supported API to validate the build version. If supported, query IMDS for the Swiftv2 NC version list and perform synchostversion update.
+	// WorkItem: https://msazure.visualstudio.com/One/_workitems/edit/33460135
 	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
 		return len(programmedNCs), errors.Wrap(err, "failed to get nc version list from nmagent")
