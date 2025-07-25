@@ -187,6 +187,7 @@ func hasUnexpectedRules(currentRules, allowedPatterns []string) bool {
 		if !ruleMatched {
 			klog.Infof("Unexpected rule: %s", rule)
 			foundUnexpectedRules = true
+			// continue to iterate over remaining rules to identify all unexpected rules
 		}
 	}
 
