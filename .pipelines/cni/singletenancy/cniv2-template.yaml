@@ -164,7 +164,7 @@ stages:
                         echo "TEST_CNS_VERSION is set to $CNS"
                       fi
                     fi
-                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   fi
 
               name: "overlaye2e"
