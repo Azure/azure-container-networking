@@ -33,6 +33,7 @@ parameters:
   default:
     - "--target $(os) "
     - "--platform $(os)/$(arch) "
+    - "--provenance false "
 
 - name: common_build_args
   type: object
