@@ -17,14 +17,14 @@ steps:
 #     target_path: npm-windows
 #     source_dockerfile: windows.Dockerfile
 
-# - template: utils/rename-dockerfile-references.steps.yaml
-#   parameters:
-#     topic: "Linux - npm"
-#     replace_references: true
-#     working_directory: $(ACN_DIR)
-#     source_path: npm
-#     target_path: npm
-#     source_dockerfile: linux.Dockerfile
+- template: utils/rename-dockerfile-references.steps.yaml
+  parameters:
+    topic: "Linux - npm"
+    replace_references: true
+    working_directory: $(ACN_DIR)
+    source_path: npm
+    target_path: npm
+    source_dockerfile: linux.Dockerfile
 
 - bash: |
     rm -rf .hooks .github
