@@ -87,6 +87,13 @@ steps:
 
   - ${{ if eq(parameters.os, 'windows') }}:
     - script: |
+        cd hack/scripts
+        chmod +x patch-win-clusterkubeconfig.sh
+        ./patch-win-clusterkubeconfig.sh
+      name: "patchKubeClusterConfig"
+      displayName: "Patch kubeclusterconfig.json on Windows nodes"
+
+    - script: |
         nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
         for node in $nodeList; do
             taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`

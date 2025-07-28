@@ -54,6 +54,13 @@ steps:
       displayName: "Run AKS Swift E2E"
 
   - ${{ if eq(parameters.os, 'windows') }}:
+    - script: |
+        cd hack/scripts
+        chmod +x patch-win-clusterkubeconfig.sh
+        ./patch-win-clusterkubeconfig.sh
+      name: "patchKubeClusterConfig"
+      displayName: "Patch kubeclusterconfig.json on Windows nodes"
+
     # replicate overlay behavior of untainting the nodes
     - script: |
         set -x
