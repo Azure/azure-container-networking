@@ -343,6 +343,23 @@ spec:
           else
             iptables -t mangle -I FORWARD -d 168.63.129.16 -p tcp --dport 80 -j DROP
           fi
+          
+          # Create CIL_HOST_OUTPUT chain if it doesn't exist
+          iptables -t filter -N CIL_HOST_OUTPUT 2>/dev/null || true
+
+          # Clear existing CIL_HOST_OUTPUT rules to avoid duplicates
+          iptables -t filter -F CIL_HOST_OUTPUT
+
+          # Add OUTPUT jump rule if it doesn't exist
+          iptables -t filter -C OUTPUT -j CIL_HOST_OUTPUT -m comment --comment "cilium-feeder: CIL_HOST_OUTPUT" || \
+          iptables -t filter -I OUTPUT -j CIL_HOST_OUTPUT -m comment --comment "cilium-feeder: CIL_HOST_OUTPUT"
+
+          # CIL_HOST_OUTPUT rules - ONLY what's needed for host entities
+          iptables -t filter -A CIL_HOST_OUTPUT -j MARK --set-xmark 0xc00/0xf00 -m comment --comment "cilium: host->any mark as from host"
+          iptables -t filter -A CIL_HOST_OUTPUT -j ACCEPT -m comment --comment "cilium: ACCEPT for proxy traffic"
+          iptables -t filter -A CIL_HOST_OUTPUT -j ACCEPT -m comment --comment "cilium: ACCEPT for l7 proxy upstream traffic"
+
+          echo "Host entity OUTPUT marking configured successfully"
         securityContext:
           capabilities:
             add:
