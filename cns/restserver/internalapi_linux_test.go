@@ -40,6 +40,7 @@ func TestAddSNATRules(t *testing.T) {
 	}{
 		{
 			// in pod subnet, the primary nic ip is in the same address space as the pod subnet
+			// however, we now snat azure dns traffic to the node ip for consistency across scenarios
 			name: "podsubnet",
 			input: &cns.CreateNetworkContainerRequest{
 				NetworkContainerid: ncID,
