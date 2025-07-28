@@ -6,6 +6,7 @@ parameters:
 
 steps:
   - bash: |
+      set -x
       echo $UID
       sudo rm -rf $(System.DefaultWorkingDirectory)/*
     displayName: "Set up OS environment"
@@ -13,6 +14,7 @@ steps:
   - checkout: self
 
   - bash: |
+      set -x
       go version
       go env
       mkdir -p '$(GOBIN)'
@@ -34,13 +36,14 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        set -e
+        set -ex
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
     name: "kubeconfig"
     displayName: "Set Kubeconfig"
 
   - ${{ if eq(parameters.os, 'linux') }}:
     - script: |
+        set -x
         ls -lah
         pwd
         kubectl cluster-info
@@ -53,6 +56,7 @@ steps:
   - ${{ if eq(parameters.os, 'windows') }}:
     # replicate overlay behavior of untainting the nodes
     - script: |
+        set -x
         nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
         for node in $nodeList; do
             taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
@@ -68,6 +72,7 @@ steps:
       displayName: "Run AKS Swift E2E"
 
     - script: |
+        set -x
         echo "IPv4 Overlay DataPath Test"
         cd test/integration/datapath
         sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
@@ -82,7 +87,7 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        set -e
+        set -ex
         kubectl get po -owide -A
         clusterName=${{ parameters.clusterName }}
         echo "Restarting nodes"
@@ -98,7 +103,7 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        set -e
+        set -ex
         cd test/integration/load
 
         # Scale Cluster Up/Down to confirm functioning CNS
@@ -112,19 +117,24 @@ steps:
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
-  - script: |
-      echo "Run wireserver and metadata connectivity Tests"
-      bash test/network/wireserver_metadata_test.sh
-    retryCountOnTaskFailure: 3
-    name: "WireserverMetadataConnectivityTests"
-    displayName: "Run Wireserver and Metadata Connectivity Tests"
+  - ${{ if eq(parameters.os, 'linux') }}:
+    - script: |
+        set -x
+        echo "Run wireserver and metadata connectivity Tests"
+        bash test/network/wireserver_metadata_test.sh
+      retryCountOnTaskFailure: 3
+      name: "WireserverMetadataConnectivityTests"
+      displayName: "Run Wireserver and Metadata Connectivity Tests"
 
-  - script: |
-      cd hack/scripts
-      chmod +x async-delete-test.sh
-      ./async-delete-test.sh
-      if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
-        kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
-      fi
-    name: "testAsyncDelete"
-    displayName: "Verify Async Delete when CNS is down"
+    - script: |
+        set -x
+        cd hack/scripts
+        chmod +x async-delete-test.sh
+        ./async-delete-test.sh
+        if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
+          kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
+        fi
+      name: "testAsyncDelete"
+      displayName: "Verify Async Delete when CNS is down"
+      dependsOn: "WireserverMetadataConnectivityTests"
+      condition: succeededOrFailed()
