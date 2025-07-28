@@ -350,7 +350,36 @@ spec:
           iptables -t filter -A CIL_HOST_OUTPUT -j ACCEPT -m comment --comment "cilium: ACCEPT for proxy traffic"
           iptables -t filter -A CIL_HOST_OUTPUT -j ACCEPT -m comment --comment "cilium: ACCEPT for l7 proxy upstream traffic"
 
-          echo "Host entity OUTPUT marking configured successfully"
+          echo "IPv4 host entity OUTPUT marking configured successfully"
+
+          # Check if IPv6 is enabled in Cilium config (dual-stack detection)
+          if grep -q "enable-ipv6.*true" /tmp/cilium/config-map/enable-ipv6 2>/dev/null || \
+             grep -q '"enable-ipv6":"true"' /tmp/cilium/config-map/* 2>/dev/null || \
+             [ -f /proc/net/if_inet6 ] && ip -6 route show | grep -q "^default"; then
+            echo "Dual-stack detected, configuring IPv6 iptables rules..."
+            
+            # IPv6 ip6tables rules for host entities (dual-stack support)
+            # Create CIL_HOST_OUTPUT chain if it doesn't exist
+            ip6tables -t filter -N CIL_HOST_OUTPUT 2>/dev/null || true
+
+            # Clear existing CIL_HOST_OUTPUT rules to avoid duplicates
+            ip6tables -t filter -F CIL_HOST_OUTPUT
+
+            # Add OUTPUT jump rule if it doesn't exist
+            ip6tables -t filter -C OUTPUT -j CIL_HOST_OUTPUT -m comment --comment "cilium-feeder: CIL_HOST_OUTPUT" || \
+            ip6tables -t filter -I OUTPUT -j CIL_HOST_OUTPUT -m comment --comment "cilium-feeder: CIL_HOST_OUTPUT"
+
+            # CIL_HOST_OUTPUT rules - ONLY what's needed for host entities
+            ip6tables -t filter -A CIL_HOST_OUTPUT -j MARK --set-xmark 0xc00/0xf00 -m comment --comment "cilium: host->any mark as from host"
+            ip6tables -t filter -A CIL_HOST_OUTPUT -j ACCEPT -m comment --comment "cilium: ACCEPT for proxy traffic"
+            ip6tables -t filter -A CIL_HOST_OUTPUT -j ACCEPT -m comment --comment "cilium: ACCEPT for l7 proxy upstream traffic"
+
+            echo "IPv6 host entity OUTPUT marking configured successfully"
+            echo "Dual-stack host entity marking configured successfully"
+          else
+            echo "IPv6 not enabled, skipping IPv6 iptables configuration"
+            echo "IPv4-only host entity marking configured successfully"
+          fi
         securityContext:
           capabilities:
             add:
