@@ -143,5 +143,4 @@ steps:
         fi
       name: "testAsyncDelete"
       displayName: "Verify Async Delete when CNS is down"
-      dependsOn: "WireserverMetadataConnectivityTests"
       condition: succeededOrFailed()
