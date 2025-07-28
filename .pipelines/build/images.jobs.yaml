@@ -112,8 +112,8 @@ jobs:
     pool:
       os: linux
       type: docker
-#      ${{ if eq(job_data.job, 'linux_arm64') }}:
-#        hostArchitecture: arm64
+      ${{ if eq(job_data.job, 'linux_arm64') }}:
+        hostArchitecture: arm64
 #      ${{ else }}:
 #        LinuxHostVersion: 'AzLinux3.0AMD64'
     variables:
@@ -127,12 +127,10 @@ jobs:
         OS: linux
       ${{ elseif eq(job_data.job, 'windows_amd64') }}:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
-        ob_enable_qemu: true
         ARCH: amd64
         OS: windows
       ${{ elseif eq(job_data.job, 'linux_arm64') }}:
         LinuxContainerImage: 'mcr.microsoft.com/onebranch/azurelinux/build:3.0'
-        ob_enable_qemu: true
         ARCH: arm64
         OS: linux
         GOARCH: arm64
