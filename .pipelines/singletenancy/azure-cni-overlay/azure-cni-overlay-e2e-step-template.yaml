@@ -92,6 +92,7 @@ steps:
         ./patch-win-clusterkubeconfig.sh
       name: "patchKubeClusterConfig"
       displayName: "Patch kubeclusterconfig.json on Windows nodes"
+      retryCountOnTaskFailure: 3
 
     - script: |
         nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`

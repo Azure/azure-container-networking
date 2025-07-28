@@ -60,6 +60,7 @@ steps:
         ./patch-win-clusterkubeconfig.sh
       name: "patchKubeClusterConfig"
       displayName: "Patch kubeclusterconfig.json on Windows nodes"
+      retryCountOnTaskFailure: 3
 
     # replicate overlay behavior of untainting the nodes
     - script: |
