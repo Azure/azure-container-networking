@@ -117,6 +117,7 @@ stages:
               arch: $(arch)
               name: $(name)
               os: $(os)
+              os_version: $(os_version)
               
   - stage: binaries
     displayName: Build Binaries
