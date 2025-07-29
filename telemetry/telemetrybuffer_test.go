@@ -188,3 +188,22 @@ func TestStartTelemetryService(t *testing.T) {
 	err := tb.StartTelemetryService("", nil)
 	require.Error(t, err)
 }
+
+// TestExtraneousClose checks that closing potentially multiple times after a failed connect won't panic
+func TestExtraneousClose(_ *testing.T) {
+	tb := NewTelemetryBuffer(nil)
+
+	tb.Close()
+	tb.Close()
+
+	tb.ConnectToTelemetry()
+
+	tb.Close()
+	tb.Close()
+
+	tb = NewTelemetryBuffer(nil)
+	tb.ConnectToTelemetryService(telemetryNumberRetries, telemetryWaitTimeInMilliseconds)
+
+	tb.Close()
+	tb.Close()
+}

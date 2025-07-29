@@ -16,7 +16,6 @@ import (
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/telemetry"
 	hnsv2 "github.com/Microsoft/hcsshim/hcn"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	"github.com/stretchr/testify/assert"
@@ -409,8 +408,6 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			netNs: "net",
 			nwCfg: &cni.NetworkConfig{
@@ -442,8 +439,6 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			netNs: "net",
 			nwCfg: &cni.NetworkConfig{
@@ -475,8 +470,6 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			netNs: "net",
 			nwCfg: &cni.NetworkConfig{
@@ -508,8 +501,6 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			netNs: "",
 			nwCfg: &cni.NetworkConfig{
@@ -541,8 +532,6 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			netNs: "azure",
 			nwCfg: &cni.NetworkConfig{
@@ -602,8 +591,6 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			netNs: "azure",
 			nwCfg: &cni.NetworkConfig{
@@ -624,8 +611,6 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			netNs: "azure",
 			nwCfg: &cni.NetworkConfig{
@@ -646,8 +631,6 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			netNs: "azure",
 			nwCfg: &cni.NetworkConfig{
@@ -664,8 +647,6 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			netNs: "azure",
 			nwCfg: &cni.NetworkConfig{
@@ -729,8 +710,6 @@ func TestPluginMultitenancyWindowsAdd(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:             plugin,
 				nm:                 network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				tb:                 &telemetry.TelemetryBuffer{},
-				report:             &telemetry.CNIReport{},
 				multitenancyClient: NewMockMultitenancy(false, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1(), GetTestCNSResponse2()}),
 			},
 
@@ -748,8 +727,6 @@ func TestPluginMultitenancyWindowsAdd(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:             plugin,
 				nm:                 network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				tb:                 &telemetry.TelemetryBuffer{},
-				report:             &telemetry.CNIReport{},
 				multitenancyClient: NewMockMultitenancy(true, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1(), GetTestCNSResponse2()}),
 			},
 			args: &cniSkel.CmdArgs{
@@ -993,8 +970,6 @@ func TestPluginWindowsAdd(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:             resources.Plugin,
 				nm:                 network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				tb:                 &telemetry.TelemetryBuffer{},
-				report:             &telemetry.CNIReport{},
 				multitenancyClient: NewMockMultitenancy(false, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1(), GetTestCNSResponse2()}),
 			},
 			args: &cniSkel.CmdArgs{
@@ -1163,10 +1138,9 @@ func TestPluginWindowsAdd(t *testing.T) {
 			// Based on a live swiftv2 windows cluster's (infra + delegated) cns invoker response
 			name: "Add Happy Path Swiftv2",
 			plugin: &NetPlugin{
-				Plugin:      resources.Plugin,
-				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				tb:          &telemetry.TelemetryBuffer{},
-				report:      &telemetry.CNIReport{},
+				Plugin: resources.Plugin,
+				nm:     network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+
 				ipamInvoker: NewCustomMockIpamInvoker(GetTestCNSResponseSecondaryWindows(macAddress)),
 				netClient: &InterfaceGetterMock{
 					// used in secondary find master interface

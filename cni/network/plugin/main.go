@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
 	zaplog "github.com/Azure/azure-container-networking/cni/log"
@@ -16,14 +15,12 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
 const (
-	hostNetAgentURL                 = "http://168.63.129.16/machine/plugins?comp=netagent&type=cnireport"
 	ipamQueryURL                    = "http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
 	pluginName                      = "CNI"
 	telemetryNumRetries             = 5
@@ -53,23 +50,16 @@ func printVersion() {
 }
 
 func rootExecute() error {
-	var (
-		config common.PluginConfig
-		tb     *telemetry.TelemetryBuffer
-	)
+	var config common.PluginConfig
 
 	config.Version = version
 
 	reportManager := &telemetry.ReportManager{
-		HostNetAgentURL: hostNetAgentURL,
-		ContentType:     telemetry.ContentType,
 		Report: &telemetry.CNIReport{
-			Context:          "AzureCNI",
-			SystemDetails:    telemetry.SystemInfo{},
-			InterfaceDetails: telemetry.InterfaceInfo{},
-			BridgeDetails:    telemetry.BridgeInfo{},
-			Version:          version,
-			Logger:           logger,
+			Context:       "AzureCNI",
+			SystemDetails: telemetry.SystemInfo{},
+			Version:       version,
+			Logger:        logger,
 		},
 	}
 
@@ -101,32 +91,20 @@ func rootExecute() error {
 			cniReport.VMUptime = upTime.Format("2006-01-02 15:04:05")
 		}
 
-		// CNI Acquires lock
+		// CNI attempts to acquire lock
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
+			// Error acquiring lock
 			network.PrintCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
 
-			tb = telemetry.NewTelemetryBuffer(logger)
-			if tberr := tb.Connect(); tberr != nil {
-				logger.Error("Cannot connect to telemetry service", zap.Error(tberr))
-				return errors.Wrap(err, "lock acquire error")
+			// Connect to telemetry service if it is running, otherwise skips telemetry
+			telemetry.AIClient.ConnectTelemetry(logger)
+			defer telemetry.AIClient.DisconnectTelemetry()
+
+			if telemetry.AIClient.IsConnected() {
+				telemetry.AIClient.SendError(err)
+			} else {
+				logger.Error("Not connected to telemetry service, skipping sending error to application insights")
 			}
-
-			network.ReportPluginError(reportManager, tb, err)
-
-			if errors.Is(err, store.ErrTimeoutLockingStore) {
-				var cniMetric telemetry.AIMetric
-				cniMetric.Metric = aitelemetry.Metric{
-					Name:             telemetry.CNILockTimeoutStr,
-					Value:            1.0,
-					CustomDimensions: make(map[string]string),
-				}
-				sendErr := telemetry.SendCNIMetric(&cniMetric, tb)
-				if sendErr != nil {
-					logger.Error("Couldn't send cnilocktimeout metric", zap.Error(sendErr))
-				}
-			}
-
-			tb.Close()
 			return errors.Wrap(err, "lock acquire error")
 		}
 
@@ -139,21 +117,19 @@ func rootExecute() error {
 				os.Exit(1)
 			}
 		}()
-
+		// At this point, lock is acquired
 		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
 		// end up creating/killing telemetry process results in undesired state.
-		tb = telemetry.NewTelemetryBuffer(logger)
-		tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
-		defer tb.Close()
-
-		netPlugin.SetCNIReport(cniReport, tb)
+		telemetry.AIClient.StartAndConnectTelemetry(logger)
+		defer telemetry.AIClient.DisconnectTelemetry()
+		telemetry.AIClient.SetSettings(cniReport)
 
 		t := time.Now()
 		cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
 
 		if err = netPlugin.Start(&config); err != nil {
 			network.PrintCNIError(fmt.Sprintf("Failed to start network plugin, err:%v.\n", err))
-			network.ReportPluginError(reportManager, tb, err)
+			telemetry.AIClient.SendError(err)
 			panic("network plugin start fatal error")
 		}
 
@@ -186,12 +162,7 @@ func rootExecute() error {
 	if cniCmd == cni.CmdVersion {
 		return errors.Wrap(err, "Execute netplugin failure")
 	}
-
 	netPlugin.Stop()
-
-	if err != nil {
-		network.ReportPluginError(reportManager, tb, err)
-	}
 
 	return errors.Wrap(err, "Execute netplugin failure")
 }

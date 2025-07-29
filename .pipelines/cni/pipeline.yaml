@@ -5,6 +5,10 @@ trigger:
     - dropgz/*
     - azure-ipam/*
     - v*
+parameters:
+  - name: upgradeScenario
+    type: boolean
+    default: false
 
 stages:
   - stage: setup
@@ -24,7 +28,7 @@ stages:
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
-
+  
   - stage: build_images
     dependsOn: setup
     displayName: "Build Images"
@@ -75,29 +79,29 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
         strategy:
           matrix:
-            azure_ipam_linux_arm64:
-              arch: arm64
-              name: azure-ipam
-              os: linux
-            cni_linux_arm64:
-              arch: arm64
-              name: cni
-              os: linux
-            ipv6_hp_bpf_linux_arm64:
-              arch: arm64
-              name: ipv6-hp-bpf
-              os: linux
-            npm_linux_arm64:
-              arch: arm64
-              name: npm
-              os: linux
+              azure_ipam_linux_arm64:
+                arch: arm64
+                name: azure-ipam
+                os: linux
+              cni_linux_arm64:
+                arch: arm64
+                name: cni
+                os: linux
+              ipv6_hp_bpf_linux_arm64:
+                arch: arm64
+                name: ipv6-hp-bpf
+                os: linux
+              npm_linux_arm64:
+                arch: arm64
+                name: npm
+                os: linux
         steps:
           - template: ../containers/container-template.yaml
             parameters:
               arch: $(arch)
               name: $(name)
               os: $(os)
-
+              
   - stage: binaries
     displayName: Build Binaries
     dependsOn: setup
@@ -304,6 +308,7 @@ stages:
       vmSize: ${VM_SIZE_CILIUM}
       arch: amd64
       cni: "cilium"
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -315,6 +320,7 @@ stages:
       vmSize: ${VM_SIZE_CILIUM}
       arch: amd64
       cni: "cilium"
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -326,6 +332,7 @@ stages:
       arch: amd64
       osSKU: AzureLinux
       cni: "cilium"
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -336,6 +343,7 @@ stages:
       vmSize: Standard_D8ps_v5
       arch: arm64
       cni: "cilium"
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -346,6 +354,7 @@ stages:
       vmSize: Standard_HC44-16rs
       arch: amd64
       cni: "cilium"
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -357,6 +366,7 @@ stages:
       arch: amd64
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -368,6 +378,7 @@ stages:
       arch: arm64
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -380,6 +391,7 @@ stages:
       osSKU: AzureLinux
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
+      upgradeScenario: false
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -391,6 +403,125 @@ stages:
       arch: amd64
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
+      upgradeScenario: false
+
+
+  ## If upgradeScenario is set, redeploy new IPAM version to existing clusters and run tests
+  - ${{if eq(parameters.upgradeScenario, true)}}:
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_overlay_upgrade
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cilium-over"
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: ${VM_SIZE_CILIUM}
+        arch: amd64
+        cni: "cilium"
+        upgradeScenario: true
+        dependsOn: cilium_overlay
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_overlay_hubble_upgrade
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cil-over-hub"
+        hubbleEnabled: true
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: ${VM_SIZE_CILIUM}
+        arch: amd64
+        cni: "cilium"
+        upgradeScenario: true
+        dependsOn: cilium_overlay_hubble
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_overlay_mariner_upgrade
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cil-over-mar"
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: ${VM_SIZE_CILIUM}
+        arch: amd64
+        osSKU: AzureLinux
+        cni: "cilium"
+        upgradeScenario: true
+        dependsOn: cilium_overlay_mariner
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_overlay_arm_upgrade
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cil-over-arm"
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: Standard_D8ps_v5
+        arch: arm64
+        cni: "cilium"
+        upgradeScenario: true
+        dependsOn: cilium_overlay_arm
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_overlay_rdma_upgrade
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cil-over-rdma"
+        nodeCount: 2
+        vmSize: Standard_HC44-16rs
+        arch: amd64
+        cni: "cilium"
+        upgradeScenario: true
+        dependsOn: cilium_overlay_rdma
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_overlay_ds_upgrade
+        clusterType: dualstack-byocni-nokubeproxy-up
+        clusterName: "cil-ds-ov"
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: ${VM_SIZE_CILIUM}
+        arch: amd64
+        dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+        cni: "cilium_dualstack"
+        upgradeScenario: true
+        dependsOn: cilium_overlay_ds
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_ds_arm_upgrade
+        clusterType: dualstack-byocni-nokubeproxy-up
+        clusterName: "cil-ds-arm"
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: Standard_D8ps_v5
+        arch: arm64
+        dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+        cni: "cilium_dualstack"
+        upgradeScenario: true
+        dependsOn: cilium_ds_arm
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_ds_mariner_upgrade
+        clusterType: dualstack-byocni-nokubeproxy-up
+        clusterName: "cil-ds-mar"
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: ${VM_SIZE_CILIUM}
+        arch: amd64
+        osSKU: AzureLinux
+        dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+        cni: "cilium_dualstack"
+        upgradeScenario: true
+        dependsOn: cilium_ds_mariner
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_ds_rdma_upgrade
+        clusterType: dualstack-byocni-nokubeproxy-up
+        clusterName: "cil-ds-rdma"
+        nodeCount: 2
+        vmSize: Standard_HC44-16rs
+        arch: amd64
+        dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+        cni: "cilium_dualstack"
+        upgradeScenario: true
+        dependsOn: cilium_ds_rdma
 
   - stage: delete_resources
     displayName: "Delete Resources"
@@ -418,6 +549,16 @@ stages:
       - windows_overlay_HNS
       - windows19_overlay_HNS
       - setup
+      - ${{if eq(parameters.upgradeScenario, true)}}:
+        - cilium_overlay_upgrade
+        - cilium_overlay_hubble_upgrade
+        - cilium_overlay_mariner_upgrade
+        - cilium_overlay_arm_upgrade
+        - cilium_overlay_rdma_upgrade
+        - cilium_overlay_ds_upgrade
+        - cilium_ds_arm_upgrade
+        - cilium_ds_mariner_upgrade
+        - cilium_ds_rdma_upgrade
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     jobs:

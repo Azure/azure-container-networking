@@ -4,6 +4,7 @@
 package network
 
 import (
+	"context"
 	"net"
 	"testing"
 
@@ -12,8 +13,17 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"k8s.io/kubernetes/pkg/kubelet"
 )
+
+// mockDHCPFail is a mock DHCP client that always returns an error
+type mockDHCPFail struct{}
+
+func (m *mockDHCPFail) DiscoverRequest(context.Context, net.HardwareAddr, string) error {
+	return errors.New("mock DHCP discover request failed")
+}
 
 func TestSecondaryAddEndpoints(t *testing.T) {
 	nl := netlink.NewMockNetlink(false, "")
@@ -362,6 +372,33 @@ func TestSecondaryConfigureContainerInterfacesAndRoutes(t *testing.T) {
 			},
 			wantErr:    true,
 			wantErrMsg: "SecondaryEndpointClient Error: routes expected for eth1",
+		},
+		{
+			name: "Configure Interface and routes DHCP discover fail",
+			client: &SecondaryEndpointClient{
+				netlink:        netlink.NewMockNetlink(false, ""),
+				plClient:       platform.NewMockExecClient(false),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				dhcpClient:     &mockDHCPFail{},
+				ep:             &endpoint{SecondaryInterfaces: map[string]*InterfaceInfo{"eth1": {Name: "eth1"}}},
+			},
+			epInfo: &EndpointInfo{
+				IfName: "eth1",
+				IPAddresses: []net.IPNet{
+					{
+						IP:   net.ParseIP("192.168.0.4"),
+						Mask: net.CIDRMask(subnetv4Mask, ipv4Bits),
+					},
+				},
+				Routes: []RouteInfo{
+					{
+						Dst: net.IPNet{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(ipv4FullMask, ipv4Bits)},
+					},
+				},
+			},
+			wantErr:    true,
+			wantErrMsg: kubelet.NetworkNotReadyErrorMsg,
 		},
 	}
 

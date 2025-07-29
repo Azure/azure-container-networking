@@ -1,0 +1,17 @@
+# {{.RENDER_MSG}}
+# SOURCE: {{.SRC_PIPE}}
+ARG ARCH
+
+# {{.WIN_HPC_IMG}}
+FROM --platform=windows/${ARCH} {{.WIN_HPC_PIN}} AS windows
+ARG ARTIFACT_DIR .
+
+COPY ${ARTIFACT_DIR}/bin/dropgz.exe /dropgz.exe
+ENTRYPOINT [ "/dropgz.exe" ]
+
+
+FROM scratch AS linux
+ARG ARTIFACT_DIR .
+
+COPY ${ARTIFACT_DIR}/bin/dropgz /dropgz
+ENTRYPOINT [ "/dropgz" ]

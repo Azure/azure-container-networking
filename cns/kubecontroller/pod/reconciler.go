@@ -50,7 +50,7 @@ type limiter interface {
 	Allow() bool
 }
 
-// NotifierFunc returns a reconcile.Func that lists Pods to get the latest
+// NewNotifierFunc returns a reconcile.Func that lists Pods to get the latest
 // state and notifies listeners of the resulting Pods.
 // listOpts are passed to the client.List call to filter the Pod list.
 // limiter is an optional rate limiter which may be used to limit the
@@ -88,11 +88,22 @@ var hostNetworkIndexer = client.IndexerFunc(func(o client.Object) []string {
 	return []string{strconv.FormatBool(pod.Spec.HostNetwork)}
 })
 
+var statusPhaseIndexer = client.IndexerFunc(func(o client.Object) []string {
+	pod, ok := o.(*v1.Pod)
+	if !ok {
+		return nil
+	}
+	return []string{string(pod.Status.Phase)}
+})
+
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter on nodeName.
 func (p *watcher) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	p.cli = mgr.GetClient()
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &v1.Pod{}, "spec.hostNetwork", hostNetworkIndexer); err != nil {
 		return errors.Wrap(err, "failed to set up hostNetwork indexer")
+	}
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &v1.Pod{}, "status.phase", statusPhaseIndexer); err != nil {
+		return errors.Wrap(err, "failed to set up status.phase indexer")
 	}
 	if err := ctrl.NewControllerManagedBy(mgr).
 		For(&v1.Pod{}).

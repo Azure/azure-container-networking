@@ -23,7 +23,6 @@ import (
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	cnscli "github.com/Azure/azure-container-networking/cns/cmd/cli"
 	"github.com/Azure/azure-container-networking/cns/cniconflist"
-	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/deviceplugin"
@@ -41,12 +40,15 @@ import (
 	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
 	podctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/pod"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	loggerv2 "github.com/Azure/azure-container-networking/cns/logger/v2"
 	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/cns/middlewares"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	restserverv2 "github.com/Azure/azure-container-networking/cns/restserver/v2"
+	cnipodprovider "github.com/Azure/azure-container-networking/cns/stateprovider/cni"
+	cnspodprovider "github.com/Azure/azure-container-networking/cns/stateprovider/cns"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
@@ -66,10 +68,10 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/avast/retry-go/v4"
+	"github.com/go-logr/zapr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"golang.org/x/time/rate"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -84,7 +86,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
@@ -130,7 +131,6 @@ const (
 var (
 	rootCtx   context.Context
 	rootErrCh chan error
-	z         *zap.Logger
 )
 
 // Version is populated by make during build.
@@ -629,12 +629,27 @@ func main() {
 		}
 	}
 
-	// configure zap logger
-	zconfig := zap.NewProductionConfig()
-	zconfig.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	if z, err = zconfig.Build(); err != nil {
+	// Get host metadata and attach it to logger(v2) appinsights config.
+	// If this errors, we will not have metadata in the AI logs. Should we exit?
+	metadata, _ := acn.GetHostMetadata(aitelemetry.MetadataFile)
+	aifields := loggerv2.MetadataToFields(metadata)
+	if cnsconfig.Logger.AppInsights != nil {
+		cnsconfig.Logger.AppInsights.Fields = append(cnsconfig.Logger.AppInsights.Fields, aifields...)
+	}
+
+	// build the zap logger
+	z, c, err := loggerv2.New(&cnsconfig.Logger)
+	defer c()
+	if err != nil {
 		fmt.Printf("failed to create logger: %v", err)
 		os.Exit(1)
+	}
+	host, _ := os.Hostname()
+	z = z.With(zap.String("hostname", host), zap.String("version", version), zap.String("kubernetes_apiserver", os.Getenv("KUBERNETES_SERVICE_HOST")))
+	// Set the v2 logger to the global logger if v2 logger enabled.
+	if cnsconfig.EnableLoggerV2 {
+		logger.Printf("hotswapping logger v2") //nolint:staticcheck // ignore new deprecation
+		logger.Log = loggerv2.AsV1(z, c)
 	}
 
 	// start the healthz/readyz/metrics server
@@ -836,30 +851,15 @@ func main() {
 
 		// Check the CNI statefile mount, and if the file is empty
 		// stub an empty JSON object
-		if err := cnireconciler.WriteObjectToCNIStatefile(); err != nil {
+		if err := cnipodprovider.WriteObjectToCNIStatefile(); err != nil { //nolint:govet //shadow okay
 			logger.Errorf("Failed to write empty object to CNI state: %v", err)
 			return
 		}
 
-		// We might be configured to reinitialize state from the CNI instead of the apiserver.
-		// If so, we should check that the CNI is new enough to support the state commands,
-		// otherwise we fall back to the existing behavior.
-		if cnsconfig.InitializeFromCNI {
-			var isGoodVer bool
-			isGoodVer, err = cnireconciler.IsDumpStateVer()
-			if err != nil {
-				logger.Errorf("error checking CNI ver: %v", err)
-			}
-
-			// override the prior config flag with the result of the ver check.
-			cnsconfig.InitializeFromCNI = isGoodVer
-
-			if cnsconfig.InitializeFromCNI {
-				// Set the PodInfoVersion by initialization type, so that the
-				// PodInfo maps use the correct key schema
-				cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
-			}
-		}
+		// By default reinitialize state from the CNI.
+		// Set the PodInfoVersion by initialization type, so that the
+		// PodInfo maps use the correct key schema
+		cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
 		// If cns manageendpointstate is true, then cns maintains its own state and reconciles from it.
 		// in this case, cns maintains state with containerid as key and so in-memory cache can lookup
 		// and update based on container id.
@@ -869,7 +869,7 @@ func main() {
 
 		logger.Printf("Set GlobalPodInfoScheme %v (InitializeFromCNI=%t)", cns.GlobalPodInfoScheme, cnsconfig.InitializeFromCNI)
 
-		err = InitializeCRDState(rootCtx, httpRemoteRestService, cnsconfig)
+		err = InitializeCRDState(rootCtx, z, httpRemoteRestService, cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
@@ -1064,7 +1064,7 @@ func main() {
 					return errors.Wrap(err, "failed to start fsnotify watcher, will retry")
 				}
 				return nil
-			}, retry.DelayType(retry.BackOffDelay), retry.Attempts(0), retry.Context(rootCtx)) // infinite cancellable exponential backoff retrier
+			}, retry.DelayType(retry.BackOffDelay), retry.UntilSucceeded(), retry.Context(rootCtx)) // infinite cancellable exponential backoff retrier
 		}()
 	}
 
@@ -1372,7 +1372,9 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 }
 
 // InitializeCRDState builds and starts the CRD controllers.
-func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig) error {
+//
+//nolint:gocyclo // legacy
+func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig) error {
 	// convert interface type to implementation type
 	httpRestServiceImplementation, ok := httpRestService.(*restserver.HTTPRestService)
 	if !ok {
@@ -1453,20 +1455,18 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// aks addons to come up so retry a bit more aggresively here.
 	// will retry 10 times maxing out at a minute taking about 8 minutes before it gives up.
 	attempt := 0
-	err = retry.Do(func() error {
+	_ = retry.Do(func() error {
 		attempt++
 		logger.Printf("reconciling initial CNS state attempt: %d", attempt)
 		err = reconcileInitialCNSState(ctx, directscopedcli, httpRestServiceImplementation, podInfoByIPProvider)
 		if err != nil {
 			logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
+			nncInitFailure.Inc()
 		}
 		return errors.Wrap(err, "failed to initialize CNS state")
-	}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute))
-	if err != nil {
-		return err
-	}
+	}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute), retry.UntilSucceeded())
 	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
-
+	hasNNCInitialized.Set(1)
 	scheme := kuberuntime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil { //nolint:govet // intentional shadow
 		return errors.Wrap(err, "failed to add corev1 to scheme")
@@ -1514,7 +1514,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		Scheme:  scheme,
 		Metrics: ctrlmetrics.Options{BindAddress: "0"},
 		Cache:   cacheOpts,
-		Logger:  ctrlzap.New(),
+		Logger:  zapr.NewLogger(z),
 	}
 
 	manager, err := ctrl.NewManager(kubeConfig, managerOpts)
@@ -1672,7 +1672,7 @@ func getPodInfoByIPProvider(
 	switch {
 	case cnsconfig.ManageEndpointState:
 		logger.Printf("Initializing from self managed endpoint store")
-		podInfoByIPProvider, err = cnireconciler.NewCNSPodInfoProvider(httpRestServiceImplementation.EndpointStateStore) // get reference to endpoint state store from rest server
+		podInfoByIPProvider, err = cnspodprovider.New(httpRestServiceImplementation.EndpointStateStore) // get reference to endpoint state store from rest server
 		if err != nil {
 			if errors.Is(err, store.ErrKeyNotFound) {
 				logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
@@ -1680,29 +1680,13 @@ func getPodInfoByIPProvider(
 				return podInfoByIPProvider, errors.Wrap(err, "failed to create CNS PodInfoProvider")
 			}
 		}
-	case cnsconfig.InitializeFromCNI:
+	default:
 		logger.Printf("Initializing from CNI")
-		podInfoByIPProvider, err = cnireconciler.NewCNIPodInfoProvider()
+		podInfoByIPProvider, err = cnipodprovider.New()
 		if err != nil {
 			return podInfoByIPProvider, errors.Wrap(err, "failed to create CNI PodInfoProvider")
 		}
-	default:
-		logger.Printf("Initializing from Kubernetes")
-		podInfoByIPProvider = cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
-			pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{ //nolint:govet // ignore err shadow
-				FieldSelector: "spec.nodeName=" + nodeName,
-			})
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to list Pods for PodInfoProvider")
-			}
-			podInfo, err := cns.KubePodsToPodInfoByIP(pods.Items)
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to convert Pods to PodInfoByIP")
-			}
-			return podInfo, nil
-		})
 	}
-
 	return podInfoByIPProvider, nil
 }
 
@@ -1747,7 +1731,7 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 // PopulateCNSEndpointState initilizes CNS Endpoint State by Migrating the CNI state.
 func PopulateCNSEndpointState(endpointStateStore store.KeyValueStore) error {
 	logger.Printf("State Migration is enabled")
-	endpointState, err := cnireconciler.MigrateCNISate()
+	endpointState, err := cnspodprovider.MigrateCNISate()
 	if err != nil {
 		return errors.Wrap(err, "failed to create CNS Endpoint state from CNI")
 	}

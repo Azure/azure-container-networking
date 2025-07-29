@@ -10,6 +10,12 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	compression embed.Compression
+	skipVerify  bool
+	outs        []string
+)
+
 // list subcommand
 var list = &cobra.Command{
 	Use: "list",
@@ -32,7 +38,7 @@ func checksum(srcs, dests []string) error {
 	if len(srcs) != len(dests) {
 		return errors.Wrapf(embed.ErrArgsMismatched, "%d and %d", len(srcs), len(dests))
 	}
-	rc, err := embed.Extract("sum.txt")
+	rc, err := embed.Extract("sum.txt", compression)
 	if err != nil {
 		return errors.Wrap(err, "failed to extract checksum file")
 	}
@@ -54,11 +60,6 @@ func checksum(srcs, dests []string) error {
 	return nil
 }
 
-var (
-	skipVerify bool
-	outs       []string
-)
-
 // deploy subcommand
 var deploy = &cobra.Command{
 	Use: "deploy",
@@ -73,7 +74,7 @@ var deploy = &cobra.Command{
 			return errors.Wrapf(embed.ErrArgsMismatched, "%d files, %d outputs", len(srcs), len(outs))
 		}
 		log := z.With(zap.Strings("sources", srcs), zap.Strings("outputs", outs), zap.String("cmd", "deploy"))
-		if err := embed.Deploy(log, srcs, outs); err != nil {
+		if err := embed.Deploy(log, srcs, outs, compression); err != nil {
 			return errors.Wrapf(err, "failed to deploy %s", srcs)
 		}
 		log.Info("successfully wrote files")
@@ -120,6 +121,7 @@ func init() {
 	root.AddCommand(verify)
 
 	deploy.ValidArgs, _ = embed.Contents() // setting this after the command is initialized is required
+	deploy.Flags().StringVarP((*string)(&compression), "compression", "c", "none", "compression type (default none)")
 	deploy.Flags().BoolVar(&skipVerify, "skip-verify", false, "set to disable checksum validation")
 	deploy.Flags().StringSliceVarP(&outs, "output", "o", []string{}, "output file path")
 	root.AddCommand(deploy)

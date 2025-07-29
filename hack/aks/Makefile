@@ -9,7 +9,7 @@ AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v
 
 # overrideable defaults
 AUTOUPGRADE          ?= patch
-K8S_VER              ?= 1.30
+K8S_VER              ?= 1.33
 NODE_COUNT           ?= 2
 NODE_COUNT_WIN	     ?= $(NODE_COUNT)
 NODEUPGRADE          ?= NodeImage
@@ -19,7 +19,7 @@ OS_SKU_WIN           ?= Windows2022
 REGION               ?= westus2
 VM_SIZE	             ?= Standard_B2s
 VM_SIZE_WIN          ?= Standard_B2s
-IP_TAG               ?= FirstPartyUsage=/DelegatedNetworkControllerTest
+IP_TAG               ?= FirstPartyUsage=/NonProd
 IP_PREFIX            ?= serviceTaggedIp
 PUBLIC_IP_ID         ?= /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/publicIPAddresses
 PUBLIC_IPv4          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v4
@@ -39,6 +39,17 @@ ifeq ($(LTS),true)
 else
 	LTS_ARGS=
 endif
+
+# Common az aks create fields
+COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+	--auto-upgrade-channel $(AUTOUPGRADE) \
+	--node-os-upgrade-channel $(NODEUPGRADE) \
+	--kubernetes-version $(K8S_VER) \
+	--node-count $(NODE_COUNT) \
+	--node-vm-size $(VM_SIZE) \
+	--no-ssh-key  \
+	--os-sku $(OS_SKU) \
+	$(LTS_ARGS)
 
 ##@ Help
 
@@ -97,6 +108,7 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo VMSS_NAME=$(VMSS_NAME)
 	@echo K8S_VER=$(K8S_VER)
 	@echo LTS_ARGS=$(if $(LTS_ARGS),$(LTS_ARGS),$(LTS))
+	@echo COMMON_AKS_FIELDS=$(COMMON_AKS_FIELDS)
 
 
 ##@ SWIFT Infra
@@ -129,37 +141,22 @@ up: swift-up ## Alias to swift-up
 
 
 nodesubnet-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an NodeSubnet BYO CNI cluster without kube-proxy
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--max-pods 250 \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/UseCustomizedOSImage,OSImageSubscriptionID=c4c3550e-a965-4993-a50c-628fd38cd3e1,OSImageResourceGroup=aksvhdtestbuildrg,OSImageGallery=PackerSigGalleryEastUS,OSImageName=2404gen2containerd,OSImageVersion=1.1751066173.11329 \
-		--os-sku $(OS_SKU) \
-		--no-ssh-key \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 overlay-byocni-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay BYO CNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		--os-sku $(OS_SKU) \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 ifeq ($(OS),windows)
@@ -167,72 +164,46 @@ ifeq ($(OS),windows)
 endif
 
 overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		--os-sku $(OS_SKU) \
-		--tags customImage=bpfHostRouting \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 overlay-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay AzCNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
+ifeq ($(OS),windows)
+	$(MAKE) windows-nodepool-up
+endif
 
 swift-byocni-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--no-ssh-key \
-		--os-sku $(OS_SKU) \
-		$(LTS_ARGS) \
 		--yes
 ifeq ($(OS),windows)
 	@$(MAKE) windows-swift-nodepool-up
@@ -240,54 +211,32 @@ endif
 	@$(MAKE) set-kubeconf
 
 swift-byocni-nokubeproxy-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI cluster without kube-proxy, add managed identity and public ip
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--no-ssh-key \
-		--os-sku $(OS_SKU) \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 swift-cilium-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT Cilium cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/CiliumDataplanePreview \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--no-ssh-key \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 swift-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--no-ssh-key \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -320,108 +269,63 @@ swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI clus
 # These AKS clusters can only be created in a limited subscription listed here:
 # https://dev.azure.com/msazure/CloudNativeCompute/_git/aks-rp?path=/resourceprovider/server/microsoft.com/containerservice/flags/network_flags.go&version=GBmaster&line=134&lineEnd=135&lineStartColumn=1&lineEndColumn=1&lineStyle=plain&_a=contents
 vnetscale-swift-byocni-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT BYO CNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--no-ssh-key \
-		--os-sku $(OS_SKU) \
 		--pod-ip-allocation-mode StaticBlock \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 vnetscale-swift-byocni-nokubeproxy-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT BYO CNI cluster without kube-proxy
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--no-ssh-key \
-		--os-sku $(OS_SKU) \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		--pod-ip-allocation-mode StaticBlock \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 vnetscale-swift-cilium-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT Cilium cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/CiliumDataplanePreview \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--no-ssh-key \
 		--pod-ip-allocation-mode StaticBlock \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 vnetscale-swift-up: rg-up ipv4 vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT AzCNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--no-ssh-key \
 		--pod-ip-allocation-mode StaticBlock \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 nodesubnet-cilium-up: rg-up ipv4 overlay-net-up ## Bring up a Nodesubnet Cilium cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 cniv1-up: rg-up ipv4 overlay-net-up ## Bring up a CNIv1 cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--max-pods 250 \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--os-sku $(OS_SKU) \
-		--no-ssh-key \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 ifeq ($(OS),windows)
@@ -429,38 +333,24 @@ ifeq ($(OS),windows)
 endif
 
 dualstack-overlay-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dualstack Overlay cluster with Linux node only
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4),$(PUBLIC_IPv6) \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
-		--no-ssh-key \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 dualstack-overlay-byocni-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up an dualstack Overlay BYO CNI cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4),$(PUBLIC_IPv6) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
-		--no-ssh-key \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 ifeq ($(OS),windows)
@@ -468,12 +358,7 @@ ifeq ($(OS),windows)
 endif
 
 cilium-dualstack-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a Cilium Dualstack Overlay cluster with Linux node only
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4),$(PUBLIC_IPv6) \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
@@ -481,27 +366,18 @@ cilium-dualstack-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a Cilium Dualst
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
-		--no-ssh-key \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 dualstack-byocni-nokubeproxy-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a Dualstack overlay BYOCNI cluster with Linux node only and no kube-proxy
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--auto-upgrade-channel $(AUTOUPGRADE) \
-		--node-os-upgrade-channel $(NODEUPGRADE) \
-		--kubernetes-version $(K8S_VER) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
+	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4),$(PUBLIC_IPv6) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
-		--no-ssh-key \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
-		$(LTS_ARGS) \
 		--yes
 	@$(MAKE) set-kubeconf
 

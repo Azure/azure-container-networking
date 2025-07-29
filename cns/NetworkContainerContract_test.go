@@ -23,6 +23,7 @@ func TestUnmarshalPodInfo(t *testing.T) {
 					PodName:      "pod",
 					PodNamespace: "namespace",
 				},
+				Version: GlobalPodInfoScheme,
 			},
 		},
 		{
@@ -33,6 +34,7 @@ func TestUnmarshalPodInfo(t *testing.T) {
 					PodName:      "pod",
 					PodNamespace: "namespace",
 				},
+				Version: GlobalPodInfoScheme,
 			},
 		},
 		{
@@ -44,7 +46,8 @@ func TestUnmarshalPodInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := UnmarshalPodInfo(tt.b)
+			got := &podInfo{}
+			err := json.Unmarshal(tt.b, got)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -58,7 +61,6 @@ func TestUnmarshalPodInfo(t *testing.T) {
 
 func TestNewPodInfoFromIPConfigsRequest(t *testing.T) {
 	GlobalPodInfoScheme = InterfaceIDPodInfoScheme
-	defer func() { GlobalPodInfoScheme = KubernetesPodInfoScheme }()
 	tests := []struct {
 		name    string
 		req     IPConfigsRequest

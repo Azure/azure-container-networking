@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	th               TelemetryHandle
+	aiConfig         AIConfig
 	hostAgentUrl     = "localhost:3501"
 	getCloudResponse = "AzurePublicCloud"
 	httpURL          = "http://" + hostAgentUrl
@@ -54,6 +54,18 @@ func TestMain(m *testing.M) {
 		return
 	}
 
+	aiConfig = AIConfig{
+		AppName:                      "testapp",
+		AppVersion:                   "v1.0.26",
+		BatchSize:                    4096,
+		BatchInterval:                2,
+		RefreshTimeout:               10,
+		GetEnvRetryCount:             1,
+		GetEnvRetryWaitTimeInSecs:    2,
+		DebugMode:                    true,
+		DisableMetadataRefreshThread: true,
+	}
+
 	exitCode := m.Run()
 
 	if runtime.GOOS == "linux" {
@@ -75,45 +87,50 @@ func handleGetCloud(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(getCloudResponse))
 }
 
+func initTelemetry(_ *testing.T) (th1, th2 TelemetryHandle) {
+	th1, err1 := NewAITelemetry(httpURL, "00ca2a73-c8d6-4929-a0c2-cf84545ec225", aiConfig)
+	if err1 != nil {
+		fmt.Printf("Error initializing AI telemetry: %v", err1)
+	}
+
+	th2, err2 := NewWithConnectionString(connectionString, aiConfig)
+	if err2 != nil {
+		fmt.Printf("Error initializing AI telemetry with connection string: %v", err2)
+	}
+
+	return
+}
+
 func TestEmptyAIKey(t *testing.T) {
 	var err error
 
-	aiConfig := AIConfig{
-		AppName:                      "testapp",
-		AppVersion:                   "v1.0.26",
-		BatchSize:                    4096,
-		BatchInterval:                2,
-		RefreshTimeout:               10,
-		DebugMode:                    true,
-		DisableMetadataRefreshThread: true,
-	}
 	_, err = NewAITelemetry(httpURL, "", aiConfig)
 	if err == nil {
-		t.Errorf("Error intializing AI telemetry:%v", err)
+		t.Errorf("Error initializing AI telemetry:%v", err)
+	}
+
+	_, err = NewWithConnectionString("", aiConfig)
+	if err == nil {
+		t.Errorf("Error initializing AI telemetry with connection string:%v", err)
 	}
 }
 
 func TestNewAITelemetry(t *testing.T) {
 	var err error
 
-	aiConfig := AIConfig{
-		AppName:                      "testapp",
-		AppVersion:                   "v1.0.26",
-		BatchSize:                    4096,
-		BatchInterval:                2,
-		RefreshTimeout:               10,
-		GetEnvRetryCount:             1,
-		GetEnvRetryWaitTimeInSecs:    2,
-		DebugMode:                    true,
-		DisableMetadataRefreshThread: true,
+	th1, th2 := initTelemetry(t)
+	if th1 == nil {
+		t.Errorf("Error initializing AI telemetry: %v", err)
 	}
-	th, err = NewAITelemetry(httpURL, "00ca2a73-c8d6-4929-a0c2-cf84545ec225", aiConfig)
-	if th == nil {
-		t.Errorf("Error intializing AI telemetry: %v", err)
+
+	if th2 == nil {
+		t.Errorf("Error initializing AI telemetry with connection string: %v", err)
 	}
 }
 
 func TestTrackMetric(t *testing.T) {
+	th1, th2 := initTelemetry(t)
+
 	metric := Metric{
 		Name:             "test",
 		Value:            1.0,
@@ -121,10 +138,13 @@ func TestTrackMetric(t *testing.T) {
 	}
 
 	metric.CustomDimensions["dim1"] = "col1"
-	th.TrackMetric(metric)
+	th1.TrackMetric(metric)
+	th2.TrackMetric(metric)
 }
 
 func TestTrackLog(t *testing.T) {
+	th1, th2 := initTelemetry(t)
+
 	report := Report{
 		Message:          "test",
 		Context:          "10a",
@@ -132,10 +152,13 @@ func TestTrackLog(t *testing.T) {
 	}
 
 	report.CustomDimensions["dim1"] = "col1"
-	th.TrackLog(report)
+	th1.TrackLog(report)
+	th2.TrackLog(report)
 }
 
 func TestTrackEvent(t *testing.T) {
+	th1, th2 := initTelemetry(t)
+
 	event := Event{
 		EventName:  "testEvent",
 		ResourceID: "SomeResourceId",
@@ -144,35 +167,20 @@ func TestTrackEvent(t *testing.T) {
 
 	event.Properties["P1"] = "V1"
 	event.Properties["P2"] = "V2"
-	th.TrackEvent(event)
+	th1.TrackEvent(event)
+	th2.TrackEvent(event)
 }
 
 func TestFlush(t *testing.T) {
-	th.Flush()
+	th1, th2 := initTelemetry(t)
+
+	th1.Flush()
+	th2.Flush()
 }
 
 func TestClose(t *testing.T) {
-	th.Close(10)
-}
+	th1, th2 := initTelemetry(t)
 
-func TestClosewithoutSend(t *testing.T) {
-	var err error
-
-	aiConfig := AIConfig{
-		AppName:                      "testapp",
-		AppVersion:                   "v1.0.26",
-		BatchSize:                    4096,
-		BatchInterval:                2,
-		DisableMetadataRefreshThread: true,
-		RefreshTimeout:               10,
-		GetEnvRetryCount:             1,
-		GetEnvRetryWaitTimeInSecs:    2,
-	}
-
-	thtest, err := NewAITelemetry(httpURL, "00ca2a73-c8d6-4929-a0c2-cf84545ec225", aiConfig)
-	if thtest == nil {
-		t.Errorf("Error intializing AI telemetry:%v", err)
-	}
-
-	thtest.Close(10)
+	th1.Close(10)
+	th2.Close(10)
 }

@@ -6,6 +6,7 @@ parameters:
   nodeCount: 10
   cni: ""
   jobName: "deploy_pods"
+  logType: "scaleTest"
 
 steps:
   - task: AzureCLI@2
@@ -26,7 +27,7 @@ steps:
   - template: ../../templates/log-template.yaml
     parameters:
       clusterName: ${{ parameters.clusterName }}
-      logType: scaleTest
       os: ${{ parameters.os }}
       cni: ${{ parameters.cni }}
       jobName: ${{ parameters.jobName }}
+      logType: ${{ parameters.logType }}

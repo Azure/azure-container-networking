@@ -57,6 +57,9 @@
 	"postCreateCommand": "make setup",
 	"remoteUser": "vscode",
 	"features": {
+		"ghcr.io/devcontainers/features/go:1": {
+			"version": "1.23.2"
+		},
 		"docker-in-docker": "latest",
 		"kubectl-helm-minikube": "latest",
 		"git": "latest",

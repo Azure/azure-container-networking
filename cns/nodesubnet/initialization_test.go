@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nodesubnet"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	podprovider "github.com/Azure/azure-container-networking/cns/stateprovider/cns"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/store"
 )
@@ -88,7 +88,7 @@ func TestNewCNSPodInfoProvider(t *testing.T) {
 			ctx, cancel := testContext(t)
 			defer cancel()
 
-			podInfoByIPProvider, err := cnireconciler.NewCNSPodInfoProvider(tt.store)
+			podInfoByIPProvider, err := podprovider.New(tt.store)
 			checkErr(t, err, false)
 
 			got, err := nodesubnet.ReconcileInitialCNSState(ctx, tt.reconciler, podInfoByIPProvider)

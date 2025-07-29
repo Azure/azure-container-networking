@@ -111,16 +111,14 @@ steps:
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
+  - template: ../../templates/cilium-connectivity-tests.yaml
+
   - script: |
-      set -e
-      echo "Run Cilium Connectivity Tests"
-      cilium status
-      cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors' --force-deploy
       ns=`kubectl get ns | grep cilium-test | awk '{print $1}'`
       echo "##vso[task.setvariable variable=ciliumNamespace]$ns"
     retryCountOnTaskFailure: 3
-    name: "ciliumConnectivityTests"
-    displayName: "Run Cilium Connectivity Tests"
+    name: "nsCapture"
+    displayName: "Capture Connectivity Test Namespace"
 
   - ${{ if eq( parameters['testHubble'], true) }}:
       - script: |

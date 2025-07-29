@@ -3,6 +3,7 @@ package aitelemetry
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights/contracts"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -35,6 +37,8 @@ const (
 	defaultGetEnvRetryWaitTimeInSecs = 3
 	defaultRefreshTimeoutInSecs      = 10
 )
+
+var MetadataFile = filepath.Join(os.TempDir(), "azuremetadata.json")
 
 type Level = contracts.SeverityLevel
 
@@ -98,7 +102,7 @@ func getMetadata(th *telemetryHandle) {
 
 	// check if metadata in memory otherwise initiate wireserver request
 	for {
-		metadata, err = common.GetHostMetadata(metadataFile)
+		metadata, err = common.GetHostMetadata(MetadataFile)
 		if err == nil || th.disableMetadataRefreshThread {
 			break
 		}
@@ -117,14 +121,14 @@ func getMetadata(th *telemetryHandle) {
 	th.metadata = metadata
 	th.rwmutex.Unlock()
 
-	lockclient, err := processlock.NewFileLock(metadataFile + store.LockExtension)
+	lockclient, err := processlock.NewFileLock(MetadataFile + store.LockExtension)
 	if err != nil {
 		log.Printf("Error initializing file lock:%v", err)
 		return
 	}
 
 	// Save metadata retrieved from wireserver to a file
-	kvs, err := store.NewJsonFileStore(metadataFile, lockclient, nil)
+	kvs, err := store.NewJsonFileStore(MetadataFile, lockclient, nil)
 	if err != nil {
 		debugLog("[AppInsights] Error initializing kvs store: %v", err)
 		return
@@ -134,7 +138,7 @@ func getMetadata(th *telemetryHandle) {
 		log.Errorf("getMetadata: Not able to acquire lock:%v", err)
 		return
 	}
-	metadataErr := common.SaveHostMetadata(th.metadata, metadataFile)
+	metadataErr := common.SaveHostMetadata(th.metadata, MetadataFile)
 	err = kvs.Unlock()
 	if err != nil {
 		log.Errorf("getMetadata: Not able to release lock:%v", err)
@@ -158,7 +162,7 @@ func isPublicEnvironment(url string, retryCount, waitTimeInSecs int) (bool, erro
 			return true, nil
 		} else if err == nil {
 			debugLog("[AppInsights] This is not azure public cloud:%s", cloudName)
-			return false, fmt.Errorf("Not an azure public cloud: %s", cloudName)
+			return false, errors.Errorf("not an azure public cloud: %s", cloudName)
 		}
 
 		debugLog("GetAzureCloud returned err :%v", err)
@@ -190,6 +194,46 @@ func NewAITelemetry(
 	}
 
 	telemetryConfig := appinsights.NewTelemetryConfiguration(id)
+	telemetryConfig.MaxBatchSize = aiConfig.BatchSize
+	telemetryConfig.MaxBatchInterval = time.Duration(aiConfig.BatchInterval) * time.Second
+
+	th := &telemetryHandle{
+		client:                       appinsights.NewTelemetryClientFromConfig(telemetryConfig),
+		appName:                      aiConfig.AppName,
+		appVersion:                   aiConfig.AppVersion,
+		diagListener:                 messageListener(),
+		disableMetadataRefreshThread: aiConfig.DisableMetadataRefreshThread,
+		refreshTimeout:               aiConfig.RefreshTimeout,
+	}
+
+	if th.disableMetadataRefreshThread {
+		getMetadata(th)
+	} else {
+		go getMetadata(th)
+	}
+
+	return th, nil
+}
+
+// NewWithConnectionString creates telemetry handle with user specified appinsights connection string.
+func NewWithConnectionString(connectionString string, aiConfig AIConfig) (TelemetryHandle, error) {
+	debugMode = aiConfig.DebugMode
+
+	if connectionString == "" {
+		debugLog("Empty connection string")
+		return nil, errors.New("AI connection string is empty")
+	}
+
+	setAIConfigDefaults(&aiConfig)
+
+	connectionVars, err := parseConnectionString(connectionString)
+	if err != nil {
+		debugLog("Error parsing connection string: %v", err)
+		return nil, err
+	}
+
+	telemetryConfig := appinsights.NewTelemetryConfiguration(connectionVars.instrumentationKey)
+	telemetryConfig.EndpointUrl = connectionVars.ingestionURL
 	telemetryConfig.MaxBatchSize = aiConfig.BatchSize
 	telemetryConfig.MaxBatchInterval = time.Duration(aiConfig.BatchInterval) * time.Second
 

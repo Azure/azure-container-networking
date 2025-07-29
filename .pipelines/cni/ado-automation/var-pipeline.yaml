@@ -1,0 +1,142 @@
+pr: none
+trigger: none
+
+variables:
+- group: ACN-CNI-Pipeline
+
+parameters:
+- name: versions
+  displayName: K8s Versions
+  type: object
+  default:
+    - ver: '27'
+      LTS: true
+    - ver: '28'
+      LTS: true
+    - ver: '29'
+      LTS: true
+    - ver: '30'
+      LTS: false
+    - ver: '31'
+      LTS: false
+    - ver: '32'
+      LTS: false
+    # - ver: '33'
+    #   LTS: 'false'
+
+stages:
+  - stage: setup
+    displayName: Variable Group Init
+    jobs:
+      - job: env
+        displayName: Setup
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - script: |
+              # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
+
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
+            name: "EnvironmentalVariables"
+            displayName: "Set environmental variables"
+            condition: always()
+      - job: vgroup
+        displayName: View Variable Group
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                az pipelines variable-group show --id $(CNI_VAR_GROUP) --org $(System.TeamFoundationCollectionUri) --project $(System.TeamProject) --debug
+
+            displayName: "Configure Defaults and List"
+            condition: always()
+            env:
+              AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+
+          - bash: |
+              az pipelines variable-group variable update --id $(CNI_VAR_GROUP) --org $(System.TeamFoundationCollectionUri) --project $(System.TeamProject) --name CILIUM_IMAGE_REGISTRY --value "Changed it was"
+            displayName: "Change Variable"
+            env:
+              AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+
+          - bash: |
+              az pipelines variable-group show --id $(CNI_VAR_GROUP) --org $(System.TeamFoundationCollectionUri) --project $(System.TeamProject) --debug
+            displayName: "List Variable Group"
+            env:
+              AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+
+
+  - stage: cluster
+    displayName: "Cluster Create"
+    dependsOn:
+      - setup
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - ${{ each version in parameters.versions }}:
+        - job: cluster${{ version.ver }}
+          displayName: 1.${{ version.ver }} Cluster Creation
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          strategy:
+            matrix:
+              cniv1:
+                clusterType: cniv1-up
+                clusterName: cniv1
+              cilium:
+                clusterType: overlay-cilium-up
+                clusterName: cilium
+              overlay:
+                clusterType: overlay-up
+                clusterName: overlay
+          steps:
+            - template: ../../templates/create-cluster-steps.yaml
+              parameters:
+                clusterType: $(clusterType)
+                clusterName: $(clusterName)-${{ version.ver }}-$(commitID)
+                k8sVersion: 1.${{ version.ver }}
+                vmSize: Standard_B2ms
+                vmSizeWin: Standard_B2ms
+                os: windows
+                region: $(REGION_AKS_CLUSTER_TEST)
+                LTS: ${{ version.LTS }}
+
+
+  - stage: clusterDelete
+    displayName: "Cluster Delete"
+    condition: always()
+    dependsOn:
+      - setup
+      - cluster
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - ${{ each version in parameters.versions }}:
+        - job: cluster${{ version.ver }}
+          displayName: 1.${{ version.ver }} Cluster Delete
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          strategy:
+            matrix:
+              cniv1:
+                clusterName: cniv1
+              cilium:
+                clusterName: cilium
+              overlay:
+                clusterName: overlay
+          steps:
+            - template: ../../templates/delete-cluster.yaml
+              parameters:
+                name: $(clusterName)-${{ version.ver }}-$(commitID)
+                clusterName: $(clusterName)-${{ version.ver }}-$(commitID)
+                region: $(REGION_AKS_CLUSTER_TEST)
+                sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+                svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+
+

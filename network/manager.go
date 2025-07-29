@@ -422,13 +422,13 @@ func (nm *networkManager) UpdateEndpointState(eps []*endpoint) error {
 	}
 
 	ifnameToIPInfoMap := generateCNSIPInfoMap(eps) // key : interface name, value : IPInfo
-	for _, ipinfo := range ifnameToIPInfoMap {
-		logger.Info("Update endpoint state", zap.String("hnsEndpointID", ipinfo.HnsEndpointID), zap.String("hnsNetworkID", ipinfo.HnsNetworkID),
+	for key, ipinfo := range ifnameToIPInfoMap {
+		logger.Info("Update endpoint state", zap.String("ifname", key), zap.String("hnsEndpointID", ipinfo.HnsEndpointID), zap.String("hnsNetworkID", ipinfo.HnsNetworkID),
 			zap.String("hostVethName", ipinfo.HostVethName), zap.String("macAddress", ipinfo.MacAddress), zap.String("nicType", string(ipinfo.NICType)))
 	}
-
 	// we assume all endpoints have the same container id
 	cnsEndpointID := eps[0].ContainerID
+
 	if err := validateUpdateEndpointState(cnsEndpointID, ifnameToIPInfoMap); err != nil {
 		return errors.Wrap(err, "failed to validate update endpoint state that will be sent to cns")
 	}

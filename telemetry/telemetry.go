@@ -79,8 +79,6 @@ type CNIReport struct {
 	VnetAddressSpace  []string
 	OSDetails         OSInfo
 	SystemDetails     SystemInfo
-	InterfaceDetails  InterfaceInfo
-	BridgeDetails     BridgeInfo
 	Metadata          common.Metadata `json:"compute"`
 	Logger            *zap.Logger
 }
@@ -91,9 +89,7 @@ type AIMetric struct {
 
 // ReportManager structure.
 type ReportManager struct {
-	HostNetAgentURL string
-	ContentType     string
-	Report          interface{}
+	Report interface{}
 }
 
 // GetReport retrieves orchestrator, system, OS and Interface details and create a report structure.

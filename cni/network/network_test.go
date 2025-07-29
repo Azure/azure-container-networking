@@ -17,7 +17,6 @@ import (
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/nns"
-	"github.com/Azure/azure-container-networking/telemetry"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,7 +75,6 @@ func GetTestResources() *NetPlugin {
 	config := &common.PluginConfig{}
 	grpcClient := &nns.MockGrpcClient{}
 	plugin, _ := NewPlugin(pluginName, config, grpcClient, &Multitenancy{})
-	plugin.report = &telemetry.CNIReport{}
 	mockNetworkManager := acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil))
 	plugin.nm = mockNetworkManager
 	plugin.ipamInvoker = NewMockIpamInvoker(isIPv6, false, false, false, false)
@@ -491,8 +489,6 @@ func TestAddDualStack(t *testing.T) {
 				Plugin:      cniPlugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(true, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			wantErr: false,
 		},
@@ -502,8 +498,6 @@ func TestAddDualStack(t *testing.T) {
 				Plugin:      cniPlugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(true, false, true, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			wantErr: true,
 		},
@@ -548,8 +542,6 @@ func TestPluginGet(t *testing.T) {
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			wantErr: false,
 		},
@@ -560,8 +552,6 @@ func TestPluginGet(t *testing.T) {
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			wantErr:    true,
 			wantErrMsg: "Network not found",
@@ -573,8 +563,6 @@ func TestPluginGet(t *testing.T) {
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 			},
 			wantErr:    true,
 			wantErrMsg: "Endpoint not found",
@@ -750,8 +738,6 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:             plugin,
 				nm:                 acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				tb:                 &telemetry.TelemetryBuffer{},
-				report:             &telemetry.CNIReport{},
 				multitenancyClient: NewMockMultitenancy(false, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1()}),
 			},
 
@@ -769,8 +755,6 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:             plugin,
 				nm:                 acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				tb:                 &telemetry.TelemetryBuffer{},
-				report:             &telemetry.CNIReport{},
 				multitenancyClient: NewMockMultitenancy(true, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1()}),
 			},
 			args: &cniSkel.CmdArgs{
@@ -905,8 +889,6 @@ func TestPluginBaremetalAdd(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:    plugin,
 				nm:        acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				tb:        &telemetry.TelemetryBuffer{},
-				report:    &telemetry.CNIReport{},
 				nnsClient: &nns.MockGrpcClient{},
 			},
 			args: &cniSkel.CmdArgs{
@@ -923,8 +905,6 @@ func TestPluginBaremetalAdd(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:    plugin,
 				nm:        acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				tb:        &telemetry.TelemetryBuffer{},
-				report:    &telemetry.CNIReport{},
 				nnsClient: &nns.MockGrpcClient{Fail: true},
 			},
 			args: &cniSkel.CmdArgs{
@@ -1333,8 +1313,6 @@ func TestPluginSwiftV2Add(t *testing.T) {
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{
 						{Name: "eth0"},
@@ -1350,8 +1328,6 @@ func TestPluginSwiftV2Add(t *testing.T) {
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, true, true),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{
 						{Name: "eth0"},
@@ -1374,8 +1350,6 @@ func TestPluginSwiftV2Add(t *testing.T) {
 					return nil
 				})),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{
 						{Name: "eth0"},
@@ -1392,8 +1366,6 @@ func TestPluginSwiftV2Add(t *testing.T) {
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{},
 				},
@@ -1408,8 +1380,6 @@ func TestPluginSwiftV2Add(t *testing.T) {
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{},
 				},
@@ -1492,8 +1462,6 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}),
-				report: &telemetry.CNIReport{},
-				tb:     &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{
 						{Name: "eth0"},
@@ -1517,8 +1485,6 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 						NICType: cns.BackendNIC,
 					},
 				}),
-				report: &telemetry.CNIReport{},
-				tb:     &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{
 						{Name: "eth0"},
@@ -1542,8 +1508,6 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}),
-				report: &telemetry.CNIReport{},
-				tb:     &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{
 						{Name: "eth0"},
@@ -1575,8 +1539,6 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}),
-				report: &telemetry.CNIReport{},
-				tb:     &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{
 						{Name: "eth0"},
@@ -1637,8 +1599,6 @@ func TestFindMasterInterface(t *testing.T) {
 			name: "Find master interface by infraNIC with a master interfaceName in swiftv1 path",
 			plugin: &NetPlugin{
 				Plugin: plugin,
-				report: &telemetry.CNIReport{},
-				tb:     &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{
 						{
@@ -1668,8 +1628,6 @@ func TestFindMasterInterface(t *testing.T) {
 			name: "Find master interface by one infraNIC",
 			plugin: &NetPlugin{
 				Plugin: plugin,
-				report: &telemetry.CNIReport{},
-				tb:     &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{
 						{
@@ -1712,8 +1670,6 @@ func TestFindMasterInterface(t *testing.T) {
 			name: "Find master interface from multiple infraNIC interfaces",
 			plugin: &NetPlugin{
 				Plugin: plugin,
-				report: &telemetry.CNIReport{},
-				tb:     &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{
 						{
@@ -1770,8 +1726,6 @@ func TestFindMasterInterface(t *testing.T) {
 			name: "Find master interface by delegatedVMNIC",
 			plugin: &NetPlugin{
 				Plugin: plugin,
-				report: &telemetry.CNIReport{},
-				tb:     &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{
 						{

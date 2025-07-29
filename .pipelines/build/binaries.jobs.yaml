@@ -43,3 +43,37 @@ jobs:
           target: $(name)
           os: $(OS)
           arch: $(ARCH)
+
+
+  - ${{ elseif and(eq(job_data.templateContext.action, 'sign'), job_data.templateContext.isOfficial) }}:
+    - job: sign_${{ job_data.job }}
+      displayName: "Sign Binary - ${{ job_data.displayName }} -"
+      strategy: ${{ job_data.strategy }}
+      pool:
+        ${{ if eq(job_data.job, 'windows_amd64') }}:
+          type: windows
+        ${{ else }}:
+          type: linux
+      variables:
+        ob_outputDirectory: $(Build.SourcesDirectory)
+        ob_artifactSuffix: _$(artifact)
+        ob_git_checkout: false
+      steps:
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          targetPath: $(Build.SourcesDirectory)
+          artifact: '${{ job_data.templateContext.repositoryArtifact }}'
+
+      - task: ExtractFiles@1
+        inputs:
+          archiveFilePatterns: '**/*.?(tgz|tgz.gz|zip)'
+          destinationFolder: $(Build.SourcesDirectory)
+          cleanDestinationFolder: false
+          overwriteExistingFiles: true
+
+      - task: onebranch.pipeline.signing@1
+        inputs:
+          command: 'sign'
+          signing_profile: 'external_distribution'
+          files_to_sign: '**/*'
+          search_root: $(Build.SourcesDirectory)

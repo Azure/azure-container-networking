@@ -49,12 +49,9 @@ spec:
           securityContext:
             privileged: true
           workingDir: $env:CONTAINER_SANDBOX_MOUNT_POINT
-          command: ["powershell.exe"]
+          command: ["azure-cns.exe"]
           args:
             [
-              '.\setkubeconfigpath.ps1',
-              ";",
-              '.\azure-cns.exe',
               "-c",
               "tcp://$(CNSIpAddress):$(CNSPort)",
               "-t",
@@ -65,8 +62,6 @@ spec:
               "$(CNSStoreFilePath)",
               "-config-path",
               "%CONTAINER_SANDBOX_MOUNT_POINT%\\$(CNS_CONFIGURATION_PATH)",
-              "--kubeconfig",
-              '.\kubeconfig',
             ]
           volumeMounts:
             - name: log
@@ -111,7 +106,7 @@ spec:
           image: acnpublic.azurecr.io/cni-dropgz:latest
           imagePullPolicy: Always
           command:
-            - powershell.exe; $env:CONTAINER_SANDBOX_MOUNT_POINT/dropgz
+            - $env:CONTAINER_SANDBOX_MOUNT_POINT/dropgz
           args:
             - deploy
             - azure-vnet

@@ -53,6 +53,9 @@ const (
 	// Name of the loopback adapter needed to create Host NC apipa network
 	hostNCLoopbackAdapterName = "LoopbackAdapterHostNCConnectivity"
 
+	// Name of the loopback adapter created by HNS for Host NC apipa network
+	vEthernethostNCLoopbackAdapterName = "vEthernet (" + hostNCLoopbackAdapterName + ")"
+
 	// HNS rehydration issue requires this GW to be different than the loopback adapter ip, so we set it to .2
 	defaultHnsGwIPAddress       = "169.254.128.2"
 	hnsLoopbackAdapterIPAddress = "169.254.128.1"
@@ -301,7 +304,16 @@ func createHostNCApipaNetwork(
 		}
 
 		// Create loopback adapter needed for this HNS network
-		if interfaceExists, _ := networkcontainers.InterfaceExists(hostNCLoopbackAdapterName); !interfaceExists {
+		// We need to fitst check the existence of either "LoopbackAdapterHostNCConnectivity" or the vEthernet(LoopbackAdapterHostNCConnectivity) interfaces
+		// If neither exists, we create the loopback adapter with the specified IP configuration.
+		loopbackInterfaceExists, _ := networkcontainers.InterfaceExists(hostNCLoopbackAdapterName)
+		vethernetLoopbackInterfaceExists, _ := networkcontainers.InterfaceExists(vEthernethostNCLoopbackAdapterName)
+		if loopbackInterfaceExists {
+			logger.Printf("%s already created, skipping loopback interface creation", hostNCLoopbackAdapterName)
+		}
+		if vethernetLoopbackInterfaceExists {
+			logger.Printf("%s already created, skipping loopback interface creation", vEthernethostNCLoopbackAdapterName)
+		} else if !loopbackInterfaceExists && !vethernetLoopbackInterfaceExists {
 			ipconfig := cns.IPConfiguration{
 				IPSubnet: cns.IPSubnet{
 					IPAddress:    hnsLoopbackAdapterIPAddress,
