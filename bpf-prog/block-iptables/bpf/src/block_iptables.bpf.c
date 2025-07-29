@@ -5,6 +5,7 @@
 
 #define sk_family __sk_common.skc_family
 #define EPERM 1
+#define IPT_SO_SET_REPLACE
 char LICENSE[] SEC("license") = "GPL";
 
 volatile const __u32 host_netns_inode = 4026531840; // Initialized by userspace
