@@ -287,7 +287,12 @@ stages:
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
             name: "GetCluster"
             displayName: "Get AKS Cluster"
-          - template: ../../templates/cilium-connectivity-tests.yaml
+          - script: |
+              kubectl delete ns load-test
+              cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!check-log-errors,!no-unexpected-packet-drops,!to-fqdns,!policy-local-cluster-egress'
+            retryCountOnTaskFailure: 6
+            name: "CiliumConnectivityTests"
+            displayName: "Run Cilium Connectivity Tests"
           - script: |
               cd hack/scripts
               chmod +x async-delete-test.sh
