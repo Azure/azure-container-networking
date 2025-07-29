@@ -80,7 +80,7 @@ int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
 
     // bpf_printk("setsockopt called %d %d\n", level, optname);
     if (level == 0 /*IPPROTO_IP*/ || level == 41 /*IPPROTO_IP6*/) {
-        if (optname == 64) { // 64 represents IPT_SO_SET_REPLACE or IP6T_SO_SET_REPLACE, depending on the level
+        if (optname == IPT_SO_SET_REPLACE) { // IPT_SO_SET_REPLACE represents IPT_SO_SET_REPLACE or IP6T_SO_SET_REPLACE, depending on the level
             if (is_host_ns() && !is_allowed_parent()) {
                 return -EPERM;
             }
