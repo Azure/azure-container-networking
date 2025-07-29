@@ -5,10 +5,6 @@ trigger:
     - dropgz/*
     - azure-ipam/*
     - v*
-  branches:
-    include:
-    - master
-    - release/*
 parameters:
   - name: upgradeScenario
     type: boolean
@@ -28,7 +24,6 @@ stages:
               go version
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
-              echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
