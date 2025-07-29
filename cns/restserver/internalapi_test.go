@@ -573,9 +573,7 @@ func TestSyncHostNCVersionNMAgentAPICallFailed(t *testing.T) {
 			}, nil
 		},
 		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			// NMAgent SupportedAPIs call fails
-			var errNMAgentAPI = errors.New("failed to connect to NMAgent API endpoint")
-			return nil, fmt.Errorf("%w", errNMAgentAPI)
+			return nil, errors.New("failed to connect to NMAgent API endpoint")
 		},
 	}
 	cleanup := setMockNMAgent(svc, mnma)
