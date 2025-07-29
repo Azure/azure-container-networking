@@ -71,7 +71,6 @@ int is_host_ns() {
     return 1;
 }
 
-// LSM hook: security_socket_create(family, type, protocol, kern)
 SEC("lsm/socket_setsockopt")
 int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
 {

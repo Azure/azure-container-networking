@@ -127,7 +127,7 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam ip-masq-merger ipv6-hp-bpf block-iptables
+all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger ipv6-hp-bpf block-iptables
 all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image ipv6-hp-bpf-image
 else
 all-binaries: azure-cni-plugin azure-cns azure-npm
