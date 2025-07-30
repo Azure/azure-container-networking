@@ -3,10 +3,20 @@ package bpfprogram
 import (
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"syscall"
 
 	blockservice "github.com/Azure/azure-container-networking/bpf-prog/block-iptables/pkg/blockservice"
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+)
+
+const (
+	// BPFMapPinPath is the directory where BPF maps are pinned
+	BPFMapPinPath = "/sys/fs/bpf/block-iptables"
+	// EventCounterMapName is the name used for pinning the event counter map
+	EventCounterMapName = "event_counter"
 )
 
 // Program implements the Manager interface for real BPF program operations.
@@ -21,7 +31,44 @@ func NewProgram() Attacher {
 	return &Program{}
 }
 
-// getHostNetnsInode gets the network namespace inode of the current process (host namespace).
+// CreatePinPath ensures the BPF map pin directory exists.
+func (p *Program) CreatePinPath() error {
+	// Ensure the BPF map pin directory exists with correct permissions (drwxr-xr-x)
+	if err := os.MkdirAll(BPFMapPinPath, 0o755); err != nil {
+		return fmt.Errorf("failed to create BPF map pin directory: %w", err)
+	}
+	return nil
+}
+
+// pinEventCounterMap pins the event counter map to the filesystem
+func (p *Program) pinEventCounterMap() error {
+	if p.objs == nil || p.objs.EventCounter == nil {
+		return fmt.Errorf("event counter map not loaded")
+	}
+
+	pinPath := filepath.Join(BPFMapPinPath, EventCounterMapName)
+
+	if err := p.objs.EventCounter.Pin(pinPath); err != nil {
+		return fmt.Errorf("failed to pin event counter map to %s: %w", pinPath, err)
+	}
+
+	log.Printf("Event counter map pinned to %s", pinPath)
+	return nil
+}
+
+// unpinEventCounterMap unpins the event counter map from the filesystem
+func (p *Program) unpinEventCounterMap() error {
+	pinPath := filepath.Join(BPFMapPinPath, EventCounterMapName)
+
+	if err := os.Remove(pinPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("Warning: failed to remove pinned map %s: %v", pinPath, err)
+	} else {
+		log.Printf("Event counter map unpinned from %s", pinPath)
+	}
+
+	return nil
+}
+
 func getHostNetnsInode() (uint32, error) {
 	var stat syscall.Stat_t
 	err := syscall.Stat("/proc/self/ns/net", &stat)
@@ -49,6 +96,10 @@ func (p *Program) Attach() error {
 		return fmt.Errorf("failed to get host network namespace inode: %w", err)
 	}
 
+	if err := p.CreatePinPath(); err != nil {
+		return fmt.Errorf("failed to create BPF map pin directory: %w", err)
+	}
+
 	// Load BPF objects with the host namespace inode set
 	spec, err := blockservice.LoadBlockIptables()
 	if err != nil {
@@ -65,10 +116,21 @@ func (p *Program) Attach() error {
 
 	// Load the objects
 	objs := &blockservice.BlockIptablesObjects{}
-	if err := spec.LoadAndAssign(objs, nil); err != nil {
+	options := &ebpf.CollectionOptions{
+		Maps: ebpf.MapOptions{
+			PinPath:        BPFMapPinPath,
+			LoadPinOptions: ebpf.LoadPinOptions{},
+		},
+	}
+	if err := spec.LoadAndAssign(objs, options); err != nil {
 		return fmt.Errorf("failed to load BPF objects: %w", err)
 	}
 	p.objs = objs
+
+	// Pin the event counter map to filesystem
+	if err := p.pinEventCounterMap(); err != nil {
+		return fmt.Errorf("failed to pin event counter map: %w", err)
+	}
 
 	// Attach LSM programs
 	var links []link.Link
@@ -116,6 +178,11 @@ func (p *Program) Detach() error {
 	}
 
 	log.Println("Detaching BPF program...")
+
+	// Unpin the event counter map from filesystem
+	if err := p.unpinEventCounterMap(); err != nil {
+		log.Printf("Warning: failed to unpin event counter map: %v", err)
+	}
 
 	// Close all links
 	for _, l := range p.links {
