@@ -3,9 +3,9 @@ package infiniband
 type Status int
 
 const (
-	ProgrammingPending  Status = 0
-	ProgrammingFailed   Status = 1
-	ProgrammingComplete Status = 2
-	ReleasePending      Status = 3
-	Available           Status = 4
+	Available           Status = 0
+	ProgrammingPending  Status = 1
+	ProgrammingFailed   Status = 2
+	ProgrammingComplete Status = 3
+	ReleasePending      Status = 4
 )
