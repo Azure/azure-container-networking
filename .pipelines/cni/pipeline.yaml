@@ -531,7 +531,6 @@ stages:
       - rdma_linux_overlay
       - windows_podsubnet_HNS
       - windows_overlay_HNS
-      - windows19_overlay_HNS
       - setup
       - ${{if eq(parameters.upgradeScenario, true)}}:
         - cilium_overlay_upgrade
@@ -606,9 +605,6 @@ stages:
             win-cniv2-overlay:
               name: windows_overlay
               clusterName: w22-over
-            windows19_overlay:
-              name: windows19_overlay
-              clusterName: w19-amd-ov
         steps:
           - task: AzureCLI@2
             inputs:
