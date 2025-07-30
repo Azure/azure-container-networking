@@ -157,7 +157,7 @@ paths:
   
   /ibdevices/{macaddress}:
     get:
-      summary: Get status about an IB device
+      summary: Get status of an IB device
       description: >-
         Retrieves the current status of the specified IB device.
       parameters:
@@ -423,7 +423,7 @@ components:
       properties:
         PodID:
           type: string
-          description: podname-podnamespace of which pod to attach these devices through
+          description: podname-podnamespace of which pod to attach these devices to
         MACAddresses:
           type: array
           description: MAC addresses of IB devices such as "60:45:bd:a4:b5:7a"
@@ -495,18 +495,18 @@ components:
       type: integer
       description: Status of IB device (see cns/types/infiniband/status.go)
       oneOf:
-      - title: ProgrammingPending
+      - title: Available
         const: 0
+        description: Device is available for use
+      - title: ProgrammingPending
+        const: 1
         description: Programming of device is pending
       - title: ProgrammingFailed
-        const: 1
+        const: 2
         description: Programming of device failed
       - title: ProgrammingComplete  
-        const: 2
+        const: 3
         description: Programming of device is complete
       - title: ReleasePending
-        const: 3
-        description: Release of device is pending
-      - title: Available
         const: 4
-        description: Device is available for use
+        description: Release of device is pending
