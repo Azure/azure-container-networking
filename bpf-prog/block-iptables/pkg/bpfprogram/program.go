@@ -1,3 +1,4 @@
+//nolint:typecheck // BlockIptablesObjects is part of generated code
 package bpfprogram
 
 import (
@@ -21,7 +22,6 @@ const (
 
 // Program implements the Manager interface for real BPF program operations.
 type Program struct {
-	//nolint:typecheck // BlockIptablesObjects is part of generated code
 	objs     *blockservice.BlockIptablesObjects
 	links    []link.Link
 	attached bool
@@ -102,7 +102,6 @@ func (p *Program) Attach() error {
 	}
 
 	// Load BPF objects with the host namespace inode set
-	//nolint:typecheck // LoadBlockIptables is part of generated code
 	spec, err := blockservice.LoadBlockIptables()
 	if err != nil {
 		return fmt.Errorf("failed to load BPF spec: %w", err)
@@ -117,7 +116,6 @@ func (p *Program) Attach() error {
 	}
 
 	// Load the objects
-	//nolint:typecheck // BlockIptablesObjects is part of generated code
 	objs := &blockservice.BlockIptablesObjects{}
 	options := &ebpf.CollectionOptions{
 		Maps: ebpf.MapOptions{
