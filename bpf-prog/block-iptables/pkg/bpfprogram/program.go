@@ -1,4 +1,3 @@
-//nolint:typecheck // BlockIptablesObjects is part of generated code
 package bpfprogram
 
 import (

@@ -1,0 +1,38 @@
+issues:
+  max-same-issues: 0
+  max-issues-per-linter: 0
+linters:
+  presets: 
+  - bugs
+  - error
+  - format
+  - performance
+  - unused
+  enable:
+  - copyloopvar
+  - goconst
+  - gocritic
+  - gocyclo
+  - gofmt
+  - goprintffuncname
+  - gosimple
+  - lll
+  - misspell
+  - nakedret
+  - promlinter
+  - revive
+  disable:
+  - typecheck  
+linters-settings:
+  gocritic:
+    enabled-tags:
+    - "diagnostic"
+    - "style"
+    - "performance"
+    disabled-checks:
+    - "hugeParam"
+  govet:
+    enable:
+    - shadow
+  lll:
+    line-length: 200
