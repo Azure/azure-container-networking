@@ -1,3 +1,6 @@
+run:
+  skip-dirs:
+    - "bpf-prog/block-ipables"
 issues:
   max-same-issues: 0
   max-issues-per-linter: 0
