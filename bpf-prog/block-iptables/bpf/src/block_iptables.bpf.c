@@ -6,11 +6,20 @@
 #define sk_family __sk_common.skc_family
 #define EPERM 1
 #define IPT_SO_SET_REPLACE 64
-char LICENSE[] SEC("license") = "GPL";
-
-volatile const __u32 host_netns_inode = 4026531840; // Initialized by userspace
 #define TASK_COMM_LEN 16
 #define COMM_COUNT 3
+
+char LICENSE[] SEC("license") = "GPL";
+volatile const __u32 host_netns_inode = 4026531840; // Initialized by userspace
+
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, u32);
+    __type(value, u64);
+    __uint(pinning, LIBBPF_PIN_BY_NAME);
+} event_counter SEC(".maps");
+
 int is_allowed_parent ()
 {
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
@@ -72,6 +81,19 @@ int is_host_ns() {
     return 1;
 }
 
+void increment_event_counter() {
+    u32 key = 0;
+    u64 *value;
+
+    value = bpf_map_lookup_elem(&event_counter, &key);
+    if (value) {
+        __sync_fetch_and_add(value, 1);
+    } else {
+        u64 initial_value = 1;
+        bpf_map_update_elem(&event_counter, &key, &initial_value, BPF_ANY);
+    }
+}
+
 SEC("lsm/socket_setsockopt")
 int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
 {
@@ -79,10 +101,10 @@ int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
         return 0;
     }
 
-    // bpf_printk("setsockopt called %d %d\n", level, optname);
     if (level == 0 /*IPPROTO_IP*/ || level == 41 /*IPPROTO_IP6*/) {
         if (optname == IPT_SO_SET_REPLACE) { 
             if (is_host_ns() && !is_allowed_parent()) {
+                increment_event_counter();
                 return -EPERM;
             }
         }
@@ -141,7 +163,8 @@ int BPF_PROG(iptables_nftables_block, struct sock *sk, struct sk_buff *skb) {
             if(is_allowed_parent()) {
                     return 0;
             } else {
-                    return -EPERM;
+                increment_event_counter();
+                return -EPERM;
             }
         }
 
