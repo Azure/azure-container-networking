@@ -10,8 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	blockservice "github.com/Azure/azure-container-networking/bpf-prog/block-iptables/pkg/blockservice"
-	"github.com/cilium/ebpf/link"
+	"github.com/Azure/azure-container-networking/bpf-prog/block-iptables/pkg/bpfprogram"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/fsnotify/fsnotify"
 )
@@ -20,24 +19,18 @@ const (
 	DefaultConfigFile = "/etc/cni/net.d/iptables-allow-list"
 )
 
-// BPFProgram wraps the eBPF program and its links
-type BPFProgram struct {
-	objs     *blockservice.BlockIptablesObjects
-	links    []link.Link
-	attached bool
+// BlockConfig holds configuration for the application
+type BlockConfig struct {
+	ConfigFile      string
+	AttacherFactory bpfprogram.AttacherFactory
 }
 
-// getHostNetnsInode gets the network namespace inode of the current process (host namespace)
-func getHostNetnsInode() (uint32, error) {
-	var stat syscall.Stat_t
-	err := syscall.Stat("/proc/self/ns/net", &stat)
-	if err != nil {
-		return 0, fmt.Errorf("failed to stat /proc/self/ns/net: %w", err)
+// NewDefaultBlockConfig creates a new BlockConfig with default values
+func NewDefaultBlockConfig() *BlockConfig {
+	return &BlockConfig{
+		ConfigFile:      DefaultConfigFile,
+		AttacherFactory: bpfprogram.NewProgram,
 	}
-
-	inode := uint32(stat.Ino)
-	log.Printf("Host network namespace inode: %d", inode)
-	return inode, nil
 }
 
 // isFileEmptyOrMissing checks if the config file exists and has content
@@ -62,113 +55,6 @@ func isFileEmptyOrMissing(filename string) int {
 	return 0 // File exists and has content
 }
 
-// attachBPFProgram attaches the BPF program to LSM hooks
-func (bp *BPFProgram) attachBPFProgram() error {
-	if bp.attached {
-		log.Println("BPF program already attached")
-		return nil
-	}
-
-	log.Println("Attaching BPF program...")
-
-	// Get the host network namespace inode
-	hostNetnsInode, err := getHostNetnsInode()
-	if err != nil {
-		return fmt.Errorf("failed to get host network namespace inode: %w", err)
-	}
-
-	// Load BPF objects with the host namespace inode set
-	spec, err := blockservice.LoadBlockIptables()
-	if err != nil {
-		return fmt.Errorf("failed to load BPF spec: %w", err)
-	}
-
-	// Set the host_netns_inode variable in the BPF program before loading
-	// Note: The C program sets it to hostNetnsInode + 1, so we do the same
-	if err := spec.RewriteConstants(map[string]interface{}{
-		"host_netns_inode": hostNetnsInode,
-	}); err != nil {
-		return fmt.Errorf("failed to rewrite constants: %w", err)
-	}
-
-	// Load the objects
-	objs := &blockservice.BlockIptablesObjects{}
-	if err := spec.LoadAndAssign(objs, nil); err != nil {
-		return fmt.Errorf("failed to load BPF objects: %w", err)
-	}
-	bp.objs = objs
-
-	// Attach LSM programs
-	var links []link.Link
-
-	// Attach socket_setsockopt LSM hook
-	if bp.objs.IptablesLegacyBlock != nil {
-		l, err := link.AttachLSM(link.LSMOptions{
-			Program: bp.objs.IptablesLegacyBlock,
-		})
-		if err != nil {
-			bp.objs.Close()
-			return fmt.Errorf("failed to attach iptables_legacy_block LSM: %w", err)
-		}
-		links = append(links, l)
-	}
-
-	// Attach netlink_send LSM hook
-	if bp.objs.IptablesNftablesBlock != nil {
-		l, err := link.AttachLSM(link.LSMOptions{
-			Program: bp.objs.IptablesNftablesBlock,
-		})
-		if err != nil {
-			// Clean up previous links
-			for _, link := range links {
-				link.Close()
-			}
-			bp.objs.Close()
-			return fmt.Errorf("failed to attach block_nf_netlink LSM: %w", err)
-		}
-		links = append(links, l)
-	}
-
-	bp.links = links
-	bp.attached = true
-
-	log.Printf("BPF program attached successfully with host_netns_inode=%d", hostNetnsInode)
-	return nil
-}
-
-// detachBPFProgram detaches the BPF program
-func (bp *BPFProgram) detachBPFProgram() error {
-	if !bp.attached {
-		log.Println("BPF program already detached")
-		return nil
-	}
-
-	log.Println("Detaching BPF program...")
-
-	// Close all links
-	for _, l := range bp.links {
-		if err := l.Close(); err != nil {
-			log.Printf("Warning: failed to close link: %v", err)
-		}
-	}
-	bp.links = nil
-
-	// Close objects
-	if bp.objs != nil {
-		bp.objs.Close()
-		bp.objs = nil
-	}
-
-	bp.attached = false
-	log.Println("BPF program detached successfully")
-	return nil
-}
-
-// Close cleans up all resources
-func (bp *BPFProgram) Close() {
-	bp.detachBPFProgram()
-}
-
 // setupFileWatcher sets up a file watcher for the config file
 func setupFileWatcher(configFile string) (*fsnotify.Watcher, error) {
 	watcher, err := fsnotify.NewWatcher()
@@ -189,7 +75,7 @@ func setupFileWatcher(configFile string) (*fsnotify.Watcher, error) {
 }
 
 // handleFileEvent processes file system events
-func handleFileEvent(event fsnotify.Event, configFile string, bp *BPFProgram) {
+func handleFileEvent(event fsnotify.Event, configFile string, bp bpfprogram.Attacher) {
 	// Check if the event is for our config file
 	if filepath.Base(event.Name) != filepath.Base(configFile) {
 		return
@@ -205,48 +91,42 @@ func handleFileEvent(event fsnotify.Event, configFile string, bp *BPFProgram) {
 	switch fileState {
 	case 1: // File is empty
 		log.Println("File is empty, attaching BPF program")
-		if err := bp.attachBPFProgram(); err != nil {
+		if err := bp.Attach(); err != nil {
 			log.Printf("Failed to attach BPF program: %v", err)
 		}
 	case 0: // File has content
 		log.Println("File has content, detaching BPF program")
-		if err := bp.detachBPFProgram(); err != nil {
+		if err := bp.Detach(); err != nil {
 			log.Printf("Failed to detach BPF program: %v", err)
 		}
 	case -1: // File is missing
 		log.Println("Config file was deleted, detaching BPF program")
-		if err := bp.detachBPFProgram(); err != nil {
+		if err := bp.Detach(); err != nil {
 			log.Printf("Failed to detach BPF program: %v", err)
 		}
 	}
 }
 
-func main() {
-	configFile := DefaultConfigFile
-
-	// Parse command line arguments
-	if len(os.Args) > 1 {
-		configFile = os.Args[1]
-	}
-
-	log.Printf("Using config file: %s", configFile)
+// run is the main application logic, separated for easier testing
+func run(config *BlockConfig) error {
+	log.Printf("Using config file: %s", config.ConfigFile)
 
 	// Remove memory limit for eBPF
 	if err := rlimit.RemoveMemlock(); err != nil {
-		log.Fatalf("Failed to remove memlock rlimit: %v", err)
+		return fmt.Errorf("failed to remove memlock rlimit: %w", err)
 	}
 
-	// Initialize BPF program wrapper
-	bp := &BPFProgram{}
+	// Initialize BPF program attacher using the factory
+	bp := config.AttacherFactory()
 	defer bp.Close()
 
 	// Initial state check
-	fileState := isFileEmptyOrMissing(configFile)
+	fileState := isFileEmptyOrMissing(config.ConfigFile)
 	switch fileState {
 	case 1: // File is empty
 		log.Println("File is empty, attaching BPF program")
-		if err := bp.attachBPFProgram(); err != nil {
-			log.Fatalf("Failed to attach BPF program: %v", err)
+		if err := bp.Attach(); err != nil {
+			return fmt.Errorf("failed to attach BPF program: %w", err)
 		}
 	case 0: // File has content
 		log.Println("Config file has content, BPF program will remain detached")
@@ -255,9 +135,9 @@ func main() {
 	}
 
 	// Setup file watcher
-	watcher, err := setupFileWatcher(configFile)
+	watcher, err := setupFileWatcher(config.ConfigFile)
 	if err != nil {
-		log.Fatalf("Failed to setup file watcher: %v", err)
+		return fmt.Errorf("failed to setup file watcher: %w", err)
 	}
 	defer watcher.Close()
 
@@ -276,25 +156,38 @@ func main() {
 		case event, ok := <-watcher.Events:
 			if !ok {
 				log.Println("Watcher events channel closed")
-				return
+				return nil
 			}
-			handleFileEvent(event, configFile, bp)
+			handleFileEvent(event, config.ConfigFile, bp)
 
 		case err, ok := <-watcher.Errors:
 			if !ok {
 				log.Println("Watcher errors channel closed")
-				return
+				return nil
 			}
 			log.Printf("Watcher error: %v", err)
 
 		case sig := <-sigChan:
 			log.Printf("Received signal: %v", sig)
 			cancel()
-			return
+			return nil
 
 		case <-ctx.Done():
 			log.Println("Context cancelled, exiting")
-			return
+			return nil
 		}
+	}
+}
+
+func main() {
+	config := NewDefaultBlockConfig()
+
+	// Parse command line arguments
+	if len(os.Args) > 1 {
+		config.ConfigFile = os.Args[1]
+	}
+
+	if err := run(config); err != nil {
+		log.Fatalf("Application failed: %v", err)
 	}
 }
