@@ -48,7 +48,7 @@ type MultitenantPodNetworkConfigSpec struct {
 	PodNetwork string `json:"podNetwork"`
 	// name of the requesting cx pod
 	PodName string `json:"podName,omitempty"`
-	// list of IB MACs to use for a pod
+	// MACs of the IB devices to use for a pod
 	// +kubebuilder:validation:Optional
 	IBMACs []net.HardwareAddr `json:"IBMACs,omitempty"`
 }

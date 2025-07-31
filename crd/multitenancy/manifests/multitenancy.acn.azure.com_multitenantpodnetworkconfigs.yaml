@@ -57,7 +57,7 @@ spec:
               of PodNetworkConfig
             properties:
               IBMACs:
-                description: list of IB MACs to use for a pod
+                description: MACs of the IB devices to use for a pod
                 items:
                   description: A HardwareAddr represents a physical hardware address.
                   format: byte
