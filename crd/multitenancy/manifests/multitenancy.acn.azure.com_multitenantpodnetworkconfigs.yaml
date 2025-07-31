@@ -56,6 +56,13 @@ spec:
             description: MultitenantPodNetworkConfigSpec defines the desired state
               of PodNetworkConfig
             properties:
+              IBMACs:
+                description: list of IB MACs to use for a pod
+                items:
+                  description: A HardwareAddr represents a physical hardware address.
+                  format: byte
+                  type: string
+                type: array
               podName:
                 description: name of the requesting cx pod
                 type: string
@@ -98,6 +105,10 @@ spec:
                     gatewayIP:
                       description: GatewayIP is the gateway ip of the injected subnet
                       type: string
+                    ibStatus:
+                      description: IBStatus is the programming status of the infiniband
+                        device
+                      type: integer
                     macAddress:
                       description: MacAddress is the MAC Address of the VM's NIC which
                         this network container was created for

@@ -4,6 +4,9 @@
 package v1alpha1
 
 import (
+	"net"
+
+	"github.com/Azure/azure-container-networking/cns/types/infiniband"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -45,6 +48,9 @@ type MultitenantPodNetworkConfigSpec struct {
 	PodNetwork string `json:"podNetwork"`
 	// name of the requesting cx pod
 	PodName string `json:"podName,omitempty"`
+	// list of IB MACs to use for a pod
+	// +kubebuilder:validation:Optional
+	IBMACs []net.HardwareAddr `json:"IBMACs,omitempty"`
 }
 
 type InterfaceInfo struct {
@@ -66,6 +72,9 @@ type InterfaceInfo struct {
 	// AccelnetEnabled determines if the CNI will provision the NIC with accelerated networking enabled
 	// +kubebuilder:validation:Optional
 	AccelnetEnabled bool `json:"accelnetEnabled,omitempty"`
+	// IBStatus is the programming status of the infiniband device
+	// +kubebuilder:validation:Optional
+	IBStatus infiniband.Status `json:"ibStatus,omitempty"`
 }
 
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig
