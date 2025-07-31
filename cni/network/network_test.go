@@ -1245,7 +1245,7 @@ func TestGetPodSubnetNatInfo(t *testing.T) {
 	natInfo := getNATInfo(nwCfg, ncPrimaryIP, false)
 	if runtime.GOOS == "windows" {
 		require.Equalf(t, natInfo, []policy.NATInfo{
-			{VirtualIP: ncPrimaryIP, Destinations: []string{networkutils.AzureDNS}},
+			{Destinations: []string{networkutils.AzureDNS}},
 			{Destinations: []string{networkutils.AzureIMDS}},
 		}, "invalid windows podsubnet natInfo")
 	} else {
