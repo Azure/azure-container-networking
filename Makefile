@@ -132,7 +132,7 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf
+all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf cni-telemetry-sidecar
 all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image azure-iptables-monitor-image ipv6-hp-bpf-image
 else
 all-binaries: azure-cni-plugin azure-cns azure-npm
@@ -149,7 +149,7 @@ azure-ipam: azure-ipam-binary azure-ipam-archive
 ipv6-hp-bpf: ipv6-hp-bpf-binary ipv6-hp-bpf-archive
 azure-ip-masq-merger: azure-ip-masq-merger-binary azure-ip-masq-merger-archive
 azure-iptables-monitor: azure-iptables-monitor-binary azure-iptables-monitor-archive
-
+cni-telemetry-sidecar: cni-telemetry-sidecar-binary cni-telemetry-sidecar-archive
 
 ##@ Versioning
 
@@ -227,9 +227,14 @@ azure-vnet-telemetry-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI Telemetry Sidecar binary.
-cni-telemetry-sidecar-binary:
-	cd $(CNI_TELEMETRY_SIDECAR_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_TELEMETRY_SIDECAR_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) -ldflags "-X main.version=$(CNI_TELEMETRY_SIDECAR_VERSION) -X $(CNI_AI_PATH)=$(CNI_TELEMETRY_SIDECAR_AI_ID)" -gcflags="-dwarflocationlists=true"
-
+cni-telemetry-sidecar-binary: ## build cni-telemetry-sidecar binary.
+	$(MKDIR) $(CNI_TELEMETRY_SIDECAR_BUILD_DIR)
+	cd $(CNI_TELEMETRY_SIDECAR_DIR) && CGO_ENABLED=0 go build \
+    	-v \
+    	-o $(CNI_TELEMETRY_SIDECAR_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) \
+    	-ldflags "-X main.version=$(CNI_TELEMETRY_SIDECAR_VERSION) -X $(CNI_AI_PATH)=$(CNI_TELEMETRY_SIDECAR_AI_ID)" \
+    	-gcflags="-dwarflocationlists=true" \
+    	.
 # Build the Azure CLI network binary.
 acncli-binary:
 	cd $(ACNCLI_DIR) && CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
@@ -297,6 +302,7 @@ CNS_IMAGE						= azure-cns
 NPM_IMAGE						= azure-npm
 AZURE_IP_MASQ_MERGER_IMAGE		= azure-ip-masq-merger
 AZURE_IPTABLES_MONITOR_IMAGE	= azure-iptables-monitor
+CNI_TELEMETRY_SIDECAR_IMAGE = azure-cni-telemetry-sidecar
 
 ## Image platform tags.
 ACNCLI_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(ACN_VERSION)
@@ -310,7 +316,7 @@ CNS_WINDOWS_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)-$(OS_SKU_W
 NPM_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(NPM_VERSION)
 AZURE_IP_MASQ_MERGER_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))-$(AZURE_IP_MASQ_MERGER_VERSION)
 AZURE_IPTABLES_MONITOR_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))-$(AZURE_IPTABLES_MONITOR_VERSION)
-
+CNI_TELEMETRY_SIDECAR_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))-$(CNI_TELEMETRY_SIDECAR_VERSION)
 
 qemu-user-static: ## Set up the host to run qemu multiplatform container builds.
 	sudo $(CONTAINER_RUNTIME) run --rm --privileged multiarch/qemu-user-static --reset -p yes
@@ -603,7 +609,7 @@ cni-telemetry-sidecar-image: ## build cni-telemetry-sidecar container image.
 	$(MAKE) container \
         DOCKERFILE=cns/cni-telemetry-sidecar/Dockerfile \
         IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
-        EXTRA_BUILD_ARGS='--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_TELEMETRY_SIDECAR_AI_ID)' \
+        EXTRA_BUILD_ARGS='--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_TELEMETRY_SIDECAR_AI_ID) --build-arg VERSION=$(CNI_TELEMETRY_SIDECAR_VERSION)' \
         PLATFORM=$(PLATFORM) \
         TAG=$(CNI_TELEMETRY_SIDECAR_PLATFORM_TAG) \
         TARGET=$(OS) \

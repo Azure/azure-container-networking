@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/telemetry"
 	"go.uber.org/zap"
 )
 
@@ -29,7 +30,6 @@ func (cm *ConfigManager) SetLogger(logger *zap.Logger) {
 
 // LoadConfig loads the CNS configuration from file
 func (cm *ConfigManager) LoadConfig() (*configuration.CNSConfig, error) {
-	// Use zap logger if available, otherwise create a default config
 	if cm.logger != nil {
 		cm.logger.Debug("Loading CNS configuration", zap.String("path", cm.configPath))
 	}
@@ -40,22 +40,7 @@ func (cm *ConfigManager) LoadConfig() (*configuration.CNSConfig, error) {
 			cm.logger.Info("CNS config file not found, using default configuration",
 				zap.String("path", cm.configPath))
 		}
-
-		// Return default configuration
-		return &configuration.CNSConfig{
-			TelemetrySettings: configuration.TelemetrySettings{
-				DisableAll:                    false,
-				TelemetryBatchSizeBytes:       16384,
-				TelemetryBatchIntervalInSecs:  15,
-				RefreshIntervalInSecs:         15,
-				DisableMetadataRefreshThread:  false,
-				DebugMode:                     false,
-				DisableTrace:                  false,
-				DisableMetric:                 false,
-				DisableEvent:                  false,
-				AppInsightsInstrumentationKey: "", // Will be set by environment or config
-			},
-		}, nil
+		return cm.createDefaultConfig(), nil
 	}
 
 	// Read the config file
@@ -80,22 +65,119 @@ func (cm *ConfigManager) LoadConfig() (*configuration.CNSConfig, error) {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
-	// Set default values for telemetry settings if not specified
-	if config.TelemetrySettings.TelemetryBatchSizeBytes == 0 {
-		config.TelemetrySettings.TelemetryBatchSizeBytes = 16384
-	}
-	if config.TelemetrySettings.TelemetryBatchIntervalInSecs == 0 {
-		config.TelemetrySettings.TelemetryBatchIntervalInSecs = 15
-	}
-	if config.TelemetrySettings.RefreshIntervalInSecs == 0 {
-		config.TelemetrySettings.RefreshIntervalInSecs = 15
-	}
+	// Apply defaults and environment variable overrides
+	cm.setConfigDefaults(&config)
+
+	// Check for AppInsights key from all sources (build-time, config, env)
+	hasAppInsightsKey := cm.hasEffectiveAppInsightsKey(&config.TelemetrySettings)
 
 	if cm.logger != nil {
 		cm.logger.Info("Successfully loaded CNS configuration",
 			zap.String("path", cm.configPath),
-			zap.Bool("telemetryDisabled", config.TelemetrySettings.DisableAll))
+			zap.Bool("telemetryDisabled", config.TelemetrySettings.DisableAll),
+			zap.Bool("cniTelemetryEnabled", config.TelemetrySettings.EnableCNITelemetry),
+			zap.String("socketPath", config.TelemetrySettings.CNITelemetrySocketPath),
+			zap.Bool("hasAppInsightsKey", hasAppInsightsKey))
 	}
 
 	return &config, nil
+}
+
+// createDefaultConfig creates a default configuration
+func (cm *ConfigManager) createDefaultConfig() *configuration.CNSConfig {
+	config := &configuration.CNSConfig{
+		TelemetrySettings: configuration.TelemetrySettings{
+			DisableAll:                   false,
+			TelemetryBatchSizeBytes:      defaultBatchSizeInBytes,
+			TelemetryBatchIntervalInSecs: defaultBatchIntervalInSecs,
+			RefreshIntervalInSecs:        defaultRefreshTimeoutInSecs,
+			DisableMetadataRefreshThread: false,
+			DebugMode:                    false,
+			DisableTrace:                 false,
+			DisableMetric:                false,
+			DisableEvent:                 false,
+			EnableCNITelemetry:           false, // Default to false
+			CNITelemetrySocketPath:       "/var/run/azure-vnet-telemetry.sock",
+		},
+	}
+
+	// Set AppInsights key from environment variables (if any)
+	cm.setAppInsightsKeyFromEnv(&config.TelemetrySettings)
+
+	return config
+}
+
+// setConfigDefaults applies default values and environment variable overrides
+func (cm *ConfigManager) setConfigDefaults(config *configuration.CNSConfig) {
+	// Set default values for telemetry settings if not specified
+	if config.TelemetrySettings.TelemetryBatchSizeBytes == 0 {
+		config.TelemetrySettings.TelemetryBatchSizeBytes = defaultBatchSizeInBytes
+	}
+	if config.TelemetrySettings.TelemetryBatchIntervalInSecs == 0 {
+		config.TelemetrySettings.TelemetryBatchIntervalInSecs = defaultBatchIntervalInSecs
+	}
+	if config.TelemetrySettings.RefreshIntervalInSecs == 0 {
+		config.TelemetrySettings.RefreshIntervalInSecs = defaultRefreshTimeoutInSecs
+	}
+
+	// Set default CNI telemetry socket path
+	if config.TelemetrySettings.CNITelemetrySocketPath == "" {
+		config.TelemetrySettings.CNITelemetrySocketPath = "/var/run/azure-vnet-telemetry.sock"
+	}
+
+	// Handle AppInsights instrumentation key from environment variables
+	cm.setAppInsightsKeyFromEnv(&config.TelemetrySettings)
+}
+
+// setAppInsightsKeyFromEnv sets the AppInsights instrumentation key from environment variables
+func (cm *ConfigManager) setAppInsightsKeyFromEnv(ts *configuration.TelemetrySettings) {
+	// Try multiple environment variable names
+	envKeys := []string{
+		"APPINSIGHTS_INSTRUMENTATIONKEY",
+		"APPLICATIONINSIGHTS_CONNECTION_STRING",
+		"AI_INSTRUMENTATION_KEY",
+	}
+
+	// If no key is set in config, try environment variables
+	if ts.AppInsightsInstrumentationKey == "" {
+		for _, envKey := range envKeys {
+			if key := os.Getenv(envKey); key != "" {
+				ts.AppInsightsInstrumentationKey = key
+				if cm.logger != nil {
+					cm.logger.Debug("Found AppInsights key in environment variable",
+						zap.String("envVar", envKey))
+				}
+				break
+			}
+		}
+	}
+}
+
+// hasEffectiveAppInsightsKey checks if AppInsights key is available from any source
+// (build-time aiMetadata, config file, or environment variables)
+func (cm *ConfigManager) hasEffectiveAppInsightsKey(ts *configuration.TelemetrySettings) bool {
+	// Priority 1: Build-time embedded key via telemetry.aiMetadata
+	if buildTimeKey := telemetry.GetAIMetadata(); buildTimeKey != "" {
+		return true
+	}
+
+	// Priority 2: Config file
+	if ts.AppInsightsInstrumentationKey != "" {
+		return true
+	}
+
+	// Priority 3: Environment variables
+	envKeys := []string{
+		"APPINSIGHTS_INSTRUMENTATIONKEY",
+		"APPLICATIONINSIGHTS_CONNECTION_STRING",
+		"AI_INSTRUMENTATION_KEY",
+	}
+
+	for _, envKey := range envKeys {
+		if key := os.Getenv(envKey); key != "" {
+			return true
+		}
+	}
+
+	return false
 }
