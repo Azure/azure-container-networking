@@ -132,7 +132,7 @@ require (
 	gotest.tools/v3 v3.5.2
 	k8s.io/kubectl v0.28.5
 	k8s.io/kubernetes v1.30.7
-	sigs.k8s.io/yaml v1.5.0
+	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
