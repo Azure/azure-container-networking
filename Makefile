@@ -219,9 +219,14 @@ azure-vnet-telemetry-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI Telemetry Sidecar binary.
-cni-telemetry-sidecar-binary:
-	cd $(CNI_TELEMETRY_SIDECAR_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_TELEMETRY_SIDECAR_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) -ldflags "-X main.version=$(CNI_TELEMETRY_SIDECAR_VERSION) -X $(CNI_AI_PATH)=$(CNI_TELEMETRY_SIDECAR_AI_ID)" -gcflags="-dwarflocationlists=true"
-
+cni-telemetry-sidecar-binary: ## build cni-telemetry-sidecar binary.
+	$(MKDIR) $(CNI_TELEMETRY_SIDECAR_BUILD_DIR)
+	cd $(CNI_TELEMETRY_SIDECAR_DIR) && CGO_ENABLED=0 go build \
+    	-v \
+    	-o $(CNI_TELEMETRY_SIDECAR_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) \
+    	-ldflags "-X main.version=$(CNI_TELEMETRY_SIDECAR_VERSION) -X $(CNI_AI_PATH)=$(CNI_TELEMETRY_SIDECAR_AI_ID)" \
+    	-gcflags="-dwarflocationlists=true" \
+    	.
 # Build the Azure CLI network binary.
 acncli-binary:
 	cd $(ACNCLI_DIR) && CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
@@ -564,7 +569,7 @@ cni-telemetry-sidecar-image: ## build cni-telemetry-sidecar container image.
 	$(MAKE) container \
         DOCKERFILE=cns/cni-telemetry-sidecar/Dockerfile \
         IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
-        EXTRA_BUILD_ARGS='--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_TELEMETRY_SIDECAR_AI_ID)' \
+        EXTRA_BUILD_ARGS='--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_TELEMETRY_SIDECAR_AI_ID) --build-arg VERSION=$(CNI_TELEMETRY_SIDECAR_VERSION)' \
         PLATFORM=$(PLATFORM) \
         TAG=$(CNI_TELEMETRY_SIDECAR_PLATFORM_TAG) \
         TARGET=$(OS) \
