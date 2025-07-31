@@ -27,7 +27,7 @@ jobs:
       with:
         fetch-depth: 0
     - name: Generate BPF code
-      run: go generate ./bpf-prog/block-iptables/...
+      run: make bpf-lib && go generate ./bpf-prog/block-iptables/...
       env:
         GOTOOLCHAIN: local
     - name: golangci-lint

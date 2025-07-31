@@ -199,8 +199,8 @@ ipv6-hp-bpf-binary:
 	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./...
 	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION)" -gcflags="-dwarflocationlists=true"
 
-# Libraries for ipv6-hp-bpf
-ipv6-hp-bpf-lib:
+# Libraries for bpf
+bpf-lib:
 ifeq ($(GOARCH),amd64)
 	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
 	for dir in /usr/include/x86_64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
@@ -213,16 +213,6 @@ endif
 block-iptables-binary:
 	cd $(BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 go generate ./...
 	cd $(BLOCK_IPTABLES_DIR)/cmd/block-iptables && CGO_ENABLED=0 go build -v -o $(BLOCK_IPTABLES_BUILD_DIR)/block-iptables$(EXE_EXT) -ldflags "-X main.version=$(BLOCK_IPTABLES_VERSION)" -gcflags="-dwarflocationlists=true"
-
-# Libraries for block-iptables
-block-iptables-lib:
-ifeq ($(GOARCH),amd64)
-	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
-	for dir in /usr/include/x86_64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
-else ifeq ($(GOARCH),arm64)
-	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
-	for dir in /usr/include/aarch64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
-endif
 
 # Build the Azure CNI network binary.
 azure-vnet-binary:
