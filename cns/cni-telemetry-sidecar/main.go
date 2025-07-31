@@ -7,67 +7,94 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Azure/azure-container-networking/cns/logger/v2"
-	cores "github.com/Azure/azure-container-networking/cns/logger/v2/cores"
+	"github.com/Azure/azure-container-networking/telemetry"
 	"go.uber.org/zap"
 )
 
 var (
-	version    = "unknown"
-	configPath = flag.String("config", "/etc/cns/cns-config.json", "Path to CNS configuration file")
+	configPath = flag.String("config", "/etc/azure-cns/cns_config.json", "Path to CNS configuration file")
 	logLevel   = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
+
+	// This variable is set at build time via ldflags from Makefile
+	version = "1.0.0" // -X main.version=$(CNI_TELEMETRY_SIDECAR_VERSION)
 )
 
 func main() {
 	flag.Parse()
 
-	// Initialize main logger with correct path for shared volume
-	zapLogger, cleanup, err := logger.New(&logger.Config{
-		Level: *logLevel,
-		File: &cores.FileConfig{
-			Filepath: "/var/log/azure-cni-telemetry-sidecar.log", // This will write to host's /var/log/azure-cns/
-		},
-	})
+	// Initialize logger
+	logger, err := initializeLogger(*logLevel)
 	if err != nil {
-		panic("Failed to initialize logger: " + err.Error())
+		panic(err)
 	}
-	defer cleanup()
+	defer logger.Sync()
 
-	zapLogger.Info("Starting Azure CNI Telemetry Sidecar",
+	// DEBUG: Check if aiMetadata was set at build time via ldflags
+	currentAIMetadata := telemetry.GetAIMetadata()
+	logger.Info("Starting Azure CNI Telemetry Sidecar",
 		zap.String("version", version),
 		zap.String("configPath", *configPath),
-		zap.String("logLevel", *logLevel))
+		zap.String("logLevel", *logLevel),
+		zap.Bool("hasBuiltInAIKey", currentAIMetadata != ""),
+		zap.String("aiKeyPrefix", maskAIKey(currentAIMetadata)))
 
-	// Create telemetry sidecar service and pass the logger
+	// Create and configure telemetry sidecar
+	// Pass the configPath to NewTelemetrySidecar (it expects a string parameter)
 	sidecar := NewTelemetrySidecar(*configPath)
-
-	// Set the logger for the sidecar to avoid nil pointer
-	if err := sidecar.SetLogger(zapLogger); err != nil {
-		zapLogger.Error("Failed to set logger for sidecar", zap.Error(err))
+	if err := sidecar.SetLogger(logger); err != nil {
+		logger.Error("Failed to set logger", zap.Error(err))
 		os.Exit(1)
 	}
 
-	// Setup graceful shutdown context
+	// Log which AI key source we're using
+	if currentAIMetadata != "" {
+		logger.Info("Using build-time embedded AppInsights key (from Makefile)")
+	} else {
+		logger.Info("No build-time AppInsights key found - will check config/environment")
+	}
+
+	// Create context with cancellation for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Handle OS signals for graceful shutdown
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-
+	// Handle shutdown signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		sig := <-sigCh
-		zapLogger.Info("Received shutdown signal, initiating graceful shutdown",
-			zap.String("signal", sig.String()))
+		sig := <-sigChan
+		logger.Info("Received shutdown signal", zap.String("signal", sig.String()))
 		cancel()
 	}()
 
-	// Run the telemetry sidecar (using the Run method from sidecar.go)
-	if err := sidecar.Run(ctx); err != nil {
-		zapLogger.Error("Azure CNI Telemetry Sidecar failed",
-			zap.Error(err))
+	// Run the sidecar
+	if err := sidecar.Run(ctx); err != nil && err != context.Canceled {
+		logger.Error("Sidecar execution failed", zap.Error(err))
 		os.Exit(1)
 	}
 
-	zapLogger.Info("Azure CNI Telemetry Sidecar stopped gracefully")
+	logger.Info("Azure CNI Telemetry Sidecar shutdown complete")
+}
+
+// initializeLogger creates a zap logger with the specified level
+func initializeLogger(level string) (*zap.Logger, error) {
+	var zapLevel zap.AtomicLevel
+	switch level {
+	case "debug":
+		zapLevel = zap.NewAtomicLevelAt(zap.DebugLevel)
+	case "info":
+		zapLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
+	case "warn":
+		zapLevel = zap.NewAtomicLevelAt(zap.WarnLevel)
+	case "error":
+		zapLevel = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	default:
+		zapLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
+	}
+
+	config := zap.NewProductionConfig()
+	config.Level = zapLevel
+	config.DisableStacktrace = true
+	config.DisableCaller = false
+
+	return config.Build()
 }

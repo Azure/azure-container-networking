@@ -158,14 +158,6 @@ stages:
                 arch: amd64
                 name: npm
                 os: windows
-              cni_telemetry_sidecar_linux_amd64:
-                arch: amd64
-                name: cni-telemetry-sidecar
-                os: linux
-              cni_telemetry_sidecar_windows_amd64:
-                arch: amd64
-                name: cni-telemetry-sidecar
-                os: windows
           steps:
             - template: containers/container-template.yaml
               parameters:
@@ -245,10 +237,6 @@ stages:
               npm_linux_arm64:
                 arch: arm64
                 name: npm
-                os: linux
-              cni_telemetry_sidecar_linux_arm64:
-                arch: arm64
-                name: cni-telemetry-sidecar
                 os: linux
           steps:
             - template: containers/container-template.yaml
