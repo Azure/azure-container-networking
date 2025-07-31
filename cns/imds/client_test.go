@@ -101,7 +101,7 @@ func TestInvalidVMUniqueID(t *testing.T) {
 	require.Equal(t, "", vmUniqueID)
 }
 
-func TestGetNCVersions(t *testing.T) {
+func TestGetNetworkInterfaces(t *testing.T) {
 	networkMetadata := []byte(`{
         "interface": [
             {
@@ -139,7 +139,7 @@ func TestGetNCVersions(t *testing.T) {
 	defer mockIMDSServer.Close()
 
 	imdsClient := imds.NewClient(imds.Endpoint(mockIMDSServer.URL))
-	interfaces, err := imdsClient.GetNCVersions(context.Background())
+	interfaces, err := imdsClient.GetNetworkInterfaces(context.Background())
 	require.NoError(t, err, "error querying testserver")
 
 	// Verify we got the expected interfaces
@@ -154,13 +154,13 @@ func TestGetNCVersions(t *testing.T) {
 	assert.Equal(t, "1", interfaces[1].InterfaceCompartmentVersion)
 }
 
-func TestGetNCVersionsInvalidEndpoint(t *testing.T) {
+func TestGetNetworkInterfacesInvalidEndpoint(t *testing.T) {
 	imdsClient := imds.NewClient(imds.Endpoint(string([]byte{0x7f})), imds.RetryAttempts(1))
-	_, err := imdsClient.GetNCVersions(context.Background())
+	_, err := imdsClient.GetNetworkInterfaces(context.Background())
 	require.Error(t, err, "expected invalid path")
 }
 
-func TestGetNCVersionsInvalidJSON(t *testing.T) {
+func TestGetNetworkInterfacesInvalidJSON(t *testing.T) {
 	mockIMDSServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte("not json"))
@@ -172,11 +172,11 @@ func TestGetNCVersionsInvalidJSON(t *testing.T) {
 	defer mockIMDSServer.Close()
 
 	imdsClient := imds.NewClient(imds.Endpoint(mockIMDSServer.URL), imds.RetryAttempts(1))
-	_, err := imdsClient.GetNCVersions(context.Background())
+	_, err := imdsClient.GetNetworkInterfaces(context.Background())
 	require.Error(t, err, "expected json decoding error")
 }
 
-func TestGetNCVersionsNoNCIDs(t *testing.T) {
+func TestGetNetworkInterfacesNoNCIDs(t *testing.T) {
 	networkMetadataNoNC := []byte(`{
         "interface": [
             {
@@ -206,7 +206,7 @@ func TestGetNCVersionsNoNCIDs(t *testing.T) {
 	defer mockIMDSServer.Close()
 
 	imdsClient := imds.NewClient(imds.Endpoint(mockIMDSServer.URL))
-	interfaces, err := imdsClient.GetNCVersions(context.Background())
+	interfaces, err := imdsClient.GetNetworkInterfaces(context.Background())
 	require.NoError(t, err, "error querying testserver")
 
 	// Verify we got interfaces but they don't have compartment IDs

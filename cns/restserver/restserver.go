@@ -53,7 +53,7 @@ type wireserverProxy interface {
 
 type imdsClient interface {
 	GetVMUniqueID(ctx context.Context) (string, error)
-	GetNCVersions(ctx context.Context) ([]imds.NetworkInterface, error)
+	GetNetworkInterfaces(ctx context.Context) ([]imds.NetworkInterface, error)
 }
 
 type iptablesClient interface {

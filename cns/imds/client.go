@@ -103,7 +103,7 @@ func (c *Client) GetVMUniqueID(ctx context.Context) (string, error) {
 	return vmUniqueID, nil
 }
 
-func (c *Client) GetNCVersions(ctx context.Context) ([]NetworkInterface, error) {
+func (c *Client) GetNetworkInterfaces(ctx context.Context) ([]NetworkInterface, error) {
 	var networkData NetworkMetadata
 	err := retry.Do(func() error {
 		networkMetadata, err := c.getInstanceMetadata(ctx, imdsNetworkPath)
@@ -130,14 +130,14 @@ func (c *Client) GetNCVersions(ctx context.Context) ([]NetworkInterface, error) 
 	return networkData.Interface, nil
 }
 
-func (c *Client) getInstanceMetadata(ctx context.Context, imdsComputePath string) (map[string]any, error) {
-	imdsComputeURL, err := url.JoinPath(c.config.endpoint, imdsComputePath)
+func (c *Client) getInstanceMetadata(ctx context.Context, imdsMetadataPath string) (map[string]any, error) {
+	imdsRequestURL, err := url.JoinPath(c.config.endpoint, imdsMetadataPath)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to build path to IMDS metadata for path"+imdsComputePath)
+		return nil, errors.Wrap(err, "unable to build path to IMDS metadata for path"+imdsMetadataPath)
 	}
-	imdsComputeURL = imdsComputeURL + "?" + imdsComputeAPIVersion + "&" + imdsFormatJSON
+	imdsRequestURL = imdsRequestURL + "?" + imdsComputeAPIVersion + "&" + imdsFormatJSON
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imdsComputeURL, http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imdsRequestURL, http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "error building IMDS http request")
 	}
@@ -164,7 +164,7 @@ func (c *Client) getInstanceMetadata(ctx context.Context, imdsComputePath string
 
 // NetworkInterface represents a network interface from IMDS
 type NetworkInterface struct {
-	// IMDS only returns compartment fields - these are mapped to NC ID and NC version concepts
+	// IMDS returns compartment fields - these are mapped to NC ID and NC version
 	InterfaceCompartmentID      string `json:"interfaceCompartmentID,omitempty"`
 	InterfaceCompartmentVersion string `json:"interfaceCompartmentVersion,omitempty"`
 }
