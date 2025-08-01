@@ -90,5 +90,7 @@ func (m *MockProgram) IsAttached() bool {
 
 // Close simulates cleanup.
 func (m *MockProgram) Close() {
-	m.Detach()
+	if err := m.Detach(); err != nil {
+		log.Println("Mock: Error detaching BPF program:", err)
+	}
 }

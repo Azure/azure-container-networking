@@ -15,7 +15,7 @@
 #define COMM_COUNT 3
 
 char __license[] SEC("license") = "Dual MIT/GPL";
-volatile const __u32 host_netns_inode = 4026531840; // Initialized by userspace
+volatile const u64 host_netns_inode = 4026531840; // Initialized by userspace
 
 struct {
     __uint(type, BPF_MAP_TYPE_ARRAY);
@@ -67,7 +67,7 @@ int is_host_ns() {
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
     struct nsproxy *nsproxy;
     struct net *net_ns;
-    u32 netns_ino = 0;
+    unsigned int netns_ino = 0;
 
     nsproxy = BPF_CORE_READ(task, nsproxy);
     if (!nsproxy)

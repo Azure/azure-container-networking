@@ -25,11 +25,11 @@ jobs:
       - name: Run go generate
         run: make bpf-lib && go generate ./...
 
-      - name: Upload full bpfrogram directory
+      - name: Upload generated code
         uses: actions/upload-artifact@v4
         with:
           name: generated-bpf-program-code
-          path: ./bpf-prog/block-iptables
+          path: ./bpf-prog/block-iptables/pkg/blockservice
   golangci:
     strategy:
       fail-fast: false
@@ -46,11 +46,11 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - name: Download bpfrogram
+    - name: Download generated code
       uses: actions/download-artifact@v4
       with:
         name: generated-bpf-program-code
-        path: ./bpf-prog/block-iptables
+        path: ./bpf-prog/block-iptables/pkg/blockservice
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v6
       with:

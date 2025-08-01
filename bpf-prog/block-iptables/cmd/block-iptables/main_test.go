@@ -39,7 +39,7 @@ func TestHandleFileEventWithMock(t *testing.T) {
 			name: "file with content triggers detach",
 			setupFile: func(path string) error {
 				// Create file with content
-				return os.WriteFile(path, []byte("some content"), 0o644)
+				return os.WriteFile(path, []byte("some content"), 0o600)
 			},
 			expectedAttach: 0,
 			expectedDetach: 1,
