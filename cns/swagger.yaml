@@ -433,21 +433,6 @@ components:
           type: string
           description: The error message
 
-    AssignIBDevicesToPodRequest:
-      type: object
-      required:
-        - PodID
-        - MACAddresses
-      properties:
-        PodID:
-          type: string
-          description: podname-podnamespace of which pod to attach these devices to
-        MACAddresses:
-          type: array
-          description: MAC addresses of IB devices such as "60:45:bd:a4:b5:7a"
-          items:
-            type: string
-
     AssignIBDevicesToPodResponse:
       type: object
       required:
