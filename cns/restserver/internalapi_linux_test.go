@@ -40,10 +40,11 @@ func TestAddSNATRules(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		input            *cns.CreateNetworkContainerRequest
-		preExistingRules []preExistingRule
-		expectedChains   []chainExpectation
+		name                    string
+		input                   *cns.CreateNetworkContainerRequest
+		preExistingRules        []preExistingRule
+		expectedChains          []chainExpectation
+		expectedClearChainCalls int
 	}{
 		{
 			// in pod subnet, the primary nic ip is in the same address space as the pod subnet
@@ -83,6 +84,7 @@ func TestAddSNATRules(t *testing.T) {
 					},
 				},
 			},
+			expectedClearChainCalls: 1,
 		},
 		{
 			// test with pre-existing SWIFT rule that should be migrated
@@ -156,6 +158,7 @@ func TestAddSNATRules(t *testing.T) {
 					},
 				},
 			},
+			expectedClearChainCalls: 1,
 		},
 		{
 			// test after migration has already completed
@@ -238,6 +241,7 @@ func TestAddSNATRules(t *testing.T) {
 					},
 				},
 			},
+			expectedClearChainCalls: 0,
 		},
 		{
 			// in vnet scale, the primary nic ip becomes the node ip (diff address space from pod subnet)
@@ -277,17 +281,16 @@ func TestAddSNATRules(t *testing.T) {
 					},
 				},
 			},
+			expectedClearChainCalls: 1,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			service := getTestService(cns.KubernetesCRD)
-			service.iptables = &FakeIPTablesProvider{}
-
-			ipt, err := service.iptables.GetIPTables()
-			if err != nil {
-				t.Fatal("failed to get iptables client:", err)
+			ipt := fakes.NewIPTablesMock()
+			service.iptables = &FakeIPTablesProvider{
+				iptables: ipt,
 			}
 
 			// setup pre-existing rules
@@ -296,13 +299,13 @@ func TestAddSNATRules(t *testing.T) {
 					chainExists, _ := ipt.ChainExists(preRule.table, preRule.chain)
 
 					if !chainExists {
-						err = ipt.NewChain(preRule.table, preRule.chain)
+						err := ipt.NewChain(preRule.table, preRule.chain)
 						if err != nil {
 							t.Fatal("failed to setup pre-existing rule chain:", err)
 						}
 					}
 
-					err = ipt.Append(preRule.table, preRule.chain, preRule.rule...)
+					err := ipt.Append(preRule.table, preRule.chain, preRule.rule...)
 					if err != nil {
 						t.Fatal("failed to setup pre-existing rule:", err)
 					}
@@ -332,6 +335,12 @@ func TestAddSNATRules(t *testing.T) {
 							chainExp.chain, i, actualRules[i], expectedRule)
 					}
 				}
+			}
+
+			// verify ClearChain was called the expected number of times
+			actualClearChainCalls := ipt.ClearChainCallCount()
+			if actualClearChainCalls != tt.expectedClearChainCalls {
+				t.Fatalf("ClearChain call count mismatch: got %d, expected %d", actualClearChainCalls, tt.expectedClearChainCalls)
 			}
 		})
 	}

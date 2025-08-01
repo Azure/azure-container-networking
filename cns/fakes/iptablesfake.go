@@ -13,10 +13,12 @@ var (
 	errChainNotFound = errors.New("chain not found")
 	errRuleExists    = errors.New("rule already exists")
 	errRuleNotFound  = errors.New("rule not found")
+	errIndexBounds   = errors.New("index out of bounds")
 )
 
 type IPTablesMock struct {
-	state map[string]map[string][]string
+	state            map[string]map[string][]string
+	clearChainCalled int
 }
 
 func NewIPTablesMock() *IPTablesMock {
@@ -106,8 +108,10 @@ func (c *IPTablesMock) Insert(table, chain string, pos int, rulespec ...string) 
 		index = 0
 	}
 
-	if index >= len(chainRules) {
+	if index == len(chainRules) {
 		c.state[table][chain] = append(chainRules, targetRule)
+	} else if index > len(chainRules) {
+		return errIndexBounds
 	} else {
 		c.state[table][chain] = append(chainRules[:index], append([]string{targetRule}, chainRules[index:]...)...)
 	}
@@ -151,6 +155,7 @@ func (c *IPTablesMock) List(table, chain string) ([]string, error) {
 }
 
 func (c *IPTablesMock) ClearChain(table, chain string) error {
+	c.clearChainCalled++
 	c.ensureTableExists(table)
 
 	chainExists, _ := c.ChainExists(table, chain)
@@ -182,4 +187,8 @@ func (c *IPTablesMock) Delete(table, chain string, rulespec ...string) error {
 	}
 
 	return errRuleNotFound
+}
+
+func (c *IPTablesMock) ClearChainCallCount() int {
+	return c.clearChainCalled
 }

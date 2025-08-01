@@ -72,6 +72,7 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 	if swiftRuleIndex != -1 {
 		// jump SWIFT rule exists, insert SWIFT-POSTROUTING rule at the same position so it ends up running first
 		// first, remove any existing SWIFT-POSTROUTING rules to avoid duplicates
+		// note: inserting at len(rules) and deleting a jump to SWIFT-POSTROUTING is mutually exclusive
 		swiftPostroutingExists, err := ipt.Exists(iptables.Nat, iptables.Postrouting, "-j", SWIFT)
 		if err != nil {
 			return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of SWIFT-POSTROUTING rule: %v", err)
