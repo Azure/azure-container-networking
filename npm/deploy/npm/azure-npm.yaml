@@ -34,7 +34,7 @@ rules:
       - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding  
+kind: ClusterRoleBinding
 metadata:
   name: azure-npm-binding
   namespace: kube-system
@@ -79,7 +79,7 @@ spec:
         operator: Exists
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.1
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.1 # <does this need to be updated?>
           resources:
             limits:
               cpu: 250m

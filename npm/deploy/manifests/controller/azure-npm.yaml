@@ -84,7 +84,7 @@ metadata:
   namespace: kube-system
 spec:
   ports:
-  - name: http 
+  - name: http
     port: 9001
     targetPort: 10092
   selector:
@@ -133,12 +133,12 @@ spec:
     spec:
       containers:
       - args:
-        - controlplane 
+        - controlplane
         ports:
         - name: metrics
-          containerPort: 10091 
+          containerPort: 10091
         - name: http
-          containerPort: 10092 
+          containerPort: 10092
         command:
         - azure-npm
         env:
@@ -149,7 +149,7 @@ spec:
               fieldPath: spec.nodeName
         - name: NPM_CONFIG
           value: /etc/azure-npm/azure-npm.json
-        image:  mcr.microsoft.com/containernetworking/azure-npm:v1.4.1
+        image:  mcr.microsoft.com/containernetworking/azure-npm:v1.4.1 # <does this need to be updated?>
         name: azure-npm
         resources:
           limits:
