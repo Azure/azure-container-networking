@@ -23,8 +23,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Run go generate
-        working-directory: ./bpf-prog/block-iptables
-        run: go generate ./...
+        run: make bpf-lib && go generate ./...
 
       - name: Upload full bpfrogram directory
         uses: actions/upload-artifact@v4
