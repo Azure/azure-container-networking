@@ -210,6 +210,7 @@ stages:
       osSkuWin: 'Windows2022'
       scaleup: ${SCALEUP_WIN}
       iterations: ${ITERATIONS_WIN}
+      upgradeScenario: false
 
   - template: singletenancy/cniv2-template.yaml
     parameters:
@@ -226,6 +227,7 @@ stages:
       osSkuWin: 'Windows2022'
       scaleup: ${SCALEUP_WIN}
       iterations: ${ITERATIONS_WIN}
+      upgradeScenario: false
 
 ## Linux E2E
   - template: singletenancy/cniv1-template.yaml
@@ -592,6 +594,40 @@ stages:
         upgradeScenario: true
         dependsOn: rdma_linux_overlay
 
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: windows_podsubnet_upgrade
+        clusterType: swift-byocni-up
+        clusterName: w22-podsub
+        nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+        nodeCountWin: ${NODE_COUNT_WIN}
+        vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+        vmSizeWin: ${VM_SIZE_WIN}
+        arch: amd64
+        os: windows
+        os_version: 'ltsc2022'
+        osSkuWin: 'Windows2022'
+        scaleup: ${SCALEUP_WIN}
+        iterations: ${ITERATIONS_WIN}
+        upgradeScenario: true
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: windows_overlay_upgrade
+        clusterType: overlay-byocni-up
+        clusterName: w22-over
+        nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+        nodeCountWin: ${NODE_COUNT_WIN}
+        vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+        vmSizeWin: ${VM_SIZE_WIN}
+        arch: amd64
+        os: windows
+        os_version: 'ltsc2022'
+        osSkuWin: 'Windows2022'
+        scaleup: ${SCALEUP_WIN}
+        iterations: ${ITERATIONS_WIN}
+        upgradeScenario: true
+
   - stage: delete_resources
     displayName: "Delete Resources"
     pool:
@@ -632,6 +668,8 @@ stages:
         - mariner_linux_overlay_upgrade
         - arm_linux_overlay_upgrade
         - rdma_linux_overlay_upgrade
+        - windows_podsubnet_upgrade
+        - windows_overlay_upgrade
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     jobs:
