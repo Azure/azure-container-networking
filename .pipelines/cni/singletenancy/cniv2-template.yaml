@@ -142,28 +142,29 @@ stages:
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   kubectl cluster-info
                   kubectl get po -owide -A
+                  if [ ${{parameters.upgradeScenario}} == "true" ]; then
+                    if [ -z "$UPGRADE_CNS_VERSION" ]
+                    then
+                      echo "UPGRADE_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$(UPGRADE_CNS_VERSION)
+                      echo "UPGRADE_CNS_VERSION is set to $CNS"
+                    fi
+                  else
+                    if [ -z "$TEST_CNS_VERSION" ]
+                    then
+                      echo "TEST_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$(TEST_CNS_VERSION)
+                      echo "TEST_CNS_VERSION is set to $CNS"
+                    fi
+                  fi
+
                   if [ "${{parameters.os}}" == "windows" ]; then
                     sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   else
-                    if [ ${{parameters.upgradeScenario}} == "true" ]; then
-                      if [ -z "$UPGRADE_CNS_VERSION" ]
-                      then
-                        echo "UPGRADE_CNS_VERSION is not set, using default value"
-                        CNS=$(make cns-version)
-                      else
-                        CNS=$(UPGRADE_CNS_VERSION)
-                        echo "UPGRADE_CNS_VERSION is set to $CNS"
-                      fi
-                    else
-                      if [ -z "$TEST_CNS_VERSION" ]
-                      then
-                        echo "TEST_CNS_VERSION is not set, using default value"
-                        CNS=$(make cns-version)
-                      else
-                        CNS=$(TEST_CNS_VERSION)
-                        echo "TEST_CNS_VERSION is set to $CNS"
-                      fi
-                    fi
                     sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   fi
 
@@ -181,6 +182,25 @@ stages:
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   kubectl cluster-info
                   kubectl get po -owide -A
+                  if [ ${{parameters.upgradeScenario}} == "true" ]; then
+                    if [ -z "$UPGRADE_CNS_VERSION" ]
+                    then
+                      echo "UPGRADE_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$(UPGRADE_CNS_VERSION)
+                      echo "UPGRADE_CNS_VERSION is set to $CNS"
+                    fi
+                  else
+                    if [ -z "$TEST_CNS_VERSION" ]
+                    then
+                      echo "TEST_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$(TEST_CNS_VERSION)
+                      echo "TEST_CNS_VERSION is set to $CNS"
+                    fi
+                  fi
                   if [ "${{parameters.os}}" == "windows" ]; then
                     sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   else
