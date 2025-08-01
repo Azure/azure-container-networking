@@ -56,8 +56,8 @@ spec:
             description: MultitenantPodNetworkConfigSpec defines the desired state
               of PodNetworkConfig
             properties:
-              IBMACs:
-                description: MACs of the IB devices to use for a pod
+              IBMACAddresses:
+                description: MAC addresses of the IB devices to use for a pod
                 items:
                   description: A HardwareAddr represents a physical hardware address.
                   format: byte
