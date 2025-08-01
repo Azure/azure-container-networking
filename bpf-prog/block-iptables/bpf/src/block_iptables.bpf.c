@@ -1,3 +1,8 @@
+//go:build ignore
+
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT license.
+
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
@@ -9,7 +14,7 @@
 #define TASK_COMM_LEN 16
 #define COMM_COUNT 3
 
-char LICENSE[] SEC("license") = "GPL";
+char __license[] SEC("license") = "Dual MIT/GPL";
 volatile const __u32 host_netns_inode = 4026531840; // Initialized by userspace
 
 struct {
