@@ -36,7 +36,7 @@ spec:
             containerPort: 10091
           - name: http
             containerPort: 10092
-          image:  mcr.microsoft.com/containernetworking/azure-npm:v1.4.1
+          image:  mcr.microsoft.com/containernetworking/azure-npm:v1.4.1 # <does this need to be updated?>
           command: ["azure-npm"]
           args: ["controlplane"]
           resources:
