@@ -7,10 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/cns/types/infiniband"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
@@ -32,6 +34,7 @@ const (
 	V1Prefix                      = "/v0.1"
 	V2Prefix                      = "/v0.2"
 	EndpointPath                  = "/network/endpoints/"
+	IBDevicesPath                 = "/ibdevices"
 	// Service Fabric SWIFTV2 mode
 	StandaloneSWIFTV2 SWIFTV2Mode = "StandaloneSWIFTV2"
 	// K8s SWIFTV2 mode
@@ -381,4 +384,18 @@ type EndpointRequest struct {
 type GetVMUniqueIDResponse struct {
 	Response   Response `json:"response"`
 	VMUniqueID string   `json:"vmuniqueid"`
+}
+
+// AssignIBDevicesToPodResponse represents the response for assigning InfiniBand devices to a pod
+type AssignIBDevicesToPodResponse struct {
+	Message string `json:"message"` // Additional message or error description
+}
+
+// GetIBDeviceStatusResponse represents the response containing InfiniBand device programming status
+type GetIBDeviceStatusResponse struct {
+	MACAddress   net.HardwareAddr  `json:"macAddress"`   // MAC address of the device
+	PodNamespace string            `json:"podNamespace"` // Namespace of pod to which the device is assigned, if any
+	PodName      string            `json:"podName"`      // Name of pod to which the device is assigned, if any
+	Status       infiniband.Status `json:"status"`       // Device status (e.g., "Available", "ProgrammingPending", etc.)"
+	Message      string            `json:"message"`      // Additional message or error description
 }
