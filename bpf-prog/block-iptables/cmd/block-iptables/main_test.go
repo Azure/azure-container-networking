@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/bpf-prog/block-iptables/pkg/bpfprogram"
 	"github.com/fsnotify/fsnotify"
+	"github.com/pkg/errors"
 )
 
 func TestHandleFileEventWithMock(t *testing.T) {
@@ -28,7 +29,7 @@ func TestHandleFileEventWithMock(t *testing.T) {
 				// Create empty file
 				file, err := os.Create(path)
 				if err != nil {
-					return err
+					return errors.Wrap(err, "failed to create file")
 				}
 				return file.Close()
 			},

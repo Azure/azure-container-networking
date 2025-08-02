@@ -64,10 +64,9 @@ func (p *Program) unpinEventCounterMap() error {
 
 	if err := os.Remove(pinPath); err != nil && !os.IsNotExist(err) {
 		return errors.Wrapf(err, "failed to remove pinned map %s", pinPath)
-	} else {
-		log.Printf("Event counter map unpinned from %s", pinPath)
 	}
 
+	log.Printf("Event counter map unpinned from %s", pinPath)
 	return nil
 }
 
@@ -108,7 +107,6 @@ func (p *Program) Attach() error {
 	}
 
 	// Set the host_netns_inode variable in the BPF program before loading
-	// Note: The C program sets it to hostNetnsInode + 1, so we do the same
 	if err = spec.RewriteConstants(map[string]interface{}{
 		"host_netns_inode": hostNetnsInode,
 	}); err != nil {
@@ -143,6 +141,7 @@ func (p *Program) Attach() error {
 		})
 		if err != nil {
 			p.objs.Close()
+			p.objs = nil
 			return errors.Wrap(err, "failed to attach iptables_legacy_block LSM")
 		}
 		links = append(links, l)
@@ -157,8 +156,10 @@ func (p *Program) Attach() error {
 			// Clean up previous links
 			for _, link := range links {
 				link.Close()
+				link = nil
 			}
 			p.objs.Close()
+			p.objs = nil
 			return errors.Wrap(err, "failed to attach block_nf_netlink LSM")
 		}
 		links = append(links, l)
