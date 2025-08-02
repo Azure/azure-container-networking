@@ -75,7 +75,7 @@ stages:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           steps:
             - script: |
-                make ipv6-hp-bpf-lib
+                make bpf-lib
                 make all-binaries-platforms
               name: "BuildAllPlatformBinaries"
               displayName: "Build all platform binaries"

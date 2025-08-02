@@ -12,7 +12,7 @@ The egress bpf code converts the destination IPv6 of the packet from global unic
 Leverage the below make recipe to install the required libraries.
 
    ```bash
-   make ipv6-hp-bpf-lib
+   make bpf-lib
    ```
 
 ## Usage

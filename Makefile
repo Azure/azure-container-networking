@@ -32,8 +32,9 @@ endif
 # Interrogate the git repo and set some variables
 REPO_ROOT							?= $(shell git rev-parse --show-toplevel)
 REVISION							?= $(shell git rev-parse --short HEAD)
-ACN_VERSION							?= $(shell git describe --exclude "azure-iptables-monitor*" --exclude "azure-ip-masq-merger*" --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --tags --always)
+ACN_VERSION							?= $(shell git describe --exclude "azure-iptables-monitor*" --exclude "azure-ip-masq-merger*" --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --exclude "block-iptables*" --tags --always)
 IPV6_HP_BPF_VERSION					?= $(notdir $(shell git describe --match "ipv6-hp-bpf*" --tags --always))
+BLOCK_IPTABLES_VERSION  ?= $(notdir $(shell git describe --match "block-iptables*" --tags --always))
 AZURE_IPAM_VERSION					?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
 AZURE_IP_MASQ_MERGER_VERSION		?= $(notdir $(shell git describe --match "azure-ip-masq-merger*" --tags --always))
 AZURE_IPTABLES_MONITOR_VERSION		?= $(notdir $(shell git describe --match "azure-iptables-monitor*" --tags --always))
@@ -47,6 +48,7 @@ AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam
 AZURE_IP_MASQ_MERGER_DIR = $(REPO_ROOT)/azure-ip-masq-merger
 AZURE_IPTABLES_MONITOR_DIR = $(REPO_ROOT)/azure-iptables-monitor
 IPV6_HP_BPF_DIR = $(REPO_ROOT)/bpf-prog/ipv6-hp-bpf
+BLOCK_IPTABLES_DIR = $(REPO_ROOT)/bpf-prog/block-iptables
 
 CNI_NET_DIR = $(REPO_ROOT)/cni/network/plugin
 CNI_IPAM_DIR = $(REPO_ROOT)/cni/ipam/plugin
@@ -62,6 +64,7 @@ AZURE_IPAM_BUILD_DIR = $(BUILD_DIR)/azure-ipam
 AZURE_IP_MASQ_MERGER_BUILD_DIR = $(BUILD_DIR)/azure-ip-masq-merger
 AZURE_IPTABLES_MONITOR_BUILD_DIR = $(BUILD_DIR)/azure-iptables-monitor
 IPV6_HP_BPF_BUILD_DIR = $(BUILD_DIR)/bpf-prog/ipv6-hp-bpf
+BLOCK_IPTABLES_BUILD_DIR = $(BUILD_DIR)/bpf-prog/block-iptables
 IMAGE_DIR  = $(OUTPUT_DIR)/images
 
 CNI_BUILD_DIR = $(BUILD_DIR)/cni
@@ -111,6 +114,7 @@ AZURE_IPAM_ARCHIVE_NAME = azure-ipam-$(GOOS)-$(GOARCH)-$(AZURE_IPAM_VERSION).$(A
 AZURE_IP_MASQ_MERGER_ARCHIVE_NAME = azure-ip-masq-merger-$(GOOS)-$(GOARCH)-$(AZURE_IP_MASQ_MERGER_VERSION).$(ARCHIVE_EXT)
 AZURE_IPTABLES_MONITOR_ARCHIVE_NAME = azure-iptables-monitor-$(GOOS)-$(GOARCH)-$(AZURE_IPTABLES_MONITOR_VERSION).$(ARCHIVE_EXT)
 IPV6_HP_BPF_ARCHIVE_NAME = ipv6-hp-bpf-$(GOOS)-$(GOARCH)-$(IPV6_HP_BPF_VERSION).$(ARCHIVE_EXT)
+BLOCK_IPTABLES_ARCHIVE_NAME = block-iptables-$(GOOS)-$(GOARCH)-$(BLOCK_IPTABLES_VERSION).$(ARCHIVE_EXT)
 
 # Image info file names.
 CNI_IMAGE_INFO_FILE			= azure-cni-$(CNI_VERSION).txt
@@ -127,7 +131,7 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf
+all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf block-iptables
 all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image azure-iptables-monitor-image ipv6-hp-bpf-image
 else
 all-binaries: azure-cni-plugin azure-cns azure-npm
@@ -142,6 +146,7 @@ acncli: acncli-binary acncli-archive
 azure-npm: azure-npm-binary npm-archive
 azure-ipam: azure-ipam-binary azure-ipam-archive
 ipv6-hp-bpf: ipv6-hp-bpf-binary ipv6-hp-bpf-archive
+block-iptables: block-iptables-binary block-iptables-archive
 azure-ip-masq-merger: azure-ip-masq-merger-binary azure-ip-masq-merger-archive
 azure-iptables-monitor: azure-iptables-monitor-binary azure-iptables-monitor-archive
 
@@ -168,6 +173,9 @@ azure-iptables-monitor-version: ## prints the azure-iptables-monitor version
 ipv6-hp-bpf-version: ## prints the ipv6-hp-bpf version
 	@echo $(IPV6_HP_BPF_VERSION)
 
+block-iptables-version: ## prints the block-iptables version
+	@echo $(BLOCK_IPTABLES_VERSION)
+
 cni-version: ## prints the cni version
 	@echo $(CNI_VERSION)
 
@@ -191,8 +199,8 @@ ipv6-hp-bpf-binary:
 	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./...
 	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION)" -gcflags="-dwarflocationlists=true"
 
-# Libraries for ipv6-hp-bpf
-ipv6-hp-bpf-lib:
+# Libraries for bpf
+bpf-lib:
 ifeq ($(GOARCH),amd64)
 	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
 	for dir in /usr/include/x86_64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
@@ -200,6 +208,11 @@ else ifeq ($(GOARCH),arm64)
 	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
 	for dir in /usr/include/aarch64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
 endif
+
+# Build the block-iptables binary.
+block-iptables-binary:
+	cd $(BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 go generate ./...
+	cd $(BLOCK_IPTABLES_DIR)/cmd/block-iptables && CGO_ENABLED=0 go build -v -o $(BLOCK_IPTABLES_BUILD_DIR)/block-iptables$(EXE_EXT) -ldflags "-X main.version=$(BLOCK_IPTABLES_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI network binary.
 azure-vnet-binary:
@@ -845,6 +858,14 @@ ipv6-hp-bpf-archive: ipv6-hp-bpf-binary
 ifeq ($(GOOS),linux)
 	$(MKDIR) $(IPV6_HP_BPF_BUILD_DIR)
 	cd $(IPV6_HP_BPF_BUILD_DIR) && $(ARCHIVE_CMD) $(IPV6_HP_BPF_ARCHIVE_NAME) ipv6-hp-bpf$(EXE_EXT)
+endif
+
+# Create a block-iptables archive for the target platform.
+.PHONY: block-iptables-archive
+block-iptables-archive: block-iptables-binary
+ifeq ($(GOOS),linux)
+	$(MKDIR) $(BLOCK_IPTABLES_BUILD_DIR)
+	cd $(BLOCK_IPTABLES_BUILD_DIR) && $(ARCHIVE_CMD) $(BLOCK_IPTABLES_ARCHIVE_NAME) block-iptables$(EXE_EXT)
 endif
 
 ##@ Utils
