@@ -196,7 +196,9 @@ func (p *Program) Detach() error {
 
 	// Close objects
 	if p.objs != nil {
-		p.objs.Close()
+		if err := p.objs.Close(); err != nil {
+			log.Printf("Warning: failed to close BPF objects: %v", err)
+		}
 		p.objs = nil
 	}
 
