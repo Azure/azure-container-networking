@@ -67,7 +67,7 @@ func TestAddSNATRules(t *testing.T) {
 			expectedChains: []chainExpectation{
 				{
 					table: iptables.Nat,
-					chain: SWIFT,
+					chain: SWIFTPOSTROUTING,
 					expected: []string{
 						"-N SWIFT-POSTROUTING",
 						"-A SWIFT-POSTROUTING -m addrtype ! --dst-type local -s 240.1.2.0/24 -d " + networkutils.AzureDNS + " -p udp --dport " + strconv.Itoa(iptables.DNSPort) + " -j SNAT --to 240.1.2.1",
@@ -119,7 +119,7 @@ func TestAddSNATRules(t *testing.T) {
 				{
 					// should be cleaned up
 					table: iptables.Nat,
-					chain: SWIFT,
+					chain: SWIFTPOSTROUTING,
 					rule:  []string{"-m", "addrtype", "!", "--dst-type", "local", "-s", "240.1.2.0/24", "-d", networkutils.AzureDNS, "-p", "udp", "--dport", strconv.Itoa(iptables.DNSPort), "-j", "SNAT", "--to", "99.1.2.1"},
 				},
 				{
@@ -131,7 +131,7 @@ func TestAddSNATRules(t *testing.T) {
 			expectedChains: []chainExpectation{
 				{
 					table: iptables.Nat,
-					chain: SWIFT,
+					chain: SWIFTPOSTROUTING,
 					expected: []string{
 						"-N SWIFT-POSTROUTING",
 						"-A SWIFT-POSTROUTING -m addrtype ! --dst-type local -s 240.1.2.0/24 -d " + networkutils.AzureDNS + " -p udp --dport " + strconv.Itoa(iptables.DNSPort) + " -j SNAT --to 240.1.2.1",
@@ -192,17 +192,17 @@ func TestAddSNATRules(t *testing.T) {
 				},
 				{
 					table: iptables.Nat,
-					chain: SWIFT,
+					chain: SWIFTPOSTROUTING,
 					rule:  []string{"-m", "addrtype", "!", "--dst-type", "local", "-s", "240.1.2.0/24", "-d", networkutils.AzureDNS, "-p", "udp", "--dport", strconv.Itoa(iptables.DNSPort), "-j", "SNAT", "--to", "240.1.2.1"},
 				},
 				{
 					table: iptables.Nat,
-					chain: SWIFT,
+					chain: SWIFTPOSTROUTING,
 					rule:  []string{"-m", "addrtype", "!", "--dst-type", "local", "-s", "240.1.2.0/24", "-d", networkutils.AzureDNS, "-p", "tcp", "--dport", strconv.Itoa(iptables.DNSPort), "-j", "SNAT", "--to", "240.1.2.1"},
 				},
 				{
 					table: iptables.Nat,
-					chain: SWIFT,
+					chain: SWIFTPOSTROUTING,
 					rule:  []string{"-m", "addrtype", "!", "--dst-type", "local", "-s", "240.1.2.0/24", "-d", networkutils.AzureIMDS, "-p", "tcp", "--dport", strconv.Itoa(iptables.HTTPPort), "-j", "SNAT", "--to", "10.0.0.4"},
 				},
 				{
@@ -214,7 +214,7 @@ func TestAddSNATRules(t *testing.T) {
 			expectedChains: []chainExpectation{
 				{
 					table: iptables.Nat,
-					chain: SWIFT,
+					chain: SWIFTPOSTROUTING,
 					expected: []string{
 						"-N SWIFT-POSTROUTING",
 						"-A SWIFT-POSTROUTING -m addrtype ! --dst-type local -s 240.1.2.0/24 -d " + networkutils.AzureDNS + " -p udp --dport " + strconv.Itoa(iptables.DNSPort) + " -j SNAT --to 240.1.2.1",
@@ -264,7 +264,7 @@ func TestAddSNATRules(t *testing.T) {
 			expectedChains: []chainExpectation{
 				{
 					table: iptables.Nat,
-					chain: SWIFT,
+					chain: SWIFTPOSTROUTING,
 					expected: []string{
 						"-N SWIFT-POSTROUTING",
 						"-A SWIFT-POSTROUTING -m addrtype ! --dst-type local -s 240.1.2.0/28 -d " + networkutils.AzureDNS + " -p udp --dport " + strconv.Itoa(iptables.DNSPort) + " -j SNAT --to 10.0.0.4",

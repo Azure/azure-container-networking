@@ -17,8 +17,8 @@ var (
 )
 
 type IPTablesMock struct {
-	state            map[string]map[string][]string
-	clearChainCalled int
+	state               map[string]map[string][]string
+	clearChainCallCount int
 }
 
 func NewIPTablesMock() *IPTablesMock {
@@ -155,7 +155,7 @@ func (c *IPTablesMock) List(table, chain string) ([]string, error) {
 }
 
 func (c *IPTablesMock) ClearChain(table, chain string) error {
-	c.clearChainCalled++
+	c.clearChainCallCount++
 	c.ensureTableExists(table)
 
 	chainExists, _ := c.ChainExists(table, chain)
@@ -190,5 +190,5 @@ func (c *IPTablesMock) Delete(table, chain string, rulespec ...string) error {
 }
 
 func (c *IPTablesMock) ClearChainCallCount() int {
-	return c.clearChainCalled
+	return c.clearChainCallCount
 }

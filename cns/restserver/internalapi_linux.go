@@ -14,7 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const SWIFT = "SWIFT-POSTROUTING"
+const SWIFTPOSTROUTING = "SWIFT-POSTROUTING"
 
 type IPtablesProvider struct{}
 
@@ -37,13 +37,13 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to create iptables interface : %v", err)
 	}
 
-	chainExist, err := ipt.ChainExists(iptables.Nat, SWIFT)
+	chainExist, err := ipt.ChainExists(iptables.Nat, SWIFTPOSTROUTING)
 	if err != nil {
 		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of SWIFT-POSTROUTING chain: %v", err)
 	}
 	if !chainExist { // create and append chain if it doesn't exist
-		logger.Printf("[Azure CNS] Creating SWIFT Chain ...")
-		err = ipt.NewChain(iptables.Nat, SWIFT)
+		logger.Printf("[Azure CNS] Creating SWIFT-POSTROUTING Chain ...")
+		err = ipt.NewChain(iptables.Nat, SWIFTPOSTROUTING)
 		if err != nil {
 			return types.FailedToRunIPTableCmd, "[Azure CNS] failed to create SWIFT-POSTROUTING chain : " + err.Error()
 		}
@@ -73,12 +73,12 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 		// jump SWIFT rule exists, insert SWIFT-POSTROUTING rule at the same position so it ends up running first
 		// first, remove any existing SWIFT-POSTROUTING rules to avoid duplicates
 		// note: inserting at len(rules) and deleting a jump to SWIFT-POSTROUTING is mutually exclusive
-		swiftPostroutingExists, err := ipt.Exists(iptables.Nat, iptables.Postrouting, "-j", SWIFT)
+		swiftPostroutingExists, err := ipt.Exists(iptables.Nat, iptables.Postrouting, "-j", SWIFTPOSTROUTING)
 		if err != nil {
 			return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of SWIFT-POSTROUTING rule: %v", err)
 		}
 		if swiftPostroutingExists {
-			err = ipt.Delete(iptables.Nat, iptables.Postrouting, "-j", SWIFT)
+			err = ipt.Delete(iptables.Nat, iptables.Postrouting, "-j", SWIFTPOSTROUTING)
 			if err != nil {
 				return types.FailedToRunIPTableCmd, "[Azure CNS] failed to delete existing SWIFT-POSTROUTING rule : " + err.Error()
 			}
@@ -90,7 +90,7 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 		// -P POSTROUTING ACCEPT is at swiftRuleIndex 0
 		// -A POSTROUTING -j SWIFT is at swiftRuleIndex 1, and iptables index 1
 		logger.Printf("[Azure CNS] Inserting SWIFT-POSTROUTING Chain at iptables position %d", swiftRuleIndex)
-		err = ipt.Insert(iptables.Nat, iptables.Postrouting, swiftRuleIndex, "-j", SWIFT)
+		err = ipt.Insert(iptables.Nat, iptables.Postrouting, swiftRuleIndex, "-j", SWIFTPOSTROUTING)
 		if err != nil {
 			return types.FailedToRunIPTableCmd, "[Azure CNS] failed to insert SWIFT-POSTROUTING chain : " + err.Error()
 		}
@@ -111,7 +111,7 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 		// check if all rules exist
 		allRulesExist := true
 		for _, rule := range rules {
-			exists, err := ipt.Exists(iptables.Nat, SWIFT, rule...)
+			exists, err := ipt.Exists(iptables.Nat, SWIFTPOSTROUTING, rule...)
 			if err != nil {
 				return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of rule: %v", err)
 			}
@@ -122,7 +122,7 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 		}
 
 		// get current rule count in SWIFT-POSTROUTING chain
-		currentRules, err := ipt.List(iptables.Nat, SWIFT)
+		currentRules, err := ipt.List(iptables.Nat, SWIFTPOSTROUTING)
 		if err != nil {
 			return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to list rules in SWIFT-POSTROUTING chain: %v", err)
 		}
@@ -132,13 +132,13 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 		if len(currentRules) != len(rules)+1 || !allRulesExist {
 			logger.Printf("[Azure CNS] Reconciling SWIFT-POSTROUTING chain rules")
 
-			err = ipt.ClearChain(iptables.Nat, SWIFT)
+			err = ipt.ClearChain(iptables.Nat, SWIFTPOSTROUTING)
 			if err != nil {
 				return types.FailedToRunIPTableCmd, "[Azure CNS] failed to flush SWIFT-POSTROUTING chain : " + err.Error()
 			}
 
 			for _, rule := range rules {
-				err = ipt.Append(iptables.Nat, SWIFT, rule...)
+				err = ipt.Append(iptables.Nat, SWIFTPOSTROUTING, rule...)
 				if err != nil {
 					return types.FailedToRunIPTableCmd, "[Azure CNS] failed to append rule to SWIFT-POSTROUTING chain : " + err.Error()
 				}
