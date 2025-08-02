@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/iptables"
@@ -11,10 +12,13 @@ var (
 	errChainExists   = errors.New("chain already exists")
 	errChainNotFound = errors.New("chain not found")
 	errRuleExists    = errors.New("rule already exists")
+	errRuleNotFound  = errors.New("rule not found")
+	errIndexBounds   = errors.New("index out of bounds")
 )
 
 type IPTablesMock struct {
-	state map[string]map[string][]string
+	state               map[string]map[string][]string
+	clearChainCallCount int
 }
 
 func NewIPTablesMock() *IPTablesMock {
@@ -83,21 +87,110 @@ func (c *IPTablesMock) Exists(table, chain string, rulespec ...string) (bool, er
 func (c *IPTablesMock) Append(table, chain string, rulespec ...string) error {
 	c.ensureTableExists(table)
 
+	chainRules := c.state[table][chain]
+	return c.Insert(table, chain, len(chainRules)+1, rulespec...)
+}
+
+func (c *IPTablesMock) Insert(table, chain string, pos int, rulespec ...string) error {
+	c.ensureTableExists(table)
+
 	chainExists, _ := c.ChainExists(table, chain)
 	if !chainExists {
 		return errChainNotFound
 	}
 
-	ruleExists, _ := c.Exists(table, chain, rulespec...)
-	if ruleExists {
-		return errRuleExists
+	targetRule := strings.Join(rulespec, " ")
+	chainRules := c.state[table][chain]
+
+	// convert 1-based position to 0-based index
+	index := pos - 1
+	if index < 0 {
+		index = 0
 	}
 
-	targetRule := strings.Join(rulespec, " ")
-	c.state[table][chain] = append(c.state[table][chain], targetRule)
+	switch {
+	case index == len(chainRules):
+		c.state[table][chain] = append(chainRules, targetRule)
+	case index > len(chainRules):
+		return errIndexBounds
+	default:
+		c.state[table][chain] = append(chainRules[:index], append([]string{targetRule}, chainRules[index:]...)...)
+	}
+
 	return nil
 }
 
-func (c *IPTablesMock) Insert(table, chain string, _ int, rulespec ...string) error {
-	return c.Append(table, chain, rulespec...)
+func (c *IPTablesMock) List(table, chain string) ([]string, error) {
+	c.ensureTableExists(table)
+
+	chainExists, _ := c.ChainExists(table, chain)
+	if !chainExists {
+		return nil, errChainNotFound
+	}
+
+	chainRules := c.state[table][chain]
+	// preallocate: 1 for chain header + number of rules
+	result := make([]string, 0, 1+len(chainRules))
+
+	// for built-in chains, start with policy -P, otherwise start with definition -N
+	builtins := []string{iptables.Input, iptables.Output, iptables.Prerouting, iptables.Postrouting, iptables.Forward}
+	isBuiltIn := false
+	for _, builtin := range builtins {
+		if chain == builtin {
+			isBuiltIn = true
+			break
+		}
+	}
+
+	if isBuiltIn {
+		result = append(result, fmt.Sprintf("-P %s ACCEPT", chain))
+	} else {
+		result = append(result, "-N "+chain)
+	}
+
+	// iptables with -S always outputs the rules in -A format
+	for _, rule := range chainRules {
+		result = append(result, fmt.Sprintf("-A %s %s", chain, rule))
+	}
+
+	return result, nil
+}
+
+func (c *IPTablesMock) ClearChain(table, chain string) error {
+	c.clearChainCallCount++
+	c.ensureTableExists(table)
+
+	chainExists, _ := c.ChainExists(table, chain)
+	if !chainExists {
+		return errChainNotFound
+	}
+
+	c.state[table][chain] = []string{}
+	return nil
+}
+
+func (c *IPTablesMock) Delete(table, chain string, rulespec ...string) error {
+	c.ensureTableExists(table)
+
+	chainExists, _ := c.ChainExists(table, chain)
+	if !chainExists {
+		return errChainNotFound
+	}
+
+	targetRule := strings.Join(rulespec, " ")
+	chainRules := c.state[table][chain]
+
+	// delete first match
+	for i, rule := range chainRules {
+		if rule == targetRule {
+			c.state[table][chain] = append(chainRules[:i], chainRules[i+1:]...)
+			return nil
+		}
+	}
+
+	return errRuleNotFound
+}
+
+func (c *IPTablesMock) ClearChainCallCount() int {
+	return c.clearChainCallCount
 }

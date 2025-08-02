@@ -14,7 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const SWIFT = "SWIFT-POSTROUTING"
+const SWIFTPOSTROUTING = "SWIFT-POSTROUTING"
 
 type IPtablesProvider struct{}
 
@@ -37,32 +37,62 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to create iptables interface : %v", err)
 	}
 
-	chainExist, err := ipt.ChainExists(iptables.Nat, SWIFT)
+	chainExist, err := ipt.ChainExists(iptables.Nat, SWIFTPOSTROUTING)
 	if err != nil {
-		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of SWIFT chain: %v", err)
+		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of SWIFT-POSTROUTING chain: %v", err)
 	}
 	if !chainExist { // create and append chain if it doesn't exist
-		logger.Printf("[Azure CNS] Creating SWIFT Chain ...")
-		err = ipt.NewChain(iptables.Nat, SWIFT)
+		logger.Printf("[Azure CNS] Creating SWIFT-POSTROUTING Chain ...")
+		err = ipt.NewChain(iptables.Nat, SWIFTPOSTROUTING)
 		if err != nil {
-			return types.FailedToRunIPTableCmd, "[Azure CNS] failed to create SWIFT chain : " + err.Error()
-		}
-		logger.Printf("[Azure CNS] Append SWIFT Chain to POSTROUTING ...")
-		err = ipt.Append(iptables.Nat, iptables.Postrouting, "-j", SWIFT)
-		if err != nil {
-			return types.FailedToRunIPTableCmd, "[Azure CNS] failed to append SWIFT chain : " + err.Error()
+			return types.FailedToRunIPTableCmd, "[Azure CNS] failed to create SWIFT-POSTROUTING chain : " + err.Error()
 		}
 	}
 
-	postroutingToSwiftJumpexist, err := ipt.Exists(iptables.Nat, iptables.Postrouting, "-j", SWIFT)
+	// reconcile jump to SWIFT-POSTROUTING chain
+	rules, err := ipt.List(iptables.Nat, iptables.Postrouting)
 	if err != nil {
-		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of POSTROUTING to SWIFT chain jump: %v", err)
+		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check rules in postrouting chain of nat table: %v", err)
 	}
-	if !postroutingToSwiftJumpexist {
-		logger.Printf("[Azure CNS] Append SWIFT Chain to POSTROUTING ...")
-		err = ipt.Append(iptables.Nat, iptables.Postrouting, "-j", SWIFT)
+	swiftRuleIndex := len(rules) // append if neither jump rule from POSTROUTING is found
+	// one time migration from old SWIFT chain
+	// previously, CNI may have a jump to the SWIFT chain-- our jump to SWIFT-POSTROUTING needs to happen first
+	for index, rule := range rules {
+		if rule == "-A POSTROUTING -j SWIFT" {
+			// jump to SWIFT comes before jump to SWIFT-POSTROUTING, so potential reordering required
+			swiftRuleIndex = index
+			break
+		}
+		if rule == "-A POSTROUTING -j SWIFT-POSTROUTING" {
+			// jump to SWIFT-POSTROUTING comes before jump to SWIFT, which requires no further action
+			swiftRuleIndex = -1
+			break
+		}
+	}
+	if swiftRuleIndex != -1 {
+		// jump SWIFT rule exists, insert SWIFT-POSTROUTING rule at the same position so it ends up running first
+		// first, remove any existing SWIFT-POSTROUTING rules to avoid duplicates
+		// note: inserting at len(rules) and deleting a jump to SWIFT-POSTROUTING is mutually exclusive
+		swiftPostroutingExists, err := ipt.Exists(iptables.Nat, iptables.Postrouting, "-j", SWIFTPOSTROUTING)
 		if err != nil {
-			return types.FailedToRunIPTableCmd, "[Azure CNS] failed to append SWIFT chain : " + err.Error()
+			return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of SWIFT-POSTROUTING rule: %v", err)
+		}
+		if swiftPostroutingExists {
+			err = ipt.Delete(iptables.Nat, iptables.Postrouting, "-j", SWIFTPOSTROUTING)
+			if err != nil {
+				return types.FailedToRunIPTableCmd, "[Azure CNS] failed to delete existing SWIFT-POSTROUTING rule : " + err.Error()
+			}
+		}
+
+		// slice index is 0-based, iptables insert is 1-based, but list also gives us the -P POSTROUTING ACCEPT
+		// as the first rule so swiftRuleIndex gives us the correct 1-indexed iptables position.
+		// Example:
+		// -P POSTROUTING ACCEPT is at swiftRuleIndex 0
+		// -A POSTROUTING -j SWIFT is at swiftRuleIndex 1, and iptables index 1
+		logger.Printf("[Azure CNS] Inserting SWIFT-POSTROUTING Chain at iptables position %d", swiftRuleIndex)
+		err = ipt.Insert(iptables.Nat, iptables.Postrouting, swiftRuleIndex, "-j", SWIFTPOSTROUTING)
+		if err != nil {
+			return types.FailedToRunIPTableCmd, "[Azure CNS] failed to insert SWIFT-POSTROUTING chain : " + err.Error()
 		}
 	}
 
@@ -71,39 +101,47 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 		// put the ip address in standard cidr form (where we zero out the parts that are not relevant)
 		_, podSubnet, _ := net.ParseCIDR(v.IPAddress + "/" + fmt.Sprintf("%d", req.IPConfiguration.IPSubnet.PrefixLength))
 
-		snatUDPRuleExists, err := ipt.Exists(iptables.Nat, SWIFT, "-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.UDP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", ncPrimaryIP.String())
-		if err != nil {
-			return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of pod SNAT UDP rule : %v", err)
+		// define all rules we want in the chain
+		rules := [][]string{
+			{"-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.UDP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", ncPrimaryIP.String()},
+			{"-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", ncPrimaryIP.String()},
+			{"-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureIMDS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.HTTPPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP},
 		}
-		if !snatUDPRuleExists {
-			logger.Printf("[Azure CNS] Inserting pod SNAT UDP rule ...")
-			err = ipt.Insert(iptables.Nat, SWIFT, 1, "-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.UDP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", ncPrimaryIP.String())
+
+		// check if all rules exist
+		allRulesExist := true
+		for _, rule := range rules {
+			exists, err := ipt.Exists(iptables.Nat, SWIFTPOSTROUTING, rule...)
 			if err != nil {
-				return types.FailedToRunIPTableCmd, "[Azure CNS] failed to insert pod SNAT UDP rule : " + err.Error()
+				return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of rule: %v", err)
+			}
+			if !exists {
+				allRulesExist = false
+				break
 			}
 		}
 
-		snatPodTCPRuleExists, err := ipt.Exists(iptables.Nat, SWIFT, "-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", ncPrimaryIP.String())
+		// get current rule count in SWIFT-POSTROUTING chain
+		currentRules, err := ipt.List(iptables.Nat, SWIFTPOSTROUTING)
 		if err != nil {
-			return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of pod SNAT TCP rule : %v", err)
-		}
-		if !snatPodTCPRuleExists {
-			logger.Printf("[Azure CNS] Inserting pod SNAT TCP rule ...")
-			err = ipt.Insert(iptables.Nat, SWIFT, 1, "-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", ncPrimaryIP.String())
-			if err != nil {
-				return types.FailedToRunIPTableCmd, "[Azure CNS] failed to insert pod SNAT TCP rule : " + err.Error()
-			}
+			return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to list rules in SWIFT-POSTROUTING chain: %v", err)
 		}
 
-		snatIMDSRuleexist, err := ipt.Exists(iptables.Nat, SWIFT, "-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureIMDS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.HTTPPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP)
-		if err != nil {
-			return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to check for existence of pod SNAT IMDS rule : %v", err)
-		}
-		if !snatIMDSRuleexist {
-			logger.Printf("[Azure CNS] Inserting pod SNAT IMDS rule ...")
-			err = ipt.Insert(iptables.Nat, SWIFT, 1, "-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureIMDS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.HTTPPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP)
+		// if rule count doesn't match or not all rules exist, reconcile
+		// add one because there is always a singular starting rule in the chain, in addition to the ones we add
+		if len(currentRules) != len(rules)+1 || !allRulesExist {
+			logger.Printf("[Azure CNS] Reconciling SWIFT-POSTROUTING chain rules")
+
+			err = ipt.ClearChain(iptables.Nat, SWIFTPOSTROUTING)
 			if err != nil {
-				return types.FailedToRunIPTableCmd, "[Azure CNS] failed to insert pod SNAT IMDS rule : " + err.Error()
+				return types.FailedToRunIPTableCmd, "[Azure CNS] failed to flush SWIFT-POSTROUTING chain : " + err.Error()
+			}
+
+			for _, rule := range rules {
+				err = ipt.Append(iptables.Nat, SWIFTPOSTROUTING, rule...)
+				if err != nil {
+					return types.FailedToRunIPTableCmd, "[Azure CNS] failed to append rule to SWIFT-POSTROUTING chain : " + err.Error()
+				}
 			}
 		}
 
