@@ -17,7 +17,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/nodesubnet"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
-	"github.com/Azure/azure-container-networking/common"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
@@ -579,8 +578,9 @@ func (service *HTTPRestService) restoreNetworkState() error {
 	}
 
 	// reconcile iptables rules on node when cns restarts
-	if service.Options[common.OptProgramSNATIPTables] == true && service.state != nil {
-		for _, container := range service.state.ContainerStatus {
+	if service.Options[acn.OptProgramSNATIPTables] == true && service.state != nil {
+		for containerID := range service.state.ContainerStatus {
+			container := service.state.ContainerStatus[containerID]
 			returnCode, returnMessage := service.programSNATRules(&container.CreateNetworkContainerRequest)
 			if returnCode != 0 {
 				logger.Errorf(returnMessage)

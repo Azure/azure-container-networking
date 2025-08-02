@@ -108,11 +108,12 @@ func (c *IPTablesMock) Insert(table, chain string, pos int, rulespec ...string) 
 		index = 0
 	}
 
-	if index == len(chainRules) {
+	switch {
+	case index == len(chainRules):
 		c.state[table][chain] = append(chainRules, targetRule)
-	} else if index > len(chainRules) {
+	case index > len(chainRules):
 		return errIndexBounds
-	} else {
+	default:
 		c.state[table][chain] = append(chainRules[:index], append([]string{targetRule}, chainRules[index:]...)...)
 	}
 
@@ -127,7 +128,9 @@ func (c *IPTablesMock) List(table, chain string) ([]string, error) {
 		return nil, errChainNotFound
 	}
 
-	var result []string
+	chainRules := c.state[table][chain]
+	// preallocate: 1 for chain header + number of rules
+	result := make([]string, 0, 1+len(chainRules))
 
 	// for built-in chains, start with policy -P, otherwise start with definition -N
 	builtins := []string{iptables.Input, iptables.Output, iptables.Prerouting, iptables.Postrouting, iptables.Forward}
@@ -142,11 +145,10 @@ func (c *IPTablesMock) List(table, chain string) ([]string, error) {
 	if isBuiltIn {
 		result = append(result, fmt.Sprintf("-P %s ACCEPT", chain))
 	} else {
-		result = append(result, fmt.Sprintf("-N %s", chain))
+		result = append(result, "-N "+chain)
 	}
 
 	// iptables with -S always outputs the rules in -A format
-	chainRules := c.state[table][chain]
 	for _, rule := range chainRules {
 		result = append(result, fmt.Sprintf("-A %s %s", chain, rule))
 	}
