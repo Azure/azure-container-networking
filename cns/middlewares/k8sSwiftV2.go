@@ -137,8 +137,12 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 					},
 					MacAddress:        interfaceInfo.MacAddress,
 					NICType:           nicType,
-					SkipDefaultRoutes: false,
+					SkipDefaultRoutes: true,
 					// InterfaceName is empty for DelegatedVMNIC and AccelnetFrontendNIC
+				}
+				if interfaceInfo.DefaultRoute {
+					podIPInfo.SkipDefaultRoutes = false // Default route is added in setRoutes() for Linux swiftv2
+					k.addDefaultRoute(&podIPInfo, interfaceInfo.GatewayIP)
 				}
 				// for windows scenario, it is required to add additional fields with the exact subnetAddressSpace
 				// received from MTPNC, this function assigns them for windows while linux is a no-op
@@ -148,7 +152,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 				}
 				podIPInfos = append(podIPInfos, podIPInfo)
 				// for windows scenario, it is required to add default route with gatewayIP from CNS
-				k.addDefaultRoute(&podIPInfo, interfaceInfo.GatewayIP)
+
 			}
 		}
 	}

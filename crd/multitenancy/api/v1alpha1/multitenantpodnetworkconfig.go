@@ -66,6 +66,8 @@ type InterfaceInfo struct {
 	// AccelnetEnabled determines if the CNI will provision the NIC with accelerated networking enabled
 	// +kubebuilder:validation:Optional
 	AccelnetEnabled bool `json:"accelnetEnabled,omitempty"`
+	// DefaultRoute indicates whether this PodNetwork should be used as the default route for the Pod
+	DefaultRoute bool `json:"defaultRoute,omitempty"`
 }
 
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig

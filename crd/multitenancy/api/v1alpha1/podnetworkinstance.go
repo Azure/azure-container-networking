@@ -42,6 +42,8 @@ type PodNetworkConfig struct {
 	// PodIPReservationSize is the number of IP address to statically reserve
 	// +kubebuilder:default=0
 	PodIPReservationSize int `json:"podIPReservationSize,omitempty"`
+	// DefaultRoute indicates whether this PodNetwork should be used as the default route for the Pod
+	DefaultRoute bool `json:"defaultRoute,omitempty"`
 }
 
 // PodNetworkInstanceSpec defines the desired state of PodNetworkInstance

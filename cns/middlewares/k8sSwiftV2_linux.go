@@ -160,8 +160,8 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		// Set routes for the pod
 		for i := range ipConfigsResp.PodIPInfo {
 			ipInfo := &ipConfigsResp.PodIPInfo[i]
-			// Backend nics doesn't need routes to be set
-			if ipInfo.NICType != cns.BackendNIC {
+			// Backend nics doesn't need routes to be set, Fronted nics which doesn't require default routes will have skipDefaultRoutes set to true
+			if ipInfo.NICType != cns.BackendNIC && !ipInfo.SkipDefaultRoutes {
 				err = k.setRoutes(ipInfo)
 				if err != nil {
 					return &cns.IPConfigsResponse{
