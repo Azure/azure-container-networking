@@ -164,13 +164,7 @@ stages:
               export PUBLIC_IP_ID=$(az network public-ip show -g $(RESOURCE_GROUP) -n $(PUBLIC_IP_NAME) --query id -o tsv)
               echo Public IP ID $PUBLIC_IP_ID
 
-                if [ $? != 0 ]
-                then
-                echo "Failing fast since previous command failed"
-                exit 1
-                fi
-
-                az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
+              az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
 
               else
                 echo "Creating Linux Cluster";
