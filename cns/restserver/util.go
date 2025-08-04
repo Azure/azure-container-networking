@@ -583,7 +583,7 @@ func (service *HTTPRestService) restoreNetworkState() error {
 			container := service.state.ContainerStatus[containerID]
 			returnCode, returnMessage := service.programSNATRules(&container.CreateNetworkContainerRequest)
 			if returnCode != 0 {
-				logger.Errorf(returnMessage)
+				logger.Errorf(returnMessage) // nolint
 			}
 		}
 	}
