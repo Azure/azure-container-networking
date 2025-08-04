@@ -51,6 +51,17 @@ type MultitenantPodNetworkConfigSpec struct {
 	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
 }
 
+// +kubebuilder:validation:Enum=Available;ProgrammingPending;ProgrammingFailed;ProgrammingComplete;ReleasePending
+type InfinibandStatus string
+
+const (
+	Available           InfinibandStatus = "Available"
+	ProgrammingPending  InfinibandStatus = "ProgrammingPending"
+	ProgrammingFailed   InfinibandStatus = "ProgrammingFailed"
+	ProgrammingComplete InfinibandStatus = "ProgrammingComplete"
+	ReleasePending      InfinibandStatus = "ReleasePending"
+)
+
 type InterfaceInfo struct {
 	// NCID is the network container id
 	NCID string `json:"ncID,omitempty"`
