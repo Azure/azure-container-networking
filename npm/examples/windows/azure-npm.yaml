@@ -83,7 +83,7 @@ spec:
       hostNetwork: true
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.5.5
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.6.29
           command: ["powershell.exe"]
           args:
             [
