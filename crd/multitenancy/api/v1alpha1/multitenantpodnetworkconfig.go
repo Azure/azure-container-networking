@@ -4,8 +4,6 @@
 package v1alpha1
 
 import (
-	"net"
-
 	"github.com/Azure/azure-container-networking/cns/types/infiniband"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -50,7 +48,7 @@ type MultitenantPodNetworkConfigSpec struct {
 	PodName string `json:"podName,omitempty"`
 	// MAC addresses of the IB devices to use for a pod
 	// +kubebuilder:validation:Optional
-	IBMACAddresses []net.HardwareAddr `json:"IBMACAddresses,omitempty"`
+	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
 }
 
 type InterfaceInfo struct {
