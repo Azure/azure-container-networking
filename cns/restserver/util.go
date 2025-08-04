@@ -577,17 +577,6 @@ func (service *HTTPRestService) restoreNetworkState() error {
 		}
 	}
 
-	// reconcile iptables rules on node when cns restarts
-	if service.Options[acn.OptProgramSNATIPTables] == true && service.state != nil {
-		for containerID := range service.state.ContainerStatus {
-			container := service.state.ContainerStatus[containerID]
-			returnCode, returnMessage := service.programSNATRules(&container.CreateNetworkContainerRequest)
-			if returnCode != 0 {
-				logger.Errorf(returnMessage) // nolint
-			}
-		}
-	}
-
 	if rebooted {
 		for _, nwInfo := range service.state.Networks {
 			enableSnat := true
