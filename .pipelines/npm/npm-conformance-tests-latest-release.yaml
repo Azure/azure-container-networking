@@ -80,6 +80,10 @@ jobs:
           AZURE_CLUSTER: "conformance-v2-default"
           PROFILE: "v2-default"
           IS_STRESS_TEST: "false"
+        v2-default-ws22:
+          AZURE_CLUSTER: "conformance-v2-default-ws22"
+          PROFILE: "v2-default-ws22"
+          IS_STRESS_TEST: "false"
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
       demands:
