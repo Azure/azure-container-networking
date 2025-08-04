@@ -4,7 +4,6 @@
 package v1alpha1
 
 import (
-	"github.com/Azure/azure-container-networking/cns/types/infiniband"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -83,7 +82,7 @@ type InterfaceInfo struct {
 	AccelnetEnabled bool `json:"accelnetEnabled,omitempty"`
 	// IBStatus is the programming status of the infiniband device
 	// +kubebuilder:validation:Optional
-	IBStatus infiniband.Status `json:"ibStatus,omitempty"`
+	IBStatus InfinibandStatus `json:"ibStatus,omitempty"`
 }
 
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig

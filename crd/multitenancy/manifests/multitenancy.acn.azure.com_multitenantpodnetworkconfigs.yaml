@@ -106,7 +106,13 @@ spec:
                     ibStatus:
                       description: IBStatus is the programming status of the infiniband
                         device
-                      type: integer
+                      enum:
+                      - Available
+                      - ProgrammingPending
+                      - ProgrammingFailed
+                      - ProgrammingComplete
+                      - ReleasePending
+                      type: string
                     macAddress:
                       description: MacAddress is the MAC Address of the VM's NIC which
                         this network container was created for
