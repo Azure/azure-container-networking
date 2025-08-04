@@ -166,32 +166,30 @@ stages:
 
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
 
-              else
-                echo "Creating Linux Cluster";
-                az aks create --no-ssh-key \
-                --resource-group $(RESOURCE_GROUP) \
-                --name $(AZURE_CLUSTER) \
-                --network-plugin azure \
-                --load-balancer-outbound-ips $PUBLIC_IP_ID
+              echo "Creating Linux Cluster";
+              az aks create --no-ssh-key \
+              --resource-group $(RESOURCE_GROUP) \
+              --name $(AZURE_CLUSTER) \
+              --network-plugin azure \
+              --load-balancer-outbound-ips $PUBLIC_IP_ID
 
-                if [ $? != 0 ]
-                then
-                echo "Failing fast since previous command failed"
-                exit 1
-                fi
-
-                az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
-
-                # deploy azure-npm
-                ./kubectl --kubeconfig=./kubeconfig apply -f $(Pipeline.Workspace)/s/npm/azure-npm.yaml
-
-                # swap azure-npm image with one built during run
-                ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:linux-amd64-$(TAG)
-
-                # swap NPM profile with one specified as parameter
-                ./kubectl --kubeconfig=./kubeconfig apply -f $(Pipeline.Workspace)/s/npm/profiles/$(PROFILE).yaml
-                ./kubectl --kubeconfig=./kubeconfig rollout restart ds azure-npm -n kube-system
+              if [ $? != 0 ]
+              then
+              echo "Failing fast since previous command failed"
+              exit 1
               fi
+
+              az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
+
+              # deploy azure-npm
+              ./kubectl --kubeconfig=./kubeconfig apply -f $(Pipeline.Workspace)/s/npm/azure-npm.yaml
+
+              # swap azure-npm image with one built during run
+              ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:linux-amd64-$(TAG)
+
+              # swap NPM profile with one specified as parameter
+              ./kubectl --kubeconfig=./kubeconfig apply -f $(Pipeline.Workspace)/s/npm/profiles/$(PROFILE).yaml
+              ./kubectl --kubeconfig=./kubeconfig rollout restart ds azure-npm -n kube-system
 
               ./kubectl --kubeconfig=./kubeconfig describe daemonset azure-npm -n kube-system
 
@@ -268,7 +266,7 @@ stages:
                     # for each iteration, run the conformance test and echos in the background, and write the output of the conformance test to a file
 
                     # run the conformance test in the foreground and write the output to stdout and a file
-                    echo "starting windows conformance test #$round" && \
+                    echo "starting conformance test #$round" && \
                         runConformance > $npmLogsFolder/conformance-results-$round && \
                         echo "finished conformance test #$round" &
                     pidOfConformanceTest=$!
