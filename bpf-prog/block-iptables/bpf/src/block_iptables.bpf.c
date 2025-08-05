@@ -43,6 +43,7 @@ int is_allowed_parent ()
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
     struct task_struct *parent_task = NULL;
 
+    // Allow cilium-agent, ip-masq-agent and azure-cns
     char parent_comm[TASK_COMM_LEN] = {};
     const char target_prefixes[COMM_COUNT][TASK_COMM_LEN] = {CILIUM_AGENT, IP_MASQ, AZURE_CNS};
 
@@ -76,6 +77,9 @@ int is_allowed_parent ()
     return 0; // Block
 }
 
+// check if the current task is in the host network namespace
+// This function compares the inode number of the current network namespace with the host's network namespace inode
+// The host's network namespace inode is initialized by userspace when the BPF program is loaded.
 int is_host_ns() {
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
     struct nsproxy *nsproxy;
@@ -99,6 +103,8 @@ int is_host_ns() {
     return 1;
 }
 
+// Increment the event counter in the BPF map.
+// This counter will be read from usersace to track the number of blocked events.
 void increment_event_counter() {
     u32 key = 0;
     u64 *value;
@@ -112,6 +118,7 @@ void increment_event_counter() {
     }
 }
 
+// blocking hook for iptables-legacy rule installation
 SEC("lsm/socket_setsockopt")
 int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
 {
@@ -119,8 +126,11 @@ int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
         return 0;
     }
 
+    //block both ipv4 and ipv6 iptables rule installation
     if (level == IPPROTO_IP || level == IPPROTO_IP6) {
+        //iptables-legacy uses IPT_SO_SET_REPLACE to install rules
         if (optname == IPT_SO_SET_REPLACE) {
+            // block if not in host network namespace, and if the parent process is not allowed
             if (is_host_ns() && !is_allowed_parent()) {
                 increment_event_counter();
                 return -EPERM;
@@ -131,6 +141,7 @@ int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
     return 0;
 }
 
+// blocking hook for iptables-nftables rule installation
 SEC("lsm/netlink_send")
 int BPF_PROG(iptables_nftables_block, struct sock *sk, struct sk_buff *skb) {
     __u16 family = 0, proto = 0;
@@ -138,6 +149,7 @@ int BPF_PROG(iptables_nftables_block, struct sock *sk, struct sk_buff *skb) {
         bpf_probe_read_kernel(&family, sizeof(family), &sk->sk_family);
     }
 
+    // Check if the socket family is AF_NETLINK (just a sanity check)
     if (family != AF_NETLINK) 
         return 0;
 
@@ -145,6 +157,8 @@ int BPF_PROG(iptables_nftables_block, struct sock *sk, struct sk_buff *skb) {
         bpf_probe_read_kernel(&proto, sizeof(proto), &sk->sk_protocol);
     }
 
+    // Check if the protocol is NETLINK_NETFILTER
+    // This is the protocol used for netfilter messages
     if (proto != NETLINK_NETFILTER) 
         return 0;
 
@@ -156,15 +170,20 @@ int BPF_PROG(iptables_nftables_block, struct sock *sk, struct sk_buff *skb) {
     void *data = NULL;
     __u32 skb_len = 0;
 
+    // Read the skb data pointer
     if (bpf_core_read(&data, sizeof(data), &skb->data) < 0)
         return 0;
 
     if (!data)
         return 0;
 
+    // Read the skb length
     if (bpf_core_read(&skb_len, sizeof(skb_len), &skb->len) < 0)
         return 0;
 
+    // Check the first NETLINK_MSG_COUNT messages. We cap the number of messages
+    // at 4 to make the verifier happy. We have seen that typically NEWRULE messages
+    // appear as the second message. 
     #pragma unroll
     for (int i = 0; i < NETLINK_MSG_COUNT; i++) {
         if (skb_len < sizeof(struct nlmsghdr))
@@ -172,12 +191,18 @@ int BPF_PROG(iptables_nftables_block, struct sock *sk, struct sk_buff *skb) {
 
         if (bpf_probe_read_kernel(&nlh, sizeof(nlh), data) < 0)
             return 0;
+
+        // type variable holds subsystem ID and command
+        // subsys_id is the upper byte and cmd is the lower byte of the type
         __u16 type = nlh.nlmsg_type;
         __u8 subsys_id = type >> 8;
         __u8 cmd = type & 0xFF;
         __u32 nlmsg_len = nlh.nlmsg_len;
 
         if (subsys_id == NFNL_SUBSYS_NFTABLES && cmd == NFT_MSG_NEWRULE) {
+            // If the message is a new rule, check if the parent process is allowed
+            // and whether we are in the host network namespace.
+            // If not allowed, increment the event counter and return -EPERM.
             if(is_allowed_parent()) {
                     return 0;
             } else {
