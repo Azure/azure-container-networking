@@ -131,7 +131,7 @@ require (
 	golang.org/x/sync v0.16.0
 	gotest.tools/v3 v3.5.2
 	k8s.io/kubectl v0.28.5
-	k8s.io/kubernetes v1.30.7
+	k8s.io/kubernetes v1.30.14
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -172,7 +172,7 @@ require (
 	github.com/go-openapi/validate v0.22.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
-	github.com/google/cadvisor v0.49.0 // indirect
+	github.com/google/cadvisor v0.49.2 // indirect
 	github.com/google/cel-go v0.17.8 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
