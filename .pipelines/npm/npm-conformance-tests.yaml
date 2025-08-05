@@ -164,8 +164,6 @@ stages:
               export PUBLIC_IP_ID=$(az network public-ip show -g $(RESOURCE_GROUP) -n $(PUBLIC_IP_NAME) --query id -o tsv)
               echo Public IP ID $PUBLIC_IP_ID
 
-              az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
-
               echo "Creating Linux Cluster";
               az aks create --no-ssh-key \
               --resource-group $(RESOURCE_GROUP) \
