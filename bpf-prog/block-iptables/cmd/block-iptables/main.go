@@ -77,6 +77,28 @@ func setupFileWatcher(configFile string) (*fsnotify.Watcher, error) {
 	return watcher, nil
 }
 
+func checkFileStatusAndUpdateBPF(configFile string, bp bpfprogram.Attacher) {
+	// Check current state and take action
+	fileState := isFileEmptyOrMissing(configFile)
+	switch fileState {
+	case 1: // File is empty
+		log.Println("File is empty, attaching BPF program")
+		if err := bp.Attach(); err != nil { // No-op if already attached
+			log.Printf("Failed to attach BPF program: %v", err)
+		}
+	case 0: // File has content
+		log.Println("File has content, detaching BPF program")
+		if err := bp.Detach(); err != nil { // No-op if already detached
+			log.Printf("Failed to detach BPF program: %v", err)
+		}
+	case -1: // File is missing
+		log.Println("Config file was deleted, detaching BPF program")
+		if err := bp.Detach(); err != nil { // No-op if already detached
+			log.Printf("Failed to detach BPF program: %v", err)
+		}
+	}
+}
+
 // handleFileEvent processes file system events
 func handleFileEvent(event fsnotify.Event, configFile string, bp bpfprogram.Attacher) {
 	// Check if the event is for our config file
@@ -88,26 +110,7 @@ func handleFileEvent(event fsnotify.Event, configFile string, bp bpfprogram.Atta
 
 	// Small delay to handle rapid successive events
 	time.Sleep(100 * time.Millisecond)
-
-	// Check current state and take action
-	fileState := isFileEmptyOrMissing(configFile)
-	switch fileState {
-	case 1: // File is empty
-		log.Println("File is empty, attaching BPF program")
-		if err := bp.Attach(); err != nil {
-			log.Printf("Failed to attach BPF program: %v", err)
-		}
-	case 0: // File has content
-		log.Println("File has content, detaching BPF program")
-		if err := bp.Detach(); err != nil {
-			log.Printf("Failed to detach BPF program: %v", err)
-		}
-	case -1: // File is missing
-		log.Println("Config file was deleted, detaching BPF program")
-		if err := bp.Detach(); err != nil {
-			log.Printf("Failed to detach BPF program: %v", err)
-		}
-	}
+	checkFileStatusAndUpdateBPF(configFile, bp)
 }
 
 // run is the main application logic, separated for easier testing
@@ -123,19 +126,8 @@ func run(config *BlockConfig) error {
 	bp := config.AttacherFactory()
 	defer bp.Close()
 
-	// Initial state check
-	fileState := isFileEmptyOrMissing(config.ConfigFile)
-	switch fileState {
-	case 1: // File is empty
-		log.Println("File is empty, attaching BPF program")
-		if err := bp.Attach(); err != nil {
-			return fmt.Errorf("failed to attach BPF program: %w", err)
-		}
-	case 0: // File has content
-		log.Println("Config file has content, BPF program will remain detached")
-	case -1: // File is missing
-		log.Println("Config file is missing, waiting for file to be created...")
-	}
+	// Check initial state of the config file
+	checkFileStatusAndUpdateBPF(config.ConfigFile, bp)
 
 	// Setup file watcher
 	watcher, err := setupFileWatcher(config.ConfigFile)

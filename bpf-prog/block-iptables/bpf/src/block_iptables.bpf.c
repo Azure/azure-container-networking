@@ -13,6 +13,17 @@
 #define IPT_SO_SET_REPLACE 64
 #define TASK_COMM_LEN 16
 #define COMM_COUNT 3
+#define IPPROTO_IP 0
+#define IPPROTO_IP6 41
+#define AF_NETLINK 16
+#define NETLINK_NETFILTER 12
+#define NETLINK_MSG_COUNT 4
+#define NFNL_SUBSYS_NFTABLES 10
+#define NFT_MSG_NEWRULE 6
+
+#define CILIUM_AGENT "cilium-agent"
+#define IP_MASQ "ip-masq"
+#define AZURE_CNS "azure-cns"
 
 char __license[] SEC("license") = "Dual MIT/GPL";
 volatile const u64 host_netns_inode = 4026531840; // Initialized by userspace
@@ -25,13 +36,15 @@ struct {
     __uint(pinning, LIBBPF_PIN_BY_NAME);
 } event_counter SEC(".maps");
 
+// This function checks if the parent process of the current task is allowed to install iptables rules.
+// It checks the parent's command name against a predefined list of allowed prefixes.
 int is_allowed_parent ()
 {
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
     struct task_struct *parent_task = NULL;
 
     char parent_comm[TASK_COMM_LEN] = {};
-    const char target_prefixes[COMM_COUNT][TASK_COMM_LEN] = {"cilium-agent", "ip-masq", "azure-cns"};
+    const char target_prefixes[COMM_COUNT][TASK_COMM_LEN] = {CILIUM_AGENT, IP_MASQ, AZURE_CNS};
 
     // Safely get parent task_struct
     parent_task = BPF_CORE_READ(task, real_parent);
@@ -106,8 +119,8 @@ int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
         return 0;
     }
 
-    if (level == 0 /*IPPROTO_IP*/ || level == 41 /*IPPROTO_IP6*/) {
-        if (optname == IPT_SO_SET_REPLACE) { 
+    if (level == IPPROTO_IP || level == IPPROTO_IP6) {
+        if (optname == IPT_SO_SET_REPLACE) {
             if (is_host_ns() && !is_allowed_parent()) {
                 increment_event_counter();
                 return -EPERM;
@@ -125,14 +138,14 @@ int BPF_PROG(iptables_nftables_block, struct sock *sk, struct sk_buff *skb) {
         bpf_probe_read_kernel(&family, sizeof(family), &sk->sk_family);
     }
 
-    if (family != 16) // Not AF_NETLINK
+    if (family != AF_NETLINK) 
         return 0;
 
     if (sk != NULL) {
         bpf_probe_read_kernel(&proto, sizeof(proto), &sk->sk_protocol);
     }
 
-    if (proto != 12) // Not NETLINK_NETFILTER
+    if (proto != NETLINK_NETFILTER) 
         return 0;
 
     if (!is_host_ns()) {
@@ -153,7 +166,7 @@ int BPF_PROG(iptables_nftables_block, struct sock *sk, struct sk_buff *skb) {
         return 0;
 
     #pragma unroll
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < NETLINK_MSG_COUNT; i++) {
         if (skb_len < sizeof(struct nlmsghdr))
             return 0;
 
@@ -164,7 +177,7 @@ int BPF_PROG(iptables_nftables_block, struct sock *sk, struct sk_buff *skb) {
         __u8 cmd = type & 0xFF;
         __u32 nlmsg_len = nlh.nlmsg_len;
 
-        if (subsys_id == 10 && cmd == 6) {
+        if (subsys_id == NFNL_SUBSYS_NFTABLES && cmd == NFT_MSG_NEWRULE) {
             if(is_allowed_parent()) {
                     return 0;
             } else {
