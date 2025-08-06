@@ -96,7 +96,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: cns-container
-          image: mcr.microsoft.com/containernetworking/azure-cns:v1.4.7
+          image: mcr.microsoft.com/containernetworking/azure-cns:v1.4.7 # <does this need to be updated?>
           imagePullPolicy: IfNotPresent
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
           volumeMounts:
@@ -129,7 +129,7 @@ spec:
               valueFrom:
                   fieldRef:
                     apiVersion: v1
-                    fieldPath: spec.nodeName 
+                    fieldPath: spec.nodeName
       hostNetwork: true
       volumes:
         - name: azure-endpoints
