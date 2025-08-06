@@ -15,7 +15,7 @@ ARG OS
 ARG VERSION
 WORKDIR /azure-iptables-monitor
 COPY ./azure-iptables-monitor .
-RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/iptables-monitor -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
+RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/iptables-monitor -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
 
 FROM mariner-core AS iptables
 RUN tdnf install -y iptables

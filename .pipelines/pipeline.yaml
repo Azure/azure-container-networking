@@ -15,6 +15,7 @@ trigger:
   branches:
     include:
       - gh-readonly-queue/master/*
+      - gh-readonly-queue/release/*
   tags:
     include:
       - "*"
@@ -125,6 +126,10 @@ stages:
                 arch: amd64
                 name: azure-ip-masq-merger
                 os: linux
+              azure_iptables_monitor_linux_amd64:
+                arch: amd64
+                name: azure-iptables-monitor
+                os: linux
               cni_linux_amd64:
                 arch: amd64
                 name: cni
@@ -173,6 +178,10 @@ stages:
               azure_ip_masq_merger_linux_arm64:
                 arch: arm64
                 name: azure-ip-masq-merger
+                os: linux
+              azure_iptables_monitor_linux_arm64:
+                arch: arm64
+                name: azure-iptables-monitor
                 os: linux
               cni_linux_arm64:
                 arch: arm64
@@ -227,6 +236,9 @@ stages:
                 platforms: linux/amd64 linux/arm64 windows/amd64
               azure_ip_masq_merger:
                 name: azure-ip-masq-merger
+                platforms: linux/amd64 linux/arm64
+              azure_iptables_monitor:
+                name: azure-iptables-monitor
                 platforms: linux/amd64 linux/arm64
           steps:
             - template: containers/manifest-template.yaml

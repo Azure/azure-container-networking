@@ -227,22 +227,6 @@ stages:
       scaleup: ${SCALEUP_WIN}
       iterations: ${ITERATIONS_WIN}
 
-  - template: singletenancy/cniv2-template.yaml
-    parameters:
-      name: windows19_overlay
-      clusterType: overlay-byocni-up
-      clusterName: w19-amd-ov
-      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
-      nodeCountWin: ${NODE_COUNT_WIN}
-      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
-      vmSizeWin: ${VM_SIZE_WIN}
-      arch: amd64
-      os: windows
-      os_version: 'ltsc2019'
-      osSkuWin: 'Windows2019'
-      scaleup: ${SCALEUP_WIN}
-      iterations: ${ITERATIONS_WIN}
-
 ## Linux E2E
   - template: singletenancy/cniv1-template.yaml
     parameters:
@@ -561,7 +545,6 @@ stages:
       - rdma_linux_overlay
       - windows_podsubnet_HNS
       - windows_overlay_HNS
-      - windows19_overlay_HNS
       - setup
       - ${{if eq(parameters.upgradeScenario, true)}}:
         - cilium_overlay_upgrade
@@ -636,9 +619,6 @@ stages:
             win-cniv2-overlay:
               name: windows_overlay
               clusterName: w22-over
-            windows19_overlay:
-              name: windows19_overlay
-              clusterName: w19-amd-ov
         steps:
           - task: AzureCLI@2
             inputs:
