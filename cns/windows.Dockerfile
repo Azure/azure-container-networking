@@ -8,13 +8,13 @@ COPY . .
 RUN GOOS=windows CGO_ENABLED=0 go build -a -o /usr/local/bin/azure-cns.exe -ldflags "-X main.version="$VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID"" -gcflags="-dwarflocationlists=true" cns/service/*.go
 
 # skopeo inspect --override-os windows docker://mcr.microsoft.com/windows/nanoserver:ltsc2019 --format "{{.Name}}@{{.Digest}}"
-FROM mcr.microsoft.com/windows/nanoserver@sha256:d96a6c2108e1449c872cc2b224a9b3444fa1415b4d6947280aba2d2bb3bd0025 AS ltsc2019
+FROM mcr.microsoft.com/windows/nanoserver@sha256:c357ed591af7b24f2d4a12b1947da5e6ebe559d89f41471f6928902c7cda7206 AS ltsc2019
 
 # skopeo inspect --override-os windows docker://mcr.microsoft.com/windows/nanoserver:ltsc2022 --format "{{.Name}}@{{.Digest}}"
-FROM mcr.microsoft.com/windows/nanoserver@sha256:55474b390b2d25e98450356b381d6dc422e15fb79808970f724c0f34df0b217e AS ltsc2022
+FROM mcr.microsoft.com/windows/nanoserver@sha256:9a57174ce85e979529e4f0cd58dff2e837b65fc7832b7585b4882f6cce0e255d AS ltsc2022
 
 # skopeo inspect --override-os windows docker://mcr.microsoft.com/windows/nanoserver:ltsc2025 --format "{{.Name}}@{{.Digest}}" ## 2025 isn't tagged yet
-FROM mcr.microsoft.com/windows/nanoserver@sha256:d584aae93e84d61c8a3280ed3a5d5a6d397c0214a2902acadb8b17b0b00c70e8 AS ltsc2025
+FROM mcr.microsoft.com/windows/nanoserver@sha256:83bd374c854fddd084ea9bf4864dd00b3810c34ea172892263958c2d738d0fdd AS ltsc2025
 
 FROM ${OS_VERSION} AS windows
 COPY --from=builder /usr/local/src/cns/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
