@@ -50,15 +50,15 @@ type MultitenantPodNetworkConfigSpec struct {
 	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
 }
 
-// +kubebuilder:validation:Enum=Available;ProgrammingPending;ProgrammingFailed;ProgrammingComplete;ReleasePending
+// +kubebuilder:validation:Enum=Unprogrammed;Programming;Programmed;Unprogramming;Failed
 type InfinibandStatus string
 
 const (
-	Available           InfinibandStatus = "Available"
-	ProgrammingPending  InfinibandStatus = "ProgrammingPending"
-	ProgrammingFailed   InfinibandStatus = "ProgrammingFailed"
-	ProgrammingComplete InfinibandStatus = "ProgrammingComplete"
-	ReleasePending      InfinibandStatus = "ReleasePending"
+	Unprogrammed  InfinibandStatus = "Unprogrammed"
+	Programming   InfinibandStatus = "Programming"
+	Programmed    InfinibandStatus = "Programmed"
+	Unprogramming InfinibandStatus = "Unprogramming"
+	Failed        InfinibandStatus = "Failed"
 )
 
 type InterfaceInfo struct {
