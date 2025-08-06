@@ -4,7 +4,7 @@ go 1.23.2
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.2
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.11.0
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.12.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Microsoft/go-winio v0.6.2
@@ -244,7 +244,7 @@ require (
 	github.com/containerd/cgroups/v3 v3.0.3 // indirect
 	github.com/containerd/errdefs v0.3.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	k8s.io/kubelet v0.30.14
