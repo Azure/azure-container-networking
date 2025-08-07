@@ -31,7 +31,7 @@ volatile const u64 host_netns_inode = 4026531840; // Initialized by userspace
 
 struct {
     __uint(type, BPF_MAP_TYPE_ARRAY);
-    __uint(max_entries, 1);
+    __uint(max_entries, 2);
     __type(key, u32);
     __type(value, u64);
     __uint(pinning, LIBBPF_PIN_BY_NAME);
@@ -69,11 +69,9 @@ bool is_allowed_parent ()
         }
 
         if(match) {
-            bpf_printk("Allowed netlink from parent: %s\n", parent_comm);
             return 1;
         }
     }
-
 
     return 0; // Block
 }
@@ -104,10 +102,10 @@ bool is_host_ns() {
     return 1;
 }
 
-// Increment the event counter in the BPF map.
-// This counter will be read from usersace to track the number of blocked events.
-void increment_event_counter() {
-    u32 key = 0;
+// Increment the event counters in the BPF map. Key is 0 for blocked rules and 1 for allowed rules.
+// This counter will be read from userspace to track the number of blocked/allowed events.
+void increment_event_counter(bool isAllow) {
+    u32 key = isAllow ? 1 : 0;
     u64 *value;
 
     value = bpf_map_lookup_elem(&iptables_block_event_counter, &key);
@@ -132,9 +130,14 @@ int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
         //iptables-legacy uses IPT_SO_SET_REPLACE to install rules
         if (optname == IPT_SO_SET_REPLACE) {
             // block if not in host network namespace, and if the parent process is not allowed
-            if (is_host_ns() && !is_allowed_parent()) {
-                increment_event_counter();
-                return -EPERM;
+            if (is_host_ns()) {
+                if (!is_allowed_parent()) {
+                    increment_event_counter(false);
+                    return -EPERM;
+                } else {
+                    increment_event_counter(true);
+                    return 0; // Allow the operation
+                }
             }
         }
     }
@@ -205,9 +208,11 @@ int BPF_PROG(iptables_nftables_block, struct sock *sk, struct sk_buff *skb) {
             // and whether we are in the host network namespace.
             // If not allowed, increment the event counter and return -EPERM.
             if(is_allowed_parent()) {
-                    return 0;
+                increment_event_counter(true);
+                // Allow the operation
+                return 0;
             } else {
-                increment_event_counter();
+                increment_event_counter(false);
                 return -EPERM;
             }
         }
