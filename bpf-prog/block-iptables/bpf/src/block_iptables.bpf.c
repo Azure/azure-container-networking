@@ -7,6 +7,7 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
 #include <bpf/bpf_tracing.h>
+#include <stdbool.h>
 
 #define sk_family __sk_common.skc_family
 #define EPERM 1
@@ -34,11 +35,11 @@ struct {
     __type(key, u32);
     __type(value, u64);
     __uint(pinning, LIBBPF_PIN_BY_NAME);
-} event_counter SEC(".maps");
+} iptables_block_event_counter SEC(".maps");
 
 // This function checks if the parent process of the current task is allowed to install iptables rules.
 // It checks the parent's command name against a predefined list of allowed prefixes.
-int is_allowed_parent ()
+bool is_allowed_parent ()
 {
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
     struct task_struct *parent_task = NULL;
@@ -80,7 +81,7 @@ int is_allowed_parent ()
 // check if the current task is in the host network namespace
 // This function compares the inode number of the current network namespace with the host's network namespace inode
 // The host's network namespace inode is initialized by userspace when the BPF program is loaded.
-int is_host_ns() {
+bool is_host_ns() {
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
     struct nsproxy *nsproxy;
     struct net *net_ns;
@@ -109,12 +110,12 @@ void increment_event_counter() {
     u32 key = 0;
     u64 *value;
 
-    value = bpf_map_lookup_elem(&event_counter, &key);
+    value = bpf_map_lookup_elem(&iptables_block_event_counter, &key);
     if (value) {
         __sync_fetch_and_add(value, 1);
     } else {
         u64 initial_value = 1;
-        bpf_map_update_elem(&event_counter, &key, &initial_value, BPF_ANY);
+        bpf_map_update_elem(&iptables_block_event_counter, &key, &initial_value, BPF_ANY);
     }
 }
 
@@ -144,18 +145,18 @@ int BPF_PROG(iptables_legacy_block, struct socket *sock, int level, int optname)
 // blocking hook for iptables-nftables rule installation
 SEC("lsm/netlink_send")
 int BPF_PROG(iptables_nftables_block, struct sock *sk, struct sk_buff *skb) {
-    __u16 family = 0, proto = 0;
-    if (sk != NULL) {
-        bpf_probe_read_kernel(&family, sizeof(family), &sk->sk_family);
+    if (sk == NULL || skb == NULL) {
+        return 0;
     }
+    __u16 family = 0, proto = 0;
+    bpf_probe_read_kernel(&family, sizeof(family), &sk->sk_family);
 
     // Check if the socket family is AF_NETLINK (just a sanity check)
     if (family != AF_NETLINK) 
         return 0;
 
-    if (sk != NULL) {
-        bpf_probe_read_kernel(&proto, sizeof(proto), &sk->sk_protocol);
-    }
+    bpf_probe_read_kernel(&proto, sizeof(proto), &sk->sk_protocol);
+
 
     // Check if the protocol is NETLINK_NETFILTER
     // This is the protocol used for netfilter messages

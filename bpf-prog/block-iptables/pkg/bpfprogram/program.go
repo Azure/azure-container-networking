@@ -19,7 +19,9 @@ const (
 	// BPFMapPinPath is the directory where BPF maps are pinned
 	BPFMapPinPath = "/sys/fs/bpf/block-iptables"
 	// EventCounterMapName is the name used for pinning the event counter map
-	EventCounterMapName = "event_counter"
+	EventCounterMapName = "iptables_block_event_counter"
+	// NetNSPath is the path to the host network namespace
+	NetNSPath = "/proc/self/ns/net"
 )
 
 var ErrEventCounterMapNotLoaded = errors.New("event counter map not loaded")
@@ -47,13 +49,13 @@ func (p *Program) CreatePinPath() error {
 
 // pinEventCounterMap pins the event counter map to the filesystem
 func (p *Program) pinEventCounterMap() error {
-	if p.objs == nil || p.objs.EventCounter == nil {
+	if p.objs == nil || p.objs.IptablesBlockEventCounter == nil {
 		return ErrEventCounterMapNotLoaded
 	}
 
 	pinPath := filepath.Join(BPFMapPinPath, EventCounterMapName)
 
-	if err := p.objs.EventCounter.Pin(pinPath); err != nil {
+	if err := p.objs.IptablesBlockEventCounter.Pin(pinPath); err != nil {
 		return errors.Wrapf(err, "failed to pin event counter map to %s", pinPath)
 	}
 
@@ -75,9 +77,9 @@ func (p *Program) unpinEventCounterMap() error {
 
 func getHostNetnsInode() (uint64, error) {
 	var stat syscall.Stat_t
-	err := syscall.Stat("/proc/self/ns/net", &stat)
+	err := syscall.Stat(NetNSPath, &stat)
 	if err != nil {
-		return 0, errors.Wrap(err, "failed to stat /proc/self/ns/net")
+		return 0, errors.Wrapf(err, "failed to stat %s", NetNSPath)
 	}
 
 	log.Printf("Host network namespace inode: %d", stat.Ino)
