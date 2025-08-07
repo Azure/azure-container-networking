@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -341,8 +340,7 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			config := &configuration.CNSConfig{}
-			got, err := CreateNCRequestFromStaticNC(tt.input, config)
+			got, err := CreateNCRequestFromStaticNC(tt.input, false)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -355,11 +353,11 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 
 func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   v1alpha.NetworkContainer
-		config  *configuration.CNSConfig
-		want    *cns.CreateNetworkContainerRequest
-		wantErr bool
+		name      string
+		input     v1alpha.NetworkContainer
+		isSwiftV2 bool
+		want      *cns.CreateNetworkContainerRequest
+		wantErr   bool
 	}{
 		{
 			name: "SwiftV2 enabled with VNETBlock - should NOT process all IPs in prefix",
@@ -373,9 +371,7 @@ func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 				Version:            1,
 				Status:             "Available",
 			},
-			config: &configuration.CNSConfig{
-				EnableSwiftV2: true,
-			},
+			isSwiftV2: true,
 			want: &cns.CreateNetworkContainerRequest{
 				NetworkContainerid:   ncID,
 				NetworkContainerType: cns.Docker,
@@ -413,7 +409,7 @@ func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 					},
 				},
 			},
-			config: &configuration.CNSConfig{},
+			isSwiftV2: false,
 			want: &cns.CreateNetworkContainerRequest{
 				NetworkContainerid:   ncID,
 				NetworkContainerType: cns.Docker,
@@ -453,7 +449,7 @@ func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 					},
 				},
 			},
-			config: &configuration.CNSConfig{},
+			isSwiftV2: false,
 			want: &cns.CreateNetworkContainerRequest{
 				NetworkContainerid:   ncID,
 				NetworkContainerType: cns.Docker,
@@ -477,7 +473,7 @@ func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CreateNCRequestFromStaticNC(tt.input, tt.config)
+			got, err := CreateNCRequestFromStaticNC(tt.input, tt.isSwiftV2)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
