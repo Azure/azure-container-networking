@@ -44,15 +44,15 @@ func RetryAttempts(attempts uint) ClientOption {
 }
 
 const (
-	vmUniqueIDProperty    = "vmId"
-	imdsComputePath       = "/metadata/instance/compute"
-	imdsNetworkPath       = "/metadata/instance/network"
-	imdsComputeAPIVersion = "api-version=2021-01-01"
-	imdsFormatJSON        = "format=json"
-	metadataHeaderKey     = "Metadata"
-	metadataHeaderValue   = "true"
-	defaultRetryAttempts  = 3
-	defaultIMDSEndpoint   = "http://169.254.169.254"
+	vmUniqueIDProperty   = "vmId"
+	imdsComputePath      = "/metadata/instance/compute"
+	imdsNetworkPath      = "/metadata/instance/network"
+	imdsAPIVersion       = "api-version=2025-07-24"
+	imdsFormatJSON       = "format=json"
+	metadataHeaderKey    = "Metadata"
+	metadataHeaderValue  = "true"
+	defaultRetryAttempts = 3
+	defaultIMDSEndpoint  = "http://169.254.169.254"
 )
 
 var (
@@ -104,16 +104,16 @@ func (c *Client) GetVMUniqueID(ctx context.Context) (string, error) {
 }
 
 func (c *Client) GetNetworkInterfaces(ctx context.Context) ([]NetworkInterface, error) {
-	var networkData NetworkMetadata
+	var networkData NetworkInterfaces
 	err := retry.Do(func() error {
-		networkMetadata, err := c.getInstanceMetadata(ctx, imdsNetworkPath)
+		networkInterfaces, err := c.getInstanceMetadata(ctx, imdsNetworkPath)
 		if err != nil {
 			return errors.Wrap(err, "error getting IMDS network metadata")
 		}
 
 		// Try to parse the network metadata as the expected structure
 		// Convert the map to JSON and back to properly unmarshal into struct
-		jsonData, err := json.Marshal(networkMetadata)
+		jsonData, err := json.Marshal(networkInterfaces)
 		if err != nil {
 			return errors.Wrap(err, "error marshaling network metadata")
 		}
@@ -135,7 +135,7 @@ func (c *Client) getInstanceMetadata(ctx context.Context, imdsMetadataPath strin
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to build path to IMDS metadata for path"+imdsMetadataPath)
 	}
-	imdsRequestURL = imdsRequestURL + "?" + imdsComputeAPIVersion + "&" + imdsFormatJSON
+	imdsRequestURL = imdsRequestURL + "?" + imdsAPIVersion + "&" + imdsFormatJSON
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imdsRequestURL, http.NoBody)
 	if err != nil {
@@ -169,7 +169,7 @@ type NetworkInterface struct {
 	InterfaceCompartmentVersion string `json:"interfaceCompartmentVersion,omitempty"`
 }
 
-// NetworkMetadata represents the network metadata from IMDS
-type NetworkMetadata struct {
+// NetworkInterfaces represents the network interfaces from IMDS
+type NetworkInterfaces struct {
 	Interface []NetworkInterface `json:"interface"`
 }

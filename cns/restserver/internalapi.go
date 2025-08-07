@@ -27,7 +27,7 @@ import (
 
 const (
 	// Known API names we care about
-	nmAgentSwiftV2API = "SwiftV2DhcpRehydrationFromGoalState"
+	nmAgentSwiftV2API = "EnableSwiftV2NCGoalStateSupport"
 )
 
 // This file contains the internal functions called by either HTTP APIs (api.go) or

@@ -26,7 +26,7 @@ func TestGetVMUniqueID(t *testing.T) {
 
 		// query params should include apiversion and json format
 		apiVersion := r.URL.Query().Get("api-version")
-		assert.Equal(t, "2021-01-01", apiVersion)
+		assert.Equal(t, "2025-07-24", apiVersion)
 		format := r.URL.Query().Get("format")
 		assert.Equal(t, "json", format)
 		w.WriteHeader(http.StatusOK)
@@ -86,7 +86,7 @@ func TestInvalidVMUniqueID(t *testing.T) {
 
 		// query params should include apiversion and json format
 		apiVersion := r.URL.Query().Get("api-version")
-		assert.Equal(t, "2021-01-01", apiVersion)
+		assert.Equal(t, "2025-07-24", apiVersion)
 		format := r.URL.Query().Get("format")
 		assert.Equal(t, "json", format)
 		w.WriteHeader(http.StatusOK)
@@ -102,7 +102,7 @@ func TestInvalidVMUniqueID(t *testing.T) {
 }
 
 func TestGetNetworkInterfaces(t *testing.T) {
-	networkMetadata := []byte(`{
+	networkInterfaces := []byte(`{
         "interface": [
             {
                 "interfaceCompartmentVersion": "1",
@@ -125,12 +125,12 @@ func TestGetNetworkInterfaces(t *testing.T) {
 
 		// query params should include apiversion and json format
 		apiVersion := r.URL.Query().Get("api-version")
-		assert.Equal(t, "2021-01-01", apiVersion)
+		assert.Equal(t, "2025-07-24", apiVersion)
 		format := r.URL.Query().Get("format")
 		assert.Equal(t, "json", format)
 
 		w.WriteHeader(http.StatusOK)
-		_, writeErr := w.Write(networkMetadata)
+		_, writeErr := w.Write(networkInterfaces)
 		if writeErr != nil {
 			t.Errorf("error writing response: %v", writeErr)
 			return
@@ -177,7 +177,7 @@ func TestGetNetworkInterfacesInvalidJSON(t *testing.T) {
 }
 
 func TestGetNetworkInterfacesNoNCIDs(t *testing.T) {
-	networkMetadataNoNC := []byte(`{
+	networkInterfacesNoNC := []byte(`{
         "interface": [
             {
                 "ipv4": {
@@ -197,7 +197,7 @@ func TestGetNetworkInterfacesNoNCIDs(t *testing.T) {
 		assert.Equal(t, "true", metadataHeader)
 
 		w.WriteHeader(http.StatusOK)
-		_, writeErr := w.Write(networkMetadataNoNC)
+		_, writeErr := w.Write(networkInterfacesNoNC)
 		if writeErr != nil {
 			t.Errorf("error writing response: %v", writeErr)
 			return

@@ -253,7 +253,7 @@ func TestSyncHostNCVersion(t *testing.T) {
 					}, nil
 				},
 				SupportedAPIsF: func(_ context.Context) ([]string, error) {
-					return []string{"SwiftV2DhcpRehydrationFromGoalState", "OtherAPI"}, nil
+					return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 				},
 			}
 			cleanup := setMockNMAgent(svc, mnma)
@@ -338,7 +338,7 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 			}, nil
 		},
 		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			return []string{"SwiftV2DhcpRehydrationFromGoalState", "OtherAPI"}, nil
+			return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 		},
 	}
 	cleanup := setMockNMAgent(svc, mnma)
@@ -396,7 +396,7 @@ func TestSyncHostNCVersionErrorMissingNC(t *testing.T) {
 			}, nil
 		},
 		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			return []string{"SwiftV2DhcpRehydrationFromGoalState", "OtherAPI"}, nil
+			return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 		},
 	}
 	cleanup := setMockNMAgent(svc, mnma)
@@ -457,7 +457,7 @@ func TestSyncHostNCVersionLocalVersionHigher(t *testing.T) {
 			}, nil
 		},
 		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			return []string{"SwiftV2DhcpRehydrationFromGoalState", "OtherAPI"}, nil
+			return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 		},
 	}
 	cleanup := setMockNMAgent(svc, mnma)
@@ -510,7 +510,7 @@ func TestSyncHostNCVersionLocalHigherThanDNC(t *testing.T) {
 			}, nil
 		},
 		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			return []string{"SwiftV2DhcpRehydrationFromGoalState", "OtherAPI"}, nil
+			return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 		},
 	}
 	cleanup := setMockNMAgent(svc, mnma)
@@ -1449,7 +1449,7 @@ func TestCNIConflistGenerationNewNC(t *testing.T) {
 				}, nil
 			},
 			SupportedAPIsF: func(_ context.Context) ([]string, error) {
-				return []string{"SwiftV2DhcpRehydrationFromGoalState", "OtherAPI"}, nil
+				return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 			},
 		},
 		imdsClient: fakes.NewMockIMDSClient(),
@@ -1571,7 +1571,7 @@ func TestCNIConflistNotGenerated(t *testing.T) {
 				return nma.NCVersionList{}, nil
 			},
 			SupportedAPIsF: func(_ context.Context) ([]string, error) {
-				return []string{"SwiftV2DhcpRehydrationFromGoalState", "OtherAPI"}, nil
+				return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 			},
 		},
 		imdsClient: fakes.NewMockIMDSClient(),
@@ -1614,7 +1614,7 @@ func TestCNIConflistGenerationOnNMAError(t *testing.T) {
 				return nma.NCVersionList{}, errors.New("some nma error")
 			},
 			SupportedAPIsF: func(_ context.Context) ([]string, error) {
-				return []string{"SwiftV2DhcpRehydrationFromGoalState", "OtherAPI"}, nil
+				return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 			},
 		},
 		imdsClient: fakes.NewMockIMDSClient(),
