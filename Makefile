@@ -85,6 +85,10 @@ ACN_PACKAGE_PATH = github.com/Azure/azure-container-networking
 CNI_AI_PATH=$(ACN_PACKAGE_PATH)/telemetry.aiMetadata
 CNS_AI_PATH=$(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
 NPM_AI_PATH=$(ACN_PACKAGE_PATH)/npm.aiMetadata
+CNI_TELEMETRY_SIDECAR_DIR = $(REPO_ROOT)/cns/cni-telemetry-sidecar
+CNI_TELEMETRY_SIDECAR_BUILD_DIR = $(BUILD_DIR)/cni-telemetry-sidecar
+CNI_TELEMETRY_SIDECAR_AI_ID = $(CNI_AI_ID)  # Reuse CNI AI ID
+CNI_TELEMETRY_SIDECAR_VERSION = $(CNS_VERSION)  # Version follows CNS
 
 # Tool paths
 CONTROLLER_GEN  := $(TOOLS_BIN_DIR)/controller-gen
@@ -112,6 +116,7 @@ AZURE_IPAM_ARCHIVE_NAME = azure-ipam-$(GOOS)-$(GOARCH)-$(AZURE_IPAM_VERSION).$(A
 AZURE_IP_MASQ_MERGER_ARCHIVE_NAME = azure-ip-masq-merger-$(GOOS)-$(GOARCH)-$(AZURE_IP_MASQ_MERGER_VERSION).$(ARCHIVE_EXT)
 AZURE_IPTABLES_MONITOR_ARCHIVE_NAME = azure-iptables-monitor-$(GOOS)-$(GOARCH)-$(AZURE_IPTABLES_MONITOR_VERSION).$(ARCHIVE_EXT)
 IPV6_HP_BPF_ARCHIVE_NAME = ipv6-hp-bpf-$(GOOS)-$(GOARCH)-$(IPV6_HP_BPF_VERSION).$(ARCHIVE_EXT)
+CNI_TELEMETRY_SIDECAR_ARCHIVE_NAME = azure-cni-telemetry-sidecar-$(GOOS)-$(GOARCH)-$(CNI_TELEMETRY_SIDECAR_VERSION).$(ARCHIVE_EXT)
 
 # Image info file names.
 CNI_IMAGE_INFO_FILE			= azure-cni-$(CNI_VERSION).txt
@@ -128,7 +133,7 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf
+all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf cni-telemetry-sidecar
 all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image azure-iptables-monitor-image ipv6-hp-bpf-image
 else
 all-binaries: azure-cni-plugin azure-cns azure-npm
@@ -145,7 +150,7 @@ azure-ipam: azure-ipam-binary azure-ipam-archive
 ipv6-hp-bpf: ipv6-hp-bpf-binary ipv6-hp-bpf-archive
 azure-ip-masq-merger: azure-ip-masq-merger-binary azure-ip-masq-merger-archive
 azure-iptables-monitor: azure-iptables-monitor-binary azure-iptables-monitor-archive
-
+cni-telemetry-sidecar: cni-telemetry-sidecar-binary cni-telemetry-sidecar-archive
 
 ##@ Versioning
 
@@ -222,6 +227,15 @@ azure-vnet-ipamv6-binary:
 azure-vnet-telemetry-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
+# Build the Azure CNI Telemetry Sidecar binary.
+cni-telemetry-sidecar-binary: ## build cni-telemetry-sidecar binary.
+	$(MKDIR) $(CNI_TELEMETRY_SIDECAR_BUILD_DIR)
+	cd $(CNI_TELEMETRY_SIDECAR_DIR) && CGO_ENABLED=0 go build \
+    	-v \
+    	-o $(CNI_TELEMETRY_SIDECAR_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) \
+    	-ldflags "-X main.version=$(CNI_TELEMETRY_SIDECAR_VERSION) -X $(CNI_AI_PATH)=$(CNI_TELEMETRY_SIDECAR_AI_ID)" \
+    	-gcflags="-dwarflocationlists=true" \
+    	.
 # Build the Azure CLI network binary.
 acncli-binary:
 	cd $(ACNCLI_DIR) && CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
@@ -289,6 +303,7 @@ CNS_IMAGE						= azure-cns
 NPM_IMAGE						= azure-npm
 AZURE_IP_MASQ_MERGER_IMAGE		= azure-ip-masq-merger
 AZURE_IPTABLES_MONITOR_IMAGE	= azure-iptables-monitor
+CNI_TELEMETRY_SIDECAR_IMAGE = azure-cni-telemetry-sidecar
 
 ## Image platform tags.
 ACNCLI_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(ACN_VERSION)
@@ -302,7 +317,7 @@ CNS_WINDOWS_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)-$(OS_SKU_W
 NPM_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(NPM_VERSION)
 AZURE_IP_MASQ_MERGER_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))-$(AZURE_IP_MASQ_MERGER_VERSION)
 AZURE_IPTABLES_MONITOR_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))-$(AZURE_IPTABLES_MONITOR_VERSION)
-
+CNI_TELEMETRY_SIDECAR_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))-$(CNI_TELEMETRY_SIDECAR_VERSION)
 
 qemu-user-static: ## Set up the host to run qemu multiplatform container builds.
 	sudo $(CONTAINER_RUNTIME) run --rm --privileged multiarch/qemu-user-static --reset -p yes
@@ -583,6 +598,35 @@ npm-image-pull: ## pull cns container image.
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(NPM_PLATFORM_TAG)
 
+# cni-telemetry-sidecar
+
+cni-telemetry-sidecar-image-name: # util target to print the CNI telemetry sidecar image name
+	@echo $(CNI_TELEMETRY_SIDECAR_IMAGE)
+
+cni-telemetry-sidecar-image-name-and-tag: # util target to print the CNI telemetry sidecar image name and tag.
+    @echo $(IMAGE_REGISTRY)/$(CNI_TELEMETRY_SIDECAR_IMAGE):$(CNI_TELEMETRY_SIDECAR_PLATFORM_TAG)
+
+cni-telemetry-sidecar-image: ## build cni-telemetry-sidecar container image.
+	$(MAKE) container \
+        DOCKERFILE=cns/cni-telemetry-sidecar/Dockerfile \
+        IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
+        EXTRA_BUILD_ARGS='--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_TELEMETRY_SIDECAR_AI_ID) --build-arg VERSION=$(CNI_TELEMETRY_SIDECAR_VERSION)' \
+        PLATFORM=$(PLATFORM) \
+        TAG=$(CNI_TELEMETRY_SIDECAR_PLATFORM_TAG) \
+        TARGET=$(OS) \
+        OS=$(OS) \
+        ARCH=$(ARCH)
+
+cni-telemetry-sidecar-image-push: ## push cni-telemetry-sidecar container image.
+	$(MAKE) container-push \
+        IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
+        TAG=$(CNI_TELEMETRY_SIDECAR_PLATFORM_TAG)
+
+cni-telemetry-sidecar-image-pull: ## pull cni-telemetry-sidecar container image.
+	$(MAKE) container-pull \
+        IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
+        TAG=$(CNI_TELEMETRY_SIDECAR_PLATFORM_TAG)
+
 ## Reusable targets for building multiplat container image manifests.
 
 IMAGE_ARCHIVE_DIR ?= $(shell pwd)
@@ -738,6 +782,21 @@ npm-skopeo-archive: ## export tar archive of multiplat container manifest.
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(NPM_VERSION)
 
+cni-telemetry-sidecar-manifest-build: ## build cni-telemetry-sidecar multiplat container manifest.
+	$(MAKE) manifest-build \
+        PLATFORMS="$(PLATFORMS)" \
+        IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
+        TAG=$(CNI_TELEMETRY_SIDECAR_VERSION)
+
+cni-telemetry-sidecar-manifest-push: ## push cni-telemetry-sidecar multiplat container manifest
+	$(MAKE) manifest-push \
+        IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
+        TAG=$(CNI_TELEMETRY_SIDECAR_VERSION)
+
+cni-telemetry-sidecar-skopeo-archive: ## export tar archive of cni-telemetry-sidecar multiplat container manifest.
+	$(MAKE) manifest-skopeo-archive \
+        IMAGE=$(CNI_TELEMETRY_SIDECAR_IMAGE) \
+        TAG=$(CNI_TELEMETRY_SIDECAR_VERSION)
 
 ########################### Archives ################################
 
@@ -846,6 +905,14 @@ ipv6-hp-bpf-archive: ipv6-hp-bpf-binary
 ifeq ($(GOOS),linux)
 	$(MKDIR) $(IPV6_HP_BPF_BUILD_DIR)
 	cd $(IPV6_HP_BPF_BUILD_DIR) && $(ARCHIVE_CMD) $(IPV6_HP_BPF_ARCHIVE_NAME) ipv6-hp-bpf$(EXE_EXT)
+endif
+
+# Create a CNI Telemetry Sidecar archive for the target platform.
+.PHONY: cni-telemetry-sidecar-archive
+cni-telemetry-sidecar-archive: cni-telemetry-sidecar-binary
+ifeq ($(GOOS),linux)
+	$(MKDIR) $(CNI_TELEMETRY_SIDECAR_BUILD_DIR)
+	cd $(CNI_TELEMETRY_SIDECAR_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_TELEMETRY_SIDECAR_ARCHIVE_NAME) azure-cni-telemetry-sidecar$(EXE_EXT)
 endif
 
 ##@ Utils
