@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
@@ -15,7 +14,7 @@ import (
 // secondary IPs. If the gateway is not empty, it will not reserve the 2nd IP and add it as a secondary IP.
 //
 //nolint:gocritic //ignore hugeparam
-func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet, config *configuration.CNSConfig) (*cns.CreateNetworkContainerRequest, error) {
+func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet, isSwiftV2 bool) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 	// the masked address is the 0th IP in the subnet and startingAddr is the 2nd IP (*.1)
 	startingAddr := primaryIPPrefix.Masked().Addr().Next()
@@ -29,7 +28,7 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 	// iterate through all IP addresses in the subnet described by primaryPrefix and
 	// add them to the request as secondary IPConfigs.
 	// Process primary prefix IPs in all scenarios except when nc.Type is v1alpha.VNETBlock AND SwiftV2 is enabled
-	if !(config.EnableSwiftV2 && nc.Type == v1alpha.VNETBlock) {
+	if !(isSwiftV2 && nc.Type == v1alpha.VNETBlock) {
 		for addr := startingAddr; primaryIPPrefix.Contains(addr); addr = addr.Next() {
 			secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
 				IPAddress: addr.String(),
