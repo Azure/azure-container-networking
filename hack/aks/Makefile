@@ -149,6 +149,10 @@ nodesubnet-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Node
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		--yes
 	@$(MAKE) set-kubeconf
+	@$(MAKE) nodesubnet-ipconfigupdate
+
+nodesubnet-ipconfigupdate: ## Run ipconfigupdate for NodeSubnet clusters
+	RESOURCE_GROUP=MC_$(GROUP)_$(CLUSTER)_$(REGION) go run test/integration/cilium-nodesubnet/ipconfigupdate.go
 
 overlay-byocni-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay BYO CNI cluster
 	$(COMMON_AKS_FIELDS) \
