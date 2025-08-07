@@ -223,7 +223,9 @@ stages:
       - job: deploy_pods
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Scale Test"
-        dependsOn: deploy_cilium_components
+        dependsOn: 
+          - deploy_cilium_components
+          - deploy_cns_and_ipam
         steps:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
