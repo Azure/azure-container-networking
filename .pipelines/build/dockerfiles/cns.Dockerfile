@@ -14,11 +14,11 @@ EXPOSE 10090
 
 # mcr.microsoft.com/cbl-mariner/base/core:2.0
 # skopeo inspect docker://mcr.microsoft.com/cbl-mariner/base/core:2.0 --format "{{.Name}}@{{.Digest}}"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core@sha256:961bfedbbbdc0da51bc664f51d959da292eced1ad46c3bf674aba43b9be8c703 AS build-helper
+FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core@sha256:61b8c8e5c769784be2137cba8612c3a0f0c1752a66276b3b1b5306014a1e20e0 AS build-helper
 RUN tdnf install -y iptables
 
 # mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:7778a86d86947d5f64c1280a7ee0cf36c6c6d76b5749dd782fbcc14f113961bf AS linux
+FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:16d7c214232ee1db683e767a7a30a47f9976801c929b0f2f300521c595eb33ff AS linux
 ARG ARTIFACT_DIR .
 
 COPY --from=build-helper /usr/sbin/*tables* /usr/sbin/
