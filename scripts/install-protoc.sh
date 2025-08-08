@@ -4,6 +4,7 @@ PROTOBUFF_VERSION=3.19.1
 PB_REL="https://github.com/protocolbuffers/protobuf/releases"
 PROTOC_ZIP_NAME=protoc-${PROTOBUFF_VERSION}-linux-x86_64.zip
 PROTOC_INSTALL_PATH=$HOME/.local
+REPO_ROOT=$(git rev-parse --show-toplevel)
 
 # install unzip on linux if not installed
 if [[ "$OSTYPE" == "linux-gnu" ]]; then
@@ -18,7 +19,7 @@ if [ ! -f ${PROTOC_INSTALL_PATH}/bin/protoc ]; then
 		curl -LO ${PB_REL}/download/v${PROTOBUFF_VERSION}/${PROTOC_ZIP_NAME}
 		echo "Unzipping protoc"
 		unzip -o ${PROTOC_ZIP_NAME} -d ${PROTOC_INSTALL_PATH}
-		chmod +x ${PROTOC_INSTALL_PATH}/bin/protoc 
+		chmod +x ${PROTOC_INSTALL_PATH}/bin/protoc
 		export PATH=${PROTOC_INSTALL_PATH}/bin:$PATH
 		echo "Removing protoc zip"
 		rm ${PROTOC_ZIP_NAME}
@@ -31,7 +32,7 @@ fi
 # install protoc-gen-go
 if [ ! -f ${GOPATH}/bin/protoc-gen-go ]; then
 	echo "Installing protoc-gen-go"
-	go install github.com/golang/protobuf/protoc-gen-go@v1.26
+	go install -modfile=${REPO_ROOT}/tools.go.mod github.com/golang/protobuf/protoc-gen-go
 else
 	echo "protoc-gen-go already installed at ${GOPATH}/bin/protoc-gen-go"
 fi
@@ -39,7 +40,7 @@ fi
 # install protoc-gen-go-grpc
 if [ ! -f ${GOPATH}/bin/protoc-gen-go-grpc ]; then
 	echo "Installing protoc-gen-go-grpc"
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
+	go install -modfile=${REPO_ROOT}/tools.go.mod google.golang.org/grpc/cmd/protoc-gen-go-grpc
 else
 	echo "protoc-gen-go-grpc already installed at ${GOPATH}/bin/protoc-gen-go-grpc"
 fi

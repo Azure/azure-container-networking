@@ -12,19 +12,15 @@ on:
       - checks_requested
 jobs:
   crdgen:
-    strategy:
-      matrix:
-        go-version: ['1.22', '1.23']
-        os: [ubuntu-latest]
     name: CRDs are Generated
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - uses: actions/setup-go@v5
       with:
-        go-version: ${{ matrix.go-version }}
+        go-version-file: go.mod
     - name: Regenerate NodeNetworkConfig CRD
       run: make -C crd/nodenetworkconfig
     - name: Regenerate MultitenantNetworkContainer CRD
@@ -36,4 +32,8 @@ jobs:
     - name: Regenerate OverlayExtensionConfig CRD
       run: make -C crd/overlayextensionconfig
     - name: Fail if the tree is dirty
-      run: test -z "$(git status --porcelain)"
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "Changes detected. Please run 'make regenerate-crd' locally to regenerate crds."
+          exit 1
+        fi
