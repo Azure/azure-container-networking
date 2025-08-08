@@ -990,11 +990,13 @@ setup: tools install-hooks gitconfig ## performs common required repo setup
 
 ##@ Tools
 
-tools: renderkit
+tools: renderkit go-junit-report
 
 renderkit: ## Install renderkit for rendering Dockerfile templates
 	@go install -modfile=$(TOOLS_GO_MOD) github.com/orellazri/renderkit
 
+go-junit-report: ## Install go-junit-report for converting test results to JUnit XML format
+	@go install -modfile=$(TOOLS_GO_MOD) github.com/jstemmer/go-junit-report
 
 ##@ Help
 
