@@ -5,11 +5,11 @@ ARG DROPGZ_VERSION=v0.0.12
 ARG OS_VERSION
 ARG OS
 
-# mcr.microsoft.com/oss/go/microsoft/golang:1.23-azurelinux3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:be1960a292d887e8c4e7e412d330f05feb7736e40a3706d8ad14d8009425cf2d AS go
+# mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0
+FROM --platform=linux/${ARCH}  AS go
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:c09a4e011a092a45b5c46ac5633253eb1e1106df028912b89cbe225d9061ef0b AS mariner-core
+FROM --platform=linux/${ARCH}  AS mariner-core
 
 FROM go AS azure-vnet
 ARG OS
@@ -54,7 +54,7 @@ COPY --from=dropgz /go/bin/dropgz dropgz
 ENTRYPOINT [ "/dropgz" ]
 
 # mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
-FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b as hpc
+FROM --platform=windows/${ARCH}  as hpc
 
 FROM hpc as windows
 COPY --from=dropgz /go/bin/dropgz dropgz.exe
