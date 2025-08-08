@@ -1,14 +1,14 @@
-.DEFAULT_GOAL = all 
+.DEFAULT_GOAL = all
 
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
-CONTROLLER_GEN = go tool controller-gen
+CONTROLLER_GEN = go tool -modfile=$(REPO_ROOT)/tools.go.mod controller-gen
 
 all: generate manifests
 
-generate: 
+generate:
 	$(CONTROLLER_GEN) object paths="./..."
 
 .PHONY: manifests
-manifests: 
+manifests:
 	mkdir -p manifests
 	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=manifests/

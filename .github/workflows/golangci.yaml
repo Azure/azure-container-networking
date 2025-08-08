@@ -39,12 +39,12 @@ jobs:
     needs: generate
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
     - name: Download generated code
       uses: actions/download-artifact@v4
       with:
