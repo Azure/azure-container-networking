@@ -41,6 +41,7 @@ import (
 	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
 	podctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/pod"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	loggerv2 "github.com/Azure/azure-container-networking/cns/logger/v2"
 	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/cns/middlewares"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
@@ -66,10 +67,10 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/avast/retry-go/v4"
+	"github.com/go-logr/zapr"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"golang.org/x/time/rate"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -84,7 +85,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
@@ -130,7 +130,6 @@ const (
 var (
 	rootCtx   context.Context
 	rootErrCh chan error
-	z         *zap.Logger
 )
 
 // Version is populated by make during build.
@@ -629,12 +628,27 @@ func main() {
 		}
 	}
 
-	// configure zap logger
-	zconfig := zap.NewProductionConfig()
-	zconfig.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	if z, err = zconfig.Build(); err != nil {
+	// Get host metadata and attach it to logger(v2) appinsights config.
+	// If this errors, we will not have metadata in the AI logs. Should we exit?
+	metadata, _ := acn.GetHostMetadata(aitelemetry.MetadataFile)
+	aifields := loggerv2.MetadataToFields(metadata)
+	if cnsconfig.Logger.AppInsights != nil {
+		cnsconfig.Logger.AppInsights.Fields = append(cnsconfig.Logger.AppInsights.Fields, aifields...)
+	}
+
+	// build the zap logger
+	z, c, err := loggerv2.New(&cnsconfig.Logger)
+	defer c()
+	if err != nil {
 		fmt.Printf("failed to create logger: %v", err)
 		os.Exit(1)
+	}
+	host, _ := os.Hostname()
+	z = z.With(zap.String("hostname", host), zap.String("version", version), zap.String("kubernetes_apiserver", os.Getenv("KUBERNETES_SERVICE_HOST")))
+	// Set the v2 logger to the global logger if v2 logger enabled.
+	if cnsconfig.EnableLoggerV2 {
+		logger.Printf("hotswapping logger v2") //nolint:staticcheck // ignore new deprecation
+		logger.Log = loggerv2.AsV1(z, c)
 	}
 
 	// start the healthz/readyz/metrics server
@@ -869,7 +883,7 @@ func main() {
 
 		logger.Printf("Set GlobalPodInfoScheme %v (InitializeFromCNI=%t)", cns.GlobalPodInfoScheme, cnsconfig.InitializeFromCNI)
 
-		err = InitializeCRDState(rootCtx, httpRemoteRestService, cnsconfig)
+		err = InitializeCRDState(rootCtx, z, httpRemoteRestService, cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
@@ -1372,7 +1386,9 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 }
 
 // InitializeCRDState builds and starts the CRD controllers.
-func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig) error {
+//
+//nolint:gocyclo // legacy
+func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig) error {
 	// convert interface type to implementation type
 	httpRestServiceImplementation, ok := httpRestService.(*restserver.HTTPRestService)
 	if !ok {
@@ -1514,7 +1530,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		Scheme:  scheme,
 		Metrics: ctrlmetrics.Options{BindAddress: "0"},
 		Cache:   cacheOpts,
-		Logger:  ctrlzap.New(),
+		Logger:  zapr.NewLogger(z),
 	}
 
 	manager, err := ctrl.NewManager(kubeConfig, managerOpts)

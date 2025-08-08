@@ -4,7 +4,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// platformCore returns a no-op core for Linux.
+// On Linux, platformCore returns a no-op core.
 func platformCore(*Config) (zapcore.Core, func(), error) {
 	return zapcore.NewNopCore(), func() {}, nil
 }

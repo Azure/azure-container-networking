@@ -1,15 +1,41 @@
 package logger
 
 import (
+	"encoding/json"
+
 	"github.com/Azure/azure-container-networking/zapetw"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 type ETWConfig struct {
-	EventName    string
-	Level        zapcore.Level
-	ProviderName string
+	EventName    string          `json:"eventname"`
+	Level        string          `json:"level"`
+	level        zapcore.Level   `json:"-"`
+	ProviderName string          `json:"providername"`
+	Fields       []zapcore.Field `json:"fields"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler for the Config.
+// It only differs from the default by parsing the
+// Level string into a zapcore.Level and setting the level field.
+func (cfg *ETWConfig) UnmarshalJSON(data []byte) error {
+	type Alias ETWConfig
+	aux := &struct {
+		*Alias
+	}{
+		Alias: (*Alias)(cfg),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return errors.Wrap(err, "failed to unmarshal ETWConfig")
+	}
+	lvl, err := zapcore.ParseLevel(cfg.Level)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse ETWConfig Level")
+	}
+	cfg.level = lvl
+	return nil
 }
 
 // ETWCore builds a zapcore.Core that sends logs to ETW.
@@ -18,5 +44,5 @@ func ETWCore(cfg *ETWConfig) (zapcore.Core, func(), error) {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
-	return zapetw.New(cfg.ProviderName, cfg.EventName, jsonEncoder, cfg.Level) //nolint:wrapcheck // ignore
+	return zapetw.New(cfg.ProviderName, cfg.EventName, jsonEncoder, cfg.level) //nolint:wrapcheck // ignore
 }

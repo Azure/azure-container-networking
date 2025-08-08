@@ -42,8 +42,8 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Normalize checks the Config for missing or illegal values and sets them
-// to defaults if appropriate.
+// Normalize checks the Config for missing/default values and sets them
+// if appropriate.
 func (c *Config) Normalize() {
 	if c.File != nil {
 		if c.File.Filepath == "" {
