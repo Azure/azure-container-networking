@@ -1,6 +1,6 @@
 ARG ARCH
-# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0 --format "{{.Name}}@{{.Digest}}"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:3999f970bb52b7413ef9be2803173d4fd7f1f3c59362a98a0c78d155e3a0e59f AS go
+# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24 --format "{{.Name}}@{{.Digest}}"
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:04090387119cd45c73b426f036f96dd2c44e3e82acdd27b5d95fdf0c7f36fde4 AS go
 ARG VERSION
 ARG DEBUG
 ARG OS
