@@ -610,6 +610,7 @@ stages:
         scaleup: ${SCALEUP_WIN}
         iterations: ${ITERATIONS_WIN}
         upgradeScenario: true
+        dependsOn: windows_podsubnet_HNS
 
     - template: singletenancy/cniv2-template.yaml
       parameters:
@@ -627,6 +628,7 @@ stages:
         scaleup: ${SCALEUP_WIN}
         iterations: ${ITERATIONS_WIN}
         upgradeScenario: true
+        dependsOn: windows_overlay_HNS
 
   - stage: delete_resources
     displayName: "Delete Resources"
@@ -670,6 +672,8 @@ stages:
         - rdma_linux_overlay_upgrade
         - windows_podsubnet_upgrade
         - windows_overlay_upgrade
+        - windows_podsubnet_upgrade_HNS
+        - windows_overlay_upgrade_HNS
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     jobs:

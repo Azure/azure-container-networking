@@ -62,7 +62,7 @@ stages:
 # Condition confirms that:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
 # CONTROL_OS either contains 'windows' or 'all' and CONTROL_CNI either contains 'cniv2' or 'all'. Both must be true and are not case sensitive
-  - ${{ if eq(parameters.os, 'windows') }}:
+  - ${{ if and(eq(parameters.os, 'windows'), eq(parameters.upgradeScenario, false)) }}:
     - stage: create_${{ parameters.name }}
       condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cniv2'), contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'windows'), contains(variables.CONTROL_OS, 'all') ) ) )
       variables:
@@ -367,7 +367,10 @@ stages:
       dependsOn:
         - ${{ parameters.name }}
         - setup
-      displayName: "HNS Test - ${{ parameters.clusterName }}"
+      ${{ if eq(parameters.upgradeScenario, true) }}:
+        displayName: "HNS Test w/ Upgrade - ${{ parameters.name }}"
+      ${{ else }}:
+        displayName: "HNS Test - ${{ parameters.name }}"
       jobs:
         - job: restart_hns
           displayName: "Restart and Validate HNS"
