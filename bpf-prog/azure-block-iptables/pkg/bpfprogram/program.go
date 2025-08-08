@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	blockservice "github.com/Azure/azure-container-networking/bpf-prog/block-iptables/pkg/blockservice"
+	blockservice "github.com/Azure/azure-container-networking/bpf-prog/azure-block-iptables/pkg/blockservice"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/pkg/errors"

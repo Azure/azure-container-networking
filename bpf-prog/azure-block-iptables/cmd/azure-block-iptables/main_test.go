@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/bpf-prog/block-iptables/pkg/bpfprogram"
+	"github.com/Azure/azure-container-networking/bpf-prog/azure-block-iptables/pkg/bpfprogram"
 	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
 )
