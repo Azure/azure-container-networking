@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Azure/azure-container-networking/bpf-prog/block-iptables/pkg/bpfprogram"
+	"github.com/Azure/azure-container-networking/bpf-prog/azure-block-iptables/pkg/bpfprogram"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/fsnotify/fsnotify"
 )

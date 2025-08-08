@@ -29,7 +29,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: generated-bpf-program-code
-          path: ./bpf-prog/block-iptables/pkg/blockservice
+          path: ./bpf-prog/azure-block-iptables/pkg/blockservice
   golangci:
     strategy:
       fail-fast: false
@@ -50,7 +50,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: generated-bpf-program-code
-        path: ./bpf-prog/block-iptables/pkg/blockservice
+        path: ./bpf-prog/azure-block-iptables/pkg/blockservice
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v6
       with:
