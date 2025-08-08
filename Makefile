@@ -938,13 +938,13 @@ test-extended-cyclonus: ## run the cyclonus test for npm.
 	cd ..
 
 test-azure-ipam: ## run the unit test for azure-ipam
-	cd $(AZURE_IPAM_DIR) && go test -race -covermode atomic -coverprofile=../coverage-azure-ipam.out && go tool cover  -func=../coverage-azure-ipam.out
+	cd $(AZURE_IPAM_DIR) && go test -race -covermode atomic -coverprofile=../coverage-azure-ipam.out && go tool cover -func=../coverage-azure-ipam.out
 
 test-azure-ip-masq-merger: ## run the unit test for azure-ip-masq-merger
-	cd $(AZURE_IP_MASQ_MERGER_DIR) && go test -race -covermode atomic -coverprofile=../coverage-azure-ip-masq-merger.out && go tool cover  -func=../coverage-azure-ip-masq-merger.out
+	cd $(AZURE_IP_MASQ_MERGER_DIR) && go test -race -covermode atomic -coverprofile=../coverage-azure-ip-masq-merger.out && go tool cover -func=../coverage-azure-ip-masq-merger.out
 
 test-azure-iptables-monitor: ## run the unit test for azure-iptables-monitor
-	cd $(AZURE_IPTABLES_MONITOR_DIR) && go test -race -covermode atomic -coverprofile=../coverage-azure-iptables-monitor.out && go tool cover  -func=../coverage-azure-iptables-monitor.out
+	cd $(AZURE_IPTABLES_MONITOR_DIR) && go test -race -covermode atomic -coverprofile=../coverage-azure-iptables-monitor.out && go tool cover -func=../coverage-azure-iptables-monitor.out
 
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
@@ -985,7 +985,8 @@ gitconfig: ## configure the local git repository
 	@git config core.fsmonitor true
 	@git config core.untrackedcache true
 
-setup: install-hooks gitconfig ## performs common required repo setup
+setup: tools install-hooks gitconfig ## performs common required repo setup
+
 
 ##@ Tools
 

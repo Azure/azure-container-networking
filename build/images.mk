@@ -26,6 +26,5 @@ print:
 	@echo ${WIN_HPC_PIN}
 
 render:
-	@echo "${GOPATH}"
 	${GOPATH}/bin/renderkit -f ${SRC} --ds env:// > ${DEST}
 	${GOPATH}/bin/renderkit -f ${SRC_PIPE} --ds env:// > ${DEST_PIPE}
