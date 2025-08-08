@@ -57,3 +57,21 @@ func (m *MockIMDSClient) GetVMUniqueID(ctx context.Context) (string, error) {
 
 	return "55b8499d-9b42-4f85-843f-24ff69f4a643", nil
 }
+
+func (m *MockIMDSClient) GetNetworkInterfaces(ctx context.Context) ([]imds.NetworkInterface, error) {
+	if ctx.Value(SimulateError) != nil {
+		return nil, imds.ErrUnexpectedStatusCode
+	}
+
+	// Return some mock network interfaces for testing
+	return []imds.NetworkInterface{
+		{
+			InterfaceCompartmentID:      "nc1",
+			InterfaceCompartmentVersion: "1",
+		},
+		{
+			InterfaceCompartmentID:      "nc2",
+			InterfaceCompartmentVersion: "2",
+		},
+	}, nil
+}
