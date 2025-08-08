@@ -32,7 +32,7 @@ fi
 # install protoc-gen-go
 if [ ! -f ${GOPATH}/bin/protoc-gen-go ]; then
 	echo "Installing protoc-gen-go"
-	go install -modfile=${REPO_ROOT}/tools.go.mod github.com/golang/protobuf/protoc-gen-go@v1.26
+	go install -modfile=${REPO_ROOT}/tools.go.mod github.com/golang/protobuf/protoc-gen-go
 else
 	echo "protoc-gen-go already installed at ${GOPATH}/bin/protoc-gen-go"
 fi
@@ -40,7 +40,7 @@ fi
 # install protoc-gen-go-grpc
 if [ ! -f ${GOPATH}/bin/protoc-gen-go-grpc ]; then
 	echo "Installing protoc-gen-go-grpc"
-	go install -modfile=${REPO_ROOT}/tools.go.mod google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.1
+	go install -modfile=${REPO_ROOT}/tools.go.mod google.golang.org/grpc/cmd/protoc-gen-go-grpc
 else
 	echo "protoc-gen-go-grpc already installed at ${GOPATH}/bin/protoc-gen-go-grpc"
 fi
