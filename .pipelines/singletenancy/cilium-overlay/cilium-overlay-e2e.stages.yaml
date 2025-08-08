@@ -14,10 +14,6 @@ stages:
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
-    pool:
-      isCustom: true
-      type: linux
-      name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:

@@ -4,7 +4,7 @@ ARG NPM_AI_PATH
 ARG NPM_AI_ID
 WORKDIR /usr/local/src
 COPY . .
-RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/azure-npm -ldflags "-X main.version="$VERSION" -X "$NPM_AI_PATH"="$NPM_AI_ID"" -gcflags="-dwarflocationlists=true" npm/cmd/*.go
+RUN CGO_ENABLED=0 go build -v -o /usr/local/bin/azure-npm -ldflags "-s -w -X main.version="$VERSION" -X "$NPM_AI_PATH"="$NPM_AI_ID"" -gcflags="-dwarflocationlists=true" npm/cmd/*.go
 
 FROM mcr.microsoft.com/mirror/docker/library/ubuntu:24.04 as linux
 COPY --from=builder /usr/local/bin/azure-npm /usr/bin/azure-npm

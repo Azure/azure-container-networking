@@ -37,7 +37,7 @@ RUN if [ "$ARCH" = "arm64" ]; then \
 ENV C_INCLUDE_PATH=/usr/include/bpf
 RUN if [ "$DEBUG" = "true" ]; then echo "\n#define DEBUG" >> /bpf-prog/ipv6-hp-bpf/include/helper.h; fi
 RUN GOOS=$OS CGO_ENABLED=0 go generate ./...
-RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/ipv6-hp-bpf -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
+RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/ipv6-hp-bpf -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
 
 FROM mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0 AS linux
 COPY --from=builder /go/bin/ipv6-hp-bpf /ipv6-hp-bpf
