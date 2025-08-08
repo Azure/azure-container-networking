@@ -38,3 +38,4 @@ test/scale/generated/*
 
 # omit e2e bin
 test/e2e/bin/*
+azure-ipam/azure-ipam
