@@ -882,8 +882,8 @@ lint-all: ## Lint the current branch in entirety.
 
 FMT_PKG ?= cni cns npm
 
-fmt: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm").
-	$(GOFUMPT) -s -w $(FMT_PKG)
+fmt: ## run gofumpt on $FMT_PKG (default "cni cns npm").
+	go tool -modfile=$(TOOLS_GO_MOD) gofumpt -s -w $(FMT_PKG)
 
 
 workspace: ## Set up the Go workspace.
@@ -965,7 +965,7 @@ dockerfiles: renderkit ## Render all Dockerfile templates with current state of 
 	@make -f build/images.mk render PATH=cns
 	@make -f build/images.mk render PATH=cni
 
-regenerate-crd: controller-gen ## Regenerate CRDs
+regenerate-crd: ## Regenerate CRDs
 	for makefile in $$(find ./crd/ -name "Makefile" -type f -printf '%h\n'); do \
 		echo "Running make in $$makefile"; \
 		make -C $$makefile; \
@@ -989,13 +989,11 @@ setup: install-hooks gitconfig ## performs common required repo setup
 
 ##@ Tools
 
-tools: renderkit controller-gen
+tools: renderkit
 
 renderkit: ## Install renderkit for rendering Dockerfile templates
 	@go install -modfile=$(TOOLS_GO_MOD) github.com/orellazri/renderkit
 
-controller-gen: ## Install renderkit for rendering Dockerfile templates
-	@go install -modfile=$(TOOLS_GO_MOD) -mod=readonly sigs.k8s.io/controller-tools/cmd/controller-gen
 
 ##@ Help
 
