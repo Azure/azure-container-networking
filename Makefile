@@ -965,6 +965,12 @@ dockerfiles: renderkit ## Render all Dockerfile templates with current state of 
 	@make -f build/images.mk render PATH=cns
 	@make -f build/images.mk render PATH=cni
 
+regenerate-crd: controller-gen ## Regenerate CRDs
+	for makefile in $$(find ./crd/ -name "Makefile" -type f -printf '%h\n'); do \
+		echo "Running make in $$makefile"; \
+		make -C $$makefile; \
+	done
+
 
 $(REPO_ROOT)/.git/hooks/pre-push:
 	@ln -s $(REPO_ROOT)/.hooks/pre-push $(REPO_ROOT)/.git/hooks/
@@ -983,10 +989,13 @@ setup: install-hooks gitconfig ## performs common required repo setup
 
 ##@ Tools
 
-tools: renderkit
+tools: renderkit controller-gen
 
 renderkit: ## Install renderkit for rendering Dockerfile templates
 	@go install -modfile=$(TOOLS_GO_MOD) github.com/orellazri/renderkit
+
+controller-gen: ## Install renderkit for rendering Dockerfile templates
+	@go install -modfile=$(TOOLS_GO_MOD) -mod=readonly sigs.k8s.io/controller-tools/cmd/controller-gen
 
 ##@ Help
 
