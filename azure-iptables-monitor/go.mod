@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking/azure-iptables-monitor
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/coreos/go-iptables v0.8.0
