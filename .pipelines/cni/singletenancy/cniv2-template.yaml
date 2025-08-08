@@ -148,18 +148,18 @@ stages:
                       echo "UPGRADE_CNS_VERSION is not set, using default value"
                       CNS=$(make cns-version)
                     else
-                      CNS=$(UPGRADE_CNS_VERSION)
+                      CNS=$UPGRADE_CNS_VERSION
                       echo "UPGRADE_CNS_VERSION is set to $CNS"
                     fi
-                    IPAM_IMAGE_REPO=$(UPGRADE_IPAM_IMAGE_REPO)
-                    CNS_IMAGE_REPO=$(UPGRADE_CNS_IMAGE_REPO)
+                    IPAM_IMAGE_REPO=$UPGRADE_IPAM_IMAGE_REPO
+                    CNS_IMAGE_REPO=$UPGRADE_CNS_IMAGE_REPO
                   else
                     if [ -z "$TEST_CNS_VERSION" ]
                     then
                       echo "TEST_CNS_VERSION is not set, using default value"
                       CNS=$(make cns-version)
                     else
-                      CNS=$(TEST_CNS_VERSION)
+                      CNS=$TEST_CNS_VERSION
                       echo "TEST_CNS_VERSION is set to $CNS"
                     fi
                   fi
@@ -190,18 +190,18 @@ stages:
                       echo "UPGRADE_CNS_VERSION is not set, using default value"
                       CNS=$(make cns-version)
                     else
-                      CNS=$(UPGRADE_CNS_VERSION)
+                      CNS=$UPGRADE_CNS_VERSION
                       echo "UPGRADE_CNS_VERSION is set to $CNS"
                     fi
-                    IPAM_IMAGE_REPO=$(UPGRADE_IPAM_IMAGE_REPO)
-                    CNS_IMAGE_REPO=$(UPGRADE_CNS_IMAGE_REPO)
+                    IPAM_IMAGE_REPO=$UPGRADE_IPAM_IMAGE_REPO
+                    CNS_IMAGE_REPO=$UPGRADE_CNS_IMAGE_REPO
                   else
                     if [ -z "$TEST_CNS_VERSION" ]
                     then
                       echo "TEST_CNS_VERSION is not set, using default value"
                       CNS=$(make cns-version)
                     else
-                      CNS=$(TEST_CNS_VERSION)
+                      CNS=$TEST_CNS_VERSION
                       echo "TEST_CNS_VERSION is set to $CNS"
                     fi
                   fi
