@@ -120,6 +120,87 @@ paths:
               schema:
                 $ref: "#/components/schemas/UnpublishNetworkContainerResponse"
 
+  /ibdevices:assign:
+    post:
+      summary: Assign IB devices to a pod
+      description: >
+        Assigns one or more Infiniband devices by MAC address to a given pod.
+      parameters:
+        - name: ibmacs
+          in: query
+          required: true
+          description: Comma-separated list of IB device MAC addresses.
+          schema:
+            type: array
+            items:
+              type: string
+            example: ["60:45:bd:a4:b5:7a", "7c:1e:52:07:11:36"]
+        - name: podnamespace
+          in: query
+          required: true
+          description: The namespace of the target pod.
+          schema:
+            type: string
+            example: "podnamespace"
+        - name: podname
+          in: query
+          required: true
+          description: The name of the target pod.
+          schema:
+            type: string
+            example: "podname"
+      responses:
+        '200':
+          description: >-
+            The request passed initial validation and CNS was able to propagate its state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignIBDevicesToPodResponse"
+        '404':
+          description: >-
+            The pod specified by PodID was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignIBDevicesToPodResponse"
+        '400':
+          description: >-
+            One of the IB devices specified is not available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignIBDevicesToPodResponse"
+  
+  /ibdevices:
+    get:
+      summary: Get status of an IB device
+      description: >-
+        Retrieves the current programming status of the specified IB device.
+      parameters:
+        - name: ibmac
+          in: query
+          required: true
+          description: The MAC address of the IB device.
+          schema:
+            type: string
+            example: "60:45:bd:a4:b5:7a"
+      responses:
+        '200':
+          description: >-
+            The request was successful and the status of the IB device is returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetIBDeviceStatusResponse"
+        '404':
+          description: >-
+            The IB device specified by MAC address was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetIBDeviceStatusResponse"
+
 components:
   schemas:
     UnpublishNetworkContainerResponse:
@@ -351,3 +432,56 @@ components:
         Message:
           type: string
           description: The error message
+
+    AssignIBDevicesToPodResponse:
+      type: object
+      required:
+        - Message
+      properties:
+        Message:
+          type: string
+          description: Human-readable message or error description
+
+    GetIBDeviceStatusResponse:
+      type: object
+      required:
+        - MACAddress
+        - PodNamespace
+        - PodName
+        - Status
+        - Message
+      properties:
+        MACAddress:
+          type: string
+          description: MAC address of the IB device
+        PodNamespace:
+          type: string
+          description: namespace of the pod to which the device is assigned, if any
+        PodName:
+          type: string
+          description: name of the pod to which the device is assigned, if any
+        Status:
+          $ref: "#/components/schemas/Status"
+        Message:
+          type: string
+          description: Human-readable message or error description
+      
+    Status:
+      type: integer
+      description: Status of IB device (see cns/types/infiniband/status.go)
+      oneOf:
+      - title: Available
+        const: 0
+        description: Device is available for use
+      - title: ProgrammingPending
+        const: 1
+        description: Programming of device is pending
+      - title: ProgrammingFailed
+        const: 2
+        description: Programming of device failed
+      - title: ProgrammingComplete  
+        const: 3
+        description: Programming of device is complete
+      - title: ReleasePending
+        const: 4
+        description: Release of device is pending
