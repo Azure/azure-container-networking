@@ -1020,9 +1020,9 @@ func main() {
 
 		var localServerURL string
 		if config.Server.Port != "" {
-			localServerURL = fmt.Sprintf(defaultLocalServerIP + ":" + config.Server.Port)
+			localServerURL = fmt.Sprintf("%s:%s", defaultLocalServerIP, config.Server.Port)
 		} else {
-			localServerURL = fmt.Sprintf(defaultLocalServerIP + ":" + defaultLocalServerPort)
+			localServerURL = fmt.Sprintf("%s:%s", defaultLocalServerIP, defaultLocalServerPort)
 		}
 
 		httpLocalRestService := restserverv2.New(httpRemoteRestService)
