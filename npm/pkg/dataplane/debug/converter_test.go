@@ -179,7 +179,7 @@ func TestGetSetType(t *testing.T) {
 			actualType := c.getSetType(test.inputSetName, test.inputMapName)
 			diff := cmp.Diff(test.expected, actualType)
 			if diff != "" {
-				t.Fatalf(diff)
+				t.Fatalf("%s", diff)
 			}
 		})
 	}

@@ -215,7 +215,7 @@ func (ipsMgr *IpsetManager) run(entry *ipsEntry) (int, error) {
 		errfmt := fmt.Errorf("error running command: [%s %v] Stderr: [%w, %s]",
 			cmdName, strings.Join(cmdArgs, " "), err, strings.TrimSuffix(string(output), "\n"))
 		if exitCode > 0 {
-			metrics.SendErrorLogAndMetric(util.IpsmID, errfmt.Error())
+			metrics.SendErrorLogAndMetric(util.IpsmID, "%s", errfmt.Error())
 		}
 
 		return exitCode, errfmt
@@ -226,7 +226,6 @@ func (ipsMgr *IpsetManager) run(entry *ipsEntry) (int, error) {
 
 // CreateListNoLock is identical to CreateList except it does not lock the ipsMgr.
 func (ipsMgr *IpsetManager) CreateListNoLock(listName string) error {
-
 	if _, exists := ipsMgr.listMap[listName]; exists {
 		return nil
 	}
