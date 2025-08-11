@@ -25,6 +25,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	// Known API names we care about
+	nmAgentSwiftV2API = "EnableSwiftV2NCGoalStateSupport"
+)
+
 // This file contains the internal functions called by either HTTP APIs (api.go) or
 // internal APIs (definde in internalapi.go).
 // This will be used internally (say by RequestController in case of AKS)
@@ -221,18 +226,36 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		return len(programmedNCs), errors.Wrap(err, "failed to get nc version list from nmagent")
 	}
 
+	// Get IMDS NC versions for delegated NIC scenarios
+	imdsNCVersions, err := service.GetIMDSNCVersions(ctx)
+	if err != nil {
+		// If any of the NMA API check calls, imds calls fails assume that nma build doesn't have the latest changes and create empty map
+		imdsNCVersions = make(map[string]string)
+	}
+
 	nmaNCs := map[string]string{}
 	for _, nc := range ncVersionListResp.Containers {
 		nmaNCs[strings.ToLower(nc.NetworkContainerID)] = nc.Version
 	}
-	hasNC.Set(float64(len(nmaNCs)))
+
+	// Consolidate both nc's from NMA and IMDS calls
+	nmaProgrammedNCs := make(map[string]string)
+	for ncID, version := range nmaNCs {
+		nmaProgrammedNCs[ncID] = version
+	}
+	for ncID, version := range imdsNCVersions {
+		if _, exists := nmaProgrammedNCs[ncID]; !exists {
+			nmaProgrammedNCs[strings.ToLower(ncID)] = version
+		}
+	}
+	hasNC.Set(float64(len(nmaProgrammedNCs)))
 	for ncID := range outdatedNCs {
-		nmaNCVersionStr, ok := nmaNCs[ncID]
+		nmaProgrammedNCVersionStr, ok := nmaProgrammedNCs[ncID]
 		if !ok {
-			// NMA doesn't have this NC that we need programmed yet, bail out
+			// Neither NMA nor IMDS has this NC that we need programmed yet, bail out
 			continue
 		}
-		nmaNCVersion, err := strconv.Atoi(nmaNCVersionStr)
+		nmaProgrammedNCVersion, err := strconv.Atoi(nmaProgrammedNCVersionStr)
 		if err != nil {
 			logger.Errorf("failed to parse container version of %s: %s", ncID, err)
 			continue
@@ -245,7 +268,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 			return len(programmedNCs), errors.Wrapf(errNonExistentContainerStatus, "can't find NC with ID %s in service state, stop updating this host NC version", ncID)
 		}
 		// if the NC still exists in state and is programmed to some version (doesn't have to be latest), add it to our set of NCs that have been programmed
-		if nmaNCVersion > -1 {
+		if nmaProgrammedNCVersion > -1 {
 			programmedNCs[ncID] = struct{}{}
 		}
 
@@ -254,15 +277,17 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 			logger.Errorf("failed to parse host nc version string %s: %s", ncInfo.HostVersion, err)
 			continue
 		}
-		if localNCVersion > nmaNCVersion {
-			logger.Errorf("NC version from NMA is decreasing: have %d, got %d", localNCVersion, nmaNCVersion)
+		if localNCVersion > nmaProgrammedNCVersion {
+			//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+			logger.Errorf("NC version from consolidated sources is decreasing: have %d, got %d", localNCVersion, nmaProgrammedNCVersion)
 			continue
 		}
 		if channelMode == cns.CRD {
-			service.MarkIpsAsAvailableUntransacted(ncInfo.ID, nmaNCVersion)
+			service.MarkIpsAsAvailableUntransacted(ncInfo.ID, nmaProgrammedNCVersion)
 		}
-		logger.Printf("Updating NC %s host version from %s to %s", ncID, ncInfo.HostVersion, nmaNCVersionStr)
-		ncInfo.HostVersion = nmaNCVersionStr
+		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+		logger.Printf("Updating NC %s host version from %s to %s", ncID, ncInfo.HostVersion, nmaProgrammedNCVersionStr)
+		ncInfo.HostVersion = nmaProgrammedNCVersionStr
 		logger.Printf("Updated NC %s host version to %s", ncID, ncInfo.HostVersion)
 		service.state.ContainerStatus[ncID] = ncInfo
 		// if we successfully updated the NC, pop it from the needs update set.
@@ -271,7 +296,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	// if we didn't empty out the needs update set, NMA has not programmed all the NCs we are expecting, and we
 	// need to return an error indicating that
 	if len(outdatedNCs) > 0 {
-		return len(programmedNCs), errors.Errorf("unabled to update some NCs: %v, missing or bad response from NMA", outdatedNCs)
+		return len(programmedNCs), errors.Errorf("unable to update some NCs: %v, missing or bad response from NMA or IMDS", outdatedNCs)
 	}
 
 	return len(programmedNCs), nil
@@ -332,7 +357,6 @@ func (service *HTTPRestService) ReconcileIPAssignment(podInfoByIP map[string]cns
 
 		for _, ip := range ips {
 			if ncReq, ok := allSecIPsIdx[ip.String()]; ok {
-				logger.Printf("secondary ip %s is assigned to pod %+v, ncId: %s ncVersion: %s", ip, podIPs, ncReq.NetworkContainerid, ncReq.Version)
 				desiredIPs = append(desiredIPs, ip.String())
 				ncIDs = append(ncIDs, ncReq.NetworkContainerid)
 			} else {
@@ -361,7 +385,8 @@ func (service *HTTPRestService) ReconcileIPAssignment(podInfoByIP map[string]cns
 		}
 
 		if _, err := requestIPConfigsHelper(service, ipconfigsRequest); err != nil {
-			logger.Errorf("requestIPConfigsHelper failed for pod key %s, podInfo %+v, ncIds %v, error: %v", podKey, podIPs, ncIDs, err)
+			//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+			logger.Errorf("requestIPConfigsHelper failed for pod key %s, podInfo %+v, ncIDs %v, error: %v", podKey, podIPs, ncIDs, err)
 			return types.FailedToAllocateIPConfig
 		}
 	}
@@ -633,4 +658,68 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 
 func (service *HTTPRestService) SetVFForAccelnetNICs() error {
 	return service.setVFForAccelnetNICs()
+}
+
+func (service *HTTPRestService) getSupportedAPIsFromNMAgent(ctx context.Context) ([]string, error) {
+	if service.nma == nil {
+		return nil, errors.New("NMAgent client is not available")
+	}
+
+	apis, err := service.nma.SupportedAPIs(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get supported APIs from NMAgent client")
+	}
+
+	return apis, nil
+}
+
+func (service *HTTPRestService) isSwiftV2NCSupported(ctx context.Context) bool {
+	apis, err := service.getSupportedAPIsFromNMAgent(ctx)
+	if err != nil {
+		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+		logger.Errorf("Failed to get supported APIs from NMAgent: %v", err)
+		return false
+	}
+
+	for _, api := range apis {
+		if strings.Contains(api, nmAgentSwiftV2API) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetIMDSNCVersions gets NC versions from IMDS and returns them as a map
+func (service *HTTPRestService) GetIMDSNCVersions(ctx context.Context) (map[string]string, error) {
+	// Check NMAgent API support for SwiftV2, if it fails return empty map assuming support might not be available in that nma build
+	if !service.isSwiftV2NCSupported(ctx) {
+		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+		logger.Errorf("NMAgent does not support SwiftV2 API")
+		return make(map[string]string), nil
+	}
+
+	imdsClient := service.imdsClient
+
+	// Get all network interfaces from IMDS
+	networkInterfaces, err := imdsClient.GetNetworkInterfaces(ctx)
+	if err != nil {
+		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+		logger.Errorf("Failed to get network interfaces from IMDS: %v", err)
+		return make(map[string]string), nil
+	}
+
+	// Build ncVersions map from the network interfaces
+	ncVersions := make(map[string]string)
+	for _, iface := range networkInterfaces {
+		// IMDS returns interfaceCompartmentID, interfaceCompartmentVersion fields, as nc id guid has different context on nma. We map these to NC ID and NC version
+		ncID := iface.InterfaceCompartmentID
+		ncVersion := iface.InterfaceCompartmentVersion
+
+		if ncID != "" {
+			ncVersions[ncID] = ncVersion
+		}
+	}
+
+	return ncVersions, nil
 }
