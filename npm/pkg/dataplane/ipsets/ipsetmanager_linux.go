@@ -428,7 +428,7 @@ func (iMgr *IPSetManager) applyIPSets() error {
 		if iMgr.consecutiveApplyFailures >= maxConsecutiveFailures {
 			msg := fmt.Sprintf("exceeded max consecutive failures (%d) when applying ipsets. final error: %s", maxConsecutiveFailures, restoreError.Error())
 			klog.Error(msg)
-			metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+			metrics.SendErrorLogAndMetric(util.IpsmID, "%s", msg)
 			metrics.Close()
 			panic(msg)
 		}

@@ -362,7 +362,7 @@ func (iptMgr *IptablesManager) addAllRulesToChains() error {
 					msg = "Error: failed to add main chains with invalid rule length"
 				}
 
-				metrics.SendErrorLogAndMetric(util.IptmID, msg)
+				metrics.SendErrorLogAndMetric(util.IptmID, "%s", msg)
 				return err
 			}
 		}
