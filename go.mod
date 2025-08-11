@@ -3,7 +3,7 @@ module github.com/Azure/azure-container-networking
 go 1.23.2
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.2
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.1
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.12.0
 	github.com/Masterminds/semver v1.5.0
@@ -14,7 +14,7 @@ require (
 	github.com/billgraziano/dpapi v0.5.0
 	github.com/containernetworking/cni v1.3.0
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
-	github.com/go-logr/zapr v1.3.0 // indirect
+	github.com/go-logr/zapr v1.3.0
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.4
 	github.com/google/gnostic-models v0.6.8 // indirect
@@ -53,7 +53,7 @@ require (
 
 require (
 	code.cloudfoundry.org/clock v1.0.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.1 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.4.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
