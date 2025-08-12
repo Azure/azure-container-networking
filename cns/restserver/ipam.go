@@ -1334,8 +1334,6 @@ func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter
 	opName := "DeleteEndpointStateHandler"
 	logger.Printf("[DeleteEndpointStateHandler] DeleteEndpointState for %s", r.URL.Path)
 	endpointID := strings.TrimPrefix(r.URL.Path, cns.EndpointPath)
-	service.Lock()
-	defer service.Unlock()
 
 	if service.EndpointStateStore == nil {
 		response := cns.Response{
