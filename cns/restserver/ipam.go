@@ -1151,6 +1151,8 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 		service.GetEndpointHandler(w, r)
 	case http.MethodPatch:
 		service.UpdateEndpointHandler(w, r)
+	case http.MethodDelete:
+		service.DeleteEndpointStateHandler(w, r)
 	default:
 		logger.Errorf("[EndpointHandlerAPI] EndpointHandler API expect http Get or Patch method")
 	}
@@ -1356,6 +1358,7 @@ func verifyUpdateEndpointStateRequest(req map[string]*IPInfo) error {
 	return nil
 }
 
+<<<<<<< HEAD
 // getIPFamiliesMap returns a map of IP families present across all NC's
 func (service *HTTPRestService) getIPFamiliesMap() map[cns.IPFamily]struct{} {
 	ncIPFamilies := map[cns.IPFamily]struct{}{}
@@ -1392,4 +1395,72 @@ func (service *HTTPRestService) getIPFamiliesMap() map[cns.IPFamily]struct{} {
 // - In dual-stack: 2 IPs per pod (one IPv4, one IPv6)
 func (service *HTTPRestService) GetIPFamilyCount() int {
 	return len(service.getIPFamiliesMap())
+=======
+func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter, r *http.Request) {
+	opName := "DeleteEndpointStateHandler"
+	logger.Printf("[DeleteEndpointStateHandler] DeleteEndpointState for %s", r.URL.Path)
+	endpointID := strings.TrimPrefix(r.URL.Path, cns.EndpointPath)
+	service.Lock()
+	defer service.Unlock()
+
+	if service.EndpointStateStore == nil {
+		response := cns.Response{
+			ReturnCode: types.UnexpectedError,
+			Message:    fmt.Sprintf("[DeleteEndpointStateHandler] EndpointStateStore is not initialized"),
+		}
+		err := common.Encode(w, &response)
+		logger.Response(opName, response, response.ReturnCode, err)
+		return
+	}
+
+	// Decode the request body to get ipInfo if needed
+	var req map[string]*IPInfo
+	err := common.Decode(w, r, &req)
+	if err != nil {
+		logger.Printf("[DeleteEndpointStateHandler] Failed to decode request body: %v", err)
+		// Continue with deletion even if decode fails, as ipInfo might not be needed
+	}
+
+	// Delete the endpoint from state
+	err = service.DeleteEndpointStateHelper(endpointID)
+	if err != nil {
+		response := cns.Response{
+			ReturnCode: types.UnexpectedError,
+			Message:    fmt.Sprintf("[DeleteEndpointStateHandler] Failed to delete endpoint state for %s with error: %s", endpointID, err.Error()),
+		}
+		err = common.Encode(w, &response)
+		logger.Response(opName, response, response.ReturnCode, err)
+		return
+	}
+
+	response := cns.Response{
+		ReturnCode: types.Success,
+		Message:    "[DeleteEndpointStateHandler] Endpoint state deleted successfully",
+	}
+	err = common.Encode(w, &response)
+	logger.Response(opName, response, response.ReturnCode, err)
+}
+
+func (service *HTTPRestService) DeleteEndpointStateHelper(endpointID string) error {
+	if service.EndpointStateStore == nil {
+		return ErrStoreEmpty
+	}
+	logger.Printf("[deleteEndpointState] Deleting Endpoint state from state file %s", endpointID)
+	_, endpointExist := service.EndpointState[endpointID]
+	if !endpointExist {
+		logger.Printf("[deleteEndpointState] endpoint could not be found in the statefile %s", endpointID)
+		return fmt.Errorf("[deleteEndpointState] endpoint %s does not exist in the statefile", endpointID)
+	}
+
+	// Delete the endpoint from the state
+	delete(service.EndpointState, endpointID)
+
+	// Write the updated state back to the store
+	err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
+	if err != nil {
+		return fmt.Errorf("[deleteEndpointState] failed to write endpoint state to store: %w", err)
+	}
+	logger.Printf("[deleteEndpointState] successfully deleted endpoint %s from state file", endpointID)
+	return nil
+>>>>>>> 79f3d9a0d (feat: Implement DeleteEndpointState API and integrate with network manager)
 }
