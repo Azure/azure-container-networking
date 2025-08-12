@@ -32,7 +32,7 @@ var (
 	sendEvents    = flag.Bool("events", false, "Whether to send node events if unexpected iptables rules are detected")
 )
 
-const label = "user-iptables-rules"
+const label = "kubernetes.azure.com/user-iptables-rules"
 
 type FileLineReader interface {
 	Read(filename string) ([]string, error)
