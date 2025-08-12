@@ -14,6 +14,6 @@
 /dropgz/                    @rbtr @camrynl @paulyufan2 @ashvindeodhar @thatmattlong
 /npm/                       @azure/acn-npm-reviewers
 /zapai/                     @rbtr @ZetaoZhuang
-/bpf-prog/                  @camrynl
+/bpf-prog/                  @camrynl @QxBytes @santhoshmprabhu
 /azure-ip-masq-merger/      @QxBytes @santhoshmprabhu
 /azure-iptables-monitor/    @QxBytes @santhoshmprabhu
