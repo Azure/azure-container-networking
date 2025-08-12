@@ -39,9 +39,9 @@ type OverlayExtensionConfigSpec struct {
 	// 43 is max length of IPv6 CIDR string
 	ExtensionIPRange string `json:"extensionIPRange,omitempty"`
 
-	// AppGatewaySubnetID field defines a subnet delegated to Application Gateway that should be able to reach routing domain ip addresses.
+	// AppGatewaySubnetGUID field defines a subnet delegated to Application Gateway that should be able to reach routing domain ip addresses. This needs to be a valid GUID.
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
-	AppGatewaySubnetID string `json:"appGatewaySubnetID,omitempty"`
+	AppGatewaySubnetGUID string `json:"appGatewaySubnetGUID,omitempty"`
 }
 
 type OECState string
