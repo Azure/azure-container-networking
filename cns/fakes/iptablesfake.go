@@ -20,7 +20,11 @@ type IPTablesLegacyMock struct {
 	deleteCallCount int
 }
 
+<<<<<<< HEAD
 func (c *IPTablesLegacyMock) Delete(_, _ string, _ ...string) error {
+=======
+func (c *IPTablesLegacyMock) Delete(table, chain string, rulespec ...string) error {
+>>>>>>> 584547398 (add logic to delete jump to swift postrouting in legacy and fix uts)
 	c.deleteCallCount++
 	return nil
 }
