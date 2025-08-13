@@ -3,6 +3,7 @@ package restserver
 import (
 	"fmt"
 	"net"
+	"os/exec"
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -22,11 +23,28 @@ func (c *IPtablesProvider) GetIPTables() (iptablesClient, error) {
 	client, err := goiptables.New()
 	return client, errors.Wrap(err, "failed to get iptables client")
 }
+func (c *IPtablesProvider) GetIPTablesLegacy() iptablesLegacyClient {
+	return &iptablesLegacy{}
+}
+
+type iptablesLegacy struct{}
+
+func (c *iptablesLegacy) Delete(table, chain string, rulespec ...string) error {
+	cmd := append([]string{"-t", table, "-D", chain}, rulespec...)
+	return exec.Command("iptables-legacy", cmd...).Run()
+}
 
 // nolint
 func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
 	service.Lock()
 	defer service.Unlock()
+
+	iptl := service.iptables.GetIPTablesLegacy()
+	err := iptl.Delete(iptables.Nat, iptables.Postrouting, "-j", SWIFTPOSTROUTING)
+	// ignore if command fails
+	if err == nil {
+		logger.Printf("[Azure CNS] Deleted legacy jump to SWIFT-POSTROUTING Chain")
+	}
 
 	ipt, err := service.iptables.GetIPTables()
 	if err != nil {
