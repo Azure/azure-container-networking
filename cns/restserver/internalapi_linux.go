@@ -31,7 +31,7 @@ type iptablesLegacy struct{}
 
 func (c *iptablesLegacy) Delete(table, chain string, rulespec ...string) error {
 	cmd := append([]string{"-t", table, "-D", chain}, rulespec...)
-	return exec.Command("iptables-legacy", cmd...).Run()
+	return errors.Wrap(exec.Command("iptables-legacy", cmd...).Run(), "iptables legacy failed delete")
 }
 
 // nolint

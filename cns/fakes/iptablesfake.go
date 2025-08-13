@@ -20,7 +20,7 @@ type IPTablesLegacyMock struct {
 	deleteCallCount int
 }
 
-func (c *IPTablesLegacyMock) Delete(table, chain string, rulespec ...string) error {
+func (c *IPTablesLegacyMock) Delete(_, _ string, _ ...string) error {
 	c.deleteCallCount++
 	return nil
 }
