@@ -3,6 +3,7 @@ package restserver
 import (
 	"fmt"
 	"net"
+	"os/exec"
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -22,6 +23,16 @@ func (c *IPtablesProvider) GetIPTables() (iptablesClient, error) {
 	client, err := goiptables.New()
 	return client, errors.Wrap(err, "failed to get iptables client")
 }
+func (c *IPtablesProvider) GetIPTablesLegacy() iptablesLegacyClient {
+	return &iptablesLegacy{}
+}
+
+type iptablesLegacy struct{}
+
+func (c *iptablesLegacy) Delete(table, chain string, rulespec ...string) error {
+	cmd := append([]string{"-t", table, "-D", chain}, rulespec...)
+	return exec.Command("iptables-legacy", cmd...).Run()
+}
 
 // nolint
 func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
@@ -32,6 +43,13 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 	// in podsubnet case, ncPrimaryIP is the pod subnet's primary ip
 	// in vnet scale case, ncPrimaryIP is the node's ip
 	ncPrimaryIP, _, _ := net.ParseCIDR(req.IPConfiguration.IPSubnet.IPAddress + "/" + fmt.Sprintf("%d", req.IPConfiguration.IPSubnet.PrefixLength))
+	iptl := service.iptables.GetIPTablesLegacy()
+	err := iptl.Delete(iptables.Nat, iptables.Postrouting, "-j", SWIFTPOSTROUTING)
+	// ignore if command fails
+	if err == nil {
+		logger.Printf("[Azure CNS] Deleted legacy jump to SWIFT-POSTROUTING Chain")
+	}
+
 	ipt, err := service.iptables.GetIPTables()
 	if err != nil {
 		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to create iptables interface : %v", err)
