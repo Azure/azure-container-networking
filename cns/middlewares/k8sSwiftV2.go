@@ -137,11 +137,32 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 					},
 					MacAddress:        interfaceInfo.MacAddress,
 					NICType:           nicType,
-					SkipDefaultRoutes: true,
+					SkipDefaultRoutes: true, // Default to true
 					// InterfaceName is empty for DelegatedVMNIC and AccelnetFrontendNIC
 				}
+
 				if interfaceInfo.DefaultRoute {
 					podIPInfo.SkipDefaultRoutes = false // Default route is added in setRoutes() for Linux swiftv2
+				} else {
+					// For backward compatibility: Check if this appears to be an old schema resource
+					// In old schema, VnetNIC interfaces typically got default routes
+					// We assume it's old schema if DefaultRoute is false AND there's no explicit indication
+					// that this is a new schema resource with intentionally disabled default routes
+
+					// TODO: Consider adding a version field to the CRD to distinguish old vs new schema
+					// For now, we use a heuristic: if ALL VnetNIC interfaces have DefaultRoute=false,
+					// it's likely an old schema resource where the field wasn't set
+					isLikelyOldSchema := k.isLikelyOldSchemaResource(mtpnc.Status.InterfaceInfos)
+
+					if interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC && isLikelyOldSchema {
+						podIPInfo.SkipDefaultRoutes = false // Backward compatibility: add default routes for VnetNIC
+					} else {
+						podIPInfo.SkipDefaultRoutes = true // New schema: respect explicit DefaultRoute=false
+					}
+				}
+
+				// Add default route for Windows scenario when needed
+				if !podIPInfo.SkipDefaultRoutes {
 					k.addDefaultRoute(&podIPInfo, interfaceInfo.GatewayIP)
 				}
 				// for windows scenario, it is required to add additional fields with the exact subnetAddressSpace
@@ -158,6 +179,28 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 	}
 
 	return podIPInfos, nil
+}
+
+// isLikelyOldSchemaResource attempts to detect if this is an old schema resource
+// by checking if ALL VnetNIC interfaces have DefaultRoute=false
+// In new schema, it's unlikely that all VnetNIC interfaces would have DefaultRoute=false
+// since at least one would typically need to be the default route
+func (k *K8sSWIFTv2Middleware) isLikelyOldSchemaResource(interfaceInfos []v1alpha1.InterfaceInfo) bool {
+	vnetNICCount := 0
+	vnetNICWithDefaultRouteFalse := 0
+
+	for _, interfaceInfo := range interfaceInfos {
+		if interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC {
+			vnetNICCount++
+			if !interfaceInfo.DefaultRoute {
+				vnetNICWithDefaultRouteFalse++
+			}
+		}
+	}
+
+	// If there are VnetNIC interfaces and ALL of them have DefaultRoute=false,
+	// it's likely an old schema resource where the field wasn't set
+	return vnetNICCount > 0 && vnetNICCount == vnetNICWithDefaultRouteFalse
 }
 
 func (k *K8sSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
