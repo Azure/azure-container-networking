@@ -27,11 +27,11 @@ func (c *FakeIPTablesProvider) GetIPTables() (iptablesClient, error) {
 	return c.iptables, nil
 }
 
-func (c *FakeIPTablesProvider) GetIPTablesLegacy() iptablesLegacyClient {
+func (c *FakeIPTablesProvider) GetIPTablesLegacy() (iptablesLegacyClient, error) {
 	if c.iptablesLegacy == nil {
 		c.iptablesLegacy = &fakes.IPTablesLegacyMock{}
 	}
-	return c.iptablesLegacy
+	return c.iptablesLegacy, nil
 }
 
 func TestAddSNATRules(t *testing.T) {
