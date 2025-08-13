@@ -23,8 +23,8 @@ func (c *IPtablesProvider) GetIPTables() (iptablesClient, error) {
 	client, err := goiptables.New()
 	return client, errors.Wrap(err, "failed to get iptables client")
 }
-func (c *IPtablesProvider) GetIPTablesLegacy() iptablesLegacyClient {
-	return &iptablesLegacy{}
+func (c *IPtablesProvider) GetIPTablesLegacy() (iptablesLegacyClient, error) {
+	return &iptablesLegacy{}, nil
 }
 
 type iptablesLegacy struct{}
@@ -39,8 +39,11 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 	service.Lock()
 	defer service.Unlock()
 
-	iptl := service.iptables.GetIPTablesLegacy()
-	err := iptl.Delete(iptables.Nat, iptables.Postrouting, "-j", SWIFTPOSTROUTING)
+	iptl, err := service.iptables.GetIPTablesLegacy()
+	if err != nil {
+		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to create iptables legacy interface : %v", err)
+	}
+	err = iptl.Delete(iptables.Nat, iptables.Postrouting, "-j", SWIFTPOSTROUTING)
 	// ignore if command fails
 	if err == nil {
 		logger.Printf("[Azure CNS] Deleted legacy jump to SWIFT-POSTROUTING Chain")

@@ -70,7 +70,7 @@ type iptablesLegacyClient interface {
 
 type iptablesGetter interface {
 	GetIPTables() (iptablesClient, error)
-	GetIPTablesLegacy() iptablesLegacyClient
+	GetIPTablesLegacy() (iptablesLegacyClient, error)
 }
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.
