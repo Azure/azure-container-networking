@@ -36,7 +36,7 @@ func main() {
 		zap.String("configPath", *configPath),
 		zap.String("logLevel", *logLevel),
 		zap.Bool("hasBuiltInAIKey", currentAIMetadata != ""),
-		zap.String("aiKeyPrefix", maskAIKey(currentAIMetadata)))
+		zap.String("aiKeyPrefix", MaskAIKey(currentAIMetadata)))
 
 	// Create and configure telemetry sidecar
 	// Pass the configPath to NewTelemetrySidecar (it expects a string parameter)

@@ -182,8 +182,8 @@ func (s *TelemetrySidecar) startTelemetryService(ctx context.Context, config tel
 	if s.logger.Level() == zap.DebugLevel {
 		currentAIMetadata := telemetry.GetAIMetadata()
 		s.logger.Debug("AI telemetry status",
-			zap.String("buildTimeAIMetadata", maskAIKey(currentAIMetadata)),
-			zap.String("resolvedAIKey", maskAIKey(aiKey)),
+			zap.String("buildTimeAIMetadata", MaskAIKey(currentAIMetadata)),
+			zap.String("resolvedAIKey", MaskAIKey(aiKey)),
 			zap.Bool("aiMetadataSet", currentAIMetadata != ""))
 	}
 
@@ -260,7 +260,7 @@ func (s *TelemetrySidecar) startTelemetryService(ctx context.Context, config tel
 }
 
 // Helper function to mask AI key for logging
-func maskAIKey(aiKey string) string {
+func MaskAIKey(aiKey string) string {
 	if len(aiKey) <= 8 {
 		return aiKey
 	}
