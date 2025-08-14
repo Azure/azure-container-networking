@@ -1,8 +1,11 @@
+// Copyright Microsoft. All rights reserved.
 package main
 
 import (
 	"context"
+	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,52 +15,38 @@ import (
 )
 
 var (
-	configPath = flag.String("config", "/etc/azure-cns/cns_config.json", "Path to CNS configuration file")
+	configPath = flag.String("config", "", "Path to CNS configuration file")
 	logLevel   = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
-
-	// This variable is set at build time via ldflags from Makefile
-	version = "1.0.0" // -X main.version=$(CNI_TELEMETRY_SIDECAR_VERSION)
+	version    = "1.0.0" // Set at build time via -ldflags
 )
 
 func main() {
 	flag.Parse()
+	os.Exit(run())
+}
 
-	// Initialize logger
+func run() int {
 	logger, err := initializeLogger(*logLevel)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
+		return 1
 	}
-	defer logger.Sync()
+	defer logger.Sync() //nolint:errcheck // best effort
 
-	// DEBUG: Check if aiMetadata was set at build time via ldflags
-	currentAIMetadata := telemetry.GetAIMetadata()
+	configManager := NewConfigManager(*configPath)
+	configManager.SetLogger(logger)
+
 	logger.Info("Starting Azure CNI Telemetry Sidecar",
 		zap.String("version", version),
-		zap.String("configPath", *configPath),
-		zap.String("logLevel", *logLevel),
-		zap.Bool("hasBuiltInAIKey", currentAIMetadata != ""),
-		zap.String("aiKeyPrefix", maskAIKey(currentAIMetadata)))
+		zap.String("configPath", configManager.GetConfigPath()),
+		zap.Bool("hasBuiltInAIKey", telemetry.GetAIMetadata() != ""))
 
-	// Create and configure telemetry sidecar
-	// Pass the configPath to NewTelemetrySidecar (it expects a string parameter)
-	sidecar := NewTelemetrySidecar(*configPath)
-	if err := sidecar.SetLogger(logger); err != nil {
-		logger.Error("Failed to set logger", zap.Error(err))
-		os.Exit(1)
-	}
+	sidecar := NewTelemetrySidecar(configManager)
+	sidecar.SetLogger(logger)
 
-	// Log which AI key source we're using
-	if currentAIMetadata != "" {
-		logger.Info("Using build-time embedded AppInsights key (from Makefile)")
-	} else {
-		logger.Info("No build-time AppInsights key found - will check config/environment")
-	}
-
-	// Create context with cancellation for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Handle shutdown signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -66,13 +55,13 @@ func main() {
 		cancel()
 	}()
 
-	// Run the sidecar
-	if err := sidecar.Run(ctx); err != nil && err != context.Canceled {
+	if err := sidecar.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("Sidecar execution failed", zap.Error(err))
-		os.Exit(1)
+		return 1
 	}
 
-	logger.Info("Azure CNI Telemetry Sidecar shutdown complete")
+	logger.Info("Shutdown complete")
+	return 0
 }
 
 // initializeLogger creates a zap logger with the specified level
@@ -96,5 +85,9 @@ func initializeLogger(level string) (*zap.Logger, error) {
 	config.DisableStacktrace = true
 	config.DisableCaller = false
 
-	return config.Build()
+	logger, err := config.Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build logger: %w", err)
+	}
+	return logger, nil
 }

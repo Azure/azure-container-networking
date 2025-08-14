@@ -150,14 +150,6 @@ stages:
                 arch: amd64
                 name: ipv6-hp-bpf
                 os: linux
-              npm_linux_amd64:
-                arch: amd64
-                name: npm
-                os: linux
-              npm_windows_amd64:
-                arch: amd64
-                name: npm
-                os: windows
           steps:
             - template: containers/container-template.yaml
               parameters:

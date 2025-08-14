@@ -1,183 +1,145 @@
+// Copyright Microsoft. All rights reserved.
 package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"go.uber.org/zap"
 )
 
-// ConfigManager handles CNS configuration loading
+const (
+	defaultConfigName          = "cns_config.json"
+	defaultTelemetrySocketPath = "/var/run/azure-vnet-telemetry.sock"
+)
+
+// appInsightsEnvVars are the environment variables checked for AppInsights keys.
+var appInsightsEnvVars = []string{
+	"APPINSIGHTS_INSTRUMENTATIONKEY",
+	"APPLICATIONINSIGHTS_CONNECTION_STRING",
+	"AI_INSTRUMENTATION_KEY",
+}
+
+// ConfigManager handles CNS configuration loading for the telemetry sidecar.
 type ConfigManager struct {
 	configPath string
 	logger     *zap.Logger
 }
 
-// NewConfigManager creates a new config manager
-func NewConfigManager(configPath string) *ConfigManager {
+// NewConfigManager creates a new ConfigManager.
+// Config path resolution priority:
+//  1. Command line flag (if provided)
+//  2. CNS_CONFIGURATION_PATH environment variable
+//  3. Default path ({executable_directory}/cns_config.json)
+func NewConfigManager(cmdConfigPath string) *ConfigManager {
 	return &ConfigManager{
-		configPath: configPath,
+		configPath: resolveConfigPath(cmdConfigPath),
 	}
 }
 
-// SetLogger sets the zap logger for the config manager
+func resolveConfigPath(cmdPath string) string {
+	if strings.TrimSpace(cmdPath) != "" {
+		return cmdPath
+	}
+	if envPath := os.Getenv(configuration.EnvCNSConfig); strings.TrimSpace(envPath) != "" {
+		return envPath
+	}
+	dir, err := common.GetExecutableDirectory()
+	if err != nil {
+		return defaultConfigName
+	}
+	return filepath.Join(dir, defaultConfigName)
+}
+
+// GetConfigPath returns the resolved config path.
+func (cm *ConfigManager) GetConfigPath() string {
+	return cm.configPath
+}
+
+// SetLogger sets the logger for the ConfigManager.
 func (cm *ConfigManager) SetLogger(logger *zap.Logger) {
 	cm.logger = logger
 }
 
-// LoadConfig loads the CNS configuration from file
+// LoadConfig loads and validates the CNS configuration from file.
 func (cm *ConfigManager) LoadConfig() (*configuration.CNSConfig, error) {
-	if cm.logger != nil {
-		cm.logger.Debug("Loading CNS configuration", zap.String("path", cm.configPath))
-	}
-
-	// Check if config file exists
 	if _, err := os.Stat(cm.configPath); os.IsNotExist(err) {
 		if cm.logger != nil {
-			cm.logger.Info("CNS config file not found, using default configuration",
-				zap.String("path", cm.configPath))
+			cm.logger.Info("Config file not found, using defaults", zap.String("path", cm.configPath))
 		}
 		return cm.createDefaultConfig(), nil
 	}
 
-	// Read the config file
 	data, err := os.ReadFile(cm.configPath)
 	if err != nil {
-		if cm.logger != nil {
-			cm.logger.Error("Failed to read CNS config file",
-				zap.String("path", cm.configPath),
-				zap.Error(err))
-		}
 		return nil, fmt.Errorf("failed to read config file %s: %w", cm.configPath, err)
 	}
 
-	// Parse the JSON configuration
 	var config configuration.CNSConfig
-	if err := json.Unmarshal(data, &config); err != nil {
-		if cm.logger != nil {
-			cm.logger.Error("Failed to parse CNS config file",
-				zap.String("path", cm.configPath),
-				zap.Error(err))
-		}
+	if err := json.Unmarshal(data, &config); err != nil { //nolint:musttag // CNSConfig has json tags in configuration package
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
-	// Apply defaults and environment variable overrides
-	cm.setConfigDefaults(&config)
-
-	// Check for AppInsights key from all sources (build-time, config, env)
-	hasAppInsightsKey := cm.hasEffectiveAppInsightsKey(&config.TelemetrySettings)
+	cm.applyDefaults(&config)
 
 	if cm.logger != nil {
-		cm.logger.Info("Successfully loaded CNS configuration",
+		cm.logger.Info("Loaded CNS configuration",
 			zap.String("path", cm.configPath),
 			zap.Bool("telemetryDisabled", config.TelemetrySettings.DisableAll),
 			zap.Bool("cniTelemetryEnabled", config.TelemetrySettings.EnableCNITelemetry),
 			zap.String("socketPath", config.TelemetrySettings.CNITelemetrySocketPath),
-			zap.Bool("hasAppInsightsKey", hasAppInsightsKey))
+			zap.Bool("hasAppInsightsKey", cm.hasAppInsightsKey(&config.TelemetrySettings)))
 	}
 
 	return &config, nil
 }
 
-// createDefaultConfig creates a default configuration
 func (cm *ConfigManager) createDefaultConfig() *configuration.CNSConfig {
-	config := &configuration.CNSConfig{
+	return &configuration.CNSConfig{
 		TelemetrySettings: configuration.TelemetrySettings{
-			DisableAll:                   false,
 			TelemetryBatchSizeBytes:      defaultBatchSizeInBytes,
 			TelemetryBatchIntervalInSecs: defaultBatchIntervalInSecs,
 			RefreshIntervalInSecs:        defaultRefreshTimeoutInSecs,
-			DisableMetadataRefreshThread: false,
-			DebugMode:                    false,
-			DisableTrace:                 false,
-			DisableMetric:                false,
-			DisableEvent:                 false,
-			EnableCNITelemetry:           false, // Default to false
-			CNITelemetrySocketPath:       "/var/run/azure-vnet-telemetry.sock",
+			CNITelemetrySocketPath:       defaultTelemetrySocketPath,
 		},
 	}
-
-	// Set AppInsights key from environment variables (if any)
-	cm.setAppInsightsKeyFromEnv(&config.TelemetrySettings)
-
-	return config
 }
 
-// setConfigDefaults applies default values and environment variable overrides
-func (cm *ConfigManager) setConfigDefaults(config *configuration.CNSConfig) {
-	// Set default values for telemetry settings if not specified
-	if config.TelemetrySettings.TelemetryBatchSizeBytes == 0 {
-		config.TelemetrySettings.TelemetryBatchSizeBytes = defaultBatchSizeInBytes
+func (cm *ConfigManager) applyDefaults(config *configuration.CNSConfig) {
+	ts := &config.TelemetrySettings
+	if ts.TelemetryBatchSizeBytes == 0 {
+		ts.TelemetryBatchSizeBytes = defaultBatchSizeInBytes
 	}
-	if config.TelemetrySettings.TelemetryBatchIntervalInSecs == 0 {
-		config.TelemetrySettings.TelemetryBatchIntervalInSecs = defaultBatchIntervalInSecs
+	if ts.TelemetryBatchIntervalInSecs == 0 {
+		ts.TelemetryBatchIntervalInSecs = defaultBatchIntervalInSecs
 	}
-	if config.TelemetrySettings.RefreshIntervalInSecs == 0 {
-		config.TelemetrySettings.RefreshIntervalInSecs = defaultRefreshTimeoutInSecs
+	if ts.RefreshIntervalInSecs == 0 {
+		ts.RefreshIntervalInSecs = defaultRefreshTimeoutInSecs
 	}
-
-	// Set default CNI telemetry socket path
-	if config.TelemetrySettings.CNITelemetrySocketPath == "" {
-		config.TelemetrySettings.CNITelemetrySocketPath = "/var/run/azure-vnet-telemetry.sock"
-	}
-
-	// Handle AppInsights instrumentation key from environment variables
-	cm.setAppInsightsKeyFromEnv(&config.TelemetrySettings)
-}
-
-// setAppInsightsKeyFromEnv sets the AppInsights instrumentation key from environment variables
-func (cm *ConfigManager) setAppInsightsKeyFromEnv(ts *configuration.TelemetrySettings) {
-	// Try multiple environment variable names
-	envKeys := []string{
-		"APPINSIGHTS_INSTRUMENTATIONKEY",
-		"APPLICATIONINSIGHTS_CONNECTION_STRING",
-		"AI_INSTRUMENTATION_KEY",
-	}
-
-	// If no key is set in config, try environment variables
-	if ts.AppInsightsInstrumentationKey == "" {
-		for _, envKey := range envKeys {
-			if key := os.Getenv(envKey); key != "" {
-				ts.AppInsightsInstrumentationKey = key
-				if cm.logger != nil {
-					cm.logger.Debug("Found AppInsights key in environment variable",
-						zap.String("envVar", envKey))
-				}
-				break
-			}
-		}
+	if ts.CNITelemetrySocketPath == "" {
+		ts.CNITelemetrySocketPath = defaultTelemetrySocketPath
 	}
 }
 
-// hasEffectiveAppInsightsKey checks if AppInsights key is available from any source
-// (build-time aiMetadata, config file, or environment variables)
-func (cm *ConfigManager) hasEffectiveAppInsightsKey(ts *configuration.TelemetrySettings) bool {
-	// Priority 1: Build-time embedded key via telemetry.aiMetadata
-	if buildTimeKey := telemetry.GetAIMetadata(); buildTimeKey != "" {
+// hasAppInsightsKey checks if an AppInsights key is available from any source:
+// build-time (aiMetadata), config file, or environment variables.
+func (cm *ConfigManager) hasAppInsightsKey(ts *configuration.TelemetrySettings) bool {
+	if telemetry.GetAIMetadata() != "" {
 		return true
 	}
-
-	// Priority 2: Config file
 	if ts.AppInsightsInstrumentationKey != "" {
 		return true
 	}
-
-	// Priority 3: Environment variables
-	envKeys := []string{
-		"APPINSIGHTS_INSTRUMENTATIONKEY",
-		"APPLICATIONINSIGHTS_CONNECTION_STRING",
-		"AI_INSTRUMENTATION_KEY",
-	}
-
-	for _, envKey := range envKeys {
-		if key := os.Getenv(envKey); key != "" {
+	for _, env := range appInsightsEnvVars {
+		if os.Getenv(env) != "" {
 			return true
 		}
 	}
-
 	return false
 }
