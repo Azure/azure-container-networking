@@ -64,9 +64,13 @@ type iptablesClient interface {
 	ClearChain(table string, chain string) error
 	Delete(table, chain string, rulespec ...string) error
 }
+type iptablesLegacyClient interface {
+	Delete(table, chain string, rulespec ...string) error
+}
 
 type iptablesGetter interface {
 	GetIPTables() (iptablesClient, error)
+	GetIPTablesLegacy() (iptablesLegacyClient, error)
 }
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.

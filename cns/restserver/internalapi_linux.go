@@ -3,6 +3,7 @@ package restserver
 import (
 	"fmt"
 	"net"
+	"os/exec"
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -22,16 +23,32 @@ func (c *IPtablesProvider) GetIPTables() (iptablesClient, error) {
 	client, err := goiptables.New()
 	return client, errors.Wrap(err, "failed to get iptables client")
 }
+func (c *IPtablesProvider) GetIPTablesLegacy() (iptablesLegacyClient, error) {
+	return &iptablesLegacy{}, nil
+}
+
+type iptablesLegacy struct{}
+
+func (c *iptablesLegacy) Delete(table, chain string, rulespec ...string) error {
+	cmd := append([]string{"-t", table, "-D", chain}, rulespec...)
+	return errors.Wrap(exec.Command("iptables-legacy", cmd...).Run(), "iptables legacy failed delete")
+}
 
 // nolint
 func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
 	service.Lock()
 	defer service.Unlock()
 
-	// Parse primary ip and ipnet from nnc
-	// in podsubnet case, ncPrimaryIP is the pod subnet's primary ip
-	// in vnet scale case, ncPrimaryIP is the node's ip
-	ncPrimaryIP, _, _ := net.ParseCIDR(req.IPConfiguration.IPSubnet.IPAddress + "/" + fmt.Sprintf("%d", req.IPConfiguration.IPSubnet.PrefixLength))
+	iptl, err := service.iptables.GetIPTablesLegacy()
+	if err != nil {
+		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to create iptables legacy interface : %v", err)
+	}
+	err = iptl.Delete(iptables.Nat, iptables.Postrouting, "-j", SWIFTPOSTROUTING)
+	// ignore if command fails
+	if err == nil {
+		logger.Printf("[Azure CNS] Deleted legacy jump to SWIFT-POSTROUTING Chain")
+	}
+
 	ipt, err := service.iptables.GetIPTables()
 	if err != nil {
 		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to create iptables interface : %v", err)
@@ -103,8 +120,8 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 
 		// define all rules we want in the chain
 		rules := [][]string{
-			{"-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.UDP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", ncPrimaryIP.String()},
-			{"-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", ncPrimaryIP.String()},
+			{"-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.UDP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP},
+			{"-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP},
 			{"-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureIMDS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.HTTPPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP},
 		}
 
