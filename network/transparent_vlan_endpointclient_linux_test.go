@@ -345,7 +345,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 					deleteNamed: defaultDeleteNamed,
 				},
 				netlink: &netlink.MockNetlink{
-					DeleteLinkFn: func(name string) error {
+					DeleteLinkFn: func(_ string) error {
 						// should still succeed
 						return netlink.ErrorMockNetlink
 					},

@@ -311,11 +311,11 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 	}
 
 	// Proactively clean up any leftover veth interfaces before creating new ones
-	if err := client.netlink.DeleteLink(client.vnetVethName); err != nil {
+	if err = client.netlink.DeleteLink(client.vnetVethName); err != nil {
 		logger.Info("Could not proactively clean up vnet veth (expected if not present)",
 			zap.String("vnetVethName", client.vnetVethName), zap.Error(err))
 	}
-	if err := client.netlink.DeleteLink(client.containerVethName); err != nil {
+	if err = client.netlink.DeleteLink(client.containerVethName); err != nil {
 		logger.Info("Could not proactively clean up container veth (expected if not present)",
 			zap.String("containerVethName", client.containerVethName), zap.Error(err))
 	}
