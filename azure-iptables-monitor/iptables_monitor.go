@@ -27,9 +27,11 @@ import (
 var version string
 
 var (
-	configPath    = flag.String("input", "/etc/config/", "Name of the directory with the allowed regex files")
+	configPath4   = flag.String("input", "/etc/config/", "Name of the directory with the ipv4 allowed regex files")
+	configPath6   = flag.String("input6", "/etc/config6/", "Name of directory with the ipv6 allowed regex files")
 	checkInterval = flag.Int("interval", 300, "How often to check iptables rules (in seconds)")
 	sendEvents    = flag.Bool("events", false, "Whether to send node events if unexpected iptables rules are detected")
+	ipv6Enabled   = flag.Bool("ipv6", false, "Whether to check ip6tables using the ipv6 allowlists")
 )
 
 const label = "kubernetes.azure.com/user-iptables-rules"
@@ -197,10 +199,10 @@ func hasUnexpectedRules(currentRules, allowedPatterns []string) bool {
 // nodeHasUserIPTablesRules returns true if the node has iptables rules that do not match the regex
 // specified in the rule's respective table: nat, mangle, filter, raw, or security
 // The global file's regexes can match to a rule in any table
-func nodeHasUserIPTablesRules(fileReader FileLineReader, iptablesClient IPTablesClient) bool {
+func nodeHasUserIPTablesRules(fileReader FileLineReader, path string, iptablesClient IPTablesClient) bool {
 	tables := []string{"nat", "mangle", "filter", "raw", "security"}
 
-	globalPatterns, err := fileReader.Read(filepath.Join(*configPath, "global"))
+	globalPatterns, err := fileReader.Read(filepath.Join(path, "global"))
 	if err != nil {
 		globalPatterns = []string{}
 		klog.V(2).Infof("No global patterns file found, using empty patterns")
@@ -216,7 +218,7 @@ func nodeHasUserIPTablesRules(fileReader FileLineReader, iptablesClient IPTables
 		}
 
 		var referencePatterns []string
-		referencePatterns, err = fileReader.Read(filepath.Join(*configPath, table))
+		referencePatterns, err = fileReader.Read(filepath.Join(path, table))
 		if err != nil {
 			referencePatterns = []string{}
 			klog.V(2).Infof("No reference patterns file found for table %s", table)
@@ -263,6 +265,15 @@ func main() {
 		klog.Fatalf("failed to create iptables client: %v", err)
 	}
 
+	var ip6tablesClient IPTablesClient
+	if *ipv6Enabled {
+		ip6tablesClient, err = goiptables.New(goiptables.IPFamily(goiptables.ProtocolIPv6))
+		if err != nil {
+			klog.Fatalf("failed to create ip6tables client: %v", err)
+		}
+		klog.Info("IPv6 Enabled")
+	}
+
 	// get current node name from environment variable
 	currentNodeName := os.Getenv("NODE_NAME")
 	if currentNodeName == "" {
@@ -274,7 +285,19 @@ func main() {
 	var fileReader FileLineReader = OSFileLineReader{}
 
 	for {
-		userIPTablesRulesFound := nodeHasUserIPTablesRules(fileReader, iptablesClient)
+		userIPTablesRulesFound := nodeHasUserIPTablesRules(fileReader, *configPath4, iptablesClient)
+		if userIPTablesRulesFound {
+			klog.Info("Above user iptables rules detected in IPv4 iptables")
+		}
+
+		// check ip6tables rules if enabled
+		if *ipv6Enabled {
+			userIP6TablesRulesFound := nodeHasUserIPTablesRules(fileReader, *configPath6, ip6tablesClient)
+			if userIP6TablesRulesFound {
+				klog.Info("Above user iptables rules detected in IPv6 iptables")
+			}
+			userIPTablesRulesFound = userIPTablesRulesFound || userIP6TablesRulesFound
+		}
 
 		// update label based on whether user iptables rules were found
 		err = patchLabel(dynamicClient, userIPTablesRulesFound, currentNodeName)

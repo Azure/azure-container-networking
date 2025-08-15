@@ -217,7 +217,7 @@ func TestNodeHasUserIPTablesRules(t *testing.T) {
 			fileReader.files = tc.files
 			iptablesClient.rules = tc.rules
 
-			result := nodeHasUserIPTablesRules(fileReader, iptablesClient)
+			result := nodeHasUserIPTablesRules(fileReader, "/etc/config/", iptablesClient)
 			require.Equal(t, tc.expected, result, tc.description)
 		})
 	}
