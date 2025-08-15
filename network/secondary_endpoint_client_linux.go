@@ -116,22 +116,21 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 		return newErrorSecondaryEndpointClient(errors.New(epInfo.IfName + " does not exist"))
 	}
 
-	if len(epInfo.Routes) < 1 {
-		return newErrorSecondaryEndpointClient(errors.New("routes expected for " + epInfo.IfName))
-	}
-
-	// virtual gw route needs to be scope link
-	for i := range epInfo.Routes {
-		if epInfo.Routes[i].Gw == nil {
-			epInfo.Routes[i].Scope = netlink.RT_SCOPE_LINK
+	// Only configure routes if they are provided
+	if len(epInfo.Routes) > 0 {
+		// virtual gw route needs to be scope link
+		for i := range epInfo.Routes {
+			if epInfo.Routes[i].Gw == nil {
+				epInfo.Routes[i].Scope = netlink.RT_SCOPE_LINK
+			}
 		}
-	}
 
-	if err := addRoutes(client.netlink, client.netioshim, epInfo.IfName, epInfo.Routes); err != nil {
-		return newErrorSecondaryEndpointClient(err)
-	}
+		if err := addRoutes(client.netlink, client.netioshim, epInfo.IfName, epInfo.Routes); err != nil {
+			return newErrorSecondaryEndpointClient(err)
+		}
 
-	ifInfo.Routes = append(ifInfo.Routes, epInfo.Routes...)
+		ifInfo.Routes = append(ifInfo.Routes, epInfo.Routes...)
+	}
 
 	// issue dhcp discover packet to ensure mapping created for dns via wireserver to work
 	// we do not use the response for anything
