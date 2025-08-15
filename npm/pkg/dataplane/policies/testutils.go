@@ -72,16 +72,18 @@ var (
 			Comment: "comment1",
 			SrcList: []SetInfo{
 				{
-					ipsets.TestCIDRSet.Metadata,
-					true,
-					SrcMatch,
+					IPSet:     ipsets.TestCIDRSet.Metadata,
+					Included:  true,
+					MatchType: SrcMatch,
+					CIDRs:     nil,
 				},
 			},
 			DstList: []SetInfo{
 				{
-					ipsets.TestKeyPodSet.Metadata,
-					false,
-					DstMatch,
+					IPSet:     ipsets.TestKeyPodSet.Metadata,
+					Included:  false,
+					MatchType: DstMatch,
+					CIDRs:     nil,
 				},
 			},
 			Target:    Dropped,
@@ -95,9 +97,10 @@ var (
 			Comment: "comment2",
 			SrcList: []SetInfo{
 				{
-					ipsets.TestCIDRSet.Metadata,
-					true,
-					SrcMatch,
+					IPSet:     ipsets.TestCIDRSet.Metadata,
+					Included:  true,
+					MatchType: SrcMatch,
+					CIDRs:     nil,
 				},
 			},
 			Target:    Allowed,
@@ -108,9 +111,10 @@ var (
 			Comment: "comment3",
 			SrcList: []SetInfo{
 				{
-					ipsets.TestCIDRSet.Metadata,
-					true,
-					SrcMatch,
+					IPSet:     ipsets.TestCIDRSet.Metadata,
+					Included:  true,
+					MatchType: SrcMatch,
+					CIDRs:     nil,
 				},
 			},
 			Target:    Dropped,
@@ -124,9 +128,10 @@ var (
 			Comment: "comment4",
 			SrcList: []SetInfo{
 				{
-					ipsets.TestCIDRSet.Metadata,
-					true,
-					SrcMatch,
+					IPSet:     ipsets.TestCIDRSet.Metadata,
+					Included:  true,
+					MatchType: SrcMatch,
+					CIDRs:     nil,
 				},
 			},
 			Target:    Allowed,

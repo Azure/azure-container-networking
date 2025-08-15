@@ -285,10 +285,15 @@ func translatedIPSetsToString(items []*ipsets.TranslatedIPSet) string {
 //             ! azure-npm-123 src
 // "!" this indicates a negative match (Included is false) of an azure-npm-123
 // MatchType is "src"
+// For Windows NPM Lite with CIDR blocks, CIDRs field can contain direct CIDR values
+// to bypass IPSet creation entirely.
 type SetInfo struct {
 	IPSet     *ipsets.IPSetMetadata
 	Included  bool
 	MatchType MatchType
+	// CIDRs holds direct CIDR values for Windows NPM Lite to bypass IPSet creation.
+	// When this field is populated, IPSet field may be nil or used for metadata only.
+	CIDRs []string
 }
 
 // Ports represents a range of ports.
@@ -304,8 +309,23 @@ func NewSetInfo(name string, setType ipsets.SetType, included bool, matchType Ma
 	}
 }
 
+// NewSetInfoWithCIDRs creates SetInfo with direct CIDR values for Windows NPM Lite.
+// This bypasses IPSet creation entirely for CIDR blocks.
+func NewSetInfoWithCIDRs(cidrs []string, included bool, matchType MatchType) SetInfo {
+	return SetInfo{
+		IPSet:     nil, // No IPSet needed for direct CIDR approach
+		Included:  included,
+		MatchType: matchType,
+		CIDRs:     cidrs,
+	}
+}
+
 func (info SetInfo) PrettyString() string {
-	return fmt.Sprintf("Name:%s  HashedName:%s  MatchType:%v  Included:%v", info.IPSet.GetPrefixName(), info.IPSet.GetHashedName(), info.MatchType, info.Included)
+	if info.IPSet != nil {
+		return fmt.Sprintf("Name:%s  HashedName:%s  MatchType:%v  Included:%v", info.IPSet.GetPrefixName(), info.IPSet.GetHashedName(), info.MatchType, info.Included)
+	}
+	// For direct CIDR SetInfo (Windows NPM Lite)
+	return fmt.Sprintf("CIDRs:%v  MatchType:%v  Included:%v", info.CIDRs, info.MatchType, info.Included)
 }
 
 type Ports struct {
