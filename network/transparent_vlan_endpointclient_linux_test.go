@@ -189,7 +189,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.client.setLinkNetNSAndConfirm(tt.client.vlanIfName, 1)
+			err := tt.client.setLinkNetNSAndConfirm(tt.client.vlanIfName, 1, tt.client.vnetNSName)
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())
@@ -344,7 +344,12 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 					set:         defaultSet,
 					deleteNamed: defaultDeleteNamed,
 				},
-				netlink:        netlink.NewMockNetlink(false, ""),
+				netlink: &netlink.MockNetlink{
+					DeleteLinkFn: func(_ string) error {
+						// should still succeed
+						return netlink.ErrorMockNetlink
+					},
+				},
 				plClient:       platform.NewMockExecClient(false),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 				netioshim:      netio.NewMockNetIO(false, 0),

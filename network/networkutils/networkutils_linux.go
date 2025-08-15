@@ -256,14 +256,14 @@ func (nu NetworkUtils) DisableRAForInterface(ifName string) error {
 	raFilePath := fmt.Sprintf(acceptRAV6File, ifName)
 	exist, err := platform.CheckIfFileExists(raFilePath)
 	if !exist {
-		logger.Error("accept_ra file doesn't exist with", zap.Error(err))
+		logger.Error("accept_ra file doesn't exist with", zap.Error(err), zap.String("ifName", ifName))
 		return nil
 	}
 
 	cmd := fmt.Sprintf(disableRACmd, ifName)
 	out, err := nu.plClient.ExecuteRawCommand(cmd)
 	if err != nil {
-		logger.Error("Diabling ra failed with", zap.Error(err), zap.Any("out", out))
+		logger.Error("Diabling ra failed with", zap.Error(err), zap.Any("out", out), zap.String("ifName", ifName))
 	}
 
 	return err

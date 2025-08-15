@@ -114,7 +114,7 @@ func NewTransparentVlanEndpointClient(
 func (client *TransparentVlanEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 	// VM Namespace
 	if err := client.ensureCleanPopulateVM(); err != nil {
-		return errors.Wrap(err, "failed to ensure both network namespace and vlan veth were present or both absent")
+		return errors.Wrap(err, "failed to ensure both network namespace and vlan interface were present or both absent")
 	}
 	if err := client.PopulateVM(epInfo); err != nil {
 		return err
@@ -131,7 +131,7 @@ func (client *TransparentVlanEndpointClient) AddEndpoints(epInfo *EndpointInfo) 
 // Called from AddEndpoints, Namespace: VM and Vnet
 func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 	// Clean up vlan interface in the VM namespace and ensure the network namespace (if it exists) has a vlan interface
-	logger.Info("Checking if NS and vlan veth exists...")
+	logger.Info("Checking if NS and vlan interface exists...")
 	var existingErr error
 	client.vnetNSFileDescriptor, existingErr = client.netnsClient.GetFromName(client.vnetNSName)
 	if existingErr == nil {
@@ -146,7 +146,7 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 			logger.Info("vlan interface doesn't exist even though network namespace exists, deleting network namespace...", zap.String("message", vlanIfErr.Error()))
 			delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
 			if delErr != nil {
-				return errors.Wrap(delErr, "failed to cleanup/delete ns after noticing vlan veth does not exist")
+				return errors.Wrap(delErr, "failed to cleanup/delete ns after noticing vlan interface does not exist")
 			}
 		}
 	}
@@ -183,8 +183,8 @@ func (client *TransparentVlanEndpointClient) createNetworkNamespace(vmNS int) er
 	return errors.Wrap(errNamespaceCreation, "vnet and vm namespace are the same")
 }
 
-// Called from PopulateVM, Namespace: VM and namespace represented by fd
-func (client *TransparentVlanEndpointClient) setLinkNetNSAndConfirm(name string, fd uintptr) error {
+// Called from PopulateVM, Namespace: VM and namespace represented by fd (which is named nsName)
+func (client *TransparentVlanEndpointClient) setLinkNetNSAndConfirm(name string, fd uintptr, nsName string) error {
 	logger.Info("Move link to NS", zap.String("ifName", name), zap.Any("NSFileDescriptor", fd))
 	err := client.netlink.SetLinkNetNs(name, fd)
 	if err != nil {
@@ -194,9 +194,9 @@ func (client *TransparentVlanEndpointClient) setLinkNetNSAndConfirm(name string,
 	// confirm veth was moved successfully
 	err = RunWithRetries(func() error {
 		// retry checking in the namespace if the interface is not detected
-		return ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
-			_, ifDetectedErr := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
-			return errors.Wrap(ifDetectedErr, "failed to get vlan veth in namespace")
+		return ExecuteInNS(client.nsClient, nsName, func() error {
+			_, ifDetectedErr := client.netioshim.GetNetworkInterfaceByName(name)
+			return errors.Wrap(ifDetectedErr, "failed to confirm interface moved in namespace")
 		})
 	}, numRetries, sleepInMs)
 	if err != nil {
@@ -215,7 +215,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 	var existingErr error
 	client.vnetNSFileDescriptor, existingErr = client.netnsClient.GetFromName(client.vnetNSName)
 	// If the ns does not exist, the below code will trigger to create it
-	// This will also (we assume) mean the vlan veth does not exist
+	// This will also (we assume) mean the vlan interface does not exist
 	if existingErr != nil {
 		// We assume the only possible error is that the namespace doesn't exist
 		logger.Info("No existing NS detected. Creating the vnet namespace and switching to it", zap.String("message", existingErr.Error()))
@@ -234,7 +234,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 				logger.Info("[transparent vlan] removing vnet ns due to failure...")
 				err = client.netnsClient.DeleteNamed(client.vnetNSName)
 				if err != nil {
-					logger.Error("failed to cleanup/delete ns after failing to create vlan veth")
+					logger.Error("failed to cleanup/delete ns after failing to create vlan interface")
 				}
 			}
 		}()
@@ -242,7 +242,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 			return errors.Wrap(deleteNSIfNotNilErr, "failed to set current ns to vm")
 		}
 
-		// Now create vlan veth
+		// Now create vlan interface
 		logger.Info("Create the host vlan link after getting eth0", zap.String("primaryHostIfName", client.primaryHostIfName))
 		// Get parent interface index. Index is consistent across libraries.
 		eth0, deleteNSIfNotNilErr := client.netioshim.GetNetworkInterfaceByName(client.primaryHostIfName)
@@ -258,7 +258,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 			VlanId:    client.vlanID,
 		}
 		logger.Info("Attempting to create link in VM NS", zap.String("vlanIfName", client.vlanIfName))
-		// Create vlan veth
+		// Create vlan interface
 		deleteNSIfNotNilErr = vishnetlink.LinkAdd(link)
 		if deleteNSIfNotNilErr != nil {
 			// ignore link already exists error
@@ -271,9 +271,9 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		}
 		defer func() {
 			if deleteNSIfNotNilErr != nil {
-				logger.Info("removing vlan veth due to failure...")
+				logger.Info("removing vlan interface due to failure...")
 				if delErr := client.netlink.DeleteLink(client.vlanIfName); delErr != nil {
-					logger.Error("deleting vlan veth failed on addendpoint failure with", zap.Any("error:", delErr.Error()))
+					logger.Error("deleting vlan interface failed on addendpoint failure with", zap.Any("error:", delErr.Error()))
 				}
 			}
 		}()
@@ -281,11 +281,11 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		// sometimes there is slight delay in interface creation. check if it exists
 		err = RunWithRetries(func() error {
 			_, err = client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
-			return errors.Wrap(err, "failed to get vlan veth")
+			return errors.Wrap(err, "failed to get vlan interface")
 		}, numRetries, sleepInMs)
 
 		if err != nil {
-			deleteNSIfNotNilErr = errors.Wrapf(err, "failed to get vlan veth interface:%s", client.vlanIfName)
+			deleteNSIfNotNilErr = errors.Wrapf(err, "failed to get vlan interface interface:%s", client.vlanIfName)
 			return deleteNSIfNotNilErr
 		}
 
@@ -293,13 +293,13 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		if deleteNSIfNotNilErr != nil {
 			return errors.Wrap(deleteNSIfNotNilErr, "failed to disable router advertisements for vlan vnet link")
 		}
-		// vlan veth was created successfully, so move the vlan veth you created
+		// vlan interface was created successfully, so move the vlan interface you created
 		logger.Info("Move vlan link to vnet NS", zap.String("vlanIfName", client.vlanIfName), zap.Any("vnetNSFileDescriptor", uintptr(client.vnetNSFileDescriptor)))
-		deleteNSIfNotNilErr = client.setLinkNetNSAndConfirm(client.vlanIfName, uintptr(client.vnetNSFileDescriptor))
+		deleteNSIfNotNilErr = client.setLinkNetNSAndConfirm(client.vlanIfName, uintptr(client.vnetNSFileDescriptor), client.vnetNSName)
 		if deleteNSIfNotNilErr != nil {
-			return errors.Wrap(deleteNSIfNotNilErr, "failed to move or detect vlan veth inside vnet namespace")
+			return errors.Wrap(deleteNSIfNotNilErr, "failed to move or detect vlan interface inside vnet namespace")
 		}
-		logger.Info("Moving vlan veth into namespace confirmed")
+		logger.Info("Moving vlan interface into namespace confirmed")
 	} else {
 		logger.Info("Existing NS detected. vlan interface should exist or namespace would've been deleted.", zap.String("vnetNSName", client.vnetNSName), zap.String("vlanIfName", client.vlanIfName))
 	}
@@ -308,6 +308,16 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 	mac, err := net.ParseMAC(defaultHostVethHwAddr)
 	if err != nil {
 		logger.Info("Failed to parse the mac address", zap.String("defaultHostVethHwAddr", defaultHostVethHwAddr))
+	}
+
+	// Proactively clean up any leftover veth interfaces before creating new ones
+	if err = client.netlink.DeleteLink(client.vnetVethName); err != nil {
+		logger.Info("Could not proactively clean up vnet veth (expected if not present)",
+			zap.String("vnetVethName", client.vnetVethName), zap.Error(err))
+	}
+	if err = client.netlink.DeleteLink(client.containerVethName); err != nil {
+		logger.Info("Could not proactively clean up container veth (expected if not present)",
+			zap.String("containerVethName", client.containerVethName), zap.Error(err))
 	}
 
 	// Create veth pair
@@ -349,7 +359,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		return errors.Wrap(err, "failed to disable RA on container veth, deleting")
 	}
 
-	if err = client.setLinkNetNSAndConfirm(client.vnetVethName, uintptr(client.vnetNSFileDescriptor)); err != nil {
+	if err = client.setLinkNetNSAndConfirm(client.vnetVethName, uintptr(client.vnetNSFileDescriptor), client.vnetNSName); err != nil {
 		if delErr := client.netlink.DeleteLink(client.vnetVethName); delErr != nil {
 			logger.Error("Deleting vnet veth failed on addendpoint failure with", zap.Error(delErr))
 		}
@@ -363,7 +373,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 func (client *TransparentVlanEndpointClient) PopulateVnet(epInfo *EndpointInfo) error {
 	_, err := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
 	if err != nil {
-		return errors.Wrap(err, "vlan veth doesn't exist")
+		return errors.Wrap(err, "vlan interface doesn't exist")
 	}
 	vnetVethIf, err := client.netioshim.GetNetworkInterfaceByName(client.vnetVethName)
 	if err != nil {
@@ -659,7 +669,7 @@ func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, _
 	// TODO: revist if this require in future.
 	//nolint gocritic
 	/*	if routesLeft <= numDefaultRoutes {
-			// Deletes default arp, default routes, vlan veth; there are two default routes
+			// Deletes default arp, default routes, vlan interface; there are two default routes
 			// so when we have <= numDefaultRoutes routes left, no containers use this namespace
 			log.Printf("[transparent vlan] Deleting namespace %s as no containers occupy it", client.vnetNSName)
 			delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
