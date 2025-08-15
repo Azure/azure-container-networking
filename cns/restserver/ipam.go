@@ -1338,7 +1338,7 @@ func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter
 	if service.EndpointStateStore == nil {
 		response := cns.Response{
 			ReturnCode: types.UnexpectedError,
-			Message:    fmt.Sprintf("[DeleteEndpointStateHandler] EndpointStateStore is not initialized"),
+			Message:    "[DeleteEndpointStateHandler] EndpointStateStore is not initialized",
 		}
 		err := common.Encode(w, &response)
 		logger.Response(opName, response, response.ReturnCode, err)
@@ -1381,7 +1381,7 @@ func (service *HTTPRestService) DeleteEndpointStateHelper(endpointID string) err
 	_, endpointExist := service.EndpointState[endpointID]
 	if !endpointExist {
 		logger.Printf("[deleteEndpointState] endpoint could not be found in the statefile %s", endpointID)
-		return fmt.Errorf("[deleteEndpointState] endpoint %s does not exist in the statefile", endpointID)
+		return fmt.Errorf("[deleteEndpointState] endpoint %s: %w", endpointID, ErrEndpointStateNotFound)
 	}
 
 	// Delete the endpoint from the state

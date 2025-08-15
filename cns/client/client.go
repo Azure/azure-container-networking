@@ -1101,10 +1101,10 @@ func (c *Client) UpdateEndpoint(ctx context.Context, endpointID string, ipInfo m
 	return &response, nil
 }
 
-func (c *Client) DeleteEndpointState(ctx context.Context, endpointId string) (*cns.Response, error) {
+func (c *Client) DeleteEndpointState(ctx context.Context, endpointID string) (*cns.Response, error) {
 	// build the request
 	u := c.routes[cns.EndpointAPI]
-	uString := u.String() + endpointId
+	uString := u.String() + endpointID
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, uString, http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build request")
