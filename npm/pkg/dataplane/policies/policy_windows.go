@@ -3,6 +3,7 @@ package policies
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Microsoft/hcsshim/hcn"
@@ -142,7 +143,16 @@ func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, er
 
 func (acl *ACLPolicy) checkIPSets() bool {
 	for _, set := range acl.SrcList {
-		if set.IPSet.Type == ipsets.NamedPorts {
+		// For Windows NPM Lite with direct CIDRs, skip IPSet checks
+		if len(set.CIDRs) > 0 {
+			if !set.hasKnownMatchType() {
+				return false
+			}
+			continue
+		}
+		
+		// Traditional IPSet checks
+		if set.IPSet != nil && set.IPSet.Type == ipsets.NamedPorts {
 			return false
 		}
 
@@ -151,7 +161,16 @@ func (acl *ACLPolicy) checkIPSets() bool {
 		}
 	}
 	for _, set := range acl.DstList {
-		if set.IPSet.Type == ipsets.NamedPorts {
+		// For Windows NPM Lite with direct CIDRs, skip IPSet checks
+		if len(set.CIDRs) > 0 {
+			if !set.hasKnownMatchType() {
+				return false
+			}
+			continue
+		}
+		
+		// Traditional IPSet checks
+		if set.IPSet != nil && set.IPSet.Type == ipsets.NamedPorts {
 			return false
 		}
 
@@ -163,16 +182,26 @@ func (acl *ACLPolicy) checkIPSets() bool {
 }
 
 func getAddrListFromSetInfo(setInfoList []SetInfo) string {
-	setInfoStr := ""
-	setInfoLen := len(setInfoList)
-	for i, setInfo := range setInfoList {
-		if i < setInfoLen-1 {
-			setInfoStr += setInfo.IPSet.GetHashedName() + ","
+	var addrValues []string
+	
+	for _, setInfo := range setInfoList {
+		var addrValue string
+		// For Windows NPM Lite with direct CIDR values, use the CIDR directly
+		if len(setInfo.CIDRs) > 0 {
+			// Join multiple CIDRs with comma
+			addrValue = strings.Join(setInfo.CIDRs, ",")
+		} else if setInfo.IPSet != nil {
+			// Traditional IPSet approach: use hashed name
+			addrValue = setInfo.IPSet.GetHashedName()
 		} else {
-			setInfoStr += setInfo.IPSet.GetHashedName()
+			// Skip entries with neither CIDRs nor IPSet
+			continue
 		}
+		
+		addrValues = append(addrValues, addrValue)
 	}
-	return setInfoStr
+	
+	return strings.Join(addrValues, ",")
 }
 
 func getPortStrFromPorts(port Ports) string {

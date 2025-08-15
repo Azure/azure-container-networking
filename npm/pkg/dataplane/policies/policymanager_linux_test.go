@@ -19,14 +19,16 @@ var (
 	ingressDeniedACL = &ACLPolicy{
 		SrcList: []SetInfo{
 			{
-				ipsets.TestCIDRSet.Metadata,
-				true,
-				SrcMatch,
+				IPSet:     ipsets.TestCIDRSet.Metadata,
+				Included:  true,
+				MatchType: SrcMatch,
+				CIDRs:     nil,
 			},
 			{
-				ipsets.TestKeyPodSet.Metadata,
-				false,
-				DstMatch,
+				IPSet:     ipsets.TestKeyPodSet.Metadata,
+				Included:  false,
+				MatchType: DstMatch,
+				CIDRs:     nil,
 			},
 		},
 		Target:    Dropped,
@@ -39,9 +41,10 @@ var (
 	ingressAllowedACL = &ACLPolicy{
 		SrcList: []SetInfo{
 			{
-				ipsets.TestCIDRSet.Metadata,
-				true,
-				SrcMatch,
+				IPSet:     ipsets.TestCIDRSet.Metadata,
+				Included:  true,
+				MatchType: SrcMatch,
+				CIDRs:     nil,
 			},
 		},
 		Target:    Allowed,
@@ -51,9 +54,10 @@ var (
 	egressDeniedACL = &ACLPolicy{
 		DstList: []SetInfo{
 			{
-				ipsets.TestCIDRSet.Metadata,
-				true,
-				DstMatch,
+				IPSet:     ipsets.TestCIDRSet.Metadata,
+				Included:  true,
+				MatchType: DstMatch,
+				CIDRs:     nil,
 			},
 		},
 		Target:    Dropped,
@@ -64,9 +68,10 @@ var (
 	egressAllowedACL = &ACLPolicy{
 		DstList: []SetInfo{
 			{
-				ipsets.TestNamedportSet.Metadata,
-				true,
-				DstMatch,
+				IPSet:     ipsets.TestNamedportSet.Metadata,
+				Included:  true,
+				MatchType: DstMatch,
+				CIDRs:     nil,
 			},
 		},
 		Target:    Allowed,
