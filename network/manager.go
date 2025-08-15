@@ -773,11 +773,11 @@ func (nm *networkManager) DeleteState(epInfos []*EndpointInfo) error {
 	if nm.IsStatelessCNIMode() {
 		for _, epInfo := range epInfos {
 			if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
-				response, err := nm.CnsClient.DeleteEndpointState(context.TODO(), epInfo.ContainerID)
+				response, err := nm.CnsClient.DeleteEndpointState(context.TODO(), epInfo.EndpointID)
 				if err != nil {
-					return errors.Wrapf(err, "Delete endpoint API returned with error for endpoint %s", epInfo.ContainerID)
+					return errors.Wrapf(err, "Delete endpoint API returned with error for endpoint %s", epInfo.EndpointID)
 				}
-				logger.Info("Delete endpoint API returned", zap.String("endpointID", epInfo.ContainerID), zap.String("returnCode", response.ReturnCode.String()))
+				logger.Info("Delete endpoint API returned", zap.String("endpointID", epInfo.EndpointID), zap.String("returnCode", response.ReturnCode.String()))
 			}
 		}
 		return nil
