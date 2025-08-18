@@ -152,7 +152,7 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 		// if rule count doesn't match or not all rules exist, reconcile
 		// add one because there is always a singular starting rule in the chain, in addition to the ones we add
 		if len(currentRules) != len(rules)+1 || !allRulesExist {
-			logger.Printf("[Azure CNS] Reconciling SWIFT-POSTROUTING chain rules")
+			logger.Printf("[Azure CNS] Reconciling SWIFT-POSTROUTING chain rules to SNAT Azure DNS and IMDS to Host IP")
 
 			err = ipt.ClearChain(iptables.Nat, SWIFTPOSTROUTING)
 			if err != nil {
@@ -165,6 +165,7 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 					return types.FailedToRunIPTableCmd, "[Azure CNS] failed to append rule to SWIFT-POSTROUTING chain : " + err.Error()
 				}
 			}
+			logger.Printf("[Azure CNS] Finished reconciling SWIFT-POSTROUTING chain")
 		}
 
 		// we only need to run this code once as the iptable rule applies to all secondary ip configs in the same subnet
