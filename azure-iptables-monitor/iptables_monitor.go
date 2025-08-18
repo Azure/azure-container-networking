@@ -210,6 +210,8 @@ func nodeHasUserIPTablesRules(fileReader FileLineReader, path string, iptablesCl
 
 	userIPTablesRules := false
 
+	klog.V(2).Infof("Using reference patterns files in %s", path)
+
 	for _, table := range tables {
 		rules, err := GetRules(iptablesClient, table)
 		if err != nil {
@@ -271,8 +273,8 @@ func main() {
 		if err != nil {
 			klog.Fatalf("failed to create ip6tables client: %v", err)
 		}
-		klog.Info("IPv6 Enabled")
 	}
+	klog.Infof("IPv6: %v", *ipv6Enabled)
 
 	// get current node name from environment variable
 	currentNodeName := os.Getenv("NODE_NAME")
