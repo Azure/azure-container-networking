@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/cilium/ebpf"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -32,6 +33,8 @@ var (
 	checkInterval = flag.Int("interval", 300, "How often to check iptables rules (in seconds)")
 	sendEvents    = flag.Bool("events", false, "Whether to send node events if unexpected iptables rules are detected")
 	ipv6Enabled   = flag.Bool("ipv6", false, "Whether to check ip6tables using the ipv6 allowlists")
+	checkMap      = flag.Bool("checkMap", false, "Whether to check the bpf map at mapPath for increases")
+	pinPath       = flag.String("mapPath", "/sys/fs/bpf/block-iptables/iptables_block_event_counter", "Path to pinned bpf map")
 )
 
 const label = "kubernetes.azure.com/user-iptables-rules"
@@ -238,6 +241,27 @@ func nodeHasUserIPTablesRules(fileReader FileLineReader, path string, iptablesCl
 	return userIPTablesRules
 }
 
+func getBPFMapValue() (uint64, error) {
+	m, err := ebpf.LoadPinnedMap(*pinPath, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load pinned map %s: %w", *pinPath, err)
+	}
+	defer m.Close()
+	// 0 is the key for # of blocks
+	key := uint32(0)
+	value := uint64(0)
+
+	if err := m.Lookup(&key, &value); err != nil {
+		return 0, fmt.Errorf("failed to lookup value in bpf map %d: %w", key, err)
+	}
+
+	return value, nil
+}
+
+func sendEventOnIPTablesBlock() {
+
+}
+
 func main() {
 	klog.InitFlags(nil)
 	flag.Parse()
@@ -286,6 +310,8 @@ func main() {
 
 	var fileReader FileLineReader = OSFileLineReader{}
 
+	previousBlocks := uint64(0)
+
 	for {
 		userIPTablesRulesFound := nodeHasUserIPTablesRules(fileReader, *configPath4, iptablesClient)
 		if userIPTablesRulesFound {
@@ -313,6 +339,25 @@ func main() {
 			err = createNodeEvent(clientset, currentNodeName, "UnexpectedIPTablesRules", "Node has unexpected iptables rules", corev1.EventTypeWarning)
 			if err != nil {
 				klog.Errorf("failed to create event: %v", err)
+			}
+		}
+
+		// if disabled the number of blocks never increases from zero
+		currentBlocks := uint64(0)
+		if *checkMap {
+			// read bpf map to check for number of blocked iptables rules
+			currentBlocks, err = getBPFMapValue()
+			if err != nil {
+				klog.Errorf("failed to get bpf map value: %v", err)
+			}
+		}
+		// if number of blocked rules increased since last time
+		blockedRulesIncreased := currentBlocks > previousBlocks
+		previousBlocks = currentBlocks
+		if *sendEvents && blockedRulesIncreased {
+			err = createNodeEvent(clientset, currentNodeName, "BlockedIPTablesRule", "Number of blocked iptables rules increased since last check", corev1.EventTypeWarning)
+			if err != nil {
+				klog.Errorf("failed to create iptables block event: %v", err)
 			}
 		}
 
