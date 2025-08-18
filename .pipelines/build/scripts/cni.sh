@@ -6,14 +6,14 @@ set -eux
 mkdir -p "$OUT_DIR"/files
 mkdir -p "$OUT_DIR"/bin
 
-export CGO_ENABLED=0 
+export CGO_ENABLED=0
 
 
 CNI_NET_DIR="$REPO_ROOT"/cni/network/plugin
 pushd "$CNI_NET_DIR"
   GOOS="$OS" go build -v -a -trimpath \
     -o "$OUT_DIR"/bin/azure-vnet"$FILE_EXT" \
-    -ldflags "-X main.version="$CNI_VERSION"" \
+    -ldflags "-s -w -X main.version="$CNI_VERSION"" \
     -gcflags="-dwarflocationlists=true" \
     ./main.go
 popd
@@ -22,7 +22,7 @@ STATELESS_CNI_BUILD_DIR="$REPO_ROOT"/cni/network/stateless
 pushd "$STATELESS_CNI_BUILD_DIR"
   GOOS="$OS" go build -v -a -trimpath \
     -o "$OUT_DIR"/bin/azure-vnet-stateless"$FILE_EXT" \
-    -ldflags "-X main.version="$CNI_VERSION"" \
+    -ldflags "-s -w -X main.version="$CNI_VERSION"" \
     -gcflags="-dwarflocationlists=true" \
     ./main.go
 popd
@@ -31,7 +31,7 @@ CNI_IPAM_DIR="$REPO_ROOT"/cni/ipam/plugin
 pushd "$CNI_IPAM_DIR"
   GOOS="$OS" go build -v -a -trimpath \
     -o "$OUT_DIR"/bin/azure-vnet-ipam"$FILE_EXT" \
-    -ldflags "-X main.version="$CNI_VERSION"" \
+    -ldflags "-s -w -X main.version="$CNI_VERSION"" \
     -gcflags="-dwarflocationlists=true" \
     ./main.go
 popd
@@ -40,7 +40,7 @@ CNI_IPAMV6_DIR="$REPO_ROOT"/cni/ipam/pluginv6
 pushd "$CNI_IPAMV6_DIR"
   GOOS="$OS" go build -v -a -trimpath \
     -o "$OUT_DIR"/bin/azure-vnet-ipamv6"$FILE_EXT" \
-    -ldflags "-X main.version="$CNI_VERSION"" \
+    -ldflags "-s -w -X main.version="$CNI_VERSION"" \
     -gcflags="-dwarflocationlists=true" \
     ./main.go
 popd
@@ -49,7 +49,7 @@ CNI_TELEMETRY_DIR="$REPO_ROOT"/cni/telemetry/service
 pushd "$CNI_TELEMETRY_DIR"
   GOOS="$OS" go build -v -a -trimpath \
     -o "$OUT_DIR"/bin/azure-vnet-telemetry"$FILE_EXT" \
-    -ldflags "-X main.version="$CNI_VERSION" -X "$CNI_AI_PATH"="$CNI_AI_ID"" \
+    -ldflags "-s -w -X main.version="$CNI_VERSION" -X "$CNI_AI_PATH"="$CNI_AI_ID"" \
     -gcflags="-dwarflocationlists=true" \
    ./telemetrymain.go
 popd

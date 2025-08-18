@@ -60,6 +60,9 @@ type iptablesClient interface {
 	Append(table string, chain string, rulespec ...string) error
 	Exists(table string, chain string, rulespec ...string) (bool, error)
 	Insert(table string, chain string, pos int, rulespec ...string) error
+	List(table string, chain string) ([]string, error)
+	ClearChain(table string, chain string) error
+	Delete(table, chain string, rulespec ...string) error
 }
 
 type iptablesGetter interface {

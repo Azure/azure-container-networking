@@ -34,11 +34,15 @@ type OverlayExtensionConfigList struct {
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.extensionIPRange) || has(self.extensionIPRange)", message="ExtensionIPRange is required once set"
 type OverlayExtensionConfigSpec struct {
 	// ExtensionIPRange field defines a CIDR that should be able to reach routing domain ip addresses.
-	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
 	// +kubebuilder:validation:MaxLength=43
 	// 43 is max length of IPv6 CIDR string
 	ExtensionIPRange string `json:"extensionIPRange,omitempty"`
+
+	// AppGatewaySubnetGUID field defines a subnet delegated to Application Gateway that should be able to reach routing domain ip addresses. This needs to be a valid GUID.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Value is immutable"
+	AppGatewaySubnetGUID string `json:"appGatewaySubnetGUID,omitempty"`
 }
 
 type OECState string

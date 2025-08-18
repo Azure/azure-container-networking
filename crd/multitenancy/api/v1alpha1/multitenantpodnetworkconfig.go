@@ -45,7 +45,21 @@ type MultitenantPodNetworkConfigSpec struct {
 	PodNetwork string `json:"podNetwork"`
 	// name of the requesting cx pod
 	PodName string `json:"podName,omitempty"`
+	// MAC addresses of the IB devices to use for a pod
+	// +kubebuilder:validation:Optional
+	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
 }
+
+// +kubebuilder:validation:Enum=Unprogrammed;Programming;Programmed;Unprogramming;Failed
+type InfinibandStatus string
+
+const (
+	Unprogrammed  InfinibandStatus = "Unprogrammed"
+	Programming   InfinibandStatus = "Programming"
+	Programmed    InfinibandStatus = "Programmed"
+	Unprogramming InfinibandStatus = "Unprogramming"
+	Failed        InfinibandStatus = "Failed"
+)
 
 type InterfaceInfo struct {
 	// NCID is the network container id
@@ -66,6 +80,9 @@ type InterfaceInfo struct {
 	// AccelnetEnabled determines if the CNI will provision the NIC with accelerated networking enabled
 	// +kubebuilder:validation:Optional
 	AccelnetEnabled bool `json:"accelnetEnabled,omitempty"`
+	// IBStatus is the programming status of the infiniband device
+	// +kubebuilder:validation:Optional
+	IBStatus InfinibandStatus `json:"ibStatus,omitempty"`
 }
 
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig

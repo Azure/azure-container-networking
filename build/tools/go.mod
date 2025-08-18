@@ -10,7 +10,7 @@ require (
 	github.com/jstemmer/go-junit-report v1.0.0
 	github.com/orellazri/renderkit v0.6.3
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
-	google.golang.org/protobuf v1.36.5
+	google.golang.org/protobuf v1.36.7
 	mvdan.cc/gofumpt v0.7.0
 	sigs.k8s.io/controller-tools v0.16.3
 )

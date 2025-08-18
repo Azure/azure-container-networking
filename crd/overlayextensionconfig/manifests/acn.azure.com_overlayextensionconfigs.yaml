@@ -47,6 +47,14 @@ spec:
           spec:
             description: OverlayExtensionConfigSpec defines the desired state of OverlayExtensionConfig.
             properties:
+              appGatewaySubnetGUID:
+                description: AppGatewaySubnetGUID field defines a subnet delegated
+                  to Application Gateway that should be able to reach routing domain
+                  ip addresses. This needs to be a valid GUID.
+                type: string
+                x-kubernetes-validations:
+                - message: Value is immutable
+                  rule: self == oldSelf
               extensionIPRange:
                 description: |-
                   ExtensionIPRange field defines a CIDR that should be able to reach routing domain ip addresses.

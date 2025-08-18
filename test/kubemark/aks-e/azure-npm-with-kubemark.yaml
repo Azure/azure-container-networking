@@ -81,7 +81,7 @@ spec:
         kubernetes.azure.com/role: agent
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.9
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.9 # <does this need to be updated?>
           resources:
             limits:
               cpu: 250m
