@@ -35,10 +35,10 @@ REPO_ROOT							?= $(shell git rev-parse --show-toplevel)
 REVISION							?= $(shell git rev-parse --short HEAD)
 ACN_VERSION							?= $(shell git describe --exclude "azure-iptables-monitor*" --exclude "azure-ip-masq-merger*" --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --exclude "azure-block-iptables*" --tags --always)
 IPV6_HP_BPF_VERSION					?= $(notdir $(shell git describe --match "ipv6-hp-bpf*" --tags --always))
-AZURE_BLOCK_IPTABLES_VERSION  ?= $(notdir $(shell git describe --match "azure-block-iptables*" --tags --always))
+AZURE_BLOCK_IPTABLES_VERSION		?= $(notdir $(shell git describe --match "azure-block-iptables*" --tags --always))
 AZURE_IPAM_VERSION					?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
 AZURE_IP_MASQ_MERGER_VERSION		?= $(notdir $(shell git describe --match "azure-ip-masq-merger*" --tags --always))
-AZURE_IPTABLES_MONITOR_VERSION		?= $(notdir $(shell git describe --match "azure-iptables-monitor*" --tags --always))
+AZURE_IPTABLES_MONITOR_VERSION		?= $(notdir $(shell git describe --match "azure-block-iptables*" --match "azure-iptables-monitor*" --tags --always))
 CNI_VERSION							?= $(ACN_VERSION)
 CNS_VERSION							?= $(ACN_VERSION)
 NPM_VERSION							?= $(ACN_VERSION)
@@ -467,7 +467,8 @@ azure-iptables-monitor-image: ## build azure-iptables-monitor container image.
 		TAG=$(AZURE_IPTABLES_MONITOR_PLATFORM_TAG) \
 		TARGET=$(OS) \
 		OS=$(OS) \
-		ARCH=$(ARCH)
+		ARCH=$(ARCH) \
+		EXTRA_BUILD_ARGS="--build-arg AZURE_BLOCK_IPTABLES_VERSION=$(AZURE_BLOCK_IPTABLES_VERSION)"
 
 azure-iptables-monitor-image-push: ## push azure-iptables-monitor container image.
 	$(MAKE) container-push \
