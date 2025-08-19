@@ -258,10 +258,6 @@ func getBPFMapValue() (uint64, error) {
 	return value, nil
 }
 
-func sendEventOnIPTablesBlock() {
-
-}
-
 func main() {
 	klog.InitFlags(nil)
 	flag.Parse()
