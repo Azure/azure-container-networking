@@ -252,7 +252,7 @@ func getBPFMapValue() (uint64, error) {
 	value := uint64(0)
 
 	if err := m.Lookup(&key, &value); err != nil {
-		return 0, fmt.Errorf("failed to lookup value in bpf map %d: %w", key, err)
+		return 0, fmt.Errorf("failed to lookup key %d in bpf map: %w", key, err)
 	}
 
 	return value, nil
