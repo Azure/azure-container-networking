@@ -20,6 +20,10 @@ const (
 	BPFMapPinPath = "/sys/fs/bpf/block-iptables"
 	// EventCounterMapName is the name used for pinning the event counter map
 	EventCounterMapName = "iptables_block_event_counter"
+	// IptablesLegacyBlockProgramName is the name used for pinning the legacy iptables block program
+	IptablesLegacyBlockProgramName = "iptables_legacy_block"
+	// IptablesNftablesBlockProgramName is the name used for pinning the nftables block program
+	IptablesNftablesBlockProgramName = "iptables_nftables_block"
 	// NetNSPath is the path to the host network namespace
 	NetNSPath = "/proc/self/ns/net"
 )
@@ -72,6 +76,33 @@ func (p *Program) unpinEventCounterMap() error {
 	}
 
 	log.Printf("Event counter map unpinned from %s", pinPath)
+	return nil
+}
+
+// unpinLinks unpins the links to BPF programs from the filesystem
+func (p *Program) unpinLinks() error {
+	var errs []error
+
+	// Unpin the legacy iptables block program
+	legacyPinPath := filepath.Join(BPFMapPinPath, IptablesLegacyBlockProgramName)
+	if err := os.Remove(legacyPinPath); err != nil && !os.IsNotExist(err) {
+		errs = append(errs, errors.Wrapf(err, "failed to remove pinned legacy program %s", legacyPinPath))
+	} else {
+		log.Printf("Legacy iptables block program unpinned from %s", legacyPinPath)
+	}
+
+	// Unpin the nftables block program
+	nftablesPinPath := filepath.Join(BPFMapPinPath, IptablesNftablesBlockProgramName)
+	if err := os.Remove(nftablesPinPath); err != nil && !os.IsNotExist(err) {
+		errs = append(errs, errors.Wrapf(err, "failed to remove pinned nftables program %s", nftablesPinPath))
+	} else {
+		log.Printf("Nftables block program unpinned from %s", nftablesPinPath)
+	}
+
+	if len(errs) > 0 {
+		return errors.Errorf("failed to unpin programs: %v", errs)
+	}
+
 	return nil
 }
 
@@ -149,6 +180,9 @@ func (p *Program) Attach() error {
 			p.objs = nil
 			return errors.Wrap(err, "failed to attach iptables_legacy_block LSM")
 		}
+
+		pinPath := filepath.Join(BPFMapPinPath, IptablesLegacyBlockProgramName)
+		l.Pin(pinPath)
 		links = append(links, l)
 	}
 
@@ -167,6 +201,8 @@ func (p *Program) Attach() error {
 			p.objs = nil
 			return errors.Wrap(err, "failed to attach block_nf_netlink LSM")
 		}
+		pinPath := filepath.Join(BPFMapPinPath, IptablesNftablesBlockProgramName)
+		l.Pin(pinPath)
 		links = append(links, l)
 	}
 
@@ -177,38 +213,25 @@ func (p *Program) Attach() error {
 	return nil
 }
 
-// Detach detaches the BPF program from LSM hooks.
 func (p *Program) Detach() error {
-	if !p.attached {
-		log.Println("BPF program already detached")
-		return nil
+	return p.cleanupPinnedResources()
+}
+
+// cleanupPinnedResources removes pinned resources even when the program is not currently attached
+func (p *Program) cleanupPinnedResources() error {
+	log.Println("Cleaning up pinned resources...")
+
+	// Try to unpin links
+	if err := p.unpinLinks(); err != nil {
+		log.Printf("Warning: failed to unpin links: %v", err)
 	}
 
-	log.Println("Detaching BPF program...")
-
-	// Unpin the event counter map from filesystem
+	// Try to unpin the event counter map
 	if err := p.unpinEventCounterMap(); err != nil {
 		log.Printf("Warning: failed to unpin event counter map: %v", err)
 	}
 
-	// Close all links
-	for _, l := range p.links {
-		if err := l.Close(); err != nil {
-			log.Printf("Warning: failed to close link: %v", err)
-		}
-	}
-	p.links = nil
-
-	// Close objects
-	if p.objs != nil {
-		if err := p.objs.Close(); err != nil {
-			log.Printf("Warning: failed to close BPF objects: %v", err)
-		}
-		p.objs = nil
-	}
-
-	p.attached = false
-	log.Println("BPF program detached successfully")
+	log.Println("Pinned resources cleanup completed")
 	return nil
 }
 
