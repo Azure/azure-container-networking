@@ -54,6 +54,7 @@ func (h *HomeAzMonitor) readCacheValue() cns.GetHomeAzResponse {
 		return cachedResp.(cns.GetHomeAzResponse)
 	}
 
+	// Cache miss - populate cache and try again
 	ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
 	defer cancel()
 	h.Populate(ctx)
@@ -62,6 +63,7 @@ func (h *HomeAzMonitor) readCacheValue() cns.GetHomeAzResponse {
 		return cachedResp.(cns.GetHomeAzResponse)
 	}
 
+	// Still no cache value after populate attempt
 	return cns.GetHomeAzResponse{
 		Response: cns.Response{
 			ReturnCode: types.NotFound,
