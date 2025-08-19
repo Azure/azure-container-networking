@@ -350,6 +350,7 @@ func main() {
 			if err != nil {
 				klog.Errorf("failed to get bpf map value: %v", err)
 			}
+			klog.V(2).Infof("IPTables rules blocks: Previous: %d Current: %d", previousBlocks, currentBlocks)
 		}
 		// if number of blocked rules increased since last time
 		blockedRulesIncreased := currentBlocks > previousBlocks
@@ -360,7 +361,6 @@ func main() {
 				klog.Errorf("failed to create iptables block event: %v", err)
 			}
 		}
-		klog.V(2).Infof("IPTables rules blocks: Previous: %d Current: %d", previousBlocks, currentBlocks)
 		previousBlocks = currentBlocks
 
 		time.Sleep(time.Duration(*checkInterval) * time.Second)
