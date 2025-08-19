@@ -10,7 +10,6 @@ import (
 	"os"
 
 	"github.com/Azure/azure-container-networking/bpf-prog/azure-block-iptables/pkg/bpfprogram"
-	"github.com/cilium/ebpf/rlimit"
 )
 
 // ProgramVersion is set during build
@@ -59,11 +58,6 @@ func parseArgs() (*Config, error) {
 // attachMode handles the attach operation
 func attachMode(config *Config) error {
 	log.Println("Starting attach mode...")
-
-	// Remove memory limit for eBPF
-	if err := rlimit.RemoveMemlock(); err != nil {
-		return fmt.Errorf("failed to remove memlock rlimit: %w", err)
-	}
 
 	// Initialize BPF program attacher using the factory
 	bp := config.AttacherFactory()

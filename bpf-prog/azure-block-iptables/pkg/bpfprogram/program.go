@@ -12,6 +12,7 @@ import (
 	blockservice "github.com/Azure/azure-container-networking/bpf-prog/azure-block-iptables/pkg/blockservice"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/pkg/errors"
 )
 
@@ -122,6 +123,11 @@ func (p *Program) Attach() error {
 	if p.attached {
 		log.Println("BPF program already attached")
 		return nil
+	}
+
+	// Remove memory limit for eBPF
+	if err := rlimit.RemoveMemlock(); err != nil {
+		return errors.Wrapf(err, "failed to remove memlock rlimit")
 	}
 
 	log.Println("Attaching BPF program...")
