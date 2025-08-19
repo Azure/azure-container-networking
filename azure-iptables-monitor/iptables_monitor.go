@@ -5,12 +5,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/cilium/ebpf"
 	"os"
 	"path/filepath"
 	"regexp"
 	"time"
 
+	"github.com/cilium/ebpf"
 	goiptables "github.com/coreos/go-iptables/iptables"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
