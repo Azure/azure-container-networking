@@ -30,7 +30,7 @@ var version string
 var (
 	configPath4   = flag.String("input", "/etc/config/", "Name of the directory with the ipv4 allowed regex files")
 	configPath6   = flag.String("input6", "/etc/config6/", "Name of directory with the ipv6 allowed regex files")
-	checkInterval = flag.Int("interval", 300, "How often to check iptables rules (in seconds)")
+	checkInterval = flag.Int("interval", 300, "How often to check for user iptables rules and bpf map increases (in seconds)")
 	sendEvents    = flag.Bool("events", false, "Whether to send node events if unexpected iptables rules are detected")
 	ipv6Enabled   = flag.Bool("ipv6", false, "Whether to check ip6tables using the ipv6 allowlists")
 	checkMap      = flag.Bool("checkMap", false, "Whether to check the bpf map at mapPath for increases")
@@ -351,7 +351,8 @@ func main() {
 		// if number of blocked rules increased since last time
 		blockedRulesIncreased := currentBlocks > previousBlocks
 		if *sendEvents && blockedRulesIncreased {
-			msg := fmt.Sprintf("Number of blocked iptables rules increased from %d to %d since last check", previousBlocks, currentBlocks)
+			msg := "A process attempted to add iptables rules to the node but was blocked since last check. " +
+				"iptables rules blocked because EBPF Host Routing is enabled: aka.ms/acnsperformance"
 			err = createNodeEvent(clientset, currentNodeName, "BlockedIPTablesRule", msg, corev1.EventTypeWarning)
 			if err != nil {
 				klog.Errorf("failed to create iptables block event: %v", err)
