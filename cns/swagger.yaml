@@ -467,21 +467,11 @@ components:
           description: Human-readable message or error description
       
     Status:
-      type: integer
-      description: Status of IB device (see cns/types/infiniband/status.go)
-      oneOf:
-      - title: Available
-        const: 0
-        description: Device is available for use
-      - title: ProgrammingPending
-        const: 1
-        description: Programming of device is pending
-      - title: ProgrammingFailed
-        const: 2
-        description: Programming of device failed
-      - title: ProgrammingComplete  
-        const: 3
-        description: Programming of device is complete
-      - title: ReleasePending
-        const: 4
-        description: Release of device is pending
+      type: string
+      description: Status of IB device
+      enum:
+        - Unprogrammed
+        - Programming
+        - Programmed
+        - Unprogramming
+        - Failed

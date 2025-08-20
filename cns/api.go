@@ -396,6 +396,6 @@ type GetIBDeviceStatusResponse struct {
 	MACAddress   net.HardwareAddr          `json:"macAddress"`   // MAC address of the device
 	PodNamespace string                    `json:"podNamespace"` // Namespace of pod to which the device is assigned, if any
 	PodName      string                    `json:"podName"`      // Name of pod to which the device is assigned, if any
-	Status       v1alpha1.InfinibandStatus `json:"status"`       // Device status (e.g., "Available", "ProgrammingPending", etc.)"
+	Status       v1alpha1.InfinibandStatus `json:"status"`       // Device status (e.g., "Unprogrammed", "Programming", "Programmed" etc.)"
 	Message      string                    `json:"message"`      // Additional message or error description
 }
