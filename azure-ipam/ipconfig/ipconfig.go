@@ -12,6 +12,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	defaultV6Gateway   = "fe80::1234:5678:9abc"
+)
+
 func CreateOrchestratorContext(args *cniSkel.CmdArgs) ([]byte, error) {
 	podConf, err := parsePodConf(args.Args)
 	if err != nil {
@@ -86,7 +90,7 @@ func ProcessIPConfigsResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, *[]net.
 		if podIPNet.Addr().Is4() {
 			gatewayStr = resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress
 		} else if podIPNet.Addr().Is6() {
-			gatewayStr = resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPv6Address
+			gatewayStr = defaultV6Gateway
 		}
 
 		gatewayIP = net.ParseIP(gatewayStr)
