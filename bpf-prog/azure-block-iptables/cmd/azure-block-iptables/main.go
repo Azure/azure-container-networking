@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/Azure/azure-container-networking/bpf-prog/azure-block-iptables/pkg/bpfprogram"
+	"github.com/pkg/errors"
 )
 
 // ProgramVersion is set during build
@@ -18,6 +19,7 @@ var version = "unknown"
 // Config holds configuration for the application
 type Config struct {
 	Mode            string // "attach" or "detach"
+	Overwrite       bool   // force detach before attach
 	AttacherFactory bpfprogram.AttacherFactory
 }
 
@@ -25,6 +27,7 @@ type Config struct {
 func parseArgs() (*Config, error) {
 	var (
 		mode        = flag.String("mode", "", "Operation mode: 'attach' or 'detach' (required)")
+		overwrite   = flag.Bool("overwrite", false, "Force detach before attach (only applies to attach mode)")
 		showVersion = flag.Bool("version", false, "Show version information")
 		showHelp    = flag.Bool("help", false, "Show help information")
 	)
@@ -51,6 +54,7 @@ func parseArgs() (*Config, error) {
 
 	return &Config{
 		Mode:            *mode,
+		Overwrite:       *overwrite,
 		AttacherFactory: bpfprogram.NewProgram,
 	}, nil
 }
@@ -62,9 +66,17 @@ func attachMode(config *Config) error {
 	// Initialize BPF program attacher using the factory
 	bp := config.AttacherFactory()
 
+	// If overwrite is enabled, first detach any existing programs
+	if config.Overwrite {
+		log.Println("Overwrite mode enabled, detaching any existing programs first...")
+		if err := bp.Detach(); err != nil {
+			log.Printf("Warning: failed to detach existing programs: %v", err)
+		}
+	}
+
 	// Attach the BPF program
 	if err := bp.Attach(); err != nil {
-		return fmt.Errorf("failed to attach BPF program: %w", err)
+		return errors.Wrap(err, "failed to attach BPF program")
 	}
 
 	log.Println("BPF program attached successfully")
@@ -77,7 +89,12 @@ func detachMode(config *Config) error {
 
 	// Initialize BPF program attacher using the factory
 	bp := config.AttacherFactory()
-	bp.Detach()
+
+	// Detach the BPF program
+	if err := bp.Detach(); err != nil {
+		return errors.Wrap(err, "failed to detach BPF program")
+	}
+
 	log.Println("BPF program detached successfully")
 	return nil
 }

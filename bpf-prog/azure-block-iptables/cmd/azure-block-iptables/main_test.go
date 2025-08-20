@@ -17,18 +17,28 @@ func TestHandleFileEventWithMock(t *testing.T) {
 	testCases := []struct {
 		name           string
 		mode           string
+		overwrite      bool
 		expectedAttach int
 		expectedDetach int
 	}{
 		{
 			name:           "test attach mode",
 			mode:           "attach",
+			overwrite:      false,
 			expectedAttach: 1,
 			expectedDetach: 0,
 		},
 		{
+			name:           "test attach mode with overwrite",
+			mode:           "attach",
+			overwrite:      true,
+			expectedAttach: 1,
+			expectedDetach: 1,
+		},
+		{
 			name:           "test detach mode",
 			mode:           "detach",
+			overwrite:      false,
 			expectedAttach: 0,
 			expectedDetach: 1,
 		},
@@ -39,7 +49,7 @@ func TestHandleFileEventWithMock(t *testing.T) {
 			// Reset mock state
 			mockAttacher.Reset()
 
-			run(&Config{Mode: tc.mode, AttacherFactory: func() bpfprogram.Attacher { return mockAttacher }})
+			run(&Config{Mode: tc.mode, Overwrite: tc.overwrite, AttacherFactory: func() bpfprogram.Attacher { return mockAttacher }})
 
 			// Verify expectations
 			if mockAttacher.AttachCallCount() != tc.expectedAttach {
