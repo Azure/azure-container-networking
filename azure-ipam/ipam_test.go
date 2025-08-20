@@ -160,7 +160,7 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 							PrefixLength: 120,
 						},
 						DNSServers:         nil,
-						GatewayIPv6Address: "fe80::1234:5678:9abc",
+						GatewayIPv6Address: "fe80::1", // This value will be ignored - code uses defaultV6Gateway constant instead
 					},
 					HostPrimaryIPInfo: cns.HostIPInfo{
 						Gateway:   "fe80::1234:5678:9abc",
