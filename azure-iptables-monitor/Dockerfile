@@ -40,7 +40,11 @@ RUN if [ "$ARCH" = "amd64" ]; then \
         elif [ -f "$dir" ]; then \
             ln -Tsfn "$dir" /usr/include/$(basename "$dir"); \
         fi \
-    done || true
+            ln -sfn "$dir" /usr/include/$(basename "$dir") || echo "Warning: Failed to create symlink for directory $dir" >&2; \
+        elif [ -f "$dir" ]; then \
+            ln -Tsfn "$dir" /usr/include/$(basename "$dir") || echo "Warning: Failed to create symlink for file $dir" >&2; \
+        fi \
+    done
 RUN GOOS=$OS CGO_ENABLED=0 go generate ./bpf-prog/azure-block-iptables/...
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-block-iptables -trimpath -ldflags "-s -w -X main.version="$AZURE_BLOCK_IPTABLES_VERSION"" -gcflags="-dwarflocationlists=true" ./bpf-prog/azure-block-iptables/cmd/azure-block-iptables
 
