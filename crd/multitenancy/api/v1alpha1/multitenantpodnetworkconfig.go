@@ -37,6 +37,7 @@ type MultitenantPodNetworkConfigList struct {
 }
 
 // MultitenantPodNetworkConfigSpec defines the desired state of PodNetworkConfig
+// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec is immutable after creation"
 type MultitenantPodNetworkConfigSpec struct {
 	// name of PNI object from requesting cx pod
 	// +kubebuilder:validation:Optional

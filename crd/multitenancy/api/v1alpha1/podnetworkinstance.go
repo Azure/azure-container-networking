@@ -45,6 +45,7 @@ type PodNetworkConfig struct {
 }
 
 // PodNetworkInstanceSpec defines the desired state of PodNetworkInstance
+// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec is immutable after creation"
 type PodNetworkInstanceSpec struct {
 	// Deprecated - use PodNetworks
 	// +kubebuilder:validation:Optional

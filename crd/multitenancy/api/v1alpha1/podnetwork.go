@@ -46,6 +46,7 @@ const (
 )
 
 // PodNetworkSpec defines the desired state of PodNetwork
+// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="spec is immutable after creation"
 type PodNetworkSpec struct {
 	// NetworkID is the identifier for the network, e.g. vnet guid or IB network ID
 	// +kubebuilder:validation:Optional

@@ -87,6 +87,9 @@ spec:
                 description: Deprecated - Use NetworkID
                 type: string
             type: object
+            x-kubernetes-validations:
+            - message: spec is immutable after creation
+              rule: self == oldSelf
           status:
             description: PodNetworkStatus defines the observed state of PodNetwork
             properties:
