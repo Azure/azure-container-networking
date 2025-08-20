@@ -14,7 +14,11 @@ import (
 )
 
 // ProgramVersion is set during build
-var version = "unknown"
+var (
+	version         = "unknown"
+	ErrModeRequired = errors.New("mode is required")
+	ErrInvalidMode  = errors.New("invalid mode. Use -mode=attach or -mode=detach")
+)
 
 // Config holds configuration for the application
 type Config struct {
@@ -45,11 +49,11 @@ func parseArgs() (*Config, error) {
 	}
 
 	if *mode == "" {
-		return nil, fmt.Errorf("mode is required. Use -mode=attach or -mode=detach")
+		return nil, ErrModeRequired
 	}
 
 	if *mode != "attach" && *mode != "detach" {
-		return nil, fmt.Errorf("invalid mode '%s'. Must be 'attach' or 'detach'", *mode)
+		return nil, ErrInvalidMode
 	}
 
 	return &Config{
@@ -107,7 +111,7 @@ func run(config *Config) error {
 	case "detach":
 		return detachMode(config)
 	default:
-		return fmt.Errorf("unsupported mode: %s", config.Mode)
+		return ErrInvalidMode
 	}
 }
 

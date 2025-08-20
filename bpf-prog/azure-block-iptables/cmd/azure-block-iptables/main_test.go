@@ -49,7 +49,9 @@ func TestHandleFileEventWithMock(t *testing.T) {
 			// Reset mock state
 			mockAttacher.Reset()
 
-			run(&Config{Mode: tc.mode, Overwrite: tc.overwrite, AttacherFactory: func() bpfprogram.Attacher { return mockAttacher }})
+			if err := run(&Config{Mode: tc.mode, Overwrite: tc.overwrite, AttacherFactory: func() bpfprogram.Attacher { return mockAttacher }}); err != nil {
+				t.Errorf("Failed to run: %v", err)
+			}
 
 			// Verify expectations
 			if mockAttacher.AttachCallCount() != tc.expectedAttach {

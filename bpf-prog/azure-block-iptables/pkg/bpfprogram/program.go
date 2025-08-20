@@ -188,7 +188,12 @@ func (p *Program) Attach() error {
 		}
 
 		pinPath := filepath.Join(BPFMapPinPath, IptablesLegacyBlockProgramName)
-		l.Pin(pinPath)
+		err = l.Pin(pinPath)
+		if err != nil {
+			l.Close()
+			return errors.Wrap(err, "failed to pin iptables_legacy_block LSM")
+		}
+
 		links = append(links, l)
 	}
 
@@ -208,7 +213,16 @@ func (p *Program) Attach() error {
 			return errors.Wrap(err, "failed to attach block_nf_netlink LSM")
 		}
 		pinPath := filepath.Join(BPFMapPinPath, IptablesNftablesBlockProgramName)
-		l.Pin(pinPath)
+		err = l.Pin(pinPath)
+		if err != nil {
+			for _, link := range links {
+				link.Close()
+			}
+
+			l.Close()
+			return errors.Wrap(err, "failed to pin iptables_nftables_block LSM")
+		}
+
 		links = append(links, l)
 	}
 
