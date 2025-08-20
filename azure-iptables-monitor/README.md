@@ -29,11 +29,11 @@ Follow the steps below to build and run the program:
     ```
     - The `-input` flag specifies the directory containing allowed regex pattern files. Default: `/etc/config/`
     - The `-input6` flag specifies the directory containing allowed regex pattern files for IPv6 ip6tables. Default: `/etc/config6/`
-    - The `-interval` flag specifies how often to check iptables rules in seconds. Default: `300`
+    - The `-interval` flag specifies how often to check iptables rules and the bpf map in seconds. Default: `300`
     - The `-events` flag enables Kubernetes event creation for rule violations. Default: `false`
     - The `-ipv6` flag enables IPv6 ip6tables monitoring using the IPv6 allowlists. Default: `false`
     - The `-checkMap` flag enables checking the pinned bpf map specified in mapPath for increases. Default: `false`
-    - The `-mapPath` flag species the pinned bpf map path to check. Default: `/block-iptables/iptables_block_event_counter`
+    - The `-mapPath` flag specifies the pinned bpf map path to check. Default: `/block-iptables/iptables_block_event_counter`
     - The program must be in a k8s environment and `NODE_NAME` must be a set environment variable with the current node.
 
 5. The program will set the `kubernetes.azure.com/user-iptables-rules` label to `true` on the specified ciliumnode resource if unexpected rules are found, or `false` if all rules match expected patterns. Proper RBAC is required for patching (patch for ciliumnodes, create for events, get for nodes).
