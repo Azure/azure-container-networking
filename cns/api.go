@@ -12,7 +12,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/types"
-	"github.com/Azure/azure-container-networking/cns/types/infiniband"
+	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
@@ -393,9 +393,9 @@ type AssignIBDevicesToPodResponse struct {
 
 // GetIBDeviceStatusResponse represents the response containing InfiniBand device programming status
 type GetIBDeviceStatusResponse struct {
-	MACAddress   net.HardwareAddr  `json:"macAddress"`   // MAC address of the device
-	PodNamespace string            `json:"podNamespace"` // Namespace of pod to which the device is assigned, if any
-	PodName      string            `json:"podName"`      // Name of pod to which the device is assigned, if any
-	Status       infiniband.Status `json:"status"`       // Device status (e.g., "Available", "ProgrammingPending", etc.)"
-	Message      string            `json:"message"`      // Additional message or error description
+	MACAddress   net.HardwareAddr          `json:"macAddress"`   // MAC address of the device
+	PodNamespace string                    `json:"podNamespace"` // Namespace of pod to which the device is assigned, if any
+	PodName      string                    `json:"podName"`      // Name of pod to which the device is assigned, if any
+	Status       v1alpha1.InfinibandStatus `json:"status"`       // Device status (e.g., "Available", "ProgrammingPending", etc.)"
+	Message      string                    `json:"message"`      // Additional message or error description
 }
