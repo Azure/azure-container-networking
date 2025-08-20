@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking
 
-go 1.24.6
+go 1.23.2
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.2
@@ -228,15 +228,16 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250528174236-200df99c418a // indirect
-	k8s.io/apiserver v0.30.14 // indirect
-	k8s.io/cloud-provider v0.30.7 // indirect
-	k8s.io/component-base v0.30.14 // indirect
-	k8s.io/component-helpers v0.30.7 // indirect
-	k8s.io/controller-manager v0.30.7 // indirect
+	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
+	k8s.io/apiserver v0.33.4 // indirect
+	k8s.io/cloud-provider v0.33.4 // indirect
+	k8s.io/component-base v0.33.4 // indirect
+	k8s.io/component-helpers v0.33.4 // indirect
+	k8s.io/controller-manager v0.33.4 // indirect
 	k8s.io/cri-api v0.30.14 // indirect
 	k8s.io/csi-translation-lib v0.30.14 // indirect
 	k8s.io/dynamic-resource-allocation v0.30.14 // indirect
-	k8s.io/kms v0.30.14 // indirect
+	k8s.io/kms v0.33.4 // indirect
 	k8s.io/kube-scheduler v0.30.14 // indirect
 	k8s.io/mount-utils v0.30.14 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 // indirect
