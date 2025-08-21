@@ -86,9 +86,6 @@ spec:
                 description: Deprecated - use PodNetworks
                 type: string
             type: object
-            x-kubernetes-validations:
-            - message: spec is immutable after creation
-              rule: self == oldSelf
           status:
             description: PodNetworkInstanceStatus defines the observed state of PodNetworkInstance
             properties:
