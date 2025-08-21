@@ -34,17 +34,15 @@ RUN if [ "$ARCH" = "amd64" ]; then \
     elif [ "$ARCH" = "arm64" ]; then \
         ARCH_DIR=aarch64-linux-gnu; \
     fi && \
-    for dir in /usr/include/"$ARCH_DIR"/*; do \
-        if [ -d "$dir" ]; then \
-            ln -sfn "$dir" /usr/include/$(basename "$dir"); \
-        elif [ -f "$dir" ]; then \
-            ln -Tsfn "$dir" /usr/include/$(basename "$dir"); \
-        fi \
-            ln -sfn "$dir" /usr/include/$(basename "$dir") || echo "Warning: Failed to create symlink for directory $dir" >&2; \
-        elif [ -f "$dir" ]; then \
-            ln -Tsfn "$dir" /usr/include/$(basename "$dir") || echo "Warning: Failed to create symlink for file $dir" >&2; \
-        fi \
-    done
+    if [ -n "$ARCH_DIR" ] && [ -d "/usr/include/$ARCH_DIR" ]; then \
+        for dir in /usr/include/"$ARCH_DIR"/*; do \
+            if [ -d "$dir" ]; then \
+                ln -sfn "$dir" /usr/include/$(basename "$dir") || echo "Warning: Failed to create symlink for directory $dir" >&2; \
+            elif [ -f "$dir" ]; then \
+                ln -Tsfn "$dir" /usr/include/$(basename "$dir") || echo "Warning: Failed to create symlink for file $dir" >&2; \
+            fi; \
+        done; \
+    fi
 RUN GOOS=$OS CGO_ENABLED=0 go generate ./bpf-prog/azure-block-iptables/...
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-block-iptables -trimpath -ldflags "-s -w -X main.version="$AZURE_BLOCK_IPTABLES_VERSION"" -gcflags="-dwarflocationlists=true" ./bpf-prog/azure-block-iptables/cmd/azure-block-iptables
 
