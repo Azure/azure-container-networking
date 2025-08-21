@@ -514,7 +514,7 @@ func TestDestroyNpmIpsets(t *testing.T) {
 	References: 0
 	Number of entries: 0
 	Members:
-	
+
 	Name: %s
 	Type: hash:net
 	Revision: 6
@@ -547,26 +547,26 @@ func TestDestroyNpmIpsets(t *testing.T) {
 	err := ipsMgr.CreateSetNoLock(testSet1Name, []string{"nethash"})
 	if err != nil {
 		t.Errorf("TestDestroyNpmIpsets failed @ ipsMgr.createSet")
-		t.Errorf(err.Error())
+		t.Errorf("%s", err.Error())
 	}
 
 	err = ipsMgr.CreateSetNoLock(testSet2Name, []string{"nethash"})
 	if err != nil {
 		t.Errorf("TestDestroyNpmIpsets failed @ ipsMgr.createSet")
-		t.Errorf(err.Error())
+		t.Errorf("%s", err.Error())
 	}
 
 	// expect prometheus to add this entry, but remove it when destroying npm sets
 	err = ipsMgr.AddToSet(testSet1Name, "1.2.3.4", util.IpsetNetHashFlag, "")
 	if err != nil {
 		t.Errorf("TestDestroyNpmIpsets failed @ ipsMgr.addToSet")
-		t.Errorf(err.Error())
+		t.Errorf("%s",err.Error())
 	}
 
 	err = ipsMgr.DestroyNpmIpsets()
 	if err != nil {
 		t.Errorf("TestDestroyNpmIpsets failed @ ipsMgr.DestroyNpmIpsets")
-		t.Errorf(err.Error())
+		t.Errorf("%s",err.Error())
 	}
 }
 

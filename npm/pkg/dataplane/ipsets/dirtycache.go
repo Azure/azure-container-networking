@@ -96,7 +96,7 @@ func (dc *dirtyCache) create(set *IPSet) {
 	if _, ok := dc.toUpdateCache[set.Name]; ok {
 		msg := fmt.Sprintf("create should not be called for set %s since it's in the toUpdateCache", set.Name)
 		klog.Warning(msg)
-		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "%s", msg)
 		return
 	}
 
@@ -136,7 +136,7 @@ func (dc *dirtyCache) deleteMember(set *IPSet, member string) {
 	if dc.isSetToDelete(set.Name) {
 		msg := fmt.Sprintf("attempting to delete member %s for set %s in the toDestroyCache", member, set.Name)
 		klog.Warning(msg)
-		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "%s", msg)
 		return
 	}
 	if diff, ok := dc.toCreateCache[set.Name]; ok {
