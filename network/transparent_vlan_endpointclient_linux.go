@@ -110,6 +110,19 @@ func NewTransparentVlanEndpointClient(
 	return client
 }
 
+// cleanupInterfaceIfExists checks if an interface exists and deletes it if found
+// Returns an error if the deletion fails
+func (client *TransparentVlanEndpointClient) cleanupInterfaceIfExists(interfaceName string) error {
+	_, ifExists := client.netioshim.GetNetworkInterfaceByName(interfaceName)
+	if ifExists == nil {
+		logger.Info("Interface exists, deleting", zap.String("interfaceName", interfaceName))
+		if err := client.netlink.DeleteLink(interfaceName); err != nil {
+			return errors.Wrapf(err, "failed to clean up %s", interfaceName)
+		}
+	}
+	return nil
+}
+
 // Adds interfaces to the vnet (created if not existing) and vm namespace
 func (client *TransparentVlanEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 	// VM Namespace
@@ -151,13 +164,9 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 		}
 	}
 	// Delete the vlan interface in the VM namespace if it exists
-	_, vlanIfInVMErr := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
-	if vlanIfInVMErr == nil {
-		// The vlan interface exists in the VM ns because it failed to move into the network ns previously and needs to be cleaned up
-		logger.Info("vlan interface exists on the VM namespace, deleting", zap.String("vlanIfName", client.vlanIfName))
-		if delErr := client.netlink.DeleteLink(client.vlanIfName); delErr != nil {
-			return errors.Wrap(delErr, "failed to clean up vlan interface")
-		}
+	// The vlan interface exists in the VM ns because it failed to move into the network ns previously and needs to be cleaned up
+	if delErr := client.cleanupInterfaceIfExists(client.vlanIfName); delErr != nil {
+		return errors.Wrap(delErr, "failed to clean up vlan interface")
 	}
 	return nil
 }
@@ -188,7 +197,7 @@ func (client *TransparentVlanEndpointClient) setLinkNetNSAndConfirm(name string,
 	logger.Info("Move link to NS", zap.String("ifName", name), zap.Any("NSFileDescriptor", fd))
 	err := client.netlink.SetLinkNetNs(name, fd)
 	if err != nil {
-		return errors.Wrapf(err, "failed to set %v inside namespace %v", name, fd)
+		return errors.Wrapf(err, "failed to set %v inside namespace %v (%s)", name, fd, nsName)
 	}
 
 	// confirm veth was moved successfully
@@ -200,7 +209,7 @@ func (client *TransparentVlanEndpointClient) setLinkNetNSAndConfirm(name string,
 		})
 	}, numRetries, sleepInMs)
 	if err != nil {
-		return errors.Wrapf(err, "failed to detect %v inside namespace %v", name, fd)
+		return errors.Wrapf(err, "failed to detect %v inside namespace %v (%s)", name, fd, nsName)
 	}
 	return nil
 }
@@ -311,13 +320,11 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 	}
 
 	// Proactively clean up any leftover veth interfaces before creating new ones
-	if err = client.netlink.DeleteLink(client.vnetVethName); err != nil {
-		logger.Info("Could not proactively clean up vnet veth",
-			zap.String("vnetVethName", client.vnetVethName), zap.Error(err))
+	if vnetDelErr := client.cleanupInterfaceIfExists(client.vnetVethName); vnetDelErr != nil {
+		logger.Info("Could not proactively clean up vnet veth", zap.String("vnetVethName", client.vnetVethName), zap.Error(vnetDelErr))
 	}
-	if err = client.netlink.DeleteLink(client.containerVethName); err != nil {
-		logger.Info("Could not proactively clean up container veth",
-			zap.String("containerVethName", client.containerVethName), zap.Error(err))
+	if containerDelErr := client.cleanupInterfaceIfExists(client.containerVethName); containerDelErr != nil {
+		logger.Info("Could not proactively clean up container veth", zap.String("containerVethName", client.containerVethName), zap.Error(containerDelErr))
 	}
 
 	// Create veth pair
