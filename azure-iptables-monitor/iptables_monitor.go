@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/cilium/ebpf"
 	goiptables "github.com/coreos/go-iptables/iptables"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,12 +28,16 @@ import (
 var version string
 
 var (
-	configPath    = flag.String("input", "/etc/config/", "Name of the directory with the allowed regex files")
-	checkInterval = flag.Int("interval", 300, "How often to check iptables rules (in seconds)")
+	configPath4   = flag.String("input", "/etc/config/", "Name of the directory with the ipv4 allowed regex files")
+	configPath6   = flag.String("input6", "/etc/config6/", "Name of directory with the ipv6 allowed regex files")
+	checkInterval = flag.Int("interval", 300, "How often to check for user iptables rules and bpf map increases (in seconds)")
 	sendEvents    = flag.Bool("events", false, "Whether to send node events if unexpected iptables rules are detected")
+	ipv6Enabled   = flag.Bool("ipv6", false, "Whether to check ip6tables using the ipv6 allowlists")
+	checkMap      = flag.Bool("checkMap", false, "Whether to check the bpf map at mapPath for increases")
+	pinPath       = flag.String("mapPath", "/block-iptables/iptables_block_event_counter", "Path to pinned bpf map")
 )
 
-const label = "user-iptables-rules"
+const label = "kubernetes.azure.com/user-iptables-rules"
 
 type FileLineReader interface {
 	Read(filename string) ([]string, error)
@@ -197,16 +202,18 @@ func hasUnexpectedRules(currentRules, allowedPatterns []string) bool {
 // nodeHasUserIPTablesRules returns true if the node has iptables rules that do not match the regex
 // specified in the rule's respective table: nat, mangle, filter, raw, or security
 // The global file's regexes can match to a rule in any table
-func nodeHasUserIPTablesRules(fileReader FileLineReader, iptablesClient IPTablesClient) bool {
+func nodeHasUserIPTablesRules(fileReader FileLineReader, path string, iptablesClient IPTablesClient) bool {
 	tables := []string{"nat", "mangle", "filter", "raw", "security"}
 
-	globalPatterns, err := fileReader.Read(filepath.Join(*configPath, "global"))
+	globalPatterns, err := fileReader.Read(filepath.Join(path, "global"))
 	if err != nil {
 		globalPatterns = []string{}
 		klog.V(2).Infof("No global patterns file found, using empty patterns")
 	}
 
 	userIPTablesRules := false
+
+	klog.V(2).Infof("Using reference patterns files in %s", path)
 
 	for _, table := range tables {
 		rules, err := GetRules(iptablesClient, table)
@@ -216,7 +223,7 @@ func nodeHasUserIPTablesRules(fileReader FileLineReader, iptablesClient IPTables
 		}
 
 		var referencePatterns []string
-		referencePatterns, err = fileReader.Read(filepath.Join(*configPath, table))
+		referencePatterns, err = fileReader.Read(filepath.Join(path, table))
 		if err != nil {
 			referencePatterns = []string{}
 			klog.V(2).Infof("No reference patterns file found for table %s", table)
@@ -232,6 +239,23 @@ func nodeHasUserIPTablesRules(fileReader FileLineReader, iptablesClient IPTables
 	}
 
 	return userIPTablesRules
+}
+
+func getBPFMapValue() (uint64, error) {
+	m, err := ebpf.LoadPinnedMap(*pinPath, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load pinned map %s: %w", *pinPath, err)
+	}
+	defer m.Close()
+	// 0 is the key for # of blocks
+	key := uint32(0)
+	value := uint64(0)
+
+	if err := m.Lookup(&key, &value); err != nil {
+		return 0, fmt.Errorf("failed to lookup key %d in bpf map: %w", key, err)
+	}
+
+	return value, nil
 }
 
 func main() {
@@ -263,6 +287,15 @@ func main() {
 		klog.Fatalf("failed to create iptables client: %v", err)
 	}
 
+	var ip6tablesClient IPTablesClient
+	if *ipv6Enabled {
+		ip6tablesClient, err = goiptables.New(goiptables.IPFamily(goiptables.ProtocolIPv6))
+		if err != nil {
+			klog.Fatalf("failed to create ip6tables client: %v", err)
+		}
+	}
+	klog.Infof("IPv6: %v", *ipv6Enabled)
+
 	// get current node name from environment variable
 	currentNodeName := os.Getenv("NODE_NAME")
 	if currentNodeName == "" {
@@ -273,8 +306,22 @@ func main() {
 
 	var fileReader FileLineReader = OSFileLineReader{}
 
+	previousBlocks := uint64(0)
+
 	for {
-		userIPTablesRulesFound := nodeHasUserIPTablesRules(fileReader, iptablesClient)
+		userIPTablesRulesFound := nodeHasUserIPTablesRules(fileReader, *configPath4, iptablesClient)
+		if userIPTablesRulesFound {
+			klog.Info("Above user iptables rules detected in IPv4 iptables")
+		}
+
+		// check ip6tables rules if enabled
+		if *ipv6Enabled {
+			userIP6TablesRulesFound := nodeHasUserIPTablesRules(fileReader, *configPath6, ip6tablesClient)
+			if userIP6TablesRulesFound {
+				klog.Info("Above user iptables rules detected in IPv6 iptables")
+			}
+			userIPTablesRulesFound = userIPTablesRulesFound || userIP6TablesRulesFound
+		}
 
 		// update label based on whether user iptables rules were found
 		err = patchLabel(dynamicClient, userIPTablesRulesFound, currentNodeName)
@@ -290,6 +337,28 @@ func main() {
 				klog.Errorf("failed to create event: %v", err)
 			}
 		}
+
+		// if disabled the number of blocks never increases from zero
+		currentBlocks := uint64(0)
+		if *checkMap {
+			// read bpf map to check for number of blocked iptables rules
+			currentBlocks, err = getBPFMapValue()
+			if err != nil {
+				klog.Errorf("failed to get bpf map value: %v", err)
+			}
+			klog.V(2).Infof("IPTables rules blocks: Previous: %d Current: %d", previousBlocks, currentBlocks)
+		}
+		// if number of blocked rules increased since last time
+		blockedRulesIncreased := currentBlocks > previousBlocks
+		if *sendEvents && blockedRulesIncreased {
+			msg := "A process attempted to add iptables rules to the node but was blocked since last check. " +
+				"iptables rules blocked because EBPF Host Routing is enabled: aka.ms/acnsperformance"
+			err = createNodeEvent(clientset, currentNodeName, "BlockedIPTablesRule", msg, corev1.EventTypeWarning)
+			if err != nil {
+				klog.Errorf("failed to create iptables block event: %v", err)
+			}
+		}
+		previousBlocks = currentBlocks
 
 		time.Sleep(time.Duration(*checkInterval) * time.Second)
 	}
