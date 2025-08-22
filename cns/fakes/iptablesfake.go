@@ -16,6 +16,19 @@ var (
 	errIndexBounds   = errors.New("index out of bounds")
 )
 
+type IPTablesLegacyMock struct {
+	deleteCallCount int
+}
+
+func (c *IPTablesLegacyMock) Delete(_, _ string, _ ...string) error {
+	c.deleteCallCount++
+	return nil
+}
+
+func (c *IPTablesLegacyMock) DeleteCallCount() int {
+	return c.deleteCallCount
+}
+
 type IPTablesMock struct {
 	state               map[string]map[string][]string
 	clearChainCallCount int
