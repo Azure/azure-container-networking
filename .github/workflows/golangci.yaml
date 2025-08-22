@@ -54,5 +54,5 @@ jobs:
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v6
       with:
-        version: v1.61
-        args: ${{ github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref) || '' }} --config=.golangci.yml --timeout=25m 
+        version: v1.63.4
+        args: ${{ github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref) || '' }} --config=.golangci.yml --timeout=25m
