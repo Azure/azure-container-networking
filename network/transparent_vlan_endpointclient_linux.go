@@ -294,7 +294,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		}, numRetries, sleepInMs)
 
 		if err != nil {
-			deleteNSIfNotNilErr = errors.Wrapf(err, "failed to get vlan interface interface:%s", client.vlanIfName)
+			deleteNSIfNotNilErr = errors.Wrapf(err, "failed to get vlan interface: %s", client.vlanIfName)
 			return deleteNSIfNotNilErr
 		}
 
