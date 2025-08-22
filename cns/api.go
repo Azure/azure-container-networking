@@ -386,6 +386,15 @@ type GetVMUniqueIDResponse struct {
 	VMUniqueID string   `json:"vmuniqueid"`
 }
 
+// AssignIBDevicesToPodRequest represents the request for assigning InfiniBand devices to a pod
+type AssignIBDevicesToPodRequest struct {
+	IBMACs       []net.HardwareAddr `json:"ibmacs"`       // List of IB device MAC addresses to assign
+	PodNamespace string             `json:"podNamespace"` // Namespace of the target pod
+	PodName      string             `json:"podName"`      // Name of the target pod
+}
+
+// AssignIBDevicesToPodRequest
+
 // AssignIBDevicesToPodResponse represents the response for assigning InfiniBand devices to a pod
 type AssignIBDevicesToPodResponse struct {
 	Message string `json:"message"` // Additional message or error description

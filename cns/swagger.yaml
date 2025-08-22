@@ -120,35 +120,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/UnpublishNetworkContainerResponse"
 
-  /ibdevices:assign:
+  /ibdevices:
     post:
       summary: Assign IB devices to a pod
       description: >
         Assigns one or more Infiniband devices by MAC address to a given pod.
-      parameters:
-        - name: ibmacs
-          in: query
-          required: true
-          description: Comma-separated list of IB device MAC addresses.
-          schema:
-            type: array
-            items:
-              type: string
-            example: ["60:45:bd:a4:b5:7a", "7c:1e:52:07:11:36"]
-        - name: podnamespace
-          in: query
-          required: true
-          description: The namespace of the target pod.
-          schema:
-            type: string
-            example: "podnamespace"
-        - name: podname
-          in: query
-          required: true
-          description: The name of the target pod.
-          schema:
-            type: string
-            example: "podname"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignIBDevicesToPodRequest"
       responses:
         '200':
           description: >-
@@ -171,8 +153,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AssignIBDevicesToPodResponse"
-  
-  /ibdevices:
     get:
       summary: Get status of an IB device
       description: >-
@@ -432,6 +412,25 @@ components:
         Message:
           type: string
           description: The error message
+
+    AssignIBDevicesToPodRequest:
+      type: object
+      required:
+        - ibmacs
+        - podNamespace
+        - podName
+      properties:
+        ibmacs:
+          type: array
+          items:
+            type: string
+          description: List of IB device MAC addresses to assign such as "60:45:bd:a4:b5:7a"
+        podNamespace:
+          type: string
+          description: Namespace of the target pod
+        podName:
+          type: string
+          description: Name of the target pod
 
     AssignIBDevicesToPodResponse:
       type: object
