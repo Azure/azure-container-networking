@@ -223,8 +223,10 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 
 // ipBlockRule translates IPBlock field in networkpolicy object to translatedIPSet and SetInfo.
 // ipBlockSetIndex parameter is used to diffentiate ipBlock fields in one networkpolicy object.
+// For Windows NPM Lite, when npmLiteToggle is true, this bypasses IPSet creation and returns
+// SetInfo with direct CIDR values instead.
 func ipBlockRule(policyName, ns string, direction policies.Direction, matchType policies.MatchType, ipBlockSetIndex, ipBlockPeerIndex int,
-	ipBlockRule *networkingv1.IPBlock,
+	ipBlockRule *networkingv1.IPBlock, npmLiteToggle bool,
 ) (*ipsets.TranslatedIPSet, policies.SetInfo, error) { //nolint // gofumpt
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil, policies.SetInfo{}, nil
@@ -234,6 +236,15 @@ func ipBlockRule(policyName, ns string, direction policies.Direction, matchType 
 		return nil, policies.SetInfo{}, ErrUnsupportedIPAddress
 	}
 
+	// For Windows NPM Lite, bypass IPSet creation and use direct CIDR values
+	if util.IsWindowsDP() && npmLiteToggle {
+		// Create SetInfo with direct CIDR values, no IPSet needed
+		cidrs := []string{ipBlockRule.CIDR}
+		setInfo := policies.NewSetInfoWithCIDRs(cidrs, included, matchType)
+		return nil, setInfo, nil // No IPSet needed for Windows NPM Lite
+	}
+
+	// Traditional path for Linux or Windows without NPM Lite: create IPSet
 	ipBlockIPSet, err := ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex, ipBlockRule)
 	if err != nil {
 		return nil, policies.SetInfo{}, err
@@ -405,11 +416,14 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 		// #2.1 Handle IPBlock and port if exist
 		if peer.IPBlock != nil {
 			if len(peer.IPBlock.CIDR) > 0 {
-				ipBlockIPSet, ipBlockSetInfo, err := ipBlockRule(netPolName, npmNetPol.Namespace, direction, matchType, ruleIndex, peerIdx, peer.IPBlock)
+				ipBlockIPSet, ipBlockSetInfo, err := ipBlockRule(netPolName, npmNetPol.Namespace, direction, matchType, ruleIndex, peerIdx, peer.IPBlock, npmLiteToggle)
 				if err != nil {
 					return err
 				}
-				npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, ipBlockIPSet)
+				// Only add IPSet to RuleIPSets if one was created (not for Windows NPM Lite)
+				if ipBlockIPSet != nil {
+					npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, ipBlockIPSet)
+				}
 
 				err = peerAndPortRule(npmNetPol, direction, ports, []policies.SetInfo{ipBlockSetInfo}, npmLiteToggle)
 				if err != nil {

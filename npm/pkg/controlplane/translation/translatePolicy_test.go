@@ -567,7 +567,7 @@ func TestIPBlockRule(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			translatedIPSet, setInfo, err := ipBlockRule(tt.policyName, tt.namemspace, tt.direction, tt.matchType, tt.ipBlockSetIndex, tt.ipBlockPeerIndex, tt.ipBlockRule)
+			translatedIPSet, setInfo, err := ipBlockRule(tt.policyName, tt.namemspace, tt.direction, tt.matchType, tt.ipBlockSetIndex, tt.ipBlockPeerIndex, tt.ipBlockRule, false)
 			if tt.skipWindows && util.IsWindowsDP() {
 				require.Error(t, err)
 			} else {
