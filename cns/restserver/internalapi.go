@@ -27,9 +27,9 @@ import (
 
 const (
 	// Known API names we care about
-	nmAgentSwiftV2API = "EnableSwiftV2NCGoalStateSupport"
+	nmAgentSwiftV2API      = "EnableSwiftV2NCGoalStateSupport"
 	expectedIMDSAPIVersion = "2025-07-24"
-	PrefixOnNicNCVersion = "1"
+	PrefixOnNicNCVersion   = "1"
 )
 
 // This file contains the internal functions called by either HTTP APIs (api.go) or
@@ -229,7 +229,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	}
 
 	// Get IMDS NC versions for delegated NIC scenarios
-	imdsNCVersions, err := service.GetIMDSNCVersions(ctx)
+	imdsNCVersions, err := service.GetIMDSNCs(ctx)
 	if err != nil {
 		// If any of the NMA API check calls, imds calls fails assume that nma build doesn't have the latest changes and create empty map
 		imdsNCVersions = make(map[string]string)
@@ -247,9 +247,10 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	}
 	for ncID, version := range imdsNCVersions {
 		if _, exists := nmaProgrammedNCs[ncID]; !exists {
-        nmaProgrammedNCs[strings.ToLower(ncID)] = version
+			nmaProgrammedNCs[strings.ToLower(ncID)] = version
 		} else {
-			logger.Warnf("NC %s exists in both NMA and IMDS responses, which is not expected for NC %s", ncID)
+			//nolint:staticcheck // SA1019: suppress deprecated logger.Warnf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+			logger.Warnf("NC %s exists in both NMA and IMDS responses, which is not expected", ncID)
 		}
 	}
 	hasNC.Set(float64(len(nmaProgrammedNCs)))
@@ -695,59 +696,55 @@ func (service *HTTPRestService) isSwiftV2NCSupported(ctx context.Context) bool {
 }
 
 func (service *HTTPRestService) isNCDetailsAPIExists(ctx context.Context) bool {
-    if service.imdsClient == nil {
-        logger.Errorf("IMDS client is not available")
-        return false
-    }
+	versionsResp, err := service.imdsClient.GetIMDSVersions(ctx)
+	if err != nil {
+		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+		logger.Errorf("Failed to get IMDS versions: %v", err)
+		return false
+	}
 
-    versionsResp, err := service.imdsClient.GetIMDSVersions(ctx)
-    if err != nil {
-        logger.Errorf("Failed to get IMDS versions: %v", err)
-        return false
-    }
-
-    // Check if the expected API version exists in the response
-    for _, version := range versionsResp.APIVersions {
-        if version == expectedIMDSAPIVersion {
-            return true
-        }
-    }
-    return false
+	// Check if the expected API version exists in the response
+	for _, version := range versionsResp.APIVersions {
+		if version == expectedIMDSAPIVersion {
+			return true
+		}
+	}
+	return false
 }
 
 // GetIMDSNCs gets NC versions from IMDS and returns them as a map
 func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]string, error) {
-    // Check NMAgent API support for SwiftV2, if it fails return empty map assuming support might not be available in that nma build
-    if !service.isSwiftV2NCSupported(ctx) || !service.isNCDetailsAPIExists(ctx) {
-        //nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-        logger.Errorf("NMAgent does not support SwiftV2 API or IMDS does not support NC details API")
-        return make(map[string]string), nil
-    }
+	imdsClient := service.imdsClient
+	if imdsClient == nil {
+		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+		logger.Errorf("IMDS client is not available")
+		return make(map[string]string), nil
+	}
+	// Check NMAgent API support for SwiftV2, if it fails return empty map assuming support might not be available in that nma build
+	if !service.isSwiftV2NCSupported(ctx) || !service.isNCDetailsAPIExists(ctx) {
+		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+		logger.Errorf("NMAgent does not support SwiftV2 API or IMDS does not support NC details API")
+		return make(map[string]string), nil
+	}
 
-    imdsClient := service.imdsClient
-    if imdsClient == nil {
-        logger.Errorf("IMDS client is not available")
-        return make(map[string]string), nil
-    }
+	// Get all network interfaces from IMDS
+	networkInterfaces, err := imdsClient.GetNetworkInterfaces(ctx)
+	if err != nil {
+		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+		logger.Errorf("Failed to get network interfaces from IMDS: %v", err)
+		return make(map[string]string), nil
+	}
 
-    // Get all network interfaces from IMDS
-    networkInterfaces, err := imdsClient.GetNetworkInterfaces(ctx)
-    if err != nil {
-        //nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-        logger.Errorf("Failed to get network interfaces from IMDS: %v", err)
-        return make(map[string]string), nil
-    }
+	// Build ncs map from the network interfaces
+	ncs := make(map[string]string)
+	for _, iface := range networkInterfaces {
+		// IMDS returns interfaceCompartmentID, as nc id guid has different context on nma. We map these to NC ID
+		ncID := iface.InterfaceCompartmentID
 
-    // Build ncs map from the network interfaces
-    ncs := make(map[string]string)
-    for _, iface := range networkInterfaces {
-        // IMDS returns interfaceCompartmentID, as nc id guid has different context on nma. We map these to NC ID
-        ncID := iface.InterfaceCompartmentID
+		if ncID != "" {
+			ncs[ncID] = PrefixOnNicNCVersion // for prefix on nic version scenario nc version is 1
+		}
+	}
 
-        if ncID != "" {
-            ncs[ncID] = PrefixOnNicNCVersion // for prefix on nic version scenario nc version is 1
-        }
-    }
-
-    return ncs, nil
+	return ncs, nil
 }
