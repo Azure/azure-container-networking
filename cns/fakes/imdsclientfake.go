@@ -8,6 +8,7 @@ package fakes
 
 import (
 	"context"
+	"net"
 
 	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
@@ -59,19 +60,38 @@ func (m *MockIMDSClient) GetVMUniqueID(ctx context.Context) (string, error) {
 }
 
 func (m *MockIMDSClient) GetNetworkInterfaces(ctx context.Context) ([]imds.NetworkInterface, error) {
-	if ctx.Value(SimulateError) != nil {
-		return nil, imds.ErrUnexpectedStatusCode
-	}
+    if ctx.Value(SimulateError) != nil {
+        return nil, imds.ErrUnexpectedStatusCode
+    }
 
-	// Return some mock network interfaces for testing
-	return []imds.NetworkInterface{
-		{
-			InterfaceCompartmentID:      "nc1",
-			InterfaceCompartmentVersion: "1",
-		},
-		{
-			InterfaceCompartmentID:      "nc2",
-			InterfaceCompartmentVersion: "2",
-		},
-	}, nil
+    // Parse MAC addresses for testing
+    macAddr1, _ := net.ParseMAC("00:15:5d:01:02:01")
+    macAddr2, _ := net.ParseMAC("00:15:5d:01:02:02")
+
+    // Return some mock network interfaces for testing
+    return []imds.NetworkInterface{
+        {
+            InterfaceCompartmentID: "nc1",
+            MacAddress:            imds.HardwareAddr(macAddr1),
+        },
+        {
+            InterfaceCompartmentID: "nc2",
+            MacAddress:            imds.HardwareAddr(macAddr2),
+        },
+    }, nil
+}
+
+func (m *MockIMDSClient) GetIMDSVersions(ctx context.Context) (*imds.APIVersionsResponse, error) {
+    if ctx.Value(SimulateError) != nil {
+        return nil, imds.ErrUnexpectedStatusCode
+    }
+
+    // Return supported API versions including the expected one
+    return &imds.APIVersionsResponse{
+        APIVersions: []string{
+            "2017-03-01",
+            "2021-01-01",
+            "2025-07-24",
+        },
+    }, nil
 }
