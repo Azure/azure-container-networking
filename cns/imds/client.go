@@ -195,7 +195,6 @@ func (c *Client) GetIMDSVersions(ctx context.Context) (*APIVersionsResponse, err
 
 		return nil
 	}, retry.Context(ctx), retry.Attempts(c.config.retryAttempts), retry.DelayType(retry.BackOffDelay))
-
 	if err != nil {
 		return nil, errors.Wrap(err, "exhausted retries querying IMDS versions")
 	}
