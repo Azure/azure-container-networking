@@ -1089,7 +1089,6 @@ func (c *Client) UpdateEndpoint(ctx context.Context, endpointID string, ipInfo m
 
 	var response cns.Response
 	err = json.NewDecoder(res.Body).Decode(&response)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode CNS Response")
 	}
@@ -1122,7 +1121,6 @@ func (c *Client) DeleteEndpointState(ctx context.Context, endpointID string) (*c
 
 	var response cns.Response
 	err = json.NewDecoder(res.Body).Decode(&response)
-
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode CNS Response")
 	}
