@@ -388,9 +388,9 @@ type GetVMUniqueIDResponse struct {
 
 // AssignIBDevicesToPodRequest represents the request for assigning InfiniBand devices to a pod
 type AssignIBDevicesToPodRequest struct {
-	IBMACs       []net.HardwareAddr `json:"ibmacs"`       // List of IB device MAC addresses to assign
-	PodNamespace string             `json:"podNamespace"` // Namespace of the target pod
-	PodName      string             `json:"podName"`      // Name of the target pod
+	IBMACAddresses []net.HardwareAddr `json:"ibmacaddresses"` // List of IB device MAC addresses to assign
+	PodNamespace   string             `json:"podNamespace"`   // Namespace of the target pod
+	PodName        string             `json:"podName"`        // Name of the target pod
 }
 
 // AssignIBDevicesToPodRequest
@@ -402,7 +402,7 @@ type AssignIBDevicesToPodResponse struct {
 
 // GetIBDeviceStatusResponse represents the response containing InfiniBand device programming status
 type GetIBDeviceStatusResponse struct {
-	MACAddress   net.HardwareAddr          `json:"macAddress"`   // MAC address of the device
+	IBMACAddress net.HardwareAddr          `json:"ibmacaddress"` // IB device MAC address
 	PodNamespace string                    `json:"podNamespace"` // Namespace of pod to which the device is assigned, if any
 	PodName      string                    `json:"podName"`      // Name of pod to which the device is assigned, if any
 	Status       v1alpha1.InfinibandStatus `json:"status"`       // Device status (e.g., "Unprogrammed", "Programming", "Programmed" etc.)"

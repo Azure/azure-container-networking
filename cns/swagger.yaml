@@ -416,11 +416,11 @@ components:
     AssignIBDevicesToPodRequest:
       type: object
       required:
-        - ibmacs
+        - ibmacaddresses
         - podNamespace
         - podName
       properties:
-        ibmacs:
+        ibmacaddresses:
           type: array
           items:
             type: string
@@ -444,13 +444,13 @@ components:
     GetIBDeviceStatusResponse:
       type: object
       required:
-        - MACAddress
+        - IBMACAddress
         - PodNamespace
         - PodName
         - Status
         - Message
       properties:
-        MACAddress:
+        IBMACAddress:
           type: string
           description: MAC address of the IB device
         PodNamespace:
