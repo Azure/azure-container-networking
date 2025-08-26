@@ -3,10 +3,10 @@ package bpfprogram
 // Attacher defines the interface for BPF program attachment operations.
 // This interface allows for dependency injection and easier testing with mock implementations.
 type Attacher interface {
-	// Attach attaches the BPF program to LSM hooks
+	// Attach attaches the BPF program to LSM hooks and pins the links and maps
 	Attach() error
 
-	// Detach detaches the BPF program from LSM hooks
+	// Unpins the links and maps (causes detachment)
 	Detach() error
 
 	// IsAttached returns true if the BPF program is currently attached

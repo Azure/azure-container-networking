@@ -17,6 +17,35 @@ WORKDIR /azure-iptables-monitor
 COPY ./azure-iptables-monitor .
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/iptables-monitor -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
 
+FROM go AS azure-block-iptables
+ARG OS
+ARG AZURE_BLOCK_IPTABLES_VERSION
+ARG ARCH
+WORKDIR /azure-container-networking
+COPY ./bpf-prog/azure-block-iptables ./bpf-prog/azure-block-iptables
+COPY ./go.mod ./go.sum ./
+# Install BPF development dependencies for Azure Linux (mariner)
+RUN tdnf install -y llvm clang libbpf-devel gcc binutils glibc
+# Set up C include path for BPF
+ENV C_INCLUDE_PATH=/usr/include/bpf
+# Set up architecture-specific symlinks for cross-compilation support
+RUN if [ "$ARCH" = "amd64" ]; then \
+        ARCH_DIR=x86_64-linux-gnu; \
+    elif [ "$ARCH" = "arm64" ]; then \
+        ARCH_DIR=aarch64-linux-gnu; \
+    fi && \
+    if [ -n "$ARCH_DIR" ] && [ -d "/usr/include/$ARCH_DIR" ]; then \
+        for dir in /usr/include/"$ARCH_DIR"/*; do \
+            if [ -d "$dir" ]; then \
+                ln -sfn "$dir" /usr/include/$(basename "$dir") || echo "Warning: Failed to create symlink for directory $dir" >&2; \
+            elif [ -f "$dir" ]; then \
+                ln -Tsfn "$dir" /usr/include/$(basename "$dir") || echo "Warning: Failed to create symlink for file $dir" >&2; \
+            fi; \
+        done; \
+    fi
+RUN GOOS=$OS CGO_ENABLED=0 go generate ./bpf-prog/azure-block-iptables/...
+RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-block-iptables -trimpath -ldflags "-s -w -X main.version="$AZURE_BLOCK_IPTABLES_VERSION"" -gcflags="-dwarflocationlists=true" ./bpf-prog/azure-block-iptables/cmd/azure-block-iptables
+
 FROM mariner-core AS iptables
 RUN tdnf install -y iptables
 
@@ -24,5 +53,6 @@ FROM mariner-distroless AS linux
 COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
 COPY --from=iptables /usr/lib /usr/lib
 COPY --from=azure-iptables-monitor /go/bin/iptables-monitor azure-iptables-monitor
+COPY --from=azure-block-iptables /go/bin/azure-block-iptables azure-block-iptables
 
 ENTRYPOINT ["/azure-iptables-monitor"]

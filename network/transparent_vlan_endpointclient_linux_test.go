@@ -121,12 +121,14 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 	nl := netlink.NewMockNetlink(false, "")
 	plc := platform.NewMockExecClient(false)
 
-	tests := []struct {
-		name       string
-		client     *TransparentVlanEndpointClient
-		epInfo     *EndpointInfo
-		wantErr    bool
-		wantErrMsg string
+	setLinkNetNSTests := []struct {
+		name          string
+		client        *TransparentVlanEndpointClient
+		epInfo        *EndpointInfo
+		moveInterface string
+		moveNS        string
+		wantErr       bool
+		wantErrMsg    string
 	}{
 		// Set the link network namespace and confirm that it was moved inside
 		{
@@ -143,8 +145,10 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				netioshim:         netio.NewMockNetIO(false, 0),
 				nsClient:          NewMockNamespaceClient(),
 			},
-			epInfo:  &EndpointInfo{},
-			wantErr: false,
+			moveInterface: "eth0.1",
+			moveNS:        "az_ns_1",
+			epInfo:        &EndpointInfo{},
+			wantErr:       false,
 		},
 		{
 			name: "Set link netns fail to set",
@@ -160,9 +164,11 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				netioshim:         netio.NewMockNetIO(false, 0),
 				nsClient:          NewMockNamespaceClient(),
 			},
-			epInfo:     &EndpointInfo{},
-			wantErr:    true,
-			wantErrMsg: "failed to set eth0.1",
+			moveInterface: "A1veth0",
+			moveNS:        "az_ns_2",
+			epInfo:        &EndpointInfo{},
+			wantErr:       true,
+			wantErrMsg:    "failed to set A1veth0 inside namespace 1 (az_ns_2)",
 		},
 		{
 			name: "Set link netns fail to detect",
@@ -181,15 +187,17 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				},
 				nsClient: NewMockNamespaceClient(),
 			},
-			epInfo:     &EndpointInfo{},
-			wantErr:    true,
-			wantErrMsg: "failed to detect eth0.1",
+			moveInterface: "eth0.1",
+			moveNS:        "az_ns_1",
+			epInfo:        &EndpointInfo{},
+			wantErr:       true,
+			wantErrMsg:    "failed to detect eth0.1 inside namespace 1 (az_ns_1)",
 		},
 	}
-	for _, tt := range tests {
+	for _, tt := range setLinkNetNSTests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.client.setLinkNetNSAndConfirm(tt.client.vlanIfName, 1)
+			err := tt.client.setLinkNetNSAndConfirm(tt.moveInterface, 1, tt.moveNS)
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())
@@ -199,7 +207,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 		})
 	}
 
-	tests = []struct {
+	tests := []struct {
 		name       string
 		client     *TransparentVlanEndpointClient
 		epInfo     *EndpointInfo
@@ -256,7 +264,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
-			wantErrMsg: "failed to cleanup/delete ns after noticing vlan veth does not exist: netns failure: " + errNetnsMock.Error(),
+			wantErrMsg: "failed to cleanup/delete ns after noticing vlan interface does not exist: netns failure: " + errNetnsMock.Error(),
 		},
 		{
 			name: "Ensure clean populate VM cleanup straggling vlan if in vm ns",
@@ -344,7 +352,12 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 					set:         defaultSet,
 					deleteNamed: defaultDeleteNamed,
 				},
-				netlink:        netlink.NewMockNetlink(false, ""),
+				netlink: &netlink.MockNetlink{
+					DeleteLinkFn: func(_ string) error {
+						// should still succeed
+						return netlink.ErrorMockNetlink
+					},
+				},
 				plClient:       platform.NewMockExecClient(false),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 				netioshim:      netio.NewMockNetIO(false, 0),
@@ -375,7 +388,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
-			wantErrMsg: "failed to move or detect vnetVethName in vnet ns, deleting: failed to set A1veth0 inside namespace 1: " + netlink.ErrorMockNetlink.Error() + " : netlink fail",
+			wantErrMsg: "failed to move or detect vnetVethName in vnet ns, deleting: failed to set A1veth0 inside namespace 1 (az_ns_1): " + netlink.ErrorMockNetlink.Error() + " : netlink fail",
 		},
 		{
 			name: "Add endpoints get interface fail for primary interface (eth0)",
@@ -523,7 +536,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Add endpoints fail check vlan veth exists",
+			name: "Add endpoints fail check vlan interface exists",
 			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
@@ -537,7 +550,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
-			wantErrMsg: "vlan veth doesn't exist: " + netio.ErrMockNetIOFail.Error() + ":eth0.1",
+			wantErrMsg: "vlan interface doesn't exist: " + netio.ErrMockNetIOFail.Error() + ":eth0.1",
 		},
 		{
 			name: "Add endpoints fail check vnet veth exists",
