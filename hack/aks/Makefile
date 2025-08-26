@@ -377,7 +377,7 @@ dualstack-byocni-nokubeproxy-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a D
 		--os-sku $(OS_SKU) \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
-		--aks-custom-headers AKSHTTPCustomFeatures="Microsoft.ContainerService/AzureOverlayDualStackPreview,Microsoft.ContainerService/Ubuntu2404Preview" \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview,AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		--yes
 	@$(MAKE) set-kubeconf
