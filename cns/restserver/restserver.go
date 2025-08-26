@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/nodesubnet"
@@ -52,6 +53,8 @@ type wireserverProxy interface {
 
 type imdsClient interface {
 	GetVMUniqueID(ctx context.Context) (string, error)
+	GetNetworkInterfaces(ctx context.Context) ([]imds.NetworkInterface, error)
+	GetIMDSVersions(ctx context.Context) (*imds.APIVersionsResponse, error)
 }
 
 type iptablesClient interface {
