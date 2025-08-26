@@ -14,7 +14,7 @@ NODE_COUNT           ?= 2
 NODE_COUNT_WIN	     ?= $(NODE_COUNT)
 NODEUPGRADE          ?= NodeImage
 OS				     ?= linux # Used to signify if you want to bring up a windows nodePool on byocni clusters
-OS_SKU               ?= AzureLinux
+OS_SKU               ?= Ubuntu2404
 OS_SKU_WIN           ?= Windows2022
 REGION               ?= westus2
 VM_SIZE	             ?= Standard_B2s
@@ -377,7 +377,7 @@ dualstack-byocni-nokubeproxy-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a D
 		--os-sku $(OS_SKU) \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
-		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview,Microsoft.ContainerService/Ubuntu2404Preview \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		--yes
 	@$(MAKE) set-kubeconf
