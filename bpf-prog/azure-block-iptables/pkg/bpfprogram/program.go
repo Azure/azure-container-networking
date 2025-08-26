@@ -18,7 +18,7 @@ import (
 
 const (
 	// BPFMapPinPath is the directory where BPF maps are pinned
-	BPFMapPinPath = "/sys/fs/bpf/block-iptables"
+	BPFMapPinPath = "/sys/fs/bpf/azure-block-iptables"
 	// EventCounterMapName is the name used for pinning the event counter map
 	EventCounterMapName = "iptables_block_event_counter"
 	// IptablesLegacyBlockProgramName is the name used for pinning the legacy iptables block program
