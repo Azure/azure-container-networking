@@ -45,13 +45,14 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 	ncPrimaryIP, _, _ := net.ParseCIDR(req.IPConfiguration.IPSubnet.IPAddress + "/" + fmt.Sprintf("%d", req.IPConfiguration.IPSubnet.PrefixLength))
 
 	iptl, err := service.iptables.GetIPTablesLegacy()
-	if err != nil {
-		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to create iptables legacy interface : %v", err)
-	}
-	err = iptl.Delete(iptables.Nat, iptables.Postrouting, "-j", SWIFTPOSTROUTING)
-	// ignore if command fails
 	if err == nil {
-		logger.Printf("[Azure CNS] Deleted legacy jump to SWIFT-POSTROUTING Chain")
+		err = iptl.Delete(iptables.Nat, iptables.Postrouting, "-j", SWIFTPOSTROUTING)
+		// ignore if command fails
+		if err == nil {
+			logger.Printf("[Azure CNS] Deleted legacy jump to SWIFT-POSTROUTING Chain")
+		}
+	} else {
+		logger.Printf("[Azure CNS] Could not create iptables legacy interface, continuing : %v", err)
 	}
 
 	ipt, err := service.iptables.GetIPTables()
