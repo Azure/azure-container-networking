@@ -678,7 +678,7 @@ func (service *HTTPRestService) getSupportedAPIsFromNMAgent(ctx context.Context)
 	return apis, nil
 }
 
-func (service *HTTPRestService) isSwiftV2NCSupported(ctx context.Context) bool {
+func (service *HTTPRestService) isSwiftV2NCGoalStateSupported(ctx context.Context) bool {
 	apis, err := service.getSupportedAPIsFromNMAgent(ctx)
 	if err != nil {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
@@ -721,7 +721,7 @@ func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]stri
 		return make(map[string]string), nil
 	}
 	// Check NMAgent API support for SwiftV2, if it fails return empty map assuming support might not be available in that nma build
-	if !service.isSwiftV2NCSupported(ctx) || !service.isNCDetailsAPIExists(ctx) {
+	if !service.isSwiftV2NCGoalStateSupported(ctx) || !service.isNCDetailsAPIExists(ctx) {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
 		logger.Errorf("NMAgent does not support SwiftV2 API or IMDS does not support NC details API")
 		return make(map[string]string), nil
