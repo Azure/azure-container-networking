@@ -6,6 +6,7 @@ parameters:
   dependsOn: ""
   tag: ""
   continueOnError: false
+  logType: "npmLogs"
 
 # Condition confirms that:
 # Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn: ${{ parameters.dependsOn }}
@@ -134,7 +135,7 @@ jobs:
             condition: always()
 
       - bash: |
-          npmLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_npmLogs_Attempt_#$(System.StageAttempt)
+          npmLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
           mkdir -p $npmLogs
 
           kubectl get pods -n kube-system | grep npm
@@ -147,8 +148,8 @@ jobs:
         retryCountOnTaskFailure: 3
         condition: always()
 
-      - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_npmLogs_Attempt_#$(System.StageAttempt)
+      - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
         condition: always()
-        artifact: ${{ parameters.clusterName }}_npmLogs_Attempt_#$(System.StageAttempt)
+        artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
         name: npmLogs
         displayName: Publish NPM pod logs

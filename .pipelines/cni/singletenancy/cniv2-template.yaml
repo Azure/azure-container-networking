@@ -12,6 +12,7 @@ parameters:
   iterations: 3
   osSKU: Ubuntu
   osSkuWin: Windows2022
+  upgradeScenario: ""
 
 # CNIv2
 # + Should be able to scale up/down the pods successfully certain number of times.
@@ -28,7 +29,7 @@ parameters:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
 # CONTROL_OS either contains 'linux' or 'all' and CONTROL_CNI either contains 'cniv1' or 'all'. Both must be true and are not case sensitive
 stages:
-  - ${{ if eq(parameters.os, 'linux') }}:
+  - ${{ if and(eq(parameters.os, 'linux'), eq(parameters.upgradeScenario, false)) }}:
     - stage: create_${{ parameters.name }}
       condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cniv2'), contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'linux'), contains(variables.CONTROL_OS, 'all') ) ) )
       variables:
@@ -61,7 +62,7 @@ stages:
 # Condition confirms that:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
 # CONTROL_OS either contains 'windows' or 'all' and CONTROL_CNI either contains 'cniv2' or 'all'. Both must be true and are not case sensitive
-  - ${{ if eq(parameters.os, 'windows') }}:
+  - ${{ if and(eq(parameters.os, 'windows'), eq(parameters.upgradeScenario, false)) }}:
     - stage: create_${{ parameters.name }}
       condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cniv2'), contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'windows'), contains(variables.CONTROL_OS, 'all') ) ) )
       variables:
@@ -116,7 +117,12 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
-      - create_${{ parameters.name }}
+      - ${{ if and(eq(parameters.upgradeScenario, true), ne(parameters.dependsOn, '')) }}:
+        - ${{ parameters.dependsOn }}
+      - ${{ if and(eq(parameters.upgradeScenario, false), eq(parameters.os, 'linux')) }}:
+        - create_${{ parameters.name }}
+      - ${{ if and(eq(parameters.upgradeScenario, false), eq(parameters.os, 'windows')) }}:
+        - create_${{ parameters.name }}
       - publish
       - setup
     displayName: "CNIv2 Test - ${{ parameters.name }}"
@@ -136,11 +142,34 @@ stages:
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   kubectl cluster-info
                   kubectl get po -owide -A
-                  if [ "${{parameters.os}}" == "windows" ]; then
-                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  if [ ${{parameters.upgradeScenario}} == "true" ]; then
+                    if [ -z "$UPGRADE_CNS_VERSION" ]
+                    then
+                      echo "UPGRADE_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$UPGRADE_CNS_VERSION
+                      echo "UPGRADE_CNS_VERSION is set to $CNS"
+                    fi
+                    IPAM_IMAGE_REPO=$UPGRADE_IPAM_IMAGE_REPO
+                    CNS_IMAGE_REPO=$UPGRADE_CNS_IMAGE_REPO
                   else
-                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                    if [ -z "$TEST_CNS_VERSION" ]
+                    then
+                      echo "TEST_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$TEST_CNS_VERSION
+                      echo "TEST_CNS_VERSION is set to $CNS"
+                    fi
                   fi
+
+                  if [ "${{parameters.os}}" == "windows" ]; then
+                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  else
+                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  fi
+
               name: "overlaye2e"
               displayName: "Overlay Integration"
           - ${{ if contains(parameters.clusterType, 'swift') }}:
@@ -155,10 +184,31 @@ stages:
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   kubectl cluster-info
                   kubectl get po -owide -A
-                  if [ "${{parameters.os}}" == "windows" ]; then
-                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  if [ ${{parameters.upgradeScenario}} == "true" ]; then
+                    if [ -z "$UPGRADE_CNS_VERSION" ]
+                    then
+                      echo "UPGRADE_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$UPGRADE_CNS_VERSION
+                      echo "UPGRADE_CNS_VERSION is set to $CNS"
+                    fi
+                    IPAM_IMAGE_REPO=$UPGRADE_IPAM_IMAGE_REPO
+                    CNS_IMAGE_REPO=$UPGRADE_CNS_IMAGE_REPO
                   else
-                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                    if [ -z "$TEST_CNS_VERSION" ]
+                    then
+                      echo "TEST_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$TEST_CNS_VERSION
+                      echo "TEST_CNS_VERSION is set to $CNS"
+                    fi
+                  fi
+                  if [ "${{parameters.os}}" == "windows" ]; then
+                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  else
+                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   fi
               name: "swifte2e"
               displayName: "Swift Integration"
@@ -195,6 +245,8 @@ stages:
           tag: $(npmVersion)
           dependsOn: integration
           continueOnError: true
+          ${{ if eq(parameters.upgradeScenario, 'true') }}:
+            logType: upgradeNpmLogs
       - job: deploy_pods
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Scale Test"
@@ -208,6 +260,8 @@ stages:
               iterations: ${{ parameters.iterations }}
               nodeCount: $(nodeCount)
               cni: cniv2
+              ${{ if eq(parameters.upgradeScenario, 'true') }}:
+                logType: upgradeScaleTest
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -225,6 +279,8 @@ stages:
               os: ${{ parameters.os }}
               cni: cniv2
               region: $(location)
+              ${{ if eq(parameters.upgradeScenario, 'true') }}:
+                logType: upgradeRestartNode
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -243,6 +299,8 @@ stages:
               cni: cniv2
               scaleup: ${{ parameters.scaleup }}
               nodeCount: ${{ parameters.nodeCount }}
+              ${{ if eq(parameters.upgradeScenario, 'true') }}:
+                logType: upgradeRestartCNS
       - job: recover
         condition: and( not(canceled()), not(failed()) )
         displayName: "Recover Resources"
@@ -309,7 +367,10 @@ stages:
       dependsOn:
         - ${{ parameters.name }}
         - setup
-      displayName: "HNS Test - ${{ parameters.clusterName }}"
+      ${{ if eq(parameters.upgradeScenario, true) }}:
+        displayName: "HNS Test w/ Upgrade - ${{ parameters.name }}"
+      ${{ else }}:
+        displayName: "HNS Test - ${{ parameters.name }}"
       jobs:
         - job: restart_hns
           displayName: "Restart and Validate HNS"

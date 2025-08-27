@@ -210,6 +210,7 @@ stages:
       osSkuWin: 'Windows2022'
       scaleup: ${SCALEUP_WIN}
       iterations: ${ITERATIONS_WIN}
+      upgradeScenario: false
 
   - template: singletenancy/cniv2-template.yaml
     parameters:
@@ -226,6 +227,7 @@ stages:
       osSkuWin: 'Windows2022'
       scaleup: ${SCALEUP_WIN}
       iterations: ${ITERATIONS_WIN}
+      upgradeScenario: false
 
 ## Linux E2E
   - template: singletenancy/cniv1-template.yaml
@@ -250,6 +252,7 @@ stages:
       arch: amd64
       scaleup: ${SCALEUP_LINUX}
       iterations: ${ITERATIONS_LINUX}
+      upgradeScenario: false
 
   - template: singletenancy/cniv2-template.yaml
     parameters:
@@ -261,6 +264,7 @@ stages:
       arch: amd64
       scaleup: ${SCALEUP_LINUX}
       iterations: ${ITERATIONS_LINUX}
+      upgradeScenario: false
 
   - template: singletenancy/cniv2-template.yaml
     parameters:
@@ -273,6 +277,7 @@ stages:
       osSKU: AzureLinux
       scaleup: ${SCALEUP_LINUX}
       iterations: ${ITERATIONS_LINUX}
+      upgradeScenario: false
 
   - template: singletenancy/cniv2-template.yaml
     parameters:
@@ -284,6 +289,7 @@ stages:
       arch: arm64
       scaleup: ${SCALEUP_LINUX}
       iterations: ${ITERATIONS_LINUX}
+      upgradeScenario: false
 
   - template: singletenancy/cniv2-template.yaml
     parameters:
@@ -295,6 +301,7 @@ stages:
       arch: amd64
       scaleup: ${SCALEUP_LINUX}
       iterations: ${ITERATIONS_LINUX}
+      upgradeScenario: false
 
 ## Cilium E2E
   - template: cilium/cilium-overlay-load-test-template.yaml
@@ -404,7 +411,7 @@ stages:
       upgradeScenario: false
 
 
-  ## If upgradeScenario is set, redeploy new IPAM version to existing clusters and run tests
+  ## If upgradeScenario is set, redeploy new IPAM/CNS version to existing clusters and run tests
   - ${{if eq(parameters.upgradeScenario, true)}}:
     - template: cilium/cilium-overlay-load-test-template.yaml
       parameters:
@@ -520,6 +527,108 @@ stages:
         cni: "cilium_dualstack"
         upgradeScenario: true
         dependsOn: cilium_ds_rdma
+    
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: linux_podsubnet_upgrade
+        clusterType: swift-byocni-up
+        clusterName: "linux-podsub"
+        nodeCount: ${NODE_COUNT_LINUX}
+        vmSize: ${VM_SIZE}
+        arch: amd64
+        scaleup: ${SCALEUP_LINUX}
+        iterations: ${ITERATIONS_LINUX}
+        upgradeScenario: true
+        dependsOn: linux_podsubnet
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: linux_overlay_upgrade
+        clusterType: overlay-byocni-up
+        clusterName: "linux-over"
+        nodeCount: ${NODE_COUNT_LINUX}
+        vmSize: ${VM_SIZE}
+        arch: amd64
+        scaleup: ${SCALEUP_LINUX}
+        iterations: ${ITERATIONS_LINUX}
+        upgradeScenario: true
+        dependsOn: linux_overlay
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: mariner_linux_overlay_upgrade
+        clusterType: overlay-byocni-up
+        clusterName: "mariner-over"
+        nodeCount: ${NODE_COUNT_LINUX}
+        vmSize:  ${VM_SIZE}
+        arch: amd64
+        osSKU: AzureLinux
+        scaleup: ${SCALEUP_LINUX}
+        iterations: ${ITERATIONS_LINUX}
+        upgradeScenario: true
+        dependsOn: mariner_linux_overlay
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: arm_linux_overlay_upgrade
+        clusterType: overlay-byocni-up
+        clusterName: "arm-over"
+        nodeCount: ${NODE_COUNT_LINUX}
+        vmSize: Standard_D8ps_v5
+        arch: arm64
+        scaleup: ${SCALEUP_LINUX}
+        iterations: ${ITERATIONS_LINUX}
+        upgradeScenario: true
+        dependsOn: arm_linux_overlay
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: rdma_linux_overlay_upgrade
+        clusterType: overlay-byocni-up
+        clusterName: "rdma-over"
+        nodeCount: 2
+        vmSize: Standard_HC44-16rs
+        arch: amd64
+        scaleup: ${SCALEUP_LINUX}
+        iterations: ${ITERATIONS_LINUX}
+        upgradeScenario: true
+        dependsOn: rdma_linux_overlay
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: windows_podsubnet_upgrade
+        clusterType: swift-byocni-up
+        clusterName: w22-podsub
+        nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+        nodeCountWin: ${NODE_COUNT_WIN}
+        vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+        vmSizeWin: ${VM_SIZE_WIN}
+        arch: amd64
+        os: windows
+        os_version: 'ltsc2022'
+        osSkuWin: 'Windows2022'
+        scaleup: ${SCALEUP_WIN}
+        iterations: ${ITERATIONS_WIN}
+        upgradeScenario: true
+        dependsOn: windows_podsubnet_HNS
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: windows_overlay_upgrade
+        clusterType: overlay-byocni-up
+        clusterName: w22-over
+        nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+        nodeCountWin: ${NODE_COUNT_WIN}
+        vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+        vmSizeWin: ${VM_SIZE_WIN}
+        arch: amd64
+        os: windows
+        os_version: 'ltsc2022'
+        osSkuWin: 'Windows2022'
+        scaleup: ${SCALEUP_WIN}
+        iterations: ${ITERATIONS_WIN}
+        upgradeScenario: true
+        dependsOn: windows_overlay_HNS
 
   - stage: delete_resources
     displayName: "Delete Resources"
@@ -556,6 +665,15 @@ stages:
         - cilium_ds_arm_upgrade
         - cilium_ds_mariner_upgrade
         - cilium_ds_rdma_upgrade
+        - linux_podsubnet_upgrade
+        - linux_overlay_upgrade
+        - mariner_linux_overlay_upgrade
+        - arm_linux_overlay_upgrade
+        - rdma_linux_overlay_upgrade
+        - windows_podsubnet_upgrade
+        - windows_overlay_upgrade
+        - windows_podsubnet_upgrade_HNS
+        - windows_overlay_upgrade_HNS
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     jobs:
