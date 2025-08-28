@@ -127,7 +127,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v5 v5.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/cilium/cilium v1.15.16
-	github.com/cilium/ebpf v0.16.0
+	github.com/cilium/ebpf v0.19.0
 	github.com/jsternberg/zap-logfmt v1.3.0
 	golang.org/x/sync v0.16.0
 	gotest.tools/v3 v3.5.2
