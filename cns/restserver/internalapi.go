@@ -27,7 +27,6 @@ import (
 
 const (
 	// Known API names we care about
-	nmAgentSwiftV2API      = "EnableSwiftV2NCGoalStateSupport"
 	expectedIMDSAPIVersion = "2025-07-24"
 	PrefixOnNicNCVersion   = "1"
 )
@@ -665,36 +664,6 @@ func (service *HTTPRestService) SetVFForAccelnetNICs() error {
 	return service.setVFForAccelnetNICs()
 }
 
-func (service *HTTPRestService) getSupportedAPIsFromNMAgent(ctx context.Context) ([]string, error) {
-	if service.nma == nil {
-		return nil, errors.New("NMAgent client is not available")
-	}
-
-	apis, err := service.nma.SupportedAPIs(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get supported APIs from NMAgent client")
-	}
-
-	return apis, nil
-}
-
-func (service *HTTPRestService) isSwiftV2NCGoalStateSupported(ctx context.Context) bool {
-	apis, err := service.getSupportedAPIsFromNMAgent(ctx)
-	if err != nil {
-		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-		logger.Errorf("Failed to get supported APIs from NMAgent: %v", err)
-		return false
-	}
-
-	for _, api := range apis {
-		if strings.Contains(api, nmAgentSwiftV2API) {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (service *HTTPRestService) isNCDetailsAPIExists(ctx context.Context) bool {
 	versionsResp, err := service.imdsClient.GetIMDSVersions(ctx)
 	if err != nil {
@@ -706,6 +675,8 @@ func (service *HTTPRestService) isNCDetailsAPIExists(ctx context.Context) bool {
 	// Check if the expected API version exists in the response
 	for _, version := range versionsResp.APIVersions {
 		if version == expectedIMDSAPIVersion {
+			//nolint:staticcheck // SA1019: suppress deprecated logger.Debugf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+			logger.Debugf("IMDS has expected API version")
 			return true
 		}
 	}
@@ -720,10 +691,10 @@ func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]stri
 		logger.Errorf("IMDS client is not available")
 		return make(map[string]string), nil
 	}
-	// Check NMAgent API support for SwiftV2, if it fails return empty map assuming support might not be available in that nma build
-	if !service.isSwiftV2NCGoalStateSupported(ctx) || !service.isNCDetailsAPIExists(ctx) {
+	// Check NC version support
+	if !service.isNCDetailsAPIExists(ctx) {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-		logger.Errorf("NMAgent does not support SwiftV2 API or IMDS does not support NC details API")
+		logger.Errorf("IMDS does not support NC details API")
 		return make(map[string]string), nil
 	}
 
@@ -738,6 +709,8 @@ func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]stri
 	// Build ncs map from the network interfaces
 	ncs := make(map[string]string)
 	for _, iface := range networkInterfaces {
+		//nolint:staticcheck // SA1019: suppress deprecated logger.Debugf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+		logger.Debugf("Nc id: %s and mac address: %s from IMDS call", iface.InterfaceCompartmentID, iface.MacAddress.String())
 		// IMDS returns interfaceCompartmentID, as nc id guid has different context on nma. We map these to NC ID
 		ncID := iface.InterfaceCompartmentID
 

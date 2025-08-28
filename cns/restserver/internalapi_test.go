@@ -251,9 +251,6 @@ func TestSyncHostNCVersion(t *testing.T) {
 						},
 					}, nil
 				},
-				SupportedAPIsF: func(_ context.Context) ([]string, error) {
-					return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
-				},
 			}
 			cleanup := setMockNMAgent(svc, mnma)
 			defer cleanup()
@@ -321,9 +318,6 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 				},
 			}, nil
 		},
-		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
-		},
 	}
 	cleanup := setMockNMAgent(svc, mnma)
 	defer cleanup()
@@ -363,9 +357,6 @@ func TestSyncHostNCVersionErrorMissingNC(t *testing.T) {
 			return nma.NCVersionList{
 				Containers: []nma.NCVersion{},
 			}, nil
-		},
-		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 		},
 	}
 	cleanup := setMockNMAgent(svc, mnma)
@@ -412,9 +403,6 @@ func TestSyncHostNCVersionLocalVersionHigher(t *testing.T) {
 				Containers: []nma.NCVersion{},
 			}, nil
 		},
-		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
-		},
 	}
 	cleanup := setMockNMAgent(svc, mnma)
 	defer cleanup()
@@ -456,9 +444,6 @@ func TestSyncHostNCVersionLocalHigherThanDNC(t *testing.T) {
 				Containers: []nma.NCVersion{}, // Empty
 			}, nil
 		},
-		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
-		},
 	}
 	cleanup := setMockNMAgent(svc, mnma)
 	defer cleanup()
@@ -484,98 +469,6 @@ func TestSyncHostNCVersionLocalHigherThanDNC(t *testing.T) {
 		containerStatus.HostVersion, containerStatus.CreateNetworkContainerRequest.Version)
 }
 
-func TestSyncHostNCVersionNMAgentAPICallFailed(t *testing.T) {
-	// Test scenario where NMAgent SupportedAPIs call fails, but outdated nc is still present in NMAgent and successfully updated
-	req := createNCReqeustForSyncHostNCVersion(t)
-
-	svc.Lock()
-	ncStatus := svc.state.ContainerStatus[req.NetworkContainerid]
-	ncStatus.CreateNetworkContainerRequest.Version = "2"
-	ncStatus.HostVersion = "1"
-	svc.state.ContainerStatus[req.NetworkContainerid] = ncStatus
-	svc.Unlock()
-
-	// Create IMDS mock that returns empty, as nma api call failed
-	cleanupIMDS := setupIMDSMockAPIsWithCustomIDs(svc, []string{imdsNCID, "nc2"})
-	defer cleanupIMDS()
-
-	mnma := &fakes.NMAgentClientFake{
-		GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
-			return nma.NCVersionList{
-				Containers: []nma.NCVersion{
-					{
-						NetworkContainerID: req.NetworkContainerid,
-						Version:            "2", // NMAgent has the updated version
-					},
-				},
-			}, nil
-		},
-		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			return nil, errors.New("failed to connect to NMAgent API endpoint")
-		},
-	}
-	cleanup := setMockNMAgent(svc, mnma)
-	defer cleanup()
-
-	_, err := svc.syncHostNCVersion(context.Background(), cns.KubernetesCRD)
-	if err != nil {
-		t.Errorf("Expected sync to succeed with NMAgent fallback when API check fails, but got error: %v", err)
-	}
-
-	// Verify that the NC HostVersion was updated to 2 from NMAgent
-	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
-	if containerStatus.HostVersion != "2" {
-		t.Errorf("Expected HostVersion to be updated to 2 (from NMAgent), got %s", containerStatus.HostVersion)
-	}
-}
-
-func TestSyncHostNCVersionSwiftV2APINotSupported(t *testing.T) {
-	req := createNCReqeustForSyncHostNCVersion(t)
-
-	svc.Lock()
-	ncStatus := svc.state.ContainerStatus[req.NetworkContainerid]
-	ncStatus.CreateNetworkContainerRequest.Version = "2"
-	ncStatus.HostVersion = "1"
-	svc.state.ContainerStatus[req.NetworkContainerid] = ncStatus
-	svc.Unlock()
-
-	// Create IMDS mock - this should not be called since SwiftV2 is not supported
-	cleanupIMDS := setupIMDSMockAPIsWithCustomIDs(svc, []string{imdsNCID, "nc2"})
-	defer cleanupIMDS()
-
-	// NMAgent returns APIs but doesn't include SwiftV2
-	mnma := &fakes.NMAgentClientFake{
-		GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
-			return nma.NCVersionList{
-				Containers: []nma.NCVersion{
-					{
-						NetworkContainerID: req.NetworkContainerid,
-						Version:            "2",
-					},
-				},
-			}, nil
-		},
-		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			return []string{}, nil
-		},
-	}
-	cleanup := setMockNMAgent(svc, mnma)
-	defer cleanup()
-
-	// Should succeed even when SwiftV2 API is not supported
-	// because NMAgent has the updated NC version
-	_, err := svc.syncHostNCVersion(context.Background(), cns.KubernetesCRD)
-	if err != nil {
-		t.Errorf("Expected sync to succeed with NMAgent only when SwiftV2 API not supported, but got error: %v", err)
-	}
-
-	// Verify that the NC HostVersion was updated to "2" from NMAgent
-	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
-	if containerStatus.HostVersion != "2" {
-		t.Errorf("Expected HostVersion to be updated to 2 (from NMAgent), got %s", containerStatus.HostVersion)
-	}
-}
-
 func TestSyncHostNCVersionIMDSAPIVersionNotSupported(t *testing.T) {
 	orchestratorTypes := []string{cns.Kubernetes, cns.KubernetesCRD}
 	for _, orchestratorType := range orchestratorTypes {
@@ -593,9 +486,6 @@ func TestSyncHostNCVersionIMDSAPIVersionNotSupported(t *testing.T) {
 			mnma := &fakes.NMAgentClientFake{
 				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 					return nma.NCVersionList{Containers: []nma.NCVersion{}}, nil
-				},
-				SupportedAPIsF: func(_ context.Context) ([]string, error) {
-					return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 				},
 			}
 			cleanup := setMockNMAgent(svc, mnma)
