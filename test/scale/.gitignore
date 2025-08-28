@@ -1,2 +1,23 @@
 **/kubeconfig**
 skale/skale
+./skale kwok --cidr=155.0.0.0/16 \
+    --node-ip=155.0.0.1 \
+    --manage-all-nodes=false \
+    --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
+    --manage-nodes-with-label-selector=
+
+
+
+capz-centraluseuapnetes.azure.com/podnetwork-delegationguid=,kubernetes.azure.com/podnetwork-max-pods=63,kubernetes.azure.com/podnetwork-subnet=pod-subnet,kubernetes.io/arch=amd64,kubernetes.io/hostname=capz-centraluseuap-mdnc-e2e-117153980-cx4-control-plane-8kxqf,kubernetes.io/os=linux,node-role.kubernetes.io/control-plane=,node.kubernetes.io/exclude-from-external-load-balancers=,node.kubernetes.io/instance-type=Standard_D16as_v4,topology.kubernetes.io/region=centraluseuap,topology.kubernetes.io/zone=centraluseuap-2
+
+./skale kwok --cidr=155.0.0.0/16 \
+    --node-ip=155.0.0.1 \
+    --manage-all-nodes=false \
+    --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
+    --manage-nodes-with-label-selector=
+
+
+
+
+
+./skale --nodes 10 --subnet "pod-subnet" --subnet-guid "3932e16c-23c6-4091-bd27-77550e920c84"

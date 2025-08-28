@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitoring-kube-prometheus-containerd
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/managed-by: prometheus-operator
+    app.kubernetes.io/name: containerd
+    k8s-app: containerd
+spec:
+  clusterIP: None
+  ports:
+    - name: http-metrics
+      port: 10257
+      protocol: TCP
+      targetPort: 10257
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: containerd
+  namespace: kube-system
+  labels:
+    k8s-app: containerd
+spec:
+  clusterIP: None
+  ports:
+    - name: http-metrics
+      port: 10257
+      targetPort: 10257
+      protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: monitoring-containerd
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: containerd
+    app.kubernetes.io/instance: monitoring
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: kube-prometheus-stack
+    release: monitoring
+spec:
+  jobLabel: k8s-app
+  selector:
+    matchLabels:
+      k8s-app: containerd
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  endpoints:
+    - port: http-metrics
+      path: /v1/metrics
+      scheme: http
+      interval: 30s
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecureSkipVerify: true
+      honorLabels: true
+      relabelings:
+        - action: replace
+          sourceLabels: [__metrics_path__]
+          targetLabel: metrics_path
+

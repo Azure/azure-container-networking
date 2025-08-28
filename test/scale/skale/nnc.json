@@ -1,0 +1,100 @@
+{
+  "apiVersion": "acn.azure.com/v1alpha",
+  "kind": "NodeNetworkConfig",
+  "metadata": {
+    "creationTimestamp": "2025-03-06T21:36:49Z",
+    "finalizers": [
+      "finalizers.acn.azure.com/dnc-operations"
+    ],
+    "generation": 1,
+    "labels": {
+      "kubernetes.azure.com/podnetwork-delegationguid": "f2603d28-59fd-4d7b-82f6-b1a4721b9dc1",
+      "kubernetes.azure.com/podnetwork-subnet": "pod-subnet",
+      "kubernetes.azure.com/podnetwork-type": "",
+      "managed": "true",
+      "owner": "capz-centraluseuap-mdnc-e2e-117184009-cx4-md-0-x7hz6"
+    },
+    "managedFields": [
+      {
+        "apiVersion": "acn.azure.com/v1alpha",
+        "fieldsType": "FieldsV1",
+        "fieldsV1": {
+          "f:metadata": {
+            "f:finalizers": {
+              ".": {},
+              "v:\"finalizers.acn.azure.com/dnc-operations\"": {}
+            },
+            "f:labels": {
+              ".": {},
+              "f:kubernetes.azure.com/podnetwork-delegationguid": {},
+              "f:kubernetes.azure.com/podnetwork-subnet": {},
+              "f:kubernetes.azure.com/podnetwork-type": {},
+              "f:managed": {},
+              "f:owner": {}
+            },
+            "f:ownerReferences": {
+              ".": {},
+              "k:{\"uid\":\"68ab16e0-5f30-4297-ab66-c7ef6463e5b7\"}": {}
+            }
+          },
+          "f:spec": {
+            ".": {},
+            "f:requestedIPCount": {}
+          }
+        },
+        "manager": "dnc-rc",
+        "operation": "Update",
+        "time": "2025-03-06T21:36:49Z"
+      },
+      {
+        "apiVersion": "acn.azure.com/v1alpha",
+        "fieldsType": "FieldsV1",
+        "fieldsV1": {
+          "f:status": {
+            ".": {},
+            "f:assignedIPCount": {},
+            "f:networkContainers": {}
+          }
+        },
+        "manager": "dnc-rc",
+        "operation": "Update",
+        "subresource": "status",
+        "time": "2025-03-06T21:36:51Z"
+      }
+    ],
+    "name": "capz-centraluseuap-mdnc-e2e-117184009-cx4-md-0-x7hz6",
+    "namespace": "kube-system",
+    "ownerReferences": [
+      {
+        "apiVersion": "v1",
+        "blockOwnerDeletion": true,
+        "controller": true,
+        "kind": "Node",
+        "name": "capz-centraluseuap-mdnc-e2e-117184009-cx4-md-0-x7hz6",
+        "uid": "68ab16e0-5f30-4297-ab66-c7ef6463e5b7"
+      }
+    ],
+    "resourceVersion": "1944",
+    "uid": "20f635f7-f550-46be-bb62-8c0a441567be"
+  },
+  "spec": {
+    "requestedIPCount": 63
+  },
+  "status": {
+    "assignedIPCount": 63,
+    "networkContainers": [
+      {
+        "assignmentMode": "static",
+        "defaultGateway": "10.2.0.1",
+        "id": "ce83f3b0-c134-48d2-9948-faf6435b3099",
+        "nodeIP": "10.1.0.4",
+        "primaryIP": "10.2.250.0/26",
+        "subnetAddressSpace": "10.2.0.0/16",
+        "subnetID": "pod-subnet",
+        "subnetName": "pod-subnet",
+        "type": "vnetblock",
+        "version": 0
+      }
+    ]
+  }
+}

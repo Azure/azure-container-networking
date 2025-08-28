@@ -84,6 +84,9 @@ func init() {
 
 func setup(*cobra.Command, []string) error {
 	kubeConfig, err := ctrl.GetConfig()
+	if err != nil {
+		return errors.Wrap(err, "failed to get kubeconfig")
+	}
 	kubeConfig.QPS = float32(rootopts.ratelimit)
 	kubeConfig.Burst = rootopts.ratelimit * 2
 	if err != nil {

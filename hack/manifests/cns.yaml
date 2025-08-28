@@ -1,0 +1,303 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: azure-cns
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nodeNetConfigEditor
+  namespace: kube-system
+rules:
+- apiGroups:
+  - acn.azure.com
+  resources:
+  - nodenetworkconfigs
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+  - update
+- apiGroups:
+  - acn.azure.com
+  resources:
+  - clustersubnetstates
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nodeNetConfigEditorRoleBinding
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nodeNetConfigEditor
+subjects:
+- kind: ServiceAccount
+  name: azure-cns
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pod-reader-all-namespaces-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pod-reader-all-namespaces
+subjects:
+- kind: ServiceAccount
+  name: azure-cns
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-reader-all-namespaces
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+---
+apiVersion: v1
+data:
+  cns_config.json: |-
+    {
+      "CNIConflistFilepath": "/etc/cni/net.d/15-azure-swift-overlay.conflist",
+      "CNIConflistScenario": "v4overlay",
+      "ChannelMode": "CRD",
+      "EnableAsyncPodDelete": true,
+      "EnableCNIConflistGeneration": true,
+      "EnableIPAMv2": false,
+      "EnableLoggerV2": true,
+      "EnableK8sDevicePlugin": false,
+      "EnableStateMigration": true,
+      "EnableSubnetScarcity": false,
+      "InitializeFromCNI": false,
+      "ManageEndpointState": true,
+      "ManagedSettings": {
+        "InfrastructureNetworkID": "",
+        "NodeID": "",
+        "NodeSyncIntervalInSeconds": 30,
+        "PrivateEndpoint": ""
+      },
+      "MetricsBindAddress": ":10092",
+      "ProgramSNATIPTables": false,
+      "TelemetrySettings": {
+        "DebugMode": false,
+        "DisableAll": false,
+        "HeartBeatIntervalInMins": 30,
+        "RefreshIntervalInSecs": 15,
+        "SnapshotIntervalInMins": 60,
+        "TelemetryBatchIntervalInSecs": 15,
+        "TelemetryBatchSizeBytes": 16384
+      }
+    }
+kind: ConfigMap
+metadata:
+  name: cns-config
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  annotations:
+    deprecated.daemonset.template.generation: "1"
+  generation: 1
+  labels:
+    app: azure-cns
+  name: azure-cns
+  namespace: kube-system
+spec:
+  minReadySeconds: 10
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      k8s-app: azure-cns
+  template:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/daemonset-pod: "true"
+        prometheus.io/port: "10092"
+      labels:
+        k8s-app: azure-cns
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.azure.com/cluster
+                operator: Exists
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      containers:
+      - args:
+        - -c
+        - tcp://$(CNSIpAddress):$(CNSPort)
+        - -t
+        - $(CNSLogTarget)
+        - -o
+        - $(CNSLogDir)
+        env:
+        - name: CNSIpAddress
+          value: 127.0.0.1
+        - name: CNSPort
+          value: "10090"
+        - name: CNSLogTarget
+          value: stdoutfile
+        - name: CNSLogDir
+          value: /var/log
+        - name: CNS_CONFIGURATION_PATH
+          value: /etc/azure-cns/cns_config.json
+        - name: NODENAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: POD_CIDRs
+          value: 10.241.0.0/16
+        - name: SERVICE_CIDRs
+          value: 10.0.0.0/16
+        - name: INFRA_VNET_CIDRs
+          value: 10.0.0.0/8
+        image: mcr.microsoft.com/containernetworking/azure-cns:v1.7.0
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: metrics
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: cns-container
+        ports:
+        - containerPort: 10090
+          name: api
+          protocol: TCP
+        - containerPort: 10092
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 1
+          httpGet:
+            path: /readyz
+            port: metrics
+            scheme: HTTP
+          periodSeconds: 1
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 40m
+            memory: 250Mi
+          requests:
+            cpu: 40m
+            memory: 250Mi
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /healthz
+            port: metrics
+            scheme: HTTP
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/log
+          name: log
+        - mountPath: /var/lib/azure-network
+          name: cns-state
+        - mountPath: /var/run/azure-cns
+          name: azure-endpoints
+        - mountPath: /etc/azure-cns
+          name: cns-config
+        - mountPath: /opt/cni/bin
+          name: cni-bin
+        - mountPath: /var/run/azure-vnet
+          name: azure-vnet
+        - mountPath: /var/lock/azure-vnet
+          name: cni-lock
+        - mountPath: /etc/cni/net.d
+          name: cni-conflist
+      dnsPolicy: ClusterFirst
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: azure-cns
+      serviceAccountName: azure-cns
+      terminationGracePeriodSeconds: 30
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoSchedule
+        operator: Exists
+      volumes:
+      - hostPath:
+          path: /var/run/azure-cns/
+          type: DirectoryOrCreate
+        name: azure-endpoints
+      - hostPath:
+          path: /var/log/azure-cns
+          type: DirectoryOrCreate
+        name: log
+      - hostPath:
+          path: /var/lib/azure-network
+          type: DirectoryOrCreate
+        name: cns-state
+      - hostPath:
+          path: /opt/cni/bin
+          type: Directory
+        name: cni-bin
+      - hostPath:
+          path: /var/run/azure-vnet
+          type: DirectoryOrCreate
+        name: azure-vnet
+      - hostPath:
+          path: /var/lock/azure-vnet
+          type: DirectoryOrCreate
+        name: cni-lock
+      - hostPath:
+          path: /etc/cni/net.d
+          type: Directory
+        name: cni-conflist
+      - configMap:
+          defaultMode: 420
+          name: cns-config
+        name: cns-config
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 2%
+    type: RollingUpdate

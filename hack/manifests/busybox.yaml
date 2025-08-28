@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: busybox
+  namespace: default
   labels:
     app: busybox
 spec:
@@ -21,6 +22,10 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
+              - key: agentpool
+                operator: In
+                values:
+                - userpool
               - key: kubernetes.azure.com/cluster
                 operator: Exists
               - key: type
@@ -44,36 +49,4 @@ spec:
           image: mcr.microsoft.com/cbl-mariner/busybox:2.0
           command: ["sleep","3600"]
           imagePullPolicy: Always
-          volumeMounts:
-            - name: log
-              mountPath: /var/log
-            - name: cns-state
-              mountPath: /var/lib/azure-network
-            - name: cni-bin
-              mountPath: /opt/cni/bin
-            - name: azure-vnet
-              mountPath: /var/run/azure-vnet
-            - name: legacy-cni-state
-              mountPath: /var/run/azure-vnet.json
       hostNetwork: false
-      volumes:
-        - name: log
-          hostPath:
-            path: /var/log
-            type: Directory
-        - name: cns-state
-          hostPath:
-            path: /var/lib/azure-network
-            type: DirectoryOrCreate
-        - name: cni-bin
-          hostPath:
-            path: /opt/cni/bin
-            type: Directory
-        - name: azure-vnet
-          hostPath:
-            path: /var/run/azure-vnet
-            type: DirectoryOrCreate
-        - name: legacy-cni-state
-          hostPath:
-            path: /var/run/azure-vnet.json
-            type: FileOrCreate

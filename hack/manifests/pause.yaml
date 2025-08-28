@@ -1,0 +1,32 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pause 
+  namespace: default
+  labels:
+    app: pause 
+spec:
+  selector:
+    matchLabels:
+      k8s-app: pause
+  template:
+    metadata:
+      labels:
+        k8s-app: pause
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: agentpool
+                operator: In
+                values:
+                - userpool
+      priorityClassName: system-node-critical
+      containers:
+        - name: pause
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+          imagePullPolicy: IfNotPresent
+      hostNetwork: false

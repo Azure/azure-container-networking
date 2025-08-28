@@ -381,6 +381,16 @@ dualstack-byocni-nokubeproxy-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a D
 		--yes
 	@$(MAKE) set-kubeconf
 
+nodepool-up:
+	$(AZCLI) aks nodepool add -g $(GROUP) -n userpool2 \
+		--node-count 1 \
+		--node-vm-size $(VM_SIZE) \
+		--os-sku $(OS_SKU) \
+		--cluster-name $(CLUSTER) \
+		--max-pods 250 \
+		--subscription $(SUB) \
+		--ssh-access disabled 
+
 windows-nodepool-up: ## Add windows node pool
 	AZCLI="az" GROUP="$(GROUP)" CLUSTER="$(CLUSTER)" sh ../scripts/wait-cluster-update.sh
 	$(AZCLI) aks nodepool add -g $(GROUP) -n npwin \

@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Endpoints
+metadata:
+  labels:
+    app.kubernetes.io/name: containerd
+    k8s-app: containerd
+  name: monitoring-kube-prometheus-containerd
+  namespace: kube-system
+subsets:
+- addresses:
+  - ip: 10.10.0.4
+    nodeName: aks-nodepool1-38861129-vmss000000
+    targetRef:
+      kind: Node
+      name: aks-nodepool1-38861129-vmss000000
+      uid: f56e8a27-34cc-4d4e-abf9-d836c03eb749
+  - ip: 10.10.0.5
+    nodeName: aks-nodepool1-38861129-vmss000001
+    targetRef:
+      kind: Node
+      name: aks-nodepool1-38861129-vmss000001
+      uid: 4922ea89-9b9b-40b6-9829-5412c838c82f
+  - ip: 10.10.0.8
+    nodeName: aks-scale-35017538-vmss000000
+    targetRef:
+      kind: Node
+      name: aks-scale-35017538-vmss000000
+      uid: c228b2d6-107b-4343-a9c8-033d8ac18b79
+  - ip: 10.10.0.9
+    nodeName: aks-scale-35017538-vmss000001
+    targetRef:
+      kind: Node
+      name: aks-scale-35017538-vmss000001
+      uid: 395e32bf-14ab-42cb-90ac-db5b0fc1ab82
+  - ip: 10.10.0.6
+    nodeName: aks-scale-35017538-vmss000002
+    targetRef:
+      kind: Node
+      name: aks-scale-35017538-vmss000002
+      uid: 101f0eab-0fa2-40ac-a90d-5b43151031c8
+  - ip: 10.10.0.7
+    nodeName: aks-scale-35017538-vmss000003
+    targetRef:
+      kind: Node
+      name: aks-scale-35017538-vmss000003
+      uid: 78f50169-f7af-41b2-91af-cf27410b0504
+  - ip: 10.10.0.10
+    nodeName: aks-scale-35017538-vmss000004
+    targetRef:
+      kind: Node
+      name: aks-scale-35017538-vmss000004
+      uid: d2432090-25c7-41c9-8663-fdf0e15f262c
+  - ip: 10.10.0.13
+    nodeName: aks-scale-35017538-vmss000005
+    targetRef:
+      kind: Node
+      name: aks-scale-35017538-vmss000005
+      uid: 07aae83f-f771-4269-bb09-f21ed733864b
+  - ip: 10.10.0.15
+    nodeName: aks-scale-35017538-vmss000006
+    targetRef:
+      kind: Node
+      name: aks-scale-35017538-vmss000006
+      uid: 59fc2dfd-1081-4257-82be-ff31b7230f40
+  - ip: 10.10.0.11
+    nodeName: aks-scale-35017538-vmss000007
+    targetRef:
+      kind: Node
+      name: aks-scale-35017538-vmss000007
+      uid: e8f5e862-2c2d-45c9-8d9c-3091048c9728
+  - ip: 10.10.0.14
+    nodeName: aks-scale-35017538-vmss000008
+    targetRef:
+      kind: Node
+      name: aks-scale-35017538-vmss000008
+      uid: 8cee527c-6011-4874-bfe9-0f25d9f08e4d
+  - ip: 10.10.0.12
+    nodeName: aks-scale-35017538-vmss000009
+    targetRef:
+      kind: Node
+      name: aks-scale-35017538-vmss000009
+      uid: 8f3832c6-7bec-4915-82bf-ff67a4cd2edd
+  ports:
+  - name: http-metrics
+    port: 10257
+    protocol: TCP
