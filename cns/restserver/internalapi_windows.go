@@ -24,6 +24,10 @@ func (*IPtablesProvider) GetIPTables() (iptablesClient, error) {
 	return nil, errUnsupportedAPI
 }
 
+func (*IPtablesProvider) GetIPTablesLegacy() (iptablesLegacyClient, error) {
+	return nil, errUnsupportedAPI
+}
+
 // nolint
 func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
 	return types.Success, ""
