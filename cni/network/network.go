@@ -712,11 +712,11 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	if opt.ifInfo.NICType == cns.InfraNIC && !*opt.infraSeen {
 		// so we do not break existing scenarios, only the first infra gets the original endpoint id generation
 		ifName = opt.args.IfName
-		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, ifName)
+		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, ifName, opt.ifInfo.NICType)
 		*opt.infraSeen = true
 	} else {
 		ifName = "eth" + strconv.Itoa(opt.endpointIndex)
-		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, ifName)
+		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, ifName, opt.ifInfo.NICType)
 	}
 
 	endpointInfo := network.EndpointInfo{
@@ -1096,7 +1096,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	// for when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
 	// this block is not applied to stateless CNI
 	if len(epInfos) == 0 {
-		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
+		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName, cns.InfraNIC)
 		if !nwCfg.MultiTenancy {
 			logger.Warn("Could not query endpoint",
 				zap.String("endpoint", endpointID),

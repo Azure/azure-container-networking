@@ -123,13 +123,14 @@ type EndpointInfo struct {
 }
 
 type IPInfo struct {
-	IPv4          []net.IPNet
-	IPv6          []net.IPNet `json:",omitempty"`
-	HnsEndpointID string      `json:",omitempty"`
-	HnsNetworkID  string      `json:",omitempty"`
-	HostVethName  string      `json:",omitempty"`
-	MacAddress    string      `json:",omitempty"`
-	NICType       cns.NICType
+	IPv4             []net.IPNet
+	IPv6             []net.IPNet `json:",omitempty"`
+	HnsEndpointID    string      `json:",omitempty"`
+	HnsNetworkID     string      `json:",omitempty"`
+	HostVethName     string      `json:",omitempty"`
+	MacAddress       string      `json:",omitempty"`
+	NICType          cns.NICType `json:",omitempty"`
+	NetworkNameSpace string      `json:",omitempty"`
 }
 
 type GetHTTPServiceDataResponse struct {
