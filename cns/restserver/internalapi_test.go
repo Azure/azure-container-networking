@@ -11,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	nma "github.com/Azure/azure-container-networking/nmagent"
@@ -42,6 +44,7 @@ const (
 	batchSize           = 10
 	initPoolSize        = 10
 	ncID                = "6a07155a-32d7-49af-872f-1e70ee366dc0"
+	imdsNCID            = "6a07155a-32d7-49af-872f-1e70ee36imds"
 )
 
 var dnsservers = []string{"8.8.8.8", "8.8.4.4"}
@@ -227,7 +230,6 @@ func TestSyncHostNCVersion(t *testing.T) {
 	// cns.KubernetesCRD has one more logic compared to other orchestrator type, so test both of them
 	orchestratorTypes := []string{cns.Kubernetes, cns.KubernetesCRD}
 	for _, orchestratorType := range orchestratorTypes {
-		orchestratorType := orchestratorType
 		t.Run(orchestratorType, func(t *testing.T) {
 			req := createNCReqeustForSyncHostNCVersion(t)
 			containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
@@ -253,8 +255,22 @@ func TestSyncHostNCVersion(t *testing.T) {
 			cleanup := setMockNMAgent(svc, mnma)
 			defer cleanup()
 
-			// When syncing the host NC version, it will use the orchestratorType passed
-			// in.
+			// Add the IMDS NC to the CNS state
+			svc.state.ContainerStatus[imdsNCID] = containerstatus{
+				ID:          imdsNCID,
+				VMVersion:   "0",
+				HostVersion: "-1",
+				CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+					NetworkContainerid: imdsNCID,
+					Version:            "1",
+				},
+			}
+
+			// Setup IMDS mock with version support
+			cleanupIMDS := setupIMDSMockAPIsWithCustomIDs(svc, []string{imdsNCID, "nc2"})
+			defer cleanupIMDS()
+
+			// When syncing the host NC version, it will use the orchestratorType passed in.
 			svc.SyncHostNCVersion(context.Background(), orchestratorType)
 			containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 			if containerStatus.HostVersion != "0" {
@@ -262,6 +278,15 @@ func TestSyncHostNCVersion(t *testing.T) {
 			}
 			if containerStatus.CreateNetworkContainerRequest.Version != "0" {
 				t.Errorf("Unexpected nc version in containerStatus as %s, expected VM version should be 0 in string", containerStatus.CreateNetworkContainerRequest.Version)
+			}
+
+			// Validate the second NC from IMDS - it should now use the default version since IMDS doesn't returns version
+			imdsContainerStatus := svc.state.ContainerStatus[imdsNCID]
+			if imdsContainerStatus.HostVersion != "1" { // Changed from "0" to "1" since we use default version for IMDS NCs
+				t.Errorf("Unexpected imdsContainerStatus.HostVersion %s, expected host version should be 1 in string", imdsContainerStatus.HostVersion)
+			}
+			if imdsContainerStatus.CreateNetworkContainerRequest.Version != "1" {
+				t.Errorf("Unexpected version %s, expected VM version should remain 1 in string", imdsContainerStatus.CreateNetworkContainerRequest.Version)
 			}
 		})
 	}
@@ -309,6 +334,212 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 		if podIPConfigState.GetState() != types.Available {
 			t.Errorf("Unexpected State %s, expeted State is %s, IP address is %s", podIPConfigState.GetState(), types.Available, podIPConfigState.IPAddress)
 		}
+	}
+}
+
+func TestSyncHostNCVersionErrorMissingNC(t *testing.T) {
+	req := createNCReqeustForSyncHostNCVersion(t)
+
+	svc.Lock()
+	ncStatus := svc.state.ContainerStatus[req.NetworkContainerid]
+	ncStatus.CreateNetworkContainerRequest.Version = "2"
+	ncStatus.HostVersion = "0"
+	svc.state.ContainerStatus[req.NetworkContainerid] = ncStatus
+	svc.Unlock()
+
+	// Setup IMDS mock with different interface IDs (not matching the outdated NC)
+	cleanupIMDS := setupIMDSMockAPIsWithCustomIDs(svc, []string{"different-nc-id-1", "different-nc-id-2"})
+	defer cleanupIMDS()
+
+	// NMAgent returns empty
+	mnma := &fakes.NMAgentClientFake{
+		GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
+			return nma.NCVersionList{
+				Containers: []nma.NCVersion{},
+			}, nil
+		},
+	}
+	cleanup := setMockNMAgent(svc, mnma)
+	defer cleanup()
+
+	_, err := svc.syncHostNCVersion(context.Background(), cns.KubernetesCRD)
+	if err == nil {
+		t.Errorf("Expected error when NC is missing from both NMAgent and IMDS, but got nil")
+	}
+
+	// Check that the error message contains the expected text
+	expectedErrorText := "unable to update some NCs"
+	if !strings.Contains(err.Error(), expectedErrorText) {
+		t.Errorf("Expected error to contain '%s', but got: %v", expectedErrorText, err)
+	}
+
+	// Verify that the NC HostVersion was not updated, should still be 0
+	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
+	if containerStatus.HostVersion != "0" {
+		t.Errorf("Expected HostVersion to remain 0, but got %s", containerStatus.HostVersion)
+	}
+}
+
+func TestSyncHostNCVersionLocalVersionHigher(t *testing.T) {
+	// Test scenario where local NC version is higher than consolidated NC version from IMDS
+	// This should trigger the "NC version from consolidated sources is decreasing" error
+	req := createNCReqeustForSyncHostNCVersion(t)
+
+	svc.Lock()
+	ncStatus := svc.state.ContainerStatus[req.NetworkContainerid]
+	ncStatus.CreateNetworkContainerRequest.Version = "1" // DNC version is 1
+	ncStatus.HostVersion = "3"                           // But local host version is 3
+	svc.state.ContainerStatus[req.NetworkContainerid] = ncStatus
+	svc.Unlock()
+
+	// Create IMDS mock that returns lower version(1) than local host version(3)
+	// Setup IMDS mock with version support
+	cleanupIMDS := setupIMDSMockAPIsWithCustomIDs(svc, []string{imdsNCID, "nc2"})
+	defer cleanupIMDS()
+
+	mnma := &fakes.NMAgentClientFake{
+		GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
+			return nma.NCVersionList{
+				Containers: []nma.NCVersion{},
+			}, nil
+		},
+	}
+	cleanup := setMockNMAgent(svc, mnma)
+	defer cleanup()
+
+	_, err := svc.syncHostNCVersion(context.Background(), cns.KubernetesCRD)
+	if err != nil {
+		t.Errorf("Expected sync to succeed, but got error: %v", err)
+	}
+
+	// Verify that the NC HostVersion was NOT updated (should remain "3")
+	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
+	if containerStatus.HostVersion != "3" {
+		t.Errorf("Expected HostVersion to remain 3 (unchanged due to decreasing version), got %s", containerStatus.HostVersion)
+	}
+
+	t.Logf("Successfully handled decreasing version scenario: local=%s, consolidated=%s",
+		containerStatus.HostVersion, "2")
+}
+
+func TestSyncHostNCVersionLocalHigherThanDNC(t *testing.T) {
+	// Test scenario where localNCVersion > dncNCVersion
+	// This should trigger an error log: "NC version from NMAgent is larger than DNC"
+	req := createNCReqeustForSyncHostNCVersion(t)
+
+	// Set up the NC state where HostVersion (localNCVersion) > DNC NC Version
+	svc.Lock()
+	ncStatus := svc.state.ContainerStatus[req.NetworkContainerid]
+	ncStatus.CreateNetworkContainerRequest.Version = "1"
+	ncStatus.HostVersion = "3"
+	svc.state.ContainerStatus[req.NetworkContainerid] = ncStatus
+	svc.Unlock()
+
+	cleanupIMDS := setupIMDSMockAPIsWithCustomIDs(svc, []string{imdsNCID, "nc2"})
+	defer cleanupIMDS()
+
+	mnma := &fakes.NMAgentClientFake{
+		GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
+			return nma.NCVersionList{
+				Containers: []nma.NCVersion{}, // Empty
+			}, nil
+		},
+	}
+	cleanup := setMockNMAgent(svc, mnma)
+	defer cleanup()
+
+	// This should detect that localNCVersion (3) > dncNCVersion (1) and log error
+	// but since there are no outdated NCs, it should return successfully
+	_, err := svc.syncHostNCVersion(context.Background(), cns.KubernetesCRD)
+	if err != nil {
+		t.Errorf("Expected no error when localNCVersion > dncNCVersion (no outdated NCs), but got: %v", err)
+	}
+
+	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
+	if containerStatus.HostVersion != "3" {
+		t.Errorf("Expected HostVersion to remain 3 (unchanged), got %s", containerStatus.HostVersion)
+	}
+
+	// Verify that the DNC version remains unchanged, should still be 1
+	if containerStatus.CreateNetworkContainerRequest.Version != "1" {
+		t.Errorf("Expected DNC version to remain 1 (unchanged), got %s", containerStatus.CreateNetworkContainerRequest.Version)
+	}
+
+	t.Logf("Successfully handled localNCVersion > dncNCVersion scenario: local=%s, dnc=%s",
+		containerStatus.HostVersion, containerStatus.CreateNetworkContainerRequest.Version)
+}
+
+func TestSyncHostNCVersionIMDSAPIVersionNotSupported(t *testing.T) {
+	orchestratorTypes := []string{cns.Kubernetes, cns.KubernetesCRD}
+	for _, orchestratorType := range orchestratorTypes {
+		t.Run(orchestratorType, func(t *testing.T) {
+			req := createNCReqeustForSyncHostNCVersion(t)
+
+			// Make the NMA NC up-to-date so it doesn't interfere with the test
+			svc.Lock()
+			nmaNCStatus := svc.state.ContainerStatus[req.NetworkContainerid]
+			nmaNCStatus.HostVersion = "0" // Same as Version "0", so not outdated
+			svc.state.ContainerStatus[req.NetworkContainerid] = nmaNCStatus
+			svc.Unlock()
+
+			// NMAgent mock - not important for this test, just needs to not interfere
+			mnma := &fakes.NMAgentClientFake{
+				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
+					return nma.NCVersionList{Containers: []nma.NCVersion{}}, nil
+				},
+			}
+			cleanup := setMockNMAgent(svc, mnma)
+			defer cleanup()
+
+			// Add IMDS NC that is outdated - this is the focus of the test
+			svc.state.ContainerStatus[imdsNCID] = containerstatus{
+				ID:          imdsNCID,
+				VMVersion:   "0",
+				HostVersion: "-1", // Outdated
+				CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+					NetworkContainerid: imdsNCID,
+					Version:            "1", // Higher than HostVersion
+				},
+			}
+
+			// Setup IMDS mock that returns API versions WITHOUT the expected version "2025-07-24"
+			mockIMDS := &struct {
+				networkInterfaces func(_ context.Context) ([]imds.NetworkInterface, error)
+				imdsVersions      func(_ context.Context) (*imds.APIVersionsResponse, error)
+			}{
+				networkInterfaces: func(_ context.Context) ([]imds.NetworkInterface, error) {
+					return []imds.NetworkInterface{
+						{InterfaceCompartmentID: imdsNCID},
+					}, nil
+				},
+				imdsVersions: func(_ context.Context) (*imds.APIVersionsResponse, error) {
+					return &imds.APIVersionsResponse{
+						APIVersions: []string{"2017-03-01", "2021-01-01"}, // Missing "2025-07-24"
+					}, nil
+				},
+			}
+			originalIMDS := svc.imdsClient
+			svc.imdsClient = &mockIMDSAdapter{mockIMDS}
+			defer func() { svc.imdsClient = originalIMDS }()
+
+			// Test should fail because of outdated IMDS NC that can't be updated
+			_, err := svc.syncHostNCVersion(context.Background(), orchestratorType)
+			if err == nil {
+				t.Errorf("Expected error when there are outdated IMDS NCs but API version is not supported, but got nil")
+			}
+
+			// Verify the error is about being unable to update NCs
+			expectedErrorText := "unable to update some NCs"
+			if !strings.Contains(err.Error(), expectedErrorText) {
+				t.Errorf("Expected error to contain '%s', but got: %v", expectedErrorText, err)
+			}
+
+			// Only verify IMDS NC state - this is the focus of the test
+			imdsContainerStatus := svc.state.ContainerStatus[imdsNCID]
+			if imdsContainerStatus.HostVersion != "-1" {
+				t.Errorf("Expected IMDS NC HostVersion to remain -1, got %s", imdsContainerStatus.HostVersion)
+			}
+		})
 	}
 }
 
@@ -1064,7 +1295,11 @@ func TestCNIConflistGenerationNewNC(t *testing.T) {
 					},
 				}, nil
 			},
+			SupportedAPIsF: func(_ context.Context) ([]string, error) {
+				return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
+			},
 		},
+		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
@@ -1090,6 +1325,22 @@ func TestCNIConflistGenerationExistingNC(t *testing.T) {
 				},
 			},
 		},
+		nma: &fakes.NMAgentClientFake{
+			GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
+				return nma.NCVersionList{
+					Containers: []nma.NCVersion{
+						{
+							NetworkContainerID: ncID,
+							Version:            "0",
+						},
+					},
+				}, nil
+			},
+			SupportedAPIsF: func(_ context.Context) ([]string, error) {
+				return []string{}, nil
+			},
+		},
+		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
@@ -1127,7 +1378,11 @@ func TestCNIConflistGenerationNewNCTwice(t *testing.T) {
 					},
 				}, nil
 			},
+			SupportedAPIsF: func(_ context.Context) ([]string, error) {
+				return []string{}, nil
+			},
 		},
+		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
@@ -1162,7 +1417,11 @@ func TestCNIConflistNotGenerated(t *testing.T) {
 			GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 				return nma.NCVersionList{}, nil
 			},
+			SupportedAPIsF: func(_ context.Context) ([]string, error) {
+				return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
+			},
 		},
+		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
@@ -1201,7 +1460,11 @@ func TestCNIConflistGenerationOnNMAError(t *testing.T) {
 			GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 				return nma.NCVersionList{}, errors.New("some nma error")
 			},
+			SupportedAPIsF: func(_ context.Context) ([]string, error) {
+				return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
+			},
 		},
+		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
@@ -1358,4 +1621,62 @@ func TestMustEnsureNoStaleNCs_PanicsWhenIPsFromStaleNCAreAssigned(t *testing.T) 
 	require.Panics(t, func() {
 		svc.MustEnsureNoStaleNCs([]string{"nc3", "nc4"})
 	})
+}
+
+type mockIMDSAdapter struct {
+	mock *struct {
+		networkInterfaces func(_ context.Context) ([]imds.NetworkInterface, error)
+		imdsVersions      func(_ context.Context) (*imds.APIVersionsResponse, error)
+	}
+}
+
+func (m *mockIMDSAdapter) GetVMUniqueID(_ context.Context) (string, error) {
+	panic("GetVMUniqueID should not be called in syncHostNCVersion tests, adding mockIMDSAdapter  implements the full IMDS interface")
+}
+
+func (m *mockIMDSAdapter) GetNetworkInterfaces(ctx context.Context) ([]imds.NetworkInterface, error) {
+	return m.mock.networkInterfaces(ctx)
+}
+
+func (m *mockIMDSAdapter) GetIMDSVersions(ctx context.Context) (*imds.APIVersionsResponse, error) {
+	if m.mock.imdsVersions != nil {
+		return m.mock.imdsVersions(ctx)
+	}
+	// Default implementation that returns supported API versions
+	return &imds.APIVersionsResponse{
+		APIVersions: []string{"2017-03-01", "2021-01-01", "2025-07-24"},
+	}, nil
+}
+
+func setupIMDSMockAPIsWithCustomIDs(svc *HTTPRestService, interfaceIDs []string) func() {
+	mockIMDS := &struct {
+		networkInterfaces func(_ context.Context) ([]imds.NetworkInterface, error)
+		imdsVersions      func(_ context.Context) (*imds.APIVersionsResponse, error)
+	}{
+		networkInterfaces: func(_ context.Context) ([]imds.NetworkInterface, error) {
+			var interfaces []imds.NetworkInterface
+			for _, id := range interfaceIDs {
+				interfaces = append(interfaces, imds.NetworkInterface{
+					InterfaceCompartmentID: id,
+				})
+			}
+			return interfaces, nil
+		},
+		imdsVersions: func(_ context.Context) (*imds.APIVersionsResponse, error) {
+			return &imds.APIVersionsResponse{
+				APIVersions: []string{
+					"2017-03-01",
+					"2021-01-01",
+					"2025-07-24",
+				},
+			}, nil
+		},
+	}
+
+	// Set up the mock
+	originalIMDS := svc.imdsClient
+	svc.imdsClient = &mockIMDSAdapter{mockIMDS}
+
+	// Return cleanup function
+	return func() { svc.imdsClient = originalIMDS }
 }
