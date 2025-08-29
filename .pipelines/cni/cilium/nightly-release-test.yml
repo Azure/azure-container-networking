@@ -62,9 +62,9 @@ stages:
                 echo "alpine MCR image: ${alpineACR}"
                 ALPINE_ARGS="--build-arg ALPINE_IMAGE=${alpineACR} "
               fi
-              BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}--build-arg GOCACHE=/tmp/gocache 
+              BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS} 
 
-              DOCKER_FLAGS="$BUILD_ARGS" \
+              DOCKER_FLAGS="$BUILD_ARGS --no-cache" \
               make $(type)
             name: BuildCiliumImage
             displayName: "Build Cilium Image"
