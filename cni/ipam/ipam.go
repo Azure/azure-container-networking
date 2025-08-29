@@ -299,6 +299,7 @@ func (plugin *ipamPlugin) Delete(args *cniSkel.CmdArgs) error {
 	nwCfg, err := plugin.Configure(args.StdinData)
 	if err != nil {
 		err = plugin.Errorf("Failed to parse network configuration: %v", err)
+		logger.Error("DEBUG failed to parse network configuration", zap.Error(err))
 		return err
 	}
 
@@ -310,6 +311,7 @@ func (plugin *ipamPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	if err != nil {
 		err = plugin.Errorf("Failed to release address: %v", err)
+		logger.Error("DEBUG failed to release address", zap.Error(err))
 		return err
 	}
 

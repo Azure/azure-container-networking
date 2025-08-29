@@ -87,8 +87,7 @@ var httpClient *http.Client
 func InitHttpClient(
 	connectionTimeoutSec int,
 	responseHeaderTimeoutSec int) *http.Client {
-	log.Printf("[Utils] Initializing HTTP client with connection timeout: %d, response header timeout: %d",
-		connectionTimeoutSec, responseHeaderTimeoutSec)
+
 	httpClient = &http.Client{
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{

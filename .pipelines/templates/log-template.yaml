@@ -125,6 +125,11 @@ steps:
             kubectl exec -i -n kube-system $pod -- cat var/log/$file > $(acnLogs)/"$node"_logs/log-output/$file
             echo "Cilium log, $file, captured: $(acnLogs)/"$node"_logs/log-output/$file"
           fi
+
+          # Capture containerd logs using journalctl
+          file="containerd.log"
+          kubectl exec -i -n kube-system $pod -- journalctl -u containerd > $(acnLogs)/"$node"_logs/log-output/$file
+          echo "Containerd journal logs, $file, captured: $(acnLogs)/"$node"_logs/log-output/$file"
         done
 
         if ! [ ${{ parameters.cni }} = 'cilium' ]; then
