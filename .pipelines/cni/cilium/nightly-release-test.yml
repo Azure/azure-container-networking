@@ -62,9 +62,13 @@ stages:
                 echo "alpine MCR image: ${alpineACR}"
                 ALPINE_ARGS="--build-arg ALPINE_IMAGE=${alpineACR} "
               fi
-              BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS} 
+              
+              GO_ENV_ARGS="--build-arg GOPROXY=direct --build-arg GOSUMDB=off"
+              BUILD_ARGS="${GO_ARGS}${ALPINE_ARGS}${GO_ENV_ARGS}"
 
-              DOCKER_FLAGS="$BUILD_ARGS --no-cache" \
+              # Use fresh builder with no inline cache
+              export DOCKER_BUILDKIT_INLINE_CACHE=0
+              DOCKER_FLAGS="$BUILD_ARGS --builder=mybuilder" \
               make $(type)
             name: BuildCiliumImage
             displayName: "Build Cilium Image"
