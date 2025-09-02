@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/Azure/azure-container-networking/bpf-prog/azure-block-iptables/pkg/bpfprogram"
 	"github.com/pkg/errors"
@@ -17,12 +18,12 @@ import (
 var (
 	version         = "unknown"
 	ErrModeRequired = errors.New("mode is required")
-	ErrInvalidMode  = errors.New("invalid mode. Use -mode=attach or -mode=detach")
+	ErrInvalidMode  = errors.New("invalid mode. Use -mode=attach, -mode=detach, or -mode=daemon")
 )
 
 // Config holds configuration for the application
 type Config struct {
-	Mode            string // "attach" or "detach"
+	Mode            string // "attach", "detach", or "daemon"
 	Overwrite       bool   // force detach before attach
 	AttacherFactory bpfprogram.AttacherFactory
 }
@@ -30,7 +31,7 @@ type Config struct {
 // parseArgs parses command line arguments and returns the configuration
 func parseArgs() (*Config, error) {
 	var (
-		mode        = flag.String("mode", "", "Operation mode: 'attach' or 'detach' (required)")
+		mode        = flag.String("mode", "", "Operation mode: 'attach', 'detach', or 'daemon' (required)")
 		overwrite   = flag.Bool("overwrite", false, "Force detach before attach (only applies to attach mode)")
 		showVersion = flag.Bool("version", false, "Show version information")
 		showHelp    = flag.Bool("help", false, "Show help information")
@@ -52,7 +53,7 @@ func parseArgs() (*Config, error) {
 		return nil, ErrModeRequired
 	}
 
-	if *mode != "attach" && *mode != "detach" {
+	if *mode != "attach" && *mode != "detach" && *mode != "daemon" {
 		return nil, ErrInvalidMode
 	}
 
@@ -103,6 +104,34 @@ func detachMode(config *Config) error {
 	return nil
 }
 
+// daemonMode handles the daemon operation (attach without pinning)
+func daemonMode(config *Config) error {
+	log.Println("Starting daemon mode...")
+
+	// Initialize BPF program attacher using the factory
+	bp := config.AttacherFactory()
+
+	// If overwrite is enabled, first detach any existing programs
+	if config.Overwrite {
+		log.Println("Overwrite mode enabled, detaching any existing programs first...")
+		if err := bp.Detach(); err != nil {
+			log.Printf("Warning: failed to detach existing programs: %v", err)
+		}
+	}
+
+	// Attach the BPF program without pinning
+	for {
+		if err := bp.AttachWithoutPinning(); err != nil {
+			return errors.Wrap(err, "failed to attach BPF program without pinning")
+		}
+
+		log.Println("BPF program attached in daemon mode successfully")
+		// Sleep for 10 minutes before re-attaching
+		log.Println("Sleeping for 10 minutes before next attach...")
+		time.Sleep(10 * time.Minute)
+	}
+}
+
 // run is the main application logic
 func run(config *Config) error {
 	switch config.Mode {
@@ -110,6 +139,8 @@ func run(config *Config) error {
 		return attachMode(config)
 	case "detach":
 		return detachMode(config)
+	case "daemon":
+		return daemonMode(config)
 	default:
 		return ErrInvalidMode
 	}

@@ -64,6 +64,25 @@ func (m *MockProgram) Attach() error {
 	return nil
 }
 
+// AttachWithoutPinning simulates attaching the BPF program without pinning.
+func (m *MockProgram) AttachWithoutPinning() error {
+	m.attachCalled++
+
+	if m.attachError != nil {
+		return m.attachError
+	}
+
+	if m.attached {
+		log.Println("Mock: BPF program already attached")
+		return nil
+	}
+
+	log.Println("Mock: Attaching BPF program without pinning...")
+	m.attached = true
+	log.Println("Mock: BPF program attached without pinning successfully")
+	return nil
+}
+
 // Detach simulates detaching the BPF program.
 func (m *MockProgram) Detach() error {
 	m.detachCalled++

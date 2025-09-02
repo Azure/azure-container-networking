@@ -233,6 +233,92 @@ func (p *Program) Attach() error {
 	return nil
 }
 
+// AttachWithoutPinning attaches the BPF program to LSM hooks without pinning the links.
+func (p *Program) AttachWithoutPinning() error {
+	if p.attached {
+		log.Println("BPF program already attached")
+		return nil
+	}
+
+	// Remove memory limit for eBPF
+	if err := rlimit.RemoveMemlock(); err != nil {
+		return errors.Wrapf(err, "failed to remove memlock rlimit")
+	}
+
+	log.Println("Attaching BPF program without pinning...")
+
+	// Get the host network namespace inode
+	hostNetnsInode, err := getHostNetnsInode()
+	if err != nil {
+		return errors.Wrap(err, "failed to get host network namespace inode")
+	}
+
+	// Load BPF objects with the host namespace inode set
+	spec, err := blockservice.LoadBlockIptables()
+	if err != nil {
+		return errors.Wrap(err, "failed to load BPF spec")
+	}
+
+	// Set the host_netns_inode variable in the BPF program before loading
+	if err = spec.RewriteConstants(map[string]interface{}{
+		"host_netns_inode": hostNetnsInode,
+	}); err != nil {
+		return errors.Wrap(err, "failed to rewrite constants")
+	}
+
+	// Load the objects without pinning maps
+	objs := &blockservice.BlockIptablesObjects{}
+	if err = spec.LoadAndAssign(objs, nil); err != nil {
+		return errors.Wrap(err, "failed to load BPF objects")
+	}
+	p.objs = objs
+
+	// Pin the event counter map to filesystem
+	if err = p.pinEventCounterMap(); err != nil {
+		return errors.Wrap(err, "failed to pin event counter map")
+	}
+
+	// Attach LSM programs without pinning
+	var links []link.Link
+
+	// Attach socket_setsockopt LSM hook
+	if p.objs.IptablesLegacyBlock != nil {
+		l, err := link.AttachLSM(link.LSMOptions{
+			Program: p.objs.IptablesLegacyBlock,
+		})
+		if err != nil {
+			p.objs.Close()
+			p.objs = nil
+			return errors.Wrap(err, "failed to attach iptables_legacy_block LSM")
+		}
+		links = append(links, l)
+	}
+
+	// Attach netlink_send LSM hook
+	if p.objs.IptablesNftablesBlock != nil {
+		l, err := link.AttachLSM(link.LSMOptions{
+			Program: p.objs.IptablesNftablesBlock,
+		})
+		if err != nil {
+			// Clean up previous links
+			for _, link := range links {
+				link.Close()
+				link = nil
+			}
+			p.objs.Close()
+			p.objs = nil
+			return errors.Wrap(err, "failed to attach block_nf_netlink LSM")
+		}
+		links = append(links, l)
+	}
+
+	p.links = links
+	p.attached = true
+
+	log.Printf("BPF program attached without pinning successfully with host_netns_inode=%d", hostNetnsInode)
+	return nil
+}
+
 func (p *Program) Detach() error {
 	return p.cleanupPinnedResources()
 }

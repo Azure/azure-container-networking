@@ -6,6 +6,9 @@ type Attacher interface {
 	// Attach attaches the BPF program to LSM hooks and pins the links and maps
 	Attach() error
 
+	// AttachWithoutPinning attaches the BPF program to LSM hooks without pinning the links
+	AttachWithoutPinning() error
+
 	// Unpins the links and maps (causes detachment)
 	Detach() error
 
