@@ -167,6 +167,7 @@ stages:
               platforms: linux/amd64 linux/arm64 windows/amd64
             cns:
               name: cns
+              os_versions: ltsc2019 ltsc2022
               platforms: linux/amd64 linux/arm64 windows/amd64
             npm:
               name: npm
