@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/cilium/ebpf"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -94,29 +92,4 @@ func NewDynamicClient(client dynamic.Interface) DynamicClient {
 func (d *realDynamicClient) PatchResource(ctx context.Context, gvr schema.GroupVersionResource, name string, patchType types.PatchType, data []byte) error {
 	_, err := d.client.Resource(gvr).Patch(ctx, name, patchType, data, metav1.PatchOptions{})
 	return err
-}
-
-// realEBPFClient provides eBPF map operations
-type realEBPFClient struct{}
-
-func NewEBPFClient() EBPFClient {
-	return &realEBPFClient{}
-}
-
-func (e *realEBPFClient) GetBPFMapValue(pinPath string) (uint64, error) {
-	bpfMap, err := ebpf.LoadPinnedMap(pinPath, nil)
-	if err != nil {
-		return 0, fmt.Errorf("failed to load pinned map %s: %w", pinPath, err)
-	}
-	defer bpfMap.Close()
-
-	// 0 is the key for # of blocks
-	key := uint32(0)
-	value := uint64(0)
-
-	if err := bpfMap.Lookup(&key, &value); err != nil {
-		return 0, fmt.Errorf("failed to lookup key %d in bpf map: %w", key, err)
-	}
-
-	return value, nil
 }

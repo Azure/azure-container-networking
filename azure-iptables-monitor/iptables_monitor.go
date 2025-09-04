@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/cilium/ebpf"
 	goiptables "github.com/coreos/go-iptables/iptables"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -65,6 +66,32 @@ func (OSFileLineReader) Read(filename string) ([]string, error) {
 	}
 
 	return lines, nil
+}
+
+// realEBPFClient provides eBPF map operations
+type realEBPFClient struct{}
+
+func NewEBPFClient() EBPFClient {
+	return &realEBPFClient{}
+}
+
+// GetBPFMapValue queries the bpf map at pinPath and gets the value at key 0
+func (e *realEBPFClient) GetBPFMapValue(pinPath string) (uint64, error) {
+	bpfMap, err := ebpf.LoadPinnedMap(pinPath, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load pinned map %s: %w", pinPath, err)
+	}
+	defer bpfMap.Close()
+
+	// 0 is the key for # of blocks
+	key := uint32(0)
+	value := uint64(0)
+
+	if err := bpfMap.Lookup(&key, &value); err != nil {
+		return 0, fmt.Errorf("failed to lookup key %d in bpf map: %w", key, err)
+	}
+
+	return value, nil
 }
 
 // patchLabel sets a specified label to a certain value on a ciliumnode resource by patching it
@@ -227,69 +254,72 @@ func nodeHasUserIPTablesRules(fileReader FileLineReader, path string, iptablesCl
 	return userIPTablesRules
 }
 
-func Run(cfg Config, deps Dependencies) {
-	klog.Infof("Starting iptables monitor for node: %s", cfg.NodeName)
+// Check returns true if the node has user iptables rules (ipv4 or ipv6, based on the config), false otherwise
+func Check(cfg Config, deps Dependencies, previousBlocks *uint64) bool {
+	userIPTablesRulesFound := nodeHasUserIPTablesRules(deps.FileReader, cfg.ConfigPath4, deps.IPTablesV4)
+	if userIPTablesRulesFound {
+		klog.Info("Above user iptables rules detected in IPv4 iptables")
+	}
 
-	previousBlocks := uint64(0)
-
-	for {
-		userIPTablesRulesFound := nodeHasUserIPTablesRules(deps.FileReader, cfg.ConfigPath4, deps.IPTablesV4)
-		if userIPTablesRulesFound {
-			klog.Info("Above user iptables rules detected in IPv4 iptables")
+	// check ip6tables rules if enabled
+	if cfg.IPv6Enabled {
+		userIP6TablesRulesFound := nodeHasUserIPTablesRules(deps.FileReader, cfg.ConfigPath6, deps.IPTablesV6)
+		if userIP6TablesRulesFound {
+			klog.Info("Above user iptables rules detected in IPv6 iptables")
 		}
+		userIPTablesRulesFound = userIPTablesRulesFound || userIP6TablesRulesFound
+	}
 
-		// check ip6tables rules if enabled
-		if cfg.IPv6Enabled {
-			userIP6TablesRulesFound := nodeHasUserIPTablesRules(deps.FileReader, cfg.ConfigPath6, deps.IPTablesV6)
-			if userIP6TablesRulesFound {
-				klog.Info("Above user iptables rules detected in IPv6 iptables")
-			}
-			userIPTablesRulesFound = userIPTablesRulesFound || userIP6TablesRulesFound
-		}
+	// update label based on whether user iptables rules were found
+	err := patchLabel(deps.DynamicClient, userIPTablesRulesFound, cfg.NodeName)
+	if err != nil {
+		klog.Errorf("failed to patch label: %v", err)
+	} else {
+		klog.V(2).Infof("Successfully updated label for %s: %s=%v", cfg.NodeName, label, userIPTablesRulesFound)
+	}
 
-		// update label based on whether user iptables rules were found
-		err := patchLabel(deps.DynamicClient, userIPTablesRulesFound, cfg.NodeName)
+	if cfg.SendEvents && userIPTablesRulesFound {
+		err = createNodeEvent(deps.KubeClient, cfg.NodeName, "UnexpectedIPTablesRules", "Node has unexpected iptables rules", corev1.EventTypeWarning)
 		if err != nil {
-			klog.Errorf("failed to patch label: %v", err)
-		} else {
-			klog.V(2).Infof("Successfully updated label for %s: %s=%v", cfg.NodeName, label, userIPTablesRulesFound)
+			klog.Errorf("failed to create event: %v", err)
 		}
+	}
 
-		if cfg.SendEvents && userIPTablesRulesFound {
-			err = createNodeEvent(deps.KubeClient, cfg.NodeName, "UnexpectedIPTablesRules", "Node has unexpected iptables rules", corev1.EventTypeWarning)
-			if err != nil {
-				klog.Errorf("failed to create event: %v", err)
-			}
+	// if disabled the number of blocks never increases from zero
+	currentBlocks := uint64(0)
+	if cfg.CheckMap {
+		// read bpf map to check for number of blocked iptables rules
+		currentBlocks, err = deps.EBPFClient.GetBPFMapValue(cfg.PinPath)
+		if err != nil {
+			klog.Errorf("failed to get bpf map value: %v", err)
 		}
+		klog.V(2).Infof("IPTables rules blocks: Previous: %d Current: %d", previousBlocks, currentBlocks)
+	}
 
+	// if number of blocked rules increased since last time
+	blockedRulesIncreased := currentBlocks > *previousBlocks
+	if cfg.SendEvents && blockedRulesIncreased {
+		msg := "A process attempted to add iptables rules to the node but was blocked since last check. " +
+			"iptables rules blocked because EBPF Host Routing is enabled: aka.ms/acnsperformance"
+		err = createNodeEvent(deps.KubeClient, cfg.NodeName, "BlockedIPTablesRule", msg, corev1.EventTypeWarning)
+		if err != nil {
+			klog.Errorf("failed to create iptables block event: %v", err)
+		}
+	}
+	// persist between runs
+	*previousBlocks = currentBlocks
+	return userIPTablesRulesFound
+}
+
+// Run runs Check in a loop and handles the number of blocks
+func Run(cfg Config, deps Dependencies) {
+	var blockCount = uint64(0)
+	for {
+		userIPTablesRulesFound := Check(cfg, deps, &blockCount)
 		if !userIPTablesRulesFound && cfg.TerminateOnSuccess {
 			klog.Info("No user iptables rules found, terminating the iptables monitor")
 			break
 		}
-
-		// if disabled the number of blocks never increases from zero
-		currentBlocks := uint64(0)
-		if cfg.CheckMap {
-			// read bpf map to check for number of blocked iptables rules
-			currentBlocks, err = deps.EBPFClient.GetBPFMapValue(cfg.PinPath)
-			if err != nil {
-				klog.Errorf("failed to get bpf map value: %v", err)
-			}
-			klog.V(2).Infof("IPTables rules blocks: Previous: %d Current: %d", previousBlocks, currentBlocks)
-		}
-
-		// if number of blocked rules increased since last time
-		blockedRulesIncreased := currentBlocks > previousBlocks
-		if cfg.SendEvents && blockedRulesIncreased {
-			msg := "A process attempted to add iptables rules to the node but was blocked since last check. " +
-				"iptables rules blocked because EBPF Host Routing is enabled: aka.ms/acnsperformance"
-			err = createNodeEvent(deps.KubeClient, cfg.NodeName, "BlockedIPTablesRule", msg, corev1.EventTypeWarning)
-			if err != nil {
-				klog.Errorf("failed to create iptables block event: %v", err)
-			}
-		}
-		previousBlocks = currentBlocks
-
 		time.Sleep(time.Duration(cfg.CheckInterval) * time.Second)
 	}
 }
@@ -358,6 +388,7 @@ func main() {
 		EBPFClient:    NewEBPFClient(),
 		FileReader:    OSFileLineReader{},
 	}
+	klog.Infof("Starting iptables monitor for node: %s", cfg.NodeName)
 
 	Run(cfg, deps)
 }
