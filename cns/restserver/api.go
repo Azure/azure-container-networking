@@ -1349,8 +1349,10 @@ func (service *HTTPRestService) ibDevicesHandler(w http.ResponseWriter, r *http.
 	switch r.Method {
 	case http.MethodPost:
 		// TODO: Implement POST
+		http.Error(w, "POST method not yet implemented", http.StatusNotImplemented)
 	case http.MethodGet:
 		// TODO: Implement GET
+		http.Error(w, "GET method not yet implemented", http.StatusNotImplemented)
 	default:
 		msg := fmt.Sprintf("[%s] Method %s not supported", opName, r.Method)
 		http.Error(w, msg, http.StatusMethodNotAllowed)
