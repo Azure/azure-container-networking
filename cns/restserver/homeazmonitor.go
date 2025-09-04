@@ -50,14 +50,27 @@ func (h *HomeAzMonitor) updateCacheValue(resp cns.GetHomeAzResponse) {
 
 // readCacheValue reads home az cache value
 func (h *HomeAzMonitor) readCacheValue() cns.GetHomeAzResponse {
-	cachedResp, found := h.values.Get(homeAzCacheKey)
-	if !found {
-		return cns.GetHomeAzResponse{Response: cns.Response{
+	if cachedResp, found := h.values.Get(homeAzCacheKey); found {
+		return cachedResp.(cns.GetHomeAzResponse)
+	}
+
+	// Cache miss - populate cache and try again
+	ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
+	defer cancel()
+	h.Populate(ctx)
+
+	if cachedResp, found := h.values.Get(homeAzCacheKey); found {
+		return cachedResp.(cns.GetHomeAzResponse)
+	}
+
+	// Still no cache value after populate attempt
+	return cns.GetHomeAzResponse{
+		Response: cns.Response{
 			ReturnCode: types.NotFound,
 			Message:    "HomeAz Cache is unavailable",
-		}, HomeAzResponse: cns.HomeAzResponse{IsSupported: false}}
+		},
+		HomeAzResponse: cns.HomeAzResponse{IsSupported: false},
 	}
-	return cachedResp.(cns.GetHomeAzResponse)
 }
 
 // Start starts a new thread to refresh home az cache
