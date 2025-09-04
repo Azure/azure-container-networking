@@ -302,6 +302,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.NetworkContainersURLPath, service.getOrRefreshNetworkContainers)
 	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.EndpointPath, service.EndpointHandlerAPI)
+	listener.AddHandler(cns.IBDevicesPath, service.ibDevicesHandler)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
 		listener.AddHandler(cns.GetVMUniqueID, service.getVMUniqueID)
@@ -329,6 +330,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.V2Prefix+cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.V2Prefix+cns.EndpointPath, service.EndpointHandlerAPI)
+	listener.AddHandler(cns.V2Prefix+cns.IBDevicesPath, service.ibDevicesHandler)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
 		listener.AddHandler(cns.V2Prefix+cns.GetVMUniqueID, service.getVMUniqueID)
