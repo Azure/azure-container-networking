@@ -1,18 +1,7 @@
 module github.com/Azure/azure-container-networking
 
-go 1.24.0
+go 1.24.1
 
-require (
-	github.com/AlekSi/gocov-xml v1.2.0
-	github.com/axw/gocov v1.2.1
-	github.com/golang/mock v1.6.0
-	github.com/golangci/golangci-lint v1.63.4
-	github.com/jstemmer/go-junit-report v1.0.0
-	github.com/orellazri/renderkit v0.6.3
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
-	google.golang.org/protobuf v1.36.8
-	mvdan.cc/gofumpt v0.7.0
-	sigs.k8s.io/controller-tools v0.16.3
 // To use/update leverage -modfile=tools.go.mod field in respective go commands
 tool (
 	github.com/golang/mock/mockgen
