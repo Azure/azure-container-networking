@@ -34,7 +34,7 @@ var (
 	sendEvents         = flag.Bool("events", false, "Whether to send node events if unexpected iptables rules are detected")
 	ipv6Enabled        = flag.Bool("ipv6", false, "Whether to check ip6tables using the ipv6 allowlists")
 	checkMap           = flag.Bool("checkMap", false, "Whether to check the bpf map at mapPath for increases")
-	pinPath            = flag.String("mapPath", "/azure-block-iptables/iptables_block_event_counter", "Path to pinned bpf map")
+	pinPath            = flag.String("mapPath", "/azure-block-iptables-bpf-map/iptables_block_event_counter", "Path to pinned bpf map")
 	terminateOnSuccess = flag.Bool("terminateOnSuccess", false, "Whether to terminate the program when no user iptables rules found")
 )
 
