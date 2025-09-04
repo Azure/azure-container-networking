@@ -313,7 +313,7 @@ func Check(cfg Config, deps Dependencies, previousBlocks *uint64) bool {
 
 // Run runs Check in a loop and handles the number of blocks
 func Run(cfg Config, deps Dependencies) {
-	var blockCount = uint64(0)
+	blockCount := uint64(0)
 	for {
 		userIPTablesRulesFound := Check(cfg, deps, &blockCount)
 		if !userIPTablesRulesFound && cfg.TerminateOnSuccess {

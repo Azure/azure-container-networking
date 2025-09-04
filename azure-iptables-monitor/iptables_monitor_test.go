@@ -86,11 +86,11 @@ func NewMockKubeClient() *MockKubeClient {
 	return &MockKubeClient{}
 }
 
-func (m *MockKubeClient) GetNode(ctx context.Context, name string) (*corev1.Node, error) {
+func (m *MockKubeClient) GetNode(_ context.Context, _ string) (*corev1.Node, error) {
 	return m.Node, m.Error
 }
 
-func (m *MockKubeClient) CreateEvent(ctx context.Context, namespace string, event *corev1.Event) (*corev1.Event, error) {
+func (m *MockKubeClient) CreateEvent(_ context.Context, _ string, _ *corev1.Event) (*corev1.Event, error) {
 	return m.Event, m.Error
 }
 
@@ -114,7 +114,7 @@ func NewMockDynamicClient() *MockDynamicClient {
 	}
 }
 
-func (m *MockDynamicClient) PatchResource(ctx context.Context, gvr schema.GroupVersionResource, name string, patchType types.PatchType, data []byte) error {
+func (m *MockDynamicClient) PatchResource(_ context.Context, gvr schema.GroupVersionResource, name string, patchType types.PatchType, data []byte) error {
 	m.PatchCalls = append(m.PatchCalls, PatchCall{
 		GVR:       gvr,
 		Name:      name,

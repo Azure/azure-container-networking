@@ -73,11 +73,11 @@ func NewKubeClient(client kubernetes.Interface) KubeClient {
 }
 
 func (k *realKubeClient) GetNode(ctx context.Context, name string) (*corev1.Node, error) {
-	return k.client.CoreV1().Nodes().Get(ctx, name, metav1.GetOptions{})
+	return k.client.CoreV1().Nodes().Get(ctx, name, metav1.GetOptions{}) // nolint
 }
 
 func (k *realKubeClient) CreateEvent(ctx context.Context, namespace string, event *corev1.Event) (*corev1.Event, error) {
-	return k.client.CoreV1().Events(namespace).Create(ctx, event, metav1.CreateOptions{})
+	return k.client.CoreV1().Events(namespace).Create(ctx, event, metav1.CreateOptions{}) // nolint
 }
 
 // realDynamicClient wraps dynamic.Interface
@@ -91,5 +91,5 @@ func NewDynamicClient(client dynamic.Interface) DynamicClient {
 
 func (d *realDynamicClient) PatchResource(ctx context.Context, gvr schema.GroupVersionResource, name string, patchType types.PatchType, data []byte) error {
 	_, err := d.client.Resource(gvr).Patch(ctx, name, patchType, data, metav1.PatchOptions{})
-	return err
+	return err // nolint
 }
