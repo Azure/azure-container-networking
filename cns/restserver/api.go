@@ -1337,3 +1337,23 @@ func (service *HTTPRestService) nmAgentNCListHandler(w http.ResponseWriter, r *h
 	serviceErr := common.Encode(w, &NCListResponse)
 	logger.Response(service.Name, NCListResponse, resp.ReturnCode, serviceErr)
 }
+
+// ibDevicesHandler handles IB device operations
+func (service *HTTPRestService) ibDevicesHandler(w http.ResponseWriter, r *http.Request) {
+	opName := "ibDevicesHandler"
+	logger.Printf("[%s] Received request with HTTP method %s", opName, r.Method)
+
+	service.Lock()
+	defer service.Unlock()
+
+	switch r.Method {
+	case http.MethodPost:
+		// TODO: Implement POST
+	case http.MethodGet:
+		// TODO: Implement GET
+	default:
+		msg := fmt.Sprintf("[%s] Method %s not supported", opName, r.Method)
+		http.Error(w, msg, http.StatusMethodNotAllowed)
+		logger.Response(service.Name, nil, types.InvalidParameter, errors.New(msg))
+	}
+}
