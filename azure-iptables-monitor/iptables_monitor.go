@@ -293,7 +293,7 @@ func Check(cfg Config, deps Dependencies, previousBlocks *uint64) bool {
 		if err != nil {
 			klog.Errorf("failed to get bpf map value: %v", err)
 		}
-		klog.V(2).Infof("IPTables rules blocks: Previous: %d Current: %d", previousBlocks, currentBlocks)
+		klog.V(2).Infof("IPTables rules blocks: Previous: %d Current: %d", *previousBlocks, currentBlocks)
 	}
 
 	// if number of blocked rules increased since last time
