@@ -10,6 +10,7 @@ import (
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
+	"go.uber.org/zap"
 )
 
 // Service implements behavior common to all services.
@@ -20,6 +21,7 @@ type Service struct {
 	ErrChan     chan<- error
 	Store       store.KeyValueStore
 	ChannelMode string
+	Logger      *zap.Logger
 }
 
 // ServiceAPI defines base interface.
@@ -41,6 +43,7 @@ type ServiceConfig struct {
 	Server      server
 	ChannelMode string
 	TLSSettings tls.TlsSettings
+	Logger      *zap.Logger
 }
 
 // server struct to store primaryInterfaceIP from VM, port where customer provides by -p and temporary flag EnableLocalServer
@@ -80,6 +83,7 @@ func (service *Service) Initialize(config *ServiceConfig) error {
 	service.Store = config.Store
 	service.Version = config.Version
 	service.ChannelMode = config.ChannelMode
+	service.Logger = config.Logger
 
 	logger.Debugf("[Azure CNS] nitialized service: %+v with config: %+v.", service, config)
 
