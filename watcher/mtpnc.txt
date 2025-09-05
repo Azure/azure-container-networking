@@ -1,0 +1,66 @@
+apiVersion: multitenancy.acn.azure.com/v1alpha1
+kind: MultitenantPodNetworkConfig
+metadata:
+  creationTimestamp: "2025-08-04T22:43:53Z"
+  finalizers:
+  - finalizers.acn.azure.com/dnc-operations
+  generation: 1
+  name: vfpod1-deployment-58568b7549-ns69g
+  namespace: e2e-ns-d28jfa76a3njdlen9bs0
+  ownerReferences:
+  - apiVersion: v1
+    blockOwnerDeletion: true
+    controller: true
+    kind: Pod
+    name: vfpod1-deployment-58568b7549-ns69g
+    uid: b18836bb-d56d-405c-bec7-eb2c3d052916
+  resourceVersion: "12645"
+  uid: 1f45873d-c7e6-452c-939d-c8824d7a7895
+spec:
+  podNetwork: ""
+  podNetworkInstance: pnilinux1
+status:
+  defaultDenyACL: false
+  gatewayIP: 172.25.0.1
+  interfaceInfos:
+  - accelnetEnabled: true
+    deviceType: acn.azure.com/vnet-nic
+    gatewayIP: 172.25.0.1
+    macAddress: 00:22:48:7b:22:d9
+    ncID: 81a6fa65-2309-44ff-9f97-37f94d372526
+    primaryIP: 172.25.0.5/32
+    subnetAddressSpace: 172.25.0.0/16
+  macAddress: 00:22:48:7b:22:d9
+  ncID: 81a6fa65-2309-44ff-9f97-37f94d372526
+  primaryIP: 172.25.0.5/32
+
+Other one:
+"vfpod1-deployment-58568b7549-dg26b"
+"containerd://c0ef8b3af0eaed79d3461c4e26b4bbc7b897368a99e617e9657b76cdece17e84"
+
+
+This is the only value we can see in pod status.ContainerStatuses[0].ContainerID:
+Containerd logs:
+Aug 04 22:56:40 linone000000 containerd[700]: time="2025-08-04T22:56:40.316226512Z" level=info msg="RunPodSandbox for &PodSandboxMetadata{Name:vfpod1-deployment-58568b7549-dg26b,Uid:455ca03f-182d-4125-a8c4-df19162cea5a,Namespace:e2e-ns-d28jkg76a3njdlen9bsg,Attempt:0,}"
+Aug 04 22:56:40 linone000000 containerd[700]: time="2025-08-04T22:56:40.458122083Z" level=error msg="RunPodSandbox for &PodSandboxMetadata{Name:vfpod1-deployment-58568b7549-dg26b,Uid:455ca03f-182d-4125-a8c4-df19162cea5a,Namespace:e2e-ns-d28jkg76a3njdlen9bsg,Attempt:0,} failed, error" error="failed to setup network for sandbox \"faeb208bf6e565c3c28dc6323870262558067ff765efb07>
+Aug 04 22:56:55 linone000000 containerd[700]: time="2025-08-04T22:56:55.562506549Z" level=info msg="RunPodSandbox for &PodSandboxMetadata{Name:vfpod1-deployment-58568b7549-dg26b,Uid:455ca03f-182d-4125-a8c4-df19162cea5a,Namespace:e2e-ns-d28jkg76a3njdlen9bsg,Attempt:0,}"
+Aug 04 22:56:55 linone000000 containerd[700]: 2025/08/04 22:56:55 [10685] [netlink] Ignoring unexpected message {NlMsghdr:{Len:36 Type:2 Flags:256 Seq:1 Pid:4021897972} data:[0 0 0 0 40 0 0 0 19 0 5 0 1 0 0 0 189 41 0 0] payload:[]}
+Aug 04 22:56:55 linone000000 containerd[700]: 2025/08/04 22:56:55 [10685] [netlink] Ignoring unexpected message {NlMsghdr:{Len:36 Type:2 Flags:256 Seq:1 Pid:2268484327} data:[0 0 0 0 32 0 0 0 16 0 5 0 1 0 0 0 189 41 0 0] payload:[]}
+Aug 04 22:56:55 linone000000 containerd[700]: 2025/08/04 22:56:55 [10685] [netlink] Ignoring unexpected message {NlMsghdr:{Len:36 Type:2 Flags:256 Seq:2 Pid:2268484327} data:[0 0 0 0 40 0 0 0 20 0 5 6 2 0 0 0 189 41 0 0] payload:[]}
+Aug 04 22:56:55 linone000000 containerd[700]: 2025/08/04 22:56:55 [10685] [netlink] Ignoring unexpected message {NlMsghdr:{Len:36 Type:2 Flags:256 Seq:3 Pid:2268484327} data:[0 0 0 0 44 0 0 0 24 0 5 6 3 0 0 0 189 41 0 0] payload:[]}
+Aug 04 22:56:55 linone000000 containerd[700]: 2025/08/04 22:56:55 [10685] [netlink] Ignoring unexpected message {NlMsghdr:{Len:36 Type:2 Flags:256 Seq:4 Pid:2268484327} data:[0 0 0 0 52 0 0 0 24 0 5 6 4 0 0 0 189 41 0 0] payload:[]}
+Aug 04 22:56:55 linone000000 containerd[700]: time="2025-08-04T22:56:55.892423727Z" level=info msg="loading plugin \"io.containerd.event.v1.publisher\"..." runtime=io.containerd.runc.v2 type=io.containerd.event.v1
+Aug 04 22:56:55 linone000000 containerd[700]: time="2025-08-04T22:56:55.892525928Z" level=info msg="loading plugin \"io.containerd.internal.v1.shutdown\"..." runtime=io.containerd.runc.v2 type=io.containerd.internal.v1
+Aug 04 22:56:55 linone000000 containerd[700]: time="2025-08-04T22:56:55.892543528Z" level=info msg="loading plugin \"io.containerd.ttrpc.v1.task\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+Aug 04 22:56:55 linone000000 containerd[700]: time="2025-08-04T22:56:55.892724429Z" level=info msg="loading plugin \"io.containerd.ttrpc.v1.pause\"..." runtime=io.containerd.runc.v2 type=io.containerd.ttrpc.v1
+Aug 04 22:56:55 linone000000 containerd[700]: time="2025-08-04T22:56:55.945108723Z" level=info msg="RunPodSandbox for &PodSandboxMetadata{Name:vfpod1-deployment-58568b7549-dg26b,Uid:455ca03f-182d-4125-a8c4-df19162cea5a,Namespace:e2e-ns-d28jkg76a3njdlen9bsg,Attempt:0,} returns sandbox id \"7307945830d9675f7ce2e767dc9b443e7f371458cb7868a984eb53ab9404bac4\""
+Aug 04 22:56:55 linone000000 containerd[700]: time="2025-08-04T22:56:55.948182146Z" level=info msg="CreateContainer within sandbox \"7307945830d9675f7ce2e767dc9b443e7f371458cb7868a984eb53ab9404bac4\" for container &ContainerMetadata{Name:vfpod1-busybox,Attempt:0,}"
+Aug 04 22:56:56 linone000000 containerd[700]: time="2025-08-04T22:56:56.013878139Z" level=info msg="CreateContainer within sandbox \"7307945830d9675f7ce2e767dc9b443e7f371458cb7868a984eb53ab9404bac4\" for &ContainerMetadata{Name:vfpod1-busybox,Attempt:0,} returns container id \"c0ef8b3af0eaed79d3461c4e26b4bbc7b897368a99e617e9657b76cdece17e84\""
+Aug 04 22:56:56 linone000000 containerd[700]: time="2025-08-04T22:56:56.014428844Z" level=info msg="StartContainer for \"c0ef8b3af0eaed79d3461c4e26b4bbc7b897368a99e617e9657b76cdece17e84\""
+Aug 04 22:56:56 linone000000 containerd[700]: time="2025-08-04T22:56:56.102199403Z" level=info msg="StartContainer for \"c0ef8b3af0eaed79d3461c4e26b4bbc7b897368a99e617e9657b76cdece17e84\" returns successfully"
+
+
+CNI calls "containerID" what containerd calls "sandboxId" for pod
+Then containerd calls "containerid" what k8s calls "ContainerID: "containerd://c0ef8b3af0eaed79d3461c4e26b4bbc7b897368a99e617e9657b76cdece17e84""
+
+Hmm, deployments don't name pods same exact name..

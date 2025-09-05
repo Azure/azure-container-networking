@@ -1,0 +1,6 @@
+2025-08-04T22:14:06.1602730Z: [DAEMON] Parent process 2989 exit. child process id=3030
+2025-08-04T22:14:06.1625330Z: [DAEMON] START mdsd daemon ver(1.35.9) pid(3030) uid(104) gid (111)
+
+2025-08-04T22:19:41.9145880Z: [DAEMON] Parent process 848 exit. child process id=931
+2025-08-04T22:19:41.9184220Z: [DAEMON] START mdsd daemon ver(1.35.9) pid(931) uid(104) gid (111)
+

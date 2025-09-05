@@ -1,0 +1,323 @@
+#Time: 2025-08-04T22:38:06.9297790Z
+#Fields: Operation,Object,TotalCount,SuccessCount,Retries,AverageDuration,AverageSize,AverageDelay,TotalSize,TotalRowsRead,TotalRowsSent
+MaRunTaskLocal,kern,3,3,0,208667,2,0,6,1,1
+MaLocalSchemaCount,kern,3,3,0,208667,0,0,0,0,0
+MaRunTaskLocal,auth,3,3,0,226667,0,0,0,0,0
+MaLocalSchemaCount,auth,3,3,0,226667,0,0,0,0,0
+MaRunTaskLocal,authpriv,15,15,0,58000,17.2,0,258,43,41
+MaLocalSchemaCount,authpriv,15,15,0,58000,0,0,0,0,0
+MaRunTaskLocal,cron,4,4,0,197000,28.5,0,114,19,15
+MaLocalSchemaCount,cron,4,4,0,197000,0,0,0,0,0
+MaRunTaskLocal,user,4,4,0,182750,0,0,0,0,0
+MaLocalSchemaCount,user,4,4,0,182750,0,0,0,0,0
+MaRunTaskLocal,daemon,4,4,0,183250,850.5,0,3402,567,560
+MaLocalSchemaCount,daemon,4,4,0,183250,0,0,0,0,0
+MaRunTaskLocal,syslog,3,3,0,239333,10,0,30,5,5
+MaLocalSchemaCount,syslog,3,3,0,239333,0,0,0,0,0
+MaRunTaskLocal,heartbeat,3,3,0,237000,0,0,0,0,0
+MaLocalSchemaCount,heartbeat,3,3,0,237000,0,0,0,0,0
+MaRunTaskLocal,baseline,3,3,0,233000,0,0,0,0,0
+MaLocalSchemaCount,baseline,3,3,0,233000,0,0,0,0,0
+MaRunTaskLocal,software,4,4,0,190750,0,0,0,0,0
+MaLocalSchemaCount,software,4,4,0,190750,0,0,0,0,0
+MaRunTaskLocal,clamav,4,4,0,211500,0,0,0,0,0
+MaLocalSchemaCount,clamav,4,4,0,211500,0,0,0,0,0
+MaRunTaskLocal,scan_event,4,4,0,196500,0,0,0,0,0
+MaLocalSchemaCount,scan_event,4,4,0,196500,0,0,0,0,0
+MaRunTaskLocal,alert,4,4,0,182250,0,0,0,0,0
+MaLocalSchemaCount,alert,4,4,0,182250,0,0,0,0,0
+MaRunTaskLocal,audit,4,4,0,206500,32827.5,0,131310,2786,2625
+MaLocalSchemaCount,audit,4,4,0,206500,0,0,0,28,0
+MaRunTaskLocal,auditderived,4,4,0,182750,0,0,0,0,0
+MaLocalSchemaCount,auditderived,4,4,0,182750,0,0,0,0,0
+MaRunTaskLocal,AsmAuditDP,3,3,0,201333,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditDP,3,3,0,201333,0,0,0,0,0
+MaRunTaskLocal,AsmAuditHB,4,4,0,191500,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditHB,4,4,0,191500,0,0,0,0,0
+MaRunTaskLocal,AsmAuditCP,4,4,0,216750,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditCP,4,4,0,216750,0,0,0,0,0
+MaRunTaskLocal,AsmAuditDG,3,3,0,236667,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditDG,3,3,0,236667,0,0,0,0,0
+MaRunTaskLocal,AsmAuditCPRPMISE,4,4,0,181000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditCPRPMISE,4,4,0,181000,0,0,0,0,0
+MaRunTaskLocal,innetwork,4,4,0,201750,0,0,0,0,0
+MaLocalSchemaCount,innetwork,4,4,0,201750,0,0,0,0,0
+MaRunTaskLocal,outnetwork,3,3,0,229333,0,0,0,0,0
+MaLocalSchemaCount,outnetwork,3,3,0,229333,0,0,0,0,0
+MaRunTaskTransmitBond,LinuxAsmSecurity,15,15,0,0,3889.73,0,58346,42,42
+MaRunTaskTransmitBond,LinuxAsmSyslog,7,7,0,1142.86,79289.4,0,555026,580,580
+MaRunTaskTransmitBond,LinuxAsmAudit,3,3,0,0,1.45071e+06,0,4352123,2625,2625
+MaRunTaskLocal,____MaFileMonitorEvent_213175417,4,4,0,209250,0,0,0,0,0
+MaLocalSchemaCount,____MaFileMonitorEvent_213175417,4,4,0,209250,0,0,0,0,0
+MaRunTaskTransmitBondNotification,LinuxAsmAudit : gsm2937010878xt/centralazsecpacklinuxasmauditver8v0/data/d=20250804/h=22/m=20/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=298/i=7116564809904114120,1,1,0,0,746,0,746,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmAudit : gsm2937010878xt/centralazsecpacklinuxasmauditver8v0/data/d=20250804/h=22/m=25/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=295/i=7116564809904114130,1,1,0,0,515,0,515,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmAudit : gsm2937010878xt/centralazsecpacklinuxasmauditver8v0/data/d=20250804/h=22/m=30/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=295/i=7116564809904114138,1,1,0,0,416,0,416,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=20/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=244/i=7116564809904114117:694b27b9207a91d30729f07c1d23c01d,1,1,1,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=20/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=222/i=7116564809904114115,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=20/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=244/i=7116564809904114117,2,1,0,15000,253,0,506,2,2
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=20/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=274/i=7116564809904114122,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=25/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=123/i=7116564809904114123,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=25/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=183/i=7116564809904114124,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=25/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114127,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=25/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=3/i=7116564809904114119,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=25/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=63/i=7116564809904114121,1,1,0,0,252,0,252,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=30/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=123/i=7116564809904114132,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=30/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=183/i=7116564809904114133,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=30/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=244/i=7116564809904114135,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=30/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=4/i=7116564809904114129,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=30/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=63/i=7116564809904114131,1,1,0,0,252,0,252,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=35/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=3/i=7116564809904114137,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=35/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=63/i=7116564809904114139,1,1,0,0,252,0,252,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=20/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=193/i=7116564809904114125,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=20/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114118,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=20/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=301/i=7116564809904114116,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=25/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114128,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=25/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=295/i=7116564809904114126,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=30/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114136,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=30/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=295/i=7116564809904114134,1,1,0,0,251,0,251,1,1
+#Time: 2025-08-04T22:53:06.9304000Z
+#Fields: Operation,Object,TotalCount,SuccessCount,Retries,AverageDuration,AverageSize,AverageDelay,TotalSize,TotalRowsRead,TotalRowsSent
+MaRunTaskLocal,kern,3,3,0,300000,156,0,468,78,59
+MaLocalSchemaCount,kern,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,auth,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,auth,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,authpriv,15,15,0,60000,15.2,0,228,38,38
+MaLocalSchemaCount,authpriv,15,15,0,60000,0,0,0,0,0
+MaRunTaskLocal,cron,3,3,0,300000,38,0,114,19,20
+MaLocalSchemaCount,cron,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,user,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,user,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,daemon,3,3,0,300000,1110,0,3330,555,551
+MaLocalSchemaCount,daemon,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,syslog,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,syslog,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,heartbeat,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,heartbeat,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,baseline,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,baseline,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,software,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,software,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,clamav,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,clamav,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,scan_event,3,3,0,300000,2.66667,0,8,1,1
+MaLocalSchemaCount,scan_event,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,alert,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,alert,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,audit,3,3,0,300000,34329.3,0,102988,1983,1983
+MaLocalSchemaCount,audit,3,3,0,300000,0,0,0,19,0
+MaRunTaskLocal,auditderived,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,auditderived,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditDP,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditDP,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditHB,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditHB,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditCP,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditCP,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditDG,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditDG,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditCPRPMISE,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditCPRPMISE,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,innetwork,3,3,0,300000,1074,0,3222,358,358
+MaLocalSchemaCount,innetwork,3,3,0,300000,0,0,0,1,0
+MaRunTaskLocal,outnetwork,3,3,0,300000,210.667,0,632,79,79
+MaLocalSchemaCount,outnetwork,3,3,0,300000,0,0,0,1,0
+MaRunTaskTransmitBond,LinuxAsmSecurity,17,17,0,0,6221.59,0,105767,97,97
+MaRunTaskTransmitBond,LinuxAsmSyslog,6,6,0,500,91619.2,0,549715,571,571
+MaRunTaskTransmitBond,LinuxAsmScanEvent,1,1,0,0,4437,0,4437,1,1
+MaRunTaskTransmitBond,LinuxAsmAudit,3,3,0,0,1.17896e+06,0,3536874,1983,1983
+MaRunTaskTransmitBond,LinuxAsmNwIBSnapshot,1,1,0,0,262452,0,262452,358,358
+MaRunTaskTransmitBond,LinuxAsmNwOBSnapshot,1,1,0,0,60104,0,60104,79,79
+MaRunTaskLocal,____MaFileMonitorEvent_213175417,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,____MaFileMonitorEvent_213175417,3,3,0,300000,0,0,0,0,0
+MaRunTaskTransmitBondNotification,LinuxAsmAudit : gsm2937010878xt/centralazsecpacklinuxasmauditver8v0/data/d=20250804/h=22/m=35/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=295/i=7116564809904114147,1,1,0,0,416,0,416,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmAudit : gsm2937010878xt/centralazsecpacklinuxasmauditver8v0/data/d=20250804/h=22/m=40/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=300/i=7116564809904114158,1,1,0,0,449,0,449,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmAudit : gsm2937010878xt/centralazsecpacklinuxasmauditver8v0/data/d=20250804/h=22/m=45/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=296/i=7116564809904114167,1,1,0,0,383,0,383,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmNwIBSnapshot : gsm2937010878xt/centralazsecpacklinuxasmnwibsnapshotver8v0/data/d=20250804/h=22/m=35/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=264/i=7116564809904114145,1,1,0,0,258,0,258,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmNwOBSnapshot : gsm2937010878xt/centralazsecpacklinuxasmnwobsnapshotver8v0/data/d=20250804/h=22/m=35/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=263/i=7116564809904114151,1,1,0,0,258,0,258,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmScanEvent : gsm2937010878xt/centralazsecpacklinuxasmscaneventver8v0/data/d=20250804/h=22/m=40/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=282/i=7116564809904114155,1,1,0,0,255,0,255,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=35/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=123/i=7116564809904114140,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=35/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=184/i=7116564809904114141,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=35/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=193/i=7116564809904114149,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=35/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114143,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=40/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=123/i=7116564809904114150,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=40/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=183/i=7116564809904114152,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=40/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=244/i=7116564809904114154,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=40/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=254/i=7116564809904114160,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=40/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=3/i=7116564809904114146,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=40/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=63/i=7116564809904114148,1,1,0,0,252,0,252,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=45/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=123/i=7116564809904114161,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=45/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=184/i=7116564809904114162,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=45/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114164,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=45/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=3/i=7116564809904114157,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=45/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=63/i=7116564809904114159,1,1,0,0,252,0,252,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=50/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=3/i=7116564809904114166,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=50/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=63/i=7116564809904114168,1,1,0,0,252,0,252,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=35/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114144,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=35/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=295/i=7116564809904114142,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=40/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114156,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=40/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=296/i=7116564809904114153,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=45/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114165,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=45/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=296/i=7116564809904114163,1,1,0,0,251,0,251,1,1
+#Time: 2025-08-04T23:08:06.9310580Z
+#Fields: Operation,Object,TotalCount,SuccessCount,Retries,AverageDuration,AverageSize,AverageDelay,TotalSize,TotalRowsRead,TotalRowsSent
+MaRunTaskLocal,kern,3,3,0,300000,124,0,372,62,81
+MaLocalSchemaCount,kern,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,auth,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,auth,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,authpriv,15,15,0,60000,16.8,0,252,42,42
+MaLocalSchemaCount,authpriv,15,15,0,60000,0,0,0,0,0
+MaRunTaskLocal,cron,3,3,0,300000,42,0,126,21,20
+MaLocalSchemaCount,cron,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,user,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,user,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,daemon,3,3,0,300000,776,0,2328,388,392
+MaLocalSchemaCount,daemon,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,syslog,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,syslog,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,heartbeat,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,heartbeat,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,baseline,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,baseline,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,software,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,software,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,clamav,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,clamav,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,scan_event,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,scan_event,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,alert,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,alert,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,audit,3,3,0,300000,39432.7,0,118298,2263,2156
+MaLocalSchemaCount,audit,3,3,0,300000,0,0,0,16,0
+MaRunTaskLocal,auditderived,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,auditderived,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditDP,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditDP,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditHB,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditHB,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditCP,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditCP,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditDG,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditDG,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditCPRPMISE,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditCPRPMISE,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,innetwork,3,3,0,300000,1581,0,4743,527,527
+MaLocalSchemaCount,innetwork,3,3,0,300000,0,0,0,1,0
+MaRunTaskLocal,outnetwork,3,3,0,300000,504,0,1512,189,189
+MaLocalSchemaCount,outnetwork,3,3,0,300000,0,0,0,1,0
+MaRunTaskTransmitBond,LinuxAsmSecurity,17,17,0,0,7478.65,0,127137,123,123
+MaRunTaskTransmitBond,LinuxAsmSyslog,6,6,0,500,64467,0,386802,412,412
+MaRunTaskTransmitBond,LinuxAsmAudit,3,3,0,0,1.24874e+06,0,3746212,2156,2156
+MaRunTaskTransmitBond,LinuxAsmNwIBSnapshot,1,1,0,0,387299,0,387299,527,527
+MaRunTaskTransmitBond,LinuxAsmNwOBSnapshot,1,1,0,0,138300,0,138300,189,189
+MaRunTaskLocal,____MaFileMonitorEvent_213175417,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,____MaFileMonitorEvent_213175417,3,3,0,300000,0,0,0,0,0
+MaRunTaskTransmitBondNotification,LinuxAsmAudit : gsm2937010878xt/centralazsecpacklinuxasmauditver8v0/data/d=20250804/h=22/m=50/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=299/i=7116564809904114177,1,1,0,0,383,0,383,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmAudit : gsm2937010878xt/centralazsecpacklinuxasmauditver8v0/data/d=20250804/h=22/m=55/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=298/i=7116564809904114186,1,1,0,0,416,0,416,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmAudit : gsm2937010878xt/centralazsecpacklinuxasmauditver8v0/data/d=20250804/h=23/m=00/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=298/i=7116564809904114195,1,1,0,0,383,0,383,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmNwIBSnapshot : gsm2937010878xt/centralazsecpacklinuxasmnwibsnapshotver8v0/data/d=20250804/h=22/m=50/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=264/i=7116564809904114175,1,1,0,0,258,0,258,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmNwOBSnapshot : gsm2937010878xt/centralazsecpacklinuxasmnwobsnapshotver8v0/data/d=20250804/h=22/m=50/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=264/i=7116564809904114180,1,1,0,0,258,0,258,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=45/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=178/i=7116564809904114169,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=50/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=124/i=7116564809904114170,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=50/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=183/i=7116564809904114171,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=50/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114173,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=55/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=123/i=7116564809904114179,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=55/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=132/i=7116564809904114188,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=55/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=183/i=7116564809904114181,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=55/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114183,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=55/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=3/i=7116564809904114176,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=22/m=55/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=64/i=7116564809904114178,1,1,0,0,252,0,252,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=00/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=124/i=7116564809904114189,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=00/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=183/i=7116564809904114190,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=00/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114192,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=00/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=3/i=7116564809904114185,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=00/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=63/i=7116564809904114187,1,1,0,0,252,0,252,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=05/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=3/i=7116564809904114194,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=05/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=64/i=7116564809904114196,1,1,0,0,252,0,252,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=50/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114174,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=50/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=300/i=7116564809904114172,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=55/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114184,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=22/m=55/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=297/i=7116564809904114182,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=23/m=00/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114193,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=23/m=00/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=301/i=7116564809904114191,1,1,0,0,251,0,251,1,1
+#Time: 2025-08-04T23:23:06.9317360Z
+#Fields: Operation,Object,TotalCount,SuccessCount,Retries,AverageDuration,AverageSize,AverageDelay,TotalSize,TotalRowsRead,TotalRowsSent
+MaRunTaskLocal,kern,3,3,0,300000,38,0,114,19,19
+MaLocalSchemaCount,kern,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,auth,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,auth,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,authpriv,15,15,0,60000,16,0,240,40,40
+MaLocalSchemaCount,authpriv,15,15,0,60000,0,0,0,0,0
+MaRunTaskLocal,cron,3,3,0,300000,40,0,120,20,21
+MaLocalSchemaCount,cron,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,user,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,user,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,daemon,3,3,0,300000,572,0,1716,286,282
+MaLocalSchemaCount,daemon,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,syslog,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,syslog,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,heartbeat,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,heartbeat,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,baseline,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,baseline,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,software,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,software,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,clamav,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,clamav,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,scan_event,3,3,0,300000,2.66667,0,8,1,1
+MaLocalSchemaCount,scan_event,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,alert,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,alert,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,audit,3,3,0,300000,37327.7,0,111983,2254,2274
+MaLocalSchemaCount,audit,3,3,0,300000,0,0,0,21,0
+MaRunTaskLocal,auditderived,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,auditderived,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditDP,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditDP,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditHB,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditHB,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditCP,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditCP,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditDG,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditDG,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,AsmAuditCPRPMISE,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,AsmAuditCPRPMISE,3,3,0,300000,0,0,0,0,0
+MaRunTaskLocal,innetwork,3,3,0,300000,1341,0,4023,447,447
+MaLocalSchemaCount,innetwork,3,3,0,300000,0,0,0,1,0
+MaRunTaskLocal,outnetwork,3,3,0,300000,320,0,960,120,120
+MaLocalSchemaCount,outnetwork,3,3,0,300000,0,0,0,1,0
+MaRunTaskTransmitBond,LinuxAsmSecurity,16,16,0,312.5,4618.06,0,73889,59,59
+MaRunTaskTransmitBond,LinuxAsmSyslog,6,6,0,333.333,45779.8,0,274679,303,303
+MaRunTaskTransmitBond,LinuxAsmScanEvent,1,1,0,0,5157,0,5157,1,1
+MaRunTaskTransmitBond,LinuxAsmAudit,3,3,0,0,1.24724e+06,0,3741721,2274,2274
+MaRunTaskTransmitBond,LinuxAsmNwIBSnapshot,1,1,0,0,328547,0,328547,447,447
+MaRunTaskTransmitBond,LinuxAsmNwOBSnapshot,1,1,0,0,89221,0,89221,120,120
+MaRunTaskLocal,____MaFileMonitorEvent_213175417,3,3,0,300000,0,0,0,0,0
+MaLocalSchemaCount,____MaFileMonitorEvent_213175417,3,3,0,300000,0,0,0,0,0
+MaRunTaskTransmitBondNotification,LinuxAsmAudit : gsm2937010878xt/centralazsecpacklinuxasmauditver8v0/data/d=20250804/h=23/m=05/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=298/i=7116564809904114204,1,1,0,0,350,0,350,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmAudit : gsm2937010878xt/centralazsecpacklinuxasmauditver8v0/data/d=20250804/h=23/m=10/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=301/i=7116564809904114214,1,1,0,0,416,0,416,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmAudit : gsm2937010878xt/centralazsecpacklinuxasmauditver8v0/data/d=20250804/h=23/m=15/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=301/i=7116564809904114223,1,1,0,0,581,0,581,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmNwIBSnapshot : gsm2937010878xt/centralazsecpacklinuxasmnwibsnapshotver8v0/data/d=20250804/h=23/m=05/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=264/i=7116564809904114202,1,1,0,1000,258,0,258,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmNwOBSnapshot : gsm2937010878xt/centralazsecpacklinuxasmnwobsnapshotver8v0/data/d=20250804/h=23/m=05/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=263/i=7116564809904114207,1,1,0,0,258,0,258,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmScanEvent : gsm2937010878xt/centralazsecpacklinuxasmscaneventver8v0/data/d=20250804/h=23/m=10/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=282/i=7116564809904114211,1,1,0,0,255,0,255,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=05/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=123/i=7116564809904114197,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=05/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=183/i=7116564809904114198,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=05/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114200,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=10/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=123/i=7116564809904114206,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=10/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=183/i=7116564809904114208,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=10/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114210,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=10/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114216,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=10/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=4/i=7116564809904114203,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=10/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=63/i=7116564809904114205,1,1,0,0,252,0,252,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=15/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=123/i=7116564809904114217,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=15/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=183/i=7116564809904114218,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=15/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114220,1,1,0,0,253,0,253,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=15/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=3/i=7116564809904114213,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=15/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=64/i=7116564809904114215,1,1,0,0,252,0,252,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=20/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=4/i=7116564809904114222,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSecurity : gsm476383003xt/centralazsecpacklinuxasmsecurityver8v0/data/d=20250804/h=23/m=20/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=63/i=7116564809904114224,1,1,0,0,252,0,252,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=23/m=05/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114201,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=23/m=05/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=297/i=7116564809904114199,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=23/m=10/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114212,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=23/m=10/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=298/i=7116564809904114209,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=23/m=15/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=243/i=7116564809904114221,1,1,0,0,251,0,251,1,1
+MaRunTaskTransmitBondNotification,LinuxAsmSyslog : gsm476383003xt/centralazsecpacklinuxasmsyslogver8v0/data/d=20250804/h=23/m=15/Tenant=9b8218f9-902a-4d20-a65c-e98acec5362f/Role=siglin-132665769-westus2/RoleInstance=linone_0/s=00/p=298/i=7116564809904114219,1,1,0,0,251,0,251,1,1
