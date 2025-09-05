@@ -50,7 +50,7 @@ stages:
             displayName: "Set Environment Variables"
             condition: always()
 
-  - template: sg-cni-integration-template.yaml
+  - template: lsg-cni-integration-template.yaml
     parameters:
       name: linux_overlay
       clusterType: overlay-byocni-up
@@ -60,7 +60,7 @@ stages:
       arch: amd64
       cni: cniv2
 
-  - template: sg-cni-integration-template.yaml
+  - template: lsg-cni-integration-template.yaml
     parameters:
       name: cilium_overlay
       clusterType: overlay-byocni-nokubeproxy-up
@@ -81,7 +81,7 @@ stages:
       arch: amd64
       cni: dualstack
 
-  - template: sg-cni-integration-template.yaml
+  - template: lsg-cni-integration-template.yaml
     parameters:
       name: cilium_overlay_ds
       clusterType: dualstack-byocni-nokubeproxy-up
