@@ -149,6 +149,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 
 	// assign NICType and MAC Address for SwiftV2. we assume that there won't be any SwiftV1 NCs here
 	podIPInfoList := make([]cns.PodIpInfo, 0, len(resp))
+	apipaIndex := -1
 	for i := range resp {
 		podIPInfo := cns.PodIpInfo{
 			PodIPConfig:                     resp[i].IPConfiguration.IPSubnet,
@@ -157,6 +158,21 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 			NetworkContainerPrimaryIPConfig: resp[i].IPConfiguration,
 		}
 		podIPInfoList = append(podIPInfoList, podIPInfo)
+		if resp[i].AllowHostToNCCommunication || resp[i].AllowNCToHostCommunication {
+			apipaIndex = i
+		}
+	}
+
+	if apipaIndex != -1 {
+		apipaPodIPInfo := cns.PodIpInfo{
+			PodIPConfig:                     resp[apipaIndex].LocalIPConfiguration.IPSubnet,
+			NICType:                         cns.ApipaNIC,
+			NetworkContainerPrimaryIPConfig: resp[apipaIndex].LocalIPConfiguration,
+			SkipDefaultRoutes:               true,
+			AllowHostToNCCommunication:      resp[apipaIndex].AllowHostToNCCommunication,
+			AllowNCToHostCommunication:      resp[apipaIndex].AllowNCToHostCommunication,
+		}
+		podIPInfoList = append(podIPInfoList, apipaPodIPInfo)
 	}
 
 	ipConfigsResp := &cns.IPConfigsResponse{
