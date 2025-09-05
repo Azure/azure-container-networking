@@ -38,7 +38,10 @@ var (
 	terminateOnSuccess = flag.Bool("terminateOnSuccess", false, "Whether to terminate the program when no user iptables rules found")
 )
 
-const label = "kubernetes.azure.com/user-iptables-rules"
+const (
+	label          = "kubernetes.azure.com/user-iptables-rules"
+	requestTimeout = 5 * time.Second
+)
 
 type OSFileLineReader struct{}
 
@@ -111,7 +114,9 @@ func patchLabel(clientset DynamicClient, labelValue bool, nodeName string) error
 	}
 	}`, label, labelValue))
 
-	err := clientset.PatchResource(context.TODO(), gvr, nodeName, types.MergePatchType, patch)
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+	err := clientset.PatchResource(ctx, gvr, nodeName, types.MergePatchType, patch)
 	if err != nil {
 		return fmt.Errorf("failed to patch %s with label %s=%v: %w", nodeName, label, labelValue, err)
 	}
@@ -120,7 +125,9 @@ func patchLabel(clientset DynamicClient, labelValue bool, nodeName string) error
 
 // createNodeEvent creates a Kubernetes event for the specified node
 func createNodeEvent(clientset KubeClient, nodeName, reason, message, eventType string) error {
-	node, err := clientset.GetNode(context.TODO(), nodeName)
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+	node, err := clientset.GetNode(ctx, nodeName)
 	if err != nil {
 		return fmt.Errorf("failed to get node UID for %s: %w", nodeName, err)
 	}
@@ -148,7 +155,7 @@ func createNodeEvent(clientset KubeClient, nodeName, reason, message, eventType 
 			Component: "azure-iptables-monitor",
 		},
 	}
-	_, err = clientset.CreateEvent(context.TODO(), "default", event)
+	_, err = clientset.CreateEvent(ctx, "default", event)
 	if err != nil {
 		return fmt.Errorf("failed to create event for node %s: %w", nodeName, err)
 	}
