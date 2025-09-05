@@ -1348,8 +1348,7 @@ func (service *HTTPRestService) ibDevicesHandler(w http.ResponseWriter, r *http.
 
 	switch r.Method {
 	case http.MethodPost:
-		// TODO: Implement POST
-		http.Error(w, "POST method not yet implemented", http.StatusNotImplemented)
+		service.assignIBDevicesToPod(w, r)
 	case http.MethodGet:
 		// TODO: Implement GET
 		http.Error(w, "GET method not yet implemented", http.StatusNotImplemented)
