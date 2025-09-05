@@ -79,8 +79,6 @@ CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
 CNI_DUALSTACK_BUILD_DIR = $(BUILD_DIR)/cni-dualstack
 CNS_BUILD_DIR = $(BUILD_DIR)/cns
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
-TOOLS_DIR = $(REPO_ROOT)/build/tools
-TOOLS_BIN_DIR = $(TOOLS_DIR)/bin
 CNI_AI_ID = 5515a1eb-b2bc-406a-98eb-ba462e6f0411
 CNS_AI_ID = ce672799-8f08-4235-8c12-08563dc2acef
 NPM_AI_ID = 014c22bd-4107-459e-8475-67909e96edcb
@@ -89,15 +87,6 @@ CNI_AI_PATH=$(ACN_PACKAGE_PATH)/telemetry.aiMetadata
 CNS_AI_PATH=$(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
 NPM_AI_PATH=$(ACN_PACKAGE_PATH)/npm.aiMetadata
 
-# Tool paths
-CONTROLLER_GEN  := $(TOOLS_BIN_DIR)/controller-gen
-GOCOV           := $(TOOLS_BIN_DIR)/gocov
-GOCOV_XML       := $(TOOLS_BIN_DIR)/gocov-xml
-GOFUMPT         := $(TOOLS_BIN_DIR)/gofumpt
-GOLANGCI_LINT   := $(TOOLS_BIN_DIR)/golangci-lint
-GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
-MOCKGEN         := $(TOOLS_BIN_DIR)/mockgen
-RENDERKIT		:= $(TOOLS_BIN_DIR)/renderkit
 
 # Archive file names.
 ACNCLI_ARCHIVE_NAME = acncli-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
@@ -121,6 +110,9 @@ AZURE_BLOCK_IPTABLES_ARCHIVE_NAME = azure-block-iptables-$(GOOS)-$(GOARCH)-$(AZU
 CNI_IMAGE_INFO_FILE			= azure-cni-$(CNI_VERSION).txt
 CNS_IMAGE_INFO_FILE			= azure-cns-$(CNS_VERSION).txt
 NPM_IMAGE_INFO_FILE			= azure-npm-$(NPM_VERSION).txt
+
+#Tools paths
+TOOLS_GO_MOD = $(REPO_ROOT)/tools.go.mod
 
 # Default target
 all-binaries-platforms: ## Make all platform binaries
@@ -874,23 +866,24 @@ endif
 
 clean: ## Clean build artifacts.
 	$(RMDIR) $(OUTPUT_DIR)
-	$(RMDIR) $(TOOLS_BIN_DIR)
 	$(RMDIR) go.work*
 
 
 LINT_PKG ?= .
 
-lint: $(GOLANGCI_LINT) ## Fast lint vs default branch showing only new issues.
+GOLANGCI_LINT = go tool -modfile=$(TOOLS_GO_MOD) golangci-lint
+
+lint: ## Fast lint vs default branch showing only new issues.
 	GOGC=20 $(GOLANGCI_LINT) run --timeout 25m -v $(LINT_PKG)/...
 
-lint-all: $(GOLANGCI_LINT) ## Lint the current branch in entirety.
+lint-all: ## Lint the current branch in entirety.
 	GOGC=20 $(GOLANGCI_LINT) run -v $(LINT_PKG)/...
 
 
 FMT_PKG ?= cni cns npm
 
-fmt: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm").
-	$(GOFUMPT) -s -w $(FMT_PKG)
+fmt: ## run gofumpt on $FMT_PKG (default "cni cns npm").
+	go tool -modfile=$(TOOLS_GO_MOD) gofumpt -s -w $(FMT_PKG)
 
 
 workspace: ## Set up the Go workspace.
@@ -899,7 +892,6 @@ workspace: ## Set up the Go workspace.
 	go work use ./azure-ipam
 	go work use ./azure-ip-masq-merger
 	go work use ./azure-iptables-monitor
-	go work use ./build/tools
 	go work use ./dropgz
 	go work use ./zapai
 
@@ -969,9 +961,15 @@ test-k8se2e-only: ## Run k8s network conformance test, use TYPE=basic for only d
 
 ##@ Utilities
 
-dockerfiles: tools ## Render all Dockerfile templates with current state of world
+dockerfiles: renderkit ## Render all Dockerfile templates with current state of world
 	@make -f build/images.mk render PATH=cns
 	@make -f build/images.mk render PATH=cni
+
+regenerate-crd: ## Regenerate CRDs
+	for makefile in $$(find ./crd/ -name "Makefile" -type f -printf '%h\n'); do \
+		echo "Running make in $$makefile"; \
+		make -C $$makefile; \
+	done
 
 
 $(REPO_ROOT)/.git/hooks/pre-push:
@@ -992,57 +990,13 @@ setup: tools install-hooks gitconfig ## performs common required repo setup
 
 ##@ Tools
 
-$(TOOLS_DIR)/go.mod:
-	cd $(TOOLS_DIR); go mod init && go mod tidy
+tools: renderkit go-junit-report
 
-$(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
+renderkit: ## Install renderkit for rendering Dockerfile templates
+	@go install -modfile=$(TOOLS_GO_MOD) github.com/orellazri/renderkit
 
-controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
-
-protoc:
-	source ${REPO_ROOT}/scripts/install-protoc.sh
-
-$(GOCOV): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/gocov github.com/axw/gocov/gocov
-
-gocov: $(GOCOV) ## Build gocov
-
-$(GOCOV_XML): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/gocov-xml github.com/AlekSi/gocov-xml
-
-gocov-xml: $(GOCOV_XML) ## Build gocov-xml
-
-$(GOFUMPT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/gofumpt mvdan.cc/gofumpt
-
-gofumpt: $(GOFUMPT) ## Build gofumpt
-
-$(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
-
-golangci-lint: $(GOLANGCI_LINT) ## Build golangci-lint
-
-$(GO_JUNIT_REPORT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/go-junit-report github.com/jstemmer/go-junit-report
-
-go-junit-report: $(GO_JUNIT_REPORT) ## Build go-junit-report
-
-$(MOCKGEN): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/mockgen github.com/golang/mock/mockgen
-
-mockgen: $(MOCKGEN) ## Build mockgen
-
-$(RENDERKIT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -o bin/renderkit github.com/orellazri/renderkit
-
-renderkit: $(RENDERKIT) ## Build renderkit
-
-clean-tools:
-	rm -r build/tools/bin
-
-tools: acncli gocov gocov-xml go-junit-report golangci-lint gofumpt protoc renderkit ## Build bins for build tools
-
+go-junit-report: ## Install go-junit-report for converting test results to JUnit XML format
+	@go install -modfile=$(TOOLS_GO_MOD) github.com/jstemmer/go-junit-report
 
 ##@ Help
 

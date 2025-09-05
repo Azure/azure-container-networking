@@ -5,7 +5,7 @@
 	"build": {
 		"dockerfile": "Dockerfile",
 		"args": {
-			"VARIANT": "1.23-bullseye",
+			"VARIANT": "1.24",
 			"NODE_VERSION": "none"
 		}
 	},

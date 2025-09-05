@@ -6,8 +6,8 @@ FROM mcr.microsoft.com/azurelinux/base/core@sha256:9948138108a3d69f1dae62104599a
 # mcr.microsoft.com/azurelinux/distroless/minimal:3.0
 FROM mcr.microsoft.com/azurelinux/distroless/minimal@sha256:0801b80a0927309572b9adc99bd1813bc680473175f6e8175cd4124d95dbd50c AS mariner-distroless
 
-# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.23.2-azurelinux3.0 --format "{{.Name}}@{{.Digest}}"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:f1f0cbd464ae4cd9d41176d47f1f9fe16a6965425871f817587314e3a04576ec AS go
+# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0 --format "{{.Name}}@{{.Digest}}"
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:3999f970bb52b7413ef9be2803173d4fd7f1f3c59362a98a0c78d155e3a0e59f AS go
 
 
 FROM go AS azure-iptables-monitor
