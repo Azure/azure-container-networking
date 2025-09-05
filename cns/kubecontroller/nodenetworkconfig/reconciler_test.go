@@ -192,7 +192,7 @@ func TestReconcile(t *testing.T) {
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
-			r := NewReconciler(&tt.cnsClient, &tt.cnsClient, tt.nodeIP)
+			r := NewReconciler(&tt.cnsClient, &tt.cnsClient, tt.nodeIP, false)
 			r.nnccli = &tt.ncGetter
 			got, err := r.Reconcile(context.Background(), tt.in)
 			if tt.wantErr {
@@ -249,7 +249,7 @@ func TestReconcileStaleNCs(t *testing.T) {
 		return &nncLog[len(nncLog)-1], nil
 	}
 
-	r := NewReconciler(&cnsClient, &cnsClient, nodeIP)
+	r := NewReconciler(&cnsClient, &cnsClient, nodeIP, false)
 	r.nnccli = &mockNCGetter{get: nncIterator}
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{})
