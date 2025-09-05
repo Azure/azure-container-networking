@@ -646,6 +646,7 @@ func main() {
 	}
 	host, _ := os.Hostname()
 	z = z.With(zap.String("hostname", host), zap.String("version", version), zap.String("kubernetes_apiserver", os.Getenv("KUBERNETES_SERVICE_HOST")))
+	config.Logger = z
 	// Set the v2 logger to the global logger if v2 logger enabled.
 	if cnsconfig.EnableLoggerV2 {
 		logger.Printf("hotswapping logger v2") //nolint:staticcheck // ignore new deprecation
