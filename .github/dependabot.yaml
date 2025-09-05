@@ -23,11 +23,19 @@ updates:
 - package-ecosystem: "gomod"
   directory: "/"
   schedule:
-    interval: "daily"
+    interval: "weekly"
+    day: "monday"
+    time: "09:00" # PR will be only raised every monday 9:00 weekly
   commit-message:
     prefix: "deps"
   labels: [ "dependencies" ]
-  open-pull-requests-limit: 10
+  # make sure there will be only one PR
+  open-pull-requests-limit: 1
+  groups:
+    all-go-minor-and-patch:
+      applies-to: version-updates
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
   ignore:
     - dependency-name: "k8s.io/api"
       versions: [">=0.35.0"]
@@ -44,11 +52,18 @@ updates:
 - package-ecosystem: "gomod"
   directory: "/azure-ipam"
   schedule:
-    interval: "daily"
+    interval: "weekly"
+    day: "monday"
+    time: "09:00"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies", "azure-ipam" ]
-  open-pull-requests-limit: 10
+  open-pull-requests-limit: 1
+  groups:
+    all-go-minor-and-patch:
+      applies-to: version-updates
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
   ignore:
     - dependency-name: "k8s.io/api"
       versions: [">=0.35.0"]
@@ -65,11 +80,18 @@ updates:
 - package-ecosystem: "gomod"
   directory: "/build/tools"
   schedule:
-    interval: "daily"
+    interval: "weekly"
+    day: "monday"
+    time: "09:00"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies" ]
-  open-pull-requests-limit: 10
+  open-pull-requests-limit: 1
+  groups:
+    all-go-minor-and-patch:
+      applies-to: version-updates
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
   ignore:
     - dependency-name: "k8s.io/api"
       versions: [">=0.35.0"]
@@ -86,11 +108,18 @@ updates:
 - package-ecosystem: "gomod"
   directory: "/dropgz"
   schedule:
-    interval: "daily"
+    interval: "weekly"
+    day: "monday"
+    time: "09:00"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies", "dropgz" ]
-  open-pull-requests-limit: 10
+  open-pull-requests-limit: 1
+  groups:
+    all-go-minor-and-patch:
+      applies-to: version-updates
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
 - package-ecosystem: "gomod"
   directory: "/zapai"
   schedule:
@@ -105,12 +134,19 @@ updates:
 - package-ecosystem: "gomod"
   directory: "/"
   schedule:
-    interval: "daily"
+    interval: "weekly"
+    day: "monday"
+    time: "09:00"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies", "release/1.6"  ]
-  open-pull-requests-limit: 10
+  open-pull-requests-limit: 1
   target-branch: "release/v1.6"
+  groups:
+    all-go-minor-and-patch:
+      applies-to: version-updates
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
   ignore:
     - dependency-name: "k8s.io/api"
       versions: [">=0.32.0"]
@@ -127,12 +163,19 @@ updates:
 - package-ecosystem: "gomod"
   directory: "/azure-ipam"
   schedule:
-    interval: "daily"
+    interval: "weekly"
+    day: "monday"
+    time: "09:00"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies", "azure-ipam", "release/1.6" ]
-  open-pull-requests-limit: 10
+  open-pull-requests-limit: 1
   target-branch: "release/v1.6"
+  groups:
+    all-go-minor-and-patch:
+      applies-to: version-updates
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
   ignore:
     - dependency-name: "k8s.io/api"
       versions: [">=0.32.0"]
@@ -152,12 +195,19 @@ updates:
 - package-ecosystem: "gomod"
   directory: "/"
   schedule:
-    interval: "daily"
+    interval: "weekly"
+    day: "monday"
+    time: "09:00"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies", "release/1.5" ]
-  open-pull-requests-limit: 10
+  open-pull-requests-limit: 1
   target-branch: "release/v1.5"
+  groups:
+    all-go-minor-and-patch:
+      applies-to: version-updates
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
   ignore:
     - dependency-name: "k8s.io/api"
       versions: [">=0.30.0"]
@@ -174,12 +224,19 @@ updates:
 - package-ecosystem: "gomod"
   directory: "/azure-ipam"
   schedule:
-    interval: "daily"
+    interval: "weekly"
+    day: "monday"
+    time: "09:00"
   commit-message:
     prefix: "deps"
   labels: [ "dependencies", "azure-ipam", "release/1.5" ]
   open-pull-requests-limit: 10
   target-branch: "release/v1.5"
+  groups:
+    all-go-minor-and-patch:
+      applies-to: version-updates
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
   ignore:
     - dependency-name: "k8s.io/api"
       versions: [">=0.30.0"]
