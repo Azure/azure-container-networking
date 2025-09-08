@@ -147,13 +147,15 @@ updates:
         patterns: ["*"]
         update-types: ["minor", "patch"]
 
-  # release/v1.6 constraints (single block per directory+target-branch)
+  # =========================
+  # RELEASE BRANCHES — keep daily for v1.5 and v1.6
+  # =========================
+
+  # release/v1.6 constraints (daily);
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "sunday"
-      time: "12:00"  # UTC
+      interval: "daily"
     commit-message:
       prefix: "deps"
     labels: ["dependencies", "release/1.6"]
@@ -181,9 +183,7 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/azure-ipam"
     schedule:
-      interval: "weekly"
-      day: "sunday"
-      time: "12:00"  # UTC
+      interval: "daily"
     commit-message:
       prefix: "deps"
     labels: ["dependencies", "azure-ipam", "release/1.6"]
@@ -208,13 +208,11 @@ updates:
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.32.0"]
 
-  # release/v1.5 constraints (single block per directory+target-branch)
+  # release/v1.5 constraints (daily)
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "sunday"
-      time: "12:00"  # UTC
+      interval: "daily"
     commit-message:
       prefix: "deps"
     labels: ["dependencies", "release/1.5"]
@@ -242,9 +240,7 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/azure-ipam"
     schedule:
-      interval: "weekly"
-      day: "sunday"
-      time: "12:00"  # UTC
+      interval: "daily"
     commit-message:
       prefix: "deps"
     labels: ["dependencies", "azure-ipam", "release/1.5"]
