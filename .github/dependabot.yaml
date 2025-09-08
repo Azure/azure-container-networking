@@ -130,19 +130,22 @@ updates:
         patterns: ["*"]
         update-types: ["minor", "patch"]
 
-  # /zapai (unchanged cadence, still daily individual PRs)
+  # /zapai: grouped weekly minor+patch + allow majors concurrently
   - package-ecosystem: "gomod"
     directory: "/zapai"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"  # UTC
     commit-message:
       prefix: "deps"
-    labels: ["dependencies"]
-    open-pull-requests-limit: 10
-
-  # =========================
-  # RELEASE BRANCHES — UNCHANGED (broad roll-out later)
-  # =========================
+    labels: ["dependencies", "grouped"]
+    open-pull-requests-limit: 2
+    groups:
+      all-go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   # release/v1.6 constraints (single block per directory+target-branch)
   - package-ecosystem: "gomod"
