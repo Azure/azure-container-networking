@@ -1,252 +1,331 @@
 # https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
 version: 2
+
 updates:
-- package-ecosystem: "docker"
-  directory: "/"
-  schedule:
-    interval: "daily"
-  commit-message:
-    prefix: "ci"
-  labels: [ "ci", "dependencies" ]
-  open-pull-requests-limit: 10
-- package-ecosystem: "github-actions"
-  directory: "/"
-  schedule:
-    interval: "daily"
-  commit-message:
-    prefix: "ci"
-  labels: [ "ci", "dependencies" ]
-  open-pull-requests-limit: 10
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "ci"
+    labels: ["ci", "dependencies"]
+    open-pull-requests-limit: 10
 
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "ci"
+    labels: ["ci", "dependencies"]
+    open-pull-requests-limit: 10
 
-# Constrain Kubernetes dependencies to compatibility with default branch - v1.33-v1.35
-- package-ecosystem: "gomod"
-  directory: "/"
-  schedule:
-    interval: "weekly"
-    day: "monday"
-    time: "09:00" # PR will be only raised every monday 9:00 weekly
-  commit-message:
-    prefix: "deps"
-  labels: [ "dependencies" ]
-  # make sure there will be only one PR
-  open-pull-requests-limit: 1
-  groups:
-    all-go-minor-and-patch:
-      applies-to: version-updates
-      patterns: ["*"]
-      update-types: ["minor", "patch"]
-  ignore:
-    - dependency-name: "k8s.io/api"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/client-go"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.35.0"]
-- package-ecosystem: "gomod"
-  directory: "/azure-ipam"
-  schedule:
-    interval: "weekly"
-    day: "monday"
-    time: "09:00"
-  commit-message:
-    prefix: "deps"
-  labels: [ "dependencies", "azure-ipam" ]
-  open-pull-requests-limit: 1
-  groups:
-    all-go-minor-and-patch:
-      applies-to: version-updates
-      patterns: ["*"]
-      update-types: ["minor", "patch"]
-  ignore:
-    - dependency-name: "k8s.io/api"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/client-go"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.35.0"]
-- package-ecosystem: "gomod"
-  directory: "/build/tools"
-  schedule:
-    interval: "weekly"
-    day: "monday"
-    time: "09:00"
-  commit-message:
-    prefix: "deps"
-  labels: [ "dependencies" ]
-  open-pull-requests-limit: 1
-  groups:
-    all-go-minor-and-patch:
-      applies-to: version-updates
-      patterns: ["*"]
-      update-types: ["minor", "patch"]
-  ignore:
-    - dependency-name: "k8s.io/api"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/client-go"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.35.0"]
-    - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.35.0"]
-- package-ecosystem: "gomod"
-  directory: "/dropgz"
-  schedule:
-    interval: "weekly"
-    day: "monday"
-    time: "09:00"
-  commit-message:
-    prefix: "deps"
-  labels: [ "dependencies", "dropgz" ]
-  open-pull-requests-limit: 1
-  groups:
-    all-go-minor-and-patch:
-      applies-to: version-updates
-      patterns: ["*"]
-      update-types: ["minor", "patch"]
-- package-ecosystem: "gomod"
-  directory: "/zapai"
-  schedule:
-    interval: "daily"
-  commit-message:
-    prefix: "deps"
-  labels: [ "dependencies" ]
-  open-pull-requests-limit: 10
+  # =========================
+  # DEFAULT BRANCH (master/main) — STAGED ROLLOUT
+  # =========================
 
+  # ---- Root go.mod (/): GROUPED weekly minor+patch ----
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00" # UTC time
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "grouped"]
+    open-pull-requests-limit: 1
+    groups:
+      all-go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
 
-# Constrain Kubernetes dependencies to compatibility with release/v1.6 branch - v1.30-v1.32
-- package-ecosystem: "gomod"
-  directory: "/"
-  schedule:
-    interval: "weekly"
-    day: "monday"
-    time: "09:00"
-  commit-message:
-    prefix: "deps"
-  labels: [ "dependencies", "release/1.6"  ]
-  open-pull-requests-limit: 1
-  target-branch: "release/v1.6"
-  groups:
-    all-go-minor-and-patch:
-      applies-to: version-updates
-      patterns: ["*"]
-      update-types: ["minor", "patch"]
-  ignore:
-    - dependency-name: "k8s.io/api"
-      versions: [">=0.32.0"]
-    - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.32.0"]
-    - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.32.0"]
-    - dependency-name: "k8s.io/client-go"
-      versions: [">=0.32.0"]
-    - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.32.0"]
-    - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.32.0"]
-- package-ecosystem: "gomod"
-  directory: "/azure-ipam"
-  schedule:
-    interval: "weekly"
-    day: "monday"
-    time: "09:00"
-  commit-message:
-    prefix: "deps"
-  labels: [ "dependencies", "azure-ipam", "release/1.6" ]
-  open-pull-requests-limit: 1
-  target-branch: "release/v1.6"
-  groups:
-    all-go-minor-and-patch:
-      applies-to: version-updates
-      patterns: ["*"]
-      update-types: ["minor", "patch"]
-  ignore:
-    - dependency-name: "k8s.io/api"
-      versions: [">=0.32.0"]
-    - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.32.0"]
-    - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.32.0"]
-    - dependency-name: "k8s.io/client-go"
-      versions: [">=0.32.0"]
-    - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.32.0"]
-    - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.32.0"]
+    # Constrain Kubernetes deps to default branch compatibility (v0.33–v0.35)
+    ignore:
+      - dependency-name: "k8s.io/api"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/apiextensions-apiserver"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/apimachinery"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/client-go"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/kubelet"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/kubectl"
+        versions: [">=0.35.0"]
 
+  # ---- Root go.mod (/): INDIVIDUAL major-only ----
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "major"]
+    open-pull-requests-limit: 1
+    # Surface only majors by ignoring minor/patch
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
 
-# Constrain Kubernetes dependencies to compatibility with release/v1.5 branch - v1.28-v1.30
-- package-ecosystem: "gomod"
-  directory: "/"
-  schedule:
-    interval: "weekly"
-    day: "monday"
-    time: "09:00"
-  commit-message:
-    prefix: "deps"
-  labels: [ "dependencies", "release/1.5" ]
-  open-pull-requests-limit: 1
-  target-branch: "release/v1.5"
-  groups:
-    all-go-minor-and-patch:
-      applies-to: version-updates
-      patterns: ["*"]
-      update-types: ["minor", "patch"]
-  ignore:
-    - dependency-name: "k8s.io/api"
-      versions: [">=0.30.0"]
-    - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.30.0"]
-    - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.30.0"]
-    - dependency-name: "k8s.io/client-go"
-      versions: [">=0.30.0"]
-    - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.30.0"]
-    - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.30.0"]
-- package-ecosystem: "gomod"
-  directory: "/azure-ipam"
-  schedule:
-    interval: "weekly"
-    day: "monday"
-    time: "09:00"
-  commit-message:
-    prefix: "deps"
-  labels: [ "dependencies", "azure-ipam", "release/1.5" ]
-  open-pull-requests-limit: 10
-  target-branch: "release/v1.5"
-  groups:
-    all-go-minor-and-patch:
-      applies-to: version-updates
-      patterns: ["*"]
-      update-types: ["minor", "patch"]
-  ignore:
-    - dependency-name: "k8s.io/api"
-      versions: [">=0.30.0"]
-    - dependency-name: "k8s.io/apiextensions-apiserver"
-      versions: [">=0.30.0"]
-    - dependency-name: "k8s.io/apimachinery"
-      versions: [">=0.30.0"]
-    - dependency-name: "k8s.io/client-go"
-      versions: [">=0.30.0"]
-    - dependency-name: "k8s.io/kubelet"
-      versions: [">=0.30.0"]
-    - dependency-name: "k8s.io/kubectl"
-      versions: [">=0.30.0"]
+  # ---- /azure-ipam: GROUPED weekly minor+patch ----
+  - package-ecosystem: "gomod"
+    directory: "/azure-ipam"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "azure-ipam", "grouped"]
+    open-pull-requests-limit: 1
+    groups:
+      all-go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "k8s.io/api"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/apiextensions-apiserver"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/apimachinery"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/client-go"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/kubelet"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/kubectl"
+        versions: [">=0.35.0"]
+
+  # ---- /azure-ipam: INDIVIDUAL major-only ----
+  - package-ecosystem: "gomod"
+    directory: "/azure-ipam"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "azure-ipam", "major"]
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
+
+  # ---- /build/tools: GROUPED weekly minor+patch ----
+  - package-ecosystem: "gomod"
+    directory: "/build/tools"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "grouped"]
+    open-pull-requests-limit: 1
+    groups:
+      all-go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "k8s.io/api"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/apiextensions-apiserver"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/apimachinery"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/client-go"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/kubelet"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/kubectl"
+        versions: [">=0.35.0"]
+
+  # ---- /build/tools: INDIVIDUAL major-only ----
+  - package-ecosystem: "gomod"
+    directory: "/build/tools"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "major"]
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
+
+  # ---- /dropgz: GROUPED weekly minor+patch ----
+  - package-ecosystem: "gomod"
+    directory: "/dropgz"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "dropgz", "grouped"]
+    open-pull-requests-limit: 1
+    groups:
+      all-go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # ---- /dropgz: INDIVIDUAL major-only ----
+  - package-ecosystem: "gomod"
+    directory: "/dropgz"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "dropgz", "major"]
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
+
+  # ---- /zapai (unchanged cadence, still daily individual PRs) ----
+  - package-ecosystem: "gomod"
+    directory: "/zapai"
+    schedule:
+      interval: "daily"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies"]
+    open-pull-requests-limit: 10
+
+  # =========================
+  # RELEASE BRANCHES — UNCHANGED (broad roll-out later)
+  # =========================
+
+  # Constrain Kubernetes dependencies to compatibility with release/v1.6 branch - v1.30-v1.32
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "release/1.6"]
+    open-pull-requests-limit: 1
+    target-branch: "release/v1.6"
+    groups:
+      all-go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "k8s.io/api"
+        versions: [">=0.32.0"]
+      - dependency-name: "k8s.io/apiextensions-apiserver"
+        versions: [">=0.32.0"]
+      - dependency-name: "k8s.io/apimachinery"
+        versions: [">=0.32.0"]
+      - dependency-name: "k8s.io/client-go"
+        versions: [">=0.32.0"]
+      - dependency-name: "k8s.io/kubelet"
+        versions: [">=0.32.0"]
+      - dependency-name: "k8s.io/kubectl"
+        versions: [">=0.32.0"]
+
+  - package-ecosystem: "gomod"
+    directory: "/azure-ipam"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "azure-ipam", "release/1.6"]
+    open-pull-requests-limit: 1
+    target-branch: "release/v1.6"
+    groups:
+      all-go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "k8s.io/api"
+        versions: [">=0.32.0"]
+      - dependency-name: "k8s.io/apiextensions-apiserver"
+        versions: [">=0.32.0"]
+      - dependency-name: "k8s.io/apimachinery"
+        versions: [">=0.32.0"]
+      - dependency-name: "k8s.io/client-go"
+        versions: [">=0.32.0"]
+      - dependency-name: "k8s.io/kubelet"
+        versions: [">=0.32.0"]
+      - dependency-name: "k8s.io/kubectl"
+        versions: [">=0.32.0"]
+
+  # Constrain Kubernetes dependencies to compatibility with release/v1.5 branch - v1.28-v1.30
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "release/1.5"]
+    open-pull-requests-limit: 1
+    target-branch: "release/v1.5"
+    groups:
+      all-go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "k8s.io/api"
+        versions: [">=0.30.0"]
+      - dependency-name: "k8s.io/apiextensions-apiserver"
+        versions: [">=0.30.0"]
+      - dependency-name: "k8s.io/apimachinery"
+        versions: [">=0.30.0"]
+      - dependency-name: "k8s.io/client-go"
+        versions: [">=0.30.0"]
+      - dependency-name: "k8s.io/kubelet"
+        versions: [">=0.30.0"]
+      - dependency-name: "k8s.io/kubectl"
+        versions: [">=0.30.0"]
+
+  - package-ecosystem: "gomod"
+    directory: "/azure-ipam"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "12:00"
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies", "azure-ipam", "release/1.5"]
+    open-pull-requests-limit: 10
+    target-branch: "release/v1.5"
+    groups:
+      all-go-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "k8s.io/api"
+        versions: [">=0.30.0"]
+      - dependency-name: "k8s.io/apiextensions-apiserver"
+        versions: [">=0.30.0"]
+      - dependency-name: "k8s.io/apimachinery"
+        versions: [">=0.30.0"]
+      - dependency-name: "k8s.io/client-go"
+        versions: [">=0.30.0"]
+      - dependency-name: "k8s.io/kubelet"
+        versions: [">=0.30.0"]
+      - dependency-name: "k8s.io/kubectl"
+        versions: [">=0.30.0"]
