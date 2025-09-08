@@ -9,6 +9,7 @@ updates:
       prefix: "ci"
     labels: ["ci", "dependencies"]
     open-pull-requests-limit: 10
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -22,24 +23,22 @@ updates:
   # DEFAULT BRANCH (master/main) — STAGED ROLLOUT
   # =========================
 
-  # ---- Root go.mod (/): GROUPED weekly minor+patch ----
+  # Root go.mod (/): grouped minor+patch + allow majors concurrently
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "sunday"
-      time: "12:00" # UTC time
+      time: "12:00"  # UTC
     commit-message:
       prefix: "deps"
     labels: ["dependencies", "grouped"]
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 2
     groups:
       all-go-minor-and-patch:
         applies-to: version-updates
         patterns: ["*"]
         update-types: ["minor", "patch"]
-
-    # Constrain Kubernetes deps to default branch compatibility (v0.33–v0.35)
     ignore:
       - dependency-name: "k8s.io/api"
         versions: [">=0.35.0"]
@@ -54,33 +53,17 @@ updates:
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.35.0"]
 
-  # ---- Root go.mod (/): INDIVIDUAL major-only ----
-  - package-ecosystem: "gomod"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "sunday"
-      time: "12:00"
-    commit-message:
-      prefix: "deps"
-    labels: ["dependencies", "major"]
-    open-pull-requests-limit: 1
-    # Surface only majors by ignoring minor/patch
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
-
-  # ---- /azure-ipam: GROUPED weekly minor+patch ----
+  # /azure-ipam: grouped minor+patch + allow majors concurrently
   - package-ecosystem: "gomod"
     directory: "/azure-ipam"
     schedule:
       interval: "weekly"
       day: "sunday"
-      time: "12:00"
+      time: "12:00"  # UTC
     commit-message:
       prefix: "deps"
     labels: ["dependencies", "azure-ipam", "grouped"]
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 2
     groups:
       all-go-minor-and-patch:
         applies-to: version-updates
@@ -100,32 +83,17 @@ updates:
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.35.0"]
 
-  # ---- /azure-ipam: INDIVIDUAL major-only ----
-  - package-ecosystem: "gomod"
-    directory: "/azure-ipam"
-    schedule:
-      interval: "weekly"
-      day: "sunday"
-      time: "12:00"
-    commit-message:
-      prefix: "deps"
-    labels: ["dependencies", "azure-ipam", "major"]
-    open-pull-requests-limit: 1
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
-
-  # ---- /build/tools: GROUPED weekly minor+patch ----
+  # /build/tools: grouped minor+patch + allow majors concurrently
   - package-ecosystem: "gomod"
     directory: "/build/tools"
     schedule:
       interval: "weekly"
       day: "sunday"
-      time: "12:00"
+      time: "12:00"  # UTC
     commit-message:
       prefix: "deps"
     labels: ["dependencies", "grouped"]
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 2
     groups:
       all-go-minor-and-patch:
         applies-to: version-updates
@@ -145,54 +113,24 @@ updates:
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.35.0"]
 
-  # ---- /build/tools: INDIVIDUAL major-only ----
-  - package-ecosystem: "gomod"
-    directory: "/build/tools"
-    schedule:
-      interval: "weekly"
-      day: "sunday"
-      time: "12:00"
-    commit-message:
-      prefix: "deps"
-    labels: ["dependencies", "major"]
-    open-pull-requests-limit: 1
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
-
-  # ---- /dropgz: GROUPED weekly minor+patch ----
+  # /dropgz: grouped minor+patch + allow majors concurrently
   - package-ecosystem: "gomod"
     directory: "/dropgz"
     schedule:
       interval: "weekly"
       day: "sunday"
-      time: "12:00"
+      time: "12:00"  # UTC
     commit-message:
       prefix: "deps"
     labels: ["dependencies", "dropgz", "grouped"]
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 2
     groups:
       all-go-minor-and-patch:
         applies-to: version-updates
         patterns: ["*"]
         update-types: ["minor", "patch"]
 
-  # ---- /dropgz: INDIVIDUAL major-only ----
-  - package-ecosystem: "gomod"
-    directory: "/dropgz"
-    schedule:
-      interval: "weekly"
-      day: "sunday"
-      time: "12:00"
-    commit-message:
-      prefix: "deps"
-    labels: ["dependencies", "dropgz", "major"]
-    open-pull-requests-limit: 1
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-minor", "version-update:semver-patch"]
-
-  # ---- /zapai (unchanged cadence, still daily individual PRs) ----
+  # /zapai (unchanged cadence, still daily individual PRs)
   - package-ecosystem: "gomod"
     directory: "/zapai"
     schedule:
@@ -206,13 +144,13 @@ updates:
   # RELEASE BRANCHES — UNCHANGED (broad roll-out later)
   # =========================
 
-  # Constrain Kubernetes dependencies to compatibility with release/v1.6 branch - v1.30-v1.32
+  # release/v1.6 constraints (single block per directory+target-branch)
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "sunday"
-      time: "12:00"
+      time: "12:00"  # UTC
     commit-message:
       prefix: "deps"
     labels: ["dependencies", "release/1.6"]
@@ -242,7 +180,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "sunday"
-      time: "12:00"
+      time: "12:00"  # UTC
     commit-message:
       prefix: "deps"
     labels: ["dependencies", "azure-ipam", "release/1.6"]
@@ -267,13 +205,13 @@ updates:
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.32.0"]
 
-  # Constrain Kubernetes dependencies to compatibility with release/v1.5 branch - v1.28-v1.30
+  # release/v1.5 constraints (single block per directory+target-branch)
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "sunday"
-      time: "12:00"
+      time: "12:00"  # UTC
     commit-message:
       prefix: "deps"
     labels: ["dependencies", "release/1.5"]
@@ -303,7 +241,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "sunday"
-      time: "12:00"
+      time: "12:00"  # UTC
     commit-message:
       prefix: "deps"
     labels: ["dependencies", "azure-ipam", "release/1.5"]
