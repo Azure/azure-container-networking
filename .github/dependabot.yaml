@@ -1,6 +1,5 @@
 # https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
 version: 2
-
 updates:
   - package-ecosystem: "docker"
     directory: "/"
@@ -10,7 +9,6 @@ updates:
       prefix: "ci"
     labels: ["ci", "dependencies"]
     open-pull-requests-limit: 10
-
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
