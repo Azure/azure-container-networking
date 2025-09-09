@@ -7,10 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
@@ -32,6 +34,7 @@ const (
 	V1Prefix                      = "/v0.1"
 	V2Prefix                      = "/v0.2"
 	EndpointPath                  = "/network/endpoints/"
+	IBDevicesPath                 = "/ibdevices"
 	// Service Fabric SWIFTV2 mode
 	StandaloneSWIFTV2 SWIFTV2Mode = "StandaloneSWIFTV2"
 	// K8s SWIFTV2 mode
@@ -381,4 +384,27 @@ type EndpointRequest struct {
 type GetVMUniqueIDResponse struct {
 	Response   Response `json:"response"`
 	VMUniqueID string   `json:"vmuniqueid"`
+}
+
+// AssignIBDevicesToPodRequest represents the request for assigning InfiniBand devices to a pod
+type AssignIBDevicesToPodRequest struct {
+	IBMACAddresses []net.HardwareAddr `json:"ibmacaddresses"` // List of IB device MAC addresses to assign
+	PodNamespace   string             `json:"podNamespace"`   // Namespace of the target pod
+	PodName        string             `json:"podName"`        // Name of the target pod
+}
+
+// AssignIBDevicesToPodRequest
+
+// AssignIBDevicesToPodResponse represents the response for assigning InfiniBand devices to a pod
+type AssignIBDevicesToPodResponse struct {
+	Message string `json:"message"` // Additional message or error description
+}
+
+// GetIBDeviceStatusResponse represents the response containing InfiniBand device programming status
+type GetIBDeviceStatusResponse struct {
+	IBMACAddress net.HardwareAddr          `json:"ibmacaddress"` // IB device MAC address
+	PodNamespace string                    `json:"podNamespace"` // Namespace of pod to which the device is assigned, if any
+	PodName      string                    `json:"podName"`      // Name of pod to which the device is assigned, if any
+	Status       v1alpha1.InfinibandStatus `json:"status"`       // Device status (e.g., "Unprogrammed", "Programming", "Programmed" etc.)"
+	Message      string                    `json:"message"`      // Additional message or error description
 }

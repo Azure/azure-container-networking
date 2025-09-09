@@ -508,7 +508,7 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 			// this should never happen because bootup phase is for windows, but just in case, we don't want to applyDataplaneNow() or else there will be a deadlock on dp.applyInfo
 			msg := fmt.Sprintf("[DataPlane] [%s] at risk of improperly applying a policy which is removed then readded", contextAddNetPolPrecaution)
 			klog.Warning(msg)
-			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, msg)
+			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "%s", msg)
 		} else {
 			// prevent #2977
 			if err := dp.applyDataPlaneNow(contextAddNetPolPrecaution); err != nil {

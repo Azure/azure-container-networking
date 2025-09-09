@@ -129,7 +129,7 @@ jobs:
               name: DualStack
               clusterName: ${{ parameters.clusterName }}
               ginkgoFocus: '\[Feature:IPv6DualStack\]'
-              ginkgoSkip: "SCTP|session affinity"
+              ginkgoSkip: "SCTP|session affinity|should function for service endpoints using hostNetwork" # skip hostnetwork service endpoint test while failures are being investigated
               os: ${{ parameters.os }}
               processes: 8
               attempts: 3

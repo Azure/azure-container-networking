@@ -281,14 +281,14 @@ func (plugin *NetPlugin) getPodInfo(args string) (name, ns string, err error) {
 	if len(k8sNamespace) == 0 {
 		errMsg := "Pod Namespace not specified in CNI Args"
 		logger.Error(errMsg)
-		return "", "", plugin.Errorf(errMsg)
+		return "", "", plugin.Errorf("%s", errMsg)
 	}
 
 	k8sPodName := string(podCfg.K8S_POD_NAME)
 	if len(k8sPodName) == 0 {
 		errMsg := "Pod Name not specified in CNI Args"
 		logger.Error(errMsg)
-		return "", "", plugin.Errorf(errMsg)
+		return "", "", plugin.Errorf("%s", errMsg)
 	}
 
 	return k8sPodName, k8sNamespace, nil
@@ -450,14 +450,14 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	if len(k8sContainerID) == 0 {
 		errMsg := "Container ID not specified in CNI Args"
 		logger.Error(errMsg)
-		return plugin.Errorf(errMsg)
+		return plugin.Errorf("%s", errMsg)
 	}
 
 	k8sIfName := args.IfName
 	if len(k8sIfName) == 0 {
 		errMsg := "Interfacename not specified in CNI Args"
 		logger.Error(errMsg)
-		return plugin.Errorf(errMsg)
+		return plugin.Errorf("%s", errMsg)
 	}
 
 	platformInit(nwCfg)
@@ -520,7 +520,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			errMsg := fmt.Sprintf("received multiple NC results %+v from CNS while dualnic feature is not supported", ipamAddResult.interfaceInfo)
 			logger.Error("received multiple NC results from CNS while dualnic feature is not supported",
 				zap.Any("results", ipamAddResult.interfaceInfo))
-			return plugin.Errorf(errMsg)
+			return plugin.Errorf("%s", errMsg)
 		}
 	} else {
 		// when nwcfg.multitenancy (use multitenancy flag for swift v1 only) is false
@@ -790,7 +790,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	epPolicies, err := getPoliciesFromRuntimeCfg(opt.nwCfg, opt.ipamAddResult.ipv6Enabled) // not specific to delegated or infra
 	if err != nil {
 		logger.Error("failed to get policies from runtime configurations", zap.Error(err))
-		return nil, plugin.Errorf(err.Error())
+		return nil, plugin.Errorf("%s", err.Error())
 	}
 	endpointInfo.EndpointPolicies = append(endpointInfo.EndpointPolicies, epPolicies...)
 
@@ -1228,14 +1228,14 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	if len(k8sNamespace) == 0 {
 		errMsg := "Required parameter Pod Namespace not specified in CNI Args during UPDATE"
 		logger.Error(errMsg)
-		return plugin.Errorf(errMsg)
+		return plugin.Errorf("%s", errMsg)
 	}
 
 	k8sPodName := string(podCfg.K8S_POD_NAME)
 	if len(k8sPodName) == 0 {
 		errMsg := "Required parameter Pod Name not specified in CNI Args during UPDATE"
 		logger.Error(errMsg)
-		return plugin.Errorf(errMsg)
+		return plugin.Errorf("%s", errMsg)
 	}
 
 	// Initialize values from network config.
@@ -1245,7 +1245,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	if _, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
 		errMsg := fmt.Sprintf("Failed to query network during CNI UPDATE: %v", err)
 		logger.Error(errMsg)
-		return plugin.Errorf(errMsg)
+		return plugin.Errorf("%s", errMsg)
 	}
 
 	// Query the existing endpoint since this is an update.
@@ -1272,7 +1272,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	if orchestratorContext, err = json.Marshal(podInfo); err != nil {
 		logger.Error("Marshalling KubernetesPodInfo failed",
 			zap.Error(err))
-		return plugin.Errorf(err.Error())
+		return plugin.Errorf("%s", err.Error())
 	}
 
 	cnsclient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
@@ -1280,13 +1280,13 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 		logger.Error("failed to initialized cns client",
 			zap.String("url", nwCfg.CNSUrl),
 			zap.String("error", err.Error()))
-		return plugin.Errorf(err.Error())
+		return plugin.Errorf("%s", err.Error())
 	}
 
 	if targetNetworkConfig, err = cnsclient.GetNetworkContainer(context.TODO(), orchestratorContext); err != nil {
 		logger.Info("GetNetworkContainer failed",
 			zap.Error(err))
-		return plugin.Errorf(err.Error())
+		return plugin.Errorf("%s", err.Error())
 	}
 
 	logger.Info("Network config received from cns",

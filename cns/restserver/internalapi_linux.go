@@ -3,6 +3,7 @@ package restserver
 import (
 	"fmt"
 	"net"
+	"os/exec"
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -22,6 +23,16 @@ func (c *IPtablesProvider) GetIPTables() (iptablesClient, error) {
 	client, err := goiptables.New()
 	return client, errors.Wrap(err, "failed to get iptables client")
 }
+func (c *IPtablesProvider) GetIPTablesLegacy() (iptablesLegacyClient, error) {
+	return &iptablesLegacy{}, nil
+}
+
+type iptablesLegacy struct{}
+
+func (c *iptablesLegacy) Delete(table, chain string, rulespec ...string) error {
+	cmd := append([]string{"-t", table, "-D", chain}, rulespec...)
+	return errors.Wrap(exec.Command("iptables-legacy", cmd...).Run(), "iptables legacy failed delete")
+}
 
 // nolint
 func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
@@ -32,6 +43,18 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 	// in podsubnet case, ncPrimaryIP is the pod subnet's primary ip
 	// in vnet scale case, ncPrimaryIP is the node's ip
 	ncPrimaryIP, _, _ := net.ParseCIDR(req.IPConfiguration.IPSubnet.IPAddress + "/" + fmt.Sprintf("%d", req.IPConfiguration.IPSubnet.PrefixLength))
+
+	iptl, err := service.iptables.GetIPTablesLegacy()
+	if err == nil {
+		err = iptl.Delete(iptables.Nat, iptables.Postrouting, "-j", SWIFTPOSTROUTING)
+		// ignore if command fails
+		if err == nil {
+			logger.Printf("[Azure CNS] Deleted legacy jump to SWIFT-POSTROUTING Chain")
+		}
+	} else {
+		logger.Printf("[Azure CNS] Could not create iptables legacy interface, continuing : %v", err)
+	}
+
 	ipt, err := service.iptables.GetIPTables()
 	if err != nil {
 		return types.UnexpectedError, fmt.Sprintf("[Azure CNS] Error. Failed to create iptables interface : %v", err)
@@ -130,7 +153,7 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 		// if rule count doesn't match or not all rules exist, reconcile
 		// add one because there is always a singular starting rule in the chain, in addition to the ones we add
 		if len(currentRules) != len(rules)+1 || !allRulesExist {
-			logger.Printf("[Azure CNS] Reconciling SWIFT-POSTROUTING chain rules")
+			logger.Printf("[Azure CNS] Reconciling SWIFT-POSTROUTING chain rules to SNAT Azure DNS and IMDS to Host IP")
 
 			err = ipt.ClearChain(iptables.Nat, SWIFTPOSTROUTING)
 			if err != nil {
@@ -143,6 +166,7 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 					return types.FailedToRunIPTableCmd, "[Azure CNS] failed to append rule to SWIFT-POSTROUTING chain : " + err.Error()
 				}
 			}
+			logger.Printf("[Azure CNS] Finished reconciling SWIFT-POSTROUTING chain")
 		}
 
 		// we only need to run this code once as the iptable rule applies to all secondary ip configs in the same subnet

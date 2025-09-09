@@ -15,7 +15,8 @@ import (
 )
 
 type FakeIPTablesProvider struct {
-	iptables *fakes.IPTablesMock
+	iptables       *fakes.IPTablesMock
+	iptablesLegacy *fakes.IPTablesLegacyMock
 }
 
 func (c *FakeIPTablesProvider) GetIPTables() (iptablesClient, error) {
@@ -24,6 +25,13 @@ func (c *FakeIPTablesProvider) GetIPTables() (iptablesClient, error) {
 		c.iptables = fakes.NewIPTablesMock()
 	}
 	return c.iptables, nil
+}
+
+func (c *FakeIPTablesProvider) GetIPTablesLegacy() (iptablesLegacyClient, error) {
+	if c.iptablesLegacy == nil {
+		c.iptablesLegacy = &fakes.IPTablesLegacyMock{}
+	}
+	return c.iptablesLegacy, nil
 }
 
 func TestAddSNATRules(t *testing.T) {
@@ -307,8 +315,10 @@ func TestAddSNATRules(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			service := getTestService(cns.KubernetesCRD)
 			ipt := fakes.NewIPTablesMock()
+			iptl := &fakes.IPTablesLegacyMock{}
 			service.iptables = &FakeIPTablesProvider{
-				iptables: ipt,
+				iptables:       ipt,
+				iptablesLegacy: iptl,
 			}
 
 			// setup pre-existing rules
@@ -359,6 +369,12 @@ func TestAddSNATRules(t *testing.T) {
 			actualClearChainCalls := ipt.ClearChainCallCount()
 			if actualClearChainCalls != tt.expectedClearChainCalls {
 				t.Fatalf("ClearChain call count mismatch: got %d, expected %d", actualClearChainCalls, tt.expectedClearChainCalls)
+			}
+
+			// verify we delete legacy swift postrouting jump
+			actualLegacyDeleteCalls := iptl.DeleteCallCount()
+			if actualLegacyDeleteCalls != 1 {
+				t.Fatalf("Delete call count mismatch: got %d, expected 1", actualLegacyDeleteCalls)
 			}
 		})
 	}

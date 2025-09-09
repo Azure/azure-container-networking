@@ -120,6 +120,67 @@ paths:
               schema:
                 $ref: "#/components/schemas/UnpublishNetworkContainerResponse"
 
+  /ibdevices:
+    post:
+      summary: Assign IB devices to a pod
+      description: >
+        Assigns one or more Infiniband devices by MAC address to a given pod.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignIBDevicesToPodRequest"
+      responses:
+        '200':
+          description: >-
+            The request passed initial validation and CNS was able to propagate its state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignIBDevicesToPodResponse"
+        '404':
+          description: >-
+            The pod specified by PodID was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignIBDevicesToPodResponse"
+        '400':
+          description: >-
+            One of the IB devices specified is not available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignIBDevicesToPodResponse"
+    get:
+      summary: Get status of an IB device
+      description: >-
+        Retrieves the current programming status of the specified IB device.
+      parameters:
+        - name: ibmac
+          in: query
+          required: true
+          description: The MAC address of the IB device.
+          schema:
+            type: string
+            example: "60:45:bd:a4:b5:7a"
+      responses:
+        '200':
+          description: >-
+            The request was successful and the status of the IB device is returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetIBDeviceStatusResponse"
+        '404':
+          description: >-
+            The IB device specified by MAC address was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetIBDeviceStatusResponse"
+
 components:
   schemas:
     UnpublishNetworkContainerResponse:
@@ -351,3 +412,65 @@ components:
         Message:
           type: string
           description: The error message
+
+    AssignIBDevicesToPodRequest:
+      type: object
+      required:
+        - ibmacaddresses
+        - podNamespace
+        - podName
+      properties:
+        ibmacaddresses:
+          type: array
+          items:
+            type: string
+          description: List of IB device MAC addresses to assign such as "60:45:bd:a4:b5:7a"
+        podNamespace:
+          type: string
+          description: Namespace of the target pod
+        podName:
+          type: string
+          description: Name of the target pod
+
+    AssignIBDevicesToPodResponse:
+      type: object
+      required:
+        - Message
+      properties:
+        Message:
+          type: string
+          description: Human-readable message or error description
+
+    GetIBDeviceStatusResponse:
+      type: object
+      required:
+        - IBMACAddress
+        - PodNamespace
+        - PodName
+        - Status
+        - Message
+      properties:
+        IBMACAddress:
+          type: string
+          description: MAC address of the IB device
+        PodNamespace:
+          type: string
+          description: namespace of the pod to which the device is assigned, if any
+        PodName:
+          type: string
+          description: name of the pod to which the device is assigned, if any
+        Status:
+          $ref: "#/components/schemas/Status"
+        Message:
+          type: string
+          description: Human-readable message or error description
+      
+    Status:
+      type: string
+      description: Status of IB device
+      enum:
+        - Unprogrammed
+        - Programming
+        - Programmed
+        - Unprogramming
+        - Failed

@@ -34,18 +34,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go-version: ['1.22.x', '1.23.x']
         os: [ubuntu-latest, windows-latest]
     name: Lint
     needs: generate
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/setup-go@v5
-      with:
-        go-version: ${{ matrix.go-version }}
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
     - name: Download generated code
       uses: actions/download-artifact@v4
       with:
@@ -54,5 +53,5 @@ jobs:
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v6
       with:
-        version: v1.61
-        args: ${{ github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref) || '' }} --config=.golangci.yml --timeout=25m 
+        version: latest
+        args: ${{ github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref) || '' }} --config=.golangci.yml --timeout=25m

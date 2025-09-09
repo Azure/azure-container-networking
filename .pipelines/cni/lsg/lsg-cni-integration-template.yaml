@@ -19,23 +19,42 @@ stages:
       - setup
     displayName: "Create Cluster - ${{ parameters.clusterName }}"
     jobs:
-      - job: create_aks_cluster_with_${{ parameters.name }}
-        steps:
-          - task: AzureCLI@2
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
-                make -C ./hack/aks ${{ parameters.clusterType }} \
-                AZCLI=az REGION=$(LOCATION) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
-                CLUSTER=${{ parameters.clusterName }}-$(commitID) \
-                VM_SIZE=${{ parameters.vmSize }} \
-                AUTOUPGRADE=none
-            name: "CreateAksCluster"
-            displayName: "Create AKS Cluster"
+      - ${{ if not(contains(parameters.name, 'ds')) }}:
+        - job: create_aks_cluster_with_${{ parameters.name }}
+          steps:
+            - task: AzureCLI@2
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: "inlineScript"
+                scriptType: "bash"
+                addSpnToEnvironment: true
+                inlineScript: |
+                  make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
+                  make -C ./hack/aks ${{ parameters.clusterType }} \
+                  AZCLI=az REGION=$(LOCATION) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
+                  CLUSTER=${{ parameters.clusterName }}-$(commitID) \
+                  VM_SIZE=${{ parameters.vmSize }} \
+                  AUTOUPGRADE=none
+              name: "CreateAksCluster"
+              displayName: "Create AKS Cluster"
+      - ${{ else }}:
+        - job: create_aks_cluster_with_${{ parameters.name }}
+          steps:
+            - task: AzureCLI@2
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: "inlineScript"
+                scriptType: "bash"
+                addSpnToEnvironment: true
+                inlineScript: |
+                  make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+                  make -C ./hack/aks ${{ parameters.clusterType }} \
+                  AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
+                  CLUSTER=${{ parameters.clusterName }}-$(commitID) \
+                  VM_SIZE=${{ parameters.vmSize }} \
+                  AUTOUPGRADE=none
+              name: "CreateAksDSCluster"
+              displayName: "Create AKS Dualstack Cluster"
 
   - stage: ${{ parameters.name }}
     variables:
@@ -69,7 +88,14 @@ stages:
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   kubectl cluster-info
                   kubectl get po -owide -A
-                  sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(cnsVersion) CNI_VERSION=$(cniVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) CNI_IMAGE_REPO=$(CNI_IMAGE_REPO)
+                  if [[ ${{ parameters.clusterType }} =~ "dualstack-overlay-byocni-up" ]]; then
+                    echo "Installing Azure CNI Dualstack Overlay"
+                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true CNS_VERSION=$(cnsVersion) CNI_VERSION=$(cniVersion) CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) CNI_IMAGE_REPO=$(CNI_IMAGE_REPO)
+                  else
+                    echo "Installing Azure CNI Overlay"
+                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_VERSION=$(cnsVersion) CNI_VERSION=$(cniVersion) CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) CNI_IMAGE_REPO=$(CNI_IMAGE_REPO)
+                  fi
+
               name: "overlaye2e"
               displayName: "Overlay Integration"
               retryCountOnTaskFailure: 2
@@ -98,14 +124,19 @@ stages:
                   export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
                   echo "installing files from ${DIR}"
 
+                  if [[ ${{ parameters.clusterType }} =~ "dualstack-byocni" ]]; then
+                    export DUALSTACK_PATH="-dualstack"
+                    echo "Installing Cilium Dualstack"
+                  fi
+
                   echo "deploy Cilium ConfigMap"
-                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config${DUALSTACK_PATH}.yaml
 
                   # Passes Cilium image to daemonset and deployment
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
 
-                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset${DUALSTACK_PATH}.yaml | kubectl apply -f -
                   envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
                   echo "Deploy Azure-CNS"
@@ -208,11 +239,14 @@ stages:
             os: ${{ parameters.os }}
             cni: ${{ parameters.cni }}
             dependsOn: cni_tests
-            datapath: true
+            ${{ if contains(parameters.cni, 'dualstack') }}:
+              dualstack: true
+            ${{ else }}:
+              datapath: true
             dns: true
             portforward: true
             service: true
-      - ${{ if contains(parameters.cni, 'cniv2') }}:
+      - ${{ if contains(parameters.name, 'linux') }}:
         - template: ../k8s-e2e/k8s-e2e-job-template.yaml
           parameters:
             sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -220,11 +254,15 @@ stages:
             os: ${{ parameters.os }}
             cni: ${{ parameters.cni }}
             dependsOn: recover
-            datapath: true
+            ${{ if contains(parameters.cni, 'dualstack') }}:
+              dualstack: true
+            ${{ else }}:
+              datapath: true
             dns: true
             portforward: true
             service: true
             hostport: true
+
       - job: failedE2ELogs
         displayName: "Failure Logs"
         dependsOn:

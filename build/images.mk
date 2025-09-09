@@ -1,5 +1,5 @@
 # Source images
-export GO_IMG					?= mcr.microsoft.com/oss/go/microsoft/golang:1.23-azurelinux3.0
+export GO_IMG					?= mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0
 export MARINER_CORE_IMG			?= mcr.microsoft.com/azurelinux/base/core:3.0
 export MARINER_DISTROLESS_IMG	?= mcr.microsoft.com/azurelinux/distroless/minimal:3.0
 export WIN_HPC_IMG				?= mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
@@ -26,5 +26,5 @@ print:
 	@echo ${WIN_HPC_PIN}
 
 render:
-	build/tools/bin/renderkit -f ${SRC} --ds env:// > ${DEST}
-	build/tools/bin/renderkit -f ${SRC_PIPE} --ds env:// > ${DEST_PIPE}
+	${GOPATH}/bin/renderkit -f ${SRC} --ds env:// > ${DEST}
+	${GOPATH}/bin/renderkit -f ${SRC_PIPE} --ds env:// > ${DEST_PIPE}
