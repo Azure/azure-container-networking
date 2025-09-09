@@ -83,36 +83,6 @@ updates:
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.35.0"]
 
-  # /build/tools: grouped minor+patch + allow majors concurrently
-  - package-ecosystem: "gomod"
-    directory: "/build/tools"
-    schedule:
-      interval: "weekly"
-      day: "sunday"
-      time: "12:00"  # UTC
-    commit-message:
-      prefix: "deps"
-    labels: ["dependencies", "grouped"]
-    open-pull-requests-limit: 2
-    groups:
-      all-go-minor-and-patch:
-        applies-to: version-updates
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
-    ignore:
-      - dependency-name: "k8s.io/api"
-        versions: [">=0.35.0"]
-      - dependency-name: "k8s.io/apiextensions-apiserver"
-        versions: [">=0.35.0"]
-      - dependency-name: "k8s.io/apimachinery"
-        versions: [">=0.35.0"]
-      - dependency-name: "k8s.io/client-go"
-        versions: [">=0.35.0"]
-      - dependency-name: "k8s.io/kubelet"
-        versions: [">=0.35.0"]
-      - dependency-name: "k8s.io/kubectl"
-        versions: [">=0.35.0"]
-
   # /dropgz: grouped minor+patch + allow majors concurrently
   - package-ecosystem: "gomod"
     directory: "/dropgz"
