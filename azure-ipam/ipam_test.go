@@ -159,8 +159,7 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 							IPAddress:    "fd11:1234::",
 							PrefixLength: 120,
 						},
-						DNSServers:         nil,
-						GatewayIPv6Address: "fe80::1", // This value will be ignored - code uses defaultV6Gateway constant instead
+						DNSServers: nil,
 					},
 					HostPrimaryIPInfo: cns.HostIPInfo{
 						Gateway:   "fe80::1234:5678:9abc",
@@ -207,8 +206,7 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 							IPAddress:    "fd11:1234::",
 							PrefixLength: 112,
 						},
-						DNSServers:         nil,
-						GatewayIPv6Address: "fe80::1234:5678:9abc",
+						DNSServers: nil,
 					},
 					HostPrimaryIPInfo: cns.HostIPInfo{
 						Gateway:   "fe80::1234:5678:9abc",
@@ -257,8 +255,7 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 							IPAddress:    "fd11:1234::",
 							PrefixLength: 120,
 						},
-						DNSServers:         nil,
-						GatewayIPv6Address: "fe80::1234:5678:9abc",
+						DNSServers: nil,
 					},
 					HostPrimaryIPInfo: cns.HostIPInfo{
 						Gateway:   "fe80::1234:5678:9abc",
