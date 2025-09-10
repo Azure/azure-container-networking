@@ -9,7 +9,7 @@ ARG OS
 FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:2ee838d78b546ea43bec72051656ef74c98e6ae17f55be4fb45bd5d9add6dddf AS go
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:e9bb4e5a79123f2ae29dc601f68adf63a636a455c4259423712b06b798cb201e AS mariner-core
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:d472a34802cd535b24ed5fbb7869456e6d8ab2c087faedb9cb32a0efe5b67a15 AS mariner-core
 
 FROM go AS azure-vnet
 ARG OS
