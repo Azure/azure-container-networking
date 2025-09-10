@@ -160,10 +160,6 @@ spec:
       dnsPolicy: ClusterFirst
       hostNetwork: true
       initContainers:
-      - name: block-cni
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
-        imagePullPolicy: IfNotPresent
-        command: ["sleep", "3600"]
       - name: install-cni-binaries
         image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
         imagePullPolicy: IfNotPresent
