@@ -17,6 +17,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -211,7 +212,7 @@ func TestCreateOrUpdateNodeInfoCRD_WithTestifyMock_DirectCall(t *testing.T) {
 	err := createOrUpdateNodeInfoCRD(ctx, restConfig, node)
 
 	// Verify the function succeeded
-	assert.NoError(t, err, "Function should succeed with mocked dependencies")
+	require.NoError(t, err, "Function should succeed with mocked dependencies")
 
 	// Verify the captured values
 	assert.NotNil(t, capturedNodeInfo, "NodeInfo should have been captured from K8s API call")
@@ -234,16 +235,28 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.URL.Host == "169.254.169.254" {
 		req.URL.Scheme = "http"
 		req.URL.Host = strings.TrimPrefix(m.imdsServer.URL, "http://")
-		return m.original.RoundTrip(req)
+		resp, err := m.original.RoundTrip(req)
+		if err != nil {
+			return nil, fmt.Errorf("IMDS mock transport failed: %w", err)
+		}
+		return resp, nil
 	}
 
 	// Redirect CNS calls to mock CNS server
 	if req.URL.Host == "localhost:10090" || strings.Contains(req.URL.Host, "10090") {
 		req.URL.Scheme = "http"
 		req.URL.Host = strings.TrimPrefix(m.cnsServer.URL, "http://")
-		return m.original.RoundTrip(req)
+		resp, err := m.original.RoundTrip(req)
+		if err != nil {
+			return nil, fmt.Errorf("CNS mock transport failed: %w", err)
+		}
+		return resp, nil
 	}
 
 	// All other calls go through original transport
-	return m.original.RoundTrip(req)
+	resp, err := m.original.RoundTrip(req)
+	if err != nil {
+		return nil, fmt.Errorf("mock transport failed: %w", err)
+	}
+	return resp, nil
 }
