@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
 	"go.uber.org/zap"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Service implements behavior common to all services.
@@ -20,6 +21,7 @@ type Service struct {
 	Options     map[string]interface{}
 	ErrChan     chan<- error
 	Store       store.KeyValueStore
+	Client      client.Client
 	ChannelMode string
 	Logger      *zap.Logger
 }
@@ -42,6 +44,7 @@ type ServiceConfig struct {
 	Store       store.KeyValueStore
 	Server      server
 	ChannelMode string
+	Client      client.Client
 	TLSSettings tls.TlsSettings
 	Logger      *zap.Logger
 }
@@ -82,6 +85,7 @@ func (service *Service) Initialize(config *ServiceConfig) error {
 	service.ErrChan = config.ErrChan
 	service.Store = config.Store
 	service.Version = config.Version
+	service.Client = config.Client
 	service.ChannelMode = config.ChannelMode
 	service.Logger = config.Logger
 
