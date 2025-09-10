@@ -796,29 +796,6 @@ func main() {
 		}
 	}
 
-	logger.Printf("[Azure CNS] Initialize HTTPRemoteRestService")
-	if httpRemoteRestService != nil {
-		if cnsconfig.UseHTTPS {
-			config.TLSSettings = localtls.TlsSettings{
-				TLSSubjectName:                     cnsconfig.TLSSubjectName,
-				TLSCertificatePath:                 cnsconfig.TLSCertificatePath,
-				TLSPort:                            cnsconfig.TLSPort,
-				KeyVaultURL:                        cnsconfig.KeyVaultSettings.URL,
-				KeyVaultCertificateName:            cnsconfig.KeyVaultSettings.CertificateName,
-				MSIResourceID:                      cnsconfig.MSISettings.ResourceID,
-				KeyVaultCertificateRefreshInterval: time.Duration(cnsconfig.KeyVaultSettings.RefreshIntervalInHrs) * time.Hour,
-				UseMTLS:                            cnsconfig.UseMTLS,
-				MinTLSVersion:                      cnsconfig.MinTLSVersion,
-			}
-		}
-
-		err = httpRemoteRestService.Init(&config)
-		if err != nil {
-			logger.Errorf("Failed to init HTTPService, err:%v.\n", err)
-			return
-		}
-	}
-
 	// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic if HNS is enabled
 	err = platform.SetSdnRemoteArpMacAddress(rootCtx)
 	if err != nil {
@@ -869,7 +846,8 @@ func main() {
 
 		logger.Printf("Set GlobalPodInfoScheme %v (InitializeFromCNI=%t)", cns.GlobalPodInfoScheme, cnsconfig.InitializeFromCNI)
 
-		err = InitializeCRDState(rootCtx, z, httpRemoteRestService, cnsconfig)
+		client, err := InitializeCRDState(rootCtx, z, httpRemoteRestService, cnsconfig)
+		config.Client = client
 		if err != nil {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
@@ -887,6 +865,29 @@ func main() {
 			if err = httpRemoteRestService.SetVFForAccelnetNICs(); err != nil {
 				logger.Errorf("Failed to set VF for accelnet NICs: %v", err)
 			}
+		}
+	}
+
+	logger.Printf("[Azure CNS] Initialize HTTPRemoteRestService")
+	if httpRemoteRestService != nil {
+		if cnsconfig.UseHTTPS {
+			config.TLSSettings = localtls.TlsSettings{
+				TLSSubjectName:                     cnsconfig.TLSSubjectName,
+				TLSCertificatePath:                 cnsconfig.TLSCertificatePath,
+				TLSPort:                            cnsconfig.TLSPort,
+				KeyVaultURL:                        cnsconfig.KeyVaultSettings.URL,
+				KeyVaultCertificateName:            cnsconfig.KeyVaultSettings.CertificateName,
+				MSIResourceID:                      cnsconfig.MSISettings.ResourceID,
+				KeyVaultCertificateRefreshInterval: time.Duration(cnsconfig.KeyVaultSettings.RefreshIntervalInHrs) * time.Hour,
+				UseMTLS:                            cnsconfig.UseMTLS,
+				MinTLSVersion:                      cnsconfig.MinTLSVersion,
+			}
+		}
+
+		err = httpRemoteRestService.Init(&config)
+		if err != nil {
+			logger.Errorf("Failed to init HTTPService, err:%v.\n", err)
+			return
 		}
 	}
 
@@ -1374,12 +1375,12 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 // InitializeCRDState builds and starts the CRD controllers.
 //
 //nolint:gocyclo // legacy
-func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig) error {
+func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig) (client.Client, error) {
 	// convert interface type to implementation type
 	httpRestServiceImplementation, ok := httpRestService.(*restserver.HTTPRestService)
 	if !ok {
 		logger.Errorf("[Azure CNS] Failed to convert interface httpRestService to implementation: %v", httpRestService)
-		return fmt.Errorf("[Azure CNS] Failed to convert interface httpRestService to implementation: %v",
+		return nil, fmt.Errorf("[Azure CNS] Failed to convert interface httpRestService to implementation: %v",
 			httpRestService)
 	}
 
@@ -1393,24 +1394,24 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	kubeConfig, err := ctrl.GetConfig()
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to get kubeconfig for request controller: %v", err)
-		return errors.Wrap(err, "failed to get kubeconfig")
+		return nil, errors.Wrap(err, "failed to get kubeconfig")
 	}
 	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
 
 	clientset, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
-		return errors.Wrap(err, "failed to build clientset")
+		return nil, errors.Wrap(err, "failed to build clientset")
 	}
 
 	// get nodename for scoping kube requests to node.
 	nodeName, err := configuration.NodeName()
 	if err != nil {
-		return errors.Wrap(err, "failed to get NodeName")
+		return nil, errors.Wrap(err, "failed to get NodeName")
 	}
 
 	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
-		return errors.Wrapf(err, "failed to get node %s", nodeName)
+		return nil, errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
 	// check the Node labels for Swift V2
@@ -1418,34 +1419,34 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
 		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
-			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
+			return nil, errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
 		}
 	}
 
 	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
 	if cnsconfig.EnableStateMigration && !httpRestServiceImplementation.EndpointStateStore.Exists() {
 		if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
-			return errors.Wrap(err, "failed to create CNS EndpointState From CNI")
+			return nil, errors.Wrap(err, "failed to create CNS EndpointState From CNI")
 		}
 		// endpoint state needs tobe loaded in memory so the subsequent Delete calls remove the state and release the IPs.
 		if err = httpRestServiceImplementation.EndpointStateStore.Read(restserver.EndpointStoreKey, &httpRestServiceImplementation.EndpointState); err != nil {
-			return errors.Wrap(err, "failed to restore endpoint state")
+			return nil, errors.Wrap(err, "failed to restore endpoint state")
 		}
 	}
 
 	podInfoByIPProvider, err := getPodInfoByIPProvider(ctx, cnsconfig, httpRestServiceImplementation, clientset, nodeName)
 	if err != nil {
-		return errors.Wrap(err, "failed to initialize ip state")
+		return nil, errors.Wrap(err, "failed to initialize ip state")
 	}
 
 	// create scoped kube clients.
 	directcli, err := client.New(kubeConfig, client.Options{Scheme: nodenetworkconfig.Scheme})
 	if err != nil {
-		return errors.Wrap(err, "failed to create ctrl client")
+		return nil, errors.Wrap(err, "failed to create ctrl client")
 	}
 	directnnccli := nodenetworkconfig.NewClient(directcli)
 	if err != nil {
-		return errors.Wrap(err, "failed to create NNC client")
+		return nil, errors.Wrap(err, "failed to create NNC client")
 	}
 	// TODO(rbtr): nodename and namespace should be in the cns config
 	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
@@ -1469,16 +1470,16 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	hasNNCInitialized.Set(1)
 	scheme := kuberuntime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil { //nolint:govet // intentional shadow
-		return errors.Wrap(err, "failed to add corev1 to scheme")
+		return nil, errors.Wrap(err, "failed to add corev1 to scheme")
 	}
 	if err = v1alpha.AddToScheme(scheme); err != nil {
-		return errors.Wrap(err, "failed to add nodenetworkconfig/v1alpha to scheme")
+		return nil, errors.Wrap(err, "failed to add nodenetworkconfig/v1alpha to scheme")
 	}
 	if err = cssv1alpha1.AddToScheme(scheme); err != nil {
-		return errors.Wrap(err, "failed to add clustersubnetstate/v1alpha1 to scheme")
+		return nil, errors.Wrap(err, "failed to add clustersubnetstate/v1alpha1 to scheme")
 	}
 	if err = mtv1alpha1.AddToScheme(scheme); err != nil {
-		return errors.Wrap(err, "failed to add multitenantpodnetworkconfig/v1alpha1 to scheme")
+		return nil, errors.Wrap(err, "failed to add multitenantpodnetworkconfig/v1alpha1 to scheme")
 	}
 
 	// Set Selector options on the Manager cache which are used
@@ -1519,7 +1520,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 
 	manager, err := ctrl.NewManager(kubeConfig, managerOpts)
 	if err != nil {
-		return errors.Wrap(err, "failed to create manager")
+		return nil, errors.Wrap(err, "failed to create manager")
 	}
 
 	// this cachedscopedclient is built using the Manager's cached client, which is
@@ -1561,14 +1562,14 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	// IPAMv2 - reconcile all updates.
 	filterGenerationChange := !cnsconfig.EnableIPAMv2
 	if err := nncReconciler.SetupWithManager(manager, node, filterGenerationChange); err != nil { //nolint:govet // intentional shadow
-		return errors.Wrapf(err, "failed to setup nnc reconciler with manager")
+		return nil, errors.Wrapf(err, "failed to setup nnc reconciler with manager")
 	}
 
 	if cnsconfig.EnableSubnetScarcity {
 		// ClusterSubnetState reconciler
 		cssReconciler := cssctrl.New(cssCh)
 		if err := cssReconciler.SetupWithManager(manager); err != nil {
-			return errors.Wrapf(err, "failed to setup css reconciler with manager")
+			return nil, errors.Wrapf(err, "failed to setup css reconciler with manager")
 		}
 	}
 
@@ -1582,13 +1583,13 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 			pw.With(pw.NewNotifierFunc(hostNetworkListOpt, limit, ipampoolv2.PodIPDemandListener(ipDemandCh)))
 		}
 		if err := pw.SetupWithManager(ctx, manager); err != nil {
-			return errors.Wrapf(err, "failed to setup pod watcher with manager")
+			return nil, errors.Wrapf(err, "failed to setup pod watcher with manager")
 		}
 	}
 
 	if cnsconfig.EnableSwiftV2 {
 		if err := mtpncctrl.SetupWithManager(manager); err != nil {
-			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
+			return nil, errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
 		}
 		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
 		// switch here for AKS(K8s) swiftv2 middleware to process IP configs requests
@@ -1658,7 +1659,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		}
 	}()
 	logger.Printf("Initialized SyncHostNCVersion loop.")
-	return nil
+	return manager.GetClient(), nil
 }
 
 // getPodInfoByIPProvider returns a PodInfoByIPProvider that reads endpoint state from the configured source

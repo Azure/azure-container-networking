@@ -10,6 +10,7 @@ import (
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Service implements behavior common to all services.
@@ -19,6 +20,7 @@ type Service struct {
 	Options     map[string]interface{}
 	ErrChan     chan<- error
 	Store       store.KeyValueStore
+	Client      client.Client
 	ChannelMode string
 }
 
@@ -40,6 +42,7 @@ type ServiceConfig struct {
 	Store       store.KeyValueStore
 	Server      server
 	ChannelMode string
+	Client      client.Client
 	TLSSettings tls.TlsSettings
 }
 
@@ -79,6 +82,7 @@ func (service *Service) Initialize(config *ServiceConfig) error {
 	service.ErrChan = config.ErrChan
 	service.Store = config.Store
 	service.Version = config.Version
+	service.Client = config.Client
 	service.ChannelMode = config.ChannelMode
 
 	logger.Debugf("[Azure CNS] nitialized service: %+v with config: %+v.", service, config)
