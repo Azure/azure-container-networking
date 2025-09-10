@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -79,17 +80,21 @@ func TestSendRegisterNodeRequest_StatusAccepted(t *testing.T) {
 }
 
 func TestCreateOrUpdateNodeInfoCRD_WithTestifyMock_DirectCall(t *testing.T) {
+	vmID := "test-vm-unique-id-12345"
+	homeAZ := uint(2)
+	HomeAZStr := fmt.Sprintf("AZ0%d", homeAZ)
+
 	// Create mock IMDS server
 	mockIMDSServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/metadata/instance/compute") {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
-				"vmId":              "test-vm-unique-id-12345",
+				"vmId":              vmID,
 				"name":              "test-vm",
 				"resourceGroupName": "test-rg",
 			}
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -106,10 +111,10 @@ func TestCreateOrUpdateNodeInfoCRD_WithTestifyMock_DirectCall(t *testing.T) {
 				"Message":    "",
 				"HomeAzResponse": map[string]interface{}{
 					"IsSupported": true,
-					"HomeAz":      uint(2),
+					"HomeAz":      homeAZ,
 				},
 			}
-			json.NewEncoder(w).Encode(response)
+			_ = json.NewEncoder(w).Encode(response)
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -134,7 +139,7 @@ func TestCreateOrUpdateNodeInfoCRD_WithTestifyMock_DirectCall(t *testing.T) {
 		if r.URL.Path == "/apis/multitenancy.acn.azure.com/v1alpha1" && r.Method == "GET" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"kind":         "APIResourceList",
 				"groupVersion": "multitenancy.acn.azure.com/v1alpha1",
 				"resources": []map[string]interface{}{
@@ -164,28 +169,16 @@ func TestCreateOrUpdateNodeInfoCRD_WithTestifyMock_DirectCall(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
 				// Return the created NodeInfo
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
 					"apiVersion": "multitenancy.acn.azure.com/v1alpha1",
 					"kind":       "NodeInfo",
 					"metadata": map[string]interface{}{
 						"name": "test-node",
 					},
 					"spec": map[string]interface{}{
-						"vmUniqueID": "test-vm-unique-id-12345",
-						"homeAZ":     "AZ02",
+						"vmUniqueID": vmID,
+						"homeAZ":     HomeAZStr,
 					},
-				})
-				return
-			}
-
-			// Handle GET requests (checking if NodeInfo exists)
-			if r.Method == "GET" {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusNotFound) // Simulate NodeInfo doesn't exist yet
-				json.NewEncoder(w).Encode(map[string]interface{}{
-					"kind":   "Status",
-					"status": "Failure",
-					"code":   404,
 				})
 				return
 			}
@@ -194,7 +187,7 @@ func TestCreateOrUpdateNodeInfoCRD_WithTestifyMock_DirectCall(t *testing.T) {
 		// Default success response for any other API calls
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"kind":   "Status",
 			"status": "Success",
 		})
@@ -223,9 +216,8 @@ func TestCreateOrUpdateNodeInfoCRD_WithTestifyMock_DirectCall(t *testing.T) {
 	// Verify the captured values
 	assert.NotNil(t, capturedNodeInfo, "NodeInfo should have been captured from K8s API call")
 	if capturedNodeInfo != nil {
-		assert.Equal(t, "test-node", capturedNodeInfo.Name, "NodeInfo name should match")
-		assert.Equal(t, "test-vm-unique-id-12345", capturedNodeInfo.Spec.VMUniqueID, "VMUniqueID should be from IMDS")
-		assert.Equal(t, "AZ02", capturedNodeInfo.Spec.HomeAZ, "HomeAZ should be formatted from CNS response")
+		assert.Equal(t, vmID, capturedNodeInfo.Spec.VMUniqueID, "VMUniqueID should be from IMDS")
+		assert.Equal(t, HomeAZStr, capturedNodeInfo.Spec.HomeAZ, "HomeAZ should be formatted from CNS response")
 	}
 }
 

@@ -1690,8 +1690,8 @@ func getPodInfoByIPProvider(
 	return podInfoByIPProvider, nil
 }
 
-// createOrUpdateNodeInfoCRD polls imds to learn the VM Unique ID and then creates or updates the NodeInfo CRD
-// with that vm unique ID
+// createOrUpdateNodeInfoCRD polls IMDS to learn the VM Unique ID and CNS to get the HomeAZ,
+// then creates or updates the NodeInfo CRD with that information
 func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, node *corev1.Node) error {
 	imdsCli := imds.NewClient()
 	vmUniqueID, err := imdsCli.GetVMUniqueID(ctx)
