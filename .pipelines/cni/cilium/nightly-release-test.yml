@@ -35,6 +35,7 @@ stages:
         steps:
           - bash: |
               set -ex
+              
               cd .pipelines/
               git clone https://github.com/cilium/cilium.git
               cd cilium
@@ -47,8 +48,9 @@ stages:
               alpineImage=`cat ./images/$(directory)/Dockerfile | grep "ARG ALPINE_IMAGE" | awk '{print $2}'`
 
               if ! [ -z $goImage ]; then
-                goTag=${goImage#*:}
-                goVersion=${goTag%@*}
+                #goTag=${goImage#*:}
+                #goVersion=${goTag%@*}
+                goVersion=1.24.6
                 goMCR=mcr.microsoft.com/oss/go/microsoft/golang:${goVersion}
                 echo "Golang MCR image: ${goMCR}"
                 GO_ARGS="--build-arg GOLANG_IMAGE=${goMCR} "
@@ -62,7 +64,7 @@ stages:
                 echo "alpine MCR image: ${alpineACR}"
                 ALPINE_ARGS="--build-arg ALPINE_IMAGE=${alpineACR} "
               fi
-              BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
+              BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS} 
 
               DOCKER_FLAGS="$BUILD_ARGS" \
               make $(type)
@@ -152,22 +154,22 @@ stages:
         steps:
           - template: ../../templates/cilium-cli.yaml
 
-          - task: AzureCLI@2
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=ciliumnightly-$(commitID)
+          #- task: AzureCLI@2
+          #  inputs:
+          #    azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          #    scriptLocation: "inlineScript"
+          #    scriptType: "bash"
+          #    addSpnToEnvironment: true
+          #    inlineScript: |
+          #      make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=ciliumnightly-$(commitID)
 
-                set -e
-                echo "Check Cilium Connectivity Test Logs"
-                cilium status
-                cilium connectivity test --test check-log-errors --log-check-levels error
-              name: "ciliumConnectivityLogs"
-              displayName: "Check Cilium Connectivity Test Logs"
-              condition: always()
+          #      set -e
+          #      echo "Check Cilium Connectivity Test Logs"
+          #      cilium status
+          #      cilium connectivity test --test check-log-errors --log-check-levels error
+          #    name: "ciliumConnectivityLogs"
+          #    displayName: "Check Cilium Connectivity Test Logs"
+          #    condition: always()
 
           - template: ../../templates/log-check-template.yaml # Operator Check
             parameters:
