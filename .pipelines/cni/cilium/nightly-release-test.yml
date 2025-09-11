@@ -46,13 +46,13 @@ stages:
               #goImage=`cat ./images/$(directory)/Dockerfile | grep "ARG GOLANG_IMAGE" | awk '{print $2}'`
               alpineImage=`cat ./images/$(directory)/Dockerfile | grep "ARG ALPINE_IMAGE" | awk '{print $2}'`
 
-              #if ! [ -z $goImage ]; then
-              #  goTag=${goImage#*:}
-              #  goVersion=${goTag%@*}
-              #  goMCR=mcr.microsoft.com/oss/go/microsoft/golang:${goVersion}
-              #  echo "Golang MCR image: ${goMCR}"
-              #  GO_ARGS="--build-arg GOLANG_IMAGE=${goMCR} "
-              #fi
+              if ! [ -z $goImage ]; then
+                goTag=${goImage#*:}
+                goVersion=${goTag%@*}
+                goMCR=mcr.microsoft.com/oss/go/microsoft/golang:1.25.0
+                echo "Golang MCR image: ${goMCR}"
+                GO_ARGS="--build-arg GOLANG_IMAGE=${goMCR} "
+              fi
 
               if ! [ -z $alpineImage ]; then
                 alpineTag=${alpineImage#*:}
