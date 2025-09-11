@@ -20,6 +20,7 @@ type deviceCounter interface {
 }
 
 type Server struct {
+	v1beta1.UnimplementedDevicePluginServer
 	address             string
 	logger              *zap.Logger
 	deviceCounter       deviceCounter
@@ -94,8 +95,8 @@ func (s *Server) Allocate(_ context.Context, req *v1beta1.AllocateRequest) (*v1b
 		resp := &v1beta1.ContainerAllocateResponse{
 			Envs: make(map[string]string),
 		}
-		for j := range containerReq.DevicesIDs {
-			resp.Envs[fmt.Sprintf("%s%d", devicePrefix, j)] = containerReq.DevicesIDs[j]
+		for j, id := range containerReq.GetDevicesIds() {
+			resp.GetEnvs()[fmt.Sprintf("%s%d", devicePrefix, j)] = id
 		}
 		resps[i] = resp
 	}
