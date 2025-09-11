@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.23-azurelinux3.0 AS builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0 AS builder
 ARG VERSION
 ARG NPM_AI_PATH
 ARG NPM_AI_ID

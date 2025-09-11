@@ -22,7 +22,7 @@ stages:
           - script: |
               echo "Setting up environment"
               go version
-              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(Build.BuildId))"
               echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(CNI_VERSION)"
               echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]$(IPAM_VERSION)"
@@ -50,7 +50,7 @@ stages:
             displayName: "Set Environment Variables"
             condition: always()
 
-  - template: lsg-cni-intergration-template.yaml
+  - template: lsg-cni-integration-template.yaml
     parameters:
       name: linux_overlay
       clusterType: overlay-byocni-up
@@ -60,7 +60,7 @@ stages:
       arch: amd64
       cni: cniv2
 
-  - template: lsg-cni-intergration-template.yaml
+  - template: lsg-cni-integration-template.yaml
     parameters:
       name: cilium_overlay
       clusterType: overlay-byocni-nokubeproxy-up
@@ -70,6 +70,27 @@ stages:
       arch: amd64
       cni: cilium
 
+  # Dualstack
+  - template: lsg-cni-integration-template.yaml
+    parameters:
+      name: linux_overlay_ds
+      clusterType: dualstack-overlay-byocni-up
+      clusterName: "kup-over-ds"
+      nodeCount: 2
+      vmSize: Standard_B2ms
+      arch: amd64
+      cni: dualstack
+
+  - template: lsg-cni-integration-template.yaml
+    parameters:
+      name: cilium_overlay_ds
+      clusterType: dualstack-byocni-nokubeproxy-up
+      clusterName: "kup-cilov-ds"
+      nodeCount: 2
+      vmSize: Standard_B2ms
+      arch: amd64
+      cni: cilium_dualstack
+
   - stage: delete_resources
     displayName: "Delete Resources"
     pool:
@@ -78,6 +99,8 @@ stages:
     dependsOn:
       - linux_overlay
       - cilium_overlay
+      - linux_overlay_ds
+      - cilium_overlay_ds
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
@@ -100,5 +123,25 @@ stages:
               name: $(name)
               clusterName: $(clusterName)-$(commitID)
               region: $(LOCATION)
+              sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+              svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      - job: delete_ds
+        displayName: Delete Dualstack Cluster
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            linux_overlay_ds:
+              name: linux_overlay_ds
+              clusterName: "kup-over-ds"
+            cilium_overlay_ds:
+              name: cilium_overlay_ds
+              clusterName: "kup-cilov-ds"
+        steps:
+          - template: ../../templates/delete-cluster.yaml
+            parameters:
+              name: $(name)
+              clusterName: $(clusterName)-$(commitID)
+              region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
               sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
               svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)

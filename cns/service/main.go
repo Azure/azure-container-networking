@@ -646,6 +646,7 @@ func main() {
 	}
 	host, _ := os.Hostname()
 	z = z.With(zap.String("hostname", host), zap.String("version", version), zap.String("kubernetes_apiserver", os.Getenv("KUBERNETES_SERVICE_HOST")))
+	config.Logger = z.With(zap.String("module", "cns service"))
 	// Set the v2 logger to the global logger if v2 logger enabled.
 	if cnsconfig.EnableLoggerV2 {
 		logger.Printf("hotswapping logger v2") //nolint:staticcheck // ignore new deprecation
@@ -1020,9 +1021,9 @@ func main() {
 
 		var localServerURL string
 		if config.Server.Port != "" {
-			localServerURL = fmt.Sprintf(defaultLocalServerIP + ":" + config.Server.Port)
+			localServerURL = fmt.Sprintf("%s:%s", defaultLocalServerIP, config.Server.Port)
 		} else {
-			localServerURL = fmt.Sprintf(defaultLocalServerIP + ":" + defaultLocalServerPort)
+			localServerURL = fmt.Sprintf("%s:%s", defaultLocalServerIP, defaultLocalServerPort)
 		}
 
 		httpLocalRestService := restserverv2.New(httpRemoteRestService)
