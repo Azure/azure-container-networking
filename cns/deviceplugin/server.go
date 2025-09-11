@@ -95,8 +95,8 @@ func (s *Server) Allocate(_ context.Context, req *v1beta1.AllocateRequest) (*v1b
 		resp := &v1beta1.ContainerAllocateResponse{
 			Envs: make(map[string]string),
 		}
-		for j := range containerReq.DevicesIds {
-			resp.Envs[fmt.Sprintf("%s%d", devicePrefix, j)] = containerReq.DevicesIds[j]
+		for j, id := range containerReq.GetDevicesIds() {
+			resp.GetEnvs()[fmt.Sprintf("%s%d", devicePrefix, j)] = id
 		}
 		resps[i] = resp
 	}
