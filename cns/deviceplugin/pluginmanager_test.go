@@ -142,6 +142,7 @@ func TestPluginManagerStartStop(t *testing.T) {
 }
 
 type fakeKubelet struct {
+	v1beta1.UnimplementedDevicePluginServer
 	vnetPluginRegisterChan chan string
 	ibPluginRegisterChan   chan string
 	pluginPrefix           string
