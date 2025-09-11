@@ -137,7 +137,7 @@ func createNodeEvent(clientset KubeClient, nodeName, reason, message, eventType 
 	event := &corev1.Event{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s.%d", nodeName, now.Unix()),
-			Namespace: "default",
+			Namespace: "kube-system",
 		},
 		InvolvedObject: corev1.ObjectReference{
 			Kind:       "Node",
@@ -155,7 +155,7 @@ func createNodeEvent(clientset KubeClient, nodeName, reason, message, eventType 
 			Component: "azure-iptables-monitor",
 		},
 	}
-	_, err = clientset.CreateEvent(ctx, "default", event)
+	_, err = clientset.CreateEvent(ctx, "kube-system", event)
 	if err != nil {
 		return fmt.Errorf("failed to create event for node %s: %w", nodeName, err)
 	}
