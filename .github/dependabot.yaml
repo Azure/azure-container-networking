@@ -78,6 +78,10 @@ updates:
         versions: [">=0.35.0"]
       - dependency-name: "k8s.io/client-go"
         versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/kubelet"
+        versions: [">=0.35.0"]
+      - dependency-name: "k8s.io/kubectl"
+        versions: [">=0.35.0"]
 
   # /dropgz: grouped minor+patch + allow majors concurrently
   - package-ecosystem: "gomod"
