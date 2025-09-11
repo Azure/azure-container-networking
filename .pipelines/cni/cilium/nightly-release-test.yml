@@ -68,10 +68,17 @@ stages:
               fi
               BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
 
+              # Create fresh builder with clean cache to avoid systemcrypto conflicts
+              docker buildx rm cilium-builder || true
+              docker buildx create --name cilium-builder --use --bootstrap
+              
               # Set GOEXPERIMENT in build environment and pass as build arg
               DOCKER_FLAGS="$BUILD_ARGS --no-cache --build-arg GOEXPERIMENT=nosystemcrypto" \
               GOEXPERIMENT=nosystemcrypto \
               make $(type)
+              
+              # Clean up builder after build
+              docker buildx rm cilium-builder || true
             name: BuildCiliumImage
             displayName: "Build Cilium Image"
           - task: AzureCLI@2
