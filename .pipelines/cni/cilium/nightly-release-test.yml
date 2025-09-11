@@ -35,6 +35,10 @@ stages:
         steps:
           - bash: |
               set -ex
+              
+              # Clear Docker buildx cache to remove systemcrypto artifacts
+              docker buildx prune --all --force || true
+              
               cd .pipelines/
               git clone https://github.com/cilium/cilium.git
               cd cilium
@@ -64,7 +68,9 @@ stages:
               fi
               BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
 
-              DOCKER_FLAGS="$BUILD_ARGS --build-arg GOEXPERIMENT=nosystemcrypto" \
+              # Set GOEXPERIMENT in build environment and pass as build arg
+              DOCKER_FLAGS="$BUILD_ARGS --no-cache --build-arg GOEXPERIMENT=nosystemcrypto" \
+              GOEXPERIMENT=nosystemcrypto \
               make $(type)
             name: BuildCiliumImage
             displayName: "Build Cilium Image"
