@@ -49,7 +49,7 @@ stages:
               if ! [ -z $goImage ]; then
                 goTag=${goImage#*:}
                 goVersion=${goTag%@*}
-                goMCR=mcr.microsoft.com/oss/go/microsoft/golang:1.25.0
+                goMCR=mcr.microsoft.com/oss/go/microsoft/golang:1.25.0-1
                 echo "Golang MCR image: ${goMCR}"
                 GO_ARGS="--build-arg GOLANG_IMAGE=${goMCR} "
               fi
