@@ -10,6 +10,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -1914,6 +1915,38 @@ func TestGetVMUniqueIDFailed(t *testing.T) {
 	err = json.NewDecoder(w.Body).Decode(&vmIDResp)
 	require.NoError(t, err)
 	assert.Equal(t, types.UnexpectedError, vmIDResp.Response.ReturnCode)
+}
+
+func TestIBDevices(t *testing.T) {
+	var (
+		err          error
+		req          *http.Request
+		ibDevicesReq cns.AssignIBDevicesToPodRequest
+		body         bytes.Buffer
+	)
+
+	ibDevicesReq.PodName = "testpod"
+	ibDevicesReq.PodNamespace = "testpodnamespace"
+	ibDevicesReq.IBMACAddresses = []net.HardwareAddr{
+		{0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E},
+		{0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01},
+	}
+
+	json.NewEncoder(&body).Encode(ibDevicesReq)
+	req, err = http.NewRequest(http.MethodPost, cns.IBDevicesPath, &body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	var ibDevicesResponse cns.AssignIBDevicesToPodResponse
+
+	if err = decodeResponse(w, &ibDevicesResponse); err != nil {
+		t.Errorf("AssignIBDevicesToPod failed with response %+v and error %v", ibDevicesResponse, err)
+	}
+
+	fmt.Printf("Raw response: %+v", w.Body)
 }
 
 // IGNORE TEST AS IT IS FAILING. TODO:- Fix it https://msazure.visualstudio.com/One/_workitems/edit/7720083
