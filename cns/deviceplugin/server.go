@@ -20,6 +20,7 @@ type deviceCounter interface {
 }
 
 type Server struct {
+	v1beta1.UnimplementedDevicePluginServer
 	address             string
 	logger              *zap.Logger
 	deviceCounter       deviceCounter
