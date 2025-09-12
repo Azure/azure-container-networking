@@ -58,13 +58,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 )
 
@@ -1297,44 +1294,6 @@ func getPodInfoByIPProvider(
 		}
 	}
 	return podInfoByIPProvider, nil
-}
-
-// createOrUpdateNodeInfoCRD polls imds to learn the VM Unique ID and then creates or updates the NodeInfo CRD
-// with that vm unique ID
-func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, node *corev1.Node) error {
-	imdsCli := imds.NewClient()
-	vmUniqueID, err := imdsCli.GetVMUniqueID(ctx)
-	if err != nil {
-		return errors.Wrap(err, "error getting vm unique ID from imds")
-	}
-
-	directcli, err := client.New(restConfig, client.Options{Scheme: multitenancy.Scheme})
-	if err != nil {
-		return errors.Wrap(err, "failed to create ctrl client")
-	}
-
-	nodeInfoCli := multitenancy.NodeInfoClient{
-		Cli: directcli,
-	}
-
-	nodeInfo := &mtv1alpha1.NodeInfo{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: node.Name,
-		},
-		Spec: mtv1alpha1.NodeInfoSpec{
-			VMUniqueID: vmUniqueID,
-		},
-	}
-
-	if err := controllerutil.SetOwnerReference(node, nodeInfo, multitenancy.Scheme); err != nil {
-		return errors.Wrap(err, "failed to set nodeinfo owner reference to node")
-	}
-
-	if err := nodeInfoCli.CreateOrUpdate(ctx, nodeInfo, "azure-cns"); err != nil {
-		return errors.Wrap(err, "error ensuring nodeinfo CRD exists and is up-to-date")
-	}
-
-	return nil
 }
 
 // PopulateCNSEndpointState initilizes CNS Endpoint State by Migrating the CNI state.
