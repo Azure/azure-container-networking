@@ -49,7 +49,6 @@ import (
 	restserverv2 "github.com/Azure/azure-container-networking/cns/restserver/v2"
 	cnipodprovider "github.com/Azure/azure-container-networking/cns/stateprovider/cni"
 	cnspodprovider "github.com/Azure/azure-container-networking/cns/stateprovider/cns"
-	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd"
@@ -116,16 +115,6 @@ const (
 	defaultDevicePluginMaxRetryCount = 5
 	initialVnetNICCount              = 0
 	initialIBNICCount                = 0
-)
-
-type cniConflistScenario string
-
-const (
-	scenarioV4Overlay        cniConflistScenario = "v4overlay"
-	scenarioDualStackOverlay cniConflistScenario = "dualStackOverlay"
-	scenarioOverlay          cniConflistScenario = "overlay"
-	scenarioCilium           cniConflistScenario = "cilium"
-	scenarioSWIFT            cniConflistScenario = "swift"
 )
 
 var (
@@ -1300,14 +1289,6 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 	}()
 
 	return nil
-}
-
-type nodeNetworkConfigGetter interface {
-	Get(context.Context) (*v1alpha.NodeNetworkConfig, error)
-}
-
-type ipamStateReconciler interface {
-	ReconcileIPAMStateForSwift(ncRequests []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) cnstypes.ResponseCode
 }
 
 // TODO(rbtr) where should this live??
