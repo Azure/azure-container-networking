@@ -1313,12 +1313,16 @@ func updateIPInfoMap(iPInfo map[string]*IPInfo, interfaceInfo *IPInfo, ifName, e
 		iPInfo[ifName].MacAddress = interfaceInfo.MacAddress
 		logger.Printf("[updateEndpoint] update the endpoint %s with MacAddress  %s", endpointID, interfaceInfo.MacAddress)
 	}
+	if interfaceInfo.NetworkNameSpace != "" {
+		iPInfo[ifName].NetworkNameSpace = interfaceInfo.NetworkNameSpace
+		logger.Printf("[updateEndpoint] update the endpoint %s with NetworkNameSpace  %s", endpointID, interfaceInfo.NetworkNameSpace)
+	}
 }
 
 // verifyUpdateEndpointStateRequest verify the CNI request body for the UpdateENdpointState API
 func verifyUpdateEndpointStateRequest(req map[string]*IPInfo) error {
 	for ifName, InterfaceInfo := range req {
-		if InterfaceInfo.HostVethName == "" && InterfaceInfo.HnsEndpointID == "" && InterfaceInfo.NICType == "" && InterfaceInfo.MacAddress == "" {
+		if InterfaceInfo.HostVethName == "" && InterfaceInfo.HnsEndpointID == "" && InterfaceInfo.NICType == "" && InterfaceInfo.MacAddress == "" && InterfaceInfo.NetworkNameSpace == "" {
 			return errors.New("[updateEndpoint] No NicType, MacAddress, HnsEndpointID or HostVethName has been provided")
 		}
 		if ifName == "" {

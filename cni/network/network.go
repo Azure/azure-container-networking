@@ -716,7 +716,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		*opt.infraSeen = true
 	} else {
 		ifName = "eth" + strconv.Itoa(opt.endpointIndex)
-		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, ifName)
+		endpointID = plugin.nm.GetEndpointIDByNicType(opt.args.ContainerID, ifName, opt.ifInfo.NICType)
 	}
 
 	endpointInfo := network.EndpointInfo{
