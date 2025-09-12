@@ -1691,13 +1691,25 @@ func getPodInfoByIPProvider(
 	return podInfoByIPProvider, nil
 }
 
-// createOrUpdateNodeInfoCRD polls imds to learn the VM Unique ID and then creates or updates the NodeInfo CRD
-// with that vm unique ID
+// createOrUpdateNodeInfoCRD polls IMDS to learn the VM Unique ID and CNS to get the HomeAZ,
+// then creates or updates the NodeInfo CRD with that information
 func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, node *corev1.Node) error {
 	imdsCli := imds.NewClient()
 	vmUniqueID, err := imdsCli.GetVMUniqueID(ctx)
 	if err != nil {
 		return errors.Wrap(err, "error getting vm unique ID from imds")
+	}
+
+	cnsClient, err := cnsclient.New("", cnsReqTimeout)
+	if err != nil {
+		return errors.Wrap(err, "error creating CNS client")
+	}
+	homeAzResponse, err := cnsClient.GetHomeAz(ctx)
+	var homeAZ string
+	if err == nil && homeAzResponse.Response.ReturnCode == cnstypes.Success && homeAzResponse.HomeAzResponse.IsSupported {
+		homeAZ = fmt.Sprintf("AZ%02d", homeAzResponse.HomeAzResponse.HomeAz)
+	} else {
+		return errors.Wrap(err, "error getting home AZ from CNS")
 	}
 
 	directcli, err := client.New(restConfig, client.Options{Scheme: multitenancy.Scheme})
@@ -1715,6 +1727,7 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 		},
 		Spec: mtv1alpha1.NodeInfoSpec{
 			VMUniqueID: vmUniqueID,
+			HomeAZ:     homeAZ,
 		},
 	}
 
