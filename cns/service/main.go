@@ -42,7 +42,6 @@ import (
 	cnspodprovider "github.com/Azure/azure-container-networking/cns/stateprovider/cns"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/crd/multitenancy"
 	mtv1alpha1 "github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	acnfs "github.com/Azure/azure-container-networking/internal/fs"
 	"github.com/Azure/azure-container-networking/log"
@@ -53,13 +52,9 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/avast/retry-go/v4"
-	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 )
 
@@ -1096,91 +1091,6 @@ func main() {
 
 	logger.Printf("CNS exited")
 	logger.Close()
-}
-
-// Poll CRD until it's set and update PluginManager
-func pollNodeInfoCRDAndUpdatePlugin(ctx context.Context, zlog *zap.Logger, pluginManager *deviceplugin.PluginManager) error {
-	kubeConfig, err := ctrl.GetConfig()
-	if err != nil {
-		logger.Errorf("Failed to get kubeconfig for request controller: %v", err)
-		return errors.Wrap(err, "failed to get kubeconfig")
-	}
-	kubeConfig.UserAgent = "azure-cns-" + version
-
-	clientset, err := kubernetes.NewForConfig(kubeConfig)
-	if err != nil {
-		return errors.Wrap(err, "failed to build clientset")
-	}
-
-	nodeName, err := configuration.NodeName()
-	if err != nil {
-		return errors.Wrap(err, "failed to get NodeName")
-	}
-
-	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
-	if err != nil {
-		return errors.Wrapf(err, "failed to get node %s", nodeName)
-	}
-
-	// check the Node labels for Swift V2
-	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; !ok {
-		zlog.Info("Node is not labeled for Swift V2, skipping polling nodeinfo crd")
-		return nil
-	}
-
-	directcli, err := client.New(kubeConfig, client.Options{Scheme: multitenancy.Scheme})
-	if err != nil {
-		return errors.Wrap(err, "failed to create ctrl client")
-	}
-
-	nodeInfoCli := multitenancy.NodeInfoClient{
-		Cli: directcli,
-	}
-
-	ticker := time.NewTicker(defaultNodeInfoCRDPollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			zlog.Info("Polling context canceled, exiting")
-			return nil
-		case <-ticker.C:
-			// Fetch the CRD status
-			nodeInfo, err := nodeInfoCli.Get(ctx, node.Name)
-			if err != nil {
-				zlog.Error("Error fetching nodeinfo CRD", zap.Error(err))
-				return errors.Wrap(err, "failed to get nodeinfo crd")
-			}
-
-			// Check if the status is set
-			if !cmp.Equal(nodeInfo.Status, mtv1alpha1.NodeInfoStatus{}) && len(nodeInfo.Status.DeviceInfos) > 0 {
-				// Create a map to count devices by type
-				deviceCounts := map[mtv1alpha1.DeviceType]int{
-					mtv1alpha1.DeviceTypeVnetNIC:       0,
-					mtv1alpha1.DeviceTypeInfiniBandNIC: 0,
-				}
-
-				// Aggregate device counts from the CRD
-				for _, deviceInfo := range nodeInfo.Status.DeviceInfos {
-					switch deviceInfo.DeviceType {
-					case mtv1alpha1.DeviceTypeVnetNIC, mtv1alpha1.DeviceTypeInfiniBandNIC:
-						deviceCounts[deviceInfo.DeviceType]++
-					default:
-						zlog.Error("Unknown device type", zap.String("deviceType", string(deviceInfo.DeviceType)))
-					}
-				}
-
-				// Update the plugin manager with device counts
-				for deviceType, count := range deviceCounts {
-					pluginManager.TrackDevices(deviceType, count)
-				}
-
-				// Exit polling loop once the CRD status is successfully processed
-				return nil
-			}
-		}
-	}
 }
 
 // getPodInfoByIPProvider returns a PodInfoByIPProvider that reads endpoint state from the configured source
