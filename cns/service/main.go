@@ -98,9 +98,6 @@ var (
 	rootErrCh chan error
 )
 
-// Version is populated by make during build.
-var version string
-
 // endpointStorePath is used to create the path for EdnpointState file.
 var endpointStorePath string
 
@@ -343,12 +340,6 @@ func init() {
 		}
 		cancel()
 	}()
-}
-
-// Prints description and version information.
-func printVersion() {
-	fmt.Printf("Azure Container Network Service\n")
-	fmt.Printf("Version %v\n", version)
 }
 
 // NodeInterrogator is functionality necessary to read information about nodes.
