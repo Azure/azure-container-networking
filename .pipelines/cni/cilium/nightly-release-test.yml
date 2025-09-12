@@ -47,8 +47,8 @@ stages:
               fi
 
               # Override current images used within dockerfiles
-              goImage=`cat ./images/$(directory)/Dockerfile | grep "ARG GOLANG_IMAGE" | awk '{print $2}'`
-              alpineImage=`cat ./images/$(directory)/Dockerfile | grep "ARG ALPINE_IMAGE" | awk '{print $2}'`
+              goImage=`cat ./images/operator/Dockerfile | grep "ARG GOLANG_IMAGE" | awk '{print $2}'`
+              alpineImage=`cat ./images/operator/Dockerfile | grep "ARG ALPINE_IMAGE" | awk '{print $2}'`
 
               if ! [ -z $goImage ]; then
                 goTag=${goImage#*:}
@@ -72,9 +72,10 @@ stages:
               docker buildx rm cilium-builder || true
               docker buildx create --name cilium-builder --use --bootstrap
               
-              # Set GOEXPERIMENT in build environment and pass as build arg
-              DOCKER_FLAGS="$BUILD_ARGS --no-cache --build-arg GOEXPERIMENT=nosystemcrypto" \
+              # Set GOEXPERIMENT and CGO_ENABLED in build environment and pass as build args
+              DOCKER_FLAGS="$BUILD_ARGS --no-cache --build-arg GOEXPERIMENT=nosystemcrypto --build-arg CGO_ENABLED=1" \
               GOEXPERIMENT=nosystemcrypto \
+              CGO_ENABLED=1 \
               make $(type)
               
               # Clean up builder after build
