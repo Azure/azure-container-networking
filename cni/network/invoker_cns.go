@@ -192,6 +192,11 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			if err := addBackendNICToResult(&info, &addResult, key); err != nil {
 				return IPAMAddResult{}, err
 			}
+		case cns.ApipaNIC:
+			if err := configureApipaAddResult(&info, &addResult, &response.PodIPInfo[i].PodIPConfig, key); err != nil {
+				return IPAMAddResult{}, err
+			}
+
 		case cns.InfraNIC, "":
 			// if we change from legacy cns, the nicType will be empty, so we assume it is infra nic
 			info.nicType = cns.InfraNIC
@@ -503,6 +508,29 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 		NICType:           info.nicType,
 		MacAddress:        macAddress,
 		SkipDefaultRoutes: info.skipDefaultRoutes,
+	}
+
+	return nil
+}
+
+func configureApipaAddResult(info *IPResultInfo, addResult *IPAMAddResult, podIPConfig *cns.IPSubnet, key string) error {
+	ip, ipnet, err := podIPConfig.GetIPNet()
+	if ip == nil {
+		return errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
+	}
+
+	addResult.interfaceInfo[key] = network.InterfaceInfo{
+		IPConfigs: []*network.IPConfig{
+			{
+				Address: net.IPNet{
+					IP:   ip,
+					Mask: ipnet.Mask,
+				},
+				Gateway: net.ParseIP(info.ncGatewayIPAddress),
+			},
+		},
+		NICType:           info.nicType,
+		SkipDefaultRoutes: true,
 	}
 
 	return nil
