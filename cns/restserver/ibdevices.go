@@ -2,31 +2,33 @@ package restserver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"sort"
+
+	"github.com/pkg/errors"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
+	"github.com/Azure/azure-container-networking/crd/multitenancy"
+	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 const (
 	// NUMALabel is the label key used to indicate if a pod requires NUMA-aware IB device assignment
 	NUMALabel          = "numa-aware-ib-device-assignment"
 	PodNetworkInstance = "pod-network-instance"
+	PNILabel           = "kubernetes.azure.com/pod-network-instance"
+	fieldOwner         = "requestcontroller"
 )
 
 // assignIBDevicesToPod handles POST requests to assign IB devices to a pod
@@ -34,6 +36,8 @@ func (service *HTTPRestService) assignIBDevicesToPod(w http.ResponseWriter, r *h
 	opName := "assignIBDevicesToPod"
 	var req cns.AssignIBDevicesToPodRequest
 	var response cns.AssignIBDevicesToPodResponse
+	ctx := context.Background()
+	pod := &v1.Pod{}
 
 	// Decode the request
 	err := common.Decode(w, r, &req)
@@ -51,13 +55,14 @@ func (service *HTTPRestService) assignIBDevicesToPod(w http.ResponseWriter, r *h
 		return
 	}
 
-	// Client-go/context stuff
-	ctx := context.Background()
-	cli := kubernetes.MustGetClientset()
+	// Format the pod name and namespace into a k8s 'namespaced name'
+	podNamespacedName := k8stypes.NamespacedName{
+		Namespace: req.PodNamespace,
+		Name:      req.PodName,
+	}
 
-	// Get pod
-	pod, err := getPod(ctx, cli, req.PodName, req.PodNamespace)
-	if err != nil {
+	// Get the pod
+	if err := service.Client.Get(ctx, podNamespacedName, pod); err != nil {
 		response.Message = fmt.Sprintf("Failed to get pod %s/%s: %v", req.PodNamespace, req.PodName, err)
 		respond(opName, w, http.StatusInternalServerError, types.UnexpectedError, response)
 		return
@@ -71,7 +76,7 @@ func (service *HTTPRestService) assignIBDevicesToPod(w http.ResponseWriter, r *h
 		return
 	}
 
-	// Check if the devices are unprogrammed
+	// Check if the requested IB devices are unprogrammed
 	for _, ibMAC := range req.IBMACAddresses {
 		if !IBDeviceIsUnprogrammed(ibMAC) {
 			response.Message = fmt.Sprintf("IB device with MAC address %s is not unprogrammed", ibMAC)
@@ -80,8 +85,12 @@ func (service *HTTPRestService) assignIBDevicesToPod(w http.ResponseWriter, r *h
 		}
 	}
 
-	// TODO: Create MTPNC with IB devices in spec
-	createMTPNC(pod, req.IBMACAddresses)
+	// Create MTPNC with IB devices in spec
+	if err = service.createMTPNC(ctx, pod, req.IBMACAddresses); err != nil {
+		response.Message = fmt.Sprintf("Failed to create MTPNC for pod %s/%s: %v", req.PodNamespace, req.PodName, err)
+		respond(opName, w, http.StatusInternalServerError, types.UnexpectedError, response)
+		return
+	}
 
 	// Report back a successful assignment
 	response.Message = fmt.Sprintf("Successfully assigned %d IB devices to pod %s/%s",
@@ -141,50 +150,101 @@ func IBDeviceIsUnprogrammed(ibMAC net.HardwareAddr) bool {
 	return true
 }
 
-func createMTPNC(pod *v1.Pod, ibMACs []net.HardwareAddr) error {
-	// Create in-cluster REST config since this code runs in a pod on a Kubernetes cluster
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		logger.Printf("Failed to create in-cluster config: %v", err)
-		return err
+func (service *HTTPRestService) createMTPNC(ctx context.Context, pod *v1.Pod, ibMACs []net.HardwareAddr) error {
+	// create the MTPNC for the pod
+	mtpnc := &v1alpha1.MultitenantPodNetworkConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pod.Name,
+			Namespace: pod.Namespace,
+		},
+		Spec: v1alpha1.MultitenantPodNetworkConfigSpec{
+			PodNetworkInstance: pod.Labels[PNILabel],
+		},
 	}
 
-	dynamicClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return err
+	if err := controllerutil.SetControllerReference(pod, mtpnc, multitenancy.Scheme); err != nil {
+		return errors.Wrap(err, "unable to set controller reference for mtpnc")
 	}
 
-	mtpnc := &unstructured.Unstructured{}
-	mtpnc.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "multitenancy.your.domain", // replace with your CRD's group
-		Version: "v1alpha1",
-		Kind:    "MultitenantPodNetworkConfig",
+	if createErr := service.Client.Create(ctx, mtpnc); createErr != nil {
+		// return any creation error except IsAlreadyExists
+		if !apierrors.IsAlreadyExists(createErr) {
+			return errors.Wrap(createErr, "error creating mtpnc")
+		}
+
+		existingMTPNC := &v1alpha1.MultitenantPodNetworkConfig{}
+		if getErr := service.Client.Get(ctx, k8stypes.NamespacedName{Name: mtpnc.Name, Namespace: mtpnc.Namespace}, existingMTPNC); getErr != nil {
+			return errors.Wrap(getErr, "mtpnc already exists, but got error while reading it from apiserver")
+		}
+
+		// If the ownership or spec is wrong, try to patch it. We can't really support updates because once the MTPNC has an IP, we don't
+		// take it away, but it's possible that the customer created a MTPNC manually and we don't want to get stuck if they did, so
+		// we'll just make a best effort to keep the MTPNC up-to-date with the Pod.
+		if patch, patchRequired := determineMTPNCUpdate(existingMTPNC, mtpnc); patchRequired {
+			if patchErr := service.Client.Patch(ctx, patch, client.Apply, client.ForceOwnership, client.FieldOwner(fieldOwner)); patchErr != nil {
+				return errors.Wrap(patchErr, "mtpnc requires an update but got error while patching")
+			}
+			service.Logger.Info(fmt.Sprintf("Patched existing MTPNC %s/%s to match desired state", mtpnc.Namespace, mtpnc.Name))
+		}
+	}
+	return nil
+}
+
+// determineMTPNCUpdate compares the ownership references and specs of the two MTPNC objects and returns a MTPNC for patching to the
+// desired state and true. If no update is required, this will return nil and false
+func determineMTPNCUpdate(existing, desired *v1alpha1.MultitenantPodNetworkConfig) (*v1alpha1.MultitenantPodNetworkConfig, bool) {
+	patchRequired := false
+	patchSkel := &v1alpha1.MultitenantPodNetworkConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      existing.Name,
+			Namespace: existing.Namespace,
+		},
+	}
+
+	if !ownerReferencesEqual(existing.OwnerReferences, desired.OwnerReferences) {
+		patchRequired = true
+		patchSkel.OwnerReferences = desired.OwnerReferences
+	}
+
+	if patchRequired {
+		return patchSkel, true
+	}
+
+	return nil, false
+}
+
+func ownerReferencesEqual(o1, o2 []metav1.OwnerReference) bool {
+	if len(o1) != len(o2) {
+		return false
+	}
+
+	// sort the slices by UID
+	sort.Slice(o1, func(i, j int) bool {
+		return o1[i].UID < o1[j].UID
 	})
-	mtpnc.SetName(pod.Name)
-	mtpnc.SetNamespace(pod.Namespace)
-	mtpnc.Object["spec"] = map[string]interface{}{
-		"podNetworkInstance": pod.Labels["podnetworkinstance"], // adjust key as needed
+	sort.Slice(o2, func(i, j int) bool {
+		return o2[i].UID < o2[j].UID
+	})
+
+	// compare each owner ref
+	equal := true
+	for i := range o1 {
+		equal = equal &&
+			o1[i].Kind == o2[i].Kind &&
+			o1[i].Name == o2[i].Name &&
+			o1[i].UID == o2[i].UID &&
+			o1[i].APIVersion == o2[i].APIVersion &&
+			boolPtrsEqual(o1[i].Controller, o2[i].Controller) &&
+			boolPtrsEqual(o1[i].BlockOwnerDeletion, o2[i].BlockOwnerDeletion)
 	}
 
-	// Set owner reference
-	ownerRef := metav1.OwnerReference{
-		APIVersion:         "v1", // or your CRD's API version
-		Kind:               "Pod",
-		Name:               pod.Name,
-		UID:                pod.UID,
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
-	}
-	mtpnc.SetOwnerReferences([]metav1.OwnerReference{ownerRef})
+	return equal
+}
 
-	// Create mtpnc using dynamic client
-	gvr := schema.GroupVersionResource{
-		Group:    "multitenancy.your.domain", // replace with your CRD's group
-		Version:  "v1alpha1",
-		Resource: "multitenantpodnetworkconfigs", // plural name of your CRD
+func boolPtrsEqual(b1, b2 *bool) bool {
+	if b1 == nil || b2 == nil {
+		return b1 == b2
 	}
 
-	if _, err := dynamicClient.Resource(gvr).Namespace(mtpnc.GetNamespace()).Create(context.TODO(), mtpnc, metav1.CreateOptions{}); err != nil {
-		// handle error
-	}
+	return *b1 == *b2
 }
