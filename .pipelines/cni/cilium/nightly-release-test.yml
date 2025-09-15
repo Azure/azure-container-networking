@@ -80,7 +80,7 @@ stages:
               echo "Patching Dockerfile: $DOCKERFILE_PATH"
               
               # Insert after the GOLANG_IMAGE ARG line
-              sed -i '/^ARG GOLANG_IMAGE/r dockerfile.patch' "$DOCKERFILE_PATH"
+              sed -i '/^ARG ALPINE_IMAGE/a ARG GOEXPERIMENT=nosystemcrypto\nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
               
               echo "Modified Dockerfile contents (first 30 lines):"
               head -30 "$DOCKERFILE_PATH"
