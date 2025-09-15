@@ -24,8 +24,8 @@ const (
 )
 
 var (
-	errMTPNCNotReady            = errors.New(kubelet.NetworkNotReadyErrorMsg + " - mtpnc is not ready")
-	errGetMTPNC                 = errors.New(kubelet.NetworkNotReadyErrorMsg + " - failed to get MTPNC")
+	errMTPNCNotReady            = errors.New(NetworkNotReadyErrorMsg + " - mtpnc is not ready")
+	errGetMTPNC                 = errors.New(NetworkNotReadyErrorMsg + " - failed to get MTPNC")
 	errInvalidSWIFTv2NICType    = errors.New("invalid NIC type for SWIFT v2 scenario")
 	errInvalidMTPNCPrefixLength = errors.New("invalid prefix length for MTPNC primaryIP, must be 32")
 )
