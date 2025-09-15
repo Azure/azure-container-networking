@@ -12,8 +12,15 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubernetes/pkg/kubelet"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	prefixLength            = 32
+	overlayGatewayv4        = "169.254.1.1"
+	virtualGW               = "169.254.2.1"
+	overlayGatewayV6        = "fe80::1234:5678:9abc"
+	NetworkNotReadyErrorMsg = "network is not ready"
 )
 
 var (
@@ -21,13 +28,6 @@ var (
 	errGetMTPNC                 = errors.New(kubelet.NetworkNotReadyErrorMsg + " - failed to get MTPNC")
 	errInvalidSWIFTv2NICType    = errors.New("invalid NIC type for SWIFT v2 scenario")
 	errInvalidMTPNCPrefixLength = errors.New("invalid prefix length for MTPNC primaryIP, must be 32")
-)
-
-const (
-	prefixLength     = 32
-	overlayGatewayv4 = "169.254.1.1"
-	virtualGW        = "169.254.2.1"
-	overlayGatewayV6 = "fe80::1234:5678:9abc"
 )
 
 type K8sSWIFTv2Middleware struct {
