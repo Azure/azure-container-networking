@@ -19,6 +19,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+type clientWithApply struct{ *mockclients.MockClient }
+
+// Satisfy controller-runtime v0.22.1 Writer.Apply:
+func (c clientWithApply) Apply(ctx context.Context, ac runtime.ApplyConfiguration, opts ...ctrlclient.ApplyOption) error {
+    return nil // not used in these tests
+}
+
+
 var _ = Describe("multiTenantCrdReconciler", func() {
 	var kubeClient *mockclients.MockClient
 	var cnsRestService *mockclients.MockcnsRESTservice
@@ -43,7 +51,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 		cnsRestService = mockclients.NewMockcnsRESTservice(mockCtl)
 		statusWriter = mockclients.NewMockSubResourceWriter(mockCtl)
 		reconciler = &multiTenantCrdReconciler{
-			KubeClient:     kubeClient,
+			KubeClient:     clientWithApply{kubeClient},
 			NodeName:       mockNodeName,
 			CNSRestService: cnsRestService,
 		}
