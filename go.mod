@@ -28,7 +28,7 @@ require (
 	github.com/onsi/gomega v1.37.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/client_golang v1.23.2
+	github.com/prometheus/client_golang v1.23.0
 	github.com/prometheus/client_model v0.6.2
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/pflag v1.0.10
@@ -63,7 +63,7 @@ require (
 	github.com/evanphx/json-patch v5.7.0+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-logr/logr v1.4.3 // indirect
-	github.com/go-openapi/jsonpointer v0.22.0 // indirect
+	github.com/go-openapi/jsonpointer v0.20.2 // indirect
 	github.com/go-openapi/jsonreference v0.20.4 // indirect
 	github.com/go-openapi/swag v0.22.7 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
@@ -78,7 +78,7 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/labstack/gommon v0.4.2 // indirect
-	github.com/mailru/easyjson v0.9.0 // indirect
+	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -169,7 +169,6 @@ require (
 	github.com/go-openapi/runtime v0.26.2 // indirect
 	github.com/go-openapi/spec v0.20.11 // indirect
 	github.com/go-openapi/strfmt v0.21.9 // indirect
-	github.com/go-openapi/swag/jsonname v0.24.0 // indirect
 	github.com/go-openapi/validate v0.22.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
