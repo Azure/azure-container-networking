@@ -79,11 +79,11 @@ stages:
               DOCKERFILE_PATH="./images/$(directory)/Dockerfile"
               echo "Patching Dockerfile: $DOCKERFILE_PATH"
               
-              # Add ARG after ALPINE_IMAGE
+              # Add ARG after ALPINE_IMAGE at the top level
               sed -i '/^ARG ALPINE_IMAGE/a ARG GOEXPERIMENT=nosystemcrypto' "$DOCKERFILE_PATH"
               
-              # Add ENV statements after the first FROM instruction
-              sed -i '/^FROM.*builder/a ENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
+              # Add ARG and ENV statements after the first FROM instruction (inside the build stage)
+              sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=nosystemcrypto\nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
               
               echo "Modified Dockerfile contents (first 40 lines):"
               head -40 "$DOCKERFILE_PATH"
