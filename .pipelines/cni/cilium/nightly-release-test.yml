@@ -66,16 +66,9 @@ stages:
                 echo "alpine MCR image: ${alpineACR}"
                 ALPINE_ARGS="--build-arg ALPINE_IMAGE=${alpineACR} "
               fi
-              BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
 
-              if [ $(type) = "docker-operator-generic-image" ]; then
-                
-                # Create patch for Dockerfile to add GOEXPERIMENT support
-                cat > dockerfile.patch << 'EOF'
-                ARG GOEXPERIMENT=nosystemcrypto
-                ENV GOEXPERIMENT=${GOEXPERIMENT}
-                ENV CGO_ENABLED=1
-                EOF
+              if [ "$(type)" = "docker-operator-generic-image" ]; then
+                echo "Applying GOEXPERIMENT patch for operator build"
                 
                 # Apply patch to Dockerfile  
                 DOCKERFILE_PATH="./images/$(directory)/Dockerfile"
@@ -98,10 +91,7 @@ stages:
               docker buildx rm cilium-builder || true
               docker buildx create --name cilium-builder --use --bootstrap
               
-              # Set GOEXPERIMENT and CGO_ENABLED in build environment and pass as build args
-              DOCKER_FLAGS="$BUILD_ARGS --no-cache --build-arg GOEXPERIMENT=nosystemcrypto --build-arg CGO_ENABLED=1" \
-              GOEXPERIMENT=nosystemcrypto \
-              CGO_ENABLED=1 \
+              BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
               make $(type)
               
               # Clean up builder after build
