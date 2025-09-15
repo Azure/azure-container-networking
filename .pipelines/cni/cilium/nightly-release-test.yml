@@ -47,8 +47,8 @@ stages:
               fi
 
               # Override current images used within dockerfiles
-              goImage=`cat ./images/operator/Dockerfile | grep "ARG GOLANG_IMAGE" | awk '{print $2}'`
-              alpineImage=`cat ./images/operator/Dockerfile | grep "ARG ALPINE_IMAGE" | awk '{print $2}'`
+              goImage=`cat ./images/$(directory)/Dockerfile | grep "ARG GOLANG_IMAGE" | awk '{print $2}'`
+              alpineImage=`cat ./images/$(directory)/Dockerfile | grep "ARG ALPINE_IMAGE" | awk '{print $2}'`
 
               if ! [ -z $goImage ]; then
                 goTag=${goImage#*:}
@@ -67,6 +67,23 @@ stages:
                 ALPINE_ARGS="--build-arg ALPINE_IMAGE=${alpineACR} "
               fi
               BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
+
+              # Create patch for Dockerfile to add GOEXPERIMENT support
+              cat > dockerfile.patch << 'EOF'
+              ARG GOEXPERIMENT=nosystemcrypto
+              ENV GOEXPERIMENT=${GOEXPERIMENT}
+              ENV CGO_ENABLED=1
+              EOF
+              
+              # Apply patch to Dockerfile
+              DOCKERFILE_PATH="./images/$(directory)/Dockerfile"
+              echo "Patching Dockerfile: $DOCKERFILE_PATH"
+              
+              # Insert after the GOLANG_IMAGE ARG line
+              sed -i '/^ARG GOLANG_IMAGE/r dockerfile.patch' "$DOCKERFILE_PATH"
+              
+              echo "Modified Dockerfile contents (first 30 lines):"
+              head -30 "$DOCKERFILE_PATH"
 
               # Create fresh builder with clean cache to avoid systemcrypto conflicts
               docker buildx rm cilium-builder || true
