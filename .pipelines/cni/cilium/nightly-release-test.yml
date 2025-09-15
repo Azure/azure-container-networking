@@ -75,15 +75,18 @@ stages:
               ENV CGO_ENABLED=1
               EOF
               
-              # Apply patch to Dockerfile
+              # Apply patch to Dockerfile  
               DOCKERFILE_PATH="./images/$(directory)/Dockerfile"
               echo "Patching Dockerfile: $DOCKERFILE_PATH"
               
-              # Insert after the GOLANG_IMAGE ARG line
-              sed -i '/^ARG ALPINE_IMAGE/a ARG GOEXPERIMENT=nosystemcrypto\nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
+              # Add ARG after ALPINE_IMAGE
+              sed -i '/^ARG ALPINE_IMAGE/a ARG GOEXPERIMENT=nosystemcrypto' "$DOCKERFILE_PATH"
               
-              echo "Modified Dockerfile contents (first 30 lines):"
-              head -30 "$DOCKERFILE_PATH"
+              # Add ENV statements after the first FROM instruction
+              sed -i '/^FROM.*builder/a ENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
+              
+              echo "Modified Dockerfile contents (first 40 lines):"
+              head -40 "$DOCKERFILE_PATH"
 
               # Create fresh builder with clean cache to avoid systemcrypto conflicts
               docker buildx rm cilium-builder || true
