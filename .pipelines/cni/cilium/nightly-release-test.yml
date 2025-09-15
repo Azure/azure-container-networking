@@ -80,11 +80,11 @@ stages:
                 # Remove the problematic cache mount for /go/pkg to avoid systemcrypto conflicts
                 sed -i 's/--mount=type=cache,target=\/go\/pkg[[:space:]]*//g' "$DOCKERFILE_PATH"
                 
-                # Add step to clean Go installation and force rebuild of standard library
-                sed -i '/ENV CGO_ENABLED=1/a RUN go clean -cache && go clean -modcache' "$DOCKERFILE_PATH"
+                # Replace go clean with rebuilding standard library with nosystemcrypto
+                sed -i '/ENV CGO_ENABLED=1/a RUN GOEXPERIMENT=nosystemcrypto go install -a std' "$DOCKERFILE_PATH"
                 
-                echo "Modified Dockerfile contents (first 40 lines):"
-                head -40 "$DOCKERFILE_PATH"
+                echo "Modified Dockerfile contents (first 50 lines):"
+                head -50 "$DOCKERFILE_PATH"
               fi
 
               # Create fresh builder with clean cache to avoid systemcrypto conflicts
