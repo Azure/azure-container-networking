@@ -85,6 +85,9 @@ stages:
               # Add ARG and ENV statements after the first FROM instruction (inside the build stage)
               sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=nosystemcrypto\nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
               
+              # Remove the problematic cache mount for /go/pkg to avoid systemcrypto conflicts
+              sed -i 's/--mount=type=cache,target=\/go\/pkg[[:space:]]*//g' "$DOCKERFILE_PATH"
+              
               echo "Modified Dockerfile contents (first 40 lines):"
               head -40 "$DOCKERFILE_PATH"
 
