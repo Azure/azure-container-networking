@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	NetworkNotReadyErrorMsg 	= "network is not ready"
+	NetworkNotReadyErrorMsg = "network is not ready"
 )
 
 var errorSecondaryEndpointClient = errors.New("SecondaryEndpointClient Error")
