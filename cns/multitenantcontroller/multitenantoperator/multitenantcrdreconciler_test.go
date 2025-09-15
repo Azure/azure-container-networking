@@ -14,8 +14,8 @@ import (
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -23,10 +23,9 @@ import (
 type clientWithApply struct{ *mockclients.MockClient }
 
 // Satisfy controller-runtime v0.22.1 Writer.Apply:
-func (c clientWithApply) Apply(ctx context.Context, ac runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
-    return nil // not used in these tests
+func (c clientWithApply) Apply(_ context.Context, _ runtime.ApplyConfiguration, _ ...client.ApplyOption) error {
+	return nil // not used in these tests
 }
-
 
 var _ = Describe("multiTenantCrdReconciler", func() {
 	var kubeClient *mockclients.MockClient
