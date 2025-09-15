@@ -68,28 +68,31 @@ stages:
               fi
               BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
 
-              # Create patch for Dockerfile to add GOEXPERIMENT support
-              cat > dockerfile.patch << 'EOF'
-              ARG GOEXPERIMENT=nosystemcrypto
-              ENV GOEXPERIMENT=${GOEXPERIMENT}
-              ENV CGO_ENABLED=1
-              EOF
-              
-              # Apply patch to Dockerfile  
-              DOCKERFILE_PATH="./images/$(directory)/Dockerfile"
-              echo "Patching Dockerfile: $DOCKERFILE_PATH"
-              
-              # Add ARG after ALPINE_IMAGE at the top level
-              sed -i '/^ARG ALPINE_IMAGE/a ARG GOEXPERIMENT=nosystemcrypto' "$DOCKERFILE_PATH"
-              
-              # Add ARG and ENV statements after the first FROM instruction (inside the build stage)
-              sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=nosystemcrypto\nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
-              
-              # Remove the problematic cache mount for /go/pkg to avoid systemcrypto conflicts
-              sed -i 's/--mount=type=cache,target=\/go\/pkg[[:space:]]*//g' "$DOCKERFILE_PATH"
-              
-              echo "Modified Dockerfile contents (first 40 lines):"
-              head -40 "$DOCKERFILE_PATH"
+              if [ $(type) = "docker-operator-generic-image" ]; then
+                
+                # Create patch for Dockerfile to add GOEXPERIMENT support
+                cat > dockerfile.patch << 'EOF'
+                ARG GOEXPERIMENT=nosystemcrypto
+                ENV GOEXPERIMENT=${GOEXPERIMENT}
+                ENV CGO_ENABLED=1
+                EOF
+                
+                # Apply patch to Dockerfile  
+                DOCKERFILE_PATH="./images/$(directory)/Dockerfile"
+                echo "Patching Dockerfile: $DOCKERFILE_PATH"
+                
+                # Add ARG and ENV statements after the first FROM instruction (inside the build stage)
+                sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=nosystemcrypto\nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
+                
+                # Remove the problematic cache mount for /go/pkg to avoid systemcrypto conflicts
+                sed -i 's/--mount=type=cache,target=\/go\/pkg[[:space:]]*//g' "$DOCKERFILE_PATH"
+                
+                # Add step to clean Go installation and force rebuild of standard library
+                sed -i '/ENV CGO_ENABLED=1/a RUN go clean -cache && go clean -modcache' "$DOCKERFILE_PATH"
+                
+                echo "Modified Dockerfile contents (first 40 lines):"
+                head -40 "$DOCKERFILE_PATH"
+              fi
 
               # Create fresh builder with clean cache to avoid systemcrypto conflicts
               docker buildx rm cilium-builder || true
