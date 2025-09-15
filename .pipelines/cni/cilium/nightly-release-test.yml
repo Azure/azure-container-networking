@@ -92,6 +92,7 @@ stages:
               docker buildx create --name cilium-builder --use --bootstrap
               
               BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
+              DOCKER_FLAGS="$BUILD_ARGS" \
               make $(type)
               
               # Clean up builder after build
