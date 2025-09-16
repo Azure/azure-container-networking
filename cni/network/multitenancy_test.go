@@ -187,20 +187,6 @@ func getIPNetWithString(ipaddrwithcidr string) *net.IPNet {
 	return ipnet
 }
 
-package <yourpkg> // adjust
-
-import (
-	"net"
-	"testing"
-
-	cni "github.com/Azure/azure-container-networking/cni"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
-	"github.com/stretchr/testify/require"
-
-	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/network"
-)
-
 func defaultIPNetV4() *net.IPNet {
 	_, ipn, _ := net.ParseCIDR("0.0.0.0/0")
 	return ipn
