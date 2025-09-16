@@ -216,7 +216,7 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 						GatewayIPAddress: "10.0.0.1",
 					},
 				},
-				epInfo: &network.EndpointInfo{},         // SkipDefaultRoutes defaults to false
+				epInfo: &network.EndpointInfo{}, // SkipDefaultRoutes defaults to false
 				result: &network.InterfaceInfo{},
 			},
 			multitenancyClient: &Multitenancy{},
