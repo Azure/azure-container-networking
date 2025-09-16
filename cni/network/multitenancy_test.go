@@ -187,11 +187,6 @@ func getIPNetWithString(ipaddrwithcidr string) *net.IPNet {
 	return ipnet
 }
 
-func defaultIPNetV4() *net.IPNet {
-	_, ipn, _ := net.ParseCIDR("0.0.0.0/0")
-	return ipn
-}
-
 func TestSetupRoutingForMultitenancy(t *testing.T) {
 	require := require.New(t) //nolint:gocritic
 
@@ -238,7 +233,7 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 				epInfo: &network.EndpointInfo{
 					Routes: []network.RouteInfo{
 						{
-							Dst: net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNetV4().Mask},
+							Dst: net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet().Mask},
 							Gw:  net.ParseIP("10.0.0.1"),
 						},
 					},
@@ -246,7 +241,7 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 				result: &network.InterfaceInfo{
 					Routes: []network.RouteInfo{
 						{
-							Dst: net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNetV4().Mask},
+							Dst: net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet().Mask},
 							Gw:  net.ParseIP("10.0.0.1"),
 						},
 					},
