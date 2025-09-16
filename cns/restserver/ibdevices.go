@@ -144,6 +144,7 @@ func (service *HTTPRestService) createMTPNC(ctx context.Context, pod *v1.Pod, ib
 		},
 		Spec: v1alpha1.MultitenantPodNetworkConfigSpec{
 			PodNetworkInstance: pod.Labels[PNILabel],
+			IBMACAddresses:     convertMACsToStrings(ibMACs),
 		},
 	}
 
@@ -173,6 +174,14 @@ func (service *HTTPRestService) createMTPNC(ctx context.Context, pod *v1.Pod, ib
 		}
 	}
 	return nil
+}
+
+func convertMACsToStrings(macAddrs []net.HardwareAddr) []string {
+	macStrs := make([]string, 0, len(macAddrs))
+	for _, hwAddr := range macAddrs {
+		macStrs = append(macStrs, hwAddr.String())
+	}
+	return macStrs
 }
 
 // determineMTPNCUpdate compares the ownership references and specs of the two MTPNC objects and returns a MTPNC for patching to the
