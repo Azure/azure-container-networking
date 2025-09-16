@@ -102,7 +102,7 @@ stages:
                 sed -i 's/--mount=type=cache,target=\/root\/\.cache[[:space:]]*//g' "$DOCKERFILE_PATH"
                 
                 # Clear Go module and build caches completely, then rebuild everything with systemcrypto
-                sed -i '/ENV CGO_ENABLED=1/a RUN rm -rf /go/pkg /root/.cache /go/src && \\\n    mkdir -p /go/pkg && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 go env && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 GOEXPERIMENT=systemcrypto go install -a -x std' "$DOCKERFILE_PATH"
+                sed -i '/ENV CGO_ENABLED=1/a RUN rm -rf /go/pkg /root/.cache && \\\n    mkdir -p /go/pkg /tmp/gocache && \\\n    cd /tmp && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 go env && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 GOEXPERIMENT=systemcrypto go install -a -x std' "$DOCKERFILE_PATH"
                 
                 echo "Modified Dockerfile contents (first 80 lines):"
                 head -80 "$DOCKERFILE_PATH"
