@@ -120,21 +120,6 @@ func respond(opName string, w http.ResponseWriter, httpStatusCode int, cnsCode t
 	logger.Response(opName, response, cnsCode, errors.New(fmt.Sprintf("HTTP: %v CNSCode:%v Response: %v", httpStatusCode, cnsCode, response)))
 }
 
-func getPod(ctx context.Context, k8sClient client.Client, podName, podNamespace string) (*v1.Pod, error) {
-	// Create a NamespacedName for the pod
-	podNamespacedName := k8stypes.NamespacedName{
-		Namespace: podNamespace,
-		Name:      podName,
-	}
-
-	// Try to get the pod from the cluster
-	pod := &v1.Pod{}
-	if err := k8sClient.Get(ctx, podNamespacedName, pod); err != nil {
-		return nil, err
-	}
-
-	return pod, nil
-}
 func podHasNUMALabel(pod *v1.Pod) bool {
 	if pod == nil || pod.Labels == nil {
 		return false
