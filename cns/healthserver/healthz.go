@@ -38,13 +38,12 @@ func NewHealthzHandlerWithChecks(cfg *Config) (http.Handler, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get kubeconfig")
 		}
-		// Use the provided (test) RESTMapper when present; otherwise fall back to
-		// a dynamic, discovery-based mapper for production.
+		// Use the provided (test) RESTMapper when present; otherwise fall back to a dynamic, discovery-based mapper for production.
 		mapper := cfg.Mapper
 		if mapper == nil {
-			httpClient, err := rest.HTTPClientFor(restCfg)
-			if err != nil {
-				return nil, errors.Wrap(err, "build http client for REST mapper")
+			httpClient, httpErr := rest.HTTPClientFor(restCfg)
+			if httpErr != nil {
+				return nil, errors.Wrap(httpErr, "build http client for REST mapper")
 			}
 			mapper, err = apiutil.NewDynamicRESTMapper(restCfg, httpClient)
 			if err != nil {
