@@ -85,6 +85,33 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 			},
 		}
 		return result, nil
+	case "invalidGateway":
+		result := &cns.IPConfigResponse{
+			PodIpInfo: cns.PodIpInfo{
+				PodIPConfig: cns.IPSubnet{
+					IPAddress:    "10.0.1.10",
+					PrefixLength: 24,
+				},
+				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "10.0.1.0",
+						PrefixLength: 24,
+					},
+					DNSServers:       nil,
+					GatewayIPAddress: "invalidgatewayip",
+				},
+				HostPrimaryIPInfo: cns.HostIPInfo{
+					Gateway:   "invalidgatewayip",
+					PrimaryIP: "10.0.0.1",
+					Subnet:    "10.0.0.0/24",
+				},
+			},
+			Response: cns.Response{
+				ReturnCode: 0,
+				Message:    "",
+			},
+		}
+		return result, nil
 	default:
 		result := &cns.IPConfigResponse{
 			PodIpInfo: cns.PodIpInfo{
@@ -120,7 +147,7 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 	switch ipconfig.InfraContainerID {
 	case "failRequestCNSArgs":
 		return nil, errFoo
-	case "happyArgsSingle", "failProcessCNSRespSingleIP", "failRequestCNSArgsSingleIP", "nilGateway":
+	case "happyArgsSingle", "failProcessCNSRespSingleIP", "failRequestCNSArgsSingleIP", "nilGateway", "invalidGateway":
 		e := &client.CNSClientError{}
 		e.Code = types.UnsupportedAPI
 		e.Err = errUnsupportedAPI
@@ -407,8 +434,27 @@ func TestCmdAdd(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "CNI add with nil gateway IP",
-			args:    buildArgs("nilGateway", happyPodArgs, happyNetConfByteArr),
+			name: "CNI add with nil gateway IP",
+			args: buildArgs("nilGateway", happyPodArgs, happyNetConfByteArr),
+			want: &types100.Result{
+				CNIVersion: "1.0.0",
+				Interfaces: nil,
+				IPs: []*types100.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.IPv4(10, 0, 1, 10),
+							Mask: net.CIDRMask(24, 32),
+						},
+						Gateway: nil, // No gateway
+					},
+				},
+				DNS: cniTypes.DNS{},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "CNI add with invalid gateway IP",
+			args:    buildArgs("invalidGateway", happyPodArgs, happyNetConfByteArr),
 			wantErr: true,
 		},
 		{
