@@ -88,21 +88,28 @@ stages:
               #fi
 
               if [ "$(type)" = "docker-operator-generic-image" ]; then
-                echo "Applying systemcrypto patch for operator build"
-                
                 # Apply patch to Dockerfile  
                 DOCKERFILE_PATH="./images/$(directory)/Dockerfile"
                 echo "Patching Dockerfile: $DOCKERFILE_PATH"
                 
-                # Add ARG and ENV statements to enable systemcrypto
-                sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=systemcrypto\nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
+                # Check if we're using Microsoft Go image
+                if ! [ -z "$goMCR" ] && [[ "$goMCR" == *"microsoft"* ]]; then
+                  echo "Applying nosystemcrypto patch for Microsoft Go build"
+                  
+                  # Add ARG and ENV statements to disable systemcrypto for Microsoft Go
+                  sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=nosystemcrypto\nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
+                  
+                  # Clear Go module and build caches completely, then rebuild everything with nosystemcrypto
+                  sed -i '/ENV CGO_ENABLED=1/a RUN rm -rf /go/pkg /root/.cache && \\\n    mkdir -p /go/pkg /tmp/gocache && \\\n    cd /tmp && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 go env && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 GOEXPERIMENT=nosystemcrypto go install -a -x std' "$DOCKERFILE_PATH"
+                else
+                  echo "Using standard Go build - no GOEXPERIMENT patch needed"
+                  # Just add CGO_ENABLED for consistency
+                  sed -i '/^FROM.*builder/a ENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
+                fi
                 
-                # Remove ALL cache mounts for /go/pkg and /root/.cache to avoid systemcrypto conflicts
+                # Remove ALL cache mounts for /go/pkg and /root/.cache to avoid conflicts
                 sed -i 's/--mount=type=cache,target=\/go\/pkg[[:space:]]*//g' "$DOCKERFILE_PATH"
                 sed -i 's/--mount=type=cache,target=\/root\/\.cache[[:space:]]*//g' "$DOCKERFILE_PATH"
-                
-                # Clear Go module and build caches completely, then rebuild everything with systemcrypto
-                sed -i '/ENV CGO_ENABLED=1/a RUN rm -rf /go/pkg /root/.cache && \\\n    mkdir -p /go/pkg /tmp/gocache && \\\n    cd /tmp && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 go env && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 GOEXPERIMENT=systemcrypto go install -a -x std' "$DOCKERFILE_PATH"
                 
                 echo "Modified Dockerfile contents (first 80 lines):"
                 head -80 "$DOCKERFILE_PATH"
