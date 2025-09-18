@@ -567,9 +567,10 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 	// If the NC was created successfully, log NC snapshot.
 	if returnCode == types.Success {
 		logNCSnapshot(req)
+	} else {
+		// Only emit response trace/log for non-success responses to avoid noisy success logs.
+		logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
 	}
-
-	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
 }
 
 func (service *HTTPRestService) getNetworkContainerByID(w http.ResponseWriter, r *http.Request) {
