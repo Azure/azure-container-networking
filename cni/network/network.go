@@ -1085,6 +1085,11 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 				logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
 				return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 			}
+		} else {
+			for i, epInfo := range epInfos {
+				logger.Info("Found endpoint to delete", zap.String("IfName", epInfo.IfName), zap.String("EndpointID", epInfo.EndpointID), zap.Any("NICType", epInfo.NICType))
+				epInfos[i].NetNsPath = args.Netns // in case DelegatedNIC need to be moved to host namespace
+			}
 		}
 	} else {
 		epInfos = plugin.nm.GetEndpointInfosFromContainerID(args.ContainerID)
@@ -1101,16 +1106,8 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 			logger.Warn("Release ip by ContainerID (endpoint not found)",
 				zap.String("containerID", args.ContainerID))
-			if plugin.nm.IsStatelessCNIMode() {
-				options := make(map[string]interface{})
-				options["asyncDeleteFileID"] = args.ContainerID
-				if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, options); err != nil {
-					return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
-				}
-			} else {
-				if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
-					return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
-				}
+			if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
+				return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
 			}
 		}
 		// Log the error but return success if the endpoint being deleted is not found.

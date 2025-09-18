@@ -822,7 +822,6 @@ func cnsEndpointInfotoCNIEpInfos(endpointInfo restserver.EndpointInfo, endpointI
 		epInfo.NICType = ipInfo.NICType
 		epInfo.HNSNetworkID = ipInfo.HnsNetworkID
 		epInfo.MacAddress = net.HardwareAddr(ipInfo.MacAddress)
-		epInfo.NetNsPath = ipInfo.NetworkNameSpace
 		ret = append(ret, epInfo)
 	}
 	return ret
@@ -851,12 +850,11 @@ func generateCNSIPInfoMap(eps []*endpoint) map[string]*restserver.IPInfo {
 
 	for _, ep := range eps {
 		ifNametoIPInfoMap[ep.IfName] = &restserver.IPInfo{ // in windows, the nicname is args ifname, in linux, it's ethX
-			NICType:          ep.NICType,
-			HnsEndpointID:    ep.HnsId,
-			HnsNetworkID:     ep.HNSNetworkID,
-			HostVethName:     ep.HostIfName,
-			MacAddress:       ep.MacAddress.String(),
-			NetworkNameSpace: ep.NetworkNameSpace,
+			NICType:       ep.NICType,
+			HnsEndpointID: ep.HnsId,
+			HnsNetworkID:  ep.HNSNetworkID,
+			HostVethName:  ep.HostIfName,
+			MacAddress:    ep.MacAddress.String(),
 		}
 	}
 

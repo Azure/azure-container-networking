@@ -548,22 +548,20 @@ func TestCnsEndpointInfotoCNIEpInfos_Cases(t *testing.T) {
 		expectedNICType cns.NICType
 	}{
 		{
-			name:   "With NetworkNameSpace and DelegatedVMNIC",
+			name:   "DelegatedVMNIC",
 			ifName: "eth1",
 			ipInfo: restserver.IPInfo{
-				NetworkNameSpace: "/var/run/netns/testns",
-				NICType:          cns.DelegatedVMNIC,
+				NICType: cns.DelegatedVMNIC,
 			},
 			expectedNetNs:   "/var/run/netns/testns",
 			expectedIfName:  "eth1",
 			expectedNICType: cns.DelegatedVMNIC,
 		},
 		{
-			name:   "Empty NetworkNameSpace and InfraNIC",
+			name:   "InfraNIC",
 			ifName: "eth0",
 			ipInfo: restserver.IPInfo{
-				NetworkNameSpace: "",
-				NICType:          cns.InfraNIC,
+				NICType: cns.InfraNIC,
 			},
 			expectedNetNs:   "",
 			expectedIfName:  "eth0",

@@ -191,14 +191,14 @@ func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	}()
 	// For stateless cni linux, check if delegated vmnic type, and if so, delete using this *endpoint* struct's ifname
 	if ep.NICType == cns.DelegatedVMNIC {
-		if err := client.moveInterfaceToHostNetns(ep, ep.IfName, vmns); err != nil {
+		if err := client.moveInterfaceToHostNetns(ep.IfName, vmns); err != nil {
 			logger.Error("Failed to move interface", zap.String("IfName", ep.IfName), zap.Error(newErrorSecondaryEndpointClient(err)))
 		}
 	}
 	// For Statefull cni linux, Use SecondaryInterfaces map to move all interfaces to host netns
 	// TODO: SecondaryInterfaces map should be retired and only IfName field and NICType should be used to determine the delgated NIC
 	for iface := range ep.SecondaryInterfaces {
-		if err := client.moveInterfaceToHostNetns(ep, iface, vmns); err != nil {
+		if err := client.moveInterfaceToHostNetns(iface, vmns); err != nil {
 			logger.Error("Failed to move interface", zap.String("IfName", iface), zap.Error(newErrorSecondaryEndpointClient(err)))
 			continue
 		}
@@ -209,7 +209,7 @@ func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
 }
 
 // moveInterfaceToHostNetns moves the given interface to the host netns.
-func (client *SecondaryEndpointClient) moveInterfaceToHostNetns(ep *endpoint, ifName string, vmns int) error {
+func (client *SecondaryEndpointClient) moveInterfaceToHostNetns(ifName string, vmns int) error {
 	logger.Info("Moving interface to host netns", zap.String("IfName", ifName))
 	if err := client.netlink.SetLinkNetNs(ifName, uintptr(vmns)); err != nil {
 		return newErrorSecondaryEndpointClient(err)
