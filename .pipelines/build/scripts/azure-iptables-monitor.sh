@@ -23,10 +23,14 @@ echo "Building azure-block-iptables binary..."
 # Install BPF development dependencies for Ubuntu build agent
 if [ "$ARCH" = "amd64" ]; then
     sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
-    for dir in /usr/include/x86_64-linux-gnu/*; do sudo ln -sfn "$dir" /usr/include/$(basename "$dir")" || echo "Warning: Failed to create symlink for $dir" >&2; done
+    for dir in /usr/include/x86_64-linux-gnu/*; do
+        sudo ln -sfn "$dir" /usr/include/$(basename "$dir") || echo "Warning: Failed to create symlink for $dir" >&2
+    done
 elif [ "$ARCH" = "arm64" ]; then
     sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
-    for dir in /usr/include/aarch64-linux-gnu/*; do sudo ln -sfn "$dir" /usr/include/$(basename "$dir")" || echo "Warning: Failed to create symlink for $dir" >&2; done
+    for dir in /usr/include/aarch64-linux-gnu/*; do
+        sudo ln -sfn "$dir" /usr/include/$(basename "$dir") || echo "Warning: Failed to create symlink for $dir" >&2
+    done
 else
     echo "Warning: Unknown architecture $ARCH, skipping BPF dependency installation"
 fi
