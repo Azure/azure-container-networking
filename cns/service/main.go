@@ -118,6 +118,11 @@ const (
 	initialIBNICCount                = 0
 )
 
+var (
+	// ErrHomeAzNotAvailable indicates that HomeAZ information is not available from CNS
+	ErrHomeAzNotAvailable = errors.New("home AZ not available from CNS")
+)
+
 type cniConflistScenario string
 
 const (
@@ -1712,7 +1717,8 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 	if homeAzResponse.Response.ReturnCode == cnstypes.Success && homeAzResponse.HomeAzResponse.IsSupported {
 		homeAZ = fmt.Sprintf("AZ%02d", homeAzResponse.HomeAzResponse.HomeAz)
 	} else {
-		return errors.New("home AZ not supported or CNS returned failure")
+		return errors.Wrapf(ErrHomeAzNotAvailable, "ReturnCode=%d (expected=%d), IsSupported=%t",
+			homeAzResponse.Response.ReturnCode, cnstypes.Success, homeAzResponse.HomeAzResponse.IsSupported)
 	}
 
 	directcli, err := client.New(restConfig, client.Options{Scheme: multitenancy.Scheme})
