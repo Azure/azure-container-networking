@@ -118,10 +118,8 @@ const (
 	initialIBNICCount                = 0
 )
 
-var (
-	// ErrHomeAzNotAvailable indicates that HomeAZ information is not available from CNS
-	ErrHomeAzNotAvailable = errors.New("home AZ not available from CNS")
-)
+// ErrHomeAzNotAvailable indicates that HomeAZ information is not available from CNS
+var ErrHomeAzNotAvailable = errors.New("home AZ not available from CNS")
 
 type cniConflistScenario string
 
