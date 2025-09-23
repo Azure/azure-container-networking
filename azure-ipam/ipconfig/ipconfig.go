@@ -98,8 +98,6 @@ func ProcessIPConfigsResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, *[]net.
 			if gatewayIP == nil {
 				return nil, nil, errors.Errorf("failed to parse gateway IP %q for pod ip %s", gatewayStr, resp.PodIPInfo[i].PodIPConfig.IPAddress)
 			}
-		} else {
-			gatewayIP = nil
 		}
 		gatewaysIPs[i] = gatewayIP
 	}
