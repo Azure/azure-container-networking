@@ -418,18 +418,19 @@ func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointIn
 	}
 	logger.Info("[transparent-vlan] Adding tunneling rules in vnet namespace")
 	err := ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
-		return client.AddVnetRules(epInfo)
-	})
-	if err == nil {
-		logger.Info("calling setArpProxy for", zap.String("vlanIfName", client.vlanIfName))
-		if err := client.setArpProxy(client.vlanIfName); err != nil {
+		if err := client.AddVnetRules(epInfo); err != nil {
+			return err
+		}
+
+		// Set ARP proxy on vnet veth (inside vnet namespace)
+		logger.Info("calling setArpProxy for", zap.String("vnetVethName", client.vnetVethName))
+		if err := client.setArpProxy(client.vnetVethName); err != nil {
 			logger.Error("setArpProxy failed with", zap.Error(err))
 			return err
 		}
-		if err != nil {
-			logger.Error("setArpProxy failed for VLAN interface", zap.Error(err))
-		}
-	}
+
+		return nil
+	})
 
 	return err
 }
@@ -544,7 +545,7 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 
 	if epInfo.SkipDefaultRoutes {
 		logger.Info("Skipping adding default routes in container ns as requested")
-		if err := client.addCustomRoutes(client.containerVethName, epInfo.Subnets[0].Gateway, epInfo.IPAddresses[0]); err != nil {
+		if err := client.addCustomRoutes(client.containerVethName, epInfo.Subnets[0].Gateway, epInfo.Subnets[0].Prefix, 0); err != nil {
 			return errors.Wrap(err, "failed container ns add custom routes")
 		}
 		return nil
@@ -665,8 +666,8 @@ func (client *TransparentVlanEndpointClient) addCustomRoutes(linkToName string, 
 	}
 
 	// Add subnet route (ip route add <subnetCIDR> via <gatewayIP> dev <linkToName>)
-	_, subnetIPNet, _ := net.ParseCIDR(subnetCIDR.String())
-	dstIP := net.IPNet{IP: net.ParseIP(defaultGw), Mask: subnetIPNet.Mask}
+	subnetPrefix, subnetIPNet, _ := net.ParseCIDR(subnetCIDR.String())
+	dstIP := net.IPNet{IP: subnetPrefix, Mask: subnetIPNet.Mask}
 	routeInfo = RouteInfo{
 		Dst:   dstIP,
 		Gw:    gWIP,
