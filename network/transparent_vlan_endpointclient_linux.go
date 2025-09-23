@@ -400,6 +400,18 @@ func (client *TransparentVlanEndpointClient) PopulateVnet(epInfo *EndpointInfo) 
 	return nil
 }
 
+// Set ARP proxy on the vlan interface to respond to ARP requests for the gateway IP
+func (client *TransparentVlanEndpointClient) setArpProxy(ifName string) error {
+	cmd := fmt.Sprintf("echo 1 > /proc/sys/net/ipv4/conf/%v/proxy_arp", ifName)
+	_, err := client.plClient.ExecuteRawCommand(cmd)
+	if err != nil {
+		logger.Error("Failed to set ARP proxy", zap.String("interface", ifName), zap.Error(err))
+	} else {
+		logger.Info("ARP proxy enabled", zap.String("interface", ifName))
+	}
+	return err
+}
+
 func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 	if err := client.AddSnatEndpointRules(); err != nil {
 		return errors.Wrap(err, "failed to add snat endpoint rules")
@@ -408,6 +420,17 @@ func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointIn
 	err := ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
 		return client.AddVnetRules(epInfo)
 	})
+	if err == nil {
+		logger.Info("calling setArpProxy for", zap.String("vlanIfName", client.vlanIfName))
+		if err := client.setArpProxy(client.vlanIfName); err != nil {
+			logger.Error("setArpProxy failed with", zap.Error(err))
+			return err
+		}
+		if err != nil {
+			logger.Error("setArpProxy failed for VLAN interface", zap.Error(err))
+		}
+	}
+
 	return err
 }
 
@@ -519,9 +542,19 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 		}
 	}
 
-	if err := client.addDefaultRoutes(client.containerVethName, 0); err != nil {
-		return errors.Wrap(err, "failed container ns add default routes")
+	if epInfo.SkipDefaultRoutes {
+		logger.Info("Skipping adding default routes in container ns as requested")
+		if err := client.addCustomRoutes(client.containerVethName, epInfo.Subnets[0].Gateway, epInfo.IPAddresses[0]); err != nil {
+			return errors.Wrap(err, "failed container ns add custom routes")
+		}
+		return nil
+	} else {
+		logger.Info("Adding default routes in container ns")
+		if err := client.addDefaultRoutes(client.containerVethName, 0); err != nil {
+			return errors.Wrap(err, "failed container ns add default routes")
+		}
 	}
+
 	if err := client.AddDefaultArp(client.containerVethName, client.vnetMac.String()); err != nil {
 		return errors.Wrap(err, "failed container ns add default arp")
 	}
@@ -605,6 +638,38 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string,
 	routeInfo = RouteInfo{
 		Dst:   dstIP,
 		Gw:    virtualGwIP,
+		Table: table,
+	}
+
+	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Helper that creates routing rules for the current NS which direct packets
+// to the virtual gateway ip on linkToName device interface
+// Route 1: 169.254.2.1 dev <linkToName>
+// Route 2: default via 169.254.2.1 dev <linkToName>
+func (client *TransparentVlanEndpointClient) addCustomRoutes(linkToName string, gatewayIP net.IP, subnetCIDR net.IPNet, table int) error {
+	// Add route for virtualgwip (ip route add <gatewayIP> dev <linkToName>)
+	gWIP, gwNet, _ := net.ParseCIDR(gatewayIP.String() + "/32")
+	routeInfo := RouteInfo{
+		Dst:   *gwNet,
+		Scope: netlink.RT_SCOPE_LINK,
+		Table: table,
+	}
+	// Difference between interface name in addRoutes and DevName: in RouteInfo?
+	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
+		return err
+	}
+
+	// Add subnet route (ip route add <subnetCIDR> via <gatewayIP> dev <linkToName>)
+	_, subnetIPNet, _ := net.ParseCIDR(subnetCIDR.String())
+	dstIP := net.IPNet{IP: net.ParseIP(defaultGw), Mask: subnetIPNet.Mask}
+	routeInfo = RouteInfo{
+		Dst:   dstIP,
+		Gw:    gWIP,
 		Table: table,
 	}
 
