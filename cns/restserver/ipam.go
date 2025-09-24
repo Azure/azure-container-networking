@@ -1014,10 +1014,9 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	for _, ipState := range service.PodIPConfigState {
 
 		// get the IPFamily of the current ipState
-		var ipStateFamily cns.IPFamily
-		if net.ParseIP(ipState.IPAddress).To4() != nil {
-			ipStateFamily = cns.IPv4
-		} else {
+		var ipStateFamily cns.IPFamily = cns.IPv4
+
+		if ipAddr, err := netip.ParseAddr(ipState.IPAddress); err == nil && ipAddr.Is6() {
 			ipStateFamily = cns.IPv6
 		}
 
