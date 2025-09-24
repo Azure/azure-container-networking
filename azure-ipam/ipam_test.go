@@ -58,6 +58,60 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 			},
 		}
 		return result, nil
+	case "nilGateway":
+		result := &cns.IPConfigResponse{
+			PodIpInfo: cns.PodIpInfo{
+				PodIPConfig: cns.IPSubnet{
+					IPAddress:    "10.0.1.10",
+					PrefixLength: 24,
+				},
+				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "10.0.1.0",
+						PrefixLength: 24,
+					},
+					DNSServers:       nil,
+					GatewayIPAddress: "", // nil/empty gateway
+				},
+				HostPrimaryIPInfo: cns.HostIPInfo{
+					Gateway:   "",
+					PrimaryIP: "10.0.0.1",
+					Subnet:    "10.0.0.0/24",
+				},
+			},
+			Response: cns.Response{
+				ReturnCode: 0,
+				Message:    "",
+			},
+		}
+		return result, nil
+	case "invalidGateway":
+		result := &cns.IPConfigResponse{
+			PodIpInfo: cns.PodIpInfo{
+				PodIPConfig: cns.IPSubnet{
+					IPAddress:    "10.0.1.10",
+					PrefixLength: 24,
+				},
+				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "10.0.1.0",
+						PrefixLength: 24,
+					},
+					DNSServers:       nil,
+					GatewayIPAddress: "invalidgatewayip",
+				},
+				HostPrimaryIPInfo: cns.HostIPInfo{
+					Gateway:   "invalidgatewayip",
+					PrimaryIP: "10.0.0.1",
+					Subnet:    "10.0.0.0/24",
+				},
+			},
+			Response: cns.Response{
+				ReturnCode: 0,
+				Message:    "",
+			},
+		}
+		return result, nil
 	default:
 		result := &cns.IPConfigResponse{
 			PodIpInfo: cns.PodIpInfo{
@@ -65,6 +119,7 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 					IPAddress:    "10.0.1.10",
 					PrefixLength: 24,
 				},
+				MacAddress: "00:11:22:33:44:55",
 				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 					IPSubnet: cns.IPSubnet{
 						IPAddress:    "10.0.1.0",
@@ -92,11 +147,60 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 	switch ipconfig.InfraContainerID {
 	case "failRequestCNSArgs":
 		return nil, errFoo
-	case "happyArgsSingle", "failProcessCNSRespSingleIP", "failRequestCNSArgsSingleIP":
+	case "happyArgsSingle", "failProcessCNSRespSingleIP", "failRequestCNSArgsSingleIP", "nilGateway", "invalidGateway":
 		e := &client.CNSClientError{}
 		e.Code = types.UnsupportedAPI
 		e.Err = errUnsupportedAPI
 		return nil, e
+	case "happyArgsDual":
+		result := &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "10.0.1.10",
+						PrefixLength: 24,
+					},
+					MacAddress: "00:11:22:33:44:55",
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "10.0.1.0",
+							PrefixLength: 24,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "10.0.0.1",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "10.0.0.1",
+						PrimaryIP: "10.0.0.1",
+						Subnet:    "10.0.0.0/24",
+					},
+				},
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "fd11:1234::1",
+						PrefixLength: 120,
+					},
+					MacAddress: "00:11:22:33:44:55", // Same MAC for dual-stack scenario
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "fd11:1234::",
+							PrefixLength: 120,
+						},
+						DNSServers: nil,
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "fe80::1234:5678:9abc",
+						PrimaryIP: "fe80::1234:5678:9abc",
+						Subnet:    "fd11:1234::/120",
+					},
+				},
+			},
+			Response: cns.Response{
+				ReturnCode: 0,
+				Message:    "",
+			},
+		}
+		return result, nil
 	case "failProcessCNSResp":
 		result := &cns.IPConfigsResponse{
 			PodIPInfo: []cns.PodIpInfo{
@@ -129,8 +233,7 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 							IPAddress:    "fd11:1234::",
 							PrefixLength: 112,
 						},
-						DNSServers:       nil,
-						GatewayIPAddress: "fe80::1234:5678:9abc",
+						DNSServers: nil,
 					},
 					HostPrimaryIPInfo: cns.HostIPInfo{
 						Gateway:   "fe80::1234:5678:9abc",
@@ -153,6 +256,7 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 						IPAddress:    "10.0.1.10",
 						PrefixLength: 24,
 					},
+					MacAddress: "00:11:22:33:44:55",
 					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 						IPSubnet: cns.IPSubnet{
 							IPAddress:    "10.0.1.0",
@@ -172,13 +276,13 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRe
 						IPAddress:    "fd11:1234::1",
 						PrefixLength: 120,
 					},
+					MacAddress: "00:11:22:33:44:55", // Same MAC for dual-stack scenario
 					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 						IPSubnet: cns.IPSubnet{
 							IPAddress:    "fd11:1234::",
 							PrefixLength: 120,
 						},
-						DNSServers:       nil,
-						GatewayIPAddress: "fe80::1234:5678:9abc",
+						DNSServers: nil,
 					},
 					HostPrimaryIPInfo: cns.HostIPInfo{
 						Gateway:   "fe80::1234:5678:9abc",
@@ -281,12 +385,18 @@ func TestCmdAdd(t *testing.T) {
 			args: buildArgs("happyArgsSingle", happyPodArgs, happyNetConfByteArr),
 			want: &types100.Result{
 				CNIVersion: "1.0.0",
+				Interfaces: []*types100.Interface{
+					{
+						Mac: "00:11:22:33:44:55",
+					},
+				},
 				IPs: []*types100.IPConfig{
 					{
 						Address: net.IPNet{
 							IP:   net.IPv4(10, 0, 1, 10),
 							Mask: net.CIDRMask(24, 32),
 						},
+						Gateway: net.IPv4(10, 0, 0, 1),
 					},
 				},
 				DNS: cniTypes.DNS{},
@@ -298,23 +408,54 @@ func TestCmdAdd(t *testing.T) {
 			args: buildArgs("happyArgsDual", happyPodArgs, happyNetConfByteArr),
 			want: &types100.Result{
 				CNIVersion: "1.0.0",
+				Interfaces: []*types100.Interface{
+					{
+						Mac: "00:11:22:33:44:55", // Single interface for dual-stack
+					},
+				},
 				IPs: []*types100.IPConfig{
 					{
 						Address: net.IPNet{
 							IP:   net.IPv4(10, 0, 1, 10),
 							Mask: net.CIDRMask(24, 32),
 						},
+						Gateway: net.IPv4(10, 0, 0, 1),
 					},
 					{
 						Address: net.IPNet{
 							IP:   net.ParseIP("fd11:1234::1"),
 							Mask: net.CIDRMask(120, 128),
 						},
+						Gateway: net.ParseIP("fe80::1234:5678:9abc"),
 					},
 				},
 				DNS: cniTypes.DNS{},
 			},
 			wantErr: false,
+		},
+		{
+			name: "CNI add with nil gateway IP",
+			args: buildArgs("nilGateway", happyPodArgs, happyNetConfByteArr),
+			want: &types100.Result{
+				CNIVersion: "1.0.0",
+				Interfaces: nil,
+				IPs: []*types100.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.IPv4(10, 0, 1, 10),
+							Mask: net.CIDRMask(24, 32),
+						},
+						Gateway: nil, // No gateway
+					},
+				},
+				DNS: cniTypes.DNS{},
+			},
+			wantErr: false,
+		},
+		{
+			name:    "CNI add with invalid gateway IP",
+			args:    buildArgs("invalidGateway", happyPodArgs, happyNetConfByteArr),
+			wantErr: true,
 		},
 		{
 			name:    "Fail request CNS ipconfig during CmdAdd",
