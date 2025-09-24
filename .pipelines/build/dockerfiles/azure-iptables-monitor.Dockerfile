@@ -14,5 +14,6 @@ ARG ARTIFACT_DIR
 COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
 COPY --from=iptables /usr/lib /usr/lib
 COPY ${ARTIFACT_DIR}/bin/azure-iptables-monitor /azure-iptables-monitor
+COPY ${ARTIFACT_DIR}/bin/azure-block-iptables /azure-block-iptables
 
 ENTRYPOINT ["/azure-iptables-monitor"]
