@@ -1,0 +1,75 @@
+parameters:
+  - name: targetBranch
+    type: string
+    default: ""
+
+steps:
+  - checkout: self
+    displayName: 'Checkout Repository'
+    fetchDepth: 0
+
+  - script: |
+      set -e
+      
+      # Auto-detect target branch if not specified
+      TARGET_BRANCH="${{ parameters.targetBranch }}"
+      if [ -z "$TARGET_BRANCH" ]; then
+        if [ "$(Build.Reason)" = "PullRequest" ]; then
+          # For pull requests, use the target branch
+          TARGET_BRANCH="$(System.PullRequest.TargetBranchName)"
+          echo "Auto-detected target branch from PR: $TARGET_BRANCH"
+        else
+          TARGET_BRANCH="master"
+          echo "Auto-detected target branch (default): $TARGET_BRANCH"
+        fi
+      else
+        echo "Using provided target branch: $TARGET_BRANCH"
+      fi
+      
+      echo "=== Git Diff Check Configuration ==="
+      echo "Current branch: $(Build.SourceBranchName)"
+      echo "Current commit: $(Build.SourceVersion)"
+      echo "Target branch: $TARGET_BRANCH"
+      
+      # Get the merge base to compare against the common ancestor
+      MERGE_BASE=$(git merge-base HEAD origin/$TARGET_BRANCH)
+      echo "Merge base commit: $MERGE_BASE"
+      
+      echo "=== Files Changed Compared to $TARGET_BRANCH ==="
+      CHANGED_FILES=$(git diff --name-only $MERGE_BASE...HEAD)
+      
+      if [ -z "$CHANGED_FILES" ]; then
+        echo "No files changed"
+      else
+        echo "$CHANGED_FILES"
+      fi
+      
+      # Check if all changed files match Linux/test patterns
+      LINUX_TEST_PATTERNS=(".*linux\.go$" ".*test\.go$")
+      LINUX_TEST_ONLY=true
+      
+      if [ -z "$CHANGED_FILES" ]; then
+        # No files changed - all zero files match the criteria
+        LINUX_TEST_ONLY=true
+      else
+        for file in $CHANGED_FILES; do
+          match_found=false
+          for pattern in "${LINUX_TEST_PATTERNS[@]}"; do
+            if [[ "$file" =~ $pattern ]]; then
+              match_found=true
+              break
+            fi
+          done
+          if [ "$match_found" = false ]; then
+            LINUX_TEST_ONLY=false
+            break
+          fi
+        done
+      fi
+      
+      echo "Linux/Test files only: $LINUX_TEST_ONLY"
+      
+      echo "##vso[task.setvariable variable=LinuxTestOnly;isOutput=true]$LINUX_TEST_ONLY"
+    name: GitDiffCheck
+    displayName: "Check Git Diff"
+    condition: always()
