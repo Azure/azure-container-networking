@@ -36,6 +36,7 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
+          - template: templates/git-diff-check.yaml
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
               BUILD_NUMBER=$(Build.BuildNumber)
@@ -329,28 +330,31 @@ stages:
         dependsOn: "containerize"
         scaleup: 100
     
-    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
-      parameters:
-        name: "win_azure_overlay_e2e"
-        displayName: Azure Overlay Windows
-        os: windows
-        clusterType: overlay-byocni-up
-        clusterName: "winazovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: "containerize"
-        scaleup: 50
+    # Windows Azure Overlay E2E tests
+    - ${{ if ne(stageDependencies.setup.env.outputs['GitDiffCheck.LinuxTestOnly'], 'true') }}:
+      - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
+        parameters:
+          name: "win_azure_overlay_e2e"
+          displayName: Azure Overlay Windows
+          os: windows
+          clusterType: overlay-byocni-up
+          clusterName: "winazovere2e"
+          vmSize: Standard_B2ms
+          k8sVersion: ""
+          dependsOn: "containerize"
+          scaleup: 50
 
     # Azure Overlay E2E Stateless CNI tests
-    - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml
-      parameters:
-        name: "azure_overlay_stateless_e2e"
-        displayName: Azure Stateless CNI Overlay
-        os: windows
-        clusterType: overlay-byocni-up
-        clusterName: "statelesswin"
-        vmSize: Standard_B2ms
-        dependsOn: "containerize"
+    - ${{ if ne(stageDependencies.setup.env.outputs['GitDiffCheck.LinuxTestOnly'], 'true') }}:
+      - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml
+        parameters:
+          name: "azure_overlay_stateless_e2e"
+          displayName: Azure Stateless CNI Overlay
+          os: windows
+          clusterType: overlay-byocni-up
+          clusterName: "statelesswin"
+          vmSize: Standard_B2ms
+          dependsOn: "containerize"
 
     # AKS Swift E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
@@ -390,18 +394,20 @@ stages:
         scaleup: 100
         dependsOn: "containerize"
 
-    - template: singletenancy/aks/e2e-job-template.yaml
-      parameters:
-        name: "aks_windows_22_e2e"
-        displayName: AKS Windows 2022
-        arch: amd64
-        os: "windows"
-        clusterType: cniv1-up
-        clusterName: "win22e2e"
-        vmSize: Standard_B2ms
-        os_version: "ltsc2022"
-        scaleup: 50
-        dependsOn: "containerize"
+    # Windows AKS E2E tests
+    - ${{ if ne(stageDependencies.setup.env.outputs['GitDiffCheck.LinuxTestOnly'], 'true') }}:
+      - template: singletenancy/aks/e2e-job-template.yaml
+        parameters:
+          name: "aks_windows_22_e2e"
+          displayName: AKS Windows 2022
+          arch: amd64
+          os: "windows"
+          clusterType: cniv1-up
+          clusterName: "win22e2e"
+          vmSize: Standard_B2ms
+          os_version: "ltsc2022"
+          scaleup: 50
+          dependsOn: "containerize"
 
     # CNI dual stack overlay E2E tests
     - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
@@ -415,16 +421,18 @@ stages:
         dependsOn: "containerize"
         scaleup: 100
 
-    - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
-      parameters:
-        name: "win_dualstackoverlay_e2e"
-        displayName: AKS DualStack Overlay Windows
-        os: windows
-        clusterType: dualstack-overlay-byocni-up
-        clusterName: "windsovere2e"
-        vmSize: Standard_B2ms
-        dependsOn: "containerize"
-        scaleup: 50
+    # Windows DualStack Overlay E2E tests
+    - ${{ if ne(stageDependencies.setup.env.outputs['GitDiffCheck.LinuxTestOnly'], 'true') }}:
+      - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
+        parameters:
+          name: "win_dualstackoverlay_e2e"
+          displayName: AKS DualStack Overlay Windows
+          os: windows
+          clusterType: dualstack-overlay-byocni-up
+          clusterName: "windsovere2e"
+          vmSize: Standard_B2ms
+          dependsOn: "containerize"
+          scaleup: 50
 
     - stage: delete
       displayName: Delete Clusters
