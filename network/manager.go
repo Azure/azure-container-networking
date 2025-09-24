@@ -122,6 +122,7 @@ type NetworkManager interface {
 	DeleteState(epInfos []*EndpointInfo) error
 	GetEndpointInfosFromContainerID(containerID string) []*EndpointInfo
 	GetEndpointState(networkID, containerID string) ([]*EndpointInfo, error)
+	RemoveSecondaryEndpointFromPodNetNS(ifName string, netns string) error
 }
 
 // Creates a new network manager.
@@ -859,4 +860,17 @@ func generateCNSIPInfoMap(eps []*endpoint) map[string]*restserver.IPInfo {
 	}
 
 	return ifNametoIPInfoMap
+}
+
+// RemoveSecondaryEndpointFromPodNetNS removes the secondary endpoint from the pod netns
+func (nm *networkManager) RemoveSecondaryEndpointFromPodNetNS(ifName, netns string) error {
+	ep := &endpoint{
+		NetworkNameSpace: netns,
+		IfName:           ifName, // TODO: For stateless cni linux populate IfName here to use in deletion in secondary endpoint client
+	}
+
+	logger.Info("Removing Secondary Endpoint from", zap.String("NetworkNameSpace: ", netns))
+
+	err := ep.removeSecondaryEndpointFromPodNetNSImpl(nm.netlink, nm.nsClient)
+	return err
 }

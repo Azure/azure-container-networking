@@ -1078,6 +1078,14 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			case errors.Is(err, network.ErrConnectionFailure):
 				logger.Error("Failed to connect to CNS", zap.Error(err))
 				logger.Info("Endpoint will be deleted from state file asynchronously", zap.String("containerID", args.ContainerID))
+				// In SwiftV2 Linux stateless CNI mode, if the plugin cannot connect to CNS,
+				// we asynchronously remove the secondary (delegated) interface from the pod’s network namespace in the absense of the endpoint state.
+				// This is necessary because leaving the delegated NIC in the pod netns can cause the kernel to block rtnetlink operations.
+				// When that happens, kubelet and containerd hang during sandbox creation or teardown.
+				// The delegated NIC (SR-IOV VF) used by SwiftV2 for multitenant pods remains tied to the pod namespace,
+				// triggering hot-unplug/re-register events and leaving the node in an unhealthy state.
+				// This workaround mitigates the issue by removing the secondary NIC from the pod netns when CNS is unreachable during DEL to provide the endpoint state.
+				plugin.nm.RemoveSecondaryEndpointFromPodNetNS(args.IfName, args.Netns)
 			case errors.Is(err, network.ErrEndpointStateNotFound):
 				logger.Info("Endpoint Not found", zap.String("containerID", args.ContainerID), zap.Error(err))
 				return nil
@@ -1122,7 +1130,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		if err = plugin.nm.DeleteEndpoint(epInfo.NetworkID, epInfo.EndpointID, epInfo); err != nil {
 			// An error will not be returned if the endpoint is not found
 			// return a retriable error so the container runtime will retry this DEL later
-			// the implementation of this function returns nil if the endpoint doens't exist, so
+			// the implementation of this function returns nil if the endpoint doesn't exist, so
 			// we don't have to check that here
 			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 		}

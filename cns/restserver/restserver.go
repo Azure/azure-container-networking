@@ -132,7 +132,7 @@ type IPInfo struct {
 	HnsNetworkID  string      `json:",omitempty"`
 	HostVethName  string      `json:",omitempty"`
 	MacAddress    string      `json:",omitempty"`
-	NICType       cns.NICType `json:",omitempty"`
+	NICType       cns.NICType
 }
 
 type GetHTTPServiceDataResponse struct {

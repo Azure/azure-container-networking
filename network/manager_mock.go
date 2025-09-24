@@ -221,3 +221,7 @@ func (nm *MockNetworkManager) GetEndpointInfosFromContainerID(containerID string
 func (nm *MockNetworkManager) GetEndpointState(_, _ string) ([]*EndpointInfo, error) {
 	return []*EndpointInfo{}, nil
 }
+
+func (nm *MockNetworkManager) RemoveSecondaryEndpointFromPodNetNS(_, _ string) error {
+	return nil
+}
