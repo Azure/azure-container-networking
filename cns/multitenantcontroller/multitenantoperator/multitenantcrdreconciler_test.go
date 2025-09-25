@@ -14,10 +14,18 @@ import (
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
+
+type clientWithApply struct{ *mockclients.MockClient }
+
+// Satisfy controller-runtime v0.22.1 Writer.Apply:
+func (c clientWithApply) Apply(_ context.Context, _ runtime.ApplyConfiguration, _ ...client.ApplyOption) error {
+	return nil // not used in these tests
+}
 
 var _ = Describe("multiTenantCrdReconciler", func() {
 	var kubeClient *mockclients.MockClient
@@ -43,7 +51,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 		cnsRestService = mockclients.NewMockcnsRESTservice(mockCtl)
 		statusWriter = mockclients.NewMockSubResourceWriter(mockCtl)
 		reconciler = &multiTenantCrdReconciler{
-			KubeClient:     kubeClient,
+			KubeClient:     clientWithApply{kubeClient},
 			NodeName:       mockNodeName,
 			CNSRestService: cnsRestService,
 		}

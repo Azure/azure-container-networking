@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	meta "k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 const nncCRD = `{
@@ -158,6 +160,13 @@ const nncResult = `{
   }
 }`
 
+func staticNNCMapper() meta.RESTMapper {
+	gv := schema.GroupVersion{Group: "acn.azure.com", Version: "v1alpha"}
+	m := meta.NewDefaultRESTMapper([]schema.GroupVersion{gv})
+	m.Add(schema.GroupVersionKind{Group: gv.Group, Version: gv.Version, Kind: "NodeNetworkConfig"}, meta.RESTScopeNamespace)
+	return m
+}
+
 func TestNewHealthzHandlerWithChecks(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -169,6 +178,7 @@ func TestNewHealthzHandlerWithChecks(t *testing.T) {
 			name: "list NNC gives 200 should indicate healthy",
 			config: &Config{
 				PingAPIServer: true,
+				Mapper:        staticNNCMapper(),
 			},
 			apiStatusCode:   http.StatusOK,
 			expectedHealthy: true,
@@ -177,6 +187,7 @@ func TestNewHealthzHandlerWithChecks(t *testing.T) {
 			name: "unauthorized (401) from apiserver should be unhealthy",
 			config: &Config{
 				PingAPIServer: true,
+				Mapper:        staticNNCMapper(),
 			},
 			apiStatusCode:   http.StatusUnauthorized,
 			expectedHealthy: false,
@@ -185,6 +196,7 @@ func TestNewHealthzHandlerWithChecks(t *testing.T) {
 			name: "channel nodesubnet should not call apiserver so it doesn't matter if the status code is a 401",
 			config: &Config{
 				PingAPIServer: false,
+				Mapper:        staticNNCMapper(),
 			},
 			apiStatusCode:   http.StatusUnauthorized,
 			expectedHealthy: true,

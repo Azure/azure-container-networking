@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/google/go-cmp/cmp"
 	"gotest.tools/v3/assert"
-	"k8s.io/kubernetes/pkg/kubelet"
 )
 
 var (
@@ -210,14 +209,14 @@ func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
 	failReq.OrchestratorContext = b
 	_, respCode, msg := middleware.GetPodInfoForIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
-	assert.Assert(t, strings.Contains(msg, kubelet.NetworkNotReadyErrorMsg), "expected error message to contain '%s', got '%s'", kubelet.NetworkNotReadyErrorMsg, msg)
+	assert.Assert(t, strings.Contains(msg, NetworkNotReadyErrorMsg), "expected error message to contain '%s', got '%s'", NetworkNotReadyErrorMsg, msg)
 
 	// MTPNC not ready
 	b, _ = testPod4Info.OrchestratorContext()
 	failReq.OrchestratorContext = b
 	_, respCode, msg = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
-	assert.Assert(t, strings.Contains(msg, kubelet.NetworkNotReadyErrorMsg), "expected error message to contain '%s', got '%s'", kubelet.NetworkNotReadyErrorMsg, msg)
+	assert.Assert(t, strings.Contains(msg, NetworkNotReadyErrorMsg), "expected error message to contain '%s', got '%s'", NetworkNotReadyErrorMsg, msg)
 }
 
 func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
@@ -242,12 +241,12 @@ func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
 	// Pod's MTPNC doesn't exist in cache test
 	_, err := middleware.getIPConfig(context.TODO(), testPod3Info)
 	assert.Assert(t, strings.Contains(err.Error(), errGetMTPNC.Error()), "expected error to wrap errMTPNCNotFound, got: %v", err)
-	assert.ErrorContains(t, err, kubelet.NetworkNotReadyErrorMsg)
+	assert.ErrorContains(t, err, NetworkNotReadyErrorMsg)
 
 	// Pod's MTPNC is not ready test
 	_, err = middleware.getIPConfig(context.TODO(), testPod4Info)
 	assert.Assert(t, errors.Is(err, errMTPNCNotReady), "expected error to wrap errMTPNCNotReady, got: %v", err)
-	assert.ErrorContains(t, err, kubelet.NetworkNotReadyErrorMsg)
+	assert.ErrorContains(t, err, NetworkNotReadyErrorMsg)
 }
 
 func TestSetRoutesSuccess(t *testing.T) {
