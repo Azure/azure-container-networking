@@ -92,3 +92,24 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv1
+
+  - stage: delete_${{ parameters.clusterName }}
+    displayName: Delete Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.name }}
+    condition: always()
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    jobs:
+      - job: delete
+        displayName: Delete Cluster
+        steps:
+          - template: ../../templates/delete-cluster.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              region: $(REGION_AKS_CLUSTER_TEST)
+              sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+              svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
