@@ -281,7 +281,6 @@ stages:
         clusterType: nodesubnet-byocni-nokubeproxy-up
         clusterName: "cilndsubnete2e"
         vmSize: Standard_B2s
-        k8sVersion: ""
         dependsOn: "containerize"
         skip: false
 
@@ -356,7 +355,6 @@ stages:
       parameters:
         name: "azure_overlay_stateless_e2e"
         displayName: Azure Stateless CNI Overlay
-        os: windows
         clusterType: overlay-byocni-up
         clusterName: "statelesswin"
         vmSize: Standard_B2ms

@@ -35,6 +35,9 @@ parameters:
   - name: cni
     type: string
     default: cilium
+  - name: scaleup
+    type: string
+    default: ""
   - name: skip
     type: boolean
     default: false
