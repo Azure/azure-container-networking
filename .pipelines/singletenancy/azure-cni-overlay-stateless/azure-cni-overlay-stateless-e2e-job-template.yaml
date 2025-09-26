@@ -1,15 +1,33 @@
 parameters:
-  name: ""
-  displayName: ""
-  clusterType: ""
-  clusterName: ""
-  vmSize: ""
-  k8sVersion: ""
-  dependsOn: ""
+  - name: name
+    type: string
+    default: ""
+  - name: displayName
+    type: string
+    default: ""
+  - name: clusterType
+    type: string
+    default: ""
+  - name: clusterName
+    type: string
+    default: ""
+  - name: vmSize
+    type: string
+    default: ""
+  - name: k8sVersion
+    type: string
+    default: ""
+  - name: dependsOn
+    type: string
+    default: ""
+  - name: skip
+    type: boolean
+    default: false
 
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: Create Cluster - ${{ parameters.displayName }}
+    condition: eq('${{ parameters.skip }}', false)
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -36,6 +54,7 @@ stages:
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
+    condition: eq('${{ parameters.skip }}', false)
     dependsOn:
     - setup
     - publish
@@ -92,9 +111,9 @@ stages:
 
   - stage: delete_${{ parameters.clusterName }}
     displayName: Delete Cluster - ${{ parameters.displayName }}
+    condition: and(always(), eq('${{ parameters.skip }}', false))
     dependsOn:
       - ${{ parameters.name }}
-    condition: always()
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     pool:

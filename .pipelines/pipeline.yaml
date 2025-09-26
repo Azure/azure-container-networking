@@ -257,6 +257,7 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "containerize"
+        skip: false
 
     # Cilium Podsubnet Vnet Scale E2E tests
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
@@ -269,6 +270,7 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "containerize"
+        skip: false
   
     
     # Cilium Nodesubnet E2E tests
@@ -281,6 +283,7 @@ stages:
         vmSize: Standard_B2s
         k8sVersion: ""
         dependsOn: "containerize"
+        skip: false
 
     # Cilium Overlay E2E tests
     - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
@@ -292,6 +295,7 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "containerize"
+        skip: false
 
     # Cilium Dualstack Overlay E2E tests
     - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml
@@ -304,6 +308,7 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "containerize"
+        skip: false
 
         # Cilium Overlay with hubble E2E tests
     - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
@@ -316,6 +321,7 @@ stages:
         k8sVersion: ""
         dependsOn: "containerize"
         testHubble: true
+        skip: false
 
     # Azure Overlay E2E tests
     - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
@@ -329,6 +335,7 @@ stages:
         k8sVersion: ""
         dependsOn: "containerize"
         scaleup: 100
+        skip: false
     
     # Windows Azure Overlay E2E tests
     - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
@@ -342,6 +349,7 @@ stages:
         k8sVersion: ""
         dependsOn: "containerize"
         scaleup: 50
+        skip: false
 
     # Azure Overlay E2E Stateless CNI tests
     - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml
@@ -353,6 +361,7 @@ stages:
         clusterName: "statelesswin"
         vmSize: Standard_B2ms
         dependsOn: "containerize"
+        skip: false
 
     # AKS Swift E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
@@ -365,6 +374,7 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "containerize"
+        skip: false
 
     # AKS Swift Vnet Scale E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
@@ -377,6 +387,7 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: "1.30"
         dependsOn: "containerize"
+        skip: false
 
     # CNIv1 E2E tests
     - template: singletenancy/aks/e2e-job-template.yaml
@@ -391,6 +402,7 @@ stages:
         k8sVersion: 1.25
         scaleup: 100
         dependsOn: "containerize"
+        skip: false
 
     # Windows AKS E2E tests
     - template: singletenancy/aks/e2e-job-template.yaml
@@ -405,6 +417,7 @@ stages:
         os_version: "ltsc2022"
         scaleup: 50
         dependsOn: "containerize"
+        skip: false
 
     # CNI dual stack overlay E2E tests
     - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
@@ -417,6 +430,7 @@ stages:
         vmSize: Standard_B2ms
         dependsOn: "containerize"
         scaleup: 100
+        skip: false
 
     # Windows DualStack Overlay E2E tests
     - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
@@ -429,3 +443,4 @@ stages:
         vmSize: Standard_B2ms
         dependsOn: "containerize"
         scaleup: 50
+        skip: false
