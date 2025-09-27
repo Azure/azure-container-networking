@@ -30,7 +30,7 @@ parameters:
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: Create Cluster - ${{ parameters.displayName }}
-    condition: not(and(eq('${{ parameters.os }}', 'windows'), eq(variables['linuxOnly'], true)))
+    condition: and(eq('${{ parameters.os }}', 'windows'), eq(variables['runWindowsTest'], true))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -38,7 +38,7 @@ stages:
       name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      linuxOnly: $[ stagedependencies.setup.env.outputs['GitDiffCheck.LinuxTestOnly'] ]
+      runWindowsTest: $[ stagedependencies.setup.env.outputs['GitDiffCheck.RunWindowsTests'] ]
     jobs:
       - template: ../../templates/create-cluster.yaml
         parameters:

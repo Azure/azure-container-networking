@@ -46,30 +46,25 @@ steps:
       
       # Check if all changed files match Linux/test patterns
       LINUX_TEST_PATTERNS=(".*linux\.go$" ".*test\.go$")
-      LINUX_TEST_ONLY=true
+      RUN_WINDOWS_TESTS=false
       
-      if [ -z "$CHANGED_FILES" ]; then
-        # No files changed - all zero files match the criteria
-        LINUX_TEST_ONLY=true
-      else
-        for file in $CHANGED_FILES; do
-          match_found=false
-          for pattern in "${LINUX_TEST_PATTERNS[@]}"; do
-            if [[ "$file" =~ $pattern ]]; then
-              match_found=true
-              break
-            fi
-          done
-          if [ "$match_found" = false ]; then
-            LINUX_TEST_ONLY=false
+      for file in $CHANGED_FILES; do
+        match_found=false
+        for pattern in "${LINUX_TEST_PATTERNS[@]}"; do
+          if [[ "$file" =~ $pattern ]]; then
+            match_found=true
             break
           fi
         done
-      fi
+        if [ "$match_found" = false ]; then
+          RUN_WINDOWS_TESTS=true
+          break
+        fi
+      done
       
-      echo "Linux/Test files only: $LINUX_TEST_ONLY"
+      echo "Run Windows Tests: $RUN_WINDOWS_TESTS"
       
-      echo "##vso[task.setvariable variable=LinuxTestOnly;isOutput=true]$LINUX_TEST_ONLY"
+      echo "##vso[task.setvariable variable=RunWindowsTests;isOutput=true]$RUN_WINDOWS_TESTS"
     name: GitDiffCheck
     displayName: "Check Git Diff"
     condition: always()
