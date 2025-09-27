@@ -79,6 +79,7 @@ type NetworkConfig struct {
 	RuntimeConfig                 RuntimeConfig   `json:"runtimeConfig,omitempty"`
 	WindowsSettings               WindowsSettings `json:"windowsSettings,omitempty"`
 	AdditionalArgs                []KVPair        `json:"AdditionalArgs,omitempty"`
+	IgnoreInfraNic                bool            `json:"ignoreInfraNic,omitempty"` // not part of config, used internally to ignore infra nic
 }
 
 type WindowsSettings struct {

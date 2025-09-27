@@ -106,6 +106,12 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		OrchestratorContext: orchestratorContext,
 		PodInterfaceID:      GetEndpointID(addConfig.args),
 		InfraContainerID:    addConfig.args.ContainerID,
+		Ifname:              addConfig.args.IfName,
+	}
+
+	if addConfig.nwCfg.IgnoreInfraNic {
+		logger.Info("Ignoring infra nic as per network config setting")
+		return IPAMAddResult{}, nil
 	}
 
 	logger.Info("Requesting IP for pod using ipconfig",
