@@ -547,3 +547,12 @@ func getDefaultGateway(routes []RouteInfo) net.IP {
 func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(_ []net.IPNet, _ string) (*EndpointInfo, error) {
 	return epInfo, nil
 }
+
+// removeSecondaryEndpointFromPodNetNSImpl deletes an existing secondary endpoint from the pod network namespace.
+func (ep *endpoint) removeSecondaryEndpointFromPodNetNSImpl(nl netlink.NetlinkInterface, nsc NamespaceClientInterface) error {
+	secondaryepClient := NewSecondaryEndpointClient(nl, nil, nil, nsc, nil, ep)
+	if err := secondaryepClient.RemoveInterfacesfromNetnsPath(ep.IfName, ep.NetworkNameSpace); err != nil {
+		return err
+	}
+	return nil
+}
