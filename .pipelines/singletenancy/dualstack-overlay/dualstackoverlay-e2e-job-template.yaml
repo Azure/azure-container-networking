@@ -30,7 +30,10 @@ parameters:
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: Create Cluster - ${{ parameters.displayName }}    
-    condition: and(eq('${{ parameters.os }}', 'windows'), eq(variables['runWindowsTest'], true))
+    condition: or(
+        eq('${{ parameters.os }}', 'linux'),
+        and(eq('${{ parameters.os }}', 'windows'), eq(variables['runWindowsTest'], true))
+      )
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -52,7 +55,6 @@ stages:
           dependsOn: ${{ parameters.dependsOn }}
           os: ${{ parameters.os }}
           region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) # Dualstack has a specific region requirement
-
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
     dependsOn:
