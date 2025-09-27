@@ -26,14 +26,11 @@ parameters:
   - name: os
     type: string
     default: ""
-  - name: skip
-    type: boolean
-    default: false
 
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: Create Cluster - ${{ parameters.displayName }}
-    condition: eq('${{ parameters.skip }}', false)
+    condition: not(and(eq('${{ parameters.os }}', 'windows'), eq(variables['linuxOnly'], true)))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -41,6 +38,7 @@ stages:
       name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      linuxOnly: $[ stagedependencies.setup.env.outputs['GitDiffCheck.LinuxTestOnly'] ]
     jobs:
       - template: ../../templates/create-cluster.yaml
         parameters:
@@ -57,7 +55,6 @@ stages:
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
-    condition: eq('${{ parameters.skip }}', false)
     dependsOn:
     - setup
     - publish
@@ -114,7 +111,7 @@ stages:
 
   - stage: delete_${{ parameters.clusterName }}
     displayName: Delete Cluster - ${{ parameters.displayName }}
-    condition: and(always(), eq('${{ parameters.skip }}', false))
+    condition: always()
     dependsOn:
       - ${{ parameters.name }}
     variables:

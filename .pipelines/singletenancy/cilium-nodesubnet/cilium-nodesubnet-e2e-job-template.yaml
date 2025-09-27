@@ -38,14 +38,10 @@ parameters:
   - name: scaleup
     type: string
     default: ""
-  - name: skip
-    type: boolean
-    default: false
 
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: Create Cluster - ${{ parameters.displayName }}
-    condition: eq('${{ parameters.skip }}', false)
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -65,7 +61,7 @@ stages:
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
-    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION), eq('${{ parameters.skip }}', false))
+    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
@@ -124,7 +120,7 @@ stages:
 
   - stage: delete_${{ parameters.clusterName }}
     displayName: Delete Cluster - ${{ parameters.displayName }}
-    condition: and(always(), eq('${{ parameters.skip }}', false))
+    condition: always()
     dependsOn:
       - ${{ parameters.name }}
     variables:
