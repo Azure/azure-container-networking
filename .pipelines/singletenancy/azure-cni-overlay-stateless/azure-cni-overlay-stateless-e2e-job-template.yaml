@@ -24,7 +24,7 @@ parameters:
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: Create Cluster - ${{ parameters.displayName }}
-    condition: eq(variables['runWindowsTest'], false)
+    condition: eq(variables['runWindowsTest'], true)
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup

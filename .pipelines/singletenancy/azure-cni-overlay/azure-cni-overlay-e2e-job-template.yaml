@@ -32,7 +32,8 @@ stages:
     displayName: Create Cluster - ${{ parameters.displayName }}
     condition: or(
         eq('${{ parameters.os }}', 'linux'),
-        and(eq('${{ parameters.os }}', 'windows'), eq(variables['runWindowsTest'], true))
+        and(eq('${{ parameters.os }}', 'windows'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true')),
+        and(eq('${{ parameters.os }}', 'windows'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], true))
       )
     dependsOn:
       - ${{ parameters.dependsOn }}
@@ -43,6 +44,16 @@ stages:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       runWindowsTest: $[ stagedependencies.setup.env.outputs['GitDiffCheck.RunWindowsTests'] ]
     jobs:
+      - job: debug_variables
+        displayName: runWindowsTest print
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo "runWindowsTest variable value: $(runWindowsTest)"
+              echo "runWindowsTest variable type: $(echo $(runWindowsTest) | wc -c)"
+            displayName: Print runWindowsTest
+      
       - template: ../../templates/create-cluster.yaml
         parameters:
           name: ${{ parameters.name }}
