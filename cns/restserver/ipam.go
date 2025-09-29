@@ -277,6 +277,7 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 	var ipconfigsRequest cns.IPConfigsRequest
 	err := common.Decode(w, r, &ipconfigsRequest)
 	logger.Request(opName, ipconfigsRequest, err)
+	logger.Printf("[requestIPConfigsHandler] Current ipconfigsRequest %v", ipconfigsRequest)
 	if err != nil {
 		return
 	}
@@ -317,6 +318,7 @@ func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfi
 	}
 	service.Lock()
 	defer service.Unlock()
+	logger.Printf("[updateEndpointState] Debug output ipconfigsRequest %v", ipconfigsRequest)
 	logger.Printf("[updateEndpointState] Updating endpoint state for infra container %s", ipconfigsRequest.InfraContainerID)
 	for i := range podIPInfo {
 		if endpointInfo, ok := service.EndpointState[ipconfigsRequest.InfraContainerID]; ok {
