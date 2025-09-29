@@ -939,7 +939,7 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 		return podIPInfo, fmt.Errorf("not enough IPs available, waiting on Azure CNS to allocate more")
 	}
 
-	logger.Printf("[AssignDesiredIPConfigs] Successfully assigned IPs for pod %+v", podInfo)
+	logger.Printf("[AssignAvailableIPConfigs] Successfully assigned IPs for pod %+v", podInfo)
 	return podIPInfo, nil
 }
 
