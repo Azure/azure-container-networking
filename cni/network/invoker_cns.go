@@ -109,11 +109,6 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		Ifname:              addConfig.args.IfName,
 	}
 
-	if addConfig.nwCfg.IgnoreInfraNic {
-		logger.Info("Ignoring infra nic as per network config setting")
-		return IPAMAddResult{}, nil
-	}
-
 	logger.Info("Requesting IP for pod using ipconfig",
 		zap.Any("pod", podInfo),
 		zap.Any("ipconfig", ipconfigs))
@@ -154,6 +149,10 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	numInterfacesWithDefaultRoutes := 0
 
 	for i := 0; i < len(response.PodIPInfo); i++ {
+		if addConfig.nwCfg.IgnoreInfraNic && response.PodIPInfo[i].NICType == cns.InfraNIC {
+			logger.Info("Ignoring infra nic as per network config setting")
+			continue
+		}
 		info := IPResultInfo{
 			podIPAddress:       response.PodIPInfo[i].PodIPConfig.IPAddress,
 			ncSubnetPrefix:     response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
