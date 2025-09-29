@@ -318,9 +318,10 @@ func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfi
 	}
 	service.Lock()
 	defer service.Unlock()
-	logger.Printf("[updateEndpointState] Debug output ipconfigsRequest %v", ipconfigsRequest)
+	logger.Printf("[updateEndpointState] Debug output ipconfigsRequest %v || podIPInfo %v || endpointInfos by containerID %v", ipconfigsRequest, podIPInfo, service.EndpointState[ipconfigsRequest.InfraContainerID].IfnameToIPMap)
 	logger.Printf("[updateEndpointState] Updating endpoint state for infra container %s", ipconfigsRequest.InfraContainerID)
 	for i := range podIPInfo {
+
 		if endpointInfo, ok := service.EndpointState[ipconfigsRequest.InfraContainerID]; ok {
 			logger.Warnf("[updateEndpointState] Found existing endpoint state for infra container %s", ipconfigsRequest.InfraContainerID)
 			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
@@ -1034,6 +1035,7 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 
 	failedToAssignIP := false
 	numIPConfigsAssigned := 0
+	logger.Printf("[AssignAvailableIPConfigs] Number of IPs to assign %d", len(ipsToAssign))
 	// assigns all IPs in the map to the pod
 	for _, ip := range ipsToAssign { //nolint:gocritic // ignore copy
 		if err := service.assignIPConfig(ip, podInfo); err != nil {
