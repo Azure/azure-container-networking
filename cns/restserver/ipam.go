@@ -318,11 +318,12 @@ func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfi
 	}
 	service.Lock()
 	defer service.Unlock()
-	logger.Printf("[updateEndpointState] Debug output ipconfigsRequest %v || podIPInfo %v || endpointInfos by containerID %v", ipconfigsRequest, podIPInfo, service.EndpointState[ipconfigsRequest.InfraContainerID].IfnameToIPMap)
+	logger.Printf("[updateEndpointState] Debug output ipconfigsRequest %v || podIPInfo %v", ipconfigsRequest, podIPInfo)
 	logger.Printf("[updateEndpointState] Updating endpoint state for infra container %s", ipconfigsRequest.InfraContainerID)
 	for i := range podIPInfo {
 
 		if endpointInfo, ok := service.EndpointState[ipconfigsRequest.InfraContainerID]; ok {
+			logger.Printf("[updateEndpointState] Debug output endpointInfo %v", endpointInfo)
 			logger.Warnf("[updateEndpointState] Found existing endpoint state for infra container %s", ipconfigsRequest.InfraContainerID)
 			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
 			if ip == nil {
