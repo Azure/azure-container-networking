@@ -106,7 +106,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		OrchestratorContext: orchestratorContext,
 		PodInterfaceID:      GetEndpointID(addConfig.args),
 		InfraContainerID:    addConfig.args.ContainerID,
-		// Ifname:              addConfig.args.IfName,
+		Ifname:              addConfig.args.IfName,
 	}
 
 	logger.Info("Requesting IP for pod using ipconfig",
