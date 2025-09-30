@@ -128,6 +128,7 @@ type CreateNetworkContainerRequest struct {
 	AllowNCToHostCommunication bool
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
+	SwiftV2PrefixOnNic         bool // Indicates if is swiftv2 nc, PrefixOnNic scenario (isSwiftV2 && nc.Type == VNETBlock)
 	NetworkInterfaceInfo       NetworkInterfaceInfo //nolint // introducing new field for backendnic, to be used later by cni code
 }
 

@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"runtime"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -194,6 +195,16 @@ var errNonExistentContainerStatus = errors.New("nonExistantContainerstatus")
 // all NCs and update the CNS state accordingly. This function returns the the total number of NCs on this VM that have been programmed to
 // some version, NOT the number of NCs that are up-to-date.
 func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMode string) (int, error) {
+	// will remove it later
+	// hasVNETBlockNC1 := service.isPrefixonNicSwiftV2()
+	// logger.Printf("winDebug: syncHostNCVersion hasVNETBlockNC1 %v", hasVNETBlockNC1)
+	// if runtime.GOOS == "windows" {
+	// 	logger.Printf("winDebug: before setPrefixOnNICRegistry in syncHostNCVersion")
+	// 	err := service.setPrefixOnNICRegistry(true, "aa:bb:cc:dd:ee:ff")
+	// 	if err != nil {
+	// 		logger.Debugf("failed to add PrefixOnNic keys to Windows registry: %w", err)
+	// 	}
+	// }
 	outdatedNCs := map[string]struct{}{}
 	programmedNCs := map[string]struct{}{}
 	for idx := range service.state.ContainerStatus {
@@ -219,7 +230,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 			programmedNCs[service.state.ContainerStatus[idx].ID] = struct{}{}
 		}
 	}
-	if len(outdatedNCs) == 0 {
+	if len(outdatedNCs) != 0 {
 		return len(programmedNCs), nil
 	}
 
@@ -717,8 +728,27 @@ func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]stri
 
 		if ncID != "" {
 			ncs[ncID] = PrefixOnNicNCVersion // for prefix on nic version scenario nc version is 1
+		} else if runtime.GOOS == "windows" && service.isPrefixonNicSwiftV2() {
+			err := service.setPrefixOnNICRegistry(true, iface.MacAddress.String())
+			if err != nil {
+				logger.Debugf("failed to add PrefixOnNic keys to Windows registry: %w", err)
+			}
 		}
 	}
 
 	return ncs, nil
+}
+
+// isPrefixonNicSwiftV2 checks if any NC in the container status should use SwiftV2 PrefixOnNic
+// Uses the SwiftV2PrefixOnNic field which captures the condition: isSwiftV2 && nc.Type == VNETBlock
+func (service *HTTPRestService) isPrefixonNicSwiftV2() bool {
+	for _, containerStatus := range service.state.ContainerStatus {
+		req := containerStatus.CreateNetworkContainerRequest
+
+		// Check if this NC is SwiftV2 PrefixOnNic setting
+		if req.SwiftV2PrefixOnNic {
+			return true
+		}
+	}
+	return false
 }
