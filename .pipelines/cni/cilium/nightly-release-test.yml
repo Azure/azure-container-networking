@@ -36,9 +36,6 @@ stages:
           - bash: |
               set -ex
               
-              # Clear Docker buildx cache to remove systemcrypto artifacts
-              docker buildx prune --all --force || true
-              
               cd .pipelines/
               git clone https://github.com/cilium/cilium.git
               cd cilium
@@ -71,21 +68,12 @@ stages:
                 # Apply patch to Dockerfile  
                 DOCKERFILE_PATH="./images/$(directory)/Dockerfile"
                 echo "Patching Dockerfile: $DOCKERFILE_PATH"
-                
-                # Check if we're using Microsoft Go image
-                if ! [ -z "$goMCR" ] && [[ "$goMCR" == *"microsoft"* ]]; then
-                  echo "Applying nosystemcrypto patch for Microsoft Go build"
                   
-                  # Add ARG and ENV statements to disable systemcrypto for Microsoft Go
-                  sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=boringcrypto \nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
+                # Add ARG and ENV statements to disable systemcrypto for Microsoft Go
+                sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=boringcrypto \nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
                   
-                  # Clear Go module and build caches completely, then rebuild everything with nosystemcrypto
-                  sed -i '/ENV CGO_ENABLED=1/a RUN rm -rf /go/pkg /root/.cache && \\\n    mkdir -p /go/pkg /tmp/gocache && \\\n    cd /tmp && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 go env && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 GOEXPERIMENT=boringcrypto go install -a -x std' "$DOCKERFILE_PATH"
-                else
-                  echo "Using standard Go build - no GOEXPERIMENT patch needed"
-                  # Just add CGO_ENABLED for consistency
-                  sed -i '/^FROM.*builder/a ENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
-                fi
+                # Clear Go module and build caches completely, then rebuild everything with nosystemcrypto
+                sed -i '/ENV CGO_ENABLED=1/a RUN rm -rf /go/pkg /root/.cache && \\\n    mkdir -p /go/pkg /tmp/gocache && \\\n    cd /tmp && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 go env && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 GOEXPERIMENT=boringcrypto go install -a -x std' "$DOCKERFILE_PATH"
                 
                 # Remove ALL cache mounts for /go/pkg and /root/.cache to avoid conflicts
                 sed -i 's/--mount=type=cache,target=\/go\/pkg[[:space:]]*//g' "$DOCKERFILE_PATH"
@@ -95,10 +83,6 @@ stages:
                 head -80 "$DOCKERFILE_PATH"
               fi
 
-              # Create fresh builder with clean cache to avoid systemcrypto conflicts
-              docker buildx rm cilium-builder || true
-              docker buildx create --name cilium-builder --use --bootstrap
-              
               BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
               DOCKER_FLAGS="$BUILD_ARGS" \
               make $(type)
