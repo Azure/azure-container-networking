@@ -60,6 +60,7 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 			GatewayIPv6Address: nc.DefaultGatewayV6,
 		},
 		NCStatus: nc.Status,
+		SwiftV2PrefixOnNic: isSwiftV2 && nc.Type == v1alpha.VNETBlock,
 		NetworkInterfaceInfo: cns.NetworkInterfaceInfo{
 			MACAddress: nc.MacAddress,
 		},
