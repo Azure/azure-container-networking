@@ -67,26 +67,6 @@ stages:
                 ALPINE_ARGS="--build-arg ALPINE_IMAGE=${alpineACR} "
               fi
 
-              #if [ "$(type)" = "docker-operator-generic-image" ]; then
-              #  echo "Applying GOEXPERIMENT patch for operator build"
-                
-              #  # Apply patch to Dockerfile  
-              #  DOCKERFILE_PATH="./images/$(directory)/Dockerfile"
-              #  echo "Patching Dockerfile: $DOCKERFILE_PATH"
-                
-              #  # Add ARG and ENV statements after the first FROM instruction (inside the build stage)
-              #  sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=nosystemcrypto\nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
-                
-              #  # Remove the problematic cache mount for /go/pkg to avoid systemcrypto conflicts
-              #  sed -i 's/--mount=type=cache,target=\/go\/pkg[[:space:]]*//g' "$DOCKERFILE_PATH"
-                
-              #  # Clear Go cache directories and rebuild standard library with nosystemcrypto
-              #  sed -i '/ENV CGO_ENABLED=0/a RUN rm -rf /root/.cache/go-build /go/pkg && \\\n    mkdir -p /go/pkg && \\\n    GOEXPERIMENT=nosystemcrypto GOCACHE=/tmp/gocache go install -a std' "$DOCKERFILE_PATH"
-                
-              #  echo "Modified Dockerfile contents (first 50 lines):"
-              #  head -50 "$DOCKERFILE_PATH"
-              #fi
-
               if [ "$(type)" = "docker-operator-generic-image" ]; then
                 # Apply patch to Dockerfile  
                 DOCKERFILE_PATH="./images/$(directory)/Dockerfile"
@@ -97,10 +77,10 @@ stages:
                   echo "Applying nosystemcrypto patch for Microsoft Go build"
                   
                   # Add ARG and ENV statements to disable systemcrypto for Microsoft Go
-                  sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=nosystemcrypto\nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
+                  sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=boringcrypto \nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
                   
                   # Clear Go module and build caches completely, then rebuild everything with nosystemcrypto
-                  sed -i '/ENV CGO_ENABLED=1/a RUN rm -rf /go/pkg /root/.cache && \\\n    mkdir -p /go/pkg /tmp/gocache && \\\n    cd /tmp && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 go env && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 GOEXPERIMENT=nosystemcrypto go install -a -x std' "$DOCKERFILE_PATH"
+                  sed -i '/ENV CGO_ENABLED=1/a RUN rm -rf /go/pkg /root/.cache && \\\n    mkdir -p /go/pkg /tmp/gocache && \\\n    cd /tmp && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 go env && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 GOEXPERIMENT=boringcrypto go install -a -x std' "$DOCKERFILE_PATH"
                 else
                   echo "Using standard Go build - no GOEXPERIMENT patch needed"
                   # Just add CGO_ENABLED for consistency
