@@ -1020,6 +1020,11 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 
 	logger.Request(service.Name, req, nil)
 
+	logProperties := map[string]interface{}{
+		"Network ID": req.NetworkID,
+		"NC ID":      req.NetworkContainerID,
+	}
+
 	ncParams, err := extractNCParamsFromURL(req.DeleteNetworkContainerURL)
 	if err != nil {
 		resp := cns.UnpublishNetworkContainerResponse{
@@ -1029,7 +1034,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 			},
 		}
 		respondJSON(w, http.StatusBadRequest, resp)
-		logger.Response(service.Name, resp, resp.Response.ReturnCode, nil, err)
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, logProperties, err)
 		return
 	}
 
@@ -1067,7 +1072,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				UnpublishErrorStr: err.Error(),
 			}
 			respondJSON(w, http.StatusOK, resp) // legacy behavior
-			logger.Response(service.Name, resp, resp.Response.ReturnCode, nil, err)
+			logger.Response(service.Name, resp, resp.Response.ReturnCode, logProperties, err)
 			return
 		}
 
@@ -1084,7 +1089,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				UnpublishResponseBody: joinBytes,
 			}
 			respondJSON(w, http.StatusOK, resp) // legacy behavior
-			logger.Response(service.Name, resp, resp.Response.ReturnCode, nil, nil)
+			logger.Response(service.Name, resp, resp.Response.ReturnCode, logProperties, nil)
 			return
 		}
 
@@ -1102,7 +1107,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 			UnpublishErrorStr: err.Error(),
 		}
 		respondJSON(w, http.StatusOK, resp) // legacy behavior
-		logger.Response(service.Name, resp, resp.Response.ReturnCode, nil, err)
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, logProperties, err)
 		return
 	}
 
@@ -1122,7 +1127,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	}
 
 	respondJSON(w, http.StatusOK, resp)
-	logger.Response(service.Name, resp, resp.Response.ReturnCode, nil, nil)
+	logger.Response(service.Name, resp, resp.Response.ReturnCode, logProperties, nil)
 }
 
 func (service *HTTPRestService) CreateHostNCApipaEndpoint(w http.ResponseWriter, r *http.Request) {
