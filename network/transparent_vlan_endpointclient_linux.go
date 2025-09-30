@@ -649,11 +649,11 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string,
 }
 
 // Helper that creates routing rules for the current NS which direct packets
-// to the virtual gateway ip on linkToName device interface
-// Route 1: 169.254.2.1 dev <linkToName>
-// Route 2: default via 169.254.2.1 dev <linkToName>
+// to the subnet gateway ip on linkToName device interface
+// Route 1: <gatewayIP> dev <linkToName>
+// Route 2: <subnetCIDR> via <gatewayIP> dev <linkToName>
 func (client *TransparentVlanEndpointClient) addCustomRoutes(linkToName string, gatewayIP net.IP, subnetCIDR net.IPNet, table int) error {
-	// Add route for virtualgwip (ip route add <gatewayIP> dev <linkToName>)
+	// Add route for subnetgwIP (ip route add <gatewayIP> dev <linkToName>)
 	gWIP, gwNet, _ := net.ParseCIDR(gatewayIP.String() + "/32")
 	routeInfo := RouteInfo{
 		Dst:   *gwNet,
