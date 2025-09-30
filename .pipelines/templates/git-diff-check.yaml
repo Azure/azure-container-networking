@@ -38,15 +38,16 @@ steps:
       echo "=== Files Changed Compared to $TARGET_BRANCH ==="
       CHANGED_FILES=$(git diff --name-only $MERGE_BASE...HEAD)
       
+      RUN_WINDOWS_TESTS=false
       if [ -z "$CHANGED_FILES" ]; then
-        echo "No files changed"
+        echo "No files changed, running all"
+        RUN_WINDOWS_TESTS=true
       else
         echo "$CHANGED_FILES"
       fi
       
       # Check if all changed files match Linux/test patterns
       LINUX_TEST_PATTERNS=(".*linux\.go$" ".*test\.go$")
-      RUN_WINDOWS_TESTS=false
       
       for file in $CHANGED_FILES; do
         match_found=false
