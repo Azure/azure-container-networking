@@ -105,6 +105,13 @@ type MultitenantPodNetworkConfigStatus struct {
 	// DefaultDenyACL bool indicates whether default deny policy will be present on the pods upon pod creation
 	// +kubebuilder:validation:Optional
 	DefaultDenyACL bool `json:"defaultDenyACL"`
+	// NodeName is the name of the node where the pod is scheduled
+	// +kubebuilder:validation:Optional
+	NodeName string `json:"nodeName,omitempty"`
+	// PodName is the name of the pod
+	PodName string `json:"podName,omitempty"`
+	// PodUID is the uid of the pod
+	PodUID string `json:"podUID,omitempty"`
 }
 
 func init() {
