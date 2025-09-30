@@ -51,7 +51,7 @@ stages:
                 goVersion=${goTag%@*}
                 goMCR=mcr.microsoft.com/oss/go/microsoft/golang:${goVersion}
                 echo "Golang MCR image: ${goMCR}"
-                GO_ARGS="--build-arg GOLANG_IMAGE=${goMCR} "
+                GO_ARGS="--build-arg GOLANG_IMAGE=${goMCR} --build-arg GOEXPERIMENT=boringcrypto"
               fi
 
               if ! [ -z $alpineImage ]; then
