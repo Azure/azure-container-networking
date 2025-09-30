@@ -947,7 +947,7 @@ func (service *HTTPRestService) handleGetNetworkContainers(w http.ResponseWriter
 		},
 	}
 	err := acn.Encode(w, &response)
-	logger.Response(service.Name, response, response.Response.ReturnCode, err)
+	logger.Response(service.Name, response, response.Response.ReturnCode, nil, err)
 }
 
 // handlePostNetworkContainers stores all the NCs (from the request that client sent) into CNS's state file
@@ -964,7 +964,7 @@ func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWrite
 			},
 		}
 		err = acn.Encode(w, &response)
-		logger.Response(service.Name, response, response.Response.ReturnCode, err)
+		logger.Response(service.Name, response, response.Response.ReturnCode, nil, err)
 		return
 	}
 	if err := req.Validate(); err != nil { //nolint:govet // shadow okay
@@ -978,7 +978,7 @@ func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWrite
 		Response: createNCsResp,
 	}
 	err = acn.Encode(w, &response)
-	logger.Response(service.Name, response, response.Response.ReturnCode, err)
+	logger.Response(service.Name, response, response.Response.ReturnCode, nil, err)
 }
 
 func (service *HTTPRestService) createNetworkContainers(createNetworkContainerRequests []cns.CreateNetworkContainerRequest) cns.Response {
@@ -1016,7 +1016,7 @@ func (service *HTTPRestService) createNetworkContainers(createNetworkContainerRe
 // setResponse encodes the http response
 func (service *HTTPRestService) setResponse(w http.ResponseWriter, returnCode types.ResponseCode, response interface{}) {
 	serviceErr := acn.Encode(w, &response)
-	logger.Response(service.Name, response, returnCode, serviceErr)
+	logger.Response(service.Name, response, returnCode, nil, serviceErr)
 }
 
 // ncList contains comma-separated list of unique NCs
