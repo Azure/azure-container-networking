@@ -135,6 +135,15 @@ spec:
               ncID:
                 description: Deprecated - use InterfaceInfos
                 type: string
+              nodeName:
+                description: NodeName is the name of the node where the pod is scheduled
+                type: string
+              podName:
+                description: PodName is the name of the pod
+                type: string
+              podUID:
+                description: PodUID is the uid of the pod
+                type: string
               primaryIP:
                 description: Deprecated - use InterfaceInfos
                 type: string
