@@ -230,7 +230,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 			programmedNCs[service.state.ContainerStatus[idx].ID] = struct{}{}
 		}
 	}
-	if len(outdatedNCs) != 0 {
+	if len(outdatedNCs) == 0 {
 		return len(programmedNCs), nil
 	}
 
@@ -240,7 +240,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	}
 
 	// Get IMDS NC versions for delegated NIC scenarios
-	imdsNCVersions, err := service.GetIMDSNCs(ctx)
+	imdsNCVersions, err := service.getIMDSNCs(ctx)
 	if err != nil {
 		// If any of the NMA API check calls, imds calls fails assume that nma build doesn't have the latest changes and create empty map
 		imdsNCVersions = make(map[string]string)
@@ -696,7 +696,7 @@ func (service *HTTPRestService) isNCDetailsAPIExists(ctx context.Context) bool {
 }
 
 // GetIMDSNCs gets NC versions from IMDS and returns them as a map
-func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]string, error) {
+func (service *HTTPRestService) getIMDSNCs(ctx context.Context) (map[string]string, error) {
 	imdsClient := service.imdsClient
 	if imdsClient == nil {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated

@@ -15,6 +15,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"runtime"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -1680,3 +1681,135 @@ func setupIMDSMockAPIsWithCustomIDs(svc *HTTPRestService, interfaceIDs []string)
 	// Return cleanup function
 	return func() { svc.imdsClient = originalIMDS }
 }
+
+// TestSyncHostNCVersionWithWindowsSwiftV2 tests SyncHostNCVersion and verifies it calls Windows SwiftV2 PrefixOnNic scenario
+func TestSyncHostNCVersionWithWindowsSwiftV2(t *testing.T) {
+	svc := getTestService(cns.Kubernetes)
+	
+	// Set up test NCs with different scenarios
+	regularNCID := "regular-nc-id"
+	swiftV2NCID := "swift-v2-vnet-block-nc"
+	
+	// Initialize ContainerStatus map if nil
+	if svc.state.ContainerStatus == nil {
+		svc.state.ContainerStatus = make(map[string]containerstatus)
+	}
+	
+	// Add a regular NC
+	svc.state.ContainerStatus[regularNCID] = containerstatus{
+		ID: regularNCID,
+		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+			NetworkContainerid:   regularNCID,
+			SwiftV2PrefixOnNic:   false,
+			NetworkContainerType: cns.Docker,
+			Version:              "2",
+		},
+		HostVersion: "1",
+	}
+	
+	// Add a SwiftV2 VNETBlock NC that should trigger Windows registry operations
+	svc.state.ContainerStatus[swiftV2NCID] = containerstatus{
+		ID: swiftV2NCID,
+		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+			NetworkContainerid:   swiftV2NCID,
+			SwiftV2PrefixOnNic:   true, 
+			NetworkContainerType: cns.Docker,
+			Version:              "2",
+		},
+		HostVersion: "1",
+	}
+	
+	// Set up mock NMAgent with NC versions
+	mockNMA := &fakes.NMAgentClientFake{}
+	mockNMA.GetNCVersionListF = func(ctx context.Context) (nma.NCVersionList, error) {
+		return nma.NCVersionList{
+			Containers: []nma.NCVersion{
+				{
+					NetworkContainerID: regularNCID,
+					Version:           "2",
+				},
+				{
+					NetworkContainerID: swiftV2NCID,
+					Version:           "2",
+				},
+			},
+		}, nil
+	}
+	svc.nma = mockNMA
+	
+	// Set up mock IMDS client for Windows SwiftV2 scenario
+	mac1, _ := net.ParseMAC("AA:BB:CC:DD:EE:FF")
+	mac2, _ := net.ParseMAC("11:22:33:44:55:66")
+	
+	interfaceMap := map[string]imds.NetworkInterface{
+		"interface1": {
+			InterfaceCompartmentID: "", // Empty for Windows condition
+			MacAddress:            imds.HardwareAddr(mac1),
+		},
+		"interface2": {
+			InterfaceCompartmentID: "nc-with-compartment-id",
+			MacAddress:            imds.HardwareAddr(mac2),
+		},
+	}
+	mockIMDS := &mockIMDSAdapter{
+		mock: &struct {
+			networkInterfaces func(_ context.Context) ([]imds.NetworkInterface, error)
+			imdsVersions      func(_ context.Context) (*imds.APIVersionsResponse, error)
+		}{
+			networkInterfaces: func(_ context.Context) ([]imds.NetworkInterface, error) {
+				var interfaces []imds.NetworkInterface
+				for _, iface := range interfaceMap {
+					interfaces = append(interfaces, iface)
+				}
+				return interfaces, nil
+			},
+			imdsVersions: func(_ context.Context) (*imds.APIVersionsResponse, error) {
+				return &imds.APIVersionsResponse{
+					APIVersions: []string{expectedIMDSAPIVersion},
+				}, nil
+			},
+		},
+	}
+	
+	// Replace the IMDS client
+	originalIMDS := svc.imdsClient
+	svc.imdsClient = mockIMDS
+	defer func() { svc.imdsClient = originalIMDS }()
+	
+	// Verify preconditions
+	assert.True(t, svc.isPrefixonNicSwiftV2(), "isPrefixonNicSwiftV2() should return true")
+
+	ctx := context.Background()
+	svc.SyncHostNCVersion(ctx, cns.CRD)
+	
+	// Verify that NC versions were updated
+	updatedRegularNC := svc.state.ContainerStatus[regularNCID]
+	updatedSwiftV2NC := svc.state.ContainerStatus[swiftV2NCID]
+	
+	assert.Equal(t, "2", updatedRegularNC.HostVersion, "Regular NC host version should be updated to 2")
+	assert.Equal(t, "2", updatedSwiftV2NC.HostVersion, "SwiftV2 NC host version should be updated to 2")
+	
+	imdsNCs, err := svc.getIMDSNCs(ctx)
+	assert.NoError(t, err, "getIMDSNCs should not return error")
+	
+	// Verify IMDS results
+	assert.Contains(t, imdsNCs, "nc-with-compartment-id", "NC with compartment ID should be in results")
+	assert.Equal(t, PrefixOnNicNCVersion, imdsNCs["nc-with-compartment-id"], "NC should have expected version")
+	
+	// Log the conditions that would trigger Windows registry operations
+	isWindows := runtime.GOOS == "windows"
+	hasSwiftV2PrefixOnNic := svc.isPrefixonNicSwiftV2()
+	
+	t.Logf("Windows SwiftV2 PrefixOnNic conditions: (runtime.GOOS == 'windows' && service.isPrefixonNicSwiftV2()): %t", 
+		isWindows && hasSwiftV2PrefixOnNic)
+	
+	
+	// Test with no SwiftV2 NCs
+	delete(svc.state.ContainerStatus, swiftV2NCID)
+	assert.False(t, svc.isPrefixonNicSwiftV2(), "isPrefixonNicSwiftV2() should return false without SwiftV2 NCs")
+	
+	// Call getIMDSNCs again to verify condition is not triggered
+	_, err2 := svc.getIMDSNCs(ctx)
+	assert.NoError(t, err2, "getIMDSNCs should not return error")
+}
+
