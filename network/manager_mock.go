@@ -3,6 +3,7 @@ package network
 import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/common"
+	cniSkel "github.com/containernetworking/cni/pkg/skel"
 )
 
 // MockNetworkManager is a mock structure for Network Manager
@@ -222,6 +223,6 @@ func (nm *MockNetworkManager) GetEndpointState(_, _, _ string) ([]*EndpointInfo,
 	return []*EndpointInfo{}, nil
 }
 
-func (nm *MockNetworkManager) RemoveSecondaryEndpointFromPodNetNS(_, _ string) error {
-	return nil
+func (nm *MockNetworkManager) GetEndpointInfos(_ string, args *cniSkel.CmdArgs, _ bool) ([]*EndpointInfo, error) {
+	return nm.GetEndpointInfosFromContainerID(args.ContainerID), nil
 }

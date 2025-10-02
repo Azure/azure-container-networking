@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
+	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -120,9 +121,9 @@ type NetworkManager interface {
 	IsStatelessCNIMode() bool
 	SaveState(eps []*endpoint) error
 	DeleteState(epInfos []*EndpointInfo) error
+	GetEndpointInfos(networkID string, args *cniSkel.CmdArgs, disableAsyncDelete bool) ([]*EndpointInfo, error)
 	GetEndpointInfosFromContainerID(containerID string) []*EndpointInfo
 	GetEndpointState(networkID, containerID, netns string) ([]*EndpointInfo, error)
-	RemoveSecondaryEndpointFromPodNetNS(ifName string, netns string) error
 }
 
 // Creates a new network manager.
@@ -841,7 +842,9 @@ func cnsEndpointInfotoCNIEpInfos(endpointInfo restserver.EndpointInfo, endpointI
 		epInfo.HNSNetworkID = ipInfo.HnsNetworkID
 		epInfo.MacAddress = net.HardwareAddr(ipInfo.MacAddress)
 		epInfo.NetworkContainerID = ipInfo.NetworkContainerID
-
+		if epInfo.NetNsPath == "" {
+			epInfo.NetNsPath = netns
+		}
 		ret = append(ret, epInfo)
 	}
 	return ret
@@ -882,13 +885,56 @@ func generateCNSIPInfoMap(eps []*endpoint) map[string]*restserver.IPInfo {
 	return ifNametoIPInfoMap
 }
 
-// RemoveSecondaryEndpointFromPodNetNS removes the secondary endpoint from the pod netns
-func (nm *networkManager) RemoveSecondaryEndpointFromPodNetNS(ifName, netns string) error {
-	ep := &endpoint{
-		NetworkNameSpace: netns,
-		IfName:           ifName, // TODO: For stateless cni linux populate IfName here to use in deletion in secondary endpoint client
+// GetEndpointInfos gets all endpoint infos associated with a container id
+func (nm *networkManager) GetEndpointInfos(networkID string, args *cniSkel.CmdArgs, disableAsyncDelete bool) ([]*EndpointInfo, error) {
+	if nm.IsStatelessCNIMode() {
+		logger.Info("Calling cns getEndpoint API")
+		epInfos, err := nm.GetEndpointState(networkID, args.ContainerID, args.Netns)
+		if err != nil {
+			switch {
+			// async delete should be disabled for standalone scenarios but will be enabled for AKS scenarios
+			case errors.Is(err, ErrConnectionFailure) && !disableAsyncDelete:
+				logger.Info("Failed to connect to CNS, endpoint will be deleted from state file asynchronously", zap.String("containerID", args.ContainerID))
+				// In SwiftV2 Linux stateless CNI mode, if the plugin cannot connect to CNS,
+				// we still have to remove the secondary (delegated) interface from the pod’s network namespace in the absence of the endpoint state.
+				// This is necessary because leaving the delegated NIC in the pod netns can cause the kernel to block rtnetlink operations.
+				// When that happens, kubelet and containerd hang during sandbox creation or teardown.
+				// The delegated NIC (SR-IOV VF) used by SwiftV2 for multitenant pods remains tied to the pod namespace,
+				// triggering hot-unplug/re-register events and leaving the node in an unhealthy state.
+				// This workaround mitigates the issue by generating a minimal endpointInfo via containerd args and netlink APIs that can be then passed to DeleteEndpoint API.
+				epInfos, err = nm.generateEndpointLocally(args)
+				if err != nil {
+					logger.Error("Failed to fetch secondary endpoint from pod netns", zap.String("netns", args.Netns), zap.Error(err))
+					return nil, errors.Wrap(err, "failed to fetch secondary interfaces")
+				}
+			case errors.Is(err, ErrEndpointStateNotFound):
+				logger.Info("Endpoint Not found", zap.String("containerID", args.ContainerID), zap.Error(err))
+				return nil, nil
+			default:
+				logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
+				return nil, ErrEndpointRetrievalFailure
+			}
+		}
+		for _, epInfo := range epInfos {
+			logger.Info("Found endpoint to delete", zap.String("IfName", epInfo.IfName), zap.String("EndpointID", epInfo.EndpointID), zap.Any("NICType", epInfo.NICType))
+		}
+		return epInfos, nil
 	}
-	logger.Info("Removing Secondary Endpoint from", zap.String("NetworkNameSpace: ", netns))
-	err := ep.removeSecondaryEndpointFromPodNetNSImpl(nm.nsClient)
-	return err
+	// Stateful CNI mode
+	return nm.GetEndpointInfosFromContainerID(args.ContainerID), nil
+
+}
+
+// generateEndpointLocally fetches the endpoint information using containerd args and netlink APIs
+func (nm *networkManager) generateEndpointLocally(args *cniSkel.CmdArgs) ([]*EndpointInfo, error) {
+	ep := &endpoint{
+		Id:               args.ContainerID,
+		NetworkNameSpace: args.Netns,
+		IfName:           args.IfName, // TODO: For stateless cni linux populate IfName here to use in deletion in secondary endpoint client
+	}
+	epInfo, err := nm.getEndpointInfoByIfNameImpl(ep)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch secondary interfaces")
+	}
+	return epInfo, nil
 }
