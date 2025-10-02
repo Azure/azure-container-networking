@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
+	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -120,9 +121,7 @@ type NetworkManager interface {
 	IsStatelessCNIMode() bool
 	SaveState(eps []*endpoint) error
 	DeleteState(epInfos []*EndpointInfo) error
-	GetEndpointInfosFromContainerID(containerID string) []*EndpointInfo
-	GetEndpointState(networkID, containerID, netns string) ([]*EndpointInfo, error)
-	RemoveSecondaryEndpointFromPodNetNS(ifName string, netns string) error
+	GetEndpointInfos(networkID string, args *cniSkel.CmdArgs, disableAsyncDelete bool) ([]*EndpointInfo, error)
 }
 
 // Creates a new network manager.
@@ -458,6 +457,7 @@ func validateUpdateEndpointState(endpointID string, ifNameToIPInfoMap map[string
 // GetEndpointState will make a call to CNS GetEndpointState API in the stateless CNI mode to fetch the endpointInfo
 // TODO unit tests need to be added, WorkItem: 26606939
 // In stateless cni, container id is the endpoint id, so you can pass in either
+// netns is used to populate the NetNsPath field in the returned EndpointInfo structs for SWiftV2 Linux mode to remove the secondary interface
 func (nm *networkManager) GetEndpointState(networkID, containerID, netns string) ([]*EndpointInfo, error) {
 	endpointResponse, err := nm.CnsClient.GetEndpoint(context.TODO(), containerID)
 	if err != nil {
@@ -841,13 +841,15 @@ func cnsEndpointInfotoCNIEpInfos(endpointInfo restserver.EndpointInfo, endpointI
 		epInfo.HNSNetworkID = ipInfo.HnsNetworkID
 		epInfo.MacAddress = net.HardwareAddr(ipInfo.MacAddress)
 		epInfo.NetworkContainerID = ipInfo.NetworkContainerID
-
+		if epInfo.NetNsPath == "" {
+			epInfo.NetNsPath = netns
+		}
 		ret = append(ret, epInfo)
 	}
 	return ret
 }
 
-// gets all endpoint infos associated with a container id and populates the network id field
+// gets all endpoint infos associated with a container id and populates the network id field in Statefull CNI mode
 // nictype may be empty in which case it is likely of type "infra"
 func (nm *networkManager) GetEndpointInfosFromContainerID(containerID string) []*EndpointInfo {
 	ret := []*EndpointInfo{}
@@ -882,13 +884,44 @@ func generateCNSIPInfoMap(eps []*endpoint) map[string]*restserver.IPInfo {
 	return ifNametoIPInfoMap
 }
 
-// RemoveSecondaryEndpointFromPodNetNS removes the secondary endpoint from the pod netns
-func (nm *networkManager) RemoveSecondaryEndpointFromPodNetNS(ifName, netns string) error {
-	ep := &endpoint{
-		NetworkNameSpace: netns,
-		IfName:           ifName, // TODO: For stateless cni linux populate IfName here to use in deletion in secondary endpoint client
+// GetEndpointInfos gets all endpoint infos associated with a container id and networkID
+// In stateless CNI mode, it calls CNS GetEndpointState API to get the endpoint infos or genreate them locally if CNS is unreachable in SwiftV2 mode and AsyncDelete is enabled
+// In stateful CNI mode, it fetches the endpoint infos by calling GetEndpointInfosFromContainerID
+func (nm *networkManager) GetEndpointInfos(networkID string, args *cniSkel.CmdArgs, disableAsyncDelete bool) ([]*EndpointInfo, error) {
+	if nm.IsStatelessCNIMode() {
+		logger.Info("Calling cns getEndpoint API")
+		epInfos, err := nm.GetEndpointState(networkID, args.ContainerID, args.Netns)
+		emptyEpInfos := []*EndpointInfo{}
+		if err != nil {
+			switch {
+			// async delete should be disabled for standalone scenarios but will be enabled for AKS scenarios
+			case errors.Is(err, ErrConnectionFailure) && !disableAsyncDelete:
+				logger.Info("Failed to connect to CNS, endpoint will be deleted from state file asynchronously", zap.String("containerID", args.ContainerID))
+				// In SwiftV2 Linux stateless CNI mode, if the plugin cannot connect to CNS,
+				// we still have to remove the secondary (delegated) interface from the pod’s network namespace in the absence of the endpoint state.
+				// This is necessary because leaving the delegated NIC in the pod netns can cause the kernel to block rtnetlink operations.
+				// When that happens, kubelet and containerd hang during sandbox creation or teardown.
+				// The delegated NIC (SR-IOV VF) used by SwiftV2 for multitenant pods remains tied to the pod namespace,
+				// triggering hot-unplug/re-register events and leaving the node in an unhealthy state.
+				// This workaround mitigates the issue by generating a minimal endpointInfo via containerd args and netlink APIs that can be then passed to DeleteEndpoint API.
+				epInfos, err = nm.getEndpointInfoByIfNameImpl(args.ContainerID, args.Netns, args.IfName)
+				if err != nil {
+					logger.Error("Failed to fetch secondary endpoint from pod netns", zap.String("netns", args.Netns), zap.Error(err))
+					return emptyEpInfos, errors.Wrap(err, "failed to fetch secondary interfaces")
+				}
+			case errors.Is(err, ErrEndpointStateNotFound):
+				logger.Info("Endpoint Not found", zap.String("containerID", args.ContainerID), zap.Error(err))
+				return emptyEpInfos, nil
+			default:
+				logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
+				return emptyEpInfos, ErrEndpointRetrievalFailure
+			}
+		}
+		for _, epInfo := range epInfos {
+			logger.Info("Found endpoint to delete", zap.String("IfName", epInfo.IfName), zap.String("EndpointID", epInfo.EndpointID), zap.Any("NICType", epInfo.NICType))
+		}
+		return epInfos, nil
 	}
-	logger.Info("Removing Secondary Endpoint from", zap.String("NetworkNameSpace: ", netns))
-	err := ep.removeSecondaryEndpointFromPodNetNSImpl(nm.nsClient)
-	return err
+	// Stateful CNI mode
+	return nm.GetEndpointInfosFromContainerID(args.ContainerID), nil
 }
