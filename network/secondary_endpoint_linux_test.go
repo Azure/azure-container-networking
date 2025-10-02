@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/kubernetes/pkg/kubelet"
 )
@@ -101,19 +102,11 @@ func TestSecondaryDeleteEndpoints(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		client  *SecondaryEndpointClient
 		ep      *endpoint
 		wantErr bool
 	}{
 		{
 			name: "Delete endpoint happy path",
-			client: &SecondaryEndpointClient{
-				netlink:        netlink.NewMockNetlink(false, ""),
-				plClient:       platform.NewMockExecClient(false),
-				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(false, 0),
-				nsClient:       NewMockNamespaceClient(),
-			},
 			ep: &endpoint{
 				NetworkNameSpace: "testns",
 				SecondaryInterfaces: map[string]*InterfaceInfo{
@@ -130,13 +123,6 @@ func TestSecondaryDeleteEndpoints(t *testing.T) {
 		},
 		{
 			name: "Delete endpoint happy path namespace not found",
-			client: &SecondaryEndpointClient{
-				netlink:        netlink.NewMockNetlink(false, ""),
-				plClient:       platform.NewMockExecClient(false),
-				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(false, 0),
-				nsClient:       NewMockNamespaceClient(),
-			},
 			ep: &endpoint{
 				SecondaryInterfaces: map[string]*InterfaceInfo{
 					"eth1": {
@@ -152,13 +138,6 @@ func TestSecondaryDeleteEndpoints(t *testing.T) {
 		},
 		{
 			name: "Delete endpoint enter namespace failure",
-			client: &SecondaryEndpointClient{
-				netlink:        netlink.NewMockNetlink(false, ""),
-				plClient:       platform.NewMockExecClient(false),
-				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(false, 0),
-				nsClient:       NewMockNamespaceClient(),
-			},
 			ep: &endpoint{
 				NetworkNameSpace: failToEnterNamespaceName,
 				SecondaryInterfaces: map[string]*InterfaceInfo{
@@ -176,13 +155,6 @@ func TestSecondaryDeleteEndpoints(t *testing.T) {
 		},
 		{
 			name: "Delete endpoint netlink failure",
-			client: &SecondaryEndpointClient{
-				netlink:        netlink.NewMockNetlink(true, "netlink failure"),
-				plClient:       platform.NewMockExecClient(false),
-				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(false, 0),
-				nsClient:       NewMockNamespaceClient(),
-			},
 			ep: &endpoint{
 				NetworkNameSpace: failToEnterNamespaceName,
 				SecondaryInterfaces: map[string]*InterfaceInfo{
@@ -202,13 +174,6 @@ func TestSecondaryDeleteEndpoints(t *testing.T) {
 			// new way to handle delegated nics
 			// if the nictype is delegated, the data is on the endpoint itself, not the secondary interfaces field
 			name: "Delete endpoint with nic type delegated",
-			client: &SecondaryEndpointClient{
-				netlink:        netlink.NewMockNetlink(false, ""),
-				plClient:       platform.NewMockExecClient(false),
-				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(false, 0),
-				nsClient:       NewMockNamespaceClient(),
-			},
 			// revisit in future, but currently the struct looks like this (with duplicated fields)
 			ep: &endpoint{
 				NetworkNameSpace: "testns",
@@ -237,12 +202,29 @@ func TestSecondaryDeleteEndpoints(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			// Create client with appropriate netlink mock based on test case
+			var netlinkClient netlink.NetlinkInterface
+			if tt.name == "Delete endpoint netlink failure" {
+				netlinkClient = netlink.NewMockNetlink(true, "netlink failure")
+			} else {
+				netlinkClient = netlink.NewMockNetlink(false, "")
+			}
+
+			client := &SecondaryEndpointClient{
+				netlink:        netlinkClient,
+				plClient:       platform.NewMockExecClient(false),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				nsClient:       NewMockNamespaceClient(),
+				ep:             tt.ep, // Set client.ep to the test endpoint
+			}
+
 			require.Len(t, tt.ep.SecondaryInterfaces, 1)
 			if tt.wantErr {
-				require.Error(t, tt.client.DeleteEndpoints(tt.ep))
+				require.Error(t, client.DeleteEndpoints(tt.ep))
 				require.Len(t, tt.ep.SecondaryInterfaces, 1)
 			} else {
-				require.Nil(t, tt.client.DeleteEndpoints(tt.ep))
+				require.Nil(t, client.DeleteEndpoints(tt.ep))
 				require.Len(t, tt.ep.SecondaryInterfaces, 0)
 			}
 		})
@@ -414,4 +396,231 @@ func TestSecondaryConfigureContainerInterfacesAndRoutes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFetchInterfacesFromNetnsPath_Success(t *testing.T) {
+	nl := netlink.NewMockNetlink(false, "")
+	plc := platform.NewMockExecClient(false)
+
+	client := &SecondaryEndpointClient{
+		netlink:        nl,
+		plClient:       plc,
+		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+		netioshim:      netio.NewMockNetIO(false, 0),
+		nsClient:       NewMockNamespaceClient(),
+		ep:             &endpoint{SecondaryInterfaces: make(map[string]*InterfaceInfo)},
+	}
+
+	netnspath := "testns"
+	infraInterfaceName := "eth0"
+
+	result, err := client.FetchInterfacesFromNetnsPath(infraInterfaceName, netnspath)
+
+	assert.NoError(t, err)
+	// Result will be empty in test environment since no actual interfaces exist
+	assert.NotNil(t, result)
+}
+
+func TestFetchInterfacesFromNetnsPath_NamespaceNotFound(t *testing.T) {
+	nl := netlink.NewMockNetlink(false, "")
+	plc := platform.NewMockExecClient(false)
+
+	client := &SecondaryEndpointClient{
+		netlink:        nl,
+		plClient:       plc,
+		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+		netioshim:      netio.NewMockNetIO(false, 0),
+		nsClient:       NewMockNamespaceClient(),
+		ep:             &endpoint{SecondaryInterfaces: make(map[string]*InterfaceInfo)},
+	}
+
+	// Use empty string for namespace path to trigger "file not exist" behavior
+	netnspath := ""
+	infraInterfaceName := "eth0"
+
+	result, err := client.FetchInterfacesFromNetnsPath(infraInterfaceName, netnspath)
+
+	assert.NoError(t, err) // Should return nil error when namespace doesn't exist
+	assert.Empty(t, result)
+}
+
+func TestFetchInterfacesFromNetnsPath_EnterNamespaceError(t *testing.T) {
+	nl := netlink.NewMockNetlink(false, "")
+	plc := platform.NewMockExecClient(false)
+
+	client := &SecondaryEndpointClient{
+		netlink:        nl,
+		plClient:       plc,
+		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+		netioshim:      netio.NewMockNetIO(false, 0),
+		nsClient:       NewMockNamespaceClient(),
+		ep:             &endpoint{SecondaryInterfaces: make(map[string]*InterfaceInfo)},
+	}
+
+	// Use the constant that triggers enter failure
+	netnspath := failToEnterNamespaceName
+	infraInterfaceName := "eth0"
+
+	result, err := client.FetchInterfacesFromNetnsPath(infraInterfaceName, netnspath)
+
+	// FetchInterfacesFromNetnsPath should return an error when namespace enter fails
+	// (unlike DeleteEndpoints which clears SecondaryInterfaces and returns nil)
+	assert.Error(t, err, "Expected error when namespace enter fails")
+	assert.Empty(t, result, "Expected empty result when namespace enter fails")
+}
+
+func TestDeleteEndpoints_StatelessCNI_Success(t *testing.T) {
+	nl := netlink.NewMockNetlink(false, "")
+	plc := platform.NewMockExecClient(false)
+
+	client := &SecondaryEndpointClient{
+		netlink:        nl,
+		plClient:       plc,
+		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+		netioshim:      netio.NewMockNetIO(false, 0),
+		nsClient:       NewMockNamespaceClient(),
+	}
+
+	ep := &endpoint{
+		IfName:              "eth1",
+		NICType:             cns.NodeNetworkInterfaceFrontendNIC,
+		NetworkNameSpace:    "testns",
+		SecondaryInterfaces: make(map[string]*InterfaceInfo),
+	}
+
+	err := client.DeleteEndpoints(ep)
+
+	assert.NoError(t, err)
+}
+
+func TestDeleteEndpoints_StatefulCNI_Success(t *testing.T) {
+	nl := netlink.NewMockNetlink(false, "")
+	plc := platform.NewMockExecClient(false)
+
+	secondaryInterfaces := map[string]*InterfaceInfo{
+		"eth1": {Name: "eth1"},
+		"eth2": {Name: "eth2"},
+	}
+
+	client := &SecondaryEndpointClient{
+		netlink:        nl,
+		plClient:       plc,
+		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+		netioshim:      netio.NewMockNetIO(false, 0),
+		nsClient:       NewMockNamespaceClient(),
+	}
+
+	ep := &endpoint{
+		IfName:              "eth0",
+		NICType:             cns.InfraNIC, // Not NodeNetworkInterfaceFrontendNIC
+		NetworkNameSpace:    "testns",
+		SecondaryInterfaces: secondaryInterfaces,
+	}
+
+	err := client.DeleteEndpoints(ep)
+
+	assert.NoError(t, err)
+	// Verify interfaces were removed from the map
+	assert.Empty(t, ep.SecondaryInterfaces)
+}
+
+func TestDeleteEndpoints_ClearsSecondaryInterfaces_OnNamespaceNotFound(t *testing.T) {
+	nl := netlink.NewMockNetlink(false, "")
+	plc := platform.NewMockExecClient(false)
+
+	secondaryInterfaces := map[string]*InterfaceInfo{
+		"eth1": {Name: "eth1"},
+		"eth2": {Name: "eth2"},
+	}
+
+	ep := &endpoint{
+		IfName:              "eth0",
+		NICType:             cns.InfraNIC,
+		NetworkNameSpace:    "", // Empty namespace path triggers "file not exist"
+		SecondaryInterfaces: secondaryInterfaces,
+	}
+
+	client := &SecondaryEndpointClient{
+		netlink:        nl,
+		plClient:       plc,
+		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+		netioshim:      netio.NewMockNetIO(false, 0),
+		nsClient:       NewMockNamespaceClient(),
+		ep:             ep, // <-- This is important! Set client.ep to the endpoint
+	}
+
+	// Before the call, SecondaryInterfaces should have 2 items
+	assert.Len(t, ep.SecondaryInterfaces, 2)
+
+	err := client.DeleteEndpoints(ep)
+
+	assert.NoError(t, err)
+	// Verify SecondaryInterfaces map was cleared by ExecuteInNS
+	assert.NotNil(t, ep.SecondaryInterfaces)
+	assert.Empty(t, ep.SecondaryInterfaces)
+}
+
+func TestDeleteEndpoints_ClearsSecondaryInterfaces_OnEnterError(t *testing.T) {
+	nl := netlink.NewMockNetlink(false, "")
+	plc := platform.NewMockExecClient(false)
+
+	secondaryInterfaces := map[string]*InterfaceInfo{
+		"eth1": {Name: "eth1"},
+		"eth2": {Name: "eth2"},
+	}
+
+	ep := &endpoint{
+		IfName:              "eth0",
+		NICType:             cns.InfraNIC,
+		NetworkNameSpace:    failToEnterNamespaceName, // This triggers enter failure
+		SecondaryInterfaces: secondaryInterfaces,
+	}
+
+	client := &SecondaryEndpointClient{
+		netlink:        nl,
+		plClient:       plc,
+		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+		netioshim:      netio.NewMockNetIO(false, 0),
+		nsClient:       NewMockNamespaceClient(),
+		ep:             ep,
+	}
+
+	// Before the call, SecondaryInterfaces should have 2 items
+	assert.Len(t, ep.SecondaryInterfaces, 2)
+
+	err := client.DeleteEndpoints(ep)
+
+	// failToEnterNamespaceName should cause an error (not os.ErrNotExist)
+	assert.Error(t, err, "Expected error when namespace enter fails with failToEnterNamespaceName")
+	// SecondaryInterfaces should NOT be cleared since it's not os.ErrNotExist
+	assert.Len(t, ep.SecondaryInterfaces, 2)
+}
+
+func TestDeleteEndpoints_NetlinkFailure(t *testing.T) {
+	nl := netlink.NewMockNetlink(true, "netlink failure") // Mock with failure
+	plc := platform.NewMockExecClient(false)
+
+	secondaryInterfaces := map[string]*InterfaceInfo{
+		"eth1": {Name: "eth1"},
+	}
+
+	client := &SecondaryEndpointClient{
+		netlink:        nl,
+		plClient:       plc,
+		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+		netioshim:      netio.NewMockNetIO(false, 0),
+		nsClient:       NewMockNamespaceClient(),
+	}
+
+	ep := &endpoint{
+		IfName:              "eth0",
+		NICType:             cns.InfraNIC,
+		NetworkNameSpace:    "testns",
+		SecondaryInterfaces: secondaryInterfaces,
+	}
+
+	err := client.DeleteEndpoints(ep)
+
+	// Should succeed even if netlink fails (error is just logged)
+	assert.NoError(t, err)
 }

@@ -1064,49 +1064,11 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 	logger.Info("Retrieved network info, populating endpoint infos with container id", zap.String("containerID", args.ContainerID))
 
-	var epInfos []*network.EndpointInfo
-	if plugin.nm.IsStatelessCNIMode() {
-		// network ID is passed in and used only for migration
-		// otherwise, in stateless, we don't need the network id for deletion
-		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID, args.Netns)
-		// if stateless CNI fail to get the endpoint from CNS for any reason other than Endpoint Not found or CNS connection failure
-		// return a retriable error so the container runtime will retry this DEL later
-		// the implementation of this function returns nil if the endpoint doesn't exist, so
-		// we don't have to check that here
-		if err != nil {
-			switch {
-			case errors.Is(err, network.ErrConnectionFailure):
-				logger.Error("Failed to connect to CNS", zap.Error(err))
-				logger.Info("Endpoint will be deleted from state file asynchronously", zap.String("containerID", args.ContainerID))
-				// In SwiftV2 Linux stateless CNI mode, if the plugin cannot connect to CNS,
-				// we asynchronously remove the secondary (delegated) interface from the pod’s network namespace in the absence of the endpoint state.
-				// This is necessary because leaving the delegated NIC in the pod netns can cause the kernel to block rtnetlink operations.
-				// When that happens, kubelet and containerd hang during sandbox creation or teardown.
-				// The delegated NIC (SR-IOV VF) used by SwiftV2 for multitenant pods remains tied to the pod namespace,
-				// triggering hot-unplug/re-register events and leaving the node in an unhealthy state.
-				// This workaround mitigates the issue by removing the secondary NIC from the pod netns when CNS is unreachable during DEL to provide the endpoint state.
-				if err = plugin.nm.RemoveSecondaryEndpointFromPodNetNS(args.IfName, args.Netns); err != nil {
-					logger.Error("Failed to remove secondary endpoint from pod netns", zap.String("netns", args.Netns), zap.Error(err))
-					return plugin.RetriableError(fmt.Errorf("failed to remove secondary endpoint from pod netns: %w", err))
-				}
-			case errors.Is(err, network.ErrEndpointStateNotFound):
-				logger.Info("Endpoint Not found", zap.String("containerID", args.ContainerID), zap.Error(err))
-				return nil
-			default:
-				logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
-				return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
-			}
-		} else {
-			for _, epInfo := range epInfos {
-				logger.Info("Found endpoint to delete", zap.String("IfName", epInfo.IfName), zap.String("EndpointID", epInfo.EndpointID), zap.Any("NICType", epInfo.NICType))
-			}
-		}
-	} else {
-		epInfos = plugin.nm.GetEndpointInfosFromContainerID(args.ContainerID)
+	epInfos, err := plugin.nm.GetEndpoint(networkID, args)
+	if err != nil {
+		return plugin.RetriableError(fmt.Errorf("failed to retrieve endpoint: %w", err))
 	}
-
-	// for Stateful CNI when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
-	// this block is applied to stateless CNI only if there was a connection failure in previous block and asynchronous delete by CNS will remover the endpoint from state file
+	// when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
 	if len(epInfos) == 0 {
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		if !nwCfg.MultiTenancy {
@@ -1144,15 +1106,25 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			zap.String("endpointID", epInfo.EndpointID))
 		telemetryClient.SendEvent("Deleting endpoint: " + epInfo.EndpointID)
 
+		// Delegated/secondary nic ips are statically allocated so we don't need to release
+		// Call into IPAM plugin to release the endpoint's addresses.
 		if !nwCfg.MultiTenancy && (epInfo.NICType == cns.InfraNIC || epInfo.NICType == "") {
-			// Delegated/secondary nic ips are statically allocated so we don't need to release
-			// Call into IPAM plugin to release the endpoint's addresses.
-			for i := range epInfo.IPAddresses {
-				logger.Info("Release ip", zap.String("ip", epInfo.IPAddresses[i].IP.String()))
-				telemetryClient.SendEvent(fmt.Sprintf("Release ip: %s container id: %s endpoint id: %s", epInfo.IPAddresses[i].IP.String(), args.ContainerID, epInfo.EndpointID))
-				err = plugin.ipamInvoker.Delete(&epInfo.IPAddresses[i], nwCfg, args, nwInfo.Options)
-				if err != nil {
-					return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
+			// This is an special case for stateless CNI when Asychronous DEL to CNS will take place
+			// At this point the endpoint is already deleted in previous block and CNS will release the IP whenever it is up
+			if epInfo.IPAddresses == nil && plugin.nm.IsStatelessCNIMode() {
+				logger.Warn("Release ip Asynchronously by CNS",
+					zap.String("containerID", args.ContainerID))
+				if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
+					return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
+				}
+			} else {
+				for i := range epInfo.IPAddresses {
+					logger.Info("Release ip", zap.String("ip", epInfo.IPAddresses[i].IP.String()))
+					telemetryClient.SendEvent(fmt.Sprintf("Release ip: %s container id: %s endpoint id: %s", epInfo.IPAddresses[i].IP.String(), args.ContainerID, epInfo.EndpointID))
+					err = plugin.ipamInvoker.Delete(&epInfo.IPAddresses[i], nwCfg, args, nwInfo.Options)
+					if err != nil {
+						return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
+					}
 				}
 			}
 		} else if epInfo.EnableInfraVnet { // remove in future PR
