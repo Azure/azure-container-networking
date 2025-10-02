@@ -194,7 +194,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 	} else {
 		// only set default route when skipDefaultRoutes is false to avoid duplicated default routes given to HNS
 		if !epInfo.SkipDefaultRoutes {
-			if err := m.addDefaultRouteToGateway(
+			if err := m.addDefaultRoute(
 				cnsNetworkConfig.IPConfiguration.GatewayIPAddress,
 				epInfo, result,
 			); err != nil {
