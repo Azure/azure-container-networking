@@ -771,7 +771,6 @@ func getPnpDeviceState(instanceID string, plc platform.ExecClient) (string, stri
 	return devpkeyDeviceIsPresent, devpkeyDeviceProblemCode, nil
 }
 
-// removeSecondaryEndpointFromPodNetNSImpl removes an existing secondary endpoint from the pod network namespace.
-func (ep *endpoint) removeSecondaryEndpointFromPodNetNSImpl(_ NamespaceClientInterface) error {
-	return nil
+func (nm *networkManager) getEndpointInfoByIfNameImpl(_, _, _ string) ([]*EndpointInfo, error) {
+	return nil, nil
 }

@@ -155,6 +155,63 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 }
 
 func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
+	return client.ExecuteInNS(ep.NetworkNameSpace, func(vmns int) error {
+		// For stateless cni linux, check if delegated vmnic type, and if so, delete using this *endpoint* struct's ifname
+		if ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
+			if err := client.netlink.SetLinkNetNs(ep.IfName, uintptr(vmns)); err != nil {
+				logger.Error("Failed to move interface", zap.String("IfName", ep.IfName), zap.Error(newErrorSecondaryEndpointClient(err)))
+			}
+		}
+
+		// For Stateful cni linux, Use SecondaryInterfaces map to move all interfaces to host netns
+		// TODO: SecondaryInterfaces map should be retired and only IfName field and NICType should be used to determine the delegated NIC
+		for iface := range ep.SecondaryInterfaces {
+			if err := client.netlink.SetLinkNetNs(iface, uintptr(vmns)); err != nil {
+				logger.Error("Failed to move interface", zap.String("IfName", iface), zap.Error(newErrorSecondaryEndpointClient(err)))
+				continue
+			}
+			delete(ep.SecondaryInterfaces, iface)
+		}
+
+		return nil
+	})
+}
+
+// FetchInterfacesFromNetnsPath finds all interfaces from the specified netns path except the infra and non-eth interfaces.
+func (client *SecondaryEndpointClient) FetchInterfacesFromNetnsPath(infraInterfaceName, netnspath string) ([]string, error) {
+	var result []string
+
+	err := client.ExecuteInNS(netnspath, func(vmns int) error {
+		// Use the netlink API to list links
+		links, err := vishnetlink.LinkList()
+		if err != nil {
+			return newErrorSecondaryEndpointClient(err)
+		}
+
+		ifnames := make([]string, 0, len(links))
+		for _, l := range links {
+			ifnames = append(ifnames, l.Attrs().Name)
+		}
+
+		ret := make([]string, 0, len(ifnames))
+		// Filter out infra interface and non-eth interfaces
+		for _, iface := range ifnames {
+			if iface == infraInterfaceName || !strings.HasPrefix(iface, "eth") {
+				continue
+			}
+			ret = append(ret, iface)
+		}
+
+		logger.Info("Found interfaces in netns that needs to be moved back to host", zap.Any("interfaces", ret), zap.Int("vmns", vmns))
+		result = ret
+		return nil
+	})
+
+	return result, err
+}
+
+// ExecuteInNS executes a function within the specified network namespace, handling all namespace operations.
+func (client *SecondaryEndpointClient) ExecuteInNS(nsName string, f func(v int) error) error {
 	// Get VM namespace
 	vmns, err := netns.New().Get()
 	if err != nil {
@@ -162,119 +219,33 @@ func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	}
 
 	// Open the network namespace.
-	logger.Info("Opening netns", zap.Any("NetNsPath", ep.NetworkNameSpace))
-	ns, err := client.nsClient.OpenNamespace(ep.NetworkNameSpace)
+	logger.Info("Opening netns", zap.Any("NetNsPath", nsName))
+	ns, err := client.nsClient.OpenNamespace(nsName)
 	if err != nil {
 		if strings.Contains(err.Error(), errFileNotExist.Error()) {
-			// clear SecondaryInterfaces map since network namespace doesn't exist anymore
-			ep.SecondaryInterfaces = make(map[string]*InterfaceInfo)
 			return nil
 		}
-
 		return newErrorSecondaryEndpointClient(err)
 	}
 	defer ns.Close()
 
 	// Enter the container network namespace.
-	logger.Info("Entering netns", zap.Any("NetNsPath", ep.NetworkNameSpace))
+	logger.Info("Entering netns", zap.Any("NetNsPath", nsName))
 	if err := ns.Enter(); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			ep.SecondaryInterfaces = make(map[string]*InterfaceInfo)
 			return nil
 		}
-
 		return newErrorSecondaryEndpointClient(err)
 	}
 
 	// Return to host network namespace.
 	defer func() {
-		logger.Info("Exiting netns", zap.Any("NetNsPath", ep.NetworkNameSpace))
-		if err := ns.Exit(); err != nil {
-			logger.Error("Failed to exit netns with", zap.Error(newErrorSecondaryEndpointClient(err)))
+		logger.Info("Exiting netns", zap.Any("NetNsPath", nsName))
+		if exitErr := ns.Exit(); exitErr != nil {
+			logger.Error("Failed to exit netns", zap.Error(newErrorSecondaryEndpointClient(exitErr)))
 		}
 	}()
-	// For stateless cni linux, check if delegated vmnic type, and if so, delete using this *endpoint* struct's ifname
-	if ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
-		if err := client.moveInterfaceToHostNetns(ep.IfName, vmns); err != nil {
-			logger.Error("Failed to move interface", zap.String("IfName", ep.IfName), zap.Error(newErrorSecondaryEndpointClient(err)))
-		}
-	}
-	// For Stateful cni linux, Use SecondaryInterfaces map to move all interfaces to host netns
-	// TODO: SecondaryInterfaces map should be retired and only IfName field and NICType should be used to determine the delegated NIC
-	for iface := range ep.SecondaryInterfaces {
-		if err := client.moveInterfaceToHostNetns(iface, vmns); err != nil {
-			logger.Error("Failed to move interface", zap.String("IfName", iface), zap.Error(newErrorSecondaryEndpointClient(err)))
-			continue
-		}
-		delete(ep.SecondaryInterfaces, iface)
-	}
 
-	return nil
-}
-
-// moveInterfaceToHostNetns moves the given interface to the host netns.
-func (client *SecondaryEndpointClient) moveInterfaceToHostNetns(ifName string, vmns int) error {
-	logger.Info("Moving interface to host netns", zap.String("IfName", ifName))
-	if err := client.netlink.SetLinkNetNs(ifName, uintptr(vmns)); err != nil {
-		return newErrorSecondaryEndpointClient(err)
-	}
-	return nil
-}
-
-// RemoveInterfacesFromNetnsPath finds and removes all interfaces from the specified netns path except the infra and non-eth interfaces.
-func (client *SecondaryEndpointClient) RemoveInterfacesFromNetnsPath(infraInterfaceName, netnspath string) error {
-	// Get VM namespace
-	vmns, err := netns.New().Get()
-	if err != nil {
-		return newErrorSecondaryEndpointClient(err)
-	}
-
-	// Open the network namespace.
-	logger.Info("Opening netns", zap.Any("NetNsPath", netnspath))
-	ns, err := client.nsClient.OpenNamespace(netnspath)
-	if err != nil {
-		return newErrorSecondaryEndpointClient(err)
-	}
-	defer ns.Close()
-
-	// Enter the container network namespace.
-	logger.Info("Entering netns", zap.Any("NetNsPath", netnspath))
-	if err = ns.Enter(); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-
-		return newErrorSecondaryEndpointClient(err)
-	}
-
-	// Return to host network namespace.
-	defer func() {
-		logger.Info("Exiting netns", zap.Any("NetNsPath", netnspath))
-		if err = ns.Exit(); err != nil {
-			logger.Error("Failed to exit netns with", zap.Error(newErrorSecondaryEndpointClient(err)))
-		}
-	}()
-	// Use the existing netlink interface to list links
-	links, err := vishnetlink.LinkList()
-	if err != nil {
-		return newErrorSecondaryEndpointClient(err)
-	}
-
-	ifnames := make([]string, 0, len(links))
-	for _, l := range links {
-		ifnames = append(ifnames, l.Attrs().Name)
-	}
-	logger.Info("Found interfaces in netns that needs to be moved back to host", zap.Any("interfaces", ifnames))
-	// For stateless cni linux, iterate through all interfaces and check if delegated vmnic type, and if so, delete using this *endpoint* struct's ifname
-	for _, iface := range ifnames {
-		// skip the infra interface as well as non-eth interfaces
-		if iface == infraInterfaceName || !strings.HasPrefix(iface, "eth") {
-			continue
-		}
-		if err := client.moveInterfaceToHostNetns(iface, vmns); err != nil {
-			logger.Error("Failed to move interface", zap.String("IfName", iface), zap.Error(newErrorSecondaryEndpointClient(err)))
-		}
-	}
-
-	return nil
+	// Execute the provided function
+	return f(vmns)
 }
