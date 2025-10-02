@@ -70,10 +70,7 @@ stages:
                 echo "Patching Dockerfile: $DOCKERFILE_PATH"
                   
                 # Add ARG and ENV statements to disable systemcrypto for Microsoft Go
-                sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=boringcrypto \nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
-                  
-                # Clear Go module and build caches completely, then rebuild everything with boringcrypto
-                sed -i '/ENV CGO_ENABLED=1/a RUN rm -rf /go/pkg /root/.cache && \\\n    mkdir -p /go/pkg /tmp/gocache && \\\n    cd /tmp && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 go env && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 GOEXPERIMENT=boringcrypto go install -a -x std' "$DOCKERFILE_PATH"
+                sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=boringcrypto \nENV GOEXPERIMENT=${GOEXPERIMENT}' "$DOCKERFILE_PATH"
               fi
 
               BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
