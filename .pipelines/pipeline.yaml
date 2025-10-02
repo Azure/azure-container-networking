@@ -229,9 +229,6 @@ stages:
               ipv6_hp_bpf:
                 name: ipv6-hp-bpf
                 platforms: linux/amd64 linux/arm64
-              npm:
-                name: npm
-                platforms: linux/amd64 linux/arm64 windows/amd64
               azure_ip_masq_merger:
                 name: azure-ip-masq-merger
                 platforms: linux/amd64 linux/arm64
@@ -243,6 +240,21 @@ stages:
               parameters:
                 name: $(name)
                 platforms: $(platforms)
+    
+    - stage: publish_npm
+      displayName: Publish NPM Multiarch Manifest
+      dependsOn:
+        - containerize
+      jobs:
+        - job: npm_manifest
+          displayName: Compile NPM Manifest
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          steps:
+            - template: containers/manifest-template.yaml
+              parameters:
+                name: npm
+                platforms: linux/amd64 linux/arm64 windows/amd64
 
     # Cilium Podsubnet E2E tests
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
