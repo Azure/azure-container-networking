@@ -548,11 +548,28 @@ func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(_ []net.IPNet, _ string) (*E
 	return epInfo, nil
 }
 
-// removeSecondaryEndpointFromPodNetNSImpl deletes an existing secondary endpoint from the pod network namespace.
-func (ep *endpoint) removeSecondaryEndpointFromPodNetNSImpl(nsc NamespaceClientInterface) error {
-	secondaryepClient := NewSecondaryEndpointClient(nil, nil, nil, nsc, nil, ep)
-	if err := secondaryepClient.RemoveInterfacesFromNetnsPath(ep.IfName, ep.NetworkNameSpace); err != nil {
-		return err
+// getEndpointInfoByIfNameImpl returns an array of EndpointInfo for the given endpoint based on the IfName(s) found in the network namespace.
+func (nm *networkManager) getEndpointInfoByIfNameImpl(ep *endpoint) ([]*EndpointInfo, error) {
+	epInfo := &EndpointInfo{
+		EndpointID: ep.Id,
+		NetNsPath:  ep.NetworkNameSpace,
+		NICType:    cns.InfraNIC,
+		IfName:     ep.IfName, // TODO: For stateless cni linux populate IfName here to use in deletion in secondary endpoint client
 	}
-	return nil
+	ret := []*EndpointInfo{}
+	ret = append(ret, epInfo)
+	logger.Info("Fetching Secondary Endpoint from", zap.String("NetworkNameSpace: ", ep.NetworkNameSpace))
+	secondaryepClient := NewSecondaryEndpointClient(nil, nil, nil, nm.nsClient, nil, ep)
+	ifnames, err := secondaryepClient.FetchInterfacesFromNetnsPath(ep.IfName, ep.NetworkNameSpace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch secondary interfaces: %w", err)
+	}
+	for _, ifName := range ifnames {
+		ret = append(ret, &EndpointInfo{
+			NetNsPath: ep.NetworkNameSpace,
+			IfName:    ifName,
+			NICType:   cns.NodeNetworkInterfaceFrontendNIC,
+		})
+	}
+	return ret, nil
 }
