@@ -72,23 +72,14 @@ stages:
                 # Add ARG and ENV statements to disable systemcrypto for Microsoft Go
                 sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=boringcrypto \nENV GOEXPERIMENT=${GOEXPERIMENT}\nENV CGO_ENABLED=1' "$DOCKERFILE_PATH"
                   
-                # Clear Go module and build caches completely, then rebuild everything with nosystemcrypto
+                # Clear Go module and build caches completely, then rebuild everything with boringcrypto
                 sed -i '/ENV CGO_ENABLED=1/a RUN rm -rf /go/pkg /root/.cache && \\\n    mkdir -p /go/pkg /tmp/gocache && \\\n    cd /tmp && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 go env && \\\n    GOCACHE=/tmp/gocache CGO_ENABLED=1 GOEXPERIMENT=boringcrypto go install -a -x std' "$DOCKERFILE_PATH"
-                
-                # Remove ALL cache mounts for /go/pkg and /root/.cache to avoid conflicts
-                sed -i 's/--mount=type=cache,target=\/go\/pkg[[:space:]]*//g' "$DOCKERFILE_PATH"
-                sed -i 's/--mount=type=cache,target=\/root\/\.cache[[:space:]]*//g' "$DOCKERFILE_PATH"
-                
-                echo "Modified Dockerfile contents (first 80 lines):"
-                head -80 "$DOCKERFILE_PATH"
               fi
 
               BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
               DOCKER_FLAGS="$BUILD_ARGS" \
               make $(type)
               
-              # Clean up builder after build
-              docker buildx rm cilium-builder || true
             name: BuildCiliumImage
             displayName: "Build Cilium Image"
           - task: AzureCLI@2
