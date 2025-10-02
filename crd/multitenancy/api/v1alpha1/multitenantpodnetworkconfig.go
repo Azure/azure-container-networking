@@ -48,6 +48,8 @@ type MultitenantPodNetworkConfigSpec struct {
 	// MAC addresses of the IB devices to use for a pod
 	// +kubebuilder:validation:Optional
 	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
+	// PodUID is the uid of the pod
+	PodUID string `json:"podUID,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=Unprogrammed;Programming;Programmed;Unprogramming;Failed
@@ -108,10 +110,6 @@ type MultitenantPodNetworkConfigStatus struct {
 	// NodeName is the name of the node where the pod is scheduled
 	// +kubebuilder:validation:Optional
 	NodeName string `json:"nodeName,omitempty"`
-	// PodName is the name of the pod
-	PodName string `json:"podName,omitempty"`
-	// PodUID is the uid of the pod
-	PodUID string `json:"podUID,omitempty"`
 }
 
 func init() {
