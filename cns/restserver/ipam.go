@@ -688,7 +688,7 @@ func (service *HTTPRestService) HandleDebugPodContext(w http.ResponseWriter, r *
 		PodContext: service.PodIPIDByPodInterfaceKey,
 	}
 	err := common.Encode(w, &resp)
-	logger.Response(opName, resp, resp.Response.ReturnCode, err)
+	logger.Response(opName, resp, resp.Response.ReturnCode, nil, err)
 }
 
 func (service *HTTPRestService) HandleDebugRestData(w http.ResponseWriter, r *http.Request) { //nolint
@@ -702,7 +702,7 @@ func (service *HTTPRestService) HandleDebugRestData(w http.ResponseWriter, r *ht
 		},
 	}
 	err := common.Encode(w, &resp)
-	logger.Response(opName, resp, resp.Response.ReturnCode, err)
+	logger.Response(opName, resp, resp.Response.ReturnCode, nil, err)
 }
 
 func (service *HTTPRestService) HandleDebugIPAddresses(w http.ResponseWriter, r *http.Request) {
@@ -1143,7 +1143,7 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 			Message:    fmt.Sprintf("[EndpointHandlerAPI] EndpointHandlerAPI failed with error: %s", ErrOptManageEndpointState),
 		}
 		err := common.Encode(w, &response)
-		logger.Response(opName, response, response.ReturnCode, err)
+		logger.Response(opName, response, response.ReturnCode, nil, err)
 		return
 	}
 	switch r.Method {
@@ -1180,7 +1180,7 @@ func (service *HTTPRestService) GetEndpointHandler(w http.ResponseWriter, r *htt
 		}
 		w.Header().Set(cnsReturnCode, response.Response.ReturnCode.String())
 		err = common.Encode(w, &response)
-		logger.Response(opName, response, response.Response.ReturnCode, err)
+		logger.Response(opName, response, response.Response.ReturnCode, nil, err)
 		return
 	}
 	response := GetEndpointResponse{
@@ -1192,7 +1192,7 @@ func (service *HTTPRestService) GetEndpointHandler(w http.ResponseWriter, r *htt
 	}
 	w.Header().Set(cnsReturnCode, response.Response.ReturnCode.String())
 	err = common.Encode(w, &response)
-	logger.Response(opName, response, response.Response.ReturnCode, err)
+	logger.Response(opName, response, response.Response.ReturnCode, nil, err)
 }
 
 // GetEndpointHelper returns the state of the given endpointId
@@ -1248,7 +1248,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 		}
 		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
 		err = common.Encode(w, &response)
-		logger.Response(opName, response, response.ReturnCode, err)
+		logger.Response(opName, response, response.ReturnCode, nil, err)
 		return
 	}
 	if err = verifyUpdateEndpointStateRequest(req); err != nil {
@@ -1258,7 +1258,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 		}
 		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
 		err = common.Encode(w, &response)
-		logger.Response(opName, response, response.ReturnCode, err)
+		logger.Response(opName, response, response.ReturnCode, nil, err)
 		return
 	}
 	// Update the endpoint state
@@ -1270,7 +1270,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 		}
 		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
 		err = common.Encode(w, &response)
-		logger.Response(opName, response, response.ReturnCode, err)
+		logger.Response(opName, response, response.ReturnCode, nil, err)
 		return
 	}
 	response := cns.Response{
@@ -1279,7 +1279,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 	}
 	w.Header().Set(cnsReturnCode, response.ReturnCode.String())
 	err = common.Encode(w, &response)
-	logger.Response(opName, response, response.ReturnCode, err)
+	logger.Response(opName, response, response.ReturnCode, nil, err)
 }
 
 // UpdateEndpointHelper updates the state of the given endpointId with HNSId, VethName or other InterfaceInfo fields

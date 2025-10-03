@@ -209,13 +209,19 @@ func (logger *Logger) Request(tag string, request interface{}, err error) {
 }
 
 // Response logs a structured response.
-func (logger *Logger) Response(tag string, response interface{}, returnCode int, returnStr string, err error) {
+func (logger *Logger) Response(tag string, response interface{}, returnCode int, returnStr string, properties any, err error) {
+	// Create a string for properties if they exist
+	props := ""
+	if properties != nil {
+		props = fmt.Sprintf(" Properties: %+v", properties)
+	}
+
 	if err == nil && returnCode == 0 {
-		logger.Printf("[%s] Sent %T %+v.", tag, response, response)
+		logger.Printf("[%s] Sent %T %+v.%s", tag, response, response, props)
 	} else if err != nil {
-		logger.Errorf("[%s] Code:%s, %+v %s.", tag, returnStr, response, err.Error())
+		logger.Errorf("[%s] Code:%s, %+v %s.%s", tag, returnStr, response, err.Error(), props)
 	} else {
-		logger.Errorf("[%s] Code:%s, %+v.", tag, returnStr, response)
+		logger.Errorf("[%s] Code:%s, %+v.%s", tag, returnStr, response, props)
 	}
 }
 

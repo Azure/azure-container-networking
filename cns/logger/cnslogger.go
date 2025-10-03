@@ -148,21 +148,28 @@ func (c *logger) Request(tag string, request any, err error) {
 	c.sendTraceInternal(msg, lvl)
 }
 
-func (c *logger) Response(tag string, response any, returnCode types.ResponseCode, err error) {
-	c.logger.Response(tag, response, int(returnCode), returnCode.String(), err)
+func (c *logger) Response(tag string, response any, returnCode types.ResponseCode, properties any, err error) {
+	c.logger.Response(tag, response, int(returnCode), returnCode.String(), properties, err)
 	if c.th == nil || c.disableTraceLogging {
 		return
 	}
 	var msg string
 	lvl := ai.InfoLevel
+
+	// Create a string for properties if they exist
+	props := ""
+	if properties != nil {
+		props = fmt.Sprintf(" Properties: %+v", properties)
+	}
+
 	switch {
 	case err == nil && returnCode == 0:
-		msg = fmt.Sprintf("[%s] Sent %T %+v.", tag, response, response)
+		msg = fmt.Sprintf("[%s] Sent %T %+v.%s", tag, response, response, props)
 	case err != nil:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v %s.", tag, returnCode.String(), response, err.Error())
+		msg = fmt.Sprintf("[%s] Code:%s, %+v %s.%s", tag, returnCode.String(), response, err.Error(), props)
 		lvl = ai.ErrorLevel
 	default:
-		msg = fmt.Sprintf("[%s] Code:%s, %+v.", tag, returnCode.String(), response)
+		msg = fmt.Sprintf("[%s] Code:%s, %+v.%s", tag, returnCode.String(), response, props)
 	}
 	c.sendTraceInternal(msg, lvl)
 }
