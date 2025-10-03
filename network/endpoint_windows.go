@@ -746,3 +746,7 @@ func getPnpDeviceState(instanceID string, plc platform.ExecClient) (string, stri
 	logger.Info("Retrieved device problem code", zap.String("code", devpkeyDeviceProblemCode))
 	return devpkeyDeviceIsPresent, devpkeyDeviceProblemCode, nil
 }
+
+func (nm *networkManager) getEndpointInfoByIfNameImpl(_ *endpoint) ([]*EndpointInfo, error) {
+	return nil, nil
+}

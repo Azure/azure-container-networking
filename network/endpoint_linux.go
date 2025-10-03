@@ -547,3 +547,29 @@ func getDefaultGateway(routes []RouteInfo) net.IP {
 func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(_ []net.IPNet, _ string) (*EndpointInfo, error) {
 	return epInfo, nil
 }
+
+// getEndpointInfoByIfNameImpl returns an array of EndpointInfo for the given endpoint based on the IfName(s) found in the network namespace.
+func (nm *networkManager) getEndpointInfoByIfNameImpl(ep *endpoint) ([]*EndpointInfo, error) {
+	epInfo := &EndpointInfo{
+		EndpointID: ep.Id,
+		NetNsPath:  ep.NetworkNameSpace,
+		NICType:    cns.InfraNIC,
+		IfName:     ep.IfName, // TODO: For stateless cni linux populate IfName here to use in deletion in secondary endpoint client
+	}
+	ret := []*EndpointInfo{}
+	ret = append(ret, epInfo)
+	logger.Info("Fetching Secondary Endpoint from", zap.String("NetworkNameSpace: ", ep.NetworkNameSpace))
+	secondaryepClient := NewSecondaryEndpointClient(nil, nil, nil, nm.nsClient, nil, ep)
+	ifnames, err := secondaryepClient.FetchInterfacesFromNetnsPath(ep.IfName, ep.NetworkNameSpace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch secondary interfaces: %w", err)
+	}
+	for _, ifName := range ifnames {
+		ret = append(ret, &EndpointInfo{
+			NetNsPath: ep.NetworkNameSpace,
+			IfName:    ifName,
+			NICType:   cns.NodeNetworkInterfaceFrontendNIC,
+		})
+	}
+	return ret, nil
+}
