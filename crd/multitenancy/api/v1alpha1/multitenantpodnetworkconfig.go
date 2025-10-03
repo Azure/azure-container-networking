@@ -48,7 +48,7 @@ type MultitenantPodNetworkConfigSpec struct {
 	// MAC addresses of the IB devices to use for a pod
 	// +kubebuilder:validation:Optional
 	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
-	// PodUID is the uid of the pod
+	// PodUID is the UID of the pod
 	PodUID string `json:"podUID,omitempty"`
 }
 
