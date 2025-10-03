@@ -406,10 +406,9 @@ func (client *TransparentVlanEndpointClient) setArpProxy(ifName string) error {
 	_, err := client.plClient.ExecuteRawCommand(cmd)
 	if err != nil {
 		logger.Error("Failed to set ARP proxy", zap.String("interface", ifName), zap.Error(err))
-	} else {
-		logger.Info("ARP proxy enabled", zap.String("interface", ifName))
+		return err
 	}
-	return err
+	return nil
 }
 
 func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
@@ -547,7 +546,6 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 		logger.Info("Skipping adding routes in container ns as requested")
 		return nil
 	}
-
 	logger.Info("Adding default routes in container ns")
 	if err := client.addDefaultRoutes(client.containerVethName, 0); err != nil {
 		return errors.Wrap(err, "failed container ns add default routes")
