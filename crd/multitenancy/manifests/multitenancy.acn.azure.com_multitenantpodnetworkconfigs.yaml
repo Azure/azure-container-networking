@@ -71,7 +71,7 @@ spec:
                 description: name of PNI object from requesting cx pod
                 type: string
               podUID:
-                description: PodUID is the uid of the pod
+                description: PodUID is the UID of the pod
                 type: string
             required:
             - podNetwork
