@@ -181,3 +181,13 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 func (service *HTTPRestService) setVFForAccelnetNICs() error {
 	return nil
 }
+
+func (service *HTTPRestService) setPrefixOnNICRegistry(enabled bool, infraNicMacAddress string) error {
+	logger.Printf("[setPrefixOnNicEnabled winDebug] No-op on Linux platform")
+	return nil
+}
+
+func (service *HTTPRestService) getPrefixOnNicEnabled() (bool, error) {
+	logger.Printf(" winDebug getPrefixOnNicEnabled is a no-op on non-Windows platforms")
+	return false, nil // Add this missing return statement
+}
