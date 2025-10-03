@@ -544,16 +544,13 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 	}
 
 	if epInfo.SkipDefaultRoutes {
-		logger.Info("Skipping adding default routes in container ns as requested")
-		if err := client.addCustomRoutes(client.containerVethName, epInfo.Subnets[0].Gateway, epInfo.Subnets[0].Prefix, 0); err != nil {
-			return errors.Wrap(err, "failed container ns add custom routes")
-		}
+		logger.Info("Skipping adding routes in container ns as requested")
 		return nil
-	} else {
-		logger.Info("Adding default routes in container ns")
-		if err := client.addDefaultRoutes(client.containerVethName, 0); err != nil {
-			return errors.Wrap(err, "failed container ns add default routes")
-		}
+	}
+
+	logger.Info("Adding default routes in container ns")
+	if err := client.addDefaultRoutes(client.containerVethName, 0); err != nil {
+		return errors.Wrap(err, "failed container ns add default routes")
 	}
 
 	if err := client.AddDefaultArp(client.containerVethName, client.vnetMac.String()); err != nil {
@@ -639,38 +636,6 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string,
 	routeInfo = RouteInfo{
 		Dst:   dstIP,
 		Gw:    virtualGwIP,
-		Table: table,
-	}
-
-	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Helper that creates routing rules for the current NS which direct packets
-// to the subnet gateway ip on linkToName device interface
-// Route 1: <gatewayIP> dev <linkToName>
-// Route 2: <subnetCIDR> via <gatewayIP> dev <linkToName>
-func (client *TransparentVlanEndpointClient) addCustomRoutes(linkToName string, gatewayIP net.IP, subnetCIDR net.IPNet, table int) error {
-	// Add route for subnetgwIP (ip route add <gatewayIP> dev <linkToName>)
-	gWIP, gwNet, _ := net.ParseCIDR(gatewayIP.String() + "/32")
-	routeInfo := RouteInfo{
-		Dst:   *gwNet,
-		Scope: netlink.RT_SCOPE_LINK,
-		Table: table,
-	}
-	// Difference between interface name in addRoutes and DevName: in RouteInfo?
-	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
-		return err
-	}
-
-	// Add subnet route (ip route add <subnetCIDR> via <gatewayIP> dev <linkToName>)
-	subnetPrefix, subnetIPNet, _ := net.ParseCIDR(subnetCIDR.String())
-	dstIP := net.IPNet{IP: subnetPrefix, Mask: subnetIPNet.Mask}
-	routeInfo = RouteInfo{
-		Dst:   dstIP,
-		Gw:    gWIP,
 		Table: table,
 	}
 
