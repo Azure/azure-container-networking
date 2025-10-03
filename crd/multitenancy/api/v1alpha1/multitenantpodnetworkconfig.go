@@ -48,6 +48,8 @@ type MultitenantPodNetworkConfigSpec struct {
 	// MAC addresses of the IB devices to use for a pod
 	// +kubebuilder:validation:Optional
 	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
+	// PodUID is the UID of the pod
+	PodUID string `json:"podUID,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=Unprogrammed;Programming;Programmed;Unprogramming;Failed
@@ -105,6 +107,9 @@ type MultitenantPodNetworkConfigStatus struct {
 	// DefaultDenyACL bool indicates whether default deny policy will be present on the pods upon pod creation
 	// +kubebuilder:validation:Optional
 	DefaultDenyACL bool `json:"defaultDenyACL"`
+	// NodeName is the name of the node where the pod is scheduled
+	// +kubebuilder:validation:Optional
+	NodeName string `json:"nodeName,omitempty"`
 }
 
 func init() {
