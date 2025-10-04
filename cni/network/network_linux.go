@@ -127,7 +127,7 @@ func platformInit(cniConfig *cni.NetworkConfig) {}
 
 // isDualNicFeatureSupported returns if the dual nic feature is supported. Currently it's only supported for windows hnsv2 path
 func (plugin *NetPlugin) isDualNicFeatureSupported(netNs string) bool {
-	return false
+	return true
 }
 
 func getOverlayGateway(_ *net.IPNet) (net.IP, error) {

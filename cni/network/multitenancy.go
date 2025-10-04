@@ -230,6 +230,7 @@ func (m *Multitenancy) GetAllNetworkContainers(
 		ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipconfig)
 		ifInfo.Routes = routes
 		ifInfo.NICType = cns.InfraNIC
+		ifInfo.SkipDefaultRoutes = ncResponses[i].SkipDefaultRoutes
 
 		// assuming we only assign infra nics in this function
 		ipamResult.interfaceInfo[m.getInterfaceInfoKey(ifInfo.NICType, i)] = ifInfo

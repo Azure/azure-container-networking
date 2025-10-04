@@ -530,6 +530,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 			LocalIPConfiguration:       savedReq.LocalIPConfiguration,
 			AllowHostToNCCommunication: savedReq.AllowHostToNCCommunication,
 			AllowNCToHostCommunication: savedReq.AllowNCToHostCommunication,
+			SkipDefaultRoutes:          savedReq.SkipDefaultRoutes,
 			NetworkInterfaceInfo:       savedReq.NetworkInterfaceInfo,
 		}
 
@@ -831,6 +832,8 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 
 	primaryIPCfg := ncStatus.CreateNetworkContainerRequest.IPConfiguration
 
+	podIPInfo.SkipDefaultRoutes = ncStatus.CreateNetworkContainerRequest.SkipDefaultRoutes
+
 	podIPInfo.PodIPConfig = cns.IPSubnet{
 		IPAddress:    ipConfigStatus.IPAddress,
 		PrefixLength: primaryIPCfg.IPSubnet.PrefixLength,
@@ -934,6 +937,7 @@ func (service *HTTPRestService) handleGetNetworkContainers(w http.ResponseWriter
 			LocalIPConfiguration:       ncDetails.CreateNetworkContainerRequest.LocalIPConfiguration,
 			AllowHostToNCCommunication: ncDetails.CreateNetworkContainerRequest.AllowHostToNCCommunication,
 			AllowNCToHostCommunication: ncDetails.CreateNetworkContainerRequest.AllowNCToHostCommunication,
+			SkipDefaultRoutes:          ncDetails.CreateNetworkContainerRequest.SkipDefaultRoutes,
 		}
 		networkContainers[i] = getNcResp
 		i++

@@ -126,6 +126,7 @@ type CreateNetworkContainerRequest struct {
 	Routes                     []Route
 	AllowHostToNCCommunication bool
 	AllowNCToHostCommunication bool
+	SkipDefaultRoutes          bool
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
 	NetworkInterfaceInfo       NetworkInterfaceInfo //nolint // introducing new field for backendnic, to be used later by cni code
@@ -161,10 +162,10 @@ func (req *CreateNetworkContainerRequest) String() string {
 	return fmt.Sprintf("CreateNetworkContainerRequest"+
 		"{Version: %s, NetworkContainerType: %s, NetworkContainerid: %s, PrimaryInterfaceIdentifier: %s, "+
 		"LocalIPConfiguration: %+v, IPConfiguration: %+v, SecondaryIPConfigs: %+v, MultitenancyInfo: %+v, "+
-		"AllowHostToNCCommunication: %t, AllowNCToHostCommunication: %t, NCStatus: %s, NetworkInterfaceInfo: %+v}",
+		"AllowHostToNCCommunication: %t, AllowNCToHostCommunication: %t, SkipDefaultRoutes: %t, NCStatus: %s, NetworkInterfaceInfo: %+v}",
 		req.Version, req.NetworkContainerType, req.NetworkContainerid, req.PrimaryInterfaceIdentifier, req.LocalIPConfiguration,
 		req.IPConfiguration, req.SecondaryIPConfigs, req.MultiTenancyInfo, req.AllowHostToNCCommunication, req.AllowNCToHostCommunication,
-		string(req.NCStatus), req.NetworkInterfaceInfo)
+		req.SkipDefaultRoutes, string(req.NCStatus), req.NetworkInterfaceInfo)
 }
 
 // NetworkContainerRequestPolicies - specifies policies associated with create network request
@@ -498,6 +499,7 @@ type GetNetworkContainerResponse struct {
 	Response                   Response
 	AllowHostToNCCommunication bool
 	AllowNCToHostCommunication bool
+	SkipDefaultRoutes          bool
 	NetworkInterfaceInfo       NetworkInterfaceInfo
 }
 
