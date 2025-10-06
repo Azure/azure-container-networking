@@ -1076,7 +1076,3 @@ func TestRunWithRetries(t *testing.T) {
 		})
 	}
 }
-
-func TestAddCustomRoutes(t *testing.T) {
-
-}

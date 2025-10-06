@@ -292,7 +292,6 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 			_, err = client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
 			return errors.Wrap(err, "failed to get vlan interface")
 		}, numRetries, sleepInMs)
-
 		if err != nil {
 			deleteNSIfNotNilErr = errors.Wrapf(err, "failed to get vlan interface: %s", client.vlanIfName)
 			return deleteNSIfNotNilErr
@@ -406,7 +405,7 @@ func (client *TransparentVlanEndpointClient) setArpProxy(ifName string) error {
 	_, err := client.plClient.ExecuteRawCommand(cmd)
 	if err != nil {
 		logger.Error("Failed to set ARP proxy", zap.String("interface", ifName), zap.Error(err))
-		return err
+		return errors.Wrap(err, "failed to set arp proxy")
 	}
 	return nil
 }
