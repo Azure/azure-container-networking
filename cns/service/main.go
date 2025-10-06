@@ -1012,6 +1012,38 @@ func main() {
 			return
 		}
 
+		// Now that CNS HTTP service is running, create/update NodeInfo CRD if Swift V2 is enabled
+		if cnsconfig.EnableSwiftV2 && config.ChannelMode == cns.CRD {
+			// Get the node info again for NodeInfo CRD creation
+			kubeConfig, err := ctrl.GetConfig()
+			if err != nil {
+				logger.Errorf("Failed to get kubeconfig for NodeInfo CRD creation: %v", err)
+			} else {
+				kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
+				clientset, err := kubernetes.NewForConfig(kubeConfig)
+				if err != nil {
+					logger.Errorf("Failed to build clientset for NodeInfo CRD creation: %v", err)
+				} else {
+					nodeName, err := configuration.NodeName()
+					if err != nil {
+						logger.Errorf("Failed to get NodeName for NodeInfo CRD creation: %v", err)
+					} else {
+						node, err := clientset.CoreV1().Nodes().Get(rootCtx, nodeName, metav1.GetOptions{})
+						if err != nil {
+							logger.Errorf("Failed to get node %s for NodeInfo CRD creation: %v", nodeName, err)
+						} else {
+							if nodeInfoErr := createOrUpdateNodeInfoCRD(rootCtx, kubeConfig, node); nodeInfoErr != nil {
+								logger.Errorf("Error creating or updating nodeinfo crd: %v", nodeInfoErr)
+								// Don't return here - this shouldn't be fatal for CNS startup
+							} else {
+								logger.Printf("Successfully created/updated NodeInfo CRD for Swift V2")
+							}
+						}
+					}
+				}
+			}
+		}
+
 	}
 
 	// if user does not provide cns url by -c option, then start http local server
@@ -1418,9 +1450,8 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
 		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
-		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
-			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
-		}
+		// Note: NodeInfo CRD creation is deferred until after CNS HTTP service starts
+		// to avoid connection refused errors when trying to get HomeAZ from CNS
 	}
 
 	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
