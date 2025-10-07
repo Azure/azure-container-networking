@@ -422,12 +422,7 @@ func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointIn
 
 		// Set ARP proxy on vnet veth (inside vnet namespace)
 		logger.Info("calling setArpProxy for", zap.String("vnetVethName", client.vnetVethName))
-		if err := client.setArpProxy(client.vnetVethName); err != nil {
-			logger.Error("setArpProxy failed with", zap.Error(err))
-			return err
-		}
-
-		return nil
+		return client.setArpProxy(client.vnetVethName)
 	})
 
 	return err
