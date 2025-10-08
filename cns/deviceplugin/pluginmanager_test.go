@@ -105,8 +105,11 @@ func TestPluginManagerStartStop(t *testing.T) {
 	}
 	allocateResp := getAllocateResponse(t, vnetPluginEndpoint, req)
 
-	if len(allocateResp.ContainerResponses[0].Envs) != len(req.ContainerRequests[0].DevicesIds) {
-		t.Fatalf("expected allocations %v but received allocations %v", len(req.ContainerRequests[0].DevicesIds), len(allocateResp.ContainerResponses[0].Envs))
+	if len(allocateResp.GetContainerResponses()[0].GetEnvs()) != len(req.GetContainerRequests()[0].GetDevicesIds()) {
+		t.Fatalf("expected allocations %v but received allocations %v",
+			len(req.GetContainerRequests()[0].GetDevicesIds()),
+			len(allocateResp.GetContainerResponses()[0].GetEnvs()),
+		)
 	}
 
 	// call getDevicePluginOptions method

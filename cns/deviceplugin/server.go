@@ -92,13 +92,14 @@ func (s *Server) Ready(ctx context.Context) error {
 // We are not using this functionality currently
 func (s *Server) Allocate(_ context.Context, req *v1beta1.AllocateRequest) (*v1beta1.AllocateResponse, error) {
 	s.logger.Info("allocate request", zap.Any("req", *req))
-	resps := make([]*v1beta1.ContainerAllocateResponse, len(req.ContainerRequests))
-	for i, containerReq := range req.ContainerRequests {
+	crs := req.GetContainerRequests()
+	resps := make([]*v1beta1.ContainerAllocateResponse, len(crs))
+	for i, containerReq := range crs {
 		resp := &v1beta1.ContainerAllocateResponse{
 			Envs: make(map[string]string),
 		}
-		for j := range containerReq.DevicesIds {
-			resp.Envs[fmt.Sprintf("%s%d", devicePrefix, j)] = containerReq.DevicesIds[j]
+		for j, id := range containerReq.GetDevicesIds() {
+			resp.Envs[fmt.Sprintf("%s%d", devicePrefix, j)] = id
 		}
 		resps[i] = resp
 	}
