@@ -219,7 +219,7 @@ func (a *asyncMetricsRecorder) record() {
 func (service *HTTPRestService) publishIPStateMetrics() {
 	recorder.once.Do(func() {
 		recorder.podIPConfigSrc = service.PodIPConfigStates
-		recorder.sig = make(chan struct{})
+		recorder.sig = make(chan struct{}, 1)
 		go recorder.run()
 	})
 	select {

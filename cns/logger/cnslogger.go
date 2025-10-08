@@ -45,7 +45,12 @@ func New(fileName string, logLevel, logTarget int, logDir string) (loggershim, e
 	if err != nil {
 		l.Errorf("Failed to get zap Platform cores: %v", err)
 	}
-	zapLogger := zap.New(platformCore, zap.AddCaller()).With(zap.Int("pid", os.Getpid()))
+	
+    zapLogger := zap.New(
+		platformCore,
+		zap.AddCaller(),
+		zap.AddStacktrace(zapcore.WarnLevel), 
+	).With(zap.Int("pid", os.Getpid()))
 
 	return &logger{
 		logger:    l,
