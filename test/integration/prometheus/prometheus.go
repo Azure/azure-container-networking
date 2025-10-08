@@ -39,7 +39,7 @@ func GetMetrics(url string) (map[string]*io_prometheus_client.MetricFamily, erro
 }
 
 func ParseReaderMetrics(input io.Reader) (map[string]*io_prometheus_client.MetricFamily, error) {
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	return parser.TextToMetricFamilies(input) //nolint
 }
 
