@@ -145,12 +145,12 @@ func TestPluginManagerStartStop(t *testing.T) {
 }
 
 type fakeKubelet struct {
-    // Required by newer protoc-gen-go-grpc to satisfy v1beta1.RegistrationServer
-    v1beta1.UnimplementedRegistrationServer
+	// Required by newer protoc-gen-go-grpc to satisfy v1beta1.RegistrationServer
+	v1beta1.UnimplementedRegistrationServer
 
-    vnetPluginRegisterChan chan string
-    ibPluginRegisterChan   chan string
-    pluginPrefix           string
+	vnetPluginRegisterChan chan string
+	ibPluginRegisterChan   chan string
+	pluginPrefix           string
 }
 
 func (f *fakeKubelet) Register(_ context.Context, req *v1beta1.RegisterRequest) (*v1beta1.Empty, error) {
