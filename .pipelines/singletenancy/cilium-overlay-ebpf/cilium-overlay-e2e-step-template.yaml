@@ -55,7 +55,7 @@ steps:
           kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-operator
         else
           # see makefile
-          make -C ./hack/aks deploy-overlay-ebpf-cilium
+          make -C ./hack/aks deploy-ebpf-overlay-cilium
         fi
 
         kubectl get po -owide -A
