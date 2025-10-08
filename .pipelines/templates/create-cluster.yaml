@@ -7,7 +7,7 @@ parameters:
   vmSizeWin: ""
   k8sVersion: ""
   osSkuWin: "Windows2022" # Currently we only support Windows2022
-  osSKU: ""
+  osSKU: "Ubuntu"
   dependsOn: ""
   region: ""
   os: linux
