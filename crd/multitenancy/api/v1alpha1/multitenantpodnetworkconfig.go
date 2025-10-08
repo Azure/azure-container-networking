@@ -61,6 +61,23 @@ const (
 	Failed        InfinibandStatus = "Failed"
 )
 
+// MTPNCStatus indicates the high-level status of MultitenantPodNetworkConfig
+// +kubebuilder:validation:Enum=Ready;InternalError;PodNotFound;PodFailed;NodeNameMissing;NodeUnreachable;PNINotFound;PNINotReady;CreateNCFailed;GetReservationSetFailed
+type MTPNCStatus string
+
+const (
+	MTPNCStatusReady                MTPNCStatus = "Ready"
+	MTPNCStatusInternalError        MTPNCStatus = "InternalError"
+	MTPNCStatusPodNotFound          MTPNCStatus = "PodNotFound"
+	MTPNCStatusPodFailed            MTPNCStatus = "PodFailed"
+	MTPNCStatusNodeNameMissing      MTPNCStatus = "NodeNameMissing"
+	MTPNCStatusNodeUnreachable      MTPNCStatus = "NodeUnreachable"
+	MTPNCStatusPNINotFound          MTPNCStatus = "PNINotFound"
+	MTPNCStatusPNINotReady          MTPNCStatus = "PNINotReady"
+	MTPNCStatusCreateNCFailed       MTPNCStatus = "CreateNCFailed"
+	MTPNCStatusGetReservationFailed MTPNCStatus = "GetReservationSetFailed"
+)
+
 type InterfaceInfo struct {
 	// NCID is the network container id
 	NCID string `json:"ncID,omitempty"`
@@ -105,6 +122,13 @@ type MultitenantPodNetworkConfigStatus struct {
 	// DefaultDenyACL bool indicates whether default deny policy will be present on the pods upon pod creation
 	// +kubebuilder:validation:Optional
 	DefaultDenyACL bool `json:"defaultDenyACL"`
+	// Status represents the overall status of the MTPNC
+	// +kubebuilder:validation:Optional
+	Status MTPNCStatus `json:"status,omitempty"`
+	// LastTransitionTime is the time when this error status last changed.
+	// If the current reconcile results in same MTPNCStatus, LastTransitionTime remains unchanged.
+	// +kubebuilder:validation:Optional
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 }
 
 func init() {
