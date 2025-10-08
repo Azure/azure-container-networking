@@ -460,6 +460,7 @@ stages:
         - cilium_vnetscale_e2e
         - cilium_nodesubnet_e2e
         - cilium_overlay_e2e
+        - cilium_ebpf_overlay_e2e
         - cilium_h_overlay_e2e
         - aks_ubuntu_22_linux_e2e
         - aks_swift_vnetscale_e2e
