@@ -57,13 +57,13 @@ stages:
           - template: cilium-overlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
-              clusterName: cilbpfovere2e-44c8d2bc2-081916
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
               scaleup: 50
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          clusterName: cilbpfovere2e-44c8d2bc2-081916
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           cni: cilium
           dependsOn: ${{ parameters.name }}
@@ -81,6 +81,6 @@ stages:
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
-              clusterName: cilbpfovere2e-44c8d2bc2-081916
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cilium
