@@ -54,16 +54,13 @@ steps:
           kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-agent
           kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-operator
         else
-          echo "install Cilium ${CILIUM_VERSION_TAG}"
-          # v1.17.7 becomes v1.17
-          export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-          echo "installing files from ${DIR}"
+          # see makefile
           make -C ./hack/aks deploy-overlay-ebpf-cilium
         fi
 
         kubectl get po -owide -A
     name: "installCilium"
-    displayName: "Install Cilium on AKS Overlay"
+    displayName: "Install Cilium EBPF on AKS Overlay"
 
   - template: ../../templates/cilium-cli.yaml
 
