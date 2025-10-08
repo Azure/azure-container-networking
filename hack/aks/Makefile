@@ -52,6 +52,7 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--no-ssh-key  \
 	--os-sku $(OS_SKU) \
 	$(LTS_ARGS)
+POD_CIDR = 192.168.0.0/16
 
 ##@ Help
 
@@ -157,7 +158,7 @@ overlay-byocni-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay BYO CNI clu
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--yes
 	@$(MAKE) set-kubeconf
@@ -170,7 +171,7 @@ overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		--yes
@@ -182,7 +183,7 @@ overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium clus
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--yes
 	@$(MAKE) set-kubeconf
@@ -193,7 +194,7 @@ overlay-ebpf-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AdvancedNetworkingPerformancePreview \
 		--enable-acns \
@@ -206,7 +207,7 @@ overlay-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--yes
 	@$(MAKE) set-kubeconf
