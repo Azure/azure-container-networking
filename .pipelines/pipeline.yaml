@@ -313,8 +313,19 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: ["test"]
+    
+    # Cilium EBPF Overlay E2E tests
+    - template: singletenancy/cilium-overlay-ebpf/cilium-overlay-e2e-job-template.yaml
+      parameters:
+        name: "cilium_ebpf_overlay_e2e"
+        displayName: Cilium EBPF on AKS Overlay
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cilbpfovere2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: ["test"]
 
-        # Cilium Overlay with hubble E2E tests
+    # Cilium Overlay with hubble E2E tests
     - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_h_overlay_e2e"
@@ -480,6 +491,10 @@ stages:
               cilium_overlay_e2e:
                 name: cilium_overlay_e2e
                 clusterName: "cilovere2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_ebpf_overlay_e2e:
+                name: cilium_ebpf_overlay_e2e
+                clusterName: "cilbpfovere2e"
                 region: $(REGION_AKS_CLUSTER_TEST)
               cilium_h_overlay_e2e:
                 name: cilium_h_overlay_e2e

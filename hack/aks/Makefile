@@ -1,3 +1,5 @@
+include deploy.mk
+
 .DEFAULT_GOAL: help
 
 # construct containerized azcli command
@@ -182,6 +184,20 @@ overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium clus
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--yes
+	@$(MAKE) set-kubeconf
+
+overlay-ebpf-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium cluster
+	$(COMMON_AKS_FIELDS) \
+		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
+		--network-plugin azure \
+		--network-dataplane cilium \
+		--network-plugin-mode overlay \
+		--pod-cidr 192.168.0.0/16 \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AdvancedNetworkingPerformancePreview \
+		--enable-acns \
+		--acns-datapath-acceleration-mode BpfVeth \
 		--yes
 	@$(MAKE) set-kubeconf
 
