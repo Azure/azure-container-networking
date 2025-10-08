@@ -14,17 +14,21 @@ export AZURE_IPTABLES_MONITOR_TAG
 export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY
 export AZURE_IP_MASQ_MERGER_TAG
 
-deploy-overlay-ebpf-cilium:
+deploy-common-ebpf-cilium:
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-agent/files/
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-operator/files/
-	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/common/
-	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/static/
 # set cilium version tag and registry here so they are visible as env vars to envsubst
 	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
 		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION}' < \
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-operator/templates/deployment.yaml \
-		| kubectl apply -f -
+		| kubectl apply -f - --wait
+# crds created at this point
+	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/common/
+
+deploy-overlay-ebpf-cilium: deploy-common-ebpf-cilium
+	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/static/
 	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
 		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/cilium-overlay.yaml \
-		| kubectl apply -f -
+		| kubectl apply -f - --wait
+
