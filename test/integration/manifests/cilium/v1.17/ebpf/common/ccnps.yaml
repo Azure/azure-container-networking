@@ -17,9 +17,3 @@ spec:
             protocol: TCP
           - port: "32526"
             protocol: TCP
-    - toCIDR:
-        - 169.254.169.254/32    # Azure IMDS server
-      toPorts:
-        - ports:
-            - port: "80"
-              protocol: TCP
