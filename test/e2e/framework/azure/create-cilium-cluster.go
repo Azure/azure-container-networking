@@ -83,22 +83,6 @@ func (c *CreateBYOCiliumCluster) Run() error {
 	subnetkey := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s", c.SubscriptionID, c.ResourceGroupName, c.VnetName, c.SubnetName)
 	ciliumCluster.Properties.AgentPoolProfiles[0].VnetSubnetID = to.Ptr(subnetkey)
 
-	// Set the kubeproxy config
-	kubeProxyConfig := armcontainerservice.NetworkProfileKubeProxyConfig{
-		Mode:    to.Ptr(armcontainerservice.ModeIPVS),
-		Enabled: to.Ptr(false),
-		IpvsConfig: to.Ptr(armcontainerservice.NetworkProfileKubeProxyConfigIpvsConfig{
-			Scheduler:            to.Ptr(armcontainerservice.IpvsSchedulerLeastConnection),
-			TCPTimeoutSeconds:    to.Ptr(int32(900)), //nolint:gomnd // set by existing kube-proxy in hack/aks/kube-proxy.json
-			TCPFinTimeoutSeconds: to.Ptr(int32(120)), //nolint:gomnd // set by existing kube-proxy in hack/aks/kube-proxy.json
-			UDPTimeoutSeconds:    to.Ptr(int32(300)), //nolint:gomnd // set by existing kube-proxy in hack/aks/kube-proxy.json
-		}),
-	}
-
-	log.Printf("using kube-proxy config:\n")
-	printjson(kubeProxyConfig)
-	ciliumCluster.Properties.NetworkProfile.KubeProxyConfig = to.Ptr(kubeProxyConfig)
-
 	// Deploy cluster
 	cred, err := azidentity.NewAzureCLICredential(nil)
 	if err != nil {
