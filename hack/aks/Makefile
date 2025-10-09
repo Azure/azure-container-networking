@@ -188,7 +188,7 @@ overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium clus
 		--yes
 	@$(MAKE) set-kubeconf
 
-overlay-ebpf-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium cluster
+ebpf-overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an EBPF Overlay Cilium cluster
 	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \

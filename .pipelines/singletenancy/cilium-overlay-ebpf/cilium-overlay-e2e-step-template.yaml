@@ -1,8 +1,6 @@
 parameters:
   name: ""
   clusterName: ""
-  testHubble: false
-  testLRP: false
   scaleup: ""
 
 
