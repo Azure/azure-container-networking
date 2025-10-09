@@ -55,6 +55,10 @@ steps:
           kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-operator
         else
           # see makefile
+          export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
+          export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
+          export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY=acnpublic.azurecr.io
+          export AZURE_IP_MASQ_MERGER_TAG=$(make azure-ip-masq-merger-version)
           make -C ./hack/aks deploy-ebpf-overlay-cilium
         fi
 
