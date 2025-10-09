@@ -21,8 +21,9 @@ deploy-common-ebpf-cilium:
 	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
 		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION}' < \
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-operator/templates/deployment.yaml \
-		| kubectl apply -f - --wait
-# crds created at this point
+		| kubectl apply -f -
+	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/common/ciliumclusterwidenetworkpolicies.yaml
+	@kubectl wait --for=condition=Established crd/ciliumclusterwidenetworkpolicies.cilium.io
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/common/
 
 deploy-ebpf-overlay-cilium: deploy-common-ebpf-cilium
@@ -30,4 +31,10 @@ deploy-ebpf-overlay-cilium: deploy-common-ebpf-cilium
 	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
 		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/cilium.yaml \
-		| kubectl apply -f - --wait
+		| kubectl apply -f -
+	@$(MAKE) wait-for-cilium
+
+wait-for-cilium:
+	@kubectl rollout status deployment/cilium-operator -n kube-system --timeout=300s
+	@kubectl rollout status daemonset/cilium -n kube-system --timeout=300s
+	
