@@ -21,66 +21,37 @@ steps:
         ls -lah
         pwd
         kubectl cluster-info
-        kubectl get po -owide -A
-        if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
-          FILE_PATH=-nightly
-          echo "Running nightly"
-          echo "deploy Cilium ConfigMap"
-          kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-config.yaml
-          # Passes Cilium image to daemonset and deployment
-          envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
-          envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
-          # Use different file directories for nightly and current cilium version
-          kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-agent
-          kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-operator
-        else
-          # see makefile
-          export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
-          export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
-          export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY=acnpublic.azurecr.io
-          export AZURE_IP_MASQ_MERGER_TAG=$(make azure-ip-masq-merger-version)
-          make -C ./hack/aks deploy-ebpf-overlay-cilium
-        fi
+        kubectl get pods -Aowide
+          
+        # see makefile
+        export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
+        export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
+        export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY=acnpublic.azurecr.io
+        export AZURE_IP_MASQ_MERGER_TAG=$(make azure-ip-masq-merger-version)
+        make -C ./hack/aks deploy-ebpf-overlay-cilium
 
-        kubectl get po -owide -A
+        kubectl get pods -Aowide
     name: "installCilium"
     displayName: "Install Cilium EBPF on AKS Overlay"
 
   - template: ../../templates/cilium-cli.yaml
 
   - script: |
-      echo "Start Azilium E2E Tests on Overlay Cluster"
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
-      then
-          CNS=$(CNS_VERSION) IPAM=$(AZURE_IPAM_VERSION) && echo "Running nightly"
-      else
-          CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
-      fi
-      kubectl get po -owide -A
+      CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
+      kubectl get pods -Aowide
       sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Deploy CNS and Run Azilium E2E on AKS Overlay"
 
   - script: |
-      kubectl get po -owide -A
+      kubectl get pods -Aowide
       echo "Waiting < 2 minutes for cilium to be ready"
-      # Ensure Cilium is ready Xm\Xs
       cilium status --wait --wait-duration 2m
       kubectl get crd -A
     retryCountOnTaskFailure: 3
     name: "CiliumStatus"
     displayName: "Cilium Status"
-  # Run LRP test after cns and config with lrp enabled config deployed
-  - ${{ if eq( parameters['testLRP'], true) }}:
-    - script: |
-        set -e
-        cd test/integration/lrp/
-        go test ./lrp_test.go -v -tags "lrp" -count=1 -run ^TestLRP$
-        kubectl get pods -Aowide
-      retryCountOnTaskFailure: 3
-      name: "LRPTest"
-      displayName: "Run Cilium Local Redirect Policy Test"
 
   - task: AzureCLI@1
     inputs:
@@ -121,24 +92,6 @@ steps:
 
   - template: ../../templates/cilium-connectivity-tests.yaml
 
-  - ${{ if eq( parameters['testHubble'], true) }}:
-      - script: |
-          echo "enable Hubble metrics server"
-          export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
-          export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-          echo "installing files from ${DIR}"
-          kubectl apply -f test/integration/manifests/cilium/hubble/hubble-peer-svc.yaml
-          kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
-          kubectl rollout restart ds cilium -n kube-system
-          echo "wait <3 minutes for pods to be ready after restart"
-          kubectl rollout status ds cilium -n kube-system --timeout=3m
-          kubectl get pods -Aowide
-          echo "verify Hubble metrics endpoint is usable"
-          go test ./test/integration/networkobservability -count=1 -v -tags=networkobservability
-        retryCountOnTaskFailure: 3
-        name: "HubbleConnectivityTests"
-        displayName: "Run Hubble Connectivity Tests"
-
   - template: ../../templates/cilium-identities-check.yaml
     parameters:
       ciliumVersionTag: $(CILIUM_VERSION_TAG)
@@ -151,15 +104,11 @@ steps:
     displayName: "Run Wireserver and Metadata Connectivity Tests"
 
   - script: |
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
-        echo "Running nightly, skip async delete test"
-      else
-        cd hack/scripts
-        chmod +x async-delete-test.sh
-        ./async-delete-test.sh
-        if ! [ -z $(kubectl -n kube-system get ds azure-cns | grep non-existing) ]; then
-          kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
-        fi
+      cd hack/scripts
+      chmod +x async-delete-test.sh
+      ./async-delete-test.sh
+      if ! [ -z $(kubectl -n kube-system get ds azure-cns | grep non-existing) ]; then
+        kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
       fi
     name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"
