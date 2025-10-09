@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"time"
 
 	k8s "github.com/Azure/azure-container-networking/test/e2e/framework/kubernetes"
 	"github.com/Azure/azure-container-networking/test/e2e/manifests"
@@ -21,6 +24,20 @@ var (
 	ErrResourceNameTooLong = fmt.Errorf("resource name too long")
 	ErrEmptyFile           = fmt.Errorf("empty file")
 )
+
+// local stand-ins for kube-proxy config (removed from armcontainerservice/v4)
+type ipvsConfig struct {
+	Scheduler            string `json:"scheduler,omitempty"`
+	TCPTimeoutSeconds    *int32 `json:"TCPTimeoutSeconds,omitempty"`
+	TCPFinTimeoutSeconds *int32 `json:"TCPFINTimeoutSeconds,omitempty"`
+	UDPTimeoutSeconds    *int32 `json:"UDPTimeoutSeconds,omitempty"`
+}
+
+type kubeProxyConfig struct {
+	Enabled    *bool       `json:"enabled,omitempty"`
+	Mode       string      `json:"mode,omitempty"` // e.g. "IPVS"
+	IpvsConfig *ipvsConfig `json:"ipvsConfig,omitempty"`
+}
 
 type CreateBYOCiliumCluster struct {
 	SubscriptionID    string
@@ -83,6 +100,20 @@ func (c *CreateBYOCiliumCluster) Run() error {
 	subnetkey := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s", c.SubscriptionID, c.ResourceGroupName, c.VnetName, c.SubnetName)
 	ciliumCluster.Properties.AgentPoolProfiles[0].VnetSubnetID = to.Ptr(subnetkey)
 
+	// Build (and log) kube-proxy config using local stand-in types
+	kp := kubeProxyConfig{
+		Enabled: to.Ptr(false),
+		Mode:    "IPVS",
+		IpvsConfig: &ipvsConfig{
+			Scheduler:            "LeastConnection",
+			TCPTimeoutSeconds:    to.Ptr(int32(900)), // set by existing kube-proxy in hack/aks/kube-proxy.json
+			TCPFinTimeoutSeconds: to.Ptr(int32(120)),
+			UDPTimeoutSeconds:    to.Ptr(int32(300)),
+		},
+	}
+	log.Printf("using kube-proxy config:\n")
+	printjson(kp)
+
 	// Deploy cluster
 	cred, err := azidentity.NewAzureCLICredential(nil)
 	if err != nil {
@@ -107,6 +138,11 @@ func (c *CreateBYOCiliumCluster) Run() error {
 	_, err = poller.PollUntilDone(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create cluster: %w", err)
+	}
+
+	// After the cluster exists, apply kube-proxy config via CLI
+	if err := applyKubeProxyConfigWithCLI(ctx, c.SubscriptionID, c.ResourceGroupName, c.ClusterName, kp); err != nil {
+		return fmt.Errorf("failed to apply kube-proxy config: %w", err)
 	}
 
 	// get kubeconfig
@@ -196,4 +232,47 @@ func (c *CreateBYOCiliumCluster) deployCiliumComponents(clientset *kubernetes.Cl
 	}
 
 	return nil
+}
+
+// applyKubeProxyConfigWithCLI writes the config to a temporary JSON file and runs:
+// az aks update -g <rg> -n <cluster> --subscription <sub> --kube-proxy-config <file>
+func applyKubeProxyConfigWithCLI(ctx context.Context, subscriptionID, rg, cluster string, kp kubeProxyConfig) error {
+	dir, err := os.MkdirTemp("", "kube-proxy-config")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+
+	fp := filepath.Join(dir, "kube-proxy.json")
+	f, err := os.Create(fp)
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(kp); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+
+	// ensure we have a reasonable timeout if caller didn't set a deadline
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+	}
+
+	cmd := exec.CommandContext(ctx, "az", "aks", "update",
+		"-g", rg,
+		"-n", cluster,
+		"--subscription", subscriptionID,
+		"--kube-proxy-config", fp,
+		"--only-show-errors",
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
