@@ -283,7 +283,7 @@ stages:
     - template: singletenancy/cilium-ebpf/cilium-e2e-job-template.yaml
       parameters:
         name: "cilium_ebpf_podsubnet_e2e"
-        displayName: Cilium EBPF Podsubnet Azure Linux
+        displayName: Cilium EBPF Podsubnet Ubuntu 24
         clusterType: swift-byocni-nokubeproxy-up
         clusterName: "cilbpfpode2e"
         vmSize: Standard_B2ms
