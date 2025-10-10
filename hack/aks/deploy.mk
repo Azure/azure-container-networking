@@ -44,6 +44,6 @@ deploy-ebpf-podsubnet-cilium: deploy-common-ebpf-cilium
 	@$(MAKE) wait-for-cilium
 
 wait-for-cilium:
-	@kubectl rollout status deployment/cilium-operator -n kube-system --timeout=300s
-	@kubectl rollout status daemonset/cilium -n kube-system --timeout=300s
+	@kubectl rollout status deployment/cilium-operator -n kube-system --timeout=1200s
+	@kubectl rollout status daemonset/cilium -n kube-system --timeout=1200s
 	
