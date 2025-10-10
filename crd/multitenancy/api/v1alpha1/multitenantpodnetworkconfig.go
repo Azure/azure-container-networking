@@ -66,12 +66,12 @@ const (
 type MTPNCStatus string
 
 const (
-	MTPNCStatusReady                	MTPNCStatus = "Ready"
-	MTPNCStatusPending              	MTPNCStatus = "Pending"
-	MTPNCStatusInternalError        	MTPNCStatus = "InternalError"
-	MTPNCStatusNodeCapacityExceeded 	MTPNCStatus = "NodeCapacityExceeded"
-	MTPNCStatusSubnetExhaustionError 	MTPNCStatus = "SubnetExhaustionError"
-	MTPNCStatusNodeLinkedToAnotherMTPNC MTPNCStatus = "NodeLinkedToAnotherMTPNC"
+	MTPNCStatusReady					MTPNCStatus = "Ready"
+	MTPNCStatusPending					MTPNCStatus = "Pending"
+	MTPNCStatusInternalError			MTPNCStatus = "InternalError"
+	MTPNCStatusNodeCapacityExceeded		MTPNCStatus = "NodeCapacityExceeded"
+	MTPNCStatusSubnetExhaustionError	MTPNCStatus = "SubnetExhaustionError"
+	MTPNCStatusNodeLinkedToAnotherMTPNC	MTPNCStatus = "NodeLinkedToAnotherMTPNC"
 )
 
 type InterfaceInfo struct {
@@ -121,10 +121,6 @@ type MultitenantPodNetworkConfigStatus struct {
 	// Status represents the overall status of the MTPNC
 	// +kubebuilder:validation:Optional
 	Status MTPNCStatus `json:"status,omitempty"`
-	// LastTransitionTime is the time when this error status last changed.
-	// If the current reconcile results in same MTPNCStatus, LastTransitionTime remains unchanged.
-	// +kubebuilder:validation:Optional
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 }
 
 func init() {
