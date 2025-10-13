@@ -66,13 +66,13 @@ const (
 type MTPNCStatus string
 
 const (
-	MTPNCStatusReady                    MTPNCStatus = "Ready"
-	MTPNCStatusPending                  MTPNCStatus = "Pending"
-	MTPNCStatusInternalError            MTPNCStatus = "InternalError"
-	MTPNCStatusPNINotFound 				MTPNCStatus = "PNINotFound"
-	MTPNCStatusPNINotReady 				MTPNCStatus = "PNINotReady"
-	MTPNCStatusNodeCapacityExceeded     MTPNCStatus = "NodeCapacityExceeded"
-	MTPNCStatusIPsExhausted	    		MTPNCStatus = "IPsExhausted"
+	MTPNCStatusReady                MTPNCStatus = "Ready"
+	MTPNCStatusPending              MTPNCStatus = "Pending"
+	MTPNCStatusInternalError        MTPNCStatus = "InternalError"
+	MTPNCStatusPNINotFound          MTPNCStatus = "PNINotFound"
+	MTPNCStatusPNINotReady          MTPNCStatus = "PNINotReady"
+	MTPNCStatusNodeCapacityExceeded MTPNCStatus = "NodeCapacityExceeded"
+	MTPNCStatusIPsExhausted         MTPNCStatus = "IPsExhausted"
 )
 
 type InterfaceInfo struct {
