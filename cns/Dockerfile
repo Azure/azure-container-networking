@@ -5,13 +5,13 @@ ARG OS_VERSION
 ARG OS
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:6623b87c05c87cf3a213d67f8e917a820227b7fe64582d16deaa8b486a37ef8d AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:281d086598c336073a59d32cd6fc614a892e90c0c0b881e5051d014859739f0e AS go
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM mcr.microsoft.com/azurelinux/base/core@sha256:d472a34802cd535b24ed5fbb7869456e6d8ab2c087faedb9cb32a0efe5b67a15 AS mariner-core
+FROM mcr.microsoft.com/azurelinux/base/core@sha256:833693619d523c23b1fe4d9c1f64a6c697e2a82f7a6ee26e1564897c3fe3fa02 AS mariner-core
 
 # mcr.microsoft.com/azurelinux/distroless/minimal:3.0
-FROM mcr.microsoft.com/azurelinux/distroless/minimal@sha256:77854f8f49c481de03b8c98a5cfba5066616ca5a0213e2f7d443eb542d0f64c4 AS mariner-distroless
+FROM mcr.microsoft.com/azurelinux/distroless/minimal@sha256:d784c8233e87e8bce2e902ff59a91262635e4cabc25ec55ac0a718344514db3c AS mariner-distroless
 
 FROM --platform=linux/${ARCH} go AS builder
 ARG OS
