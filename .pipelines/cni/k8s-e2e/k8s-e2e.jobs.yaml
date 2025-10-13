@@ -16,6 +16,11 @@ jobs:
       name: $(BUILD_POOL_NAME_DEFAULT)
     steps:
       - checkout: azure-container-networking
+
+      - task: KubectlInstaller@0
+        inputs:
+          kubectlVersion: latest
+
       - task: AzureCLI@2
         inputs:
           azureSubscription: ${{ parameters.sub }}
