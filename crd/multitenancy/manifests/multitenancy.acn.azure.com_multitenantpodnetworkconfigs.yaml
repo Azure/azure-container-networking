@@ -144,9 +144,10 @@ spec:
                 - Ready
                 - Pending
                 - InternalError
+                - PNINotFound
+                - PNINotReady
                 - NodeCapacityExceeded
                 - SubnetExhaustionError
-                - NodeLinkedToAnotherMTPNC
                 type: string
             type: object
         type: object
