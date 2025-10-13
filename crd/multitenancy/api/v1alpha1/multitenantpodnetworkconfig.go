@@ -62,7 +62,7 @@ const (
 )
 
 // MTPNCStatus indicates the high-level status of MultitenantPodNetworkConfig
-// +kubebuilder:validation:Enum=Ready;InternalError;PodNotFound;PodFailed;NodeNameMissing;NodeUnreachable;PNINotFound;PNINotReady;CreateNCFailed;GetReservationSetFailed
+// +kubebuilder:validation:Enum=Ready;Pending;InternalError;NodeCapacityExceeded;SubnetExhaustionError;NodeLinkedToAnotherMTPNC
 type MTPNCStatus string
 
 const (
