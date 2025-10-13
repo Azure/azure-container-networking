@@ -12,10 +12,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
-	"runtime"
+
+	"github.com/pkg/errors"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -23,7 +25,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -195,16 +196,6 @@ var errNonExistentContainerStatus = errors.New("nonExistantContainerstatus")
 // all NCs and update the CNS state accordingly. This function returns the the total number of NCs on this VM that have been programmed to
 // some version, NOT the number of NCs that are up-to-date.
 func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMode string) (int, error) {
-	// will remove it later
-	// hasVNETBlockNC1 := service.isPrefixonNicSwiftV2()
-	// logger.Printf("winDebug: syncHostNCVersion hasVNETBlockNC1 %v", hasVNETBlockNC1)
-	// if runtime.GOOS == "windows" {
-	// 	logger.Printf("winDebug: before setPrefixOnNICRegistry in syncHostNCVersion")
-	// 	err := service.setPrefixOnNICRegistry(true, "aa:bb:cc:dd:ee:ff")
-	// 	if err != nil {
-	// 		logger.Debugf("failed to add PrefixOnNic keys to Windows registry: %w", err)
-	// 	}
-	// }
 	outdatedNCs := map[string]struct{}{}
 	programmedNCs := map[string]struct{}{}
 	for idx := range service.state.ContainerStatus {
@@ -239,8 +230,8 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		return len(programmedNCs), errors.Wrap(err, "failed to get nc version list from nmagent")
 	}
 
-	// Get IMDS NC versions for delegated NIC scenarios
-	imdsNCVersions, err := service.getIMDSNCs(ctx)
+	// Get IMDS NC versions for delegated NIC scenarios. If any of the NMA API check calls, imds calls fails assume that nma build doesn't have the latest changes and create empty map
+	imdsNCVersions := service.getIMDSNCs(ctx)
 	if err != nil {
 		// If any of the NMA API check calls, imds calls fails assume that nma build doesn't have the latest changes and create empty map
 		imdsNCVersions = make(map[string]string)
@@ -696,18 +687,18 @@ func (service *HTTPRestService) isNCDetailsAPIExists(ctx context.Context) bool {
 }
 
 // GetIMDSNCs gets NC versions from IMDS and returns them as a map
-func (service *HTTPRestService) getIMDSNCs(ctx context.Context) (map[string]string, error) {
+func (service *HTTPRestService) getIMDSNCs(ctx context.Context) map[string]string {
 	imdsClient := service.imdsClient
 	if imdsClient == nil {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
 		logger.Errorf("IMDS client is not available")
-		return make(map[string]string), nil
+		return make(map[string]string)
 	}
 	// Check NC version support
 	if !service.isNCDetailsAPIExists(ctx) {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
 		logger.Errorf("IMDS does not support NC details API")
-		return make(map[string]string), nil
+		return make(map[string]string)
 	}
 
 	// Get all network interfaces from IMDS
@@ -715,7 +706,7 @@ func (service *HTTPRestService) getIMDSNCs(ctx context.Context) (map[string]stri
 	if err != nil {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
 		logger.Errorf("Failed to get network interfaces from IMDS: %v", err)
-		return make(map[string]string), nil
+		return make(map[string]string)
 	}
 
 	// Build ncs map from the network interfaces
@@ -731,21 +722,20 @@ func (service *HTTPRestService) getIMDSNCs(ctx context.Context) (map[string]stri
 		} else if runtime.GOOS == "windows" && service.isPrefixonNicSwiftV2() {
 			err := service.setPrefixOnNICRegistry(true, iface.MacAddress.String())
 			if err != nil {
+				//nolint:staticcheck // SA1019: suppress deprecated logger.Debugf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
 				logger.Debugf("failed to add PrefixOnNic keys to Windows registry: %w", err)
 			}
 		}
 	}
 
-	return ncs, nil
+	return ncs
 }
 
-// isPrefixonNicSwiftV2 checks if any NC in the container status should use SwiftV2 PrefixOnNic
-// Uses the SwiftV2PrefixOnNic field which captures the condition: isSwiftV2 && nc.Type == VNETBlock
+// Check whether NC is SwiftV2 NIC associated NC and prefix on nic is enabled
 func (service *HTTPRestService) isPrefixonNicSwiftV2() bool {
-	for _, containerStatus := range service.state.ContainerStatus {
-		req := containerStatus.CreateNetworkContainerRequest
+	for i := range service.state.ContainerStatus {
+		req := service.state.ContainerStatus[i].CreateNetworkContainerRequest
 
-		// Check if this NC is SwiftV2 PrefixOnNic setting
 		if req.SwiftV2PrefixOnNic {
 			return true
 		}

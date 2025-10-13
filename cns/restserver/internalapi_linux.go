@@ -6,13 +6,14 @@ import (
 	"os/exec"
 	"strconv"
 
+	goiptables "github.com/coreos/go-iptables/iptables"
+	"github.com/pkg/errors"
+
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network/networkutils"
-	goiptables "github.com/coreos/go-iptables/iptables"
-	"github.com/pkg/errors"
 )
 
 const SWIFTPOSTROUTING = "SWIFT-POSTROUTING"
@@ -183,11 +184,9 @@ func (service *HTTPRestService) setVFForAccelnetNICs() error {
 }
 
 func (service *HTTPRestService) setPrefixOnNICRegistry(enabled bool, infraNicMacAddress string) error {
-	logger.Printf("[setPrefixOnNicEnabled winDebug] No-op on Linux platform")
+	// Assigning parameters to '_' to avoid unused parameter linting errors.
+	// These parameters are only used in the Windows implementation.
+	_ = enabled
+	_ = infraNicMacAddress
 	return nil
-}
-
-func (service *HTTPRestService) getPrefixOnNicEnabled() (bool, error) {
-	logger.Printf(" winDebug getPrefixOnNicEnabled is a no-op on non-Windows platforms")
-	return false, nil // Add this missing return statement
 }

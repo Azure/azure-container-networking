@@ -7,12 +7,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/cns/types"
-	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
-	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/network/policy"
 )
 
 // Container Network Service DNC Contract
@@ -128,7 +129,7 @@ type CreateNetworkContainerRequest struct {
 	AllowNCToHostCommunication bool
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
-	SwiftV2PrefixOnNic         bool // Indicates if is swiftv2 nc, PrefixOnNic scenario (isSwiftV2 && nc.Type == VNETBlock)
+	SwiftV2PrefixOnNic         bool                 // Indicates if is swiftv2 nc, PrefixOnNic scenario (isSwiftV2 && nc.Type == VNETBlock)
 	NetworkInterfaceInfo       NetworkInterfaceInfo //nolint // introducing new field for backendnic, to be used later by cni code
 }
 

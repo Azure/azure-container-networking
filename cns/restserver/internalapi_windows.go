@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Microsoft/hcsshim"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/types"
 )
 
 const (
 	// timeout for powershell command to return the interfaces list
-		pwshTimeout             = 120 * time.Second
+	pwshTimeout             = 120 * time.Second
 	hnsRegistryPath         = `SYSTEM\CurrentControlSet\Services\HNS\wcna_state\config`
 	prefixOnNicRegistryPath = `SYSTEM\CurrentControlSet\Services\HNS\wcna_state\config\PrefixOnNic`
 	infraNicIfName          = "eth0"
@@ -137,35 +138,18 @@ func (service *HTTPRestService) setRegistryValue(registryPath, keyName string, v
 	case uint32:
 		err = key.SetDWordValue(keyName, v)
 	case int:
+	case int:
+		if v < 0 || v > int(^uint32(0)) {
+			return fmt.Errorf("int value %d overflows uint32 for registry key %s", v, keyName)
+		}
 		err = key.SetDWordValue(keyName, uint32(v))
 	default:
 		return fmt.Errorf("unsupported value type for registry key %s: %T", keyName, value)
 	}
-
 	if err != nil {
 		return fmt.Errorf("failed to set registry value '%s': %w", keyName, err)
 	}
 
-	logger.Printf("[setRegistryValue] Set %s\\%s = %v", registryPath, keyName, value) 
-	// have to remove this log later
-	// test, _ := service.getPrefixOnNicEnabled()
-	// logger.Printf("winDebug: setRegistryValue getPrefixOnNicEnabled %v", test)
+	logger.Printf("[setRegistryValue] Set %s\\%s = %v", registryPath, keyName, value)
 	return nil
 }
-
-// for testing purpose, will remove it later
-
-// func (service *HTTPRestService) getPrefixOnNicEnabled() (bool, error) {
-// 	key, err := registry.OpenKey(registry.LOCAL_MACHINE, prefixOnNicRegistryPath, registry.QUERY_VALUE)
-// 	if err != nil {
-// 		return false, nil // Key doesn't exist, default to false
-// 	}
-// 	defer key.Close()
-
-// 	value, _, err := key.GetIntegerValue("enabled")
-// 	if err != nil {
-// 		return false, nil // Value doesn't exist, default to false
-// 	}
-
-// 	return value == 1, nil
-// }

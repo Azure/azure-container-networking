@@ -6,9 +6,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
-	"github.com/pkg/errors"
 )
 
 var (
@@ -62,7 +63,7 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 		NetworkContainerid:   nc.ID,
 		NetworkContainerType: cns.Docker,
 		Version:              strconv.FormatInt(nc.Version, 10), //nolint:gomnd // it's decimal
-		SwiftV2PrefixOnNic:   false, // Dynamic NCs don't use SwiftV2 PrefixOnNic
+		SwiftV2PrefixOnNic:   false,                             // Dynamic NCs don't use SwiftV2 PrefixOnNic
 		IPConfiguration: cns.IPConfiguration{
 			IPSubnet:         subnet,
 			GatewayIPAddress: nc.DefaultGateway,
