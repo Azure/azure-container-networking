@@ -70,6 +70,9 @@ spec:
               podNetworkInstance:
                 description: name of PNI object from requesting cx pod
                 type: string
+              podUID:
+                description: PodUID is the UID of the pod
+                type: string
             required:
             - podNetwork
             type: object
@@ -134,6 +137,9 @@ spec:
                 type: string
               ncID:
                 description: Deprecated - use InterfaceInfos
+                type: string
+              nodeName:
+                description: NodeName is the name of the node where the pod is scheduled
                 type: string
               primaryIP:
                 description: Deprecated - use InterfaceInfos
