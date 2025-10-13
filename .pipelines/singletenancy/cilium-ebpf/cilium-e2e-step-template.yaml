@@ -1,0 +1,45 @@
+parameters:
+  name: ""
+  clusterName: ""
+  scaleup: ""
+
+steps:
+  - template: ../../templates/setup-environment.yaml
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        ls -lah
+        pwd
+        kubectl cluster-info
+        kubectl get pods -Aowide
+
+        # see makefile
+        export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
+        export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
+        make -C ./hack/aks deploy-ebpf-podsubnet-cilium
+
+        kubectl get pods -Aowide
+    name: "installCilium"
+    displayName: "Install EBPF Podsubnet Cilium"
+
+  - template: ../../templates/cilium-cli.yaml
+
+  - script: |
+      echo "Start Azilium E2E Tests"
+      kubectl get po -owide -A
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZILIUM=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CLEANUP=true
+    retryCountOnTaskFailure: 3
+    name: "aziliumTest"
+    displayName: "Run Azilium E2E"
+
+  - template: ../../templates/cilium-tests.yaml
+    parameters:
+      clusterName: ${{ parameters.clusterName }}
+      scaleup: ${{ parameters.scaleup }}
