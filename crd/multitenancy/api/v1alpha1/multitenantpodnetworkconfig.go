@@ -62,7 +62,7 @@ const (
 )
 
 // MTPNCStatus indicates the high-level status of MultitenantPodNetworkConfig
-// +kubebuilder:validation:Enum=Ready;Pending;InternalError;PNINotFound;PNINotReady;NodeCapacityExceeded;SubnetExhausted
+// +kubebuilder:validation:Enum=Ready;Pending;InternalError;PNINotFound;PNINotReady;NodeCapacityExceeded;IPsExhausted
 type MTPNCStatus string
 
 const (
@@ -72,7 +72,7 @@ const (
 	MTPNCStatusPNINotFound 				MTPNCStatus = "PNINotFound"
 	MTPNCStatusPNINotReady 				MTPNCStatus = "PNINotReady"
 	MTPNCStatusNodeCapacityExceeded     MTPNCStatus = "NodeCapacityExceeded"
-	MTPNCStatusSubnetExhausted    		MTPNCStatus = "SubnetExhausted"
+	MTPNCStatusIPsExhausted	    		MTPNCStatus = "IPsExhausted"
 )
 
 type InterfaceInfo struct {

@@ -147,7 +147,7 @@ spec:
                 - PNINotFound
                 - PNINotReady
                 - NodeCapacityExceeded
-                - SubnetExhausted
+                - IPsExhausted
                 type: string
             type: object
         type: object
