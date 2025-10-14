@@ -1358,7 +1358,6 @@ func verifyUpdateEndpointStateRequest(req map[string]*IPInfo) error {
 	return nil
 }
 
-<<<<<<< HEAD
 // getIPFamiliesMap returns a map of IP families present across all NC's
 func (service *HTTPRestService) getIPFamiliesMap() map[cns.IPFamily]struct{} {
 	ncIPFamilies := map[cns.IPFamily]struct{}{}
@@ -1395,7 +1394,8 @@ func (service *HTTPRestService) getIPFamiliesMap() map[cns.IPFamily]struct{} {
 // - In dual-stack: 2 IPs per pod (one IPv4, one IPv6)
 func (service *HTTPRestService) GetIPFamilyCount() int {
 	return len(service.getIPFamiliesMap())
-=======
+}
+
 func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter, r *http.Request) {
 	opName := "DeleteEndpointStateHandler"
 	logger.Printf("[DeleteEndpointStateHandler] DeleteEndpointState for %s", r.URL.Path) //nolint:staticcheck // reason: using deprecated call until migration to new API
@@ -1460,5 +1460,4 @@ func (service *HTTPRestService) DeleteEndpointStateHelper(endpointID string) err
 	}
 	logger.Printf("[deleteEndpointState] successfully deleted endpoint %s from state file", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
 	return nil
->>>>>>> 79f3d9a0d (feat: Implement DeleteEndpointState API and integrate with network manager)
 }
