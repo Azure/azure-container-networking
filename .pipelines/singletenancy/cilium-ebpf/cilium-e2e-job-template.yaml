@@ -6,8 +6,7 @@ parameters:
   vmSize: ""
   k8sVersion: ""
   dependsOn: ""
-  os: ""
-  scaleup: ""
+  os: "linux"
 
 stages:
   - stage: ${{ parameters.clusterName }}
@@ -27,11 +26,10 @@ stages:
           clusterType: ${{ parameters.clusterType }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           vmSize: ${{ parameters.vmSize }}
-          vmSizeWin: ${{ parameters.vmSize }}
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
-          os: ${{ parameters.os }}
-          region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) # Dualstack has a specific region requirement
+          osSKU: "Ubuntu2404"
+          region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
@@ -40,15 +38,18 @@ stages:
     - publish
     - ${{ parameters.clusterName }}
     variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
-      - job: ${{ parameters.name }}_${{ parameters.os }}
-        displayName: DualStack Overlay Test Suite | ${{ parameters.os }} - (${{ parameters.name }})
+      - job: ${{ parameters.name }}
+        displayName: Cilium Test Suite - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
@@ -56,35 +57,33 @@ stages:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
-          - template: dualstackoverlay-e2e-step-template.yaml
+          - template: cilium-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: ${{ parameters.os }}
-              scaleup: ${{ parameters.scaleup }} # 50 in windows or 100 in linux
+              scaleup: 50
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
-          dependsOn: ${{ parameters.name }}_${{ parameters.os }}
-          dualstack: ${{ eq(parameters.os, 'linux') }} # RUN IN LINUX not WINDOWS Currently broken for scenario and blocking releases, HNS is investigating. Covered by go test in E2E step template
+          cni: cilium
+          dependsOn: ${{ parameters.name }}
+          datapath: true
           dns: true
-          portforward: ${{ eq(parameters.os, 'linux') }} # RUN IN LINUX NOT WINDOWS Currently broken for scenario and blocking releases
-          service: ${{ eq(parameters.os, 'linux') }}  # RUN IN LINUX NOT WINDOWS Currently broken for scenario and blocking releases, HNS is investigating.
-          hostport: true
-          hybridWin: ${{ eq(parameters.os, 'windows') }}
+          portforward: true
+          service: true
 
-      - job: failedE2ELogs_${{ parameters.os }}
-        displayName: "${{ parameters.os }} Failure Logs"
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
         dependsOn:
-          - ${{ parameters.name }}_${{ parameters.os }}
-          - CNI_${{ parameters.os }}
-        condition: in(dependencies.${{ parameters.name }}_${{ parameters.os }}.result, 'Failed')
+          - ${{ parameters.name }}
+          - cni_${{ parameters.os }}
+        condition: failed()
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
-              cni: cniv2
+              cni: cilium

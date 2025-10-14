@@ -7,6 +7,7 @@ parameters:
   vmSizeWin: ""
   k8sVersion: ""
   osSkuWin: "Windows2022" # Currently we only support Windows2022
+  osSKU: "Ubuntu"
   dependsOn: ""
   region: ""
   os: linux
@@ -44,7 +45,7 @@ jobs:
             AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
             CLUSTER=${{ parameters.clusterName }} \
             VM_SIZE=${{ parameters.vmSize }} VM_SIZE_WIN=${{ parameters.vmSizeWin }} \
-            OS_SKU_WIN=${{ parameters.osSkuWin }} OS=${{ parameters.os }}
+            OS_SKU_WIN=${{ parameters.osSkuWin }} OS=${{ parameters.os }} OS_SKU=${{ parameters.osSKU }}
 
             echo "Cluster successfully created"
         displayName: Cluster - ${{ parameters.clusterType }}

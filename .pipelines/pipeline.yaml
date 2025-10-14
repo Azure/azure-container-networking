@@ -278,8 +278,18 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: ["test"]
+
+    # Cilium EBPF Podsubnet E2E tests
+    - template: singletenancy/cilium-ebpf/cilium-e2e-job-template.yaml
+      parameters:
+        name: "cilium_ebpf_podsubnet_e2e"
+        displayName: Cilium EBPF Podsubnet Ubuntu 24
+        clusterType: swift-byocni-nokubeproxy-up
+        clusterName: "cilbpfpode2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: ["test"]
   
-    
     # Cilium Nodesubnet E2E tests
     - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml
       parameters:
@@ -313,8 +323,19 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: ["test"]
+    
+    # Cilium EBPF Overlay E2E tests
+    - template: singletenancy/cilium-overlay-ebpf/cilium-overlay-e2e-job-template.yaml
+      parameters:
+        name: "cilium_ebpf_overlay_e2e"
+        displayName: Cilium EBPF on AKS Overlay Azure Linux
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cilbpfovere2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: ["test"]
 
-        # Cilium Overlay with hubble E2E tests
+    # Cilium Overlay with hubble E2E tests
     - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_h_overlay_e2e"
@@ -447,8 +468,10 @@ stages:
         - aks_swift_e2e
         - cilium_e2e
         - cilium_vnetscale_e2e
+        - cilium_ebpf_podsubnet_e2e
         - cilium_nodesubnet_e2e
         - cilium_overlay_e2e
+        - cilium_ebpf_overlay_e2e
         - cilium_h_overlay_e2e
         - aks_ubuntu_22_linux_e2e
         - aks_swift_vnetscale_e2e
@@ -473,6 +496,10 @@ stages:
                 name: cilium_vnetscale_e2e
                 clusterName: "ciliumvscalee2e"
                 region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_ebpf_podsubnet_e2e:
+                name: cilium_ebpf_podsubnet_e2e
+                clusterName: "cilbpfpode2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
               cilium_nodesubnet_e2e:
                 name: cilium_nodesubnet_e2e
                 clusterName: "cilndsubnete2e"
@@ -480,6 +507,10 @@ stages:
               cilium_overlay_e2e:
                 name: cilium_overlay_e2e
                 clusterName: "cilovere2e"
+                region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_ebpf_overlay_e2e:
+                name: cilium_ebpf_overlay_e2e
+                clusterName: "cilbpfovere2e"
                 region: $(REGION_AKS_CLUSTER_TEST)
               cilium_h_overlay_e2e:
                 name: cilium_h_overlay_e2e

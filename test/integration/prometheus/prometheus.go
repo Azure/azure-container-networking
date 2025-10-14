@@ -9,6 +9,7 @@ import (
 
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 )
 
 var (
@@ -38,20 +39,21 @@ func GetMetrics(url string) (map[string]*io_prometheus_client.MetricFamily, erro
 }
 
 func ParseReaderMetrics(input io.Reader) (map[string]*io_prometheus_client.MetricFamily, error) {
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	return parser.TextToMetricFamilies(input) //nolint
 }
 
 func ParseStringMetrics(input string) (map[string]*io_prometheus_client.MetricFamily, error) {
-	var parser expfmt.TextParser
+	// use NewTextParser with explicit validation scheme
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	reader := strings.NewReader(input)
 	return parser.TextToMetricFamilies(reader) //nolint
 }
 
 // SelectMetric retrieves a particular metric from a map of MetricFamily based on the name (key) and
-// the provided label kv pairs. Every label kv pair on the metric must match for it to be returned
+// the provided label kv pairs. Every label kv pair on the metric must match for it to be returned.
 // For example, to match the following metric: my_metric{a="1",b="udp"} 7
-// name must be "my_metric", and the map of matchLabels must be exactly {"a": "1", "b": "udp"}
+// name must be "my_metric", and the map of matchLabels must be exactly {"a": "1", "b": "udp"}.
 func SelectMetric(metrics map[string]*io_prometheus_client.MetricFamily, name string, matchLabels map[string]string) (*io_prometheus_client.Metric, error) {
 	metricFamily := metrics[name]
 	if metricFamily == nil {

@@ -20,6 +20,9 @@ type deviceCounter interface {
 }
 
 type Server struct {
+	// NEW: embed the unimplemented server to satisfy the interface in newer gRPC/proto
+	v1beta1.UnimplementedDevicePluginServer
+
 	address             string
 	logger              *zap.Logger
 	deviceCounter       deviceCounter
@@ -89,13 +92,14 @@ func (s *Server) Ready(ctx context.Context) error {
 // We are not using this functionality currently
 func (s *Server) Allocate(_ context.Context, req *v1beta1.AllocateRequest) (*v1beta1.AllocateResponse, error) {
 	s.logger.Info("allocate request", zap.Any("req", *req))
-	resps := make([]*v1beta1.ContainerAllocateResponse, len(req.ContainerRequests))
-	for i, containerReq := range req.ContainerRequests {
+	crs := req.GetContainerRequests()
+	resps := make([]*v1beta1.ContainerAllocateResponse, len(crs))
+	for i, containerReq := range crs {
 		resp := &v1beta1.ContainerAllocateResponse{
 			Envs: make(map[string]string),
 		}
-		for j := range containerReq.DevicesIDs {
-			resp.Envs[fmt.Sprintf("%s%d", devicePrefix, j)] = containerReq.DevicesIDs[j]
+		for j, id := range containerReq.GetDevicesIds() {
+			resp.Envs[fmt.Sprintf("%s%d", devicePrefix, j)] = id
 		}
 		resps[i] = resp
 	}
