@@ -399,7 +399,7 @@ func (client *TransparentVlanEndpointClient) PopulateVnet(epInfo *EndpointInfo) 
 	return nil
 }
 
-// Set ARP proxy on the vlan interface to respond to ARP requests for the gateway IP
+// Set ARP proxy on the specified interface to respond to ARP requests for the gateway IP
 func (client *TransparentVlanEndpointClient) setArpProxy(ifName string) error {
 	cmd := fmt.Sprintf("echo 1 > /proc/sys/net/ipv4/conf/%v/proxy_arp", ifName)
 	_, err := client.plClient.ExecuteRawCommand(cmd)
