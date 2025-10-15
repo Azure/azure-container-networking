@@ -9,3 +9,7 @@ func (m *MultitenantPodNetworkConfig) IsReady() bool {
 	// Check if InterfaceInfos slice is not empty
 	return !reflect.DeepEqual(m.Status, MultitenantPodNetworkConfigStatus{})
 }
+
+func (m *MultitenantPodNetworkConfig) IsTerminating() bool {
+	return !m.DeletionTimestamp.IsZero()
+}

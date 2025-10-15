@@ -28,7 +28,7 @@ var (
 	errGetMTPNC                 = errors.New(NetworkNotReadyErrorMsg + " - failed to get MTPNC")
 	errInvalidSWIFTv2NICType    = errors.New("invalid NIC type for SWIFT v2 scenario")
 	errInvalidMTPNCPrefixLength = errors.New("invalid prefix length for MTPNC primaryIP, must be 32")
-	errDeleteTimestampSet       = errors.New("MTPNC deletion timestamp is set")
+	errMTPNCTerminating         = errors.New("MTPNC in terminating state")
 )
 
 type K8sSWIFTv2Middleware struct {
@@ -55,7 +55,9 @@ func (k *K8sSWIFTv2Middleware) GetPodInfoForIPConfigsRequest(ctx context.Context
 		if respCode != types.Success {
 			return nil, respCode, message
 		}
-
+		if mtpnc.IsTerminating() {
+			return nil, types.UnexpectedError, errMTPNCTerminating.Error()
+		}
 		// update ipConfigRequest
 		respCode, message = k.UpdateIPConfigRequest(mtpnc, req)
 		if respCode != types.Success {
@@ -193,9 +195,6 @@ func (k *K8sSWIFTv2Middleware) getMTPNC(ctx context.Context, podInfo cns.PodInfo
 	mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
 	if err := k.Cli.Get(ctx, mtpncNamespacedName, &mtpnc); err != nil {
 		return v1alpha1.MultitenantPodNetworkConfig{}, types.UnexpectedError, errors.Wrap(err, errGetMTPNC.Error()).Error()
-	}
-	if mtpnc.DeletionTimestamp != nil {
-		return v1alpha1.MultitenantPodNetworkConfig{}, types.UnexpectedError, errDeleteTimestampSet.Error()
 	}
 	// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
 	if !mtpnc.IsReady() {
