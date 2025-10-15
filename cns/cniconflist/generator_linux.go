@@ -161,3 +161,33 @@ func (v *SWIFTGenerator) Generate() error {
 
 	return nil
 }
+
+func (v *AzureCNIChainedCiliumGenerator) Generate() error {
+	conflist := cniConflist{
+		CNIVersion: azurecniVersion,
+		Name:       azureName,
+		Plugins: []any{
+			cni.NetworkConfig{
+				Type:              azureType,
+				Mode:              cninet.OpModeTransparent,
+				IPsToRouteViaHost: []string{nodeLocalDNSIP},
+				ExecutionMode:     string(util.V4Swift),
+				IPAM: cni.IPAM{
+					Type: network.AzureCNS,
+				},
+			},
+			cni.NetworkConfig{
+				Name: ciliumcniName,
+				Type: ciliumcniType,
+			},
+		},
+	}
+
+	enc := json.NewEncoder(v.Writer)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(conflist); err != nil {
+		return errors.Wrap(err, "error encoding conflist to json")
+	}
+
+	return nil
+}

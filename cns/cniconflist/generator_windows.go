@@ -25,3 +25,7 @@ func (v *CiliumGenerator) Generate() error {
 func (v *SWIFTGenerator) Generate() error {
 	return errNotImplemented
 }
+
+func (v *AzureCNIChainedCiliumGenerator) Generate() error {
+	return errNotImplemented
+}
