@@ -144,6 +144,17 @@ spec:
               primaryIP:
                 description: Deprecated - use InterfaceInfos
                 type: string
+              status:
+                description: Status represents the overall status of the MTPNC
+                enum:
+                - Ready
+                - Pending
+                - InternalError
+                - PNINotFound
+                - PNINotReady
+                - NodeCapacityExceeded
+                - IPsExhausted
+                type: string
             type: object
         type: object
     served: true

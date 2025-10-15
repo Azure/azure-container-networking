@@ -63,6 +63,20 @@ const (
 	Failed        InfinibandStatus = "Failed"
 )
 
+// MTPNCStatus indicates the high-level status of MultitenantPodNetworkConfig
+// +kubebuilder:validation:Enum=Ready;Pending;InternalError;PNINotFound;PNINotReady;NodeCapacityExceeded;IPsExhausted
+type MTPNCStatus string
+
+const (
+	MTPNCStatusReady                MTPNCStatus = "Ready"
+	MTPNCStatusPending              MTPNCStatus = "Pending"
+	MTPNCStatusInternalError        MTPNCStatus = "InternalError"
+	MTPNCStatusPNINotFound          MTPNCStatus = "PNINotFound"
+	MTPNCStatusPNINotReady          MTPNCStatus = "PNINotReady"
+	MTPNCStatusNodeCapacityExceeded MTPNCStatus = "NodeCapacityExceeded"
+	MTPNCStatusIPsExhausted         MTPNCStatus = "IPsExhausted"
+)
+
 type InterfaceInfo struct {
 	// NCID is the network container id
 	NCID string `json:"ncID,omitempty"`
@@ -110,6 +124,9 @@ type MultitenantPodNetworkConfigStatus struct {
 	// NodeName is the name of the node where the pod is scheduled
 	// +kubebuilder:validation:Optional
 	NodeName string `json:"nodeName,omitempty"`
+	// Status represents the overall status of the MTPNC
+	// +kubebuilder:validation:Optional
+	Status MTPNCStatus `json:"status,omitempty"`
 }
 
 func init() {

@@ -12,7 +12,7 @@ const mtpncFilename = "manifests/multitenancy.acn.azure.com_multitenantpodnetwor
 func TestEmbedMTPNC(t *testing.T) {
 	b, err := os.ReadFile(mtpncFilename)
 	assert.NoError(t, err)
-	assert.Equal(t, b, MultitenantPodNetworkConfigsYAML)
+	assert.YAMLEq(t, string(b), string(MultitenantPodNetworkConfigsYAML))
 }
 
 func TestGetMultitenantPodNetworkConfigs(t *testing.T) {
@@ -25,7 +25,7 @@ const nodeinfoFilename = "manifests/multitenancy.acn.azure.com_nodeinfo.yaml"
 func TestEmbedNodeInfo(t *testing.T) {
 	b, err := os.ReadFile(nodeinfoFilename)
 	assert.NoError(t, err)
-	assert.Equal(t, b, NodeInfoYAML)
+	assert.YAMLEq(t, string(b), string(NodeInfoYAML))
 }
 
 func TestGetNodeInfo(t *testing.T) {
@@ -38,7 +38,7 @@ const podNetworkFilename = "manifests/multitenancy.acn.azure.com_podnetworks.yam
 func TestEmbedPodNetwork(t *testing.T) {
 	b, err := os.ReadFile(podNetworkFilename)
 	assert.NoError(t, err)
-	assert.Equal(t, b, PodNetworkYAML)
+	assert.YAMLEq(t, string(b), string(PodNetworkYAML))
 }
 
 func TestGetPodNetworks(t *testing.T) {
@@ -51,7 +51,7 @@ const podNetworkInstanceFilename = "manifests/multitenancy.acn.azure.com_podnetw
 func TestEmbedPodNetworkInstance(t *testing.T) {
 	b, err := os.ReadFile(podNetworkInstanceFilename)
 	assert.NoError(t, err)
-	assert.Equal(t, b, PodNetworkInstanceYAML)
+	assert.YAMLEq(t, string(b), string(PodNetworkInstanceYAML))
 }
 
 func TestGetPodNetworkInstances(t *testing.T) {
