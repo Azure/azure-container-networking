@@ -101,6 +101,51 @@ func TestReconcileNCStatePrimaryIPChangeShouldFail(t *testing.T) {
 	assert.Equal(t, types.PrimaryCANotSame, resp)
 }
 
+// TestReconcileNCStatePrimaryIPChangeShouldNotFail tests that reconciling NC state with
+// a NC whose IP has changed should not fail
+func TestReconcileNCStatePrimaryIPChangeShouldNotFail(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	svc.state.ContainerStatus = make(map[string]containerstatus)
+
+	// start with a NC in state
+	ncID := "555ac5c9-89f2-4b5d-b8d0-616894d6d151"
+	svc.state.ContainerStatus[ncID] = containerstatus{
+		ID:          ncID,
+		VMVersion:   "0",
+		HostVersion: "0",
+		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+			NetworkContainerid: ncID,
+			IPConfiguration: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "10.0.1.0",
+					PrefixLength: 24,
+				},
+			},
+		},
+	}
+
+	ncReqs := []*cns.CreateNetworkContainerRequest{
+		{
+			NetworkContainerid: ncID,
+			IPConfiguration: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "10.0.2.0", // note this IP has changed
+					PrefixLength: 24,
+				},
+			},
+			Scenario:             v1alpha.Overlay, // overlay cluster - skip primary CA check
+			NetworkContainerType: cns.Kubernetes,
+		},
+	}
+
+	// now try to reconcile the state where the NC primary IP has changed
+	resp := svc.ReconcileIPAMStateForSwift(ncReqs, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
+
+	assert.Equal(t, types.Success, resp)
+}
+
 // TestReconcileNCStateGatewayChange tests that NC state gets updated when reconciled
 // if the NC's gateway IP has changed
 func TestReconcileNCStateGatewayChange(t *testing.T) {
