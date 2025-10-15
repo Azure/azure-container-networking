@@ -15,6 +15,7 @@ type TlsSettings struct {
 	KeyVaultCertificateRefreshInterval time.Duration
 	UseMTLS                            bool
 	MinTLSVersion                      string
+	AllowedClientSubjectName           string
 }
 
 func GetTlsCertificateRetriever(settings TlsSettings) (TlsCertificateRetriever, error) {

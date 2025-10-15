@@ -156,6 +156,25 @@ func getTLSConfig(tlsSettings localtls.TlsSettings, errChan chan<- error) (*tls.
 	return nil, errors.Errorf("invalid tls settings: %+v", tlsSettings)
 }
 
+// verifyPeerCertificate verifies the client certificate's subject name matches the expected subject name.
+func verifyPeerCertificate(rawCerts [][]byte, clientSubjectName string) error {
+	// no client subject name provided, skip verification
+	if clientSubjectName == "" {
+		return nil
+	}
+
+	cert, err := x509.ParseCertificate(rawCerts[0])
+	if err != nil {
+		return errors.Errorf("failed to parse certificate: %v", err)
+	}
+
+	err = cert.VerifyHostname(clientSubjectName)
+	if err != nil {
+		return errors.Errorf("failed to verify client certificate hostname: %v", err)
+	}
+	return nil
+}
+
 func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error) {
 	tlsCertRetriever, err := localtls.GetTlsCertificateRetriever(tlsSettings)
 	if err != nil {
@@ -202,8 +221,10 @@ func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error)
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		tlsConfig.ClientCAs = rootCAs
 		tlsConfig.RootCAs = rootCAs
+		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			return verifyPeerCertificate(rawCerts, tlsSettings.AllowedClientSubjectName)
+		}
 	}
-
 	logger.Debugf("TLS configured successfully from file: %+v", tlsSettings)
 
 	return tlsConfig, nil
@@ -254,6 +275,9 @@ func getTLSConfigFromKeyVault(tlsSettings localtls.TlsSettings, errChan chan<- e
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		tlsConfig.ClientCAs = rootCAs
 		tlsConfig.RootCAs = rootCAs
+		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			return verifyPeerCertificate(rawCerts, tlsSettings.AllowedClientSubjectName)
+		}
 	}
 
 	logger.Debugf("TLS configured successfully from KV: %+v", tlsSettings)

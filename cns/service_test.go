@@ -12,6 +12,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net/http"
 	"os"
@@ -133,57 +134,82 @@ func TestNewService(t *testing.T) {
 	t.Run("NewServiceWithMutualTLS", func(t *testing.T) {
 		testCertFilePath := createTestCertificate(t)
 
-		config.TLSSettings = serverTLS.TlsSettings{
-			TLSPort:            "10091",
-			TLSSubjectName:     "localhost",
-			TLSCertificatePath: testCertFilePath,
-			UseMTLS:            true,
-			MinTLSVersion:      "TLS 1.2",
+		TLSSetting := serverTLS.TlsSettings{
+			TLSPort:                  "10091",
+			TLSSubjectName:           "localhost",
+			TLSCertificatePath:       testCertFilePath,
+			UseMTLS:                  true,
+			MinTLSVersion:            "TLS 1.2",
+			AllowedClientSubjectName: "example.com",
 		}
 
-		svc, err := NewService(config.Name, config.Version, config.ChannelMode, config.Store)
-		require.NoError(t, err)
-		require.IsType(t, &Service{}, svc)
+		TLSSettingWithDisallowedClientSN := serverTLS.TlsSettings{
+			TLSPort:                  "10092",
+			TLSSubjectName:           "localhost",
+			TLSCertificatePath:       testCertFilePath,
+			UseMTLS:                  true,
+			MinTLSVersion:            "TLS 1.2",
+			AllowedClientSubjectName: "random.com",
+		}
 
-		svc.SetOption(acn.OptCnsURL, "")
-		svc.SetOption(acn.OptCnsPort, "")
+		runMutualTLSTest := func(tlsSettings serverTLS.TlsSettings, handshakeFailureExpected bool) {
+			config.TLSSettings = tlsSettings
+			svc, err := NewService(config.Name, config.Version, config.ChannelMode, config.Store)
+			require.NoError(t, err)
+			require.IsType(t, &Service{}, svc)
 
-		err = svc.Initialize(config)
-		t.Cleanup(func() {
+			svc.SetOption(acn.OptCnsURL, "")
+			svc.SetOption(acn.OptCnsPort, "")
+
+			err = svc.Initialize(config)
+			require.NoError(t, err)
+
+			err = svc.StartListener(config)
+			require.NoError(t, err)
+
+			mTLSConfig, err := getTLSConfigFromFile(config.TLSSettings)
+			require.NoError(t, err)
+
+			client := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: mTLSConfig,
+				},
+			}
+
+			tlsUrl := fmt.Sprintf("https://localhost:%s", tlsSettings.TLSPort)
+			// TLS listener
+			req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, tlsUrl, http.NoBody)
+			require.NoError(t, err)
+			resp, err := client.Do(req)
+			t.Cleanup(func() {
+				if resp != nil && resp.Body != nil {
+					resp.Body.Close()
+				}
+			})
+			if handshakeFailureExpected {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "failed to verify client certificate hostname")
+
+			} else {
+				require.NoError(t, err)
+			}
+
+			// HTTP listener
+			httpClient := &http.Client{}
+			req, err = http.NewRequestWithContext(context.TODO(), http.MethodGet, "http://localhost:10090", http.NoBody)
+			require.NoError(t, err)
+			resp, err = httpClient.Do(req)
+			t.Cleanup(func() {
+				resp.Body.Close()
+			})
+			require.NoError(t, err)
+
+			// Cleanup
 			svc.Uninitialize()
-		})
-		require.NoError(t, err)
 
-		err = svc.StartListener(config)
-		require.NoError(t, err)
-
-		mTLSConfig, err := getTLSConfigFromFile(config.TLSSettings)
-		require.NoError(t, err)
-
-		client := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: mTLSConfig,
-			},
 		}
-
-		// TLS listener
-		req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, "https://localhost:10091", http.NoBody)
-		require.NoError(t, err)
-		resp, err := client.Do(req)
-		t.Cleanup(func() {
-			resp.Body.Close()
-		})
-		require.NoError(t, err)
-
-		// HTTP listener
-		httpClient := &http.Client{}
-		req, err = http.NewRequestWithContext(context.TODO(), http.MethodGet, "http://localhost:10090", http.NoBody)
-		require.NoError(t, err)
-		resp, err = httpClient.Do(req)
-		t.Cleanup(func() {
-			resp.Body.Close()
-		})
-		require.NoError(t, err)
+		runMutualTLSTest(TLSSetting, false)
+		runMutualTLSTest(TLSSettingWithDisallowedClientSN, true)
 	})
 }
 
