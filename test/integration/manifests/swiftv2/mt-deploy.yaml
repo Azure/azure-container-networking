@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: container
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: container
+  replicas: 1
+  template: # create pods using pod definition in this template
+    metadata:
+      # unlike pod-nginx.yaml, the name is not included in the meta data as a unique name is
+      # generated from the deployment name
+      labels:
+        app: container
+        kubernetes.azure.com/pod-network-instance: pni
+    spec:
+      containers:
+      - name: container
+        image: mcr.microsoft.com/azurelinux/busybox:1.36
+        command:
+          - sh
+          - -c
+          - sleep 3650d
+        imagePullPolicy: Always
+        securityContext:
+          privileged: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - key: "cri-resource-consume"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      - key: "cri-resource-consume"
+        operator: "Equal"
+        value: "true"
+        effect: "NoExecute"
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname # KV: Key is hostname, value is each unique nodename
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: container
