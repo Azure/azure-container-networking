@@ -92,6 +92,21 @@ func TestGenerateSWIFTConflist(t *testing.T) {
 	assert.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
 }
 
+func TestGenerateAzurecniCiliumConflist(t *testing.T) {
+	fixture := "testdata/fixtures/azure-chained-cilium.conflist"
+
+	buffer := new(bytes.Buffer)
+	g := cniconflist.AzureCNIChainedCiliumGenerator{Writer: &bufferWriteCloser{buffer}}
+	err := g.Generate()
+	assert.NoError(t, err)
+
+	fixtureBytes, err := os.ReadFile(fixture)
+	assert.NoError(t, err)
+
+	// remove newlines and carriage returns in case these UTs are running on Windows
+	assert.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
+}
+
 // removeNewLines will remove the newlines and carriage returns from the byte slice
 func removeNewLines(b []byte) []byte {
 	var bb []byte //nolint:prealloc // can't prealloc since we don't know how many bytes will get removed
