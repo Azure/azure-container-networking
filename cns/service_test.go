@@ -12,7 +12,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"fmt"
 	"math/big"
 	"net/http"
 	"os"
@@ -176,7 +175,7 @@ func TestNewService(t *testing.T) {
 				},
 			}
 
-			tlsURL := fmt.Sprintf("https://localhost:%s", tlsSettings.TLSPort)
+			tlsURL := "https://localhost:" + tlsSettings.TLSPort
 			// TLS listener
 			req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, tlsURL, http.NoBody)
 			require.NoError(t, err)
@@ -206,7 +205,6 @@ func TestNewService(t *testing.T) {
 
 			// Cleanup
 			svc.Uninitialize()
-
 		}
 		runMutualTLSTest(TLSSetting, false)
 		runMutualTLSTest(TLSSettingWithDisallowedClientSN, true)
