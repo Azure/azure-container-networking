@@ -424,7 +424,8 @@ func (nm *networkManager) UpdateEndpointState(eps []*endpoint) error {
 	ifnameToIPInfoMap := generateCNSIPInfoMap(eps) // key : interface name, value : IPInfo
 	for key, ipinfo := range ifnameToIPInfoMap {
 		logger.Info("Update endpoint state", zap.String("ifname", key), zap.String("hnsEndpointID", ipinfo.HnsEndpointID), zap.String("hnsNetworkID", ipinfo.HnsNetworkID),
-			zap.String("hostVethName", ipinfo.HostVethName), zap.String("macAddress", ipinfo.MacAddress), zap.String("nicType", string(ipinfo.NICType)))
+			zap.String("hostVethName", ipinfo.HostVethName), zap.String("macAddress", ipinfo.MacAddress), zap.String("nicType", string(ipinfo.NICType)),
+			zap.String("networkContainerID", ipinfo.NetworkContainerID))
 	}
 	// we assume all endpoints have the same container id
 	cnsEndpointID := eps[0].ContainerID
@@ -784,12 +785,11 @@ func cnsEndpointInfotoCNIEpInfos(endpointInfo restserver.EndpointInfo, endpointI
 
 	for ifName, ipInfo := range endpointInfo.IfnameToIPMap {
 		epInfo := &EndpointInfo{
-			EndpointID:         endpointID,      // endpoint id is always the same, but we shouldn't use it in the stateless path
-			IfIndex:            EndpointIfIndex, // Azure CNI supports only one interface
-			ContainerID:        endpointID,
-			PODName:            endpointInfo.PodName,
-			PODNameSpace:       endpointInfo.PodNamespace,
-			NetworkContainerID: endpointID,
+			EndpointID:   endpointID,      // endpoint id is always the same, but we shouldn't use it in the stateless path
+			IfIndex:      EndpointIfIndex, // Azure CNI supports only one interface
+			ContainerID:  endpointID,
+			PODName:      endpointInfo.PodName,
+			PODNameSpace: endpointInfo.PodNamespace,
 		}
 
 		// If we create an endpoint state with stateful cni and then swap to a stateless cni binary, ifname would not be populated
@@ -809,6 +809,8 @@ func cnsEndpointInfotoCNIEpInfos(endpointInfo restserver.EndpointInfo, endpointI
 		epInfo.NICType = ipInfo.NICType
 		epInfo.HNSNetworkID = ipInfo.HnsNetworkID
 		epInfo.MacAddress = net.HardwareAddr(ipInfo.MacAddress)
+		epInfo.NetworkContainerID = ipInfo.NetworkContainerID
+
 		ret = append(ret, epInfo)
 	}
 	return ret
@@ -837,11 +839,12 @@ func generateCNSIPInfoMap(eps []*endpoint) map[string]*restserver.IPInfo {
 
 	for _, ep := range eps {
 		ifNametoIPInfoMap[ep.IfName] = &restserver.IPInfo{ // in windows, the nicname is args ifname, in linux, it's ethX
-			NICType:       ep.NICType,
-			HnsEndpointID: ep.HnsId,
-			HnsNetworkID:  ep.HNSNetworkID,
-			HostVethName:  ep.HostIfName,
-			MacAddress:    ep.MacAddress.String(),
+			NICType:            ep.NICType,
+			HnsEndpointID:      ep.HnsId,
+			HnsNetworkID:       ep.HNSNetworkID,
+			HostVethName:       ep.HostIfName,
+			MacAddress:         ep.MacAddress.String(),
+			NetworkContainerID: ep.NetworkContainerID,
 		}
 	}
 

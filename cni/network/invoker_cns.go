@@ -165,7 +165,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		}
 
 		logger.Info("Received info for pod",
-			zap.Any("ipInfo", info),
+			zap.Any("ipInfo", response.PodIPInfo[i]),
 			zap.Any("podInfo", podInfo))
 
 		//nolint:exhaustive // ignore exhaustive types check
@@ -193,7 +193,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 				return IPAMAddResult{}, err
 			}
 		case cns.ApipaNIC:
-			if err := configureApipaAddResult(&info, &addResult, &response.PodIPInfo[i].PodIPConfig, key); err != nil {
+			if err := configureApipaAddResult(&addResult, &response.PodIPInfo[i], key); err != nil {
 				return IPAMAddResult{}, err
 			}
 
@@ -513,10 +513,10 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 	return nil
 }
 
-func configureApipaAddResult(info *IPResultInfo, addResult *IPAMAddResult, podIPConfig *cns.IPSubnet, key string) error {
-	ip, ipnet, err := podIPConfig.GetIPNet()
+func configureApipaAddResult(addResult *IPAMAddResult, info *cns.PodIpInfo, key string) error {
+	ip, ipnet, err := info.PodIPConfig.GetIPNet()
 	if ip == nil {
-		return errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
+		return errors.Wrap(err, "Unable to parse IP from response: "+info.PodIPConfig.IPAddress+" with err %w")
 	}
 
 	addResult.interfaceInfo[key] = network.InterfaceInfo{
@@ -526,11 +526,14 @@ func configureApipaAddResult(info *IPResultInfo, addResult *IPAMAddResult, podIP
 					IP:   ip,
 					Mask: ipnet.Mask,
 				},
-				Gateway: net.ParseIP(info.ncGatewayIPAddress),
+				Gateway: net.ParseIP(info.NetworkContainerPrimaryIPConfig.GatewayIPAddress),
 			},
 		},
-		NICType:           info.nicType,
-		SkipDefaultRoutes: true,
+		NICType:                    info.NICType,
+		SkipDefaultRoutes:          true,
+		NetworkContainerID:         info.NetworkContainerID,
+		AllowHostToNCCommunication: info.AllowHostToNCCommunication,
+		AllowNCToHostCommunication: info.AllowNCToHostCommunication,
 	}
 
 	return nil

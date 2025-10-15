@@ -523,6 +523,8 @@ type PodIpInfo struct {
 	AllowHostToNCCommunication bool
 	// This flag is in effect only if nic type is apipa. This allows connection originating from container to host via apipa nic and not other way.
 	AllowNCToHostCommunication bool
+	// NetworkContainerID is the ID of the network container to which this Pod IP belongs
+	NetworkContainerID string
 }
 
 type HostIPInfo struct {

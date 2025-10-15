@@ -675,11 +675,14 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	opt.ifInfo.HostSubnetPrefix.IP = opt.ifInfo.HostSubnetPrefix.IP.Mask(opt.ifInfo.HostSubnetPrefix.Mask)
 	opt.ipamAddConfig.nwCfg.IPAM.Subnet = opt.ifInfo.HostSubnetPrefix.String()
 
-	// populate endpoint info section
-	masterIfName := plugin.findMasterInterface(opt)
-	if masterIfName == "" {
-		err := plugin.Errorf("Failed to find the master interface")
-		return nil, err
+	var masterIfName string
+	if opt.ifInfo.NICType != cns.ApipaNIC {
+		// populate endpoint info section
+		masterIfName = plugin.findMasterInterface(opt)
+		if masterIfName == "" {
+			err := plugin.Errorf("Failed to find the master interface")
+			return nil, err
+		}
 	}
 
 	networkPolicies := opt.policies // save network policies before we modify the slice pointer for ep policies
@@ -757,8 +760,11 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		IPAddresses: addresses,
 		MacAddress:  opt.ifInfo.MacAddress,
 		// the following is used for creating an external interface if we can't find an existing network
-		HostSubnetPrefix: opt.ifInfo.HostSubnetPrefix.String(),
-		PnPID:            opt.ifInfo.PnPID,
+		HostSubnetPrefix:         opt.ifInfo.HostSubnetPrefix.String(),
+		PnPID:                    opt.ifInfo.PnPID,
+		NetworkContainerID:       opt.ifInfo.NetworkContainerID,
+		AllowInboundFromHostToNC: opt.ifInfo.AllowHostToNCCommunication,
+		AllowInboundFromNCToHost: opt.ifInfo.AllowNCToHostCommunication,
 	}
 
 	if err = addSubnetToEndpointInfo(*opt.ifInfo, &endpointInfo); err != nil {

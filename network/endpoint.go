@@ -128,17 +128,20 @@ type RouteInfo struct {
 
 // InterfaceInfo contains information for secondary interfaces
 type InterfaceInfo struct {
-	Name              string
-	MacAddress        net.HardwareAddr
-	IPConfigs         []*IPConfig
-	Routes            []RouteInfo
-	DNS               DNSInfo
-	NICType           cns.NICType
-	SkipDefaultRoutes bool
-	HostSubnetPrefix  net.IPNet // Move this field from ipamAddResult
-	NCResponse        *cns.GetNetworkContainerResponse
-	PnPID             string
-	EndpointPolicies  []policy.Policy
+	Name                       string
+	MacAddress                 net.HardwareAddr
+	IPConfigs                  []*IPConfig
+	Routes                     []RouteInfo
+	DNS                        DNSInfo
+	NICType                    cns.NICType
+	SkipDefaultRoutes          bool
+	HostSubnetPrefix           net.IPNet // Move this field from ipamAddResult
+	NCResponse                 *cns.GetNetworkContainerResponse
+	PnPID                      string
+	EndpointPolicies           []policy.Policy
+	NetworkContainerID         string
+	AllowNCToHostCommunication bool
+	AllowHostToNCCommunication bool
 }
 
 type IPConfig struct {

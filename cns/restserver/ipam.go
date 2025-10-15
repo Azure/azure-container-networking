@@ -156,6 +156,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 			MacAddress:                      resp[i].NetworkInterfaceInfo.MACAddress,
 			NICType:                         resp[i].NetworkInterfaceInfo.NICType,
 			NetworkContainerPrimaryIPConfig: resp[i].IPConfiguration,
+			NetworkContainerID:              resp[i].NetworkContainerID,
 		}
 		podIPInfoList = append(podIPInfoList, podIPInfo)
 		if resp[i].AllowHostToNCCommunication || resp[i].AllowNCToHostCommunication {
@@ -171,6 +172,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 			SkipDefaultRoutes:               true,
 			AllowHostToNCCommunication:      resp[apipaIndex].AllowHostToNCCommunication,
 			AllowNCToHostCommunication:      resp[apipaIndex].AllowNCToHostCommunication,
+			NetworkContainerID:              resp[apipaIndex].NetworkContainerID,
 		}
 		podIPInfoList = append(podIPInfoList, apipaPodIPInfo)
 	}
@@ -1328,6 +1330,11 @@ func updateIPInfoMap(iPInfo map[string]*IPInfo, interfaceInfo *IPInfo, ifName, e
 	if interfaceInfo.MacAddress != "" {
 		iPInfo[ifName].MacAddress = interfaceInfo.MacAddress
 		logger.Printf("[updateEndpoint] update the endpoint %s with MacAddress  %s", endpointID, interfaceInfo.MacAddress)
+	}
+
+	if interfaceInfo.NetworkContainerID != "" {
+		iPInfo[ifName].NetworkContainerID = interfaceInfo.NetworkContainerID
+		logger.Printf("[updateEndpoint] update the endpoint %s with NetworkContainerID  %s", endpointID, interfaceInfo.NetworkContainerID)
 	}
 }
 
