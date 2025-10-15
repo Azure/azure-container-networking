@@ -176,9 +176,9 @@ func TestNewService(t *testing.T) {
 				},
 			}
 
-			tlsUrl := fmt.Sprintf("https://localhost:%s", tlsSettings.TLSPort)
+			tlsURL := fmt.Sprintf("https://localhost:%s", tlsSettings.TLSPort)
 			// TLS listener
-			req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, tlsUrl, http.NoBody)
+			req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, tlsURL, http.NoBody)
 			require.NoError(t, err)
 			resp, err := client.Do(req)
 			t.Cleanup(func() {

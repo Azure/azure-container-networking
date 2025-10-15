@@ -158,6 +158,10 @@ func getTLSConfig(tlsSettings localtls.TlsSettings, errChan chan<- error) (*tls.
 
 // verifyPeerCertificate verifies the client certificate's subject name matches the expected subject name.
 func verifyPeerCertificate(rawCerts [][]byte, clientSubjectName string) error {
+
+	if len(rawCerts) == 0 {
+		return errors.New("no client certificate provided")
+	}
 	// no client subject name provided, skip verification
 	if clientSubjectName == "" {
 		return nil
