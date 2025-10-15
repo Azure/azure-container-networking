@@ -630,7 +630,7 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	if ok {
 		existingReq := existingNCInfo.CreateNetworkContainerRequest
 		if !reflect.DeepEqual(existingReq.IPConfiguration.IPSubnet, req.IPConfiguration.IPSubnet) {
-			if req.Scenario != v1alpha.Overlay { // if overlay -> potentially an overlay subnet expansion is occuring, skip this check
+			if req.Scenario != v1alpha.Overlay { // if overlay -> potentially an overlay subnet expansion is occurring, skip this check
 				logger.Errorf("[Azure CNS] Error. PrimaryCA is not same, NCId %s, old CA %s/%d, new CA %s/%d",
 					req.NetworkContainerid,
 					existingReq.IPConfiguration.IPSubnet.IPAddress,
