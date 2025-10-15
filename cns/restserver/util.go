@@ -174,6 +174,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetw
 	// Remove the auth token before saving the containerStatus to cns json file
 	createNetworkContainerRequest := req
 	createNetworkContainerRequest.AuthorizationToken = ""
+
 	service.state.ContainerStatus[req.NetworkContainerid] = containerstatus{
 		ID:                            req.NetworkContainerid,
 		VMVersion:                     req.Version,

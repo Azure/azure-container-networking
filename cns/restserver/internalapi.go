@@ -639,6 +639,7 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 					req.IPConfiguration.IPSubnet.PrefixLength)
 				return types.PrimaryCANotSame
 			}
+			logger.Printf("[Azure CNS] Its an overlay cluster! Skipping Primary CA check for NCId %s, old CA %s/%d, new CA %s/%d")
 		}
 	}
 
