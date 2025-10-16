@@ -17,8 +17,9 @@ import (
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
 // +kubebuilder:printcolumn:name="PodNetworkInstance",type=string,JSONPath=`.spec.podNetworkInstance`
-// +kubebuilder:printcolumn:name="PodNetwork",type=string,JSONPath=`.spec.podNetwork`
 // +kubebuilder:printcolumn:name="PodName",type=string,JSONPath=`.spec.podName`
+// +kubebuilder:printcolumn:name="PodUID",type=string,JSONPath=`.spec.podUID`
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
 type MultitenantPodNetworkConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -75,6 +76,7 @@ const (
 	MTPNCStatusPNINotReady          MTPNCStatus = "PNINotReady"
 	MTPNCStatusNodeCapacityExceeded MTPNCStatus = "NodeCapacityExceeded"
 	MTPNCStatusIPsExhausted         MTPNCStatus = "IPsExhausted"
+	MTPNCStatusDeleting             MTPNCStatus = "Deleting"
 )
 
 type InterfaceInfo struct {
