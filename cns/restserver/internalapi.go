@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 const (
@@ -34,6 +35,9 @@ const (
 // This file contains the internal functions called by either HTTP APIs (api.go) or
 // internal APIs (definde in internalapi.go).
 // This will be used internally (say by RequestController in case of AKS)
+
+// Initialize a zap logger instance
+var zapLogger, _ = zap.NewProduction()
 
 // GetPartitionKey - Get dnc/service partition key
 func (service *HTTPRestService) GetPartitionKey() (dncPartitionKey string) {
@@ -631,15 +635,12 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 		existingReq := existingNCInfo.CreateNetworkContainerRequest
 		if !reflect.DeepEqual(existingReq.IPConfiguration.IPSubnet, req.IPConfiguration.IPSubnet) {
 			if req.Scenario != v1alpha.Overlay { // if overlay -> potentially an overlay subnet expansion is occurring, skip this check
-				logger.Errorf("[Azure CNS] Error. PrimaryCA is not same, NCId %s, old CA %s/%d, new CA %s/%d",
-					req.NetworkContainerid,
-					existingReq.IPConfiguration.IPSubnet.IPAddress,
-					existingReq.IPConfiguration.IPSubnet.PrefixLength,
-					req.IPConfiguration.IPSubnet.IPAddress,
-					req.IPConfiguration.IPSubnet.PrefixLength)
+				zapLogger.Error("[Azure CNS] Error. PrimaryCA is not same",
+					zap.String("NCId", req.NetworkContainerid),
+					zap.String("oldCA", fmt.Sprintf("%s/%d", existingReq.IPConfiguration.IPSubnet.IPAddress, existingReq.IPConfiguration.IPSubnet.PrefixLength)),
+					zap.String("newCA", fmt.Sprintf("%s/%d", req.IPConfiguration.IPSubnet.IPAddress, req.IPConfiguration.IPSubnet.PrefixLength)))
 				return types.PrimaryCANotSame
 			}
-			logger.Printf("[Azure CNS] Its an overlay cluster! Skipping Primary CA check for NCId %s, old CA %s/%d, new CA %s/%d")
 		}
 	}
 
