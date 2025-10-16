@@ -52,6 +52,7 @@ const (
 	ipv4FullMask          = 32
 	ipv6FullMask          = 128
 	ibInterfacePrefix     = "ib"
+	apipaInterfacePrefix  = "apipa"
 )
 
 // CNI Operation Types
@@ -643,6 +644,8 @@ func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 		// when the VF is dismounted, this interface will go away
 		// return an unique interface name to containerd
 		return ibInterfacePrefix + strconv.Itoa(opt.endpointIndex)
+	case cns.ApipaNIC:
+		return apipaInterfacePrefix + strconv.Itoa(opt.endpointIndex)
 	default:
 		return ""
 	}
@@ -676,13 +679,11 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	opt.ipamAddConfig.nwCfg.IPAM.Subnet = opt.ifInfo.HostSubnetPrefix.String()
 
 	var masterIfName string
-	if opt.ifInfo.NICType != cns.ApipaNIC {
-		// populate endpoint info section
-		masterIfName = plugin.findMasterInterface(opt)
-		if masterIfName == "" {
-			err := plugin.Errorf("Failed to find the master interface")
-			return nil, err
-		}
+	// populate endpoint info section
+	masterIfName = plugin.findMasterInterface(opt)
+	if masterIfName == "" {
+		err := plugin.Errorf("Failed to find the master interface")
+		return nil, err
 	}
 
 	networkPolicies := opt.policies // save network policies before we modify the slice pointer for ep policies
