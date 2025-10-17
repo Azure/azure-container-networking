@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"reflect"
 	"strconv"
 	"strings"
@@ -729,36 +730,26 @@ func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]stri
 
 // IsCIDRSuperset returns true if newCIDR is a superset of oldCIDR (i.e., all IPs in oldCIDR are contained in newCIDR).
 func validateCIDRSuperset(newCIDR, oldCIDR string) error {
-	_, newNet, err := net.ParseCIDR(newCIDR)
+	// Parse newCIDR and oldCIDR into netip.Prefix
+	newPrefix, err := netip.ParsePrefix(newCIDR)
 	if err != nil {
 		return errors.Wrapf(err, "parsing newCIDR %q", newCIDR)
 	}
-	_, oldNet, err := net.ParseCIDR(oldCIDR)
+
+	oldPrefix, err := netip.ParsePrefix(oldCIDR)
 	if err != nil {
 		return errors.Wrapf(err, "parsing oldCIDR %q", oldCIDR)
 	}
 
-	// Check that the network family matches (both IPv4 or both IPv6)
-	if len(newNet.IP) != len(oldNet.IP) {
-		return errors.New("CIDRs belong to different IP families")
+	// Condition 1: Check if the new prefix length is smaller (larger range) than the old prefix length
+	if newPrefix.Bits() >= oldPrefix.Bits() {
+		return errors.New("newCIDR does not have a larger range than oldCIDR")
 	}
 
-	// Check that the old network's base IP is contained in the new network
-	if !newNet.Contains(oldNet.IP) {
-		return errors.New("old network's base IP is not contained in the new network")
+	// Condition 2: Check if the base IP of oldCIDR is contained in newCIDR
+	if !newPrefix.Contains(oldPrefix.Addr()) {
+		return errors.New("old subnet's base IP is not contained in new subnet")
 	}
 
-	// Calculate the last IP in oldNet
-	oldLastIP := make(net.IP, len(oldNet.IP))
-	for i := range oldNet.IP {
-		oldLastIP[i] = oldNet.IP[i] | ^oldNet.Mask[i]
-	}
-
-	// Check that the last IP in oldNet is also contained in newNet
-	if !newNet.Contains(oldLastIP) {
-		return errors.New("last IP of old network is not contained in new network")
-	}
-
-	// If both the first and last IPs of oldNet are in newNet, oldNet is fully contained in newNet
 	return nil
 }
