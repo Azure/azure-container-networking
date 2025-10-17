@@ -129,6 +129,7 @@ type CreateNetworkContainerRequest struct {
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
 	NetworkInterfaceInfo       NetworkInterfaceInfo //nolint // introducing new field for backendnic, to be used later by cni code
+	Scenario                   v1alpha.NCType       //nolint // introducing new field for nnc reconciler
 }
 
 func (req *CreateNetworkContainerRequest) Validate() error {
