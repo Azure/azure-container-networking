@@ -10,6 +10,6 @@ func (m *MultitenantPodNetworkConfig) IsReady() bool {
 	return !reflect.DeepEqual(m.Status, MultitenantPodNetworkConfigStatus{})
 }
 
-func (m *MultitenantPodNetworkConfig) IsTerminating() bool {
+func (m *MultitenantPodNetworkConfig) IsDeleting() bool {
 	return !m.DeletionTimestamp.IsZero()
 }
