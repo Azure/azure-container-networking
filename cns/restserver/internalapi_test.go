@@ -102,7 +102,7 @@ func TestReconcileNCStatePrimaryIPChangeShouldFail(t *testing.T) {
 }
 
 // TestReconcileNCStatePrimaryIPChangeShouldNotFail tests that reconciling NC state with
-// a NC whose IP has changed should not fail
+// a NC whose IP has changed should not fail for overlay clusters
 func TestReconcileNCStatePrimaryIPChangeShouldNotFail(t *testing.T) {
 	restartService()
 	setEnv(t)
