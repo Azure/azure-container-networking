@@ -632,8 +632,8 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 		existingReq := existingNCInfo.CreateNetworkContainerRequest
 		if !reflect.DeepEqual(existingReq.IPConfiguration.IPSubnet, req.IPConfiguration.IPSubnet) {
 			// check for potential overlay subnet expansion - checking if new subnet is a superset of old subnet
-			err := validateCIDRSuperset(req.IPConfiguration.IPSubnet.IPAddress, existingReq.IPConfiguration.IPSubnet.IPAddress)
-			if err != nil {
+			isCIDRSuperset := validateCIDRSuperset(req.IPConfiguration.IPSubnet.IPAddress, existingReq.IPConfiguration.IPSubnet.IPAddress)
+			if !isCIDRSuperset {
 				logger.Errorf("[Azure CNS] Error. PrimaryCA is not same, NCId %s, old CA %s/%d, new CA %s/%d", //nolint:staticcheck // Suppress SA1019: logger.Errorf is deprecated
 					req.NetworkContainerid,
 					existingReq.IPConfiguration.IPSubnet.IPAddress,
@@ -729,27 +729,27 @@ func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]stri
 }
 
 // IsCIDRSuperset returns true if newCIDR is a superset of oldCIDR (i.e., all IPs in oldCIDR are contained in newCIDR).
-func validateCIDRSuperset(newCIDR, oldCIDR string) error {
+func validateCIDRSuperset(newCIDR, oldCIDR string) bool {
 	// Parse newCIDR and oldCIDR into netip.Prefix
 	newPrefix, err := netip.ParsePrefix(newCIDR)
 	if err != nil {
-		return errors.Wrapf(err, "parsing newCIDR %q", newCIDR)
+		return false
 	}
 
 	oldPrefix, err := netip.ParsePrefix(oldCIDR)
 	if err != nil {
-		return errors.Wrapf(err, "parsing oldCIDR %q", oldCIDR)
+		return false
 	}
 
 	// Condition 1: Check if the new prefix length is smaller (larger range) than the old prefix length
 	if newPrefix.Bits() >= oldPrefix.Bits() {
-		return errors.New("newCIDR does not have a larger range than oldCIDR")
+		return false
 	}
 
 	// Condition 2: Check if the base IP of oldCIDR is contained in newCIDR
 	if !newPrefix.Contains(oldPrefix.Addr()) {
-		return errors.New("old subnet's base IP is not contained in new subnet")
+		return false
 	}
 
-	return nil
+	return true
 }
