@@ -175,6 +175,8 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, client
 	// curl to the specified prometheus address
 	beforeMetric, err := prometheus.GetMetric(prometheusAddress, coreDNSRequestCountTotal, metricLabels)
 	require.NoError(t, err)
+	beforeValue := beforeMetric.GetCounter().GetValue()
+	t.Logf("Before DNS request - metric count: %.0f", beforeValue)
 
 	t.Log("calling command from client")
 
@@ -194,11 +196,13 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, client
 	// curl again and see count diff
 	afterMetric, err := prometheus.GetMetric(prometheusAddress, coreDNSRequestCountTotal, metricLabels)
 	require.NoError(t, err)
+	afterValue := afterMetric.GetCounter().GetValue()
+	t.Logf("After DNS request - metric count: %.0f (diff: %.0f)", afterValue, afterValue-beforeValue)
 
 	if countShouldIncrease {
-		require.Greater(t, afterMetric.GetCounter().GetValue(), beforeMetric.GetCounter().GetValue(), "dns metric count did not increase after command")
+		require.Greater(t, afterValue, beforeValue, "dns metric count did not increase after command - before: %.0f, after: %.0f", beforeValue, afterValue)
 	} else {
-		require.Equal(t, afterMetric.GetCounter().GetValue(), beforeMetric.GetCounter().GetValue(), "dns metric count increased after command")
+		require.Equal(t, afterValue, beforeValue, "dns metric count increased after command - before: %.0f, after: %.0f", beforeValue, afterValue)
 	}
 }
 
@@ -221,20 +225,27 @@ func TestLRP(t *testing.T) {
 	require.NoError(t, err)
 	kubeDNS := svc.Spec.ClusterIP
 
-	t.Logf("Using kube-dns service IP: %s", kubeDNS)
+	t.Logf("LRP Test Starting...")
 
 	// Basic LRP test
 	testLRPCase(t, ctx, *selectedPod, []string{
 		"nslookup", "google.com", kubeDNS,
 	}, "", "", false, true, promAddress)
 
-	// Run comprehensive test
-	testLRPComprehensive(t, ctx, *selectedPod, kubeDNS)
+	t.Logf("LRP Test Completed")
+
+	t.Logf("Negative LRP Test Starting")
+
+	// Run negative LRP test
+	testNegativeLRP(t, ctx, *selectedPod, kubeDNS)
+
+	t.Logf("Negative LRP Test Completed")
 }
 
-// testLRPComprehensive performs a comprehensive test of Local Redirect Policy functionality
+// testNegativeLRP performs testing of Local Redirect Policy functionality
 // including pod restarts, resource recreation, and cilium command validation
-func testLRPComprehensive(t *testing.T, ctx context.Context, clientPod corev1.Pod, kubeDNS string) {
+// This focuses on negative testing scenarios and edge cases
+func testNegativeLRP(t *testing.T, ctx context.Context, clientPod corev1.Pod, kubeDNS string) {
 	config := kubernetes.MustGetRestConfig()
 	cs := kubernetes.MustGetClientset()
 
@@ -317,7 +328,7 @@ func testLRPComprehensive(t *testing.T, ctx context.Context, clientPod corev1.Po
 	t.Log("Step 9: Final cilium validation - ensuring LRP is still active after node-local-dns restart")
 	validateCiliumLRP(t, ctx, cs, config)
 
-	t.Log("Comprehensive LRP test completed successfully")
+	t.Log("Negative LRP test completed successfully")
 }
 
 // validateCiliumLRP checks that LRP is properly configured in cilium
@@ -355,7 +366,29 @@ func validateCiliumLRP(t *testing.T, ctx context.Context, cs *k8sclient.Clientse
 	lrpListCmd := []string{"cilium", "lrp", "list"}
 	lrpOutput, _, err := kubernetes.ExecCmdOnPod(ctx, cs, ciliumPod.Namespace, ciliumPod.Name, "cilium-agent", lrpListCmd, config, false)
 	require.NoError(t, err)
-	require.Contains(t, string(lrpOutput), "nodelocaldns", "LRP not found in cilium lrp list")
+
+	// Validate the LRP output structure more thoroughly
+	lrpOutputStr := string(lrpOutput)
+	require.Contains(t, lrpOutputStr, "nodelocaldns", "LRP not found in cilium lrp list")
+
+	// Parse LRP list output to validate structure
+	lrpLines := strings.Split(lrpOutputStr, "\n")
+	nodelocaldnsFound := false
+
+	for _, line := range lrpLines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "nodelocaldns") && strings.Contains(line, "kube-system") {
+			// Validate that the line contains expected components
+			require.Contains(t, line, "kube-system", "LRP line should contain kube-system namespace")
+			require.Contains(t, line, "nodelocaldns", "LRP line should contain nodelocaldns name")
+			require.Contains(t, line, "kube-dns", "LRP line should reference kube-dns service")
+			nodelocaldnsFound = true
+			t.Logf("Found nodelocaldns LRP entry: %s", line)
+			break
+		}
+	}
+
+	require.True(t, nodelocaldnsFound, "nodelocaldns LRP entry not found with expected structure in output: %s", lrpOutputStr)
 
 	// Check cilium service list for localredirect
 	serviceListCmd := []string{"cilium", "service", "list"}
