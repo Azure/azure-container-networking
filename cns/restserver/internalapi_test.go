@@ -82,7 +82,7 @@ func TestReconcileNCStatePrimaryIPChangeShouldFail(t *testing.T) {
 	// Run test cases
 	for _, tc := range testCases {
 		// start with a NC in state
-		ncID := "555ac5c9-89f2-4b5d-b8d0-616894d6d151"
+		ncID := "555ac5c9-89f2-4b5d-b8d0-616894d6d150"
 		svc.state.ContainerStatus[ncID] = containerstatus{
 			ID:          ncID,
 			VMVersion:   "0",
@@ -138,7 +138,7 @@ func TestReconcileNCStatePrimaryIPChangeShouldNotFail(t *testing.T) {
 	// Run test cases
 	for _, tc := range testCases {
 		// start with a NC in state
-		ncID := "555ac5c9-89f2-4b5d-b8d0-616894d6d151"
+		ncID := "555ac5c9-89f2-4b5d-b8d0-616894d6d150"
 		svc.state.ContainerStatus[ncID] = containerstatus{
 			ID:          ncID,
 			VMVersion:   "0",
