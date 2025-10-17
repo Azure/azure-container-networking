@@ -23,7 +23,6 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 const (
@@ -35,9 +34,6 @@ const (
 // This file contains the internal functions called by either HTTP APIs (api.go) or
 // internal APIs (definde in internalapi.go).
 // This will be used internally (say by RequestController in case of AKS)
-
-// Initialize a zap logger instance
-var zapLogger, _ = zap.NewProduction()
 
 // GetPartitionKey - Get dnc/service partition key
 func (service *HTTPRestService) GetPartitionKey() (dncPartitionKey string) {
@@ -634,11 +630,15 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	if ok {
 		existingReq := existingNCInfo.CreateNetworkContainerRequest
 		if !reflect.DeepEqual(existingReq.IPConfiguration.IPSubnet, req.IPConfiguration.IPSubnet) {
-			if req.Scenario != v1alpha.Overlay { // if overlay -> potentially an overlay subnet expansion is occurring, skip this check
-				zapLogger.Error("[Azure CNS] Error. PrimaryCA is not same",
-					zap.String("NCId", req.NetworkContainerid),
-					zap.String("oldCA", fmt.Sprintf("%s/%d", existingReq.IPConfiguration.IPSubnet.IPAddress, existingReq.IPConfiguration.IPSubnet.PrefixLength)),
-					zap.String("newCA", fmt.Sprintf("%s/%d", req.IPConfiguration.IPSubnet.IPAddress, req.IPConfiguration.IPSubnet.PrefixLength)))
+			// check for potential overlay subnet expansion - checking if new subnet is a superset of old subnet
+			err := validateCIDRSuperset(req.IPConfiguration.IPSubnet.IPAddress, existingReq.IPConfiguration.IPSubnet.IPAddress)
+			if err != nil {
+				logger.Errorf("[Azure CNS] Error. PrimaryCA is not same, NCId %s, old CA %s/%d, new CA %s/%d", //nolint:staticcheck // Suppress SA1019: logger.Errorf is deprecated
+					req.NetworkContainerid,
+					existingReq.IPConfiguration.IPSubnet.IPAddress,
+					existingReq.IPConfiguration.IPSubnet.PrefixLength,
+					req.IPConfiguration.IPSubnet.IPAddress,
+					req.IPConfiguration.IPSubnet.PrefixLength)
 				return types.PrimaryCANotSame
 			}
 		}
@@ -725,4 +725,40 @@ func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]stri
 	}
 
 	return ncs, nil
+}
+
+// IsCIDRSuperset returns true if newCIDR is a superset of oldCIDR (i.e., all IPs in oldCIDR are contained in newCIDR).
+func validateCIDRSuperset(newCIDR, oldCIDR string) error {
+	_, newNet, err := net.ParseCIDR(newCIDR)
+	if err != nil {
+		return errors.Wrapf(err, "parsing newCIDR %q", newCIDR)
+	}
+	_, oldNet, err := net.ParseCIDR(oldCIDR)
+	if err != nil {
+		return errors.Wrapf(err, "parsing oldCIDR %q", oldCIDR)
+	}
+
+	// Check that the network family matches (both IPv4 or both IPv6)
+	if len(newNet.IP) != len(oldNet.IP) {
+		return errors.New("CIDRs belong to different IP families")
+	}
+
+	// Check that the old network's base IP is contained in the new network
+	if !newNet.Contains(oldNet.IP) {
+		return errors.New("old network's base IP is not contained in the new network")
+	}
+
+	// Calculate the last IP in oldNet
+	oldLastIP := make(net.IP, len(oldNet.IP))
+	for i := range oldNet.IP {
+		oldLastIP[i] = oldNet.IP[i] | ^oldNet.Mask[i]
+	}
+
+	// Check that the last IP in oldNet is also contained in newNet
+	if !newNet.Contains(oldLastIP) {
+		return errors.New("last IP of old network is not contained in new network")
+	}
+
+	// If both the first and last IPs of oldNet are in newNet, oldNet is fully contained in newNet
+	return nil
 }

@@ -63,6 +63,5 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 		NetworkInterfaceInfo: cns.NetworkInterfaceInfo{
 			MACAddress: nc.MacAddress,
 		},
-		Scenario: nc.Type,
 	}, nil
 }
