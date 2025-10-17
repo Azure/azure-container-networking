@@ -4,6 +4,7 @@ package lrp
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -13,11 +14,16 @@ import (
 	"github.com/Azure/azure-container-networking/test/integration/prometheus"
 	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/Azure/azure-container-networking/test/internal/retry"
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	ciliumClientset "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/rand"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sclient "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -154,7 +160,7 @@ func setupLRP(t *testing.T, ctx context.Context) (*corev1.Pod, func()) {
 }
 
 func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, clientCmd []string, expectResponse, expectErrMsg string,
-	shouldError, countShouldIncrease bool) {
+	shouldError, countShouldIncrease bool, prometheusAddress string) {
 
 	config := kubernetes.MustGetRestConfig()
 	cs := kubernetes.MustGetClientset()
@@ -167,9 +173,11 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, client
 		"zone":   ".",
 	}
 
-	// curl localhost:9253/metrics
-	beforeMetric, err := prometheus.GetMetric(promAddress, coreDNSRequestCountTotal, metricLabels)
+	// curl to the specified prometheus address
+	beforeMetric, err := prometheus.GetMetric(prometheusAddress, coreDNSRequestCountTotal, metricLabels)
 	require.NoError(t, err)
+	beforeValue := beforeMetric.GetCounter().GetValue()
+	t.Logf("Before DNS request - metric count: %.0f", beforeValue)
 
 	t.Log("calling command from client")
 
@@ -187,13 +195,15 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, client
 	time.Sleep(500 * time.Millisecond)
 
 	// curl again and see count diff
-	afterMetric, err := prometheus.GetMetric(promAddress, coreDNSRequestCountTotal, metricLabels)
+	afterMetric, err := prometheus.GetMetric(prometheusAddress, coreDNSRequestCountTotal, metricLabels)
 	require.NoError(t, err)
+	afterValue := afterMetric.GetCounter().GetValue()
+	t.Logf("After DNS request - metric count: %.0f (diff: %.0f)", afterValue, afterValue-beforeValue)
 
 	if countShouldIncrease {
-		require.Greater(t, afterMetric.GetCounter().GetValue(), beforeMetric.GetCounter().GetValue(), "dns metric count did not increase after command")
+		require.Greater(t, afterValue, beforeValue, "dns metric count did not increase after command - before: %.0f, after: %.0f", beforeValue, afterValue)
 	} else {
-		require.Equal(t, afterMetric.GetCounter().GetValue(), beforeMetric.GetCounter().GetValue(), "dns metric count increased after command")
+		require.Equal(t, afterValue, beforeValue, "dns metric count increased after command - before: %.0f, after: %.0f", beforeValue, afterValue)
 	}
 }
 
@@ -210,9 +220,319 @@ func TestLRP(t *testing.T) {
 	defer cleanupFn()
 	require.NotNil(t, selectedPod)
 
+	// Get the kube-dns service IP for DNS requests
+	cs := kubernetes.MustGetClientset()
+	svc, err := kubernetes.GetService(ctx, cs, kubeSystemNamespace, dnsService)
+	require.NoError(t, err)
+	kubeDNS := svc.Spec.ClusterIP
+
+	t.Logf("LRP Test Starting...")
+
+	// Basic LRP test
 	testLRPCase(t, ctx, *selectedPod, []string{
-		"nslookup", "google.com", "10.0.0.10",
-	}, "", "", false, true)
+		"nslookup", "google.com", kubeDNS,
+	}, "", "", false, true, promAddress)
+
+	t.Logf("LRP Test Completed")
+
+	t.Logf("LRP Lifecycle Test Starting")
+
+	// Run LRP Lifecycle test
+	testLRPLifecycle(t, ctx, *selectedPod, kubeDNS)
+
+	t.Logf("LRP Lifecycle Test Completed")
+}
+
+// testLRPLifecycle performs testing of Local Redirect Policy functionality
+// including pod restarts, resource recreation, and cilium command validation
+func testLRPLifecycle(t *testing.T, ctx context.Context, clientPod corev1.Pod, kubeDNS string) {
+	config := kubernetes.MustGetRestConfig()
+	cs := kubernetes.MustGetClientset()
+
+	// Step 1: Initial DNS test to verify LRP is working
+	t.Log("Step 1: Initial DNS test - verifying LRP functionality")
+	testLRPCase(t, ctx, clientPod, []string{
+		"nslookup", "google.com", kubeDNS,
+	}, "", "", false, true, promAddress)
+
+	// Step 2: Validate LRP using cilium commands
+	t.Log("Step 2: Validating LRP using cilium commands")
+	validateCiliumLRP(t, ctx, cs, config)
+
+	// Step 3: Restart busybox pods and verify LRP still works
+	t.Log("Step 3: Restarting client pods to test persistence")
+	restartedPod := restartClientPodsAndGetPod(t, ctx, cs, clientPod)
+
+	// Step 4: Verify metrics after restart
+	t.Log("Step 4: Verifying LRP functionality after pod restart")
+	testLRPCase(t, ctx, restartedPod, []string{
+		"nslookup", "google.com", kubeDNS,
+	}, "", "", false, true, promAddress)
+
+	// Step 5: Validate cilium commands still show LRP
+	t.Log("Step 5: Re-validating cilium LRP after restart")
+	validateCiliumLRP(t, ctx, cs, config)
+
+	// Step 6: Delete and recreate resources & restart nodelocaldns daemonset
+	t.Log("Step 6: Testing resource deletion and recreation")
+	recreatedPod := deleteAndRecreateResources(t, ctx, cs, clientPod)
+
+	// Step 7: Final verification after recreation
+	t.Log("Step 7: Final verification after resource recreation - skipping basic DNS test, will validate with metrics in Step 8")
+
+	// Step 8: Re-establish port forward to new node-local-dns pod and validate metrics
+	t.Log("Step 8: Re-establishing port forward to new node-local-dns pod for metrics validation")
+
+	// Get the new node-local-dns pod on the same node as our recreated client pod
+	nodeName := recreatedPod.Spec.NodeName
+	newNodeLocalDNSPods, err := kubernetes.GetPodsByNode(ctx, cs, kubeSystemNamespace, nodeLocalDNSLabelSelector, nodeName)
+	require.NoError(t, err)
+	require.NotEmpty(t, newNodeLocalDNSPods.Items, "No node-local-dns pod found on node %s after restart", nodeName)
+
+	newNodeLocalDNSPod := TakeOne(newNodeLocalDNSPods.Items)
+	t.Logf("Setting up port forward to new node-local-dns pod: %s", newNodeLocalDNSPod.Name)
+
+	// Setup new port forward to the new node-local-dns pod
+	newPf, err := k8s.NewPortForwarder(config, k8s.PortForwardingOpts{
+		Namespace: newNodeLocalDNSPod.Namespace,
+		PodName:   newNodeLocalDNSPod.Name,
+		LocalPort: 9254, // Use different port to avoid conflicts
+		DestPort:  9253,
+	})
+	require.NoError(t, err)
+
+	newPortForwardCtx, newCancel := context.WithTimeout(ctx, (retryAttempts+1)*retryDelay)
+	defer newCancel()
+
+	err = defaultRetrier.Do(newPortForwardCtx, func() error {
+		t.Logf("attempting port forward to new node-local-dns pod %s...", newNodeLocalDNSPod.Name)
+		return errors.Wrap(newPf.Forward(newPortForwardCtx), "could not start port forward to new pod")
+	})
+	require.NoError(t, err, "could not start port forward to new node-local-dns pod")
+	defer newPf.Stop()
+
+	t.Log("Port forward to new node-local-dns pod established")
+
+	// Now test metrics with the new port forward using port 9254
+	newPromAddress := "http://localhost:9254/metrics"
+
+	// Use testLRPCase function with the new prometheus address
+	t.Log("Validating metrics with new node-local-dns pod")
+	testLRPCase(t, ctx, recreatedPod, []string{
+		"nslookup", "github.com", kubeDNS,
+	}, "", "", false, true, newPromAddress)
+
+	t.Logf("SUCCESS: Metrics validation passed - traffic is being redirected to new node-local-dns pod %s", newNodeLocalDNSPod.Name)
+
+	// Step 9: Final cilium validation after node-local-dns restart
+	t.Log("Step 9: Final cilium validation - ensuring LRP is still active after node-local-dns restart")
+	validateCiliumLRP(t, ctx, cs, config)
+
+}
+
+// validateCiliumLRP checks that LRP is properly configured in cilium
+func validateCiliumLRP(t *testing.T, ctx context.Context, cs *k8sclient.Clientset, config *rest.Config) {
+	ciliumPods, err := cs.CoreV1().Pods(kubeSystemNamespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "k8s-app=cilium",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, ciliumPods.Items)
+	ciliumPod := TakeOne(ciliumPods.Items)
+
+	// Get Kubernetes version to determine validation approach
+	serverVersion, err := cs.Discovery().ServerVersion()
+	require.NoError(t, err)
+	t.Logf("Detected Kubernetes version: %s", serverVersion.String())
+
+	// Parse version to determine if we should use modern or legacy validation
+	// K8s 1.32.0+ should use modern Cilium format (v1.17+)
+	useModernFormat := false
+	if serverVersion.Major == "1" {
+		// Parse minor version
+		var minorVersion int
+		_, err := fmt.Sscanf(serverVersion.Minor, "%d", &minorVersion)
+		if err == nil && minorVersion >= 32 {
+			useModernFormat = true
+		}
+	}
+
+	if useModernFormat {
+		t.Log("Using modern validation approach based on Kubernetes version >= 1.32.0")
+	} else {
+		t.Log("Using legacy validation approach based on Kubernetes version < 1.32.0")
+	}
+
+	// Get kube-dns service IP for validation
+	svc, err := kubernetes.GetService(ctx, cs, kubeSystemNamespace, dnsService)
+	require.NoError(t, err)
+	kubeDNSIP := svc.Spec.ClusterIP
+
+	// IMPORTANT: Get node-local-dns pod IP on the SAME node as the cilium pod we're using
+	selectedNode := ciliumPod.Spec.NodeName
+	t.Logf("Using cilium pod %s on node %s for validation", ciliumPod.Name, selectedNode)
+
+	// Get node-local-dns pod specifically on the same node as our cilium pod
+	nodeLocalDNSPods, err := kubernetes.GetPodsByNode(ctx, cs, kubeSystemNamespace, nodeLocalDNSLabelSelector, selectedNode)
+	require.NoError(t, err)
+	require.NotEmpty(t, nodeLocalDNSPods.Items, "No node-local-dns pod found on node %s", selectedNode)
+
+	// Use the first (and should be only) node-local-dns pod on this node
+	nodeLocalDNSPod := nodeLocalDNSPods.Items[0]
+	nodeLocalDNSIP := nodeLocalDNSPod.Status.PodIP
+	require.NotEmpty(t, nodeLocalDNSIP, "node-local-dns pod %s has no IP address", nodeLocalDNSPod.Name)
+
+	t.Logf("Validating LRP: kubeDNS IP=%s, nodeLocalDNS IP=%s (pod: %s), node=%s",
+		kubeDNSIP, nodeLocalDNSIP, nodeLocalDNSPod.Name, selectedNode)
+
+	// Check cilium lrp list
+	lrpListCmd := []string{"cilium", "lrp", "list"}
+	lrpOutput, _, err := kubernetes.ExecCmdOnPod(ctx, cs, ciliumPod.Namespace, ciliumPod.Name, "cilium-agent", lrpListCmd, config, false)
+	require.NoError(t, err)
+
+	// Validate the LRP output structure more thoroughly
+	lrpOutputStr := string(lrpOutput)
+	require.Contains(t, lrpOutputStr, "nodelocaldns", "LRP not found in cilium lrp list")
+
+	// Parse LRP list output to validate structure
+	lrpLines := strings.Split(lrpOutputStr, "\n")
+	nodelocaldnsFound := false
+
+	for _, line := range lrpLines {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "nodelocaldns") && strings.Contains(line, "kube-system") {
+			// Validate that the line contains expected components
+			require.Contains(t, line, "kube-system", "LRP line should contain kube-system namespace")
+			require.Contains(t, line, "nodelocaldns", "LRP line should contain nodelocaldns name")
+			require.Contains(t, line, "kube-dns", "LRP line should reference kube-dns service")
+			nodelocaldnsFound = true
+			t.Logf("Found nodelocaldns LRP entry: %s", line)
+			break
+		}
+	}
+
+	require.True(t, nodelocaldnsFound, "nodelocaldns LRP entry not found with expected structure in output: %s", lrpOutputStr)
+
+	// Check cilium service list for localredirect
+	serviceListCmd := []string{"cilium", "service", "list"}
+	serviceOutput, _, err := kubernetes.ExecCmdOnPod(ctx, cs, ciliumPod.Namespace, ciliumPod.Name, "cilium-agent", serviceListCmd, config, false)
+	require.NoError(t, err)
+	require.Contains(t, string(serviceOutput), "LocalRedirect", "LocalRedirect not found in cilium service list")
+
+	// Validate LocalRedirect entries
+	serviceLines := strings.Split(string(serviceOutput), "\n")
+	tcpFound := false
+	udpFound := false
+
+	for _, line := range serviceLines {
+		if strings.Contains(line, "LocalRedirect") && strings.Contains(line, kubeDNSIP) {
+			// Check if this line contains the expected frontend (kube-dns) and backend (node-local-dns) IPs
+			if strings.Contains(line, nodeLocalDNSIP) {
+				if useModernFormat {
+					// Modern format (K8s 1.32.0+/Cilium v1.17+): Check for explicit protocol
+					if strings.Contains(line, "/TCP") {
+						tcpFound = true
+						t.Logf("Found TCP LocalRedirect: %s", strings.TrimSpace(line))
+					} else if strings.Contains(line, "/UDP") {
+						udpFound = true
+						t.Logf("Found UDP LocalRedirect: %s", strings.TrimSpace(line))
+					}
+				} else {
+					// Legacy format (K8s < 1.32.0/Cilium < v1.17): No protocol specified
+					t.Logf("Found legacy LocalRedirect: %s", strings.TrimSpace(line))
+				}
+			}
+		}
+	}
+
+	// Validate based on determined format
+	if useModernFormat {
+		// Modern format (K8s 1.32.0+/Cilium v1.17+): Separate TCP and UDP entries
+		t.Log("Validating modern Cilium format - expecting separate TCP and UDP LocalRedirect entries")
+		require.True(t, tcpFound, "TCP LocalRedirect entry not found with frontend IP %s and backend IP %s on node %s", kubeDNSIP, nodeLocalDNSIP, selectedNode)
+		require.True(t, udpFound, "UDP LocalRedirect entry not found with frontend IP %s and backend IP %s on node %s", kubeDNSIP, nodeLocalDNSIP, selectedNode)
+	} else {
+		// Legacy format (K8s < 1.32.0/Cilium < v1.17): Just one LocalRedirect entry without protocol
+		t.Log("Validating legacy Cilium format - expecting single LocalRedirect entry without protocol")
+		require.False(t, useModernFormat, "Legacy LocalRedirect entry not found with frontend IP %s and backend IP %s on node %s", kubeDNSIP, nodeLocalDNSIP, selectedNode)
+	}
+
+	t.Logf("Cilium LRP List Output:\n%s", string(lrpOutput))
+	t.Logf("Cilium Service List Output:\n%s", string(serviceOutput))
+}
+
+// restartClientPodsAndGetPod restarts the client daemonset and returns a new pod reference
+func restartClientPodsAndGetPod(t *testing.T, ctx context.Context, cs *k8sclient.Clientset, originalPod corev1.Pod) corev1.Pod {
+	// Find the daemonset name by looking up the pod's owner
+	podDetails, err := cs.CoreV1().Pods(originalPod.Namespace).Get(ctx, originalPod.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	// Get the node name for consistent testing
+	nodeName := podDetails.Spec.NodeName
+
+	// Restart the daemonset (assumes it's named "lrp-test" based on the manifest)
+	err = kubernetes.MustRestartDaemonset(ctx, cs, originalPod.Namespace, "lrp-test")
+	require.NoError(t, err)
+
+	// Wait for the daemonset to be ready
+	kubernetes.WaitForPodDaemonset(ctx, cs, originalPod.Namespace, "lrp-test", clientLabelSelector)
+
+	// Get the new pod on the same node
+	clientPods, err := kubernetes.GetPodsByNode(ctx, cs, originalPod.Namespace, clientLabelSelector, nodeName)
+	require.NoError(t, err)
+	require.NotEmpty(t, clientPods.Items)
+
+	return TakeOne(clientPods.Items)
+}
+
+// deleteAndRecreateResources deletes and recreates client pods and LRP, returning new pod
+func deleteAndRecreateResources(t *testing.T, ctx context.Context, cs *k8sclient.Clientset, originalPod corev1.Pod) corev1.Pod {
+	config := kubernetes.MustGetRestConfig()
+	ciliumCS, err := ciliumClientset.NewForConfig(config)
+	require.NoError(t, err)
+
+	nodeName := originalPod.Spec.NodeName
+
+	// Delete client daemonset
+	dsClient := cs.AppsV1().DaemonSets(originalPod.Namespace)
+	clientDS := kubernetes.MustParseDaemonSet(clientPath)
+	kubernetes.MustDeleteDaemonset(ctx, dsClient, clientDS)
+
+	// Delete LRP
+	lrpContent, err := os.ReadFile(lrpPath)
+	require.NoError(t, err)
+	var lrp ciliumv2.CiliumLocalRedirectPolicy
+	err = yaml.Unmarshal(lrpContent, &lrp)
+	require.NoError(t, err)
+
+	lrpClient := ciliumCS.CiliumV2().CiliumLocalRedirectPolicies(lrp.Namespace)
+	kubernetes.MustDeleteCiliumLocalRedirectPolicy(ctx, lrpClient, lrp)
+
+	// Wait for deletion to complete
+	time.Sleep(10 * time.Second)
+
+	// Recreate LRP
+	_, cleanupLRP := kubernetes.MustSetupLRP(ctx, ciliumCS, lrpPath)
+	t.Cleanup(cleanupLRP)
+
+	// Restart node-local-dns pods to pick up new LRP configuration
+	t.Log("Restarting node-local-dns pods after LRP recreation")
+	err = kubernetes.MustRestartDaemonset(ctx, cs, kubeSystemNamespace, "node-local-dns")
+	require.NoError(t, err)
+	kubernetes.WaitForPodDaemonset(ctx, cs, kubeSystemNamespace, "node-local-dns", nodeLocalDNSLabelSelector)
+
+	// Recreate client daemonset
+	_, cleanupClient := kubernetes.MustSetupDaemonset(ctx, cs, clientPath)
+	t.Cleanup(cleanupClient)
+
+	// Wait for pods to be ready
+	kubernetes.WaitForPodDaemonset(ctx, cs, clientDS.Namespace, clientDS.Name, clientLabelSelector)
+
+	// Get new pod on the same node
+	clientPods, err := kubernetes.GetPodsByNode(ctx, cs, clientDS.Namespace, clientLabelSelector, nodeName)
+	require.NoError(t, err)
+	require.NotEmpty(t, clientPods.Items)
+
+	return TakeOne(clientPods.Items)
 }
 
 // TakeOne takes one item from the slice randomly; if empty, it returns the empty value for the type
