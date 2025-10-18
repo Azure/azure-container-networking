@@ -1,0 +1,165 @@
+parameters:
+  - name: subscriptionId
+    type: string
+  - name: location
+    type: string
+  - name: resourceGroupName
+    type: string
+  - name: cluster1Name
+    type: string
+  - name: cluster2Name
+    type: string
+  - name: nodeVmSize
+    type: string
+  - name: serviceConnection
+    type: string
+
+stages:
+  - stage: Setup
+    displayName: "Create AKS Infra Setup"
+    jobs:
+      # ------------------------------------------------------------
+      # Job 1: Create Resource Group and AKS Clusters
+      # ------------------------------------------------------------
+      - job: Create_RG_and_AKS
+        displayName: "Create RG and AKS Clusters"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: "Create Resource Group and AKS Clusters"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -e
+                echo "Setting subscription..."
+                az account set --subscription ${{ parameters.subscriptionId }}
+
+                echo "Creating resource group..."
+                az group create -n ${{ parameters.resourceGroupName }} -l ${{ parameters.location }}
+
+                echo "Creating first AKS cluster..."
+                az aks create \
+                  -g ${{ parameters.resourceGroupName }} \
+                  -n ${{ parameters.cluster1Name }} \
+                  -l ${{ parameters.location }} \
+                  --network-plugin azure \
+                  --node-count 1 \
+                  --node-vm-size ${{ parameters.nodeVmSize }} \
+                  --generate-ssh-keys
+
+                echo "Adding node pool to first cluster..."
+                az aks nodepool add \
+                  --cluster-name ${{ parameters.cluster1Name }} \
+                  --resource-group ${{ parameters.resourceGroupName }} \
+                  --name np1 \
+                  --node-count 2 \
+                  --node-vm-size ${{ parameters.nodeVmSize }}
+
+                echo "Creating second AKS cluster..."
+                az aks create \
+                  -g ${{ parameters.resourceGroupName }} \
+                  -n ${{ parameters.cluster2Name }} \
+                  -l ${{ parameters.location }} \
+                  --network-plugin azure \
+                  --node-count 1 \
+                  --node-vm-size ${{ parameters.nodeVmSize }} \
+                  --generate-ssh-keys
+
+                echo "Adding node pool to second cluster..."
+                az aks nodepool add \
+                  --cluster-name ${{ parameters.cluster2Name }} \
+                  --resource-group ${{ parameters.resourceGroupName }} \
+                  --name np2 \
+                  --node-count 2 \
+                  --node-vm-size ${{ parameters.nodeVmSize }}
+
+      # ------------------------------------------------------------
+      # Job 2: Create Customer VNets and Peerings
+      # ------------------------------------------------------------
+      - job: Create_VNets
+        displayName: "Create Customer VNets and Peerings"
+        dependsOn: Create_RG_and_AKS
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: AzureCLI@2
+            displayName: "Create and Peer VNets"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -e
+                az account set --subscription ${{ parameters.subscriptionId }}
+
+                echo "Creating Customer VNets..."
+                az network vnet create \
+                  -g ${{ parameters.resourceGroupName }} \
+                  -n customerVnetA \
+                  --address-prefix 10.10.0.0/16 \
+                  -l ${{ parameters.location }}
+
+                az network vnet create \
+                  -g ${{ parameters.resourceGroupName }} \
+                  -n customerVnetB \
+                  --address-prefix 10.20.0.0/16 \
+                  -l ${{ parameters.location }}
+
+                echo "Peering Customer VNets..."
+                az network vnet peering create \
+                  -n peerAB \
+                  -g ${{ parameters.resourceGroupName }} \
+                  --vnet-name customerVnetA \
+                  --remote-vnet customerVnetB \
+                  --allow-vnet-access
+
+                az network vnet peering create \
+                  -n peerBA \
+                  -g ${{ parameters.resourceGroupName }} \
+                  --vnet-name customerVnetB \
+                  --remote-vnet customerVnetA \
+                  --allow-vnet-access
+
+      # ------------------------------------------------------------
+      # Job 3: Create Storage Account and Private Endpoints
+      # ------------------------------------------------------------
+      - job: Create_Storage
+        displayName: "Create Storage Account and Private Endpoints"
+        dependsOn: Create_VNets
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: AzureCLI@2
+            displayName: "Create Storage Account and Private Endpoint"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -e
+                az account set --subscription ${{ parameters.subscriptionId }}
+
+                echo "Creating Storage Account..."
+                STORAGE_NAME="sa${{ parameters.resourceGroupName }}$RANDOM"
+                az storage account create \
+                  -n $STORAGE_NAME \
+                  -g ${{ parameters.resourceGroupName }} \
+                  -l ${{ parameters.location }} \
+                  --sku Standard_LRS
+
+                echo "Creating Private Endpoint..."
+                STORAGE_ID=$(az storage account show -n $STORAGE_NAME -g ${{ parameters.resourceGroupName }} --query id -o tsv)
+                az network private-endpoint create \
+                  -n sa-endpoint \
+                  -g ${{ parameters.resourceGroupName }} \
+                  -l ${{ parameters.location }} \
+                  --vnet-name customerVnetA \
+                  --subnet default \
+                  --private-connection-resource-id $STORAGE_ID \
+                  --group-id blob \
+                  --connection-name sa-connection
