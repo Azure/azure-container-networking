@@ -4,11 +4,12 @@ parameters:
   - name: subscriptionId
     displayName: "Azure Subscription ID"
     type: string
+    default: "37deca37-c375-4a14-b90a-043849bd2bf1"
 
   - name: location
     displayName: "Deployment Region"
     type: string
-    default: "eastus"
+    default: "centraluseuap"
 
   - name: resourceGroupName
     displayName: "Resource Group Name"
@@ -33,10 +34,10 @@ parameters:
   - name: serviceConnection
     displayName: "Azure Service Connection"
     type: string
-    default: "Azure-Networking-ServiceConn"
+    default: "Azure Network Agent - Test Standalone - Service Connection"
 
 extends:
-  template: templates/long-running-pipeline-template.yml
+  template: template/long-running-pipeline-template.yaml
   parameters:
     subscriptionId: ${{ parameters.subscriptionId }}
     location: ${{ parameters.location }}
