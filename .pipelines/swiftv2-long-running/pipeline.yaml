@@ -34,7 +34,7 @@ parameters:
   - name: serviceConnection
     displayName: "Azure Service Connection"
     type: string
-    default: "Azure Network Agent - Test Standalone - Service Connection"
+    default: "Azure Container Networking - Standalone Test Service Connection"
 
 extends:
   template: template/long-running-pipeline-template.yaml
