@@ -23,7 +23,7 @@ spec:
     - jsonPath: .status.status
       name: Status
       type: string
-    - jsonPath: .spec.podNetworks
+    - jsonPath: .spec.podNetworkConfigs[*].podNetwork
       name: PodNetworks
       priority: 1
       type: string
