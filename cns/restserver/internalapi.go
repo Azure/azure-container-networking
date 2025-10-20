@@ -746,8 +746,8 @@ func validateCIDRSuperset(newCIDR, oldCIDR string) bool {
 		return false
 	}
 
-	// Condition 2: Check if the base IP of oldCIDR is contained in newCIDR
-	if !newPrefix.Contains(oldPrefix.Addr()) {
+	// Condition 2: Check for Overlap - this will also ensure containment
+	if !newPrefix.Overlaps(oldPrefix) {
 		return false
 	}
 

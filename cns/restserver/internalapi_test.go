@@ -133,6 +133,7 @@ func TestReconcileNCStatePrimaryIPChangeShouldNotFail(t *testing.T) {
 		{"10.0.1.0/24", "10.0.2.0/22"},
 		{"10.0.1.0/20", "10.0.1.0/18"},
 		{"10.0.1.0/19", "10.0.0.0/15"},
+		{"10.0.1.0/18", "10.0.1.0/18"},
 	}
 
 	// Run test cases
