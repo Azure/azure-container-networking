@@ -494,6 +494,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
 
 	if nwCfg.MultiTenancy {
+		logger.Debug("[Add] Was Himel ever here?")
 		// triggered only in swift v1 multitenancy
 		// dual nic multitenancy -> two interface infos
 		// multitenancy (swift v1) -> one interface info
@@ -524,6 +525,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	} else {
 		// when nwcfg.multitenancy (use multitenancy flag for swift v1 only) is false
+		logger.Debug("[Add] Himel should be here")
+
 		if plugin.ipamInvoker == nil {
 			switch nwCfg.IPAM.Type {
 			case network.AzureCNS:
@@ -560,12 +563,20 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	infraSeen := false
 	endpointIndex := 1
 
+	logger.Debug("[Add] Himel: ", zap.Any("ipamAddResult", ipamAddResult))
+
 	for key := range ipamAddResult.interfaceInfo {
 		ifInfo := ipamAddResult.interfaceInfo[key]
 		logger.Info("Processing interfaceInfo:", zap.Any("ifInfo", ifInfo))
 
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
 		networkID, _ := plugin.getNetworkID(args.Netns, &ifInfo, nwCfg)
+
+		isIPv6 := ipamAddResult.ipv6Enabled
+		// if len(ifInfo.IPConfigs) > 1 {
+		// 	logger.Debug("[Add] Himel: I expect we see multiple configs here only for my IPv6 stuff ")
+		// 	isIPv6 = true
+		// }
 
 		createEpInfoOpt := createEpInfoOpt{
 			nwCfg:            nwCfg,
@@ -582,7 +593,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			networkID:        networkID,
 			ifInfo:           &ifInfo,
 			ipamAddConfig:    &ipamAddConfig,
-			ipv6Enabled:      ipamAddResult.ipv6Enabled,
+			ipv6Enabled:      isIPv6,
 			infraSeen:        &infraSeen,
 			endpointIndex:    endpointIndex,
 		}
@@ -599,6 +610,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		//	ipamAddResult.interfaceInfo[ifIndex].IPConfigs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
 		endpointIndex++
 	}
+
+	logger.Debug("[Add] Himel: ", zap.Any("epInfos", epInfos))
+
 	cnsclient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
 	if err != nil {
 		return errors.Wrap(err, "failed to create cns client")

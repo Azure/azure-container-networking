@@ -315,6 +315,7 @@ func (nm *networkManager) GetNumEndpointsByContainerID(containerID string) int {
 // Creates the network and corresponding endpoint (should be called once during Add)
 func (nm *networkManager) EndpointCreate(cnsclient apipaClient, epInfos []*EndpointInfo) error {
 	eps := []*endpoint{} // save endpoints for stateless
+	logger.Debug("[EndpointCreate] Himel: we here?")
 
 	for _, epInfo := range epInfos {
 		logger.Info("Creating endpoint and network", zap.String("endpointInfo", epInfo.PrettyString()))
@@ -331,12 +332,15 @@ func (nm *networkManager) EndpointCreate(cnsclient apipaClient, epInfos []*Endpo
 				return err
 			}
 
+			logger.Debug("[EndpointCreate] Himel: creating the network")
 			// Create the network if it is not found
 			err = nm.CreateNetwork(epInfo)
 			if err != nil {
 				return err
 			}
 		}
+
+		logger.Debug("[EndpointCreate] Himel: creating the endpoint")
 
 		ep, err := nm.createEndpoint(cnsclient, epInfo.NetworkID, epInfo)
 		if err != nil {
