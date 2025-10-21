@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-SUBSCRIPTION_ID=$1
-RG=$2
-
+RG=$1
 VNET_A1="cx_vnet_a1"
 VNET_A2="cx_vnet_a2"
 VNET_A3="cx_vnet_a3"
