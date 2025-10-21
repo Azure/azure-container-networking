@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"reflect"
 	"strconv"
 	"strings"
@@ -630,13 +631,17 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	if ok {
 		existingReq := existingNCInfo.CreateNetworkContainerRequest
 		if !reflect.DeepEqual(existingReq.IPConfiguration.IPSubnet, req.IPConfiguration.IPSubnet) {
-			logger.Errorf("[Azure CNS] Error. PrimaryCA is not same, NCId %s, old CA %s/%d, new CA %s/%d",
-				req.NetworkContainerid,
-				existingReq.IPConfiguration.IPSubnet.IPAddress,
-				existingReq.IPConfiguration.IPSubnet.PrefixLength,
-				req.IPConfiguration.IPSubnet.IPAddress,
-				req.IPConfiguration.IPSubnet.PrefixLength)
-			return types.PrimaryCANotSame
+			// check for potential overlay subnet expansion - checking if new subnet is a superset of old subnet
+			isCIDRSuperset := validateCIDRSuperset(req.IPConfiguration.IPSubnet.IPAddress, existingReq.IPConfiguration.IPSubnet.IPAddress)
+			if !isCIDRSuperset {
+				logger.Errorf("[Azure CNS] Error. PrimaryCA is not same, NCId %s, old CA %s/%d, new CA %s/%d", //nolint:staticcheck // Suppress SA1019: logger.Errorf is deprecated
+					req.NetworkContainerid,
+					existingReq.IPConfiguration.IPSubnet.IPAddress,
+					existingReq.IPConfiguration.IPSubnet.PrefixLength,
+					req.IPConfiguration.IPSubnet.IPAddress,
+					req.IPConfiguration.IPSubnet.PrefixLength)
+				return types.PrimaryCANotSame
+			}
 		}
 	}
 
@@ -721,4 +726,30 @@ func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]stri
 	}
 
 	return ncs, nil
+}
+
+// IsCIDRSuperset returns true if newCIDR is a superset of oldCIDR (i.e., all IPs in oldCIDR are contained in newCIDR).
+func validateCIDRSuperset(newCIDR, oldCIDR string) bool {
+	// Parse newCIDR and oldCIDR into netip.Prefix
+	newPrefix, err := netip.ParsePrefix(newCIDR)
+	if err != nil {
+		return false
+	}
+
+	oldPrefix, err := netip.ParsePrefix(oldCIDR)
+	if err != nil {
+		return false
+	}
+
+	// Condition 1: Check if the new prefix length is smaller (larger range) than the old prefix length
+	if newPrefix.Bits() >= oldPrefix.Bits() {
+		return false
+	}
+
+	// Condition 2: Check for Overlap - this will also ensure containment
+	if !newPrefix.Overlaps(oldPrefix) {
+		return false
+	}
+
+	return true
 }
