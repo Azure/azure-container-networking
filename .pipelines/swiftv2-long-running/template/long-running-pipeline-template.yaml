@@ -19,6 +19,9 @@ parameters:
   - name: serviceConnection
     type: string
     default: "Azure Container Networking - Standalone Test Service Connection"
+  - name: dependsOn
+    type: object
+    default: []
 
 jobs:
   - job: ${{ parameters.jobName }}
