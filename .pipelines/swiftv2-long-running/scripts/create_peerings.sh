@@ -4,9 +4,10 @@ set -e
 SUBSCRIPTION_ID=$1
 RG=$2
 
-VNET_A1="delegated_vnet_a1"
-VNET_A2="delegated_vnet_a2"
-VNET_A3="delegated_vnet_a3"
+VNET_A1="cx_vnet_a1"
+VNET_A2="cx_vnet_a2"
+VNET_A3="cx_vnet_a3"
+VNET_B1="cx_vnet_b1"
 
 peer_two_vnets() {
   local rg="$1"; local v1="$2"; local v2="$3"; local name12="$4"; local name21="$5"
