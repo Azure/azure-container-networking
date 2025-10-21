@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+SUBSCRIPTION_ID=$1
+RG=$2
+
 VNET_A1="delegated_vnet_a1"
 S1_PREFIX="10.10.1.0/24"
 S2_PREFIX="10.10.2.0/24"

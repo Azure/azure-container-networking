@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -e
 
+SUBSCRIPTION_ID=$1
+LOCATION=$2
+RG=$3
+VM_SKU_DEFAULT=$4
+VM_SKU_HIGHNIC=$5
+
 echo "Subscription id: $SUBSCRIPTION_ID"
 echo "Resource group: $RG"
 echo "Location: $LOCATION"
