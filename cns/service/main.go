@@ -346,6 +346,19 @@ var args = acn.ArgumentList{
 		Type:         "string",
 		DefaultValue: "",
 	},
+	{
+		Name:         acn.OptServiceAction,
+		Shorthand:    acn.OptServiceActionAlias,
+		Description:  "Windows service action: install, uninstall, or run as service",
+		Type:         "string",
+		DefaultValue: "",
+		ValueMap: map[string]interface{}{
+			acn.OptServiceInstall:   0,
+			acn.OptServiceUninstall: 0,
+			acn.OptServiceRun:       0,
+			"":                      0,
+		},
+	},
 }
 
 // init() is executed before main() whenever this package is imported
@@ -521,10 +534,52 @@ func main() {
 	telemetryDaemonEnabled := acn.GetArg(acn.OptTelemetryService).(bool)
 	cniConflistFilepathArg := acn.GetArg(acn.OptCNIConflistFilepath).(string)
 	cniConflistScenarioArg := acn.GetArg(acn.OptCNIConflistScenario).(string)
+	serviceAction := acn.GetArg(acn.OptServiceAction).(string)
 
 	if vers {
 		printVersion()
 		os.Exit(0)
+	}
+
+	// Handle Windows service actions (install/uninstall)
+	switch serviceAction {
+	case acn.OptServiceInstall:
+		if err := installService(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to install service: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	case acn.OptServiceUninstall:
+		if err := uninstallService(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to uninstall service: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	case acn.OptServiceRun:
+		// This is an explicit flag to run as service (for testing)
+		// Normally the service manager would start us and we'd detect it automatically
+		if err := runAsService(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to run as service: %v\n", err)
+			os.Exit(1)
+		}
+		// The service control loop has exited, but we still need to run the main service logic
+		// Fall through to continue with normal startup
+	case "":
+		// No service action specified, check if we're running as a service
+		isService, err := isWindowsService()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to detect service mode: %v\n", err)
+			os.Exit(1)
+		}
+		if isService {
+			// We're being started by the Windows Service Manager
+			if err := runAsService(); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to run as service: %v\n", err)
+				os.Exit(1)
+			}
+			// The service control loop has exited, but we still need to run the main service logic
+			// Fall through to continue with normal startup
+		}
 	}
 
 	// Initialize CNS.
