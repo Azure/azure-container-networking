@@ -26,10 +26,10 @@ stages:
   - stage: AKSClusterAndNetworking
     displayName: "Stage: AKS Cluster and Networking Setup"
     jobs:
-      - template: long-running-pipeline-template.yaml
+      - template: template/long-running-pipeline-template.yaml
         parameters:
           jobName: create-aks
-          scriptPath: "infra/scripts/01_create_aks.sh"
+          scriptPath: "scripts/create_aks.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           location: ${{ parameters.location }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
@@ -37,36 +37,36 @@ stages:
           vmSkuHighNIC: ${{ parameters.vmSkuHighNIC }}
           dependsOn: []
 
-      - template: pipeline-template.yaml
+      - template: template/long-running-pipeline-template.yaml
         parameters:
           jobName: create-vnets
-          scriptPath: "infra/scripts/02_create_vnets.sh"
+          scriptPath: "scripts/create_vnets.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           location: ${{ parameters.location }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
           dependsOn: ["create-aks"]
 
-      - template: pipeline-template.yaml
+      - template: template/long-running-pipeline-template.yaml
         parameters:
           jobName: create-peerings
-          scriptPath: "infra/scripts/03_create_peerings.sh"
+          scriptPath: "scripts/create_peerings.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
           dependsOn: ["create-vnets"]
 
-      - template: pipeline-template.yaml
+      - template: template/long-running-pipeline-template.yaml
         parameters:
           jobName: create-storage
-          scriptPath: "infra/scripts/04_create_storage.sh"
+          scriptPath: "scripts/create_storage.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           location: ${{ parameters.location }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
           dependsOn: ["create-peerings"]
 
-      - template: pipeline-template.yaml
+      - template: template/long-running-pipeline-template.yaml
         parameters:
           jobName: create-nsg
-          scriptPath: "infra/scripts/05_create_nsg.sh"
+          scriptPath: "scripts/create_nsg.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
           dependsOn: ["create-storage"]
