@@ -28,7 +28,7 @@ stages:
     jobs:
       - template: template/long-running-pipeline-template.yaml
         parameters:
-          jobName: create-aks
+          jobName: create_aks
           scriptPath: "scripts/create_aks.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           location: ${{ parameters.location }}
@@ -39,34 +39,34 @@ stages:
 
       - template: template/long-running-pipeline-template.yaml
         parameters:
-          jobName: create-vnets
+          jobName: create_vnets
           scriptPath: "scripts/create_vnets.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           location: ${{ parameters.location }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
-          dependsOn: ["create-aks"]
+          dependsOn: ["create_aks"]
 
       - template: template/long-running-pipeline-template.yaml
         parameters:
-          jobName: create-peerings
+          jobName: create_peerings
           scriptPath: "scripts/create_peerings.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
-          dependsOn: ["create-vnets"]
+          dependsOn: ["create_vnets"]
 
       - template: template/long-running-pipeline-template.yaml
         parameters:
-          jobName: create-storage
+          jobName: create_storage
           scriptPath: "scripts/create_storage.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           location: ${{ parameters.location }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
-          dependsOn: ["create-peerings"]
+          dependsOn: ["create_peerings"]
 
       - template: template/long-running-pipeline-template.yaml
         parameters:
-          jobName: create-nsg
+          jobName: create_nsg
           scriptPath: "scripts/create_nsg.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
-          dependsOn: ["create-storage"]
+          dependsOn: ["create_storage"]
