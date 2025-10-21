@@ -109,7 +109,7 @@ stages:
       # ------------------------------------------------------------
       - job: Create_NSG
         displayName: "Create Network Security Groups"
-        dependsOn: Create_Storage
+        dependsOn: Create_VNets
         pool:
           vmImage: ubuntu-latest
         steps:
