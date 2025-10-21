@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
+SUBSCRIPTION_ID=$1
+LOCATION=$2
+RG=$3
+
 RAND=$(openssl rand -hex 4)
 SA1="sa1${RAND}"
 SA2="sa2${RAND}"

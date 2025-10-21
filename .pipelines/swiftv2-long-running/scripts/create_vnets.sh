@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -e
 
+SUBSCRIPTION_ID=$1
+LOCATION=$2
+RG=$3
+
+az account set --subscription "$SUBSCRIPTION_ID"
+
 # VNets and subnets
 VNET_A1="cx_vnet_a1"
 VNET_A2="cx_vnet_a2"
