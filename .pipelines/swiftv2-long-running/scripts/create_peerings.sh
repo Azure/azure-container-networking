@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
+trap 'echo "[ERROR] Failed during VNet peering creation." >&2' ERR
 
 RG=$1
 VNET_A1="cx_vnet_a1"
@@ -9,8 +10,11 @@ VNET_B1="cx_vnet_b1"
 
 peer_two_vnets() {
   local rg="$1"; local v1="$2"; local v2="$3"; local name12="$4"; local name21="$5"
-  az network vnet peering create -g "$rg" -n "$name12" --vnet-name "$v1" --remote-vnet "$v2" --allow-vnet-access --output none
-  az network vnet peering create -g "$rg" -n "$name21" --vnet-name "$v2" --remote-vnet "$v1" --allow-vnet-access --output none
+  echo "==> Peering $v1 <-> $v2"
+  az network vnet peering create -g "$rg" -n "$name12" --vnet-name "$v1" --remote-vnet "$v2" --allow-vnet-access --output none \
+    && echo "Created peering $name12"
+  az network vnet peering create -g "$rg" -n "$name21" --vnet-name "$v2" --remote-vnet "$v1" --allow-vnet-access --output none \
+    && echo "Created peering $name21"
 }
 
 peer_two_vnets "$RG" "$VNET_A1" "$VNET_A2" "A1-to-A2" "A2-to-A1"

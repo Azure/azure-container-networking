@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
+trap 'echo "[ERROR] Failed during NSG creation." >&2' ERR
 
 SUBSCRIPTION_ID=$1
 RG=$2
@@ -9,7 +10,8 @@ VNET_A1="cx_vnet_a1"
 NSG_NAME="${VNET_A1}-nsg"
 
 echo "==> Creating Network Security Group: $NSG_NAME"
-az network nsg create -g "$RG" -n "$NSG_NAME" -l "$LOCATION" --output none
+az network nsg create -g "$RG" -n "$NSG_NAME" -l "$LOCATION" --output none \
+  && echo "NSG $NSG_NAME created."
 
 echo "==> Adding NSG rules"
 
@@ -25,7 +27,8 @@ az network nsg rule create \
   --access Allow \
   --protocol Tcp \
   --description "Allow SSH access" \
-  --output none
+  --output none \
+    && echo "Rule allow-ssh created."
 
 # Allow internal VNet traffic
 az network nsg rule create \
@@ -39,7 +42,8 @@ az network nsg rule create \
   --access Allow \
   --protocol "*" \
   --description "Allow VNet internal traffic" \
-  --output none
+  --output none \
+    && echo "Rule allow-vnet created."
 
 # Allow AKS API traffic
 az network nsg rule create \
@@ -53,6 +57,7 @@ az network nsg rule create \
   --access Allow \
   --protocol Tcp \
   --description "Allow AKS control plane traffic" \
-  --output none
+  --output none \
+    && echo "Rule allow-aks-controlplane created."
 
 echo "NSG '$NSG_NAME' created successfully with rules."

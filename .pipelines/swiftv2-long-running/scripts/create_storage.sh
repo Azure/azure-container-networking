@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
+trap 'echo "[ERROR] Failed during Storage Account creation." >&2' ERR
 
 SUBSCRIPTION_ID=$1
 LOCATION=$2
@@ -24,5 +25,8 @@ for SA in "$SA1" "$SA2"; do
         \"allowBlobPublicAccess\": false,
         \"allowSharedKeyAccess\": false
       }
-    }"
+    }" \
+  && echo "Storage account $SA created successfully."
 done
+
+echo "All storage accounts created successfully."
