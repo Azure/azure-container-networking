@@ -1,16 +1,23 @@
 parameters:
+  - name: jobName
+    type: string
+  - name: scriptPath
+    type: string
   - name: subscriptionId
     type: string
   - name: location
     type: string
+    default: ""
   - name: resourceGroupName
     type: string
   - name: vmSkuDefault
     type: string
   - name: vmSkuHighNIC
     type: string
+    default: ""
   - name: serviceConnection
     type: string
+    default: "Azure Container Networking - Standalone Test Service Connection"
 
 stages:
   - stage: AKSClusterAndNetworking
