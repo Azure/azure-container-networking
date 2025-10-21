@@ -70,21 +70,22 @@ type MTPNCStatus string
 
 const (
 	// MTPNCStatusReady indicates the MTPNC has been successfully programmed and is ready for use
-	MTPNCStatusReady                MTPNCStatus = "Ready"
+	MTPNCStatusReady MTPNCStatus = "Ready"
 	// MTPNCStatusPending indicates the MTPNC is awaiting processing
-	MTPNCStatusPending              MTPNCStatus = "Pending"
+	MTPNCStatusPending MTPNCStatus = "Pending"
 	// MTPNCStatusInternalError indicates an internal error occurred while processing the MTPNC
-	MTPNCStatusInternalError        MTPNCStatus = "InternalError"
+	MTPNCStatusInternalError MTPNCStatus = "InternalError"
 	// MTPNCStatusPNINotFound indicates the referenced PodNetworkInstance was not found
-	MTPNCStatusPNINotFound          MTPNCStatus = "PNINotFound"
+	MTPNCStatusPNINotFound MTPNCStatus = "PNINotFound"
 	// MTPNCStatusPNINotReady indicates the referenced PodNetworkInstance is not yet ready
-	MTPNCStatusPNINotReady          MTPNCStatus = "PNINotReady"
+	MTPNCStatusPNINotReady MTPNCStatus = "PNINotReady"
 	// MTPNCStatusNodeCapacityExceeded indicates the node has exceeded its capacity for network resources
 	MTPNCStatusNodeCapacityExceeded MTPNCStatus = "NodeCapacityExceeded"
 	// MTPNCStatusIPsExhausted indicates no IP addresses are available for allocation
-	MTPNCStatusIPsExhausted         MTPNCStatus = "IPsExhausted"
-	// MTPNCStatusDeleting indicates MTPNC is being deleted. DNC-RC sets this status during the finalizer removal process
-	MTPNCStatusDeleting             MTPNCStatus = "Deleting"
+	MTPNCStatusIPsExhausted MTPNCStatus = "IPsExhausted"
+	// MTPNCStatusDeleting indicates MTPNC is being deleted. DNC-RC sets this status during the finalizer removal process.
+	// Note: Do not take a programmatic dependency on this status as the status update may fail for various reasons.
+	MTPNCStatusDeleting MTPNCStatus = "Deleting"
 )
 
 type InterfaceInfo struct {
