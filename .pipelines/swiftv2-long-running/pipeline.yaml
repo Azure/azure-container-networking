@@ -29,7 +29,7 @@ stages:
       - template: template/long-running-pipeline-template.yaml
         parameters:
           jobName: create_aks
-          scriptPath: "./scripts/create_aks.sh"
+          scriptPath: ".pipelines/swiftv2-long-running/scripts/create_aks.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           location: ${{ parameters.location }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
@@ -40,7 +40,7 @@ stages:
       - template: template/long-running-pipeline-template.yaml
         parameters:
           jobName: create_vnets
-          scriptPath: "./scripts/create_vnets.sh"
+          scriptPath: ".pipelines/swiftv2-long-running/scripts/create_vnets.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           location: ${{ parameters.location }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
@@ -49,7 +49,7 @@ stages:
       - template: template/long-running-pipeline-template.yaml
         parameters:
           jobName: create_peerings
-          scriptPath: "./scripts/create_peerings.sh"
+          scriptPath: ".pipelines/swiftv2-long-running/scripts/create_peerings.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
           dependsOn: ["create_vnets"]
@@ -57,7 +57,7 @@ stages:
       - template: template/long-running-pipeline-template.yaml
         parameters:
           jobName: create_storage
-          scriptPath: "./scripts/create_storage.sh"
+          scriptPath: ".pipelines/swiftv2-long-running/scripts/create_storage.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           location: ${{ parameters.location }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
@@ -66,7 +66,7 @@ stages:
       - template: template/long-running-pipeline-template.yaml
         parameters:
           jobName: create_nsg
-          scriptPath: "./scripts/create_nsg.sh"
+          scriptPath: ".pipelines/swiftv2-long-running/scripts/create_nsg.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
           dependsOn: ["create_storage"]
