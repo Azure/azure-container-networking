@@ -79,7 +79,6 @@ stages:
               scriptLocation: scriptPath
               scriptPath: ".pipelines/swiftv2-long-running/scripts/create_peerings.sh"
               arguments: >
-                ${{ parameters.subscriptionId }}
                 ${{ parameters.resourceGroupName }}
 
       # ------------------------------------------------------------
