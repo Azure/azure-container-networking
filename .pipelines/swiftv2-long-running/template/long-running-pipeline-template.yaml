@@ -87,7 +87,7 @@ stages:
       # ------------------------------------------------------------
       - job: Create_Storage
         displayName: "Create Storage"
-        dependsOn: Create_Peerings
+        dependsOn: Create_AKS
         pool:
           vmImage: ubuntu-latest
         steps:
