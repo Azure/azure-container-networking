@@ -39,6 +39,8 @@ jobs:
           scriptLocation: inlineScript
           inlineScript: |
             set -e
+            chmod +x ${{ parameters.scriptPath }}
+            ${{ parameters.scriptPath }}
             export SUBSCRIPTION_ID="${{ parameters.subscriptionId }}"
             export LOCATION="${{ parameters.location }}"
             export RG="${{ parameters.resourceGroupName }}"
