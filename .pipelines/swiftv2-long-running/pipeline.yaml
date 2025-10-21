@@ -26,7 +26,7 @@ stages:
   - stage: AKSClusterAndNetworking
     displayName: "Stage: AKS Cluster and Networking Setup"
     jobs:
-      - template: pipeline-template.yaml
+      - template: long-running-pipeline-template.yaml
         parameters:
           jobName: create-aks
           scriptPath: "infra/scripts/01_create_aks.sh"
