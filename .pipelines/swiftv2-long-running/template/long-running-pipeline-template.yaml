@@ -41,11 +41,9 @@ jobs:
             set -e
             chmod +x ${{ parameters.scriptPath }}
             ${{ parameters.scriptPath }}
-            export SUBSCRIPTION_ID="${{ parameters.subscriptionId }}"
-            export LOCATION="${{ parameters.location }}"
-            export RG="${{ parameters.resourceGroupName }}"
-            export VM_SKU_DEFAULT="${{ parameters.vmSkuDefault }}"
-            export VM_SKU_HIGHNIC="${{ parameters.vmSkuHighNIC }}"
-
-            chmod +x ${{ parameters.scriptPath }}
-            ${{ parameters.scriptPath }}
+            env:
+              subscriptionId: ${{ parameters.subscriptionId }}
+              location: ${{ parameters.location }}
+              resourceGroupName: ${{ parameters.resourceGroupName }}
+              vmSkuDefault: ${{ parameters.vmSkuDefault }}
+              vmSkuHighNIC: ${{ parameters.vmSkuHighNIC }}
