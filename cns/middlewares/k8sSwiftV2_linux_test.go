@@ -226,7 +226,7 @@ func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
 	failReq.OrchestratorContext = b
 	_, respCode, msg = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
-	assert.Assert(t, strings.Contains(msg, "MTPNC in terminating state"), "expected error message to contain '%s', got '%s'", "MTPNC in terminating state", msg)
+	assert.Assert(t, strings.Contains(msg, NetworkNotReadyErrorMsg), "expected error message to contain '%s', got '%s'", NetworkNotReadyErrorMsg, msg)
 }
 
 func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
