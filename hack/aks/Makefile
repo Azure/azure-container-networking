@@ -9,7 +9,7 @@ AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v
 
 # overrideable defaults
 AUTOUPGRADE          ?= patch
-K8S_VER              ?= 1.30
+K8S_VER              ?= 1.33
 NODE_COUNT           ?= 2
 NODE_COUNT_WIN	     ?= $(NODE_COUNT)
 NODEUPGRADE          ?= NodeImage
