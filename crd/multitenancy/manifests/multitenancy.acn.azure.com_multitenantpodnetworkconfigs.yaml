@@ -157,6 +157,7 @@ spec:
                 - PNINotReady
                 - NodeCapacityExceeded
                 - IPsExhausted
+                - Deleting
                 type: string
             type: object
         type: object
