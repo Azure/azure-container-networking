@@ -1,49 +1,126 @@
 parameters:
-  - name: jobName
-    type: string
-  - name: scriptPath
-    type: string
   - name: subscriptionId
     type: string
   - name: location
     type: string
-    default: ""
   - name: resourceGroupName
     type: string
   - name: vmSkuDefault
     type: string
-    default: ""
   - name: vmSkuHighNIC
     type: string
-    default: ""
   - name: serviceConnection
     type: string
-    default: "Azure Container Networking - Standalone Test Service Connection"
-  - name: dependsOn
-    type: object
-    default: []
 
-jobs:
-  - job: ${{ parameters.jobName }}
-    displayName: "${{ parameters.jobName }}"
-    pool:
-      vmImage: 'ubuntu-latest'
-    dependsOn: ${{ parameters.dependsOn }}
-    steps:
-      - checkout: self
-      - task: AzureCLI@2
-        displayName: "Run ${{ parameters.jobName }} script"
-        inputs:
-          azureSubscription: "${{ parameters.serviceConnection }}"
-          scriptType: bash
-          scriptLocation: inlineScript
-          inlineScript: |
-            set -e
-            chmod +x ${{ parameters.scriptPath }}
-            ${{ parameters.scriptPath }}
-            env:
-              subscriptionId: ${{ parameters.subscriptionId }}
-              location: ${{ parameters.location }}
-              resourceGroupName: ${{ parameters.resourceGroupName }}
-              vmSkuDefault: ${{ parameters.vmSkuDefault }}
-              vmSkuHighNIC: ${{ parameters.vmSkuHighNIC }}
+stages:
+  - stage: AKSClusterAndNetworking
+    displayName: "Stage: AKS Cluster and Networking Setup"
+    jobs:
+      # ------------------------------------------------------------
+      # Job 1: Create AKS Cluster
+      # ------------------------------------------------------------
+      - job: Create_AKS
+        displayName: "Create AKS Clusters"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: "Run create_aks.sh"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_aks.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.location }}
+                ${{ parameters.resourceGroupName }}
+                ${{ parameters.vmSkuDefault }}
+                ${{ parameters.vmSkuHighNIC }}
+
+      # ------------------------------------------------------------
+      # Job 2: Create VNets
+      # ------------------------------------------------------------
+      - job: Create_VNets
+        displayName: "Create VNets"
+        dependsOn: Create_AKS
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: "Run create_vnets.sh"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_vnets.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.location }}
+                ${{ parameters.resourceGroupName }}
+
+      # ------------------------------------------------------------
+      # Job 3: Create Peerings
+      # ------------------------------------------------------------
+      - job: Create_Peerings
+        displayName: "Create Peerings"
+        dependsOn: Create_VNets
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: "Run create_peerings.sh"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_peerings.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.resourceGroupName }}
+
+      # ------------------------------------------------------------
+      # Job 4: Create Storage
+      # ------------------------------------------------------------
+      - job: Create_Storage
+        displayName: "Create Storage"
+        dependsOn: Create_Peerings
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: "Run create_storage.sh"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_storage.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.location }}
+                ${{ parameters.resourceGroupName }}
+
+      # ------------------------------------------------------------
+      # Job 5: Create NSG
+      # ------------------------------------------------------------
+      - job: Create_NSG
+        displayName: "Create Network Security Groups"
+        dependsOn: Create_Storage
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: "Run create_nsg.sh"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_nsg.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.resourceGroupName }}
