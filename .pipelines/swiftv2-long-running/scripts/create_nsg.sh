@@ -6,8 +6,6 @@ RG=$2
 LOCATION=${3:-centraluseuap}
 
 VNET_A1="cx_vnet_a1"
-S1_PREFIX="10.10.1.0/24"
-S2_PREFIX="10.10.2.0/24"
 NSG_NAME="${VNET_A1}-nsg"
 
 echo "==> Creating Network Security Group: $NSG_NAME"
