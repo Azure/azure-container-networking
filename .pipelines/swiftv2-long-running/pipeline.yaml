@@ -35,6 +35,7 @@ stages:
           resourceGroupName: ${{ parameters.resourceGroupName }}
           vmSkuDefault: ${{ parameters.vmSkuDefault }}
           vmSkuHighNIC: ${{ parameters.vmSkuHighNIC }}
+          dependsOn: []
 
       - template: pipeline-template.yaml
         parameters:
@@ -43,7 +44,7 @@ stages:
           subscriptionId: ${{ parameters.subscriptionId }}
           location: ${{ parameters.location }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
-        dependsOn: create-aks
+          dependsOn: ["create-aks"]
 
       - template: pipeline-template.yaml
         parameters:
@@ -51,7 +52,7 @@ stages:
           scriptPath: "infra/scripts/03_create_peerings.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
-        dependsOn: create-vnets
+          dependsOn: ["create-vnets"]
 
       - template: pipeline-template.yaml
         parameters:
@@ -60,7 +61,7 @@ stages:
           subscriptionId: ${{ parameters.subscriptionId }}
           location: ${{ parameters.location }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
-        dependsOn: create-peerings
+          dependsOn: ["create-peerings"]
 
       - template: pipeline-template.yaml
         parameters:
@@ -68,4 +69,4 @@ stages:
           scriptPath: "infra/scripts/05_create_nsg.sh"
           subscriptionId: ${{ parameters.subscriptionId }}
           resourceGroupName: ${{ parameters.resourceGroupName }}
-        dependsOn: create-storage
+          dependsOn: ["create-storage"]

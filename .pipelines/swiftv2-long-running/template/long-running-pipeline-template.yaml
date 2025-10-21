@@ -25,7 +25,7 @@ jobs:
     displayName: "Job - ${{ parameters.jobName }}"
     pool:
       vmImage: 'ubuntu-latest'
-
+    dependsOn: ${{ parameters.dependsOn }}
     steps:
       - checkout: self
       - task: AzureCLI@2
