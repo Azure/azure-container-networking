@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
+echo "Subscription id: $SUBSCRIPTION_ID"
+echo "Resource group: $RG"
+echo "Location: $LOCATION"
+echo "VM SKU (default): $VM_SKU_DEFAULT"
+echo "VM SKU (high-NIC): $VM_SKU_HIGHNIC"
 az account set --subscription "$SUBSCRIPTION_ID"
 
 echo "==> Creating resource group: $RG"
