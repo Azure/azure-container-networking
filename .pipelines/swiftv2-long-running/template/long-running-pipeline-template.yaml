@@ -19,7 +19,7 @@ stages:
       # ------------------------------------------------------------
       # Job 1: Create AKS Cluster
       # ------------------------------------------------------------
-      - job: Create_AKS
+      - job: CreateCluster
         displayName: "Create AKS Clusters"
         pool:
           vmImage: ubuntu-latest
@@ -40,17 +40,18 @@ stages:
                 ${{ parameters.vmSkuHighNIC }}
 
       # ------------------------------------------------------------
-      # Job 2: Create VNets
+      # Job 2: Networking & Storage
       # ------------------------------------------------------------
-      - job: Create_VNets
-        displayName: "Create VNets"
-        dependsOn: Create_AKS
+      - job: NetworkingAndStorage
+        displayName: "Networking and Storage Setup"
         pool:
           vmImage: ubuntu-latest
         steps:
           - checkout: self
+
+          # Task 1: Create VNets
           - task: AzureCLI@2
-            displayName: "Run create_vnets.sh"
+            displayName: "Create customer vnets"
             inputs:
               azureSubscription: ${{ parameters.serviceConnection }}
               scriptType: bash
@@ -61,18 +62,9 @@ stages:
                 ${{ parameters.location }}
                 ${{ parameters.resourceGroupName }}
 
-      # ------------------------------------------------------------
-      # Job 3: Create Peerings
-      # ------------------------------------------------------------
-      - job: Create_Peerings
-        displayName: "Create Peerings"
-        dependsOn: Create_VNets
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
+          # Task 2: Create Peerings
           - task: AzureCLI@2
-            displayName: "Run create_peerings.sh"
+            displayName: "Create customer vnet peerings"
             inputs:
               azureSubscription: ${{ parameters.serviceConnection }}
               scriptType: bash
@@ -81,19 +73,10 @@ stages:
               arguments: >
                 ${{ parameters.resourceGroupName }}
 
-      # ------------------------------------------------------------
-      # Job 4: Create Storage
-      # ------------------------------------------------------------
-      - job: Create_Storage
-        displayName: "Create Storage"
-        dependsOn: Create_AKS
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
+          # Task 3: Create Storage Accounts
           - task: AzureCLI@2
             name: CreateStorageTask
-            displayName: "Run create_storage.sh"
+            displayName: "Create storage accounts"
             inputs:
               azureSubscription: ${{ parameters.serviceConnection }}
               scriptType: bash
@@ -103,22 +86,16 @@ stages:
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.location }}
                 ${{ parameters.resourceGroupName }}
-        outputs:
-          StorageAccount1: $[ dependencies.Create_Storage.outputs['CreateStorageTask.StorageAccount1'] ]
-          StorageAccount2: $[ dependencies.Create_Storage.outputs['CreateStorageTask.StorageAccount2'] ]
 
-      # ------------------------------------------------------------
-      # Job 5: Create NSG
-      # ------------------------------------------------------------
-      - job: Create_NSG
-        displayName: "Create Network Security Groups"
-        dependsOn: Create_VNets
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
+          # Set storage account names as variables for later tasks
+          - script: |
+              echo "##vso[task.setvariable variable=StorageAccount1]$(StorageAccount1)"
+              echo "##vso[task.setvariable variable=StorageAccount2]$(StorageAccount2)"
+            displayName: "Set storage account variables"
+
+          # Task 4: Create NSG
           - task: AzureCLI@2
-            displayName: "Run create_nsg.sh"
+            displayName: "Create network security groups to restrict access between subnets."
             inputs:
               azureSubscription: ${{ parameters.serviceConnection }}
               scriptType: bash
@@ -128,21 +105,10 @@ stages:
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.resourceGroupName }}
                 ${{ parameters.location }}
-      # ------------------------------------------------------------
-      # Job 6: Create Private Endpoint
-      # ------------------------------------------------------------
-      - job: Create_PrivateEndpoint
-        displayName: "Create Private Endpoint for Storage"
-        dependsOn: Create_Storage
-        pool:
-          vmImage: ubuntu-latest
-        variables:
-          StorageAccount1: $[ dependencies.Create_Storage.outputs['CreateStorageTask.StorageAccount1'] ]
-          StorageAccount2: $[ dependencies.Create_Storage.outputs['CreateStorageTask.StorageAccount2'] ]
-        steps:
-          - checkout: self
+
+          # Task 5: Create Private Endpoint
           - task: AzureCLI@2
-            displayName: "Run create_private_endpoint.sh"
+            displayName: "Create Private Endpoint for Storage Account."
             inputs:
               azureSubscription: ${{ parameters.serviceConnection }}
               scriptType: bash
