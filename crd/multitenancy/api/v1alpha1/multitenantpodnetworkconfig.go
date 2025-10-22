@@ -83,8 +83,7 @@ const (
 	MTPNCStatusNodeCapacityExceeded MTPNCStatus = "NodeCapacityExceeded"
 	// MTPNCStatusIPsExhausted indicates no IP addresses are available for allocation
 	MTPNCStatusIPsExhausted MTPNCStatus = "IPsExhausted"
-	// MTPNCStatusDeleting indicates MTPNC is being deleted. DNC-RC sets this status during the finalizer removal process.
-	// Note: Do not take a programmatic dependency on this status as the status update may fail for various reasons.
+	// MTPNCStatusDeleting indicates MTPNC is being deleted, status may not be set at the same time as deletionTimestamp.
 	MTPNCStatusDeleting MTPNCStatus = "Deleting"
 )
 
