@@ -5,6 +5,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // Important: Run "make" to regenerate code after modifying this file
@@ -50,7 +51,7 @@ type MultitenantPodNetworkConfigSpec struct {
 	// +kubebuilder:validation:Optional
 	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
 	// PodUID is the UID of the pod
-	PodUID string `json:"podUID,omitempty"`
+	PodUID types.UID `json:"podUID,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=Unprogrammed;Programming;Programmed;Unprogramming;Failed
