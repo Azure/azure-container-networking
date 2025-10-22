@@ -75,7 +75,7 @@ stages:
 
           # Task 3: Create Storage Accounts
           - task: AzureCLI@2
-            name: CreateStorageTask
+            name: CreateStorageAccounts
             displayName: "Create storage accounts"
             inputs:
               azureSubscription: ${{ parameters.serviceConnection }}
@@ -86,13 +86,7 @@ stages:
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.location }}
                 ${{ parameters.resourceGroupName }}
-
-          # Set storage account names as variables for later tasks
-          - script: |
-              echo "##vso[task.setvariable variable=StorageAccount1]$(StorageAccount1)"
-              echo "##vso[task.setvariable variable=StorageAccount2]$(StorageAccount2)"
-            displayName: "Set storage account variables"
-
+                
           # Task 4: Create NSG
           - task: AzureCLI@2
             displayName: "Create network security groups to restrict access between subnets."
@@ -113,10 +107,10 @@ stages:
               azureSubscription: ${{ parameters.serviceConnection }}
               scriptType: bash
               scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_private_endpoint.sh"
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_pe.sh"
               arguments: >
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.location }}
                 ${{ parameters.resourceGroupName }}
-                $(StorageAccount1)
-                $(StorageAccount2)
+                $(CreateStorageAccounts.StorageAccount1)
+                $(CreateStorageAccounts.StorageAccount2)
