@@ -867,6 +867,74 @@ func TestTransparentVlanConfigureContainerInterfacesAndRoutes(t *testing.T) {
 			wantErr:    true,
 			wantErrMsg: "failed container ns add default routes: addRoutes failed: " + netio.ErrMockNetIOFail.Error() + ":B1veth0",
 		},
+		{
+			name: "Configure interface and routes good path with SkipDefaultRoutes set to true for container",
+			client: &TransparentVlanEndpointClient{
+				primaryHostIfName: "eth0",
+				vlanIfName:        "eth0.1",
+				vnetVethName:      "A1veth0",
+				containerVethName: "B1veth0",
+				vnetNSName:        "az_ns_1",
+				vnetMac:           vnetMac,
+				netlink:           netlink.NewMockNetlink(false, ""),
+				plClient:          platform.NewMockExecClient(false),
+				netUtilsClient:    networkutils.NewNetworkUtils(nl, plc),
+				netioshim:         netio.NewMockNetIO(false, 0),
+			},
+			epInfo: &EndpointInfo{
+				SkipDefaultRoutes: true,
+				IPAddresses: []net.IPNet{
+					{
+						IP:   net.ParseIP("192.168.0.4"),
+						Mask: net.CIDRMask(subnetv4Mask, ipv4Bits),
+					},
+				},
+				Subnets: []SubnetInfo{
+					{
+						Gateway: net.ParseIP("192.168.0.1"),
+						Prefix: net.IPNet{
+							IP:   net.ParseIP("192.168.0.0"),
+							Mask: net.CIDRMask(subnetv4Mask, ipv4Bits),
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Configure interface and routes good path with SkipDefaultRoutes set to false for container",
+			client: &TransparentVlanEndpointClient{
+				primaryHostIfName: "eth0",
+				vlanIfName:        "eth0.1",
+				vnetVethName:      "A1veth0",
+				containerVethName: "B1veth0",
+				vnetNSName:        "az_ns_1",
+				vnetMac:           vnetMac,
+				netlink:           netlink.NewMockNetlink(false, ""),
+				plClient:          platform.NewMockExecClient(false),
+				netUtilsClient:    networkutils.NewNetworkUtils(nl, plc),
+				netioshim:         netio.NewMockNetIO(false, 0),
+			},
+			epInfo: &EndpointInfo{
+				SkipDefaultRoutes: true,
+				IPAddresses: []net.IPNet{
+					{
+						IP:   net.ParseIP("192.168.0.4"),
+						Mask: net.CIDRMask(subnetv4Mask, ipv4Bits),
+					},
+				},
+				Subnets: []SubnetInfo{
+					{
+						Gateway: net.ParseIP("192.168.0.1"),
+						Prefix: net.IPNet{
+							IP:   net.ParseIP("192.168.0.0"),
+							Mask: net.CIDRMask(subnetv4Mask, ipv4Bits),
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

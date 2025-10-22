@@ -240,3 +240,40 @@ func TestPostNetworkContainersRequest_Validate(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateNetworkContainerRequest_SkipDefaultRoutes(t *testing.T) {
+	tests := []struct {
+		name     string
+		req      CreateNetworkContainerRequest
+		expected bool
+	}{
+		{
+			name: "SkipDefaultRoutesTrue",
+			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+				SkipDefaultRoutes:  true,
+			},
+			expected: true,
+		},
+		{
+			name: "SkipDefaultRoutesFalse",
+			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+				SkipDefaultRoutes:  false,
+			},
+			expected: false,
+		},
+		{
+			name: "SkipDefaultRoutesIgnored",
+			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+			},
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.req.SkipDefaultRoutes, "SkipDefaultRoutes value should match expected")
+		})
+	}
+}
