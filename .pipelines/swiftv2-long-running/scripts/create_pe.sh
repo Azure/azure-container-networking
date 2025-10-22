@@ -32,4 +32,8 @@ SA1_ID=$(az storage account show -g "$RG" -n "$SA1_NAME" --query id -o tsv)
 az network private-endpoint create \
   -g "$RG" -n "$PE_NAME" -l "$LOCATION" \
   --vnet-name "$VNET_A1" --subnet "$SUBNET_PE_A1" \
-  --private-connection-resource-id "$SA1
+  --private-connection-resource-id "$SA1_ID" \
+  --group-id blob \
+  --connection-name "${PE_NAME}-conn" \
+  --output none \
+  && echo "[OK] Private Endpoint $PE_NAME created for $SA1_NAME."
