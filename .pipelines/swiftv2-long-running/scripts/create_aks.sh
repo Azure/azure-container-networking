@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
+trap 'echo "[ERROR] Failed during Resource group or AKS cluster creation." >&2' ERR
 
 SUBSCRIPTION_ID=$1
 LOCATION=$2

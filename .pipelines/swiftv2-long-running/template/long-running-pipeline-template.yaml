@@ -123,3 +123,4 @@ stages:
               arguments: >
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.resourceGroupName }}
+                ${{ parameters.location }}

@@ -1,63 +1,48 @@
 #!/usr/bin/env bash
 set -e
-trap 'echo "[ERROR] Failed during NSG creation." >&2' ERR
+trap 'echo "[ERROR] Failed during NSG creation or rule setup." >&2' ERR
 
 SUBSCRIPTION_ID=$1
 RG=$2
-LOCATION=${3:-centraluseuap}
+LOCATION=$3
 
 VNET_A1="cx_vnet_a1"
+SUBNET1_PREFIX="10.10.1.0/24"
+SUBNET2_PREFIX="10.10.2.0/24"
 NSG_NAME="${VNET_A1}-nsg"
 
 echo "==> Creating Network Security Group: $NSG_NAME"
 az network nsg create -g "$RG" -n "$NSG_NAME" -l "$LOCATION" --output none \
-  && echo "NSG $NSG_NAME created."
+  && echo "[OK] NSG '$NSG_NAME' created."
 
-echo "==> Adding NSG rules"
-
-# Allow SSH from any
+echo "==> Creating NSG rule to DENY traffic from Subnet1 ($SUBNET1_PREFIX) to Subnet2 ($SUBNET2_PREFIX)"
 az network nsg rule create \
   -g "$RG" \
   --nsg-name "$NSG_NAME" \
-  -n allow-ssh \
+  -n deny-subnet1-to-subnet2 \
   --priority 100 \
-  --source-address-prefixes "*" \
-  --destination-port-ranges 22 \
+  --source-address-prefixes "$SUBNET1_PREFIX" \
+  --destination-address-prefixes "$SUBNET2_PREFIX" \
   --direction Inbound \
-  --access Allow \
-  --protocol Tcp \
-  --description "Allow SSH access" \
-  --output none \
-    && echo "Rule allow-ssh created."
-
-# Allow internal VNet traffic
-az network nsg rule create \
-  -g "$RG" \
-  --nsg-name "$NSG_NAME" \
-  -n allow-vnet \
-  --priority 200 \
-  --source-address-prefixes VirtualNetwork \
-  --destination-address-prefixes VirtualNetwork \
-  --direction Inbound \
-  --access Allow \
+  --access Deny \
   --protocol "*" \
-  --description "Allow VNet internal traffic" \
+  --description "Deny all traffic from Subnet1 to Subnet2" \
   --output none \
-    && echo "Rule allow-vnet created."
+  && echo "[OK] Deny rule from Subnet1 → Subnet2 created."
 
-# Allow AKS API traffic
+echo "==> Creating NSG rule to DENY traffic from Subnet2 ($SUBNET2_PREFIX) to Subnet1 ($SUBNET1_PREFIX)"
 az network nsg rule create \
   -g "$RG" \
   --nsg-name "$NSG_NAME" \
-  -n allow-aks-controlplane \
-  --priority 300 \
-  --source-address-prefixes AzureCloud \
-  --destination-port-ranges 443 \
+  -n deny-subnet2-to-subnet1 \
+  --priority 200 \
+  --source-address-prefixes "$SUBNET2_PREFIX" \
+  --destination-address-prefixes "$SUBNET1_PREFIX" \
   --direction Inbound \
-  --access Allow \
-  --protocol Tcp \
-  --description "Allow AKS control plane traffic" \
+  --access Deny \
+  --protocol "*" \
+  --description "Deny all traffic from Subnet2 to Subnet1" \
   --output none \
-    && echo "Rule allow-aks-controlplane created."
+  && echo "[OK] Deny rule from Subnet2 → Subnet1 created."
 
-echo "NSG '$NSG_NAME' created successfully with rules."
+echo "NSG '$NSG_NAME' created successfully with bidirectional isolation between Subnet1 and Subnet2."

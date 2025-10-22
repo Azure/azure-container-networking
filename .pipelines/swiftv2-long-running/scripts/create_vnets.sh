@@ -35,19 +35,19 @@ az network vnet subnet create -g "$RG" --vnet-name "$VNET_A1" -n pe --address-pr
  && echo "Created $VNET_A1 with subnet pe"
 
 # A2
-az network vnet create -g "$RG" -n "$VNET_A2" --address-prefix 10.11.0.0/16 --subnet-name s-A2 --subnet-prefix "$A2_MAIN" -l "$LOCATION" --output none \
- && echo "Created $VNET_A2 with subnet s-A2"
+az network vnet create -g "$RG" -n "$VNET_A2" --address-prefix 10.11.0.0/16 --subnet-name s1 --subnet-prefix "$A2_MAIN" -l "$LOCATION" --output none \
+ && echo "Created $VNET_A2 with subnet s1"
 az network vnet subnet create -g "$RG" --vnet-name "$VNET_A2" -n pe --address-prefix "$A2_PE" --output none \
  && echo "Created $VNET_A2 with subnet pe"
 
 # A3
-az network vnet create -g "$RG" -n "$VNET_A3" --address-prefix 10.12.0.0/16 --subnet-name s-A3 --subnet-prefix "$A3_MAIN" -l "$LOCATION" --output none \
- && echo "Created $VNET_A3 with subnet s-A3"
+az network vnet create -g "$RG" -n "$VNET_A3" --address-prefix 10.12.0.0/16 --subnet-name s1 --subnet-prefix "$A3_MAIN" -l "$LOCATION" --output none \
+ && echo "Created $VNET_A3 with subnet s1"
 az network vnet subnet create -g "$RG" --vnet-name "$VNET_A3" -n pe --address-prefix "$A3_PE" --output none \
  && echo "Created $VNET_A3 with subnet pe"
 
 # B1
-az network vnet create -g "$RG" -n "$VNET_B1" --address-prefix 10.20.0.0/16 --subnet-name s-B1 --subnet-prefix "$B1_MAIN" -l "$LOCATION" --output none \
- && echo "Created $VNET_B1 with subnet s-B1"
+az network vnet create -g "$RG" -n "$VNET_B1" --address-prefix 10.20.0.0/16 --subnet-name s1 --subnet-prefix "$B1_MAIN" -l "$LOCATION" --output none \
+ && echo "Created $VNET_B1 with subnet s1"
 
 echo "All VNets and subnets created successfully."
