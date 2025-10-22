@@ -113,9 +113,6 @@ stages:
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.location }}
                 ${{ parameters.resourceGroupName }}
-        outputs:
-          StorageAccount1: $[ dependencies.Create_Storage.outputs['CreateStorageTask.StorageAccount1'] ]
-          StorageAccount2: $[ dependencies.Create_Storage.outputs['CreateStorageTask.StorageAccount2'] ]
 
           # Task 4: Create NSG
           - task: AzureCLI@2
