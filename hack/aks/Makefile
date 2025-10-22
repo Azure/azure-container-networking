@@ -25,7 +25,7 @@ PUBLIC_IP_ID         ?= /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/
 PUBLIC_IPv4          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v4
 PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
-LTS					 ?= false
+LTS					 ?= true
 
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)

@@ -170,7 +170,7 @@ require (
 	github.com/go-openapi/spec v0.20.11 // indirect
 	github.com/go-openapi/strfmt v0.21.9 // indirect
 	github.com/go-openapi/validate v0.22.3 // indirect
-	github.com/go-viper/mapstructure/v2 v2.3.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/cadvisor v0.49.2 // indirect
 	github.com/google/cel-go v0.17.8 // indirect
