@@ -30,3 +30,7 @@ for SA in "$SA1" "$SA2"; do
 done
 
 echo "All storage accounts created successfully."
+set +x
+	echo "##vso[task.setvariable variable=StorageAccount1;isOutput=true]$SA1"
+	echo "##vso[task.setvariable variable=StorageAccount2;isOutput=true]$SA2"
+set -x
