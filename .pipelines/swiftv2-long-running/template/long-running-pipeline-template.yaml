@@ -113,7 +113,6 @@ stages:
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.location }}
                 ${{ parameters.resourceGroupName }}
-
           # Task 4: Create NSG
           - task: AzureCLI@2
             displayName: "Create network security groups to restrict access between subnets"
