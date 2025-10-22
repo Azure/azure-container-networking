@@ -41,6 +41,9 @@ var (
 
 	testPod9GUID = "2006cad4-e54d-472e-863d-c4bac66200a7"
 	testPod9Info = cns.NewPodInfo("2006cad4-eth0", testPod9GUID, "testpod9", "testpod9namespace")
+
+	testPodMtpncTerminatingGUID = "e3b0c442-98fc-1fc1-9b93-7a1c2e5c8e6f"
+	testPodMtpncTerminatingInfo = cns.NewPodInfo("2006cad4-eth0", testPodMtpncTerminatingGUID, "testpodMtpncTerminating", "testpodMtpncTerminatingnamespace")
 )
 
 func TestMain(m *testing.M) {
@@ -213,6 +216,13 @@ func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
 
 	// MTPNC not ready
 	b, _ = testPod4Info.OrchestratorContext()
+	failReq.OrchestratorContext = b
+	_, respCode, msg = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), failReq)
+	assert.Equal(t, respCode, types.UnexpectedError)
+	assert.Assert(t, strings.Contains(msg, NetworkNotReadyErrorMsg), "expected error message to contain '%s', got '%s'", NetworkNotReadyErrorMsg, msg)
+
+	// Delete Timestamp is set
+	b, _ = testPodMtpncTerminatingInfo.OrchestratorContext()
 	failReq.OrchestratorContext = b
 	_, respCode, msg = middleware.GetPodInfoForIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)

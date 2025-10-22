@@ -28,6 +28,7 @@ var (
 	errGetMTPNC                 = errors.New(NetworkNotReadyErrorMsg + " - failed to get MTPNC")
 	errInvalidSWIFTv2NICType    = errors.New("invalid NIC type for SWIFT v2 scenario")
 	errInvalidMTPNCPrefixLength = errors.New("invalid prefix length for MTPNC primaryIP, must be 32")
+	errMTPNCDeleting            = errors.New(NetworkNotReadyErrorMsg + " - mtpnc for previous pod is being deleted, waiting for new mtpnc to be ready")
 )
 
 type K8sSWIFTv2Middleware struct {
@@ -54,7 +55,9 @@ func (k *K8sSWIFTv2Middleware) GetPodInfoForIPConfigsRequest(ctx context.Context
 		if respCode != types.Success {
 			return nil, respCode, message
 		}
-
+		if mtpnc.IsDeleting() {
+			return nil, types.UnexpectedError, errMTPNCDeleting.Error()
+		}
 		// update ipConfigRequest
 		respCode, message = k.UpdateIPConfigRequest(mtpnc, req)
 		if respCode != types.Success {
