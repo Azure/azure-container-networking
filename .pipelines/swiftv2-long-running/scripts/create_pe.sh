@@ -71,6 +71,21 @@ for VNET in "$VNET_A1" "$VNET_A2" "$VNET_A3"; do
   verify_dns_link "$RG" "$PRIVATE_DNS_ZONE" "$LINK_NAME"
 done
 
+az network private-dns link vnet create \
+  -g "$RG" -n "${VNET_A2}-link" -\
+  -zone-name "$PRIVATE_DNS_ZONE" \
+  --virtual-network "$VNET_A2" \
+  --registration-enabled false \
+  && echo "[OK] Linked DNS zone to $VNET_A2."
+
+az network private-dns link vnet create \
+  -g "$RG" -n "${VNET_A3}-link" \
+  --zone-name "$PRIVATE_DNS_ZONE" \
+  --virtual-network "$VNET_A3" \
+  --registration-enabled false \
+  && echo "[OK] Linked DNS zone to $VNET_A3."
+
+
 # 3. Create Private Endpoint
 echo "==> Creating Private Endpoint for Storage Account: $SA1_NAME"
 SA1_ID=$(az storage account show -g "$RG" -n "$SA1_NAME" --query id -o tsv)
