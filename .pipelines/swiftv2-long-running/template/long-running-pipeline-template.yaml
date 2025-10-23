@@ -17,10 +17,34 @@ stages:
     displayName: "Stage: AKS Cluster and Networking Setup"
     jobs:
       # ------------------------------------------------------------
-      # Job 1: Create AKS Cluster
+      # Job 1: Create Resource Group
+      # ------------------------------------------------------------
+      - job: CreateResourceGroup
+        displayName: "Create Resource Group"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+          - task: AzureCLI@2
+            displayName: "Create resource group"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Creating resource group ${{ parameters.resourceGroupName }} in ${{ parameters.location }}"
+                az group create \
+                  --name "${{ parameters.resourceGroupName }}" \
+                  --location "${{ parameters.location }}" \
+                  --subscription "${{ parameters.subscriptionId }}"
+                echo "Resource group created successfully."
+
+      # ------------------------------------------------------------
+      # Job 2: Create AKS Clusters
       # ------------------------------------------------------------
       - job: CreateCluster
         displayName: "Create AKS Clusters"
+        dependsOn: CreateResourceGroup
         pool:
           vmImage: ubuntu-latest
         steps:
@@ -38,12 +62,13 @@ stages:
                 ${{ parameters.resourceGroupName }}
                 ${{ parameters.vmSkuDefault }}
                 ${{ parameters.vmSkuHighNIC }}
-
+      
       # ------------------------------------------------------------
-      # Job 2: Networking & Storage
+      # Job 3: Networking & Storage
       # ------------------------------------------------------------
       - job: NetworkingAndStorage
         displayName: "Networking and Storage Setup"
+        dependsOn: CreateResourceGroup
         pool:
           vmImage: ubuntu-latest
         steps:
@@ -86,10 +111,10 @@ stages:
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.location }}
                 ${{ parameters.resourceGroupName }}
-                
+
           # Task 4: Create NSG
           - task: AzureCLI@2
-            displayName: "Create network security groups to restrict access between subnets."
+            displayName: "Create network security groups to restrict access between subnets"
             inputs:
               azureSubscription: ${{ parameters.serviceConnection }}
               scriptType: bash
@@ -102,7 +127,7 @@ stages:
 
           # Task 5: Create Private Endpoint
           - task: AzureCLI@2
-            displayName: "Create Private Endpoint for Storage Account."
+            displayName: "Create Private Endpoint for Storage Account"
             inputs:
               azureSubscription: ${{ parameters.serviceConnection }}
               scriptType: bash
@@ -114,3 +139,5 @@ stages:
                 ${{ parameters.resourceGroupName }}
                 $(CreateStorageAccounts.StorageAccount1)
                 $(CreateStorageAccounts.StorageAccount2)
+
+      
