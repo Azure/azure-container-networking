@@ -23,6 +23,7 @@ for SA in "$SA1" "$SA2"; do
     --sku Standard_LRS \
     --kind StorageV2 \
     --allow-blob-public-access false \
+    --allow-shared-key-access false \
     --https-only true \
     --min-tls-version TLS1_2 \
     --query "name" -o tsv \
