@@ -145,4 +145,11 @@ const (
 	OptCNIConflistScenario = "cni-conflist-scenario"
 	// OptCNIConflistScenarioAlias "shorthand" for the cni conflist scenairo, see above
 	OptCNIConflistScenarioAlias = "cniconflistscenario"
+
+	// Windows service management
+	OptServiceAction      = "service"
+	OptServiceActionAlias = "s"
+	OptServiceInstall     = "install"
+	OptServiceUninstall   = "uninstall"
+	OptServiceRun         = "run"
 )
