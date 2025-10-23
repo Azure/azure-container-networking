@@ -289,18 +289,30 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 
 	// Populate subnets.
 	for _, subnet := range nwInfo.Subnets {
+		prefixStr := subnet.Prefix.String()
+
+		// Check if it's IPv6
+		if subnet.Prefix.IP.To4() == nil {
+			// IPv6: replace /128 with /64 if present
+			prefixStr = strings.Replace(prefixStr, "/128", "/64", 1)
+		}
+
+		// Choose route based on IP family
+		routeDest := defaultRouteCIDR
+		if subnet.Prefix.IP.To4() == nil {
+			routeDest = defaultIPv6Route
+		}
+
 		hnsSubnet := hcn.Subnet{
-			IpAddressPrefix: subnet.Prefix.String(),
-			// Set the Gateway route
+			IpAddressPrefix: prefixStr,
 			Routes: []hcn.Route{
 				{
 					NextHop:           subnet.Gateway.String(),
-					DestinationPrefix: defaultRouteCIDR,
+					DestinationPrefix: routeDest,
 				},
 			},
 		}
 
-		// Set the subnet policy
 		if vlanid > 0 {
 			hnsSubnet.Policies = append(hnsSubnet.Policies, subnetPolicy)
 		}
