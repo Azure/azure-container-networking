@@ -39,8 +39,8 @@ func (s *shim) Request(msg string, data any, err error) {
 	s.z.Sugar().Infow("Request", "message", msg, "data", data, "error", err)
 }
 
-func (s *shim) Response(msg string, data any, code types.ResponseCode, err error) {
-	s.z.Sugar().Infow("Response", "message", msg, "data", data, "code", code, "error", err)
+func (s *shim) Response(msg string, data any, code types.ResponseCode, properties any, err error) {
+	s.z.Sugar().Infow("Response", "message", msg, "data", data, "code", code, "properties", properties, "error", err)
 }
 
 func (s *shim) ResponseEx(msg string, request, response any, code types.ResponseCode, err error) {

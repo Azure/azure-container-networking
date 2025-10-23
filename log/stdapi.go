@@ -41,7 +41,7 @@ func Request(tag string, request interface{}, err error) {
 }
 
 func Response(tag string, response interface{}, returnCode int, returnStr string, err error) {
-	stdLog.Response(tag, response, returnCode, returnStr, err)
+	stdLog.Response(tag, response, returnCode, returnStr, nil, err)
 }
 
 // Logf logs to the local log.

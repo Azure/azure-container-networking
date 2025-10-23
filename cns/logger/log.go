@@ -18,7 +18,7 @@ type loggershim interface {
 	LogEvent(aitelemetry.Event)
 	Errorf(string, ...any)
 	Request(string, any, error)
-	Response(string, any, types.ResponseCode, error)
+	Response(string, any, types.ResponseCode, any, error)
 	ResponseEx(string, any, any, types.ResponseCode, error)
 	SendMetric(aitelemetry.Metric)
 }
@@ -85,8 +85,8 @@ func Request(tag string, request any, err error) {
 }
 
 // Deprecated: The global logger is deprecated. Migrate to zap using the cns/logger/v2 package and pass the logger instead.
-func Response(tag string, response any, returnCode types.ResponseCode, err error) {
-	Log.Response(tag, response, returnCode, err)
+func Response(tag string, response any, returnCode types.ResponseCode, properties any, err error) {
+	Log.Response(tag, response, returnCode, properties, err)
 }
 
 // Deprecated: The global logger is deprecated. Migrate to zap using the cns/logger/v2 package and pass the logger instead.
