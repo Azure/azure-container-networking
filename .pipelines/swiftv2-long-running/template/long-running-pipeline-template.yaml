@@ -138,6 +138,3 @@ stages:
                 ${{ parameters.location }}
                 ${{ parameters.resourceGroupName }}
                 $(CreateStorageAccounts.StorageAccount1)
-                $(CreateStorageAccounts.StorageAccount2)
-
-      

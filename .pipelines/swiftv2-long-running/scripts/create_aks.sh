@@ -15,9 +15,6 @@ echo "VM SKU (default): $VM_SKU_DEFAULT"
 echo "VM SKU (high-NIC): $VM_SKU_HIGHNIC"
 az account set --subscription "$SUBSCRIPTION_ID"
 
-echo "==> Creating resource group: $RG"
-az group create -n "$RG" -l "$LOCATION" --output none
-
 # Enable parallel cluster creation
 create_cluster() {
   local CLUSTER=$1
