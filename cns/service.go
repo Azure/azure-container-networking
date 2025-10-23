@@ -226,7 +226,7 @@ func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error)
 		tlsConfig.ClientCAs = rootCAs
 		tlsConfig.RootCAs = rootCAs
 		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-			return verifyPeerCertificate(rawCerts, tlsSettings.AllowedClientSubjectName)
+			return verifyPeerCertificate(rawCerts, tlsSettings.MtlsClientCertSubjectName)
 		}
 	}
 	logger.Debugf("TLS configured successfully from file: %+v", tlsSettings)
@@ -280,7 +280,7 @@ func getTLSConfigFromKeyVault(tlsSettings localtls.TlsSettings, errChan chan<- e
 		tlsConfig.ClientCAs = rootCAs
 		tlsConfig.RootCAs = rootCAs
 		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-			return verifyPeerCertificate(rawCerts, tlsSettings.AllowedClientSubjectName)
+			return verifyPeerCertificate(rawCerts, tlsSettings.MtlsClientCertSubjectName)
 		}
 	}
 

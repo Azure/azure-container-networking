@@ -134,21 +134,21 @@ func TestNewService(t *testing.T) {
 		testCertFilePath := createTestCertificate(t)
 
 		TLSSetting := serverTLS.TlsSettings{
-			TLSPort:                  "10091",
-			TLSSubjectName:           "localhost",
-			TLSCertificatePath:       testCertFilePath,
-			UseMTLS:                  true,
-			MinTLSVersion:            "TLS 1.2",
-			AllowedClientSubjectName: "example.com",
+			TLSPort:                   "10091",
+			TLSSubjectName:            "localhost",
+			TLSCertificatePath:        testCertFilePath,
+			UseMTLS:                   true,
+			MinTLSVersion:             "TLS 1.2",
+			MtlsClientCertSubjectName: "example.com",
 		}
 
 		TLSSettingWithDisallowedClientSN := serverTLS.TlsSettings{
-			TLSPort:                  "10092",
-			TLSSubjectName:           "localhost",
-			TLSCertificatePath:       testCertFilePath,
-			UseMTLS:                  true,
-			MinTLSVersion:            "TLS 1.2",
-			AllowedClientSubjectName: "random.com",
+			TLSPort:                   "10092",
+			TLSSubjectName:            "localhost",
+			TLSCertificatePath:        testCertFilePath,
+			UseMTLS:                   true,
+			MinTLSVersion:             "TLS 1.2",
+			MtlsClientCertSubjectName: "random.com",
 		}
 
 		runMutualTLSTest := func(tlsSettings serverTLS.TlsSettings, handshakeFailureExpected bool) {
