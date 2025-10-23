@@ -36,5 +36,5 @@
         "PopulateHomeAzCacheRetryIntervalSecs": 60
     },
     "MinTLSVersion": "TLS 1.2",
-    "AllowedClientSubjectName": ""
+    "MtlsClientCertSubjectName": ""
 }

@@ -810,7 +810,7 @@ func main() {
 				KeyVaultCertificateRefreshInterval: time.Duration(cnsconfig.KeyVaultSettings.RefreshIntervalInHrs) * time.Hour,
 				UseMTLS:                            cnsconfig.UseMTLS,
 				MinTLSVersion:                      cnsconfig.MinTLSVersion,
-				AllowedClientSubjectName:           cnsconfig.AllowedClientSubjectName,
+				AllowedClientSubjectName:           cnsconfig.MtlsClientCertSubjectName,
 			}
 		}
 

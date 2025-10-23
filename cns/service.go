@@ -158,22 +158,23 @@ func getTLSConfig(tlsSettings localtls.TlsSettings, errChan chan<- error) (*tls.
 
 // verifyPeerCertificate verifies the client certificate's subject name matches the expected subject name.
 func verifyPeerCertificate(rawCerts [][]byte, clientSubjectName string) error {
-	if len(rawCerts) == 0 {
-		return errors.New("no client certificate provided")
-	}
 	// no client subject name provided, skip verification
 	if clientSubjectName == "" {
 		return nil
 	}
 
+	if len(rawCerts) == 0 {
+		return errors.New("no client certificate provided during mTLS")
+	}
+
 	cert, err := x509.ParseCertificate(rawCerts[0])
 	if err != nil {
-		return errors.Errorf("failed to parse certificate: %v", err)
+		return errors.Errorf("Failed to parse client certificate during mTLS: %v", err)
 	}
 
 	err = cert.VerifyHostname(clientSubjectName)
 	if err != nil {
-		return errors.Errorf("failed to verify client certificate hostname: %v", err)
+		return errors.Errorf("Failed to verify client certificate subject name during mTLS: %v", err)
 	}
 	return nil
 }

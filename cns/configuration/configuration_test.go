@@ -222,8 +222,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					IPAddress: "localhost",
 					Port:      8080,
 				},
-				MinTLSVersion:            "TLS 1.2",
-				AllowedClientSubjectName: "",
+				MinTLSVersion:             "TLS 1.2",
+				MtlsClientCertSubjectName: "",
 			},
 		},
 		{
@@ -254,8 +254,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					IPAddress: "192.168.1.1",
 					Port:      9090,
 				},
-				MinTLSVersion:            "TLS 1.3",
-				AllowedClientSubjectName: "example.com",
+				MinTLSVersion:             "TLS 1.3",
+				MtlsClientCertSubjectName: "example.com",
 			},
 			want: CNSConfig{
 				ChannelMode: "Other",
@@ -285,8 +285,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					IPAddress: "192.168.1.1",
 					Port:      9090,
 				},
-				MinTLSVersion:            "TLS 1.3",
-				AllowedClientSubjectName: "example.com",
+				MinTLSVersion:             "TLS 1.3",
+				MtlsClientCertSubjectName: "example.com",
 			},
 		},
 	}

@@ -187,7 +187,7 @@ func TestNewService(t *testing.T) {
 			})
 			if handshakeFailureExpected {
 				require.Error(t, err)
-				require.ErrorContains(t, err, "failed to verify client certificate hostname")
+				require.ErrorContains(t, err, "Failed to verify client certificate subject name during mTLS")
 
 			} else {
 				require.NoError(t, err)
