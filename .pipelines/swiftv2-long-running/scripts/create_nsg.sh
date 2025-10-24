@@ -45,8 +45,19 @@ az network nsg rule create \
   --output none \
   && echo "[OK] Deny rule from Subnet2 → Subnet1 created."
 
-  az network vnet subnet update --name s1 --vnet-name cx_vnet_a1 --resource-group "$RG" --network-security-group cx_nsg_a1
-  az network vnet subnet update --name s2 --vnet-name cx_vnet_a1 --resource-group "$RG" --network-security-group cx_nsg_a1
+az network vnet subnet update \
+  --name s1 \
+  --vnet-name "$VNET_A1" \
+  --resource-group "$RG" \
+  --network-security-group "$NSG_NAME" \
+  --output none
+
+az network vnet subnet update \
+  --name s2 \
+  --vnet-name "$VNET_A1" \
+  --resource-group "$RG" \
+  --network-security-group "$NSG_NAME" \
+  --output none
 
 echo "NSG '$NSG_NAME' created successfully with bidirectional isolation between Subnet1 and Subnet2."
 
