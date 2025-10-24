@@ -14,6 +14,7 @@ type EndpointManager struct {
 type releaseIPsClient interface {
 	ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error
 	GetEndpoint(ctx context.Context, endpointID string) (*restserver.GetEndpointResponse, error)
+	DeleteEndpointState(ctx context.Context, endpointID string) (*cns.Response, error)
 }
 
 func WithPlatformReleaseIPsManager(cli releaseIPsClient) *EndpointManager {

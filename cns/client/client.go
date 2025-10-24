@@ -1100,3 +1100,35 @@ func (c *Client) UpdateEndpoint(ctx context.Context, endpointID string, ipInfo m
 
 	return &response, nil
 }
+
+func (c *Client) DeleteEndpointState(ctx context.Context, endpointID string) (*cns.Response, error) {
+	// build the request
+	u := c.routes[cns.EndpointAPI]
+	uString := u.String() + endpointID
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, uString, http.NoBody)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build request")
+	}
+	req.Header.Set(headerContentType, contentTypeJSON)
+	res, err := c.client.Do(req)
+	if err != nil {
+		return nil, &ConnectionFailureErr{cause: err}
+	}
+
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.Errorf("http response %d", res.StatusCode)
+	}
+
+	var response cns.Response
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decode CNS Response")
+	}
+
+	if response.ReturnCode != 0 {
+		return nil, errors.New(response.Message)
+	}
+
+	return &response, nil
+}

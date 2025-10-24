@@ -6,6 +6,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/pkg/errors"
 )
 
@@ -16,7 +17,19 @@ func (em *EndpointManager) ReleaseIPs(ctx context.Context, ipconfigreq cns.IPCon
 	if err := em.deleteEndpoint(ctx, ipconfigreq.InfraContainerID); err != nil {
 		logger.Errorf("failed to remove HNS endpoint %s", err.Error())
 	}
-	return errors.Wrap(em.cli.ReleaseIPs(ctx, ipconfigreq), "failed to release IP from CNS")
+
+	if err := em.cli.ReleaseIPs(ctx, ipconfigreq); err != nil {
+		return errors.Wrap(err, "failed to release IP from CNS")
+	}
+
+	res, err := em.cli.DeleteEndpointState(ctx, ipconfigreq.InfraContainerID)
+	if err != nil {
+		if res.ReturnCode != types.NotFound {
+			return errors.Wrap(err, "")
+		}
+	}
+
+	return nil
 }
 
 // deleteEndpoint API to get the state and then remove assiciated HNS

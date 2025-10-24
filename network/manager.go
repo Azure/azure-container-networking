@@ -762,7 +762,7 @@ func (nm *networkManager) SaveState(eps []*endpoint) error {
 	return nm.save()
 }
 
-func (nm *networkManager) DeleteState(_ []*EndpointInfo) error {
+func (nm *networkManager) DeleteState(epInfos []*EndpointInfo) error {
 	nm.Lock()
 	defer nm.Unlock()
 
@@ -772,6 +772,20 @@ func (nm *networkManager) DeleteState(_ []*EndpointInfo) error {
 	// For stateless cni, plugin.ipamInvoker.Delete takes care of removing the state in the main Delete function
 
 	if nm.IsStatelessCNIMode() {
+		for _, epInfo := range epInfos {
+			if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC || epInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+				response, err := nm.CnsClient.DeleteEndpointState(context.TODO(), epInfo.EndpointID)
+				if err != nil {
+					if response != nil && response.ReturnCode == types.NotFound {
+						logger.Info("Endpoint state not found in CNS", zap.String("endpointID", epInfo.EndpointID))
+						return nil
+					}
+					return errors.Wrapf(err, "Delete endpoint API returned with error for endpoint %s", epInfo.EndpointID)
+				}
+				logger.Info("Delete endpoint succeeded", zap.String("endpointID", epInfo.EndpointID), zap.String("returnCode", response.ReturnCode.String()))
+				break
+			}
+		}
 		return nil
 	}
 

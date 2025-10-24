@@ -1159,10 +1159,10 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			}
 		}
 	}
-	logger.Info("Deleting the state from the cni statefile")
+	logger.Info("Deleting endpoint state from statefile")
 	err = plugin.nm.DeleteState(epInfos)
 	if err != nil {
-		return plugin.RetriableError(fmt.Errorf("failed to save state: %w", err))
+		return plugin.RetriableError(fmt.Errorf("failed to delete state: %w", err))
 	}
 
 	return err
