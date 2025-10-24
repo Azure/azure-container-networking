@@ -93,6 +93,9 @@ const (
 	NodeNetworkInterfaceFrontendNIC NICType = "FrontendNIC"
 	// NodeNetworkInterfaceBackendNIC is the new name for BackendNIC
 	NodeNetworkInterfaceBackendNIC NICType = "BackendNIC"
+
+	// ApipaNIC is used for internal communication between host and container
+	ApipaNIC NICType = "ApipaNIC"
 )
 
 // ChannelMode :- CNS channel modes
@@ -519,6 +522,12 @@ type PodIpInfo struct {
 	PnPID string
 	// Default Deny ACL's to configure on HNS endpoints for Swiftv2 window nodes
 	EndpointPolicies []policy.Policy
+	// This flag is in effect only if nic type is apipa. This allows connection originating from host to container via apipa nic and not other way.
+	AllowHostToNCCommunication bool
+	// This flag is in effect only if nic type is apipa. This allows connection originating from container to host via apipa nic and not other way.
+	AllowNCToHostCommunication bool
+	// NetworkContainerID is the ID of the network container to which this Pod IP belongs
+	NetworkContainerID string
 }
 
 type HostIPInfo struct {
