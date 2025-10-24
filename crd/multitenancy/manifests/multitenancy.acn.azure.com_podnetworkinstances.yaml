@@ -23,10 +23,6 @@ spec:
     - jsonPath: .status.status
       name: Status
       type: string
-    - jsonPath: .spec.podNetworks
-      name: PodNetworks
-      priority: 1
-      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
