@@ -29,8 +29,8 @@ az network private-dns link vnet create \
   && echo "[OK] Linked DNS zone to $VNET_A1."
 
 az network private-dns link vnet create \
-  -g "$RG" -n "${VNET_A2}-link" -\
-  -zone-name "$PRIVATE_DNS_ZONE" \
+  -g "$RG" -n "${VNET_A2}-link" \
+  --zone-name "$PRIVATE_DNS_ZONE" \
   --virtual-network "$VNET_A2" \
   --registration-enabled false \
   && echo "[OK] Linked DNS zone to $VNET_A2."
