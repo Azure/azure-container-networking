@@ -17,9 +17,9 @@ az network nsg create -g "$RG" -n "$NSG_NAME" -l "$LOCATION" --output none \
 
 echo "==> Creating NSG rule to DENY traffic from Subnet1 ($SUBNET1_PREFIX) to Subnet2 ($SUBNET2_PREFIX)"
 az network nsg rule create \
-  -g "$RG" \
+  --resource-group "$RG" \
   --nsg-name "$NSG_NAME" \
-  -n deny-subnet1-to-subnet2 \
+  --name deny-subnet1-to-subnet2 \
   --priority 100 \
   --source-address-prefixes "$SUBNET1_PREFIX" \
   --destination-address-prefixes "$SUBNET2_PREFIX" \
@@ -32,9 +32,9 @@ az network nsg rule create \
 
 echo "==> Creating NSG rule to DENY traffic from Subnet2 ($SUBNET2_PREFIX) to Subnet1 ($SUBNET1_PREFIX)"
 az network nsg rule create \
-  -g "$RG" \
+  --resource-group "$RG" \
   --nsg-name "$NSG_NAME" \
-  -n deny-subnet2-to-subnet1 \
+  --name deny-subnet2-to-subnet1 \
   --priority 200 \
   --source-address-prefixes "$SUBNET2_PREFIX" \
   --destination-address-prefixes "$SUBNET1_PREFIX" \
@@ -45,4 +45,8 @@ az network nsg rule create \
   --output none \
   && echo "[OK] Deny rule from Subnet2 → Subnet1 created."
 
+  az network vnet subnet update --name s1 --vnet-name cx_vnet_a1 --resource-group "$RG" --network-security-group cx_nsg_a1
+  az network vnet subnet update --name s2 --vnet-name cx_vnet_a1 --resource-group "$RG" --network-security-group cx_nsg_a1
+
 echo "NSG '$NSG_NAME' created successfully with bidirectional isolation between Subnet1 and Subnet2."
+
