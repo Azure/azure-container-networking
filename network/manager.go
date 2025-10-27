@@ -773,6 +773,7 @@ func (nm *networkManager) DeleteState(epInfos []*EndpointInfo) error {
 
 	if nm.IsStatelessCNIMode() {
 		for _, epInfo := range epInfos {
+			// this cleanup happens only for standalone swiftv2 to delete endpoint state from CNS.
 			if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC || epInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
 				response, err := nm.CnsClient.DeleteEndpointState(context.TODO(), epInfo.EndpointID)
 				if err != nil {

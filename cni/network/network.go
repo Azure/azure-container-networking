@@ -1079,7 +1079,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID)
 		// if stateless CNI fail to get the endpoint from CNS for any reason other than  Endpoint Not found
 		if err != nil {
-			if errors.Is(err, network.ErrConnectionFailure) {
+			if errors.Is(err, network.ErrConnectionFailure) && !nwCfg.DisableAsyncDelete {
 				logger.Info("failed to connect to CNS", zap.String("containerID", args.ContainerID), zap.Error(err))
 				addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
 				logger.Info("add containerid file for Asynch delete", zap.String("containerID", args.ContainerID), zap.Error(addErr))
