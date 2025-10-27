@@ -163,7 +163,7 @@ func verifyPeerCertificate(verifiedChains [][]*x509.Certificate, clientSubjectNa
 		return nil
 	}
 
-	if len(verifiedChains) == 0 {
+	if len(verifiedChains) == 0 || len(verifiedChains[0]) == 0 {
 		return errors.New("no client certificate provided during mTLS")
 	}
 
