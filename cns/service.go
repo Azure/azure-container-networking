@@ -169,17 +169,20 @@ func verifyPeerCertificate(verifiedChains [][]*x509.Certificate, clientSubjectNa
 
 	clientCert := verifiedChains[0][0]
 	// Match DNS names (case-insensitive)
-	for _, dns := range clientCert.DNSNames {
+	dnsName := clientCert.DNSNames
+	for _, dns := range dnsName {
 		if strings.EqualFold(dns, clientSubjectName) {
 			return nil
 		}
 	}
 
 	// If SANs didn't match, fall back to Common Name (CN) match.
-	if clientCert.Subject.CommonName != "" && strings.EqualFold(clientCert.Subject.CommonName, clientSubjectName) {
+	clientCN := clientCert.Subject.CommonName
+	if clientCert.Subject.CommonName != "" && strings.EqualFold(clientCN, clientSubjectName) {
 		return nil
 	}
-	return errors.Errorf("Failed to verify client certificate subject name during mTLS: %s", clientSubjectName)
+	return errors.Errorf("Failed to verify client certificate subject name during mTLS, clientSubjectName: %s, client cert SANs: %+v, CN: %s",
+		clientSubjectName, dnsName, clientCN)
 }
 
 func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error) {
