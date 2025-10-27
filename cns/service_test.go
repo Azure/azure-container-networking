@@ -151,6 +151,15 @@ func TestNewService(t *testing.T) {
 			MtlsClientCertSubjectName: "random.com",
 		}
 
+		TLSSettingWithClientCertCN := serverTLS.TlsSettings{
+			TLSPort:                   "10093",
+			TLSSubjectName:            "localhost",
+			TLSCertificatePath:        testCertFilePath,
+			UseMTLS:                   true,
+			MinTLSVersion:             "TLS 1.2",
+			MtlsClientCertSubjectName: "foo.com", // Common Name from test certificate
+		}
+
 		runMutualTLSTest := func(tlsSettings serverTLS.TlsSettings, handshakeFailureExpected bool) {
 			config.TLSSettings = tlsSettings
 			svc, err := NewService(config.Name, config.Version, config.ChannelMode, config.Store)
@@ -207,6 +216,7 @@ func TestNewService(t *testing.T) {
 			svc.Uninitialize()
 		}
 		runMutualTLSTest(TLSSetting, false)
+		runMutualTLSTest(TLSSettingWithClientCertCN, false)
 		runMutualTLSTest(TLSSettingWithDisallowedClientSN, true)
 	})
 }

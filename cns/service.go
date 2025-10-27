@@ -157,26 +157,29 @@ func getTLSConfig(tlsSettings localtls.TlsSettings, errChan chan<- error) (*tls.
 }
 
 // verifyPeerCertificate verifies the client certificate's subject name matches the expected subject name.
-func verifyPeerCertificate(rawCerts [][]byte, clientSubjectName string) error {
+func verifyPeerCertificate(verifiedChains [][]*x509.Certificate, clientSubjectName string) error {
 	// no client subject name provided, skip verification
 	if clientSubjectName == "" {
 		return nil
 	}
 
-	if len(rawCerts) == 0 {
+	if len(verifiedChains) == 0 {
 		return errors.New("no client certificate provided during mTLS")
 	}
 
-	cert, err := x509.ParseCertificate(rawCerts[0])
-	if err != nil {
-		return errors.Errorf("Failed to parse client certificate during mTLS: %v", err)
+	clientCert := verifiedChains[0][0]
+	// Match DNS names (case-insensitive)
+	for _, dns := range clientCert.DNSNames {
+		if strings.EqualFold(dns, clientSubjectName) {
+			return nil
+		}
 	}
 
-	err = cert.VerifyHostname(clientSubjectName)
-	if err != nil {
-		return errors.Errorf("Failed to verify client certificate subject name during mTLS: %v", err)
+	// If SANs didn't match, fall back to Common Name (CN) match.
+	if clientCert.Subject.CommonName != "" && strings.EqualFold(clientCert.Subject.CommonName, clientSubjectName) {
+		return nil
 	}
-	return nil
+	return errors.Errorf("Failed to verify client certificate subject name during mTLS: %s", clientSubjectName)
 }
 
 func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error) {
@@ -225,8 +228,8 @@ func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error)
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		tlsConfig.ClientCAs = rootCAs
 		tlsConfig.RootCAs = rootCAs
-		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-			return verifyPeerCertificate(rawCerts, tlsSettings.MtlsClientCertSubjectName)
+		tlsConfig.VerifyPeerCertificate = func(_ [][]byte, verifiedChains [][]*x509.Certificate) error {
+			return verifyPeerCertificate(verifiedChains, tlsSettings.MtlsClientCertSubjectName)
 		}
 	}
 	logger.Debugf("TLS configured successfully from file: %+v", tlsSettings)
@@ -279,8 +282,8 @@ func getTLSConfigFromKeyVault(tlsSettings localtls.TlsSettings, errChan chan<- e
 		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		tlsConfig.ClientCAs = rootCAs
 		tlsConfig.RootCAs = rootCAs
-		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-			return verifyPeerCertificate(rawCerts, tlsSettings.MtlsClientCertSubjectName)
+		tlsConfig.VerifyPeerCertificate = func(_ [][]byte, verifiedChains [][]*x509.Certificate) error {
+			return verifyPeerCertificate(verifiedChains, tlsSettings.MtlsClientCertSubjectName)
 		}
 	}
 
