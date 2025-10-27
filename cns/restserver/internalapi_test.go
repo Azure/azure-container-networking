@@ -67,16 +67,16 @@ func TestReconcileNCStatePrimaryIPChangeShouldFail(t *testing.T) {
 	svc.state.ContainerStatus = make(map[string]containerstatus)
 
 	testCases := []struct {
-		existingIPAddress string
-		requestIPAddress  string
+		reqIPAddress         string
+		reqPrefixLength      uint8
+		existingIPAddress    string
+		existingPrefixLength uint8
 	}{
-		{"", "10.240.0.0/16"},
-		{"10.240.0.0", "2001:db8::/64"},
-		{"2001:db8::/64", "10.240.0.0/16"},
-		{"10.0.1.0/22", "10.0.2.0/24"},
-		{"10.0.1.0/21", "10.0.1.0/23"},
-		{"10.0.1.0", "10.0.0.0/15"},
-		{"10.0.1.0/15", "10.0.0.0"},
+		{"10.240.1.0", 16, "10.240.0.0", 16},
+		{"10.240.0.0", 64, "2001:db8::", 64},
+		{"2001:db8::", 64, "10.240.0.0", 16},
+		{"10.0.1.0", 24, "10.0.2.0", 22},
+		{"10.0.1.0", 23, "10.0.1.0", 21},
 	}
 
 	// Run test cases
@@ -92,7 +92,7 @@ func TestReconcileNCStatePrimaryIPChangeShouldFail(t *testing.T) {
 				IPConfiguration: cns.IPConfiguration{
 					IPSubnet: cns.IPSubnet{
 						IPAddress:    tc.existingIPAddress,
-						PrefixLength: 24,
+						PrefixLength: tc.existingPrefixLength,
 					},
 				},
 			},
@@ -103,8 +103,8 @@ func TestReconcileNCStatePrimaryIPChangeShouldFail(t *testing.T) {
 				NetworkContainerid: ncID,
 				IPConfiguration: cns.IPConfiguration{
 					IPSubnet: cns.IPSubnet{
-						IPAddress:    tc.requestIPAddress,
-						PrefixLength: 24,
+						IPAddress:    tc.reqIPAddress,
+						PrefixLength: tc.reqPrefixLength,
 					},
 				},
 			},
@@ -127,13 +127,17 @@ func TestReconcileNCStatePrimaryIPChangeShouldNotFail(t *testing.T) {
 	svc.state.ContainerStatus = make(map[string]containerstatus)
 
 	testCases := []struct {
-		existingIPAddress string
-		requestIPAddress  string
+		reqIPAddress         string
+		reqPrefixLength      uint8
+		existingIPAddress    string
+		existingPrefixLength uint8
 	}{
-		{"10.0.1.0/24", "10.0.2.0/22"},
-		{"10.0.1.0/20", "10.0.1.0/18"},
-		{"10.0.1.0/19", "10.0.0.0/15"},
-		{"10.0.1.0/18", "10.0.1.0/18"},
+		{"10.240.0.0", 20, "10.240.0.0", 24},
+
+		{"10.0.1.0", 22, "10.0.2.0", 24},
+		{"10.0.1.0", 18, "10.0.1.0", 20},
+		{"10.0.1.0", 15, "10.0.0.0", 19},
+		{"10.0.1.0", 18, "10.0.1.0", 18},
 	}
 
 	// Run test cases
@@ -149,7 +153,7 @@ func TestReconcileNCStatePrimaryIPChangeShouldNotFail(t *testing.T) {
 				IPConfiguration: cns.IPConfiguration{
 					IPSubnet: cns.IPSubnet{
 						IPAddress:    tc.existingIPAddress,
-						PrefixLength: 24,
+						PrefixLength: tc.existingPrefixLength,
 					},
 				},
 			},
@@ -160,8 +164,8 @@ func TestReconcileNCStatePrimaryIPChangeShouldNotFail(t *testing.T) {
 				NetworkContainerid: ncID,
 				IPConfiguration: cns.IPConfiguration{
 					IPSubnet: cns.IPSubnet{
-						IPAddress:    tc.requestIPAddress,
-						PrefixLength: 24,
+						IPAddress:    tc.reqIPAddress,
+						PrefixLength: tc.reqPrefixLength,
 					},
 				},
 				NetworkContainerType: cns.Kubernetes,
