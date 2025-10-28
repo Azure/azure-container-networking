@@ -530,8 +530,8 @@ func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.Exe
 	}
 
 	if ep.HnsId == "" {
-		logger.Error("No HNS id found. Skip endpoint deletion", zap.Any("nicType", ep.NICType), zap.String("containerId", ep.ContainerID))
-		return fmt.Errorf("No HNS id found. Skip endpoint deletion for nicType %v, containerID %s", ep.NICType, ep.ContainerID) //nolint
+		logger.Info("No HNS id found. Skip endpoint deletion", zap.Any("nicType", ep.NICType), zap.String("containerId", ep.ContainerID))
+		return nil
 	}
 
 	if useHnsV2, err := UseHnsV2(ep.NetNs); useHnsV2 {
