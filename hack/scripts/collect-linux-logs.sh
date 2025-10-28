@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# Usage: acnLogs="./linux-logs/" cni="cniv2" bash collect-linux-logs.sh
 echo "Ensure that privileged pod exists on each node"
 kubectl apply -f ../../test/integration/manifests/load/privileged-daemonset.yaml
 kubectl rollout status ds -n kube-system privileged-daemonset
@@ -55,9 +55,8 @@ if [ ${cni} = 'cilium' ] || [ ${cni} = 'cniv2' ]; then
 
   kubectl get pods -n kube-system -l k8s-app=azure-cns
   echo "Capture State Files from CNS pods"
-  cnsPods=`kubectl get pods -n kube-system -l k8s-app=azure-cns --no-headers | awk '{print $1}'`
-  for pod in $cnsPods; do
-    managed=`kubectl exec -i -n kube-system $pod -- cat etc/azure-cns/cns_config.json | jq .ManageEndpointState`
+  managed=`kubectl get cm cns-config -n kube-system -o jsonpath='{.data.cns_config\.json}' | jq .ManageEndpointState`
+  for pod in $podList; do
     node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name --no-headers | awk '{print $1}'`
     mkdir -p ${acnLogs}/"$node"_logs/CNS-output/
     echo "Directory created: ${acnLogs}/"$node"_logs/CNS-output/"

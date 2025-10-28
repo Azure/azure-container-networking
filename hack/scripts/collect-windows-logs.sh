@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# Usage: acnLogs="./win-logs/" cni="cniv2" bash collect-windows-logs.sh
 echo "Ensure that privileged pod exists on each node"
 kubectl apply -f ../../test/integration/manifests/load/privileged-daemonset-windows.yaml
 kubectl rollout status ds -n kube-system privileged-daemonset
@@ -20,7 +20,7 @@ for pod in $podList; do
   done
   if [ ${cni} = 'cniv2' ]; then
     file="azure-cns.log"
-    kubectl exec -i -n kube-system $pod -- cat k/azurecns/$file > ${acnLogs}/"$node"_logs/log-output/$file
+    kubectl exec -i -n kube-system $pod -- powershell cat k/azurecns/$file > ${acnLogs}/"$node"_logs/log-output/$file
     echo "CNS Log, $file, captured: ${acnLogs}/"$node"_logs/log-output/$file"
   fi
 done
@@ -49,9 +49,8 @@ if [ ${cni} = 'cniv2' ]; then
 
   kubectl get pods -n kube-system -l k8s-app=azure-cns-win --no-headers
   echo "Capture State Files from CNS pods"
-  cnsPods=`kubectl get pods -n kube-system -l k8s-app=azure-cns-win --no-headers | awk '{print $1}'`
-  for pod in $cnsPods; do
-    managed=`kubectl exec -i -n kube-system pod -- powershell cat etc/azure-cns/cns_config.json | jq .ManageEndpointState`
+  managed=`kubectl get cm cns-win-config -n kube-system -o jsonpath='{.data.cns_config\.json}' | jq .ManageEndpointState`
+  for pod in $podList; do
     node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name --no-headers | awk '{print $1}'`
     mkdir -p ${acnLogs}/"$node"_logs/CNS-output/
     echo "Directory created: ${acnLogs}/"$node"_logs/CNS-output/"
@@ -65,7 +64,7 @@ if [ ${cni} = 'cniv2' ]; then
     echo "CNS State, $file, captured: ${acnLogs}/"$node"_logs/CNS-output/$file"
     if [ $managed = "true" ]; then
       file="azure-endpoints.json"
-      kubectl exec -i -n kube-system $pod -- cat k/azurecns/$file > ${acnLogs}/"$node"_logs/CNS-output/$file
+      kubectl exec -i -n kube-system $pod -- powershell cat k/azurecns/$file > ${acnLogs}/"$node"_logs/CNS-output/$file
       echo "CNS Managed State, $file, captured: ${acnLogs}/"$node"_logs/CNS-output/$file"
     fi
   done
