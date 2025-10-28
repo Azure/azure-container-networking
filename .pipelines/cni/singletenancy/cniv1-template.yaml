@@ -231,7 +231,7 @@ stages:
           - restart_nodes
           - recover
           - cni_${{ parameters.os }}
-        condition: failed()
+        condition: always()
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
@@ -342,7 +342,7 @@ stages:
             - deploy_podsHNS
             - recover
             - cni_${{ parameters.os }}
-          condition: failed()
+          condition: always()
           steps:
             - template: ../../templates/log-template.yaml
               parameters:

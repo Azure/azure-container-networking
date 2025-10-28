@@ -80,7 +80,7 @@ stages:
         dependsOn:
           - ${{ parameters.name }}
           - cni_linux
-        condition: failed()
+        condition: always()
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
