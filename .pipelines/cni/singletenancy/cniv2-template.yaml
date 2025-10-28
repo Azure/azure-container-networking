@@ -344,7 +344,7 @@ stages:
           - restart_cns
           - recover
           - cni_${{ parameters.os }}
-        condition: failed()
+        condition: always()
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
@@ -467,7 +467,7 @@ stages:
             - restart_cns
             - recover
             - cni_${{ parameters.os }}
-          condition: failed()
+          condition: always()
           steps:
             - template: ../../templates/log-template.yaml
               parameters:
