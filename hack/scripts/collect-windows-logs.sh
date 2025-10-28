@@ -20,7 +20,7 @@ for pod in $podList; do
   done
   if [ ${cni} = 'cniv2' ]; then
     file="azure-cns.log"
-    kubectl exec -i -n kube-system $pod -- powershell cat k/azurecns/$file > ${acnLogs}/"$node"_logs/log-output/$file
+    kubectl exec -i -n kube-system $pod -- powershell cat ../../k/azurecns/$file > ${acnLogs}/"$node"_logs/log-output/$file
     echo "CNS Log, $file, captured: ${acnLogs}/"$node"_logs/log-output/$file"
   fi
 done
@@ -60,11 +60,11 @@ if [ ${cni} = 'cniv2' ]; then
     echo "CNS cache, $file, captured: ${acnLogs}/"$node"_logs/CNS-output/$file"
 
     file="azure-cns.json"
-    kubectl exec -i -n kube-system $pod -- powershell cat k/azurecns/azure-cns.json > ${acnLogs}/"$node"_logs/CNS-output/$file
+    kubectl exec -i -n kube-system $pod -- powershell cat ../../k/azurecns/azure-cns.json > ${acnLogs}/"$node"_logs/CNS-output/$file
     echo "CNS State, $file, captured: ${acnLogs}/"$node"_logs/CNS-output/$file"
     if [ $managed = "true" ]; then
       file="azure-endpoints.json"
-      kubectl exec -i -n kube-system $pod -- powershell cat k/azurecns/$file > ${acnLogs}/"$node"_logs/CNS-output/$file
+      kubectl exec -i -n kube-system $pod -- powershell cat ../../k/azurecns/$file > ${acnLogs}/"$node"_logs/CNS-output/$file
       echo "CNS Managed State, $file, captured: ${acnLogs}/"$node"_logs/CNS-output/$file"
     fi
   done
