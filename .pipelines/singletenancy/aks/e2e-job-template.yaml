@@ -52,6 +52,7 @@ stages:
       - job: ${{ parameters.name }}
         displayName: Singletenancy AKS - (${{ parameters.name }})
         timeoutInMinutes: 120
+        continueOnError: true
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
@@ -66,6 +67,43 @@ stages:
               os: ${{ parameters.os }}
               os_version: ${{ parameters.os_version }}
               scaleup: ${{ parameters.scaleup }}
+
+      - job: warningHandler
+        displayName: "Handle E2E Warning"
+        dependsOn: ${{ parameters.name }}
+        condition: eq(dependencies.${{ parameters.name }}.result, 'SucceededWithIssues')
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+            displayName: Set Up Kubeconfig
+            condition: always()
+            continueOnError: true 
+          - ${{ if eq(parameters.os, 'linux') }}:
+            # if the cni logs contains "Initializing HTTP client with connection timeout" it is a known issue and we skip
+            - script: |
+                cd hack/scripts
+                acnLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_check_common_issues
+                acnLogs=$acnLogs cni=${{ parameters.cni }} bash collect-linux-logs.sh
+                bash check-cni-log-contents.sh "$acnLogs" "azure-vnet*.log" "Initializing HTTP client with connection timeout"
+              displayName: Fail if known linux issue not found
+              condition: always()
+          - ${{ if eq(parameters.os, 'windows') }}:
+            - script: |
+                exit 1
+              displayName: Fail if known windows issue not found
+              condition: always()
+          
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
