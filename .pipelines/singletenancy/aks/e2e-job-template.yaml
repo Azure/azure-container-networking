@@ -94,7 +94,7 @@ stages:
             - script: |
                 cd hack/scripts
                 acnLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_check_common_issues
-                acnLogs=$acnLogs cni=${{ parameters.cni }} bash collect-linux-logs.sh
+                acnLogs=$acnLogs cni=cniv1 bash collect-linux-logs.sh
                 bash check-cni-log-contents.sh "$acnLogs" "azure-vnet*.log" "Initializing HTTP client with connection timeout"
               displayName: Fail if known linux issue not found
               condition: always()
