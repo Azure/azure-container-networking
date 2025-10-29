@@ -71,7 +71,6 @@ stages:
       - job: warningHandler
         displayName: "Handle E2E Warning"
         dependsOn: ${{ parameters.name }}
-        condition: eq(dependencies.${{ parameters.name }}.result, 'SucceededWithIssues')
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
@@ -85,7 +84,7 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
             displayName: Set Up Kubeconfig
             condition: always()
             continueOnError: true 
