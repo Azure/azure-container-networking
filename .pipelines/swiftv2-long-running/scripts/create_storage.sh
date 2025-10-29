@@ -28,9 +28,7 @@ for SA in "$SA1" "$SA2"; do
     --min-tls-version TLS1_2 \
     --query "name" -o tsv \
   && echo "Storage account $SA created successfully."
-done
-
-# Verify creation success
+  # Verify creation success
   echo "==> Verifying storage account $SA exists..."
   if az storage account show --name "$SA" --resource-group "$RG" &>/dev/null; then
     echo "[OK] Storage account $SA verified successfully."
