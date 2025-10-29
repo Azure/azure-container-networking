@@ -30,7 +30,17 @@ for SA in "$SA1" "$SA2"; do
   && echo "Storage account $SA created successfully."
 done
 
-echo "All storage accounts created successfully."
+# Verify creation success
+  echo "==> Verifying storage account $SA exists..."
+  if az storage account show --name "$SA" --resource-group "$RG" &>/dev/null; then
+    echo "[OK] Storage account $SA verified successfully."
+  else
+    echo "[ERROR] Storage account $SA not found after creation!" >&2
+    exit 1
+  fi
+done
+
+echo "All storage accounts created and verified successfully."
 
 # Set pipeline output variables
 set +x
