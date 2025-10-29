@@ -76,3 +76,6 @@ steps:
       kubectl delete ns load-test
     displayName: "Validate State"
     retryCountOnTaskFailure: 3
+  - script: |
+      exit 1
+    displayName: "Force Error for testing"
