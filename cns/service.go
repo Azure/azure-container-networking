@@ -167,10 +167,11 @@ func verifyPeerCertificate(verifiedChains [][]*x509.Certificate, clientSubjectNa
 		return errors.New("no client certificate provided during mTLS")
 	}
 
+	// Get client leaf certificate
 	clientCert := verifiedChains[0][0]
 	// Match DNS names (case-insensitive)
-	dnsName := clientCert.DNSNames
-	for _, dns := range dnsName {
+	dnsNames := clientCert.DNSNames
+	for _, dns := range dnsNames {
 		if strings.EqualFold(dns, clientSubjectName) {
 			return nil
 		}
@@ -178,11 +179,28 @@ func verifyPeerCertificate(verifiedChains [][]*x509.Certificate, clientSubjectNa
 
 	// If SANs didn't match, fall back to Common Name (CN) match.
 	clientCN := clientCert.Subject.CommonName
-	if clientCert.Subject.CommonName != "" && strings.EqualFold(clientCN, clientSubjectName) {
+	if clientCN != "" && strings.EqualFold(clientCN, clientSubjectName) {
 		return nil
 	}
-	return errors.Errorf("Failed to verify client certificate subject name during mTLS, clientSubjectName: %s, client cert SANs: %+v, CN: %s",
-		clientSubjectName, dnsName, clientCN)
+
+	// maskHalf of the DNS names
+	for i, dns := range dnsNames {
+		dnsNames[i] = maskHalf(dns)
+	}
+
+	return errors.Errorf("Failed to verify client certificate subject name during mTLS, clientSubjectName: %s, client cert SANs: %+v, clientCN: %s",
+		clientSubjectName, dnsNames, maskHalf(clientCN))
+}
+
+// maskHalf masks half of the input string with asterisks.
+func maskHalf(s string) string {
+	n := len(s)
+	if n == 0 {
+		return s
+	}
+
+	half := n / 2
+	return s[:half] + strings.Repeat("*", n-half)
 }
 
 func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error) {
