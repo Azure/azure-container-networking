@@ -1,47 +1,63 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 trap 'echo "[ERROR] Failed during Resource group or AKS cluster creation." >&2' ERR
-
 SUBSCRIPTION_ID=$1
 LOCATION=$2
 RG=$3
 VM_SKU_DEFAULT=$4
 VM_SKU_HIGHNIC=$5
 
-echo "Subscription id: $SUBSCRIPTION_ID"
-echo "Resource group: $RG"
-echo "Location: $LOCATION"
-echo "VM SKU (default): $VM_SKU_DEFAULT"
-echo "VM SKU (high-NIC): $VM_SKU_HIGHNIC"
-az account set --subscription "$SUBSCRIPTION_ID"
+CLUSTER_COUNT=2                               
+CLUSTER_PREFIX="aks"                          
+DEFAULT_NODE_COUNT=1                               
+COMMON_TAGS="fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true"
 
-# Enable parallel cluster creation
-create_cluster() {
-  local CLUSTER=$1
-  echo "==> Creating AKS cluster: $CLUSTER"
-
-  az aks create -g "$RG" -n "$CLUSTER" -l "$LOCATION" \
-    --network-plugin azure --node-count 1 \
-    --node-vm-size "$VM_SKU_DEFAULT" \
-    --enable-managed-identity --generate-ssh-keys \
-    --load-balancer-sku standard --yes --only-show-errors
-
-  echo "==> Adding high-NIC nodepool to $CLUSTER"
-  az aks nodepool add -g "$RG" -n highnic \
-    --cluster-name "$CLUSTER" --node-count 2 \
-    --node-vm-size "$VM_SKU_HIGHNIC" --mode User --only-show-errors
-
-  echo "Finished AKS cluster: $CLUSTER"
+wait_for_provisioning() {                      # Helper for safe retry/wait for provisioning states (basic)
+  local rg="$1" clusterName="$2"                     
+  echo "Waiting for AKS '$clusterName' in RG '$rg' to reach Succeeded/Failed (polling)..."
+  while :; do
+    state=$(az aks show --resource-group "$rg" --name "$clusterName" --query provisioningState -o tsv 2>/dev/null || true)
+    if [ -z "$state" ]; then
+      sleep 3
+      continue
+    fi
+    case "$state" in
+      Succeeded|Succeeded*) echo "Provisioning state: $state"; break ;;
+      Failed|Canceled|Rejected) echo "Provisioning finished with state: $state"; break ;;
+      *) printf "."; sleep 6 ;;
+    esac
+  done
 }
 
-# Run both clusters in parallel
-create_cluster "aks-cluster-a" &
-pid_a=$!
 
-create_cluster "aks-cluster-b" &
-pid_b=$!
+for i in $(seq 1 "$CLUSTER_COUNT"); do
+  echo "=============================="
+  echo " Working on cluster set #$i"
+  echo "=============================="
+  
+  CLUSTER_NAME="${CLUSTER_PREFIX}-${i}"
+  echo "Creating AKS cluster '$CLUSTER_NAME' in RG '$RG'"
 
-# Wait for both to finish
-wait $pid_a $pid_b
+  make -C ./hack/aks azcfg AZCLI=az REGION=$LOCATION
 
-echo "AKS clusters created successfully!"
+  make -C ./hack/aks swiftv2-podsubnet-cluster-up \
+  AZCLI=az REGION=$LOCATION \
+  SUB=$SUBSCRIPTION_ID \
+  GROUP=$RG \
+  CLUSTER=$CLUSTER_NAME \
+  NODE_COUNT=$DEFAULT_NODE_COUNT \
+  VM_SIZE=$VM_SKU_DEFAULT \
+
+  echo " - waiting for AKS provisioning state..."
+  wait_for_provisioning "$RG" "$CLUSTER_NAME"
+
+  echo "Adding multi-tenant nodepool ' to '$CLUSTER_NAME'"
+  make -C ./hack/aks linux-swiftv2-nodepool-up \
+  AZCLI=az REGION=$LOCATION \
+  GROUP=$RG \
+  VM_SIZE=$VM_SKU_HIGHNIC \
+  CLUSTER=$CLUSTER_NAME \
+  SUB=$SUBSCRIPTION_ID \
+
+done
+echo "All done. Created $CLUSTER_COUNT cluster set(s)."

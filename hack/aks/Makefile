@@ -285,6 +285,24 @@ swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI clus
 		--yes
 	@$(MAKE) set-kubeconf
 
+swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Create dummy AKS cluster to create pod and node subnets for AKS pod subnet cluster.
+	$(AZCLI) aks create -n "$(CLUSTER)" -g $(GROUP) -l $(REGION) \
+		--network-plugin azure \
+		--kubernetes-version $(K8S_VER) \
+		--nodepool-name nodepool1 \
+		--node-vm-size $(VM_SIZE) \
+		--node-count $(NODE_COUNT) \
+		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
+		--no-ssh-key \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--service-cidr "10.0.0.0/16" \
+		--dns-service-ip "10.0.0.10" \
+		--tags fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true \
+		--http-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
+		--yes 
+	@$(MAKE) set-kubeconf
+
 # The below Vnet Scale clusters are currently only in private preview and available with Kubernetes 1.28
 # These AKS clusters can only be created in a limited subscription listed here:
 # https://dev.azure.com/msazure/CloudNativeCompute/_git/aks-rp?path=/resourceprovider/server/microsoft.com/containerservice/flags/network_flags.go&version=GBmaster&line=134&lineEnd=135&lineStartColumn=1&lineEndColumn=1&lineStyle=plain&_a=contents
@@ -422,6 +440,18 @@ windows-swift-nodepool-up: ## Add windows node pool
 		--os-sku $(OS_SKU_WIN) \
 		--max-pods 250 \
 		--subscription $(SUB) \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
+
+linux-swiftv2-nodepool-up: ## Add linux node pool to swiftv2 cluster
+	$(AZCLI) aks nodepool add -g $(GROUP) -n nplinux \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--cluster-name $(CLUSTER) \
+		--os-type Linux \
+		--max-pods 250 \
+		--subscription $(SUB) \
+		--tags fastpathenabled=true,aks-nic-enable-multi-tenancy=true \
+		--http-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
 
 down: ## Delete the cluster
