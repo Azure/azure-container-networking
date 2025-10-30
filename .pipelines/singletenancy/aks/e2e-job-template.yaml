@@ -70,37 +70,14 @@ stages:
               scaleup: ${{ parameters.scaleup }}
       
       # can only succeed with issues in linux
-      - job: warningHandler
-        displayName: "Handle E2E Warning"
-        dependsOn: ${{ parameters.name }}
-        condition: eq(dependencies.${{ parameters.name }}.result, 'SucceededWithIssues')
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-          demands:
-          - agent.os -equals Linux
-          - Role -equals $(CUSTOM_E2E_ROLE)
-        steps:
-          - task: AzureCLI@2
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
-            displayName: Set Up Kubeconfig
-            condition: always()
-          - ${{ if eq(parameters.os, 'linux') }}:
-            # if the cni logs contain "Initializing HTTP client with connection timeout" it is a known issue and we skip
-            - script: |
-                cd hack/scripts
-                acnLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_check_common_issues
-                acnLogs=$acnLogs cni=cniv1 bash collect-linux-logs.sh
-                echo "acnLogs directory: $acnLogs"
-                pwd
-                bash check-cni-log-contents.sh "$acnLogs" "azure-vnet*.log" "Initializing HTTP client with connection timeout"
-              displayName: Fail if Initializing HTTP client issue not found
-              condition: always()
+      - template: ../../templates/warning-handler-job-template.yaml
+        parameters:
+          dependsOnToEmitWarning: ${{ parameters.name }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          fileSearchPattern: "azure-vnet*.log"
+          searchPattern: "Initializing HTTP client with connection timeout"
+          cni: cniv1
+          os: ${{ parameters.os }}
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
