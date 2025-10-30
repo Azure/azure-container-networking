@@ -299,7 +299,7 @@ swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet 
 		--service-cidr "10.0.0.0/16" \
 		--dns-service-ip "10.0.0.10" \
 		--tags fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true \
-		--http-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
 		--yes 
 	@$(MAKE) set-kubeconf
 
@@ -451,7 +451,7 @@ linux-swiftv2-nodepool-up: ## Add linux node pool to swiftv2 cluster
 		--max-pods 250 \
 		--subscription $(SUB) \
 		--tags fastpathenabled=true,aks-nic-enable-multi-tenancy=true \
-		--http-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
 
 down: ## Delete the cluster
