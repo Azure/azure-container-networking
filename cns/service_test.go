@@ -207,16 +207,16 @@ func TestNewService(t *testing.T) {
 				req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, tlsURL, http.NoBody)
 				require.NoError(t, err)
 				resp, err := client.Do(req)
-				t.Cleanup(func() {
-					if resp != nil && resp.Body != nil {
-						resp.Body.Close()
-					}
-				})
 				if tc.handshakeFailureExpected {
 					require.Error(t, err)
 					require.ErrorContains(t, err, "Failed to verify client certificate subject name during mTLS")
 				} else {
 					require.NoError(t, err)
+					t.Cleanup(func() {
+						if resp != nil && resp.Body != nil {
+							resp.Body.Close()
+						}
+					})
 				}
 
 				// HTTP listener
@@ -224,12 +224,12 @@ func TestNewService(t *testing.T) {
 				req, err = http.NewRequestWithContext(context.TODO(), http.MethodGet, "http://localhost:10090", http.NoBody)
 				require.NoError(t, err)
 				resp, err = httpClient.Do(req)
+				require.NoError(t, err)
 				t.Cleanup(func() {
 					if resp != nil && resp.Body != nil {
 						resp.Body.Close()
 					}
 				})
-				require.NoError(t, err)
 
 				// Cleanup
 				svc.Uninitialize()

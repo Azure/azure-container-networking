@@ -184,12 +184,13 @@ func verifyPeerCertificate(verifiedChains [][]*x509.Certificate, clientSubjectNa
 	}
 
 	// maskHalf of the DNS names
+	maskedDNS := make([]string, len(dnsNames))
 	for i, dns := range dnsNames {
-		dnsNames[i] = maskHalf(dns)
+		maskedDNS[i] = maskHalf(dns)
 	}
 
 	return errors.Errorf("Failed to verify client certificate subject name during mTLS, clientSubjectName: %s, client cert SANs: %+v, clientCN: %s",
-		clientSubjectName, dnsNames, maskHalf(clientCN))
+		clientSubjectName, maskedDNS, maskHalf(clientCN))
 }
 
 // maskHalf masks half of the input string with asterisks.
