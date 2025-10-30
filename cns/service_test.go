@@ -133,57 +133,108 @@ func TestNewService(t *testing.T) {
 	t.Run("NewServiceWithMutualTLS", func(t *testing.T) {
 		testCertFilePath := createTestCertificate(t)
 
-		config.TLSSettings = serverTLS.TlsSettings{
-			TLSPort:            "10091",
-			TLSSubjectName:     "localhost",
-			TLSCertificatePath: testCertFilePath,
-			UseMTLS:            true,
-			MinTLSVersion:      "TLS 1.2",
-		}
-
-		svc, err := NewService(config.Name, config.Version, config.ChannelMode, config.Store)
-		require.NoError(t, err)
-		require.IsType(t, &Service{}, svc)
-
-		svc.SetOption(acn.OptCnsURL, "")
-		svc.SetOption(acn.OptCnsPort, "")
-
-		err = svc.Initialize(config)
-		t.Cleanup(func() {
-			svc.Uninitialize()
-		})
-		require.NoError(t, err)
-
-		err = svc.StartListener(config)
-		require.NoError(t, err)
-
-		mTLSConfig, err := getTLSConfigFromFile(config.TLSSettings)
-		require.NoError(t, err)
-
-		client := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: mTLSConfig,
+		cases := []struct {
+			name                     string
+			tlsSettings              serverTLS.TlsSettings
+			handshakeFailureExpected bool
+		}{
+			{
+				name: "matching client SANs",
+				tlsSettings: serverTLS.TlsSettings{
+					TLSPort:                   "10091",
+					TLSSubjectName:            "localhost",
+					TLSCertificatePath:        testCertFilePath,
+					UseMTLS:                   true,
+					MinTLSVersion:             "TLS 1.2",
+					MtlsClientCertSubjectName: "example.com",
+				},
+				handshakeFailureExpected: false,
+			},
+			{
+				name: "matching client cert CN",
+				tlsSettings: serverTLS.TlsSettings{
+					TLSPort:                   "10093",
+					TLSSubjectName:            "localhost",
+					TLSCertificatePath:        testCertFilePath,
+					UseMTLS:                   true,
+					MinTLSVersion:             "TLS 1.2",
+					MtlsClientCertSubjectName: "foo.com", // Common Name from test certificate
+				},
+				handshakeFailureExpected: false,
+			},
+			{
+				name: "failing to match client SANs and CN",
+				tlsSettings: serverTLS.TlsSettings{
+					TLSPort:                   "10092",
+					TLSSubjectName:            "localhost",
+					TLSCertificatePath:        testCertFilePath,
+					UseMTLS:                   true,
+					MinTLSVersion:             "TLS 1.2",
+					MtlsClientCertSubjectName: "random.com",
+				},
+				handshakeFailureExpected: true,
 			},
 		}
 
-		// TLS listener
-		req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, "https://localhost:10091", http.NoBody)
-		require.NoError(t, err)
-		resp, err := client.Do(req)
-		t.Cleanup(func() {
-			resp.Body.Close()
-		})
-		require.NoError(t, err)
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				config.TLSSettings = tc.tlsSettings
 
-		// HTTP listener
-		httpClient := &http.Client{}
-		req, err = http.NewRequestWithContext(context.TODO(), http.MethodGet, "http://localhost:10090", http.NoBody)
-		require.NoError(t, err)
-		resp, err = httpClient.Do(req)
-		t.Cleanup(func() {
-			resp.Body.Close()
-		})
-		require.NoError(t, err)
+				svc, err := NewService(config.Name, config.Version, config.ChannelMode, config.Store)
+				require.NoError(t, err)
+				require.IsType(t, &Service{}, svc)
+
+				svc.SetOption(acn.OptCnsURL, "")
+				svc.SetOption(acn.OptCnsPort, "")
+
+				err = svc.Initialize(config)
+				require.NoError(t, err)
+
+				err = svc.StartListener(config)
+				require.NoError(t, err)
+
+				mTLSConfig, err := getTLSConfigFromFile(config.TLSSettings)
+				require.NoError(t, err)
+
+				client := &http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: mTLSConfig,
+					},
+				}
+
+				tlsURL := "https://localhost:" + tc.tlsSettings.TLSPort
+				// TLS listener
+				req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, tlsURL, http.NoBody)
+				require.NoError(t, err)
+				resp, err := client.Do(req)
+				if tc.handshakeFailureExpected {
+					require.Error(t, err)
+					require.ErrorContains(t, err, "Failed to verify client certificate subject name during mTLS")
+				} else {
+					require.NoError(t, err)
+					t.Cleanup(func() {
+						if resp != nil && resp.Body != nil {
+							resp.Body.Close()
+						}
+					})
+				}
+
+				// HTTP listener
+				httpClient := &http.Client{}
+				req, err = http.NewRequestWithContext(context.TODO(), http.MethodGet, "http://localhost:10090", http.NoBody)
+				require.NoError(t, err)
+				resp, err = httpClient.Do(req)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					if resp != nil && resp.Body != nil {
+						resp.Body.Close()
+					}
+				})
+
+				// Cleanup
+				svc.Uninitialize()
+			})
+		}
 	})
 }
 
@@ -354,4 +405,29 @@ func TestTLSVersionNumber(t *testing.T) {
 		require.Equal(t, uint16(tls.VersionTLS12), versionNumber)
 		require.NoError(t, err)
 	})
+}
+
+func TestMaskHalf(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"empty", "", ""},
+		{"one char string", "e", "*"},
+		{"two chars string", "ex", "e*"},
+		{"three chars string", "exa", "e**"},
+		{"four chars string", "exam", "ex**"},
+		{"five chars string", "examp", "ex***"},
+		{"long string", "example.com", "examp******"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := maskHalf(tc.in)
+			if got != tc.want {
+				t.Fatalf("maskHalf(%s) = %s, want %s", tc.in, got, tc.want)
+			}
+		})
+	}
 }
