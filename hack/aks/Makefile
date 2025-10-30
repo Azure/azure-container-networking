@@ -285,7 +285,7 @@ swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI clus
 		--yes
 	@$(MAKE) set-kubeconf
 
-swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Create dummy AKS cluster to create pod and node subnets for AKS pod subnet cluster.
+swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet cluster
 	$(AZCLI) aks create -n "$(CLUSTER)" -g $(GROUP) -l $(REGION) \
 		--network-plugin azure \
 		--kubernetes-version $(K8S_VER) \
