@@ -71,6 +71,8 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		}
 	}
 
+	logger.Printf("[requestIPConfigHandlerHelper][Himel] podIPInfoResult: %+v", podIPInfoResult)
+
 	// record a pod requesting an IP
 	service.podsPendingIPAssignment.Push(podInfo.Key())
 	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest) //nolint:contextcheck // appease linter for revert PR
@@ -83,6 +85,8 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			PodIPInfo: podIPInfo,
 		}, err
 	}
+
+	logger.Printf("[requestIPConfigHandlerHelper][Himel] podIPInfo: %+v", podIPInfo)
 
 	// record a pod assigned an IP
 	defer func() {
@@ -128,6 +132,9 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 		}, errors.New("failed to validate ip config request or unmarshal orchestratorContext")
 	}
 
+	logger.Printf("[requestIPConfigHandlerHelperStandalone][Himel] podInfo: %+v", podInfo)
+	logger.Printf("[requestIPConfigHandlerHelperStandalone][Himel] ipconfigsRequest: %+v", ipconfigsRequest)
+
 	orchestratorContext, err := podInfo.OrchestratorContext()
 	if err != nil {
 		return &cns.IPConfigsResponse{}, fmt.Errorf("error getting orchestrator context from PodInfo %w", err)
@@ -137,7 +144,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 	// IMPORTANT: although SwiftV2 reuses the concept of NCs, NMAgent doesn't program NCs for SwiftV2, but
 	// instead programs NICs. When getting SwiftV2 NCs, we want the NIC type and MAC address of the NCs.
 	// TODO: we need another way to verify and sync NMAgent's NIC programming status. pending new NMAgent API or NIC programming status to be passed in the SwiftV2 create NC request.
-	resp := service.getAllNetworkContainerResponses(cnsRequest) //nolint:contextcheck // not passed in any methods, appease linter
+	resp, respCreateRequest := service.getAllNetworkContainerResponsesHimel(cnsRequest) //nolint:contextcheck // not passed in any methods, appease linter
 	// return err if returned list has no NCs
 	if len(resp) == 0 {
 		return &cns.IPConfigsResponse{
@@ -148,6 +155,9 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 		}, ErrGetAllNCResponseEmpty
 	}
 
+	logger.Printf("[requestIPConfigHandlerHelperStandalone][Himel] resp: %+v", resp)
+	logger.Printf("[requestIPConfigHandlerHelperStandalone][Himel] respCreateRequest: %+v", respCreateRequest)
+
 	// assign NICType and MAC Address for SwiftV2. we assume that there won't be any SwiftV1 NCs here
 	podIPInfoList := make([]cns.PodIpInfo, 0, len(resp))
 	for i := range resp {
@@ -156,9 +166,12 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 			MacAddress:                      resp[i].NetworkInterfaceInfo.MACAddress,
 			NICType:                         resp[i].NetworkInterfaceInfo.NICType,
 			NetworkContainerPrimaryIPConfig: resp[i].IPConfiguration,
+			SecondaryIPConfigs:              respCreateRequest[i].SecondaryIPConfigs,
 		}
 		podIPInfoList = append(podIPInfoList, podIPInfo)
 	}
+
+	logger.Printf("[requestIPConfigHandlerHelperStandalone][Himel] podIPInfoList: %+v", podIPInfoList)
 
 	ipConfigsResp := &cns.IPConfigsResponse{
 		Response: cns.Response{
@@ -176,6 +189,9 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 			},
 		}, err
 	}
+
+	logger.Printf("[requestIPConfigHandlerHelperStandalone][Himel] ipConfigsResp: %+v", ipConfigsResp)
+
 	return ipConfigsResp, nil
 }
 
@@ -283,8 +299,12 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 	}
 	var ipConfigsResp *cns.IPConfigsResponse
 
+	logger.Printf("[RequestIPConfigsHandler][Himel] ipconfigsRequest: %+v", ipconfigsRequest)
+	logger.Printf("[RequestIPConfigsHandler][Himel] service: %+v", service)
+
 	// Check if IPConfigsHandlerMiddleware is set
 	if service.IPConfigsHandlerMiddleware != nil {
+		logger.Printf("Himel testing middleware:")
 		// Wrap the default datapath handlers with the middleware depending on middleware type
 		var wrappedHandler cns.IPConfigsHandlerFunc
 		switch service.IPConfigsHandlerMiddleware.Type() {
@@ -292,13 +312,17 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.ReleaseIPConfigHandlerHelper)
 		// this middleware is used for standalone swiftv2 secenario where a different helper is invoked as the PodInfo is read from cns state
 		case cns.StandaloneSWIFTV2:
+			logger.Printf("Himel testing middleware standalone")
 			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelperStandalone, nil)
 		}
 
 		ipConfigsResp, err = wrappedHandler(r.Context(), ipconfigsRequest)
 	} else {
+		logger.Printf("Himel testing no middleware:")
 		ipConfigsResp, err = service.requestIPConfigHandlerHelper(r.Context(), ipconfigsRequest) // nolint:contextcheck // appease linter
 	}
+
+	logger.Printf("[RequestIPConfigsHandler][Himel] ipConfigsResp: %+v", ipConfigsResp)
 
 	if err != nil {
 		w.Header().Set(cnsReturnCode, ipConfigsResp.Response.ReturnCode.String())
@@ -1002,6 +1026,9 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 
 	// Get the actual IP families map for validation
 	ncIPFamilies := service.getIPFamiliesMap()
+	logger.Printf("[AssignAvailableIPConfigs][Himel] ncIPFamilies: %+v", ncIPFamilies)
+	logger.Printf("[AssignAvailableIPConfigs][Himel] numberOfIPs: %+v", numberOfIPs)
+	logger.Printf("[AssignAvailableIPConfigs][Himel] service.PodIPConfigState: %+v", service.PodIPConfigState)
 
 	service.Lock()
 	defer service.Unlock()
@@ -1371,6 +1398,9 @@ func (service *HTTPRestService) getIPFamiliesMap() map[cns.IPFamily]struct{} {
 			if len(ncIPFamilies) == 2 {
 				break
 			}
+
+			logger.Printf("[getIPFamiliesMap][Himel] secIPConfig: %+v", secIPConfig)
+
 			addr, err := netip.ParseAddr(secIPConfig.IPAddress)
 			if err != nil {
 				continue
