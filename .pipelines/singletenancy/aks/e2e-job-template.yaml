@@ -95,7 +95,7 @@ stages:
                 cd hack/scripts
                 acnLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_check_common_issues
                 acnLogs=$acnLogs cni=cniv1 bash collect-linux-logs.sh
-                bash check-cni-log-contents.sh "$acnLogs" "azure-vnet*.log" "Processing ADD Command"
+                bash check-cni-log-contents.sh "$acnLogs" "azure-vnet*.log" "Processing ADD command"
               displayName: Fail if known linux issue not found
               condition: always()
           - ${{ if eq(parameters.os, 'windows') }}:
