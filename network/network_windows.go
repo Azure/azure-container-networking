@@ -342,7 +342,8 @@ func (nm *networkManager) addIPv6DefaultRoute() error {
 // newNetworkImplHnsV2 creates a new container network for HNSv2.
 func (nm *networkManager) newNetworkImplHnsV2(nwInfo *EndpointInfo, extIf *externalInterface) (*network, error) {
 	// network creation is not required for IB
-	if nwInfo.NICType == cns.BackendNIC {
+	// For apipa nic, we create network as part of endpoint creation
+	if nwInfo.NICType == cns.BackendNIC || nwInfo.NICType == cns.ApipaNIC {
 		return &network{Endpoints: make(map[string]*endpoint)}, nil
 	}
 

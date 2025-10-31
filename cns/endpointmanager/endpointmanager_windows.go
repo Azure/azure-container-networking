@@ -16,6 +16,7 @@ func (em *EndpointManager) ReleaseIPs(ctx context.Context, ipconfigreq cns.IPCon
 	if err := em.deleteEndpoint(ctx, ipconfigreq.InfraContainerID); err != nil {
 		logger.Errorf("failed to remove HNS endpoint %s", err.Error())
 	}
+
 	return errors.Wrap(em.cli.ReleaseIPs(ctx, ipconfigreq), "failed to release IP from CNS")
 }
 

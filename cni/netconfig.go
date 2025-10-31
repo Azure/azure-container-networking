@@ -72,6 +72,7 @@ type NetworkConfig struct {
 	EnableExactMatchForPodName    bool            `json:"enableExactMatchForPodName,omitempty"`
 	DisableHairpinOnHostInterface bool            `json:"disableHairpinOnHostInterface,omitempty"`
 	DisableIPTableLock            bool            `json:"disableIPTableLock,omitempty"`
+	DisableAsyncDelete            bool            `json:"disableAsyncDelete,omitempty"`
 	CNSUrl                        string          `json:"cnsurl,omitempty"`
 	ExecutionMode                 string          `json:"executionMode,omitempty"`
 	IPAM                          IPAM            `json:"ipam,omitempty"`
