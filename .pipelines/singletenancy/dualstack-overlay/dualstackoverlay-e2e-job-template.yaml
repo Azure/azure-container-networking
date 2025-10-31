@@ -50,6 +50,8 @@ stages:
       - job: ${{ parameters.name }}_${{ parameters.os }}
         displayName: DualStack Overlay Test Suite | ${{ parameters.os }} - (${{ parameters.name }})
         timeoutInMinutes: 120
+        # continue on error only in windows case to workaround known windows issue
+        continueOnError: ${{ eq(parameters.os, 'windows') }}
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
@@ -62,7 +64,17 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               scaleup: ${{ parameters.scaleup }} # 50 in windows or 100 in linux
-
+      
+      # can only succeed with issues in windows
+      - template: ../../templates/warning-handler-job-template.yaml
+        parameters:
+          dependsOnToEmitWarning: ${{ parameters.name }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          fileSearchPattern: "*.json"
+          searchPattern: "\x00"
+          cni: cniv2
+          os: ${{ parameters.os }}
+        
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)

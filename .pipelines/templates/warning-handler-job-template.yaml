@@ -32,6 +32,7 @@ jobs:
           acnLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_check_common_issues
           acnLogs=$acnLogs cni=${{ parameters.cni }} bash collect-${{ parameters.os }}-logs.sh
           echo "acnLogs directory: $acnLogs"
+          echo "search pattern: ${{ parameters.searchPattern }}"
           pwd
           bash check-cni-log-contents.sh "$acnLogs" "${{ parameters.fileSearchPattern }}" "${{ parameters.searchPattern }}"
         displayName: Check for known ${{ parameters.os }} issue
