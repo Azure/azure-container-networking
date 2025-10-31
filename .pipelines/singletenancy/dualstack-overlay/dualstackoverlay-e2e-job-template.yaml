@@ -68,7 +68,7 @@ stages:
       # can only succeed with issues in windows
       - template: ../../templates/warning-handler-job-template.yaml
         parameters:
-          dependsOnToEmitWarning: ${{ parameters.name }}
+          dependsOnToEmitWarning: ${{ parameters.name }}_${{ parameters.os }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           fileSearchPattern: "*.json"
           searchPattern: "\x00"
