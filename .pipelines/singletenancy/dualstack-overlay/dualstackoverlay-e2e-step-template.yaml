@@ -112,5 +112,9 @@ steps:
       name: "WindowsDualStackOverlayDatapathTests"
       displayName: "Windows DualStack Overlay Datapath Tests"
       retryCountOnTaskFailure: 3
+    
+    - script: |
+        exit 1
+      displayName: "Force Error for testing"
 
     # Windows node restart and validation tests removed due to flakiness
