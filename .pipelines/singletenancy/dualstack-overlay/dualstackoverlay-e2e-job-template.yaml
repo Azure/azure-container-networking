@@ -70,8 +70,8 @@ stages:
         parameters:
           dependsOnToEmitWarning: ${{ parameters.name }}_${{ parameters.os }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
-          fileSearchPattern: "*.json"
-          searchPattern: "ExternalInterfaces"
+          fileSearchPattern: "*.log"
+          searchPattern: "Processing"
           cni: cniv2
           os: ${{ parameters.os }}
         
