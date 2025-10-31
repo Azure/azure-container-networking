@@ -161,6 +161,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 		podIPInfoList = append(podIPInfoList, podIPInfo)
 		if resp[i].AllowHostToNCCommunication || resp[i].AllowNCToHostCommunication {
 			apipaIndex = i
+			break
 		}
 	}
 
@@ -1399,7 +1400,7 @@ func updateIPInfoMap(iPInfo map[string]*IPInfo, interfaceInfo *IPInfo, ifName, e
 
 	if interfaceInfo.NetworkContainerID != "" {
 		iPInfo[ifName].NetworkContainerID = interfaceInfo.NetworkContainerID
-		logger.Printf("[updateEndpoint] update the endpoint %s with NetworkContainerID  %s", endpointID, interfaceInfo.NetworkContainerID)
+		logger.Printf("[updateEndpoint] update the endpoint %s with NetworkContainerID  %s", endpointID, interfaceInfo.NetworkContainerID) //nolint
 	}
 }
 

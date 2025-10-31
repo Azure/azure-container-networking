@@ -79,7 +79,7 @@ func (plugin *NetPlugin) getNetworkName(netNs string, interfaceInfo *network.Int
 	}
 
 	if interfaceInfo != nil && interfaceInfo.NICType == cns.ApipaNIC {
-		return swiftv2NetworkNamePrefix + "apipa", nil
+		return swiftv2NetworkNamePrefix + apipaInterfacePrefix, nil
 	}
 
 	// For singletenancy, the network name is simply the nwCfg.Name

@@ -403,6 +403,7 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 	)
 
 	if namespace, err = hcn.GetNamespaceByID(epInfo.NetNsPath); err != nil {
+		//nolint
 		return nil, fmt.Errorf("Failed to retrieve namespace with GetNamespaceByID for NetNsPath: %s"+
 			" due to error: %v", epInfo.NetNsPath, err)
 	}
@@ -411,6 +412,7 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 		zap.String("NetworkContainerID", epInfo.NetworkContainerID))
 
 	if hostNCApipaEndpointID, err = cli.CreateHostNCApipaEndpoint(context.TODO(), epInfo.NetworkContainerID); err != nil {
+		//nolint
 		return nil, err
 	}
 
@@ -421,7 +423,8 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 	}()
 
 	if err = hcn.AddNamespaceEndpoint(namespace.Id, hostNCApipaEndpointID); err != nil {
-		return nil, fmt.Errorf("Failed to add HostNCApipaEndpoint: %s to namespace: %s due to error: %v", hostNCApipaEndpointID, namespace.Id, err) //nolint
+		//nolint
+		return nil, fmt.Errorf("Failed to add HostNCApipaEndpoint: %s to namespace: %s due to error: %v", hostNCApipaEndpointID, namespace.Id, err)
 	}
 
 	ep := &endpoint{

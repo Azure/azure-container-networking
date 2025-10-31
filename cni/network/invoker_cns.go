@@ -516,7 +516,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 func configureApipaAddResult(addResult *IPAMAddResult, info *cns.PodIpInfo, key string) error {
 	ip, ipnet, err := info.PodIPConfig.GetIPNet()
 	if ip == nil {
-		return errors.Wrap(err, "Unable to parse IP from response: "+info.PodIPConfig.IPAddress+" with err %w")
+		return errors.Wrap(err, "GetIPNet failed while configuring apipa AddResult")
 	}
 
 	addResult.interfaceInfo[key] = network.InterfaceInfo{

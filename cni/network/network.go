@@ -678,9 +678,8 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	opt.ifInfo.HostSubnetPrefix.IP = opt.ifInfo.HostSubnetPrefix.IP.Mask(opt.ifInfo.HostSubnetPrefix.Mask)
 	opt.ipamAddConfig.nwCfg.IPAM.Subnet = opt.ifInfo.HostSubnetPrefix.String()
 
-	var masterIfName string
 	// populate endpoint info section
-	masterIfName = plugin.findMasterInterface(opt)
+	masterIfName := plugin.findMasterInterface(opt)
 	if masterIfName == "" {
 		err := plugin.Errorf("Failed to find the master interface")
 		return nil, err
