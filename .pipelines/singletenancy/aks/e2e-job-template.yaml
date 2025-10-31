@@ -75,7 +75,7 @@ stages:
           dependsOnToEmitWarning: ${{ parameters.name }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           fileSearchPattern: "azure-vnet*.log"
-          searchPattern: "Processing ADD"
+          searchPattern: "Initializing HTTP client with connection timeout"
           cni: cniv1
           os: ${{ parameters.os }}
 
