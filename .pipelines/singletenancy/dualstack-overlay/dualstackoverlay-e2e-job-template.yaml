@@ -71,7 +71,7 @@ stages:
           dependsOnToEmitWarning: ${{ parameters.name }}_${{ parameters.os }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           fileSearchPattern: "*.log"
-          searchPattern: "invalid character '\\\\x00'"
+          searchPattern: "\\x00"
           cni: cniv2
           os: ${{ parameters.os }}
         
