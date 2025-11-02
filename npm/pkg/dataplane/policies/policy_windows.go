@@ -3,6 +3,7 @@ package policies
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Microsoft/hcsshim/hcn"
@@ -101,8 +102,16 @@ func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, er
 	// policySettings.RuleType = hcn.RuleTypeSwitch
 
 	// ACLPolicy settings uses ID field of SetPolicy in LocalAddresses or RemoteAddresses
-	srcListStr := getAddrListFromSetInfo(acl.SrcList)
-	dstListStr := getAddrListFromSetInfo(acl.DstList)
+	var srcListStr, dstListStr string
+	// Check if we have direct IPs (NPM Lite /32 bypass)
+	if len(acl.SrcDirectIPs) > 0 || len(acl.DstDirectIPs) > 0 {
+		srcListStr = strings.Join(acl.SrcDirectIPs, ",")
+		dstListStr = strings.Join(acl.DstDirectIPs, ",")
+	} else {
+		// Original IPSet-based approach
+		srcListStr = getAddrListFromSetInfo(acl.SrcList)
+		dstListStr = getAddrListFromSetInfo(acl.DstList)
+	}
 	dstPortStr := getPortStrFromPorts(acl.DstPorts)
 
 	// HNS has confusing Local and Remote address defintions

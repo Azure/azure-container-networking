@@ -3,6 +3,7 @@ package translation
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
@@ -362,6 +363,53 @@ func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Di
 	return nil
 }
 
+func directPeerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, cidr string, npmLiteToggle bool) error {
+	ip := strings.TrimSuffix(cidr, "/32")
+	if len(ports) == 0 {
+		acl := policies.NewACLPolicy(policies.Allowed, direction)
+		// bypasses ipset creation for /32 cidrs and directly creates an acl with the cidr
+		if direction == policies.Ingress {
+			acl.SrcDirectIPs = []string{ip}
+		} else {
+			acl.DstDirectIPs = []string{ip}
+		}
+		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
+		return nil
+	} else {
+		// handle each port separately
+		for i := range ports {
+			portKind, err := portType(ports[i])
+			if err != nil {
+				return err
+			}
+
+			err = checkForNamedPortType(portKind, npmLiteToggle)
+			if err != nil {
+				return err
+			}
+
+			acl := policies.NewACLPolicy(policies.Allowed, direction)
+
+			// Set direct IP based on direction
+			if direction == policies.Ingress {
+				acl.SrcDirectIPs = []string{ip}
+			} else {
+				acl.DstDirectIPs = []string{ip}
+			}
+
+			// Handle ports
+			if portKind == numericPortType {
+				portInfo, protocol := numericPortRule(&ports[i])
+				acl.DstPorts = portInfo
+				acl.Protocol = policies.Protocol(protocol)
+			}
+			npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
+
+		}
+	}
+	return nil
+}
+
 // translateRule translates ingress or egress rules and update npmNetPol object.
 func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 	netPolName string,
@@ -405,6 +453,16 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 		// #2.1 Handle IPBlock and port if exist
 		if peer.IPBlock != nil {
 			if len(peer.IPBlock.CIDR) > 0 {
+				// add logic that if the peer is only IPBlock and npm lite is enabled and is a /32 cidr block
+				// then skip creating IpBlockIPSet
+				if npmLiteToggle && util.IsCIDR32(peer.IPBlock.CIDR) {
+					err = directPeerAndPortRule(npmNetPol, direction, ports, peer.IPBlock.CIDR, npmLiteToggle)
+					if err != nil {
+						return err
+					}
+					continue
+				}
+
 				ipBlockIPSet, ipBlockSetInfo, err := ipBlockRule(netPolName, npmNetPol.Namespace, direction, matchType, ruleIndex, peerIdx, peer.IPBlock)
 				if err != nil {
 					return err
@@ -415,12 +473,6 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 				if err != nil {
 					return err
 				}
-			}
-
-			// if npm lite is configured, check network policy only consists of CIDR blocks
-			err := npmLiteValidPolicy(peer, npmLiteToggle)
-			if err != nil {
-				return err
 			}
 
 			// Do not need to run below code to translate PodSelector and NamespaceSelector
@@ -640,14 +692,6 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 		}
 	}
 	return npmNetPol, nil
-}
-
-// validates only CIDR based peer is present + no combination of CIDR with pod/namespace selectors are present
-func npmLiteValidPolicy(peer networkingv1.NetworkPolicyPeer, npmLiteEnabled bool) error {
-	if npmLiteEnabled && (peer.PodSelector != nil || peer.NamespaceSelector != nil) {
-		return ErrUnsupportedNonCIDR
-	}
-	return nil
 }
 
 func checkForNamedPortType(portKind netpolPortType, npmLiteToggle bool) error {
