@@ -137,7 +137,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 	// IMPORTANT: although SwiftV2 reuses the concept of NCs, NMAgent doesn't program NCs for SwiftV2, but
 	// instead programs NICs. When getting SwiftV2 NCs, we want the NIC type and MAC address of the NCs.
 	// TODO: we need another way to verify and sync NMAgent's NIC programming status. pending new NMAgent API or NIC programming status to be passed in the SwiftV2 create NC request.
-	resp := service.getAllNetworkContainerResponses(cnsRequest) //nolint:contextcheck // not passed in any methods, appease linter
+	resp, respCreateRequest := service.getAllNetworkContainerResponsesIPv6(cnsRequest) //nolint:contextcheck // not passed in any methods, appease linter
 	// return err if returned list has no NCs
 	if len(resp) == 0 {
 		return &cns.IPConfigsResponse{
@@ -156,6 +156,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 			MacAddress:                      resp[i].NetworkInterfaceInfo.MACAddress,
 			NICType:                         resp[i].NetworkInterfaceInfo.NICType,
 			NetworkContainerPrimaryIPConfig: resp[i].IPConfiguration,
+			SecondaryIPConfigs:              respCreateRequest[i].SecondaryIPConfigs,
 		}
 		podIPInfoList = append(podIPInfoList, podIPInfo)
 	}

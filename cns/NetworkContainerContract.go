@@ -503,6 +503,7 @@ type GetNetworkContainerResponse struct {
 
 type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
+	SecondaryIPConfigs              map[string]SecondaryIPConfig // uuid is key
 	NetworkContainerPrimaryIPConfig IPConfiguration
 	HostPrimaryIPInfo               HostIPInfo
 	NICType                         NICType

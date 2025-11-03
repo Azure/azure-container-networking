@@ -57,6 +57,7 @@ type IPResultInfo struct {
 	routes             []cns.Route
 	pnpID              string
 	endpointPolicies   []policy.Policy
+	secondaryIPs       map[string]cns.SecondaryIPConfig
 }
 
 func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
@@ -162,6 +163,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			routes:             response.PodIPInfo[i].Routes,
 			pnpID:              response.PodIPInfo[i].PnPID,
 			endpointPolicies:   response.PodIPInfo[i].EndpointPolicies,
+			secondaryIPs:       response.PodIPInfo[i].SecondaryIPConfigs,
 		}
 
 		logger.Info("Received info for pod",
@@ -505,7 +507,61 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 		SkipDefaultRoutes: info.skipDefaultRoutes,
 	}
 
+	if len(info.secondaryIPs) > 0 {
+		secIPConfig, err := BuildIPConfigForV6(info.secondaryIPs)
+
+		if err == nil {
+			// If BuildIPConfigForV6 returns a value, take its address
+			ifaceInfo := addResult.interfaceInfo[key]
+			ifaceInfo.IPConfigs = append(ifaceInfo.IPConfigs, &secIPConfig)
+			addResult.interfaceInfo[key] = ifaceInfo
+		}
+	}
+
 	return nil
+}
+
+// BuildIPConfigForV6 takes SecondaryIPConfigs and returns an IPConfig.
+// Assumes map has at least one element and uses the first one found.
+func BuildIPConfigForV6(secondaryIPs map[string]cns.SecondaryIPConfig) (network.IPConfig, error) {
+    for _, v := range secondaryIPs {
+        ip, ipNet, err := net.ParseCIDR(v.IPAddress)
+        if err != nil {
+            return network.IPConfig{}, fmt.Errorf("invalid IPAddress %q: %w", v.IPAddress, err)
+        }
+        if ip.To4() != nil {
+            return network.IPConfig{}, fmt.Errorf("expected IPv6, got IPv4: %q", v.IPAddress)
+        }
+
+        // Preserve the original address/prefix (often /128) for the endpoint.
+        addr := *ipNet
+
+        // Compute the gateway from the /64 network:
+        // If the parsed mask is /128, swap to /64 for the base; otherwise if already <= /64, use it.
+        ones, bits := ipNet.Mask.Size()
+        gwMask := ipNet.Mask
+        if ones > 64 { // e.g., /128
+            gwMask = net.CIDRMask(64, bits)
+        }
+
+        // Base = ip masked with /64
+        base := ip.Mask(gwMask).To16()
+        if base == nil {
+            return network.IPConfig{}, fmt.Errorf("failed to get 16-byte IPv6 for %q", v.IPAddress)
+        }
+
+        // Set gateway to ...:...:...:1 (i.e., last byte = 1)
+        gw := make(net.IP, len(base))
+        copy(gw, base)
+        gw[15] = 0x01 // ::1 within that /64
+
+        return network.IPConfig{
+            Address: addr, // original ipNet (likely /128)
+            Gateway: gw,   // derived from /64 base
+        }, nil
+    }
+
+    return network.IPConfig{}, fmt.Errorf("map is empty")
 }
 
 func addBackendNICToResult(info *IPResultInfo, addResult *IPAMAddResult, key string) error {
