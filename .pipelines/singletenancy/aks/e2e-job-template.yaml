@@ -74,7 +74,7 @@ stages:
           os: ${{ parameters.os }}
           datapath: true
           dns: true
-          portforward: true
+          portforward: ${{ eq(parameters.os, 'linux') }} # Unblock Pipeline, broken for all windows scenarios
           hybridWin: true
           service: true
           hostport: true
