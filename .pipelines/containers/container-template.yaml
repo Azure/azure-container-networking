@@ -4,6 +4,9 @@ parameters:
   os: ""
 
 steps:
+- checkout: self
+  path: /mnt/azure-container-networking
+
 - task: AzureCLI@2
   displayName: "Login"
   inputs:
@@ -15,6 +18,11 @@ steps:
 
 - script: |
     set -e
+    ls /mnt/
+    cd /mnt/azure-container-networking
+    echo "=== Working directory: $(pwd) ==="
+    echo "=== Repository contents ==="
+    ls -la
     echo "=== Disk space BEFORE make image ==="
     df -h
     if [ ${{ parameters.os }} = 'windows' ]; then export BUILDX_ACTION='--push'; fi
