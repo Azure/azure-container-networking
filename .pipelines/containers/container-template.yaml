@@ -4,9 +4,6 @@ parameters:
   os: ""
 
 steps:
-- checkout: self
-  path: /mnt/azure-container-networking
-
 - task: AzureCLI@2
   displayName: "Login"
   inputs:
@@ -18,7 +15,17 @@ steps:
 
 - script: |
     set -e
+    echo $(Pipeline.Workspace)
     ls /mnt/
+    git clone $(Build.Repository.Uri) /mnt/azure-container-networking
+    cd /mnt/azure-container-networking
+    git checkout $(Build.SourceVersion)
+    echo "Repository cloned to: $(pwd)"
+    ls -la
+  displayName: "Clone Repository to /mnt"
+
+- script: |
+    set -e
     cd /mnt/azure-container-networking
     echo "=== Working directory: $(pwd) ==="
     echo "=== Repository contents ==="
