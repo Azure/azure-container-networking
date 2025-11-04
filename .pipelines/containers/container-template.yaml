@@ -23,7 +23,7 @@ steps:
     df -h
   name: image_build
   displayName: Image Build
-  retryCountOnTaskFailure: 3
+  retryCountOnTaskFailure: 2
 
 - task: AzureCLI@2
   displayName: "Logout"
