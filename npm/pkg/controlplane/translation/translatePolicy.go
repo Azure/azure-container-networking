@@ -3,7 +3,6 @@ package translation
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
@@ -364,14 +363,13 @@ func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Di
 }
 
 func directPeerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, cidr string, npmLiteToggle bool) error {
-	ip := strings.TrimSuffix(cidr, "/32")
 	if len(ports) == 0 {
 		acl := policies.NewACLPolicy(policies.Allowed, direction)
 		// bypasses ipset creation for /32 cidrs and directly creates an acl with the cidr
 		if direction == policies.Ingress {
-			acl.SrcDirectIPs = []string{ip}
+			acl.SrcDirectIPs = []string{cidr}
 		} else {
-			acl.DstDirectIPs = []string{ip}
+			acl.DstDirectIPs = []string{cidr}
 		}
 		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
 		return nil
@@ -392,9 +390,9 @@ func directPeerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction polic
 
 			// Set direct IP based on direction
 			if direction == policies.Ingress {
-				acl.SrcDirectIPs = []string{ip}
+				acl.SrcDirectIPs = []string{cidr}
 			} else {
-				acl.DstDirectIPs = []string{ip}
+				acl.DstDirectIPs = []string{cidr}
 			}
 
 			// Handle ports
@@ -455,7 +453,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 			if len(peer.IPBlock.CIDR) > 0 {
 				// add logic that if the peer is only IPBlock and npm lite is enabled and is a /32 cidr block
 				// then skip creating IpBlockIPSet
-				if npmLiteToggle && util.IsCIDR32(peer.IPBlock.CIDR) {
+				if npmLiteToggle {
 					err = directPeerAndPortRule(npmNetPol, direction, ports, peer.IPBlock.CIDR, npmLiteToggle)
 					if err != nil {
 						return err
