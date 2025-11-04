@@ -15,8 +15,12 @@ steps:
 
 - script: |
     set -e
+    echo "=== Disk space BEFORE make image ==="
+    df -h
     if [ ${{ parameters.os }} = 'windows' ]; then export BUILDX_ACTION='--push'; fi
     make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
+    echo "=== Disk space AFTER make image ==="
+    df -h
   name: image_build
   displayName: Image Build
   retryCountOnTaskFailure: 3
