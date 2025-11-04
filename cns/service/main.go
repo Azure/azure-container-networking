@@ -90,6 +90,11 @@ import (
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
+var (
+	// ErrHomeAzNotAvailable indicates that HomeAZ information is not available from CNS
+	ErrHomeAzNotAvailable = errors.New("home AZ not available")
+)
+
 const (
 	// Service name.
 	name                              = "azure-cns"
@@ -1014,33 +1019,9 @@ func main() {
 
 		// Now that CNS HTTP service is running, create/update NodeInfo CRD if Swift V2 is enabled
 		if cnsconfig.EnableSwiftV2 && config.ChannelMode == cns.CRD {
-			// Get the node info again for NodeInfo CRD creation
-			kubeConfig, err := ctrl.GetConfig()
-			if err != nil {
-				logger.Errorf("Failed to get kubeconfig for NodeInfo CRD creation: %v", err)
-			} else {
-				kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
-				clientset, err := kubernetes.NewForConfig(kubeConfig)
-				if err != nil {
-					logger.Errorf("Failed to build clientset for NodeInfo CRD creation: %v", err)
-				} else {
-					nodeName, err := configuration.NodeName()
-					if err != nil {
-						logger.Errorf("Failed to get NodeName for NodeInfo CRD creation: %v", err)
-					} else {
-						node, err := clientset.CoreV1().Nodes().Get(rootCtx, nodeName, metav1.GetOptions{})
-						if err != nil {
-							logger.Errorf("Failed to get node %s for NodeInfo CRD creation: %v", nodeName, err)
-						} else {
-							if nodeInfoErr := createOrUpdateNodeInfoCRD(rootCtx, kubeConfig, node); nodeInfoErr != nil {
-								logger.Errorf("Error creating or updating nodeinfo crd: %v", nodeInfoErr)
-								// Don't return here - this shouldn't be fatal for CNS startup
-							} else {
-								logger.Printf("Successfully created/updated NodeInfo CRD for Swift V2")
-							}
-						}
-					}
-				}
+			if err := initializeNodeInfoCRD(rootCtx, version); err != nil {
+				logger.Errorf("Failed to initialize NodeInfo CRD: %v", err)
+				// Don't return here - this shouldn't be fatal for CNS startup
 			}
 		}
 
@@ -1722,6 +1703,38 @@ func getPodInfoByIPProvider(
 	return podInfoByIPProvider, nil
 }
 
+// initializeNodeInfoCRD initializes the NodeInfo CRD for Swift V2 when CNS HTTP service is running
+func initializeNodeInfoCRD(ctx context.Context, version string) error {
+	// Get the node info for NodeInfo CRD creation
+	kubeConfig, err := ctrl.GetConfig()
+	if err != nil {
+		return errors.Wrap(err, "failed to get kubeconfig for NodeInfo CRD creation")
+	}
+	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
+
+	clientset, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to build clientset for NodeInfo CRD creation")
+	}
+
+	nodeName, err := configuration.NodeName()
+	if err != nil {
+		return errors.Wrap(err, "failed to get NodeName for NodeInfo CRD creation")
+	}
+
+	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node %s for NodeInfo CRD creation", nodeName)
+	}
+
+	if err := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); err != nil {
+		return errors.Wrap(err, "error creating or updating nodeinfo crd")
+	}
+
+	logger.Printf("Successfully created/updated NodeInfo CRD for Swift V2")
+	return nil
+}
+
 // createOrUpdateNodeInfoCRD polls imds to learn the VM Unique ID and then creates or updates the NodeInfo CRD
 // with that vm unique ID
 func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, node *corev1.Node) error {
@@ -1730,6 +1743,23 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 	if err != nil {
 		return errors.Wrap(err, "error getting vm unique ID from imds")
 	}
+
+	cnsClient, err := cnsclient.New("", cnsReqTimeout)
+	if err != nil {
+		return errors.Wrap(err, "error creating CNS client")
+	}
+	var homeAZ string
+	homeAzResponse, err := cnsClient.GetHomeAz(ctx)
+	if err != nil {
+		return errors.Wrap(err, "error getting home AZ from CNS")
+	}
+	if homeAzResponse.Response.ReturnCode == cnstypes.Success && homeAzResponse.HomeAzResponse.IsSupported {
+		homeAZ = fmt.Sprintf("AZ%02d", homeAzResponse.HomeAzResponse.HomeAz)
+	} else {
+		return errors.Wrapf(ErrHomeAzNotAvailable, "ReturnCode=%d (expected=%d), IsSupported=%t",
+			homeAzResponse.Response.ReturnCode, cnstypes.Success, homeAzResponse.HomeAzResponse.IsSupported)
+	}
+
 
 	directcli, err := client.New(restConfig, client.Options{Scheme: multitenancy.Scheme})
 	if err != nil {
@@ -1746,6 +1776,7 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 		},
 		Spec: mtv1alpha1.NodeInfoSpec{
 			VMUniqueID: vmUniqueID,
+			HomeAZ:     homeAZ,
 		},
 	}
 
