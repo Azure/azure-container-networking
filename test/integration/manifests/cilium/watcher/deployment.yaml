@@ -1,0 +1,379 @@
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cilium-watcher-sa
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cilium-watcher-role
+  namespace: kube-system
+rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "list", "create", "update", "patch", "apply"]
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get", "list", "create", "watch", "patch", "apply"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cilium-watcher-binding
+  namespace: kube-system
+subjects:
+  - kind: ServiceAccount
+    name: cilium-watcher-sa
+roleRef:
+  kind: Role
+  name: cilium-watcher-role
+  apiGroup: rbac.authorization.k8s.io
+---
+### For ClusterRole and ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cilium-watcher-cluster-role
+rules:
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles", "clusterrolebindings"]
+    verbs: ["get", "list", "create", "update", "patch", "watch"]
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - networkpolicies
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+      - services
+      - pods
+      - endpoints
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - list
+      - watch
+      - get
+  - apiGroups:
+      - cilium.io
+    resources:
+      - ciliumbgppeeringpolicies
+      - ciliumclusterwideenvoyconfigs
+      - ciliumclusterwidenetworkpolicies
+      - ciliumegressgatewaypolicies
+      - ciliumendpoints
+      - ciliumendpointslices
+      - ciliumenvoyconfigs
+      - ciliumidentities
+      - ciliumlocalredirectpolicies
+      - ciliumnetworkpolicies
+      - ciliumnodes
+      - ciliumnodeconfigs
+      - ciliumloadbalancerippools
+      - ciliumcidrgroups
+      - ciliuml2announcementpolicies
+      - ciliumpodippools
+      - ciliumbgpnodeconfigs
+      - ciliumbgpadvertisements
+      - ciliumbgppeerconfigs
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - cilium.io
+    resources:
+      - ciliumidentities
+      - ciliumendpoints
+      - ciliumnodes
+    verbs:
+      - create
+  - apiGroups:
+      - cilium.io
+    resources:
+      - ciliumidentities
+    verbs:
+      - update
+  - apiGroups:
+      - cilium.io
+    resources:
+      - ciliumendpoints
+    verbs:
+      - delete
+      - get
+  - apiGroups:
+      - cilium.io
+    resources:
+      - ciliumnodes
+      - ciliumnodes/status
+    verbs:
+      - get
+      - update
+  - apiGroups:
+      - cilium.io
+    resources:
+      - ciliumnetworkpolicies/status
+      - ciliumclusterwidenetworkpolicies/status
+      - ciliumendpoints/status
+      - ciliumendpoints
+      - ciliuml2announcementpolicies/status
+      - ciliumbgpnodeconfigs/status
+    verbs:
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+  - apiGroups:
+      - cilium.io
+    resources:
+      - ciliumnodes
+    verbs:
+      - patch
+
+---
+### For ClusterRole and ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cilium-watcher-cluster-binding
+subjects:
+  - kind: ServiceAccount
+    name: cilium-watcher-sa
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: cilium-watcher-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cilium-watcher
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cilium-watcher
+  template:
+    metadata:
+      labels:
+        app: cilium-watcher
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.azure.com/managed
+                # set on unmanaged nodes
+                operator: NotIn
+                values:
+                - "false"
+      hostNetwork: true
+      serviceAccountName: cilium-watcher-sa
+      containers:
+        - name: ds-watcher
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+
+              NAMESPACE="kube-system"
+              export ORIGINAL_DAEMONSET="cilium"
+              export MODIFIED_DAEMONSET="cilium-unmanaged"
+
+              update_daemonset() {
+                local temp_file="/tmp/${ORIGINAL_DAEMONSET}_daemonset.yaml"
+
+                echo "Fetching the latest Cilium DaemonSet YAML..."
+                kubectl get daemonset $ORIGINAL_DAEMONSET -n $NAMESPACE -oyaml > "$temp_file"
+
+                echo "Modifying the YAML..."
+                # Change the name of the DaemonSet
+                yq eval '.metadata.name = strenv(MODIFIED_DAEMONSET)' -i "$temp_file"
+
+                yq eval 'del(.metadata.annotations)' -i "$temp_file"
+                yq eval 'del(.metadata.labels)' -i "$temp_file"
+
+                # Remove metadata.annotations and metadata.labels.app.kubernetes.io/managed-by
+                yq eval 'del(.spec.template.metadata.annotations)' -i "$temp_file"
+                yq eval 'del(.spec.template.metadata.labels."kubernetes.azure.com/managedby")' -i "$temp_file"
+                yq eval '.spec.template.metadata.labels."k8s-app" = strenv(MODIFIED_DAEMONSET)' -i "$temp_file"
+                yq eval '.spec.selector.matchLabels."k8s-app" = strenv(MODIFIED_DAEMONSET)' -i "$temp_file"
+
+                # yq eval '.spec.template.spec.containers[0].args += ["--enable-bandwidth-manager"]' -i "$temp_file"
+                yq eval '.spec.template.spec.containers[0].args += ["--cni-chaining-mode=generic-veth"]' -i "$temp_file"
+                # yq eval '.spec.template.spec.containers[0].args += ["--enable-host-legacy-routing=false"]' -i "$temp_file"
+
+                ### TODO / TESTING
+                # Remove if present
+                # yq eval 'del(.spec.template.spec.containers[0].args[] | select(. == "--kube-proxy-replacement=probe"))' -i "$temp_file"
+                # kube-proxy-replacement-healthz-bind-address: "0.0.0.0:10256"
+                #
+
+
+                # Replace service account name
+                yq eval '.spec.template.spec.serviceAccountName = strenv(MODIFIED_DAEMONSET)' -i "$temp_file"
+                yq eval '.spec.template.spec.serviceAccount = strenv(MODIFIED_DAEMONSET)' -i "$temp_file"
+
+                # Replace node affinity requirement
+                yq eval 'del(.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[].matchExpressions[] | select(.key == "kubernetes.azure.com/ebpf-dataplane"))' -i "$temp_file"
+                yq eval 'with(.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[]; .matchExpressions |= map(select(.key != "kubernetes.azure.com/cluster")) | .matchExpressions += {"key": "kubernetes.azure.com/managed", "operator": "In", "values": ["false"]})' -i "$temp_file"
+
+                # Remove status section
+                yq eval 'del(.status)' -i "$temp_file"
+
+                # Ensure no duplicate conflicts
+                yq eval 'del(.metadata.resourceVersion)' -i "$temp_file"
+                yq eval 'del(.metadata.uid)' -i "$temp_file"
+
+                echo "Applying the modified DaemonSet..."
+                cat "$temp_file"
+                kubectl apply -f "$temp_file"
+                echo "Cilium Unmanaged DaemonSet updated!"
+              }
+
+              kubectl get daemonset $ORIGINAL_DAEMONSET -n $NAMESPACE -w | while read -r line; do
+              if echo "$line" | grep -q "$ORIGINAL_DAEMONSET"; then
+                echo "Detected change in $ORIGINAL_DAEMONSET, updating..."
+                update_daemonset
+              fi
+              done
+
+        - name: rbac-watcher
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+
+              NAMESPACE="kube-system"
+              export ORIGINAL_DAEMONSET="cilium"
+              export MODIFIED_DAEMONSET="cilium-unmanaged"
+              update_rbac() {
+                local sa_file="/tmp/${ORIGINAL_DAEMONSET}_sa.yaml"
+                local cr_file="/tmp/${ORIGINAL_DAEMONSET}_cr.yaml"
+                local crb_file="/tmp/${ORIGINAL_DAEMONSET}_crb.yaml"
+                local current_file=""
+
+                # --- ClusterRole ---
+                current_file=$cr_file
+                echo "Fetching the latest Cilium ClusterRole YAML..."
+                kubectl get clusterrole $ORIGINAL_DAEMONSET -oyaml > "$current_file"
+
+                echo "Modifying the ClusterRole YAML..."
+                # Change name
+                yq eval '.metadata.name = strenv(MODIFIED_DAEMONSET)' -i "$current_file"
+
+                # Remove metadata.annotations
+                yq eval 'del(.metadata.annotations)' -i "$current_file"
+                yq eval 'del(.metadata.labels."app.kubernetes.io/managed-by")' -i "$current_file"
+                yq eval 'del(.metadata.labels."app.kubernetes.io/actually-managed-by")' -i "$current_file"
+                yq eval '.metadata.labels."app.kubernetes.io/part-of" = strenv(MODIFIED_DAEMONSET)' -i "$current_file"
+
+                # Ensure no duplicate conflicts
+                yq eval 'del(.metadata.resourceVersion)' -i "$current_file"
+                yq eval 'del(.metadata.uid)' -i "$current_file"
+                yq eval 'del(.metadata.creationTimestamp)' -i "$current_file"
+
+                echo "Applying the modified ClusterRole..."
+                cat "$current_file"
+                kubectl apply -f "$current_file"
+                echo "Cilium Unmanaged ClusterRole updated!"
+
+
+                # --- ServiceAccount ---
+                if kubectl get serviceaccount -n $NAMESPACE $MODIFIED_DAEMONSET -oyaml &> /dev/null; then
+                    echo "ServiceAccount $MODIFIED_DAEMONSET already exists. Skipping creation."
+                else
+                    current_file=$sa_file
+                    echo "Fetching the latest Cilium ServiceAccount YAML..."
+                    kubectl get serviceaccount -n $NAMESPACE $ORIGINAL_DAEMONSET -oyaml > "$current_file"
+
+                    echo "Modifying the ServiceAccount YAML..."
+                    # Change name
+                    yq eval '.metadata.name = strenv(MODIFIED_DAEMONSET)' -i "$current_file"
+
+                    # Remove metadata.annotations
+                    yq eval 'del(.metadata.annotations)' -i "$current_file"
+                    yq eval 'del(.metadata.labels)' -i "$current_file"
+                    yq eval 'del(.metadata.labels."app.kubernetes.io/actually-managed-by")' -i "$current_file"
+
+                    # Ensure no duplicate conflicts
+                    yq eval 'del(.metadata.resourceVersion)' -i "$current_file"
+                    yq eval 'del(.metadata.uid)' -i "$current_file"
+                    yq eval 'del(.metadata.creationTimestamp)' -i "$current_file"
+
+                    echo "Applying the modified ServiceAccount..."
+                    cat "$current_file"
+                    kubectl apply -f "$current_file"
+                    echo "Cilium Unmanaged ServiceAccount updated!"
+                fi
+
+                # --- ClusterRoleBinding ---
+                if kubectl get clusterrolebinding $MODIFIED_DAEMONSET -oyaml &> /dev/null; then
+                    echo "ClusterRoleBinding $MODIFIED_DAEMONSET already exists. Skipping creation."
+                else
+                    current_file=$crb_file
+                    echo "Fetching the latest Cilium ClusterRoleBinding YAML..."
+                    kubectl get clusterrolebinding -n $NAMESPACE $ORIGINAL_DAEMONSET -oyaml > "$current_file"
+
+                    echo "Modifying the ClusterRoleBinding YAML..."
+                    # Change name
+                    yq eval '.metadata.name = strenv(MODIFIED_DAEMONSET)' -i "$current_file"
+                    yq eval '.roleRef.name = strenv(MODIFIED_DAEMONSET)' -i "$current_file"
+                    yq eval '.subjects[0].name = strenv(MODIFIED_DAEMONSET)' -i "$current_file"
+
+                    # Remove metadata.annotations
+                    yq eval 'del(.metadata.annotations)' -i "$current_file"
+                    yq eval 'del(.metadata.labels."app.kubernetes.io/managed-by")' -i "$current_file"
+                    yq eval 'del(.metadata.labels."app.kubernetes.io/actually-managed-by")' -i "$current_file"
+                    yq eval '.metadata.labels."app.kubernetes.io/part-of" = strenv(MODIFIED_DAEMONSET)' -i "$current_file"
+
+                    # Ensure no duplicate conflicts
+                    yq eval 'del(.metadata.resourceVersion)' -i "$current_file"
+                    yq eval 'del(.metadata.uid)' -i "$current_file"
+                    yq eval 'del(.metadata.creationTimestamp)' -i "$current_file"
+
+                    echo "Applying the modified ClusterRoleBinding..."
+                    cat "$current_file"
+                    kubectl apply -f "$current_file"
+                    echo "Cilium Unmanaged ClusterRoleBinding updated!"
+                fi
+
+
+              }
+
+              # DaemonSet RBAC watcher
+              kubectl get clusterrole $ORIGINAL_DAEMONSET -w | while read -r line; do
+              if echo "$line" | grep -q "$ORIGINAL_DAEMONSET"; then
+                  echo "Detected change in ClusterRole $ORIGINAL_DAEMONSET, updating RBAC..."
+                  update_rbac
+              fi
+              done
