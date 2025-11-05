@@ -135,6 +135,18 @@ func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, er
 	// 		LocalAddresses  = Destination IPs
 	// 		RemoteAddresses = Source IPs
 
+	// if direct IPs are used, we leave local addresses to be an empty string
+	if len(acl.SrcDirectIPs) > 0 || len(acl.DstDirectIPs) > 0 {
+		policySettings.LocalAddresses = ""
+		if policySettings.Direction == hcn.DirectionTypeOut {
+			// EGRESS: Remote = Destination IPs from policy
+			policySettings.RemoteAddresses = dstListStr
+		} else {
+			// INGRESS: Remote = Source IPs from policy
+			policySettings.RemoteAddresses = srcListStr
+		}
+	}
+
 	policySettings.LocalAddresses = srcListStr
 	policySettings.RemoteAddresses = dstListStr
 
