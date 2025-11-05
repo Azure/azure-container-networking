@@ -128,17 +128,18 @@ type RouteInfo struct {
 
 // InterfaceInfo contains information for secondary interfaces
 type InterfaceInfo struct {
-	Name                       string
-	MacAddress                 net.HardwareAddr
-	IPConfigs                  []*IPConfig
-	Routes                     []RouteInfo
-	DNS                        DNSInfo
-	NICType                    cns.NICType
-	SkipDefaultRoutes          bool
-	HostSubnetPrefix           net.IPNet // Move this field from ipamAddResult
-	NCResponse                 *cns.GetNetworkContainerResponse
-	PnPID                      string
-	EndpointPolicies           []policy.Policy
+	Name              string
+	MacAddress        net.HardwareAddr
+	IPConfigs         []*IPConfig
+	Routes            []RouteInfo
+	DNS               DNSInfo
+	NICType           cns.NICType
+	SkipDefaultRoutes bool
+	HostSubnetPrefix  net.IPNet // Move this field from ipamAddResult
+	NCResponse        *cns.GetNetworkContainerResponse
+	PnPID             string
+	EndpointPolicies  []policy.Policy
+	// these fields will be required for swiftv2 apipa nic
 	NetworkContainerID         string
 	AllowNCToHostCommunication bool
 	AllowHostToNCCommunication bool
@@ -170,10 +171,10 @@ func FormatSliceOfPointersToString[T any](slice []*T) string {
 
 func (epInfo *EndpointInfo) PrettyString() string {
 	return fmt.Sprintf("EndpointID:%s ContainerID:%s NetNsPath:%s IfName:%s IfIndex:%d MacAddr:%s IPAddrs:%v Gateways:%v Data:%+v NICType: %s "+
-		"NetworkContainerID: %s HostIfName: %s NetNs: %s Options: %v MasterIfName: %s HNSEndpointID: %s HNSNetworkID: %s",
+		"NetworkContainerID: %s HostIfName: %s NetNs: %s Options: %v MasterIfName: %s HNSEndpointID: %s HNSNetworkID: %s AllowHostToNC:%t AllowNCToHost:%t",
 		epInfo.EndpointID, epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName, epInfo.IfIndex, epInfo.MacAddress.String(), epInfo.IPAddresses,
 		epInfo.Gateways, epInfo.Data, epInfo.NICType, epInfo.NetworkContainerID, epInfo.HostIfName, epInfo.NetNs, epInfo.Options, epInfo.MasterIfName,
-		epInfo.HNSEndpointID, epInfo.HNSNetworkID)
+		epInfo.HNSEndpointID, epInfo.HNSNetworkID, epInfo.AllowInboundFromHostToNC, epInfo.AllowInboundFromNCToHost)
 }
 
 func (ifInfo *InterfaceInfo) PrettyString() string {

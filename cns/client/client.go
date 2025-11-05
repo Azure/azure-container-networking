@@ -1101,6 +1101,8 @@ func (c *Client) UpdateEndpoint(ctx context.Context, endpointID string, ipInfo m
 	return &response, nil
 }
 
+// DeleteEndpointState calls the DeleteEndpointHandler API in CNS to delete the state of a given EndpointID(containerID)
+// This api is called for swiftv2 standalone scenario to cleanup state in CNS
 func (c *Client) DeleteEndpointState(ctx context.Context, endpointID string) (*cns.Response, error) {
 	// build the request
 	u := c.routes[cns.EndpointAPI]

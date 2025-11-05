@@ -492,7 +492,7 @@ func (nm *networkManager) DeleteEndpoint(networkID, endpointID string, epInfo *E
 
 	if nm.IsStatelessCNIMode() {
 		// Calls deleteEndpointImpl directly, skipping the get network check; does not call cns
-		return nm.DeleteEndpointState(networkID, epInfo)
+		return nm.DeleteEndpointStateless(networkID, epInfo)
 	}
 
 	nw, err := nm.getNetwork(networkID)
@@ -508,7 +508,7 @@ func (nm *networkManager) DeleteEndpoint(networkID, endpointID string, epInfo *E
 	return nil
 }
 
-func (nm *networkManager) DeleteEndpointState(networkID string, epInfo *EndpointInfo) error {
+func (nm *networkManager) DeleteEndpointStateless(networkID string, epInfo *EndpointInfo) error {
 	// we want to always use hnsv2 in stateless
 	// hnsv2 is only enabled if NetNs has a valid guid and the hnsv2 api is supported
 	// by passing in a dummy guid, we satisfy the first condition
@@ -767,14 +767,16 @@ func (nm *networkManager) DeleteState(epInfos []*EndpointInfo) error {
 	defer nm.Unlock()
 
 	logger.Info("Deleting state")
-	// We do not use DeleteEndpointState for stateless cni because we already call it in DeleteEndpoint
-	// This function is only for saving to stateless cni or the cni statefile
-	// For stateless cni, plugin.ipamInvoker.Delete takes care of removing the state in the main Delete function
 
+	// For AKS stateless cni, plugin.ipamInvoker.Delete takes care of removing the state in the main Delete function.
+	// For swiftv2 stateless cni, this call will delete the endpoint state from CNS.
 	if nm.IsStatelessCNIMode() {
 		for _, epInfo := range epInfos {
 			// this cleanup happens only for standalone swiftv2 to delete endpoint state from CNS.
 			if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC || epInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+				// swiftv2 multitenancy does not call plugin.ipamInvoker.Delete and so state does not automatically clean up. this call is required to
+				// cleanup state in CNS
+				// One Delete call for endpointID will remove all interface info associated with that endpointID in CNS
 				response, err := nm.CnsClient.DeleteEndpointState(context.TODO(), epInfo.EndpointID)
 				if err != nil {
 					if response != nil && response.ReturnCode == types.NotFound {

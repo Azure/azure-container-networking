@@ -161,7 +161,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 		podIPInfoList = append(podIPInfoList, podIPInfo)
 		if resp[i].AllowHostToNCCommunication || resp[i].AllowNCToHostCommunication {
 			apipaIndex = i
-			break
 		}
 	}
 
@@ -1145,7 +1144,8 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 	case http.MethodDelete:
 		service.DeleteEndpointStateHandler(w, r)
 	default:
-		logger.Errorf("[EndpointHandlerAPI] EndpointHandler API expect http Get or Patch method")
+		//nolint
+		logger.Errorf("[EndpointHandlerAPI] EndpointHandler API expect http Get or Patch or Delete method")
 	}
 }
 

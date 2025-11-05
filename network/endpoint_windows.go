@@ -550,10 +550,7 @@ func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.Exe
 	}
 
 	if ep.NICType == cns.ApipaNIC {
-		if err := nw.deleteHostNCApipaEndpoint(ep.NetworkContainerID); err != nil {
-			logger.Error("Failed to delete HostNCApipaEndpoint due to error", zap.Error(err))
-			return err
-		}
+		return nw.deleteHostNCApipaEndpoint(ep.NetworkContainerID)
 	}
 
 	if ep.HnsId == "" {
