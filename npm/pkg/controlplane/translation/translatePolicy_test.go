@@ -1458,6 +1458,195 @@ func TestPeerAndPortRule(t *testing.T) {
 	}
 }
 
+func TestDirectPeerAndPortRule(t *testing.T) {
+	namedPort := intstr.FromString(namedPortStr)
+	port8000 := intstr.FromInt(8000)
+	var endPort int32 = 8100
+	tcp := v1.ProtocolTCP
+
+	tests := []struct {
+		name        string
+		direction   policies.Direction
+		ports       []networkingv1.NetworkPolicyPort
+		cidr        string
+		npmNetPol   *policies.NPMNetworkPolicy
+		skipWindows bool
+	}{
+		{
+			name:      "egress tcp port 8000-8100 with /28 subnet",
+			direction: policies.Egress,
+			ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &tcp,
+					Port:     &port8000,
+					EndPort:  &endPort,
+				},
+			},
+			cidr: "10.0.1.0/28",
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:       policies.Allowed,
+						Direction:    policies.Egress,
+						DstDirectIPs: []string{"10.0.1.0/28"},
+						DstPorts: policies.Ports{
+							Port:    8000,
+							EndPort: 8100,
+						},
+						Protocol: "TCP",
+					},
+				},
+			},
+		},
+		{
+			name:      "ingress no ports - single IP (/32)",
+			direction: policies.Ingress,
+			ports:     []networkingv1.NetworkPolicyPort{},
+			cidr:      "10.226.0.49/32",
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:       policies.Allowed,
+						Direction:    policies.Ingress,
+						SrcDirectIPs: []string{"10.226.0.49/32"},
+					},
+				},
+			},
+		},
+		{
+			name:      "egress no ports - subnet (/24)",
+			direction: policies.Egress,
+			ports:     []networkingv1.NetworkPolicyPort{},
+			cidr:      "192.168.1.0/24",
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:       policies.Allowed,
+						Direction:    policies.Egress,
+						DstDirectIPs: []string{"192.168.1.0/24"},
+					},
+				},
+			},
+		},
+		{
+			name:      "ingress no ports - large subnet (/16)",
+			direction: policies.Ingress,
+			ports:     []networkingv1.NetworkPolicyPort{},
+			cidr:      "172.16.0.0/16",
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:       policies.Allowed,
+						Direction:    policies.Ingress,
+						SrcDirectIPs: []string{"172.16.0.0/16"},
+					},
+				},
+			},
+		},
+		{
+			name:      "egress tcp port 8000-8100 with /28 subnet",
+			direction: policies.Egress,
+			ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &tcp,
+					Port:     &port8000,
+					EndPort:  &endPort,
+				},
+			},
+			cidr: "10.0.1.0/28",
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:       policies.Allowed,
+						Direction:    policies.Egress,
+						DstDirectIPs: []string{"10.0.1.0/28"},
+						DstPorts: policies.Ports{
+							Port:    8000,
+							EndPort: 8100,
+						},
+						Protocol: "TCP",
+					},
+				},
+			},
+		},
+		{
+			name:      "ingress udp port 53 with /32",
+			direction: policies.Ingress,
+			ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &[]v1.Protocol{v1.ProtocolUDP}[0],
+					Port:     &intstr.IntOrString{Type: intstr.Int, IntVal: 53},
+				},
+			},
+			cidr: "8.8.8.8/32",
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:       policies.Allowed,
+						Direction:    policies.Ingress,
+						SrcDirectIPs: []string{"8.8.8.8/32"},
+						DstPorts: policies.Ports{
+							Port:    53,
+							EndPort: 0,
+						},
+						Protocol: "UDP",
+					},
+				},
+			},
+		},
+		{
+			name:      "named port should fail in NPM Lite",
+			direction: policies.Ingress,
+			ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &tcp,
+					Port:     &namedPort,
+				},
+			},
+			cidr:        "10.226.0.49/32",
+			skipWindows: true, // Should fail on both platforms
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		npmLiteToggle := true
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			npmNetPol := &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+			}
+			err := directPeerAndPortRule(npmNetPol, tt.direction, tt.ports, tt.cidr, npmLiteToggle)
+			if tt.skipWindows {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.npmNetPol, npmNetPol)
+			}
+		})
+	}
+}
+
 func TestIngressPolicy(t *testing.T) {
 	tcp := v1.ProtocolTCP
 	targetPodMatchType := policies.EitherMatch
