@@ -572,7 +572,7 @@ npm-image: ## build the npm container image.
 	$(MAKE) container-$(CONTAINER_BUILDER) \
 		DOCKERFILE=npm/$(OS).Dockerfile \
 		IMAGE=$(NPM_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)' \
+		EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID) $(EXTRA_BUILD_ARGS)' \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(NPM_PLATFORM_TAG) \
 		TARGET=$(OS) \
