@@ -37,7 +37,7 @@ steps:
     echo "=== Disk space BEFORE make image ==="
     df -h
     if [ ${{ parameters.os }} = 'windows' ]; then export BUILDX_ACTION='--push'; fi
-    make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
+    make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }} EXTRA_BUILD_ARGS='--driver-opt "storage-opt=source=/mnt/azure-container-networking/"'
     echo "=== Disk space AFTER make image ==="
     df -h
   name: image_build
