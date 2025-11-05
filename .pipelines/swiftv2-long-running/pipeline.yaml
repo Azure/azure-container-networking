@@ -1,0 +1,42 @@
+trigger: none
+
+parameters:
+  - name: subscriptionId
+    displayName: "Azure Subscription ID"
+    type: string
+    default: "37deca37-c375-4a14-b90a-043849bd2bf1"
+
+  - name: location
+    displayName: "Deployment Region"
+    type: string
+    default: "centraluseuap"
+
+  - name: resourceGroupName
+    displayName: "Resource Group Name"
+    type: string
+    default: "long-run-$(Build.BuildId)"
+
+  - name: vmSkuDefault
+    displayName: "VM SKU for Default Node Pool"
+    type: string
+    default: "Standard_D2s_v3"
+
+  - name: vmSkuHighNIC
+    displayName: "VM SKU for High NIC Node Pool"
+    type: string
+    default: "Standard_D16s_v3"
+
+  - name: serviceConnection
+    displayName: "Azure Service Connection"
+    type: string
+    default: "Azure Container Networking - Standalone Test Service Connection"
+
+extends:
+  template: template/long-running-pipeline-template.yaml
+  parameters:
+    subscriptionId: ${{ parameters.subscriptionId }}
+    location: ${{ parameters.location }}
+    resourceGroupName: ${{ parameters.resourceGroupName }}
+    vmSkuDefault: ${{ parameters.vmSkuDefault }}
+    vmSkuHighNIC: ${{ parameters.vmSkuHighNIC }}
+    serviceConnection: ${{ parameters.serviceConnection }}
