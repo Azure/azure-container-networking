@@ -359,7 +359,3 @@ func NodeIP() (string, error) {
 
 	return nodeIP, nil
 }
-
-func IsCIDR32(cidr string) bool {
-	return strings.HasSuffix(cidr, "/32")
-}
