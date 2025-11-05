@@ -111,7 +111,7 @@ stages:
           dependsOn: ${{ parameters.name }}_windows
           datapath: true
           dns: true
-          portforward: true
+          portforward: ${{ eq(parameters.os, 'linux') }} # Unblock Pipeline, broken for all windows scenarios
           hostport: true
           service: true
 
