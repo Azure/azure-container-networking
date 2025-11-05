@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns/cniconflist"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type bufferWriteCloser struct {
@@ -23,13 +23,13 @@ func TestGenerateV4OverlayConflist(t *testing.T) {
 	buffer := new(bytes.Buffer)
 	g := cniconflist.V4OverlayGenerator{Writer: &bufferWriteCloser{buffer}}
 	err := g.Generate()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	fixtureBytes, err := os.ReadFile(fixture)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// remove newlines and carriage returns in case these UTs are running on Windows
-	assert.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
+	require.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
 }
 
 func TestGenerateDualStackOverlayConflist(t *testing.T) {
@@ -38,13 +38,13 @@ func TestGenerateDualStackOverlayConflist(t *testing.T) {
 	buffer := new(bytes.Buffer)
 	g := cniconflist.DualStackOverlayGenerator{Writer: &bufferWriteCloser{buffer}}
 	err := g.Generate()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	fixtureBytes, err := os.ReadFile(fixture)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// remove newlines and carriage returns in case these UTs are running on Windows
-	assert.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
+	require.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
 }
 
 func TestGenerateOverlayConflist(t *testing.T) {
@@ -53,13 +53,13 @@ func TestGenerateOverlayConflist(t *testing.T) {
 	buffer := new(bytes.Buffer)
 	g := cniconflist.OverlayGenerator{Writer: &bufferWriteCloser{buffer}}
 	err := g.Generate()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	fixtureBytes, err := os.ReadFile(fixture)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// remove newlines and carriage returns in case these UTs are running on Windows
-	assert.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
+	require.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
 }
 
 func TestGenerateCiliumConflist(t *testing.T) {
@@ -68,13 +68,13 @@ func TestGenerateCiliumConflist(t *testing.T) {
 	buffer := new(bytes.Buffer)
 	g := cniconflist.CiliumGenerator{Writer: &bufferWriteCloser{buffer}}
 	err := g.Generate()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	fixtureBytes, err := os.ReadFile(fixture)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// remove newlines and carriage returns in case these UTs are running on Windows
-	assert.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
+	require.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
 }
 
 func TestGenerateSWIFTConflist(t *testing.T) {
@@ -83,13 +83,13 @@ func TestGenerateSWIFTConflist(t *testing.T) {
 	buffer := new(bytes.Buffer)
 	g := cniconflist.SWIFTGenerator{Writer: &bufferWriteCloser{buffer}}
 	err := g.Generate()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	fixtureBytes, err := os.ReadFile(fixture)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// remove newlines and carriage returns in case these UTs are running on Windows
-	assert.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
+	require.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
 }
 
 func TestGenerateAzurecniCiliumConflist(t *testing.T) {
@@ -98,13 +98,13 @@ func TestGenerateAzurecniCiliumConflist(t *testing.T) {
 	buffer := new(bytes.Buffer)
 	g := cniconflist.AzureCNIChainedCiliumGenerator{Writer: &bufferWriteCloser{buffer}}
 	err := g.Generate()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	fixtureBytes, err := os.ReadFile(fixture)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// remove newlines and carriage returns in case these UTs are running on Windows
-	assert.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
+	require.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
 }
 
 // removeNewLines will remove the newlines and carriage returns from the byte slice
