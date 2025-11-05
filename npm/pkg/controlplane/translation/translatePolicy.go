@@ -396,6 +396,9 @@ func directPeerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction polic
 			}
 
 			// Handle ports
+			if portKind == namedPortType {
+				return ErrUnsupportedNamedPort
+			}
 			if portKind == numericPortType {
 				portInfo, protocol := numericPortRule(&ports[i])
 				acl.DstPorts = portInfo
