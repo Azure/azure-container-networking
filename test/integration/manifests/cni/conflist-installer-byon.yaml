@@ -27,6 +27,10 @@ spec:
                 operator: In
                 values:
                 - linux
+              - key: kubernetes.azure.com/managed
+                operator: In
+                values:
+                - "false"
       priorityClassName: system-node-critical
       tolerations:
         - key: CriticalAddonsOnly
