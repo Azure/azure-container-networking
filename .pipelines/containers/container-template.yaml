@@ -17,6 +17,10 @@ steps:
     set -e
     echo $(Pipeline.Workspace)
     ls /mnt/
+    sudo mkdir -p /mnt
+    sudo chown $(whoami):$(whoami) /mnt
+    chmod 700 /mnt
+    echo "Cloning repository to /mnt/azure-container-networking"
     git clone $(Build.Repository.Uri) /mnt/azure-container-networking
     cd /mnt/azure-container-networking
     git checkout $(Build.SourceVersion)
