@@ -148,14 +148,6 @@ stages:
                 arch: amd64
                 name: ipv6-hp-bpf
                 os: linux
-              npm_linux_amd64:
-                arch: amd64
-                name: npm
-                os: linux
-              npm_windows_amd64:
-                arch: amd64
-                name: npm
-                os: windows
           steps:
             - template: containers/container-template.yaml
               parameters:
@@ -193,6 +185,45 @@ stages:
                 arch: arm64
                 name: ipv6-hp-bpf
                 os: linux
+          steps:
+            - template: containers/container-template.yaml
+              parameters:
+                arch: $(arch)
+                name: $(name)
+                os: $(os)
+
+    - stage: containerize_npm
+      displayName: Build NPM Images
+      dependsOn:
+        - setup
+      jobs:
+        - job: containerize_npm_amd64
+          displayName: Build NPM Images
+          pool:
+            name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+          strategy:
+            matrix:
+              npm_linux_amd64:
+                arch: amd64
+                name: npm
+                os: linux
+              npm_windows_amd64:
+                arch: amd64
+                name: npm
+                os: windows
+          steps:
+            - template: containers/container-template.yaml
+              parameters:
+                arch: $(arch)
+                name: $(name)
+                os: $(os)
+                os_version: $(os_version)
+        - job: containerize_npm_linux_arm64
+          displayName: Build NPM Images
+          pool:
+            name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+          strategy:
+            matrix:
               npm_linux_arm64:
                 arch: arm64
                 name: npm
@@ -244,7 +275,7 @@ stages:
     - stage: publish_npm
       displayName: Publish NPM Multiarch Manifest
       dependsOn:
-        - containerize
+        - containerize_npm
       jobs:
         - job: npm_manifest
           displayName: Compile NPM Manifest

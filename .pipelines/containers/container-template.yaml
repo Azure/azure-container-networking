@@ -15,11 +15,38 @@ steps:
 
 - script: |
     set -e
+    echo "Disk space before cleanup..."
+    df -h /
+    echo "Removing unnecessary files to free up disk space..."
+    sudo rm -rf \
+      /opt/hostedtoolcache \
+      /opt/google/chrome \
+      /opt/microsoft/msedge \
+      /opt/microsoft/powershell \
+      /opt/pipx \
+      /usr/lib/mono \
+      /usr/local/julia* \
+      /usr/local/lib/android \
+      /usr/local/lib/node_modules \
+      /usr/local/share/chromium \
+      /usr/local/share/powershell \
+      /usr/share/dotnet \
+      /usr/share/swift
+    echo "Disk space after cleanup..."
+    df -h /
+  displayName: "Clean up disk space"
+
+- script: |
+    set -e
+    echo "=== Disk space BEFORE make image ==="
+    df -h
     if [ ${{ parameters.os }} = 'windows' ]; then export BUILDX_ACTION='--push'; fi
     make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
+    echo "=== Disk space AFTER make image ==="
+    df -h
   name: image_build
   displayName: Image Build
-  retryCountOnTaskFailure: 3
+  retryCountOnTaskFailure: 2
 
 - task: AzureCLI@2
   displayName: "Logout"
