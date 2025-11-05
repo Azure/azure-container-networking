@@ -454,8 +454,6 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 		// #2.1 Handle IPBlock and port if exist
 		if peer.IPBlock != nil {
 			if len(peer.IPBlock.CIDR) > 0 {
-				// add logic that if the peer is only IPBlock and npm lite is enabled and is a /32 cidr block
-				// then skip creating IpBlockIPSet
 				if npmLiteToggle {
 					err = directPeerAndPortRule(npmNetPol, direction, ports, peer.IPBlock.CIDR, npmLiteToggle)
 					if err != nil {
