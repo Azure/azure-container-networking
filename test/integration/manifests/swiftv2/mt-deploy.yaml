@@ -8,10 +8,8 @@ spec:
     matchLabels:
       app: container
   replicas: 1
-  template: # create pods using pod definition in this template
+  template:
     metadata:
-      # unlike pod-nginx.yaml, the name is not included in the meta data as a unique name is
-      # generated from the deployment name
       labels:
         app: container
         kubernetes.azure.com/pod-network-instance: pni

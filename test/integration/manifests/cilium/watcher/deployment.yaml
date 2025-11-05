@@ -231,13 +231,6 @@ spec:
                 yq eval '.spec.template.spec.containers[0].args += ["--cni-chaining-mode=generic-veth"]' -i "$temp_file"
                 # yq eval '.spec.template.spec.containers[0].args += ["--enable-host-legacy-routing=false"]' -i "$temp_file"
 
-                ### TODO / TESTING
-                # Remove if present
-                # yq eval 'del(.spec.template.spec.containers[0].args[] | select(. == "--kube-proxy-replacement=probe"))' -i "$temp_file"
-                # kube-proxy-replacement-healthz-bind-address: "0.0.0.0:10256"
-                #
-
-
                 # Replace service account name
                 yq eval '.spec.template.spec.serviceAccountName = strenv(MODIFIED_DAEMONSET)' -i "$temp_file"
                 yq eval '.spec.template.spec.serviceAccount = strenv(MODIFIED_DAEMONSET)' -i "$temp_file"
