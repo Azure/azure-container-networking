@@ -145,10 +145,10 @@ func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, er
 			// INGRESS: Remote = Source IPs from policy
 			policySettings.RemoteAddresses = srcListStr
 		}
+	} else {
+		policySettings.LocalAddresses = srcListStr
+		policySettings.RemoteAddresses = dstListStr
 	}
-
-	policySettings.LocalAddresses = srcListStr
-	policySettings.RemoteAddresses = dstListStr
 
 	// Switch ports based on direction
 	policySettings.RemotePorts = ""
