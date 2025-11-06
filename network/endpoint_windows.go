@@ -343,6 +343,11 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 
 	for _, ipAddress := range epInfo.IPAddresses {
 		prefixLength, _ := ipAddress.Mask.Size()
+
+		if ipAddress.IP.To4() == nil {
+			prefixLength = 64
+		}
+
 		ipConfiguration := hcn.IpConfig{
 			IpAddress:    ipAddress.IP.String(),
 			PrefixLength: uint8(prefixLength),
