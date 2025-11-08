@@ -286,7 +286,10 @@ swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI clus
 	@$(MAKE) set-kubeconf
 
 swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet cluster
-	$(COMMON_AKS_FIELDS) 
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--no-ssh-key \
 		--network-plugin azure \
 		--nodepool-name nodepool1 \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
