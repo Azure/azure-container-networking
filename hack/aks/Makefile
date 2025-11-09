@@ -310,7 +310,8 @@ swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet 
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--tags fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true \
+		--nodepool-tags fastpathenabled=true,aks-nic-enable-multi-tenancy=true
+		--tags fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true aks-nic-enable-multi-tenancy=true\
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--yes 
