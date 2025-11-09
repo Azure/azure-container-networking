@@ -140,3 +140,29 @@ stages:
                 ${{ parameters.location }}
                 ${{ parameters.resourceGroupName }}
                 $(CreateStorageAccounts.StorageAccount1)
+  # =================================================================
+  # Stage 2: Datapath Tests
+  # =================================================================
+  - stage: DataPathTests
+    displayName: "Stage: Swiftv2 Data Path Tests"
+    dependsOn: AKSClusterAndNetworking
+    condition: succeeded()
+    jobs:
+      - job: RunDataPathTests
+        displayName: "Run PodNetwork and Data Path Tests"
+        timeoutInMinutes: 0   # Run indefinitely
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: "Run datapath_tests.sh to create PN, PNI, and pods"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/datapath_tests.sh"
+              arguments: >
+                ${{ parameters.resourceGroupName }}
+                $(Build.BuildId)

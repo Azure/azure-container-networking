@@ -1,42 +1,60 @@
 #!/bin/bash
 # Usage:
-# ./create_pod.sh <RESOURCE_GROUP> <CLUSTER_NAME> <NAMESPACE> <POD_NAME> <NODE_NAME> [IMAGE]
+# ./create_pod.sh <POD_NAME> <NODE_NAME> <OS> <PN_NAME> <PNI_NAME> [IMAGE]
+# Example:
+# ./create_pod.sh netpod1 aks-node1 linux podnet-a pni-exp praqma/network-multitool
 
 set -euo pipefail
 
-RESOURCE_GROUP=$1
-CLUSTER_NAME=$2
-NAMESPACE=$3
-POD_NAME=$4
-NODE_NAME=$5
-IMAGE=${6:-nginx}
-
-echo "Getting AKS credentials..."
-az aks get-credentials -g "$RESOURCE_GROUP" -n "$CLUSTER_NAME" --overwrite-existing
-
-echo "Creating namespace (if not exists)..."
-kubectl get ns "$NAMESPACE" >/dev/null 2>&1 || kubectl create ns "$NAMESPACE"
+POD_NAME=$1
+NODE_NAME=$2
+OS=$3
+PN_NAME=$4
+PNI_NAME=$5
+IMAGE=${6:-weibeld/ubuntu-networking}
+KUBECONFIG_PATH=$7
 
 echo "Creating pod '$POD_NAME' on node '$NODE_NAME' using image '$IMAGE'..."
+echo "PodNetwork: $PN_NAME, PodNetworkInstance: $PNI_NAME, OS: $OS"
 
+export KUBECONFIG=$KUBECONFIG_PATH
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Pod
 metadata:
   name: $POD_NAME
-  namespace: $NAMESPACE
   labels:
-    app: $POD_NAME
+    kubernetes.azure.com/pod-network-instance: $PNI_NAME
+    kubernetes.azure.com/pod-network: $PN_NAME
 spec:
+  nodeName: $NODE_NAME
   nodeSelector:
-    kubernetes.io/hostname: $NODE_NAME
+    kubernetes.io/os: $OS
   containers:
-  - name: main
+  - name: net-debugger
     image: $IMAGE
-    command: ["sleep", "3600"]
-    imagePullPolicy: IfNotPresent
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        echo "Pod Network Diagnostics started on \$(hostname)";
+        echo "----------------------------------------------";
+        while true; do
+          echo "[$(date)] Running net tests...";
+          ip addr show;
+          ip route show;
+          sleep 60;
+        done
+    resources:
+      limits:
+        cpu: 300m
+        memory: 600Mi
+      requests:
+        cpu: 300m
+        memory: 600Mi
+    securityContext:
+      privileged: true
   restartPolicy: Always
 EOF
 
-echo "Pod '$POD_NAME' created successfully in namespace '$NAMESPACE'."
-kubectl get pod "$POD_NAME" -n "$NAMESPACE" -o wide
+echo "Pod '$POD_NAME' created successfully."
+kubectl get pod "$POD_NAME" -o wide

@@ -16,17 +16,22 @@ PNI_NAME=$3
 POD_NETWORK_NAME=$4
 PNI_TYPE=$5           # "explicit" or "implicit"
 RESERVATIONS=${6:-0}  # only used for explicit
-DEFAULT_DENY=${7:-false} # true or false
 
 export KUBECONFIG=$KUBECONFIG_PATH
 
-echo "🔧 Creating PodNetworkInstance:"
+if ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+  echo "Namespace '$NAMESPACE' not found. Creating it..."
+  kubectl create namespace "$NAMESPACE"
+else
+  echo "Namespace '$NAMESPACE' already exists."
+fi
+
+echo "Creating PodNetworkInstance:"
 echo "  Namespace:      $NAMESPACE"
 echo "  Name:           $PNI_NAME"
 echo "  Network:        $POD_NETWORK_NAME"
 echo "  Type:           $PNI_TYPE"
 echo "  Reservations:   $RESERVATIONS"
-echo "  Default Deny:   $DEFAULT_DENY"
 echo
 
 # --- Apply PNI manifest ---
@@ -41,7 +46,6 @@ spec:
   podNetworkConfigs:
   - podNetwork: $POD_NETWORK_NAME
     podIPReservationSize: $RESERVATIONS
-  defaultDenyACL: $DEFAULT_DENY
 EOF
 else
 cat <<EOF | kubectl apply -f -
@@ -53,14 +57,13 @@ metadata:
 spec:
   podNetworkConfigs:
   - podNetwork: $POD_NETWORK_NAME
-  defaultDenyACL: $DEFAULT_DENY
 EOF
 fi
 
 echo "PodNetworkInstance '$PNI_NAME' applied."
 
 # --- Wait for readiness ---
-echo "⏳ Waiting for PodNetworkInstance '$PNI_NAME' to become Ready..."
+echo "Waiting for PodNetworkInstance '$PNI_NAME' to become Ready..."
 
 MAX_ATTEMPTS=30
 SLEEP_INTERVAL=10

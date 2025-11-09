@@ -16,6 +16,7 @@ if [[ -z "$KUBECONFIG_PATH" || -z "$POD_NETWORK_NAME" || -z "$VNET_GUID" || -z "
 fi
 
 # === STEP 2: Build PodNetwork YAML ===
+export KUBECONFIG=$KUBECONFIG_PATH
 TMPFILE=$(mktemp)
 
 if [[ -n "$SUBNET_TOKEN" ]]; then
@@ -47,7 +48,7 @@ fi
 
 # === STEP 3: Apply the PodNetwork CRD ===
 echo "Creating PodNetwork ${POD_NETWORK_NAME}..."
-kubectl --kubeconfig="$KUBECONFIG_PATH" apply -f "$TMPFILE" || true
+kubectl apply -f "$TMPFILE" || true
 
 # === STEP 4: Wait until the CRD becomes Ready (if subnetToken not provided) ===
 if [[ -z "$SUBNET_TOKEN" ]]; then

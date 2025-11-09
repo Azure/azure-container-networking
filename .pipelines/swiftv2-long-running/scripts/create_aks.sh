@@ -44,12 +44,11 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
   AZCLI=az REGION=$LOCATION \
   SUB=$SUBSCRIPTION_ID \
   GROUP=$RG \
-  CLUSTER=$CLUSTER_NAME \
-  # NODE_COUNT=$DEFAULT_NODE_COUNT \
-  # VM_SIZE=$VM_SKU_DEFAULT \
+  CLUSTER=$CLUSTER_NAME 
 
   echo " - waiting for AKS provisioning state..."
   wait_for_provisioning "$RG" "$CLUSTER_NAME"
+
 
   echo "Adding multi-tenant nodepool ' to '$CLUSTER_NAME'"
   make -C ./hack/aks linux-swiftv2-nodepool-up \
@@ -57,7 +56,19 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
   GROUP=$RG \
   VM_SIZE=$VM_SKU_HIGHNIC \
   CLUSTER=$CLUSTER_NAME \
-  SUB=$SUBSCRIPTION_ID \
+  SUB=$SUBSCRIPTION_ID 
+
+  KUBECONFIG_PATH="/tmp/${CLUSTER_NAME}.kubeconfig"
+  echo "Exporting admin kubeconfig for '$CLUSTER_NAME' to ${KUBECONFIG_PATH}..."
+
+  az aks get-credentials \
+    --resource-group "$RG" \
+    --name "$CLUSTER_NAME" \
+    --overwrite-existing \
+    --admin \
+    --file "$KUBECONFIG_PATH"
+
+  echo "Kubeconfig saved: ${KUBECONFIG_PATH}"
 
 done
 echo "All done. Created $CLUSTER_COUNT cluster set(s)."
