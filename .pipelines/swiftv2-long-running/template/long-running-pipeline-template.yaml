@@ -163,7 +163,7 @@ stages:
 
           - script: |
               echo "==> Installing Ginkgo CLI"
-              go install github.com/onsi/ginkgo/v2/ginkgo@v2.16.4
+              go install github.com/onsi/ginkgo/v2@v2.16.4
               echo "==> Running datapath tests"
               export RG=${{ parameters.resourceGroupName }}
               export BUILD_ID=$(Build.BuildId)
