@@ -64,6 +64,10 @@ for i in "${!VNAMES[@]}"; do
     # Loop over extra subnets to verify and create dummy clusters to delegate the pod subnets.
     for PODSUBNET in $EXTRA_SUBNETS; do
         verify_subnet "$RG" "$VNET" "$PODSUBNET"
+        if [[ "$PODSUBNET" == "pe" ]]; then
+            # Skip creating dummy cluster for private endpoint subnet.
+            continue
+        fi
         cluster_name="${BUILD_ID}-${VNET}-${PODSUBNET}"
         make -C ./hack/aks swiftv2-dummy-cluster-subnet-delegator-up \
             AZCLI=az CLUSTER=$cluster_name GROUP=$RG REGION=$LOCATION \
