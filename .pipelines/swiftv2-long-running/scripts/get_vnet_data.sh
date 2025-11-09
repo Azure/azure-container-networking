@@ -31,6 +31,6 @@ get_vnet_guid() {
     local vnet="$2"
 
     local vnet_id
-    vnet_id=$(az network vnet show --resource-group "$rg" --name "$vnet" --query "id" -o tsv)
+    vnet_id=$(az network vnet show --resource-group "$rg" --name "$vnet" --query "resourceGuid" -o tsv)
     echo "$vnet_id"
 }
