@@ -122,6 +122,16 @@ rg-up: ## Create resource group
 rg-down: ## Delete resource group
 	$(AZCLI) group delete -g $(GROUP) --yes
 
+swift-delegated-subnet-up: ## Create VNet, node subnet, and optional extra subnets
+	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
+	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes 10.240.0.0/16 -o none
+	@i=1; \
+	for subnet in $(EXTRA_SUBNETS); do \
+		prefix="10.24$$i.0.0/16"; \
+		$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name $$subnet --address-prefixes $$prefix -o none; \
+		i=$$((i+1)); \
+	done
+
 swift-net-up: ## Create vnet, nodenet and podnet subnets
 	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes 10.240.0.0/16 -o none
@@ -285,20 +295,25 @@ swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI clus
 		--yes
 	@$(MAKE) set-kubeconf
 
+swiftv2-dummy-cluster-subnet-delegator-up: ipv4  ## Bring up a SWIFT AzCNI cluster for delegating subnet.
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--network-plugin azure \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/$(POD_SUBNET) \
+		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
+		--no-ssh-key \
+		--yes
+	@$(MAKE) set-kubeconf
+
 swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
-		--no-ssh-key \
 		--network-plugin azure \
-		--nodepool-name nodepool1 \
-		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--service-cidr "10.0.0.0/16" \
-		--dns-service-ip "10.0.0.10" \
 		--tags fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
+		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
+		--no-ssh-key \
 		--yes 
 	@$(MAKE) set-kubeconf
 
