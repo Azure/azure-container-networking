@@ -19,6 +19,8 @@ EXTRA_CIDRS_LIST=( "10.10.1.0/24,10.10.2.0/24,10.10.3.0/24" \
                    "10.13.1.0/24" )
 az account set --subscription "$SUB_ID"
 
+az account set --subscription "$SUBSCRIPTION_ID"
+
 # -------------------------------
 # Verification functions
 # -------------------------------
