@@ -12,9 +12,6 @@ CLUSTER_PREFIX="aks"
 DEFAULT_NODE_COUNT=1                               
 COMMON_TAGS="fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/get_vnet_data.sh"
-
 wait_for_provisioning() {                      # Helper for safe retry/wait for provisioning states (basic)
   local rg="$1" clusterName="$2"                     
   echo "Waiting for AKS '$clusterName' in RG '$rg' to reach Succeeded/Failed (polling)..."

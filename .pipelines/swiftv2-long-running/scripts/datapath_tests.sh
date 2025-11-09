@@ -13,10 +13,10 @@ CLUSTER2="aks-2"
 
 # VNet/Subnet mappings for test
 declare -A VN_SUB_MAP
-VN_SUB_MAP["vnet_a1"]="s1 s2"
-VN_SUB_MAP["vnet_a2"]="s1"
-VN_SUB_MAP["vnet_a3"]="s1"
-VN_SUB_MAP["vnet_b1"]="s1"
+VN_SUB_MAP["cx_vnet_a1"]="s1 s2"
+VN_SUB_MAP["cx_vnet_a2"]="s1"
+VN_SUB_MAP["cx_vnet_a3"]="s1"
+VN_SUB_MAP["cx_vnet_b1"]="s1"
 
 # PN/PNI base names
 PN_PREFIX="pn-${BUILD_ID}"
@@ -48,7 +48,6 @@ create_pn() {
 
     echo "PodNetwork ${pn_name} submitted successfully."
 }
-
 
 create_pni() {
     local KUBECONFIG_PATH=$1
@@ -85,7 +84,7 @@ get_nodes() {
 PN_C2="${PN_PREFIX}-c2"
 PNI_C2="${PNI_PREFIX}-c2"
 
-create_pn "/tmp/${CLUSTER2}.kubeconfig" "$PN_C2" "vnet_b1" "s1"
+create_pn "/tmp/${CLUSTER2}.kubeconfig" "$PN_C2" "cx_vnet_b1" "s1"
 create_pni "/tmp/${CLUSTER2}.kubeconfig" "$PN_C2" "$PNI_C2" "$PN_C2" "explicit" "2" "$CLUSTER2"
 
 # Create 2 pods for Customer2, one per node in aks-2
