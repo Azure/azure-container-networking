@@ -22,7 +22,7 @@ VN_SUB_MAP["vnet_b1"]="s1"
 PN_PREFIX="pn-${BUILD_ID}"
 PNI_PREFIX="pni-${BUILD_ID}"
 
-source ./helpers_network_ids.sh
+source ./get_vnet_data.sh
 
 # Create PodNetwork in a specific cluster
 create_pn() {
@@ -43,12 +43,7 @@ create_pn() {
     echo "SUBNET_ARM_ID: $SUBNET_ARM_ID"
 
     # --- Create PodNetwork ---
-    ./create_pn.sh \
-        "$cluster_context" \
-        "$pn_name" \
-        "$VNET_GUID" \
-        "$SUBNET_GUID" \
-        "$SUBNET_ARM_ID"
+    ./create_pn.sh "$cluster_context" "$pn_name" "$VNET_GUID" "$SUBNET_GUID" "$SUBNET_ARM_ID"
 
     echo "PodNetwork ${pn_name} submitted successfully."
 }
@@ -100,7 +95,7 @@ for i in 0 1; do
     create_pod_on_node "$CLUSTER2" "$PN_C2" "$PNI_C2" "$NODE_NAME" "$POD_NAME"
 done
 
-# # --- Part 2: Other PNs/PNIs across multiple subnets ---
+# --- Part 2: Other PNs/PNIs across multiple subnets ---
 # PN_LIST=()
 # PNI_LIST=()
 
@@ -112,8 +107,8 @@ done
 #         PNI_LIST+=("$PNI_NAME")
 #         # Assume cluster selection: default to aks-1 unless aks-2 needs pods
 #         CLUSTER="$CLUSTER1"
-#         create_pn "$CLUSTER" "$PN_NAME"
-#         create_pni "$CLUSTER" "$PNI_NAME" "$PN_NAME" "$vnet" "$subnet"
+#         create_pn "/tmp/${CLUSTER1}.kubeconfig" "$PN_NAME" "$vnet" "$subnet"
+#         create_pni "/tmp/${CLUSTER1}.kubeconfig" "$PN_NAME" "$PNI_NAME" "$PN_NAME" "explicit" "2" "$CLUSTER1"
 #     done
 # done
 
