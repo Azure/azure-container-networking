@@ -44,7 +44,7 @@ create_pn() {
     echo "SUBNET_ARM_ID: $SUBNET_ARM_ID"
 
     # --- Create PodNetwork ---
-    ./create_pn.sh "$cluster_context" "$pn_name" "$VNET_GUID" "$SUBNET_GUID" "$SUBNET_ARM_ID"
+    "$SCRIPT_DIR/create_pn.sh" "$cluster_context" "$pn_name" "$VNET_GUID" "$SUBNET_GUID" "$SUBNET_ARM_ID"
 
     echo "PodNetwork ${pn_name} submitted successfully."
 }
@@ -59,7 +59,7 @@ create_pni() {
     local cluster=$7
 
     echo "Creating PodNetworkInstance $pni_name for PN $pod_network_name on $cluster"
-    ./create_pni.sh "$KUBECONFIG_PATH" "$NAMESPACE" "$pni_name" "$pod_network_name" "$pni_type" "$reservations" "$cluster"
+    "$SCRIPT_DIR/create_pni.sh" "$KUBECONFIG_PATH" "$NAMESPACE" "$pni_name" "$pod_network_name" "$pni_type" "$reservations" "$cluster"
 }
 
 create_pod_on_node() {
@@ -71,7 +71,7 @@ create_pod_on_node() {
 
     KUBECONFIG_PATH="/tmp/${cluster}.kubeconfig"
     echo "Creating pod '$pod_name' on node '$node_name' (PN: $pn_name, PNI: $pni_name)..."
-    ./create_pod.sh "$pod_name" "$node_name" "linux" "$pn_name" "$pni_name" "weibeld/ubuntu-networking" "$KUBECONFIG_PATH"
+    "$SCRIPT_DIR/create_pod.sh" "$pod_name" "$node_name" "linux" "$pn_name" "$pni_name" "weibeld/ubuntu-networking" "$KUBECONFIG_PATH"
 }
 
 get_nodes() {
