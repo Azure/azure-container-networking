@@ -12,6 +12,9 @@ CLUSTER_PREFIX="aks"
 DEFAULT_NODE_COUNT=1                               
 COMMON_TAGS="fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/get_vnet_data.sh"
+
 wait_for_provisioning() {                      # Helper for safe retry/wait for provisioning states (basic)
   local rg="$1" clusterName="$2"                     
   echo "Waiting for AKS '$clusterName' in RG '$rg' to reach Succeeded/Failed (polling)..."
@@ -49,7 +52,6 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
   echo " - waiting for AKS provisioning state..."
   wait_for_provisioning "$RG" "$CLUSTER_NAME"
 
-
   echo "Adding multi-tenant nodepool ' to '$CLUSTER_NAME'"
   make -C ./hack/aks linux-swiftv2-nodepool-up \
   AZCLI=az REGION=$LOCATION \
@@ -67,7 +69,6 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
     --overwrite-existing \
     --admin \
     --file "$KUBECONFIG_PATH"
-
   echo "Kubeconfig saved: ${KUBECONFIG_PATH}"
 
 done

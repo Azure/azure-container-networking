@@ -22,7 +22,8 @@ VN_SUB_MAP["vnet_b1"]="s1"
 PN_PREFIX="pn-${BUILD_ID}"
 PNI_PREFIX="pni-${BUILD_ID}"
 
-source ./get_vnet_data.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/get_vnet_data.sh"
 
 # Create PodNetwork in a specific cluster
 create_pn() {
