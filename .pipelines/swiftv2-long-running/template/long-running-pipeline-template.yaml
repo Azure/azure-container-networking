@@ -157,9 +157,9 @@ stages:
           - checkout: self
 
           - task: GoTool@0
-            displayName: "Use Go 1.22"
+            displayName: "Use Go 1.22.5"
             inputs:
-              version: "1.22"
+              version: "1.22.5"
 
           - script: |
               echo "==> Installing Ginkgo CLI"
