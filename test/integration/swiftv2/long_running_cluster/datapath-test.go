@@ -2,6 +2,7 @@ package long_running_cluster
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/onsi/ginkgo/v2"
@@ -16,11 +17,14 @@ func TestDatapath(t *testing.T) {
 }
 
 var _ = ginkgo.Describe("Datapath Tests", func() {
-	RG := "siglin-143139088-westus2"
-	BUILD_ID := "001"
+	RG := os.Getenv("RG")
+	BUILD_ID := os.Getenv("BUILD_ID")
+
+	if RG == "" || BUILD_ID == "" {
+		ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", RG, BUILD_ID))
+	}
 	CLUSTER2 := "aks-2"
 	KUBECONFIG2 := fmt.Sprintf("/tmp/%s.kubeconfig", CLUSTER2)
-
 	PN_NAME := fmt.Sprintf("pn-%s-c2", BUILD_ID)
 	PNI_NAME := fmt.Sprintf("pni-%s-c2", BUILD_ID)
 
@@ -39,7 +43,7 @@ var _ = ginkgo.Describe("Datapath Tests", func() {
 			SubnetGUID:  subnetGUID,
 			SubnetARMID: subnetARMID,
 			SubnetToken: subnetToken,
-		}, "./templates/podnetwork.yaml.tmpl")
+		}, "../../manifests/swiftv2/long-running-cluster/podnetwork.yaml")
 		Expect(err).To(BeNil())
 	})
 
@@ -50,7 +54,7 @@ var _ = ginkgo.Describe("Datapath Tests", func() {
 			Namespace:    PN_NAME, // namespace same as PN
 			Type:         "explicit",
 			Reservations: 2,
-		}, "./templates/podnetworkinstance.yaml.tmpl")
+		}, "../../manifests/swiftv2/long-running-cluster/podnetworkinstance.yaml")
 		Expect(err).To(BeNil())
 	})
 
@@ -67,7 +71,7 @@ var _ = ginkgo.Describe("Datapath Tests", func() {
 				PNName:   PN_NAME,
 				PNIName:  PNI_NAME,
 				Image:    "weibeld/ubuntu-networking",
-			}, "./templates/pod.yaml.tmpl")
+			}, "../../manifests/swiftv2/long-running-cluster/pod.yaml")
 			Expect(err).To(BeNil())
 		}
 	})

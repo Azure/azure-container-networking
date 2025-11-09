@@ -156,13 +156,17 @@ stages:
         steps:
           - checkout: self
 
-          - task: AzureCLI@2
-            displayName: "Run datapath_tests.sh to create PN, PNI, and pods"
+          - task: GoTool@0
+            displayName: "Use Go 1.22"
             inputs:
-              azureSubscription: ${{ parameters.serviceConnection }}
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/datapath_tests.sh"
-              arguments: >
-                ${{ parameters.resourceGroupName }}
-                $(Build.BuildId)
+              version: "1.22"
+
+          - script: |
+              echo "==> Installing Ginkgo CLI"
+              go install github.com/onsi/ginkgo/v2/ginkgo@v2.16.4
+              echo "==> Running datapath tests"
+              export RG=${{ parameters.resourceGroupName }}
+              export BUILD_ID=$(Build.BuildId)
+              cd test/integration/swiftv2/long_running_cluster
+              ginkgo -v -trace -fail-fast datapath-test.go
+            displayName: "Run Ginkgo Datapath Suite"
