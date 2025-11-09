@@ -67,6 +67,7 @@ stages:
       # Job 3: Networking & Storage
       # ------------------------------------------------------------
       - job: NetworkingAndStorage
+        timeoutInMinutes: 0
         displayName: "Networking and Storage Setup"
         dependsOn: CreateResourceGroup
         pool:

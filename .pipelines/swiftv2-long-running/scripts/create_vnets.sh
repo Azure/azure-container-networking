@@ -65,10 +65,10 @@ for i in "${!VNAMES[@]}"; do
     for PODSUBNET in $EXTRA_SUBNETS; do
         verify_subnet "$RG" "$VNET" "$PODSUBNET"
         cluster_name="${BUILD_ID}-${VNET}-${PODSUBNET}"
-        # make -C ./hack/aks swiftv2-dummy-cluster-subnet-delegator-up \
-        #     AZCLI=az CLUSTER=$cluster_name GROUP=$RG REGION=$LOCATION \
-        #     SUB=$SUB_ID VNET=$VNET POD_SUBNET=$PODSUBNET \
-        #     && echo "Created dummy cluster for $VNET subnet $PODSUBNET"
+        make -C ./hack/aks swiftv2-dummy-cluster-subnet-delegator-up \
+            AZCLI=az CLUSTER=$cluster_name GROUP=$RG REGION=$LOCATION \
+            SUB=$SUB_ID VNET=$VNET POD_SUBNET=$PODSUBNET \
+            && echo "Created dummy cluster for $VNET subnet $PODSUBNET"
     done
 done
 
