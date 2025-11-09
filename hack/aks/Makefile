@@ -306,14 +306,13 @@ swiftv2-dummy-cluster-subnet-delegator-up: ipv4  ## Bring up a SWIFT AzCNI clust
 	@$(MAKE) set-kubeconf
 
 swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet cluster
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+	$(COMMON_AKS_FIELDS) \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--tags fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
-		--no-ssh-key \
 		--yes 
 	@$(MAKE) set-kubeconf
 
