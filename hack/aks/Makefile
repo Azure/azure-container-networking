@@ -123,11 +123,11 @@ rg-down: ## Delete resource group
 	$(AZCLI) group delete -g $(GROUP) --yes
 
 swift-delegated-subnet-up: ## Create VNet, node subnet, and optional extra subnets
-	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
-	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes 10.240.0.0/16 -o none
+	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes $(VNET_CIDR) -o none
+	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes $(NODE_SUBNET_CIDR) -o none
 	@i=1; \
 	for subnet in $(EXTRA_SUBNETS); do \
-		prefix="10.24$$i.0.0/16"; \
+		prefix=$$(echo $(EXTRA_SUBNET_CIDRS) | cut -d',' -f$$i); \
 		$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name $$subnet --address-prefixes $$prefix -o none; \
 		i=$$((i+1)); \
 	done
