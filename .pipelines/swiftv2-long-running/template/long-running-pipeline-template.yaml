@@ -172,6 +172,20 @@ stages:
                 
                 echo "==> Adding Go bin to PATH"
                 export PATH=$PATH:$(go env GOPATH)/bin
+
+                echo "==> Downloading Go dependencies"
+                go mod download
+                
+                echo "==> Setting up kubeconfig for cluster aks-2"
+                az aks get-credentials \
+                  --resource-group ${{ parameters.resourceGroupName }} \
+                  --name aks-2 \
+                  --file /tmp/aks-2.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Verifying cluster connectivity"
+                kubectl --kubeconfig /tmp/aks-2.kubeconfig get nodes
                 
                 echo "==> Running datapath tests"
                 export RG=${{ parameters.resourceGroupName }}
