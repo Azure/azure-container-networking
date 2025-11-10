@@ -144,29 +144,29 @@ stages:
   # Stage 2: Datapath Tests
   # =================================================================
   - stage: DataPathTests
-      displayName: "Stage: Swiftv2 Data Path Tests"
-      dependsOn: AKSClusterAndNetworking
-      condition: succeeded()
-      jobs:
-        - job: RunDataPathTests
-          displayName: "Run PodNetwork and Data Path Tests"
-          timeoutInMinutes: 0   # Run indefinitely
-          pool:
-            vmImage: ubuntu-latest
-          steps:
-            - checkout: self
+    displayName: "Stage: Swiftv2 Data Path Tests"
+    dependsOn: AKSClusterAndNetworking
+    condition: succeeded()
+    jobs:
+      - job: RunDataPathTests
+        displayName: "Run PodNetwork and Data Path Tests"
+        timeoutInMinutes: 0   # Run indefinitely
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
 
-            - task: GoTool@0
-              displayName: "Use Go 1.22.5"
-              inputs:
-                version: "1.22.5"
+          - task: GoTool@0
+            displayName: "Use Go 1.22.5"
+            inputs:
+              version: "1.22.5"
 
-            - script: |
-                echo "==> Installing Ginkgo CLI"
-                go install github.com/onsi/ginkgo/v2/ginkgo@latest
-                
-                echo "==> Running datapath tests"
-                export RG=${{ parameters.resourceGroupName }}
-                export BUILD_ID=$(Build.BuildId)
-                ginkgo -v -trace -fail-fast ./test/integration/swiftv2/long_running_cluster
-              displayName: "Run Ginkgo Datapath Suite"
+          - script: |
+              echo "==> Installing Ginkgo CLI"
+              go install github.com/onsi/ginkgo/v2/ginkgo@latest
+              
+              echo "==> Running datapath tests"
+              export RG=${{ parameters.resourceGroupName }}
+              export BUILD_ID=$(Build.BuildId)
+              ginkgo -v -trace -fail-fast ./test/integration/swiftv2/long_running_cluster
+            displayName: "Run Ginkgo Datapath Suite"
