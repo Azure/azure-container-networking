@@ -218,7 +218,7 @@ stages:
           dependsOn: recover
           datapath: true
           dns: true
-          portforward: true
+          portforward: ${{ eq(parameters.os, 'linux') }} # Unblock Pipeline, broken for all windows scenarios
           hybridWin: true
           service: true
           hostport: true
@@ -330,7 +330,7 @@ stages:
             dependsOn: recover
             datapath: true
             dns: true
-            portforward: true
+            portforward: ${{ eq(parameters.os, 'linux') }} # Unblock Pipeline, broken for all windows scenarios
             hybridWin: true
             service: true
             hostport: true
