@@ -63,12 +63,13 @@ func CreatePodNetworkInstance(kubeconfig string, data PNIData, templatePath stri
 // Pod
 // -------------------------
 type PodData struct {
-	PodName  string
-	NodeName string
-	OS       string
-	PNName   string
-	PNIName  string
-	Image    string
+	PodName   string
+	NodeName  string
+	OS        string
+	PNName    string
+	PNIName   string
+	Namespace string
+	Image     string
 }
 
 func CreatePod(kubeconfig string, data PodData, templatePath string) error {

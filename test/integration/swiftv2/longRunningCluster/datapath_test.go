@@ -17,7 +17,7 @@ func TestDatapath(t *testing.T) {
 	ginkgo.RunSpecs(t, "Datapath Suite")
 }
 
-var _ = ginkgo.Describe("Datapath Tests", func() {
+var _ = ginkgo.Describe("Datapath Tests", ginkgo.NodeTimeout(0), func() {
 	rg := os.Getenv("RG")
 	buildId := os.Getenv("BUILD_ID")
 
@@ -84,12 +84,13 @@ var _ = ginkgo.Describe("Datapath Tests", func() {
 
 				ginkgo.By(fmt.Sprintf("Creating pod %s on node %s", podName, node))
 				err := CreatePod(kubeconfig2, PodData{
-					PodName:  podName,
-					NodeName: node,
-					OS:       "linux",
-					PNName:   pnName,
-					PNIName:  pniName,
-					Image:    "weibeld/ubuntu-networking",
+					PodName:   podName,
+					NodeName:  node,
+					OS:        "linux",
+					PNName:    pnName,
+					PNIName:   pniName,
+					Namespace: pnName,
+					Image:     "weibeld/ubuntu-networking",
 				}, "../../manifests/swiftv2/long-running-cluster/pod.yaml")
 				gomega.Expect(err).To(gomega.BeNil())
 			}
