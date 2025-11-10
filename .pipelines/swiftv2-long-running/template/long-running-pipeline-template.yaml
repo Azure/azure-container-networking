@@ -160,8 +160,13 @@ stages:
             displayName: "Use Go 1.22.5"
             inputs:
               version: "1.22.5"
-
-          - script: |
+          - task: AzureCLI@2
+          displayName: "Run Ginkgo Datapath Suite"
+          inputs:
+            azureSubscription: ${{ parameters.serviceConnection }}
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
               echo "==> Installing Ginkgo CLI"
               go install github.com/onsi/ginkgo/v2/ginkgo@latest
               
