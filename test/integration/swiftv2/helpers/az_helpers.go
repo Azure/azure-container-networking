@@ -70,3 +70,43 @@ func EnsureNamespaceExists(kubeconfig, namespace string) error {
 
 	return nil
 }
+
+// DeletePod deletes a pod in the specified namespace
+func DeletePod(kubeconfig, namespace, podName string) error {
+	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "delete", "pod", podName, "-n", namespace, "--ignore-not-found=true")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to delete pod %s in namespace %s: %s\n%s", podName, namespace, err, string(out))
+	}
+	return nil
+}
+
+// DeletePodNetworkInstance deletes a PodNetworkInstance
+func DeletePodNetworkInstance(kubeconfig, namespace, pniName string) error {
+	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "delete", "podnetworkinstance", pniName, "-n", namespace, "--ignore-not-found=true")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to delete PodNetworkInstance %s: %s\n%s", pniName, err, string(out))
+	}
+	return nil
+}
+
+// DeletePodNetwork deletes a PodNetwork
+func DeletePodNetwork(kubeconfig, pnName string) error {
+	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "delete", "podnetwork", pnName, "--ignore-not-found=true")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to delete PodNetwork %s: %s\n%s", pnName, err, string(out))
+	}
+	return nil
+}
+
+// DeleteNamespace deletes a namespace
+func DeleteNamespace(kubeconfig, namespace string) error {
+	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "delete", "namespace", namespace, "--ignore-not-found=true")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to delete namespace %s: %s\n%s", namespace, err, string(out))
+	}
+	return nil
+}

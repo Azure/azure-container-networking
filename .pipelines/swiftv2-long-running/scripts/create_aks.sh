@@ -42,7 +42,8 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
   AZCLI=az REGION=$LOCATION \
   SUB=$SUBSCRIPTION_ID \
   GROUP=$RG \
-  CLUSTER=$CLUSTER_NAME 
+  CLUSTER=$CLUSTER_NAME \
+  VM_SIZE=$VM_SKU_DEFAULT
 
   echo " - waiting for AKS provisioning state..."
   wait_for_provisioning "$RG" "$CLUSTER_NAME"

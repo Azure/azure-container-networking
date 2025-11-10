@@ -308,6 +308,7 @@ swiftv2-dummy-cluster-subnet-delegator-up: ipv4  ## Bring up a SWIFT AzCNI clust
 swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet cluster
 	$(COMMON_AKS_FIELDS) \
 		--network-plugin azure \
+		--node-vm-size $(VM_SIZE) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true \
