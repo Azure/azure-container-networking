@@ -165,6 +165,9 @@ stages:
               echo "==> Installing Ginkgo CLI"
               go install github.com/onsi/ginkgo/v2/ginkgo@latest
               
+              echo "==> Adding Go bin to PATH"
+              export PATH=$PATH:$(go env GOPATH)/bin
+              
               echo "==> Running datapath tests"
               export RG=${{ parameters.resourceGroupName }}
               export BUILD_ID=$(Build.BuildId)
