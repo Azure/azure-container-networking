@@ -8,9 +8,7 @@ VM_SKU_DEFAULT=$4
 VM_SKU_HIGHNIC=$5
 
 CLUSTER_COUNT=2                               
-CLUSTER_PREFIX="aks"                          
-DEFAULT_NODE_COUNT=1                               
-COMMON_TAGS="fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true"
+CLUSTER_PREFIX="aks"                                                        
 
 wait_for_provisioning() {                      # Helper for safe retry/wait for provisioning states (basic)
   local rg="$1" clusterName="$2"                     

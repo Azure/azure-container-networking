@@ -310,8 +310,8 @@ swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet 
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--nodepool-tags fastpathenabled=true,aks-nic-enable-multi-tenancy=true
-		--tags fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true aks-nic-enable-multi-tenancy=true\
+		--nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true \
+		--tags stampcreatorserviceinfo=true \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--yes 
@@ -464,7 +464,7 @@ linux-swiftv2-nodepool-up: ## Add linux node pool to swiftv2 cluster
 		--os-type Linux \
 		--max-pods 250 \
 		--subscription $(SUB) \
-		--tags fastpathenabled=true,aks-nic-enable-multi-tenancy=true \
+		--tags fastpathenabled=true aks-nic-enable-multi-tenancy=true \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
 
