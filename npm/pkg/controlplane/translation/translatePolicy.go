@@ -362,7 +362,7 @@ func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Di
 	return nil
 }
 
-func directPeerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, cidr string, npmLiteToggle bool) error {
+func directPeerAndPortAllowRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Direction, ports []networkingv1.NetworkPolicyPort, cidr string, npmLiteToggle bool) error {
 	if len(ports) == 0 {
 		acl := policies.NewACLPolicy(policies.Allowed, direction)
 		// bypasses ipset creation for /32 cidrs and directly creates an acl with the cidr
@@ -397,7 +397,8 @@ func directPeerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction polic
 
 			// Handle ports
 			if portKind == namedPortType {
-				return ErrUnsupportedNamedPort
+				return fmt.Errorf("named port not supported in policy %s (namespace: %s, direction: %s, cidr: %s, port: %v): %w",
+					npmNetPol.PolicyKey, npmNetPol.Namespace, direction, cidr, ports[i].Port, ErrUnsupportedNamedPort)
 			}
 			if portKind == numericPortType {
 				portInfo, protocol := numericPortRule(&ports[i])
@@ -455,7 +456,7 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy,
 		if peer.IPBlock != nil {
 			if len(peer.IPBlock.CIDR) > 0 {
 				if npmLiteToggle {
-					err = directPeerAndPortRule(npmNetPol, direction, ports, peer.IPBlock.CIDR, npmLiteToggle)
+					err = directPeerAndPortAllowRule(npmNetPol, direction, ports, peer.IPBlock.CIDR, npmLiteToggle)
 					if err != nil {
 						return err
 					}

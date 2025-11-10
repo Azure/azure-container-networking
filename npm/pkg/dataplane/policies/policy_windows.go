@@ -101,19 +101,6 @@ func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, er
 	// Ignore adding ruletype for now as there is a bug
 	// policySettings.RuleType = hcn.RuleTypeSwitch
 
-	// ACLPolicy settings uses ID field of SetPolicy in LocalAddresses or RemoteAddresses
-	var srcListStr, dstListStr string
-	// Check if we have direct IPs (NPM Lite /32 bypass)
-	if len(acl.SrcDirectIPs) > 0 || len(acl.DstDirectIPs) > 0 {
-		srcListStr = strings.Join(acl.SrcDirectIPs, ",")
-		dstListStr = strings.Join(acl.DstDirectIPs, ",")
-	} else {
-		// Original IPSet-based approach
-		srcListStr = getAddrListFromSetInfo(acl.SrcList)
-		dstListStr = getAddrListFromSetInfo(acl.DstList)
-	}
-	dstPortStr := getPortStrFromPorts(acl.DstPorts)
-
 	// HNS has confusing Local and Remote address defintions
 	// For Traffic Direction INGRESS
 	// 	    LocalAddresses  = Source Sets
@@ -135,8 +122,11 @@ func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, er
 	// 		LocalAddresses  = Destination IPs
 	// 		RemoteAddresses = Source IPs
 
+	var srcListStr, dstListStr string
 	// if direct IPs are used, we leave local addresses to be an empty string
 	if len(acl.SrcDirectIPs) > 0 || len(acl.DstDirectIPs) > 0 {
+		srcListStr = strings.Join(acl.SrcDirectIPs, ",")
+		dstListStr = strings.Join(acl.DstDirectIPs, ",")
 		policySettings.LocalAddresses = ""
 		if policySettings.Direction == hcn.DirectionTypeOut {
 			// EGRESS: Remote = Destination IPs from policy
@@ -146,9 +136,14 @@ func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, er
 			policySettings.RemoteAddresses = srcListStr
 		}
 	} else {
+		// Original IPSet-based approach
+		srcListStr = getAddrListFromSetInfo(acl.SrcList)
+		dstListStr = getAddrListFromSetInfo(acl.DstList)
 		policySettings.LocalAddresses = srcListStr
 		policySettings.RemoteAddresses = dstListStr
 	}
+
+	dstPortStr := getPortStrFromPorts(acl.DstPorts)
 
 	// Switch ports based on direction
 	policySettings.RemotePorts = ""

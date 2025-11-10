@@ -1458,7 +1458,7 @@ func TestPeerAndPortRule(t *testing.T) {
 	}
 }
 
-func TestDirectPeerAndPortRule(t *testing.T) {
+func TestDirectPeerAndPortAllowRule(t *testing.T) {
 	namedPort := intstr.FromString(namedPortStr)
 	port8000 := intstr.FromInt(8000)
 	var endPort int32 = 8100
@@ -1636,7 +1636,7 @@ func TestDirectPeerAndPortRule(t *testing.T) {
 				PolicyKey:   namedPortPolicyKey,
 				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
 			}
-			err := directPeerAndPortRule(npmNetPol, tt.direction, tt.ports, tt.cidr, npmLiteToggle)
+			err := directPeerAndPortAllowRule(npmNetPol, tt.direction, tt.ports, tt.cidr, npmLiteToggle)
 			if tt.skipWindows {
 				require.Error(t, err)
 			} else {
