@@ -51,7 +51,7 @@ jobs:
         name: generated-bpf-program-code
         path: ./bpf-prog/azure-block-iptables/pkg/blockservice
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@v6
+      uses: golangci/golangci-lint-action@v9
       with:
         version: latest
         args: ${{ github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref) || '' }} --config=.golangci.yml --timeout=25m
