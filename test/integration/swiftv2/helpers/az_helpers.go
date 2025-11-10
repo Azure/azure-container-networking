@@ -15,7 +15,7 @@ func runAzCommand(cmd string, args ...string) string {
 }
 
 func GetVnetGUID(rg, vnet string) string {
-	return runAzCommand("az", "network", "vnet", "show", "--resource-group", rg, "--name", vnet, "--query", "id", "-o", "tsv")
+	return runAzCommand("az", "network", "vnet", "show", "--resource-group", rg, "--name", vnet, "--query", "resourceGuid", "-o", "tsv")
 }
 
 func GetSubnetARMID(rg, vnet, subnet string) string {
@@ -50,4 +50,23 @@ func GetClusterNodes(kubeconfig string) []string {
 		}
 	}
 	return nodes
+}
+
+// EnsureNamespaceExists checks if a namespace exists and creates it if it doesn't
+func EnsureNamespaceExists(kubeconfig, namespace string) error {
+	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "namespace", namespace)
+	err := cmd.Run()
+
+	if err == nil {
+		return nil // Namespace exists
+	}
+
+	// Namespace doesn't exist, create it
+	cmd = exec.Command("kubectl", "--kubeconfig", kubeconfig, "create", "namespace", namespace)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to create namespace %s: %s\n%s", namespace, err, string(out))
+	}
+
+	return nil
 }

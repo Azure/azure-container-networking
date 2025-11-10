@@ -48,7 +48,11 @@ var _ = ginkgo.Describe("Datapath Tests", func() {
 	})
 
 	ginkgo.It("creates PodNetworkInstance", func() {
-		err := CreatePodNetworkInstance(KUBECONFIG2, PNIData{
+		// Create namespace if it doesn't exist
+		err := helpers.EnsureNamespaceExists(KUBECONFIG2, PN_NAME)
+		Expect(err).To(BeNil())
+
+		err = CreatePodNetworkInstance(KUBECONFIG2, PNIData{
 			PNIName:      PNI_NAME,
 			PNName:       PN_NAME,
 			Namespace:    PN_NAME, // namespace same as PN
