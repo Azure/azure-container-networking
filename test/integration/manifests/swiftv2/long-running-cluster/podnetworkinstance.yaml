@@ -4,7 +4,8 @@ metadata:
   name: {{ .PNIName }}
   namespace: {{ .Namespace }}
 spec:
-  podNetwork: {{ .PNName }}
+  podNetworkConfigs:
+    - podNetwork: {{ .PNName }}
 {{- if eq .Type "explicit" }}
   podIPReservationSize: {{ .Reservations }}
 {{- else }}
