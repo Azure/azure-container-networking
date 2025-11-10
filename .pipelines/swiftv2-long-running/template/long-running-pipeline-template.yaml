@@ -161,20 +161,20 @@ stages:
             inputs:
               version: "1.22.5"
           - task: AzureCLI@2
-          displayName: "Run Ginkgo Datapath Suite"
-          inputs:
-            azureSubscription: ${{ parameters.serviceConnection }}
-            scriptType: bash
-            scriptLocation: inlineScript
-            inlineScript: |
-              echo "==> Installing Ginkgo CLI"
-              go install github.com/onsi/ginkgo/v2/ginkgo@latest
-              
-              echo "==> Adding Go bin to PATH"
-              export PATH=$PATH:$(go env GOPATH)/bin
-              
-              echo "==> Running datapath tests"
-              export RG=${{ parameters.resourceGroupName }}
-              export BUILD_ID=$(Build.BuildId)
-              ginkgo -v -trace ./test/integration/swiftv2/long_running_cluster
             displayName: "Run Ginkgo Datapath Suite"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Installing Ginkgo CLI"
+                go install github.com/onsi/ginkgo/v2/ginkgo@latest
+                
+                echo "==> Adding Go bin to PATH"
+                export PATH=$PATH:$(go env GOPATH)/bin
+                
+                echo "==> Running datapath tests"
+                export RG=${{ parameters.resourceGroupName }}
+                export BUILD_ID=$(Build.BuildId)
+                ginkgo -v -trace ./test/integration/swiftv2/long_running_cluster
+              
