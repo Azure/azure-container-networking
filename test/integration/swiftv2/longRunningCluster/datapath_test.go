@@ -17,7 +17,7 @@ func TestDatapath(t *testing.T) {
 	ginkgo.RunSpecs(t, "Datapath Suite")
 }
 
-var _ = ginkgo.Describe("Datapath Tests", ginkgo.NodeTimeout(0), func() {
+var _ = ginkgo.Describe("Datapath Tests", func() {
 	rg := os.Getenv("RG")
 	buildId := os.Getenv("BUILD_ID")
 
@@ -30,7 +30,7 @@ var _ = ginkgo.Describe("Datapath Tests", ginkgo.NodeTimeout(0), func() {
 	pnName := fmt.Sprintf("pn-%s-c2", buildId)
 	pniName := fmt.Sprintf("pni-%s-c2", buildId)
 
-	ginkgo.It("creates and deletes PodNetwork, PodNetworkInstance, and Pods in a loop", func() {
+	ginkgo.It("creates and deletes PodNetwork, PodNetworkInstance, and Pods in a loop", ginkgo.NodeTimeout(0), func() {
 		vnetName := "cx_vnet_b1"
 		subnetName := "s1"
 
