@@ -1,4 +1,4 @@
-package long_running_cluster
+package longRunningCluster
 
 import (
 	"bytes"
