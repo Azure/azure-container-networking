@@ -19,7 +19,7 @@ parameters:
   - name: vmSkuDefault
     displayName: "VM SKU for Default Node Pool"
     type: string
-    default: "Standard_D2s_v3"
+    default: "Standard_D4s_v3"
 
   - name: vmSkuHighNIC
     displayName: "VM SKU for High NIC Node Pool"
