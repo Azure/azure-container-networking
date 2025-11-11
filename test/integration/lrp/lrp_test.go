@@ -4,7 +4,6 @@ package lrp
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -344,24 +343,6 @@ func validateCiliumLRP(t *testing.T, ctx context.Context, cs *k8sclient.Clientse
 	require.NoError(t, err)
 	t.Logf("Detected Kubernetes version: %s", serverVersion.String())
 
-	// Parse version to determine if we should use modern or legacy validation
-	// K8s 1.32.0+ should use modern Cilium format (v1.17+)
-	useModernFormat := false
-	if serverVersion.Major == "1" {
-		// Parse minor version
-		var minorVersion int
-		_, err := fmt.Sscanf(serverVersion.Minor, "%d", &minorVersion)
-		if err == nil && minorVersion >= 32 {
-			useModernFormat = true
-		}
-	}
-
-	if useModernFormat {
-		t.Log("Using modern validation approach based on Kubernetes version >= 1.32.0")
-	} else {
-		t.Log("Using legacy validation approach based on Kubernetes version < 1.32.0")
-	}
-
 	// Get kube-dns service IP for validation
 	svc, err := kubernetes.GetService(ctx, cs, kubeSystemNamespace, dnsService)
 	require.NoError(t, err)
@@ -422,39 +403,30 @@ func validateCiliumLRP(t *testing.T, ctx context.Context, cs *k8sclient.Clientse
 	serviceLines := strings.Split(string(serviceOutput), "\n")
 	tcpFound := false
 	udpFound := false
+	legacyFound := false
 
 	for _, line := range serviceLines {
 		if strings.Contains(line, "LocalRedirect") && strings.Contains(line, kubeDNSIP) {
 			// Check if this line contains the expected frontend (kube-dns) and backend (node-local-dns) IPs
 			if strings.Contains(line, nodeLocalDNSIP) {
-				if useModernFormat {
-					// Modern format (K8s 1.32.0+/Cilium v1.17+): Check for explicit protocol
-					if strings.Contains(line, "/TCP") {
-						tcpFound = true
-						t.Logf("Found TCP LocalRedirect: %s", strings.TrimSpace(line))
-					} else if strings.Contains(line, "/UDP") {
-						udpFound = true
-						t.Logf("Found UDP LocalRedirect: %s", strings.TrimSpace(line))
-					}
+				// Check for both modern format (with /TCP or /UDP) and legacy format (without protocol)
+				if strings.Contains(line, "/TCP") {
+					tcpFound = true
+					t.Logf("Found TCP LocalRedirect: %s", strings.TrimSpace(line))
+				} else if strings.Contains(line, "/UDP") {
+					udpFound = true
+					t.Logf("Found UDP LocalRedirect: %s", strings.TrimSpace(line))
 				} else {
-					// Legacy format (K8s < 1.32.0/Cilium < v1.17): No protocol specified
+					legacyFound = true
 					t.Logf("Found legacy LocalRedirect: %s", strings.TrimSpace(line))
 				}
 			}
 		}
 	}
 
-	// Validate based on determined format
-	if useModernFormat {
-		// Modern format (K8s 1.32.0+/Cilium v1.17+): Separate TCP and UDP entries
-		t.Log("Validating modern Cilium format - expecting separate TCP and UDP LocalRedirect entries")
-		require.True(t, tcpFound, "TCP LocalRedirect entry not found with frontend IP %s and backend IP %s on node %s", kubeDNSIP, nodeLocalDNSIP, selectedNode)
-		require.True(t, udpFound, "UDP LocalRedirect entry not found with frontend IP %s and backend IP %s on node %s", kubeDNSIP, nodeLocalDNSIP, selectedNode)
-	} else {
-		// Legacy format (K8s < 1.32.0/Cilium < v1.17): Just one LocalRedirect entry without protocol
-		t.Log("Validating legacy Cilium format - expecting single LocalRedirect entry without protocol")
-		require.False(t, useModernFormat, "Legacy LocalRedirect entry not found with frontend IP %s and backend IP %s on node %s", kubeDNSIP, nodeLocalDNSIP, selectedNode)
-	}
+	// Validate that we found either legacy format or modern format entries
+	t.Log("Validating LocalRedirect entries - accepting either legacy format or modern TCP/UDP format")
+	require.True(t, legacyFound || (tcpFound && udpFound), "Either legacy LocalRedirect entry OR both TCP and UDP entries must be found with frontend IP %s and backend IP %s on node %s", kubeDNSIP, nodeLocalDNSIP, selectedNode)
 
 	t.Logf("Cilium LRP List Output:\n%s", string(lrpOutput))
 	t.Logf("Cilium Service List Output:\n%s", string(serviceOutput))
