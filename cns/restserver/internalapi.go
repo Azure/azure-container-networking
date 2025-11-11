@@ -434,13 +434,19 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	if ok {
 		existingReq := existingNCInfo.CreateNetworkContainerRequest
 		if !reflect.DeepEqual(existingReq.IPConfiguration.IPSubnet, req.IPConfiguration.IPSubnet) {
-			logger.Errorf("[Azure CNS] Error. PrimaryCA is not same, NCId %s, old CA %s/%d, new CA %s/%d",
-				req.NetworkContainerid,
-				existingReq.IPConfiguration.IPSubnet.IPAddress,
-				existingReq.IPConfiguration.IPSubnet.PrefixLength,
-				req.IPConfiguration.IPSubnet.IPAddress,
-				req.IPConfiguration.IPSubnet.PrefixLength)
-			return types.PrimaryCANotSame
+			// check for potential overlay subnet expansion - checking if new subnet is a superset of old subnet
+			isCIDRSuperset := validateCIDRSuperset(
+				fmt.Sprintf("%s/%d", req.IPConfiguration.IPSubnet.IPAddress, req.IPConfiguration.IPSubnet.PrefixLength),
+				fmt.Sprintf("%s/%d", existingReq.IPConfiguration.IPSubnet.IPAddress, existingReq.IPConfiguration.IPSubnet.PrefixLength))
+			if !isCIDRSuperset {
+				logger.Errorf("[Azure CNS] Error. PrimaryCA is not same, NCId %s, old CA %s/%d, new CA %s/%d", //nolint:staticcheck // Suppress SA1019: logger.Errorf is deprecated
+					req.NetworkContainerid,
+					existingReq.IPConfiguration.IPSubnet.IPAddress,
+					existingReq.IPConfiguration.IPSubnet.PrefixLength,
+					req.IPConfiguration.IPSubnet.IPAddress,
+					req.IPConfiguration.IPSubnet.PrefixLength)
+				return types.PrimaryCANotSame
+			}
 		}
 	}
 
