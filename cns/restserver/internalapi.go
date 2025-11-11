@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"reflect"
 	"strconv"
 	"strings"
@@ -583,4 +584,30 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	}
 
 	return returnCode
+}
+
+// IsCIDRSuperset returns true if newCIDR is a superset of oldCIDR (i.e., all IPs in oldCIDR are contained in newCIDR).
+func validateCIDRSuperset(newCIDR, oldCIDR string) bool {
+	// Parse newCIDR and oldCIDR into netip.Prefix
+	newPrefix, err := netip.ParsePrefix(newCIDR)
+	if err != nil {
+		return false
+	}
+
+	oldPrefix, err := netip.ParsePrefix(oldCIDR)
+	if err != nil {
+		return false
+	}
+
+	// Condition 1: Check if the new prefix length is smaller (larger range) than the old prefix length
+	if newPrefix.Bits() >= oldPrefix.Bits() {
+		return false
+	}
+
+	// Condition 2: Check for Overlap - this will also ensure containment
+	if !newPrefix.Overlaps(oldPrefix) {
+		return false
+	}
+
+	return true
 }
