@@ -157,12 +157,17 @@ func (nw *network) newEndpointImpl(
 		return nw.getEndpointWithVFDevice(plc, epInfo)
 	}
 
+	if epInfo.NICType == cns.ApipaNIC {
+		return nw.createHostNCApipaEndpoint(cli, epInfo)
+	}
+
 	if useHnsV2, err := UseHnsV2(epInfo.NetNsPath); useHnsV2 {
 		if err != nil {
 			return nil, err
 		}
 
 		return nw.newEndpointImplHnsV2(cli, epInfo)
+
 	}
 
 	return nw.newEndpointImplHnsV1(epInfo, plc)
@@ -354,14 +359,16 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 	return hcnEndpoint, nil
 }
 
+func getApipaEndpointName(networkContainerID string) string {
+	endpointName := fmt.Sprintf("%s-%s", hostNCApipaEndpointNamePrefix, networkContainerID)
+	return endpointName
+}
+
 func (nw *network) deleteHostNCApipaEndpoint(networkContainerID string) error {
 	// TODO: this code is duplicated in cns/hnsclient, but that code has logging messages that require a CNSLogger,
 	// which makes is hard to use in this package. We should refactor this into a common package with no logging deps
 	// so it can be called in both places
-
-	// HostNCApipaEndpoint name is derived from NC ID
-	endpointName := fmt.Sprintf("%s-%s", hostNCApipaEndpointNamePrefix, networkContainerID)
-	logger.Info("Deleting HostNCApipaEndpoint for NC", zap.String("endpointName", endpointName), zap.String("networkContainerID", networkContainerID))
+	endpointName := getApipaEndpointName(networkContainerID)
 
 	// Check if the endpoint exists
 	endpoint, err := Hnsv2.GetEndpointByName(endpointName)
@@ -376,6 +383,7 @@ func (nw *network) deleteHostNCApipaEndpoint(networkContainerID string) error {
 		return nil
 	}
 
+	logger.Info("Deleting Apipa Endpoint", zap.String("endpointName", endpointName))
 	if err := Hnsv2.DeleteEndpoint(endpoint); err != nil {
 		return fmt.Errorf("failed to delete HostNCApipa endpoint: %+v: %w", endpoint, err)
 	}
@@ -387,7 +395,7 @@ func (nw *network) deleteHostNCApipaEndpoint(networkContainerID string) error {
 
 // createHostNCApipaEndpoint creates a new endpoint in the HostNCApipaNetwork
 // for host container connectivity
-func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointInfo) error {
+func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointInfo) (*endpoint, error) {
 	var (
 		err                   error
 		hostNCApipaEndpointID string
@@ -395,7 +403,8 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 	)
 
 	if namespace, err = hcn.GetNamespaceByID(epInfo.NetNsPath); err != nil {
-		return fmt.Errorf("Failed to retrieve namespace with GetNamespaceByID for NetNsPath: %s"+
+		//nolint
+		return nil, fmt.Errorf("Failed to retrieve namespace with GetNamespaceByID for NetNsPath: %s"+
 			" due to error: %v", epInfo.NetNsPath, err)
 	}
 
@@ -403,7 +412,8 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 		zap.String("NetworkContainerID", epInfo.NetworkContainerID))
 
 	if hostNCApipaEndpointID, err = cli.CreateHostNCApipaEndpoint(context.TODO(), epInfo.NetworkContainerID); err != nil {
-		return err
+		//nolint
+		return nil, err
 	}
 
 	defer func() {
@@ -413,10 +423,20 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 	}()
 
 	if err = hcn.AddNamespaceEndpoint(namespace.Id, hostNCApipaEndpointID); err != nil {
-		return fmt.Errorf("Failed to add HostNCApipaEndpoint: %s to namespace: %s due to error: %v", hostNCApipaEndpointID, namespace.Id, err) //nolint
+		//nolint
+		return nil, fmt.Errorf("Failed to add HostNCApipaEndpoint: %s to namespace: %s due to error: %v", hostNCApipaEndpointID, namespace.Id, err)
 	}
 
-	return nil
+	ep := &endpoint{
+		Id:                 getApipaEndpointName(epInfo.NetworkContainerID),
+		HnsId:              hostNCApipaEndpointID,
+		IfName:             getApipaEndpointName(epInfo.NetworkContainerID),
+		ContainerID:        epInfo.ContainerID,
+		NICType:            cns.ApipaNIC,
+		NetworkContainerID: epInfo.NetworkContainerID,
+	}
+
+	return ep, nil
 }
 
 // newEndpointImplHnsV2 creates a new endpoint in the network using Hnsv2
@@ -464,7 +484,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 
 	// If the Host - container connectivity is requested, create endpoint in HostNCApipaNetwork
 	if epInfo.AllowInboundFromHostToNC || epInfo.AllowInboundFromNCToHost {
-		if err = nw.createHostNCApipaEndpoint(cli, epInfo); err != nil {
+		if _, err = nw.createHostNCApipaEndpoint(cli, epInfo); err != nil {
 			return nil, fmt.Errorf("Failed to create HostNCApipaEndpoint due to error: %v", err)
 		}
 	}
@@ -527,6 +547,10 @@ func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.Exe
 	// endpoint deletion is not required for IB
 	if ep.NICType == cns.BackendNIC {
 		return nil
+	}
+
+	if ep.NICType == cns.ApipaNIC {
+		return nw.deleteHostNCApipaEndpoint(ep.NetworkContainerID)
 	}
 
 	if ep.HnsId == "" {

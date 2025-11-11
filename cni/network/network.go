@@ -52,6 +52,7 @@ const (
 	ipv4FullMask          = 32
 	ipv6FullMask          = 128
 	ibInterfacePrefix     = "ib"
+	apipaInterfacePrefix  = "apipa"
 )
 
 // CNI Operation Types
@@ -643,6 +644,8 @@ func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 		// when the VF is dismounted, this interface will go away
 		// return an unique interface name to containerd
 		return ibInterfacePrefix + strconv.Itoa(opt.endpointIndex)
+	case cns.ApipaNIC:
+		return apipaInterfacePrefix + strconv.Itoa(opt.endpointIndex)
 	default:
 		return ""
 	}
@@ -757,8 +760,11 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		IPAddresses: addresses,
 		MacAddress:  opt.ifInfo.MacAddress,
 		// the following is used for creating an external interface if we can't find an existing network
-		HostSubnetPrefix: opt.ifInfo.HostSubnetPrefix.String(),
-		PnPID:            opt.ifInfo.PnPID,
+		HostSubnetPrefix:         opt.ifInfo.HostSubnetPrefix.String(),
+		PnPID:                    opt.ifInfo.PnPID,
+		NetworkContainerID:       opt.ifInfo.NetworkContainerID,
+		AllowInboundFromHostToNC: opt.ifInfo.AllowHostToNCCommunication,
+		AllowInboundFromNCToHost: opt.ifInfo.AllowNCToHostCommunication,
 	}
 
 	if err = addSubnetToEndpointInfo(*opt.ifInfo, &endpointInfo); err != nil {
@@ -1072,7 +1078,8 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID)
 		// if stateless CNI fail to get the endpoint from CNS for any reason other than  Endpoint Not found
 		if err != nil {
-			if errors.Is(err, network.ErrConnectionFailure) {
+			// async delete should be disabled for standalone scenario
+			if errors.Is(err, network.ErrConnectionFailure) && !nwCfg.DisableAsyncDelete {
 				logger.Info("failed to connect to CNS", zap.String("containerID", args.ContainerID), zap.Error(err))
 				addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
 				logger.Info("add containerid file for Asynch delete", zap.String("containerID", args.ContainerID), zap.Error(addErr))
@@ -1152,10 +1159,10 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			}
 		}
 	}
-	logger.Info("Deleting the state from the cni statefile")
+	logger.Info("Deleting endpoint state from statefile")
 	err = plugin.nm.DeleteState(epInfos)
 	if err != nil {
-		return plugin.RetriableError(fmt.Errorf("failed to save state: %w", err))
+		return plugin.RetriableError(fmt.Errorf("failed to delete state: %w", err))
 	}
 
 	return err
