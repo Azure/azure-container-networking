@@ -349,7 +349,7 @@ func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Di
 			return err
 		}
 
-		err = checkForNamedPortType(portKind, npmLiteToggle)
+		err = checkForNamedPortType(npmNetPol, portKind, npmLiteToggle, direction, &ports[i], "")
 		if err != nil {
 			return err
 		}
@@ -381,7 +381,7 @@ func directPeerAndPortAllowRule(npmNetPol *policies.NPMNetworkPolicy, direction 
 				return err
 			}
 
-			err = checkForNamedPortType(portKind, npmLiteToggle)
+			err = checkForNamedPortType(npmNetPol, portKind, npmLiteToggle, direction, &ports[i], cidr)
 			if err != nil {
 				return err
 			}
@@ -396,10 +396,6 @@ func directPeerAndPortAllowRule(npmNetPol *policies.NPMNetworkPolicy, direction 
 			}
 
 			// Handle ports
-			if portKind == namedPortType {
-				return fmt.Errorf("named port not supported in policy %s (namespace: %s, direction: %s, cidr: %s, port: %v): %w",
-					npmNetPol.PolicyKey, npmNetPol.Namespace, direction, cidr, ports[i].Port, ErrUnsupportedNamedPort)
-			}
 			if portKind == numericPortType {
 				portInfo, protocol := numericPortRule(&ports[i])
 				acl.DstPorts = portInfo
@@ -694,9 +690,10 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy, npmLiteToggle bool) (*po
 	return npmNetPol, nil
 }
 
-func checkForNamedPortType(portKind netpolPortType, npmLiteToggle bool) error {
+func checkForNamedPortType(npmNetPol *policies.NPMNetworkPolicy, portKind netpolPortType, npmLiteToggle bool, direction policies.Direction, port *networkingv1.NetworkPolicyPort, cidr string) error {
 	if npmLiteToggle && portKind == namedPortType {
-		return ErrUnsupportedNonCIDR
+		return fmt.Errorf("named port not supported in policy %s (namespace: %s, direction: %s, cidr: %s, port: %v, protocol: %v): %w",
+			npmNetPol.PolicyKey, npmNetPol.Namespace, direction, cidr, port.Port, port.Protocol, ErrUnsupportedNamedPort)
 	}
 	return nil
 }
@@ -717,7 +714,7 @@ func checkOnlyPortRuleExists(
 			if err != nil {
 				return err
 			}
-			err = checkForNamedPortType(portKind, npmLiteToggle)
+			err = checkForNamedPortType(npmNetPol, portKind, npmLiteToggle, direction, &ports[i], "")
 			if err != nil {
 				return err
 			}

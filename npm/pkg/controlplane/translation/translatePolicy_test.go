@@ -3153,8 +3153,28 @@ func TestCheckForNamedPortType(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			// run the function passing in peers and a flag indicating whether npm lite is enabled
-			err := checkForNamedPortType(tt.portKind, tt.npmLiteEnabled)
+			// Create a mock NPM network policy for testing
+			npmNetPol := &policies.NPMNetworkPolicy{
+				PolicyKey: "test-policy/test",
+				Namespace: "test-namespace",
+			}
+
+			// Use the first port from test data, or create a default one if ports are empty
+			var testPort *networkingv1.NetworkPolicyPort
+			if len(tt.ports) > 0 {
+				testPort = &tt.ports[0]
+			} else {
+				// Create a default port for tests without specific port data
+				port := intstr.FromInt(8080)
+				protocol := v1.ProtocolTCP
+				testPort = &networkingv1.NetworkPolicyPort{
+					Protocol: &protocol,
+					Port:     &port,
+				}
+			}
+
+			// run the function passing in all required parameters
+			err := checkForNamedPortType(npmNetPol, tt.portKind, tt.npmLiteEnabled, policies.Ingress, testPort, "10.0.0.0/24")
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {

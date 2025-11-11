@@ -101,7 +101,7 @@ func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, er
 	// Ignore adding ruletype for now as there is a bug
 	// policySettings.RuleType = hcn.RuleTypeSwitch
 
-	// HNS has confusing Local and Remote address defintions
+	// HNS has confusing Local and Remote address definitions
 	// For Traffic Direction INGRESS
 	// 	    LocalAddresses  = Source Sets
 	// 	    RemoteAddresses = Destination Sets
