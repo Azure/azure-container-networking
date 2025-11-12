@@ -106,7 +106,7 @@ func TestReconcileNCStatePrimaryIPChangeShouldFail(t *testing.T) {
 		}
 
 		// now try to reconcile the state where the NC primary IP has changed
-		resp := svc.ReconcileIPAMStateForSwift(ncReqs, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
+		resp := svc.ReconcileIPAMState(ncReqs, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
 
 		assert.Equal(t, types.PrimaryCANotSame, resp)
 	}
@@ -168,7 +168,7 @@ func TestReconcileNCStatePrimaryIPChangeShouldNotFail(t *testing.T) {
 		}
 
 		// now try to reconcile the state where the NC primary IP has changed
-		resp := svc.ReconcileIPAMStateForSwift(ncReqs, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
+		resp := svc.ReconcileIPAMState(ncReqs, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
 
 		assert.Equal(t, types.Success, resp)
 	}
