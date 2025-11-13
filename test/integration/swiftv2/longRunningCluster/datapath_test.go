@@ -14,7 +14,10 @@ import (
 
 func TestDatapath(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Datapath Suite")
+	// Set suite timeout to 0 (unlimited) for long-running tests
+	suiteConfig, reporterConfig := ginkgo.GinkgoConfiguration()
+	suiteConfig.Timeout = 0
+	ginkgo.RunSpecs(t, "Datapath Suite", suiteConfig, reporterConfig)
 }
 
 var _ = ginkgo.Describe("Datapath Tests", func() {

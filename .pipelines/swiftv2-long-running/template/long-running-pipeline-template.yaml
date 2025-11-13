@@ -190,5 +190,5 @@ stages:
                 echo "==> Running datapath tests"
                 export RG=${{ parameters.resourceGroupName }}
                 export BUILD_ID=$(Build.BuildId)
-                ginkgo -v -trace ./test/integration/swiftv2/longRunningCluster
+                ginkgo -v -trace --timeout=0 ./test/integration/swiftv2/longRunningCluster
               
