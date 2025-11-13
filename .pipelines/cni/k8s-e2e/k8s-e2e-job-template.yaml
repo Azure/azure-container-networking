@@ -28,6 +28,12 @@ jobs:
             # pulling k8s version from AKS.
             eval k8sVersion="v"$( az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query "currentKubernetesVersion")
             echo $k8sVersion
+            patchVersion=`echo "${k8sVersion##*.}"`
+            if [ $patchVersion -ge 100 ]; then
+              # For LTS versions we use a commonly reached patch version from kubernetes upstream
+              k8sVersion="${k8sVersion%.*}.12"
+              echo "LTS version detected, adjusting k8sVersion to ${k8sVersion}"
+            fi
             curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
 
             # https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
