@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .PodName }}
+  namespace: {{ .Namespace }}
+  labels:
+    kubernetes.azure.com/pod-network-instance: {{ .PNIName }}
+    kubernetes.azure.com/pod-network: {{ .PNName }}
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: {{ .NodeName }}
+  containers:
+  - name: net-debugger
+    image: {{ .Image }}
+    command: ["/bin/sh", "-c"]
+    args:
+      - |
+        echo "Pod Network Diagnostics started on $(hostname)";
+        while true; do
+          ip addr show
+          ip route show
+          sleep 60
+        done
+    resources:
+      limits:
+        cpu: 300m
+        memory: 600Mi
+      requests:
+        cpu: 300m
+        memory: 600Mi
+    securityContext:
+      privileged: true
+  restartPolicy: Always

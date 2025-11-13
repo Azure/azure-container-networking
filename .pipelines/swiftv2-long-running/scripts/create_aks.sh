@@ -8,9 +8,7 @@ VM_SKU_DEFAULT=$4
 VM_SKU_HIGHNIC=$5
 
 CLUSTER_COUNT=2                               
-CLUSTER_PREFIX="aks"                          
-DEFAULT_NODE_COUNT=1                               
-COMMON_TAGS="fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true"
+CLUSTER_PREFIX="aks"                                                        
 
 wait_for_provisioning() {                      # Helper for safe retry/wait for provisioning states (basic)
   local rg="$1" clusterName="$2"                     
@@ -45,8 +43,7 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
   SUB=$SUBSCRIPTION_ID \
   GROUP=$RG \
   CLUSTER=$CLUSTER_NAME \
-  NODE_COUNT=$DEFAULT_NODE_COUNT \
-  VM_SIZE=$VM_SKU_DEFAULT \
+  VM_SIZE=$VM_SKU_DEFAULT
 
   echo " - waiting for AKS provisioning state..."
   wait_for_provisioning "$RG" "$CLUSTER_NAME"
@@ -57,7 +54,18 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
   GROUP=$RG \
   VM_SIZE=$VM_SKU_HIGHNIC \
   CLUSTER=$CLUSTER_NAME \
-  SUB=$SUBSCRIPTION_ID \
+  SUB=$SUBSCRIPTION_ID 
+
+  KUBECONFIG_PATH="/tmp/${CLUSTER_NAME}.kubeconfig"
+  echo "Exporting admin kubeconfig for '$CLUSTER_NAME' to ${KUBECONFIG_PATH}..."
+
+  az aks get-credentials \
+    --resource-group "$RG" \
+    --name "$CLUSTER_NAME" \
+    --overwrite-existing \
+    --admin \
+    --file "$KUBECONFIG_PATH"
+  echo "Kubeconfig saved: ${KUBECONFIG_PATH}"
 
 done
 echo "All done. Created $CLUSTER_COUNT cluster set(s)."
