@@ -438,7 +438,7 @@ func restartClientPodsAndGetPod(t *testing.T, ctx context.Context, cs *k8sclient
 	nodeName := originalPod.Spec.NodeName
 
 	// Restart the daemonset (assumes it's named "lrp-test" based on the manifest)
-	err = kubernetes.MustRestartDaemonset(ctx, cs, originalPod.Namespace, "lrp-test")
+	err := kubernetes.MustRestartDaemonset(ctx, cs, originalPod.Namespace, "lrp-test")
 	require.NoError(t, err)
 
 	// Wait for the daemonset to be ready
