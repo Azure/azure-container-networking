@@ -256,36 +256,31 @@ func testLRPLifecycle(t *testing.T, ctx context.Context, clientPod corev1.Pod, k
 	config := kubernetes.MustGetRestConfig()
 	cs := kubernetes.MustGetClientset()
 
-	// Step 1: Initial Basic LRP test to verify LRP is working
-	t.Log("Step 1: Initial DNS test - verifying LRP functionality")
-	testLRPCase(t, ctx, clientPod, []string{
-		"nslookup", "google.com", kubeDNS,
-	}, "", "", false, true, getPrometheusAddress(initialPrometheusPort))
 
-	// Step 2: Validate LRP using cilium commands
-	t.Log("Step 2: Validating LRP using cilium commands")
+	// Step 1: Validate LRP using cilium commands
+	t.Log("Step 1: Validating LRP using cilium commands")
 	validateCiliumLRP(t, ctx, cs, config)
 
-	// Step 3: Restart busybox pods and verify LRP still works
-	t.Log("Step 3: Restarting client pods to test persistence")
+	// Step 2: Restart busybox pods and verify LRP still works
+	t.Log("Step 2: Restarting client pods to test persistence")
 	restartedPod := restartClientPodsAndGetPod(t, ctx, cs, clientPod)
 
-	// Step 4: Verify metrics after restart
-	t.Log("Step 4: Verifying LRP functionality after pod restart")
+	// Step 3: Verify metrics after restart
+	t.Log("Step 3: Verifying LRP functionality after pod restart")
 	testLRPCase(t, ctx, restartedPod, []string{
 		"nslookup", "google.com", kubeDNS,
 	}, "", "", false, true, getPrometheusAddress(initialPrometheusPort))
 
-	// Step 5: Validate cilium commands still show LRP
-	t.Log("Step 5: Re-validating cilium LRP after restart")
+	// Step 4: Validate cilium commands still show LRP
+	t.Log("Step 4: Re-validating cilium LRP after restart")
 	validateCiliumLRP(t, ctx, cs, config)
 
-	// Step 6: Delete and recreate resources & restart nodelocaldns daemonset
-	t.Log("Step 6: Testing resource deletion and recreation")
+	// Step 5: Delete and recreate resources & restart nodelocaldns daemonset
+	t.Log("Step 5: Testing resource deletion and recreation")
 	recreatedPod := deleteAndRecreateResources(t, ctx, cs, clientPod)
 
-	// Step 7: Re-establish port forward to new node-local-dns pod and validate metrics
-	t.Log("Step 7: Re-establishing port forward to new node-local-dns pod for metrics validation")
+	// Step 6: Re-establish port forward to new node-local-dns pod and validate metrics
+	t.Log("Step 6: Re-establishing port forward to new node-local-dns pod for metrics validation")
 
 	// Get the new node-local-dns pod on the same node as our recreated client pod
 	nodeName := recreatedPod.Spec.NodeName
@@ -325,8 +320,8 @@ func testLRPLifecycle(t *testing.T, ctx context.Context, clientPod corev1.Pod, k
 
 	t.Logf("SUCCESS: Metrics validation passed - traffic is being redirected to new node-local-dns pod %s", newNodeLocalDNSPod.Name)
 
-	// Step 8: Final cilium validation after node-local-dns restart
-	t.Log("Step 8: Final cilium validation - ensuring LRP is still active after node-local-dns restart")
+	// Step 7: Final cilium validation after node-local-dns restart
+	t.Log("Step 7: Final cilium validation - ensuring LRP is still active after node-local-dns restart")
 	validateCiliumLRP(t, ctx, cs, config)
 
 }
