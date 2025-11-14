@@ -127,6 +127,7 @@ func (nw *network) getEndpointWithVFDevice(plc platform.ExecClient, epInfo *Endp
 		// return unexpected error and log devicePresence, problemCode
 		return nil, errors.Wrapf(err, "unexpected error with devicePresence %s and problemCode %s", devicePresence, problemCode)
 	}
+	epInfo.PnPID = ""
 
 	// Create the endpoint object.
 	ep := &endpoint{

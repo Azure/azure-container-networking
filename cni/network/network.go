@@ -417,7 +417,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 				cniResult.Interfaces = append(cniResult.Interfaces, &cniTypesCurr.Interface{
 					Name:  epInfo.MasterIfName,
 					Mac:   epInfo.MacAddress.String(),
-					PciID: epInfo.PnPID,
+					PciID: "",
 				})
 			}
 		}
