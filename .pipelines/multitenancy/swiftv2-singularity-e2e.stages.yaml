@@ -1,12 +1,24 @@
 stages:
-  - stage: sharifStage
-    displayName: E2E - AKS Swiftv2 Singularity
+  - stage: sharfsssstage
+    displayName: Test Stage
     jobs:
       - job: test_job
         displayName: "Simple Test Job"
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          isCustom: true
+          type: linux
         steps:
-          - script: echo "Hello from test job!"
-            displayName: "Echo Test"
+          - checkout: azure-container-networking
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -e
+                echo "Check az version"
       # - job: swiftv2_singularity_e2e
       #   displayName: "Trigger Pipeline in Another Project"
       #   steps:
