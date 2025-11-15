@@ -18,14 +18,12 @@ stages:
           - task: TriggerBuild@3
             inputs:
               buildDefinition: '391699'                # Pipeline ID
-              project: 'One'                           # Project name
               buildParameters: |
                 useAcnPublic=false
                 cnscniversion=v1.7.7-0
                 cnscniversionwindows=v1.7.7-0
                 useAgentTestSubscription=false
               queueBuildForUserThatTriggeredBuild: true
-              ignoreWarnings: true
               waitForQueuedBuildsToFinish: false
-              authenticationMethod: 'OAuth'
+              authenticationMethod: 'OAuth Token'
               
