@@ -1,0 +1,32 @@
+parameters:
+  name: ""
+  displayName: ""
+  clusterType: ""
+  clusterName: ""
+  vmSize: ""
+  k8sVersion: ""
+  dependsOn: ""
+  os: "linux"
+
+stages:
+  - stage: sharifStage
+    displayName: E2E - AKS Swiftv2 Singularity
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+    - job: swiftv2_singularity_e2e
+      displayName: "Trigger Pipeline in Another Project"
+      steps:
+        - task: AzurePipeline@1
+          inputs:
+            azureSubscription: 'Azure Network Agent - Test Standalone - Service Connection'
+            project: 'One'
+            buildDefinition: '391699'
+            parameters: |
+              useAcnPublic: false
+              cnscniversion: v1.7.7-0
+              cnscniversionwindows: v1.7.7-0
+              useAgentTestSubscription: false
+              
