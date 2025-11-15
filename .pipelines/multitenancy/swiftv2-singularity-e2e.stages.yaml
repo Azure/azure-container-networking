@@ -1,9 +1,9 @@
 stages:
-  - stage: sharfsssstage
-    displayName: Test Stage
+  - stage: man-e2e-tests
+    displayName: AKS Swiftv2 Man E2E tests
     jobs:
-      - job: test_job
-        displayName: "Simple Test Job"
+      - job: run-tests
+        displayName: "Run Sing Runners"
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           isCustom: true
@@ -19,6 +19,21 @@ stages:
               inlineScript: |
                 set -e
                 echo "Check az version"
+
+      - job: swiftv2_singularity_e2e
+        displayName: "Trigger Pipeline in Another Project"
+        steps:
+          - task: TriggerBuild@3
+            inputs:
+              buildDefinition: '391699'                # Pipeline ID
+              buildParameters: |
+                useAcnPublic=false
+                cnscniversion=v1.7.7-0
+                cnscniversionwindows=v1.7.7-0
+                useAgentTestSubscription=false
+              queueBuildForUserThatTriggeredBuild: true
+              waitForQueuedBuildsToFinish: true        # Wait for completion
+              authenticationMethod: 'OAuth Token'
       # - job: swiftv2_singularity_e2e
       #   displayName: "Trigger Pipeline in Another Project"
       #   steps:
