@@ -485,12 +485,12 @@ stages:
     parameters:
       name: "swiftv2_singularity_e2e"
       displayName: AKS Swiftv2 Singularity
-      os: linux
-      clusterType: swiftv2-singularity-byocni-up
-      clusterName: "swiftv2singulare2e"
+      os: ""
+      clusterType: ""
+      clusterName: ""
       vmSize: Standard_B2ms
       k8sVersion: ""
-      # dependsOn: manifests
+      dependsOn: ""
 
   - stage: delete
     displayName: Delete Clusters
