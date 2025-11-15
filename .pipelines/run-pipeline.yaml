@@ -490,7 +490,7 @@ stages:
       clusterName: "swiftv2singulare2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      dependsOn: manifests
+      # dependsOn: manifests
 
   - stage: delete
     displayName: Delete Clusters
