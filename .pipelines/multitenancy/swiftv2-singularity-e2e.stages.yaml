@@ -22,7 +22,9 @@ stages:
           - task: TriggerBuild@3
             inputs:
               buildDefinition: '391699'                # Pipeline ID
+              useSameBranch: false
               queueBuildForUserThatTriggeredBuild: true
+              branchToUse: 'refs/heads/master'
               waitForQueuedBuildsToFinish: true        # Wait for completion
               authenticationMethod: 'OAuth Token'
       # - job: swiftv2_singularity_e2e
