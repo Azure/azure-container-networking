@@ -11,8 +11,8 @@ parameters:
 stages:
   - stage: sharifStage
     displayName: E2E - AKS Swiftv2 Singularity
-    dependsOn:
-      - ${{ parameters.dependsOn }}
+    # dependsOn:
+    #   - ${{ parameters.dependsOn }}
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
