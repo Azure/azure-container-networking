@@ -22,21 +22,6 @@ stages:
           - task: TriggerBuild@3
             inputs:
               buildDefinition: '391699'                # Pipeline ID
-              buildParameters: |
-                useAcnPublic=false
-                cnscniversion=v1.7.7-0
-                cnscniversionwindows=v1.7.7-0
-                useAgentTestSubscription=false
-              queueBuildForUserThatTriggeredBuild: true
-              waitForQueuedBuildsToFinish: true        # Wait for completion
-              authenticationMethod: 'OAuth Token'
-
-      - job: swiftv2_singularity_e2e
-        displayName: "Trigger Pipeline in Another Project"
-        steps:
-          - task: TriggerBuild@4
-            inputs:
-              buildDefinition: '391699'                # Pipeline ID
               queueBuildForUserThatTriggeredBuild: true
               waitForQueuedBuildsToFinish: true        # Wait for completion
               authenticationMethod: 'OAuth Token'
