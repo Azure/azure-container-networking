@@ -1,13 +1,3 @@
-parameters:
-  name: ""
-  displayName: ""
-  clusterType: ""
-  clusterName: ""
-  vmSize: ""
-  k8sVersion: ""
-  dependsOn: ""
-  os: "linux"
-
 stages:
   - stage: sharifStage
     displayName: E2E - AKS Swiftv2 Singularity
