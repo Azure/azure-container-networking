@@ -1,5 +1,5 @@
 stages:
-  - stage: man-e2e-tests
+  - stage: man_e2e_tests
     displayName: AKS Swiftv2 Man E2E tests
     jobs:
       - job: run-tests
