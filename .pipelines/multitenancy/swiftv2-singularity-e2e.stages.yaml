@@ -2,18 +2,23 @@ stages:
   - stage: sharifStage
     displayName: E2E - AKS Swiftv2 Singularity
     jobs:
-      - job: swiftv2_singularity_e2e
-        displayName: "Trigger Pipeline in Another Project"
+      - job: test_job
+        displayName: "Simple Test Job"
         steps:
-          - task: TriggerBuild@3
-            inputs:
-              buildDefinition: '391699'                # Pipeline ID
-              buildParameters: |
-                useAcnPublic=false
-                cnscniversion=v1.7.7-0
-                cnscniversionwindows=v1.7.7-0
-                useAgentTestSubscription=false
-              queueBuildForUserThatTriggeredBuild: true
-              waitForQueuedBuildsToFinish: false
-              authenticationMethod: 'OAuth Token'
+          - script: echo "Hello from test job!"
+            displayName: "Echo Test"
+      # - job: swiftv2_singularity_e2e
+      #   displayName: "Trigger Pipeline in Another Project"
+      #   steps:
+      #     - task: TriggerBuild@3
+      #       inputs:
+      #         buildDefinition: '391699'                # Pipeline ID
+      #         buildParameters: |
+      #           useAcnPublic=false
+      #           cnscniversion=v1.7.7-0
+      #           cnscniversionwindows=v1.7.7-0
+      #           useAgentTestSubscription=false
+      #         queueBuildForUserThatTriggeredBuild: true
+      #         waitForQueuedBuildsToFinish: false
+      #         authenticationMethod: 'OAuth Token'
               
