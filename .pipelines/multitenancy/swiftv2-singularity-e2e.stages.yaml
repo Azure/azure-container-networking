@@ -2,7 +2,7 @@ stages:
   - stage: man_e2e_tests
     displayName: AKS Swiftv2 Man E2E tests
     jobs:
-      - job: run-tests
+      - job: run_tests
         displayName: "Run Sing Runners"
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
