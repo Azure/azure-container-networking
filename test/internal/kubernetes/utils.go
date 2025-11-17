@@ -379,7 +379,7 @@ func WaitForLRPDelete(ctx context.Context, ciliumClientset *cilium.Clientset, lr
 		return errors.Errorf("LRP %s still present", lrp.Name)
 	}
 
-	retrier := retry.Retrier{Attempts: RetryAttempts, Delay: RetryDelay}
+	retrier := retry.Retrier{Attempts: DeleteRetryAttempts, Delay: DeleteRetryDelay}
 	return errors.Wrap(retrier.Do(ctx, checkLRPDeleted), "failed to wait for LRP to delete")
 }
 
