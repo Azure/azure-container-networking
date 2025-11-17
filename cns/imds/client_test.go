@@ -165,17 +165,15 @@ func TestGetNetworkInterfacesInvalidMAC(t *testing.T) {
         "interface": [
             {
                 "interfaceCompartmentID": "nc-12345-67890",
-                "macAddress": "00005e00530"
+                "macAddress": "00005e00530" // incorrect windows MAC address length
             },
         ]
     }`)
 
 	mockIMDSServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// request header "Metadata: true" must be present
 		metadataHeader := r.Header.Get("Metadata")
 		assert.Equal(t, "true", metadataHeader)
 
-		// verify path is network metadata
 		assert.Contains(t, r.URL.Path, "/metadata/instance/network")
 
 		w.WriteHeader(http.StatusOK)
