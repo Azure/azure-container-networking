@@ -58,7 +58,7 @@
 	"remoteUser": "vscode",
 	"features": {
 		"ghcr.io/devcontainers/features/go:1": {
-			"version": "1.23.2"
+			"version": "1.24.1"
 		},
 		"docker-in-docker": "latest",
 		"kubectl-helm-minikube": "latest",
