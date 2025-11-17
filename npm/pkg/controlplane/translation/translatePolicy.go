@@ -373,37 +373,35 @@ func directPeerAndPortAllowRule(npmNetPol *policies.NPMNetworkPolicy, direction 
 		}
 		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
 		return nil
-	} else {
-		// handle each port separately
-		for i := range ports {
-			portKind, err := portType(ports[i])
-			if err != nil {
-				return err
-			}
-
-			err = checkForNamedPortType(npmNetPol, portKind, npmLiteToggle, direction, &ports[i], cidr)
-			if err != nil {
-				return err
-			}
-
-			acl := policies.NewACLPolicy(policies.Allowed, direction)
-
-			// Set direct IP based on direction
-			if direction == policies.Ingress {
-				acl.SrcDirectIPs = []string{cidr}
-			} else {
-				acl.DstDirectIPs = []string{cidr}
-			}
-
-			// Handle ports
-			if portKind == numericPortType {
-				portInfo, protocol := numericPortRule(&ports[i])
-				acl.DstPorts = portInfo
-				acl.Protocol = policies.Protocol(protocol)
-			}
-			npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
-
+	}
+	// handle each port separately
+	for i := range ports {
+		portKind, err := portType(ports[i])
+		if err != nil {
+			return err
 		}
+
+		err = checkForNamedPortType(npmNetPol, portKind, npmLiteToggle, direction, &ports[i], cidr)
+		if err != nil {
+			return err
+		}
+
+		acl := policies.NewACLPolicy(policies.Allowed, direction)
+
+		// Set direct IP based on direction
+		if direction == policies.Ingress {
+			acl.SrcDirectIPs = []string{cidr}
+		} else {
+			acl.DstDirectIPs = []string{cidr}
+		}
+
+		// Handle ports
+		if portKind == numericPortType {
+			portInfo, protocol := numericPortRule(&ports[i])
+			acl.DstPorts = portInfo
+			acl.Protocol = policies.Protocol(protocol)
+		}
+		npmNetPol.ACLs = append(npmNetPol.ACLs, acl)
 	}
 	return nil
 }

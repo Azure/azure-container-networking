@@ -1627,7 +1627,6 @@ func TestDirectPeerAndPortAllowRule(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		npmLiteToggle := true
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
