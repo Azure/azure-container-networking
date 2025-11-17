@@ -111,7 +111,7 @@ func TestGetNetworkInterfaces(t *testing.T) {
             },
             {
                 "interfaceCompartmentID": "",
-                "macAddress": "00:00:5e:00:53:02"
+                "macAddress": "00005e005302"
             }
         ]
     }`)
