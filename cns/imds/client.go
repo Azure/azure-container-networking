@@ -46,17 +46,18 @@ func RetryAttempts(attempts uint) ClientOption {
 }
 
 const (
-	vmUniqueIDProperty    = "vmId"
-	imdsComputePath       = "/metadata/instance/compute"
-	imdsNetworkPath       = "/metadata/instance/network"
-	imdsVersionsPath      = "/metadata/versions"
-	imdsDefaultAPIVersion = "api-version=2021-01-01"
-	imdsNCDetailsVersion  = "api-version=2025-07-24"
-	imdsFormatJSON        = "format=json"
-	metadataHeaderKey     = "Metadata"
-	metadataHeaderValue   = "true"
-	defaultRetryAttempts  = 3
-	defaultIMDSEndpoint   = "http://169.254.169.254"
+	vmUniqueIDProperty         = "vmId"
+	imdsComputePath            = "/metadata/instance/compute"
+	imdsNetworkPath            = "/metadata/instance/network"
+	imdsVersionsPath           = "/metadata/versions"
+	imdsDefaultAPIVersion      = "api-version=2021-01-01"
+	imdsNCDetailsVersion       = "api-version=2025-07-24"
+	imdsMACAddressStringLength = 12 // 6 bytes in hex equals 12 characters
+	imdsFormatJSON             = "format=json"
+	metadataHeaderKey          = "Metadata"
+	metadataHeaderValue        = "true"
+	defaultRetryAttempts       = 3
+	defaultIMDSEndpoint        = "http://169.254.169.254"
 )
 
 var (
@@ -231,7 +232,7 @@ func (h *HardwareAddr) UnmarshalJSON(data []byte) error {
 // parseMacAddress is a wrapper around net.ParseMAC to handle Windows MAC address. Windows MAC addresse is a pure hex
 // dump without delimiter, so we need to add delimiters. This happens when CNS gets MAC address from IMDS.
 func parseMacAddress(s string) (net.HardwareAddr, error) {
-	if !strings.ContainsAny(s, ":-.") && len(s)%2 == 0 {
+	if !strings.ContainsAny(s, ":-.") && len(s) == imdsMACAddressStringLength {
 		var sb strings.Builder
 		for i := 0; i < len(s); i += 2 {
 			if i > 0 {
