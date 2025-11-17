@@ -229,7 +229,7 @@ func (h *HardwareAddr) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// parseMacAddress is a wrapper around net.ParseMAC to handle Windows MAC address. Windows MAC addresse is a pure hex
+// parseMacAddress is a wrapper around net.ParseMAC to handle Windows MAC address. Windows MAC address is a pure hex
 // dump without delimiter, so we need to add delimiters. This happens when CNS gets MAC address from IMDS.
 func parseMacAddress(s string) (net.HardwareAddr, error) {
 	if !strings.ContainsAny(s, ":-.") && len(s) == imdsMACAddressStringLength {
