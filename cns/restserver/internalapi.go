@@ -162,7 +162,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 			req.Header.Set(common.JsonContent, common.JsonContent)
 			service.deleteNetworkContainer(httptest.NewRecorder(), req)
 		} else {
-			logger.Errorf("[Azure-CNS] Failed to marshal delete NC request body during state sync for NC ID %s: %s", ncID, err.Error())
+			logger.Errorf("[Azure-CNS] Failed to create HTTP request for deleting NC during state sync for NC ID %s: %s", nc, err.Error())
 		}
 	}
 	return
