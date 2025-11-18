@@ -70,7 +70,7 @@ func (nw *network) newEndpointImpl(
 	)
 
 	if nw.Endpoints[epInfo.EndpointID] != nil {
-		logger.Info("[net] Endpoint already exists.")
+		logger.Info("Endpoint already exists in network, skipping creation", zap.String("endpointID", epInfo.EndpointID), zap.String("networkID", nw.Id))
 		err = errEndpointExists
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (nw *network) newEndpointImpl(
 		contIfName = fmt.Sprintf("%s%s2", hostVEthInterfacePrefix, vethname)
 	} else {
 		// Create a veth pair.
-		logger.Info("Generate veth name based on endpoint id")
+		logger.Info("Generating veth pair names based on endpoint ID", zap.String("endpointID", epInfo.EndpointID[:7]))
 		hostIfName = fmt.Sprintf("%s%s", hostVEthInterfacePrefix, epInfo.EndpointID[:7])
 		contIfName = fmt.Sprintf("%s%s-2", hostVEthInterfacePrefix, epInfo.EndpointID[:7])
 	}
@@ -140,13 +140,13 @@ func (nw *network) newEndpointImpl(
 		//nolint:gocritic
 		if vlanid != 0 {
 			if nw.Mode == opModeTransparentVlan {
-				logger.Info("Transparent vlan client")
+				logger.Info("Initializing transparent VLAN endpoint client", zap.String("endpointID", epInfo.EndpointID), zap.Int("vlanID", vlanid))
 				if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
 					nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
 				}
 				epClient = NewTransparentVlanEndpointClient(nw, epInfo, hostIfName, contIfName, vlanid, localIP, nl, plc, nsc, iptc)
 			} else {
-				logger.Info("OVS client")
+				logger.Info("Initializing OVS endpoint client", zap.String("endpointID", epInfo.EndpointID), zap.Int("vlanID", vlanid))
 				if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
 					nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
 				}
@@ -164,13 +164,13 @@ func (nw *network) newEndpointImpl(
 					iptc)
 			}
 		} else if nw.Mode != opModeTransparent {
-			logger.Info("Bridge client")
+			logger.Info("Initializing Linux bridge endpoint client", zap.String("endpointID", epInfo.EndpointID))
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
 		} else if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
-			logger.Info("Secondary client")
+			logger.Info("Initializing secondary endpoint client", zap.String("endpointID", epInfo.EndpointID))
 			epClient = NewSecondaryEndpointClient(nl, netioCli, plc, nsc, dhcpclient, ep)
 		} else {
-			logger.Info("Transparent client")
+			logger.Info("Initializing transparent endpoint client", zap.String("endpointID", epInfo.EndpointID))
 			epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, netioCli, plc)
 		}
 	}
@@ -241,7 +241,7 @@ func (nw *network) newEndpointImpl(
 
 		if epInfo.IPV6Mode != "" {
 			// Enable ipv6 setting in container
-			logger.Info("Enable ipv6 setting in container.")
+			logger.Info("Enabling IPv6 settings in container namespace", zap.String("endpointID", epInfo.EndpointID), zap.String("ipv6Mode", epInfo.IPV6Mode))
 			nuc := networkutils.NewNetworkUtils(nl, plc)
 			if epErr := nuc.UpdateIPV6Setting(0); epErr != nil {
 				return fmt.Errorf("enable ipv6 in container failed:%w", epErr)
@@ -351,7 +351,7 @@ func addRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, inte
 			if !strings.Contains(strings.ToLower(err.Error()), "file exists") {
 				return err
 			} else {
-				logger.Info("route already exists")
+				logger.Info("Skipping route addition: route already exists in routing table", zap.String("destination", route.Dst.String()))
 			}
 		}
 	}
@@ -408,9 +408,9 @@ func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *Endpoi
 	var ep *endpoint
 
 	existingEpFromRepository := nw.Endpoints[existingEpInfo.EndpointID]
-	logger.Info("[updateEndpointImpl] Going to retrieve endpoint with Id to update", zap.String("id", existingEpInfo.EndpointID))
+	logger.Info("Attempting to update endpoint", zap.String("endpointID", existingEpInfo.EndpointID), zap.String("networkID", nw.Id))
 	if existingEpFromRepository == nil {
-		logger.Info("[updateEndpointImpl] Endpoint cannot be updated as it does not exist")
+		logger.Info("Cannot update endpoint: endpoint does not exist in network", zap.String("endpointID", existingEpInfo.EndpointID))
 		return nil, errEndpointNotFound
 	}
 

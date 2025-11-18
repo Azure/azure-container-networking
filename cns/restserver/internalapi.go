@@ -108,7 +108,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
 		skipNCVersionCheck = true
-		logger.Errorf("failed to get nc version list from nmagent")
+		logger.Errorf("Failed to retrieve network container version list from NMAgent, skipping version validation: %v", err)
 	}
 
 	if !skipNCVersionCheck {
@@ -123,11 +123,11 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 
 			body, err = json.Marshal(ncsToBeAdded[ncid])
 			if err != nil {
-				logger.Errorf("[Azure-CNS] Failed to marshal nc with nc id %s and content %v", ncid, ncsToBeAdded[ncid])
+				logger.Errorf("[Azure-CNS] Failed to marshal network container request for NC ID %s during sync: %v", ncid, err)
 			}
 			req, err = http.NewRequestWithContext(ctx, http.MethodPost, "", bytes.NewBuffer(body))
 			if err != nil {
-				logger.Errorf("[Azure CNS] Error received while creating http POST request for nc %v", ncsToBeAdded[ncid])
+				logger.Errorf("[Azure CNS] Failed to create HTTP POST request for network container %s during sync: %v", ncid, err)
 			}
 			req.Header.Set(common.ContentType, common.JsonContent)
 
@@ -162,7 +162,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 			req.Header.Set(common.JsonContent, common.JsonContent)
 			service.deleteNetworkContainer(httptest.NewRecorder(), req)
 		} else {
-			logger.Errorf("[Azure-CNS] Failed to delete NC request to sync state: %s", err.Error())
+			logger.Errorf("[Azure-CNS] Failed to marshal delete NC request body during state sync for NC ID %s: %s", ncID, err.Error())
 		}
 	}
 	return
@@ -182,7 +182,7 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 		go service.MustGenerateCNIConflistOnce()
 	}
 	if err != nil {
-		logger.Errorf("sync host error %v", err)
+		logger.Errorf("Failed to synchronize host network container versions with NMAgent: %v", err)
 	}
 	syncHostNCVersionCount.WithLabelValues(strconv.FormatBool(err == nil)).Inc()
 	syncHostNCVersionLatency.WithLabelValues(strconv.FormatBool(err == nil)).Observe(time.Since(start).Seconds())
@@ -201,19 +201,19 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
 		localNCVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].HostVersion)
 		if err != nil {
-			logger.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", service.state.ContainerStatus[idx].HostVersion, err)
+			logger.Errorf("Failed to parse NC host version string '%s' to integer for container %s: %v", service.state.ContainerStatus[idx].HostVersion, service.state.ContainerStatus[idx].ID, err)
 			continue
 		}
 		dncNCVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version)
 		if err != nil {
-			logger.Errorf("Received err when change nc version %s in containerstatus to int, err msg %v", service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version, err)
+			logger.Errorf("Failed to parse NC version string '%s' to integer from DNC for container %s: %v", service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version, service.state.ContainerStatus[idx].ID, err)
 			continue
 		}
 		// host NC version is the NC version from NMAgent, if it's smaller than NC version from DNC, then append it to indicate it needs update.
 		if localNCVersion < dncNCVersion {
 			outdatedNCs[service.state.ContainerStatus[idx].ID] = struct{}{}
 		} else if localNCVersion > dncNCVersion {
-			logger.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", localNCVersion, dncNCVersion)
+			logger.Errorf("Network container version inconsistency detected: NMAgent version (%d) is greater than DNC version (%d) for NC %s", localNCVersion, dncNCVersion, service.state.ContainerStatus[idx].ID)
 		}
 
 		if localNCVersion > -1 {
@@ -263,7 +263,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		}
 		nmaProgrammedNCVersion, err := strconv.Atoi(nmaProgrammedNCVersionStr)
 		if err != nil {
-			logger.Errorf("failed to parse container version of %s: %s", ncID, err)
+			logger.Errorf("Failed to parse NC version string '%s' from NMAgent for container %s: %s", nmaProgrammedNCVersionStr, ncID, err)
 			continue
 		}
 		// Check whether it exist in service state and get the related nc info
@@ -280,12 +280,12 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 
 		localNCVersion, err := strconv.Atoi(ncInfo.HostVersion)
 		if err != nil {
-			logger.Errorf("failed to parse host nc version string %s: %s", ncInfo.HostVersion, err)
+			logger.Errorf("Failed to parse host NC version string '%s' to integer for container %s: %s", ncInfo.HostVersion, ncID, err)
 			continue
 		}
 		if localNCVersion > nmaProgrammedNCVersion {
 			//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-			logger.Errorf("NC version from consolidated sources is decreasing: have %d, got %d", localNCVersion, nmaProgrammedNCVersion)
+			logger.Errorf("Network container version regression detected for NC %s: local version %d is greater than NMAgent programmed version %d", ncID, localNCVersion, nmaProgrammedNCVersion)
 			continue
 		}
 		if channelMode == cns.CRD {
@@ -342,7 +342,7 @@ func (service *HTTPRestService) ReconcileIPAssignment(podInfoByIP map[string]cns
 
 	podKeyToPodIPs, err := newPodKeyToPodIPsMap(podInfoByIP)
 	if err != nil {
-		logger.Errorf("could not transform pods indexed by IP address to pod IPs indexed by interface: %v", err)
+		logger.Errorf("Failed to transform pod IP address map to interface-indexed pod IP map during reconciliation: %v", err)
 		return types.UnexpectedError
 	}
 
@@ -368,7 +368,7 @@ func (service *HTTPRestService) ReconcileIPAssignment(podInfoByIP map[string]cns
 			} else {
 				// it might still be possible to see host networking pods here (where ips are not from ncs) if we are restoring using the kube podinfo provider
 				// todo: once kube podinfo provider reconcile flow is removed, this line will not be necessary/should be removed.
-				logger.Errorf("ip %s assigned to pod %+v but not found in any nc", ip, podIPs)
+				logger.Errorf("IP address %s is assigned to pod %+v but was not found in any network container", ip, podIPs)
 			}
 		}
 
@@ -379,7 +379,7 @@ func (service *HTTPRestService) ReconcileIPAssignment(podInfoByIP map[string]cns
 
 		jsonContext, err := podIPs.OrchestratorContext()
 		if err != nil {
-			logger.Errorf("Failed to marshal KubernetesPodInfo, error: %v", err)
+			logger.Errorf("Failed to marshal KubernetesPodInfo to JSON for pod %s: %v", podKey, err)
 			return types.UnexpectedError
 		}
 
@@ -431,7 +431,7 @@ func (service *HTTPRestService) ReconcileIPAMStateForSwift(ncReqs []*cns.CreateN
 	}
 
 	if err := service.MarkExistingIPsAsPendingRelease(nnc.Spec.IPsNotInUse); err != nil {
-		logger.Errorf("[Azure CNS] Error. Failed to mark IPs as pending %v", nnc.Spec.IPsNotInUse)
+		logger.Errorf("[Azure CNS] Failed to mark unused IPs as pending release from NodeNetworkConfig: %v", err)
 		return types.UnexpectedError
 	}
 
@@ -444,7 +444,7 @@ func (service *HTTPRestService) ReconcileIPAMStateForNodeSubnet(ncReqs []*cns.Cr
 	logger.Printf("Reconciling CNS IPAM state with nc requests: [%+v], PodInfo [%+v]", ncReqs, podInfoByIP)
 
 	if len(ncReqs) != 1 {
-		logger.Errorf("Nodesubnet should always have 1 NC to hold secondary IPs")
+		logger.Errorf("Node subnet mode requires exactly 1 network container for secondary IPs, but found %d", len(ncReqs))
 		return types.NetworkContainerNotSpecified
 	}
 
@@ -577,7 +577,7 @@ func (service *HTTPRestService) MustEnsureNoStaleNCs(validNCIDs []string) {
 				panic(msg)
 			}
 
-			logger.Errorf("[Azure CNS] Found stale NC ID %s in CNS state. Removing...", ncID)
+			logger.Errorf("[Azure CNS] Found stale network container ID %s in CNS state with no assigned IPs. Removing from state...", ncID)
 			delete(service.state.ContainerStatus, ncID)
 			mutated = true
 		}
@@ -591,14 +591,14 @@ func (service *HTTPRestService) MustEnsureNoStaleNCs(validNCIDs []string) {
 // This API will be called by CNS RequestController on CRD update.
 func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.CreateNetworkContainerRequest) types.ResponseCode {
 	if req.NetworkContainerid == "" {
-		logger.Errorf("[Azure CNS] Error. NetworkContainerid is empty")
+		logger.Errorf("[Azure CNS] Network container ID is empty in CreateOrUpdateNetworkContainer request")
 		return types.NetworkContainerNotSpecified
 	}
 
 	// For now only RequestController uses this API which will be initialized only for AKS scenario.
 	// Validate ContainerType is set as Docker
 	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes {
-		logger.Errorf("[Azure CNS] Error. Unsupported OrchestratorType: %s", service.state.OrchestratorType)
+		logger.Errorf("[Azure CNS] Unsupported orchestrator type %s for CreateOrUpdateNetworkContainer operation", service.state.OrchestratorType)
 		return types.UnsupportedOrchestratorType
 	}
 
