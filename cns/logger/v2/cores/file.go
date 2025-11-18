@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
+	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 type FileConfig struct {
@@ -50,5 +51,5 @@ func FileCore(cfg *FileConfig) (zapcore.Core, func(), error) {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
-	return zapcore.NewCore(jsonEncoder, zapcore.AddSync(filesink), cfg.level), func() { _ = filesink.Close() }, nil
+	return zapcore.NewCore(&ctrlzap.KubeAwareEncoder{Encoder: jsonEncoder}, zapcore.AddSync(filesink), cfg.level), func() { _ = filesink.Close() }, nil
 }
