@@ -490,6 +490,7 @@ type GetNetworkContainerRequest struct {
 type GetNetworkContainerResponse struct {
 	NetworkContainerID         string
 	IPConfiguration            IPConfiguration
+	SecondaryIPConfigs         map[string]SecondaryIPConfig // uuid is key
 	Routes                     []Route
 	CnetAddressSpace           []IPSubnet
 	MultiTenancyInfo           MultiTenancyInfo

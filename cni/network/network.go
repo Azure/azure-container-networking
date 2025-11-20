@@ -567,8 +567,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
 		networkID, _ := plugin.getNetworkID(args.Netns, &ifInfo, nwCfg)
 
-		isIPv6 := ipamAddResult.ipv6Enabled
-
 		createEpInfoOpt := createEpInfoOpt{
 			nwCfg:            nwCfg,
 			cnsNetworkConfig: ifInfo.NCResponse,
@@ -584,7 +582,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			networkID:        networkID,
 			ifInfo:           &ifInfo,
 			ipamAddConfig:    &ipamAddConfig,
-			ipv6Enabled:      isIPv6,
+			ipv6Enabled:      ipamAddResult.ipv6Enabled,
 			infraSeen:        &infraSeen,
 			endpointIndex:    endpointIndex,
 		}
@@ -1413,15 +1411,11 @@ func convertInterfaceInfoToCniResult(info network.InterfaceInfo, ifName string) 
 
 	if len(info.IPConfigs) > 0 {
 		for _, ipconfig := range info.IPConfigs {
-			if ipconfig.Address.IP.To4() != nil {
-				result.IPs = append(result.IPs, &cniTypesCurr.IPConfig{Address: ipconfig.Address, Gateway: ipconfig.Gateway})
-			}
+			result.IPs = append(result.IPs, &cniTypesCurr.IPConfig{Address: ipconfig.Address, Gateway: ipconfig.Gateway})
 		}
 
 		for i := range info.Routes {
-			if info.Routes[i].Gw.To4() != nil {
-				result.Routes = append(result.Routes, &cniTypes.Route{Dst: info.Routes[i].Dst, GW: info.Routes[i].Gw})
-			}
+			result.Routes = append(result.Routes, &cniTypes.Route{Dst: info.Routes[i].Dst, GW: info.Routes[i].Gw})
 		}
 	}
 

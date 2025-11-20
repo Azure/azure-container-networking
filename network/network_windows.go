@@ -6,7 +6,6 @@ package network
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -290,21 +289,6 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 
 	// Populate subnets.
 	for _, subnet := range nwInfo.Subnets {
-
-		prefix := subnet.Prefix
-		if prefix.IP.To4() == nil {
-			// IPv6: normalize to /64
-			prefix.Mask = net.CIDRMask(64, 128)
-			prefix.IP = prefix.IP.Mask(prefix.Mask) // zero out host bits
-		}
-		prefixStr := prefix.String() // e.g., fd00:da04:74ff:0::/64
-
-		// Check if it's IPv6
-		if subnet.Prefix.IP.To4() == nil {
-			// IPv6: replace /128 with /64 if present
-			prefixStr = strings.Replace(prefixStr, "/128", "/64", 1)
-		}
-
 		// Choose route based on IP family
 		routeDest := defaultRouteCIDR
 		if subnet.Prefix.IP.To4() == nil {
@@ -312,7 +296,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 		}
 
 		hnsSubnet := hcn.Subnet{
-			IpAddressPrefix: prefixStr,
+			IpAddressPrefix: subnet.Prefix.String(),
 			// Set the Gateway route
 			Routes: []hcn.Route{
 				{
