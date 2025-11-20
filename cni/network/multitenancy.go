@@ -159,6 +159,26 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
 }
 
+// addDefaultRouteToGateway appends a default route
+// to both epInfo and result. Returns error if gwStr is not a valid IP.
+func (m *Multitenancy) addDefaultRoute(gwStr string, epInfo *network.EndpointInfo, result *network.InterfaceInfo) error {
+	gw := net.ParseIP(gwStr)
+	if gw == nil {
+		return fmt.Errorf("invalid gateway IP: %s", gwStr) //nolint
+	}
+
+	var dst net.IPNet
+	if gw.To4() != nil {
+		_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
+		dst = net.IPNet{IP: net.IPv4zero, Mask: defaultIPNet.Mask}
+	}
+
+	ri := network.RouteInfo{Dst: dst, Gw: gw}
+	epInfo.Routes = append(epInfo.Routes, ri)
+	result.Routes = append(result.Routes, ri)
+	return nil
+}
+
 func (m *Multitenancy) SetupRoutingForMultitenancy(
 	nwCfg *cni.NetworkConfig,
 	cnsNetworkConfig *cns.GetNetworkContainerResponse,
@@ -172,15 +192,17 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 		logger.Info("add default route for multitenancy.snat on host enabled")
 		addDefaultRoute(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
 	} else {
-		_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
-		dstIP := net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet.Mask}
-		gwIP := net.ParseIP(cnsNetworkConfig.IPConfiguration.GatewayIPAddress)
-		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP})
-		result.Routes = append(result.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP})
-
-		if epInfo.EnableSnatForDns {
-			logger.Info("add SNAT for DNS enabled")
-			addSnatForDNS(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
+		// only set default route when skipDefaultRoutes is false to avoid duplicated default routes given to HNS
+		if !epInfo.SkipDefaultRoutes {
+			if err := m.addDefaultRoute(
+				cnsNetworkConfig.IPConfiguration.GatewayIPAddress,
+				epInfo, result,
+			); err != nil {
+				logger.Error("failed adding default route",
+					zap.String("gateway", cnsNetworkConfig.IPConfiguration.GatewayIPAddress),
+					zap.Error(err),
+				)
+			}
 		}
 	}
 

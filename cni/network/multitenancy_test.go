@@ -189,6 +189,7 @@ func getIPNetWithString(ipaddrwithcidr string) *net.IPNet {
 
 func TestSetupRoutingForMultitenancy(t *testing.T) {
 	require := require.New(t) //nolint:gocritic
+
 	type args struct {
 		nwCfg            *cni.NetworkConfig
 		cnsNetworkConfig *cns.GetNetworkContainerResponse
@@ -204,7 +205,7 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 		expected           args
 	}{
 		{
-			name: "test happy path",
+			name: "adds default v4 route when SNAT disabled and SkipDefaultRoutes=false",
 			args: args{
 				nwCfg: &cni.NetworkConfig{
 					MultiTenancy:     true,
@@ -212,14 +213,13 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 				},
 				cnsNetworkConfig: &cns.GetNetworkContainerResponse{
 					IPConfiguration: cns.IPConfiguration{
-						IPSubnet:         cns.IPSubnet{},
-						DNSServers:       nil,
 						GatewayIPAddress: "10.0.0.1",
 					},
 				},
-				epInfo: &network.EndpointInfo{},
+				epInfo: &network.EndpointInfo{}, // SkipDefaultRoutes defaults to false
 				result: &network.InterfaceInfo{},
 			},
+			multitenancyClient: &Multitenancy{},
 			expected: args{
 				nwCfg: &cni.NetworkConfig{
 					MultiTenancy:     true,
@@ -227,8 +227,6 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 				},
 				cnsNetworkConfig: &cns.GetNetworkContainerResponse{
 					IPConfiguration: cns.IPConfiguration{
-						IPSubnet:         cns.IPSubnet{},
-						DNSServers:       nil,
 						GatewayIPAddress: "10.0.0.1",
 					},
 				},
@@ -250,11 +248,56 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "does not add default route when SkipDefaultRoutes=true",
+			args: args{
+				nwCfg: &cni.NetworkConfig{
+					MultiTenancy:     true,
+					EnableSnatOnHost: false,
+				},
+				cnsNetworkConfig: &cns.GetNetworkContainerResponse{
+					IPConfiguration: cns.IPConfiguration{
+						GatewayIPAddress: "10.0.0.1",
+					},
+				},
+				epInfo: &network.EndpointInfo{
+					SkipDefaultRoutes: true,
+				},
+				result: &network.InterfaceInfo{},
+			},
+			multitenancyClient: &Multitenancy{},
+			expected: args{
+				nwCfg: &cni.NetworkConfig{
+					MultiTenancy:     true,
+					EnableSnatOnHost: false,
+				},
+				cnsNetworkConfig: &cns.GetNetworkContainerResponse{
+					IPConfiguration: cns.IPConfiguration{
+						GatewayIPAddress: "10.0.0.1",
+					},
+				},
+				epInfo: &network.EndpointInfo{
+					SkipDefaultRoutes: true,
+					Routes:            nil, // unchanged
+				},
+				result: &network.InterfaceInfo{
+					Routes: nil, // unchanged
+				},
+			},
+		},
 	}
+
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			tt.multitenancyClient.SetupRoutingForMultitenancy(tt.args.nwCfg, tt.args.cnsNetworkConfig, tt.args.azIpamResult, tt.args.epInfo, tt.args.result)
+			tt.multitenancyClient.SetupRoutingForMultitenancy(
+				tt.args.nwCfg,
+				tt.args.cnsNetworkConfig,
+				tt.args.azIpamResult,
+				tt.args.epInfo,
+				tt.args.result,
+			)
+
 			require.Exactly(tt.expected.nwCfg, tt.args.nwCfg)
 			require.Exactly(tt.expected.cnsNetworkConfig, tt.args.cnsNetworkConfig)
 			require.Exactly(tt.expected.azIpamResult, tt.args.azIpamResult)
