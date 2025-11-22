@@ -5,16 +5,30 @@ parameters:
     type: string
   - name: resourceGroupName
     type: string
-  - name: vmSkuDefault
-    type: string
-  - name: vmSkuHighNIC
-    type: string
   - name: serviceConnection
     type: string
+  - name: runSetupStages
+    type: boolean
+    default: false
+
+variables:
+  - name: rgName
+    ${{ if eq(parameters.runSetupStages, true) }}:
+      value: ${{ parameters.resourceGroupName }}
+    ${{ else }}:
+      value: sv2-long-run-${{ parameters.location }}
+  - name: vmSkuDefault
+    value: "Standard_D4s_v3"
+  - name: vmSkuHighNIC
+    value: "Standard_D16s_v3"
 
 stages:
+  # =================================================================
+  # Stage 1: AKS Cluster and Networking Setup (Conditional)
+  # =================================================================
   - stage: AKSClusterAndNetworking
     displayName: "Stage: AKS Cluster and Networking Setup"
+    condition: eq(${{ parameters.runSetupStages }}, true)
     jobs:
       # ------------------------------------------------------------
       # Job 1: Create Resource Group
@@ -32,10 +46,13 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                echo "==> Creating resource group ${{ parameters.resourceGroupName }} in ${{ parameters.location }}"
+                echo "Org: $SYSTEM_COLLECTIONURI"
+                echo "Project: $SYSTEM_TEAMPROJECT"
+                echo "==> Creating resource group $(rgName) in ${{ parameters.location }}"
                 az group create \
-                  --name "${{ parameters.resourceGroupName }}" \
+                  --name "$(rgName)" \
                   --location "${{ parameters.location }}" \
+                  --tags SkipAutoDeleteTill=2032-12-31 \
                   --subscription "${{ parameters.subscriptionId }}"
                 echo "Resource group created successfully."
 
@@ -59,16 +76,17 @@ stages:
               arguments: >
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.location }}
-                ${{ parameters.resourceGroupName }}
-                ${{ parameters.vmSkuDefault }}
-                ${{ parameters.vmSkuHighNIC }}
+                $(rgName)
+                $(vmSkuDefault)
+                $(vmSkuHighNIC)
       
       # ------------------------------------------------------------
       # Job 3: Networking & Storage
       # ------------------------------------------------------------
       - job: NetworkingAndStorage
+        timeoutInMinutes: 0
         displayName: "Networking and Storage Setup"
-        dependsOn: CreateResourceGroup
+        dependsOn: CreateCluster
         pool:
           vmImage: ubuntu-latest
         steps:
@@ -85,7 +103,8 @@ stages:
               arguments: >
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.location }}
-                ${{ parameters.resourceGroupName }}
+                $(rgName)
+                $(Build.BuildId)
 
           # Task 2: Create Peerings
           - task: AzureCLI@2
@@ -96,7 +115,7 @@ stages:
               scriptLocation: scriptPath
               scriptPath: ".pipelines/swiftv2-long-running/scripts/create_peerings.sh"
               arguments: >
-                ${{ parameters.resourceGroupName }}
+                $(rgName)
 
           # Task 3: Create Storage Accounts
           - task: AzureCLI@2
@@ -110,22 +129,9 @@ stages:
               arguments: >
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.location }}
-                ${{ parameters.resourceGroupName }}
+                $(rgName)
 
-          # Task 4: Create NSG
-          - task: AzureCLI@2
-            displayName: "Create network security groups to restrict access between subnets"
-            inputs:
-              azureSubscription: ${{ parameters.serviceConnection }}
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_nsg.sh"
-              arguments: >
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.resourceGroupName }}
-                ${{ parameters.location }}
-
-          # Task 5: Create Private Endpoint
+          # Task 4: Create Private Endpoint
           - task: AzureCLI@2
             displayName: "Create Private Endpoint for Storage Account"
             inputs:
@@ -136,5 +142,284 @@ stages:
               arguments: >
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.location }}
-                ${{ parameters.resourceGroupName }}
+                $(rgName)
                 $(CreateStorageAccounts.StorageAccount1)
+          
+          # Task 5: Create NSG
+          - task: AzureCLI@2
+            displayName: "Create network security groups to restrict access between subnets"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_nsg.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                $(rgName)
+                ${{ parameters.location }}
+  # =================================================================
+  # Stage 2: Datapath Tests
+  # =================================================================
+  - stage: ManagedNodeDataPathTests
+    displayName: "Stage: Swiftv2 Data Path Tests on Linux Managed Nodes"
+    dependsOn: AKSClusterAndNetworking
+    condition: or(eq(${{ parameters.runSetupStages }}, false), succeeded())
+    variables:
+      storageAccount1: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
+      storageAccount2: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
+    jobs:
+      # ------------------------------------------------------------
+      # Job 1: Create Test Resources and Wait
+      # ------------------------------------------------------------
+      - job: CreateTestResources
+        displayName: "Create Resources and Wait 20 Minutes"
+        timeoutInMinutes: 90
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: GoTool@0
+            displayName: "Use Go 1.22.5"
+            inputs:
+              version: "1.22.5"
+              
+          - task: AzureCLI@2
+            displayName: "Create Test Resources"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Installing Ginkgo CLI"
+                go install github.com/onsi/ginkgo/v2/ginkgo@latest
+                
+                echo "==> Adding Go bin to PATH"
+                export PATH=$PATH:$(go env GOPATH)/bin
+
+                echo "==> Downloading Go dependencies"
+                go mod download
+                
+                echo "==> Setting up kubeconfig for cluster aks-1"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-1 \
+                  --file /tmp/aks-1.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Setting up kubeconfig for cluster aks-2"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-2 \
+                  --file /tmp/aks-2.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Verifying cluster aks-1 connectivity"
+                kubectl --kubeconfig /tmp/aks-1.kubeconfig get nodes
+                
+                echo "==> Verifying cluster aks-2 connectivity"
+                kubectl --kubeconfig /tmp/aks-2.kubeconfig get nodes
+                
+                echo "==> Creating test resources (8 scenarios)"
+                export RG="$(rgName)"
+                export BUILD_ID="$(rgName)"
+                export WORKLOAD_TYPE="swiftv2-linux"
+                cd ./test/integration/swiftv2/longRunningCluster
+                ginkgo -v -trace --timeout=1h --tags=create_test
+
+          - script: |
+              echo "Waiting 2 minutes for pods to fully start and HTTP servers to be ready..."
+              sleep 120
+              echo "Wait period complete, proceeding with connectivity tests"
+            displayName: "Wait for pods to be ready"
+
+      # ------------------------------------------------------------
+      # Job 2: Run Connectivity Tests
+      # ------------------------------------------------------------
+      - job: ConnectivityTests
+        displayName: "Test Pod-to-Pod Connectivity"
+        dependsOn: CreateTestResources
+        timeoutInMinutes: 30
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: GoTool@0
+            displayName: "Use Go 1.22.5"
+            inputs:
+              version: "1.22.5"
+              
+          - task: AzureCLI@2
+            displayName: "Run Connectivity Tests"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Installing Ginkgo CLI"
+                go install github.com/onsi/ginkgo/v2/ginkgo@latest
+                
+                echo "==> Adding Go bin to PATH"
+                export PATH=$PATH:$(go env GOPATH)/bin
+
+                echo "==> Downloading Go dependencies"
+                go mod download
+                
+                echo "==> Setting up kubeconfig for cluster aks-1"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-1 \
+                  --file /tmp/aks-1.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Setting up kubeconfig for cluster aks-2"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-2 \
+                  --file /tmp/aks-2.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Running connectivity tests"
+                export RG="$(rgName)"
+                export BUILD_ID="$(rgName)"
+                export WORKLOAD_TYPE="swiftv2-linux"
+                cd ./test/integration/swiftv2/longRunningCluster
+                ginkgo -v -trace --timeout=30m --tags=connectivity_test
+
+      # ------------------------------------------------------------
+      # Job 3: Private Endpoint Connectivity Tests
+      # ------------------------------------------------------------
+      - job: PrivateEndpointTests
+        displayName: "Test Private Endpoint Access"
+        dependsOn: ConnectivityTests
+        timeoutInMinutes: 30
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: GoTool@0
+            displayName: "Use Go 1.22.5"
+            inputs:
+              version: "1.22.5"
+              
+          - task: AzureCLI@2
+            displayName: "Run Private Endpoint Tests"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Installing Ginkgo CLI"
+                go install github.com/onsi/ginkgo/v2/ginkgo@latest
+                
+                echo "==> Adding Go bin to PATH"
+                export PATH=$PATH:$(go env GOPATH)/bin
+
+                echo "==> Downloading Go dependencies"
+                go mod download
+                
+                echo "==> Setting up kubeconfig for cluster aks-1"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-1 \
+                  --file /tmp/aks-1.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Setting up kubeconfig for cluster aks-2"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-2 \
+                  --file /tmp/aks-2.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Running Private Endpoint connectivity tests"
+                export RG="$(rgName)"
+                export BUILD_ID="$(rgName)"
+                export WORKLOAD_TYPE="swiftv2-linux"
+                
+                # Get storage account names - either from stage variables or discover from resource group
+                STORAGE_ACCOUNT_1="$(storageAccount1)"
+                STORAGE_ACCOUNT_2="$(storageAccount2)"
+                
+                # If variables are empty (when runSetupStages=false), discover from resource group
+                if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
+                  echo "Storage account variables not set, discovering from resource group..."
+                  STORAGE_ACCOUNT_1=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa1')].name" -o tsv)
+                  STORAGE_ACCOUNT_2=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa2')].name" -o tsv)
+                  echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
+                fi
+                
+                export STORAGE_ACCOUNT_1
+                export STORAGE_ACCOUNT_2
+                cd ./test/integration/swiftv2/longRunningCluster
+                ginkgo -v -trace --timeout=30m --tags=private_endpoint_test
+
+      # ------------------------------------------------------------
+      # Job 4: Delete Test Resources
+      # ------------------------------------------------------------
+      - job: DeleteTestResources
+        displayName: "Delete PodNetwork, PNI, and Pods"
+        dependsOn: 
+          - CreateTestResources
+          - ConnectivityTests
+          - PrivateEndpointTests
+        # Always run cleanup, even if previous jobs failed
+        condition: always()
+        timeoutInMinutes: 60
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: GoTool@0
+            displayName: "Use Go 1.22.5"
+            inputs:
+              version: "1.22.5"
+              
+          - task: AzureCLI@2
+            displayName: "Delete Test Resources"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Installing Ginkgo CLI"
+                go install github.com/onsi/ginkgo/v2/ginkgo@latest
+                
+                echo "==> Adding Go bin to PATH"
+                export PATH=$PATH:$(go env GOPATH)/bin
+
+                echo "==> Downloading Go dependencies"
+                go mod download
+                
+                echo "==> Setting up kubeconfig for cluster aks-1"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-1 \
+                  --file /tmp/aks-1.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Setting up kubeconfig for cluster aks-2"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-2 \
+                  --file /tmp/aks-2.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Deleting test resources (8 scenarios)"
+                export RG="$(rgName)"
+                export BUILD_ID="$(rgName)"
+                export WORKLOAD_TYPE="swiftv2-linux"
+                cd ./test/integration/swiftv2/longRunningCluster
+                ginkgo -v -trace --timeout=1h --tags=delete_test
+              
