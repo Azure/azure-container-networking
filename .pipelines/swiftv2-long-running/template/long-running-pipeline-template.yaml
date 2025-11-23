@@ -338,6 +338,8 @@ stages:
                 echo "==> Running Private Endpoint connectivity tests"
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
+                export STORAGE_ACCOUNT_1="$(CreateStorageAccounts.StorageAccount1)"
+                export STORAGE_ACCOUNT_2="$(CreateStorageAccounts.StorageAccount2)"
                 cd ./test/integration/swiftv2/longRunningCluster
                 ginkgo -v -trace --timeout=30m --tags=private_endpoint_test
 

@@ -77,6 +77,8 @@ az network nsg rule create \
   --priority 100 \
   --source-address-prefixes "$SUBNET1_PREFIX" \
   --destination-address-prefixes "$SUBNET2_PREFIX" \
+  --source-port-ranges "*" \
+  --destination-port-ranges "*" \
   --direction Outbound \
   --access Deny \
   --protocol "*" \
@@ -95,6 +97,8 @@ az network nsg rule create \
   --priority 110 \
   --source-address-prefixes "$SUBNET1_PREFIX" \
   --destination-address-prefixes "$SUBNET2_PREFIX" \
+  --source-port-ranges "*" \
+  --destination-port-ranges "*" \
   --direction Inbound \
   --access Deny \
   --protocol "*" \
@@ -113,6 +117,8 @@ az network nsg rule create \
   --priority 200 \
   --source-address-prefixes "$SUBNET2_PREFIX" \
   --destination-address-prefixes "$SUBNET1_PREFIX" \
+  --source-port-ranges "*" \
+  --destination-port-ranges "*" \
   --direction Outbound \
   --access Deny \
   --protocol "*" \
@@ -131,6 +137,8 @@ az network nsg rule create \
   --priority 210 \
   --source-address-prefixes "$SUBNET2_PREFIX" \
   --destination-address-prefixes "$SUBNET1_PREFIX" \
+  --source-port-ranges "*" \
+  --destination-port-ranges "*" \
   --direction Inbound \
   --access Deny \
   --protocol "*" \

@@ -21,9 +21,15 @@ func TestDatapathPrivateEndpoint(t *testing.T) {
 var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 	rg := os.Getenv("RG")
 	buildId := os.Getenv("BUILD_ID")
+	storageAccount1 := os.Getenv("STORAGE_ACCOUNT_1")
+	storageAccount2 := os.Getenv("STORAGE_ACCOUNT_2")
 
 	if rg == "" || buildId == "" {
 		ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", rg, buildId))
+	}
+
+	if storageAccount1 == "" || storageAccount2 == "" {
+		ginkgo.Fail(fmt.Sprintf("Missing storage account environment variables: STORAGE_ACCOUNT_1='%s', STORAGE_ACCOUNT_2='%s'", storageAccount1, storageAccount2))
 	}
 
 	ginkgo.It("tests private endpoint access and isolation", func() {
@@ -36,8 +42,8 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 			UsedNodes:       make(map[string]bool),
 		}
 
-		// Get storage account endpoint for Tenant A
-		storageAccountName := fmt.Sprintf("sv2longrun%sstoragea", testScenarios.BuildID)
+		// Get storage account endpoint for Tenant A (Customer 1)
+		storageAccountName := storageAccount1
 		ginkgo.By(fmt.Sprintf("Getting private endpoint for storage account: %s", storageAccountName))
 
 		storageEndpoint, err := GetStoragePrivateEndpoint(testScenarios.ResourceGroup, storageAccountName)
