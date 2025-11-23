@@ -7,9 +7,20 @@ RG=$2
 LOCATION=$3
 
 VNET_A1="cx_vnet_a1"
-SUBNET1_PREFIX="10.10.1.0/24"
-SUBNET2_PREFIX="10.10.2.0/24"
 NSG_NAME="${VNET_A1}-nsg"
+
+# Get actual subnet CIDR ranges dynamically
+echo "==> Retrieving actual subnet address prefixes..."
+SUBNET1_PREFIX=$(az network vnet subnet show -g "$RG" --vnet-name "$VNET_A1" -n s1 --query "addressPrefix" -o tsv)
+SUBNET2_PREFIX=$(az network vnet subnet show -g "$RG" --vnet-name "$VNET_A1" -n s2 --query "addressPrefix" -o tsv)
+
+echo "Subnet s1 CIDR: $SUBNET1_PREFIX"
+echo "Subnet s2 CIDR: $SUBNET2_PREFIX"
+
+if [[ -z "$SUBNET1_PREFIX" || -z "$SUBNET2_PREFIX" ]]; then
+  echo "[ERROR] Failed to retrieve subnet address prefixes!" >&2
+  exit 1
+fi
 
 verify_nsg() {
   local rg="$1"; local name="$2"

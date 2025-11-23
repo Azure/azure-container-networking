@@ -606,18 +606,20 @@ func RunConnectivityTest(test ConnectivityTest, rg, buildId string) error {
 	// Get kubeconfig for the cluster
 	kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", test.Cluster)
 
-	// Get destination pod IP
-	destIP, err := helpers.GetPodIP(kubeconfig, test.DestNamespace, test.DestinationPod)
+	// Get destination pod's eth1 IP (delegated subnet IP for cross-VNet connectivity)
+	// This is the IP that is subject to NSG rules, not the overlay eth0 IP
+	destIP, err := helpers.GetPodDelegatedIP(kubeconfig, test.DestNamespace, test.DestinationPod)
 	if err != nil {
-		return fmt.Errorf("failed to get destination pod IP: %w", err)
+		return fmt.Errorf("failed to get destination pod delegated IP: %w", err)
 	}
 
-	fmt.Printf("Testing connectivity from %s/%s to %s/%s (%s) on port 8080\n",
+	fmt.Printf("Testing connectivity from %s/%s to %s/%s (eth1: %s) on port 8080\n",
 		test.SourceNamespace, test.SourcePod, test.DestNamespace, test.DestinationPod, destIP)
 
-	// Run curl command from source pod to destination pod
+	// Run curl command from source pod to destination pod using eth1 IP
 	// Using -m 10 for 10 second timeout, -f to fail on HTTP errors
-	curlCmd := fmt.Sprintf("curl -f -m 10 http://%s:8080/", destIP)
+	// Using --interface eth1 to force traffic through delegated subnet interface
+	curlCmd := fmt.Sprintf("curl --interface eth1 -f -m 10 http://%s:8080/", destIP)
 
 	output, err := helpers.ExecInPod(kubeconfig, test.SourceNamespace, test.SourcePod, curlCmd)
 	if err != nil {

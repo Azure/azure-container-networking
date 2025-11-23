@@ -305,6 +305,28 @@ func GetPodIP(kubeconfig, namespace, podName string) (string, error) {
 	return ip, nil
 }
 
+// GetPodDelegatedIP retrieves the eth1 IP address (delegated subnet IP) of a pod
+// This is the IP used for cross-VNet communication and is subject to NSG rules
+func GetPodDelegatedIP(kubeconfig, namespace, podName string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Get eth1 IP address by running 'ip addr show eth1' in the pod
+	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "exec", podName,
+		"-n", namespace, "--", "sh", "-c", "ip -4 addr show eth1 | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to get eth1 IP for %s in namespace %s: %w\nOutput: %s", podName, namespace, err, string(out))
+	}
+
+	ip := strings.TrimSpace(string(out))
+	if ip == "" {
+		return "", fmt.Errorf("pod %s in namespace %s has no eth1 IP address (delegated subnet not configured?)", podName, namespace)
+	}
+
+	return ip, nil
+}
+
 // ExecInPod executes a command in a pod and returns the output
 func ExecInPod(kubeconfig, namespace, podName, command string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
