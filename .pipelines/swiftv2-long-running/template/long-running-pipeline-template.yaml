@@ -222,7 +222,8 @@ stages:
                 echo "==> Creating test resources (8 scenarios)"
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
-                ginkgo -v -trace --timeout=1h --focus="Datapath Create" ./test/integration/swiftv2/longRunningCluster
+                cd ./test/integration/swiftv2/longRunningCluster
+                ginkgo -v -trace --timeout=1h --focus-file=datapath_create_test.go
 
       # ------------------------------------------------------------
       # Job 2: Run Connectivity Tests
@@ -390,5 +391,6 @@ stages:
                 echo "==> Deleting test resources (8 scenarios)"
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
-                ginkgo -v -trace --timeout=1h --focus="Datapath Delete" ./test/integration/swiftv2/longRunningCluster
+                cd ./test/integration/swiftv2/longRunningCluster
+                ginkgo -v -trace --timeout=1h --focus-file=datapath_delete_test.go
               
