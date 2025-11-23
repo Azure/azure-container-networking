@@ -2,13 +2,13 @@ trigger: none
 pr: none
 
 # Schedule: Run every 1 hour
-schedules:
-  - cron: "0 */1 * * *"  # Every 1 hour at minute 0
-    displayName: "Run tests every 1 hour"
-    branches:
-      include:
-        - sv2-long-running-pipeline
-    always: true  # Run even if there are no code changes
+# schedules:
+#   - cron: "0 */1 * * *"  # Every 1 hour at minute 0
+#     displayName: "Run tests every 1 hour"
+#     branches:
+#       include:
+#         - sv2-long-running-pipeline
+#     always: true  # Run even if there are no code changes
 
 parameters:
   - name: subscriptionId
