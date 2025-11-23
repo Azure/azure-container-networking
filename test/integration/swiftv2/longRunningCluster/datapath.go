@@ -85,37 +85,37 @@ func CreatePod(kubeconfig string, data PodData, templatePath string) error {
 
 // TestResources holds all the configuration needed for creating test resources
 type TestResources struct {
-	Kubeconfig          string
-	PNName              string
-	PNIName             string
-	VnetGUID            string
-	SubnetGUID          string
-	SubnetARMID         string
-	SubnetToken         string
-	PodNetworkTemplate  string
-	PNITemplate         string
-	PodTemplate         string
-	PodImage            string
+	Kubeconfig         string
+	PNName             string
+	PNIName            string
+	VnetGUID           string
+	SubnetGUID         string
+	SubnetARMID        string
+	SubnetToken        string
+	PodNetworkTemplate string
+	PNITemplate        string
+	PodTemplate        string
+	PodImage           string
 }
 
 // PodScenario defines a single pod creation scenario
 type PodScenario struct {
-	Name         string   // Descriptive name for the scenario
-	Cluster      string   // "aks-1" or "aks-2"
-	VnetName     string   // e.g., "cx_vnet_a1", "cx_vnet_b1"
-	SubnetName   string   // e.g., "s1", "s2"
-	NodeSelector string   // "low-nic" or "high-nic"
-	PodNameSuffix string  // Unique suffix for pod name
+	Name          string // Descriptive name for the scenario
+	Cluster       string // "aks-1" or "aks-2"
+	VnetName      string // e.g., "cx_vnet_a1", "cx_vnet_b1"
+	SubnetName    string // e.g., "s1", "s2"
+	NodeSelector  string // "low-nic" or "high-nic"
+	PodNameSuffix string // Unique suffix for pod name
 }
 
 // TestScenarios holds all pod scenarios to test
 type TestScenarios struct {
-	ResourceGroup      string
-	BuildID           string
-	PodImage          string
-	Scenarios         []PodScenario
-	VnetSubnetCache   map[string]VnetSubnetInfo  // Cache for vnet/subnet info
-	UsedNodes         map[string]bool            // Tracks which nodes are already used (one pod per node for low-NIC)
+	ResourceGroup   string
+	BuildID         string
+	PodImage        string
+	Scenarios       []PodScenario
+	VnetSubnetCache map[string]VnetSubnetInfo // Cache for vnet/subnet info
+	UsedNodes       map[string]bool           // Tracks which nodes are already used (one pod per node for low-NIC)
 }
 
 // VnetSubnetInfo holds network information for a vnet/subnet combination
@@ -140,7 +140,7 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 	}
 
 	// Get nodes from default node pool (low-NIC nodes)
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "nodes", 
+	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "nodes",
 		"-l", "agentpool!=nplinux", "-o", "name")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -155,7 +155,7 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 	}
 
 	// Get nodes from nplinux node pool (high-NIC nodes)
-	cmd = exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "nodes", 
+	cmd = exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "nodes",
 		"-l", "agentpool=nplinux", "-o", "name")
 	out, err = cmd.CombinedOutput()
 	if err != nil {
@@ -169,7 +169,7 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 		}
 	}
 
-	fmt.Printf("Found %d low-NIC nodes (default pool) and %d high-NIC nodes (nplinux pool)\n", 
+	fmt.Printf("Found %d low-NIC nodes (default pool) and %d high-NIC nodes (nplinux pool)\n",
 		len(nodeInfo.LowNicNodes), len(nodeInfo.HighNicNodes))
 
 	return nodeInfo, nil
@@ -241,7 +241,7 @@ func CreatePodResource(resources TestResources, podName, nodeName string) error 
 // GetOrFetchVnetSubnetInfo retrieves cached network info or fetches it from Azure
 func GetOrFetchVnetSubnetInfo(rg, vnetName, subnetName string, cache map[string]VnetSubnetInfo) (VnetSubnetInfo, error) {
 	key := fmt.Sprintf("%s/%s", vnetName, subnetName)
-	
+
 	if info, exists := cache[key]; exists {
 		return info, nil
 	}
@@ -282,7 +282,7 @@ func GetOrFetchVnetSubnetInfo(rg, vnetName, subnetName string, cache map[string]
 func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) error {
 	// Get kubeconfig for the cluster
 	kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.Cluster)
-	
+
 	// Get network info
 	netInfo, err := GetOrFetchVnetSubnetInfo(testScenarios.ResourceGroup, scenario.VnetName, scenario.SubnetName, testScenarios.VnetSubnetCache)
 	if err != nil {
@@ -337,12 +337,12 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 
 	// Step 5: Select appropriate node based on scenario
 	var targetNode string
-	
+
 	// Initialize used nodes tracker if not exists
 	if testScenarios.UsedNodes == nil {
 		testScenarios.UsedNodes = make(map[string]bool)
 	}
-	
+
 	if scenario.NodeSelector == "low-nic" {
 		if len(nodeInfo.LowNicNodes) == 0 {
 			return fmt.Errorf("scenario %s: no low-NIC nodes available", scenario.Name)
@@ -391,7 +391,7 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 // DeleteScenarioResources deletes all resources for a specific pod scenario
 func DeleteScenarioResources(scenario PodScenario, buildID string) error {
 	kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.Cluster)
-	
+
 	// Create same names as creation (simplify vnet name and make K8s compatible)
 	// Remove "cx_vnet_" prefix and replace underscores with hyphens
 	vnetShort := strings.TrimPrefix(scenario.VnetName, "cx_vnet_")
@@ -453,18 +453,18 @@ func DeleteAllScenarios(testScenarios TestScenarios) error {
 		subnetNameSafe := strings.ReplaceAll(scenario.SubnetName, "_", "-")
 		pnName := fmt.Sprintf("pn-%s-%s-%s", testScenarios.BuildID, vnetShort, subnetNameSafe)
 		podName := fmt.Sprintf("pod-%s", scenario.PodNameSuffix)
-		
+
 		fmt.Printf("Deleting pod for scenario: %s\n", scenario.Name)
 		err := helpers.DeletePod(kubeconfig, pnName, podName)
 		if err != nil {
 			fmt.Printf("Warning: Failed to delete pod for scenario %s: %v\n", scenario.Name, err)
 		}
 	}
-	
+
 	// Phase 2: Delete shared PNI/PN/Namespace resources (grouped by vnet/subnet/cluster)
 	fmt.Printf("\n=== Phase 2: Deleting shared PNI/PN/Namespace resources ===\n")
 	resourceGroups := make(map[string]bool)
-	
+
 	for _, scenario := range testScenarios.Scenarios {
 		kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.Cluster)
 		vnetShort := strings.TrimPrefix(scenario.VnetName, "cx_vnet_")
@@ -472,37 +472,37 @@ func DeleteAllScenarios(testScenarios TestScenarios) error {
 		subnetNameSafe := strings.ReplaceAll(scenario.SubnetName, "_", "-")
 		pnName := fmt.Sprintf("pn-%s-%s-%s", testScenarios.BuildID, vnetShort, subnetNameSafe)
 		pniName := fmt.Sprintf("pni-%s-%s-%s", testScenarios.BuildID, vnetShort, subnetNameSafe)
-		
+
 		// Create unique key for this vnet/subnet/cluster combination
 		resourceKey := fmt.Sprintf("%s:%s", scenario.Cluster, pnName)
-		
+
 		// Skip if we already deleted resources for this combination
 		if resourceGroups[resourceKey] {
 			continue
 		}
 		resourceGroups[resourceKey] = true
-		
+
 		fmt.Printf("\nDeleting shared resources for %s/%s on %s\n", scenario.VnetName, scenario.SubnetName, scenario.Cluster)
-		
+
 		// Delete PodNetworkInstance
 		err := helpers.DeletePodNetworkInstance(kubeconfig, pnName, pniName)
 		if err != nil {
 			fmt.Printf("Warning: Failed to delete PNI %s: %v\n", pniName, err)
 		}
-		
+
 		// Delete PodNetwork
 		err = helpers.DeletePodNetwork(kubeconfig, pnName)
 		if err != nil {
 			fmt.Printf("Warning: Failed to delete PN %s: %v\n", pnName, err)
 		}
-		
+
 		// Delete namespace
 		err = helpers.DeleteNamespace(kubeconfig, pnName)
 		if err != nil {
 			fmt.Printf("Warning: Failed to delete namespace %s: %v\n", pnName, err)
 		}
 	}
-	
+
 	fmt.Printf("\n=== All scenarios deleted ===\n")
 	return nil
 }
@@ -588,15 +588,15 @@ type ConnectivityTest struct {
 	DestinationPod string
 	Cluster        string
 	Description    string
-	ShouldFail     bool  // If true, connectivity is expected to fail (NSG block, customer isolation)
-	
+	ShouldFail     bool // If true, connectivity is expected to fail (NSG block, customer isolation)
+
 	// Fields for private endpoint tests
-	SourceCluster  string // Cluster where source pod is running
-	SourcePodName  string // Name of the source pod
-	SourceNS       string // Namespace of the source pod
-	DestEndpoint   string // Destination endpoint (IP or hostname)
-	TestType       string // Type of test: "pod-to-pod" or "storage-access"
-	Purpose        string // Description of the test purpose
+	SourceCluster string // Cluster where source pod is running
+	SourcePodName string // Name of the source pod
+	SourceNS      string // Namespace of the source pod
+	DestEndpoint  string // Destination endpoint (IP or hostname)
+	TestType      string // Type of test: "pod-to-pod" or "storage-access"
+	Purpose       string // Description of the test purpose
 }
 
 // RunConnectivityTest tests HTTP connectivity between two pods
@@ -610,13 +610,13 @@ func RunConnectivityTest(test ConnectivityTest, rg, buildId string) error {
 		return fmt.Errorf("failed to get destination pod IP: %w", err)
 	}
 
-	fmt.Printf("Testing connectivity from %s to %s (%s) on port 8080\n", 
+	fmt.Printf("Testing connectivity from %s to %s (%s) on port 8080\n",
 		test.SourcePod, test.DestinationPod, destIP)
 
 	// Run curl command from source pod to destination pod
 	// Using -m 10 for 10 second timeout, -f to fail on HTTP errors
 	curlCmd := fmt.Sprintf("curl -f -m 10 http://%s:8080/", destIP)
-	
+
 	output, err := helpers.ExecInPod(kubeconfig, test.SourcePod, curlCmd)
 	if err != nil {
 		return fmt.Errorf("connectivity test failed: %w\nOutput: %s", err, output)
@@ -642,7 +642,7 @@ func GetStoragePrivateEndpoint(resourceGroup, storageAccountName string) (string
 		"--name", storageAccountName,
 		"--query", "privateEndpointConnections[0].privateEndpoint.id",
 		"--output", "tsv")
-	
+
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to get private endpoint ID: %s\n%s", err, string(out))
@@ -658,7 +658,7 @@ func GetStoragePrivateEndpoint(resourceGroup, storageAccountName string) (string
 		"--ids", privateEndpointID,
 		"--query", "customDnsConfigs[0].ipAddresses[0]",
 		"--output", "tsv")
-	
+
 	out, err = cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to get private IP address: %s\n%s", err, string(out))
@@ -677,7 +677,7 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 	// Get kubeconfig for the cluster
 	kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", test.SourceCluster)
 
-	fmt.Printf("Testing private endpoint access from %s to %s\n", 
+	fmt.Printf("Testing private endpoint access from %s to %s\n",
 		test.SourcePodName, test.DestEndpoint)
 
 	// For storage accounts, we test blob endpoint access
@@ -686,7 +686,7 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 	if test.TestType == "storage-access" {
 		// Try to resolve the storage account via private link and access it
 		// We'll use curl to test HTTP connectivity to the storage blob endpoint
-		testCmd = fmt.Sprintf("curl -f -m 10 -I https://%s:443/ || curl -f -m 10 http://%s/", 
+		testCmd = fmt.Sprintf("curl -f -m 10 -I https://%s:443/ || curl -f -m 10 http://%s/",
 			test.DestEndpoint, test.DestEndpoint)
 	} else {
 		testCmd = fmt.Sprintf("curl -f -m 10 http://%s:8080/", test.DestEndpoint)
