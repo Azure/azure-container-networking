@@ -285,11 +285,65 @@ stages:
             displayName: "Wait 20 minutes"
 
       # ------------------------------------------------------------
-      # Job 3: Delete Test Resources
+      # Job 3: Private Endpoint Connectivity Tests
+      # ------------------------------------------------------------
+      - job: PrivateEndpointTests
+        displayName: "Test Private Endpoint Access"
+        dependsOn: ConnectivityTests
+        timeoutInMinutes: 30
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: GoTool@0
+            displayName: "Use Go 1.22.5"
+            inputs:
+              version: "1.22.5"
+              
+          - task: AzureCLI@2
+            displayName: "Run Private Endpoint Tests"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Installing Ginkgo CLI"
+                go install github.com/onsi/ginkgo/v2/ginkgo@latest
+                
+                echo "==> Adding Go bin to PATH"
+                export PATH=$PATH:$(go env GOPATH)/bin
+
+                echo "==> Downloading Go dependencies"
+                go mod download
+                
+                echo "==> Setting up kubeconfig for cluster aks-1"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-1 \
+                  --file /tmp/aks-1.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Setting up kubeconfig for cluster aks-2"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-2 \
+                  --file /tmp/aks-2.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Running Private Endpoint connectivity tests"
+                export RG="$(rgName)"
+                export BUILD_ID="$(rgName)"
+                ginkgo -v -trace --timeout=30m --focus="Private Endpoint" ./test/integration/swiftv2/longRunningCluster
+
+      # ------------------------------------------------------------
+      # Job 4: Delete Test Resources
       # ------------------------------------------------------------
       - job: DeleteTestResources
         displayName: "Delete PodNetwork, PNI, and Pods"
-        dependsOn: ConnectivityTests
+        dependsOn: PrivateEndpointTests
         timeoutInMinutes: 60
         pool:
           vmImage: ubuntu-latest

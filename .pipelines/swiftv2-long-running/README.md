@@ -73,8 +73,9 @@ Every 1 hour, the pipeline:
 1. Skips setup stages (infrastructure already exists)
 2. **Job 1 - Create Resources**: Creates 8 test scenarios (PodNetwork, PNI, Pods with HTTP servers on port 8080)
 3. **Job 2 - Connectivity Tests**: Tests HTTP connectivity between pods (9 test cases), then waits 20 minutes
-4. **Job 3 - Delete Resources**: Deletes all test resources (Phase 1: Pods, Phase 2: PNI/PN/Namespaces)
-5. Reports results
+4. **Job 3 - Private Endpoint Tests**: Tests private endpoint access and tenant isolation (5 test cases)
+5. **Job 4 - Delete Resources**: Deletes all test resources (Phase 1: Pods, Phase 2: PNI/PN/Namespaces)
+6. Reports results
 
 **Connectivity Tests (9 scenarios)**:
 
@@ -90,6 +91,18 @@ Every 1 hour, the pipeline:
 | DifferentCustomers_A2toB1 | pod-c1-aks1-a2s1-high → pod-c2-aks2-b1s1-high | ✗ Blocked | Customer isolation (C1 → C2) |
 
 **Test Results**: 4 should succeed, 5 should be blocked (3 NSG rules + 2 customer isolation)
+
+**Private Endpoint Tests (5 scenarios)**:
+
+| Test | Source → Destination | Expected Result | Purpose |
+|------|---------------------|-----------------|---------|
+| TenantA_VNetA1_S1_to_StorageA | pod-c1-aks1-a1s1-low → Storage-A | ✓ Success | Tenant A pod can access Storage-A via private endpoint |
+| TenantA_VNetA1_S2_to_StorageA | pod-c1-aks1-a1s2-low → Storage-A | ✓ Success | Tenant A pod can access Storage-A via private endpoint |
+| TenantA_VNetA2_to_StorageA | pod-c1-aks1-a2s1-high → Storage-A | ✓ Success | Tenant A pod from peered VNet can access Storage-A |
+| TenantA_VNetA3_to_StorageA | pod-c1-aks2-a3s1-high → Storage-A | ✓ Success | Tenant A pod from different cluster can access Storage-A |
+| TenantB_to_StorageA_Isolation | pod-c2-aks2-b1s1-low → Storage-A | ✗ Blocked | Tenant B pod CANNOT access Storage-A (tenant isolation) |
+
+**Test Results**: 4 should succeed, 1 should be blocked (tenant isolation)
 
 ### Setup Flow (When runSetupStages = true)
 1. Create resource group with `SkipAutoDeleteTill=2032-12-31` tag

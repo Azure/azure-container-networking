@@ -589,6 +589,14 @@ type ConnectivityTest struct {
 	Cluster        string
 	Description    string
 	ShouldFail     bool  // If true, connectivity is expected to fail (NSG block, customer isolation)
+	
+	// Fields for private endpoint tests
+	SourceCluster  string // Cluster where source pod is running
+	SourcePodName  string // Name of the source pod
+	SourceNS       string // Namespace of the source pod
+	DestEndpoint   string // Destination endpoint (IP or hostname)
+	TestType       string // Type of test: "pod-to-pod" or "storage-access"
+	Purpose        string // Description of the test purpose
 }
 
 // RunConnectivityTest tests HTTP connectivity between two pods
@@ -624,4 +632,71 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// GetStoragePrivateEndpoint retrieves the private IP address of a storage account's private endpoint
+func GetStoragePrivateEndpoint(resourceGroup, storageAccountName string) (string, error) {
+	// Get the private endpoint connection for the storage account
+	cmd := exec.Command("az", "storage", "account", "show",
+		"--resource-group", resourceGroup,
+		"--name", storageAccountName,
+		"--query", "privateEndpointConnections[0].privateEndpoint.id",
+		"--output", "tsv")
+	
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to get private endpoint ID: %s\n%s", err, string(out))
+	}
+
+	privateEndpointID := strings.TrimSpace(string(out))
+	if privateEndpointID == "" {
+		return "", fmt.Errorf("no private endpoint found for storage account %s", storageAccountName)
+	}
+
+	// Get the private IP address from the private endpoint
+	cmd = exec.Command("az", "network", "private-endpoint", "show",
+		"--ids", privateEndpointID,
+		"--query", "customDnsConfigs[0].ipAddresses[0]",
+		"--output", "tsv")
+	
+	out, err = cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to get private IP address: %s\n%s", err, string(out))
+	}
+
+	privateIP := strings.TrimSpace(string(out))
+	if privateIP == "" {
+		return "", fmt.Errorf("no private IP found for private endpoint")
+	}
+
+	return privateIP, nil
+}
+
+// RunPrivateEndpointTest tests connectivity from a pod to a private endpoint (storage account)
+func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) error {
+	// Get kubeconfig for the cluster
+	kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", test.SourceCluster)
+
+	fmt.Printf("Testing private endpoint access from %s to %s\n", 
+		test.SourcePodName, test.DestEndpoint)
+
+	// For storage accounts, we test blob endpoint access
+	// Format: https://<storage-account>.blob.core.windows.net or using private IP
+	var testCmd string
+	if test.TestType == "storage-access" {
+		// Try to resolve the storage account via private link and access it
+		// We'll use curl to test HTTP connectivity to the storage blob endpoint
+		testCmd = fmt.Sprintf("curl -f -m 10 -I https://%s:443/ || curl -f -m 10 http://%s/", 
+			test.DestEndpoint, test.DestEndpoint)
+	} else {
+		testCmd = fmt.Sprintf("curl -f -m 10 http://%s:8080/", test.DestEndpoint)
+	}
+
+	output, err := helpers.ExecInPod(kubeconfig, test.SourcePodName, testCmd)
+	if err != nil {
+		return fmt.Errorf("private endpoint connectivity test failed: %w\nOutput: %s", err, output)
+	}
+
+	fmt.Printf("Private endpoint access successful! Response preview: %s\n", truncateString(output, 100))
+	return nil
 }
