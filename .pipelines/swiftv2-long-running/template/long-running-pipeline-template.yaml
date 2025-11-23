@@ -341,8 +341,21 @@ stages:
                 echo "==> Running Private Endpoint connectivity tests"
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
-                export STORAGE_ACCOUNT_1="$(storageAccount1)"
-                export STORAGE_ACCOUNT_2="$(storageAccount2)"
+                
+                # Get storage account names - either from stage variables or discover from resource group
+                STORAGE_ACCOUNT_1="$(storageAccount1)"
+                STORAGE_ACCOUNT_2="$(storageAccount2)"
+                
+                # If variables are empty (when runSetupStages=false), discover from resource group
+                if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
+                  echo "Storage account variables not set, discovering from resource group..."
+                  STORAGE_ACCOUNT_1=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa1')].name" -o tsv)
+                  STORAGE_ACCOUNT_2=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa2')].name" -o tsv)
+                  echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
+                fi
+                
+                export STORAGE_ACCOUNT_1
+                export STORAGE_ACCOUNT_2
                 cd ./test/integration/swiftv2/longRunningCluster
                 ginkgo -v -trace --timeout=30m --tags=private_endpoint_test
 
