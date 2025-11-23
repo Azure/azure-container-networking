@@ -1,3 +1,4 @@
+//go:build private_endpoint_test
 // +build private_endpoint_test
 
 package longRunningCluster
@@ -60,7 +61,7 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 				Name:          "Private Endpoint Access: VNet-A1-S1 to Storage-A",
 				SourceCluster: "aks-1",
 				SourcePodName: "pod-c1-aks1-a1s1-low",
-				SourceNS:      "pn-sv2-long-run-" + testScenarios.BuildID + "-a1-s1",
+				SourceNS:      "pn-" + testScenarios.BuildID + "-a1-s1",
 				DestEndpoint:  storageEndpoint,
 				ShouldFail:    false,
 				TestType:      "storage-access",
@@ -71,7 +72,7 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 				Name:          "Private Endpoint Access: VNet-A1-S2 to Storage-A",
 				SourceCluster: "aks-1",
 				SourcePodName: "pod-c1-aks1-a1s2-low",
-				SourceNS:      "pn-sv2-long-run-" + testScenarios.BuildID + "-a1-s2",
+				SourceNS:      "pn-" + testScenarios.BuildID + "-a1-s2",
 				DestEndpoint:  storageEndpoint,
 				ShouldFail:    false,
 				TestType:      "storage-access",
@@ -82,7 +83,7 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 				Name:          "Private Endpoint Access: VNet-A2-S1 to Storage-A",
 				SourceCluster: "aks-1",
 				SourcePodName: "pod-c1-aks1-a2s1-high",
-				SourceNS:      "pn-sv2-long-run-" + testScenarios.BuildID + "-a2-s1",
+				SourceNS:      "pn-" + testScenarios.BuildID + "-a2-s1",
 				DestEndpoint:  storageEndpoint,
 				ShouldFail:    false,
 				TestType:      "storage-access",
@@ -93,7 +94,7 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 				Name:          "Private Endpoint Access: VNet-A3-S1 to Storage-A (cross-cluster)",
 				SourceCluster: "aks-2",
 				SourcePodName: "pod-c1-aks2-a3s1-high",
-				SourceNS:      "pn-sv2-long-run-" + testScenarios.BuildID + "-a3-s1",
+				SourceNS:      "pn-" + testScenarios.BuildID + "-a3-s1",
 				DestEndpoint:  storageEndpoint,
 				ShouldFail:    false,
 				TestType:      "storage-access",
@@ -104,7 +105,7 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 				Name:          "Private Endpoint Isolation: Tenant B to Storage-A (should fail)",
 				SourceCluster: "aks-2",
 				SourcePodName: "pod-c2-aks2-b1s1-low",
-				SourceNS:      "pn-sv2-long-run-" + testScenarios.BuildID + "-b1-s1",
+				SourceNS:      "pn-" + testScenarios.BuildID + "-b1-s1",
 				DestEndpoint:  storageEndpoint,
 				ShouldFail:    true,
 				TestType:      "storage-access",
@@ -116,7 +117,6 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 
 		successCount := 0
 		failureCount := 0
-		expectedFailureCount := 0
 
 		for _, test := range privateEndpointTests {
 			ginkgo.By(fmt.Sprintf("\n=== Test: %s ===", test.Name))
@@ -134,7 +134,7 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 				// Expected to fail (e.g., tenant isolation)
 				if err != nil {
 					ginkgo.By(fmt.Sprintf("Test correctly BLOCKED as expected: %s", test.Name))
-					expectedFailureCount++
+					successCount++
 				} else {
 					ginkgo.By(fmt.Sprintf("Test FAILED: Expected connection to be blocked but it succeeded: %s", test.Name))
 					failureCount++
@@ -154,7 +154,6 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 		ginkgo.By(fmt.Sprintf("\n=== Private Endpoint Test Summary ==="))
 		ginkgo.By(fmt.Sprintf("Total tests: %d", len(privateEndpointTests)))
 		ginkgo.By(fmt.Sprintf("Successful connections: %d", successCount))
-		ginkgo.By(fmt.Sprintf("Correctly blocked: %d", expectedFailureCount))
 		ginkgo.By(fmt.Sprintf("Unexpected failures: %d", failureCount))
 
 		gomega.Expect(failureCount).To(gomega.Equal(0), "Some private endpoint tests failed unexpectedly")
