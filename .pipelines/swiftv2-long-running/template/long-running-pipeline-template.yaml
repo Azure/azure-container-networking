@@ -280,12 +280,6 @@ stages:
                 cd ./test/integration/swiftv2/longRunningCluster
                 ginkgo -v -trace --timeout=30m --tags=connectivity_test
 
-          - script: |
-              echo "Waiting 20 minutes for extended testing..."
-              sleep 1200
-              echo "Wait period complete"
-            displayName: "Wait 20 minutes"
-
       # ------------------------------------------------------------
       # Job 3: Private Endpoint Connectivity Tests
       # ------------------------------------------------------------
