@@ -286,35 +286,35 @@ func WaitForPodRunning(kubeconfig, namespace, podName string, maxRetries, sleepS
 }
 
 // GetPodIP retrieves the IP address of a pod
-func GetPodIP(kubeconfig, podName string) (string, error) {
+func GetPodIP(kubeconfig, namespace, podName string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName,
-		"--all-namespaces", "-o", "jsonpath={.status.podIP}")
+		"-n", namespace, "-o", "jsonpath={.status.podIP}")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("failed to get pod IP for %s: %w\nOutput: %s", podName, err, string(out))
+		return "", fmt.Errorf("failed to get pod IP for %s in namespace %s: %w\nOutput: %s", podName, namespace, err, string(out))
 	}
 
 	ip := strings.TrimSpace(string(out))
 	if ip == "" {
-		return "", fmt.Errorf("pod %s has no IP address assigned", podName)
+		return "", fmt.Errorf("pod %s in namespace %s has no IP address assigned", podName, namespace)
 	}
 
 	return ip, nil
 }
 
 // ExecInPod executes a command in a pod and returns the output
-func ExecInPod(kubeconfig, podName, command string) (string, error) {
+func ExecInPod(kubeconfig, namespace, podName, command string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "exec", podName,
-		"--all-namespaces", "--", "sh", "-c", command)
+		"-n", namespace, "--", "sh", "-c", command)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return string(out), fmt.Errorf("failed to exec in pod %s: %w", podName, err)
+		return string(out), fmt.Errorf("failed to exec in pod %s in namespace %s: %w", podName, namespace, err)
 	}
 
 	return string(out), nil
