@@ -1,3 +1,5 @@
+// +build delete_test
+
 package longRunningCluster
 
 import (

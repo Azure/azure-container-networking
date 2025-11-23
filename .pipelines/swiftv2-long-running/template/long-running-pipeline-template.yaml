@@ -223,7 +223,7 @@ stages:
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
                 cd ./test/integration/swiftv2/longRunningCluster
-                ginkgo -v -trace --timeout=1h --focus-file=datapath_create_test.go
+                ginkgo -v -trace --timeout=1h --tags=create_test
 
           - script: |
               echo "Waiting 20 minutes for pods to run..."
@@ -284,5 +284,5 @@ stages:
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
                 cd ./test/integration/swiftv2/longRunningCluster
-                ginkgo -v -trace --timeout=1h --focus-file=datapath_delete_test.go
+                ginkgo -v -trace --timeout=1h --tags=delete_test
               
