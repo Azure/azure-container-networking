@@ -164,6 +164,9 @@ stages:
     displayName: "Stage: Swiftv2 Data Path Tests"
     dependsOn: AKSClusterAndNetworking
     condition: or(eq(${{ parameters.runSetupStages }}, false), succeeded())
+    variables:
+      storageAccount1: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
+      storageAccount2: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
     jobs:
       # ------------------------------------------------------------
       # Job 1: Create Test Resources and Wait
@@ -338,8 +341,8 @@ stages:
                 echo "==> Running Private Endpoint connectivity tests"
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
-                export STORAGE_ACCOUNT_1="$(CreateStorageAccounts.StorageAccount1)"
-                export STORAGE_ACCOUNT_2="$(CreateStorageAccounts.StorageAccount2)"
+                export STORAGE_ACCOUNT_1="$(storageAccount1)"
+                export STORAGE_ACCOUNT_2="$(storageAccount2)"
                 cd ./test/integration/swiftv2/longRunningCluster
                 ginkgo -v -trace --timeout=30m --tags=private_endpoint_test
 
