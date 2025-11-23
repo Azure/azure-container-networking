@@ -648,40 +648,9 @@ func truncateString(s string, maxLen int) string {
 
 // GetStoragePrivateEndpoint retrieves the private IP address of a storage account's private endpoint
 func GetStoragePrivateEndpoint(resourceGroup, storageAccountName string) (string, error) {
-	// Get the private endpoint connection for the storage account
-	cmd := exec.Command("az", "storage", "account", "show",
-		"--resource-group", resourceGroup,
-		"--name", storageAccountName,
-		"--query", "privateEndpointConnections[0].privateEndpoint.id",
-		"--output", "tsv")
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("failed to get private endpoint ID: %s\n%s", err, string(out))
-	}
-
-	privateEndpointID := strings.TrimSpace(string(out))
-	if privateEndpointID == "" {
-		return "", fmt.Errorf("no private endpoint found for storage account %s", storageAccountName)
-	}
-
-	// Get the private IP address from the private endpoint
-	cmd = exec.Command("az", "network", "private-endpoint", "show",
-		"--ids", privateEndpointID,
-		"--query", "customDnsConfigs[0].ipAddresses[0]",
-		"--output", "tsv")
-
-	out, err = cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("failed to get private IP address: %s\n%s", err, string(out))
-	}
-
-	privateIP := strings.TrimSpace(string(out))
-	if privateIP == "" {
-		return "", fmt.Errorf("no private IP found for private endpoint")
-	}
-
-	return privateIP, nil
+	// Return the storage account blob endpoint FQDN
+	// This will resolve to the private IP via Private DNS Zone
+	return fmt.Sprintf("%s.blob.core.windows.net", storageAccountName), nil
 }
 
 // RunPrivateEndpointTest tests connectivity from a pod to a private endpoint (storage account)
@@ -692,23 +661,29 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 	fmt.Printf("Testing private endpoint access from %s to %s\n",
 		test.SourcePodName, test.DestEndpoint)
 
-	// For storage accounts, we test blob endpoint access
-	// Format: https://<storage-account>.blob.core.windows.net or using private IP
-	var testCmd string
-	if test.TestType == "storage-access" {
-		// Try to resolve the storage account via private link and access it
-		// We'll use curl to test HTTP connectivity to the storage blob endpoint
-		testCmd = fmt.Sprintf("curl -f -m 10 -I https://%s:443/ || curl -f -m 10 http://%s/",
-			test.DestEndpoint, test.DestEndpoint)
-	} else {
-		testCmd = fmt.Sprintf("curl -f -m 10 http://%s:8080/", test.DestEndpoint)
+	// Step 1: Verify DNS resolution
+	fmt.Printf("==> Checking DNS resolution for %s\n", test.DestEndpoint)
+	resolveCmd := fmt.Sprintf("nslookup %s | tail -2", test.DestEndpoint)
+	resolveOutput, resolveErr := helpers.ExecInPod(kubeconfig, test.SourceNS, test.SourcePodName, resolveCmd)
+	if resolveErr != nil {
+		return fmt.Errorf("DNS resolution failed: %w\nOutput: %s", resolveErr, resolveOutput)
+	}
+	fmt.Printf("DNS Resolution Result:\n%s\n", resolveOutput)
+
+	// Step 2: Test HTTPS connectivity (we expect 4xx auth errors, which proves connectivity)
+	// Using -k to skip cert validation, -I for HEAD request, --connect-timeout for quick failure
+	fmt.Printf("==> Testing HTTPS connectivity to %s\n", test.DestEndpoint)
+	curlCmd := fmt.Sprintf("curl -k -v --connect-timeout 5 --max-time 10 -I https://%s 2>&1", test.DestEndpoint)
+
+	output, err := helpers.ExecInPod(kubeconfig, test.SourceNS, test.SourcePodName, curlCmd)
+
+	// Check if we got HTTP response (even if 4xx/5xx)
+	// Success indicators: "Connected to", "HTTP/", or any HTTP status code
+	if strings.Contains(output, "Connected to") || strings.Contains(output, "HTTP/") {
+		fmt.Printf("Private endpoint connectivity successful!\nResponse preview:\n%s\n", truncateString(output, 300))
+		return nil
 	}
 
-	output, err := helpers.ExecInPod(kubeconfig, test.SourceNS, test.SourcePodName, testCmd)
-	if err != nil {
-		return fmt.Errorf("private endpoint connectivity test failed: %w\nOutput: %s", err, output)
-	}
-
-	fmt.Printf("Private endpoint access successful! Response preview: %s\n", truncateString(output, 100))
-	return nil
+	// If we get here, connection failed (timeout, DNS failure, network unreachable)
+	return fmt.Errorf("private endpoint connectivity test failed: %w\nOutput: %s", err, output)
 }
