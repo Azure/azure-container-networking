@@ -7,7 +7,7 @@ This pipeline tests SwiftV2 pod networking in a persistent environment with sche
 **Infrastructure (Persistent)**:
 - **2 AKS Clusters**: aks-1, aks-2 (4 nodes each: 2 low-NIC default pool, 2 high-NIC nplinux pool)
 - **4 VNets**: cx_vnet_a1, cx_vnet_a2, cx_vnet_a3 (Customer 1 with PE to storage), cx_vnet_b1 (Customer 2)
-- **VNet Peerings**: two of the three vnets of customer 1 are peered.
+- **VNet Peerings**: vnet mesh.
 - **Storage Account**: With private endpoint from cx_vnet_a1
 - **NSGs**: Restricting traffic between subnets (s1, s2) in vnet cx_vnet_a1.
 
@@ -71,9 +71,25 @@ Parameters are organized by usage:
 ### Scheduled Test Flow
 Every 1 hour, the pipeline:
 1. Skips setup stages (infrastructure already exists)
-2. **Job 1 - Create and Wait**: Creates 8 test scenarios (PodNetwork, PNI, Pods), then waits 20 minutes
-3. **Job 2 - Delete Resources**: Deletes all test resources (Phase 1: Pods, Phase 2: PNI/PN/Namespaces)
-4. Reports results
+2. **Job 1 - Create Resources**: Creates 8 test scenarios (PodNetwork, PNI, Pods with HTTP servers on port 8080)
+3. **Job 2 - Connectivity Tests**: Tests HTTP connectivity between pods (9 test cases), then waits 20 minutes
+4. **Job 3 - Delete Resources**: Deletes all test resources (Phase 1: Pods, Phase 2: PNI/PN/Namespaces)
+5. Reports results
+
+**Connectivity Tests (9 scenarios)**:
+
+| Test | Source → Destination | Expected Result | Purpose |
+|------|---------------------|-----------------|---------|
+| SameVNetSameSubnet | pod-c1-aks1-a1s2-low → pod-c1-aks1-a1s2-high | ✓ Success | Basic connectivity in same subnet |
+| NSGBlocked_S1toS2 | pod-c1-aks1-a1s1-low → pod-c1-aks1-a1s2-high | ✗ Blocked | NSG rule blocks s1→s2 in cx_vnet_a1 |
+| NSGBlocked_S2toS1 | pod-c1-aks1-a1s2-low → pod-c1-aks1-a1s1-low | ✗ Blocked | NSG rule blocks s2→s1 (bidirectional) |
+| DifferentVNetSameCustomer | pod-c1-aks1-a2s1-high → pod-c1-aks2-a2s1-low | ✓ Success | Cross-cluster, same customer VNet |
+| PeeredVNets | pod-c1-aks1-a1s2-low → pod-c1-aks1-a2s1-high | ✓ Success | Peered VNets (a1 ↔ a2) |
+| PeeredVNets_A2toA3 | pod-c1-aks1-a2s1-high → pod-c1-aks2-a3s1-high | ✓ Success | Peered VNets across clusters |
+| DifferentCustomers_A1toB1 | pod-c1-aks1-a1s2-low → pod-c2-aks2-b1s1-low | ✗ Blocked | Customer isolation (C1 → C2) |
+| DifferentCustomers_A2toB1 | pod-c1-aks1-a2s1-high → pod-c2-aks2-b1s1-high | ✗ Blocked | Customer isolation (C1 → C2) |
+
+**Test Results**: 4 should succeed, 5 should be blocked (3 NSG rules + 2 customer isolation)
 
 ### Setup Flow (When runSetupStages = true)
 1. Create resource group with `SkipAutoDeleteTill=2032-12-31` tag
@@ -145,7 +161,7 @@ Alternatively, manually trigger with the new location or override `resourceGroup
 | Version upgrade | `sv2-long-run-centraluseuap-v2` | Parallel environment for upgrades |
 
 ## Resource Naming
-
+ instead of ping use 
 The pipeline uses the **resource group name as the BUILD_ID** to ensure unique resource names per test setup. This allows multiple parallel test environments without naming collisions.
 
 **Generated Resource Names**:

@@ -580,3 +580,48 @@ func DeleteTestResources(kubeconfig, pnName, pniName string) error {
 
 	return nil
 }
+
+// ConnectivityTest defines a connectivity test between two pods
+type ConnectivityTest struct {
+	Name           string
+	SourcePod      string
+	DestinationPod string
+	Cluster        string
+	Description    string
+	ShouldFail     bool  // If true, connectivity is expected to fail (NSG block, customer isolation)
+}
+
+// RunConnectivityTest tests HTTP connectivity between two pods
+func RunConnectivityTest(test ConnectivityTest, rg, buildId string) error {
+	// Get kubeconfig for the cluster
+	kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", test.Cluster)
+
+	// Get destination pod IP
+	destIP, err := helpers.GetPodIP(kubeconfig, test.DestinationPod)
+	if err != nil {
+		return fmt.Errorf("failed to get destination pod IP: %w", err)
+	}
+
+	fmt.Printf("Testing connectivity from %s to %s (%s) on port 8080\n", 
+		test.SourcePod, test.DestinationPod, destIP)
+
+	// Run curl command from source pod to destination pod
+	// Using -m 10 for 10 second timeout, -f to fail on HTTP errors
+	curlCmd := fmt.Sprintf("curl -f -m 10 http://%s:8080/", destIP)
+	
+	output, err := helpers.ExecInPod(kubeconfig, test.SourcePod, curlCmd)
+	if err != nil {
+		return fmt.Errorf("connectivity test failed: %w\nOutput: %s", err, output)
+	}
+
+	fmt.Printf("Connectivity successful! Response preview: %s\n", truncateString(output, 100))
+	return nil
+}
+
+// Helper function to truncate long strings
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}

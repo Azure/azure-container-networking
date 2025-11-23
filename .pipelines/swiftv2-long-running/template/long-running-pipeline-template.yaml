@@ -224,18 +224,72 @@ stages:
                 export BUILD_ID="$(rgName)"
                 ginkgo -v -trace --timeout=1h --focus="Datapath Create" ./test/integration/swiftv2/longRunningCluster
 
+      # ------------------------------------------------------------
+      # Job 2: Run Connectivity Tests
+      # ------------------------------------------------------------
+      - job: ConnectivityTests
+        displayName: "Test Pod-to-Pod Connectivity"
+        dependsOn: CreateTestResources
+        timeoutInMinutes: 30
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: GoTool@0
+            displayName: "Use Go 1.22.5"
+            inputs:
+              version: "1.22.5"
+              
+          - task: AzureCLI@2
+            displayName: "Run Connectivity Tests"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Installing Ginkgo CLI"
+                go install github.com/onsi/ginkgo/v2/ginkgo@latest
+                
+                echo "==> Adding Go bin to PATH"
+                export PATH=$PATH:$(go env GOPATH)/bin
+
+                echo "==> Downloading Go dependencies"
+                go mod download
+                
+                echo "==> Setting up kubeconfig for cluster aks-1"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-1 \
+                  --file /tmp/aks-1.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Setting up kubeconfig for cluster aks-2"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-2 \
+                  --file /tmp/aks-2.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                
+                echo "==> Running connectivity tests"
+                export RG="$(rgName)"
+                export BUILD_ID="$(rgName)"
+                ginkgo -v -trace --timeout=30m --focus="Datapath Connectivity" ./test/integration/swiftv2/longRunningCluster
+
           - script: |
-              echo "Waiting 20 minutes for pods to run..."
+              echo "Waiting 20 minutes for extended testing..."
               sleep 1200
               echo "Wait period complete"
             displayName: "Wait 20 minutes"
 
       # ------------------------------------------------------------
-      # Job 2: Delete Test Resources
+      # Job 3: Delete Test Resources
       # ------------------------------------------------------------
       - job: DeleteTestResources
         displayName: "Delete PodNetwork, PNI, and Pods"
-        dependsOn: CreateTestResources
+        dependsOn: ConnectivityTests
         timeoutInMinutes: 60
         pool:
           vmImage: ubuntu-latest

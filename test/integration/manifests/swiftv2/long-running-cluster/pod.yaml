@@ -16,11 +16,31 @@ spec:
     args:
       - |
         echo "Pod Network Diagnostics started on $(hostname)";
+        echo "Starting HTTP server on port 8080";
+        
+        # Create a simple index.html with pod info
+        mkdir -p /tmp/www
+        cat > /tmp/www/index.html <<EOF
+        <html><body>
+        <h1>Pod: $(hostname)</h1>
+        <p>IP: $(hostname -i)</p>
+        <p>Time: $(date)</p>
+        </body></html>
+        EOF
+        
+        # Start HTTP server in background
+        cd /tmp/www && python3 -m http.server 8080 &
+        
+        # Keep showing network info
         while true; do
+          echo "=== Network Status at $(date) ==="
           ip addr show
           ip route show
           sleep 60
         done
+    ports:
+    - containerPort: 8080
+      protocol: TCP
     resources:
       limits:
         cpu: 300m
