@@ -24,15 +24,16 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 	storageAccount1 := os.Getenv("STORAGE_ACCOUNT_1")
 	storageAccount2 := os.Getenv("STORAGE_ACCOUNT_2")
 
-	if rg == "" || buildId == "" {
-		ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", rg, buildId))
-	}
-
-	if storageAccount1 == "" || storageAccount2 == "" {
-		ginkgo.Fail(fmt.Sprintf("Missing storage account environment variables: STORAGE_ACCOUNT_1='%s', STORAGE_ACCOUNT_2='%s'", storageAccount1, storageAccount2))
-	}
-
 	ginkgo.It("tests private endpoint access and isolation", func() {
+		// Validate environment variables inside the It block
+		if rg == "" || buildId == "" {
+			ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", rg, buildId))
+		}
+
+		if storageAccount1 == "" || storageAccount2 == "" {
+			ginkgo.Fail(fmt.Sprintf("Missing storage account environment variables: STORAGE_ACCOUNT_1='%s', STORAGE_ACCOUNT_2='%s'", storageAccount1, storageAccount2))
+		}
+
 		// Initialize test scenarios with cache
 		testScenarios := TestScenarios{
 			ResourceGroup:   rg,
