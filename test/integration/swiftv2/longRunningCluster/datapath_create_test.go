@@ -1,3 +1,6 @@
+//go:build create_test
+// +build create_test
+
 package longRunningCluster
 
 import (

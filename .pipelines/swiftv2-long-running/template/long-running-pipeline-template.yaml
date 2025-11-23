@@ -223,7 +223,7 @@ stages:
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
                 cd ./test/integration/swiftv2/longRunningCluster
-                ginkgo -v -trace --timeout=1h --focus-file=datapath_create_test.go
+                ginkgo -v -trace --timeout=1h --tags=create_test
 
       # ------------------------------------------------------------
       # Job 2: Run Connectivity Tests
@@ -392,5 +392,5 @@ stages:
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
                 cd ./test/integration/swiftv2/longRunningCluster
-                ginkgo -v -trace --timeout=1h --focus-file=datapath_delete_test.go
+                ginkgo -v -trace --timeout=1h --tags=delete_test
               
