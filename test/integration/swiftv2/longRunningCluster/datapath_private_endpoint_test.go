@@ -31,7 +31,7 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 		testScenarios := TestScenarios{
 			ResourceGroup:   rg,
 			BuildID:         buildId,
-			PodImage:        "weibeld/ubuntu-networking",
+			PodImage:        "nicolaka/netshoot:latest",
 			VnetSubnetCache: make(map[string]VnetSubnetInfo),
 			UsedNodes:       make(map[string]bool),
 		}

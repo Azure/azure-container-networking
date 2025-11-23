@@ -225,6 +225,12 @@ stages:
                 cd ./test/integration/swiftv2/longRunningCluster
                 ginkgo -v -trace --timeout=1h --tags=create_test
 
+          - script: |
+              echo "Waiting 2 minutes for pods to fully start and HTTP servers to be ready..."
+              sleep 120
+              echo "Wait period complete, proceeding with connectivity tests"
+            displayName: "Wait for pods to be ready"
+
       # ------------------------------------------------------------
       # Job 2: Run Connectivity Tests
       # ------------------------------------------------------------

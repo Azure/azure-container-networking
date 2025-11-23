@@ -101,7 +101,7 @@ var _ = ginkgo.Describe("Datapath Delete Tests", func() {
 		testScenarios := TestScenarios{
 			ResourceGroup:   rg,
 			BuildID:         buildId,
-			PodImage:        "weibeld/ubuntu-networking",
+			PodImage:        "nicolaka/netshoot:latest",
 			Scenarios:       scenarios,
 			VnetSubnetCache: make(map[string]VnetSubnetInfo),
 			UsedNodes:       make(map[string]bool),
