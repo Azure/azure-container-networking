@@ -1,3 +1,5 @@
+// +build connectivity_test
+
 package longRunningCluster
 
 import (

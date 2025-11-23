@@ -1,3 +1,5 @@
+// +build private_endpoint_test
+
 package longRunningCluster
 
 import (

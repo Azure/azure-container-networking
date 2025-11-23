@@ -277,7 +277,8 @@ stages:
                 echo "==> Running connectivity tests"
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
-                ginkgo -v -trace --timeout=30m --focus="Datapath Connectivity" ./test/integration/swiftv2/longRunningCluster
+                cd ./test/integration/swiftv2/longRunningCluster
+                ginkgo -v -trace --timeout=30m --tags=connectivity_test
 
           - script: |
               echo "Waiting 20 minutes for extended testing..."
@@ -337,7 +338,8 @@ stages:
                 echo "==> Running Private Endpoint connectivity tests"
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
-                ginkgo -v -trace --timeout=30m --focus="Private Endpoint" ./test/integration/swiftv2/longRunningCluster
+                cd ./test/integration/swiftv2/longRunningCluster
+                ginkgo -v -trace --timeout=30m --tags=private_endpoint_test
 
       # ------------------------------------------------------------
       # Job 4: Delete Test Resources
