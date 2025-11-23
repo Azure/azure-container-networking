@@ -33,17 +33,17 @@ parameters:
 
   # Setup-only parameters (only used when runSetupStages=true)
   - name: resourceGroupName
-    displayName: "Resource Group Name used when runSetupStages is true"
+    displayName: "Resource Group Name used when Create new Infrastructure Setup is selected"
     type: string
     default: "sv2-long-run-$(Build.BuildId)"
 
   - name: vmSkuDefault
-    displayName: "VM SKU for Default Node Pool used when runSetupStages is true"
+    displayName: "VM SKU for Default Node Pool used when Create new Infrastructure Setup is selected"
     type: string
     default: "Standard_D4s_v3"
 
   - name: vmSkuHighNIC
-    displayName: "VM SKU for additional Node Pool used when runSetupStages is true"
+    displayName: "VM SKU for additional Node Pool used when Create new Infrastructure Setup is selected"
     type: string
     default: "Standard_D16s_v3"
 
