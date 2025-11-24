@@ -223,6 +223,25 @@ stages:
                 echo "==> Verifying cluster aks-2 connectivity"
                 kubectl --kubeconfig /tmp/aks-2.kubeconfig get nodes
                 
+                echo "==> Ensuring nic-capacity labels are present on all nodes"
+                for cluster in aks-1 aks-2; do
+                  echo "Checking $cluster node labels..."
+                  # Get default pool nodes (low-nic capacity)
+                  DEFAULT_NODES=$(kubectl --kubeconfig /tmp/$cluster.kubeconfig get nodes -o json | jq -r '.items[] | select(.metadata.labels["agentpool"] == "default") | .metadata.name')
+                  for node in $DEFAULT_NODES; do
+                    echo "Labeling node $node as low-nic"
+                    kubectl --kubeconfig /tmp/$cluster.kubeconfig label node "$node" nic-capacity=low-nic --overwrite
+                  done
+                  
+                  # Get nplinux pool nodes (high-nic capacity)
+                  NPLINUX_NODES=$(kubectl --kubeconfig /tmp/$cluster.kubeconfig get nodes -o json | jq -r '.items[] | select(.metadata.labels["agentpool"] == "nplinux") | .metadata.name')
+                  for node in $NPLINUX_NODES; do
+                    echo "Labeling node $node as high-nic"
+                    kubectl --kubeconfig /tmp/$cluster.kubeconfig label node "$node" nic-capacity=high-nic --overwrite
+                  done
+                done
+                echo "All nodes labeled with nic-capacity"
+                
                 echo "==> Getting storage account names"
                 STORAGE_ACCOUNT_1="$(storageAccount1)"
                 STORAGE_ACCOUNT_2="$(storageAccount2)"

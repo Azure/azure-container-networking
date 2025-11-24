@@ -104,6 +104,23 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
     echo "==> Labeling all nodes in $CLUSTER_NAME with swiftv2-linux label"
     kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label nodes --all workload-type=swiftv2-linux --overwrite
     echo "[OK] All nodes labeled with workload-type=swiftv2-linux"
+    
+    # Label nodes with nic-capacity based on node pool
+    echo "==> Labeling nodes with nic-capacity based on node pool"
+    # Get default pool nodes (low-nic capacity)
+    DEFAULT_NODES=$(kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" get nodes -o json | jq -r '.items[] | select(.metadata.labels["agentpool"] == "default") | .metadata.name')
+    for node in $DEFAULT_NODES; do
+        echo "Labeling node $node as low-nic"
+        kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label node "$node" nic-capacity=low-nic --overwrite
+    done
+    
+    # Get nplinux pool nodes (high-nic capacity)
+    NPLINUX_NODES=$(kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" get nodes -o json | jq -r '.items[] | select(.metadata.labels["agentpool"] == "nplinux") | .metadata.name')
+    for node in $NPLINUX_NODES; do
+        echo "Labeling node $node as high-nic"
+        kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label node "$node" nic-capacity=high-nic --overwrite
+    done
+    echo "[OK] All nodes labeled with nic-capacity"
 done
 
 echo "All clusters complete."
