@@ -24,7 +24,6 @@ for SA in "$SA1" "$SA2"; do
     --kind StorageV2 \
     --allow-blob-public-access false \
     --allow-shared-key-access false \
-    --public-network-access Disabled \
     --https-only true \
     --min-tls-version TLS1_2 \
     --tags SkipAutoDeleteTill=2032-12-31 \
@@ -40,6 +39,18 @@ for SA in "$SA1" "$SA2"; do
     exit 1
   fi
   
+  # Assign RBAC role to pipeline service principal for blob access
+  echo "==> Assigning Storage Blob Data Contributor role to service principal"
+  SP_OBJECT_ID=$(az ad signed-in-user show --query id -o tsv 2>/dev/null || az account show --query user.name -o tsv)
+  SA_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG}/providers/Microsoft.Storage/storageAccounts/${SA}"
+  
+  az role assignment create \
+    --assignee "$SP_OBJECT_ID" \
+    --role "Storage Blob Data Contributor" \
+    --scope "$SA_SCOPE" \
+    --output none \
+    && echo "[OK] RBAC role assigned to service principal for $SA"
+  
   # Create container and upload test blob for private endpoint testing
   echo "==> Creating test container in $SA"
   az storage container create \
@@ -50,10 +61,11 @@ for SA in "$SA1" "$SA2"; do
   
   # Upload test blob
   echo "==> Uploading test blob to $SA"
-  echo "Hello from Private Endpoint - Storage: $SA" | az storage blob upload \
+  az storage blob upload \
     --account-name "$SA" \
     --container-name "test" \
     --name "hello.txt" \
+    --data "Hello from Private Endpoint - Storage: $SA" \
     --auth-mode login \
     --overwrite \
     && echo "[OK] Test blob 'hello.txt' uploaded to $SA/test/"
