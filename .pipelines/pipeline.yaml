@@ -26,6 +26,11 @@ schedules:
   branches:
     include: ["master"]
   always: true
+- cron: "30 3 * * *" # Every day at 3:00 PM PST (23:00 UTC)
+  displayName: "Test Schedule Pipeline"
+  branches:
+    include: ["sharifna/pipeline/singularity"]
+  always: true
 
 stages:
   - stage: setup
@@ -488,6 +493,13 @@ stages:
         dependsOn: ["test"]
         scaleup: 50
 
+    - ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
+    # AKS Swiftv2 Singularity E2E tests
+      - template: multitenancy/swiftv2-manifold-e2e.stages.yaml
+        parameters:
+          name: "swiftv2_manifold_e2e"
+          dependsOn: publish
+        
     - stage: delete
       displayName: Delete Clusters
       condition: always()

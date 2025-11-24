@@ -7,13 +7,18 @@ stages:
     displayName: E2E - AKS Swiftv2 Manifold
     variables:
       TAG: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
+      IMAGE_REPO_PATH: $[ format('{0}/', stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath']) ]
+      ${{ if eq(parameters.dependsOn, 'publish') }}:
+        IMAGE_REPO_PATH_REF: 'azure-'
+      ${{ else }}:
+        IMAGE_REPO_PATH_REF: $(IMAGE_REPO_PATH)
     dependsOn: 
       - ${{ parameters.dependsOn }}
       - setup
     jobs:
       - job: ${{ parameters.name }}
-        displayName: AKS Swiftv2 Multitenancy Manifold E2E Test Suite- (${{ parameters.name }})
+        displayName: AKS Swiftv2 Multitenancy Manifold E2E Test Suite - (${{ parameters.name }})
+        timeoutInMinutes: 210
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           isCustom: true
@@ -22,7 +27,7 @@ stages:
           - task: TriggerBuild@3
             inputs:
               buildDefinition: '391699'
-              templateParameters: 'useAcnPublic: true, cnscniversion: $(TAG), cnscniversionwindows: $(TAG), cnscniImagePrefix: $(IMAGE_REPO_PATH)/'
+              templateParameters: 'useAcnPublic: true, cnscniversion: $(TAG), cnscniversionwindows: $(TAG), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF)'
               useSameBranch: false
               queueBuildForUserThatTriggeredBuild: true
               branchToUse: 'refs/heads/sharifna/runner/release-gate'
