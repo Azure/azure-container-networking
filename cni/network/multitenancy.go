@@ -204,6 +204,14 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 				)
 			}
 		}
+		// Restore DNS SNAT routing if enabled
+		if epInfo.EnableSnatForDns {
+			if err := m.addSnatForDNS(epInfo, result); err != nil {
+				logger.Error("failed adding SNAT for DNS",
+					zap.Error(err),
+				)
+			}
+		}
 	}
 
 	setupInfraVnetRoutingForMultitenancy(nwCfg, azIpamResult, epInfo)
