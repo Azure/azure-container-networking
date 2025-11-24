@@ -190,7 +190,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 	// if snat enabled, add 169.254.128.1 as default gateway
 	if nwCfg.EnableSnatOnHost {
 		logger.Info("add default route for multitenancy.snat on host enabled")
-		m.addDefaultRoute(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
+		addDefaultRoute(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
 	} else {
 		// only set default route when skipDefaultRoutes is false to avoid duplicated default routes given to HNS
 		if !epInfo.SkipDefaultRoutes {
