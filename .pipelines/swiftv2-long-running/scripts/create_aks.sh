@@ -99,6 +99,11 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
 
     az aks get-credentials -g "$RG" -n "$CLUSTER_NAME" --admin --overwrite-existing \
       --file "/tmp/${CLUSTER_NAME}.kubeconfig"
+    
+    # Label all nodes with swiftv2-linux label for workload identification
+    echo "==> Labeling all nodes in $CLUSTER_NAME with swiftv2-linux label"
+    kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label nodes --all workload-type=swiftv2-linux --overwrite
+    echo "[OK] All nodes labeled with workload-type=swiftv2-linux"
 done
 
 echo "All clusters complete."

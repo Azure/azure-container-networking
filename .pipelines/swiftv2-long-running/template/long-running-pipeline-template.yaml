@@ -364,7 +364,12 @@ stages:
       # ------------------------------------------------------------
       - job: DeleteTestResources
         displayName: "Delete PodNetwork, PNI, and Pods"
-        dependsOn: PrivateEndpointTests
+        dependsOn: 
+          - CreateTestResources
+          - ConnectivityTests
+          - PrivateEndpointTests
+        # Always run cleanup, even if previous jobs failed
+        condition: always()
         timeoutInMinutes: 60
         pool:
           vmImage: ubuntu-latest
