@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/Azure/azure-container-networking/test/integration/swiftv2/helpers"
 )
@@ -648,12 +649,15 @@ func truncateString(s string, maxLen int) string {
 
 // GenerateStorageSASToken generates a SAS token for a blob in a storage account
 func GenerateStorageSASToken(storageAccountName, containerName, blobName string) (string, error) {
+	// Calculate expiry time: 7 days from now (Azure CLI limit)
+	expiryTime := time.Now().UTC().Add(7 * 24 * time.Hour).Format("2006-01-02")
+	
 	cmd := exec.Command("az", "storage", "blob", "generate-sas",
 		"--account-name", storageAccountName,
 		"--container-name", containerName,
 		"--name", blobName,
 		"--permissions", "r",
-		"--expiry", "2030-12-31",
+		"--expiry", expiryTime,
 		"--auth-mode", "login",
 		"--as-user",
 		"--output", "tsv")
