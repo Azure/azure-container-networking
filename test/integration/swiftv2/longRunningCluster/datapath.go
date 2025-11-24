@@ -287,7 +287,7 @@ func GetOrFetchVnetSubnetInfo(rg, vnetName, subnetName string, cache map[string]
 }
 
 // CreateScenarioResources creates all resources for a specific pod scenario
-func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) error {
+func CreateScenarioResources(scenario PodScenario, testScenarios *TestScenarios) error {
 	// Get kubeconfig for the cluster
 	kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.Cluster)
 
@@ -462,7 +462,7 @@ func DeleteScenarioResources(scenario PodScenario, rg string) error {
 func CreateAllScenarios(testScenarios TestScenarios) error {
 	for _, scenario := range testScenarios.Scenarios {
 		fmt.Printf("\n=== Creating scenario: %s ===\n", scenario.Name)
-		err := CreateScenarioResources(scenario, testScenarios)
+		err := CreateScenarioResources(scenario, &testScenarios)
 		if err != nil {
 			return err
 		}
