@@ -99,7 +99,7 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 				ShouldFail:    false,
 				TestType:      "storage-access",
 				Purpose:       "Verify Tenant A pod from different cluster can access Storage-A",
-			}
+			},
 		}
 
 		ginkgo.By(fmt.Sprintf("Running %d Private Endpoint connectivity tests", len(privateEndpointTests)))
