@@ -24,11 +24,13 @@ for SA in "$SA1" "$SA2"; do
     --kind StorageV2 \
     --allow-blob-public-access false \
     --allow-shared-key-access false \
+    --public-network-access Disabled \
     --https-only true \
     --min-tls-version TLS1_2 \
     --tags SkipAutoDeleteTill=2032-12-31 \
     --query "name" -o tsv \
   && echo "Storage account $SA created successfully."
+  
   # Verify creation success
   echo "==> Verifying storage account $SA exists..."
   if az storage account show --name "$SA" --resource-group "$RG" &>/dev/null; then
@@ -37,6 +39,24 @@ for SA in "$SA1" "$SA2"; do
     echo "[ERROR] Storage account $SA not found after creation!" >&2
     exit 1
   fi
+  
+  # Create container and upload test blob for private endpoint testing
+  echo "==> Creating test container in $SA"
+  az storage container create \
+    --name "test" \
+    --account-name "$SA" \
+    --auth-mode login \
+    && echo "[OK] Container 'test' created in $SA"
+  
+  # Upload test blob
+  echo "==> Uploading test blob to $SA"
+  echo "Hello from Private Endpoint - Storage: $SA" | az storage blob upload \
+    --account-name "$SA" \
+    --container-name "test" \
+    --name "hello.txt" \
+    --auth-mode login \
+    --overwrite \
+    && echo "[OK] Test blob 'hello.txt' uploaded to $SA/test/"
 done
 
 echo "All storage accounts created and verified successfully."

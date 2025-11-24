@@ -646,6 +646,31 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen] + "..."
 }
 
+// GenerateStorageSASToken generates a SAS token for a blob in a storage account
+func GenerateStorageSASToken(storageAccountName, containerName, blobName string) (string, error) {
+	cmd := exec.Command("az", "storage", "blob", "generate-sas",
+		"--account-name", storageAccountName,
+		"--container-name", containerName,
+		"--name", blobName,
+		"--permissions", "r",
+		"--expiry", "2030-12-31",
+		"--auth-mode", "login",
+		"--as-user",
+		"--output", "tsv")
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate SAS token: %s\n%s", err, string(out))
+	}
+
+	sasToken := strings.TrimSpace(string(out))
+	if sasToken == "" {
+		return "", fmt.Errorf("generated SAS token is empty")
+	}
+
+	return sasToken, nil
+}
+
 // GetStoragePrivateEndpoint retrieves the private IP address of a storage account's private endpoint
 func GetStoragePrivateEndpoint(resourceGroup, storageAccountName string) (string, error) {
 	// Return the storage account blob endpoint FQDN
@@ -670,20 +695,25 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 	}
 	fmt.Printf("DNS Resolution Result:\n%s\n", resolveOutput)
 
-	// Step 2: Test HTTPS connectivity (we expect 4xx auth errors, which proves connectivity)
-	// Using -k to skip cert validation, -I for HEAD request, --connect-timeout for quick failure
-	fmt.Printf("==> Testing HTTPS connectivity to %s\n", test.DestEndpoint)
-	curlCmd := fmt.Sprintf("curl -k -v --connect-timeout 5 --max-time 10 -I https://%s 2>&1", test.DestEndpoint)
-
-	output, err := helpers.ExecInPod(kubeconfig, test.SourceNS, test.SourcePodName, curlCmd)
-
-	// Check if we got HTTP response (even if 4xx/5xx)
-	// Success indicators: "Connected to", "HTTP/", or any HTTP status code
-	if strings.Contains(output, "Connected to") || strings.Contains(output, "HTTP/") {
-		fmt.Printf("Private endpoint connectivity successful!\nResponse preview:\n%s\n", truncateString(output, 300))
-		return nil
+	// Step 2: Generate SAS token for test blob
+	fmt.Printf("==> Generating SAS token for test blob\n")
+	// Extract storage account name from FQDN (e.g., sa106936191.blob.core.windows.net -> sa106936191)
+	storageAccountName := strings.Split(test.DestEndpoint, ".")[0]
+	sasToken, err := GenerateStorageSASToken(storageAccountName, "test", "hello.txt")
+	if err != nil {
+		return fmt.Errorf("failed to generate SAS token: %w", err)
 	}
 
-	// If we get here, connection failed (timeout, DNS failure, network unreachable)
-	return fmt.Errorf("private endpoint connectivity test failed: %w\nOutput: %s", err, output)
+	// Step 3: Download test blob using SAS token (proves both connectivity AND data plane access)
+	fmt.Printf("==> Downloading test blob via private endpoint\n")
+	blobURL := fmt.Sprintf("https://%s/test/hello.txt?%s", test.DestEndpoint, sasToken)
+	curlCmd := fmt.Sprintf("curl -f -s --connect-timeout 5 --max-time 10 '%s'", blobURL)
+
+	output, err := helpers.ExecInPod(kubeconfig, test.SourceNS, test.SourcePodName, curlCmd)
+	if err != nil {
+		return fmt.Errorf("private endpoint connectivity test failed: %w\nOutput: %s", err, output)
+	}
+
+	fmt.Printf("Private endpoint access successful! Blob content: %s\n", truncateString(output, 100))
+	return nil
 }

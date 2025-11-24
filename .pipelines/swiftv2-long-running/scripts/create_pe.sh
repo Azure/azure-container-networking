@@ -57,7 +57,7 @@ az network private-dns zone create -g "$RG" -n "$PRIVATE_DNS_ZONE" --output none
 
 verify_dns_zone "$RG" "$PRIVATE_DNS_ZONE"
 
-# 2. Link DNS zone to VNet
+# 2. Link DNS zone to Customer VNets
 for VNET in "$VNET_A1" "$VNET_A2" "$VNET_A3"; do
   LINK_NAME="${VNET}-link"
   echo "==> Linking DNS zone $PRIVATE_DNS_ZONE to VNet $VNET"
@@ -68,6 +68,29 @@ for VNET in "$VNET_A1" "$VNET_A2" "$VNET_A3"; do
     --registration-enabled false \
     --output none \
     && echo "[OK] Linked DNS zone to $VNET."
+  verify_dns_link "$RG" "$PRIVATE_DNS_ZONE" "$LINK_NAME"
+done
+
+# 2b. Link DNS zone to AKS Cluster VNets (so pods can resolve private endpoint)
+echo "==> Linking DNS zone to AKS cluster VNets"
+for CLUSTER in "aks-1" "aks-2"; do
+  echo "==> Getting VNet for $CLUSTER"
+  AKS_VNET_ID=$(az aks show -g "$RG" -n "$CLUSTER" --query "agentPoolProfiles[0].vnetSubnetId" -o tsv | cut -d'/' -f1-9)
+  
+  if [ -z "$AKS_VNET_ID" ]; then
+    echo "[WARNING] Could not get VNet for $CLUSTER, skipping DNS link"
+    continue
+  fi
+  
+  LINK_NAME="${CLUSTER}-vnet-link"
+  echo "==> Linking DNS zone to $CLUSTER VNet"
+  az network private-dns link vnet create \
+    -g "$RG" -n "$LINK_NAME" \
+    --zone-name "$PRIVATE_DNS_ZONE" \
+    --virtual-network "$AKS_VNET_ID" \
+    --registration-enabled false \
+    --output none \
+    && echo "[OK] Linked DNS zone to $CLUSTER VNet."
   verify_dns_link "$RG" "$PRIVATE_DNS_ZONE" "$LINK_NAME"
 done
 
