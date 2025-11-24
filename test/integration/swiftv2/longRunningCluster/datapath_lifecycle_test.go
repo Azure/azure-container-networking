@@ -38,6 +38,12 @@ var _ = ginkgo.Describe("Datapath Lifecycle", ginkgo.Ordered, func() {
 		ginkgo.By("All pods are ready")
 	})
 
+	ginkgo.It("validates pod creation", func() {
+		ginkgo.By("=== PHASE 2: Validating Created Resources ===")
+		ginkgo.By(fmt.Sprintf("Created %d test scenarios successfully", len(testScenarios.Scenarios)))
+		gomega.Expect(len(testScenarios.Scenarios)).To(gomega.Equal(9), "Expected 9 pod scenarios to be created")
+	})
+
 	// TODO: Uncomment for full connectivity testing
 	/*
 	ginkgo.It("runs pod-to-pod connectivity tests", func() {
