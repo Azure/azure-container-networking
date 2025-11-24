@@ -111,15 +111,19 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
     DEFAULT_NODES=$(kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" get nodes -o json | jq -r '.items[] | select(.metadata.labels["agentpool"] == "default") | .metadata.name')
     for node in $DEFAULT_NODES; do
         echo "Labeling node $node as low-nic"
-        kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label node "$node" nic-capacity=low-nic --overwrite
+        kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label node "$node" nic-capacity=low-nic --overwrite || echo "Warning: Failed to label $node"
     done
     
     # Get nplinux pool nodes (high-nic capacity)
     NPLINUX_NODES=$(kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" get nodes -o json | jq -r '.items[] | select(.metadata.labels["agentpool"] == "nplinux") | .metadata.name')
     for node in $NPLINUX_NODES; do
         echo "Labeling node $node as high-nic"
-        kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label node "$node" nic-capacity=high-nic --overwrite
+        kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label node "$node" nic-capacity=high-nic --overwrite || echo "Warning: Failed to label $node"
     done
+    
+    # Verify labels were applied
+    echo "Verifying nic-capacity labels on $CLUSTER_NAME:"
+    kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" get nodes -L nic-capacity
     echo "[OK] All nodes labeled with nic-capacity"
 done
 

@@ -157,7 +157,7 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	for _, line := range lines {
-		if strings.HasPrefix(line, "node/") {
+		if line != "" && strings.HasPrefix(line, "node/") {
 			nodeInfo.LowNicNodes = append(nodeInfo.LowNicNodes, strings.TrimPrefix(line, "node/"))
 		}
 	}
@@ -376,6 +376,9 @@ func CreateScenarioResources(scenario PodScenario, testScenarios *TestScenarios)
 		// Find node with available NIC capacity (low-NIC nodes: 1 NIC total)
 		for _, node := range nodeInfo.LowNicNodes {
 			nodeState := testScenarios.NodeNICUsage[node]
+			if nodeState == nil {
+				return fmt.Errorf("scenario %s: node %s not found in NIC usage map", scenario.Name, node)
+			}
 			if nodeState.UsedNICs < nodeState.TotalNICs {
 				targetNode = node
 				nodeState.UsedNICs++
@@ -394,6 +397,9 @@ func CreateScenarioResources(scenario PodScenario, testScenarios *TestScenarios)
 		// Find node with available NIC capacity (high-NIC nodes: 7+ NICs total)
 		for _, node := range nodeInfo.HighNicNodes {
 			nodeState := testScenarios.NodeNICUsage[node]
+			if nodeState == nil {
+				return fmt.Errorf("scenario %s: node %s not found in NIC usage map", scenario.Name, node)
+			}
 			if nodeState.UsedNICs < nodeState.TotalNICs {
 				targetNode = node
 				nodeState.UsedNICs++
