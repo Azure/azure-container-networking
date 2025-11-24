@@ -26,11 +26,6 @@ schedules:
   branches:
     include: ["master"]
   always: true
-- cron: "30 3 * * *" # Every day at 3:00 PM PST (23:00 UTC)
-  displayName: "Test Schedule Pipeline"
-  branches:
-    include: ["sharifna/pipeline/singularity"]
-  always: true
 
 stages:
   - stage: setup
