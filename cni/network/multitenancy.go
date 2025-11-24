@@ -159,7 +159,7 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
 }
 
-// addDefaultRouteToGateway appends a default route
+// addDefaultRoute appends a default route
 // to both epInfo and result. Returns error if gwStr is not a valid IP.
 func (m *Multitenancy) addDefaultRoute(gwStr string, epInfo *network.EndpointInfo, result *network.InterfaceInfo) error {
 	gw := net.ParseIP(gwStr)
