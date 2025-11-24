@@ -50,33 +50,11 @@ Examples: sv2-long-run-12345, sv2-long-run-67890
 - **Lifecycle**: Can be cleaned up after testing completes
 - **Example**: PR validation run with Build ID 12345 → `sv2-long-run-12345`
 
-**3. Parallel/Custom Environments**:
-```
-Pattern: sv2-long-run-<region>-<suffix>
-Examples: sv2-long-run-centraluseuap-dev, sv2-long-run-eastus-staging
-```
-- **When to use**: Parallel environments, feature testing, version upgrades
-- **Purpose**: Isolated environment alongside production
-- **Lifecycle**: Persistent or temporary based on use case
-- **Example**: Development environment in Central US EUAP → `sv2-long-run-centraluseuap-dev`
-
 **Important Notes**:
-- ⚠️ Always follow the naming pattern for scheduled runs on master: `sv2-long-run-<region>`
-- ⚠️ Do not use build IDs for production scheduled infrastructure (it breaks continuity)
-- ⚠️ Region name should match the `location` parameter for consistency
-- ✅ All resource names within the setup use the resource group name as BUILD_ID prefix
+-  Always follow the naming pattern for scheduled runs on master: `sv2-long-run-<region>`
+-  Do not use build IDs for production scheduled infrastructure (it breaks continuity)
+-  All resource names within the setup use the resource group name as BUILD_ID prefix
 
-### Mode 1: Scheduled Test Runs (Default)
-**Trigger**: Automated cron schedule every 1 hour  
-**Purpose**: Continuous validation of long-running infrastructure  
-**Setup Stages**: Disabled  
-**Test Duration**: ~30-40 minutes per run  
-**Resource Group**: Static (default: `sv2-long-run-<region>`, e.g., `sv2-long-run-centraluseuap`)
-
-```yaml
-# Runs automatically every 1 hour
-# No manual/external triggers allowed
-```
 
 ### Mode 2: Initial Setup or Rebuild
 **Trigger**: Manual run with parameter change  
@@ -120,15 +98,6 @@ Parameters are organized by usage:
 |-----------|---------|-------------|
 | `resourceGroupName` | `""` (empty) | **Leave empty** to auto-generate based on usage pattern. See Resource Group Naming Conventions below. |
 
-**Resource Group Naming Conventions**:
-- **For scheduled runs on master/main branch**: Use `sv2-long-run-<region>` (e.g., `sv2-long-run-centraluseuap`)
-  - This ensures consistent naming for production scheduled tests
-  - Example: Creating infrastructure in `centraluseuap` for scheduled runs → `sv2-long-run-centraluseuap`
-- **For test/dev runs or PR validation**: Use `sv2-long-run-$(Build.BuildId)`
-  - Auto-cleanup after testing
-  - Example: `sv2-long-run-12345` (where 12345 is the build ID)
-- **For parallel environments**: Use descriptive suffix (e.g., `sv2-long-run-centraluseuap-dev`, `sv2-long-run-eastus-staging`)
-
 **Note**: VM SKUs are hardcoded as constants in the pipeline template:
 - Default nodepool: `Standard_D4s_v3` (low-nic capacity, 1 NIC)
 - NPLinux nodepool: `Standard_D16s_v3` (high-nic capacity, 7 NICs)
@@ -161,21 +130,21 @@ The pipeline is organized into stages based on workload type, allowing sequentia
 ### Future Stages (Planned Architecture)
 Additional stages can be added to test different workload types sequentially:
 
-**Example: Stage 3 - BYONodeDataPathTests**
+**Example: Stage 3 - LinuxBYONodeDataPathTests**
 ```yaml
-- stage: BYONodeDataPathTests
+- stage: LinuxBYONodeDataPathTests
   displayName: "SwiftV2 Data Path Tests - BYO Node ID"
   dependsOn: ManagedNodeDataPathTests
   variables:
-    WORKLOAD_TYPE: "swiftv2-byonodeid"
+    WORKLOAD_TYPE: "swiftv2-linuxbyon"
   # Same job structure as ManagedNodeDataPathTests
   # Tests run on nodes labeled: workload-type=swiftv2-byonodeid
 ```
 
-**Example: Stage 4 - WindowsNodeDataPathTests**
+**Example: Stage 4 - L1vhAccelnetNodeDataPathTests**
 ```yaml
-- stage: WindowsNodeDataPathTests
-  displayName: "SwiftV2 Data Path Tests - Windows Nodes"
+- stage: L1vhAccelnetNodeDataPathTests
+  displayName: "SwiftV2 Data Path Tests - Windows Nodes Accelnet"
   dependsOn: BYONodeDataPathTests
   variables:
     WORKLOAD_TYPE: "swiftv2-windows"
@@ -183,27 +152,20 @@ Additional stages can be added to test different workload types sequentially:
   # Tests run on nodes labeled: workload-type=swiftv2-windows
 ```
 
-**Benefits of Stage-Based Architecture**:
-- ✅ Sequential execution: Each workload type tested independently
-- ✅ Isolated node pools: No resource contention between workload types
-- ✅ Same infrastructure: All stages use the same VNets, storage, NSGs
-- ✅ Same test suite: Connectivity and private endpoint tests run for each workload type
-- ✅ Easy extensibility: Add new stages without modifying existing ones
-- ✅ Clear results: Separate test results per workload type
-
 **Node Labeling for Multiple Workload Types**:
 Each node pool gets labeled with its designated workload type during setup:
 ```bash
 # During cluster creation or node pool addition:
-kubectl label nodes -l agentpool=nodepool1 workload-type=swiftv2-linux
-kubectl label nodes -l agentpool=byonodepool workload-type=swiftv2-byonodeid
-kubectl label nodes -l agentpool=winnodepool workload-type=swiftv2-windows
+kubectl label nodes -l  workload-type=swiftv2-linux
+kubectl label nodes -l  workload-type=swiftv2-linuxbyon
+kubectl label nodes -l  workload-type=swiftv2-l1vhaccelnet
+kubectl label nodes -l  workload-type=swiftv2-l1vhib
 ```
 
 ## How It Works
 
 ### Scheduled Test Flow
-Every 1 hour, the pipeline:
+Every 3 hour, the pipeline:
 1. Skips setup stages (infrastructure already exists)
 2. **Job 1 - Create Resources**: Creates 8 test scenarios (PodNetwork, PNI, Pods with HTTP servers on port 8080)
 3. **Job 2 - Connectivity Tests**: Tests HTTP connectivity between pods (9 test cases), then waits 20 minutes
@@ -361,142 +323,6 @@ pod-c1-aks1-a1s1-low
 
 **All infrastructure resources are tagged with `SkipAutoDeleteTill=2032-12-31`** to prevent automatic cleanup by Azure subscription policies.
 
-## Resource Naming
-
-All test resources use the pattern: `<type>-static-setup-<vnet>-<subnet>`
-
-**Examples**:
-- PodNetwork: `pn-static-setup-a1-s1`
-- PodNetworkInstance: `pni-static-setup-a1-s1`  
-- Pod: `pod-c1-aks1-a1s1-low`
-- Namespace: `pn-static-setup-a1-s1`
-
-VNet names are simplified:
-- `cx_vnet_a1` → `a1`
-- `cx_vnet_b1` → `b1`
-
-## Switching to a New Setup
-
-**Scenario**: You created a new setup in RG `sv2-long-run-eastus` and want scheduled runs to use it.
-
-**Steps**:
-1. Go to Pipeline → Edit
-2. Update location parameter default value:
-   ```yaml
-   - name: location
-     default: "centraluseuap"  # Change this
-   ```
-3. Save and commit
-4. RG name will automatically become `sv2-long-run-centraluseuap`
-
-Alternatively, manually trigger with the new location or override `resourceGroupName` directly.
-
-## Creating Multiple Test Setups
-
-**Use Case**: You want to create a new test environment without affecting the existing one (e.g., for testing different configurations, regions, or versions).
-
-**Steps**:
-1. Go to Pipeline → Run pipeline
-2. Set `runSetupStages` = `true`
-3. **Set `resourceGroupName`** based on usage:
-   - **For scheduled runs on master/main branch**: `sv2-long-run-<region>` (e.g., `sv2-long-run-centraluseuap`, `sv2-long-run-eastus`)
-     - Use this naming pattern for production scheduled tests
-   - **For test/dev runs**: `sv2-long-run-$(Build.BuildId)` or custom (e.g., `sv2-long-run-12345`)
-     - For temporary testing or PR validation
-   - **For parallel environments**: Custom with descriptive suffix (e.g., `sv2-long-run-centraluseuap-dev`, `sv2-long-run-centraluseuap-v2`)
-4. Optionally adjust `location`
-5. Run pipeline
-
-**After setup completes**:
-- The new infrastructure will be tagged with `SkipAutoDeleteTill=2032-12-31`
-- Resources are isolated by the unique resource group name
-- To run tests against the new setup, the scheduled pipeline would need to be updated with the new RG name
-
-**Example Scenarios**:
-| Scenario | Resource Group Name | Purpose | Naming Pattern |
-|----------|-------------------|---------|----------------|
-| Production scheduled (Central US EUAP) | `sv2-long-run-centraluseuap` | Daily scheduled tests on master | `sv2-long-run-<region>` |
-| Production scheduled (East US) | `sv2-long-run-eastus` | Regional scheduled testing on master | `sv2-long-run-<region>` |
-| Temporary test run | `sv2-long-run-12345` | One-time testing (Build ID: 12345) | `sv2-long-run-$(Build.BuildId)` |
-| Development environment | `sv2-long-run-centraluseuap-dev` | Development/testing | Custom with suffix |
-| Version upgrade testing | `sv2-long-run-centraluseuap-v2` | Parallel environment for upgrades | Custom with suffix |
-
-## Resource Naming
- instead of ping use 
-The pipeline uses the **resource group name as the BUILD_ID** to ensure unique resource names per test setup. This allows multiple parallel test environments without naming collisions.
-
-**Generated Resource Names**:
-```
-BUILD_ID = <resourceGroupName>
-
-PodNetwork:         pn-<BUILD_ID>-<vnet>-<subnet>
-PodNetworkInstance: pni-<BUILD_ID>-<vnet>-<subnet>
-Namespace:          pn-<BUILD_ID>-<vnet>-<subnet>
-Pod:                pod-<scenario-suffix>
-```
-
-**Example for `resourceGroupName=sv2-long-run-centraluseuap`**:
-```
-pn-sv2-long-run-centraluseuap-b1-s1       (PodNetwork for cx_vnet_b1, subnet s1)
-pni-sv2-long-run-centraluseuap-b1-s1      (PodNetworkInstance)
-pn-sv2-long-run-centraluseuap-a1-s1       (PodNetwork for cx_vnet_a1, subnet s1)
-pni-sv2-long-run-centraluseuap-a1-s2      (PodNetworkInstance for cx_vnet_a1, subnet s2)
-```
-
-**Example for different setup `resourceGroupName=sv2-long-run-eastus`**:
-```
-pn-sv2-long-run-eastus-b1-s1       (Different from centraluseuap setup)
-pni-sv2-long-run-eastus-b1-s1
-pn-sv2-long-run-eastus-a1-s1
-```
-
-This ensures **no collision** between different test setups running in parallel.
-
-## Deletion Strategy
-### Phase 1: Delete All Pods
-Deletes all pods across all scenarios first. This ensures IP reservations are released.
-
-```
-Deleting pod pod-c2-aks2-b1s1-low...
-Deleting pod pod-c2-aks2-b1s1-high...
-...
-```
-
-### Phase 2: Delete Shared Resources
-Groups resources by vnet/subnet/cluster and deletes PNI/PN/Namespace once per group.
-
-```
-Deleting PodNetworkInstance pni-static-setup-b1-s1...
-Deleting PodNetwork pn-static-setup-b1-s1...
-Deleting namespace pn-static-setup-b1-s1...
-```
-
-**Why**: Multiple pods can share the same PNI. Deleting PNI while pods exist causes "ReservationInUse" errors.
-
-## Troubleshooting
-
-### Tests are running on wrong cluster
-- Check `resourceGroupName` parameter points to correct RG
-- Verify RG contains aks-1 and aks-2 clusters
-- Check kubeconfig retrieval in logs
-
-### Setup stages not running
-- Verify `runSetupStages` parameter is set to `true`
-- Check condition: `condition: eq(${{ parameters.runSetupStages }}, true)`
-
-### Schedule not triggering
-- Verify cron expression: `"0 */1 * * *"` (every 1 hour)
-- Check branch in schedule matches your working branch
-- Ensure `always: true` is set (runs even without code changes)
-
-### PNI stuck with "ReservationInUse"
-- Check if pods were deleted first (Phase 1 logs)
-- Manual fix: Delete pod → Wait 10s → Patch PNI to remove finalizers
-
-### Pipeline timeout after 6 hours
-- This is expected behavior (timeoutInMinutes: 360)
-- Tests should complete in ~30-40 minutes
-- If tests hang, check deletion logs for stuck resources
 
 ## Manual Testing
 
@@ -544,21 +370,6 @@ kubectl label nodes -l agentpool=nodepool1 nic-capacity=low-nic --overwrite
 kubectl label nodes -l agentpool=nplinux nic-capacity=high-nic --overwrite
 ```
 
-**Example Node Labels**:
-```yaml
-# Low-NIC node (nodepool1)
-labels:
-  agentpool: nodepool1
-  workload-type: swiftv2-linux
-  nic-capacity: low-nic
-
-# High-NIC node (nplinux)
-labels:
-  agentpool: nplinux
-  workload-type: swiftv2-linux
-  nic-capacity: high-nic
-```
-
 ### Node Selection in Tests
 
 Tests use these labels to select appropriate nodes dynamically:
@@ -587,20 +398,6 @@ Tests use these labels to select appropriate nodes dynamically:
 | nplinux | `Standard_D16s_v3` | 7 | `nic-capacity=high-nic` | 1 (current test logic) |
 
 **Note**: VM SKUs are hardcoded as constants in the pipeline template and cannot be changed by users.
-
-## Schedule Modification
-
-To change test frequency, edit the cron schedule:
-
-```yaml
-schedules:
-  - cron: "0 */1 * * *"  # Every 1 hour (current)
-  # Examples:
-  # - cron: "0 */2 * * *"  # Every 2 hours
-  # - cron: "0 */6 * * *"  # Every 6 hours
-  # - cron: "0 0,8,16 * * *"  # At 12am, 8am, 4pm
-  # - cron: "0 0 * * *"  # Daily at midnight
-```
 
 ## File Structure
 
@@ -639,23 +436,3 @@ test/integration/swiftv2/longRunningCluster/
    - Storage accounts
 5. **Avoid resource group collisions**: Always use unique `resourceGroupName` when creating new setups
 6. **Document changes**: Update this README when modifying test scenarios or infrastructure
-
-## Resource Tags
-
-All infrastructure resources are automatically tagged during creation:
-
-```bash
-SkipAutoDeleteTill=2032-12-31
-```
-
-This prevents automatic cleanup by Azure subscription policies that delete resources after a certain period. The tag is applied to:
-- Resource group (via create_resource_group job)
-- AKS clusters (aks-1, aks-2)
-- AKS cluster VNets
-- Customer VNets (cx_vnet_a1, cx_vnet_a2, cx_vnet_a3, cx_vnet_b1)
-- Storage accounts (sa1xxxx, sa2xxxx)
-
-To manually update the tag date:
-```bash
-az resource update --ids <resource-id> --set tags.SkipAutoDeleteTill=2033-12-31
-```
