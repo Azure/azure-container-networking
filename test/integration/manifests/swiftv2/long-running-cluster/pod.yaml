@@ -49,7 +49,6 @@ spec:
           echo "WARNING: HTTP server may not be listening on port 8080"
         fi
         
-        # Keep showing network info periodically
         while true; do
           echo "=== Network Status at $(date) ==="
           ip addr show

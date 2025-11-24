@@ -164,16 +164,17 @@ stages:
     displayName: "Stage: Swiftv2 Data Path Tests"
     dependsOn: AKSClusterAndNetworking
     condition: or(eq(${{ parameters.runSetupStages }}, false), succeeded())
+
     variables:
       storageAccount1: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
       storageAccount2: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
     jobs:
       # ------------------------------------------------------------
-      # Job 1: Create Test Resources and Wait
+      # Job: Run Datapath Lifecycle Tests
       # ------------------------------------------------------------
-      - job: CreateTestResources
-        displayName: "Create Resources and Wait 20 Minutes"
-        timeoutInMinutes: 90
+      - job: DatapathLifecycleTests
+        displayName: "Run Datapath Lifecycle Tests"
+        timeoutInMinutes: 120
         pool:
           vmImage: ubuntu-latest
         steps:
@@ -222,127 +223,7 @@ stages:
                 echo "==> Verifying cluster aks-2 connectivity"
                 kubectl --kubeconfig /tmp/aks-2.kubeconfig get nodes
                 
-                echo "==> Creating test resources (8 scenarios)"
-                export RG="$(rgName)"
-                export BUILD_ID="$(rgName)"
-                cd ./test/integration/swiftv2/longRunningCluster
-                ginkgo -v -trace --timeout=1h --tags=create_test
-
-          - script: |
-              echo "Waiting 2 minutes for pods to fully start and HTTP servers to be ready..."
-              sleep 120
-              echo "Wait period complete, proceeding with connectivity tests"
-            displayName: "Wait for pods to be ready"
-
-      # ------------------------------------------------------------
-      # Job 2: Run Connectivity Tests
-      # ------------------------------------------------------------
-      - job: ConnectivityTests
-        displayName: "Test Pod-to-Pod Connectivity"
-        dependsOn: CreateTestResources
-        timeoutInMinutes: 30
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
-
-          - task: GoTool@0
-            displayName: "Use Go 1.22.5"
-            inputs:
-              version: "1.22.5"
-              
-          - task: AzureCLI@2
-            displayName: "Run Connectivity Tests"
-            inputs:
-              azureSubscription: ${{ parameters.serviceConnection }}
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Installing Ginkgo CLI"
-                go install github.com/onsi/ginkgo/v2/ginkgo@latest
-                
-                echo "==> Adding Go bin to PATH"
-                export PATH=$PATH:$(go env GOPATH)/bin
-
-                echo "==> Downloading Go dependencies"
-                go mod download
-                
-                echo "==> Setting up kubeconfig for cluster aks-1"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-1 \
-                  --file /tmp/aks-1.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
-                echo "==> Setting up kubeconfig for cluster aks-2"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-2 \
-                  --file /tmp/aks-2.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
-                echo "==> Running connectivity tests"
-                export RG="$(rgName)"
-                export BUILD_ID="$(rgName)"
-                cd ./test/integration/swiftv2/longRunningCluster
-                ginkgo -v -trace --timeout=30m --tags=connectivity_test
-
-      # ------------------------------------------------------------
-      # Job 3: Private Endpoint Connectivity Tests
-      # ------------------------------------------------------------
-      - job: PrivateEndpointTests
-        displayName: "Test Private Endpoint Access"
-        dependsOn: ConnectivityTests
-        timeoutInMinutes: 30
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
-
-          - task: GoTool@0
-            displayName: "Use Go 1.22.5"
-            inputs:
-              version: "1.22.5"
-              
-          - task: AzureCLI@2
-            displayName: "Run Private Endpoint Tests"
-            inputs:
-              azureSubscription: ${{ parameters.serviceConnection }}
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Installing Ginkgo CLI"
-                go install github.com/onsi/ginkgo/v2/ginkgo@latest
-                
-                echo "==> Adding Go bin to PATH"
-                export PATH=$PATH:$(go env GOPATH)/bin
-
-                echo "==> Downloading Go dependencies"
-                go mod download
-                
-                echo "==> Setting up kubeconfig for cluster aks-1"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-1 \
-                  --file /tmp/aks-1.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
-                echo "==> Setting up kubeconfig for cluster aks-2"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-2 \
-                  --file /tmp/aks-2.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
-                echo "==> Running Private Endpoint connectivity tests"
-                export RG="$(rgName)"
-                export BUILD_ID="$(rgName)"
-                
-                # Get storage account names - either from stage variables or discover from resource group
+                echo "==> Getting storage account names"
                 STORAGE_ACCOUNT_1="$(storageAccount1)"
                 STORAGE_ACCOUNT_2="$(storageAccount2)"
                 
@@ -356,66 +237,11 @@ stages:
                 
                 export STORAGE_ACCOUNT_1
                 export STORAGE_ACCOUNT_2
-                cd ./test/integration/swiftv2/longRunningCluster
-                ginkgo -v -trace --timeout=30m --tags=private_endpoint_test
-
-      # ------------------------------------------------------------
-      # Job 4: Delete Test Resources
-      # ------------------------------------------------------------
-      - job: DeleteTestResources
-        displayName: "Delete PodNetwork, PNI, and Pods"
-        dependsOn: 
-          - CreateTestResources
-          - ConnectivityTests
-          - PrivateEndpointTests
-        # Always run cleanup, even if previous jobs failed
-        condition: always()
-        timeoutInMinutes: 60
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
-
-          - task: GoTool@0
-            displayName: "Use Go 1.22.5"
-            inputs:
-              version: "1.22.5"
-              
-          - task: AzureCLI@2
-            displayName: "Delete Test Resources"
-            inputs:
-              azureSubscription: ${{ parameters.serviceConnection }}
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Installing Ginkgo CLI"
-                go install github.com/onsi/ginkgo/v2/ginkgo@latest
                 
-                echo "==> Adding Go bin to PATH"
-                export PATH=$PATH:$(go env GOPATH)/bin
-
-                echo "==> Downloading Go dependencies"
-                go mod download
-                
-                echo "==> Setting up kubeconfig for cluster aks-1"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-1 \
-                  --file /tmp/aks-1.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
-                echo "==> Setting up kubeconfig for cluster aks-2"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-2 \
-                  --file /tmp/aks-2.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
-                echo "==> Deleting test resources (8 scenarios)"
+                echo "==> Running datapath lifecycle tests (create → connectivity → private endpoint → cleanup)"
                 export RG="$(rgName)"
-                export BUILD_ID="$(rgName)"
                 cd ./test/integration/swiftv2/longRunningCluster
-                ginkgo -v -trace --timeout=1h --tags=delete_test
+                ginkgo -v --timeout=2h
+
+
               
