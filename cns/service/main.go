@@ -1285,7 +1285,9 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 		time.Sleep(time.Millisecond * 500)
 	}
 
-	httpRestServiceImpl.StartSyncHostNCVersionLoop(ctx, cnsconfig)
+	if err := httpRestServiceImpl.StartSyncHostNCVersionLoop(ctx, cnsconfig); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -1630,7 +1632,9 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		break
 	}
 
-	httpRestServiceImplementation.StartSyncHostNCVersionLoop(ctx, *cnsconfig)
+	if err := httpRestServiceImplementation.StartSyncHostNCVersionLoop(ctx, *cnsconfig); err != nil {
+		return err
+	}
 	return nil
 }
 

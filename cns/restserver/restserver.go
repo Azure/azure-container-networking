@@ -102,7 +102,9 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
-	ncSynced                   chan struct{}
+	//put in ncstate struct?
+	ncSynced   chan struct{}
+	ncSyncLoop bool
 }
 
 type CNIConflistGenerator interface {
@@ -253,6 +255,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		homeAzMonitor:            homeAzMonitor,
 		cniConflistGenerator:     gen,
 		imdsClient:               imdsClient,
+		ncSynced:                 make(chan struct{}),
 	}, nil
 }
 

@@ -17,9 +17,13 @@ import (
 
 //TODO make this file a sub pacakge?
 
-func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, cnsconfig configuration.CNSConfig) {
-	//do we need a sync.once to protect this? should we error if this is called twice?
-	service.ncSynced = make(chan struct{})
+func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, cnsconfig configuration.CNSConfig) error {
+	service.Lock() //could use a seperate lock or atomic bool.
+	defer service.Unlock()
+	if service.ncSyncLoop {
+		return errors.New("SyncHostNCVersion loop already started")
+	}
+	service.ncSyncLoop = true
 	go func() {
 		logger.Printf("Starting SyncHostNCVersion loop.")
 		// Periodically poll vfp programmed NC version from NMAgent
@@ -36,6 +40,7 @@ func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, 
 			}
 		}
 	}()
+	return nil
 }
 
 // SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
@@ -187,9 +192,11 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 // a conflist generator. If not, this is a no-op.
 func (service *HTTPRestService) mustGenerateCNIConflistOnce() {
 	service.generateCNIConflistOnce.Do(func() {
-		if service.ncSynced != nil {
+		service.Lock() //lock inside a do scary?
+		if service.ncSyncLoop {
 			close(service.ncSynced)
 		}
+		service.Unlock()
 		if err := service.cniConflistGenerator.Generate(); err != nil {
 			panic("unable to generate cni conflist with error: " + err.Error())
 		}
@@ -202,9 +209,13 @@ func (service *HTTPRestService) mustGenerateCNIConflistOnce() {
 
 func (service *HTTPRestService) WaitForConfList(ctx context.Context) {
 	//sync loop never set up get out of here.
-	if service.ncSynced == nil {
-		return
-	}
+	func() {
+		service.Lock()
+		defer service.Unlock()
+		if !service.ncSyncLoop {
+			return
+		}
+	}()
 
 	select {
 	case <-service.ncSynced:
