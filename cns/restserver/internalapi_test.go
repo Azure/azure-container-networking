@@ -446,7 +446,7 @@ func TestSyncHostNCVersionErrorMissingNC(t *testing.T) {
 	}
 
 	// Check that the error message contains the expected text
-	expectedErrorText := "unable to update some NCs"
+	expectedErrorText := "Have outdated NCs"
 	if !strings.Contains(err.Error(), expectedErrorText) {
 		t.Errorf("Expected error to contain '%s', but got: %v", expectedErrorText, err)
 	}
@@ -607,7 +607,7 @@ func TestSyncHostNCVersionIMDSAPIVersionNotSupported(t *testing.T) {
 			}
 
 			// Verify the error is about being unable to update NCs
-			expectedErrorText := "unable to update some NCs"
+			expectedErrorText := "Have outdated NCs"
 			if !strings.Contains(err.Error(), expectedErrorText) {
 				t.Errorf("Expected error to contain '%s', but got: %v", expectedErrorText, err)
 			}

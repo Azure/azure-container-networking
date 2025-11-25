@@ -31,7 +31,8 @@ func (service *HTTPRestService) UpdateIPsForNodeSubnet(secondaryIPs []netip.Addr
 
 	// saved NC successfully. UpdateIPsForNodeSubnet is called only when IPs are fetched from NMAgent.
 	// We now have IPs to serve IPAM requests. Generate conflist to indicate CNS is ready
-	service.MustGenerateCNIConflistOnce()
+	service.ncSynced = make(chan struct{}) // in case this is called multiple times
+	service.mustGenerateCNIConflistOnce()
 	return nil
 }
 

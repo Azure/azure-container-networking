@@ -50,7 +50,7 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	if programmedNCCount > 0 {
 		// This will only be done once per lifetime of the CNS process. This function is threadsafe and will panic
 		// if it fails, so it is safe to call in a non-preemptable goroutine.
-		go service.MustGenerateCNIConflistOnce()
+		go service.mustGenerateCNIConflistOnce()
 	} else {
 		logger.Printf("No NCs programmed on this host yet, skipping CNI conflist generation")
 	}
@@ -185,9 +185,11 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 
 // MustGenerateCNIConflistOnce will generate the CNI conflist once if the service was initialized with
 // a conflist generator. If not, this is a no-op.
-func (service *HTTPRestService) MustGenerateCNIConflistOnce() {
+func (service *HTTPRestService) mustGenerateCNIConflistOnce() {
 	service.generateCNIConflistOnce.Do(func() {
-		close(service.ncSynced)
+		if service.ncSynced != nil {
+			close(service.ncSynced)
+		}
 		if err := service.cniConflistGenerator.Generate(); err != nil {
 			panic("unable to generate cni conflist with error: " + err.Error())
 		}
