@@ -1119,7 +1119,7 @@ func main() {
 	}
 
 	//we wrote out the conflist right?
-	httpRemoteRestService.WaitForNCSynced(rootCtx)
+	httpRemoteRestService.WaitForConfList(rootCtx)
 	// mark the service as "ready"
 	close(readyCh) //will still block if root ctx is canceled?
 	// block until process exiting

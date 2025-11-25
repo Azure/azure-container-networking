@@ -200,16 +200,16 @@ func (service *HTTPRestService) mustGenerateCNIConflistOnce() {
 	})
 }
 
-func (service *HTTPRestService) WaitForNCSynced(ctx context.Context) error {
+func (service *HTTPRestService) WaitForConfList(ctx context.Context) {
 	//sync loop never set up get out of here.
 	if service.ncSynced == nil {
-		return nil
+		return
 	}
 
 	select {
 	case <-service.ncSynced:
-		return nil
+		return
 	case <-ctx.Done():
-		return ctx.Err()
+		return
 	}
 }
