@@ -1,22 +1,22 @@
 {
     "cniVersion": "1.0.0",
     "name": "azure",
-	"type": "azure-vnet",
-	"mode": "bridge",
-	"bridge": "azure0",
-	"capabilities": {
-		"portMappings": true,
-		"dns": true
-	},
-	"ipam": {
-		"type": "azure-cns"
-	},
-	"dns": {
-		"Nameservers": [
-			"168.63.129.16"
-		],
-		"Search": [
-			"svc.cluster.local"
-		]
-	}
+    "type": "azure-vnet",
+    "mode": "bridge",
+    "bridge": "azure0",
+    "capabilities": {
+        "portMappings": true,
+        "dns": true
+    },
+    "ipam": {
+        "type": "azure-cns"
+    },
+    "dns": {
+        "Nameservers": [
+            "168.63.129.16"
+        ],
+        "Search": [
+            "svc.cluster.local"
+        ]
+    }
 }
