@@ -1118,8 +1118,10 @@ func main() {
 		httpRemoteRestService.StartNodeSubnet(rootCtx)
 	}
 
+	//we wrote out the conflist right?
+	httpRemoteRestService.WaitForNCSynced(rootCtx)
 	// mark the service as "ready"
-	close(readyCh)
+	close(readyCh) //will still block if root ctx is canceled?
 	// block until process exiting
 	<-rootCtx.Done()
 
@@ -1283,22 +1285,7 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 		time.Sleep(time.Millisecond * 500)
 	}
 
-	// TODO: do we need this to be running?
-	logger.Printf("Starting SyncHostNCVersion")
-	go func() {
-		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
-		for {
-			select {
-			case <-tickerChannel:
-				timedCtx, cancel := context.WithTimeout(ctx, time.Duration(cnsconfig.SyncHostNCVersionIntervalMs)*time.Millisecond)
-				httpRestServiceImpl.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
-				cancel()
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
+	httpRestServiceImpl.StartSyncHostNCVersionLoop(ctx, cnsconfig)
 
 	return nil
 }
@@ -1643,23 +1630,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		break
 	}
 
-	go func() {
-		logger.Printf("Starting SyncHostNCVersion loop.")
-		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
-		for {
-			select {
-			case <-tickerChannel:
-				timedCtx, cancel := context.WithTimeout(ctx, time.Duration(cnsconfig.SyncHostNCVersionIntervalMs)*time.Millisecond)
-				httpRestServiceImplementation.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
-				cancel()
-			case <-ctx.Done():
-				logger.Printf("Stopping SyncHostNCVersion loop.")
-				return
-			}
-		}
-	}()
-	logger.Printf("Initialized SyncHostNCVersion loop.")
+	httpRestServiceImplementation.StartSyncHostNCVersionLoop(ctx, *cnsconfig)
 	return nil
 }
 

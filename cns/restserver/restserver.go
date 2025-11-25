@@ -102,6 +102,7 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
+	ncSynced                   chan struct{}
 }
 
 type CNIConflistGenerator interface {
@@ -380,20 +381,6 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 func (service *HTTPRestService) Stop() {
 	service.Uninitialize()
 	logger.Printf("[Azure CNS]  Service stopped.")
-}
-
-// MustGenerateCNIConflistOnce will generate the CNI conflist once if the service was initialized with
-// a conflist generator. If not, this is a no-op.
-func (service *HTTPRestService) MustGenerateCNIConflistOnce() {
-	service.generateCNIConflistOnce.Do(func() {
-		if err := service.cniConflistGenerator.Generate(); err != nil {
-			panic("unable to generate cni conflist with error: " + err.Error())
-		}
-
-		if err := service.cniConflistGenerator.Close(); err != nil {
-			panic("unable to close the cni conflist output stream: " + err.Error())
-		}
-	})
 }
 
 func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.IPConfigsHandlerMiddleware) {
