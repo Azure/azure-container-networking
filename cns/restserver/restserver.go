@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -104,7 +105,7 @@ type HTTPRestService struct {
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
 	//put in ncstate struct?
 	ncSynced   chan struct{}
-	ncSyncLoop bool
+	ncSyncLoop atomic.Bool
 }
 
 type CNIConflistGenerator interface {

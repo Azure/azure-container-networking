@@ -18,20 +18,21 @@ import (
 //TODO make this file a sub pacakge?
 
 func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, cnsconfig configuration.CNSConfig) error {
-	service.Lock() //could use a seperate lock or atomic bool.
-	defer service.Unlock()
-	if service.ncSyncLoop {
+	if !service.ncSyncLoop.CompareAndSwap(false, true) {
 		return errors.New("SyncHostNCVersion loop already started")
 	}
-	service.ncSyncLoop = true
 	go func() {
 		logger.Printf("Starting SyncHostNCVersion loop.")
 		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
+		ticker := time.NewTicker(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
+		timeout := time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond
 		for {
+			timedCtx, cancel := context.WithTimeout(ctx, timeout)
+			service.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
+			cancel()
 			select {
-			case <-tickerChannel:
-				timedCtx, cancel := context.WithTimeout(ctx, time.Duration(cnsconfig.SyncHostNCVersionIntervalMs)*time.Millisecond)
+			case <-ticker.C:
+				timedCtx, cancel := context.WithTimeout(ctx, timeout)
 				service.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
 				cancel()
 			case <-ctx.Done():
@@ -43,6 +44,7 @@ func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, 
 	return nil
 }
 
+// TODO: lowercase/unexport this function drive everything through
 // SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
 // If NMAgent NC version got updated, CNS will refresh the pending programming IP status.
 func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string) {
@@ -192,11 +194,9 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 // a conflist generator. If not, this is a no-op.
 func (service *HTTPRestService) mustGenerateCNIConflistOnce() {
 	service.generateCNIConflistOnce.Do(func() {
-		service.Lock() //lock inside a do scary?
-		if service.ncSyncLoop {
+		if service.ncSyncLoop.Load() {
 			close(service.ncSynced)
 		}
-		service.Unlock()
 		if err := service.cniConflistGenerator.Generate(); err != nil {
 			panic("unable to generate cni conflist with error: " + err.Error())
 		}
@@ -209,13 +209,9 @@ func (service *HTTPRestService) mustGenerateCNIConflistOnce() {
 
 func (service *HTTPRestService) WaitForConfList(ctx context.Context) {
 	//sync loop never set up get out of here.
-	func() {
-		service.Lock()
-		defer service.Unlock()
-		if !service.ncSyncLoop {
-			return
-		}
-	}()
+	if !service.ncSyncLoop.Load() {
+		return
+	}
 
 	select {
 	case <-service.ncSynced:
