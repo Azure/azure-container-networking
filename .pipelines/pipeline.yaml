@@ -369,7 +369,7 @@ stages:
     # Cilium EBPF Dualstack Overlay E2E tests
     - template: singletenancy/cilium-dualstack-ebpf/cilium-dualstack-e2e-job-template.yaml
       parameters:
-        name: "cilium_ebpf_dualstackoverlay_e2e"
+        name: "cilium_ebpf_ds_e2e"
         displayName: Cilium EBPF on AKS DualStack Overlay
         os: linux
         clusterType: dualstack-byocni-nokubeproxy-up
@@ -515,7 +515,7 @@ stages:
         - cilium_nodesubnet_e2e
         - cilium_overlay_e2e
         - cilium_ebpf_overlay_e2e
-        - cilium_ebpf_dualstack_e2e
+        - cilium_ebpf_ds_e2e
         - cilium_h_overlay_e2e
         - aks_ubuntu_22_linux_e2e
         - aks_swift_vnetscale_e2e
@@ -557,7 +557,7 @@ stages:
                 clusterName: "cilbpfovere2e"
                 region: $(REGION_AKS_CLUSTER_TEST)
               cilium_ebpf_ds_e2e:
-                name: cilium_ebpf_dualstack_e2e
+                name: cilium_ebpf_ds_e2e
                 clusterName: "cilbpfdse2e"
                 region: $(REGION_AKS_CLUSTER_TEST)                
               cilium_h_overlay_e2e:
