@@ -51,7 +51,7 @@ spec:
               fieldPath: metadata.namespace
         - name: CILIUM_CLUSTERMESH_CONFIG
           value: /var/lib/cilium/clustermesh/
-        image: mcr.microsoft.com/containernetworking/cilium/cilium:v1.17.0-250211
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 10
@@ -156,7 +156,7 @@ spec:
         - ./azure-ip-masq-merger
         - -v
         - "2"
-        image: mcr.microsoft.com/containernetworking/azure-ip-masq-merger:v0.0.1
+        image: $AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY/azure-ip-masq-merger:$AZURE_IP_MASQ_MERGER_TAG
         imagePullPolicy: IfNotPresent
         name: azure-ip-masq-merger
         resources: {}
@@ -171,8 +171,25 @@ spec:
       hostNetwork: true
       initContainers:
       - command:
+            - /azure-block-iptables
+            - -mode=attach
+            - -overwrite=true
+        image: $AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY/azure-iptables-monitor:$AZURE_IPTABLES_MONITOR_TAG
+        imagePullPolicy: IfNotPresent
+        name: iptables-blocker-init
+        resources: {}
+        securityContext:
+            privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+            - mountPath: /sys/fs/bpf
+              name: bpf-maps
+            - mountPath: /proc
+              name: hostproc   
+      - command:
         - /install-plugin.sh
-        image: mcr.microsoft.com/containernetworking/cilium/cilium:v1.17.0-250211
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
         imagePullPolicy: IfNotPresent
         name: install-cni-binaries
         resources: {}
@@ -200,7 +217,7 @@ spec:
           value: /run/cilium/cgroupv2
         - name: BIN_PATH
           value: /opt/cni/bin
-        image: mcr.microsoft.com/containernetworking/cilium/cilium:v1.17.0-250211
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
         imagePullPolicy: IfNotPresent
         name: mount-cgroup
         resources: {}
@@ -234,7 +251,7 @@ spec:
         env:
         - name: BIN_PATH
           value: /opt/cni/bin
-        image: mcr.microsoft.com/containernetworking/cilium/cilium:v1.17.0-250211
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
         imagePullPolicy: IfNotPresent
         name: apply-sysctl-overwrites
         resources: {}
@@ -264,7 +281,7 @@ spec:
         - /bin/bash
         - -c
         - --
-        image: mcr.microsoft.com/containernetworking/cilium/cilium:v1.17.0-250211
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
         imagePullPolicy: IfNotPresent
         name: mount-bpf-fs
         resources: {}
@@ -291,7 +308,7 @@ spec:
               key: clean-cilium-bpf-state
               name: cilium-config
               optional: true
-        image: mcr.microsoft.com/containernetworking/cilium/cilium:v1.17.0-250211
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
         imagePullPolicy: IfNotPresent
         name: clean-cilium-state
         resources:
@@ -325,7 +342,7 @@ spec:
           readOnly: true
       - command:
         - /ipv6-hp-bpf
-        image: mcr.microsoft.com/containernetworking/ipv6-hp-bpf:v0.0.1
+        image: $IPV6_IMAGE_REGISTRY/ipv6-hp-bpf:$IPV6_HP_BPF_VERSION
         imagePullPolicy: IfNotPresent
         name: start-ipv6-hp-bpf
         resources: {}
@@ -336,30 +353,6 @@ spec:
         volumeMounts:
         - mountPath: /var/log
           name: ipv6-hp-bpf
-      - command:
-        - /bin/bash
-        - -cx
-        - |
-          iptables -t mangle -C FORWARD -d 168.63.129.16 -p tcp --dport 80 -j DROP
-          status=$?
-          set -e
-          if [ $status -eq 0 ]; then
-            echo "Skip adding iptables as it already exists"
-          else
-            iptables -t mangle -I FORWARD -d 168.63.129.16 -p tcp --dport 80 -j DROP
-          fi
-        image: mcr.microsoft.com/containernetworking/cilium/cilium:v1.17.0-250211
-        imagePullPolicy: IfNotPresent
-        name: block-wireserver
-        resources: {}
-        securityContext:
-          capabilities:
-            add:
-            - NET_ADMIN
-            drop:
-            - ALL
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
       nodeSelector:
         kubernetes.io/os: linux
       priorityClassName: system-node-critical
