@@ -208,7 +208,7 @@ func (service *HTTPRestService) mustGenerateCNIConflistOnce() {
 }
 
 func (service *HTTPRestService) WaitForConfList(ctx context.Context) {
-	//sync loop never set up get out of here.
+	// Sync loop never set up, get out of here.
 	if !service.ncSyncLoop.Load() {
 		return
 	}

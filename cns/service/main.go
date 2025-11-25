@@ -1118,10 +1118,10 @@ func main() {
 		httpRemoteRestService.StartNodeSubnet(rootCtx)
 	}
 
-	//we wrote out the conflist right?
+	// Wait for NC sync to complete before marking service as ready.
 	httpRemoteRestService.WaitForConfList(rootCtx)
 	// mark the service as "ready"
-	close(readyCh) //will still block if root ctx is canceled?
+	close(readyCh) // This will not block, even if rootCtx is canceled.
 	// block until process exiting
 	<-rootCtx.Done()
 
