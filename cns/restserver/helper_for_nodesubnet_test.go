@@ -79,8 +79,7 @@ func GetRestServiceObjectForNodeSubnetTest(t *testing.T, generator CNIConflistGe
 				return interfaces, nil
 			},
 		},
-		wscli:       &fakes.WireserverClientFake{},
-		ncSyncState: &NetworkContainerSyncState{},
+		wscli: &fakes.WireserverClientFake{},
 	}
 }
 

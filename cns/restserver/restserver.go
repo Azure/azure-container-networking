@@ -102,7 +102,7 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
-	ncSyncState                *NetworkContainerSyncState
+	ncSyncState                networkContainerSyncState
 }
 
 type CNIConflistGenerator interface {
@@ -253,7 +253,6 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		homeAzMonitor:            homeAzMonitor,
 		cniConflistGenerator:     gen,
 		imdsClient:               imdsClient,
-		ncSyncState:              &NetworkContainerSyncState{},
 	}, nil
 }
 
@@ -388,7 +387,7 @@ func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.
 	service.IPConfigsHandlerMiddleware = middleware
 }
 
-// GetNetworkContainerSyncState returns the NetworkContainerSyncState for external use.
+// Wait waits for the NetworkContainerSyncState to be ready or for the context to be done.
 func (service *HTTPRestService) Wait(ctx context.Context) {
-	service.ncSyncState.WaitForConfList(ctx)
+	service.ncSyncState.Wait(ctx)
 }

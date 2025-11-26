@@ -7,6 +7,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -18,48 +19,42 @@ import (
 
 // TODO: make this file a sub pacakge?
 
-// NetworkContainerSyncState manages the synchronization state for network container operations.
-type NetworkContainerSyncState struct {
-	ncSynced   chan struct{}
-	ncSyncLoop atomic.Bool
+// NetworkContainerSyncState manages waiting on conflist to ge
+// Basically a wait group that can only be added once and waits with a context
+// meant to be used uninitialized and then started once the sync loop begins.
+type networkContainerSyncState struct {
+	wg      sync.WaitGroup
+	started atomic.Bool
 }
 
 // Start attempts to start the sync loop. Returns an error if already started.
-func (n *NetworkContainerSyncState) Start() error {
-	if n == nil {
-		return errors.New("NetworkContainerSyncState is nil")
-	}
-	if !n.ncSyncLoop.CompareAndSwap(false, true) {
+func (n *networkContainerSyncState) Start() error {
+	if !n.started.CompareAndSwap(false, true) {
 		return errors.New("sync loop already started")
 	}
-	n.ncSynced = make(chan struct{})
+	n.wg.Add(1)
 	return nil
 }
 
-// NotifyReady closes the ncSynced channel to signal readiness.
-func (n *NetworkContainerSyncState) NotifyReady() {
-	if n == nil || !n.ncSyncLoop.Load() {
+// NotifyReady called once
+func (n *networkContainerSyncState) NotifyReady() {
+	if !n.started.Load() {
 		return //nobody ever set this up just move on.
 	}
-	close(n.ncSynced)
+	n.wg.Done()
 }
 
-// WaitForConfList waits for the CNI conflist to be ready or for the context to be done.
-func (n *NetworkContainerSyncState) WaitForConfList(ctx context.Context) {
-	if n == nil {
-		return //do nothing if we never got intiialized.
-	}
-
-	// Sync loop never set up, get out of here.
-	if n.ncSyncLoop.Load() {
-		return
-	}
+// Wait waits for the CNI conflist to be ready or for the context to be done.
+func (n *networkContainerSyncState) Wait(ctx context.Context) {
+	done := make(chan struct{})
+	go func() {
+		n.wg.Wait()
+		close(done)
+	}()
 
 	select {
-	case <-n.ncSynced:
-		return
+	case <-done:
 	case <-ctx.Done():
-		return
 	}
 }
 
@@ -90,7 +85,7 @@ func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, 
 	return nil
 }
 
-// TODO: lowercase/unexport this function drive everything through
+// TODO: lowercase/unexport this function drive everything through StartSyncHostNCVersionLoop?
 // SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
 // If NMAgent NC version got updated, CNS will refresh the pending programming IP status.
 func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string) {
