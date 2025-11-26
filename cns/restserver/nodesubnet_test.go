@@ -96,7 +96,9 @@ func TestNodeSubnet(t *testing.T) {
 
 	checkIPassignment(t, service, expectedIPs)
 
-	service.StartNodeSubnet(ctx)
+	if err := service.StartNodeSubnet(ctx); err != nil {
+		t.Fatalf("StartNodeSubnet returned an error: %v", err)
+	}
 
 	if service.GetNodesubnetIPFetcher() == nil {
 		t.Fatal("NodeSubnetIPFetcher is not initialized")

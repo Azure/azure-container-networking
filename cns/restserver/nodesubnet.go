@@ -58,6 +58,10 @@ func (service *HTTPRestService) InitializeNodeSubnet(ctx context.Context, podInf
 
 // StartNodeSubnet starts the IP fetcher for NodeSubnet. This will cause secondary IPs to be fetched periodically.
 // After the first successful fetch, conflist will be generated to indicate CNS is ready.
-func (service *HTTPRestService) StartNodeSubnet(ctx context.Context) {
+func (service *HTTPRestService) StartNodeSubnet(ctx context.Context) error {
+	if !service.ncSyncLoop.CompareAndSwap(false, true) {
+		return errors.New("SyncHostNCVersion loop already started")
+	}
 	service.nodesubnetIPFetcher.Start(ctx)
+	return nil
 }
