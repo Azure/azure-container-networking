@@ -29,7 +29,7 @@ func (service *HTTPRestService) UpdateIPsForNodeSubnet(secondaryIPs []netip.Addr
 
 	logger.Debugf("IP change processed successfully")
 
-	service.ncSyncState.NotifyReady()
+	service.ncWait.Done()
 	return nil
 }
 
@@ -58,7 +58,7 @@ func (service *HTTPRestService) InitializeNodeSubnet(ctx context.Context, podInf
 // StartNodeSubnet starts the IP fetcher for NodeSubnet. This will cause secondary IPs to be fetched periodically.
 // After the first successful fetch, conflist will be generated to indicate CNS is ready.
 func (service *HTTPRestService) StartNodeSubnet(ctx context.Context) error {
-	if err := service.ncSyncState.Start(); err != nil {
+	if err := service.ncWait.Start(); err != nil {
 		return err
 	}
 	service.nodesubnetIPFetcher.Start(ctx)

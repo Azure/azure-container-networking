@@ -19,16 +19,16 @@ import (
 
 // TODO: make this file a sub pacakge?
 
-// NetworkContainerSyncState manages waiting on conflist to ge
+// ncWait manages making sure ncstate or nodesubnet state is ready before conflist writing
 // Basically a wait group that can only be added once and waits with a context
 // meant to be used uninitialized and then started once the sync loop begins.
-type networkContainerSyncState struct {
+type ncWait struct {
 	wg      sync.WaitGroup
 	started atomic.Bool
 }
 
-// Start is like add except it only allows being called once.
-func (n *networkContainerSyncState) Start() error {
+// Start is like Add except it only allows being called once.
+func (n *ncWait) Start() error {
 	if !n.started.CompareAndSwap(false, true) {
 		return errors.New("sync loop already started")
 	}
@@ -36,8 +36,8 @@ func (n *networkContainerSyncState) Start() error {
 	return nil
 }
 
-// NotifyReady is like Done but will ignore if Start was never called.
-func (n *networkContainerSyncState) NotifyReady() {
+// Done is like waitgroup Done but will ignore if Start was never called.
+func (n *ncWait) Done() {
 	if !n.started.Load() {
 		return //nobody ever set this up just move on.
 	}
@@ -45,7 +45,7 @@ func (n *networkContainerSyncState) NotifyReady() {
 }
 
 // Wait waits for the CNI conflist to be ready or for the context to be done.
-func (n *networkContainerSyncState) Wait(ctx context.Context) {
+func (n *ncWait) Wait(ctx context.Context) {
 	done := make(chan struct{})
 	go func() {
 		n.wg.Wait() //still fine to wait even if never started will just return immediately
@@ -61,7 +61,7 @@ func (n *networkContainerSyncState) Wait(ctx context.Context) {
 // StartSyncHostNCVersionLoop loops until checking htat NCS are programmed annd also notifis when at least one has been programmed
 // so we can write conflist and mark cns ready.
 func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, cnsconfig configuration.CNSConfig) error {
-	if err := service.ncSyncState.Start(); err != nil {
+	if err := service.ncWait.Start(); err != nil {
 		return err
 	}
 	go func() {
@@ -72,12 +72,12 @@ func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, 
 		timeout := time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond
 		for {
 			if service.syncHostNCVersionWrapper(ctx, cnsconfig.ChannelMode, timeout) {
-				one.Do(service.ncSyncState.NotifyReady)
+				one.Do(service.ncWait.Done)
 			}
 			select {
 			case <-ticker.C:
 				if service.syncHostNCVersionWrapper(ctx, cnsconfig.ChannelMode, timeout) {
-					one.Do(service.ncSyncState.NotifyReady)
+					one.Do(service.ncWait.Done)
 				}
 			case <-ctx.Done():
 				logger.Printf("Stopping SyncHostNCVersion loop.")

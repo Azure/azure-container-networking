@@ -101,7 +101,7 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
-	ncSyncState                networkContainerSyncState
+	ncWait                     ncWait
 }
 
 type CNIConflistGenerator interface {
@@ -388,7 +388,7 @@ func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.
 
 // Wait waits for nc sync state then writes out the conflist.
 func (service *HTTPRestService) Wait(ctx context.Context) {
-	service.ncSyncState.Wait(ctx)
+	service.ncWait.Wait(ctx)
 	if ctx.Err() != nil {
 		logger.Printf("Context done before writing out conflist: %v", ctx.Err())
 		return
