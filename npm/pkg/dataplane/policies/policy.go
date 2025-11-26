@@ -114,6 +114,10 @@ type ACLPolicy struct {
 	SrcList []SetInfo
 	// DstList destination IPSets condition setinfos
 	DstList []SetInfo
+	// SrcDirectIPs holds direct IPs for source matching (used for /32 CIDRs on Windows with npm lite enabled)
+	SrcDirectIPs []string
+	// DstDirectIPs holds direct IPs for destination matching (used for /32 CIDRs on Windows with npm lite enabled)
+	DstDirectIPs []string
 	// Target defines a target in iptables for linux. i,e, Mark, Accept, Drop
 	// in windows, this is either ALLOW or DENY
 	Target Verdict
@@ -282,7 +286,9 @@ func translatedIPSetsToString(items []*ipsets.TranslatedIPSet) string {
 // Included is false when match set have "!".
 // MatchType captures match direction flags.
 // For example match set in linux:
-//             ! azure-npm-123 src
+//
+//	! azure-npm-123 src
+//
 // "!" this indicates a negative match (Included is false) of an azure-npm-123
 // MatchType is "src"
 type SetInfo struct {
