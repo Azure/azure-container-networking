@@ -58,7 +58,8 @@ func (n *networkContainerSyncState) Wait(ctx context.Context) {
 	}
 }
 
-// StartSyncHostNCVersionLoop loops until NCs are programmed and conflist is written The node subnet equivalent isStartNodeSubnet
+// StartSyncHostNCVersionLoop loops until checking htat NCS are programmed annd also notifis when at least one has been programmed
+// so we can write conflist and mark cns ready.
 func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, cnsconfig configuration.CNSConfig) error {
 	if err := service.ncSyncState.Start(); err != nil {
 		return err
@@ -70,18 +71,14 @@ func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, 
 		ticker := time.NewTicker(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
 		timeout := time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond
 		for {
-			timedCtx, cancel := context.WithTimeout(ctx, timeout)
-			if service.syncHostNCVersionWrapper(timedCtx, cnsconfig.ChannelMode) {
+			if service.syncHostNCVersionWrapper(ctx, cnsconfig.ChannelMode, timeout) {
 				one.Do(service.ncSyncState.NotifyReady)
 			}
-			cancel()
 			select {
 			case <-ticker.C:
-				timedCtx, cancel := context.WithTimeout(ctx, timeout)
-				if service.syncHostNCVersionWrapper(timedCtx, cnsconfig.ChannelMode) {
+				if service.syncHostNCVersionWrapper(ctx, cnsconfig.ChannelMode, timeout) {
 					one.Do(service.ncSyncState.NotifyReady)
 				}
-				cancel()
 			case <-ctx.Done():
 				logger.Printf("Stopping SyncHostNCVersion loop.")
 				return
@@ -91,15 +88,15 @@ func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, 
 	return nil
 }
 
-// TODO: lowercase/unexport this function drive everything through StartSyncHostNCVersionLoop?
-// SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
-// If NMAgent NC version got updated, CNS will refresh the pending programming IP status.
-// returns true if soemthing was progammeed
-func (service *HTTPRestService) syncHostNCVersionWrapper(ctx context.Context, channelMode string) bool {
+// syncHostNCVersionWrapper bascially calls syncHostNCVersion but wraps it with locks a timeout and logges erros (but doesn't fail).
+// Mostly exists so StartSyncHostNCVersionLoop doesn't have to repeat itself to be a do/while loop
+func (service *HTTPRestService) syncHostNCVersionWrapper(ctx context.Context, channelMode string, timeout time.Duration) bool {
+	timedCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	service.Lock()
 	defer service.Unlock()
 	start := time.Now()
-	programmedNCCount, err := service.syncHostNCVersion(ctx, channelMode)
+	programmedNCCount, err := service.syncHostNCVersion(timedCtx, channelMode)
 	if err != nil {
 		logger.Errorf("sync host error %v", err)
 	}
