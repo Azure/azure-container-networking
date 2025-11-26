@@ -71,14 +71,14 @@ func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, 
 		timeout := time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond
 		for {
 			timedCtx, cancel := context.WithTimeout(ctx, timeout)
-			if service.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode) {
+			if service.syncHostNCVersionWrapper(timedCtx, cnsconfig.ChannelMode) {
 				one.Do(service.ncSyncState.NotifyReady)
 			}
 			cancel()
 			select {
 			case <-ticker.C:
 				timedCtx, cancel := context.WithTimeout(ctx, timeout)
-				if service.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode) {
+				if service.syncHostNCVersionWrapper(timedCtx, cnsconfig.ChannelMode) {
 					one.Do(service.ncSyncState.NotifyReady)
 				}
 				cancel()
@@ -95,7 +95,7 @@ func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, 
 // SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
 // If NMAgent NC version got updated, CNS will refresh the pending programming IP status.
 // returns true if soemthing was progammeed
-func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string) bool {
+func (service *HTTPRestService) syncHostNCVersionWrapper(ctx context.Context, channelMode string) bool {
 	service.Lock()
 	defer service.Unlock()
 	start := time.Now()

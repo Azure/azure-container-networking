@@ -304,7 +304,7 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	}
 }
 
-func TestSyncHostNCVersion(t *testing.T) {
+func TestStartSyncHostNCVersionLoop(t *testing.T) {
 	// cns.KubernetesCRD has one more logic compared to other orchestrator type, so test both of them
 	orchestratorTypes := []string{cns.Kubernetes, cns.KubernetesCRD}
 	for _, orchestratorType := range orchestratorTypes {
@@ -349,7 +349,12 @@ func TestSyncHostNCVersion(t *testing.T) {
 			defer cleanupIMDS()
 
 			// When syncing the host NC version, it will use the orchestratorType passed in.
-			svc.SyncHostNCVersion(context.Background(), orchestratorType)
+			cnsconf := configuration.CNSConfig{
+				SyncHostNCVersionIntervalMs: 100,
+				ChannelMode:                 orchestratorType,
+			}
+			svc.StartSyncHostNCVersionLoop(t.Context(), cnsconf)
+			svc.ncSyncState.Wait(t.Context()) // wait for at leat one run
 			containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 			if containerStatus.HostVersion != "0" {
 				t.Errorf("Unexpected containerStatus.HostVersion %s, expected host version should be 0 in string", containerStatus.HostVersion)
@@ -400,7 +405,8 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 	cleanup := setMockNMAgent(svc, mnma)
 	defer cleanup()
 
-	svc.SyncHostNCVersion(context.Background(), cns.CRD)
+	svc.StartSyncHostNCVersionLoop(t.Context(), fastcnsconf)
+	svc.ncSyncState.Wait(t.Context()) // wait for at leat one run
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 
 	receivedSecondaryIPConfigs = containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
