@@ -18,9 +18,8 @@ import (
 // +kubebuilder:metadata:labels=owner=
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
 //
-// Enforce immutability of .spec once reconcile is complete (status becomes Ready).
+// Enforce immutability of .spec.
 // Rule semantics:
-//   - Allow CREATE.
 //   - Do not allow UPDATE require self.spec == oldSelf.spec (no spec changes).
 //
 // This compiles to a CRD-level x-kubernetes-validations transition rule using oldSelf.
