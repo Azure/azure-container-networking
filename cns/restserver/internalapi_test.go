@@ -354,7 +354,7 @@ func TestStartSyncHostNCVersionLoop(t *testing.T) {
 				ChannelMode:                 orchestratorType,
 			}
 			svc.StartSyncHostNCVersionLoop(t.Context(), cnsconf)
-			svc.ncSyncState.Wait(t.Context()) // wait for at leat one run
+			svc.Wait(t.Context()) // wait for at leat one run
 			containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 			if containerStatus.HostVersion != "0" {
 				t.Errorf("Unexpected containerStatus.HostVersion %s, expected host version should be 0 in string", containerStatus.HostVersion)
@@ -406,7 +406,7 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 	defer cleanup()
 
 	svc.StartSyncHostNCVersionLoop(t.Context(), fastcnsconf)
-	svc.ncSyncState.Wait(t.Context()) // wait for at leat one run
+	svc.Wait(t.Context()) // wait for at leat one run
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 
 	receivedSecondaryIPConfigs = containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
