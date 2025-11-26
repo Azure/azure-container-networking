@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -103,9 +102,7 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
-	//put in ncstate struct?
-	ncSynced   chan struct{}
-	ncSyncLoop atomic.Bool
+	ncSyncState                *NetworkContainerSyncState
 }
 
 type CNIConflistGenerator interface {
@@ -256,7 +253,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		homeAzMonitor:            homeAzMonitor,
 		cniConflistGenerator:     gen,
 		imdsClient:               imdsClient,
-		ncSynced:                 make(chan struct{}),
+		ncSyncState:              &NetworkContainerSyncState{},
 	}, nil
 }
 
@@ -389,4 +386,9 @@ func (service *HTTPRestService) Stop() {
 
 func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.IPConfigsHandlerMiddleware) {
 	service.IPConfigsHandlerMiddleware = middleware
+}
+
+// GetNetworkContainerSyncState returns the NetworkContainerSyncState for external use.
+func (service *HTTPRestService) Wait(ctx context.Context) {
+	service.ncSyncState.WaitForConfList(ctx)
 }

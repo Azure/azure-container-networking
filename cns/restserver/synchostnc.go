@@ -7,6 +7,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -17,9 +18,54 @@ import (
 
 // TODO: make this file a sub pacakge?
 
+// NetworkContainerSyncState manages the synchronization state for network container operations.
+type NetworkContainerSyncState struct {
+	ncSynced   chan struct{}
+	ncSyncLoop atomic.Bool
+}
+
+// Start attempts to start the sync loop. Returns an error if already started.
+func (n *NetworkContainerSyncState) Start() error {
+	if n == nil {
+		return errors.New("NetworkContainerSyncState is nil")
+	}
+	if !n.ncSyncLoop.CompareAndSwap(false, true) {
+		return errors.New("sync loop already started")
+	}
+	n.ncSynced = make(chan struct{})
+	return nil
+}
+
+// NotifyReady closes the ncSynced channel to signal readiness.
+func (n *NetworkContainerSyncState) NotifyReady() {
+	if n == nil || !n.ncSyncLoop.Load() {
+		return //nobody ever set this up just move on.
+	}
+	close(n.ncSynced)
+}
+
+// WaitForConfList waits for the CNI conflist to be ready or for the context to be done.
+func (n *NetworkContainerSyncState) WaitForConfList(ctx context.Context) {
+	if n == nil {
+		return //do nothing if we never got intiialized.
+	}
+
+	// Sync loop never set up, get out of here.
+	if n.ncSyncLoop.Load() {
+		return
+	}
+
+	select {
+	case <-n.ncSynced:
+		return
+	case <-ctx.Done():
+		return
+	}
+}
+
 func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, cnsconfig configuration.CNSConfig) error {
-	if !service.ncSyncLoop.CompareAndSwap(false, true) {
-		return errors.New("SyncHostNCVersion loop already started")
+	if err := service.ncSyncState.Start(); err != nil {
+		return err
 	}
 	go func() {
 		logger.Printf("Starting SyncHostNCVersion loop.")
@@ -194,9 +240,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 // a conflist generator. If not, this is a no-op.
 func (service *HTTPRestService) mustGenerateCNIConflistOnce() {
 	service.generateCNIConflistOnce.Do(func() {
-		if service.ncSyncLoop.Load() {
-			close(service.ncSynced)
-		}
+
 		if err := service.cniConflistGenerator.Generate(); err != nil {
 			panic("unable to generate cni conflist with error: " + err.Error())
 		}
@@ -204,19 +248,6 @@ func (service *HTTPRestService) mustGenerateCNIConflistOnce() {
 		if err := service.cniConflistGenerator.Close(); err != nil {
 			panic("unable to close the cni conflist output stream: " + err.Error())
 		}
+		service.ncSyncState.NotifyReady()
 	})
-}
-
-func (service *HTTPRestService) WaitForConfList(ctx context.Context) {
-	// Sync loop never set up, get out of here.
-	if !service.ncSyncLoop.Load() {
-		return
-	}
-
-	select {
-	case <-service.ncSynced:
-		return
-	case <-ctx.Done():
-		return
-	}
 }

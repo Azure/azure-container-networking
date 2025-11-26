@@ -1122,7 +1122,7 @@ func main() {
 	}
 
 	// Wait for NC sync to complete before marking service as ready.
-	httpRemoteRestService.WaitForConfList(rootCtx)
+	httpRemoteRestService.Wait(rootCtx)
 	// mark the service as "ready"
 	close(readyCh)
 	// block until process exiting
