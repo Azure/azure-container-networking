@@ -52,7 +52,7 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--no-ssh-key  \
 	--os-sku $(OS_SKU) \
 	$(LTS_ARGS)
-POD_CIDR = 192.168.0.0/16
+POD_CIDR ?= 192.168.0.0/16
 
 ##@ Help
 
