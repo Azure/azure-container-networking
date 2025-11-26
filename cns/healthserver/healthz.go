@@ -70,7 +70,6 @@ func NewHealthzHandlerWithChecks(cfg *Config) (http.Handler, error) {
 			return nil
 		}
 	}
-
 	return &healthz.Handler{
 		Checks: checks,
 	}, nil

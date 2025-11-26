@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-//TODO make this file a sub pacakge?
+// TODO: make this file a sub pacakge?
 
 func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, cnsconfig configuration.CNSConfig) error {
 	if !service.ncSyncLoop.CompareAndSwap(false, true) {
