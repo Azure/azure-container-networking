@@ -175,15 +175,20 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	defer service.Unlock()
 	start := time.Now()
 	programmedNCCount, err := service.syncHostNCVersion(ctx, channelMode)
+
 	// even if we get an error, we want to write the CNI conflist if we have any NC programmed to any version
 	if programmedNCCount > 0 {
 		// This will only be done once per lifetime of the CNS process. This function is threadsafe and will panic
 		// if it fails, so it is safe to call in a non-preemptable goroutine.
 		go service.MustGenerateCNIConflistOnce()
+	} else {
+		logger.Printf("No NCs programmed on this host yet, skipping CNI conflist generation")
 	}
+
 	if err != nil {
 		logger.Errorf("sync host error %v", err)
 	}
+
 	syncHostNCVersionCount.WithLabelValues(strconv.FormatBool(err == nil)).Inc()
 	syncHostNCVersionLatency.WithLabelValues(strconv.FormatBool(err == nil)).Observe(time.Since(start).Seconds())
 }
@@ -302,7 +307,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	// if we didn't empty out the needs update set, NMA has not programmed all the NCs we are expecting, and we
 	// need to return an error indicating that
 	if len(outdatedNCs) > 0 {
-		return len(programmedNCs), errors.Errorf("unable to update some NCs: %v, missing or bad response from NMA or IMDS", outdatedNCs)
+		return len(programmedNCs), errors.Errorf("Have outdated NCs: %v, Current Programmed nics from NMA/IMDS %v", outdatedNCs, programmedNCs)
 	}
 
 	return len(programmedNCs), nil
