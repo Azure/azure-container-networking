@@ -199,11 +199,9 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	programmedNCs := map[string]struct{}{}
 	for idx := range service.state.ContainerStatus {
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
-		localNCVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].HostVersion)
-		if err != nil {
-			logger.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", service.state.ContainerStatus[idx].HostVersion, err)
-			continue
-		}
+		//	localNCVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].HostVersion)
+		localNCVersion := 0
+
 		dncNCVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version)
 		if err != nil {
 			logger.Errorf("Received err when change nc version %s in containerstatus to int, err msg %v", service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version, err)

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
@@ -95,6 +96,14 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer, isSwiftV2 bool) (*
 		subnet.IPAddress = nc.NodeIP
 	} else {
 		subnet.IPAddress = primaryPrefix.Addr().String()
+	}
+
+	for i := range nc.IPAssignments {
+		if strings.Contains(nc.IPAssignments[i].IP, "/124") {
+			nc.IPAssignments[i].IP = strings.Replace(nc.IPAssignments[i].IP, "/124", "/80", 1)
+			logger.Printf("[conversion] Modified IPv6 prefix from /124 to /80: %s", nc.IPAssignments[i].IP)
+			break // Only modify the first one
+		}
 	}
 
 	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet, isSwiftV2)

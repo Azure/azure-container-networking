@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
@@ -30,21 +31,26 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 
 	// Add IPs from CIDR block to the secondary IPConfigs
 	if nc.Type == v1alpha.VNETBlock {
-
 		for _, ipAssignment := range nc.IPAssignments {
 			cidrPrefix, err := netip.ParsePrefix(ipAssignment.IP)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid CIDR block: %s", ipAssignment.IP)
 			}
 
-			// iterate through all IP addresses in the CIDR block described by cidrPrefix and
-			// add them to the request as secondary IPConfigs.
+			// Log the CIDR being expanded
+			logger.Printf("[conversion] Expanding CIDR block: %s (will create ~%d IPs)",
+				ipAssignment.IP, cidrPrefix.Addr().BitLen()-cidrPrefix.Bits())
+
+			// iterate through all IP addresses in the CIDR block
+			count := 0
 			for addr := cidrPrefix.Masked().Addr(); cidrPrefix.Contains(addr); addr = addr.Next() {
 				secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
 					IPAddress: addr.String(),
 					NCVersion: int(nc.Version),
 				}
+				count++
 			}
+			logger.Printf("[conversion] Expanded CIDR block %s into %d individual IPs", ipAssignment.IP, count)
 		}
 	}
 
