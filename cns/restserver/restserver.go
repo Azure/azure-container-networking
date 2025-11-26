@@ -97,7 +97,6 @@ type HTTPRestService struct {
 	EndpointState              map[string]*EndpointInfo // key : container id
 	EndpointStateStore         store.KeyValueStore
 	cniConflistGenerator       CNIConflistGenerator
-	generateCNIConflistOnce    sync.Once
 	IPConfigsHandlerMiddleware cns.IPConfigsHandlerMiddleware
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
@@ -387,7 +386,18 @@ func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.
 	service.IPConfigsHandlerMiddleware = middleware
 }
 
-// Wait waits for the NetworkContainerSyncState to be ready or for the context to be done.
+// Wait waits for nc sync state then writes out the conflist.
 func (service *HTTPRestService) Wait(ctx context.Context) {
 	service.ncSyncState.Wait(ctx)
+	if ctx.Err() != nil {
+		logger.Printf("Context done before writing out conflist: %v", ctx.Err())
+		return
+	}
+	if err := service.cniConflistGenerator.Generate(); err != nil {
+		panic("unable to generate cni conflist with error: " + err.Error())
+	}
+
+	if err := service.cniConflistGenerator.Close(); err != nil {
+		panic("unable to close the cni conflist output stream: " + err.Error())
+	}
 }

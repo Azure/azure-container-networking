@@ -1345,6 +1345,11 @@ func (m *mockCNIConflistGenerator) getGeneratedCount() int {
 	return m.generatedCount
 }
 
+var fastcnsconf = configuration.CNSConfig{
+	SyncHostNCVersionIntervalMs: 100,
+	ChannelMode:                 cns.CRD,
+}
+
 // TestCNIConflistGenerationNewNC tests that discovering a new programmed NC in CNS state will trigger CNI conflist generation
 func TestCNIConflistGenerationNewNC(t *testing.T) {
 	ncID := "some-new-nc" //nolint:goconst // value not shared across tests, can change without issue
@@ -1380,9 +1385,10 @@ func TestCNIConflistGenerationNewNC(t *testing.T) {
 		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
-	service.SyncHostNCVersion(context.Background(), cns.CRD)
-	// CNI conflist gen happens in goroutine so sleep for a second to let it run
-	time.Sleep(time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	service.StartSyncHostNCVersionLoop(ctx, fastcnsconf)
+	service.Wait(ctx)
 	assert.Equal(t, 1, mockgen.getGeneratedCount())
 }
 
@@ -1421,9 +1427,10 @@ func TestCNIConflistGenerationExistingNC(t *testing.T) {
 		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
-	service.SyncHostNCVersion(context.Background(), cns.CRD)
-	// CNI conflist gen happens in goroutine so sleep for a second to let it run
-	time.Sleep(time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	service.StartSyncHostNCVersionLoop(ctx, fastcnsconf)
+	service.Wait(ctx)
 	assert.Equal(t, 1, mockgen.getGeneratedCount())
 }
 
@@ -1463,12 +1470,11 @@ func TestCNIConflistGenerationNewNCTwice(t *testing.T) {
 		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
-	service.SyncHostNCVersion(context.Background(), cns.CRD)
-	// CNI conflist gen happens in goroutine so sleep for a second to let it run
-	time.Sleep(time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	service.StartSyncHostNCVersionLoop(ctx, fastcnsconf)
+	service.Wait(ctx)
 	assert.Equal(t, 1, mockgen.getGeneratedCount())
-
-	service.SyncHostNCVersion(context.Background(), cns.CRD)
 	// CNI conflist gen happens in goroutine so sleep for a second to let it run
 	time.Sleep(time.Second)
 	assert.Equal(t, 1, mockgen.getGeneratedCount()) // should still be one
@@ -1502,9 +1508,10 @@ func TestCNIConflistNotGenerated(t *testing.T) {
 		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
-	service.SyncHostNCVersion(context.Background(), cns.CRD)
-	// CNI conflist gen happens in goroutine so sleep for a second to let it run
-	time.Sleep(time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	service.StartSyncHostNCVersionLoop(ctx, fastcnsconf)
+	service.Wait(ctx)
 	assert.Equal(t, 0, mockgen.getGeneratedCount())
 }
 
@@ -1545,9 +1552,10 @@ func TestCNIConflistGenerationOnNMAError(t *testing.T) {
 		imdsClient: fakes.NewMockIMDSClient(),
 	}
 
-	service.SyncHostNCVersion(context.Background(), cns.CRD)
-	// CNI conflist gen happens in goroutine so sleep for a second to let it run
-	time.Sleep(time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	service.StartSyncHostNCVersionLoop(ctx, fastcnsconf)
+	service.Wait(ctx)
 	assert.Equal(t, 1, mockgen.getGeneratedCount())
 }
 

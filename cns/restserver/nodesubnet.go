@@ -29,8 +29,7 @@ func (service *HTTPRestService) UpdateIPsForNodeSubnet(secondaryIPs []netip.Addr
 
 	logger.Debugf("IP change processed successfully")
 
-	//encapsulation viloation. Better if this called something equivalent to StartSyncHostNCVersionLoop
-	service.mustGenerateCNIConflistOnce()
+	service.ncSyncState.NotifyReady()
 	return nil
 }
 

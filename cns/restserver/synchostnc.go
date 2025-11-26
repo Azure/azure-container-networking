@@ -27,7 +27,7 @@ type networkContainerSyncState struct {
 	started atomic.Bool
 }
 
-// Start attempts to start the sync loop. Returns an error if already started.
+// Start is like add except it only allows being called once.
 func (n *networkContainerSyncState) Start() error {
 	if !n.started.CompareAndSwap(false, true) {
 		return errors.New("sync loop already started")
@@ -36,7 +36,7 @@ func (n *networkContainerSyncState) Start() error {
 	return nil
 }
 
-// NotifyReady called once
+// NotifyReady is like Done but will ignore if Start was never called.
 func (n *networkContainerSyncState) NotifyReady() {
 	if !n.started.Load() {
 		return //nobody ever set this up just move on.
@@ -48,7 +48,7 @@ func (n *networkContainerSyncState) NotifyReady() {
 func (n *networkContainerSyncState) Wait(ctx context.Context) {
 	done := make(chan struct{})
 	go func() {
-		n.wg.Wait()
+		n.wg.Wait() //still fine to wait even if never started will just return immediately
 		close(done)
 	}()
 
@@ -58,23 +58,29 @@ func (n *networkContainerSyncState) Wait(ctx context.Context) {
 	}
 }
 
+// StartSyncHostNCVersionLoop loops until NCs are programmed and conflist is written The node subnet equivalent isStartNodeSubnet
 func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, cnsconfig configuration.CNSConfig) error {
 	if err := service.ncSyncState.Start(); err != nil {
 		return err
 	}
 	go func() {
+		var one sync.Once
 		logger.Printf("Starting SyncHostNCVersion loop.")
 		// Periodically poll vfp programmed NC version from NMAgent
 		ticker := time.NewTicker(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
 		timeout := time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond
 		for {
 			timedCtx, cancel := context.WithTimeout(ctx, timeout)
-			service.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
+			if service.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode) {
+				one.Do(service.ncSyncState.NotifyReady)
+			}
 			cancel()
 			select {
 			case <-ticker.C:
 				timedCtx, cancel := context.WithTimeout(ctx, timeout)
-				service.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
+				if service.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode) {
+					one.Do(service.ncSyncState.NotifyReady)
+				}
 				cancel()
 			case <-ctx.Done():
 				logger.Printf("Stopping SyncHostNCVersion loop.")
@@ -88,27 +94,20 @@ func (service *HTTPRestService) StartSyncHostNCVersionLoop(ctx context.Context, 
 // TODO: lowercase/unexport this function drive everything through StartSyncHostNCVersionLoop?
 // SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
 // If NMAgent NC version got updated, CNS will refresh the pending programming IP status.
-func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string) {
+// returns true if soemthing was progammeed
+func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string) bool {
 	service.Lock()
 	defer service.Unlock()
 	start := time.Now()
 	programmedNCCount, err := service.syncHostNCVersion(ctx, channelMode)
-
-	// even if we get an error, we want to write the CNI conflist if we have any NC programmed to any version
-	if programmedNCCount > 0 {
-		// This will only be done once per lifetime of the CNS process. This function is threadsafe and will panic
-		// if it fails, so it is safe to call in a non-preemptable goroutine.
-		go service.mustGenerateCNIConflistOnce()
-	} else {
-		logger.Printf("No NCs programmed on this host yet, skipping CNI conflist generation")
-	}
-
 	if err != nil {
 		logger.Errorf("sync host error %v", err)
 	}
 
 	syncHostNCVersionCount.WithLabelValues(strconv.FormatBool(err == nil)).Inc()
+	//does not include time to write out conflist.
 	syncHostNCVersionLatency.WithLabelValues(strconv.FormatBool(err == nil)).Observe(time.Since(start).Seconds())
+	return programmedNCCount > 0
 }
 
 var errNonExistentContainerStatus = errors.New("nonExistantContainerstatus")
@@ -229,20 +228,4 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	}
 
 	return len(programmedNCs), nil
-}
-
-// MustGenerateCNIConflistOnce will generate the CNI conflist once if the service was initialized with
-// a conflist generator. If not, this is a no-op.
-func (service *HTTPRestService) mustGenerateCNIConflistOnce() {
-	service.generateCNIConflistOnce.Do(func() {
-
-		if err := service.cniConflistGenerator.Generate(); err != nil {
-			panic("unable to generate cni conflist with error: " + err.Error())
-		}
-
-		if err := service.cniConflistGenerator.Close(); err != nil {
-			panic("unable to close the cni conflist output stream: " + err.Error())
-		}
-		service.ncSyncState.NotifyReady()
-	})
 }
