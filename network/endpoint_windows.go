@@ -79,54 +79,68 @@ func (nw *network) getEndpointWithVFDevice(plc platform.ExecClient, epInfo *Endp
 		return nil, errors.Wrap(err, "failed to get VF device state")
 	}
 
-	// state machine, use devicePresence and problemCode to determine actions
-	if devicePresence == "True" && problemCode == noError { //nolint
-		logger.Info("Device enabled and mounted")
-
-		if err := disableVFDevice(epInfo.PnPID, plc); err != nil { //nolint
-			return nil, errors.Wrap(err, "failed to disable VF device")
-		}
-
-		if err := dismountVFDevice(epInfo.PnPID, plc); err != nil { //nolint
-			return nil, errors.Wrap(err, "failed to dismount VF device")
-		}
-
-		// get new pnp id after VF dismount
-		pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get updated VF device ID")
-		}
-
-		// assign updated PciID back to containerd
-		epInfo.PnPID = pnpDeviceID
-	} else if devicePresence == "True" && problemCode == deviceDisabled {
-		logger.Info("Device disabled")
-		// device is disabled but not dismounted
-		if err := dismountVFDevice(epInfo.PnPID, plc); err != nil { //nolint
-			return nil, errors.Wrap(err, "failed to dismount VF device")
-		}
-
-		// get new pnp id after VF dismount
-		pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get updated VF device ID")
-		}
-
-		// assign updated PciID back to containerd
-		epInfo.PnPID = pnpDeviceID
-	} else if devicePresence == "False" {
-		logger.Info("Device dismounted")
-		// device is disabled and dismounted, just get the new PciID and assign back to containerd
-		pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get updated VF device ID")
-		}
-		// assign updated PciID back to containerd
-		epInfo.PnPID = pnpDeviceID
-	} else {
-		// return unexpected error and log devicePresence, problemCode
-		return nil, errors.Wrapf(err, "unexpected error with devicePresence %s and problemCode %s", devicePresence, problemCode)
+	// expect device to be disabled & dismounted by criproxy
+	if devicePresence == "True" || problemCode == noError {
+		logger.Info("Unexpected device state before disabling and dismounting VF device", zap.String("devicePresence", devicePresence), zap.String("problemCode", problemCode))
+		return nil, errors.Wrapf(err, "unexpected device state with devicePresence %s and problemCode %s", devicePresence, problemCode)
 	}
+
+	// device is disabled and dismounted, get the new PciID and assign back to containerd
+	pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get updated VF device ID")
+	}
+	// assign updated PciID back to containerd
+	epInfo.PnPID = pnpDeviceID
+
+	// // state machine, use devicePresence and problemCode to determine actions
+	// if devicePresence == "True" && problemCode == noError { //nolint
+	// 	logger.Info("Device enabled and mounted")
+
+	// 	if err := disableVFDevice(epInfo.PnPID, plc); err != nil { //nolint
+	// 		return nil, errors.Wrap(err, "failed to disable VF device")
+	// 	}
+
+	// 	if err := dismountVFDevice(epInfo.PnPID, plc); err != nil { //nolint
+	// 		return nil, errors.Wrap(err, "failed to dismount VF device")
+	// 	}
+
+	// 	// get new pnp id after VF dismount
+	// 	pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
+	// 	if err != nil {
+	// 		return nil, errors.Wrap(err, "failed to get updated VF device ID")
+	// 	}
+
+	// 	// assign updated PciID back to containerd
+	// 	epInfo.PnPID = pnpDeviceID
+	// } else if devicePresence == "True" && problemCode == deviceDisabled {
+	// 	logger.Info("Device disabled")
+	// 	// device is disabled but not dismounted
+	// 	if err := dismountVFDevice(epInfo.PnPID, plc); err != nil { //nolint
+	// 		return nil, errors.Wrap(err, "failed to dismount VF device")
+	// 	}
+
+	// 	// get new pnp id after VF dismount
+	// 	pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
+	// 	if err != nil {
+	// 		return nil, errors.Wrap(err, "failed to get updated VF device ID")
+	// 	}
+
+	// 	// assign updated PciID back to containerd
+	// 	epInfo.PnPID = pnpDeviceID
+	// } else if devicePresence == "False" {
+	// 	logger.Info("Device dismounted")
+	// 	// device is disabled and dismounted, just get the new PciID and assign back to containerd
+	// 	pnpDeviceID, err := getPnPDeviceID(epInfo.PnPID, plc) //nolint
+	// 	if err != nil {
+	// 		return nil, errors.Wrap(err, "failed to get updated VF device ID")
+	// 	}
+	// 	// assign updated PciID back to containerd
+	// 	epInfo.PnPID = pnpDeviceID
+	// } else {
+	// 	// return unexpected error and log devicePresence, problemCode
+	// 	return nil, errors.Wrapf(err, "unexpected error with devicePresence %s and problemCode %s", devicePresence, problemCode)
+	// }
 
 	// Create the endpoint object.
 	ep := &endpoint{
