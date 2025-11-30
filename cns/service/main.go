@@ -86,6 +86,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
@@ -850,6 +851,9 @@ func main() {
 	if config.ChannelMode == cns.CRD {
 		// Add APIServer FQDN to Log metadata
 		logger.Log.SetAPIServer(os.Getenv("KUBERNETES_SERVICE_HOST"))
+
+		// set logger in ctrlruntime
+		ctrllog.SetLogger(zapr.NewLogger(z))
 
 		// Check the CNI statefile mount, and if the file is empty
 		// stub an empty JSON object
