@@ -144,7 +144,7 @@ func (client *TransparentVlanEndpointClient) AddEndpoints(epInfo *EndpointInfo) 
 // Called from AddEndpoints, Namespace: VM and Vnet
 func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 	// Clean up vlan interface in the VM namespace and ensure the network namespace (if it exists) has a vlan interface
-	logger.Info("Checking if NS and vlan interface exists...")
+	logger.Info("Verifying network namespace and VLAN interface existence for transparent VLAN endpoint", zap.String("nsName", client.vnetNSName), zap.String("vlanIf", client.vlanIfName))
 	var existingErr error
 	client.vnetNSFileDescriptor, existingErr = client.netnsClient.GetFromName(client.vnetNSName)
 	if existingErr == nil {
@@ -184,7 +184,7 @@ func (client *TransparentVlanEndpointClient) createNetworkNamespace(vmNS int) er
 		return nil
 	}
 	// the vnet and vm namespace are the same by this point
-	logger.Info("Vnet Namespace is the same as VM namespace. Deleting...")
+	logger.Info("VNET namespace is identical to VM namespace, removing to prevent conflicts", zap.String("nsName", client.vnetNSName))
 	delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
 	if delErr != nil {
 		logger.Error("failed to cleanup/delete ns after noticing vnet ns is the same as vm ns", zap.Any("error:", delErr.Error()))
@@ -240,7 +240,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		// Any failure will trigger removing the namespace created
 		defer func() {
 			if deleteNSIfNotNilErr != nil {
-				logger.Info("[transparent vlan] removing vnet ns due to failure...")
+				logger.Info("Cleaning up VNET namespace due to transparent VLAN endpoint creation failure", zap.String("nsName", client.vnetNSName))
 				err = client.netnsClient.DeleteNamed(client.vnetNSName)
 				if err != nil {
 					logger.Error("failed to cleanup/delete ns after failing to create vlan interface")

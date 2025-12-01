@@ -181,7 +181,7 @@ func (nm *networkManager) IsStatelessCNIMode() bool {
 func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	// Skip if a store is not provided.
 	if nm.store == nil {
-		logger.Info("network store is nil")
+		logger.Info("Skipping network state restoration: no persistent store configured")
 		return nil
 	}
 
@@ -193,14 +193,14 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	err := nm.store.Read(storeKey, nm)
 	if err != nil {
 		if err == store.ErrKeyNotFound {
-			logger.Info("network store key not found")
+			logger.Info("Network state not found in persistent store, starting with clean state")
 			// Considered successful.
 			return nil
 		} else if err == store.ErrStoreEmpty {
-			logger.Info("network store empty")
+			logger.Info("Network persistent store is empty, no state to restore")
 			return nil
 		} else {
-			logger.Error("Failed to restore state", zap.Error(err))
+			logger.Error("Failed to restore network state from persistent store", zap.Error(err))
 			return err
 		}
 	}
@@ -209,20 +209,20 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 		modTime, err := nm.store.GetModificationTime()
 		if err == nil {
 			rebootTime, err := nm.plClient.GetLastRebootTime()
-			logger.Info("reboot time, store mod time", zap.Any("rebootTime", rebootTime), zap.Any("modTime", modTime))
+			logger.Info("Comparing system reboot time with store modification time", zap.Any("rebootTime", rebootTime), zap.Any("modTime", modTime))
 			if err == nil && rebootTime.After(modTime) {
-				logger.Info("Detected Reboot")
+				logger.Info("System reboot detected, clearing stale network configuration")
 				rebooted = true
 				if clearNwConfig, err := nm.plClient.ClearNetworkConfiguration(); clearNwConfig {
 					if err != nil {
-						logger.Error("Failed to clear network configuration", zap.Error(err))
+						logger.Error("Failed to clear network configuration after reboot detection", zap.Error(err))
 						return err
 					}
 
 					// Delete the networks left behind after reboot
 					for _, extIf := range nm.ExternalInterfaces {
 						for _, nw := range extIf.Networks {
-							logger.Info("Deleting the network on reboot", zap.String("id", nw.Id))
+							logger.Info("Cleaning up network after system reboot", zap.String("networkID", nw.Id))
 							_ = nm.deleteNetwork(nw.Id)
 						}
 					}
@@ -247,12 +247,12 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 
 	// if rebooted recreate the network that existed before reboot.
 	if rebooted {
-		logger.Info("Rehydrating network state from persistent store")
+		logger.Info("Rehydrating network state from persistent store after restore")
 		for _, extIf := range nm.ExternalInterfaces {
 			for _, nw := range extIf.Networks {
 				nwInfo, err := nm.GetNetworkInfo(nw.Id)
 				if err != nil {
-					logger.Error("Failed to fetch network info for network extif err. This should not happen",
+					logger.Error("Failed to fetch network info from external interface during rehydration. This should not happen",
 						zap.Any("nw", nw), zap.Any("extIf", extIf), zap.Error(err))
 					return err
 				}
@@ -261,7 +261,7 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 
 				_, err = nm.newNetworkImpl(&nwInfo, extIf)
 				if err != nil {
-					logger.Error("Restoring network failed for nwInfo extif. This should not happen",
+					logger.Error("Failed to restore network from external interface during rehydration. This should not happen",
 						zap.Any("nwInfo", nwInfo), zap.Any("extIf", extIf), zap.Error(err))
 					return err
 				}
@@ -269,7 +269,7 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 		}
 	}
 
-	logger.Info("Restored state")
+	logger.Info("Successfully restored network state from persistent store")
 	return nil
 }
 
@@ -289,9 +289,9 @@ func (nm *networkManager) save() error {
 
 	err := nm.store.Write(storeKey, nm)
 	if err == nil {
-		logger.Info("Save succeeded")
+		logger.Info("Successfully saved network state to persistent store")
 	} else {
-		logger.Error("Save failed", zap.Error(err))
+		logger.Error("Failed to save network state to persistent store", zap.Error(err))
 	}
 	return err
 }
@@ -384,7 +384,7 @@ func (nm *networkManager) createEndpoint(cli apipaClient, networkID string, epIn
 
 	if nw.VlanId != 0 {
 		if epInfo.Data[VlanIDKey] == nil {
-			logger.Info("overriding endpoint vlanid with network vlanid")
+			logger.Info("Endpoint VLAN ID not specified, using network VLAN ID", zap.Int("vlanID", nw.VlanId))
 			epInfo.Data[VlanIDKey] = nw.VlanId
 		}
 	}
@@ -396,11 +396,11 @@ func (nm *networkManager) createEndpoint(cli apipaClient, networkID string, epIn
 	// any error after this point should also clean up the endpoint we created above
 	defer func() {
 		if err != nil {
-			logger.Error("Create endpoint failure", zap.Error(err))
-			logger.Info("Cleanup resources")
+			logger.Error("Endpoint creation failed, initiating cleanup", zap.String("endpointID", ep.Id), zap.Error(err))
+			logger.Info("Cleaning up resources for failed endpoint creation", zap.String("endpointID", ep.Id))
 			delErr := nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, nm.dhcpClient, ep.Id)
 			if delErr != nil {
-				logger.Error("Deleting endpoint after create endpoint failure failed with", zap.Error(delErr))
+				logger.Error("Failed to delete endpoint during cleanup after creation failure", zap.String("endpointID", ep.Id), zap.Error(delErr))
 			}
 		}
 	}()
@@ -562,7 +562,7 @@ func (nm *networkManager) GetEndpointInfo(networkID, endpointID string) (*Endpoi
 	defer nm.Unlock()
 
 	if nm.IsStatelessCNIMode() {
-		logger.Info("calling cns getEndpoint API")
+		logger.Info("Retrieving endpoint information from CNS in stateless mode", zap.String("networkID", networkID), zap.String("endpointID", endpointID))
 		epInfos, err := nm.GetEndpointState(networkID, endpointID)
 		if err != nil {
 			return nil, err
@@ -597,7 +597,7 @@ func (nm *networkManager) GetAllEndpoints(networkId string) (map[string]*Endpoin
 
 	// Special case when CNS invokes CNI, but there is no state, but return gracefully
 	if len(nm.ExternalInterfaces) == 0 {
-		logger.Info("Network manager has no external interfaces, is the state file populated?")
+		logger.Info("Network manager has no external interfaces configured, state file may not be populated yet")
 		return eps, store.ErrStoreEmpty
 	}
 
@@ -751,7 +751,7 @@ func (nm *networkManager) SaveState(eps []*endpoint) error {
 	nm.Lock()
 	defer nm.Unlock()
 
-	logger.Info("Saving state")
+	logger.Info("Saving network manager state for endpoints", zap.Int("endpointCount", len(eps)))
 	// If we fail half way, we'll propagate an error up which should clean everything up
 	if nm.IsStatelessCNIMode() {
 		err := nm.UpdateEndpointState(eps)
@@ -766,7 +766,7 @@ func (nm *networkManager) DeleteState(epInfos []*EndpointInfo) error {
 	nm.Lock()
 	defer nm.Unlock()
 
-	logger.Info("Deleting state")
+	logger.Info("Deleting network manager state for endpoints", zap.Int("endpointCount", len(epInfos)))
 
 	// For AKS stateless cni, plugin.ipamInvoker.Delete takes care of removing the state in the main Delete function.
 	// For swiftv2 stateless cni, this call will delete the endpoint state from CNS.
