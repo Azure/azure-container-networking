@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 type ETWConfig struct {
@@ -44,5 +45,5 @@ func ETWCore(cfg *ETWConfig) (zapcore.Core, func(), error) {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
-	return zapetw.New(cfg.ProviderName, cfg.EventName, jsonEncoder, cfg.level) //nolint:wrapcheck // ignore
+	return zapetw.New(cfg.ProviderName, cfg.EventName, &ctrlzap.KubeAwareEncoder{Encoder: jsonEncoder}, cfg.level) //nolint:wrapcheck // ignore
 }
