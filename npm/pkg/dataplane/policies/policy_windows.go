@@ -3,6 +3,7 @@ package policies
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Microsoft/hcsshim/hcn"
@@ -100,12 +101,7 @@ func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, er
 	// Ignore adding ruletype for now as there is a bug
 	// policySettings.RuleType = hcn.RuleTypeSwitch
 
-	// ACLPolicy settings uses ID field of SetPolicy in LocalAddresses or RemoteAddresses
-	srcListStr := getAddrListFromSetInfo(acl.SrcList)
-	dstListStr := getAddrListFromSetInfo(acl.DstList)
-	dstPortStr := getPortStrFromPorts(acl.DstPorts)
-
-	// HNS has confusing Local and Remote address defintions
+	// HNS has confusing Local and Remote address definitions
 	// For Traffic Direction INGRESS
 	// 	    LocalAddresses  = Source Sets
 	// 	    RemoteAddresses = Destination Sets
@@ -126,8 +122,28 @@ func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, er
 	// 		LocalAddresses  = Destination IPs
 	// 		RemoteAddresses = Source IPs
 
-	policySettings.LocalAddresses = srcListStr
-	policySettings.RemoteAddresses = dstListStr
+	var srcListStr, dstListStr string
+	// if direct IPs are used, we leave local addresses to be an empty string
+	if len(acl.SrcDirectIPs) > 0 || len(acl.DstDirectIPs) > 0 {
+		srcListStr = strings.Join(acl.SrcDirectIPs, ",")
+		dstListStr = strings.Join(acl.DstDirectIPs, ",")
+		policySettings.LocalAddresses = ""
+		if policySettings.Direction == hcn.DirectionTypeOut {
+			// EGRESS: Remote = Destination IPs from policy
+			policySettings.RemoteAddresses = dstListStr
+		} else {
+			// INGRESS: Remote = Source IPs from policy
+			policySettings.RemoteAddresses = srcListStr
+		}
+	} else {
+		// Original IPSet-based approach
+		srcListStr = getAddrListFromSetInfo(acl.SrcList)
+		dstListStr = getAddrListFromSetInfo(acl.DstList)
+		policySettings.LocalAddresses = srcListStr
+		policySettings.RemoteAddresses = dstListStr
+	}
+
+	dstPortStr := getPortStrFromPorts(acl.DstPorts)
 
 	// Switch ports based on direction
 	policySettings.RemotePorts = ""
