@@ -61,5 +61,6 @@ pushd "$REPO_ROOT"/cni
   cp azure-$OS-swift-overlay.conflist "$OUT_DIR"/files/azure-swift-overlay.conflist
   cp azure-$OS-swift-overlay-dualstack.conflist "$OUT_DIR"/files/azure-swift-overlay-dualstack.conflist
   cp azure-$OS-multitenancy.conflist "$OUT_DIR"/files/multitenancy.conflist
+  cp azure-chained-cilium.conflist "$OUT_DIR"/files/azure-chained-cilium.conflist
   cp "$REPO_ROOT"/telemetry/azure-vnet-telemetry.config "$OUT_DIR"/files/azure-vnet-telemetry.config
 popd
