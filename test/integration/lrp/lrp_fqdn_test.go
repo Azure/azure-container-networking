@@ -102,7 +102,7 @@ func TestLRPFQDN(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			testLRPCase(t, ctx, *selectedPod, tt.command, tt.expectedMsgContains, tt.expectedErrMsgContains, tt.shouldError, tt.countIncreases)
+			testLRPCase(t, ctx, *selectedPod, tt.command, tt.expectedMsgContains, tt.expectedErrMsgContains, tt.shouldError, tt.countIncreases, getPrometheusAddress(initialPrometheusPort))
 		})
 	}
 }

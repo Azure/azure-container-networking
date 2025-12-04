@@ -34,7 +34,7 @@ data:
   enable-l2-neigh-discovery: "true"
   enable-l7-proxy: "false"
   enable-local-node-route: "false"
-  enable-local-redirect-policy: "true" # set to true for lrp test
+  enable-local-redirect-policy: "false" 
   enable-metrics: "true"
   enable-policy: default
   enable-remote-node-identity: "true"
