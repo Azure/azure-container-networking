@@ -19,14 +19,12 @@ func TestDatapathDelete(t *testing.T) {
 }
 
 var _ = ginkgo.Describe("Datapath Delete Tests", func() {
-	rg := os.Getenv("RG")
-	buildId := os.Getenv("BUILD_ID")
-
-	if rg == "" || buildId == "" {
-		ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", rg, buildId))
-	}
-
 	ginkgo.It("deletes PodNetwork, PodNetworkInstance, and Pods", ginkgo.NodeTimeout(0), func() {
+		rg := os.Getenv("RG")
+		buildId := os.Getenv("BUILD_ID")
+		if rg == "" || buildId == "" {
+			ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", rg, buildId))
+		}
 		// Define all test scenarios (same as create)
 		scenarios := []PodScenario{
 			// Customer 2 scenarios on aks-2 with cx_vnet_b1
