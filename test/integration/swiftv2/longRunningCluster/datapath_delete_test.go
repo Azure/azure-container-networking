@@ -1,4 +1,4 @@
-// +build delete_test
+//go:build delete_test
 
 package longRunningCluster
 
