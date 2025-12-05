@@ -30,7 +30,7 @@ stages:
               templateParameters: 'regions: ["westus2"], useAcnPublic: true, cnscniversion: $(TAG), cnscniversionwindows: $(TAG), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF)'
               useSameBranch: false
               queueBuildForUserThatTriggeredBuild: true
-              branchToUse: 'refs/heads/sharifna/runner/release-gate'
+              branchToUse: 'refs/heads/master'
               waitForQueuedBuildsToFinish: true
               authenticationMethod: 'OAuth Token'
               
