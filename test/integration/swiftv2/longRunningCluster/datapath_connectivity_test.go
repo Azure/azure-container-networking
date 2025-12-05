@@ -21,14 +21,13 @@ func TestDatapathConnectivity(t *testing.T) {
 }
 
 var _ = ginkgo.Describe("Datapath Connectivity Tests", func() {
-	rg := os.Getenv("RG")
-	buildId := os.Getenv("BUILD_ID")
-
-	if rg == "" || buildId == "" {
-		ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", rg, buildId))
-	}
 
 	ginkgo.It("tests HTTP connectivity between pods", ginkgo.NodeTimeout(0), func() {
+		rg := os.Getenv("RG")
+		buildId := os.Getenv("BUILD_ID")
+		if rg == "" || buildId == "" {
+			ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", rg, buildId))
+		}
 		// Helper function to generate namespace from vnet and subnet
 		// Format: pn-<rg>-<vnet-prefix>-<subnet-name>
 		// Example: pn-sv2-long-run-centraluseuap-a1-s1
