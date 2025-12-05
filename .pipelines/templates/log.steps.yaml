@@ -190,7 +190,7 @@ steps:
             echo "Directory created: $(acnLogs)/"$node"_logs/Cilium-output/"
 
             file="cilium-endpoint.json"
-            kubectl exec -i -n kube-system $pod -- cilium endpoint list -o json > $(acnLogs)/"$node"_logs/Cilium-output/$file
+            kubectl exec -i -n kube-system $pod -c cilium-agent -- cilium endpoint list -o json > $(acnLogs)/"$node"_logs/Cilium-output/$file
             echo "Cilium, $file, captured: $(acnLogs)/"$node"_logs/Cilium-output/$file"
           done
         fi
