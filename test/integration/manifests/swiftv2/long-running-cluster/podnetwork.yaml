@@ -1,0 +1,15 @@
+apiVersion: multitenancy.acn.azure.com/v1alpha1
+kind: PodNetwork
+metadata:
+  name: {{ .PNName }}
+{{- if .SubnetToken }}
+  labels:
+    kubernetes.azure.com/override-subnet-token: "{{ .SubnetToken }}"
+{{- end }}
+spec:
+  networkID: "{{ .VnetGUID }}"
+{{- if not .SubnetToken }}
+  subnetGUID: "{{ .SubnetGUID }}"
+{{- end }}
+  subnetResourceID: "{{ .SubnetARMID }}"
+  deviceType: acn.azure.com/vnet-nic
