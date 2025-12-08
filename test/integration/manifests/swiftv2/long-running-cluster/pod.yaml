@@ -17,47 +17,19 @@ spec:
       - |
         echo "Pod Network Diagnostics started on $(hostname)";
         echo "Pod IP: $(hostname -i)";
-        echo "Starting HTTP server on port 8080";
+        echo "Starting TCP listener on port 8080";
         
-        # Create a simple HTTP server directory
-        mkdir -p /tmp/www
-        cat > /tmp/www/index.html <<'EOF'
-        <!DOCTYPE html>
-        <html>
-        <head><title>Network Test Pod</title></head>
-        <body>
-        <h1>Pod Network Test</h1>
-        <p><strong>Hostname:</strong> $(hostname)</p>
-        <p><strong>IP Address:</strong> $(hostname -i)</p>
-        <p><strong>Timestamp:</strong> $(date)</p>
-        </body>
-        </html>
-        EOF
+        while true; do 
+          nc -l -p 8080 -c 'echo "TCP Connection Success from $(hostname) at $(date)"'
+        done &
         
-        # Start Python HTTP server on port 8080 in background
-        cd /tmp/www && python3 -m http.server 8080 &
-        HTTP_PID=$!
-        echo "HTTP server started with PID $HTTP_PID on port 8080"
-        
-        # Give server a moment to start
+        echo "TCP listener started on port 8080"
         sleep 2
-        
-        # Verify server is running
-        if netstat -tuln | grep -q ':8080'; then
-          echo "HTTP server is listening on port 8080"
+        if netstat -tuln | grep -q ':8080'; then    # Verify listener is running
+          echo "TCP listener is active on port 8080"
         else
-          echo "WARNING: HTTP server may not be listening on port 8080"
+          echo "WARNING: TCP listener may not be active on port 8080"
         fi
-        
-        # Keep showing network info periodically
-        while true; do
-          echo "=== Network Status at $(date) ==="
-          ip addr show
-          ip route show
-          echo "=== Listening ports ==="
-          netstat -tuln | grep LISTEN || ss -tuln | grep LISTEN
-          sleep 300  # Every 5 minutes
-        done
     ports:
     - containerPort: 8080
       protocol: TCP

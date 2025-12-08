@@ -594,9 +594,9 @@ func RunConnectivityTest(test ConnectivityTest, rg, buildId string) error {
 		test.DestNamespace, test.DestinationPod, test.DestCluster, destIP)
 
 	// Run curl command from source pod to destination pod using eth1 IP
-	// Using -m 10 for 10 second timeout, -f to fail on HTTP errors
+	// Using -m 10 for 10 second timeout
 	// Using --interface eth1 to force traffic through delegated subnet interface
-	curlCmd := fmt.Sprintf("curl --interface eth1 -f -m 10 http://%s:8080/", destIP)
+	curlCmd := fmt.Sprintf("curl --interface eth1 -m 10 http://%s:8080/", destIP)
 
 	output, err := helpers.ExecInPod(sourceKubeconfig, test.SourceNamespace, test.SourcePod, curlCmd)
 	if err != nil {
