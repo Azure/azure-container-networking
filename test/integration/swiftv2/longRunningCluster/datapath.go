@@ -683,7 +683,20 @@ func GenerateStorageSASToken(storageAccountName, containerName, blobName string)
 		!strings.Contains(sasToken, "ERROR") && (strings.Contains(sasToken, "sv=") || strings.Contains(sasToken, "sig="))
 
 	if !accountKeyWorked {
+	sasToken := strings.TrimSpace(string(out))
+
+	// Check if account key method produced valid token
+	accountKeyWorked := err == nil && !strings.Contains(sasToken, "WARNING") &&
+		!strings.Contains(sasToken, "ERROR") && (strings.Contains(sasToken, "sv=") || strings.Contains(sasToken, "sig="))
+
+	if !accountKeyWorked {
 		// If account key fails, fall back to user delegation (requires RBAC)
+		if err != nil {
+			fmt.Printf("Account key SAS generation failed (error): %s\n", string(out))
+		} else {
+			fmt.Printf("Account key SAS generation failed (no credentials): %s\n", sasToken)
+		}
+
 		if err != nil {
 			fmt.Printf("Account key SAS generation failed (error): %s\n", string(out))
 		} else {
@@ -700,16 +713,27 @@ func GenerateStorageSASToken(storageAccountName, containerName, blobName string)
 			"--as-user",
 			"--output", "tsv")
 
+
 		out, err = cmd.CombinedOutput()
 		if err != nil {
 			return "", fmt.Errorf("failed to generate SAS token (both account key and user delegation): %s\n%s", err, string(out))
 		}
 
 		sasToken = strings.TrimSpace(string(out))
+
+		sasToken = strings.TrimSpace(string(out))
 	}
 
 	if sasToken == "" {
 		return "", fmt.Errorf("generated SAS token is empty")
+	}
+
+	// Remove any surrounding quotes that might be added by some shells
+	sasToken = strings.Trim(sasToken, "\"'")
+
+	// Validate SAS token format - should start with typical SAS parameters
+	if !strings.Contains(sasToken, "sv=") && !strings.Contains(sasToken, "sig=") {
+		return "", fmt.Errorf("generated SAS token appears invalid (missing sv= or sig=): %s", sasToken)
 	}
 
 	// Remove any surrounding quotes that might be added by some shells
