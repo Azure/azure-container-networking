@@ -56,45 +56,45 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 
 		// Test scenarios for Private Endpoint connectivity
 		privateEndpointTests := []ConnectivityTest{
-			// Test 1: Private Endpoint Access (Tenant A) - Pod from VNet-A1 Subnet 1
+			// Test 1: Private Endpoint Access (Tenant A) - Pod from VNet-V1 Subnet 1
 			{
-				Name:          "Private Endpoint Access: VNet-A1-S1 to Storage-A",
+				Name:          "Private Endpoint Access: VNet-V1-S1 to Storage-A",
 				SourceCluster: "aks-1",
-				SourcePodName: "pod-c1-aks1-a1s1-low",
-				SourceNS:      "pn-" + testScenarios.BuildID + "-a1-s1",
+				SourcePodName: "pod-c1-aks1-v1s1-low",
+				SourceNS:      "pn-" + testScenarios.BuildID + "-v1-s1",
 				DestEndpoint:  storageEndpoint,
 				ShouldFail:    false,
 				TestType:      "storage-access",
 				Purpose:       "Verify Tenant A pod can access Storage-A via private endpoint",
 			},
-			// Test 2: Private Endpoint Access (Tenant A) - Pod from VNet-A1 Subnet 2
+			// Test 2: Private Endpoint Access (Tenant A) - Pod from VNet-V1 Subnet 2
 			{
-				Name:          "Private Endpoint Access: VNet-A1-S2 to Storage-A",
+				Name:          "Private Endpoint Access: VNet-V1-S2 to Storage-A",
 				SourceCluster: "aks-1",
-				SourcePodName: "pod-c1-aks1-a1s2-low",
-				SourceNS:      "pn-" + testScenarios.BuildID + "-a1-s2",
+				SourcePodName: "pod-c1-aks1-v1s2-low",
+				SourceNS:      "pn-" + testScenarios.BuildID + "-v1-s2",
 				DestEndpoint:  storageEndpoint,
 				ShouldFail:    false,
 				TestType:      "storage-access",
 				Purpose:       "Verify Tenant A pod can access Storage-A via private endpoint",
 			},
-			// Test 3: Private Endpoint Access (Tenant A) - Pod from VNet-A2
+			// Test 3: Private Endpoint Access (Tenant A) - Pod from VNet-V2
 			{
-				Name:          "Private Endpoint Access: VNet-A2-S1 to Storage-A",
+				Name:          "Private Endpoint Access: VNet-V2-S1 to Storage-A",
 				SourceCluster: "aks-1",
-				SourcePodName: "pod-c1-aks1-a2s1-high",
-				SourceNS:      "pn-" + testScenarios.BuildID + "-a2-s1",
+				SourcePodName: "pod-c1-aks1-v2s1-high",
+				SourceNS:      "pn-" + testScenarios.BuildID + "-v2-s1",
 				DestEndpoint:  storageEndpoint,
 				ShouldFail:    false,
 				TestType:      "storage-access",
 				Purpose:       "Verify Tenant A pod from peered VNet can access Storage-A",
 			},
-			// Test 4: Private Endpoint Access (Tenant A) - Pod from VNet-A3 (cross-cluster)
+			// Test 4: Private Endpoint Access (Tenant A) - Pod from VNet-V3 (cross-cluster)
 			{
-				Name:          "Private Endpoint Access: VNet-A3-S1 to Storage-A (cross-cluster)",
+				Name:          "Private Endpoint Access: VNet-V3-S1 to Storage-A (cross-cluster)",
 				SourceCluster: "aks-2",
-				SourcePodName: "pod-c1-aks2-a3s1-high",
-				SourceNS:      "pn-" + testScenarios.BuildID + "-a3-s1",
+				SourcePodName: "pod-c1-aks2-v3s1-high",
+				SourceNS:      "pn-" + testScenarios.BuildID + "-v3-s1",
 				DestEndpoint:  storageEndpoint,
 				ShouldFail:    false,
 				TestType:      "storage-access",

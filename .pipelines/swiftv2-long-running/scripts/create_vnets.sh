@@ -10,7 +10,7 @@ BUILD_ID=$4
 # --- VNet definitions ---
 # Create customer vnets for two customers A and B.
 # Using 172.16.0.0/12 range to avoid overlap with AKS infra 10.0.0.0/8
-VNAMES=( "cx_vnet_a1" "cx_vnet_a2" "cx_vnet_a3" "cx_vnet_b1" )
+VNAMES=( "cx_vnet_v1" "cx_vnet_v2" "cx_vnet_v3" "cx_vnet_v4" )
 VCIDRS=( "172.16.0.0/16" "172.17.0.0/16" "172.18.0.0/16" "172.19.0.0/16" )
 NODE_SUBNETS=( "172.16.0.0/24" "172.17.0.0/24" "172.18.0.0/24" "172.19.0.0/24" )
 EXTRA_SUBNETS_LIST=( "s1 s2 pe" "s1" "s1" "s1" )
