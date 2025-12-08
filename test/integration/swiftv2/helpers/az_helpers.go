@@ -363,3 +363,37 @@ func ExecInPod(kubeconfig, namespace, podName, command string) (string, error) {
 
 	return string(out), nil
 }
+
+// VerifyNoMTPNC checks if there are any pending MTPNC (MultiTenantPodNetworkConfig) resources
+// associated with a specific build ID that should have been cleaned up
+func VerifyNoMTPNC(kubeconfig, buildID string) error {
+	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "mtpnc", "-A", "-o", "json")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		// If MTPNC CRD doesn't exist, that's fine
+		if strings.Contains(string(out), "the server doesn't have a resource type") {
+			return nil
+		}
+		return fmt.Errorf("failed to get MTPNC resources: %w\nOutput: %s", err, string(out))
+	}
+
+	// Parse JSON to check for any MTPNC resources matching our build ID
+	output := string(out)
+	if strings.Contains(output, buildID) {
+		// Extract MTPNC names for better error reporting
+		lines := strings.Split(output, "\n")
+		var mtpncNames []string
+		for _, line := range lines {
+			if strings.Contains(line, buildID) && strings.Contains(line, "\"name\":") {
+				// Basic extraction - could be improved with proper JSON parsing
+				mtpncNames = append(mtpncNames, line)
+			}
+		}
+		
+		if len(mtpncNames) > 0 {
+			return fmt.Errorf("found %d MTPNC resources with build ID '%s' that should have been deleted. This may indicate stuck MTPNC deletion", len(mtpncNames), buildID)
+		}
+	}
+
+	return nil
+}
