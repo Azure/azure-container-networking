@@ -742,13 +742,8 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 	wgetCmd := fmt.Sprintf("wget -O- --timeout=30 --tries=1 '%s' 2>&1", blobURL)
 
 	output, err := ExecInPodWithTimeout(kubeconfig, test.SourceNS, test.SourcePodName, wgetCmd, 45*time.Second)
+	output, err := ExecInPodWithTimeout(kubeconfig, test.SourceNS, test.SourcePodName, wgetCmd, 45*time.Second)
 	if err != nil {
-		// Check for HTTP errors in wget output
-		if strings.Contains(output, "ERROR 403") || strings.Contains(output, "ERROR 401") {
-			return fmt.Errorf("HTTP authentication error from private endpoint\nOutput: %s", truncateString(output, 500))
-		}
-		if strings.Contains(output, "ERROR 404") {
-			return fmt.Errorf("blob not found (404) on private endpoint\nOutput: %s", truncateString(output, 500))
 		// Check for HTTP errors in wget output
 		if strings.Contains(output, "ERROR 403") || strings.Contains(output, "ERROR 401") {
 			return fmt.Errorf("HTTP authentication error from private endpoint\nOutput: %s", truncateString(output, 500))
@@ -760,7 +755,6 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 	}
 
 	// Verify we got valid content
-	if strings.Contains(output, "Hello") || strings.Contains(output, "200 OK") || strings.Contains(output, "saved") {
 	if strings.Contains(output, "Hello") || strings.Contains(output, "200 OK") || strings.Contains(output, "saved") {
 		fmt.Printf("Private endpoint access successful!\n")
 		return nil
