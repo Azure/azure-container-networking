@@ -191,7 +191,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 			for j := 0; j < scenario.podCount; j++ {
 				podName := fmt.Sprintf("scale-pod-%d", podIndex)
 				ginkgo.By(fmt.Sprintf("Deleting pod: %s from cluster %s", podName, scenario.cluster))
-				err := DeletePod(kubeconfig, resources.PNName, podName)
+				err := helpers.DeletePod(kubeconfig, resources.PNName, podName)
 				if err != nil {
 					fmt.Printf("Warning: Failed to delete pod %s: %v\n", podName, err)
 				}
@@ -200,19 +200,19 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 
 			// Delete namespace (this will also delete PNI)
 			ginkgo.By(fmt.Sprintf("Deleting namespace: %s from cluster %s", resources.PNName, scenario.cluster))
-			err = DeleteNamespace(kubeconfig, resources.PNName)
+			err := helpers.DeleteNamespace(kubeconfig, resources.PNName)
 			gomega.Expect(err).To(gomega.BeNil(), "Failed to delete namespace")
 
 			// Delete PodNetworkInstance
 			ginkgo.By(fmt.Sprintf("Deleting PodNetworkInstance: %s from cluster %s", resources.PNIName, scenario.cluster))
-			err = DeletePodNetworkInstance(kubeconfig, resources.PNName, resources.PNIName)
+			err = helpers.DeletePodNetworkInstance(kubeconfig, resources.PNName, resources.PNIName)
 			if err != nil {
 				fmt.Printf("Warning: Failed to delete PNI %s: %v\n", resources.PNIName, err)
 			}
 
 			// Delete PodNetwork
 			ginkgo.By(fmt.Sprintf("Deleting PodNetwork: %s from cluster %s", resources.PNName, scenario.cluster))
-			err = DeletePodNetwork(kubeconfig, resources.PNName)
+			err = helpers.DeletePodNetwork(kubeconfig, resources.PNName)
 			gomega.Expect(err).To(gomega.BeNil(), "Failed to delete PodNetwork")
 		}
 
