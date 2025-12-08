@@ -630,9 +630,20 @@ func GenerateStorageSASToken(storageAccountName, containerName, blobName string)
 		"--output", "tsv")
 
 	out, err := cmd.CombinedOutput()
-	if err != nil {
+	sasToken := strings.TrimSpace(string(out))
+
+	// Check if account key method produced valid token
+	accountKeyWorked := err == nil && !strings.Contains(sasToken, "WARNING") &&
+		!strings.Contains(sasToken, "ERROR") && (strings.Contains(sasToken, "sv=") || strings.Contains(sasToken, "sig="))
+
+	if !accountKeyWorked {
 		// If account key fails, fall back to user delegation (requires RBAC)
-		fmt.Printf("Account key SAS generation failed, trying user delegation: %s\n", string(out))
+		if err != nil {
+			fmt.Printf("Account key SAS generation failed (error): %s\n", string(out))
+		} else {
+			fmt.Printf("Account key SAS generation failed (no credentials): %s\n", sasToken)
+		}
+
 		cmd = exec.Command("az", "storage", "blob", "generate-sas",
 			"--account-name", storageAccountName,
 			"--container-name", containerName,
@@ -642,16 +653,25 @@ func GenerateStorageSASToken(storageAccountName, containerName, blobName string)
 			"--auth-mode", "login",
 			"--as-user",
 			"--output", "tsv")
-		
+
 		out, err = cmd.CombinedOutput()
 		if err != nil {
 			return "", fmt.Errorf("failed to generate SAS token (both account key and user delegation): %s\n%s", err, string(out))
 		}
+
+		sasToken = strings.TrimSpace(string(out))
 	}
 
-	sasToken := strings.TrimSpace(string(out))
 	if sasToken == "" {
 		return "", fmt.Errorf("generated SAS token is empty")
+	}
+
+	// Remove any surrounding quotes that might be added by some shells
+	sasToken = strings.Trim(sasToken, "\"'")
+
+	// Validate SAS token format - should start with typical SAS parameters
+	if !strings.Contains(sasToken, "sv=") && !strings.Contains(sasToken, "sig=") {
+		return "", fmt.Errorf("generated SAS token appears invalid (missing sv= or sig=): %s", sasToken)
 	}
 
 	return sasToken, nil
@@ -706,8 +726,10 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 	// Step 4: Download test blob using SAS token with verbose output
 	fmt.Printf("==> Downloading test blob via private endpoint\n")
 	blobURL := fmt.Sprintf("https://%s/test/hello.txt?%s", test.DestEndpoint, sasToken)
-	// Use -v for verbose, capture stderr with 2>&1 to see HTTP response codes
-	curlCmd := fmt.Sprintf("curl -v -f -s --connect-timeout 10 --max-time 30 '%s' 2>&1", blobURL)
+
+	// Use wget instead of curl - it handles special characters better
+	// -O- outputs to stdout, -q is quiet mode, --timeout sets timeout
+	wgetCmd := fmt.Sprintf("wget -O- --timeout=30 --tries=1 '%s' 2>&1", blobURL)
 
 	output, err := ExecInPodWithTimeout(kubeconfig, test.SourceNS, test.SourcePodName, curlCmd, 45*time.Second)
 	if err != nil {
