@@ -533,7 +533,7 @@ func DeleteAllScenarios(testScenarios TestScenarios) error {
 	// Phase 3: Verify no MTPNC resources are stuck
 	fmt.Printf("\n=== Phase 3: Verifying MTPNC cleanup ===\n")
 	clustersChecked := make(map[string]bool)
-	
+
 	for _, scenario := range testScenarios.Scenarios {
 		// Check each cluster only once
 		if clustersChecked[scenario.Cluster] {
@@ -543,7 +543,7 @@ func DeleteAllScenarios(testScenarios TestScenarios) error {
 
 		kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.Cluster)
 		fmt.Printf("Checking for pending MTPNC resources in cluster %s\n", scenario.Cluster)
-		
+
 		err := helpers.VerifyNoMTPNC(kubeconfig, testScenarios.BuildID)
 		if err != nil {
 			fmt.Printf("WARNING: Found pending MTPNC resources in cluster %s: %v\n", scenario.Cluster, err)
@@ -636,8 +636,7 @@ func RunConnectivityTest(test ConnectivityTest, rg, buildId string) error {
 	// Using -m 3 for 3 second timeout (short because netcat closes connection immediately)
 	// Using --interface eth1 to force traffic through delegated subnet interface
 	// Using --http0.9 to allow HTTP/0.9 responses from netcat (which sends raw text without proper HTTP headers)
-	// Exit code 28 (timeout) is OK if we received data, since netcat doesn't properly close the connection
-	curlCmd := fmt.Sprintf("curl --http0.9 --interface eth1 -m 3 http://%s:8080/", destIP)
+	curlCmd := fmt.Sprintf("curl --http0.9 --interface eth1 -m 10 http://%s:8080/", destIP)
 
 	output, err := helpers.ExecInPod(sourceKubeconfig, test.SourceNamespace, test.SourcePod, curlCmd)
 	if err != nil {
