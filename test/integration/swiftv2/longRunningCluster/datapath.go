@@ -729,10 +729,6 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 	// -O- outputs to stdout, -q is quiet mode, --timeout sets timeout
 	wgetCmd := fmt.Sprintf("wget -O- --timeout=30 --tries=1 '%s' 2>&1", blobURL)
 
-	// Use wget instead of curl - it handles special characters better
-	// -O- outputs to stdout, -q is quiet mode, --timeout sets timeout
-	wgetCmd := fmt.Sprintf("wget -O- --timeout=30 --tries=1 '%s' 2>&1", blobURL)
-
 	output, err := ExecInPodWithTimeout(kubeconfig, test.SourceNS, test.SourcePodName, wgetCmd, 45*time.Second)
 	if err != nil {
 		// Check for HTTP errors in wget output
