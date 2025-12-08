@@ -654,6 +654,14 @@ func GenerateStorageSASToken(storageAccountName, containerName, blobName string)
 		return "", fmt.Errorf("generated SAS token is empty")
 	}
 
+	// Remove any surrounding quotes that might be added by some shells
+	sasToken = strings.Trim(sasToken, "\"'")
+	
+	// Validate SAS token format - should start with typical SAS parameters
+	if !strings.Contains(sasToken, "sv=") && !strings.Contains(sasToken, "sig=") {
+		return "", fmt.Errorf("generated SAS token appears invalid (missing sv= or sig=): %s", sasToken)
+	}
+
 	return sasToken, nil
 }
 
@@ -703,34 +711,42 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 		return fmt.Errorf("failed to generate SAS token: %w", err)
 	}
 
+	// Debug: Print SAS token info
+	fmt.Printf("SAS token length: %d\n", len(sasToken))
+	if len(sasToken) > 60 {
+		fmt.Printf("SAS token preview: %s...\n", sasToken[:60])
+	} else {
+		fmt.Printf("SAS token: %s\n", sasToken)
+	}
+
 	// Step 4: Download test blob using SAS token with verbose output
 	fmt.Printf("==> Downloading test blob via private endpoint\n")
+	// Construct URL - ensure SAS token is properly formatted
+	// Note: SAS token should already be URL-encoded from Azure CLI
 	blobURL := fmt.Sprintf("https://%s/test/hello.txt?%s", test.DestEndpoint, sasToken)
-	// Use -v for verbose, capture stderr with 2>&1 to see HTTP response codes
-	curlCmd := fmt.Sprintf("curl -v -f -s --connect-timeout 10 --max-time 30 '%s' 2>&1", blobURL)
+	
+	// Use wget instead of curl - it handles special characters better
+	// -O- outputs to stdout, -q is quiet mode, --timeout sets timeout
+	wgetCmd := fmt.Sprintf("wget -O- --timeout=30 --tries=1 '%s' 2>&1", blobURL)
 
-	output, err := ExecInPodWithTimeout(kubeconfig, test.SourceNS, test.SourcePodName, curlCmd, 45*time.Second)
+	// Use wget instead of curl - it handles special characters better
+	// -O- outputs to stdout, -q is quiet mode, --timeout sets timeout
+	wgetCmd := fmt.Sprintf("wget -O- --timeout=30 --tries=1 '%s' 2>&1", blobURL)
+
+	output, err := ExecInPodWithTimeout(kubeconfig, test.SourceNS, test.SourcePodName, wgetCmd, 45*time.Second)
 	if err != nil {
-		// Check if it's an HTTP error (exit code 22)
-		if strings.Contains(err.Error(), "exit status 22") {
-			// Extract HTTP status code from verbose output
-			httpStatus := "unknown"
-			if strings.Contains(output, "HTTP/") {
-				lines := strings.Split(output, "\n")
-				for _, line := range lines {
-					if strings.Contains(line, "HTTP/") && (strings.Contains(line, " 4") || strings.Contains(line, " 5")) {
-						httpStatus = line
-						break
-					}
-				}
-			}
-			return fmt.Errorf("HTTP error from private endpoint (exit code 22): %s\nOutput: %s", httpStatus, truncateString(output, 500))
+		// Check for HTTP errors in wget output
+		if strings.Contains(output, "ERROR 403") || strings.Contains(output, "ERROR 401") {
+			return fmt.Errorf("HTTP authentication error from private endpoint\nOutput: %s", truncateString(output, 500))
+		}
+		if strings.Contains(output, "ERROR 404") {
+			return fmt.Errorf("blob not found (404) on private endpoint\nOutput: %s", truncateString(output, 500))
 		}
 		return fmt.Errorf("private endpoint connectivity test failed: %w\nOutput: %s", err, truncateString(output, 500))
 	}
 
 	// Verify we got valid content
-	if strings.Contains(output, "Hello") || strings.Contains(output, "200 OK") {
+	if strings.Contains(output, "Hello") || strings.Contains(output, "200 OK") || strings.Contains(output, "saved") {
 		fmt.Printf("Private endpoint access successful!\n")
 		return nil
 	}
