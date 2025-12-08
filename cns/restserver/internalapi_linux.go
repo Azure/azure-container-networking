@@ -6,13 +6,14 @@ import (
 	"os/exec"
 	"strconv"
 
+	goiptables "github.com/coreos/go-iptables/iptables"
+	"github.com/pkg/errors"
+
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network/networkutils"
-	goiptables "github.com/coreos/go-iptables/iptables"
-	"github.com/pkg/errors"
 )
 
 const SWIFTPOSTROUTING = "SWIFT-POSTROUTING"
@@ -179,5 +180,13 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 
 // no-op for linux
 func (service *HTTPRestService) setVFForAccelnetNICs() error {
+	return nil
+}
+
+func (service *HTTPRestService) setPrefixOnNICRegistry(enabled bool, infraNicMacAddress string) error {
+	// Assigning parameters to '_' to avoid unused parameter linting errors.
+	// These parameters are only used in the Windows implementation.
+	_ = enabled
+	_ = infraNicMacAddress
 	return nil
 }
