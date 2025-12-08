@@ -330,23 +330,38 @@ func GetPodIP(kubeconfig, namespace, podName string) (string, error) {
 // GetPodDelegatedIP retrieves the eth1 IP address (delegated subnet IP) of a pod
 // This is the IP used for cross-VNet communication and is subject to NSG rules
 func GetPodDelegatedIP(kubeconfig, namespace, podName string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	// Retry logic - pod might be Running but container not ready yet
+	maxRetries := 5
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
-	// Get eth1 IP address by running 'ip addr show eth1' in the pod
-	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "exec", podName,
-		"-n", namespace, "--", "sh", "-c", "ip -4 addr show eth1 | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
+		// Get eth1 IP address by running 'ip addr show eth1' in the pod
+		cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "exec", podName,
+			"-n", namespace, "-c", "net-debugger", "--", "sh", "-c", "ip -4 addr show eth1 | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1")
+		out, err := cmd.CombinedOutput()
+		cancel()
+
+		if err == nil {
+			ip := strings.TrimSpace(string(out))
+			if ip != "" {
+				return ip, nil
+			}
+			return "", fmt.Errorf("pod %s in namespace %s has no eth1 IP address (delegated subnet not configured?)", podName, namespace)
+		}
+
+		// Check if it's a container not found error
+		if strings.Contains(string(out), "container not found") {
+			if attempt < maxRetries {
+				fmt.Printf("Container not ready yet in pod %s (attempt %d/%d), waiting 3 seconds...\n", podName, attempt, maxRetries)
+				time.Sleep(3 * time.Second)
+				continue
+			}
+		}
+
 		return "", fmt.Errorf("failed to get eth1 IP for %s in namespace %s: %w\nOutput: %s", podName, namespace, err, string(out))
 	}
 
-	ip := strings.TrimSpace(string(out))
-	if ip == "" {
-		return "", fmt.Errorf("pod %s in namespace %s has no eth1 IP address (delegated subnet not configured?)", podName, namespace)
-	}
-
-	return ip, nil
+	return "", fmt.Errorf("pod %s container not ready after %d attempts", podName, maxRetries)
 }
 
 // ExecInPod executes a command in a pod and returns the output
@@ -389,7 +404,7 @@ func VerifyNoMTPNC(kubeconfig, buildID string) error {
 				mtpncNames = append(mtpncNames, line)
 			}
 		}
-		
+
 		if len(mtpncNames) > 0 {
 			return fmt.Errorf("found %d MTPNC resources with build ID '%s' that should have been deleted. This may indicate stuck MTPNC deletion", len(mtpncNames), buildID)
 		}
