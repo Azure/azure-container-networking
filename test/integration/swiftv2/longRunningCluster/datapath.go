@@ -533,7 +533,7 @@ func DeleteAllScenarios(testScenarios TestScenarios) error {
 	// Phase 3: Verify no MTPNC resources are stuck
 	fmt.Printf("\n=== Phase 3: Verifying MTPNC cleanup ===\n")
 	clustersChecked := make(map[string]bool)
-
+	
 	for _, scenario := range testScenarios.Scenarios {
 		// Check each cluster only once
 		if clustersChecked[scenario.Cluster] {
@@ -543,7 +543,7 @@ func DeleteAllScenarios(testScenarios TestScenarios) error {
 
 		kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.Cluster)
 		fmt.Printf("Checking for pending MTPNC resources in cluster %s\n", scenario.Cluster)
-
+		
 		err := helpers.VerifyNoMTPNC(kubeconfig, testScenarios.BuildID)
 		if err != nil {
 			fmt.Printf("WARNING: Found pending MTPNC resources in cluster %s: %v\n", scenario.Cluster, err)
