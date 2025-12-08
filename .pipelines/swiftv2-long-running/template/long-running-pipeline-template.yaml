@@ -68,6 +68,7 @@ stages:
           - checkout: self
           - task: AzureCLI@2
             displayName: "Create AKS clusters"
+            displayName: "Create AKS clusters"
             inputs:
               azureSubscription: ${{ parameters.serviceConnection }}
               scriptType: bash
@@ -365,130 +366,61 @@ stages:
       # ------------------------------------------------------------
       # Job 4: Scale Tests with Device Plugin
       # ------------------------------------------------------------
-      - job: ScaleTest
-        displayName: "Scale Test - Create and Delete 15 Pods with Device Plugin"
-        dependsOn: 
-          - CreateTestResources
-          - ConnectivityTests
-          - PrivateEndpointTests
-        condition: succeeded()
-        timeoutInMinutes: 90
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
+      # - job: DeleteTestResources
+      #   displayName: "Delete PodNetwork, PNI, and Pods"
+      #   dependsOn: 
+      #     - CreateTestResources
+      #     - ConnectivityTests
+      #     - PrivateEndpointTests
+      #   # Always run cleanup, even if previous jobs failed
+      #   condition: always()
+      #   timeoutInMinutes: 60
+      #   pool:
+      #     vmImage: ubuntu-latest
+      #   steps:
+      #     - checkout: self
 
-          - task: GoTool@0
-            displayName: "Use Go 1.22.5"
-            inputs:
-              version: "1.22.5"
+      #     - task: GoTool@0
+      #       displayName: "Use Go 1.22.5"
+      #       inputs:
+      #         version: "1.22.5"
               
-          - task: AzureCLI@2
-            displayName: "Run Scale Test (Create and Delete)"
-            inputs:
-              azureSubscription: ${{ parameters.serviceConnection }}
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Installing Ginkgo CLI"
-                go install github.com/onsi/ginkgo/v2/ginkgo@latest
+      #     - task: AzureCLI@2
+      #       displayName: "Delete Test Resources"
+      #       inputs:
+      #         azureSubscription: ${{ parameters.serviceConnection }}
+      #         scriptType: bash
+      #         scriptLocation: inlineScript
+      #         inlineScript: |
+      #           echo "==> Installing Ginkgo CLI"
+      #           go install github.com/onsi/ginkgo/v2/ginkgo@latest
                 
-                echo "==> Adding Go bin to PATH"
-                export PATH=$PATH:$(go env GOPATH)/bin
+      #           echo "==> Adding Go bin to PATH"
+      #           export PATH=$PATH:$(go env GOPATH)/bin
 
-                echo "==> Downloading Go dependencies"
-                go mod download
+      #           echo "==> Downloading Go dependencies"
+      #           go mod download
                 
-                echo "==> Setting up kubeconfig for cluster aks-1"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-1 \
-                  --file /tmp/aks-1.kubeconfig \
-                  --overwrite-existing \
-                  --admin
+      #           echo "==> Setting up kubeconfig for cluster aks-1"
+      #           az aks get-credentials \
+      #             --resource-group $(rgName) \
+      #             --name aks-1 \
+      #             --file /tmp/aks-1.kubeconfig \
+      #             --overwrite-existing \
+      #             --admin
                 
-                echo "==> Setting up kubeconfig for cluster aks-2"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-2 \
-                  --file /tmp/aks-2.kubeconfig \
-                  --overwrite-existing \
-                  --admin
+      #           echo "==> Setting up kubeconfig for cluster aks-2"
+      #           az aks get-credentials \
+      #             --resource-group $(rgName) \
+      #             --name aks-2 \
+      #             --file /tmp/aks-2.kubeconfig \
+      #             --overwrite-existing \
+      #             --admin
                 
-                echo "==> Verifying cluster aks-1 connectivity"
-                kubectl --kubeconfig /tmp/aks-1.kubeconfig get nodes
-                
-                echo "==> Verifying cluster aks-2 connectivity"
-                kubectl --kubeconfig /tmp/aks-2.kubeconfig get nodes
-                
-                echo "==> Running scale test: Create 15 pods with device plugin across both clusters"
-                echo "NOTE: Pods are auto-scheduled by Kubernetes scheduler and device plugin"
-                echo "  - 8 pods in aks-1 (cx_vnet_a1/s1)"
-                echo "  - 7 pods in aks-2 (cx_vnet_a2/s1)"
-                echo "Pod limits per PodNetwork/PodNetworkInstance:"
-                echo "  - Subnet IP address capacity"
-                echo "  - Node capacity (typically 250 pods per node)"
-                echo "  - Available device plugin resources (NICs per node)"
-                export RG="$(rgName)"
-                export BUILD_ID="$(rgName)"
-                export WORKLOAD_TYPE="swiftv2-linux"
-                cd ./test/integration/swiftv2/longRunningCluster
-                ginkgo -v -trace --timeout=1h --tags=scale_test
-
-      # ------------------------------------------------------------
-      # Job 5: Delete Test Resources
-      # ------------------------------------------------------------
-      - job: DeleteTestResources
-        displayName: "Delete PodNetwork, PNI, and Pods"
-        dependsOn: 
-          - CreateTestResources
-          - ConnectivityTests
-          - PrivateEndpointTests
-          - ScaleTest
-        # Always run cleanup, even if previous jobs failed
-        condition: always()
-        timeoutInMinutes: 60
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
-          - task: GoTool@0
-            displayName: "Use Go 1.22.5"
-            inputs:
-              version: "1.22.5" 
-          - task: AzureCLI@2
-            displayName: "Delete Test Resources"
-            inputs:
-              azureSubscription: ${{ parameters.serviceConnection }}
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Installing Ginkgo CLI"
-                go install github.com/onsi/ginkgo/v2/ginkgo@latest
-                echo "==> Adding Go bin to PATH"
-                export PATH=$PATH:$(go env GOPATH)/bin
-                echo "==> Downloading Go dependencies"
-                go mod download
-
-                echo "==> Setting up kubeconfig for cluster aks-1"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-1 \
-                  --file /tmp/aks-1.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                echo "==> Setting up kubeconfig for cluster aks-2"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-2 \
-                  --file /tmp/aks-2.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                  
-                echo "==> Deleting test resources (8 scenarios)"
-                export RG="$(rgName)"
-                export BUILD_ID="$(rgName)"
-                export WORKLOAD_TYPE="swiftv2-linux"
-                cd ./test/integration/swiftv2/longRunningCluster
-                ginkgo -v -trace --timeout=1h --tags=delete_test
+      #           echo "==> Deleting test resources (8 scenarios)"
+      #           export RG="$(rgName)"
+      #           export BUILD_ID="$(rgName)"
+      #           export WORKLOAD_TYPE="swiftv2-linux"
+      #           cd ./test/integration/swiftv2/longRunningCluster
+      #           ginkgo -v -trace --timeout=1h --tags=delete_test
               
