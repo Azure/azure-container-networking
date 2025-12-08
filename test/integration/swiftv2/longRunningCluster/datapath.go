@@ -2,6 +2,7 @@ package longRunningCluster
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -619,19 +620,33 @@ func GenerateStorageSASToken(storageAccountName, containerName, blobName string)
 	// Calculate expiry time: 7 days from now (Azure CLI limit)
 	expiryTime := time.Now().UTC().Add(7 * 24 * time.Hour).Format("2006-01-02")
 
+	// Try account key first (more reliable, no RBAC delay)
 	cmd := exec.Command("az", "storage", "blob", "generate-sas",
 		"--account-name", storageAccountName,
 		"--container-name", containerName,
 		"--name", blobName,
 		"--permissions", "r",
 		"--expiry", expiryTime,
-		"--auth-mode", "login",
-		"--as-user",
 		"--output", "tsv")
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("failed to generate SAS token: %s\n%s", err, string(out))
+		// If account key fails, fall back to user delegation (requires RBAC)
+		fmt.Printf("Account key SAS generation failed, trying user delegation: %s\n", string(out))
+		cmd = exec.Command("az", "storage", "blob", "generate-sas",
+			"--account-name", storageAccountName,
+			"--container-name", containerName,
+			"--name", blobName,
+			"--permissions", "r",
+			"--expiry", expiryTime,
+			"--auth-mode", "login",
+			"--as-user",
+			"--output", "tsv")
+		
+		out, err = cmd.CombinedOutput()
+		if err != nil {
+			return "", fmt.Errorf("failed to generate SAS token (both account key and user delegation): %s\n%s", err, string(out))
+		}
 	}
 
 	sasToken := strings.TrimSpace(string(out))
@@ -657,16 +672,29 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 	fmt.Printf("Testing private endpoint access from %s to %s\n",
 		test.SourcePodName, test.DestEndpoint)
 
-	// Step 1: Verify DNS resolution
+	// Step 1: Verify pod is running
+	fmt.Printf("==> Verifying pod %s is running\n", test.SourcePodName)
+	podStatusCmd := fmt.Sprintf("kubectl --kubeconfig %s get pod %s -n %s -o jsonpath='{.status.phase}'", kubeconfig, test.SourcePodName, test.SourceNS)
+	statusOut, err := exec.Command("sh", "-c", podStatusCmd).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to get pod status: %w\nOutput: %s", err, string(statusOut))
+	}
+	podStatus := strings.TrimSpace(string(statusOut))
+	if podStatus != "Running" {
+		return fmt.Errorf("pod %s is not running (status: %s)", test.SourcePodName, podStatus)
+	}
+	fmt.Printf("Pod is running\n")
+
+	// Step 2: Verify DNS resolution with longer timeout
 	fmt.Printf("==> Checking DNS resolution for %s\n", test.DestEndpoint)
 	resolveCmd := fmt.Sprintf("nslookup %s | tail -2", test.DestEndpoint)
-	resolveOutput, resolveErr := helpers.ExecInPod(kubeconfig, test.SourceNS, test.SourcePodName, resolveCmd)
+	resolveOutput, resolveErr := ExecInPodWithTimeout(kubeconfig, test.SourceNS, test.SourcePodName, resolveCmd, 20*time.Second)
 	if resolveErr != nil {
 		return fmt.Errorf("DNS resolution failed: %w\nOutput: %s", resolveErr, resolveOutput)
 	}
 	fmt.Printf("DNS Resolution Result:\n%s\n", resolveOutput)
 
-	// Step 2: Generate SAS token for test blob
+	// Step 3: Generate SAS token for test blob
 	fmt.Printf("==> Generating SAS token for test blob\n")
 	// Extract storage account name from FQDN (e.g., sa106936191.blob.core.windows.net -> sa106936191)
 	storageAccountName := strings.Split(test.DestEndpoint, ".")[0]
@@ -675,16 +703,55 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 		return fmt.Errorf("failed to generate SAS token: %w", err)
 	}
 
-	// Step 3: Download test blob using SAS token (proves both connectivity AND data plane access)
+	// Step 4: Download test blob using SAS token with verbose output
 	fmt.Printf("==> Downloading test blob via private endpoint\n")
 	blobURL := fmt.Sprintf("https://%s/test/hello.txt?%s", test.DestEndpoint, sasToken)
-	curlCmd := fmt.Sprintf("curl -f -s --connect-timeout 5 --max-time 10 '%s'", blobURL)
+	// Use -v for verbose, capture stderr with 2>&1 to see HTTP response codes
+	curlCmd := fmt.Sprintf("curl -v -f -s --connect-timeout 10 --max-time 30 '%s' 2>&1", blobURL)
 
-	output, err := helpers.ExecInPod(kubeconfig, test.SourceNS, test.SourcePodName, curlCmd)
+	output, err := ExecInPodWithTimeout(kubeconfig, test.SourceNS, test.SourcePodName, curlCmd, 45*time.Second)
 	if err != nil {
-		return fmt.Errorf("private endpoint connectivity test failed: %w\nOutput: %s", err, output)
+		// Check if it's an HTTP error (exit code 22)
+		if strings.Contains(err.Error(), "exit status 22") {
+			// Extract HTTP status code from verbose output
+			httpStatus := "unknown"
+			if strings.Contains(output, "HTTP/") {
+				lines := strings.Split(output, "\n")
+				for _, line := range lines {
+					if strings.Contains(line, "HTTP/") && (strings.Contains(line, " 4") || strings.Contains(line, " 5")) {
+						httpStatus = line
+						break
+					}
+				}
+			}
+			return fmt.Errorf("HTTP error from private endpoint (exit code 22): %s\nOutput: %s", httpStatus, truncateString(output, 500))
+		}
+		return fmt.Errorf("private endpoint connectivity test failed: %w\nOutput: %s", err, truncateString(output, 500))
 	}
 
-	fmt.Printf("Private endpoint access successful! Blob content: %s\n", truncateString(output, 100))
-	return nil
+	// Verify we got valid content
+	if strings.Contains(output, "Hello") || strings.Contains(output, "200 OK") {
+		fmt.Printf("Private endpoint access successful!\n")
+		return nil
+	}
+
+	return fmt.Errorf("unexpected response from blob download (no 'Hello' or '200 OK' found)\nOutput: %s", truncateString(output, 500))
+}
+
+// ExecInPodWithTimeout executes a command in a pod with a custom timeout
+func ExecInPodWithTimeout(kubeconfig, namespace, podName, command string, timeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "exec", podName,
+		"-n", namespace, "--", "sh", "-c", command)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return string(out), fmt.Errorf("command timed out after %v in pod %s: %w", timeout, podName, ctx.Err())
+		}
+		return string(out), fmt.Errorf("failed to exec in pod %s in namespace %s: %w", podName, namespace, err)
+	}
+
+	return string(out), nil
 }
