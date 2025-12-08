@@ -3,10 +3,10 @@ set -e
 trap 'echo "[ERROR] Failed during VNet peering creation." >&2' ERR
 
 RG=$1
-VNET_A1="cx_vnet_a1"
-VNET_A2="cx_vnet_a2"
-VNET_A3="cx_vnet_a3"
-VNET_B1="cx_vnet_b1"
+VNET_A1="cx_vnet_v1"
+VNET_A2="cx_vnet_v2"
+VNET_A3="cx_vnet_v3"
+VNET_B1="cx_vnet_v4"
 
 verify_peering() {
   local rg="$1"; local vnet="$2"; local peering="$3"

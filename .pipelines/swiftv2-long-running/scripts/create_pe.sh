@@ -7,9 +7,9 @@ LOCATION=$2
 RG=$3
 SA1_NAME=$4  # Storage account 1
 
-VNET_A1="cx_vnet_a1"
-VNET_A2="cx_vnet_a2"
-VNET_A3="cx_vnet_a3"
+VNET_A1="cx_vnet_v1"
+VNET_A2="cx_vnet_v2"
+VNET_A3="cx_vnet_v3"
 SUBNET_PE_A1="pe"
 PE_NAME="${SA1_NAME}-pe"
 PRIVATE_DNS_ZONE="privatelink.blob.core.windows.net"

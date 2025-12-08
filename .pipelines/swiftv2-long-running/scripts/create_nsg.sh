@@ -6,7 +6,7 @@ SUBSCRIPTION_ID=$1
 RG=$2
 LOCATION=$3
 
-VNET_A1="cx_vnet_a1"
+VNET_A1="cx_vnet_v1"
 
 # Get actual subnet CIDR ranges dynamically
 echo "==> Retrieving actual subnet address prefixes..."

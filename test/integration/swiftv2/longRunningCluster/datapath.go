@@ -105,7 +105,7 @@ type TestResources struct {
 type PodScenario struct {
 	Name          string // Descriptive name for the scenario
 	Cluster       string // "aks-1" or "aks-2"
-	VnetName      string // e.g., "cx_vnet_a1", "cx_vnet_b1"
+	VnetName      string // e.g., "cx_vnet_v1", "cx_vnet_v4"
 	SubnetName    string // e.g., "s1", "s2"
 	NodeSelector  string // "low-nic" or "high-nic"
 	PodNameSuffix string // Unique suffix for pod name
