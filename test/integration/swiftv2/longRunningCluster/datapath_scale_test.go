@@ -56,7 +56,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 			BuildID:         buildId,
 			VnetSubnetCache: make(map[string]VnetSubnetInfo),
 			UsedNodes:       make(map[string]bool),
-			PodImage:        "mcr.microsoft.com/mirror/docker/library/busybox:1.36",
+			PodImage:        "nicolaka/netshoot:latest",
 		}
 
 		startTime := time.Now()
