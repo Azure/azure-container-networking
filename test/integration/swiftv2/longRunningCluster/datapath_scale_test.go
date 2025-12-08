@@ -143,6 +143,14 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 					}, resources.PodTemplate)
 					if err != nil {
 						errors <- fmt.Errorf("failed to create pod %s in cluster %s: %w", podName, cluster, err)
+						return
+					}
+
+					// Wait for pod to be scheduled (node assignment) before considering it created
+					// This prevents CNS errors about missing node names
+					err = helpers.WaitForPodScheduled(resources.Kubeconfig, resources.PNName, podName, 10, 6)
+					if err != nil {
+						errors <- fmt.Errorf("pod %s in cluster %s was not scheduled: %w", podName, cluster, err)
 					}
 				}(allResources[i], scenario.cluster, podIndex)
 				podIndex++

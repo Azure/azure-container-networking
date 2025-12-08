@@ -264,6 +264,28 @@ func DeleteNamespace(kubeconfig, namespace string) error {
 	return nil
 }
 
+// WaitForPodScheduled waits for a pod to be scheduled (assigned to a node) with retries
+func WaitForPodScheduled(kubeconfig, namespace, podName string, maxRetries, sleepSeconds int) error {
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName, "-n", namespace, "-o", "jsonpath={.spec.nodeName}")
+		out, err := cmd.CombinedOutput()
+		nodeName := strings.TrimSpace(string(out))
+
+		if err == nil && nodeName != "" {
+			fmt.Printf("Pod %s scheduled on node %s\n", podName, nodeName)
+			return nil
+		}
+
+		if attempt < maxRetries {
+			fmt.Printf("Pod %s not scheduled yet (attempt %d/%d). Waiting %d seconds...\n",
+				podName, attempt, maxRetries, sleepSeconds)
+			time.Sleep(time.Duration(sleepSeconds) * time.Second)
+		}
+	}
+
+	return fmt.Errorf("pod %s was not scheduled (no node assigned) after %d attempts", podName, maxRetries)
+}
+
 // WaitForPodRunning waits for a pod to reach Running state with retries
 func WaitForPodRunning(kubeconfig, namespace, podName string, maxRetries, sleepSeconds int) error {
 	for attempt := 1; attempt <= maxRetries; attempt++ {
