@@ -67,7 +67,7 @@ stages:
         steps:
           - checkout: self
           - task: AzureCLI@2
-            displayName: "Run create_aks.sh"
+            displayName: "Create AKS clusters"
             inputs:
               azureSubscription: ${{ parameters.serviceConnection }}
               scriptType: bash
@@ -172,7 +172,7 @@ stages:
       # Job 1: Create Test Resources and Wait
       # ------------------------------------------------------------
       - job: CreateTestResources
-        displayName: "Create Resources and Wait 20 Minutes"
+        displayName: "Create Resources"
         timeoutInMinutes: 90
         pool:
           vmImage: ubuntu-latest
@@ -444,7 +444,6 @@ stages:
           - CreateTestResources
           - ConnectivityTests
           - PrivateEndpointTests
-          - ScaleTest
         # Always run cleanup, even if previous jobs failed
         condition: always()
         timeoutInMinutes: 60
@@ -452,12 +451,10 @@ stages:
           vmImage: ubuntu-latest
         steps:
           - checkout: self
-
           - task: GoTool@0
             displayName: "Use Go 1.22.5"
             inputs:
-              version: "1.22.5"
-              
+              version: "1.22.5" 
           - task: AzureCLI@2
             displayName: "Delete Test Resources"
             inputs:
@@ -467,13 +464,11 @@ stages:
               inlineScript: |
                 echo "==> Installing Ginkgo CLI"
                 go install github.com/onsi/ginkgo/v2/ginkgo@latest
-                
                 echo "==> Adding Go bin to PATH"
                 export PATH=$PATH:$(go env GOPATH)/bin
-
                 echo "==> Downloading Go dependencies"
                 go mod download
-                
+
                 echo "==> Setting up kubeconfig for cluster aks-1"
                 az aks get-credentials \
                   --resource-group $(rgName) \
@@ -481,7 +476,6 @@ stages:
                   --file /tmp/aks-1.kubeconfig \
                   --overwrite-existing \
                   --admin
-                
                 echo "==> Setting up kubeconfig for cluster aks-2"
                 az aks get-credentials \
                   --resource-group $(rgName) \
@@ -489,12 +483,11 @@ stages:
                   --file /tmp/aks-2.kubeconfig \
                   --overwrite-existing \
                   --admin
-                
+                  
                 echo "==> Deleting test resources (8 scenarios)"
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
                 export WORKLOAD_TYPE="swiftv2-linux"
                 cd ./test/integration/swiftv2/longRunningCluster
                 ginkgo -v -trace --timeout=1h --tags=delete_test
-
               
