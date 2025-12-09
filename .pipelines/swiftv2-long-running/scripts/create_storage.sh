@@ -71,15 +71,6 @@ for SA in "$SA1" "$SA2"; do
     && echo "[OK] Test blob 'hello.txt' uploaded to $SA/test/"
 done
 
-# # Disable public network access ONLY on SA1 (Tenant A storage with private endpoint)
-# echo "==> Disabling public network access on $SA1"
-# az storage account update \
-#   --name "$SA1" \
-#   --resource-group "$RG" \
-#   --public-network-access Disabled \
-#   --output none \
-#   && echo "[OK] Public network access disabled on $SA1"
-
 echo "All storage accounts created and verified successfully."
 
 # Set pipeline output variables
