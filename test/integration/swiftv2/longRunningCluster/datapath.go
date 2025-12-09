@@ -775,7 +775,6 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 	wgetCmd := fmt.Sprintf("wget -O- --timeout=30 --tries=1 '%s' 2>&1", blobURL)
 
 	output, err := ExecInPodWithTimeout(kubeconfig, test.SourceNS, test.SourcePodName, wgetCmd, 45*time.Second)
-	output, err := ExecInPodWithTimeout(kubeconfig, test.SourceNS, test.SourcePodName, wgetCmd, 45*time.Second)
 	if err != nil {
 		// Check for HTTP errors in wget output
 		if strings.Contains(output, "ERROR 403") || strings.Contains(output, "ERROR 401") {
