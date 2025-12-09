@@ -71,7 +71,7 @@ stages:
           dependsOn: ${{ parameters.name }}_${{ parameters.os }}
           dualstack: ${{ eq(parameters.os, 'linux') }} # RUN IN LINUX not WINDOWS Currently broken for scenario and blocking releases, HNS is investigating. Covered by go test in E2E step template
           dns: true
-          portforward: ${{ eq(parameters.os, 'linux') }} # RUN IN LINUX NOT WINDOWS Currently broken for scenario and blocking releases
+          portforward: true
           service: ${{ eq(parameters.os, 'linux') }}  # RUN IN LINUX NOT WINDOWS Currently broken for scenario and blocking releases, HNS is investigating.
           hostport: true
           hybridWin: ${{ eq(parameters.os, 'windows') }}
