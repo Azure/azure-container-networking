@@ -640,7 +640,7 @@ func RunConnectivityTest(test ConnectivityTest, rg, buildId string) error {
 	curlCmd := fmt.Sprintf("curl --http0.9 --interface eth1 -m 3 http://%s:8080/", destIP)
 
 	output, err := helpers.ExecInPod(sourceKubeconfig, test.SourceNamespace, test.SourcePod, curlCmd)
-	
+
 	// Check if we received data even if curl timed out (exit code 28)
 	// Netcat closes the connection without proper HTTP close, causing curl to timeout
 	// But if we got the expected response, the connectivity test is successful
