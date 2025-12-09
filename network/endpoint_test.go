@@ -258,11 +258,13 @@ var _ = Describe("Test Endpoint", func() {
 				Expect(len(mockCli.endpoints)).To(Equal(1))
 				// Deleting the endpoint
 				//nolint:errcheck // ignore error
-				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, ep2)
+				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0),
+					NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, ep2, "")
 				Expect(len(mockCli.endpoints)).To(Equal(0))
 				// Deleting same endpoint with same id should not fail
 				//nolint:errcheck // ignore error
-				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, ep2)
+				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0),
+					NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, ep2, "")
 				Expect(len(mockCli.endpoints)).To(Equal(0))
 			})
 		})

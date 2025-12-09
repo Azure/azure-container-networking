@@ -1339,7 +1339,7 @@ func TestPluginWindowsAdd(t *testing.T) {
 				if epID == "none" {
 					t.Fail()
 				}
-				err = tt.plugin.nm.DeleteEndpoint("", epID, nil)
+				err = tt.plugin.nm.DeleteEndpoint("", epID, nil, "")
 				require.NoError(t, err)
 			}
 
