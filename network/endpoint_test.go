@@ -334,12 +334,14 @@ var _ = Describe("Test Endpoint", func() {
 				EndpointID: "768e8deb-eth1",
 				IfName:     eth0IfName,
 				NICType:    cns.InfraNIC,
+				Mode:       opModeTransparent,
 			}
 			secondaryEpInfo := &EndpointInfo{
 				// When we create the secondary endpoint infos while looping over the interface infos, we pass in the same endpoint id
 				EndpointID: "768e8deb-eth1",
 				NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 				Routes:     []RouteInfo{{Dst: *ipnet}},
+				Mode:       opModeTransparent,
 			}
 
 			It("Should not add endpoint to the network when there is an error", func() {
