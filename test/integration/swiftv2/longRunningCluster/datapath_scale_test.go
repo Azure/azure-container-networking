@@ -46,11 +46,9 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 			subnet   string
 			podCount int
 		}{
-			{cluster: "aks-1", vnetName: "cx_vnet_a1", subnet: "s1", podCount: 8},
-			{cluster: "aks-2", vnetName: "cx_vnet_a2", subnet: "s1", podCount: 7},
-		}
-
-		// Initialize test scenarios with cache
+			{cluster: "aks-1", vnetName: "cx_vnet_v1", subnet: "s1", podCount: 8},
+			{cluster: "aks-2", vnetName: "cx_vnet_v2", subnet: "s1", podCount: 7},
+		} // Initialize test scenarios with cache
 		testScenarios := TestScenarios{
 			ResourceGroup:   rg,
 			BuildID:         buildId,
