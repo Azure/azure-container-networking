@@ -617,13 +617,23 @@ func RunConnectivityTest(test ConnectivityTest, rg, buildId string) error {
 		test.DestNamespace, test.DestinationPod, test.DestCluster, destIP)
 
 	// Run curl command from source pod to destination pod using eth1 IP
-	// Using -m 10 for 10 second timeout
+	// Using -m 3 for 3 second timeout (short because netcat closes connection immediately)
 	// Using --interface eth1 to force traffic through delegated subnet interface
 	// Using --http0.9 to allow HTTP/0.9 responses from netcat (which sends raw text without proper HTTP headers)
-	curlCmd := fmt.Sprintf("curl --http0.9 --interface eth1 -m 10 http://%s:8080/", destIP)
+	// Exit code 28 (timeout) is OK if we received data, since netcat doesn't properly close the connection
+	curlCmd := fmt.Sprintf("curl --http0.9 --interface eth1 -m 3 http://%s:8080/", destIP)
 
 	output, err := helpers.ExecInPod(sourceKubeconfig, test.SourceNamespace, test.SourcePod, curlCmd)
+	
+	// Check if we received data even if curl timed out (exit code 28)
+	// Netcat closes the connection without proper HTTP close, causing curl to timeout
+	// But if we got the expected response, the connectivity test is successful
 	if err != nil {
+		if strings.Contains(err.Error(), "exit status 28") && strings.Contains(output, "TCP Connection Success") {
+			// Timeout but we got the data - this is OK with netcat
+			fmt.Printf("Connectivity successful (timeout OK, data received)! Response preview: %s\n", truncateString(output, 100))
+			return nil
+		}
 		return fmt.Errorf("connectivity test failed: %w\nOutput: %s", err, output)
 	}
 
