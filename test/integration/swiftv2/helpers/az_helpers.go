@@ -330,10 +330,10 @@ func GetPodIP(kubeconfig, namespace, podName string) (string, error) {
 // GetPodDelegatedIP retrieves the eth1 IP address (delegated subnet IP) of a pod
 // This is the IP used for cross-VNet communication and is subject to NSG rules
 func GetPodDelegatedIP(kubeconfig, namespace, podName string) (string, error) {
-	// Retry logic - pod might be Running but container not ready yet
+	// Retry logic - pod might be Running but container not ready yet, or network interface still initializing
 	maxRetries := 5
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 
 		// Get eth1 IP address by running 'ip addr show eth1' in the pod
 		cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "exec", podName,
@@ -349,13 +349,17 @@ func GetPodDelegatedIP(kubeconfig, namespace, podName string) (string, error) {
 			return "", fmt.Errorf("pod %s in namespace %s has no eth1 IP address (delegated subnet not configured?)", podName, namespace)
 		}
 
-		// Check if it's a container not found error
-		if strings.Contains(string(out), "container not found") {
-			if attempt < maxRetries {
-				fmt.Printf("Container not ready yet in pod %s (attempt %d/%d), waiting 3 seconds...\n", podName, attempt, maxRetries)
-				time.Sleep(3 * time.Second)
-				continue
-			}
+		// Check for retryable errors: container not found, signal killed, context deadline exceeded
+		errStr := strings.ToLower(err.Error())
+		outStr := strings.ToLower(string(out))
+		isRetryable := strings.Contains(outStr, "container not found") ||
+			strings.Contains(errStr, "signal: killed") ||
+			strings.Contains(errStr, "context deadline exceeded")
+
+		if isRetryable && attempt < maxRetries {
+			fmt.Printf("Retryable error getting IP for pod %s (attempt %d/%d): %v. Waiting 5 seconds...\n", podName, attempt, maxRetries, err)
+			time.Sleep(5 * time.Second)
+			continue
 		}
 
 		return "", fmt.Errorf("failed to get eth1 IP for %s in namespace %s: %w\nOutput: %s", podName, namespace, err, string(out))
