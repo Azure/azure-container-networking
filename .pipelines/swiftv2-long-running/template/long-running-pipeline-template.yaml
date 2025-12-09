@@ -444,6 +444,7 @@ stages:
           - CreateTestResources
           - ConnectivityTests
           - PrivateEndpointTests
+          - ScaleTest
         # Always run cleanup, even if previous jobs failed
         condition: always()
         timeoutInMinutes: 60
