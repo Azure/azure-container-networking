@@ -98,6 +98,7 @@ type TestResources struct {
 	PNITemplate        string
 	PodTemplate        string
 	PodImage           string
+	Reservations       int    // Number of IP reservations for PodNetworkInstance
 }
 
 // PodScenario defines a single pod creation scenario
@@ -211,12 +212,17 @@ func CreateNamespaceResource(kubeconfig, namespace string) error {
 
 // CreatePodNetworkInstanceResource creates a PodNetworkInstance
 func CreatePodNetworkInstanceResource(resources TestResources) error {
+	// Use provided reservations count, default to 2 if not specified
+	reservations := resources.Reservations
+	if reservations == 0 {
+		reservations = 2
+	}
 	err := CreatePodNetworkInstance(resources.Kubeconfig, PNIData{
 		PNIName:      resources.PNIName,
 		PNName:       resources.PNName,
 		Namespace:    resources.PNName,
 		Type:         "explicit",
-		Reservations: 2,
+		Reservations: reservations,
 	}, resources.PNITemplate)
 	if err != nil {
 		return fmt.Errorf("failed to create PodNetworkInstance: %w", err)

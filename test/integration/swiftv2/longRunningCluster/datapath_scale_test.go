@@ -88,6 +88,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 				PNITemplate:        "../../manifests/swiftv2/long-running-cluster/podnetworkinstance.yaml",
 				PodTemplate:        "../../manifests/swiftv2/long-running-cluster/pod-with-device-plugin.yaml",
 				PodImage:           testScenarios.PodImage,
+				Reservations:       scenario.podCount, // Set reservations to match pod count
 			}
 
 			// Step 1: Create PodNetwork
