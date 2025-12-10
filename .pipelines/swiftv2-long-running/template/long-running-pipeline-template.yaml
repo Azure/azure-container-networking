@@ -438,57 +438,57 @@ stages:
       # ------------------------------------------------------------
       # Job 5: Delete Test Resources
       # ------------------------------------------------------------
-      # - job: DeleteTestResources
-      #   displayName: "Delete PodNetwork, PNI, and Pods"
-      #   dependsOn: 
-      #     - CreateTestResources
-      #     - ConnectivityTests
-      #     - PrivateEndpointTests
-      #     - ScaleTest
-      #   # Always run cleanup, even if previous jobs failed
-      #   condition: always()
-      #   timeoutInMinutes: 60
-      #   pool:
-      #     vmImage: ubuntu-latest
-      #   steps:
-      #     - checkout: self
-      #     - task: GoTool@0
-      #       displayName: "Use Go 1.22.5"
-      #       inputs:
-      #         version: "1.22.5" 
-      #     - task: AzureCLI@2
-      #       displayName: "Delete Test Resources"
-      #       inputs:
-      #         azureSubscription: ${{ parameters.serviceConnection }}
-      #         scriptType: bash
-      #         scriptLocation: inlineScript
-      #         inlineScript: |
-      #           echo "==> Installing Ginkgo CLI"
-      #           go install github.com/onsi/ginkgo/v2/ginkgo@latest
-      #           echo "==> Adding Go bin to PATH"
-      #           export PATH=$PATH:$(go env GOPATH)/bin
-      #           echo "==> Downloading Go dependencies"
-      #           go mod download
+      - job: DeleteTestResources
+        displayName: "Delete PodNetwork, PNI, and Pods"
+        dependsOn: 
+          - CreateTestResources
+          - ConnectivityTests
+          - PrivateEndpointTests
+          - ScaleTest
+        # Always run cleanup, even if previous jobs failed
+        condition: always()
+        timeoutInMinutes: 60
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+          - task: GoTool@0
+            displayName: "Use Go 1.22.5"
+            inputs:
+              version: "1.22.5" 
+          - task: AzureCLI@2
+            displayName: "Delete Test Resources"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Installing Ginkgo CLI"
+                go install github.com/onsi/ginkgo/v2/ginkgo@latest
+                echo "==> Adding Go bin to PATH"
+                export PATH=$PATH:$(go env GOPATH)/bin
+                echo "==> Downloading Go dependencies"
+                go mod download
 
-      #           echo "==> Setting up kubeconfig for cluster aks-1"
-      #           az aks get-credentials \
-      #             --resource-group $(rgName) \
-      #             --name aks-1 \
-      #             --file /tmp/aks-1.kubeconfig \
-      #             --overwrite-existing \
-      #             --admin
-      #           echo "==> Setting up kubeconfig for cluster aks-2"
-      #           az aks get-credentials \
-      #             --resource-group $(rgName) \
-      #             --name aks-2 \
-      #             --file /tmp/aks-2.kubeconfig \
-      #             --overwrite-existing \
-      #             --admin
+                echo "==> Setting up kubeconfig for cluster aks-1"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-1 \
+                  --file /tmp/aks-1.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+                echo "==> Setting up kubeconfig for cluster aks-2"
+                az aks get-credentials \
+                  --resource-group $(rgName) \
+                  --name aks-2 \
+                  --file /tmp/aks-2.kubeconfig \
+                  --overwrite-existing \
+                  --admin
                   
-      #           echo "==> Deleting test resources (8 scenarios)"
-      #           export RG="$(rgName)"
-      #           export BUILD_ID="$(rgName)"
-      #           export WORKLOAD_TYPE="swiftv2-linux"
-      #           cd ./test/integration/swiftv2/longRunningCluster
-      #           ginkgo -v -trace --timeout=1h --tags=delete_test
+                echo "==> Deleting test resources (8 scenarios)"
+                export RG="$(rgName)"
+                export BUILD_ID="$(rgName)"
+                export WORKLOAD_TYPE="swiftv2-linux"
+                cd ./test/integration/swiftv2/longRunningCluster
+                ginkgo -v -trace --timeout=1h --tags=delete_test
               

@@ -40,6 +40,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		// Device plugin and Kubernetes scheduler automatically place pods on nodes with available NICs
 
 		// Define scenarios for both clusters - 3 pods on aks-1, 2 pods on aks-2 (5 total for testing)
+		// IMPORTANT: Reuse existing PodNetworks from connectivity tests to avoid "duplicate podnetwork with same network id" error
 		scenarios := []struct {
 			cluster  string
 			vnetName string
@@ -69,17 +70,21 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 			netInfo, err := GetOrFetchVnetSubnetInfo(testScenarios.ResourceGroup, scenario.vnetName, scenario.subnet, testScenarios.VnetSubnetCache)
 			gomega.Expect(err).To(gomega.BeNil(), fmt.Sprintf("Failed to get network info for %s/%s", scenario.vnetName, scenario.subnet))
 
-			// Create unique names
+			// REUSE existing PodNetwork name from connectivity tests (don't create duplicate)
 			vnetShort := strings.TrimPrefix(scenario.vnetName, "cx_vnet_")
 			vnetShort = strings.ReplaceAll(vnetShort, "_", "-")
 			subnetNameSafe := strings.ReplaceAll(scenario.subnet, "_", "-")
-			pnName := fmt.Sprintf("pn-scale-%s-%s-%s", testScenarios.BuildID, vnetShort, subnetNameSafe)
-			pniName := fmt.Sprintf("pni-scale-%s-%s-%s", testScenarios.BuildID, vnetShort, subnetNameSafe)
+			pnName := fmt.Sprintf("pn-%s-%s-%s", testScenarios.BuildID, vnetShort, subnetNameSafe) // Reuse connectivity test PN
+			pniName := fmt.Sprintf("pni-scale-%s-%s-%s", testScenarios.BuildID, vnetShort, subnetNameSafe) // New PNI for scale test
+
+			// Create scale-specific namespace
+			scaleNamespace := fmt.Sprintf("%s-scale", pnName)
 
 			resources := TestResources{
 				Kubeconfig:         kubeconfig,
-				PNName:             pnName,
-				PNIName:            pniName,
+				PNName:             pnName,        // References the shared PodNetwork
+				PNIName:            pniName,       // New PNI for scale test
+				Namespace:          scaleNamespace, // Scale test specific namespace
 				VnetGUID:           netInfo.VnetGUID,
 				SubnetGUID:         netInfo.SubnetGUID,
 				SubnetARMID:        netInfo.SubnetARMID,
@@ -88,21 +93,19 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 				PNITemplate:        "../../manifests/swiftv2/long-running-cluster/podnetworkinstance.yaml",
 				PodTemplate:        "../../manifests/swiftv2/long-running-cluster/pod-with-device-plugin.yaml",
 				PodImage:           testScenarios.PodImage,
-				Reservations:       scenario.podCount, // Set reservations to match pod count
+				Reservations:       10, // Reserve 10 IPs for scale test pods
 			}
 
-			// Step 1: Create PodNetwork
-			ginkgo.By(fmt.Sprintf("Creating PodNetwork: %s in cluster %s", pnName, scenario.cluster))
-			err = CreatePodNetworkResource(resources)
-			gomega.Expect(err).To(gomega.BeNil(), "Failed to create PodNetwork")
+			// Step 1: SKIP creating PodNetwork (reuse existing one from connectivity tests)
+			ginkgo.By(fmt.Sprintf("Reusing existing PodNetwork: %s in cluster %s", pnName, scenario.cluster))
 
-			// Step 2: Create namespace
-			ginkgo.By(fmt.Sprintf("Creating namespace: %s in cluster %s", pnName, scenario.cluster))
-			err = CreateNamespaceResource(resources.Kubeconfig, resources.PNName)
+			// Step 2: Create namespace for scale test
+			ginkgo.By(fmt.Sprintf("Creating scale test namespace: %s in cluster %s", scaleNamespace, scenario.cluster))
+			err = CreateNamespaceResource(resources.Kubeconfig, scaleNamespace)
 			gomega.Expect(err).To(gomega.BeNil(), "Failed to create namespace")
 
-			// Step 3: Create PodNetworkInstance
-			ginkgo.By(fmt.Sprintf("Creating PodNetworkInstance: %s in cluster %s", pniName, scenario.cluster))
+			// Step 3: Create NEW PodNetworkInstance for scale test
+			ginkgo.By(fmt.Sprintf("Creating PodNetworkInstance: %s (references PN: %s) in namespace %s in cluster %s", pniName, pnName, scaleNamespace, scenario.cluster))
 			err = CreatePodNetworkInstanceResource(resources)
 			gomega.Expect(err).To(gomega.BeNil(), "Failed to create PodNetworkInstance")
 
@@ -128,7 +131,11 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 					defer ginkgo.GinkgoRecover()
 
 					podName := fmt.Sprintf("scale-pod-%d", idx)
-					ginkgo.By(fmt.Sprintf("Creating pod %s in cluster %s (auto-scheduled)", podName, cluster))
+					namespace := resources.Namespace
+					if namespace == "" {
+						namespace = resources.PNName
+					}
+					ginkgo.By(fmt.Sprintf("Creating pod %s in namespace %s in cluster %s (auto-scheduled)", podName, namespace, cluster))
 
 					// Create pod without specifying node - let device plugin and scheduler decide
 					err := CreatePod(resources.Kubeconfig, PodData{
@@ -137,7 +144,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 						OS:        "linux",
 						PNName:    resources.PNName,
 						PNIName:   resources.PNIName,
-						Namespace: resources.PNName,
+						Namespace: namespace,
 						Image:     resources.PodImage,
 					}, resources.PodTemplate)
 					if err != nil {
@@ -147,7 +154,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 
 					// Wait for pod to be scheduled (node assignment) before considering it created
 					// This prevents CNS errors about missing node names
-					err = helpers.WaitForPodScheduled(resources.Kubeconfig, resources.PNName, podName, 10, 6)
+					err = helpers.WaitForPodScheduled(resources.Kubeconfig, namespace, podName, 10, 6)
 					if err != nil {
 						errors <- fmt.Errorf("pod %s in cluster %s was not scheduled: %w", podName, cluster, err)
 					}
@@ -178,9 +185,13 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		ginkgo.By("Verifying all pods are in Running state")
 		podIndex = 0
 		for i, scenario := range scenarios {
+			namespace := allResources[i].Namespace
+			if namespace == "" {
+				namespace = allResources[i].PNName
+			}
 			for j := 0; j < scenario.podCount; j++ {
 				podName := fmt.Sprintf("scale-pod-%d", podIndex)
-				err := helpers.WaitForPodRunning(allResources[i].Kubeconfig, allResources[i].PNName, podName, 5, 10)
+				err := helpers.WaitForPodRunning(allResources[i].Kubeconfig, namespace, podName, 5, 10)
 				gomega.Expect(err).To(gomega.BeNil(), fmt.Sprintf("Pod %s did not reach running state in cluster %s", podName, scenario.cluster))
 				podIndex++
 			}
@@ -194,33 +205,37 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		for i, scenario := range scenarios {
 			resources := allResources[i]
 			kubeconfig := resources.Kubeconfig
+			namespace := resources.Namespace
+			if namespace == "" {
+				namespace = resources.PNName
+			}
 
 			for j := 0; j < scenario.podCount; j++ {
 				podName := fmt.Sprintf("scale-pod-%d", podIndex)
-				ginkgo.By(fmt.Sprintf("Deleting pod: %s from cluster %s", podName, scenario.cluster))
-				err := helpers.DeletePod(kubeconfig, resources.PNName, podName)
+				ginkgo.By(fmt.Sprintf("Deleting pod: %s from namespace %s in cluster %s", podName, namespace, scenario.cluster))
+				err := helpers.DeletePod(kubeconfig, namespace, podName)
 				if err != nil {
 					fmt.Printf("Warning: Failed to delete pod %s: %v\n", podName, err)
 				}
 				podIndex++
 			}
 
-			// Delete namespace (this will also delete PNI)
-			ginkgo.By(fmt.Sprintf("Deleting namespace: %s from cluster %s", resources.PNName, scenario.cluster))
-			err := helpers.DeleteNamespace(kubeconfig, resources.PNName)
-			gomega.Expect(err).To(gomega.BeNil(), "Failed to delete namespace")
-
-			// Delete PodNetworkInstance
-			ginkgo.By(fmt.Sprintf("Deleting PodNetworkInstance: %s from cluster %s", resources.PNIName, scenario.cluster))
-			err = helpers.DeletePodNetworkInstance(kubeconfig, resources.PNName, resources.PNIName)
+			// Delete PodNetworkInstance first
+			ginkgo.By(fmt.Sprintf("Deleting PodNetworkInstance: %s from namespace %s in cluster %s", resources.PNIName, namespace, scenario.cluster))
+			err := helpers.DeletePodNetworkInstance(kubeconfig, namespace, resources.PNIName)
 			if err != nil {
 				fmt.Printf("Warning: Failed to delete PNI %s: %v\n", resources.PNIName, err)
 			}
 
-			// Delete PodNetwork
-			ginkgo.By(fmt.Sprintf("Deleting PodNetwork: %s from cluster %s", resources.PNName, scenario.cluster))
-			err = helpers.DeletePodNetwork(kubeconfig, resources.PNName)
-			gomega.Expect(err).To(gomega.BeNil(), "Failed to delete PodNetwork")
+			// Delete namespace (scale test specific)
+			ginkgo.By(fmt.Sprintf("Deleting scale test namespace: %s from cluster %s", namespace, scenario.cluster))
+			err = helpers.DeleteNamespace(kubeconfig, namespace)
+			if err != nil {
+				fmt.Printf("Warning: Failed to delete namespace %s: %v\n", namespace, err)
+			}
+
+			// DO NOT delete PodNetwork - it's shared with connectivity tests
+			ginkgo.By(fmt.Sprintf("Keeping PodNetwork: %s (shared with connectivity tests) in cluster %s", resources.PNName, scenario.cluster))
 		}
 
 		ginkgo.By("Scale test cleanup completed")

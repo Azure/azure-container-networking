@@ -90,6 +90,7 @@ type TestResources struct {
 	Kubeconfig         string
 	PNName             string
 	PNIName            string
+	Namespace          string // Namespace for PNI and pods (can be different from PNName for scale tests)
 	VnetGUID           string
 	SubnetGUID         string
 	SubnetARMID        string
@@ -217,10 +218,15 @@ func CreatePodNetworkInstanceResource(resources TestResources) error {
 	if reservations == 0 {
 		reservations = 2
 	}
+	// Use Namespace field if set, otherwise default to PNName
+	namespace := resources.Namespace
+	if namespace == "" {
+		namespace = resources.PNName
+	}
 	err := CreatePodNetworkInstance(resources.Kubeconfig, PNIData{
 		PNIName:      resources.PNIName,
-		PNName:       resources.PNName,
-		Namespace:    resources.PNName,
+		PNName:       resources.PNName, // The PodNetwork to reference
+		Namespace:    namespace,         // Where to create the PNI resource
 		Type:         "explicit",
 		Reservations: reservations,
 	}, resources.PNITemplate)
@@ -232,13 +238,18 @@ func CreatePodNetworkInstanceResource(resources TestResources) error {
 
 // CreatePodResource creates a single pod on a specified node and waits for it to be running
 func CreatePodResource(resources TestResources, podName, nodeName string) error {
+	// Use Namespace field if set, otherwise default to PNName
+	namespace := resources.Namespace
+	if namespace == "" {
+		namespace = resources.PNName
+	}
 	err := CreatePod(resources.Kubeconfig, PodData{
 		PodName:   podName,
 		NodeName:  nodeName,
 		OS:        "linux",
 		PNName:    resources.PNName,
 		PNIName:   resources.PNIName,
-		Namespace: resources.PNName,
+		Namespace: namespace,
 		Image:     resources.PodImage,
 	}, resources.PodTemplate)
 	if err != nil {
@@ -246,7 +257,7 @@ func CreatePodResource(resources TestResources, podName, nodeName string) error 
 	}
 
 	// Wait for pod to be running with retries
-	err = helpers.WaitForPodRunning(resources.Kubeconfig, resources.PNName, podName, 10, 30)
+	err = helpers.WaitForPodRunning(resources.Kubeconfig, namespace, podName, 10, 30)
 	if err != nil {
 		return fmt.Errorf("pod %s did not reach running state: %w", podName, err)
 	}
