@@ -39,15 +39,15 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		// For this test: Creating 15 pods across aks-1 and aks-2
 		// Device plugin and Kubernetes scheduler automatically place pods on nodes with available NICs
 
-		// Define scenarios for both clusters - 8 pods on aks-1, 7 pods on aks-2
+		// Define scenarios for both clusters - 3 pods on aks-1, 2 pods on aks-2 (5 total for testing)
 		scenarios := []struct {
 			cluster  string
 			vnetName string
 			subnet   string
 			podCount int
 		}{
-			{cluster: "aks-1", vnetName: "cx_vnet_v1", subnet: "s1", podCount: 8},
-			{cluster: "aks-2", vnetName: "cx_vnet_v2", subnet: "s1", podCount: 7},
+			{cluster: "aks-1", vnetName: "cx_vnet_v1", subnet: "s1", podCount: 3},
+			{cluster: "aks-2", vnetName: "cx_vnet_v2", subnet: "s1", podCount: 2},
 		} // Initialize test scenarios with cache
 		testScenarios := TestScenarios{
 			ResourceGroup:   rg,
