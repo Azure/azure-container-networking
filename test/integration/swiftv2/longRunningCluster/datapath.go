@@ -85,7 +85,7 @@ func CreatePod(kubeconfig string, data PodData, templatePath string) error {
 // High-level orchestration
 // -------------------------
 
-// TestResources holds all the configuration needed for creating test resources
+// TestResources holds all the configuration needed for creating test pods
 type TestResources struct {
 	Kubeconfig         string
 	PNName             string
@@ -99,7 +99,7 @@ type TestResources struct {
 	PNITemplate        string
 	PodTemplate        string
 	PodImage           string
-	Reservations       int    // Number of IP reservations for PodNetworkInstance
+	Reservations       int // Number of IP reservations for PodNetworkInstance
 }
 
 // PodScenario defines a single pod creation scenario
@@ -225,8 +225,8 @@ func CreatePodNetworkInstanceResource(resources TestResources) error {
 	}
 	err := CreatePodNetworkInstance(resources.Kubeconfig, PNIData{
 		PNIName:      resources.PNIName,
-		PNName:       resources.PNName, // The PodNetwork to reference
-		Namespace:    namespace,         // Where to create the PNI resource
+		PNName:       resources.PNName,
+		Namespace:    namespace,
 		Type:         "explicit",
 		Reservations: reservations,
 	}, resources.PNITemplate)
@@ -640,10 +640,6 @@ func RunConnectivityTest(test ConnectivityTest, rg, buildId string) error {
 	curlCmd := fmt.Sprintf("curl --http0.9 --interface eth1 -m 3 http://%s:8080/", destIP)
 
 	output, err := helpers.ExecInPod(sourceKubeconfig, test.SourceNamespace, test.SourcePod, curlCmd)
-
-	// Check if we received data even if curl timed out (exit code 28)
-	// Netcat closes the connection without proper HTTP close, causing curl to timeout
-	// But if we got the expected response, the connectivity test is successful
 	if err != nil {
 		if strings.Contains(err.Error(), "exit status 28") && strings.Contains(output, "TCP Connection Success") {
 			// Timeout but we got the data - this is OK with netcat
@@ -773,18 +769,8 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 		return fmt.Errorf("failed to generate SAS token: %w", err)
 	}
 
-	// Debug: Print SAS token info
-	fmt.Printf("SAS token length: %d\n", len(sasToken))
-	if len(sasToken) > 60 {
-		fmt.Printf("SAS token preview: %s...\n", sasToken[:60])
-	} else {
-		fmt.Printf("SAS token: %s\n", sasToken)
-	}
-
 	// Step 4: Download test blob using SAS token with verbose output
 	fmt.Printf("==> Downloading test blob via private endpoint\n")
-	// Construct URL - ensure SAS token is properly formatted
-	// Note: SAS token should already be URL-encoded from Azure CLI
 	blobURL := fmt.Sprintf("https://%s/test/hello.txt?%s", test.DestEndpoint, sasToken)
 
 	// Use wget instead of curl - it handles special characters better
