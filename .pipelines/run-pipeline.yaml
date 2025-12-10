@@ -480,7 +480,7 @@ stages:
       dependsOn: manifests
       scaleup: 50
     
-  # AKS Swiftv2 Singularity E2E tests
+  # AKS Swiftv2 Manifold E2E tests
   - template: multitenancy/swiftv2-manifold-e2e.stages.yaml
     parameters:
       name: "swiftv2_manifold_e2e"

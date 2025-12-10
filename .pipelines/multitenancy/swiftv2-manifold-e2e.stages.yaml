@@ -3,7 +3,7 @@ parameters:
   dependsOn: ""
 
 stages:
-  - stage: manifolde2e
+  - stage: manifold_e2e
     displayName: E2E - AKS Swiftv2 Manifold
     variables:
       TAG: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
@@ -32,5 +32,4 @@ stages:
               queueBuildForUserThatTriggeredBuild: true
               branchToUse: 'refs/heads/master'
               waitForQueuedBuildsToFinish: true
-              authenticationMethod: 'OAuth Token'
-              
+              authenticationMethod: 'OAuth Token'      
