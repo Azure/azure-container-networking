@@ -119,7 +119,7 @@ func namedPortRule(portRule *networkingv1.NetworkPolicyPort) (*ipsets.Translated
 }
 
 func portRule(ruleIPSets []*ipsets.TranslatedIPSet, acl *policies.ACLPolicy, portRule *networkingv1.NetworkPolicyPort, portType netpolPortType) []*ipsets.TranslatedIPSet {
-	// port rule is always applied to destination side.
+	// port rule is always applied to destination side..
 	if portType == namedPortType {
 		namedPortIPSet, namedPortRuleDstList, protocol := namedPortRule(portRule)
 		acl.AddSetInfo([]policies.SetInfo{namedPortRuleDstList})
