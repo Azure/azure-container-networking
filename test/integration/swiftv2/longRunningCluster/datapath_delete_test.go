@@ -5,10 +5,8 @@ package longRunningCluster
 import (
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/test/integration/swiftv2/helpers"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 )
