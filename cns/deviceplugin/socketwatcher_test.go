@@ -181,14 +181,13 @@ func TestWatchSocketCleanup(t *testing.T) {
 	}
 
 	// 5. Watch the socket again
-	// If the bug exists, this will return the OLD closed channel (ch1) or a closed channel
 	ch2 := s.WatchSocket(context.Background(), socket)
 
-	// 6. Verify ch2 is NOT closed immediately
+	// 6. Verify ch2 is open
 	select {
 	case <-ch2:
-		t.Fatal("WatchSocket returned a closed channel on the second call! The map entry was likely not cleaned up.")
+		t.Fatal("channel is closed but expected to be open")
 	case <-time.After(200 * time.Millisecond):
-		// If we wait a bit and it's still open, that's good.
+		// Wait for at least one tick to ensure the watcher has had a chance to run.
 	}
 }
