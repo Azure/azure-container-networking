@@ -11,11 +11,11 @@ ENTRYPOINT ["azure-cns.exe"]
 EXPOSE 10090
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:833693619d523c23b1fe4d9c1f64a6c697e2a82f7a6ee26e1564897c3fe3fa02 AS build-helper
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:ee7f76ce3febc06e79c1a3776178b36bea62f76da43f0d58c30d5974d0ec3dbf AS build-helper
 RUN tdnf install -y iptables
 
 # mcr.microsoft.com/azurelinux/distroless/minimal:3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/minimal@sha256:d784c8233e87e8bce2e902ff59a91262635e4cabc25ec55ac0a718344514db3c AS linux
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/minimal@sha256:810f96c73cfbe47690b54eb4f3cea57ec0467e413f1fd068a234746a95a1c27e AS linux
 ARG ARTIFACT_DIR .
 
 COPY --from=build-helper /usr/sbin/*tables* /usr/sbin/
