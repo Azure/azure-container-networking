@@ -25,7 +25,7 @@ func TestServer_Run_CleansUpExistingSocket(t *testing.T) {
 	socketPath := filepath.Join(tmpDir, "test.sock")
 
 	// Create a dummy file at the socket path to simulate a stale socket
-	if err := os.WriteFile(socketPath, []byte("stale socket"), 0600); err != nil {
+	if err := os.WriteFile(socketPath, []byte("stale socket"), 0o600); err != nil {
 		t.Fatalf("failed to create dummy socket file: %v", err)
 	}
 

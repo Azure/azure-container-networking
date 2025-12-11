@@ -48,14 +48,14 @@ func TestWatchSocketDeleted(t *testing.T) {
 		t.Fatalf("error creating temporary directory: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Fatalf("failed to remove temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Fatalf("failed to remove temp dir: %v", removeErr)
 		}
 	}() // Ensure the directory is cleaned up
 
 	socket := filepath.Join(tempDir, "to-be-deleted.sock")
-	if _, err := os.Create(socket); err != nil {
-		t.Fatalf("error creating test file %s: %v", socket, err)
+	if _, createErr := os.Create(socket); createErr != nil {
+		t.Fatalf("error creating test file %s: %v", socket, createErr)
 	}
 
 	logger, err := zap.NewDevelopment()
@@ -95,14 +95,14 @@ func TestWatchSocketTwice(t *testing.T) {
 		t.Fatalf("error creating temporary directory: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Fatalf("failed to remove temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Fatalf("failed to remove temp dir: %v", removeErr)
 		}
 	}() // Ensure the directory is cleaned up
 
 	socket := filepath.Join(tempDir, "to-be-deleted.sock")
-	if _, err := os.Create(socket); err != nil {
-		t.Fatalf("error creating test file %s: %v", socket, err)
+	if _, createErr := os.Create(socket); createErr != nil {
+		t.Fatalf("error creating test file %s: %v", socket, createErr)
 	}
 
 	logger, err := zap.NewDevelopment()
@@ -159,14 +159,14 @@ func TestWatchSocketCleanup(t *testing.T) {
 		t.Fatalf("error creating temporary directory: %v", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Fatalf("failed to remove temp dir: %v", err)
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Fatalf("failed to remove temp dir: %v", removeErr)
 		}
 	}() // Ensure the directory is cleaned up
 
 	socket := filepath.Join(tempDir, "to-be-deleted.sock")
-	if _, err := os.Create(socket); err != nil {
-		t.Fatalf("error creating test file %s: %v", socket, err)
+	if _, createErr := os.Create(socket); createErr != nil {
+		t.Fatalf("error creating test file %s: %v", socket, createErr)
 	}
 
 	logger, err := zap.NewDevelopment()
