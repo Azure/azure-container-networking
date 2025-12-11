@@ -31,15 +31,15 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", rg, buildId))
 	}
 
-	ginkgo.It("creates and deletes 5 pods in a burst using device plugin", ginkgo.NodeTimeout(0), func() {
+	ginkgo.It("creates and deletes 15 pods in a burst using device plugin", ginkgo.NodeTimeout(0), func() {
 		// NOTE: Maximum pods per PodNetwork/PodNetworkInstance is limited by:
 		// 1. Subnet IP address capacity
 		// 2. Node capacity (typically 250 pods per node)
 		// 3. Available NICs on nodes (device plugin resources)
-		// For this test: Creating 5 pods across aks-1 and aks-2
+		// For this test: Creating 15 pods across aks-1 and aks-2
 		// Device plugin and Kubernetes scheduler automatically place pods on nodes with available NICs
 
-		// Define scenarios for both clusters - 3 pods on aks-1, 2 pods on aks-2 (5 total for testing)
+		// Define scenarios for both clusters - 8 pods on aks-1, 7 pods on aks-2 (15 total for testing)
 		// IMPORTANT: Reuse existing PodNetworks from connectivity tests to avoid "duplicate podnetwork with same network id" error
 		scenarios := []struct {
 			cluster  string
@@ -47,8 +47,8 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 			subnet   string
 			podCount int
 		}{
-			{cluster: "aks-1", vnetName: "cx_vnet_v1", subnet: "s1", podCount: 3},
-			{cluster: "aks-2", vnetName: "cx_vnet_v3", subnet: "s1", podCount: 2},
+			{cluster: "aks-1", vnetName: "cx_vnet_v1", subnet: "s1", podCount: 8},
+			{cluster: "aks-2", vnetName: "cx_vnet_v3", subnet: "s1", podCount: 7},
 		} // Initialize test scenarios with cache
 		testScenarios := TestScenarios{
 			ResourceGroup:   rg,
@@ -90,7 +90,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 				PNITemplate:        "../../manifests/swiftv2/long-running-cluster/podnetworkinstance.yaml",
 				PodTemplate:        "../../manifests/swiftv2/long-running-cluster/pod-with-device-plugin.yaml",
 				PodImage:           testScenarios.PodImage,
-				Reservations:       10, // Reserve 10 IPs for scale test pods
+				Reservations:       20, // Reserve 20 IPs for scale test pods
 			}
 
 			// Step 1: SKIP creating PodNetwork (reuse existing one from connectivity tests)
