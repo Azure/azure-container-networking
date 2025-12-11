@@ -13,7 +13,10 @@ import (
 
 func TestWatchContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	logger, _ := zap.NewDevelopment()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
 	s := deviceplugin.NewSocketWatcher(logger)
 	done := make(chan struct{})
 	go func(done chan struct{}) {
@@ -44,14 +47,21 @@ func TestWatchSocketDeleted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating temporary directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir) // Ensure the directory is cleaned up
+	defer func() {
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Fatalf("failed to remove temp dir: %v", removeErr)
+		}
+	}() // Ensure the directory is cleaned up
 
 	socket := filepath.Join(tempDir, "to-be-deleted.sock")
-	if _, err := os.Create(socket); err != nil {
-		t.Fatalf("error creating test file %s: %v", socket, err)
+	if _, createErr := os.Create(socket); createErr != nil {
+		t.Fatalf("error creating test file %s: %v", socket, createErr)
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
 	s := deviceplugin.NewSocketWatcher(logger, deviceplugin.SocketWatcherStatInterval(time.Second))
 	done := make(chan struct{})
 	go func(done chan struct{}) {
@@ -84,14 +94,21 @@ func TestWatchSocketTwice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating temporary directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir) // Ensure the directory is cleaned up
+	defer func() {
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Fatalf("failed to remove temp dir: %v", removeErr)
+		}
+	}() // Ensure the directory is cleaned up
 
 	socket := filepath.Join(tempDir, "to-be-deleted.sock")
-	if _, err := os.Create(socket); err != nil {
-		t.Fatalf("error creating test file %s: %v", socket, err)
+	if _, createErr := os.Create(socket); createErr != nil {
+		t.Fatalf("error creating test file %s: %v", socket, createErr)
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
 	s := deviceplugin.NewSocketWatcher(logger, deviceplugin.SocketWatcherStatInterval(time.Second))
 	done1 := make(chan struct{})
 	done2 := make(chan struct{})
@@ -132,5 +149,69 @@ func TestWatchSocketTwice(t *testing.T) {
 	case <-done2:
 	case <-time.After(5 * time.Second):
 		t.Fatal("socket watcher is still watching 5 seconds after file is deleted")
+	}
+}
+
+func TestWatchSocketCleanup(t *testing.T) {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "socket-watcher-test-")
+	if err != nil {
+		t.Fatalf("error creating temporary directory: %v", err)
+	}
+	defer func() {
+		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
+			t.Fatalf("failed to remove temp dir: %v", removeErr)
+		}
+	}() // Ensure the directory is cleaned up
+
+	socket := filepath.Join(tempDir, "to-be-deleted.sock")
+	if _, createErr := os.Create(socket); createErr != nil {
+		t.Fatalf("error creating test file %s: %v", socket, createErr)
+	}
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+	// Use a short interval for faster test execution
+	s := deviceplugin.NewSocketWatcher(logger, deviceplugin.SocketWatcherStatInterval(100*time.Millisecond))
+
+	// 1. Watch the socket
+	ch1 := s.WatchSocket(context.Background(), socket)
+
+	// Verify it's open
+	select {
+	case <-ch1:
+		t.Fatal("channel should be open initially")
+	default:
+	}
+
+	// 2. Delete the socket to trigger watcher exit
+	if err := os.Remove(socket); err != nil {
+		t.Fatalf("failed to remove socket: %v", err)
+	}
+
+	// 3. Wait for ch1 to close
+	select {
+	case <-ch1:
+		// Expected
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for watcher to detect socket deletion")
+	}
+
+	// 4. Recreate the socket
+	if _, err := os.Create(socket); err != nil {
+		t.Fatalf("error recreating test file %s: %v", socket, err)
+	}
+
+	// 5. Watch the socket again
+	ch2 := s.WatchSocket(context.Background(), socket)
+
+	// 6. Verify ch2 is open
+	select {
+	case <-ch2:
+		t.Fatal("channel is closed but expected to be open")
+	case <-time.After(200 * time.Millisecond):
+		// Wait for at least one tick to ensure the watcher has had a chance to run.
 	}
 }

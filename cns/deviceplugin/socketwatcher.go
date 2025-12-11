@@ -56,7 +56,12 @@ func (s *SocketWatcher) WatchSocket(ctx context.Context, socket string) <-chan s
 	socketChan := make(chan struct{})
 	s.socketChans[socket] = socketChan
 	go func() {
-		defer close(socketChan)
+		defer func() {
+			s.mutex.Lock()
+			delete(s.socketChans, socket)
+			s.mutex.Unlock()
+			close(socketChan)
+		}()
 		ticker := time.NewTicker(s.options.statInterval)
 		defer ticker.Stop()
 		for {
