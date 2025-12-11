@@ -134,3 +134,61 @@ func TestWatchSocketTwice(t *testing.T) {
 		t.Fatal("socket watcher is still watching 5 seconds after file is deleted")
 	}
 }
+
+func TestWatchSocketCleanup(t *testing.T) {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "socket-watcher-test-")
+	if err != nil {
+		t.Fatalf("error creating temporary directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir) // Ensure the directory is cleaned up
+
+	socket := filepath.Join(tempDir, "to-be-deleted.sock")
+	if _, err := os.Create(socket); err != nil {
+		t.Fatalf("error creating test file %s: %v", socket, err)
+	}
+
+	logger, _ := zap.NewDevelopment()
+	// Use a short interval for faster test execution
+	s := deviceplugin.NewSocketWatcher(logger, deviceplugin.SocketWatcherStatInterval(100*time.Millisecond))
+
+	// 1. Watch the socket
+	ch1 := s.WatchSocket(context.Background(), socket)
+
+	// Verify it's open
+	select {
+	case <-ch1:
+		t.Fatal("channel should be open initially")
+	default:
+	}
+
+	// 2. Delete the socket to trigger watcher exit
+	if err := os.Remove(socket); err != nil {
+		t.Fatalf("failed to remove socket: %v", err)
+	}
+
+	// 3. Wait for ch1 to close
+	select {
+	case <-ch1:
+		// Expected
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for watcher to detect socket deletion")
+	}
+
+	// 4. Recreate the socket
+	if _, err := os.Create(socket); err != nil {
+		t.Fatalf("error recreating test file %s: %v", socket, err)
+	}
+
+	// 5. Watch the socket again
+	// If the bug exists, this will return the OLD closed channel (ch1) or a closed channel
+	ch2 := s.WatchSocket(context.Background(), socket)
+
+	// 6. Verify ch2 is NOT closed immediately
+	select {
+	case <-ch2:
+		t.Fatal("WatchSocket returned a closed channel on the second call! The map entry was likely not cleaned up.")
+	case <-time.After(200 * time.Millisecond):
+		// If we wait a bit and it's still open, that's good.
+	}
+}
