@@ -13,7 +13,10 @@ import (
 
 func TestWatchContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	logger, _ := zap.NewDevelopment()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
 	s := deviceplugin.NewSocketWatcher(logger)
 	done := make(chan struct{})
 	go func(done chan struct{}) {
@@ -44,14 +47,21 @@ func TestWatchSocketDeleted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating temporary directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir) // Ensure the directory is cleaned up
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Fatalf("failed to remove temp dir: %v", err)
+		}
+	}() // Ensure the directory is cleaned up
 
 	socket := filepath.Join(tempDir, "to-be-deleted.sock")
 	if _, err := os.Create(socket); err != nil {
 		t.Fatalf("error creating test file %s: %v", socket, err)
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
 	s := deviceplugin.NewSocketWatcher(logger, deviceplugin.SocketWatcherStatInterval(time.Second))
 	done := make(chan struct{})
 	go func(done chan struct{}) {
@@ -84,14 +94,21 @@ func TestWatchSocketTwice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating temporary directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir) // Ensure the directory is cleaned up
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Fatalf("failed to remove temp dir: %v", err)
+		}
+	}() // Ensure the directory is cleaned up
 
 	socket := filepath.Join(tempDir, "to-be-deleted.sock")
 	if _, err := os.Create(socket); err != nil {
 		t.Fatalf("error creating test file %s: %v", socket, err)
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
 	s := deviceplugin.NewSocketWatcher(logger, deviceplugin.SocketWatcherStatInterval(time.Second))
 	done1 := make(chan struct{})
 	done2 := make(chan struct{})
@@ -141,14 +158,21 @@ func TestWatchSocketCleanup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error creating temporary directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir) // Ensure the directory is cleaned up
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Fatalf("failed to remove temp dir: %v", err)
+		}
+	}() // Ensure the directory is cleaned up
 
 	socket := filepath.Join(tempDir, "to-be-deleted.sock")
 	if _, err := os.Create(socket); err != nil {
 		t.Fatalf("error creating test file %s: %v", socket, err)
 	}
 
-	logger, _ := zap.NewDevelopment()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
 	// Use a short interval for faster test execution
 	s := deviceplugin.NewSocketWatcher(logger, deviceplugin.SocketWatcherStatInterval(100*time.Millisecond))
 
