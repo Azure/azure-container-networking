@@ -21,6 +21,7 @@ spec:
         prometheus.io/port: "9253"
         prometheus.io/scrape: "true"
     spec:
+      hostNetwork: true
       priorityClassName: system-node-critical
       serviceAccountName: node-local-dns
       dnsPolicy: Default # Don't use cluster DNS.
@@ -49,6 +50,7 @@ spec:
               "-skipteardown=true",
               "-setupinterface=false",
               "-setupiptables=false",
+              "-dns.port=5353",
             ]
           ports:
             - containerPort: 53

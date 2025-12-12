@@ -176,7 +176,7 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, client
 	metricLabels := map[string]string{
 		"family": "1",
 		"proto":  "udp",
-		"server": "dns://0.0.0.0:53",
+		"server": "dns://0.0.0.0:5353",
 		"zone":   ".",
 	}
 

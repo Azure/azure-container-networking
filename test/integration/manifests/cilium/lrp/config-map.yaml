@@ -5,7 +5,7 @@ metadata:
   namespace: kube-system
 data:
   Corefile: |
-    cluster.local:53 {
+    cluster.local:5353 {
         errors
         cache {
                 success 9984 30
@@ -20,7 +20,7 @@ data:
         prometheus :9253
         health
         }
-    in-addr.arpa:53 {
+    in-addr.arpa:5353 {
         errors
         cache 30
         reload
@@ -31,7 +31,7 @@ data:
         }
         prometheus :9253
         }
-    ip6.arpa:53 {
+    ip6.arpa:5353 {
         errors
         cache 30
         reload
@@ -42,7 +42,7 @@ data:
         }
         prometheus :9253
         }
-    .:53 {
+    .:5353 {
         errors
         cache 30
         reload

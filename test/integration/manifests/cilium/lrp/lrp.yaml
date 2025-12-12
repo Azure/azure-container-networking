@@ -13,9 +13,9 @@ spec:
       matchLabels:
         k8s-app: node-local-dns
     toPorts:
-      - port: "53"
+      - port: "5353"
         name: dns
         protocol: UDP
-      - port: "53"
+      - port: "5353"
         name: dns-tcp
         protocol: TCP
