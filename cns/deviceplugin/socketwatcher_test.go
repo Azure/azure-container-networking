@@ -12,6 +12,14 @@ import (
 )
 
 func TestWatchContextCancelled(t *testing.T) {
+	socket := filepath.Join("testdata", "socket.sock")
+	f, createErr := os.Create(socket)
+	if createErr != nil {
+		t.Fatalf("error creating test file %s: %v", socket, createErr)
+	}
+	f.Close()
+	defer os.Remove(socket)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	logger, err := zap.NewDevelopment()
 	if err != nil {
@@ -20,7 +28,7 @@ func TestWatchContextCancelled(t *testing.T) {
 	s := deviceplugin.NewSocketWatcher(logger)
 	done := make(chan struct{})
 	go func(done chan struct{}) {
-		<-s.WatchSocket(ctx, "testdata/socket.sock")
+		<-s.WatchSocket(ctx, socket)
 		close(done)
 	}(done)
 
@@ -42,12 +50,13 @@ func TestWatchContextCancelled(t *testing.T) {
 }
 
 func TestWatchSocketDeleted(t *testing.T) {
-	tempDir := t.TempDir()
-
-	socket := filepath.Join(tempDir, "to-be-deleted.sock")
-	if _, createErr := os.Create(socket); createErr != nil {
+	socket := filepath.Join("testdata", "to-be-deleted.sock")
+	f, createErr := os.Create(socket)
+	if createErr != nil {
 		t.Fatalf("error creating test file %s: %v", socket, createErr)
 	}
+	f.Close()
+	defer os.Remove(socket)
 
 	logger, err := zap.NewDevelopment()
 	if err != nil {
@@ -80,12 +89,13 @@ func TestWatchSocketDeleted(t *testing.T) {
 }
 
 func TestWatchSocketTwice(t *testing.T) {
-	tempDir := t.TempDir()
-
-	socket := filepath.Join(tempDir, "to-be-deleted.sock")
-	if _, createErr := os.Create(socket); createErr != nil {
+	socket := filepath.Join("testdata", "to-be-deleted.sock")
+	f, createErr := os.Create(socket)
+	if createErr != nil {
 		t.Fatalf("error creating test file %s: %v", socket, createErr)
 	}
+	f.Close()
+	defer os.Remove(socket)
 
 	logger, err := zap.NewDevelopment()
 	if err != nil {
@@ -135,12 +145,13 @@ func TestWatchSocketTwice(t *testing.T) {
 }
 
 func TestWatchSocketCleanup(t *testing.T) {
-	tempDir := t.TempDir()
-
-	socket := filepath.Join(tempDir, "to-be-deleted.sock")
-	if _, createErr := os.Create(socket); createErr != nil {
+	socket := filepath.Join("testdata", "to-be-deleted.sock")
+	f, createErr := os.Create(socket)
+	if createErr != nil {
 		t.Fatalf("error creating test file %s: %v", socket, createErr)
 	}
+	f.Close()
+	defer os.Remove(socket)
 
 	logger, err := zap.NewDevelopment()
 	if err != nil {
@@ -173,9 +184,11 @@ func TestWatchSocketCleanup(t *testing.T) {
 	}
 
 	// 4. Recreate the socket
-	if _, err := os.Create(socket); err != nil {
+	f, err = os.Create(socket)
+	if err != nil {
 		t.Fatalf("error recreating test file %s: %v", socket, err)
 	}
+	f.Close()
 
 	// 5. Watch the socket again
 	ch2 := s.WatchSocket(context.Background(), socket)

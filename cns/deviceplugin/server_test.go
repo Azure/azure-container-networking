@@ -21,8 +21,8 @@ func (m *mockDeviceCounter) getDeviceCount() int {
 
 func TestServer_Run_CleansUpExistingSocket(t *testing.T) {
 	// Create a temporary directory for the socket
-	tmpDir := t.TempDir()
-	socketPath := filepath.Join(tmpDir, "test.sock")
+	socketPath := filepath.Join("testdata", "test.sock")
+	defer os.Remove(socketPath)
 
 	// Create a dummy file at the socket path to simulate a stale socket
 	if err := os.WriteFile(socketPath, []byte("stale socket"), 0o600); err != nil {
