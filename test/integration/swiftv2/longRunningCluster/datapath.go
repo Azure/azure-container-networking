@@ -1,8 +1,9 @@
-package longRunningCluster
+package longrunningcluster
 
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,22 +14,47 @@ import (
 	"github.com/Azure/azure-container-networking/test/integration/swiftv2/helpers"
 )
 
+var (
+	// ErrNoLowNICNodes is returned when no low-NIC nodes are available
+	ErrNoLowNICNodes = errors.New("no low-NIC nodes available")
+	// ErrNoHighNICNodes is returned when no high-NIC nodes are available
+	ErrNoHighNICNodes = errors.New("no high-NIC nodes available")
+	// ErrAllLowNICNodesInUse is returned when all low-NIC nodes are already in use
+	ErrAllLowNICNodesInUse = errors.New("all low-NIC nodes already in use")
+	// ErrAllHighNICNodesInUse is returned when all high-NIC nodes are already in use
+	ErrAllHighNICNodesInUse = errors.New("all high-NIC nodes already in use")
+	// ErrFailedToGenerateSASToken is returned when SAS token generation fails
+	ErrFailedToGenerateSASToken = errors.New("failed to generate SAS token")
+	// ErrSASTokenEmpty is returned when generated SAS token is empty
+	ErrSASTokenEmpty = errors.New("generated SAS token is empty")
+	// ErrSASTokenInvalid is returned when generated SAS token appears invalid
+	ErrSASTokenInvalid = errors.New("generated SAS token appears invalid")
+	// ErrPodNotRunning is returned when pod is not in running state
+	ErrPodNotRunning = errors.New("pod is not running")
+	// ErrHTTPAuthError is returned when HTTP authentication fails for private endpoint
+	ErrHTTPAuthError = errors.New("HTTP authentication error from private endpoint")
+	// ErrBlobNotFound is returned when blob is not found (404) on private endpoint
+	ErrBlobNotFound = errors.New("blob not found (404) on private endpoint")
+	// ErrUnexpectedBlobResponse is returned when blob download response is unexpected
+	ErrUnexpectedBlobResponse = errors.New("unexpected response from blob download (no 'Hello' or '200 OK' found)")
+)
+
 func applyTemplate(templatePath string, data interface{}, kubeconfig string) error {
 	tmpl, err := template.ParseFiles(templatePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse template: %w", err)
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return err
+	if err = tmpl.Execute(&buf, data); err != nil {
+		return fmt.Errorf("failed to execute template: %w", err)
 	}
 
 	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "apply", "-f", "-")
 	cmd.Stdin = &buf
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("kubectl apply failed: %s\n%s", err, string(out))
+		return fmt.Errorf("kubectl apply failed: %w\nOutput: %s", err, string(out))
 	}
 
 	return nil
@@ -128,6 +154,17 @@ type VnetSubnetInfo struct {
 	SubnetToken string
 }
 
+// isValidWorkloadType validates workload type to prevent command injection
+func isValidWorkloadType(workloadType string) bool {
+	// Only allow alphanumeric, dash, and underscore characters
+	for _, r := range workloadType {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return len(workloadType) > 0 && len(workloadType) <= 64
+}
+
 // NodePoolInfo holds information about nodes in different pools
 type NodePoolInfo struct {
 	LowNicNodes  []string
@@ -147,11 +184,17 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 		workloadType = "swiftv2-linux"
 	}
 
+	// Validate workloadType to prevent command injection
+	if !isValidWorkloadType(workloadType) {
+		return NodePoolInfo{}, fmt.Errorf("invalid workload type: %s", workloadType)
+	}
+
 	fmt.Printf("Filtering nodes by workload-type=%s\n", workloadType)
 
 	// Get nodes with low-nic capacity and matching workload-type
+	//#nosec G204 -- workloadType is validated above
 	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "nodes",
-		"-l", fmt.Sprintf("nic-capacity=low-nic,workload-type=%s", workloadType), "-o", "name")
+		"-l", "nic-capacity=low-nic,workload-type="+workloadType, "-o", "name")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return NodePoolInfo{}, fmt.Errorf("failed to get low-nic nodes: %w\nOutput: %s", err, string(out))
@@ -165,8 +208,9 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 	}
 
 	// Get nodes with high-nic capacity and matching workload-type
+	//#nosec G204 -- workloadType is validated above
 	cmd = exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "nodes",
-		"-l", fmt.Sprintf("nic-capacity=high-nic,workload-type=%s", workloadType), "-o", "name")
+		"-l", "nic-capacity=high-nic,workload-type="+workloadType, "-o", "name")
 	out, err = cmd.CombinedOutput()
 	if err != nil {
 		return NodePoolInfo{}, fmt.Errorf("failed to get high-nic nodes: %w\nOutput: %s", err, string(out))
@@ -272,16 +316,11 @@ func GetOrFetchVnetSubnetInfo(rg, vnetName, subnetName string, cache map[string]
 		return VnetSubnetInfo{}, fmt.Errorf("failed to get Subnet ARM ID: %w", err)
 	}
 
-	subnetToken, err := helpers.GetSubnetToken(rg, vnetName, subnetName)
-	if err != nil {
-		return VnetSubnetInfo{}, fmt.Errorf("failed to get Subnet Token: %w", err)
-	}
-
 	info := VnetSubnetInfo{
 		VnetGUID:    vnetGUID,
 		SubnetGUID:  subnetGUID,
 		SubnetARMID: subnetARMID,
-		SubnetToken: subnetToken,
+		SubnetToken: "", // Token can be fetched if needed
 	}
 
 	cache[key] = info
@@ -355,7 +394,7 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 
 	if scenario.NodeSelector == "low-nic" {
 		if len(nodeInfo.LowNicNodes) == 0 {
-			return fmt.Errorf("scenario %s: no low-NIC nodes available", scenario.Name)
+			return fmt.Errorf("%w: scenario %s", ErrNoLowNICNodes, scenario.Name)
 		}
 		// Find first unused node in the pool (low-NIC nodes can only handle one pod)
 		targetNode = ""
@@ -367,11 +406,11 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 			}
 		}
 		if targetNode == "" {
-			return fmt.Errorf("scenario %s: all low-NIC nodes already in use", scenario.Name)
+			return fmt.Errorf("%w: scenario %s", ErrAllLowNICNodesInUse, scenario.Name)
 		}
 	} else { // "high-nic"
 		if len(nodeInfo.HighNicNodes) == 0 {
-			return fmt.Errorf("scenario %s: no high-NIC nodes available", scenario.Name)
+			return fmt.Errorf("%w: scenario %s", ErrNoHighNICNodes, scenario.Name)
 		}
 		// Find first unused node in the pool
 		targetNode = ""
@@ -383,12 +422,12 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 			}
 		}
 		if targetNode == "" {
-			return fmt.Errorf("scenario %s: all high-NIC nodes already in use", scenario.Name)
+			return fmt.Errorf("%w: scenario %s", ErrAllHighNICNodesInUse, scenario.Name)
 		}
 	}
 
 	// Step 6: Create pod
-	podName := fmt.Sprintf("pod-%s", scenario.PodNameSuffix)
+	podName := "pod-" + scenario.PodNameSuffix
 	err = CreatePodResource(resources, podName, targetNode)
 	if err != nil {
 		return fmt.Errorf("scenario %s: %w", scenario.Name, err)
@@ -409,7 +448,7 @@ func DeleteScenarioResources(scenario PodScenario, buildID string) error {
 	subnetNameSafe := strings.ReplaceAll(scenario.SubnetName, "_", "-")
 	pnName := fmt.Sprintf("pn-%s-%s-%s", buildID, vnetShort, subnetNameSafe)
 	pniName := fmt.Sprintf("pni-%s-%s-%s", buildID, vnetShort, subnetNameSafe)
-	podName := fmt.Sprintf("pod-%s", scenario.PodNameSuffix)
+	podName := "pod-" + scenario.PodNameSuffix
 
 	// Delete pod
 	err := helpers.DeletePod(kubeconfig, pnName, podName)
@@ -462,7 +501,7 @@ func DeleteAllScenarios(testScenarios TestScenarios) error {
 		vnetShort = strings.ReplaceAll(vnetShort, "_", "-")
 		subnetNameSafe := strings.ReplaceAll(scenario.SubnetName, "_", "-")
 		pnName := fmt.Sprintf("pn-%s-%s-%s", testScenarios.BuildID, vnetShort, subnetNameSafe)
-		podName := fmt.Sprintf("pod-%s", scenario.PodNameSuffix)
+		podName := "pod-" + scenario.PodNameSuffix
 
 		fmt.Printf("Deleting pod for scenario: %s\n", scenario.Name)
 		err := helpers.DeletePod(kubeconfig, pnName, podName)
@@ -594,7 +633,7 @@ type ConnectivityTest struct {
 }
 
 // RunConnectivityTest tests HTTP connectivity between two pods
-func RunConnectivityTest(test ConnectivityTest, rg, buildId string) error {
+func RunConnectivityTest(test ConnectivityTest) error {
 	// Get kubeconfig for the source cluster
 	sourceKubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", test.Cluster)
 
@@ -623,7 +662,6 @@ func RunConnectivityTest(test ConnectivityTest, rg, buildId string) error {
 	curlCmd := fmt.Sprintf("curl --http0.9 --interface eth1 -m 3 http://%s:8080/", destIP)
 
 	output, err := helpers.ExecInPod(sourceKubeconfig, test.SourceNamespace, test.SourcePod, curlCmd)
-
 	// Check if we received data even if curl timed out (exit code 28)
 	// Netcat closes the connection without proper HTTP close, causing curl to timeout
 	// But if we got the expected response, the connectivity test is successful
@@ -689,14 +727,14 @@ func GenerateStorageSASToken(storageAccountName, containerName, blobName string)
 
 		out, err = cmd.CombinedOutput()
 		if err != nil {
-			return "", fmt.Errorf("failed to generate SAS token (both account key and user delegation): %s\n%s", err, string(out))
+			return "", fmt.Errorf("%w (both account key and user delegation): %s\n%s", ErrFailedToGenerateSASToken, err, string(out))
 		}
 
 		sasToken = strings.TrimSpace(string(out))
 	}
 
 	if sasToken == "" {
-		return "", fmt.Errorf("generated SAS token is empty")
+		return "", ErrSASTokenEmpty
 	}
 
 	// Remove any surrounding quotes that might be added by some shells
@@ -704,21 +742,21 @@ func GenerateStorageSASToken(storageAccountName, containerName, blobName string)
 
 	// Validate SAS token format - should start with typical SAS parameters
 	if !strings.Contains(sasToken, "sv=") && !strings.Contains(sasToken, "sig=") {
-		return "", fmt.Errorf("generated SAS token appears invalid (missing sv= or sig=): %s", sasToken)
+		return "", fmt.Errorf("%w (missing sv= or sig=): %s", ErrSASTokenInvalid, sasToken)
 	}
 
 	return sasToken, nil
 }
 
 // GetStoragePrivateEndpoint retrieves the private IP address of a storage account's private endpoint
-func GetStoragePrivateEndpoint(resourceGroup, storageAccountName string) (string, error) {
+func GetStoragePrivateEndpoint(storageAccountName string) (string, error) {
 	// Return the storage account blob endpoint FQDN
 	// This will resolve to the private IP via Private DNS Zone
-	return fmt.Sprintf("%s.blob.core.windows.net", storageAccountName), nil
+	return storageAccountName + ".blob.core.windows.net", nil
 }
 
 // RunPrivateEndpointTest tests connectivity from a pod to a private endpoint (storage account)
-func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) error {
+func RunPrivateEndpointTest(test ConnectivityTest) error {
 	// Get kubeconfig for the cluster
 	kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", test.SourceCluster)
 
@@ -734,7 +772,7 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 	}
 	podStatus := strings.TrimSpace(string(statusOut))
 	if podStatus != "Running" {
-		return fmt.Errorf("pod %s is not running (status: %s)", test.SourcePodName, podStatus)
+		return fmt.Errorf("%w: pod %s (status: %s)", ErrPodNotRunning, test.SourcePodName, podStatus)
 	}
 	fmt.Printf("Pod is running\n")
 
@@ -768,10 +806,10 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 	if err != nil {
 		// Check for HTTP errors in wget output
 		if strings.Contains(output, "ERROR 403") || strings.Contains(output, "ERROR 401") {
-			return fmt.Errorf("HTTP authentication error from private endpoint\nOutput: %s", truncateString(output, 500))
+			return fmt.Errorf("%w\nOutput: %s", ErrHTTPAuthError, truncateString(output, 500))
 		}
 		if strings.Contains(output, "ERROR 404") {
-			return fmt.Errorf("blob not found (404) on private endpoint\nOutput: %s", truncateString(output, 500))
+			return fmt.Errorf("%w\nOutput: %s", ErrBlobNotFound, truncateString(output, 500))
 		}
 		return fmt.Errorf("private endpoint connectivity test failed: %w\nOutput: %s", err, truncateString(output, 500))
 	}
@@ -782,7 +820,7 @@ func RunPrivateEndpointTest(testScenarios TestScenarios, test ConnectivityTest) 
 		return nil
 	}
 
-	return fmt.Errorf("unexpected response from blob download (no 'Hello' or '200 OK' found)\nOutput: %s", truncateString(output, 500))
+	return fmt.Errorf("%w\nOutput: %s", ErrUnexpectedBlobResponse, truncateString(output, 500))
 }
 
 // ExecInPodWithTimeout executes a command in a pod with a custom timeout
@@ -794,7 +832,7 @@ func ExecInPodWithTimeout(kubeconfig, namespace, podName, command string, timeou
 		"-n", namespace, "--", "sh", "-c", command)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return string(out), fmt.Errorf("command timed out after %v in pod %s: %w", timeout, podName, ctx.Err())
 		}
 		return string(out), fmt.Errorf("failed to exec in pod %s in namespace %s: %w", podName, namespace, err)
