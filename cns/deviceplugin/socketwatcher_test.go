@@ -42,16 +42,7 @@ func TestWatchContextCancelled(t *testing.T) {
 }
 
 func TestWatchSocketDeleted(t *testing.T) {
-	// Create a temporary directory
-	tempDir, err := os.MkdirTemp("", "socket-watcher-test-")
-	if err != nil {
-		t.Fatalf("error creating temporary directory: %v", err)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Fatalf("failed to remove temp dir: %v", removeErr)
-		}
-	}() // Ensure the directory is cleaned up
+	tempDir := t.TempDir()
 
 	socket := filepath.Join(tempDir, "to-be-deleted.sock")
 	if _, createErr := os.Create(socket); createErr != nil {
@@ -89,16 +80,7 @@ func TestWatchSocketDeleted(t *testing.T) {
 }
 
 func TestWatchSocketTwice(t *testing.T) {
-	// Create a temporary directory
-	tempDir, err := os.MkdirTemp("", "socket-watcher-test-")
-	if err != nil {
-		t.Fatalf("error creating temporary directory: %v", err)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Fatalf("failed to remove temp dir: %v", removeErr)
-		}
-	}() // Ensure the directory is cleaned up
+	tempDir := t.TempDir()
 
 	socket := filepath.Join(tempDir, "to-be-deleted.sock")
 	if _, createErr := os.Create(socket); createErr != nil {
@@ -153,16 +135,7 @@ func TestWatchSocketTwice(t *testing.T) {
 }
 
 func TestWatchSocketCleanup(t *testing.T) {
-	// Create a temporary directory
-	tempDir, err := os.MkdirTemp("", "socket-watcher-test-")
-	if err != nil {
-		t.Fatalf("error creating temporary directory: %v", err)
-	}
-	defer func() {
-		if removeErr := os.RemoveAll(tempDir); removeErr != nil {
-			t.Fatalf("failed to remove temp dir: %v", removeErr)
-		}
-	}() // Ensure the directory is cleaned up
+	tempDir := t.TempDir()
 
 	socket := filepath.Join(tempDir, "to-be-deleted.sock")
 	if _, createErr := os.Create(socket); createErr != nil {
