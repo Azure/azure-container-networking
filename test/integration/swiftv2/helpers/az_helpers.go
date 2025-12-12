@@ -20,6 +20,8 @@ var (
 	ErrPodContainerNotReady = errors.New("pod container not ready")
 	// ErrMTPNCStuckDeletion is returned when MTPNC resources are stuck and not deleted
 	ErrMTPNCStuckDeletion = errors.New("MTPNC resources should have been deleted but were found")
+	// ErrPodNotScheduled is returned when pod was not scheduled (no node assigned)
+	ErrPodNotScheduled = errors.New("pod was not scheduled (no node assigned)")
 )
 
 func runAzCommand(cmd string, args ...string) (string, error) {
@@ -292,7 +294,7 @@ func WaitForPodScheduled(kubeconfig, namespace, podName string, maxRetries, slee
 		}
 	}
 
-	return fmt.Errorf("pod %s was not scheduled (no node assigned) after %d attempts", podName, maxRetries)
+	return fmt.Errorf("%w: pod %s after %d attempts", ErrPodNotScheduled, podName, maxRetries)
 }
 
 // WaitForPodRunning waits for a pod to reach Running state with retries
