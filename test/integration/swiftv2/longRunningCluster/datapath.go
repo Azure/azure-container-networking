@@ -706,6 +706,7 @@ func truncateString(s string, maxLen int) string {
 }
 
 // GenerateStorageSASToken generates a SAS token for a blob in a storage account
+// GenerateStorageSASToken generates a SAS token for a blob in a storage account
 func GenerateStorageSASToken(storageAccountName, containerName, blobName string) (string, error) {
 	// Calculate expiry time: 7 days from now (Azure CLI limit)
 	expiryTime := time.Now().UTC().Add(7 * 24 * time.Hour).Format("2006-01-02")
@@ -727,20 +728,7 @@ func GenerateStorageSASToken(storageAccountName, containerName, blobName string)
 		!strings.Contains(sasToken, "ERROR") && (strings.Contains(sasToken, "sv=") || strings.Contains(sasToken, "sig="))
 
 	if !accountKeyWorked {
-	sasToken := strings.TrimSpace(string(out))
-
-	// Check if account key method produced valid token
-	accountKeyWorked := err == nil && !strings.Contains(sasToken, "WARNING") &&
-		!strings.Contains(sasToken, "ERROR") && (strings.Contains(sasToken, "sv=") || strings.Contains(sasToken, "sig="))
-
-	if !accountKeyWorked {
 		// If account key fails, fall back to user delegation (requires RBAC)
-		if err != nil {
-			fmt.Printf("Account key SAS generation failed (error): %s\n", string(out))
-		} else {
-			fmt.Printf("Account key SAS generation failed (no credentials): %s\n", sasToken)
-		}
-
 		if err != nil {
 			fmt.Printf("Account key SAS generation failed (error): %s\n", string(out))
 		} else {
@@ -757,13 +745,10 @@ func GenerateStorageSASToken(storageAccountName, containerName, blobName string)
 			"--as-user",
 			"--output", "tsv")
 
-
 		out, err = cmd.CombinedOutput()
 		if err != nil {
 			return "", fmt.Errorf("%w (both account key and user delegation): %w\n%s", ErrFailedToGenerateSASToken, err, string(out))
 		}
-
-		sasToken = strings.TrimSpace(string(out))
 
 		sasToken = strings.TrimSpace(string(out))
 	}
@@ -778,14 +763,6 @@ func GenerateStorageSASToken(storageAccountName, containerName, blobName string)
 	// Validate SAS token format - should start with typical SAS parameters
 	if !strings.Contains(sasToken, "sv=") && !strings.Contains(sasToken, "sig=") {
 		return "", fmt.Errorf("%w (missing sv= or sig=): %s", ErrSASTokenInvalid, sasToken)
-	}
-
-	// Remove any surrounding quotes that might be added by some shells
-	sasToken = strings.Trim(sasToken, "\"'")
-
-	// Validate SAS token format - should start with typical SAS parameters
-	if !strings.Contains(sasToken, "sv=") && !strings.Contains(sasToken, "sig=") {
-		return "", fmt.Errorf("generated SAS token appears invalid (missing sv= or sig=): %s", sasToken)
 	}
 
 	return sasToken, nil
