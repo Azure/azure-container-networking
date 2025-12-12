@@ -37,6 +37,8 @@ var (
 	ErrBlobNotFound = errors.New("blob not found (404) on private endpoint")
 	// ErrUnexpectedBlobResponse is returned when blob download response is unexpected
 	ErrUnexpectedBlobResponse = errors.New("unexpected response from blob download (no 'Hello' or '200 OK' found)")
+	// ErrInvalidWorkloadType is returned when workload type is invalid
+	ErrInvalidWorkloadType = errors.New("invalid workload type")
 )
 
 func applyTemplate(templatePath string, data interface{}, kubeconfig string) error {
@@ -164,7 +166,7 @@ func isValidWorkloadType(workloadType string) bool {
 			return false
 		}
 	}
-	return len(workloadType) > 0 && len(workloadType) <= 64
+	return workloadType != "" && len(workloadType) <= 64
 }
 
 // NodePoolInfo holds information about nodes in different pools
@@ -188,7 +190,7 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 
 	// Validate workloadType to prevent command injection
 	if !isValidWorkloadType(workloadType) {
-		return NodePoolInfo{}, fmt.Errorf("invalid workload type: %s", workloadType)
+		return NodePoolInfo{}, fmt.Errorf("%w: %s", ErrInvalidWorkloadType, workloadType)
 	}
 
 	fmt.Printf("Filtering nodes by workload-type=%s\n", workloadType)
@@ -758,7 +760,7 @@ func GenerateStorageSASToken(storageAccountName, containerName, blobName string)
 
 		out, err = cmd.CombinedOutput()
 		if err != nil {
-			return "", fmt.Errorf("%w (both account key and user delegation): %s\n%s", ErrFailedToGenerateSASToken, err, string(out))
+			return "", fmt.Errorf("%w (both account key and user delegation): %w\n%s", ErrFailedToGenerateSASToken, err, string(out))
 		}
 
 		sasToken = strings.TrimSpace(string(out))
