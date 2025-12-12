@@ -68,7 +68,6 @@ stages:
           - checkout: self
           - task: AzureCLI@2
             displayName: "Create AKS clusters"
-            displayName: "Create AKS clusters"
             inputs:
               azureSubscription: ${{ parameters.serviceConnection }}
               scriptType: bash
