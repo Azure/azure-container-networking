@@ -2,10 +2,24 @@ package helpers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
 	"time"
+)
+
+var (
+	// ErrPodNotRunning is returned when a pod does not reach Running state
+	ErrPodNotRunning = errors.New("pod did not reach Running state")
+	// ErrPodNoIP is returned when a pod has no IP address assigned
+	ErrPodNoIP = errors.New("pod has no IP address assigned")
+	// ErrPodNoEth1IP is returned when a pod has no eth1 IP address (delegated subnet not configured)
+	ErrPodNoEth1IP = errors.New("pod has no eth1 IP address (delegated subnet not configured?)")
+	// ErrPodContainerNotReady is returned when a pod container is not ready
+	ErrPodContainerNotReady = errors.New("pod container not ready")
+	// ErrMTPNCStuckDeletion is returned when MTPNC resources are stuck and not deleted
+	ErrMTPNCStuckDeletion = errors.New("MTPNC resources should have been deleted but were found")
 )
 
 func runAzCommand(cmd string, args ...string) (string, error) {
@@ -30,11 +44,6 @@ func GetSubnetGUID(rg, vnet, subnet string) (string, error) {
 		return "", err
 	}
 	return runAzCommand("az", "resource", "show", "--ids", subnetID, "--api-version", "2023-09-01", "--query", "properties.serviceAssociationLinks[0].properties.subnetId", "-o", "tsv")
-}
-
-func GetSubnetToken(rg, vnet, subnet string) (string, error) {
-	// Optionally implement if you use subnet token override
-	return "", nil
 }
 
 // GetClusterNodes returns a slice of node names from a cluster using the given kubeconfig
@@ -70,7 +79,7 @@ func EnsureNamespaceExists(kubeconfig, namespace string) error {
 	cmd = exec.Command("kubectl", "--kubeconfig", kubeconfig, "create", "namespace", namespace)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to create namespace %s: %s\n%s", namespace, err, string(out))
+		return fmt.Errorf("failed to create namespace %s: %w\nOutput: %s", namespace, err, string(out))
 	}
 
 	return nil
@@ -87,20 +96,20 @@ func DeletePod(kubeconfig, namespace, podName string) error {
 	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "delete", "pod", podName, "-n", namespace, "--ignore-not-found=true")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			fmt.Printf("kubectl delete pod command timed out after 90s, attempting force delete...\n")
 		} else {
-			return fmt.Errorf("failed to delete pod %s in namespace %s: %s\n%s", podName, namespace, err, string(out))
+			return fmt.Errorf("failed to delete pod %s in namespace %s: %w\nOutput: %s", podName, namespace, err, string(out))
 		}
 	}
 
 	// Wait for pod to be completely gone (critical for IP release)
 	fmt.Printf("Waiting for pod %s to be fully removed...\n", podName)
 	for attempt := 1; attempt <= 30; attempt++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		checkCmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName, "-n", namespace, "--ignore-not-found=true", "-o", "name")
+		checkCtx, checkCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		checkCmd := exec.CommandContext(checkCtx, "kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName, "-n", namespace, "--ignore-not-found=true", "-o", "name")
 		checkOut, _ := checkCmd.CombinedOutput()
-		cancel()
+		checkCancel()
 
 		if strings.TrimSpace(string(checkOut)) == "" {
 			fmt.Printf("Pod %s fully removed after %d seconds\n", podName, attempt*2)
@@ -140,7 +149,7 @@ func DeletePodNetworkInstance(kubeconfig, namespace, pniName string) error {
 	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "delete", "podnetworkinstance", pniName, "-n", namespace, "--ignore-not-found=true")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to delete PodNetworkInstance %s: %s\n%s", pniName, err, string(out))
+		return fmt.Errorf("failed to delete PodNetworkInstance %s: %w\nOutput: %s", pniName, err, string(out))
 	}
 
 	// Wait for PNI to be completely gone (it may take time for DNC to release reservations)
@@ -191,7 +200,7 @@ func DeletePodNetwork(kubeconfig, pnName string) error {
 	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "delete", "podnetwork", pnName, "--ignore-not-found=true")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to delete PodNetwork %s: %s\n%s", pnName, err, string(out))
+		return fmt.Errorf("failed to delete PodNetwork %s: %w\nOutput: %s", pnName, err, string(out))
 	}
 
 	// Wait for PN to be completely gone
@@ -231,7 +240,7 @@ func DeleteNamespace(kubeconfig, namespace string) error {
 	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "delete", "namespace", namespace, "--ignore-not-found=true")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to delete namespace %s: %s\n%s", namespace, err, string(out))
+		return fmt.Errorf("failed to delete namespace %s: %w\nOutput: %s", namespace, err, string(out))
 	}
 
 	// Wait for namespace to be completely gone
@@ -304,7 +313,7 @@ func WaitForPodRunning(kubeconfig, namespace, podName string, maxRetries, sleepS
 		}
 	}
 
-	return fmt.Errorf("pod %s did not reach Running state after %d attempts", podName, maxRetries)
+	return fmt.Errorf("%w: pod %s after %d attempts", ErrPodNotRunning, podName, maxRetries)
 }
 
 // GetPodIP retrieves the IP address of a pod
@@ -321,7 +330,7 @@ func GetPodIP(kubeconfig, namespace, podName string) (string, error) {
 
 	ip := strings.TrimSpace(string(out))
 	if ip == "" {
-		return "", fmt.Errorf("pod %s in namespace %s has no IP address assigned", podName, namespace)
+		return "", fmt.Errorf("%w: pod %s in namespace %s", ErrPodNoIP, podName, namespace)
 	}
 
 	return ip, nil
@@ -346,7 +355,7 @@ func GetPodDelegatedIP(kubeconfig, namespace, podName string) (string, error) {
 			if ip != "" {
 				return ip, nil
 			}
-			return "", fmt.Errorf("pod %s in namespace %s has no eth1 IP address (delegated subnet not configured?)", podName, namespace)
+			return "", fmt.Errorf("%w: pod %s in namespace %s", ErrPodNoEth1IP, podName, namespace)
 		}
 
 		// Check for retryable errors: container not found, signal killed, context deadline exceeded
@@ -365,7 +374,7 @@ func GetPodDelegatedIP(kubeconfig, namespace, podName string) (string, error) {
 		return "", fmt.Errorf("failed to get eth1 IP for %s in namespace %s: %w\nOutput: %s", podName, namespace, err, string(out))
 	}
 
-	return "", fmt.Errorf("pod %s container not ready after %d attempts", podName, maxRetries)
+	return "", fmt.Errorf("%w: pod %s after %d attempts", ErrPodContainerNotReady, podName, maxRetries)
 }
 
 // ExecInPod executes a command in a pod and returns the output
@@ -410,7 +419,7 @@ func VerifyNoMTPNC(kubeconfig, buildID string) error {
 		}
 
 		if len(mtpncNames) > 0 {
-			return fmt.Errorf("found %d MTPNC resources with build ID '%s' that should have been deleted. This may indicate stuck MTPNC deletion", len(mtpncNames), buildID)
+			return fmt.Errorf("%w: found %d MTPNC resources with build ID '%s'", ErrMTPNCStuckDeletion, len(mtpncNames), buildID)
 		}
 	}
 

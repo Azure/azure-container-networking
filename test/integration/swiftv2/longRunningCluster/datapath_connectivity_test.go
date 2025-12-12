@@ -134,7 +134,7 @@ var _ = ginkgo.Describe("Datapath Connectivity Tests", func() {
 		for _, test := range connectivityTests {
 			ginkgo.By(fmt.Sprintf("Test: %s - %s", test.Name, test.Description))
 
-			err := RunConnectivityTest(test, rg, buildId)
+			err := RunConnectivityTest(test)
 
 			if test.ShouldFail {
 				// This test should fail (NSG blocked or customer isolation)

@@ -48,7 +48,7 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 		storageAccountName := storageAccount1
 		ginkgo.By(fmt.Sprintf("Getting private endpoint for storage account: %s", storageAccountName))
 
-		storageEndpoint, err := GetStoragePrivateEndpoint(testScenarios.ResourceGroup, storageAccountName)
+		storageEndpoint, err := GetStoragePrivateEndpoint(storageAccountName)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to get storage account private endpoint")
 		gomega.Expect(storageEndpoint).NotTo(gomega.BeEmpty(), "Storage account private endpoint is empty")
 
@@ -117,7 +117,7 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 				return "SUCCESS"
 			}()))
 
-			err := RunPrivateEndpointTest(testScenarios, test)
+			err := RunPrivateEndpointTest(test)
 
 			if test.ShouldFail {
 				// Expected to fail (e.g., tenant isolation)
