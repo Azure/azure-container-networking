@@ -479,7 +479,12 @@ stages:
       vmSize: Standard_B2ms
       dependsOn: manifests
       scaleup: 50
-
+    
+  # AKS Swiftv2 Manifold E2E tests
+  - template: multitenancy/swiftv2-manifold-e2e.stages.yaml
+    parameters:
+      name: "swiftv2_manifold_e2e"
+      dependsOn: manifests
 
   - stage: delete
     displayName: Delete Clusters

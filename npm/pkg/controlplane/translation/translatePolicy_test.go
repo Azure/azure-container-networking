@@ -1458,6 +1458,194 @@ func TestPeerAndPortRule(t *testing.T) {
 	}
 }
 
+func TestDirectPeerAndPortAllowRule(t *testing.T) {
+	namedPort := intstr.FromString(namedPortStr)
+	port8000 := intstr.FromInt(8000)
+	var endPort int32 = 8100
+	tcp := v1.ProtocolTCP
+
+	tests := []struct {
+		name        string
+		direction   policies.Direction
+		ports       []networkingv1.NetworkPolicyPort
+		cidr        string
+		npmNetPol   *policies.NPMNetworkPolicy
+		skipWindows bool
+	}{
+		{
+			name:      "egress tcp port 8000-8100 with /28 subnet",
+			direction: policies.Egress,
+			ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &tcp,
+					Port:     &port8000,
+					EndPort:  &endPort,
+				},
+			},
+			cidr: "10.0.1.0/28",
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:       policies.Allowed,
+						Direction:    policies.Egress,
+						DstDirectIPs: []string{"10.0.1.0/28"},
+						DstPorts: policies.Ports{
+							Port:    8000,
+							EndPort: 8100,
+						},
+						Protocol: "TCP",
+					},
+				},
+			},
+		},
+		{
+			name:      "ingress no ports - single IP (/32)",
+			direction: policies.Ingress,
+			ports:     []networkingv1.NetworkPolicyPort{},
+			cidr:      "10.226.0.49/32",
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:       policies.Allowed,
+						Direction:    policies.Ingress,
+						SrcDirectIPs: []string{"10.226.0.49/32"},
+					},
+				},
+			},
+		},
+		{
+			name:      "egress no ports - subnet (/24)",
+			direction: policies.Egress,
+			ports:     []networkingv1.NetworkPolicyPort{},
+			cidr:      "192.168.1.0/24",
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:       policies.Allowed,
+						Direction:    policies.Egress,
+						DstDirectIPs: []string{"192.168.1.0/24"},
+					},
+				},
+			},
+		},
+		{
+			name:      "ingress no ports - large subnet (/16)",
+			direction: policies.Ingress,
+			ports:     []networkingv1.NetworkPolicyPort{},
+			cidr:      "172.16.0.0/16",
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:       policies.Allowed,
+						Direction:    policies.Ingress,
+						SrcDirectIPs: []string{"172.16.0.0/16"},
+					},
+				},
+			},
+		},
+		{
+			name:      "egress tcp port 8000-8100 with /28 subnet",
+			direction: policies.Egress,
+			ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &tcp,
+					Port:     &port8000,
+					EndPort:  &endPort,
+				},
+			},
+			cidr: "10.0.1.0/28",
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:       policies.Allowed,
+						Direction:    policies.Egress,
+						DstDirectIPs: []string{"10.0.1.0/28"},
+						DstPorts: policies.Ports{
+							Port:    8000,
+							EndPort: 8100,
+						},
+						Protocol: "TCP",
+					},
+				},
+			},
+		},
+		{
+			name:      "ingress udp port 53 with /32",
+			direction: policies.Ingress,
+			ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &[]v1.Protocol{v1.ProtocolUDP}[0],
+					Port:     &intstr.IntOrString{Type: intstr.Int, IntVal: 53},
+				},
+			},
+			cidr: "8.8.8.8/32",
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:       policies.Allowed,
+						Direction:    policies.Ingress,
+						SrcDirectIPs: []string{"8.8.8.8/32"},
+						DstPorts: policies.Ports{
+							Port:    53,
+							EndPort: 0,
+						},
+						Protocol: "UDP",
+					},
+				},
+			},
+		},
+		{
+			name:      "named port should fail in NPM Lite",
+			direction: policies.Ingress,
+			ports: []networkingv1.NetworkPolicyPort{
+				{
+					Protocol: &tcp,
+					Port:     &namedPort,
+				},
+			},
+			cidr:        "10.226.0.49/32",
+			skipWindows: true, // Should fail on both platforms
+		},
+	}
+
+	for _, tt := range tests {
+		npmLiteToggle := true
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			npmNetPol := &policies.NPMNetworkPolicy{
+				Namespace:   defaultNS,
+				PolicyKey:   namedPortPolicyKey,
+				ACLPolicyID: fmt.Sprintf("azure-acl-%s-%s", defaultNS, namedPortPolicyKey),
+			}
+			err := directPeerAndPortAllowRule(npmNetPol, tt.direction, tt.ports, tt.cidr, npmLiteToggle)
+			if tt.skipWindows {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.npmNetPol, npmNetPol)
+			}
+		})
+	}
+}
+
 func TestIngressPolicy(t *testing.T) {
 	tcp := v1.ProtocolTCP
 	targetPodMatchType := policies.EitherMatch
@@ -2921,169 +3109,6 @@ func TestEgressPolicy(t *testing.T) {
 	}
 }
 
-func TestNpmLiteCidrPolicy(t *testing.T) {
-	// Test 1) Npm lite enabled, CIDR + Namespace label Peers, returns error
-	// Test 2) NPM lite disabled, CIDR + Namespace label Peers, returns no error
-	// Test 3) Npm Lite enabled, CIDR Peers , returns no error
-	// Test 4) NPM Lite enabled, Combination of CIDR + Label in same peer, returns an error
-	// test 5) NPM Lite enabled, no peer, returns no error
-	// test 6) NPM Lite enabled, no cidr, no peer, only ports + protocol
-
-	port8000 := intstr.FromInt(8000)
-	tcp := v1.ProtocolTCP
-	tests := []struct {
-		name           string
-		targetSelector *metav1.LabelSelector
-		ports          []networkingv1.NetworkPolicyPort
-		peersFrom      []networkingv1.NetworkPolicyPeer
-		peersTo        []networkingv1.NetworkPolicyPeer
-		npmLiteEnabled bool
-		wantErr        bool
-	}{
-		{
-			name:           "CIDR + port + namespace",
-			targetSelector: nil,
-			ports: []networkingv1.NetworkPolicyPort{
-				{
-					Protocol: &tcp,
-					Port:     &port8000,
-				},
-			},
-			peersFrom: []networkingv1.NetworkPolicyPeer{
-				{
-					NamespaceSelector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"peer-nsselector-kay": "peer-nsselector-value",
-						},
-					},
-				},
-				{
-					IPBlock: &networkingv1.IPBlock{
-						CIDR:   "172.17.0.0/16",
-						Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
-					},
-				},
-				{
-					IPBlock: &networkingv1.IPBlock{
-						CIDR: "172.17.0.0/16",
-					},
-				},
-			},
-			peersTo:        []networkingv1.NetworkPolicyPeer{},
-			npmLiteEnabled: true,
-			wantErr:        true,
-		},
-		{
-			name:           "cidr + namespace label + disabledLite ",
-			targetSelector: nil,
-			peersFrom: []networkingv1.NetworkPolicyPeer{
-				{
-					NamespaceSelector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"peer-nsselector-kay": "peer-nsselector-value",
-						},
-					},
-				},
-				{
-					IPBlock: &networkingv1.IPBlock{
-						CIDR:   "172.17.0.0/16",
-						Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
-					},
-				},
-				{
-					IPBlock: &networkingv1.IPBlock{
-						CIDR: "172.17.0.0/16",
-					},
-				},
-			},
-			peersTo:        []networkingv1.NetworkPolicyPeer{},
-			npmLiteEnabled: false,
-			wantErr:        false,
-		},
-		{
-			name:           "CIDR Only",
-			targetSelector: nil,
-			peersFrom: []networkingv1.NetworkPolicyPeer{
-				{
-					IPBlock: &networkingv1.IPBlock{
-						CIDR:   "172.17.0.0/16",
-						Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
-					},
-				},
-				{
-					IPBlock: &networkingv1.IPBlock{
-						CIDR: "172.17.0.0/16",
-					},
-				},
-			},
-			peersTo:        []networkingv1.NetworkPolicyPeer{},
-			npmLiteEnabled: true,
-			wantErr:        false,
-		},
-		{
-			name:           "CIDR + namespace labels",
-			targetSelector: nil,
-			peersFrom: []networkingv1.NetworkPolicyPeer{
-				{
-					IPBlock: &networkingv1.IPBlock{
-						CIDR:   "172.17.0.0/17",
-						Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
-					},
-					NamespaceSelector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"peer-nsselector-kay": "peer-nsselector-value",
-						},
-					},
-				},
-			},
-			peersTo:        []networkingv1.NetworkPolicyPeer{},
-			npmLiteEnabled: true,
-			wantErr:        true,
-		},
-		{
-			name:           "no peers",
-			targetSelector: nil,
-			peersFrom:      []networkingv1.NetworkPolicyPeer{},
-			peersTo:        []networkingv1.NetworkPolicyPeer{},
-			npmLiteEnabled: true,
-			wantErr:        false,
-		},
-		{
-			name:           "port only",
-			targetSelector: nil,
-			ports: []networkingv1.NetworkPolicyPort{
-				{
-					Protocol: &tcp,
-					Port:     &port8000,
-				},
-			},
-			peersFrom:      []networkingv1.NetworkPolicyPeer{},
-			peersTo:        []networkingv1.NetworkPolicyPeer{},
-			npmLiteEnabled: true,
-			wantErr:        false,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			// run the function passing in peers and a flag indicating whether npm lite is enabled
-			var err error
-			for _, peer := range tt.peersFrom {
-				err = npmLiteValidPolicy(peer, tt.npmLiteEnabled)
-				if err != nil {
-					break
-				}
-			}
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestCheckForNamedPortType(t *testing.T) {
 	port8000 := intstr.FromInt(8000)
 	namedPort := intstr.FromString("namedPort")
@@ -3127,8 +3152,28 @@ func TestCheckForNamedPortType(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			// run the function passing in peers and a flag indicating whether npm lite is enabled
-			err := checkForNamedPortType(tt.portKind, tt.npmLiteEnabled)
+			// Create a mock NPM network policy for testing
+			npmNetPol := &policies.NPMNetworkPolicy{
+				PolicyKey: "test-policy/test",
+				Namespace: "test-namespace",
+			}
+
+			// Use the first port from test data, or create a default one if ports are empty
+			var testPort *networkingv1.NetworkPolicyPort
+			if len(tt.ports) > 0 {
+				testPort = &tt.ports[0]
+			} else {
+				// Create a default port for tests without specific port data
+				port := intstr.FromInt(8080)
+				protocol := v1.ProtocolTCP
+				testPort = &networkingv1.NetworkPolicyPort{
+					Protocol: &protocol,
+					Port:     &port,
+				}
+			}
+
+			// run the function passing in all required parameters
+			err := checkForNamedPortType(npmNetPol, tt.portKind, tt.npmLiteEnabled, policies.Ingress, testPort, "10.0.0.0/24")
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {

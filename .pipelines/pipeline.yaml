@@ -488,6 +488,13 @@ stages:
         dependsOn: ["test"]
         scaleup: 50
 
+    - ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
+      # AKS Swiftv2 Manifold E2E tests
+      - template: multitenancy/swiftv2-manifold-e2e.stages.yaml
+        parameters:
+          name: "swiftv2_manifold_e2e"
+          dependsOn: publish
+        
     - stage: delete
       displayName: Delete Clusters
       condition: always()
