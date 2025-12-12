@@ -171,8 +171,8 @@ func TestWatchSocketCleanup(t *testing.T) {
 	}
 
 	// 2. Delete the socket to trigger watcher exit
-	if err := os.Remove(socket); err != nil {
-		t.Fatalf("failed to remove socket: %v", err)
+	if removeErr := os.Remove(socket); removeErr != nil {
+		t.Fatalf("failed to remove socket: %v", removeErr)
 	}
 
 	// 3. Wait for ch1 to close
