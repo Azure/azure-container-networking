@@ -1,6 +1,6 @@
 //go:build delete_test
 
-package longRunningCluster
+package longrunningcluster
 
 import (
 	"fmt"

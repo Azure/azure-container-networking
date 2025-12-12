@@ -1,7 +1,7 @@
 //go:build create_test
 // +build create_test
 
-package longRunningCluster
+package longrunningcluster
 
 import (
 	"fmt"

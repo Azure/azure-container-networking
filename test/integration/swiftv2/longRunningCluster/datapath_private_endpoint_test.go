@@ -1,7 +1,7 @@
 //go:build private_endpoint_test
 // +build private_endpoint_test
 
-package longRunningCluster
+package longrunningcluster
 
 import (
 	"fmt"

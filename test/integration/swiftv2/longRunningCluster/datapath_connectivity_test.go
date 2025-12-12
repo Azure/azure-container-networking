@@ -1,7 +1,7 @@
 //go:build connectivity_test
 // +build connectivity_test
 
-package longRunningCluster
+package longrunningcluster
 
 import (
 	"fmt"
