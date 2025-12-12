@@ -661,6 +661,45 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 			want:    "",
 			wantErr: false,
 		},
+		{
+			name: "Get Network Name from CNS for swiftv2 ApipaNIC",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+			},
+			netNs: "azure",
+			nwCfg: &cni.NetworkConfig{
+				CNIVersion:   "0.3.0",
+				MultiTenancy: false,
+			},
+			interfaceInfo: &network.InterfaceInfo{
+				Name:       "apipa-interface",
+				MacAddress: parsedMacAddress,
+				NICType:    cns.ApipaNIC,
+			},
+			want:    swiftv2NetworkNamePrefix + "apipa", // "azure-apipa"
+			wantErr: false,
+		},
+		{
+			name: "Get Network Name from CNS for swiftv2 ApipaNIC with empty MacAddress",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+			},
+			netNs: "azure",
+			nwCfg: &cni.NetworkConfig{
+				CNIVersion:   "0.3.0",
+				MultiTenancy: false,
+			},
+			interfaceInfo: &network.InterfaceInfo{
+				Name:    "apipa-test-interface",
+				NICType: cns.ApipaNIC,
+			},
+			want:    swiftv2NetworkNamePrefix + "apipa", // "azure-apipa"
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
