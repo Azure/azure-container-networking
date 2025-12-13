@@ -8,15 +8,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
 
 func TestDatapathPrivateEndpoint(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	suiteConfig, reporterConfig := ginkgo.GinkgoConfiguration()
-	suiteConfig.Timeout = 0
-	ginkgo.RunSpecs(t, "Datapath Private Endpoint Suite", suiteConfig, reporterConfig)
+	ginkgo.RunSpecs(t, "Datapath Private Endpoint Suite")
 }
 
 var _ = ginkgo.Describe("Private Endpoint Tests", func() {

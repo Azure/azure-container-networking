@@ -54,8 +54,7 @@ create_vnet_subets() {
   local extra_cidrs="$5"
 
   echo "==> Creating VNet: $vnet with CIDR: $vnet_cidr"
-  az network vnet create -g "$RG" -l "$LOCATION" --name "$vnet" --address-prefixes "$vnet_cidr" \
-    --tags SkipAutoDeleteTill=2032-12-31 -o none
+  az network vnet create -g "$RG" -l "$LOCATION" --name "$vnet" --address-prefixes "$vnet_cidr" -o none
 
   IFS=' ' read -r -a extra_subnet_array <<< "$extra_subnets"
   IFS=',' read -r -a extra_cidr_array <<< "$extra_cidrs"

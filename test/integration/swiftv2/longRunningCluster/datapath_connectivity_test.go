@@ -9,20 +9,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
 
 func TestDatapathConnectivity(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	suiteConfig, reporterConfig := ginkgo.GinkgoConfiguration()
-	suiteConfig.Timeout = 0
-	ginkgo.RunSpecs(t, "Datapath Connectivity Suite", suiteConfig, reporterConfig)
+	ginkgo.RunSpecs(t, "Datapath Connectivity Suite")
 }
 
 var _ = ginkgo.Describe("Datapath Connectivity Tests", func() {
 
-	ginkgo.It("tests HTTP connectivity between pods", ginkgo.NodeTimeout(0), func() {
+	ginkgo.It("tests HTTP connectivity between pods", func() {
 		rg := os.Getenv("RG")
 		buildId := os.Getenv("BUILD_ID")
 		if rg == "" || buildId == "" {

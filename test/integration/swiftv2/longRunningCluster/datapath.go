@@ -285,7 +285,6 @@ func CreatePodResource(resources TestResources, podName, nodeName string) error 
 		return fmt.Errorf("failed to create pod %s: %w", podName, err)
 	}
 
-	// Wait for pod to be running with retries
 	err = helpers.WaitForPodRunning(resources.Kubeconfig, resources.PNName, podName, 10, 30)
 	if err != nil {
 		return fmt.Errorf("pod %s did not reach running state: %w", podName, err)
@@ -302,7 +301,6 @@ func GetOrFetchVnetSubnetInfo(rg, vnetName, subnetName string, cache map[string]
 		return info, nil
 	}
 
-	// Fetch from Azure
 	vnetGUID, err := helpers.GetVnetGUID(rg, vnetName)
 	if err != nil {
 		return VnetSubnetInfo{}, fmt.Errorf("failed to get VNet GUID: %w", err)
@@ -331,10 +329,7 @@ func GetOrFetchVnetSubnetInfo(rg, vnetName, subnetName string, cache map[string]
 
 // CreateScenarioResources creates all resources for a specific pod scenario
 func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) error {
-	// Get kubeconfig for the cluster
 	kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.Cluster)
-
-	// Get network info
 	netInfo, err := GetOrFetchVnetSubnetInfo(testScenarios.ResourceGroup, scenario.VnetName, scenario.SubnetName, testScenarios.VnetSubnetCache)
 	if err != nil {
 		return fmt.Errorf("failed to get network info for %s/%s: %w", scenario.VnetName, scenario.SubnetName, err)
@@ -389,7 +384,6 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 	// Step 5: Select appropriate node based on scenario
 	var targetNode string
 
-	// Initialize used nodes tracker if not exists
 	if testScenarios.UsedNodes == nil {
 		testScenarios.UsedNodes = make(map[string]bool)
 	}
@@ -410,11 +404,10 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 		if targetNode == "" {
 			return fmt.Errorf("%w: scenario %s", ErrAllLowNICNodesInUse, scenario.Name)
 		}
-	} else { // "high-nic"
+	} else {
 		if len(nodeInfo.HighNicNodes) == 0 {
 			return fmt.Errorf("%w: scenario %s", ErrNoHighNICNodes, scenario.Name)
 		}
-		// Find first unused node in the pool
 		targetNode = ""
 		for _, node := range nodeInfo.HighNicNodes {
 			if !testScenarios.UsedNodes[node] {

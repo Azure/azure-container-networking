@@ -12,15 +12,13 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/test/integration/swiftv2/helpers"
-	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
 
 func TestDatapathScale(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	suiteConfig, reporterConfig := ginkgo.GinkgoConfiguration()
-	suiteConfig.Timeout = 0
-	ginkgo.RunSpecs(t, "Datapath Scale Suite", suiteConfig, reporterConfig)
+	ginkgo.RunSpecs(t, "Datapath Scale Suite")
 }
 
 var _ = ginkgo.Describe("Datapath Scale Tests", func() {
@@ -31,7 +29,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", rg, buildId))
 	}
 
-	ginkgo.It("creates and deletes 15 pods in a burst using device plugin", ginkgo.NodeTimeout(0), func() {
+	ginkgo.It("creates and deletes 15 pods in a burst using device plugin", func() {
 		// NOTE: Maximum pods per PodNetwork/PodNetworkInstance is limited by:
 		// 1. Subnet IP address capacity
 		// 2. Node capacity (typically 250 pods per node)

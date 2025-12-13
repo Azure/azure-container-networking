@@ -37,7 +37,6 @@ Examples: sv2-long-run-centraluseuap, sv2-long-run-eastus, sv2-long-run-westus2
 ```
 - **When to use**: Creating infrastructure for scheduled automated tests on master/main branch
 - **Purpose**: Long-running persistent infrastructure for continuous validation
-- **Lifecycle**: Persistent (tagged with `SkipAutoDeleteTill=2032-12-31`)
 - **Example**: If running scheduled tests in Central US EUAP region, use `sv2-long-run-centraluseuap`
 
 **2. Test/Development/PR Validation Runs**:
@@ -313,16 +312,13 @@ pod-c1-aks1-v1s1-low
 - `cx_vnet_v4` → `v4`
 
 ### Setup Flow (When runSetupStages = true)
-1. Create resource group with `SkipAutoDeleteTill=2032-12-31` tag
+1. Create resource group
 2. Create 2 AKS clusters with 2 node pools each (tagged for persistence)
 3. Create 4 customer VNets with subnets and delegations (tagged for persistence)
 4. Create VNet peerings 
 5. Create storage accounts with persistence tags
 6. Create NSGs for subnet isolation
 7. Run initial test (create → wait → delete)
-
-**All infrastructure resources are tagged with `SkipAutoDeleteTill=2032-12-31`** to prevent automatic cleanup by Azure subscription policies.
-
 
 ## Manual Testing
 
@@ -429,10 +425,5 @@ test/integration/swiftv2/longRunningCluster/
 1. **Keep infrastructure persistent**: Only recreate when necessary (cluster upgrades, config changes)
 2. **Monitor scheduled runs**: Set up alerts for test failures
 3. **Resource naming**: BUILD_ID is automatically set to the resource group name, ensuring unique resource names per setup
-4. **Tag resources appropriately**: All setup resources automatically tagged with `SkipAutoDeleteTill=2032-12-31`
-   - AKS clusters
-   - AKS VNets
-   - Customer VNets (cx_vnet_v1, cx_vnet_v2, cx_vnet_v3, cx_vnet_v4)
-   - Storage accounts
 5. **Avoid resource group collisions**: Always use unique `resourceGroupName` when creating new setups
 6. **Document changes**: Update this README when modifying test scenarios or infrastructure

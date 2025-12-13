@@ -8,20 +8,18 @@ import (
 	"os"
 	"testing"
 
-	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
 
 func TestDatapathCreate(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	suiteConfig, reporterConfig := ginkgo.GinkgoConfiguration()
-	suiteConfig.Timeout = 0
-	ginkgo.RunSpecs(t, "Datapath Create Suite", suiteConfig, reporterConfig)
+	ginkgo.RunSpecs(t, "Datapath Create Suite")
 }
 
 var _ = ginkgo.Describe("Datapath Create Tests", func() {
 
-	ginkgo.It("creates PodNetwork, PodNetworkInstance, and Pods", ginkgo.NodeTimeout(0), func() {
+	ginkgo.It("creates PodNetwork, PodNetworkInstance, and Pods", func() {
 		rg := os.Getenv("RG")
 		buildId := os.Getenv("BUILD_ID")
 		if rg == "" || buildId == "" {
