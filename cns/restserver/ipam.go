@@ -150,14 +150,32 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 
 	// assign NICType and MAC Address for SwiftV2. we assume that there won't be any SwiftV1 NCs here
 	podIPInfoList := make([]cns.PodIpInfo, 0, len(resp))
+	apipaIndex := -1
 	for i := range resp {
 		podIPInfo := cns.PodIpInfo{
 			PodIPConfig:                     resp[i].IPConfiguration.IPSubnet,
 			MacAddress:                      resp[i].NetworkInterfaceInfo.MACAddress,
 			NICType:                         resp[i].NetworkInterfaceInfo.NICType,
 			NetworkContainerPrimaryIPConfig: resp[i].IPConfiguration,
+			NetworkContainerID:              resp[i].NetworkContainerID,
 		}
 		podIPInfoList = append(podIPInfoList, podIPInfo)
+		if resp[i].AllowHostToNCCommunication || resp[i].AllowNCToHostCommunication {
+			apipaIndex = i
+		}
+	}
+
+	if apipaIndex != -1 {
+		apipaPodIPInfo := cns.PodIpInfo{
+			PodIPConfig:                     resp[apipaIndex].LocalIPConfiguration.IPSubnet,
+			NICType:                         cns.ApipaNIC,
+			NetworkContainerPrimaryIPConfig: resp[apipaIndex].LocalIPConfiguration,
+			SkipDefaultRoutes:               true,
+			AllowHostToNCCommunication:      resp[apipaIndex].AllowHostToNCCommunication,
+			AllowNCToHostCommunication:      resp[apipaIndex].AllowNCToHostCommunication,
+			NetworkContainerID:              resp[apipaIndex].NetworkContainerID,
+		}
+		podIPInfoList = append(podIPInfoList, apipaPodIPInfo)
 	}
 
 	ipConfigsResp := &cns.IPConfigsResponse{
@@ -1151,9 +1169,75 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 		service.GetEndpointHandler(w, r)
 	case http.MethodPatch:
 		service.UpdateEndpointHandler(w, r)
+	case http.MethodDelete:
+		service.DeleteEndpointStateHandler(w, r)
 	default:
-		logger.Errorf("[EndpointHandlerAPI] EndpointHandler API expect http Get or Patch method")
+		//nolint
+		logger.Errorf("[EndpointHandlerAPI] EndpointHandler API expect http Get or Patch or Delete method")
 	}
+}
+
+func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter, r *http.Request) {
+	opName := "DeleteEndpointStateHandler"
+	logger.Printf("[DeleteEndpointStateHandler] DeleteEndpointState for %s", r.URL.Path) //nolint:staticcheck // reason: using deprecated call until migration to new API
+	endpointID := strings.TrimPrefix(r.URL.Path, cns.EndpointPath)
+
+	if service.EndpointStateStore == nil {
+		response := cns.Response{
+			ReturnCode: types.NilEndpointStateStore,
+			Message:    "[DeleteEndpointStateHandler] EndpointStateStore is not initialized",
+		}
+		err := common.Encode(w, &response)
+		logger.Response(opName, response, response.ReturnCode, err) //nolint:staticcheck // reason: using deprecated call until migration to new API
+		return
+	}
+
+	// Delete the endpoint from state
+	err := service.DeleteEndpointStateHelper(endpointID)
+	if err != nil {
+		response := cns.Response{
+			ReturnCode: types.UnexpectedError,
+			Message:    fmt.Sprintf("[DeleteEndpointStateHandler] Failed to delete endpoint state for %s with error: %s", endpointID, err.Error()),
+		}
+
+		if errors.Is(err, ErrEndpointStateNotFound) {
+			response.ReturnCode = types.NotFound
+		}
+
+		err = common.Encode(w, &response)
+		logger.Response(opName, response, response.ReturnCode, err) //nolint:staticcheck // reason: using deprecated call until migration to new API
+		return
+	}
+
+	response := cns.Response{
+		ReturnCode: types.Success,
+		Message:    "[DeleteEndpointStateHandler] Endpoint state deleted successfully",
+	}
+	err = common.Encode(w, &response)
+	logger.Response(opName, response, response.ReturnCode, err) //nolint:staticcheck // reason: using deprecated call until migration to new API
+}
+
+func (service *HTTPRestService) DeleteEndpointStateHelper(endpointID string) error {
+	if service.EndpointStateStore == nil {
+		return ErrStoreEmpty
+	}
+	logger.Printf("[deleteEndpointState] Deleting Endpoint state from state file %s", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
+	_, endpointExist := service.EndpointState[endpointID]
+	if !endpointExist {
+		logger.Printf("[deleteEndpointState] endpoint could not be found in the statefile %s", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
+		return fmt.Errorf("[deleteEndpointState] endpoint %s: %w", endpointID, ErrEndpointStateNotFound)
+	}
+
+	// Delete the endpoint from the state
+	delete(service.EndpointState, endpointID)
+
+	// Write the updated state back to the store
+	err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
+	if err != nil {
+		return fmt.Errorf("[deleteEndpointState] failed to write endpoint state to store: %w", err)
+	}
+	logger.Printf("[deleteEndpointState] successfully deleted endpoint %s from state file", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
+	return nil
 }
 
 // GetEndpointHandler handles the incoming GetEndpoint requests with http Get method
@@ -1340,6 +1424,11 @@ func updateIPInfoMap(iPInfo map[string]*IPInfo, interfaceInfo *IPInfo, ifName, e
 	if interfaceInfo.MacAddress != "" {
 		iPInfo[ifName].MacAddress = interfaceInfo.MacAddress
 		logger.Printf("[updateEndpoint] update the endpoint %s with MacAddress  %s", endpointID, interfaceInfo.MacAddress)
+	}
+
+	if interfaceInfo.NetworkContainerID != "" {
+		iPInfo[ifName].NetworkContainerID = interfaceInfo.NetworkContainerID
+		logger.Printf("[updateEndpoint] update the endpoint %s with NetworkContainerID  %s", endpointID, interfaceInfo.NetworkContainerID) //nolint
 	}
 }
 

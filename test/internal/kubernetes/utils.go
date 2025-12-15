@@ -365,6 +365,24 @@ func WaitForDeploymentToDelete(ctx context.Context, deploymentsClient typedappsv
 	return errors.Wrapf(retrier.Do(ctx, assertDeploymentNotFound), "could not assert deployment %s isNotFound", d.Name)
 }
 
+func WaitForLRPDelete(ctx context.Context, ciliumClientset *cilium.Clientset, lrp ciliumv2.CiliumLocalRedirectPolicy) error {
+	lrpClient := ciliumClientset.CiliumV2().CiliumLocalRedirectPolicies(lrp.Namespace)
+
+	checkLRPDeleted := func() error {
+		_, err := lrpClient.Get(ctx, lrp.Name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return errors.Wrapf(err, "could not get LRP %s", lrp.Name)
+		}
+		return errors.Errorf("LRP %s still present", lrp.Name)
+	}
+
+	retrier := retry.Retrier{Attempts: DeleteRetryAttempts, Delay: DeleteRetryDelay}
+	return errors.Wrap(retrier.Do(ctx, checkLRPDeleted), "failed to wait for LRP to delete")
+}
+
 func WaitForPodDaemonset(ctx context.Context, clientset *kubernetes.Clientset, namespace, daemonsetName, podLabelSelector string) error {
 	podsClient := clientset.CoreV1().Pods(namespace)
 	daemonsetClient := clientset.AppsV1().DaemonSets(namespace)

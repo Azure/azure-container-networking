@@ -59,6 +59,7 @@ type CNSConfig struct {
 	WireserverIP                string
 	GRPCSettings                GRPCSettings
 	MinTLSVersion               string
+	MtlsClientCertSubjectName   string
 }
 
 type TelemetrySettings struct {

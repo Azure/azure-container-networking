@@ -5,6 +5,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // Important: Run "make" to regenerate code after modifying this file
@@ -17,8 +18,9 @@ import (
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
 // +kubebuilder:printcolumn:name="PodNetworkInstance",type=string,JSONPath=`.spec.podNetworkInstance`
-// +kubebuilder:printcolumn:name="PodNetwork",type=string,JSONPath=`.spec.podNetwork`
 // +kubebuilder:printcolumn:name="PodName",type=string,JSONPath=`.spec.podName`
+// +kubebuilder:printcolumn:name="PodUID",type=string,JSONPath=`.spec.podUID`
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
 type MultitenantPodNetworkConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -48,6 +50,8 @@ type MultitenantPodNetworkConfigSpec struct {
 	// MAC addresses of the IB devices to use for a pod
 	// +kubebuilder:validation:Optional
 	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
+	// PodUID is the UID of the pod
+	PodUID types.UID `json:"podUID,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=Unprogrammed;Programming;Programmed;Unprogramming;Failed
@@ -59,6 +63,29 @@ const (
 	Programmed    InfinibandStatus = "Programmed"
 	Unprogramming InfinibandStatus = "Unprogramming"
 	Failed        InfinibandStatus = "Failed"
+)
+
+// MTPNCStatus indicates the high-level status of MultitenantPodNetworkConfig
+// +kubebuilder:validation:Enum=Ready;Pending;InternalError;PNINotFound;PNINotReady;NodeCapacityExceeded;IPsExhausted;Deleting
+type MTPNCStatus string
+
+const (
+	// MTPNCStatusReady indicates the MTPNC has been successfully programmed and is ready for use
+	MTPNCStatusReady MTPNCStatus = "Ready"
+	// MTPNCStatusPending indicates the MTPNC is awaiting processing
+	MTPNCStatusPending MTPNCStatus = "Pending"
+	// MTPNCStatusInternalError indicates an internal error occurred while processing the MTPNC
+	MTPNCStatusInternalError MTPNCStatus = "InternalError"
+	// MTPNCStatusPNINotFound indicates the referenced PodNetworkInstance was not found
+	MTPNCStatusPNINotFound MTPNCStatus = "PNINotFound"
+	// MTPNCStatusPNINotReady indicates the referenced PodNetworkInstance is not yet ready
+	MTPNCStatusPNINotReady MTPNCStatus = "PNINotReady"
+	// MTPNCStatusNodeCapacityExceeded indicates the node has exceeded its capacity for network resources
+	MTPNCStatusNodeCapacityExceeded MTPNCStatus = "NodeCapacityExceeded"
+	// MTPNCStatusIPsExhausted indicates no IP addresses are available for allocation
+	MTPNCStatusIPsExhausted MTPNCStatus = "IPsExhausted"
+	// MTPNCStatusDeleting indicates MTPNC is being deleted, status may not be set at the same time as deletionTimestamp.
+	MTPNCStatusDeleting MTPNCStatus = "Deleting"
 )
 
 type InterfaceInfo struct {
@@ -105,6 +132,12 @@ type MultitenantPodNetworkConfigStatus struct {
 	// DefaultDenyACL bool indicates whether default deny policy will be present on the pods upon pod creation
 	// +kubebuilder:validation:Optional
 	DefaultDenyACL bool `json:"defaultDenyACL"`
+	// NodeName is the name of the node where the pod is scheduled
+	// +kubebuilder:validation:Optional
+	NodeName string `json:"nodeName,omitempty"`
+	// Status represents the overall status of the MTPNC
+	// +kubebuilder:validation:Optional
+	Status MTPNCStatus `json:"status,omitempty"`
 }
 
 func init() {

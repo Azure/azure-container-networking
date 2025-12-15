@@ -17,7 +17,6 @@ import (
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
-// +kubebuilder:printcolumn:name="PodNetworks",priority=1,type=string,JSONPath=`.spec.podNetworks`
 type PodNetworkInstance struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

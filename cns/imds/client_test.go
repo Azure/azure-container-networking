@@ -111,7 +111,7 @@ func TestGetNetworkInterfaces(t *testing.T) {
             },
             {
                 "interfaceCompartmentID": "",
-                "macAddress": "00:00:5e:00:53:02"
+                "macAddress": "00005e005302"
             }
         ]
     }`)
@@ -158,6 +158,37 @@ func TestGetNetworkInterfaces(t *testing.T) {
 
 	// Test that they're different MAC addresses
 	assert.NotEqual(t, firstMAC.String(), secondMAC.String(), "MAC addresses should be different")
+}
+
+func TestGetNetworkInterfacesInvalidMAC(t *testing.T) {
+	networkInterfaces := []byte(`{
+        "interface": [
+            {
+                "interfaceCompartmentID": "nc-12345-67890",
+                "macAddress": "00005e00530" // incorrect windows MAC address length
+            },
+        ]
+    }`)
+
+	mockIMDSServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		metadataHeader := r.Header.Get("Metadata")
+		assert.Equal(t, "true", metadataHeader)
+
+		assert.Contains(t, r.URL.Path, "/metadata/instance/network")
+
+		w.WriteHeader(http.StatusOK)
+		_, writeErr := w.Write(networkInterfaces)
+		if writeErr != nil {
+			t.Errorf("error writing response: %v", writeErr)
+			return
+		}
+	}))
+	defer mockIMDSServer.Close()
+
+	imdsClient := imds.NewClient(imds.Endpoint(mockIMDSServer.URL))
+	interfaces, err := imdsClient.GetNetworkInterfaces(context.Background())
+	require.Error(t, err, "expected error for invalid MAC address")
+	require.Nil(t, interfaces, "expected nil interfaces on error")
 }
 
 func TestGetNetworkInterfacesInvalidEndpoint(t *testing.T) {

@@ -23,11 +23,14 @@ spec:
     - jsonPath: .spec.podNetworkInstance
       name: PodNetworkInstance
       type: string
-    - jsonPath: .spec.podNetwork
-      name: PodNetwork
-      type: string
     - jsonPath: .spec.podName
       name: PodName
+      type: string
+    - jsonPath: .spec.podUID
+      name: PodUID
+      type: string
+    - jsonPath: .status.status
+      name: Status
       type: string
     name: v1alpha1
     schema:
@@ -69,6 +72,9 @@ spec:
                 type: string
               podNetworkInstance:
                 description: name of PNI object from requesting cx pod
+                type: string
+              podUID:
+                description: PodUID is the UID of the pod
                 type: string
             required:
             - podNetwork
@@ -135,8 +141,23 @@ spec:
               ncID:
                 description: Deprecated - use InterfaceInfos
                 type: string
+              nodeName:
+                description: NodeName is the name of the node where the pod is scheduled
+                type: string
               primaryIP:
                 description: Deprecated - use InterfaceInfos
+                type: string
+              status:
+                description: Status represents the overall status of the MTPNC
+                enum:
+                - Ready
+                - Pending
+                - InternalError
+                - PNINotFound
+                - PNINotReady
+                - NodeCapacityExceeded
+                - IPsExhausted
+                - Deleting
                 type: string
             type: object
         type: object

@@ -19,7 +19,7 @@ import (
 // +kubebuilder:printcolumn:name="Network",type=string,priority=1,JSONPath=`.spec.networkID`
 // +kubebuilder:printcolumn:name="Subnet",type=string,priority=1,JSONPath=`.spec.subnetResourceID`
 // +kubebuilder:printcolumn:name="SubnetGUID",type=string,priority=1,JSONPath=`.spec.subnetGUID`
-// +kubebuilder:printcolumn:name="DeviceType",type=string,priority=1,JSONPath=`.spec.subnetGUID`
+// +kubebuilder:printcolumn:name="DeviceType",type=string,priority=1,JSONPath=`.spec.deviceType`
 type PodNetwork struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -99,14 +99,17 @@ func TestPluginManagerStartStop(t *testing.T) {
 	req := &v1beta1.AllocateRequest{
 		ContainerRequests: []*v1beta1.ContainerAllocateRequest{
 			{
-				DevicesIDs: []string{"device-0", "device-1"},
+				DevicesIds: []string{"device-0", "device-1"},
 			},
 		},
 	}
 	allocateResp := getAllocateResponse(t, vnetPluginEndpoint, req)
 
-	if len(allocateResp.ContainerResponses[0].Envs) != len(req.ContainerRequests[0].DevicesIDs) {
-		t.Fatalf("expected allocations %v but received allocations %v", len(req.ContainerRequests[0].DevicesIDs), len(allocateResp.ContainerResponses[0].Envs))
+	if len(allocateResp.GetContainerResponses()[0].GetEnvs()) != len(req.GetContainerRequests()[0].GetDevicesIds()) {
+		t.Fatalf("expected allocations %v but received allocations %v",
+			len(req.GetContainerRequests()[0].GetDevicesIds()),
+			len(allocateResp.GetContainerResponses()[0].GetEnvs()),
+		)
 	}
 
 	// call getDevicePluginOptions method
@@ -142,6 +145,9 @@ func TestPluginManagerStartStop(t *testing.T) {
 }
 
 type fakeKubelet struct {
+	// Required by newer protoc-gen-go-grpc to satisfy v1beta1.RegistrationServer
+	v1beta1.UnimplementedRegistrationServer
+
 	vnetPluginRegisterChan chan string
 	ibPluginRegisterChan   chan string
 	pluginPrefix           string

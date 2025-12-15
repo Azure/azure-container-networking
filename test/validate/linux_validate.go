@@ -44,6 +44,7 @@ var linuxChecksMap = map[string][]check{
 			podLabelSelector: ciliumLabelSelector,
 			podNamespace:     privilegedNamespace,
 			cmd:              ciliumStateFileCmd,
+			containerName:    "cilium-agent",
 		},
 		{
 			name:             "cns cache",

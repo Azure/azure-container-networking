@@ -35,6 +35,7 @@ stages:
         steps:
           - bash: |
               set -ex
+              
               cd .pipelines/
               git clone https://github.com/cilium/cilium.git
               cd cilium
@@ -62,10 +63,20 @@ stages:
                 echo "alpine MCR image: ${alpineACR}"
                 ALPINE_ARGS="--build-arg ALPINE_IMAGE=${alpineACR} "
               fi
-              BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
 
+              if [ "$(type)" = "docker-operator-generic-image" ]; then
+                # Apply patch to Dockerfile  
+                DOCKERFILE_PATH="./images/$(directory)/Dockerfile"
+                echo "Patching Dockerfile: $DOCKERFILE_PATH"
+                  
+                # Add ARG and ENV statements to disable systemcrypto for Microsoft Go
+                sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=boringcrypto \nENV GOEXPERIMENT=${GOEXPERIMENT}' "$DOCKERFILE_PATH"
+              fi
+
+              BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
               DOCKER_FLAGS="$BUILD_ARGS" \
               make $(type)
+              
             name: BuildCiliumImage
             displayName: "Build Cilium Image"
           - task: AzureCLI@2

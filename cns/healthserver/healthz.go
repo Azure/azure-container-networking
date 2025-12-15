@@ -5,11 +5,14 @@ import (
 
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
+	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	apiutil "sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 )
 
@@ -21,6 +24,7 @@ func init() {
 
 type Config struct {
 	PingAPIServer bool
+	Mapper        meta.RESTMapper
 }
 
 // NewHealthzHandlerWithChecks will return a [http.Handler] for CNS's /healthz endpoint.
@@ -30,12 +34,25 @@ type Config struct {
 func NewHealthzHandlerWithChecks(cfg *Config) (http.Handler, error) {
 	checks := make(map[string]healthz.Checker)
 	if cfg.PingAPIServer {
-		cfg, err := ctrl.GetConfig()
+		restCfg, err := ctrl.GetConfig()
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get kubeconfig")
 		}
-		cli, err := client.New(cfg, client.Options{
+		// Use the provided (test) RESTMapper when present; otherwise fall back to a dynamic, discovery-based mapper for production.
+		mapper := cfg.Mapper
+		if mapper == nil {
+			httpClient, httpErr := rest.HTTPClientFor(restCfg)
+			if httpErr != nil {
+				return nil, errors.Wrap(httpErr, "build http client for REST mapper")
+			}
+			mapper, err = apiutil.NewDynamicRESTMapper(restCfg, httpClient)
+			if err != nil {
+				return nil, errors.Wrap(err, "build rest mapper")
+			}
+		}
+		cli, err := client.New(restCfg, client.Options{
 			Scheme: scheme,
+			Mapper: mapper,
 		})
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to build client")

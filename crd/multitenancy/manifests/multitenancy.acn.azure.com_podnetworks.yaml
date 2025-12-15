@@ -37,7 +37,7 @@ spec:
       name: SubnetGUID
       priority: 1
       type: string
-    - jsonPath: .spec.subnetGUID
+    - jsonPath: .spec.deviceType
       name: DeviceType
       priority: 1
       type: string

@@ -666,15 +666,15 @@ func TestDeleteEndpointStateForInfraDelegatedNIC(t *testing.T) {
 		HNSNetworkID:  networkID,
 	}
 
-	// mock DeleteEndpointState() to make sure endpoint and network is deleted from cache
+	// mock DeleteEndpointStateless() to make sure endpoint and network is deleted from cache
 	// network and endpoint should be deleted from cache for delegatedNIC
-	err = nm.DeleteEndpointState(networkID, delegatedEpInfo)
+	err = nm.DeleteEndpointStateless(networkID, delegatedEpInfo)
 	if err != nil {
 		t.Fatalf("Failed to delete endpoint for delegatedNIC state due to %v", err)
 	}
 
 	// endpoint should be deleted from cache for delegatedNIC and network is still there
-	err = nm.DeleteEndpointState(infraNetworkID, infraEpInfo)
+	err = nm.DeleteEndpointStateless(infraNetworkID, infraEpInfo)
 	if err != nil {
 		t.Fatalf("Failed to delete endpoint for delegatedNIC state due to %v", err)
 	}

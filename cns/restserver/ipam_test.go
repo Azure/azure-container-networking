@@ -2443,11 +2443,12 @@ func TestStatelessCNIStateFile(t *testing.T) {
 	endpointInfo2ContainerID := "1b4917617e15d24dc495e407d8eb5c88e4406e58fa209e4eb75a2c2fb7045eea"
 	endpointInfo2 := &EndpointInfo{IfnameToIPMap: make(map[string]*IPInfo)}
 	endpointInfo2.IfnameToIPMap["eth2"] = &IPInfo{
-		IPv4:          nil,
-		NICType:       cns.DelegatedVMNIC,
-		HnsEndpointID: "5c15cccc-830a-4dff-81f3-4b1e55cb7dcb",
-		HnsNetworkID:  "5c0712cd-824c-4898-b1c0-2fcb16ede4fb",
-		MacAddress:    "7c:1e:52:06:d3:4b",
+		IPv4:               nil,
+		NICType:            cns.DelegatedVMNIC,
+		HnsEndpointID:      "5c15cccc-830a-4dff-81f3-4b1e55cb7dcb",
+		HnsNetworkID:       "5c0712cd-824c-4898-b1c0-2fcb16ede4fb",
+		MacAddress:         "7c:1e:52:06:d3:4b",
+		NetworkContainerID: testNCID,
 	}
 	// test cases
 	tests := []struct {

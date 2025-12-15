@@ -1,0 +1,13 @@
+apiVersion: v1
+data:
+  ip-masq-agent-reconciled: |
+    MasqLinkLocal: true
+    NonMasqueradeCIDRs:
+    - 192.168.0.0/16
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: Eno
+    component: ip-masq-agent
+  name: azure-ip-masq-agent-config-reconciled
+  namespace: kube-system

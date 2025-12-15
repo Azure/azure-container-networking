@@ -165,7 +165,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		}
 
 		logger.Info("Received info for pod",
-			zap.Any("ipInfo", info),
+			zap.Any("ipInfo", response.PodIPInfo[i]),
 			zap.Any("podInfo", podInfo))
 
 		//nolint:exhaustive // ignore exhaustive types check
@@ -192,6 +192,11 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			if err := addBackendNICToResult(&info, &addResult, key); err != nil {
 				return IPAMAddResult{}, err
 			}
+		case cns.ApipaNIC:
+			if err := configureApipaAddResult(&addResult, &response.PodIPInfo[i], key); err != nil {
+				return IPAMAddResult{}, err
+			}
+
 		case cns.InfraNIC, "":
 			// if we change from legacy cns, the nicType will be empty, so we assume it is infra nic
 			info.nicType = cns.InfraNIC
@@ -503,6 +508,32 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 		NICType:           info.nicType,
 		MacAddress:        macAddress,
 		SkipDefaultRoutes: info.skipDefaultRoutes,
+	}
+
+	return nil
+}
+
+func configureApipaAddResult(addResult *IPAMAddResult, info *cns.PodIpInfo, key string) error {
+	ip, ipnet, err := info.PodIPConfig.GetIPNet()
+	if ip == nil {
+		return errors.Wrap(err, "GetIPNet failed while configuring apipa AddResult")
+	}
+
+	addResult.interfaceInfo[key] = network.InterfaceInfo{
+		IPConfigs: []*network.IPConfig{
+			{
+				Address: net.IPNet{
+					IP:   ip,
+					Mask: ipnet.Mask,
+				},
+				Gateway: net.ParseIP(info.NetworkContainerPrimaryIPConfig.GatewayIPAddress),
+			},
+		},
+		NICType:                    info.NICType,
+		SkipDefaultRoutes:          true,
+		NetworkContainerID:         info.NetworkContainerID,
+		AllowHostToNCCommunication: info.AllowHostToNCCommunication,
+		AllowNCToHostCommunication: info.AllowNCToHostCommunication,
 	}
 
 	return nil

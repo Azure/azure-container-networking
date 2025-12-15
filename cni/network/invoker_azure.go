@@ -1,10 +1,10 @@
 package network
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
-	"runtime/debug"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -20,7 +20,11 @@ import (
 	"go.uber.org/zap"
 )
 
-var logger = log.CNILogger.With(zap.String("component", "cni-net"))
+var (
+	logger              = log.CNILogger.With(zap.String("component", "cni-net"))
+	errNilNetworkConfig = errors.New("network config is nil")
+	errInvalidIPAddress = errors.New("invalid ip address")
+)
 
 const (
 	bytesSize4  = 4
@@ -50,7 +54,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 	addResult := IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
 
 	if addConfig.nwCfg == nil {
-		return addResult, invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))
+		return addResult, invoker.plugin.Errorf("nil nwCfg passed to CNI ADD: %v", errNilNetworkConfig)
 	}
 
 	if len(invoker.nwInfo.Subnets) > 0 {
@@ -161,7 +165,7 @@ func (invoker *AzureIPAMInvoker) deleteIpamState() {
 
 func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, options map[string]interface{}) error { //nolint
 	if nwCfg == nil {
-		return invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))
+		return invoker.plugin.Errorf("nil nwCfg passed to CNI DEL: %v", errNilNetworkConfig)
 	}
 
 	if len(invoker.nwInfo.Subnets) > 0 {
@@ -203,7 +207,7 @@ func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkCo
 			return invoker.plugin.Errorf("Failed to release ipv6 address: %v", err)
 		}
 	} else {
-		return invoker.plugin.Errorf("Address is incorrect, not valid IPv4 or IPv6, stack: %+v", string(debug.Stack()))
+		return invoker.plugin.Errorf("address is incorrect, not valid IPv4 or IPv6: %v", errInvalidIPAddress)
 	}
 
 	return nil

@@ -1,0 +1,35 @@
+parameters:
+  name: ""
+  dependsOn: ""
+
+stages:
+  - stage: manifold_e2e
+    displayName: E2E - AKS Swiftv2 Manifold
+    variables:
+      TAG: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      IMAGE_REPO_PATH: $[ format('{0}/', stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath']) ]
+      ${{ if eq(parameters.dependsOn, 'publish') }}:
+        IMAGE_REPO_PATH_REF: 'azure-'
+      ${{ else }}:
+        IMAGE_REPO_PATH_REF: $(IMAGE_REPO_PATH)
+    dependsOn: 
+      - ${{ parameters.dependsOn }}
+      - setup
+    jobs:
+      - job: ${{ parameters.name }}
+        displayName: AKS Swiftv2 Multitenancy Manifold E2E Test Suite - (${{ parameters.name }})
+        timeoutInMinutes: 210
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          isCustom: true
+          type: linux
+        steps:
+          - task: TriggerBuild@3
+            inputs:
+              buildDefinition: '391699'
+              templateParameters: 'regions: ["westus2"], useAcnPublic: true, cnscniversion: $(TAG), cnscniversionwindows: $(TAG), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF)'
+              useSameBranch: false
+              queueBuildForUserThatTriggeredBuild: true
+              branchToUse: 'refs/heads/master'
+              waitForQueuedBuildsToFinish: true
+              authenticationMethod: 'OAuth Token'      

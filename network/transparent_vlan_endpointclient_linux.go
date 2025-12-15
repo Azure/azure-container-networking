@@ -292,7 +292,6 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 			_, err = client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
 			return errors.Wrap(err, "failed to get vlan interface")
 		}, numRetries, sleepInMs)
-
 		if err != nil {
 			deleteNSIfNotNilErr = errors.Wrapf(err, "failed to get vlan interface: %s", client.vlanIfName)
 			return deleteNSIfNotNilErr
@@ -400,14 +399,32 @@ func (client *TransparentVlanEndpointClient) PopulateVnet(epInfo *EndpointInfo) 
 	return nil
 }
 
+// Set ARP proxy on the specified interface to respond to ARP requests for the gateway IP
+func (client *TransparentVlanEndpointClient) setArpProxy(ifName string) error {
+	cmd := fmt.Sprintf("echo 1 > /proc/sys/net/ipv4/conf/%v/proxy_arp", ifName)
+	_, err := client.plClient.ExecuteRawCommand(cmd)
+	if err != nil {
+		logger.Error("Failed to set ARP proxy", zap.String("interface", ifName), zap.Error(err))
+		return errors.Wrap(err, "failed to set arp proxy")
+	}
+	return nil
+}
+
 func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 	if err := client.AddSnatEndpointRules(); err != nil {
 		return errors.Wrap(err, "failed to add snat endpoint rules")
 	}
 	logger.Info("[transparent-vlan] Adding tunneling rules in vnet namespace")
 	err := ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
-		return client.AddVnetRules(epInfo)
+		if err := client.AddVnetRules(epInfo); err != nil {
+			return err
+		}
+
+		// Set ARP proxy on vnet veth (inside vnet namespace)
+		logger.Info("calling setArpProxy for", zap.String("vnetVethName", client.vnetVethName))
+		return client.setArpProxy(client.vnetVethName)
 	})
+
 	return err
 }
 
@@ -519,9 +536,15 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 		}
 	}
 
+	if epInfo.SkipDefaultRoutes {
+		logger.Info("Skipping adding routes in container ns as requested")
+		return nil
+	}
+	logger.Info("Adding default routes in container ns")
 	if err := client.addDefaultRoutes(client.containerVethName, 0); err != nil {
 		return errors.Wrap(err, "failed container ns add default routes")
 	}
+
 	if err := client.AddDefaultArp(client.containerVethName, client.vnetMac.String()); err != nil {
 		return errors.Wrap(err, "failed container ns add default arp")
 	}

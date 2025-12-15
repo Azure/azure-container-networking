@@ -1,3 +1,5 @@
+include deploy.mk
+
 .DEFAULT_GOAL: help
 
 # construct containerized azcli command
@@ -50,6 +52,7 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--no-ssh-key  \
 	--os-sku $(OS_SKU) \
 	$(LTS_ARGS)
+POD_CIDR = 192.168.0.0/16
 
 ##@ Help
 
@@ -147,6 +150,7 @@ nodesubnet-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Node
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -155,7 +159,7 @@ overlay-byocni-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay BYO CNI clu
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--yes
 	@$(MAKE) set-kubeconf
@@ -168,9 +172,10 @@ overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -180,8 +185,22 @@ overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium clus
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--yes
+	@$(MAKE) set-kubeconf
+
+ebpf-overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an EBPF Overlay Cilium cluster
+	$(COMMON_AKS_FIELDS) \
+		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
+		--network-plugin azure \
+		--network-dataplane cilium \
+		--network-plugin-mode overlay \
+		--pod-cidr $(POD_CIDR) \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AdvancedNetworkingPerformancePreview \
+		--enable-acns \
+		--acns-datapath-acceleration-mode BpfVeth \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -190,7 +209,7 @@ overlay-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--yes
 	@$(MAKE) set-kubeconf
@@ -217,6 +236,7 @@ swift-byocni-nokubeproxy-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -265,6 +285,20 @@ swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI clus
 		--yes
 	@$(MAKE) set-kubeconf
 
+swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet cluster
+	$(COMMON_AKS_FIELDS) 
+		--network-plugin azure \
+		--nodepool-name nodepool1 \
+		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--service-cidr "10.0.0.0/16" \
+		--dns-service-ip "10.0.0.10" \
+		--tags fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
+		--yes 
+	@$(MAKE) set-kubeconf
+
 # The below Vnet Scale clusters are currently only in private preview and available with Kubernetes 1.28
 # These AKS clusters can only be created in a limited subscription listed here:
 # https://dev.azure.com/msazure/CloudNativeCompute/_git/aks-rp?path=/resourceprovider/server/microsoft.com/containerservice/flags/network_flags.go&version=GBmaster&line=134&lineEnd=135&lineStartColumn=1&lineEndColumn=1&lineStyle=plain&_a=contents
@@ -286,6 +320,7 @@ vnetscale-swift-byocni-nokubeproxy-up: rg-up ipv4 vnetscale-swift-net-up ## Brin
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		--pod-ip-allocation-mode StaticBlock \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -376,7 +411,7 @@ dualstack-byocni-nokubeproxy-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a D
 		--network-plugin-mode overlay \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
-		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview,AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		--yes
 	@$(MAKE) set-kubeconf
@@ -401,6 +436,18 @@ windows-swift-nodepool-up: ## Add windows node pool
 		--os-sku $(OS_SKU_WIN) \
 		--max-pods 250 \
 		--subscription $(SUB) \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
+
+linux-swiftv2-nodepool-up: ## Add linux node pool to swiftv2 cluster
+	$(AZCLI) aks nodepool add -g $(GROUP) -n nplinux \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--cluster-name $(CLUSTER) \
+		--os-type Linux \
+		--max-pods 250 \
+		--subscription $(SUB) \
+		--tags fastpathenabled=true,aks-nic-enable-multi-tenancy=true \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
 
 down: ## Delete the cluster
