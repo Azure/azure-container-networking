@@ -61,7 +61,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 
 		// Create PodNetwork and PodNetworkInstance for each scenario
 		for _, scenario := range scenarios {
-			kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.cluster)
+			kubeconfig := getKubeconfigPath(scenario.cluster)
 
 			// Get network info
 			ginkgo.By(fmt.Sprintf("Getting network info for %s/%s in cluster %s", scenario.vnetName, scenario.subnet, scenario.cluster))

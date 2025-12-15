@@ -59,6 +59,9 @@ stages:
                 $(rgName)
                 $(vmSkuDefault)
                 $(vmSkuHighNIC)
+                $(DELEGATOR_CONTAINER_APP_NAME)
+                $(DELEGATOR_RESOURCE_GROUP)
+                $(DELEGATOR_SUBSCRIPTION)
       
       - job: NetworkingAndStorage
         displayName: "Networking and Storage Setup"
@@ -76,6 +79,9 @@ stages:
                 ${{ parameters.location }}
                 $(rgName)
                 $(Build.BuildId)
+                $(DELEGATOR_CONTAINER_APP_NAME)
+                $(DELEGATOR_RESOURCE_GROUP)
+                $(DELEGATOR_SUBSCRIPTION)
 
           - task: AzureCLI@2
             displayName: "Create customer vnet peerings"
@@ -132,21 +138,23 @@ stages:
       storageAccount1: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
       storageAccount2: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
     jobs:
-      - job: CreatePods
-        displayName: "Create Swiftv2 Pods"
+      - job: SetupKubeconfig
+        displayName: "Setup Kubeconfig Files"
         steps:
           - task: AzureCLI@2
-            displayName: "Create Test Resources"
+            displayName: "Generate and verify kubeconfig files"
             inputs:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
+                mkdir -p $(Pipeline.Workspace)/kubeconfigs
+                
                 echo "==> Setting up kubeconfig for cluster aks-1"
                 az aks get-credentials \
                   --resource-group $(rgName) \
                   --name aks-1 \
-                  --file /tmp/aks-1.kubeconfig \
+                  --file $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig \
                   --overwrite-existing \
                   --admin
                 
@@ -154,27 +162,61 @@ stages:
                 az aks get-credentials \
                   --resource-group $(rgName) \
                   --name aks-2 \
-                  --file /tmp/aks-2.kubeconfig \
+                  --file $(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig \
                   --overwrite-existing \
                   --admin
                 
                 echo "==> Verifying cluster aks-1 connectivity"
-                kubectl --kubeconfig /tmp/aks-1.kubeconfig get nodes
+                kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig get nodes
                 
                 echo "==> Verifying cluster aks-2 connectivity"
-                kubectl --kubeconfig /tmp/aks-2.kubeconfig get nodes
-                
-                echo "==> Creating test resources (8 scenarios)"
+                kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig get nodes
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish kubeconfig files"
+            inputs:
+              targetPath: $(Pipeline.Workspace)/kubeconfigs
+              artifactName: kubeconfigs
+              publishLocation: pipeline
+
+      - job: CreatePods
+        displayName: "Create Swiftv2 Pods"
+        dependsOn: SetupKubeconfig
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download kubeconfig files"
+            inputs:
+              artifactName: kubeconfigs
+              targetPath: $(Pipeline.Workspace)/kubeconfigs
+
+          - task: AzureCLI@2
+            displayName: "Create pods"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Creating pods (8 scenarios)"
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
                 export WORKLOAD_TYPE="swiftv2-linux"
                 cd ./test/integration/swiftv2/longRunningCluster
                 go test -v -timeout=1h -tags=create_test
+              workingDirectory: $(System.DefaultWorkingDirectory)
+            env:
+              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
+              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
 
       - job: ConnectivityTests
         displayName: "Test Pod-to-Pod Connectivity"
         dependsOn: CreatePods
         steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download kubeconfig files"
+            inputs:
+              artifactName: kubeconfigs
+              targetPath: $(Pipeline.Workspace)/kubeconfigs
+
           - task: AzureCLI@2
             displayName: "Run Connectivity Tests"
             inputs:
@@ -182,33 +224,40 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                echo "==> Setting up kubeconfig for cluster aks-1"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-1 \
-                  --file /tmp/aks-1.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
-                echo "==> Setting up kubeconfig for cluster aks-2"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-2 \
-                  --file /tmp/aks-2.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
                 echo "==> Running connectivity tests"
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
                 export WORKLOAD_TYPE="swiftv2-linux"
                 cd ./test/integration/swiftv2/longRunningCluster
                 go test -v -timeout=30m -tags=connectivity_test
+              workingDirectory: $(System.DefaultWorkingDirectory)
+            env:
+              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
+              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
 
       - job: PrivateEndpointTests
         displayName: "Test Private Endpoint Access"
         dependsOn: ConnectivityTests
         steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download kubeconfig files"
+            inputs:
+              artifactName: kubeconfigs
+              targetPath: $(Pipeline.Workspace)/kubeconfigs
+
+          - task: AzureCLI@2
+            displayName: "Assign RBAC for SAS token generation"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
+              arguments: >
+                assign
+                ${{ parameters.subscriptionId }}
+                $(rgName)
+                "$(storageAccount1) $(storageAccount2)"
+
           - task: AzureCLI@2
             displayName: "Run Private Endpoint Tests"
             inputs:
@@ -216,22 +265,6 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                echo "==> Setting up kubeconfig for cluster aks-1"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-1 \
-                  --file /tmp/aks-1.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
-                echo "==> Setting up kubeconfig for cluster aks-2"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-2 \
-                  --file /tmp/aks-2.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
                 echo "==> Running Private Endpoint connectivity tests"
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
@@ -252,6 +285,24 @@ stages:
                 export STORAGE_ACCOUNT_2
                 cd ./test/integration/swiftv2/longRunningCluster
                 go test -v -timeout=30m -tags=private_endpoint_test
+              workingDirectory: $(System.DefaultWorkingDirectory)
+            env:
+              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
+              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
+
+          - task: AzureCLI@2
+            displayName: "Remove RBAC after tests"
+            condition: always()
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
+              arguments: >
+                delete
+                ${{ parameters.subscriptionId }}
+                $(rgName)
+                "$(storageAccount1) $(storageAccount2)"
 
       - job: DeleteTestResources
         displayName: "Delete PodNetwork, PNI, and Pods"
@@ -261,6 +312,12 @@ stages:
           - PrivateEndpointTests
         condition: always()
         steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download kubeconfig files"
+            inputs:
+              artifactName: kubeconfigs
+              targetPath: $(Pipeline.Workspace)/kubeconfigs
+
           - task: AzureCLI@2
             displayName: "Delete Test Resources"
             inputs:
@@ -268,26 +325,14 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                echo "==> Setting up kubeconfig for cluster aks-1"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-1 \
-                  --file /tmp/aks-1.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
-                echo "==> Setting up kubeconfig for cluster aks-2"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-2 \
-                  --file /tmp/aks-2.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
                 echo "==> Deleting test resources (8 scenarios)"
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
                 export WORKLOAD_TYPE="swiftv2-linux"
                 cd ./test/integration/swiftv2/longRunningCluster
                 go test -v -timeout=1h -tags=delete_test
+              workingDirectory: $(System.DefaultWorkingDirectory)
+            env:
+              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
+              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
               

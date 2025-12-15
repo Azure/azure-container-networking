@@ -41,6 +41,16 @@ var (
 	ErrInvalidWorkloadType = errors.New("invalid workload type")
 )
 
+// getKubeconfigPath returns the kubeconfig path for a cluster.
+// It checks for KUBECONFIG_DIR environment variable first, otherwise defaults to /tmp
+func getKubeconfigPath(clusterName string) string {
+	kubeconfigDir := os.Getenv("KUBECONFIG_DIR")
+	if kubeconfigDir == "" {
+		kubeconfigDir = "/tmp"
+	}
+	return fmt.Sprintf("%s/%s.kubeconfig", kubeconfigDir, clusterName)
+}
+
 func applyTemplate(templatePath string, data interface{}, kubeconfig string) error {
 	tmpl, err := template.ParseFiles(templatePath)
 	if err != nil {
@@ -329,7 +339,7 @@ func GetOrFetchVnetSubnetInfo(rg, vnetName, subnetName string, cache map[string]
 
 // CreateScenarioResources creates all resources for a specific pod scenario
 func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) error {
-	kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.Cluster)
+	kubeconfig := getKubeconfigPath(scenario.Cluster)
 	netInfo, err := GetOrFetchVnetSubnetInfo(testScenarios.ResourceGroup, scenario.VnetName, scenario.SubnetName, testScenarios.VnetSubnetCache)
 	if err != nil {
 		return fmt.Errorf("failed to get network info for %s/%s: %w", scenario.VnetName, scenario.SubnetName, err)
@@ -434,7 +444,7 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 
 // DeleteScenarioResources deletes all resources for a specific pod scenario
 func DeleteScenarioResources(scenario PodScenario, buildID string) error {
-	kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.Cluster)
+	kubeconfig := getKubeconfigPath(scenario.Cluster)
 
 	// Create same names as creation (simplify vnet name and make K8s compatible)
 	// Remove "cx_vnet_" prefix and replace underscores with hyphens
@@ -491,7 +501,7 @@ func DeleteAllScenarios(testScenarios TestScenarios) error {
 	// Phase 1: Delete all pods first
 	fmt.Printf("\n=== Phase 1: Deleting all pods ===\n")
 	for _, scenario := range testScenarios.Scenarios {
-		kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.Cluster)
+		kubeconfig := getKubeconfigPath(scenario.Cluster)
 		vnetShort := strings.TrimPrefix(scenario.VnetName, "cx_vnet_")
 		vnetShort = strings.ReplaceAll(vnetShort, "_", "-")
 		subnetNameSafe := strings.ReplaceAll(scenario.SubnetName, "_", "-")
@@ -510,7 +520,7 @@ func DeleteAllScenarios(testScenarios TestScenarios) error {
 	resourceGroups := make(map[string]bool)
 
 	for _, scenario := range testScenarios.Scenarios {
-		kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.Cluster)
+		kubeconfig := getKubeconfigPath(scenario.Cluster)
 		vnetShort := strings.TrimPrefix(scenario.VnetName, "cx_vnet_")
 		vnetShort = strings.ReplaceAll(vnetShort, "_", "-")
 		subnetNameSafe := strings.ReplaceAll(scenario.SubnetName, "_", "-")
@@ -558,7 +568,7 @@ func DeleteAllScenarios(testScenarios TestScenarios) error {
 		}
 		clustersChecked[scenario.Cluster] = true
 
-		kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", scenario.Cluster)
+		kubeconfig := getKubeconfigPath(scenario.Cluster)
 		fmt.Printf("Checking for pending MTPNC resources in cluster %s\n", scenario.Cluster)
 
 		err := helpers.VerifyNoMTPNC(kubeconfig, testScenarios.BuildID)
@@ -630,12 +640,12 @@ type ConnectivityTest struct {
 // RunConnectivityTest tests HTTP connectivity between two pods
 func RunConnectivityTest(test ConnectivityTest) error {
 	// Get kubeconfig for the source cluster
-	sourceKubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", test.Cluster)
+	sourceKubeconfig := getKubeconfigPath(test.Cluster)
 
 	// Get kubeconfig for the destination cluster (default to source cluster if not specified)
 	destKubeconfig := sourceKubeconfig
 	if test.DestCluster != "" {
-		destKubeconfig = fmt.Sprintf("/tmp/%s.kubeconfig", test.DestCluster)
+		destKubeconfig = getKubeconfigPath(test.DestCluster)
 	}
 
 	// Get destination pod's eth1 IP (delegated subnet IP for cross-VNet connectivity)
@@ -753,7 +763,7 @@ func GetStoragePrivateEndpoint(storageAccountName string) (string, error) {
 // RunPrivateEndpointTest tests connectivity from a pod to a private endpoint (storage account)
 func RunPrivateEndpointTest(test ConnectivityTest) error {
 	// Get kubeconfig for the cluster
-	kubeconfig := fmt.Sprintf("/tmp/%s.kubeconfig", test.SourceCluster)
+	kubeconfig := getKubeconfigPath(test.SourceCluster)
 
 	fmt.Printf("Testing private endpoint access from %s to %s\n",
 		test.SourcePodName, test.DestEndpoint)
