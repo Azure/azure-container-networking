@@ -27,6 +27,7 @@ var (
 	ErrBlobNotFound             = errors.New("blob not found (404) on private endpoint")
 	ErrUnexpectedBlobResponse   = errors.New("unexpected response from blob download (no 'Hello' or '200 OK' found)")
 	ErrInvalidWorkloadType      = errors.New("invalid workload type")
+	ErrUnexpectedTCPResponse    = errors.New("unexpected TCP response")
 )
 
 func getKubeconfigPath(clusterName string) string {
@@ -606,7 +607,7 @@ func RunConnectivityTest(test ConnectivityTest) error {
 		return nil
 	}
 
-	return fmt.Errorf("unexpected TCP response (expected 'TCP Connection Success')\nOutput: %s", truncateString(output, 100))
+	return fmt.Errorf("%w (expected 'TCP Connection Success')\nOutput: %s", ErrUnexpectedTCPResponse, truncateString(output, 100))
 }
 
 func truncateString(s string, maxLen int) string {
