@@ -30,15 +30,8 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 	}
 
 	ginkgo.It("creates and deletes 15 pods in a burst using device plugin", func() {
-		// NOTE: Maximum pods per PodNetwork/PodNetworkInstance is limited by:
-		// 1. Subnet IP address capacity
-		// 2. Node capacity (typically 250 pods per node)
-		// 3. Available NICs on nodes (device plugin resources)
-		// For this test: Creating 15 pods across aks-1 and aks-2
-		// Device plugin and Kubernetes scheduler automatically place pods on nodes with available NICs
 
 		// Define scenarios for both clusters - 8 pods on aks-1, 7 pods on aks-2 (15 total for testing)
-		// IMPORTANT: Reuse existing PodNetworks from connectivity tests to avoid "duplicate podnetwork with same network id" error
 		scenarios := []struct {
 			cluster  string
 			vnetName string
@@ -47,7 +40,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		}{
 			{cluster: "aks-1", vnetName: "cx_vnet_v1", subnet: "s1", podCount: 8},
 			{cluster: "aks-2", vnetName: "cx_vnet_v3", subnet: "s1", podCount: 7},
-		} // Initialize test scenarios with cache
+		}
 		testScenarios := TestScenarios{
 			ResourceGroup:   rg,
 			BuildID:         buildId,
@@ -95,7 +88,6 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 			allResources = append(allResources, resources)
 		}
 
-		//Create pods in burst across both clusters - let scheduler place them automatically
 		totalPods := 0
 		for _, s := range scenarios {
 			totalPods += s.podCount
@@ -116,7 +108,6 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 					podName := fmt.Sprintf("scale-pod-%d", idx)
 					ginkgo.By(fmt.Sprintf("Creating pod %s in namespace %s in cluster %s (auto-scheduled)", podName, resources.PNName, cluster))
 
-					// Create pod without specifying node - let device plugin and scheduler decide
 					err := CreatePod(resources.Kubeconfig, PodData{
 						PodName:   podName,
 						NodeName:  "",
