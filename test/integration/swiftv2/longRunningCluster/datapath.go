@@ -167,6 +167,7 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 
 	fmt.Printf("Filtering nodes by workload-type=%s\n", workloadType)
 
+	//#nosec G204 -- workloadType is validated above
 	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "nodes",
 		"-l", "nic-capacity=low-nic,workload-type="+workloadType, "-o", "name")
 	out, err := cmd.CombinedOutput()
@@ -181,6 +182,7 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 		}
 	}
 
+	//#nosec G204 -- workloadType is validated above
 	cmd = exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "nodes",
 		"-l", "nic-capacity=high-nic,workload-type="+workloadType, "-o", "name")
 	out, err = cmd.CombinedOutput()
