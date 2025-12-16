@@ -61,6 +61,23 @@ elif [ "$ACTION" == "delete" ]; then
       && echo "[OK] Role removed from service principal for $SA" \
       || echo "[WARNING] Failed to remove role for $SA (may not exist)"
   done
+  
+  echo "==> Performing sanity check to verify RBAC cleanup..."
+  
+  for SA in $STORAGE_ACCOUNTS; do
+    SA_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG}/providers/Microsoft.Storage/storageAccounts/${SA}"
+    
+    REMAINING=$(az role assignment list \
+      --assignee "$SP_OBJECT_ID" \
+      --role "Storage Blob Data Contributor" \
+      --scope "$SA_SCOPE" \
+      --query "[].id" -o tsv 2>/dev/null || echo "")
+    
+    if [ -n "$REMAINING" ]; then
+      echo "[ERROR] RBAC leak detected: Role assignment still exists for $SA after deletion!" >&2
+      echo "Assignment ID(s): $REMAINING" >&2
+    fi
+  done
 fi
 
 echo "RBAC management completed successfully."
