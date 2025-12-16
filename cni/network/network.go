@@ -609,7 +609,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 			// Delete all endpoints
 			for _, epInfo := range epInfos {
-				deleteErr := plugin.nm.DeleteEndpoint(epInfo.NetworkID, epInfo.EndpointID, epInfo, epInfo.Mode)
+				deleteErr := plugin.nm.DeleteEndpoint(epInfo.NetworkID, epInfo.EndpointID, epInfo, nwCfg.Mode)
 				if deleteErr != nil {
 					// we already do not return an error when the endpoint is not found, so deleteErr is a real error
 					logger.Error("Could not delete endpoint after detecting add failure", zap.String("epInfo", epInfo.PrettyString()), zap.Error(deleteErr))
