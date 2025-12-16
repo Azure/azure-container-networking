@@ -187,6 +187,7 @@ func testLRPCase(t *testing.T, ctx context.Context, clientPod corev1.Pod, client
 	t.Logf("Before DNS request - metric count: %.0f", beforeValue)
 
 	t.Log("calling command from client")
+	t.Logf("Executing command: %s", strings.Join(clientCmd, " "))
 
 	val, errMsg, err := kubernetes.ExecCmdOnPod(ctx, cs, clientPod.Namespace, clientPod.Name, clientContainer, clientCmd, config, false)
 	if shouldError {
@@ -237,7 +238,7 @@ func TestLRP(t *testing.T) {
 
 	// Basic LRP test - using initial port from setupLRP
 	testLRPCase(t, ctx, *selectedPod, []string{
-		"nslookup", "google.com", kubeDNS,
+		"nslookup", "google.com", 
 	}, "", "", false, true, getPrometheusAddress(initialPrometheusPort))
 
 	t.Logf("LRP Test Completed")
@@ -245,7 +246,7 @@ func TestLRP(t *testing.T) {
 	t.Logf("LRP Lifecycle Test Starting")
 
 	// Run LRP Lifecycle test
-	testLRPLifecycle(t, ctx, *selectedPod, kubeDNS)
+	 testLRPLifecycle(t, ctx, *selectedPod, kubeDNS)
 
 	t.Logf("LRP Lifecycle Test Completed")
 }
@@ -268,7 +269,7 @@ func testLRPLifecycle(t *testing.T, ctx context.Context, clientPod corev1.Pod, k
 	// Step 3: Verify metrics after restart
 	t.Log("Step 3: Verifying LRP functionality after pod restart")
 	testLRPCase(t, ctx, restartedPod, []string{
-		"nslookup", "google.com", kubeDNS,
+		"nslookup", "google.com",
 	}, "", "", false, true, getPrometheusAddress(initialPrometheusPort))
 
 	// Step 4: Validate cilium commands still show LRP
@@ -315,7 +316,7 @@ func testLRPLifecycle(t *testing.T, ctx context.Context, clientPod corev1.Pod, k
 	// Use testLRPCase function with the new prometheus address
 	t.Log("Validating metrics with new node-local-dns pod")
 	testLRPCase(t, ctx, recreatedPod, []string{
-		"nslookup", "github.com", kubeDNS,
+		"nslookup", "github.com",
 	}, "", "", false, true, getPrometheusAddress(recreatedPrometheusPort))
 
 	t.Logf("SUCCESS: Metrics validation passed - traffic is being redirected to new node-local-dns pod %s", newNodeLocalDNSPod.Name)

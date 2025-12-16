@@ -12,6 +12,8 @@ spec:
       labels:
         lrp-test: "true"
     spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: no-op
           command: ["sleep","3600"]
