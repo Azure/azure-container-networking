@@ -18,14 +18,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/nodesubnet"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -231,12 +230,8 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		return len(programmedNCs), errors.Wrap(err, "failed to get nc version list from nmagent")
 	}
 
-	// Get IMDS NC versions for delegated NIC scenarios. If any of the NMA API check calls, imds calls fails assume that nma build doesn't have the latest changes and create empty map
+	// Get IMDS NC versions for delegated NIC scenarios.
 	imdsNCVersions := service.getIMDSNCs(ctx)
-	if err != nil {
-		// If any of the NMA API check calls, imds calls fails assume that nma build doesn't have the latest changes and create empty map
-		imdsNCVersions = make(map[string]string)
-	}
 
 	nmaNCs := map[string]string{}
 	for _, nc := range ncVersionListResp.Containers {
@@ -730,7 +725,7 @@ func (service *HTTPRestService) getIMDSNCs(ctx context.Context) map[string]strin
 			err := service.setPrefixOnNICRegistry(true, iface.MacAddress.String())
 			if err != nil {
 				//nolint:staticcheck // SA1019: suppress deprecated logger.Debugf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-				logger.Debugf("failed to add PrefixOnNic keys to Windows registry: %w", err)
+				logger.Debugf("failed to add PrefixOnNic keys to Windows registry: %v", err)
 			}
 		}
 	}

@@ -387,7 +387,8 @@ func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 				SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
 					// No IPs from primary prefix
 				},
-				NCStatus: "Available",
+				SwiftV2PrefixOnNic: true,
+				NCStatus:           "Available",
 			},
 			wantErr: false,
 		},

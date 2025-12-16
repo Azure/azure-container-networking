@@ -7,13 +7,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
-	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
-
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/network/policy"
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // Container Network Service DNC Contract
