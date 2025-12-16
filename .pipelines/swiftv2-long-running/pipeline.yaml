@@ -1,15 +1,6 @@
 trigger: none
 pr: none
 
-# Schedule: Run every 1 hour
-schedules:
-  - cron: "0 */2 * * *"  # Every 2 hours at minute 0
-    displayName: "Run tests every 2 hours"
-    branches:
-      include:
-        - sv2-long-running-pipeline-scaletests
-    always: true  # Run even if there are no code changes
-
 parameters:
   - name: subscriptionId
     displayName: "Azure Subscription ID"
