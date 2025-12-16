@@ -1,14 +1,13 @@
 trigger: none
 pr: none
 
-# Schedule: Run every 1 hour
 schedules:
-  - cron: "0 */3 * * *"  # Every 3 hours at minute 0
+  - cron: "0 */3 * * *" 
     displayName: "Run tests every 3 hours"
     branches:
       include:
         - sv2-long-running-pipeline-cleanup
-    always: true  # Run even if there are no code changes
+    always: true 
 
 parameters:
   - name: subscriptionId
@@ -26,7 +25,6 @@ parameters:
     type: boolean
     default: false
 
-  # Setup-only parameters (only used when runSetupStages=true)
   - name: resourceGroupName
     displayName: "Resource Group Name used when Create new Infrastructure Setup is selected"
     type: string
