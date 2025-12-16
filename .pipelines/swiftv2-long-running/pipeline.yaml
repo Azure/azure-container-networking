@@ -7,7 +7,7 @@ schedules:
     displayName: "Run tests every 3 hours"
     branches:
       include:
-        - sv2-long-running-pipeline-stage2
+        - sv2-long-running-pipeline-cleanup
     always: true  # Run even if there are no code changes
 
 parameters:
@@ -19,7 +19,7 @@ parameters:
   - name: location
     displayName: "Deployment Region"
     type: string
-    default: "centraluseuap"
+    default: "eastus2"
 
   - name: runSetupStages
     displayName: "Create New Infrastructure Setup"
