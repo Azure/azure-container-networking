@@ -246,6 +246,27 @@ stages:
               targetPath: $(Pipeline.Workspace)/kubeconfigs
 
           - task: AzureCLI@2
+            name: DiscoverStorageAccounts
+            displayName: "Discover storage accounts"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                STORAGE_ACCOUNT_1="$(storageAccount1)"
+                STORAGE_ACCOUNT_2="$(storageAccount2)"
+                
+                if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
+                  echo "Storage account variables not set, discovering from resource group..."
+                  STORAGE_ACCOUNT_1=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa1')].name" -o tsv)
+                  STORAGE_ACCOUNT_2=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa2')].name" -o tsv)
+                  echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
+                fi
+                
+                echo "##vso[task.setvariable variable=storageAccount1;isOutput=true]$STORAGE_ACCOUNT_1"
+                echo "##vso[task.setvariable variable=storageAccount2;isOutput=true]$STORAGE_ACCOUNT_2"
+
+          - task: AzureCLI@2
             displayName: "Assign RBAC for SAS token generation"
             inputs:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -256,7 +277,7 @@ stages:
                 assign
                 ${{ parameters.subscriptionId }}
                 $(rgName)
-                "$(storageAccount1) $(storageAccount2)"
+                "$(DiscoverStorageAccounts.storageAccount1) $(DiscoverStorageAccounts.storageAccount2)"
 
           - task: AzureCLI@2
             displayName: "Run Private Endpoint Tests"
@@ -269,20 +290,8 @@ stages:
                 export RG="$(rgName)"
                 export BUILD_ID="$(rgName)"
                 export WORKLOAD_TYPE="swiftv2-linux"
-                
-                STORAGE_ACCOUNT_1="$(storageAccount1)"
-                STORAGE_ACCOUNT_2="$(storageAccount2)"
-                
-                # If variables are empty (when runSetupStages=false), discover from resource group
-                if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
-                  echo "Storage account variables not set, discovering from resource group..."
-                  STORAGE_ACCOUNT_1=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa1')].name" -o tsv)
-                  STORAGE_ACCOUNT_2=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa2')].name" -o tsv)
-                  echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
-                fi
-                
-                export STORAGE_ACCOUNT_1
-                export STORAGE_ACCOUNT_2
+                export STORAGE_ACCOUNT_1="$(DiscoverStorageAccounts.storageAccount1)"
+                export STORAGE_ACCOUNT_2="$(DiscoverStorageAccounts.storageAccount2)"
                 cd ./test/integration/swiftv2/longRunningCluster
                 go test -v -timeout=30m -tags=private_endpoint_test
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -302,7 +311,7 @@ stages:
                 delete
                 ${{ parameters.subscriptionId }}
                 $(rgName)
-                "$(storageAccount1) $(storageAccount2)"
+                "$(DiscoverStorageAccounts.storageAccount1) $(DiscoverStorageAccounts.storageAccount2)"
 
       - job: DeleteTestResources
         displayName: "Delete PodNetwork, PNI, and Pods"

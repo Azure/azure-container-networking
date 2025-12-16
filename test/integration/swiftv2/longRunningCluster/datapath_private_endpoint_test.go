@@ -24,7 +24,6 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 	storageAccount2 := os.Getenv("STORAGE_ACCOUNT_2")
 
 	ginkgo.It("tests private endpoint access and isolation", func() {
-		// Validate environment variables inside the It block
 		if rg == "" || buildId == "" {
 			ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", rg, buildId))
 		}
@@ -33,7 +32,6 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 			ginkgo.Fail(fmt.Sprintf("Missing storage account environment variables: STORAGE_ACCOUNT_1='%s', STORAGE_ACCOUNT_2='%s'", storageAccount1, storageAccount2))
 		}
 
-		// Initialize test scenarios with cache
 		testScenarios := TestScenarios{
 			ResourceGroup:   rg,
 			BuildID:         buildId,
@@ -42,17 +40,14 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 			UsedNodes:       make(map[string]bool),
 		}
 
-		// Get storage account endpoint for Tenant A (Customer 1)
 		storageAccountName := storageAccount1
 		ginkgo.By(fmt.Sprintf("Getting private endpoint for storage account: %s", storageAccountName))
 
 		storageEndpoint, err := GetStoragePrivateEndpoint(storageAccountName)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to get storage account private endpoint")
 		gomega.Expect(storageEndpoint).NotTo(gomega.BeEmpty(), "Storage account private endpoint is empty")
-
 		ginkgo.By(fmt.Sprintf("Storage account private endpoint: %s", storageEndpoint))
 
-		// Test scenarios for Private Endpoint connectivity
 		privateEndpointTests := []ConnectivityTest{
 			// Test 1: Private Endpoint Access (Tenant A) - Pod from VNet-V1 Subnet 1
 			{
@@ -118,7 +113,6 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 			err := RunPrivateEndpointTest(test)
 
 			if test.ShouldFail {
-				// Expected to fail (e.g., tenant isolation)
 				if err != nil {
 					ginkgo.By(fmt.Sprintf("Test correctly BLOCKED as expected: %s", test.Name))
 					successCount++
@@ -127,7 +121,6 @@ var _ = ginkgo.Describe("Private Endpoint Tests", func() {
 					failureCount++
 				}
 			} else {
-				// Expected to succeed
 				if err != nil {
 					ginkgo.By(fmt.Sprintf("Test FAILED: %s - Error: %v", test.Name, err))
 					failureCount++

@@ -12,144 +12,6 @@ This pipeline tests SwiftV2 pod networking in a persistent environment with sche
 - **NSGs**: Restricting traffic between subnets (s1, s2) in vnet cx_vnet_v1.
 - **Node Labels**: All nodes labeled with `workload-type` and `nic-capacity` for targeted test execution
 
-**Test Scenarios (8 total per workload type)**:
-- Multiple pods across 2 clusters, 4 VNets, different subnets (s1, s2), and node types (low-NIC, high-NIC)
-- Each test run: Create all resources → Wait 20 minutes → Delete all resources
-- Tests run automatically every 1 hour via scheduled trigger
-
-**Multi-Stage Workload Testing**:
-- Tests are organized by workload type using node label `workload-type`
-- Each workload type runs as a separate stage sequentially
-- Current implementation: `swiftv2-linux` (Stage: ManagedNodeDataPathTests)
-- Future stages can be added for different workload types (e.g., `swiftv2-l1vhaccelnet`, `swiftv2-linuxbyon`)
-- Each stage uses the same infrastructure but targets different labeled nodes
-
-## Pipeline Modes
-
-### Resource Group Naming Conventions
-
-The pipeline uses **strict naming conventions** for resource groups to ensure proper organization and lifecycle management:
-
-**1. Production Scheduled Runs (Master/Main Branch)**:
-```
-Pattern: sv2-long-run-<region>
-Examples: sv2-long-run-centraluseuap, sv2-long-run-eastus, sv2-long-run-westus2
-```
-- **When to use**: Creating infrastructure for scheduled automated tests on master/main branch
-- **Purpose**: Long-running persistent infrastructure for continuous validation
-- **Example**: If running scheduled tests in Central US EUAP region, use `sv2-long-run-centraluseuap`
-
-**2. Test/Development/PR Validation Runs**:
-```
-Pattern: sv2-long-run-$(Build.BuildId)
-Examples: sv2-long-run-12345, sv2-long-run-67890
-```
-- **When to use**: Temporary testing, one-time validation, or PR testing
-- **Purpose**: Short-lived infrastructure for specific test runs
-- **Lifecycle**: Can be cleaned up after testing completes
-- **Example**: PR validation run with Build ID 12345 → `sv2-long-run-12345`
-
-**Important Notes**:
--  Always follow the naming pattern for scheduled runs on master: `sv2-long-run-<region>`
--  Do not use build IDs for production scheduled infrastructure (it breaks continuity)
--  All resource names within the setup use the resource group name as BUILD_ID prefix
-
-
-### Mode 2: Initial Setup or Rebuild
-**Trigger**: Manual run with parameter change  
-**Purpose**: Create new infrastructure or rebuild existing  
-**Setup Stages**: Enabled via `runSetupStages: true`  
-**Resource Group**: Must follow naming conventions (see below)
-
-**To create new infrastructure for scheduled runs on master branch**:
-1. Go to Pipeline → Run pipeline
-2. Set `runSetupStages` = `true`
-3. Set `resourceGroupName` = `sv2-long-run-<region>` (e.g., `sv2-long-run-centraluseuap`)
-   - **Critical**: Use this exact naming pattern for production scheduled tests
-   - Region should match the `location` parameter
-4. Optionally adjust `location` to match your resource group name
-5. Run pipeline
-
-**To create new infrastructure for testing/development**:
-1. Go to Pipeline → Run pipeline
-2. Set `runSetupStages` = `true`
-3. Set `resourceGroupName` = `sv2-long-run-$(Build.BuildId)` or custom name
-   - For temporary testing: Use build ID pattern for auto-cleanup
-   - For parallel environments: Use descriptive suffix (e.g., `sv2-long-run-centraluseuap-dev`)
-4. Optionally adjust `location`
-5. Run pipeline
-
-## Pipeline Parameters
-
-Parameters are organized by usage:
-
-### Common Parameters (Always Relevant)
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `location` | `centraluseuap` | Azure region for resources. Auto-generates RG name: `sv2-long-run-<location>`. |
-| `runSetupStages` | `false` | Set to `true` to create new infrastructure. `false` for scheduled test runs. |
-| `subscriptionId` | `37deca37-...` | Azure subscription ID. |
-| `serviceConnection` | `Azure Container Networking...` | Azure DevOps service connection. |
-
-### Setup-Only Parameters (Only Used When runSetupStages=true)
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `resourceGroupName` | `""` (empty) | **Leave empty** to auto-generate based on usage pattern. See Resource Group Naming Conventions below. |
-
-**Note**: VM SKUs are hardcoded as constants in the pipeline template:
-- Default nodepool: `Standard_D4s_v3` (low-nic capacity, 1 NIC)
-- NPLinux nodepool: `Standard_D16s_v3` (high-nic capacity, 7 NICs)
-
-Setup-only parameters are ignored when `runSetupStages=false` (scheduled runs).
-
-## Pipeline Stage Organization
-
-The pipeline is organized into stages based on workload type, allowing sequential testing of different node configurations using the same infrastructure.
-
-### Stage 1: AKS Cluster and Networking Setup (Conditional)
-**Runs when**: `runSetupStages=true`  
-**Purpose**: One-time infrastructure creation  
-**Creates**: AKS clusters, VNets, peerings, storage accounts, NSGs, private endpoints, node labels
-
-### Stage 2: ManagedNodeDataPathTests (Current)
-**Workload Type**: `swiftv2-linux`  
-**Node Label Filter**: `workload-type=swiftv2-linux`  
-**Jobs**:
-1. Create Test Resources (8 pod scenarios)
-2. Connectivity Tests (9 test cases)
-3. Private Endpoint Tests (5 test cases)
-4. Delete Test Resources (cleanup)
-
-**Node Selection**:
-- Tests automatically filter nodes by `workload-type=swiftv2-linux` AND `nic-capacity` labels
-- Environment variable `WORKLOAD_TYPE=swiftv2-linux` is set for this stage
-- Ensures tests only run on nodes designated for this workload type
-
-### Future Stages (Planned Architecture)
-Additional stages can be added to test different workload types sequentially:
-
-**Example: Stage 3 - LinuxBYONodeDataPathTests**
-```yaml
-- stage: LinuxBYONodeDataPathTests
-  displayName: "SwiftV2 Data Path Tests - BYO Node ID"
-  dependsOn: ManagedNodeDataPathTests
-  variables:
-    WORKLOAD_TYPE: "swiftv2-linuxbyon"
-  # Same job structure as ManagedNodeDataPathTests
-  # Tests run on nodes labeled: workload-type=swiftv2-byonodeid
-```
-
-**Example: Stage 4 - L1vhAccelnetNodeDataPathTests**
-```yaml
-- stage: L1vhAccelnetNodeDataPathTests
-  displayName: "SwiftV2 Data Path Tests - Windows Nodes Accelnet"
-  dependsOn: BYONodeDataPathTests
-  variables:
-    WORKLOAD_TYPE: "swiftv2-windows"
-  # Same job structure
-  # Tests run on nodes labeled: workload-type=swiftv2-windows
-```
 
 **Node Labeling for Multiple Workload Types**:
 Each node pool gets labeled with its designated workload type during setup:
@@ -164,40 +26,14 @@ kubectl label nodes -l  workload-type=swiftv2-l1vhib
 ## How It Works
 
 ### Scheduled Test Flow
-Every 3 hour, the pipeline:
+Every scheduled run, the pipeline:
 1. Skips setup stages (infrastructure already exists)
-2. **Job 1 - Create Resources**: Creates 8 test scenarios (PodNetwork, PNI, Pods with HTTP servers on port 8080)
-3. **Job 2 - Connectivity Tests**: Tests HTTP connectivity between pods (9 test cases), then waits 20 minutes
+2. **Job 1 - Create Resources**: Creates 8 test scenarios (PodNetwork, PNI, Pods with TCP netcat listeners on port 8080)
+3. **Job 2 - Connectivity Tests**: Tests TCP connectivity between pods (9 test cases), then waits 20 minutes
 4. **Job 3 - Private Endpoint Tests**: Tests private endpoint access and tenant isolation (5 test cases)
 5. **Job 4 - Delete Resources**: Deletes all test resources (Phase 1: Pods, Phase 2: PNI/PN/Namespaces)
 6. Reports results
 
-**Connectivity Tests (9 scenarios)**:
-
-| Test | Source → Destination | Expected Result | Purpose |
-|------|---------------------|-----------------|---------|
-| SameVNetSameSubnet | pod-c1-aks1-v1s2-low → pod-c1-aks1-v1s2-high | ✓ Success | Basic connectivity in same subnet |
-| NSGBlocked_S1toS2 | pod-c1-aks1-v1s1-low → pod-c1-aks1-v1s2-high | ✗ Blocked | NSG rule blocks s1→s2 in cx_vnet_v1 |
-| NSGBlocked_S2toS1 | pod-c1-aks1-v1s2-low → pod-c1-aks1-v1s1-low | ✗ Blocked | NSG rule blocks s2→s1 (bidirectional) |
-| DifferentVNetSameCustomer | pod-c1-aks1-v2s1-high → pod-c1-aks2-v2s1-low | ✓ Success | Cross-cluster, same customer VNet |
-| PeeredVNets | pod-c1-aks1-v1s2-low → pod-c1-aks1-v2s1-high | ✓ Success | Peered VNets (v1 ↔ v2) |
-| PeeredVNets_V2toV3 | pod-c1-aks1-v2s1-high → pod-c1-aks2-v3s1-high | ✓ Success | Peered VNets across clusters |
-| DifferentCustomers_V1toV4 | pod-c1-aks1-v1s2-low → pod-c2-aks2-v4s1-low | ✗ Blocked | Customer isolation (C1 → C2) |
-| DifferentCustomers_V2toV4 | pod-c1-aks1-v2s1-high → pod-c2-aks2-v4s1-high | ✗ Blocked | Customer isolation (C1 → C2) |
-
-**Test Results**: 4 should succeed, 5 should be blocked (3 NSG rules + 2 customer isolation)
-
-**Private Endpoint Tests (5 scenarios)**:
-
-| Test | Source → Destination | Expected Result | Purpose |
-|------|---------------------|-----------------|---------|
-| TenantA_VNetV1_S1_to_StorageA | pod-c1-aks1-v1s1-low → Storage-A | ✓ Success | Tenant A pod can access Storage-A via private endpoint |
-| TenantA_VNetV1_S2_to_StorageA | pod-c1-aks1-v1s2-low → Storage-A | ✓ Success | Tenant A pod can access Storage-A via private endpoint |
-| TenantA_VNetV2_to_StorageA | pod-c1-aks1-v2s1-high → Storage-A | ✓ Success | Tenant A pod from peered VNet can access Storage-A |
-| TenantA_VNetV3_to_StorageA | pod-c1-aks2-v3s1-high → Storage-A | ✓ Success | Tenant A pod from different cluster can access Storage-A |
-| TenantB_to_StorageA_Isolation | pod-c2-aks2-v4s1-low → Storage-A | ✗ Blocked | Tenant B pod CANNOT access Storage-A (tenant isolation) |
-
-**Test Results**: 4 should succeed, 1 should be blocked (tenant isolation)
 
 ## Test Case Details
 
@@ -206,7 +42,7 @@ Every 3 hour, the pipeline:
 All test scenarios create the following resources:
 - **PodNetwork**: Defines the network configuration for a VNet/subnet combination
 - **PodNetworkInstance**: Instance-level configuration with IP allocation
-- **Pod**: Test pod running nicolaka/netshoot with HTTP server on port 8080
+- **Pod**: Test pod running nicolaka/netshoot with TCP netcat listener on port 8080
 
 | # | Scenario | Cluster | VNet | Subnet | Node Type | Pod Name | Purpose |
 |---|----------|---------|------|--------|-----------|----------|---------|
@@ -221,16 +57,16 @@ All test scenarios create the following resources:
 
 ### Connectivity Tests (9 Test Cases in Job 2)
 
-Tests HTTP connectivity between pods using curl with 5-second timeout:
+Tests TCP connectivity between pods using netcat with 3-second timeout:
 
 **Expected to SUCCEED (4 tests)**:
 
 | Test | Source → Destination | Validation | Purpose |
 |------|---------------------|------------|---------|
-| SameVNetSameSubnet | pod-c1-aks1-v1s2-low → pod-c1-aks1-v1s2-high | HTTP 200 | Basic same-subnet connectivity |
-| DifferentVNetSameCustomer | pod-c1-aks1-v2s1-high → pod-c1-aks2-v2s1-low | HTTP 200 | Cross-cluster, same VNet (v2) |
-| PeeredVNets | pod-c1-aks1-v1s2-low → pod-c1-aks1-v2s1-high | HTTP 200 | VNet peering (v1 ↔ v2) |
-| PeeredVNets_v2tov3 | pod-c1-aks1-v2s1-high → pod-c1-aks2-v3s1-high | HTTP 200 | VNet peering across clusters |
+| SameVNetSameSubnet | pod-c1-aks1-v1s2-low → pod-c1-aks1-v1s2-high | TCP Connected | Basic same-subnet connectivity |
+| DifferentVNetSameCustomer | pod-c1-aks1-v2s1-high → pod-c1-aks2-v2s1-low | TCP Connected | Cross-cluster, same VNet (v2) |
+| PeeredVNets | pod-c1-aks1-v1s2-low → pod-c1-aks1-v2s1-high | TCP Connected | VNet peering (v1 ↔ v2) |
+| PeeredVNets_v2tov3 | pod-c1-aks1-v2s1-high → pod-c1-aks2-v3s1-high | TCP Connected | VNet peering across clusters |
 
 **Expected to FAIL (5 tests)**:
 
@@ -311,26 +147,6 @@ pod-c1-aks1-v1s1-low
 - `cx_vnet_v3` → `v3`
 - `cx_vnet_v4` → `v4`
 
-### Setup Flow (When runSetupStages = true)
-1. Create resource group
-2. Create 2 AKS clusters with 2 node pools each (tagged for persistence)
-3. Create 4 customer VNets with subnets and delegations (tagged for persistence)
-4. Create VNet peerings 
-5. Create storage accounts with persistence tags
-6. Create NSGs for subnet isolation
-7. Run initial test (create → wait → delete)
-
-## Manual Testing
-
-Run locally against existing infrastructure:
-
-```bash
-export RG="sv2-long-run-centraluseuap"  # Match your resource group
-export BUILD_ID="$RG"  # Use same RG name as BUILD_ID for unique resource names
-
-cd test/integration/swiftv2/longRunningCluster
-ginkgo -v -trace --timeout=6h .
-```
 
 ## Node Pool Configuration
 
@@ -419,11 +235,3 @@ test/integration/swiftv2/longRunningCluster/
 └── helpers/
     └── az_helpers.go               # Azure/kubectl helper functions
 ```
-
-## Best Practices
-
-1. **Keep infrastructure persistent**: Only recreate when necessary (cluster upgrades, config changes)
-2. **Monitor scheduled runs**: Set up alerts for test failures
-3. **Resource naming**: BUILD_ID is automatically set to the resource group name, ensuring unique resource names per setup
-5. **Avoid resource group collisions**: Always use unique `resourceGroupName` when creating new setups
-6. **Document changes**: Update this README when modifying test scenarios or infrastructure

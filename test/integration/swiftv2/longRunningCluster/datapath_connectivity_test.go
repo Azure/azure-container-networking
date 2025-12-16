@@ -20,23 +20,19 @@ func TestDatapathConnectivity(t *testing.T) {
 
 var _ = ginkgo.Describe("Datapath Connectivity Tests", func() {
 
-	ginkgo.It("tests HTTP connectivity between pods", func() {
+	ginkgo.It("tests TCP connectivity between pods", func() {
 		rg := os.Getenv("RG")
 		buildId := os.Getenv("BUILD_ID")
 		if rg == "" || buildId == "" {
 			ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", rg, buildId))
 		}
 		// Helper function to generate namespace from vnet and subnet
-		// Format: pn-<rg>-<vnet-prefix>-<subnet-name>
-		// Example: pn-sv2-long-run-centraluseuap-v1-s1
 		getNamespace := func(vnetName, subnetName string) string {
-			// Extract vnet prefix (v1, v2, v3, v4, etc.) from cx_vnet_v1 -> v1
 			vnetPrefix := strings.TrimPrefix(vnetName, "cx_vnet_")
 			return fmt.Sprintf("pn-%s-%s-%s", rg, vnetPrefix, subnetName)
 		}
 
 		// Define connectivity test cases
-		// Format: {SourcePod, DestinationPod, Cluster, Description, ShouldFail}
 		connectivityTests := []ConnectivityTest{
 			{
 				Name:            "SameVNetSameSubnet",
@@ -135,7 +131,6 @@ var _ = ginkgo.Describe("Datapath Connectivity Tests", func() {
 			err := RunConnectivityTest(test)
 
 			if test.ShouldFail {
-				// This test should fail (NSG blocked or customer isolation)
 				if err == nil {
 					fmt.Printf("Test %s: UNEXPECTED SUCCESS (expected to be blocked!)\n", test.Name)
 					failureCount++
@@ -145,7 +140,6 @@ var _ = ginkgo.Describe("Datapath Connectivity Tests", func() {
 					successCount++
 				}
 			} else {
-				// This test should succeed
 				if err != nil {
 					fmt.Printf("Test %s: FAILED - %v\n", test.Name, err)
 					failureCount++
