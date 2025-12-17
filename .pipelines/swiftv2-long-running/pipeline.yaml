@@ -1,13 +1,12 @@
 trigger: none
 pr: none
 
-# Schedule: Run every 1 hour
 schedules:
   - cron: "0 */3 * * *"  # Every 3 hours at minute 0
     displayName: "Run tests every 3 hours"
     branches:
       include:
-        - sv2-long-running-pipeline-stage2
+        - master
     always: true  # Run even if there are no code changes
 
 parameters:
