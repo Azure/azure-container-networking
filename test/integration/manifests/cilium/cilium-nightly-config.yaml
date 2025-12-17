@@ -71,7 +71,8 @@ data:
   tofqdns-min-ttl: "0"
   tofqdns-proxy-response-max-delay: 100ms
   routing-mode: native
-  unmanaged-pod-watcher-interval: "15"
+  # Updated to require time format in 1.19
+  unmanaged-pod-watcher-interval: "15s"
   vtep-cidr: ""
   vtep-endpoint: ""
   vtep-mac: ""
@@ -99,21 +100,21 @@ data:
   cni-log-file: "/var/run/cilium/cilium-cni.log"
   ipam-cilium-node-update-rate: "15s"
   egress-gateway-reconciliation-trigger-interval: "1s"
-  nat-map-stats-entries: "32" 
-  nat-map-stats-interval: "30s" 
+  nat-map-stats-entries: "32"
+  nat-map-stats-interval: "30s"
   bpf-events-drop-enabled: "true" # exposes drop events to cilium monitor/hubble
   bpf-events-policy-verdict-enabled: "true" # exposes policy verdict events to cilium monitor/hubble
   bpf-events-trace-enabled: "true" # exposes trace events to cilium monitor/hubble
   enable-tcx: "false" # attach endpoint programs with tcx if supported by kernel
-  datapath-mode: "veth" 
+  datapath-mode: "veth"
   direct-routing-skip-unreachable: "false"
   enable-runtime-device-detection: "false"
-  bpf-lb-sock: "false" 
-  bpf-lb-sock-terminate-pod-connections: "false" 
-  nodeport-addresses: "" 
+  bpf-lb-sock: "false"
+  bpf-lb-sock-terminate-pod-connections: "false"
+  nodeport-addresses: ""
   k8s-require-ipv4-pod-cidr: "false"
   k8s-require-ipv6-pod-cidr: "false"
-  enable-node-selector-labels: "false" 
+  enable-node-selector-labels: "false"
 ## new values for 1.17
   ces-slice-mode: "fcfs"
   enable-cilium-endpoint-slice: "true"
