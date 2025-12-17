@@ -174,8 +174,8 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 
 	fmt.Printf("Filtering nodes by workload-type=%s\n", workloadType)
 
-	lowNicLabelSelector := fmt.Sprintf("nic-capacity=low-nic,workload-type=%s", workloadType)
-	highNicLabelSelector := fmt.Sprintf("nic-capacity=high-nic,workload-type=%s", workloadType)
+	lowNicLabelSelector := "nic-capacity=low-nic,workload-type=" + workloadType
+	highNicLabelSelector := "nic-capacity=high-nic,workload-type=" + workloadType
 
 	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "nodes",
 		"-l", lowNicLabelSelector, "-o", "name")
