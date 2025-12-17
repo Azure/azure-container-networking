@@ -137,12 +137,19 @@ type VnetSubnetInfo struct {
 }
 
 func isValidWorkloadType(workloadType string) bool {
-	for _, r := range workloadType {
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
-			return false
+	validTypes := []string{
+		"swiftv2-linux",
+		"swiftv2-windows",
+		"swiftv2-linux-byocni",
+		"swiftv2-windows-byocni",
+	}
+
+	for _, validType := range validTypes {
+		if workloadType == validType {
+			return true
 		}
 	}
-	return workloadType != "" && len(workloadType) <= 64
+	return false
 }
 
 type NodePoolInfo struct {
@@ -156,7 +163,7 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 		HighNicNodes: []string{},
 	}
 
-	workloadType := os.Getenv("WORKLOAD_TYPE")
+	workloadType := strings.TrimSpace(os.Getenv("WORKLOAD_TYPE"))
 	if workloadType == "" {
 		workloadType = "swiftv2-linux"
 	}
