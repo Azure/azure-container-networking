@@ -66,9 +66,8 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 
 			resources := TestResources{
 				Kubeconfig:         kubeconfig,
-				PNName:             pnName,  // References the shared PodNetwork (also the namespace)
-				PNIName:            pniName, // New PNI for scale test
-				Namespace:          pnName,  // Same as PN namespace
+				PNName:             pnName,
+				PNIName:            pniName,
 				VnetGUID:           netInfo.VnetGUID,
 				SubnetGUID:         netInfo.SubnetGUID,
 				SubnetARMID:        netInfo.SubnetARMID,
@@ -77,7 +76,6 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 				PNITemplate:        "../../manifests/swiftv2/long-running-cluster/podnetworkinstance.yaml",
 				PodTemplate:        "../../manifests/swiftv2/long-running-cluster/pod-with-device-plugin.yaml",
 				PodImage:           testScenarios.PodImage,
-				Reservations:       20, // Reserve 20 IPs for scale test pods
 			}
 
 			ginkgo.By(fmt.Sprintf("Reusing existing PodNetwork: %s in cluster %s", pnName, scenario.cluster))
@@ -122,9 +120,9 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 						return
 					}
 
-					err = helpers.WaitForPodScheduled(resources.Kubeconfig, resources.PNName, podName, 10, 6)
+					err = helpers.WaitForPodRunning(resources.Kubeconfig, resources.PNName, podName, 10, 30)
 					if err != nil {
-						errors <- fmt.Errorf("pod %s in cluster %s was not scheduled: %w", podName, cluster, err)
+						errors <- fmt.Errorf("pod %s in cluster %s did not reach running state: %w", podName, cluster, err)
 					}
 				}(allResources[i], scenario.cluster, podIndex)
 				podIndex++
