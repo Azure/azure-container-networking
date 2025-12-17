@@ -174,9 +174,11 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 
 	fmt.Printf("Filtering nodes by workload-type=%s\n", workloadType)
 
-	//#nosec G204 -- workloadType is validated above
+	lowNicLabelSelector := "nic-capacity=low-nic,workload-type=" + workloadType
+	highNicLabelSelector := "nic-capacity=high-nic,workload-type=" + workloadType
+
 	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "nodes",
-		"-l", "nic-capacity=low-nic,workload-type="+workloadType, "-o", "name")
+		"-l", lowNicLabelSelector, "-o", "name")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return NodePoolInfo{}, fmt.Errorf("failed to get low-nic nodes: %w\nOutput: %s", err, string(out))
@@ -189,9 +191,8 @@ func GetNodesByNicCount(kubeconfig string) (NodePoolInfo, error) {
 		}
 	}
 
-	//#nosec G204 -- workloadType is validated above
 	cmd = exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "nodes",
-		"-l", "nic-capacity=high-nic,workload-type="+workloadType, "-o", "name")
+		"-l", highNicLabelSelector, "-o", "name")
 	out, err = cmd.CombinedOutput()
 	if err != nil {
 		return NodePoolInfo{}, fmt.Errorf("failed to get high-nic nodes: %w\nOutput: %s", err, string(out))
