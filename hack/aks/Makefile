@@ -176,6 +176,7 @@ overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
+		--enable-fips-image \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -211,6 +212,8 @@ overlay-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--network-plugin-mode overlay \
 		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--enable-fips-image \
+		--os-sku AzureLinux3 \
 		--yes
 	@$(MAKE) set-kubeconf
 ifeq ($(OS),windows)
@@ -286,7 +289,7 @@ swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI clus
 	@$(MAKE) set-kubeconf
 
 swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet cluster
-	$(COMMON_AKS_FIELDS) 
+	$(COMMON_AKS_FIELDS)
 		--network-plugin azure \
 		--nodepool-name nodepool1 \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
@@ -296,7 +299,7 @@ swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet 
 		--dns-service-ip "10.0.0.10" \
 		--tags fastpathenabled=true RGOwner=LongRunningTestPipelines stampcreatorserviceinfo=true \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
-		--yes 
+		--yes
 	@$(MAKE) set-kubeconf
 
 # The below Vnet Scale clusters are currently only in private preview and available with Kubernetes 1.28
