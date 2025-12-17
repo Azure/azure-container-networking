@@ -35,7 +35,7 @@ stages:
         steps:
           - bash: |
               set -ex
-              
+
               cd .pipelines/
               git clone https://github.com/cilium/cilium.git
               cd cilium
@@ -65,10 +65,10 @@ stages:
               fi
 
               if [ "$(type)" = "docker-operator-generic-image" ]; then
-                # Apply patch to Dockerfile  
+                # Apply patch to Dockerfile
                 DOCKERFILE_PATH="./images/$(directory)/Dockerfile"
                 echo "Patching Dockerfile: $DOCKERFILE_PATH"
-                  
+
                 # Add ARG and ENV statements to disable systemcrypto for Microsoft Go
                 sed -i '/^FROM.*builder/a ARG GOEXPERIMENT=boringcrypto \nENV GOEXPERIMENT=${GOEXPERIMENT}' "$DOCKERFILE_PATH"
               fi
@@ -76,7 +76,7 @@ stages:
               BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
               DOCKER_FLAGS="$BUILD_ARGS" \
               make $(type)
-              
+
             name: BuildCiliumImage
             displayName: "Build Cilium Image"
           - task: AzureCLI@2
@@ -134,6 +134,7 @@ stages:
           - cilium_overlay_nightly
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
+        timeoutInMinutes: 120
         steps:
           - template: ../../singletenancy/cilium-overlay/cilium-overlay-e2e-step-template.yaml
             parameters:
