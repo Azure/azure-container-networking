@@ -391,6 +391,8 @@ stages:
         steps:
           - checkout: Networking-Aquarius
             displayName: "Checkout Networking-Aquarius repository"
+            clean: true
+            fetchDepth: 0
           - task: AzureCLI@2
             displayName: "Print linux.bicep file"
             inputs:
