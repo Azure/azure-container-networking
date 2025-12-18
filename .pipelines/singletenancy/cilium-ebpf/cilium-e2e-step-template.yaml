@@ -32,7 +32,7 @@ steps:
         export EBPF_CILIUM_DIR=${DIR}
         export EBPF_CILIUM_VERSION_TAG=${CILIUM_VERSION_TAG}
         export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
-        export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)  
+        export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
         make -C ./hack/aks deploy-ebpf-podsubnet-cilium
 
         kubectl get pods -Aowide
