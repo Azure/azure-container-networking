@@ -1,0 +1,13 @@
+apiVersion: multitenancy.acn.azure.com/v1alpha1
+kind: PodNetworkInstance
+metadata:
+  name: {{ .PNIName }}
+  namespace: {{ .Namespace }}
+spec:
+  podNetworkConfigs:
+    - podNetwork: {{ .PNName }}
+      {{- if eq .Type "explicit" }}
+      podIPReservationSize: {{ .Reservations }}
+      {{- else }}
+      podIPReservationSize: 1
+      {{- end }}

@@ -2,35 +2,29 @@
 set -e
 trap 'echo "[ERROR] Failed while creating VNets or subnets. Check Azure CLI logs above." >&2' ERR
 
-SUBSCRIPTION_ID=$1
+SUB_ID=$1
 LOCATION=$2
 RG=$3
+BUILD_ID=$4
+DELEGATOR_APP_NAME=$5
+DELEGATOR_RG=$6
+DELEGATOR_SUB=$7
+DELEGATOR_BASE_URL=${8:-"http://localhost:8080"}  # Default to localhost:8080 if not provided
 
-az account set --subscription "$SUBSCRIPTION_ID"
+VNAMES=( "cx_vnet_v1" "cx_vnet_v2" "cx_vnet_v3" "cx_vnet_v4" )
+VCIDRS=( "172.16.0.0/16" "172.17.0.0/16" "172.18.0.0/16" "172.19.0.0/16" )
+NODE_SUBNETS=( "172.16.0.0/24" "172.17.0.0/24" "172.18.0.0/24" "172.19.0.0/24" )
+EXTRA_SUBNETS_LIST=( "s1 s2 pe" "s1" "s1" "s1" )
+EXTRA_CIDRS_LIST=( "172.16.1.0/24,172.16.2.0/24,172.16.3.0/24" \
+                   "172.17.1.0/24" \
+                   "172.18.1.0/24" \
+                   "172.19.1.0/24" )
+az account set --subscription "$SUB_ID"
 
-# VNets and subnets
-VNET_A1="cx_vnet_a1"
-VNET_A2="cx_vnet_a2"
-VNET_A3="cx_vnet_a3"
-VNET_B1="cx_vnet_b1"
-
-A1_S1="10.10.1.0/24"
-A1_S2="10.10.2.0/24"
-A1_PE="10.10.100.0/24"
-
-A2_MAIN="10.11.1.0/24"
-
-A3_MAIN="10.12.1.0/24"
-
-B1_MAIN="10.20.1.0/24"
-
-# -------------------------------
-# Verification functions
-# -------------------------------
 verify_vnet() {
-  local rg="$1"; local vnet="$2"
-  echo "==> Verifying VNet: $vnet"
-  if az network vnet show -g "$rg" -n "$vnet" &>/dev/null; then
+  local vnet="$1"
+  echo "Verifying VNet: $vnet"
+  if az network vnet show -g "$RG" -n "$vnet" &>/dev/null; then
     echo "[OK] Verified VNet $vnet exists."
   else
     echo "[ERROR] VNet $vnet not found!" >&2
@@ -39,9 +33,9 @@ verify_vnet() {
 }
 
 verify_subnet() {
-  local rg="$1"; local vnet="$2"; local subnet="$3"
-  echo "==> Verifying subnet: $subnet in $vnet"
-  if az network vnet subnet show -g "$rg" --vnet-name "$vnet" -n "$subnet" &>/dev/null; then
+  local vnet="$1"; local subnet="$2"
+  echo "Verifying subnet: $subnet in $vnet"
+  if az network vnet subnet show -g "$RG" --vnet-name "$vnet" -n "$subnet" &>/dev/null; then
     echo "[OK] Verified subnet $subnet exists in $vnet."
   else
     echo "[ERROR] Subnet $subnet not found in $vnet!" >&2
@@ -49,36 +43,92 @@ verify_subnet() {
   fi
 }
 
-# -------------------------------
-#  Create VNets and Subnets
-# -------------------------------
-# A1
-az network vnet create -g "$RG" -n "$VNET_A1" --address-prefix 10.10.0.0/16 --subnet-name s1 --subnet-prefix "$A1_S1" -l "$LOCATION" --output none \
- && echo "Created $VNET_A1 with subnet s1"
-az network vnet subnet create -g "$RG" --vnet-name "$VNET_A1" -n s2 --address-prefix "$A1_S2" --output none \
- && echo "Created $VNET_A1 with subnet s2"
-az network vnet subnet create -g "$RG" --vnet-name "$VNET_A1" -n pe --address-prefix "$A1_PE" --output none \
- && echo "Created $VNET_A1 with subnet pe"
-# Verify A1
-verify_vnet "$RG" "$VNET_A1"
-for sn in s1 s2 pe; do verify_subnet "$RG" "$VNET_A1" "$sn"; done
+create_vnet_subets() { 
+  local vnet="$1"
+  local vnet_cidr="$2"
+  local node_subnet_cidr="$3"
+  local extra_subnets="$4"
+  local extra_cidrs="$5"
 
-# A2
-az network vnet create -g "$RG" -n "$VNET_A2" --address-prefix 10.11.0.0/16 --subnet-name s1 --subnet-prefix "$A2_MAIN" -l "$LOCATION" --output none \
- && echo "Created $VNET_A2 with subnet s1"
-verify_vnet "$RG" "$VNET_A2"
-verify_subnet "$RG" "$VNET_A2" "s1"
+  echo "Creating VNet: $vnet with CIDR: $vnet_cidr"
+  az network vnet create -g "$RG" -l "$LOCATION" --name "$vnet" --address-prefixes "$vnet_cidr" -o none
 
-# A3
-az network vnet create -g "$RG" -n "$VNET_A3" --address-prefix 10.12.0.0/16 --subnet-name s1 --subnet-prefix "$A3_MAIN" -l "$LOCATION" --output none \
- && echo "Created $VNET_A3 with subnet s1"
-verify_vnet "$RG" "$VNET_A3"
-verify_subnet "$RG" "$VNET_A3" "s1"
+  IFS=' ' read -r -a extra_subnet_array <<< "$extra_subnets"
+  IFS=',' read -r -a extra_cidr_array <<< "$extra_cidrs"
 
-# B1
-az network vnet create -g "$RG" -n "$VNET_B1" --address-prefix 10.20.0.0/16 --subnet-name s1 --subnet-prefix "$B1_MAIN" -l "$LOCATION" --output none \
- && echo "Created $VNET_B1 with subnet s1"
-verify_vnet "$RG" "$VNET_B1"
-verify_subnet "$RG" "$VNET_B1" "s1"
+  for i in "${!extra_subnet_array[@]}"; do
+    subnet_name="${extra_subnet_array[$i]}"
+    subnet_cidr="${extra_cidr_array[$i]}"
+    echo "Creating extra subnet: $subnet_name with CIDR: $subnet_cidr"
+    
+    # Only delegate pod subnets (not private endpoint subnets)
+    if [[ "$subnet_name" != "pe" ]]; then
+      az network vnet subnet create -g "$RG" \
+         --vnet-name "$vnet" --name "$subnet_name" \
+         --delegations Microsoft.SubnetDelegator/msfttestclients \
+         --address-prefixes "$subnet_cidr" -o none
+    else
+      az network vnet subnet create -g "$RG" \
+         --vnet-name "$vnet" --name "$subnet_name" \
+         --address-prefixes "$subnet_cidr" -o none
+    fi
+  done
+}
 
-echo " All VNets and subnets created and verified successfully."
+delegate_subnet() {
+    local vnet="$1"
+    local subnet="$2"
+    local max_attempts=7
+    local attempt=1
+    
+    echo "Delegating subnet: $subnet in VNet: $vnet to Subnet Delegator"
+    subnet_id=$(az network vnet subnet show -g "$RG" --vnet-name "$vnet" -n "$subnet" --query id -o tsv)
+    modified_custsubnet="${subnet_id//\//%2F}"
+    
+    responseFile="delegate_response.txt"
+    cmd_delegator_curl="'curl -X PUT ${DELEGATOR_BASE_URL}/DelegatedSubnet/$modified_custsubnet'"
+    cmd_containerapp_exec="az containerapp exec -n $DELEGATOR_APP_NAME -g $DELEGATOR_RG --subscription $DELEGATOR_SUB --command $cmd_delegator_curl"
+    
+    while [ $attempt -le $max_attempts ]; do
+        echo "Attempt $attempt of $max_attempts..."
+        script --quiet -c "$cmd_containerapp_exec" "$responseFile"
+        
+        if grep -qF "success" "$responseFile"; then
+            echo "Subnet Delegator registered the subnet"
+            rm -f "$responseFile"
+            return 0
+        else
+            echo "Subnet Delegator failed to register the subnet (attempt $attempt)"
+            cat "$responseFile"
+            if [ $attempt -lt $max_attempts ]; then
+                echo "Retrying in 5 seconds..."
+                sleep 5
+            fi
+        fi
+        
+        ((attempt++))
+    done
+    
+    echo "[ERROR] Failed to delegate subnet after $max_attempts attempts"
+    rm -f "$responseFile"
+    exit 1
+}
+
+for i in "${!VNAMES[@]}"; do
+    VNET=${VNAMES[$i]}
+    VNET_CIDR=${VCIDRS[$i]}
+    NODE_SUBNET_CIDR=${NODE_SUBNETS[$i]}
+    EXTRA_SUBNETS=${EXTRA_SUBNETS_LIST[$i]}
+    EXTRA_SUBNET_CIDRS=${EXTRA_CIDRS_LIST[$i]}
+
+    create_vnet_subets "$VNET" "$VNET_CIDR" "$NODE_SUBNET_CIDR" "$EXTRA_SUBNETS" "$EXTRA_SUBNET_CIDRS"
+    verify_vnet "$VNET"  
+    for PODSUBNET in $EXTRA_SUBNETS; do
+        verify_subnet "$VNET" "$PODSUBNET"
+        if [[ "$PODSUBNET" != "pe" ]]; then
+            delegate_subnet "$VNET" "$PODSUBNET"
+        fi
+    done
+done
+
+echo "All VNets and subnets created and verified successfully."

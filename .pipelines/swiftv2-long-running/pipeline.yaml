@@ -1,4 +1,13 @@
 trigger: none
+pr: none
+
+schedules:
+  - cron: "0 */3 * * *"  # Every 3 hours at minute 0
+    displayName: "Run tests every 3 hours"
+    branches:
+      include:
+        - master
+    always: true  # Run even if there are no code changes
 
 parameters:
   - name: subscriptionId
@@ -11,25 +20,16 @@ parameters:
     type: string
     default: "centraluseuap"
 
+  - name: runSetupStages
+    displayName: "Create New Infrastructure Setup"
+    type: boolean
+    default: false
+
+  # Setup-only parameters (only used when runSetupStages=true)
   - name: resourceGroupName
-    displayName: "Resource Group Name"
+    displayName: "Resource Group Name used when Create new Infrastructure Setup is selected"
     type: string
-    default: "long-run-$(Build.BuildId)"
-
-  - name: vmSkuDefault
-    displayName: "VM SKU for Default Node Pool"
-    type: string
-    default: "Standard_D2s_v3"
-
-  - name: vmSkuHighNIC
-    displayName: "VM SKU for High NIC Node Pool"
-    type: string
-    default: "Standard_D16s_v3"
-
-  - name: serviceConnection
-    displayName: "Azure Service Connection"
-    type: string
-    default: "Azure Container Networking - Standalone Test Service Connection"
+    default: "sv2-long-run-$(Build.BuildId)"
 
 extends:
   template: template/long-running-pipeline-template.yaml
@@ -37,6 +37,4 @@ extends:
     subscriptionId: ${{ parameters.subscriptionId }}
     location: ${{ parameters.location }}
     resourceGroupName: ${{ parameters.resourceGroupName }}
-    vmSkuDefault: ${{ parameters.vmSkuDefault }}
-    vmSkuHighNIC: ${{ parameters.vmSkuHighNIC }}
-    serviceConnection: ${{ parameters.serviceConnection }}
+    runSetupStages: ${{ parameters.runSetupStages }}
