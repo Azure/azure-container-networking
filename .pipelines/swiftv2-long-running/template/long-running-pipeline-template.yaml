@@ -399,6 +399,12 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Displaying linux.bicep file from Networking-Aquarius repository"
-                cat Networking-Aquarius/.pipelines/singularity-runner/byon/linux.bicep
-              workingDirectory: $(Pipeline.Workspace)
+                echo "Current directory: $(pwd)"
+                echo "Listing directories:"
+                ls -la
+                echo "Looking for bicep file:"
+                find . -name "linux.bicep" -type f
+                echo "==> Content of linux.bicep:"
+                cat .pipelines/singularity-runner/byon/linux.bicep
+              workingDirectory: $(Build.SourcesDirectory)/Networking-Aquarius
               
