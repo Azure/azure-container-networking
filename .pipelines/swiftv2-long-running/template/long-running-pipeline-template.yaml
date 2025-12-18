@@ -9,6 +9,13 @@ parameters:
     type: boolean
     default: false
 
+resources:
+  repositories:
+    - repository: Networking-Aquarius
+      type: git
+      name: One/Networking-Aquarius
+      ref: refs/heads/master
+
 variables:
   - name: rgName
     ${{ if eq(parameters.runSetupStages, true) }}:
@@ -21,358 +28,377 @@ variables:
     value: "Standard_D16s_v3"
 
 stages:
-  - stage: AKSClusterAndNetworking
-    displayName: "Stage: AKS Cluster and Networking Setup"
-    condition: eq(${{ parameters.runSetupStages }}, true)
-    jobs:
-      - job: CreateResourceGroup
-        displayName: "Create Resource Group"
-        steps:
-          - task: AzureCLI@2
-            displayName: "Create resource group"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Creating resource group $(rgName) in ${{ parameters.location }}"
-                az group create \
-                  --name "$(rgName)" \
-                  --location "${{ parameters.location }}" \
-                  --subscription "${{ parameters.subscriptionId }}"
-                echo "Resource group created successfully."
+  # - stage: AKSClusterAndNetworking
+  #   displayName: "Stage: AKS Cluster and Networking Setup"
+  #   condition: eq(${{ parameters.runSetupStages }}, true)
+  #   jobs:
+  #     - job: CreateResourceGroup
+  #       displayName: "Create Resource Group"
+  #       steps:
+  #         - task: AzureCLI@2
+  #           displayName: "Create resource group"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: inlineScript
+  #             inlineScript: |
+  #               echo "==> Creating resource group $(rgName) in ${{ parameters.location }}"
+  #               az group create \
+  #                 --name "$(rgName)" \
+  #                 --location "${{ parameters.location }}" \
+  #                 --subscription "${{ parameters.subscriptionId }}"
+  #               echo "Resource group created successfully."
 
-      - job: CreateCluster
-        displayName: "Create AKS Clusters"
-        dependsOn: CreateResourceGroup
-        steps:
-          - task: AzureCLI@2
-            displayName: "Create AKS clusters"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_aks.sh"
-              arguments: >
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.location }}
-                $(rgName)
-                $(vmSkuDefault)
-                $(vmSkuHighNIC)
-                $(DELEGATOR_CONTAINER_APP_NAME)
-                $(DELEGATOR_RESOURCE_GROUP)
-                $(DELEGATOR_SUBSCRIPTION)
+  #     - job: CreateCluster
+  #       displayName: "Create AKS Clusters"
+  #       dependsOn: CreateResourceGroup
+  #       steps:
+  #         - task: AzureCLI@2
+  #           displayName: "Create AKS clusters"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: scriptPath
+  #             scriptPath: ".pipelines/swiftv2-long-running/scripts/create_aks.sh"
+  #             arguments: >
+  #               ${{ parameters.subscriptionId }}
+  #               ${{ parameters.location }}
+  #               $(rgName)
+  #               $(vmSkuDefault)
+  #               $(vmSkuHighNIC)
+  #               $(DELEGATOR_CONTAINER_APP_NAME)
+  #               $(DELEGATOR_RESOURCE_GROUP)
+  #               $(DELEGATOR_SUBSCRIPTION)
       
-      - job: NetworkingAndStorage
-        displayName: "Networking and Storage Setup"
-        dependsOn: CreateCluster
-        steps:
-          - task: AzureCLI@2
-            displayName: "Create customer vnets"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_vnets.sh"
-              arguments: >
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.location }}
-                $(rgName)
-                $(Build.BuildId)
-                $(DELEGATOR_CONTAINER_APP_NAME)
-                $(DELEGATOR_RESOURCE_GROUP)
-                $(DELEGATOR_SUBSCRIPTION)
+  #     - job: NetworkingAndStorage
+  #       displayName: "Networking and Storage Setup"
+  #       dependsOn: CreateCluster
+  #       steps:
+  #         - task: AzureCLI@2
+  #           displayName: "Create customer vnets"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: scriptPath
+  #             scriptPath: ".pipelines/swiftv2-long-running/scripts/create_vnets.sh"
+  #             arguments: >
+  #               ${{ parameters.subscriptionId }}
+  #               ${{ parameters.location }}
+  #               $(rgName)
+  #               $(Build.BuildId)
+  #               $(DELEGATOR_CONTAINER_APP_NAME)
+  #               $(DELEGATOR_RESOURCE_GROUP)
+  #               $(DELEGATOR_SUBSCRIPTION)
 
-          - task: AzureCLI@2
-            displayName: "Create customer vnet peerings"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_peerings.sh"
-              arguments: >
-                $(rgName)
+  #         - task: AzureCLI@2
+  #           displayName: "Create customer vnet peerings"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: scriptPath
+  #             scriptPath: ".pipelines/swiftv2-long-running/scripts/create_peerings.sh"
+  #             arguments: >
+  #               $(rgName)
 
-          - task: AzureCLI@2
-            name: CreateStorageAccounts
-            displayName: "Create storage accounts"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_storage.sh"
-              arguments: >
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.location }}
-                $(rgName)
+  #         - task: AzureCLI@2
+  #           name: CreateStorageAccounts
+  #           displayName: "Create storage accounts"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: scriptPath
+  #             scriptPath: ".pipelines/swiftv2-long-running/scripts/create_storage.sh"
+  #             arguments: >
+  #               ${{ parameters.subscriptionId }}
+  #               ${{ parameters.location }}
+  #               $(rgName)
 
-          - task: AzureCLI@2
-            displayName: "Create Private Endpoint for Storage Account"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_pe.sh"
-              arguments: >
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.location }}
-                $(rgName)
-                $(CreateStorageAccounts.StorageAccount1)
+  #         - task: AzureCLI@2
+  #           displayName: "Create Private Endpoint for Storage Account"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: scriptPath
+  #             scriptPath: ".pipelines/swiftv2-long-running/scripts/create_pe.sh"
+  #             arguments: >
+  #               ${{ parameters.subscriptionId }}
+  #               ${{ parameters.location }}
+  #               $(rgName)
+  #               $(CreateStorageAccounts.StorageAccount1)
           
-          - task: AzureCLI@2
-            displayName: "Create network security groups to restrict access between subnets"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_nsg.sh"
-              arguments: >
-                ${{ parameters.subscriptionId }}
-                $(rgName)
-                ${{ parameters.location }}
-  - stage: DataPathTests
-    displayName: "Stage: Swiftv2 Data Path Tests on Linux Managed Nodes"
-    dependsOn: AKSClusterAndNetworking
-    condition: or(eq(${{ parameters.runSetupStages }}, false), succeeded())
-    variables:
-      storageAccount1: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
-      storageAccount2: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
+  #         - task: AzureCLI@2
+  #           displayName: "Create network security groups to restrict access between subnets"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: scriptPath
+  #             scriptPath: ".pipelines/swiftv2-long-running/scripts/create_nsg.sh"
+  #             arguments: >
+  #               ${{ parameters.subscriptionId }}
+  #               $(rgName)
+  #               ${{ parameters.location }}
+  # - stage: DataPathTests
+  #   displayName: "Stage: Swiftv2 Data Path Tests on Linux Managed Nodes"
+  #   dependsOn: AKSClusterAndNetworking
+  #   condition: or(eq(${{ parameters.runSetupStages }}, false), succeeded())
+  #   variables:
+  #     storageAccount1: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
+  #     storageAccount2: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
+  #   jobs:
+  #     - job: SetupKubeconfig
+  #       displayName: "Setup Kubeconfig Files"
+  #       steps:
+  #         - task: AzureCLI@2
+  #           displayName: "Generate and verify kubeconfig files"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: inlineScript
+  #             inlineScript: |
+  #               mkdir -p $(Pipeline.Workspace)/kubeconfigs
+                
+  #               echo "==> Setting up kubeconfig for cluster aks-1"
+  #               az aks get-credentials \
+  #                 --resource-group $(rgName) \
+  #                 --name aks-1 \
+  #                 --file $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig \
+  #                 --overwrite-existing \
+  #                 --admin
+                
+  #               echo "==> Setting up kubeconfig for cluster aks-2"
+  #               az aks get-credentials \
+  #                 --resource-group $(rgName) \
+  #                 --name aks-2 \
+  #                 --file $(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig \
+  #                 --overwrite-existing \
+  #                 --admin
+                
+  #               echo "==> Verifying cluster aks-1 connectivity"
+  #               kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig get nodes
+                
+  #               echo "==> Verifying cluster aks-2 connectivity"
+  #               kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig get nodes
+
+  #         - task: PublishPipelineArtifact@1
+  #           displayName: "Publish kubeconfig files"
+  #           inputs:
+  #             targetPath: $(Pipeline.Workspace)/kubeconfigs
+  #             artifactName: kubeconfigs
+  #             publishLocation: pipeline
+
+  #     - job: CreatePods
+  #       displayName: "Create Swiftv2 Pods"
+  #       dependsOn: SetupKubeconfig
+  #       steps:
+  #         - task: DownloadPipelineArtifact@2
+  #           displayName: "Download kubeconfig files"
+  #           inputs:
+  #             artifactName: kubeconfigs
+  #             targetPath: $(Pipeline.Workspace)/kubeconfigs
+
+  #         - task: AzureCLI@2
+  #           displayName: "Create pods"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: inlineScript
+  #             inlineScript: |
+  #               echo "==> Creating pods (8 scenarios)"
+  #               export RG="$(rgName)"
+  #               export BUILD_ID="$(rgName)"
+  #               export WORKLOAD_TYPE="swiftv2-linux"
+  #               cd ./test/integration/swiftv2/longRunningCluster
+  #               go test -v -timeout=1h -tags=create_test
+  #             workingDirectory: $(System.DefaultWorkingDirectory)
+  #           env:
+  #             KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
+  #             KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
+
+  #     - job: ConnectivityTests
+  #       displayName: "Test Pod-to-Pod Connectivity"
+  #       dependsOn: CreatePods
+  #       steps:
+  #         - task: DownloadPipelineArtifact@2
+  #           displayName: "Download kubeconfig files"
+  #           inputs:
+  #             artifactName: kubeconfigs
+  #             targetPath: $(Pipeline.Workspace)/kubeconfigs
+
+  #         - task: AzureCLI@2
+  #           displayName: "Run Connectivity Tests"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: inlineScript
+  #             inlineScript: |
+  #               echo "==> Running connectivity tests"
+  #               export RG="$(rgName)"
+  #               export BUILD_ID="$(rgName)"
+  #               export WORKLOAD_TYPE="swiftv2-linux"
+  #               cd ./test/integration/swiftv2/longRunningCluster
+  #               go test -v -timeout=30m -tags=connectivity_test
+  #             workingDirectory: $(System.DefaultWorkingDirectory)
+  #           env:
+  #             KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
+  #             KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
+
+  #     - job: PrivateEndpointTests
+  #       displayName: "Test Private Endpoint Access"
+  #       dependsOn: ConnectivityTests
+  #       steps:
+  #         - task: DownloadPipelineArtifact@2
+  #           displayName: "Download kubeconfig files"
+  #           inputs:
+  #             artifactName: kubeconfigs
+  #             targetPath: $(Pipeline.Workspace)/kubeconfigs
+
+  #         - task: AzureCLI@2
+  #           name: DiscoverStorageAccounts
+  #           displayName: "Discover storage accounts"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: inlineScript
+  #             inlineScript: |
+  #               STORAGE_ACCOUNT_1="$(storageAccount1)"
+  #               STORAGE_ACCOUNT_2="$(storageAccount2)"
+                
+  #               if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
+  #                 echo "Storage account variables not set, discovering from resource group..."
+  #                 STORAGE_ACCOUNT_1=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa1')].name" -o tsv)
+  #                 STORAGE_ACCOUNT_2=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa2')].name" -o tsv)
+  #                 echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
+  #               fi
+                
+  #               echo "##vso[task.setvariable variable=storageAccount1;isOutput=true]$STORAGE_ACCOUNT_1"
+  #               echo "##vso[task.setvariable variable=storageAccount2;isOutput=true]$STORAGE_ACCOUNT_2"
+
+  #         - task: AzureCLI@2
+  #           displayName: "Assign RBAC for SAS token generation"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: scriptPath
+  #             scriptPath: ".pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
+  #             arguments: >
+  #               assign
+  #               ${{ parameters.subscriptionId }}
+  #               $(rgName)
+  #               "$(DiscoverStorageAccounts.storageAccount1) $(DiscoverStorageAccounts.storageAccount2)"
+
+  #         - task: AzureCLI@2
+  #           displayName: "Run Private Endpoint Tests"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: inlineScript
+  #             inlineScript: |
+  #               echo "==> Running Private Endpoint connectivity tests"
+  #               export RG="$(rgName)"
+  #               export BUILD_ID="$(rgName)"
+  #               export WORKLOAD_TYPE="swiftv2-linux"
+  #               export STORAGE_ACCOUNT_1="$(DiscoverStorageAccounts.storageAccount1)"
+  #               export STORAGE_ACCOUNT_2="$(DiscoverStorageAccounts.storageAccount2)"
+  #               cd ./test/integration/swiftv2/longRunningCluster
+  #               go test -v -timeout=30m -tags=private_endpoint_test
+  #             workingDirectory: $(System.DefaultWorkingDirectory)
+  #           env:
+  #             KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
+  #             KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
+
+  #         - task: AzureCLI@2
+  #           displayName: "Remove RBAC after tests"
+  #           condition: always()
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: scriptPath
+  #             scriptPath: ".pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
+  #             arguments: >
+  #               delete
+  #               ${{ parameters.subscriptionId }}
+  #               $(rgName)
+  #               "$(DiscoverStorageAccounts.storageAccount1) $(DiscoverStorageAccounts.storageAccount2)"
+      
+  #     - job: ScaleTest
+  #       displayName: "Scale Tests - create and delete pods at scale."
+  #       dependsOn: 
+  #         - PrivateEndpointTests
+  #       steps:
+  #         - task: DownloadPipelineArtifact@2
+  #           displayName: "Download kubeconfig files"
+  #           inputs:
+  #             artifactName: kubeconfigs
+  #             targetPath: $(Pipeline.Workspace)/kubeconfigs
+
+  #         - task: AzureCLI@2
+  #           displayName: "Run Scale Test (Create and Delete)"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: inlineScript
+  #             inlineScript: |
+  #               echo "==> Running scale test: Create 15 pods with device plugin across both clusters"
+  #               echo "  - 8 pods in aks-1 (cx_vnet_a1/s1)"
+  #               echo "  - 7 pods in aks-2 (cx_vnet_a2/s1)"
+  #               export RG="$(rgName)"
+  #               export BUILD_ID="$(rgName)"
+  #               export WORKLOAD_TYPE="swiftv2-linux"
+  #               cd ./test/integration/swiftv2/longRunningCluster
+  #               go test -v -trace --timeout=1h --tags=scale_test
+  #             workingDirectory: $(System.DefaultWorkingDirectory)
+  #           env:
+  #             KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
+  #             KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
+      
+  #     - job: DeleteTestResources
+  #       displayName: "Delete PodNetwork, PNI, and Pods"
+  #       dependsOn: 
+  #         - CreatePods
+  #         - ConnectivityTests
+  #         - PrivateEndpointTests
+  #       condition: always()
+  #       steps:
+  #         - task: DownloadPipelineArtifact@2
+  #           displayName: "Download kubeconfig files"
+  #           inputs:
+  #             artifactName: kubeconfigs
+  #             targetPath: $(Pipeline.Workspace)/kubeconfigs
+
+  #         - task: AzureCLI@2
+  #           displayName: "Delete Test Resources"
+  #           inputs:
+  #             azureSubscription: $(AZURE_SERVICE_CONNECTION)
+  #             scriptType: bash
+  #             scriptLocation: inlineScript
+  #             inlineScript: |
+  #               echo "==> Deleting test resources (8 scenarios)"
+  #               export RG="$(rgName)"
+  #               export BUILD_ID="$(rgName)"
+  #               export WORKLOAD_TYPE="swiftv2-linux"
+  #               cd ./test/integration/swiftv2/longRunningCluster
+  #               go test -v -timeout=1h -tags=delete_test
+  #             workingDirectory: $(System.DefaultWorkingDirectory)
+  #           env:
+  #             KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
+  #             KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
+
+  - stage: AddLinuxByonNodes
+    displayName: "Stage: Add Linux BYON Nodes to Clusters"
     jobs:
-      - job: SetupKubeconfig
-        displayName: "Setup Kubeconfig Files"
+      - job: PrintBicepFile
+        displayName: "Print Linux BYON Bicep File"
         steps:
+          - checkout: Networking-Aquarius
+            displayName: "Checkout Networking-Aquarius repository"
           - task: AzureCLI@2
-            displayName: "Generate and verify kubeconfig files"
+            displayName: "Print linux.bicep file"
             inputs:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                mkdir -p $(Pipeline.Workspace)/kubeconfigs
-                
-                echo "==> Setting up kubeconfig for cluster aks-1"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-1 \
-                  --file $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
-                echo "==> Setting up kubeconfig for cluster aks-2"
-                az aks get-credentials \
-                  --resource-group $(rgName) \
-                  --name aks-2 \
-                  --file $(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig \
-                  --overwrite-existing \
-                  --admin
-                
-                echo "==> Verifying cluster aks-1 connectivity"
-                kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig get nodes
-                
-                echo "==> Verifying cluster aks-2 connectivity"
-                kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig get nodes
-
-          - task: PublishPipelineArtifact@1
-            displayName: "Publish kubeconfig files"
-            inputs:
-              targetPath: $(Pipeline.Workspace)/kubeconfigs
-              artifactName: kubeconfigs
-              publishLocation: pipeline
-
-      - job: CreatePods
-        displayName: "Create Swiftv2 Pods"
-        dependsOn: SetupKubeconfig
-        steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download kubeconfig files"
-            inputs:
-              artifactName: kubeconfigs
-              targetPath: $(Pipeline.Workspace)/kubeconfigs
-
-          - task: AzureCLI@2
-            displayName: "Create pods"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Creating pods (8 scenarios)"
-                export RG="$(rgName)"
-                export BUILD_ID="$(rgName)"
-                export WORKLOAD_TYPE="swiftv2-linux"
-                cd ./test/integration/swiftv2/longRunningCluster
-                go test -v -timeout=1h -tags=create_test
-              workingDirectory: $(System.DefaultWorkingDirectory)
-            env:
-              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
-              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
-
-      - job: ConnectivityTests
-        displayName: "Test Pod-to-Pod Connectivity"
-        dependsOn: CreatePods
-        steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download kubeconfig files"
-            inputs:
-              artifactName: kubeconfigs
-              targetPath: $(Pipeline.Workspace)/kubeconfigs
-
-          - task: AzureCLI@2
-            displayName: "Run Connectivity Tests"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Running connectivity tests"
-                export RG="$(rgName)"
-                export BUILD_ID="$(rgName)"
-                export WORKLOAD_TYPE="swiftv2-linux"
-                cd ./test/integration/swiftv2/longRunningCluster
-                go test -v -timeout=30m -tags=connectivity_test
-              workingDirectory: $(System.DefaultWorkingDirectory)
-            env:
-              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
-              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
-
-      - job: PrivateEndpointTests
-        displayName: "Test Private Endpoint Access"
-        dependsOn: ConnectivityTests
-        steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download kubeconfig files"
-            inputs:
-              artifactName: kubeconfigs
-              targetPath: $(Pipeline.Workspace)/kubeconfigs
-
-          - task: AzureCLI@2
-            name: DiscoverStorageAccounts
-            displayName: "Discover storage accounts"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                STORAGE_ACCOUNT_1="$(storageAccount1)"
-                STORAGE_ACCOUNT_2="$(storageAccount2)"
-                
-                if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
-                  echo "Storage account variables not set, discovering from resource group..."
-                  STORAGE_ACCOUNT_1=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa1')].name" -o tsv)
-                  STORAGE_ACCOUNT_2=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa2')].name" -o tsv)
-                  echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
-                fi
-                
-                echo "##vso[task.setvariable variable=storageAccount1;isOutput=true]$STORAGE_ACCOUNT_1"
-                echo "##vso[task.setvariable variable=storageAccount2;isOutput=true]$STORAGE_ACCOUNT_2"
-
-          - task: AzureCLI@2
-            displayName: "Assign RBAC for SAS token generation"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
-              arguments: >
-                assign
-                ${{ parameters.subscriptionId }}
-                $(rgName)
-                "$(DiscoverStorageAccounts.storageAccount1) $(DiscoverStorageAccounts.storageAccount2)"
-
-          - task: AzureCLI@2
-            displayName: "Run Private Endpoint Tests"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Running Private Endpoint connectivity tests"
-                export RG="$(rgName)"
-                export BUILD_ID="$(rgName)"
-                export WORKLOAD_TYPE="swiftv2-linux"
-                export STORAGE_ACCOUNT_1="$(DiscoverStorageAccounts.storageAccount1)"
-                export STORAGE_ACCOUNT_2="$(DiscoverStorageAccounts.storageAccount2)"
-                cd ./test/integration/swiftv2/longRunningCluster
-                go test -v -timeout=30m -tags=private_endpoint_test
-              workingDirectory: $(System.DefaultWorkingDirectory)
-            env:
-              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
-              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
-
-          - task: AzureCLI@2
-            displayName: "Remove RBAC after tests"
-            condition: always()
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
-              arguments: >
-                delete
-                ${{ parameters.subscriptionId }}
-                $(rgName)
-                "$(DiscoverStorageAccounts.storageAccount1) $(DiscoverStorageAccounts.storageAccount2)"
-      
-      - job: ScaleTest
-        displayName: "Scale Tests - create and delete pods at scale."
-        dependsOn: 
-          - PrivateEndpointTests
-        steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download kubeconfig files"
-            inputs:
-              artifactName: kubeconfigs
-              targetPath: $(Pipeline.Workspace)/kubeconfigs
-
-          - task: AzureCLI@2
-            displayName: "Run Scale Test (Create and Delete)"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Running scale test: Create 15 pods with device plugin across both clusters"
-                echo "  - 8 pods in aks-1 (cx_vnet_a1/s1)"
-                echo "  - 7 pods in aks-2 (cx_vnet_a2/s1)"
-                export RG="$(rgName)"
-                export BUILD_ID="$(rgName)"
-                export WORKLOAD_TYPE="swiftv2-linux"
-                cd ./test/integration/swiftv2/longRunningCluster
-                go test -v -trace --timeout=1h --tags=scale_test
-              workingDirectory: $(System.DefaultWorkingDirectory)
-            env:
-              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
-              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
-      
-      - job: DeleteTestResources
-        displayName: "Delete PodNetwork, PNI, and Pods"
-        dependsOn: 
-          - CreatePods
-          - ConnectivityTests
-          - PrivateEndpointTests
-        condition: always()
-        steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download kubeconfig files"
-            inputs:
-              artifactName: kubeconfigs
-              targetPath: $(Pipeline.Workspace)/kubeconfigs
-
-          - task: AzureCLI@2
-            displayName: "Delete Test Resources"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Deleting test resources (8 scenarios)"
-                export RG="$(rgName)"
-                export BUILD_ID="$(rgName)"
-                export WORKLOAD_TYPE="swiftv2-linux"
-                cd ./test/integration/swiftv2/longRunningCluster
-                go test -v -timeout=1h -tags=delete_test
-              workingDirectory: $(System.DefaultWorkingDirectory)
-            env:
-              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
-              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
+                echo "==> Displaying linux.bicep file from Networking-Aquarius repository"
+                cat Networking-Aquarius/.pipelines/singularity-runner/byon/linux.bicep
+              workingDirectory: $(Pipeline.Workspace)
               
