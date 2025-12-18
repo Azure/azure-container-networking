@@ -389,10 +389,27 @@ stages:
       - job: PrintBicepFile
         displayName: "Print Linux BYON Bicep File"
         steps:
+          - checkout: self
+            displayName: "Checkout main repository"
           - checkout: Networking-Aquarius
             displayName: "Checkout Networking-Aquarius repository"
-            clean: true
-            fetchDepth: 0
+          - task: Bash@3
+            displayName: "Debug repository checkout"
+            inputs:
+              targetType: inline
+              script: |
+                echo "==> Debugging repository locations"
+                echo "Build.SourcesDirectory: $(Build.SourcesDirectory)"
+                echo "System.DefaultWorkingDirectory: $(System.DefaultWorkingDirectory)"
+                echo ""
+                echo "==> Contents of Build.SourcesDirectory:"
+                ls -la $(Build.SourcesDirectory)
+                echo ""
+                echo "==> Looking for Networking-Aquarius:"
+                find $(Build.SourcesDirectory) -type d -name "Networking-Aquarius" || echo "Directory not found"
+                echo ""
+                echo "==> Searching for linux.bicep file:"
+                find $(Build.SourcesDirectory) -name "linux.bicep" -type f || echo "File not found"
           - task: AzureCLI@2
             displayName: "Print linux.bicep file"
             inputs:
@@ -401,12 +418,5 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Displaying linux.bicep file from Networking-Aquarius repository"
-                echo "Current directory: $(pwd)"
-                echo "Listing directories:"
-                ls -la
-                echo "Looking for bicep file:"
-                find . -name "linux.bicep" -type f
-                echo "==> Content of linux.bicep:"
-                cat .pipelines/singularity-runner/byon/linux.bicep
-              workingDirectory: $(Build.SourcesDirectory)/Networking-Aquarius
+                cat $(Build.SourcesDirectory)/Networking-Aquarius/.pipelines/singularity-runner/byon/linux.bicep
               
