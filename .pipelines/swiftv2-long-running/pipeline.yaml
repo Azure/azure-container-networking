@@ -2,7 +2,7 @@ trigger: none
 pr: none
 
 schedules:
-  - cron: "0 */3 * * *" 
+  - cron: "0 */3 * * *"
     displayName: "Run tests every 3 hours"
     branches:
       include:
