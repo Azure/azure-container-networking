@@ -102,7 +102,7 @@ func DeletePod(kubeconfig, namespace, podName string) error {
 
 	// Wait for pod to be completely gone (critical for IP release)
 	fmt.Printf("Waiting for pod %s to be fully removed...\n", podName)
-	for attempt := 1; attempt <= 10; attempt++ {
+	for attempt := 1; attempt <= 30; attempt++ {
 		checkCtx, checkCancel := context.WithTimeout(context.Background(), 20*time.Second)
 		checkCmd := exec.CommandContext(checkCtx, "kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName, "-n", namespace, "--ignore-not-found=true", "-o", "name")
 		checkOut, _ := checkCmd.CombinedOutput()
@@ -115,7 +115,7 @@ func DeletePod(kubeconfig, namespace, podName string) error {
 		}
 
 		if attempt%5 == 0 {
-			fmt.Printf("Pod %s still terminating (attempt %d/10)...\n", podName, attempt)
+			fmt.Printf("Pod %s still terminating (attempt %d/30)...\n", podName, attempt)
 		}
 		time.Sleep(2 * time.Second)
 	}
@@ -140,7 +140,7 @@ func DeletePodNetworkInstance(kubeconfig, namespace, pniName string) error {
 	}
 
 	fmt.Printf("Waiting for PodNetworkInstance %s to be fully removed...\n", pniName)
-	for attempt := 1; attempt <= 10; attempt++ {
+	for attempt := 1; attempt <= 30; attempt++ {
 		checkCtx, checkCancel := context.WithTimeout(context.Background(), 20*time.Second)
 		checkCmd := exec.CommandContext(checkCtx, "kubectl", "--kubeconfig", kubeconfig, "get", "podnetworkinstance", pniName, "-n", namespace, "--ignore-not-found=true", "-o", "name")
 		checkOut, _ := checkCmd.CombinedOutput()
@@ -151,20 +151,20 @@ func DeletePodNetworkInstance(kubeconfig, namespace, pniName string) error {
 			return nil
 		}
 
-		if attempt%5 == 0 {
+		if attempt%10 == 0 {
 			descCmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "describe", "podnetworkinstance", pniName, "-n", namespace)
 			descOut, _ := descCmd.CombinedOutput()
 			descStr := string(descOut)
 			if strings.Contains(descStr, "ReservationInUse") {
-				fmt.Printf("PNI %s still has active reservations (attempt %d/10). Waiting for DNC to release...\n", pniName, attempt)
+				fmt.Printf("PNI %s still has active reservations (attempt %d/30). Waiting for DNC to release...\n", pniName, attempt)
 			} else {
-				fmt.Printf("PNI %s still terminating (attempt %d/10)...\n", pniName, attempt)
+				fmt.Printf("PNI %s still terminating (attempt %d/30)...\n", pniName, attempt)
 			}
 		}
 		time.Sleep(2 * time.Second)
 	}
 
-	fmt.Printf("PNI %s still exists after 60s, attempting to remove finalizers...\n", pniName)
+	fmt.Printf("PNI %s still exists, attempting to remove finalizers...\n", pniName)
 	patchCmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "patch", "podnetworkinstance", pniName, "-n", namespace, "-p", `{"metadata":{"finalizers":[]}}`, "--type=merge")
 	patchOut, patchErr := patchCmd.CombinedOutput()
 	if patchErr != nil {
@@ -204,7 +204,7 @@ func DeletePodNetwork(kubeconfig, pnName string) error {
 
 	// Wait for PN to be completely gone
 	fmt.Printf("Waiting for PodNetwork %s to be fully removed...\n", pnName)
-	for attempt := 1; attempt <= 10; attempt++ {
+	for attempt := 1; attempt <= 30; attempt++ {
 		checkCtx, checkCancel := context.WithTimeout(context.Background(), 20*time.Second)
 		checkCmd := exec.CommandContext(checkCtx, "kubectl", "--kubeconfig", kubeconfig, "get", "podnetwork", pnName, "--ignore-not-found=true", "-o", "name")
 		checkOut, _ := checkCmd.CombinedOutput()
@@ -215,8 +215,8 @@ func DeletePodNetwork(kubeconfig, pnName string) error {
 			return nil
 		}
 
-		if attempt%5 == 0 {
-			fmt.Printf("PodNetwork %s still terminating (attempt %d/10)...\n", pnName, attempt)
+		if attempt%10 == 0 {
+			fmt.Printf("PodNetwork %s still terminating (attempt %d/30)...\n", pnName, attempt)
 		}
 		time.Sleep(2 * time.Second)
 	}
@@ -262,7 +262,7 @@ func DeleteNamespace(kubeconfig, namespace string) error {
 
 	// Wait for namespace to be completely gone
 	fmt.Printf("Waiting for namespace %s to be fully removed...\n", namespace)
-	for attempt := 1; attempt <= 10; attempt++ {
+	for attempt := 1; attempt <= 30; attempt++ {
 		checkCtx, checkCancel := context.WithTimeout(context.Background(), 20*time.Second)
 		checkCmd := exec.CommandContext(checkCtx, "kubectl", "--kubeconfig", kubeconfig, "get", "namespace", namespace, "--ignore-not-found=true", "-o", "name")
 		checkOut, _ := checkCmd.CombinedOutput()
@@ -273,8 +273,8 @@ func DeleteNamespace(kubeconfig, namespace string) error {
 			return nil
 		}
 
-		if attempt%5 == 0 {
-			fmt.Printf("Namespace %s still terminating (attempt %d/10)...\n", namespace, attempt)
+		if attempt%10 == 0 {
+			fmt.Printf("Namespace %s still terminating (attempt %d/30)...\n", namespace, attempt)
 		}
 		time.Sleep(2 * time.Second)
 	}
