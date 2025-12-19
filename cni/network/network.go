@@ -609,7 +609,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 			// Delete all endpoints
 			for _, epInfo := range epInfos {
-				deleteErr := plugin.nm.DeleteEndpoint(epInfo.NetworkID, epInfo.EndpointID, epInfo)
+				deleteErr := plugin.nm.DeleteEndpoint(epInfo.NetworkID, epInfo.EndpointID, epInfo, nwCfg.Mode)
 				if deleteErr != nil {
 					// we already do not return an error when the endpoint is not found, so deleteErr is a real error
 					logger.Error("Could not delete endpoint after detecting add failure", zap.String("epInfo", epInfo.PrettyString()), zap.Error(deleteErr))
@@ -1124,7 +1124,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	// delete endpoints
 	for _, epInfo := range epInfos {
 		// in stateless, network id is not populated in epInfo, but in stateful cni, it is (nw id is used in stateful)
-		if err = plugin.nm.DeleteEndpoint(epInfo.NetworkID, epInfo.EndpointID, epInfo); err != nil {
+		if err = plugin.nm.DeleteEndpoint(epInfo.NetworkID, epInfo.EndpointID, epInfo, nwCfg.Mode); err != nil {
 			// An error will not be returned if the endpoint is not found
 			// return a retriable error so the container runtime will retry this DEL later
 			// the implementation of this function returns nil if the endpoint doens't exist, so
