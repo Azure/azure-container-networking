@@ -123,7 +123,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 						errors <- fmt.Errorf("failed to create pod %s in cluster %s: %w", podName, cluster, err)
 						return
 					}
-					err = helpers.WaitForPodRunning(resources.Kubeconfig, resources.PNName, podName, 10, 30)
+					err = helpers.WaitForPodRunning(resources.Kubeconfig, resources.PNName, podName, 10, 10)
 					if err != nil {
 						errors <- fmt.Errorf("pod %s in cluster %s did not reach running state: %w", podName, cluster, err)
 					}
