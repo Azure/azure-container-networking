@@ -21,6 +21,16 @@ steps:
         kubectl get pods -Aowide
 
         # see makefile
+        echo "install Cilium ${CILIUM_VERSION_TAG}"
+        export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
+        
+        # ebpf host routing is only supported on 1.17+
+        if [[ "${DIR}" == "1.13" || "${DIR}" == "1.14" || "${DIR}" == "1.15" || "${DIR}" == "1.16" ]]; then
+          echo "WARNING: Incompatible cilium version ${CILIUM_VERSION_TAG} for ebpf host routing"
+        fi
+        echo "selected cilium directory ${DIR}"
+        export EBPF_CILIUM_DIR=${DIR}
+        export EBPF_CILIUM_VERSION_TAG=${CILIUM_VERSION_TAG}
         export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
         export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
         make -C ./hack/aks deploy-ebpf-podsubnet-cilium
