@@ -29,7 +29,7 @@ stages:
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
           osSKU: "AzureLinux"
-          region: $(REGION_AKS_CLUSTER_TEST)
+          region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
