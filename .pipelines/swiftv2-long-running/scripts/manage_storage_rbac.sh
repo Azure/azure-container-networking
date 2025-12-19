@@ -54,7 +54,7 @@ if [ "$ACTION" == "assign" ]; then
           --as-user \
           -o tsv &>/dev/null; then
         echo "RBAC propagation verified! SAS token generation successful."
-        exit 0
+        break
       else
         echo "RBAC not yet propagated. Waiting ${RETRY_DELAY}s before retry..."
         sleep $RETRY_DELAY
