@@ -85,7 +85,7 @@ data:
   ipam-cilium-node-update-rate: 15s
   ipam: delegated-plugin
   ipv4-native-routing-cidr: 10.244.0.0/16
-  ipv6-native-routing-cidr: fdd5:a27a:b4bc:99d6::105/64
+  ipv6-native-routing-cidr: fdd5:a27a:b4bc:99d6::/64
   k8s-client-burst: "20"
   k8s-client-qps: "10"
   k8s-require-ipv4-pod-cidr: "false"

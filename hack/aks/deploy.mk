@@ -14,14 +14,13 @@ export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY
 export AZURE_IPTABLES_MONITOR_TAG
 export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY
 export AZURE_IP_MASQ_MERGER_TAG
-export IPV6_HP_BPF_VERSION
 
 deploy-common-ebpf-cilium:
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-agent/files/
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-operator/files/
 # set cilium version tag and registry here so they are visible as env vars to envsubst
 	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
-		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${IPV}' < \
+		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${IPV6_IMAGE_REGISTRY}' < \
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-operator/templates/deployment.yaml \
 		| kubectl apply -f -
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/common/ciliumclusterwidenetworkpolicies.yaml

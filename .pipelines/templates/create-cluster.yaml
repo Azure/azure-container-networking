@@ -31,7 +31,7 @@ jobs:
               echo "Install az cli extension preview"
               az extension add --name aks-preview
               az extension update --name aks-preview
-              export POD_CIDRS="10.244.0.0/16,fdd5:a27a:b4bc:99d6::105/64"
+              export POD_CIDRS="10.244.0.0/16,fdd5:a27a:b4bc:99d6::/64"
             fi
 
             if ! [ -z ${K8S_VERSION} ]; then
