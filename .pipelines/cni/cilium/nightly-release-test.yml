@@ -144,6 +144,7 @@ stages:
               clusterName: ciliumnightly-$(commitID)
               testHubble: true
               testLRP: true
+              nightly: true
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
