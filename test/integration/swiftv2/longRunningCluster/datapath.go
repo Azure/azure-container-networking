@@ -75,7 +75,6 @@ type PNIData struct {
 	PNIName      string
 	PNName       string
 	Namespace    string
-	Type         string
 	Reservations int
 }
 
@@ -244,7 +243,6 @@ func CreatePodNetworkInstanceResource(resources TestResources) error {
 		PNIName:      resources.PNIName,
 		PNName:       resources.PNName,
 		Namespace:    namespace,
-		Type:         "explicit",
 		Reservations: resources.Reservations,
 	}, resources.PNITemplate)
 	if err != nil {

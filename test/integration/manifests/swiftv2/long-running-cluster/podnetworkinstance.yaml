@@ -6,8 +6,4 @@ metadata:
 spec:
   podNetworkConfigs:
     - podNetwork: {{ .PNName }}
-      {{- if eq .Type "explicit" }}
       podIPReservationSize: {{ .Reservations }}
-      {{- else }}
-      podIPReservationSize: 1
-      {{- end }}
