@@ -49,10 +49,9 @@ for SA in "$SA1" "$SA2"; do
   
   # Retry blob upload with exponential backoff if RBAC hasn't propagated yet
   MAX_RETRIES=5
-  RETRY_COUNT=0
   SLEEP_TIME=10
   
-  while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+  for i in $(seq 1 $MAX_RETRIES); do
     if az storage blob upload \
       --account-name "$SA" \
       --container-name "test" \
@@ -63,9 +62,8 @@ for SA in "$SA1" "$SA2"; do
       echo "[OK] Test blob 'hello.txt' uploaded to $SA/test/"
       break
     else
-      RETRY_COUNT=$((RETRY_COUNT + 1))
-      if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-        echo "[WARN] Blob upload failed (attempt $RETRY_COUNT/$MAX_RETRIES). Waiting ${SLEEP_TIME}s for RBAC propagation..."
+      if [ $i -lt $MAX_RETRIES ]; then
+        echo "[WARN] Blob upload failed (attempt $i/$MAX_RETRIES). Waiting ${SLEEP_TIME}s for RBAC propagation..."
         sleep $SLEEP_TIME
         SLEEP_TIME=$((SLEEP_TIME * 2))
       else
