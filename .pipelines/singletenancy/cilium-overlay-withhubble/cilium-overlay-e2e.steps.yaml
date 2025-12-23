@@ -3,6 +3,7 @@ parameters:
   clusterName: ""
   testHubble: false
   scaleup: ""
+  nightly: false
 
 steps:
 
@@ -111,13 +112,6 @@ steps:
 
   - template: ../../templates/cilium-connectivity-tests.yaml
 
-  - script: |
-      ns=`kubectl get ns | grep cilium-test | awk '{print $1}'`
-      echo "##vso[task.setvariable variable=ciliumNamespace]$ns"
-    retryCountOnTaskFailure: 3
-    name: "nsCapture"
-    displayName: "Capture Connectivity Test Namespace"
-
   - ${{ if eq( parameters['testHubble'], true) }}:
       - script: |
           echo "enable Hubble metrics server"
@@ -135,50 +129,26 @@ steps:
         name: "HubbleConnectivityTests"
         displayName: "Run Hubble Connectivity Tests"
 
-  - script: |
-      set -e
-      echo "validate pod IP assignment and check systemd-networkd restart"
-      kubectl get pod -owide -A
+  - ${{if eq( parameters['nightly'], true) }}:
+    - template: ../../templates/cilium-nightly-checks.yaml
+  - ${{else }}:
+    - script: |
+        set -e
+        echo "validate pod IP assignment and check systemd-networkd restart"
+        kubectl get pod -owide -A
+        ciliumNamespace=`kubectl get ns | grep cilium-test | awk '{print $1}'`
 
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
-        echo "Check cilium identities in $(ciliumNamespace) namepsace during nightly run"
-        echo "expect the identities to be deleted when the namespace is deleted"
-        kubectl get ciliumidentity | grep cilium-test
-      fi
-      make test-validate-state
-      echo "delete cilium connectivity test resources and re-validate state" # TODO Delete this and the next 4 lines if connectivity no longer has bug
-      kubectl delete ns $(ciliumNamespace)
-      kubectl get pod -owide -A
-      make test-validate-state
-    name: "validatePods"
-    displayName: "Validate Pods"
+        make test-validate-state
 
-  - script: |
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
-        kubectl get pod -owide -n $(ciliumNamespace)
-        echo "wait for pod and cilium identity deletion in cilium-test namespace"
-        while true; do
-          pods=$(kubectl get pods -n $(ciliumNamespace) --no-headers=true 2>/dev/null)
-          if [[ -z "$pods" ]]; then
-            echo "No pods found"
-              break
-          fi
-          sleep 2s
+        echo "delete cilium connectivity test resources and re-validate state"
+        for namespace in ${ciliumNamespace}; do
+          kubectl delete ns ${namespace}
         done
-        sleep 20s
-        echo "Verify cilium identities are deleted from cilium-test"
-        checkIdentity="$(kubectl get ciliumidentity -o json | grep cilium-test | jq -e 'length == 0')"
-        if [[ -n $checkIdentity ]]; then
-          echo "##[error]Cilium Identities still present in $(ciliumNamespace) namespace"
-          exit 1
-        else
-          printf -- "Identities deleted from $(ciliumNamespace) namespace\n"
-        fi
-      else
-        echo "skip cilium identities check for PR pipeline"
-      fi
-    name: "CiliumIdentities"
-    displayName: "Verify Cilium Identities Deletion"
+        kubectl get pod -owide -A
+
+        make test-validate-state
+      name: "validatePods"
+      displayName: "Validate Pods"
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"
