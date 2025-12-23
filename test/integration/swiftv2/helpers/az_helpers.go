@@ -10,16 +10,15 @@ import (
 )
 
 var (
-	// ErrPodNotRunning is returned when a pod does not reach Running state
 	ErrPodNotRunning = errors.New("pod did not reach Running state")
-	// ErrPodNoIP is returned when a pod has no IP address assigned
 	ErrPodNoIP = errors.New("pod has no IP address assigned")
-	// ErrPodNoEth1IP is returned when a pod has no eth1 IP address (delegated subnet not configured)
 	ErrPodNoEth1IP = errors.New("pod has no eth1 IP address (delegated subnet not configured?)")
-	// ErrPodContainerNotReady is returned when a pod container is not ready
 	ErrPodContainerNotReady = errors.New("pod container not ready")
-	// ErrMTPNCStuckDeletion is returned when MTPNC resources are stuck and not deleted
 	ErrMTPNCStuckDeletion = errors.New("MTPNC resources should have been deleted but were found")
+	ErrPodDeletionFailed = errors.New("pod still exists after deletion attempts")
+	ErrPNIDeletionFailed = errors.New("PodNetworkInstance still exists after deletion attempts")
+	ErrPNDeletionFailed = errors.New("PodNetwork still exists after deletion attempts")
+	ErrNamespaceDeletionFailed = errors.New("namespace still exists after deletion attempts")
 )
 
 func runAzCommand(cmd string, args ...string) (string, error) {
@@ -88,8 +87,6 @@ func EnsureNamespaceExists(kubeconfig, namespace string) error {
 // DeletePod deletes a pod in the specified namespace and waits for it to be fully removed
 func DeletePod(kubeconfig, namespace, podName string) error {
 	fmt.Printf("Deleting pod %s in namespace %s...\n", podName, namespace)
-
-	// Initiate pod deletion with context timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
@@ -97,7 +94,7 @@ func DeletePod(kubeconfig, namespace, podName string) error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			fmt.Printf("kubectl delete pod command timed out after 90s, attempting force delete...\n")
+			fmt.Printf("Warning: kubectl delete pod command timed out after 90s\n")
 		} else {
 			return fmt.Errorf("failed to delete pod %s in namespace %s: %w\nOutput: %s", podName, namespace, err, string(out))
 		}
@@ -106,14 +103,13 @@ func DeletePod(kubeconfig, namespace, podName string) error {
 	// Wait for pod to be completely gone (critical for IP release)
 	fmt.Printf("Waiting for pod %s to be fully removed...\n", podName)
 	for attempt := 1; attempt <= 30; attempt++ {
-		checkCtx, checkCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		checkCtx, checkCancel := context.WithTimeout(context.Background(), 20*time.Second)
 		checkCmd := exec.CommandContext(checkCtx, "kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName, "-n", namespace, "--ignore-not-found=true", "-o", "name")
 		checkOut, _ := checkCmd.CombinedOutput()
 		checkCancel()
 
 		if strings.TrimSpace(string(checkOut)) == "" {
 			fmt.Printf("Pod %s fully removed after %d seconds\n", podName, attempt*2)
-			// Extra wait to ensure IP reservation is released in DNC
 			time.Sleep(5 * time.Second)
 			return nil
 		}
@@ -124,39 +120,31 @@ func DeletePod(kubeconfig, namespace, podName string) error {
 		time.Sleep(2 * time.Second)
 	}
 
-	// If pod still exists after 60 seconds, force delete
-	fmt.Printf("Pod %s still exists after 60s, attempting force delete...\n", podName)
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	forceCmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "delete", "pod", podName, "-n", namespace, "--grace-period=0", "--force", "--ignore-not-found=true")
-	forceOut, forceErr := forceCmd.CombinedOutput()
-	if forceErr != nil {
-		fmt.Printf("Warning: Force delete failed: %s\n%s\n", forceErr, string(forceOut))
-	}
-
-	// Wait a bit more for force delete to complete
-	time.Sleep(10 * time.Second)
-	fmt.Printf("Pod %s deletion completed (may have required force)\n", podName)
-	return nil
+	return fmt.Errorf("%w: pod %s still exists", ErrPodDeletionFailed, podName)
 }
 
-// DeletePodNetworkInstance deletes a PodNetworkInstance and waits for it to be removed
 func DeletePodNetworkInstance(kubeconfig, namespace, pniName string) error {
 	fmt.Printf("Deleting PodNetworkInstance %s in namespace %s...\n", pniName, namespace)
 
-	// Initiate PNI deletion
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "delete", "podnetworkinstance", pniName, "-n", namespace, "--ignore-not-found=true")
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "delete", "podnetworkinstance", pniName, "-n", namespace, "--ignore-not-found=true")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to delete PodNetworkInstance %s: %w\nOutput: %s", pniName, err, string(out))
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			fmt.Printf("Warning: kubectl delete PNI command timed out after 90s\n")
+		} else {
+			return fmt.Errorf("failed to delete PodNetworkInstance %s: %w\nOutput: %s", pniName, err, string(out))
+		}
 	}
 
-	// Wait for PNI to be completely gone (it may take time for DNC to release reservations)
 	fmt.Printf("Waiting for PodNetworkInstance %s to be fully removed...\n", pniName)
-	for attempt := 1; attempt <= 60; attempt++ {
-		checkCmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "podnetworkinstance", pniName, "-n", namespace, "--ignore-not-found=true", "-o", "name")
+	for attempt := 1; attempt <= 30; attempt++ {
+		checkCtx, checkCancel := context.WithTimeout(context.Background(), 20*time.Second)
+		checkCmd := exec.CommandContext(checkCtx, "kubectl", "--kubeconfig", kubeconfig, "get", "podnetworkinstance", pniName, "-n", namespace, "--ignore-not-found=true", "-o", "name")
 		checkOut, _ := checkCmd.CombinedOutput()
+		checkCancel()
 
 		if strings.TrimSpace(string(checkOut)) == "" {
 			fmt.Printf("PodNetworkInstance %s fully removed after %d seconds\n", pniName, attempt*2)
@@ -164,22 +152,19 @@ func DeletePodNetworkInstance(kubeconfig, namespace, pniName string) error {
 		}
 
 		if attempt%10 == 0 {
-			// Check for ReservationInUse errors
 			descCmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "describe", "podnetworkinstance", pniName, "-n", namespace)
 			descOut, _ := descCmd.CombinedOutput()
 			descStr := string(descOut)
-
 			if strings.Contains(descStr, "ReservationInUse") {
-				fmt.Printf("PNI %s still has active reservations (attempt %d/60). Waiting for DNC to release...\n", pniName, attempt)
+				fmt.Printf("PNI %s still has active reservations (attempt %d/30). Waiting for DNC to release...\n", pniName, attempt)
 			} else {
-				fmt.Printf("PNI %s still terminating (attempt %d/60)...\n", pniName, attempt)
+				fmt.Printf("PNI %s still terminating (attempt %d/30)...\n", pniName, attempt)
 			}
 		}
 		time.Sleep(2 * time.Second)
 	}
 
-	// If PNI still exists after 120 seconds, try to remove finalizers
-	fmt.Printf("PNI %s still exists after 120s, attempting to remove finalizers...\n", pniName)
+	fmt.Printf("PNI %s still exists, attempting to remove finalizers...\n", pniName)
 	patchCmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "patch", "podnetworkinstance", pniName, "-n", namespace, "-p", `{"metadata":{"finalizers":[]}}`, "--type=merge")
 	patchOut, patchErr := patchCmd.CombinedOutput()
 	if patchErr != nil {
@@ -189,25 +174,41 @@ func DeletePodNetworkInstance(kubeconfig, namespace, pniName string) error {
 		time.Sleep(5 * time.Second)
 	}
 
+	checkCtx, checkCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	checkCmd := exec.CommandContext(checkCtx, "kubectl", "--kubeconfig", kubeconfig, "get", "podnetworkinstance", pniName, "-n", namespace, "--ignore-not-found=true", "-o", "name")
+	checkOut, _ := checkCmd.CombinedOutput()
+	checkCancel()
+	if strings.TrimSpace(string(checkOut)) != "" {
+		return fmt.Errorf("%w: PodNetworkInstance %s in namespace %s", ErrPNIDeletionFailed, pniName, namespace)
+	}
+
 	fmt.Printf("PodNetworkInstance %s deletion completed\n", pniName)
 	return nil
 }
 
-// DeletePodNetwork deletes a PodNetwork and waits for it to be removed
 func DeletePodNetwork(kubeconfig, pnName string) error {
 	fmt.Printf("Deleting PodNetwork %s...\n", pnName)
 
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "delete", "podnetwork", pnName, "--ignore-not-found=true")
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "delete", "podnetwork", pnName, "--ignore-not-found=true")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to delete PodNetwork %s: %w\nOutput: %s", pnName, err, string(out))
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			fmt.Printf("Warning: kubectl delete PN command timed out after 90s\n")
+		} else {
+			return fmt.Errorf("failed to delete PodNetwork %s: %w\nOutput: %s", pnName, err, string(out))
+		}
 	}
 
 	// Wait for PN to be completely gone
 	fmt.Printf("Waiting for PodNetwork %s to be fully removed...\n", pnName)
 	for attempt := 1; attempt <= 30; attempt++ {
-		checkCmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "podnetwork", pnName, "--ignore-not-found=true", "-o", "name")
+		checkCtx, checkCancel := context.WithTimeout(context.Background(), 20*time.Second)
+		checkCmd := exec.CommandContext(checkCtx, "kubectl", "--kubeconfig", kubeconfig, "get", "podnetwork", pnName, "--ignore-not-found=true", "-o", "name")
 		checkOut, _ := checkCmd.CombinedOutput()
+		checkCancel()
 
 		if strings.TrimSpace(string(checkOut)) == "" {
 			fmt.Printf("PodNetwork %s fully removed after %d seconds\n", pnName, attempt*2)
@@ -229,6 +230,15 @@ func DeletePodNetwork(kubeconfig, pnName string) error {
 	}
 
 	time.Sleep(5 * time.Second)
+	checkCtx, checkCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	checkCmd := exec.CommandContext(checkCtx, "kubectl", "--kubeconfig", kubeconfig, "get", "podnetwork", pnName, "--ignore-not-found=true", "-o", "name")
+	checkOut, _ := checkCmd.CombinedOutput()
+	checkCancel()
+
+	if strings.TrimSpace(string(checkOut)) != "" {
+		return fmt.Errorf("%w: PodNetwork %s", ErrPNDeletionFailed, pnName)
+	}
+
 	fmt.Printf("PodNetwork %s deletion completed\n", pnName)
 	return nil
 }
@@ -237,25 +247,34 @@ func DeletePodNetwork(kubeconfig, pnName string) error {
 func DeleteNamespace(kubeconfig, namespace string) error {
 	fmt.Printf("Deleting namespace %s...\n", namespace)
 
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "delete", "namespace", namespace, "--ignore-not-found=true")
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "delete", "namespace", namespace, "--ignore-not-found=true")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to delete namespace %s: %w\nOutput: %s", namespace, err, string(out))
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			fmt.Printf("Warning: kubectl delete namespace command timed out after 90s\n")
+		} else {
+			return fmt.Errorf("failed to delete namespace %s: %w\nOutput: %s", namespace, err, string(out))
+		}
 	}
 
 	// Wait for namespace to be completely gone
 	fmt.Printf("Waiting for namespace %s to be fully removed...\n", namespace)
-	for attempt := 1; attempt <= 60; attempt++ {
-		checkCmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "namespace", namespace, "--ignore-not-found=true", "-o", "name")
+	for attempt := 1; attempt <= 30; attempt++ {
+		checkCtx, checkCancel := context.WithTimeout(context.Background(), 20*time.Second)
+		checkCmd := exec.CommandContext(checkCtx, "kubectl", "--kubeconfig", kubeconfig, "get", "namespace", namespace, "--ignore-not-found=true", "-o", "name")
 		checkOut, _ := checkCmd.CombinedOutput()
+		checkCancel()
 
 		if strings.TrimSpace(string(checkOut)) == "" {
 			fmt.Printf("Namespace %s fully removed after %d seconds\n", namespace, attempt*2)
 			return nil
 		}
 
-		if attempt%15 == 0 {
-			fmt.Printf("Namespace %s still terminating (attempt %d/60)...\n", namespace, attempt)
+		if attempt%10 == 0 {
+			fmt.Printf("Namespace %s still terminating (attempt %d/30)...\n", namespace, attempt)
 		}
 		time.Sleep(2 * time.Second)
 	}
@@ -269,6 +288,17 @@ func DeleteNamespace(kubeconfig, namespace string) error {
 	}
 
 	time.Sleep(5 * time.Second)
+
+	// Verify namespace is actually gone
+	checkCtx, checkCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	checkCmd := exec.CommandContext(checkCtx, "kubectl", "--kubeconfig", kubeconfig, "get", "namespace", namespace, "--ignore-not-found=true", "-o", "name")
+	checkOut, _ := checkCmd.CombinedOutput()
+	checkCancel()
+
+	if strings.TrimSpace(string(checkOut)) != "" {
+		return fmt.Errorf("%w: namespace %s", ErrNamespaceDeletionFailed, namespace)
+	}
+
 	fmt.Printf("Namespace %s deletion completed\n", namespace)
 	return nil
 }
@@ -376,22 +406,18 @@ func VerifyNoMTPNC(kubeconfig, buildID string) error {
 	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "mtpnc", "-A", "-o", "json")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		// If MTPNC CRD doesn't exist, that's fine
 		if strings.Contains(string(out), "the server doesn't have a resource type") {
 			return nil
 		}
 		return fmt.Errorf("failed to get MTPNC resources: %w\nOutput: %s", err, string(out))
 	}
 
-	// Parse JSON to check for any MTPNC resources matching our build ID
 	output := string(out)
 	if strings.Contains(output, buildID) {
-		// Extract MTPNC names for better error reporting
 		lines := strings.Split(output, "\n")
 		var mtpncNames []string
 		for _, line := range lines {
 			if strings.Contains(line, buildID) && strings.Contains(line, "\"name\":") {
-				// Basic extraction - could be improved with proper JSON parsing
 				mtpncNames = append(mtpncNames, line)
 			}
 		}

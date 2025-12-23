@@ -2,7 +2,7 @@ trigger: none
 pr: none
 
 schedules:
-  - cron: "0 */3 * * *"  # Every 3 hours at minute 0
+  - cron: "0 */3 * * *"
     displayName: "Run tests every 3 hours"
     branches:
       include:
@@ -18,14 +18,13 @@ parameters:
   - name: location
     displayName: "Deployment Region"
     type: string
-    default: "centraluseuap"
+    default: "eastus2"
 
   - name: runSetupStages
     displayName: "Create New Infrastructure Setup"
     type: boolean
     default: false
 
-  # Setup-only parameters (only used when runSetupStages=true)
   - name: resourceGroupName
     displayName: "Resource Group Name used when Create new Infrastructure Setup is selected"
     type: string

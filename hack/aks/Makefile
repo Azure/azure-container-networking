@@ -447,7 +447,7 @@ linux-swiftv2-nodepool-up: ## Add linux node pool to swiftv2 cluster
 		--os-type Linux \
 		--max-pods 250 \
 		--subscription $(SUB) \
-		--tags fastpathenabled=true aks-nic-enable-multi-tenancy=true stampcreatorserviceinfo=true\
+		--tags fastpathenabled=true aks-nic-enable-multi-tenancy=true stampcreatorserviceinfo=true aks-nic-secondary-count=${PODS_PER_NODE} \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
 

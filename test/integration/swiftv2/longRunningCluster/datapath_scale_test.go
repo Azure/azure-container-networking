@@ -18,6 +18,8 @@ import (
 
 func TestDatapathScale(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
+	gomega.SetDefaultEventuallyTimeout(50 * time.Minute)
+	gomega.SetDefaultEventuallyPollingInterval(5 * time.Second)
 	ginkgo.RunSpecs(t, "Datapath Scale Suite")
 }
 
@@ -29,25 +31,18 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		ginkgo.Fail(fmt.Sprintf("Missing required environment variables: RG='%s', BUILD_ID='%s'", rg, buildId))
 	}
 
-	ginkgo.It("creates and deletes 15 pods in a burst using device plugin", func() {
-		// NOTE: Maximum pods per PodNetwork/PodNetworkInstance is limited by:
-		// 1. Subnet IP address capacity
-		// 2. Node capacity (typically 250 pods per node)
-		// 3. Available NICs on nodes (device plugin resources)
-		// For this test: Creating 15 pods across aks-1 and aks-2
+	ginkgo.It("creates and deletes 20 pods in a burst using device plugin", func() {
 		// Device plugin and Kubernetes scheduler automatically place pods on nodes with available NICs
-
-		// Define scenarios for both clusters - 8 pods on aks-1, 7 pods on aks-2 (15 total for testing)
-		// IMPORTANT: Reuse existing PodNetworks from connectivity tests to avoid "duplicate podnetwork with same network id" error
+		// Define scenarios for both clusters - 10 pods on aks-1, 10 pods on aks-2 (20 total for testing)
 		scenarios := []struct {
 			cluster  string
 			vnetName string
 			subnet   string
 			podCount int
 		}{
-			{cluster: "aks-1", vnetName: "cx_vnet_v1", subnet: "s1", podCount: 8},
-			{cluster: "aks-2", vnetName: "cx_vnet_v3", subnet: "s1", podCount: 7},
-		} // Initialize test scenarios with cache
+			{cluster: "aks-1", vnetName: "cx_vnet_v1", subnet: "s1", podCount: 10},
+			{cluster: "aks-2", vnetName: "cx_vnet_v3", subnet: "s1", podCount: 10},
+		}
 		testScenarios := TestScenarios{
 			ResourceGroup:   rg,
 			BuildID:         buildId,
@@ -73,9 +68,8 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 
 			resources := TestResources{
 				Kubeconfig:         kubeconfig,
-				PNName:             pnName,  // References the shared PodNetwork (also the namespace)
-				PNIName:            pniName, // New PNI for scale test
-				Namespace:          pnName,  // Same as PN namespace
+				PNName:             pnName,
+				PNIName:            pniName,
 				VnetGUID:           netInfo.VnetGUID,
 				SubnetGUID:         netInfo.SubnetGUID,
 				SubnetARMID:        netInfo.SubnetARMID,
@@ -84,7 +78,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 				PNITemplate:        "../../manifests/swiftv2/long-running-cluster/podnetworkinstance.yaml",
 				PodTemplate:        "../../manifests/swiftv2/long-running-cluster/pod-with-device-plugin.yaml",
 				PodImage:           testScenarios.PodImage,
-				Reservations:       20, // Reserve 20 IPs for scale test pods
+				Reservations:       scenario.podCount,
 			}
 
 			ginkgo.By(fmt.Sprintf("Reusing existing PodNetwork: %s in cluster %s", pnName, scenario.cluster))
@@ -100,7 +94,7 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		for _, s := range scenarios {
 			totalPods += s.podCount
 		}
-		ginkgo.By(fmt.Sprintf("Creating %d pods in burst (auto-scheduled by device plugin)", totalPods))
+		ginkgo.By(fmt.Sprintf("Creating %d pods in burst", totalPods))
 
 		var wg sync.WaitGroup
 		errors := make(chan error, totalPods)
@@ -116,7 +110,6 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 					podName := fmt.Sprintf("scale-pod-%d", idx)
 					ginkgo.By(fmt.Sprintf("Creating pod %s in namespace %s in cluster %s (auto-scheduled)", podName, resources.PNName, cluster))
 
-					// Create pod without specifying node - let device plugin and scheduler decide
 					err := CreatePod(resources.Kubeconfig, PodData{
 						PodName:   podName,
 						NodeName:  "",
@@ -130,10 +123,9 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 						errors <- fmt.Errorf("failed to create pod %s in cluster %s: %w", podName, cluster, err)
 						return
 					}
-
-					err = helpers.WaitForPodScheduled(resources.Kubeconfig, resources.PNName, podName, 10, 6)
+					err = helpers.WaitForPodRunning(resources.Kubeconfig, resources.PNName, podName, 10, 10)
 					if err != nil {
-						errors <- fmt.Errorf("pod %s in cluster %s was not scheduled: %w", podName, cluster, err)
+						errors <- fmt.Errorf("pod %s in cluster %s did not reach running state: %w", podName, cluster, err)
 					}
 				}(allResources[i], scenario.cluster, podIndex)
 				podIndex++
@@ -142,7 +134,6 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 
 		wg.Wait()
 		close(errors)
-
 		elapsedTime := time.Since(startTime)
 		var errList []error
 		for err := range errors {
@@ -150,21 +141,29 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		}
 		gomega.Expect(errList).To(gomega.BeEmpty(), "Some pods failed to create")
 		ginkgo.By(fmt.Sprintf("Successfully created %d pods in %s", totalPods, elapsedTime))
-		ginkgo.By("Waiting 30 seconds for pods to stabilize")
-		time.Sleep(30 * time.Second)
+		ginkgo.By("Waiting 10 seconds for pods to stabilize")
+		time.Sleep(10 * time.Second)
 
 		ginkgo.By("Verifying all pods are in Running state")
 		podIndex = 0
+		var verificationErrors []error
 		for i, scenario := range scenarios {
 			for j := 0; j < scenario.podCount; j++ {
 				podName := fmt.Sprintf("scale-pod-%d", podIndex)
 				err := helpers.WaitForPodRunning(allResources[i].Kubeconfig, allResources[i].PNName, podName, 5, 10)
-				gomega.Expect(err).To(gomega.BeNil(), fmt.Sprintf("Pod %s did not reach running state in cluster %s", podName, scenario.cluster))
+				if err != nil {
+					verificationErrors = append(verificationErrors, fmt.Errorf("pod %s did not reach running state in cluster %s: %w", podName, scenario.cluster, err))
+				}
 				podIndex++
 			}
 		}
 
-		ginkgo.By(fmt.Sprintf("All %d pods are running successfully across both clusters", totalPods))
+		if len(verificationErrors) == 0 {
+			ginkgo.By(fmt.Sprintf("All %d pods are running successfully across both clusters", totalPods))
+		} else {
+			ginkgo.By(fmt.Sprintf("WARNING: %d pods failed to reach running state, proceeding to cleanup", len(verificationErrors)))
+		}
+
 		ginkgo.By("Cleaning up scale test resources")
 		podIndex = 0
 		for i, scenario := range scenarios {
@@ -190,5 +189,11 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		}
 
 		ginkgo.By("Scale test cleanup completed")
+		if len(verificationErrors) > 0 {
+			for _, err := range verificationErrors {
+				fmt.Printf("Error: %v\n", err)
+			}
+			gomega.Expect(verificationErrors).To(gomega.BeEmpty(), fmt.Sprintf("%d pods failed to reach running state", len(verificationErrors)))
+		}
 	})
 })

@@ -277,7 +277,7 @@ stages:
                 assign
                 ${{ parameters.subscriptionId }}
                 $(rgName)
-                "$(DiscoverStorageAccounts.storageAccount1) $(DiscoverStorageAccounts.storageAccount2)"
+                "$(DiscoverStorageAccounts.storageAccount1)"
 
           - task: AzureCLI@2
             displayName: "Run Private Endpoint Tests"
@@ -312,6 +312,37 @@ stages:
                 ${{ parameters.subscriptionId }}
                 $(rgName)
                 "$(DiscoverStorageAccounts.storageAccount1) $(DiscoverStorageAccounts.storageAccount2)"
+      
+      - job: ScaleTest
+        displayName: "Scale Tests - create and delete pods at scale."
+        dependsOn: 
+          - PrivateEndpointTests
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download kubeconfig files"
+            inputs:
+              artifactName: kubeconfigs
+              targetPath: $(Pipeline.Workspace)/kubeconfigs
+
+          - task: AzureCLI@2
+            displayName: "Run Scale Test (Create and Delete)"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Running scale test: Create 20 pods with device plugin across both clusters"
+                echo "  - 10 pods in aks-1 (cx_vnet_v1/s1)"
+                echo "  - 10 pods in aks-2 (cx_vnet_v3/s1)"
+                export RG="$(rgName)"
+                export BUILD_ID="$(rgName)"
+                export WORKLOAD_TYPE="swiftv2-linux"
+                cd ./test/integration/swiftv2/longRunningCluster
+                go test -v -timeout 1h -tags=scale_test
+              workingDirectory: $(System.DefaultWorkingDirectory)
+            env:
+              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
+              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
 
       - job: DeleteTestResources
         displayName: "Delete PodNetwork, PNI, and Pods"
@@ -319,6 +350,7 @@ stages:
           - CreatePods
           - ConnectivityTests
           - PrivateEndpointTests
+          - ScaleTest
         condition: always()
         steps:
           - task: DownloadPipelineArtifact@2

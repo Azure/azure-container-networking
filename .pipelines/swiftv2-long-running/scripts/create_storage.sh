@@ -46,14 +46,32 @@ for SA in "$SA1" "$SA2"; do
     && echo "[OK] Container 'test' created in $SA"
   
   echo "Uploading test blob to $SA"
-  az storage blob upload \
-    --account-name "$SA" \
-    --container-name "test" \
-    --name "hello.txt" \
-    --data "Hello from Private Endpoint - Storage: $SA" \
-    --auth-mode login \
-    --overwrite \
-    && echo "[OK] Test blob 'hello.txt' uploaded to $SA/test/"
+  
+  # Retry blob upload with exponential backoff if RBAC hasn't propagated yet
+  MAX_RETRIES=5
+  SLEEP_TIME=10
+  
+  for i in $(seq 1 $MAX_RETRIES); do
+    if az storage blob upload \
+      --account-name "$SA" \
+      --container-name "test" \
+      --name "hello.txt" \
+      --data "Hello from Private Endpoint - Storage: $SA" \
+      --auth-mode login \
+      --overwrite 2>&1; then
+      echo "[OK] Test blob 'hello.txt' uploaded to $SA/test/"
+      break
+    else
+      if [ $i -lt $MAX_RETRIES ]; then
+        echo "[WARN] Blob upload failed (attempt $i/$MAX_RETRIES). Waiting ${SLEEP_TIME}s for RBAC propagation..."
+        sleep $SLEEP_TIME
+        SLEEP_TIME=$((SLEEP_TIME * 2))
+      else
+        echo "[ERROR] Failed to upload blob after $MAX_RETRIES attempts"
+        exit 1
+      fi
+    fi
+  done
 done
 
 echo "Removing RBAC role after blob upload"

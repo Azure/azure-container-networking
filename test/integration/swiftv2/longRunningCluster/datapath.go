@@ -75,7 +75,6 @@ type PNIData struct {
 	PNIName      string
 	PNName       string
 	Namespace    string
-	Type         string
 	Reservations int
 }
 
@@ -109,6 +108,8 @@ type TestResources struct {
 	PNITemplate        string
 	PodTemplate        string
 	PodImage           string
+	Reservations       int
+	Namespace          string
 }
 
 type PodScenario struct {
@@ -234,12 +235,15 @@ func CreateNamespaceResource(kubeconfig, namespace string) error {
 }
 
 func CreatePodNetworkInstanceResource(resources TestResources) error {
+	namespace := resources.Namespace
+	if namespace == "" {
+		namespace = resources.PNName
+	}
 	err := CreatePodNetworkInstance(resources.Kubeconfig, PNIData{
 		PNIName:      resources.PNIName,
 		PNName:       resources.PNName,
-		Namespace:    resources.PNName,
-		Type:         "explicit",
-		Reservations: 2,
+		Namespace:    namespace,
+		Reservations: resources.Reservations,
 	}, resources.PNITemplate)
 	if err != nil {
 		return fmt.Errorf("failed to create PodNetworkInstance: %w", err)
@@ -327,6 +331,7 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 		PNITemplate:        "../../manifests/swiftv2/long-running-cluster/podnetworkinstance.yaml",
 		PodTemplate:        "../../manifests/swiftv2/long-running-cluster/pod.yaml",
 		PodImage:           testScenarios.PodImage,
+		Reservations:       2,
 	}
 
 	// Step 1: Create PodNetwork
@@ -364,7 +369,6 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 		if len(nodeInfo.LowNicNodes) == 0 {
 			return fmt.Errorf("%w: scenario %s", ErrNoLowNICNodes, scenario.Name)
 		}
-		// Find first unused node in the pool (low-NIC nodes can only handle one pod)
 		targetNode = ""
 		for _, node := range nodeInfo.LowNicNodes {
 			if !testScenarios.UsedNodes[node] {

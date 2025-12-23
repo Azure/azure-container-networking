@@ -37,8 +37,32 @@ if [ "$ACTION" == "assign" ]; then
       --scope "$SA_SCOPE" \
       --output none \
       && echo "[OK] Role assigned to service principal for $SA"
+    
+    echo "==> Verifying RBAC role propagation by testing SAS token generation"
+    MAX_RETRIES=10
+    RETRY_DELAY=15
+    
+    for attempt in $(seq 1 $MAX_RETRIES); do
+      echo "Attempt $attempt/$MAX_RETRIES: Testing SAS token generation for $SA..."
+      if az storage blob generate-sas \
+          --account-name "$SA" \
+          --container-name "test" \
+          --name "hello.txt" \
+          --permissions r \
+          --expiry $(date -u -d "+1 hour" '+%Y-%m-%dT%H:%MZ') \
+          --auth-mode login \
+          --as-user \
+          -o tsv &>/dev/null; then
+        echo "RBAC propagation verified! SAS token generation successful."
+        break
+      else
+        echo "RBAC not yet propagated. Waiting ${RETRY_DELAY}s before retry..."
+        sleep $RETRY_DELAY
+      fi
+    done
+    echo "WARNING: RBAC may not be fully propagated after $(($MAX_RETRIES * $RETRY_DELAY))s"
   done
-  
+
 elif [ "$ACTION" == "delete" ]; then
   echo "Removing Storage Blob Data Contributor role from service principal"
   
