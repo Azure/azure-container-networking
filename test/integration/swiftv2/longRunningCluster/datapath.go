@@ -236,10 +236,6 @@ func CreateNamespaceResource(kubeconfig, namespace string) error {
 }
 
 func CreatePodNetworkInstanceResource(resources TestResources) error {
-	reservations := resources.Reservations
-	if reservations == 0 {
-		reservations = 2
-	}
 	namespace := resources.Namespace
 	if namespace == "" {
 		namespace = resources.PNName
@@ -249,7 +245,7 @@ func CreatePodNetworkInstanceResource(resources TestResources) error {
 		PNName:       resources.PNName,
 		Namespace:    namespace,
 		Type:         "explicit",
-		Reservations: reservations,
+		Reservations: resources.Reservations,
 	}, resources.PNITemplate)
 	if err != nil {
 		return fmt.Errorf("failed to create PodNetworkInstance: %w", err)
@@ -337,6 +333,7 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 		PNITemplate:        "../../manifests/swiftv2/long-running-cluster/podnetworkinstance.yaml",
 		PodTemplate:        "../../manifests/swiftv2/long-running-cluster/pod.yaml",
 		PodImage:           testScenarios.PodImage,
+		Reservations:       2,
 	}
 
 	// Step 1: Create PodNetwork
