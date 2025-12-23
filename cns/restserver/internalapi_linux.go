@@ -181,3 +181,11 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 func (service *HTTPRestService) setVFForAccelnetNICs() error {
 	return nil
 }
+
+func (service *HTTPRestService) setPrefixOnNICRegistry(enabled bool, infraNicMacAddress string) error {
+	// Assigning parameters to '_' to avoid unused parameter linting errors.
+	// These parameters are only used in the Windows implementation.
+	_ = enabled
+	_ = infraNicMacAddress
+	return nil
+}

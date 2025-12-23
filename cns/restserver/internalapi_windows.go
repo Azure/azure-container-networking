@@ -3,20 +3,29 @@ package restserver
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Microsoft/hcsshim"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/windows/registry"
 )
 
 const (
 	// timeout for powershell command to return the interfaces list
-	pwshTimeout = 120 * time.Second
+	pwshTimeout             = 120 * time.Second
+	hnsRegistryPath         = `SYSTEM\CurrentControlSet\Services\HNS\wcna_state\config`
+	prefixOnNicRegistryPath = `SYSTEM\CurrentControlSet\Services\HNS\wcna_state\config\PrefixOnNic`
+	infraNicIfName          = "eth0"
 )
 
-var errUnsupportedAPI = errors.New("unsupported api")
+var (
+	errUnsupportedAPI       = errors.New("unsupported api")
+	errIntOverflow          = errors.New("int value overflows uint32")
+	errUnsupportedValueType = errors.New("unsupported value type for registry key")
+)
 
 type IPtablesProvider struct{}
 
@@ -74,4 +83,73 @@ func (service *HTTPRestService) getPrimaryNICMACAddress() (string, error) {
 		return "", errors.New("MAC address not found(empty) from wireserver")
 	}
 	return macAddress, nil
+}
+
+func (service *HTTPRestService) enablePrefixOnNic(isEnabled bool) error {
+	return service.setRegistryValue(prefixOnNicRegistryPath, "enabled", isEnabled)
+}
+
+func (service *HTTPRestService) setInfraNicMacAddress(macAddress string) error {
+	return service.setRegistryValue(prefixOnNicRegistryPath, "infra_nic_mac_address", macAddress)
+}
+
+func (service *HTTPRestService) setInfraNicIfName(ifName string) error {
+	return service.setRegistryValue(prefixOnNicRegistryPath, "infra_nic_ifname", ifName)
+}
+
+func (service *HTTPRestService) setEnableSNAT(isEnabled bool) error {
+	return service.setRegistryValue(hnsRegistryPath, "EnableSNAT", isEnabled)
+}
+
+func (service *HTTPRestService) setPrefixOnNICRegistry(enablePrefixOnNic bool, infraNicMacAddress string) error {
+	if err := service.enablePrefixOnNic(enablePrefixOnNic); err != nil {
+		return fmt.Errorf("failed to set enablePrefixOnNic key to windows registry: %w", err)
+	}
+
+	if err := service.setInfraNicMacAddress(infraNicMacAddress); err != nil {
+		return fmt.Errorf("failed to set InfraNicMacAddress key to windows registry: %w", err)
+	}
+
+	if err := service.setInfraNicIfName(infraNicIfName); err != nil {
+		return fmt.Errorf("failed to set InfraNicIfName key to windows registry: %w", err)
+	}
+
+	if err := service.setEnableSNAT(!enablePrefixOnNic); err != nil { // for prefix on nic,  snat should be disabled
+		return fmt.Errorf("failed to set EnableSNAT key to windows registry: %w", err)
+	}
+
+	return nil
+}
+
+func (service *HTTPRestService) setRegistryValue(registryPath, keyName string, value interface{}) error {
+	key, _, err := registry.CreateKey(registry.LOCAL_MACHINE, registryPath, registry.SET_VALUE)
+	if err != nil {
+		return fmt.Errorf("failed to create/open registry key %s: %w", registryPath, err)
+	}
+	defer key.Close()
+
+	switch v := value.(type) {
+	case string:
+		err = key.SetStringValue(keyName, v)
+	case bool:
+		dwordValue := uint32(0)
+		if v {
+			dwordValue = 1
+		}
+		err = key.SetDWordValue(keyName, dwordValue)
+	case uint32:
+		err = key.SetDWordValue(keyName, v)
+	case int:
+		if v < 0 || v > math.MaxUint32 {
+			return fmt.Errorf("%w: %d for registry key %s", errIntOverflow, v, keyName)
+		}
+		err = key.SetDWordValue(keyName, uint32(v))
+	default:
+		return fmt.Errorf("%w %s: %T", errUnsupportedValueType, keyName, value)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to set registry value '%s': %w", keyName, err)
+	}
+	fmt.Printf("[setRegistryValue] Set %s\\%s = %v\n", registryPath, keyName, value)
+	return nil
 }
