@@ -9,6 +9,7 @@ AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY		?= mcr.microsoft.com/containernetworking
 AZURE_IP_MASQ_MERGER_TAG            	?= v0.0.1-0
 # so we can use in envsubst
 export IPV6_HP_BPF_VERSION
+export IPV6_IMAGE_REGISTRY
 export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY
 export AZURE_IPTABLES_MONITOR_TAG
 export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY
@@ -19,12 +20,20 @@ deploy-common-ebpf-cilium:
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-operator/files/
 # set cilium version tag and registry here so they are visible as env vars to envsubst
 	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
-		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION}' < \
+		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${IPV6_IMAGE_REGISTRY}' < \
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-operator/templates/deployment.yaml \
 		| kubectl apply -f -
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/common/ciliumclusterwidenetworkpolicies.yaml
 	@kubectl wait --for=condition=Established crd/ciliumclusterwidenetworkpolicies.cilium.io
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/common/
+
+deploy-ebpf-dualstack-cilium: deploy-common-ebpf-cilium
+	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/dualstack/static/
+	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
+                envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${IPV6_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
+                ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/dualstack/cilium.yaml \
+                | kubectl apply -f -
+	@$(MAKE) wait-for-cilium
 
 deploy-ebpf-overlay-cilium: deploy-common-ebpf-cilium
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/static/
