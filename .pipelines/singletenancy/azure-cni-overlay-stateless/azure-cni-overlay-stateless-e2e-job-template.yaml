@@ -82,7 +82,7 @@ stages:
         dependsOn:
           - ${{ parameters.name }}_windows
           - cni_windows
-        condition: always()
+        condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed')
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
