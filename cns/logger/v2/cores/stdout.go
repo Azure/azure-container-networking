@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 type StdoutConfig struct {
@@ -41,5 +42,5 @@ func (cfg *StdoutConfig) UnmarshalJSON(data []byte) error {
 func StdoutCore(l zapcore.Level) zapcore.Core {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	return zapcore.NewCore(logfmt.NewEncoder(encoderConfig), os.Stdout, l)
+	return zapcore.NewCore(&ctrlzap.KubeAwareEncoder{Encoder: logfmt.NewEncoder(encoderConfig)}, os.Stdout, l)
 }
