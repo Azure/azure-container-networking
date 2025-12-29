@@ -37,11 +37,11 @@ deploy-cilium-config:
 
 deploy-cilium-agent:
 	kubectl apply -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-agent/files
-	envsubst '$${CILIUM_IMAGE_REGISTRY},$${CILIUM_VERSION_TAG}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
 
 deploy-cilium-operator:
 	kubectl apply -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/files
-	envsubst '$${CILIUM_IMAGE_REGISTRY},$${CILIUM_VERSION_TAG}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/templates/deployment.yaml | kubectl apply -f -
 
 deploy-cilium: deploy-cilium-config deploy-cilium-agent deploy-cilium-operator wait-for-cilium
 
