@@ -119,13 +119,6 @@ steps:
   - template: ../../templates/cilium-connectivity-tests.yaml
 
   - script: |
-      ns=`kubectl get ns | grep cilium-test | awk '{print $1}'`
-      echo "##vso[task.setvariable variable=ciliumNamespace]$ns"
-    retryCountOnTaskFailure: 3
-    name: "nsCapture"
-    displayName: "Capture Connectivity Test Namespace"
-
-  - script: |
       set -e
       kubectl get po -owide -A
       cd test/integration/datapath
@@ -140,13 +133,13 @@ steps:
   - script: |
       echo "validate pod IP assignment and check systemd-networkd restart"
       kubectl get pod -owide -A
-      # Deleting echo-external-node deployment until cilium version matches TODO. https://github.com/cilium/cilium-cli/issues/67 is addressing the change.
-      # Saves 17 minutes
-      kubectl delete deploy -n $(ciliumNamespace) echo-external-node
       cd test/integration/load
       CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
       echo "delete cilium connectivity test resources and re-validate state"
-      kubectl delete ns $(ciliumNamespace)
+      ciliumNamespace=`kubectl get ns | grep cilium-test | awk '{print $1}'`
+      for namespace in ${ciliumNamespace}; do
+        kubectl delete ns ${namespace}
+      done
       kubectl get pod -owide -A
       CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
     name: "validatePods"
