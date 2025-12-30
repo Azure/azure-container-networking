@@ -16,7 +16,7 @@ resources:
       type: git
       name: One/Networking-Aquarius
       ref: refs/heads/master
-      
+
 variables:
   - name: rgName
     ${{ if eq(parameters.runSetupStages, true) }}:
@@ -177,7 +177,7 @@ stages:
           - task: AzureCLI@2
             displayName: "Upload Kubeconfig to Key Vault and Deploy Linux VMSS"
             inputs:
-              azureSubscription: ${{ parameters.serviceConnection }}
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
