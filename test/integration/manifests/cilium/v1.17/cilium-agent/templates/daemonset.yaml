@@ -29,8 +29,6 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
-              - key: kubernetes.azure.com/cluster
-                operator: Exists
               - key: type
                 operator: NotIn
                 values:
@@ -418,7 +416,7 @@ spec:
           path: /proc/sys/kernel
           type: Directory
         name: host-proc-sys-kernel
-      - hostPath: 
+      - hostPath:
           path: /var/run/netns
           type: DirectoryOrCreate
         name: cilium-netns
