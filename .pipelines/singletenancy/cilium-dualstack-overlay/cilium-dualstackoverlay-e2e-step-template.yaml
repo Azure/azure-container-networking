@@ -33,20 +33,14 @@ steps:
         pwd
         kubectl cluster-info
         kubectl get po -owide -A
-        echo "install Cilium ${CILIUM_DUALSTACK_VERSION}"
-        export DIR=$(echo ${CILIUM_DUALSTACK_VERSION#v} | cut -d. -f1,2)
-        echo "installing files from ${DIR}"
-        echo "deploy Cilium ConfigMap"
-        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-dualstack.yaml
-        # Passes Cilium image to daemonset and deployment
-        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
-        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
-
         export CILIUM_VERSION_TAG=${CILIUM_DUALSTACK_VERSION}
+        export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
         export IPV6_HP_BPF_VERSION=$(make ipv6-hp-bpf-version)
-        echo "install Cilium ${CILIUM_DUALSTACK_VERSION} onto Overlay Cluster"
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+        echo "IPV6_HP_BPF_VERSION: $IPV6_HP_BPF_VERSION"
+        echo "IPV6_IMAGE_REGISTRY: $IPV6_IMAGE_REGISTRY"
+        # IPV6_IMAGE_REGISTRY is already exported
+        echo "installing cilium dualstack version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+        make -C ./hack/aks deploy-cilium-dualstack
         kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium on AKS Dualstack Overlay"
