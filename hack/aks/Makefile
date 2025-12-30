@@ -53,7 +53,7 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--no-ssh-key  \
 	--os-sku $(OS_SKU) \
 	$(LTS_ARGS)
-POD_CIDR = 192.168.0.0/16
+POD_CIDR ?= 192.168.0.0/16
 
 ##@ Help
 
@@ -412,6 +412,7 @@ dualstack-byocni-nokubeproxy-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a D
 		--network-plugin-mode overlay \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
+		--pod-cidrs "$POD_CIDRS" \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview,AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		--yes
