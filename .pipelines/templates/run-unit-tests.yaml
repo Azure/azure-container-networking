@@ -108,15 +108,15 @@ stages:
               summaryFileLocation: coverage/linux-coverage.xml
           # Looking for PRs from merge queue
           # Expected output refs/heads/gh-readonly-queue/master/pr-3780-f0a96a1
-          - ${{ if contains(variables['Build.SourceBranch'], 'master/pr') }}:
-            - task: BuildQualityChecks@8
-              displayName: "Check Code Coverage Regression"
-              condition: always()
-              inputs:
-                checkCoverage: true
-                coverageFailOption: "build"
-                coverageType: "lines"
-                fallbackOnPRTargetBranch: false
-                baseBranchRef: "master"
-                allowCoverageVariance: true
-                coverageVariance: 0.25
+          # - ${{ if contains(variables['Build.SourceBranch'], 'master/pr') }}:
+          - task: BuildQualityChecks@8
+            displayName: "Check Code Coverage Regression"
+            condition: always()
+            inputs:
+              checkCoverage: true
+              coverageFailOption: "build"
+              coverageType: "lines"
+              fallbackOnPRTargetBranch: false
+              baseBranchRef: "alew/fix-code-coverage-2"
+              allowCoverageVariance: true
+              coverageVariance: 0.25
