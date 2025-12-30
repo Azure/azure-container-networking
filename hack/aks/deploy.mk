@@ -1,8 +1,8 @@
 # general cilium variables
-DIR ?= 1.17
-CILIUM_VERSION_TAG               	?= v1.17.7-250927
-CILIUM_IMAGE_REGISTRY           	?= mcr.microsoft.com/containernetworking
-IPV6_IMAGE_REGISTRY					?= mcr.microsoft.com/containernetworking
+DIR 									?= 1.17
+CILIUM_VERSION_TAG               		?= v1.17.7-250927
+CILIUM_IMAGE_REGISTRY           		?= mcr.microsoft.com/containernetworking
+IPV6_IMAGE_REGISTRY						?= mcr.microsoft.com/containernetworking
 IPV6_HP_BPF_VERSION               		?= v0.0.1
 
 # ebpf cilium variables
@@ -51,7 +51,7 @@ deploy-cilium-config-hubble:
 
 deploy-cilium-hubble: deploy-cilium-config-hubble deploy-cilium-agent deploy-cilium-operator wait-for-cilium
 
-# cilium nightly deployment  
+# cilium nightly deployment
 deploy-cilium-config-nightly:
 	kubectl apply -f ../../test/integration/manifests/cilium/cilium-nightly-config.yaml
 
