@@ -12,6 +12,13 @@ parameters:
   - name: serviceConnection
     type: string
 
+resources:
+  repositories:
+    - repository: Networking-Aquarius
+      type: git
+      name: One/Networking-Aquarius
+      ref: refs/heads/master
+
 stages:
   - stage: AKSClusterAndNetworking
     displayName: "Stage: AKS Cluster and Networking Setup"
@@ -68,7 +75,7 @@ stages:
       # ------------------------------------------------------------
       - job: NetworkingAndStorage
         displayName: "Networking and Storage Setup"
-        dependsOn: CreateResourceGroup
+        dependsOn: CreateCluster
         pool:
           vmImage: ubuntu-latest
         steps:
@@ -138,3 +145,131 @@ stages:
                 ${{ parameters.location }}
                 ${{ parameters.resourceGroupName }}
                 $(CreateStorageAccounts.StorageAccount1)
+      # ------------------------------------------------------------
+      # Job 4: Print Bicep File from Networking-Aquarius Repo
+      - job: PrintBicepFile
+        displayName: "Print Linux BYON Bicep File"
+        dependsOn: CreateCluster
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            displayName: "Checkout main repository"
+          - checkout: Networking-Aquarius
+            displayName: "Checkout Networking-Aquarius repository"
+          # - task: Bash@3
+          #   displayName: "Debug repository checkout"
+          #   inputs:
+          #     targetType: inline
+          #     script: |
+          #       echo "==> Debugging repository locations"
+          #       echo "Build.SourcesDirectory: $(Build.SourcesDirectory)"
+          #       echo "System.DefaultWorkingDirectory: $(System.DefaultWorkingDirectory)"
+          #       echo ""
+          #       echo "==> Contents of Build.SourcesDirectory:"
+          #       ls -la $(Build.SourcesDirectory)
+          #       echo ""
+          #       echo "==> Looking for Networking-Aquarius:"
+          #       find $(Build.SourcesDirectory) -type d -name "Networking-Aquarius" || echo "Directory not found"
+          #       echo ""
+          #       echo "==> Searching for linux.bicep file:"
+          #       find $(Build.SourcesDirectory) -name "linux.bicep" -type f || echo "File not found"
+          - task: AzureCLI@2
+            displayName: "Print linux.bicep file"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Displaying linux.bicep file from Networking-Aquarius repository"
+                cat $(Build.SourcesDirectory)/Networking-Aquarius/.pipelines/singularity-runner/byon/linux.bicep
+          - task: AzureCLI@2
+            displayName: "Upload Kubeconfig to Key Vault and Deploy Linux VMSS"
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -e
+                # Environment variables
+                CLUSTER_KUBECONFIG_SECRET_NAME="${{ parameters.resourceGroupName }}-kubeconfig"
+                
+                echo "Fetching AKS credentials..."
+                KUBECONFIG="./kubeconfig"
+                az aks get-credentials \
+                  --resource-group "${{ parameters.resourceGroupName }}" \
+                  --name "aks-1" \
+                  --file "$KUBECONFIG" \
+                  --overwrite-existing
+                
+                echo "Storing kubeconfig in Azure Key Vault..."
+                if [[ -f "$KUBECONFIG" ]]; then
+                  az keyvault secret set \
+                    --vault-name "$CLUSTER_KUBECONFIG_KEYVAULT_NAME" \
+                    --name "$CLUSTER_KUBECONFIG_SECRET_NAME" \
+                    --value "$(cat $KUBECONFIG)" \
+                    --subscription "$KEY_VAULT_SUBSCRIPTION" \
+                    >> /dev/null
+                
+                  if [[ $? -eq 0 ]]; then
+                    echo "Successfully stored kubeconfig in Key Vault secret: $CLUSTER_KUBECONFIG_SECRET_NAME"
+                  else
+                    echo "##vso[task.logissue type=error]Failed to store kubeconfig in Key Vault"
+                    exit 1
+                  fi
+                else
+                  echo "##vso[task.logissue type=error]Kubeconfig file not found at: $KUBECONFIG"
+                  exit 1
+                fi
+                
+                echo "Fetching SSH public key from Key Vault..."
+                ssh_public_key=$(az keyvault secret show \
+                  --name "$SSH_PUBLIC_KEY_SECRET_NAME" \
+                  --vault-name "$CLUSTER_KUBECONFIG_KEYVAULT_NAME" \
+                  --subscription "$KEY_VAULT_SUBSCRIPTION" \
+                  --query value -o tsv 2>/dev/null || echo "")
+                
+                if [[ -z "$ssh_public_key" ]]; then
+                  echo "##vso[task.logissue type=error]Failed to retrieve SSH public key from Key Vault"
+                  exit 1
+                fi
+                
+                # Function to create and check VMSS
+                create_and_check_vmss() {
+                  local node_name=$1
+                  local log_file="./lin-script-${node_name}.log"
+                  local extension_name="NodeJoin-${node_name}"
+                
+                  echo "Creating Linux VMSS Node '${node_name}'"
+                  az deployment group create -n "sat${node_name}" \
+                    --resource-group "${{ parameters.resourceGroupName }}" \
+                    --template-file $(Build.SourcesDirectory)/Networking-Aquarius/.pipelines/singularity-runner/byon/linux.bicep \
+                    --parameters vnetname="aks-1" \
+                                subnetname="nodenet" \
+                                name="$node_name" \
+                                sshPublicKey="$ssh_public_key" \
+                                vnetrgname="${{ parameters.resourceGroupName }}" \
+                                extensionName="$extension_name" \
+                                clusterKubeconfigKeyvaultName="$CLUSTER_KUBECONFIG_KEYVAULT_NAME" \
+                                clusterKubeconfigSecretName="$CLUSTER_KUBECONFIG_SECRET_NAME" \
+                                keyVaultSubscription="$KEY_VAULT_SUBSCRIPTION" \
+                                vmsssku="Standard_D16s_v3" \
+                                delegatedNicsCount=7 \
+                    >> "$log_file" 2>&1
+                
+                  echo "Displaying logs for node ${node_name}:"
+                  cat "$log_file"
+                
+                  echo "Checking status for VMSS '${node_name}'"
+                  local node_exists
+                  node_exists=$(az vmss show --resource-group "${{ parameters.resourceGroupName }}" --name "$node_name" --query "name" -o tsv 2>/dev/null)
+                  if [[ -z "$node_exists" ]]; then
+                    echo "##vso[task.logissue type=error]VMSS '$node_name' does not exist. Sending failure metrics."
+                    exit 1
+                  else
+                    echo "Successfully created VMSS: $node_name"
+                  fi
+                }
+                
+                create_and_check_vmss "linone"
+                echo "VMSS deployment completed successfully."
