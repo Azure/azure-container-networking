@@ -149,12 +149,12 @@ stages:
           - checkout: Networking-Aquarius
             displayName: "Checkout Networking-Aquarius repository"
           - task: AzureCLI@2
-            displayName: "Upload Kubeconfig to Key Vault and Deploy Linux VMSS"
+            displayName: "Deploy Linux VMSS"
             inputs:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
               scriptType: bash
               scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/deploy_linuxbyon.sh"
+              scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_linuxbyon.sh"
               arguments: >
                 $(rgName)
             env:
