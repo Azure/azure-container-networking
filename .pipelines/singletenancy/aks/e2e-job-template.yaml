@@ -52,7 +52,11 @@ stages:
       - job: ${{ parameters.name }}
         displayName: Singletenancy AKS - (${{ parameters.name }})
         timeoutInMinutes: 120
-        # continue on error only in linux case to workaround known cniv1 issue
+        # continue on error only in linux case to workaround known cniv1 issue where we leak an ip
+        # this occurs when the azure vnet ipam releases an ip from its statefile and sends a successful
+        # delete response but the azure cni gets a broken pipe error and doesn't delete the ip from its
+        # statefile. a symptom of this problem is 'Initializing HTTP client with connection timeout'
+        # appearing in the logs, which is checked below
         continueOnError: ${{ eq(parameters.os, 'linux') }}
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
