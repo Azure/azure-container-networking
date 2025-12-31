@@ -157,6 +157,7 @@ stages:
               scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_linuxbyon.sh"
               arguments: >
                 $(rgName)
+                $(Build.SourcesDirectory)
             env:
               SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
               CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)

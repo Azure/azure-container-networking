@@ -1,14 +1,9 @@
 #!/bin/bash
 set -e
 
-# Arguments
 RESOURCE_GROUP=$1
-
-# Environment variables expected from pipeline:
-# - SSH_PUBLIC_KEY_SECRET_NAME
-# - CLUSTER_KUBECONFIG_KEYVAULT_NAME
-# - KEY_VAULT_RESOURCE_GROUP
-# - KEY_VAULT_SUBSCRIPTION
+BUILD_SOURCE_DIR=$2
+BICEP_TEMPLATE_PATH="${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/linux.bicep"
 
 upload_kubeconfig() {
   local cluster_name=$1
@@ -56,7 +51,7 @@ create_and_check_vmss() {
   echo "Creating Linux VMSS Node '${node_name}' for cluster '${cluster_name}'"
   az deployment group create -n "sat${node_name}" \
     --resource-group "$RESOURCE_GROUP" \
-    --template-file $(Build.SourcesDirectory)/Networking-Aquarius/.pipelines/singularity-runner/byon/linux.bicep \
+    --template-file "$BICEP_TEMPLATE_PATH" \
     --parameters vnetname="$cluster_name" \
                 subnetname="nodenet" \
                 name="$node_name" \
