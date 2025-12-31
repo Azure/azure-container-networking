@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Microsoft/hcsshim"
 	"github.com/pkg/errors"
@@ -35,6 +36,14 @@ func (*IPtablesProvider) GetIPTables() (iptablesClient, error) {
 
 func (*IPtablesProvider) GetIPTablesLegacy() (iptablesLegacyClient, error) {
 	return nil, errUnsupportedAPI
+}
+
+func (service *HTTPRestService) processWindowsRegistryKeys(isPrefixOnNic bool, infraNicMacAddress string) {
+	err := service.setRegistryKeysForPrefixOnNic(isPrefixOnNic, infraNicMacAddress)
+	if err != nil {
+		//nolint:staticcheck // SA1019: suppress deprecated logger.Debugf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+		logger.Debugf("failed to add keys to Windows registry: %v", err)
+	}
 }
 
 // nolint
@@ -85,43 +94,47 @@ func (service *HTTPRestService) getPrimaryNICMACAddress() (string, error) {
 	return macAddress, nil
 }
 
-func (service *HTTPRestService) enablePrefixOnNic(isEnabled bool) error {
-	return service.setRegistryValue(prefixOnNicRegistryPath, "enabled", isEnabled)
-}
-
-func (service *HTTPRestService) setInfraNicMacAddress(macAddress string) error {
-	return service.setRegistryValue(prefixOnNicRegistryPath, "infra_nic_mac_address", macAddress)
-}
-
-func (service *HTTPRestService) setInfraNicIfName(ifName string) error {
-	return service.setRegistryValue(prefixOnNicRegistryPath, "infra_nic_ifname", ifName)
-}
-
-func (service *HTTPRestService) setEnableSNAT(isEnabled bool) error {
-	return service.setRegistryValue(hnsRegistryPath, "EnableSNAT", isEnabled)
-}
-
-func (service *HTTPRestService) setPrefixOnNICRegistry(enablePrefixOnNic bool, infraNicMacAddress string) error {
-	if err := service.enablePrefixOnNic(enablePrefixOnNic); err != nil {
+// setRegistryKeysForPrefixOnNic configures Windows registry keys for prefix-on-NIC scenarios.
+func (service *HTTPRestService) setRegistryKeysForPrefixOnNic(enablePrefixOnNic bool, infraNicMacAddress string) error {
+	if err := service.windowsRegistry.SetPrefixOnNicEnabled(enablePrefixOnNic); err != nil {
 		return fmt.Errorf("failed to set enablePrefixOnNic key to windows registry: %w", err)
 	}
 
-	if err := service.setInfraNicMacAddress(infraNicMacAddress); err != nil {
+	if err := service.windowsRegistry.SetInfraNicMacAddress(infraNicMacAddress); err != nil {
 		return fmt.Errorf("failed to set InfraNicMacAddress key to windows registry: %w", err)
 	}
 
-	if err := service.setInfraNicIfName(infraNicIfName); err != nil {
+	if err := service.windowsRegistry.SetInfraNicIfName(infraNicIfName); err != nil {
 		return fmt.Errorf("failed to set InfraNicIfName key to windows registry: %w", err)
 	}
 
-	if err := service.setEnableSNAT(!enablePrefixOnNic); err != nil { // for prefix on nic,  snat should be disabled
+	if err := service.windowsRegistry.SetEnableSNAT(!enablePrefixOnNic); err != nil { // for prefix on nic,  snat should be disabled
 		return fmt.Errorf("failed to set EnableSNAT key to windows registry: %w", err)
 	}
 
 	return nil
 }
 
-func (service *HTTPRestService) setRegistryValue(registryPath, keyName string, value interface{}) error {
+type windowsRegistry struct{}
+
+func (w *windowsRegistry) SetPrefixOnNicEnabled(isEnabled bool) error {
+	return w.setRegistryValue(prefixOnNicRegistryPath, "enabled", isEnabled)
+}
+
+func (w *windowsRegistry) SetInfraNicMacAddress(macAddress string) error {
+	return w.setRegistryValue(prefixOnNicRegistryPath, "infra_nic_mac_address", macAddress)
+}
+
+func (w *windowsRegistry) SetInfraNicIfName(ifName string) error {
+	return w.setRegistryValue(prefixOnNicRegistryPath, "infra_nic_ifname", ifName)
+}
+
+func (w *windowsRegistry) SetEnableSNAT(isEnabled bool) error {
+	return w.setRegistryValue(hnsRegistryPath, "EnableSNAT", isEnabled)
+}
+
+// setRegistryValue writes a value to the Windows registry.
+func (*windowsRegistry) setRegistryValue(registryPath, keyName string, value interface{}) error {
 	key, _, err := registry.CreateKey(registry.LOCAL_MACHINE, registryPath, registry.SET_VALUE)
 	if err != nil {
 		return fmt.Errorf("failed to create/open registry key %s: %w", registryPath, err)
@@ -150,6 +163,16 @@ func (service *HTTPRestService) setRegistryValue(registryPath, keyName string, v
 	if err != nil {
 		return fmt.Errorf("failed to set registry value '%s': %w", keyName, err)
 	}
-	fmt.Printf("[setRegistryValue] Set %s\\%s = %v\n", registryPath, keyName, value)
+	fmt.Printf("[SetValue] Set %s\\%s = %v\n", registryPath, keyName, value)
 	return nil
+}
+
+// newWindowsRegistryClient creates a new Windows registry client.
+func newWindowsRegistryClient() windowsRegistryClient {
+	return &windowsRegistry{}
+}
+
+// newRegistryClient creates the OS-specific registry client (Windows implementation).
+func newRegistryClient() windowsRegistryClient {
+	return newWindowsRegistryClient()
 }

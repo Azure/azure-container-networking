@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"reflect"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -1352,6 +1351,7 @@ func TestCNIConflistGenerationNewNC(t *testing.T) {
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
+		windowsRegistry:      newRegistryClient(),
 		state: &httpRestServiceState{
 			ContainerStatus: map[string]containerstatus{
 				ncID: {
@@ -1393,6 +1393,7 @@ func TestCNIConflistGenerationExistingNC(t *testing.T) {
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
+		windowsRegistry:      newRegistryClient(),
 		state: &httpRestServiceState{
 			ContainerStatus: map[string]containerstatus{
 				ncID: {
@@ -1435,6 +1436,7 @@ func TestCNIConflistGenerationNewNCTwice(t *testing.T) {
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
+		windowsRegistry:      newRegistryClient(),
 		state: &httpRestServiceState{
 			ContainerStatus: map[string]containerstatus{
 				ncID: {
@@ -1481,6 +1483,7 @@ func TestCNIConflistNotGenerated(t *testing.T) {
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
+		windowsRegistry:      newRegistryClient(),
 		state: &httpRestServiceState{
 			ContainerStatus: map[string]containerstatus{
 				newNCID: {
@@ -1517,6 +1520,7 @@ func TestCNIConflistGenerationOnNMAError(t *testing.T) {
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
+		windowsRegistry:      newRegistryClient(),
 		state: &httpRestServiceState{
 			ContainerStatus: map[string]containerstatus{
 				newNCID: {
@@ -1760,86 +1764,29 @@ func setupIMDSMockAPIsWithCustomIDs(svc *HTTPRestService, interfaceIDs []string)
 	return func() { svc.imdsClient = originalIMDS }
 }
 
-// TestSyncHostNCVersionWithWindowsSwiftV2 tests SyncHostNCVersion and verifies it calls Windows SwiftV2 PrefixOnNic scenario
-func TestSyncHostNCVersionWithWindowsSwiftV2(t *testing.T) {
+func TestGetIMDSNCsWithANDWITHOUTNCID(t *testing.T) {
 	testSvc := getTestService(cns.Kubernetes)
 
-	// Set up test NCs with different scenarios
-	regularNCID := "regular-nc-id"
-	swiftV2NCID := "swift-v2-vnet-block-nc"
-
-	// Initialize ContainerStatus map if nil
-	if testSvc.state.ContainerStatus == nil {
-		testSvc.state.ContainerStatus = make(map[string]containerstatus)
-	}
-
-	// Add a regular NC
-	testSvc.state.ContainerStatus[regularNCID] = containerstatus{
-		ID: regularNCID,
-		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
-			NetworkContainerid:   regularNCID,
-			SwiftV2PrefixOnNic:   false,
-			NetworkContainerType: cns.Docker,
-			Version:              "2",
-		},
-		HostVersion: "1",
-	}
-
-	// Add a SwiftV2 VNETBlock NC that should trigger Windows registry operations
-	testSvc.state.ContainerStatus[swiftV2NCID] = containerstatus{
-		ID: swiftV2NCID,
-		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
-			NetworkContainerid:   swiftV2NCID,
-			SwiftV2PrefixOnNic:   true,
-			NetworkContainerType: cns.Docker,
-			Version:              "2",
-		},
-		HostVersion: "1",
-	}
-
-	// Set up mock NMAgent with NC versions
-	mockNMA := &fakes.NMAgentClientFake{}
-	mockNMA.GetNCVersionListF = func(_ context.Context) (nma.NCVersionList, error) {
-		return nma.NCVersionList{
-			Containers: []nma.NCVersion{
-				{
-					NetworkContainerID: regularNCID,
-					Version:            "2",
-				},
-				{
-					NetworkContainerID: swiftV2NCID,
-					Version:            "2",
-				},
-			},
-		}, nil
-	}
-	testSvc.nma = mockNMA
-
-	// Set up mock IMDS client for Windows SwiftV2 scenario
+	// Set up mock IMDS client with one interface with NC ID, one without
 	mac1, _ := net.ParseMAC("AA:BB:CC:DD:EE:FF")
 	mac2, _ := net.ParseMAC("11:22:33:44:55:66")
 
-	interfaceMap := map[string]imds.NetworkInterface{
-		"interface1": {
-			InterfaceCompartmentID: "", // Empty for Windows condition
-			MacAddress:             imds.HardwareAddr(mac1),
-		},
-		"interface2": {
-			InterfaceCompartmentID: "nc-with-compartment-id",
-			MacAddress:             imds.HardwareAddr(mac2),
-		},
-	}
 	mockIMDS := &mockIMDSAdapter{
 		mock: &struct {
 			networkInterfaces func(_ context.Context) ([]imds.NetworkInterface, error)
 			imdsVersions      func(_ context.Context) (*imds.APIVersionsResponse, error)
 		}{
 			networkInterfaces: func(_ context.Context) ([]imds.NetworkInterface, error) {
-				var interfaces []imds.NetworkInterface
-				for _, iface := range interfaceMap {
-					interfaces = append(interfaces, iface)
-				}
-				return interfaces, nil
+				return []imds.NetworkInterface{
+					{
+						InterfaceCompartmentID: "nc-id-1",
+						MacAddress:             imds.HardwareAddr(mac1),
+					},
+					{
+						InterfaceCompartmentID: "",
+						MacAddress:             imds.HardwareAddr(mac2),
+					},
+				}, nil
 			},
 			imdsVersions: func(_ context.Context) (*imds.APIVersionsResponse, error) {
 				return &imds.APIVersionsResponse{
@@ -1854,33 +1801,14 @@ func TestSyncHostNCVersionWithWindowsSwiftV2(t *testing.T) {
 	testSvc.imdsClient = mockIMDS
 	defer func() { testSvc.imdsClient = originalIMDS }()
 
-	// Verify preconditions
-	assert.True(t, testSvc.isPrefixonNicSwiftV2(), "isPrefixonNicSwiftV2() should return true")
-
 	ctx := context.Background()
-	testSvc.SyncHostNCVersion(ctx, cns.CRD)
+	imdsNCs, infraNicMacAddress := testSvc.getIMDSNCs(ctx)
 
-	// Verify that NC versions were updated
-	updatedRegularNC := testSvc.state.ContainerStatus[regularNCID]
-	updatedSwiftV2NC := testSvc.state.ContainerStatus[swiftV2NCID]
+	// Verify that NC with compartment ID is returned
+	assert.Equal(t, PrefixOnNicNCVersion, imdsNCs["nc-id-1"], "NC should have expected version")
+	assert.Len(t, imdsNCs, 1, "Only one NC should be returned (the one with NC ID)")
 
-	assert.Equal(t, "2", updatedRegularNC.HostVersion, "Regular NC host version should be updated to 2")
-	assert.Equal(t, "2", updatedSwiftV2NC.HostVersion, "SwiftV2 NC host version should be updated to 2")
-
-	imdsNCs := testSvc.getIMDSNCs(ctx)
-
-	// Verify IMDS results
-	assert.Contains(t, imdsNCs, "nc-with-compartment-id", "NC with compartment ID should be in results")
-	assert.Equal(t, PrefixOnNicNCVersion, imdsNCs["nc-with-compartment-id"], "NC should have expected version")
-
-	// Log the conditions that would trigger Windows registry operations
-	isWindows := runtime.GOOS == "windows"
-	hasSwiftV2PrefixOnNic := testSvc.isPrefixonNicSwiftV2()
-
-	t.Logf("Windows SwiftV2 PrefixOnNic conditions: (runtime.GOOS == 'windows' && service.isPrefixonNicSwiftV2()): %t",
-		isWindows && hasSwiftV2PrefixOnNic)
-
-	// Test with no SwiftV2 NCs
-	delete(testSvc.state.ContainerStatus, swiftV2NCID)
-	assert.False(t, testSvc.isPrefixonNicSwiftV2(), "isPrefixonNicSwiftV2() should return false without SwiftV2 NCs")
+	// Verify that MAC address is returned for interface without NC ID
+	assert.Equal(t, mac2.String(), infraNicMacAddress, "MAC address should be returned for interface without NC ID")
+	assert.NotEmpty(t, infraNicMacAddress, "MAC address should not be empty when an interface has no NC ID")
 }

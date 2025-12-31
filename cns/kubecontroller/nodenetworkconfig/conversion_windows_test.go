@@ -23,6 +23,7 @@ var validOverlayRequest = &cns.CreateNetworkContainerRequest{
 			NCVersion: 0,
 		},
 	},
+	SwiftV2PrefixOnNic: false,
 }
 
 var validVNETBlockRequest = &cns.CreateNetworkContainerRequest{
@@ -79,4 +80,5 @@ var validVNETBlockRequest = &cns.CreateNetworkContainerRequest{
 			NCVersion: version,
 		},
 	},
+	SwiftV2PrefixOnNic: true,
 }

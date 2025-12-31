@@ -62,7 +62,6 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 		NetworkContainerid:   nc.ID,
 		NetworkContainerType: cns.Docker,
 		Version:              strconv.FormatInt(nc.Version, 10), //nolint:gomnd // it's decimal
-		SwiftV2PrefixOnNic:   false,                             // Dynamic NCs don't use SwiftV2 PrefixOnNic and should always be false
 		IPConfiguration: cns.IPConfiguration{
 			IPSubnet:         subnet,
 			GatewayIPAddress: nc.DefaultGateway,
