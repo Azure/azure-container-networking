@@ -139,7 +139,7 @@ stages:
                 $(rgName)
                 ${{ parameters.location }}
       - job: PrintBicepFile
-        displayName: "Print Linux BYON Bicep File"
+        displayName: "Join Linux BYON VMSS to AKS Cluster"
         dependsOn: CreateCluster
         pool:
           vmImage: ubuntu-latest
