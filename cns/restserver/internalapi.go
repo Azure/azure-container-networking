@@ -692,7 +692,7 @@ func (service *HTTPRestService) isNCDetailsAPIExists(ctx context.Context) bool {
 }
 
 // GetIMDSNCs gets NC versions from IMDS and returns them as a map along with the MAC address
-func (service *HTTPRestService) getIMDSNCs(ctx context.Context) (map[string]string, string) {
+func (service *HTTPRestService) getIMDSNCs(ctx context.Context) (ncs map[string]string, infraNicMacAddress string) {
 	imdsClient := service.imdsClient
 	if imdsClient == nil {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
@@ -715,8 +715,7 @@ func (service *HTTPRestService) getIMDSNCs(ctx context.Context) (map[string]stri
 	}
 
 	// Build ncs map from the network interfaces
-	ncs := make(map[string]string)
-	var infraNicMacAddress string
+	ncs = make(map[string]string)
 	for _, iface := range networkInterfaces {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Debugf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
 		logger.Debugf("Nc id: %s and mac address: %s from IMDS call", iface.InterfaceCompartmentID, iface.MacAddress.String())

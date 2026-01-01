@@ -16,10 +16,6 @@ import (
 type mockWindowsRegistryClient struct {
 	// Store call history
 	calls []registryCall
-
-	setPrefixOnNicEnabledError bool
-	setInfraNicIfNameError     bool
-	setEnableSNATError         bool
 }
 
 type registryCall struct {
@@ -96,9 +92,7 @@ func TestProcessWindowsRegistryKeys_ValidMacAddress(t *testing.T) {
 
 func TestProcessWindowsRegistryKeys_RegistryError(t *testing.T) {
 	validMacAddress := "00:15:5D:01:02:03"
-	mockRegistry := &mockWindowsRegistryClient{
-		setPrefixOnNicEnabledError: true,
-	}
+	mockRegistry := &mockWindowsRegistryClient{}
 	service := &HTTPRestService{
 		windowsRegistry: mockRegistry,
 		state: &httpRestServiceState{
