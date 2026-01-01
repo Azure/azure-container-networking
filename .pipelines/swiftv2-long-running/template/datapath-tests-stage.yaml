@@ -11,6 +11,9 @@ parameters:
   - name: storageAccount2
     type: string
     default: ''
+  - name: runSetupStages
+    type: string
+    default: 'false'
 
 stages:
   - stage: DataPathTests_${{ replace(parameters.workloadType, '-', '_') }}
