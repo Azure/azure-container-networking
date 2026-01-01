@@ -48,6 +48,10 @@ create_and_check_vmss() {
   local extension_name="NodeJoin-${node_name}"
   local kubeconfig_secret="${RESOURCE_GROUP}-${cluster_name}-kubeconfig"
 
+  #Installing plugins to get Node ready, this would install conflist. Once node is ready, labels can be applied.
+  helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
+               --set installCniPlugins.enabled=true
+               
   echo "Creating Linux VMSS Node '${node_name}' for cluster '${cluster_name}'"
   az deployment group create -n "sat${node_name}" \
     --resource-group "$RESOURCE_GROUP" \
@@ -83,13 +87,18 @@ create_and_check_vmss() {
 wait_for_nodes_ready() {
   local cluster_name=$1
   local node_name=$2
+  local kubeconfig_file="./kubeconfig-${cluster_name}"
   
   echo "Waiting for nodes from VMSS '${node_name}' to join cluster and become ready..."
   local expected_nodes=2
   
-  # check if BYO node has joined cluster.
+  # Check if BYO nodes have joined cluster using VMSS name label
   for ((retry=1; retry<=15; retry++)); do
-    nodes=($(kubectl --kubeconfig "./kubeconfig-${cluster_name}" get nodes -l kubernetes.azure.com/vmss-name="${node_name}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo ""))
+    echo "Retry $retry: Checking for nodes with label kubernetes.azure.com/vmss-name=${node_name}"
+    nodes=($(kubectl --kubeconfig "$kubeconfig_file" get nodes -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep "^${node_name}"))
+    
+    echo "Found ${#nodes[@]} nodes: ${nodes[*]}"
+    
     if [ ${#nodes[@]} -ge $expected_nodes ]; then
       echo "Found ${#nodes[@]} nodes from VMSS ${node_name}: ${nodes[*]}"
       break
