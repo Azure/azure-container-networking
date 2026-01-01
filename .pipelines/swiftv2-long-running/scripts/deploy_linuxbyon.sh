@@ -47,12 +47,6 @@ create_and_check_vmss() {
   local log_file="./lin-script-${node_name}.log"
   local extension_name="NodeJoin-${node_name}"
   local kubeconfig_secret="${RESOURCE_GROUP}-${cluster_name}-kubeconfig"
-  local kubeconfig_file="./kubeconfig-${cluster_name}"
-
-  echo "Installing CNI plugins for cluster ${cluster_name}"
-  helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
-               --set installCniPlugins.enabled=true \
-               --kubeconfig "$kubeconfig_file"
                
   echo "Creating Linux VMSS Node '${node_name}' for cluster '${cluster_name}'"
   az deployment group create -n "sat${node_name}" \
@@ -139,26 +133,26 @@ label_vmss_nodes() {
   kubectl --kubeconfig "$kubeconfig_file" label nodes -l kubernetes.azure.com/vmss-name="${cluster_name}-linux-highnic" nic-capacity=high-nic --overwrite || true
   
   SOURCE_NODE=$(kubectl --kubeconfig "$kubeconfig_file" get nodes --selector='!kubernetes.azure.com/managed' -o jsonpath='{.items[0].metadata.name}')
-              LABEL_KEYS=(
-              "kubernetes\.azure\.com\/podnetwork-type"
-              "kubernetes\.azure\.com\/podnetwork-subscription"
-              "kubernetes\.azure\.com\/podnetwork-resourcegroup"
-              "kubernetes\.azure\.com\/podnetwork-name"
-              "kubernetes\.azure\.com\/podnetwork-subnet"
-              "kubernetes\.azure\.com\/podnetwork-multi-tenancy-enabled"
-              "kubernetes\.azure\.com\/podnetwork-delegationguid"
-              "kubernetes\.azure\.com\/cluster")
-              
-              nodes=($(kubectl --kubeconfig "$kubeconfig_file" get nodes -l kubernetes.azure.com/managed=false -o jsonpath='{.items[*].metadata.name}'))
-                 
-              for NODENAME in "${nodes[@]}"; do
-                 for label_key in "${LABEL_KEYS[@]}"; do
-                 v=$(kubectl --kubeconfig "$kubeconfig_file" get nodes "$SOURCE_NODE" -o jsonpath="{.metadata.labels['$label_key']}")
-                 l=$(echo "$label_key" | sed 's/\\//g')
-                 echo "Labeling node $NODENAME with $l=$v"
-                 kubectl --kubeconfig "$kubeconfig_file" label node "$NODENAME" "$l=$v" --overwrite
-                 done
-              done
+  LABEL_KEYS=(
+  "kubernetes\.azure\.com\/podnetwork-type"
+  "kubernetes\.azure\.com\/podnetwork-subscription"
+  "kubernetes\.azure\.com\/podnetwork-resourcegroup"
+  "kubernetes\.azure\.com\/podnetwork-name"
+  "kubernetes\.azure\.com\/podnetwork-subnet"
+  "kubernetes\.azure\.com\/podnetwork-multi-tenancy-enabled"
+  "kubernetes\.azure\.com\/podnetwork-delegationguid"
+  "kubernetes\.azure\.com\/cluster")
+  
+  nodes=($(kubectl --kubeconfig "$kubeconfig_file" get nodes -l kubernetes.azure.com/managed=false -o jsonpath='{.items[*].metadata.name}'))
+      
+  for NODENAME in "${nodes[@]}"; do
+      for label_key in "${LABEL_KEYS[@]}"; do
+      v=$(kubectl --kubeconfig "$kubeconfig_file" get nodes "$SOURCE_NODE" -o jsonpath="{.metadata.labels['$label_key']}")
+      l=$(echo "$label_key" | sed 's/\\//g')
+      echo "Labeling node $NODENAME with $l=$v"
+      kubectl --kubeconfig "$kubeconfig_file" label node "$NODENAME" "$l=$v" --overwrite
+      done
+  done
 }
 
 check_nnc(){
@@ -202,9 +196,6 @@ check_nnc(){
 
 }
 
-upload_kubeconfig "aks-1"
-upload_kubeconfig "aks-2"
-
 echo "Fetching SSH public key from Key Vault..."
 ssh_public_key=$(az keyvault secret show \
   --name "$SSH_PUBLIC_KEY_SECRET_NAME" \
@@ -217,19 +208,23 @@ if [[ -z "$ssh_public_key" ]]; then
   exit 1
 fi
 
-echo "Creating VMSS nodes for cluster aks-1..."
-create_and_check_vmss "aks-1" "linux-highnic" "Standard_D16s_v3" "7"
-wait_for_nodes_ready "aks-1" "aks-1-linux-highnic"
-create_and_check_vmss "aks-1" "linux-default" "Standard_D4s_v3" "2"
-wait_for_nodes_ready "aks-1" "aks-1-linux-default"
+cluster_names="aks-1", "aks-2"
+for cluster_name in $cluster_names; do
+  upload_kubeconfig "$cluster_name"
 
-echo "Creating VMSS nodes for cluster aks-2..."
-create_and_check_vmss "aks-2" "linux-highnic" "Standard_D16s_v3" "7"
-wait_for_nodes_ready "aks-2" "aks-2-linux-highnic"
-create_and_check_vmss "aks-2" "linux-default" "Standard_D4s_v3" "2"
-wait_for_nodes_ready "aks-2" "aks-2-linux-default"
+  echo "Installing CNI plugins for cluster $cluster_name"
+  helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
+               --set installCniPlugins.enabled=true \
+               --kubeconfig "./kubeconfig-${cluster_name}"
+  
+  echo "Creating VMSS nodes for cluster $cluster_name..."
+  create_and_check_vmss "$cluster_name" "linux-highnic" "Standard_D16s_v3" "7"
+  wait_for_nodes_ready "$cluster_name" "$cluster_name-linux-highnic"
 
-label_vmss_nodes "aks-1"
-label_vmss_nodes "aks-2"
+  create_and_check_vmss "$cluster_name" "linux-default" "Standard_D4s_v3" "2"
+  wait_for_nodes_ready "$cluster_name" "$cluster_name-linux-default"
+
+  label_vmss_nodes "$cluster_name"
+done
 
 echo "VMSS deployment completed successfully for both clusters."
