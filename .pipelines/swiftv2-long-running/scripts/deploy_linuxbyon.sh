@@ -47,10 +47,12 @@ create_and_check_vmss() {
   local log_file="./lin-script-${node_name}.log"
   local extension_name="NodeJoin-${node_name}"
   local kubeconfig_secret="${RESOURCE_GROUP}-${cluster_name}-kubeconfig"
+  local kubeconfig_file="./kubeconfig-${cluster_name}"
 
-  #Installing plugins to get Node ready, this would install conflist. Once node is ready, labels can be applied.
+  echo "Installing CNI plugins for cluster ${cluster_name}"
   helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
-               --set installCniPlugins.enabled=true
+               --set installCniPlugins.enabled=true \
+               --kubeconfig "$kubeconfig_file"
                
   echo "Creating Linux VMSS Node '${node_name}' for cluster '${cluster_name}'"
   az deployment group create -n "sat${node_name}" \
