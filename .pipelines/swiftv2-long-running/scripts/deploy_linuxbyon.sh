@@ -97,7 +97,7 @@ wait_for_nodes_ready() {
   # Check if BYO nodes have joined cluster using VMSS name label
   for ((retry=1; retry<=15; retry++)); do
     echo "Retry $retry: Checking for nodes with label kubernetes.azure.com/vmss-name=${node_name}"
-    nodes=($(kubectl --kubeconfig "$kubeconfig_file" get nodes -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep "^${node_name}"))
+    nodes=($(kubectl --kubeconfig "$kubeconfig_file" get nodes -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep "^${node_name}" || true))
     
     echo "Found ${#nodes[@]} nodes: ${nodes[*]}"
     
@@ -105,8 +105,9 @@ wait_for_nodes_ready() {
       echo "Found ${#nodes[@]} nodes from VMSS ${node_name}: ${nodes[*]}"
       break
     else
-      if [ $retry -eq 30 ]; then
+      if [ $retry -eq 15 ]; then
         echo "##vso[task.logissue type=error]Timeout waiting for nodes from VMSS ${node_name} to join the cluster"
+        kubectl --kubeconfig "$kubeconfig_file" get nodes -o wide || true
         exit 1
       fi
       echo "Retry $retry: Waiting for nodes to join... (${#nodes[@]}/$expected_nodes joined)"
