@@ -168,11 +168,27 @@ stages:
               KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
               KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
   
-  - ${{ each workloadType in parameters.workloadType }}:
-    - template: datapath-tests-stage.yaml
-      parameters:
-        workloadType: ${{ workloadType }}
-        subscriptionId: ${{ parameters.subscriptionId }}
-        rgName: $(rgName)
-        storageAccount1: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
-        storageAccount2: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
+  # Run Linux tests first
+  - template: datapath-tests-stage.yaml
+    parameters:
+      workloadType: swiftv2-linux
+      subscriptionId: ${{ parameters.subscriptionId }}
+      rgName: $(rgName)
+      storageAccount1: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
+      storageAccount2: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
+      runSetupStages: ${{ parameters.runSetupStages }}
+      dependsOn: 
+        - AKSClusterAndNetworking
+  
+  # Run Linux BYON tests after Linux tests complete
+  - template: datapath-tests-stage.yaml
+    parameters:
+      workloadType: swiftv2-linux-byon
+      subscriptionId: ${{ parameters.subscriptionId }}
+      rgName: $(rgName)
+      storageAccount1: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
+      storageAccount2: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
+      runSetupStages: ${{ parameters.runSetupStages }}
+      dependsOn: 
+        - AKSClusterAndNetworking
+        - DataPathTests_swiftv2_linux
