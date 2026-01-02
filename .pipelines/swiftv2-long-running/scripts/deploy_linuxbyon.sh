@@ -49,6 +49,7 @@ create_and_check_vmss() {
   local kubeconfig_secret="${RESOURCE_GROUP}-${cluster_name}-kubeconfig"
                
   echo "Creating Linux VMSS Node '${node_name}' for cluster '${cluster_name}'"
+  set +e
   az deployment group create -n "sat${node_name}" \
     --resource-group "$RESOURCE_GROUP" \
     --template-file "$BICEP_TEMPLATE_PATH" \
@@ -64,10 +65,14 @@ create_and_check_vmss() {
                 vmsssku="$vmss_sku" \
                 vmsscount=2 \
                 delegatedNicsCount="$nic_count" \
-    >> "$log_file" 2>&1
+    2>&1 | tee "$log_file"
+  local deployment_exit_code=$?
+  set -e
 
-  echo "Displaying logs for node ${node_name}:"
-  cat "$log_file"
+  if [[ $deployment_exit_code -ne 0 ]]; then
+    echo "##vso[task.logissue type=error]Azure deployment failed for VMSS '$node_name' with exit code $deployment_exit_code"
+    exit 1
+  fi
 
   echo "Checking status for VMSS '${node_name}'"
   local node_exists
@@ -90,9 +95,7 @@ wait_for_nodes_ready() {
   
   # Check if BYO nodes have joined cluster using VMSS name label
   for ((retry=1; retry<=15; retry++)); do
-    echo "Retry $retry: Checking for nodes with label kubernetes.azure.com/vmss-name=${node_name}"
     nodes=($(kubectl --kubeconfig "$kubeconfig_file" get nodes -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep "^${node_name}" || true))
-    
     echo "Found ${#nodes[@]} nodes: ${nodes[*]}"
     
     if [ ${#nodes[@]} -ge $expected_nodes ]; then
