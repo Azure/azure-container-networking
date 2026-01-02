@@ -208,7 +208,7 @@ if [[ -z "$ssh_public_key" ]]; then
   exit 1
 fi
 
-cluster_names="aks-1", "aks-2"
+cluster_names="aks-1 aks-2"
 for cluster_name in $cluster_names; do
   upload_kubeconfig "$cluster_name"
 
