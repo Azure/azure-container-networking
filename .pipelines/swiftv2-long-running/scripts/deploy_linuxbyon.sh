@@ -224,7 +224,7 @@ for cluster_name in $cluster_names; do
   create_and_check_vmss "$cluster_name" "linux-highnic" "Standard_D16s_v3" "7"
   wait_for_nodes_ready "$cluster_name" "$cluster_name-linux-highnic"
 
-  create_and_check_vmss "$cluster_name" "linux-default" "Standard_D4s_v3" "2"
+  create_and_check_vmss "$cluster_name" "linux-default" "Standard_D8s_v3" "2"
   wait_for_nodes_ready "$cluster_name" "$cluster_name-linux-default"
 
   label_vmss_nodes "$cluster_name"
