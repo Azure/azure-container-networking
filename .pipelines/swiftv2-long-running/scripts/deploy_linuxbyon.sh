@@ -112,12 +112,32 @@ wait_for_nodes_ready() {
     fi
   done
 
-
-  for nodename in "${nodes[@]}"; do
-    ready=$(kubectl --kubeconfig "./kubeconfig-${cluster_name}" get node "$nodename" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "False")
-    if [ "$ready" != "True" ]; then
-      echo "##vso[task.logissue type=error] Node ${node_name} is not ready"
-      exit 1
+  echo "Checking if nodes are ready..."
+  for ((ready_retry=1; ready_retry<=7; ready_retry++)); do
+    echo "Ready check attempt $ready_retry of 7"
+    all_ready=true
+    
+    for nodename in "${nodes[@]}"; do
+      ready=$(kubectl --kubeconfig "./kubeconfig-${cluster_name}" get node "$nodename" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "False")
+      if [ "$ready" != "True" ]; then
+        echo "Node $nodename is not ready yet (status: $ready)"
+        all_ready=false
+      else
+        echo "Node $nodename is ready"
+      fi
+    done
+    
+    if [ "$all_ready" = true ]; then
+      echo "All nodes from VMSS ${node_name} are ready"
+      break
+    else
+      if [ $ready_retry -eq 7 ]; then
+        echo "##vso[task.logissue type=error]Timeout: Nodes from VMSS ${node_name} are not ready after 7 attempts"
+        kubectl --kubeconfig "$kubeconfig_file" get nodes -o wide || true
+        exit 1
+      fi
+      echo "Waiting 30 seconds before retry..."
+      sleep 30
     fi
   done
 }
