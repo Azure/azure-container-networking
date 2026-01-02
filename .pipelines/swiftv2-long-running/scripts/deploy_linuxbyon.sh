@@ -149,11 +149,11 @@ label_vmss_nodes() {
   echo "Labeling BYON nodes in ${cluster_name} with workload-type=swiftv2-linux-byon"
   kubectl --kubeconfig "$kubeconfig_file" label nodes -l kubernetes.azure.com/managed=false workload-type=swiftv2-linux-byon --overwrite
 
-  echo "Labeling ${cluster_name} linux-default nodes with nic-capacity=low-nic"
-  kubectl --kubeconfig "$kubeconfig_file" label nodes -l kubernetes.azure.com/vmss-name="${cluster_name}-linux-default" nic-capacity=low-nic --overwrite || true
+  echo "Labeling ${cluster_name}-linux-default nodes with nic-capacity=low-nic"
+  kubectl --kubeconfig "$kubeconfig_file" get nodes -o name | grep "${cluster_name}-linux-default" | xargs -I {} kubectl --kubeconfig "$kubeconfig_file" label {} nic-capacity=low-nic --overwrite || true
 
-  echo "Labeling ${cluster_name} linux-highnic nodes with nic-capacity=high-nic"
-  kubectl --kubeconfig "$kubeconfig_file" label nodes -l kubernetes.azure.com/vmss-name="${cluster_name}-linux-highnic" nic-capacity=high-nic --overwrite || true
+  echo "Labeling ${cluster_name}-linux-highnic nodes with nic-capacity=high-nic"
+  kubectl --kubeconfig "$kubeconfig_file" get nodes -o name | grep "${cluster_name}-linux-highnic" | xargs -I {} kubectl --kubeconfig "$kubeconfig_file" label {} nic-capacity=high-nic --overwrite || true
   
   SOURCE_NODE=$(kubectl --kubeconfig "$kubeconfig_file" get nodes --selector='!kubernetes.azure.com/managed' -o jsonpath='{.items[0].metadata.name}')
   LABEL_KEYS=(
