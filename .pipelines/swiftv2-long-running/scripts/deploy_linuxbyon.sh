@@ -22,7 +22,7 @@ upload_kubeconfig() {
     az keyvault secret set \
       --vault-name "$CLUSTER_KUBECONFIG_KEYVAULT_NAME" \
       --name "$secret_name" \
-      --value "$(cat $kubeconfig_file)" \
+      --value "$(cat "$kubeconfig_file")" \
       --subscription "$KEY_VAULT_SUBSCRIPTION" \
       >> /dev/null
 
