@@ -178,10 +178,10 @@ label_vmss_nodes() {
       
   for NODENAME in "${nodes[@]}"; do
       for label_key in "${LABEL_KEYS[@]}"; do
-      v=$(kubectl --kubeconfig "$kubeconfig_file" get nodes "$SOURCE_NODE" -o jsonpath="{.metadata.labels['$label_key']}")
-      l=$(echo "$label_key" | sed 's/\\//g')
-      echo "Labeling node $NODENAME with $l=$v"
-      kubectl --kubeconfig "$kubeconfig_file" label node "$NODENAME" "$l=$v" --overwrite
+        v=$(kubectl --kubeconfig "$kubeconfig_file" get nodes "$SOURCE_NODE" -o jsonpath="{.metadata.labels['$label_key']}")
+        l=$(echo "$label_key" | sed 's/\\//g')
+        echo "Labeling node $NODENAME with $l=$v"
+        kubectl --kubeconfig "$kubeconfig_file" label node "$NODENAME" "$l=$v" --overwrite
       done
   done
 }
