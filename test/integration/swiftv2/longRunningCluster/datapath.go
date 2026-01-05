@@ -141,8 +141,8 @@ func isValidWorkloadType(workloadType string) bool {
 	validTypes := []string{
 		"swiftv2-linux",
 		"swiftv2-windows",
-		"swiftv2-linux-byocni",
-		"swiftv2-windows-byocni",
+		"swiftv2-linux-byon",
+		"swiftv2-windows-byon",
 	}
 
 	for _, validType := range validTypes {
