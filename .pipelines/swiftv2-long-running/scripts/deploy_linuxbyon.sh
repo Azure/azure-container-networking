@@ -203,10 +203,12 @@ for cluster_name in $cluster_names; do
   upload_kubeconfig "$cluster_name"
 
   echo "Installing CNI plugins for cluster $cluster_name"
-  helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
+  if ! helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
                --set installCniPlugins.enabled=true \
-               --kubeconfig "./kubeconfig-${cluster_name}"
-  
+               --kubeconfig "./kubeconfig-${cluster_name}"; then
+    echo "##vso[task.logissue type=error]Failed to install CNI plugins for cluster ${cluster_name}"
+    exit 1
+  fi
   echo "Creating VMSS nodes for cluster $cluster_name..."
   create_and_check_vmss "$cluster_name" "linux-highnic" "Standard_D16s_v3" "7"
   wait_for_nodes_ready "$cluster_name" "$cluster_name-linux-highnic"
