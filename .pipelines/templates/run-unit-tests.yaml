@@ -85,8 +85,6 @@ stages:
               make tools
               sudo ln -s $(go env GOPATH)/bin/gocov /usr/local/bin/gocov
               sudo ln -s $(go env GOPATH)/bin/gocov-xml /usr/local/bin/gocov-xml
-              echo "${GOBIN}"
-              echo $(go env GOPATH)
 
               GOOS=linux gocov convert linux-coverage.out > linux-coverage.json
               GOOS=linux gocov-xml < linux-coverage.json > linux-coverage.xml
