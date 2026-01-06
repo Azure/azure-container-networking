@@ -66,6 +66,10 @@ spec:
                   description: PodNetworkConfig describes a template for how to attach
                     a PodNetwork to a Pod
                   properties:
+                    ipConstraint:
+                      description: IPConstraint specifies criteria for selecting IP
+                        addresses from the PodNetwork's subnet
+                      type: string
                     podIPReservationSize:
                       default: 0
                       description: PodIPReservationSize is the number of IP address
