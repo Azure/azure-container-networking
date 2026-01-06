@@ -17,13 +17,6 @@ import (
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
-//
-// Enforce immutability of .spec.
-// Rule semantics:
-//   - Do not allow UPDATE require self.spec == oldSelf.spec (no spec changes).
-//
-// This compiles to a CRD-level x-kubernetes-validations transition rule using oldSelf.
-// Requires Kubernetes versions that support CEL transition rules.
 // +kubebuilder:validation:XValidation:rule="self.spec == oldSelf.spec",message="Spec is immutable."
 type PodNetworkInstance struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -49,6 +42,8 @@ type PodNetworkConfig struct {
 	// PodIPReservationSize is the number of IP address to statically reserve
 	// +kubebuilder:default=0
 	PodIPReservationSize int `json:"podIPReservationSize,omitempty"`
+	// IPConstraint specifies criteria for selecting IP addresses from the PodNetwork's subnet
+	IPConstraint string `json:"ipConstraint,omitempty"`
 }
 
 // PodNetworkInstanceSpec defines the desired state of PodNetworkInstance

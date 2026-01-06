@@ -26,15 +26,8 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: |-
-          PodNetworkInstance is the Schema for the PodNetworkInstances API
-
-          Enforce immutability of .spec.
-          Rule semantics:
-            - Do not allow UPDATE require self.spec == oldSelf.spec (no spec changes).
-
-          This compiles to a CRD-level x-kubernetes-validations transition rule using oldSelf.
-          Requires Kubernetes versions that support CEL transition rules.
+        description: PodNetworkInstance is the Schema for the PodNetworkInstances
+          API
         properties:
           apiVersion:
             description: |-
