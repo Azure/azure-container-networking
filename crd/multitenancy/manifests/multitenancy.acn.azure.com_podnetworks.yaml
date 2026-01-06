@@ -117,6 +117,9 @@ spec:
                 type: string
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: Spec is immutable.
+          rule: self.spec == oldSelf.spec
     served: true
     storage: true
     subresources:
