@@ -132,7 +132,25 @@ func (plugin *NetPlugin) getNetworkName(netNs string, interfaceInfo *network.Int
 func setupInfraVnetRoutingForMultitenancy(
 	_ *cni.NetworkConfig,
 	_ *cniTypesCurr.Result,
-	_ *network.EndpointInfo) {
+	epInfo *network.EndpointInfo) {
+		// as a workaround, HNS will not set this dummy default route (0.0.0.0/0, nexthop: 0.0.0.0)
+		// on interface when SkipDefaultRoutes is set to true.
+		// the only usage for this dummy default is to bypass HNS setting default route
+		// TODO: Remove this once HNS fix is ready
+		if !epInfo.SkipDefaultRoutes {
+        	return
+    	}
+
+		_, defaultIPNet, err := net.ParseCIDR("0.0.0.0/0")
+		if err != nil {
+			return
+		}
+
+		dummyRoute := network.RouteInfo{
+			Dst: *defaultIPNet,
+			Gw:  net.IPv4zero,
+		}
+		epInfo.Routes = append(epInfo.Routes, dummyRoute)
 }
 
 func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, _ network.DNSInfo) (network.DNSInfo, error) {
