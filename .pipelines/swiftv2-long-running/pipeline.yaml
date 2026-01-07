@@ -8,12 +8,6 @@ schedules:
       include:
         - master
     always: true  # Run even if there are no code changes
-  - cron: "0 */3 * * *"
-    displayName: "Run tests every 3 hours"
-    branches:
-      include:
-        - sv2-long-run-set-region
-    always: true  # Run even if there are no code changes
 
 parameters:
   - name: subscriptionId
