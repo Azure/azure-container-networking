@@ -56,7 +56,7 @@ spec:
                 type: boolean
               podIPReservationSize:
                 default: 0
-                description: Deprecated - use PodNetworks
+                description: Deprecated - use PodNetworkConfigs
                 type: integer
               podNetworkConfigs:
                 description: |-
@@ -89,7 +89,7 @@ spec:
                   type: object
                 type: array
               podnetwork:
-                description: Deprecated - use PodNetworks
+                description: Deprecated - use PodNetworkConfigs
                 type: string
             type: object
           status:
