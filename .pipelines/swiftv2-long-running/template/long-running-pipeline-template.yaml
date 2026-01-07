@@ -10,7 +10,7 @@ parameters:
     default: false
   - name: workloadType
     type: object
-    default: [ "swiftv2-linux", "swiftv2-linux-byon" ]
+    default: [ "swiftv2-linux", "swiftv2-linux-byon", "swiftv2-l1vh-accelnet-byon", "swiftv2-l1vh-infiniband-byon" ]
     displayName: "Swiftv2 scenarios to run"
 
 
@@ -142,20 +142,45 @@ stages:
                 ${{ parameters.subscriptionId }}
                 $(rgName)
                 ${{ parameters.location }}
-      - job: DeployLinuxBYON
+  - stage: DeployLinuxBYON
+    displayName: Deploy Linux BYO nodes to AKS cluster
+    dependsOn: AKSClusterAndNetworking
+    condition: succeeded()
+    jobs: 
+      - job: JoinLinuxBYONtoAKS
         displayName: "Join Linux BYON VMSS to AKS Cluster"
-        dependsOn:
-          - CreateCluster
-          - NetworkingAndStorage
         pool:
           vmImage: ubuntu-latest
         steps:
-          - checkout: self
-            displayName: "Checkout main repository"
-          - checkout: Networking-Aquarius
-            displayName: "Checkout Networking-Aquarius repository"
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download kubeconfig files"
+            inputs:
+              artifactName: kubeconfigs
+              targetPath: $(Pipeline.Workspace)/kubeconfigs
+
           - task: AzureCLI@2
-            displayName: "Deploy Linux VMSS"
+            name: DiscoverStorageAccounts
+            displayName: "Discover storage accounts"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                STORAGE_ACCOUNT_1="$(storageAccount1)"
+                STORAGE_ACCOUNT_2="$(storageAccount2)"
+                
+                if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
+                  echo "Storage account variables not set, discovering from resource group..."
+                  STORAGE_ACCOUNT_1=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa1')].name" -o tsv)
+                  STORAGE_ACCOUNT_2=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa2')].name" -o tsv)
+                  echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
+                fi
+                
+                echo "##vso[task.setvariable variable=storageAccount1;isOutput=true]$STORAGE_ACCOUNT_1"
+                echo "##vso[task.setvariable variable=storageAccount2;isOutput=true]$STORAGE_ACCOUNT_2"
+
+          - task: AzureCLI@2
+            displayName: "Assign RBAC for SAS token generation"
             inputs:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
               scriptType: bash
@@ -183,7 +208,15 @@ stages:
         ${{ if eq(workload, 'swiftv2-linux') }}:
           dependsOn: 
             - AKSClusterAndNetworking
-        ${{ else }}:
+        ${{ if eq(workload, 'swiftv2-linux-byon') }}:
           dependsOn: 
             - AKSClusterAndNetworking
             - DataPathTests_swiftv2_linux
+        ${{ if eq(workload, 'swiftv2-l1vh-accelnet-byon') }}:
+          dependsOn: 
+            - AKSClusterAndNetworking
+            - DataPathTests_swiftv2_linux-byon 
+        ${{ if eq(workload, 'swiftv2-l1vh-infiniband-byon') }}:
+          dependsOn:
+            - AKSClusterAndNetworking
+            - DataPathTests_swiftv2_-l1vh-accelnet-byon

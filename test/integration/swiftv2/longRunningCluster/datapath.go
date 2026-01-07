@@ -140,9 +140,9 @@ type VnetSubnetInfo struct {
 func isValidWorkloadType(workloadType string) bool {
 	validTypes := []string{
 		"swiftv2-linux",
-		"swiftv2-windows",
 		"swiftv2-linux-byon",
-		"swiftv2-windows-byon",
+		"swiftv2-l1vh-accelnet-byon",
+		"swiftv2-l1vh-infiniband-byon",
 	}
 
 	for _, validType := range validTypes {
