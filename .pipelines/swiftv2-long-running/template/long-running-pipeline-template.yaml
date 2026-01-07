@@ -215,8 +215,8 @@ stages:
         ${{ if eq(workload, 'swiftv2-l1vh-accelnet-byon') }}:
           dependsOn: 
             - AKSClusterAndNetworking
-            - DataPathTests_swiftv2_linux-byon 
+            - DataPathTests_swiftv2_linux_byon 
         ${{ if eq(workload, 'swiftv2-l1vh-infiniband-byon') }}:
           dependsOn:
             - AKSClusterAndNetworking
-            - DataPathTests_swiftv2_-l1vh-accelnet-byon
+            - DataPathTests_swiftv2_l1vh_accelnet_byon
