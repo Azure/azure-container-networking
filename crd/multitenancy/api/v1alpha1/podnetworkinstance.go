@@ -55,10 +55,10 @@ type PodNetworkConfig struct {
 
 // PodNetworkInstanceSpec defines the desired state of PodNetworkInstance
 type PodNetworkInstanceSpec struct {
-	// Deprecated - use PodNetworks
+	// Deprecated - use PodNetworkConfigs
 	// +kubebuilder:validation:Optional
 	PodNetwork string `json:"podnetwork,omitempty"`
-	// Deprecated - use PodNetworks
+	// Deprecated - use PodNetworkConfigs
 	// +kubebuilder:default=0
 	PodIPReservationSize int `json:"podIPReservationSize,omitempty"`
 	// PodNetworkConfigs describes each PodNetwork to attach to a single Pod
