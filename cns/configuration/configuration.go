@@ -89,6 +89,10 @@ type TelemetrySettings struct {
 	ConfigSnapshotIntervalInMins int
 	// AppInsightsInstrumentationKey allows the user to override the default appinsights ikey
 	AppInsightsInstrumentationKey string
+	// Flag to enable CNI telemetry collection via sidecar
+	EnableCNITelemetry bool
+	// Path to the CNI telemetry socket file that azure-vnet CNI connects to
+	CNITelemetrySocketPath string
 }
 
 type ManagedSettings struct {
