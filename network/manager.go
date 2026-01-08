@@ -546,7 +546,7 @@ func (nm *networkManager) DeleteEndpointStateless(networkID string, epInfo *Endp
 	}
 	logger.Info("Deleting endpoint with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", ep.HnsId))
 
-	err := nw.deleteEndpointImpl(nm.netlink, nm.plClient, nil, nm.netio, nm.nsClient, nm.iptablesClient, nm.dhcpClient, ep)
+	err := nw.deleteEndpointImpl(nm.netlink, nm.plClient, nil, nm.netio, nm.nsClient, nm.iptablesClient, nm.dhcpClient, ep, nw.Mode)
 	if err != nil {
 		return err
 	}
@@ -752,7 +752,7 @@ func (nm *networkManager) GetEndpointID(containerID, ifName string) string {
 
 // GetEndpointIDByNicType returns a unique endpoint ID based on the CNI mode and NIC type.
 func (nm *networkManager) GetEndpointIDByNicType(containerID, ifName string, nicType cns.NICType) string {
-	// For stateless CNI, secondary NICs use containerID-ifName as endpointID.
+	// For stateless CNI, secondary NICs use #containerID-#ifName as endpointID such as 12345678-eth1
 	if nm.IsStatelessCNIMode() && nicType != cns.InfraNIC {
 		return containerID + "-" + ifName
 	}

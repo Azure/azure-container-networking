@@ -1050,7 +1050,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			// container runtime tries to delete and create pods which existed before reboot.
 			// this error will not apply to stateless CNI since the network struct will be crated on Delete calls
 			if !plugin.nm.IsStatelessCNIMode() {
-				logger.Info("Failed to query network",
+				logger.Error("Failed to query network",
 					zap.String("network", networkID),
 					zap.Error(err))
 			}

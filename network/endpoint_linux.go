@@ -551,27 +551,16 @@ func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(_ []net.IPNet, _ string) (*E
 
 // getEndpointInfoByIfNameImpl returns an array of EndpointInfo for the given endpoint based on the IfName(s) found in the network namespace.
 func (nm *networkManager) getEndpointInfoByIfNameImpl(epID, netns, infraNicName string) ([]*EndpointInfo, error) {
-	epInfo := &EndpointInfo{
-		EndpointID: epID,
-		NetNsPath:  netns,
-		NICType:    cns.InfraNIC,
-		IfName:     infraNicName,
-	}
-	ret := []*EndpointInfo{}
-	ret = append(ret, epInfo)
 	logger.Info("Fetching Secondary Endpoint from", zap.String("NetworkNameSpace", netns))
 	secondaryepClient := NewSecondaryEndpointClient(nil, nil, nil, nm.nsClient, nil, nil)
-	ifnames, err := secondaryepClient.FetchInterfacesFromNetnsPath(infraNicName, netns)
+	ret, err := secondaryepClient.FetchInterfacesFromNetnsPath(infraNicName, netns)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch secondary interfaces")
 	}
 	// appending all secondary interfaces found in the netns to the return slice
-	for _, ifName := range ifnames {
-		ret = append(ret, &EndpointInfo{
-			NetNsPath: netns,
-			IfName:    ifName,
-			NICType:   cns.NodeNetworkInterfaceFrontendNIC,
-		})
+	for _, epinfo := range ret {
+		epinfo.EndpointID = epID
+		logger.Info("Fetched EndpointInfo", zap.Any("EndpointInfo", epinfo))
 	}
 	return ret, nil
 }
