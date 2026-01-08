@@ -113,7 +113,7 @@ func (v *Validator) Validate(ctx context.Context) error {
 }
 
 func (v *Validator) ValidateNetworkdRestart(ctx context.Context) error {
-	// We are restarting the systmemd network and checking that the connectivity works after the restart. For more details: https://github.com/cilium/cilium/issues/18706
+	// We are restarting the systemd network and checking that the connectivity works after the restart. For more details: https://github.com/cilium/cilium/issues/18706
 	err := v.validateRestartNetwork(ctx)
 	if err != nil {
 		return err
