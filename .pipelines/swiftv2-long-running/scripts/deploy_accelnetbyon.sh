@@ -24,11 +24,16 @@ create_l1vh_vmss() {
   local vmss_sku=$3
   local nic_count=$4
   local TIP_ARG1=$5
-  local log_file="./l1vh-script-${node_name}.log"
+  local original_dir=$(pwd)
+  local log_file="${original_dir}/l1vh-script-${node_name}.log"
 
   echo "Calling l1vhwindows.sh for $node_name..."
   set +e
-  bash ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/l1vhwindows.sh \
+  
+  # Change to Networking-Aquarius directory so relative paths work
+  pushd ${BUILD_SOURCE_DIR}/Networking-Aquarius > /dev/null
+  
+  bash .pipelines/singularity-runner/byon/l1vhwindows.sh \
     -l $REGION \
     -r $RESOURCE_GROUP \
     -s $SUBSCRIPTION_ID \
@@ -44,6 +49,8 @@ create_l1vh_vmss() {
     -x "l1vhstandalonestorage" \
     2>&1 | tee "$log_file"
   local exit_code=$?
+  
+  popd > /dev/null
   set -e
   
   if [[ $exit_code -ne 0 ]]; then
