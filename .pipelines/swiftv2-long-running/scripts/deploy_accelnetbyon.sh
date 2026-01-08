@@ -82,6 +82,7 @@ label_vmss_nodes() {
 
 cluster_index=0
 for cluster_name in $cluster_names; do
+  az identity create --name "aksbootstrap" --resource-group $RESOURCE_GROUP
   az aks get-credentials --resource-group $RESOURCE_GROUP --name $cluster_name --file ./kubeconfig-${cluster_name}.yaml --overwrite-existing -a || exit 1
   bash ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/parse.sh -k ./kubeconfig-${cluster_name}.yaml -p ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/pws.ps1
 
