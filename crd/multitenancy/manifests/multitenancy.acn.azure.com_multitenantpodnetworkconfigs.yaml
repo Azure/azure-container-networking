@@ -129,6 +129,11 @@ spec:
                     primaryIP:
                       description: PrimaryIP is the ip allocated to the network container
                       type: string
+                    sharedNic:
+                      description: |-
+                        SharedNIC is a field for prefixblock mode,
+                        it determines if CNI will need to keep this NIC in the pod / node namespace
+                      type: boolean
                     subnetAddressSpace:
                       description: SubnetAddressSpace is the subnet address space
                         of the injected subnet

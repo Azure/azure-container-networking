@@ -110,6 +110,10 @@ type InterfaceInfo struct {
 	// IBStatus is the programming status of the infiniband device
 	// +kubebuilder:validation:Optional
 	IBStatus InfinibandStatus `json:"ibStatus,omitempty"`
+	// SharedNIC is a field for prefixblock mode,
+	// it determines if CNI will need to keep this NIC in the pod / node namespace
+	// +kubebuilder:validation:Optional
+	SharedNIC bool `json:"sharedNic,omitempty"`
 }
 
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig
