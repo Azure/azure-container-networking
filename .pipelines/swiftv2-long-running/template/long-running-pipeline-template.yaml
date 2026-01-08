@@ -145,7 +145,7 @@ stages:
   - stage: DeployLinuxBYON
     displayName: Deploy Linux BYO nodes to AKS cluster
     dependsOn: AKSClusterAndNetworking
-    condition: succeeded()
+    condition: and(eq(${{ parameters.runSetupStages }}, true), succeeded())
     jobs: 
       - job: JoinLinuxBYONtoAKS
         displayName: "Join Linux BYON VMSS to AKS Cluster"
@@ -174,7 +174,7 @@ stages:
   - stage: DeployAccelnetBYON
     displayName: Deploy Accelnet BYO nodes to AKS cluster
     dependsOn: AKSClusterAndNetworking
-    condition: succeeded()
+    condition: and(eq(${{ parameters.runSetupStages }}, true), succeeded())
     jobs: 
       - job: JoinAccelnetBYONtoAKS
         displayName: "Join Accelnet BYON VMSS to AKS Cluster"
