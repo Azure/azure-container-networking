@@ -783,10 +783,10 @@ func (nm *networkManager) DeleteState(epInfos []*EndpointInfo) error {
 	logger.Info("Deleting state")
 
 	// For AKS stateless cni, plugin.ipamInvoker.Delete takes care of removing the state in the main Delete function.
-	// For swiftv2 stateless cni, this call will delete the endpoint state from CNS.
-	if nm.IsStatelessCNIMode() {
+	// For swiftv2 stateless cni in Windows, this call will delete the endpoint state from CNS.
+	if nm.IsStatelessCNIMode() && platform.GetOSInfo() == "windows" {
 		for _, epInfo := range epInfos {
-			// this cleanup happens only for standalone swiftv2 to delete endpoint state from CNS.
+			// this cleanup happens only for standalone swiftv2 Windows to delete endpoint state from CNS.
 			if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC || epInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
 				// swiftv2 multitenancy does not call plugin.ipamInvoker.Delete and so state does not automatically clean up. this call is required to
 				// cleanup state in CNS

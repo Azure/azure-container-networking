@@ -178,9 +178,8 @@ func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	})
 }
 
-// FetchInterfacesFromNetnsPath finds all interfaces from the specified netns path except non-eth interfaces
-//
-//	and return slice of EndpointInfo that includes interface name, NICType, netnspath and IP addresses.
+// FetchInterfacesFromNetnsPath finds all interfaces from the specified netns path except non-eth interfaces,
+// and return slice of EndpointInfo that includes interface name, NICType, netnspath and IP addresses.
 func (client *SecondaryEndpointClient) FetchInterfacesFromNetnsPath(infraInterfaceName, netnspath string) ([]*EndpointInfo, error) {
 	result := []*EndpointInfo{}
 	err := client.ExecuteInNS(netnspath, func(vmns int) error {

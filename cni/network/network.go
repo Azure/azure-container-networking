@@ -1117,23 +1117,12 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		// Delegated/secondary nic ips are statically allocated so we don't need to release
 		// Call into IPAM plugin to release the endpoint's addresses.
 		if !nwCfg.MultiTenancy && (epInfo.NICType == cns.InfraNIC || epInfo.NICType == "") {
-			// This is an special case for stateless CNI when Asynchronous DEL to CNS will take place for SwiftV2 after the endpointinfo is recreated locally
-			// At this point the endpoint is already deleted and since it is created locally the IPAddress is nil. CNS will release the IP asynchronously whenever it is up
-			if epInfo.IPAddresses == nil && plugin.nm.IsStatelessCNIMode() && !nwCfg.DisableAsyncDelete {
-				logger.Warn("Release ip Asynchronously by CNS",
-					zap.String("containerID", args.ContainerID))
-				telemetryClient.SendEvent(fmt.Sprintf("Release ip for container id: %s asynchronously", args.ContainerID))
-				if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
-					return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
-				}
-			} else {
-				for i := range epInfo.IPAddresses {
-					logger.Info("Release ip", zap.String("ip", epInfo.IPAddresses[i].IP.String()))
-					telemetryClient.SendEvent(fmt.Sprintf("Release ip: %s container id: %s endpoint id: %s", epInfo.IPAddresses[i].IP.String(), args.ContainerID, epInfo.EndpointID))
-					err = plugin.ipamInvoker.Delete(&epInfo.IPAddresses[i], nwCfg, args, nwInfo.Options)
-					if err != nil {
-						return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
-					}
+			for i := range epInfo.IPAddresses {
+				logger.Info("Release ip", zap.String("ip", epInfo.IPAddresses[i].IP.String()))
+				telemetryClient.SendEvent(fmt.Sprintf("Release ip: %s container id: %s endpoint id: %s", epInfo.IPAddresses[i].IP.String(), args.ContainerID, epInfo.EndpointID))
+				err = plugin.ipamInvoker.Delete(&epInfo.IPAddresses[i], nwCfg, args, nwInfo.Options)
+				if err != nil {
+					return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
 				}
 			}
 		} else if epInfo.EnableInfraVnet { // remove in future PR
