@@ -10,7 +10,7 @@ parameters:
     default: false
   - name: workloadType
     type: object
-    default: [ "swiftv2-linux", "swiftv2-linux-byon", "swiftv2-l1vh-accelnet-byon", "swiftv2-l1vh-infiniband-byon" ]
+    default: [ "swiftv2-linux", "swiftv2-linux-byon", "swiftv2-l1vh-accelnet-byon" ] #"swiftv2-l1vh-infiniband-byon"
     displayName: "Swiftv2 scenarios to run"
 
 
