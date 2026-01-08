@@ -5,7 +5,6 @@ RESOURCE_GROUP=$1
 REGION=$2
 BUILD_SOURCE_DIR=$3
 SUBSCRIPTION_ID=$(az account show --query id -o tsv)
-BICEP_TEMPLATE_PATH="${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/linux.bicep"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/byon_helper.sh"
@@ -25,7 +24,10 @@ create_l1vh_vmss() {
   local vmss_sku=$3
   local nic_count=$4
   local TIP_ARG1=$5
+  local log_file="./l1vh-script-${node_name}.log"
 
+  echo "Calling l1vhwindows.sh for $node_name..."
+  set +e
   bash ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/l1vhwindows.sh \
     -l $REGION \
     -r $RESOURCE_GROUP \
@@ -40,7 +42,19 @@ create_l1vh_vmss() {
     -q "vmssstandalonepwd" \
     -p "vmbiceppwd" \
     -x "l1vhstandalonestorage" \
-    > ./script1.log 2>&1
+    2>&1 | tee "$log_file"
+  local exit_code=$?
+  set -e
+  
+  if [[ $exit_code -ne 0 ]]; then
+    echo "##vso[task.logissue type=error]L1VH VMSS creation failed for $node_name with exit code $exit_code"
+    echo "Log file contents:"
+    cat "$log_file" || true
+    exit 1
+  fi
+  
+  echo "L1VH script completed for $node_name"
+  check_vmss_exists "$RESOURCE_GROUP" "$node_name" || exit 1
 }
 
 label_vmss_nodes() {
