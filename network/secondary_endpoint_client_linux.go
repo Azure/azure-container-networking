@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -177,32 +178,48 @@ func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	})
 }
 
-// FetchInterfacesFromNetnsPath finds all interfaces from the specified netns path except the infra and non-eth interfaces.
-func (client *SecondaryEndpointClient) FetchInterfacesFromNetnsPath(infraInterfaceName, netnspath string) ([]string, error) {
-	var result []string
-
+// FetchInterfacesFromNetnsPath finds all interfaces from the specified netns path except non-eth interfaces
+//
+//	and return slice of EndpointInfo that includes interface name, NICType, netnspath and IP addresses.
+func (client *SecondaryEndpointClient) FetchInterfacesFromNetnsPath(infraInterfaceName, netnspath string) ([]*EndpointInfo, error) {
+	result := []*EndpointInfo{}
 	err := client.ExecuteInNS(netnspath, func(vmns int) error {
 		// Use the netlink API to list links
 		links, err := vishnetlink.LinkList()
 		if err != nil {
 			return newErrorSecondaryEndpointClient(err)
 		}
-
-		ifnames := make([]string, 0, len(links))
+		ret := []*EndpointInfo{}
 		for _, l := range links {
-			ifnames = append(ifnames, l.Attrs().Name)
-		}
-
-		ret := make([]string, 0, len(ifnames))
-		// Filter out infra interface and non-eth interfaces
-		for _, iface := range ifnames {
-			if iface == infraInterfaceName || !strings.HasPrefix(iface, "eth") {
+			ifname := l.Attrs().Name
+			// Filter out infra interface and non-eth interfaces
+			if !strings.HasPrefix(ifname, "eth") {
 				continue
 			}
-			ret = append(ret, iface)
-		}
+			// Now safely get addresses
+			addrs, err := vishnetlink.AddrList(l, vishnetlink.FAMILY_ALL)
+			if err != nil {
+				return newErrorSecondaryEndpointClient(err)
+			}
+			ipAddresses := make([]net.IPNet, 0, len(addrs))
+			for _, addr := range addrs {
+				ipAddresses = append(ipAddresses, *addr.IPNet)
+				logger.Info("Found address in netns", zap.String("IfName", ifname), zap.String("Address", addr.IPNet.String()))
+			}
 
-		logger.Info("Found interfaces in netns that needs to be moved back to host", zap.Any("interfaces", ret), zap.Int("vmns", vmns))
+			epInfo := &EndpointInfo{
+				NetNsPath:   netnspath,
+				IfName:      ifname,
+				IPAddresses: ipAddresses,
+			}
+			if ifname == infraInterfaceName {
+				epInfo.NICType = cns.InfraNIC
+			} else {
+				epInfo.NICType = cns.NodeNetworkInterfaceFrontendNIC
+			}
+			ret = append(ret, epInfo)
+		}
+		logger.Info("Found interfaces in netns", zap.Any("interfaces", ret), zap.Int("vmns", vmns))
 		result = ret
 		return nil
 	})

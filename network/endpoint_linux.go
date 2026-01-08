@@ -140,7 +140,7 @@ func (nw *network) newEndpointImpl(
 	if epClient == nil {
 		//nolint:gocritic
 		if vlanid != 0 {
-			if nw.Mode == opModeTransparentVlan {
+			if epInfo.Mode == opModeTransparentVlan {
 				logger.Info("Transparent vlan client")
 				if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
 					nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
@@ -164,15 +164,15 @@ func (nw *network) newEndpointImpl(
 					plc,
 					iptc)
 			}
-		} else if nw.Mode != opModeTransparent {
+		} else if epInfo.Mode != opModeTransparent {
 			logger.Info("Bridge client")
-			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
+			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, epInfo.Mode, nl, plc)
 		} else if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 			logger.Info("Secondary client")
 			epClient = NewSecondaryEndpointClient(nl, netioCli, plc, nsc, dhcpclient, ep)
 		} else {
 			logger.Info("Transparent client")
-			epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, netioCli, plc)
+			epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, epInfo.Mode, nl, netioCli, plc)
 		}
 	}
 
@@ -267,7 +267,7 @@ func (nw *network) newEndpointImpl(
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
 func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, epClient EndpointClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface,
-	iptc ipTablesClient, dhcpc dhcpClient, ep *endpoint,
+	iptc ipTablesClient, dhcpc dhcpClient, ep *endpoint, mode string,
 ) error {
 	// Delete the veth pair by deleting one of the peer interfaces.
 	// Deleting the host interface is more convenient since it does not require
@@ -278,13 +278,13 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 		//nolint:gocritic
 		if ep.VlanID != 0 {
 			epInfo := ep.getInfo()
-			if nw.Mode == opModeTransparentVlan {
+			if mode == opModeTransparentVlan {
 				epClient = NewTransparentVlanEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, plc, nsc, iptc)
 			} else {
 				epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc, iptc)
 			}
-		} else if nw.Mode != opModeTransparent {
-			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
+		} else if mode != opModeTransparent {
+			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", mode, nl, plc)
 		} else {
 			// delete if secondary interfaces populated or endpoint of type delegated (new way)
 			if len(ep.SecondaryInterfaces) > 0 || ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
@@ -298,7 +298,7 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 				}
 			}
 
-			epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, nioc, plc)
+			epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", mode, nl, nioc, plc)
 		}
 	}
 
@@ -551,27 +551,16 @@ func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(_ []net.IPNet, _ string) (*E
 
 // getEndpointInfoByIfNameImpl returns an array of EndpointInfo for the given endpoint based on the IfName(s) found in the network namespace.
 func (nm *networkManager) getEndpointInfoByIfNameImpl(epID, netns, infraNicName string) ([]*EndpointInfo, error) {
-	epInfo := &EndpointInfo{
-		EndpointID: epID,
-		NetNsPath:  netns,
-		NICType:    cns.InfraNIC,
-		IfName:     infraNicName,
-	}
-	ret := []*EndpointInfo{}
-	ret = append(ret, epInfo)
 	logger.Info("Fetching Secondary Endpoint from", zap.String("NetworkNameSpace", netns))
 	secondaryepClient := NewSecondaryEndpointClient(nil, nil, nil, nm.nsClient, nil, nil)
-	ifnames, err := secondaryepClient.FetchInterfacesFromNetnsPath(infraNicName, netns)
+	ret, err := secondaryepClient.FetchInterfacesFromNetnsPath(infraNicName, netns)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch secondary interfaces")
 	}
 	// appending all secondary interfaces found in the netns to the return slice
-	for _, ifName := range ifnames {
-		ret = append(ret, &EndpointInfo{
-			NetNsPath: netns,
-			IfName:    ifName,
-			NICType:   cns.NodeNetworkInterfaceFrontendNIC,
-		})
+	for _, epinfo := range ret {
+		epinfo.EndpointID = epID
+		logger.Info("Fetched EndpointInfo", zap.Any("EndpointInfo", epinfo))
 	}
 	return ret, nil
 }

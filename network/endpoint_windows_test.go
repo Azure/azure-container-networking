@@ -108,7 +108,7 @@ func TestDeleteEndpointImplHnsV2ForIB(t *testing.T) {
 
 	mockCli := NewMockEndpointClient(nil)
 	err := nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli,
-		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, &ep)
+		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, &ep, "")
 	if err != nil {
 		t.Fatal("endpoint deletion for IB is executed")
 	}
@@ -136,7 +136,7 @@ func TestDeleteEndpointImplHnsV2WithEmptyHNSID(t *testing.T) {
 	// should return nil because HnsID is empty
 	mockCli := NewMockEndpointClient(nil)
 	err := nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli,
-		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, &ep)
+		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, &ep, "")
 	if err != nil {
 		t.Fatal("endpoint deletion gets executed")
 	}
@@ -565,7 +565,7 @@ func TestCreateAndDeleteEndpointImplHnsv2ForDelegatedHappyPath(t *testing.T) {
 
 	mockCli := NewMockEndpointClient(nil)
 	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli,
-		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, ep)
+		netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &mockDHCP{}, ep, "")
 	if err != nil {
 		t.Fatalf("Failed to delete endpoint for Delegated NIC due to %v", err)
 	}
@@ -668,13 +668,13 @@ func TestDeleteEndpointStateForInfraDelegatedNIC(t *testing.T) {
 
 	// mock DeleteEndpointStateless() to make sure endpoint and network is deleted from cache
 	// network and endpoint should be deleted from cache for delegatedNIC
-	err = nm.DeleteEndpointStateless(networkID, delegatedEpInfo)
+	err = nm.DeleteEndpointStateless(networkID, delegatedEpInfo, "")
 	if err != nil {
 		t.Fatalf("Failed to delete endpoint for delegatedNIC state due to %v", err)
 	}
 
 	// endpoint should be deleted from cache for delegatedNIC and network is still there
-	err = nm.DeleteEndpointStateless(infraNetworkID, infraEpInfo)
+	err = nm.DeleteEndpointStateless(infraNetworkID, infraEpInfo, "")
 	if err != nil {
 		t.Fatalf("Failed to delete endpoint for delegatedNIC state due to %v", err)
 	}

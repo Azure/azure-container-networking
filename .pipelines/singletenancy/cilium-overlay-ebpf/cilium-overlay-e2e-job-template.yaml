@@ -10,6 +10,7 @@ parameters:
 
 stages:
   - stage: ${{ parameters.clusterName }}
+    condition: and(succeeded(), not(or(startsWith(variables['CILIUM_VERSION_TAG'], 'v1.13'), startsWith(variables['CILIUM_VERSION_TAG'], 'v1.14'), startsWith(variables['CILIUM_VERSION_TAG'], 'v1.15'), startsWith(variables['CILIUM_VERSION_TAG'], 'v1.16'))))
     displayName: Create Cluster - ${{ parameters.displayName }}
     dependsOn:
       - ${{ parameters.dependsOn }}
@@ -32,6 +33,7 @@ stages:
           region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
+    condition: and(succeeded(), not(or(startsWith(variables['CILIUM_VERSION_TAG'], 'v1.13'), startsWith(variables['CILIUM_VERSION_TAG'], 'v1.14'), startsWith(variables['CILIUM_VERSION_TAG'], 'v1.15'), startsWith(variables['CILIUM_VERSION_TAG'], 'v1.16'))))
     displayName: E2E - ${{ parameters.displayName }}
     dependsOn:
     - setup

@@ -93,34 +93,19 @@ stages:
                   if [ ! -z ${{ parameters.dualstackVersion }} ]; then
                     echo "Use dualstack version of Cilium"
                     export CILIUM_VERSION_TAG=${{ parameters.dualstackVersion }}
-                  fi
-
-                  echo "install Cilium ${CILIUM_VERSION_TAG}"
-                  export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-                  echo "installing files from ${DIR}"
-
-                  echo "deploy Cilium ConfigMap"
-                  if [ ! -z ${{ parameters.dualstackVersion }} ]; then
-                    echo "Use dualstack configmap for Cilium"
-                    kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-dualstack.yaml
-                  else
-                    kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
-                  fi
-
-                  # Passes Cilium image to daemonset and deployment
-                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
-                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
-
-                  if [ ! -z ${{ parameters.dualstackVersion }} ]; then
-                    echo "Use dualstack daemonset for Cilium"
+                    export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
                     export IPV6_IMAGE_REGISTRY=acnpublic.azurecr.io
                     export IPV6_HP_BPF_VERSION=$(make ipv6-hp-bpf-version)
-                    envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
+                    echo "IPV6_HP_BPF_VERSION: $IPV6_HP_BPF_VERSION"
+                    echo "IPV6_IMAGE_REGISTRY: $IPV6_IMAGE_REGISTRY"
+                    echo "installing cilium dualstack version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+                    make -C ./hack/aks deploy-cilium-dualstack
                   else
-                    envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+                    export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
+                    echo "installing cilium version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+                    make -C ./hack/aks deploy-cilium
                   fi
 
-                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
 
       - ${{if eq(parameters.hubbleEnabled, true)}}:
@@ -146,12 +131,8 @@ stages:
                   echo "install Cilium onto Overlay Cluster with hubble enabled"
                   export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
                   export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-                  echo "installing files from ${DIR}"
-                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
-                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
-                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
-                  envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
-                  envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+                  echo "installing cilium hubble version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+                  make -C ./hack/aks deploy-cilium-hubble
                   kubectl get po -owide -A
 
       - job: deploy_cns_and_ipam

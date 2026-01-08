@@ -108,7 +108,7 @@ type NetworkManager interface {
 
 	CreateEndpoint(client apipaClient, networkID string, epInfo *EndpointInfo) error
 	EndpointCreate(client apipaClient, epInfos []*EndpointInfo) error // TODO: change name
-	DeleteEndpoint(networkID string, endpointID string, epInfo *EndpointInfo) error
+	DeleteEndpoint(networkID string, endpointID string, epInfo *EndpointInfo, mode string) error
 	GetEndpointInfo(networkID string, endpointID string) (*EndpointInfo, error)
 	GetAllEndpoints(networkID string) (map[string]*EndpointInfo, error)
 	GetEndpointInfoBasedOnPODDetails(networkID string, podName string, podNameSpace string, doExactMatchForPodName bool) (*EndpointInfo, error)
@@ -399,7 +399,7 @@ func (nm *networkManager) createEndpoint(cli apipaClient, networkID string, epIn
 		if err != nil {
 			logger.Error("Create endpoint failure", zap.Error(err))
 			logger.Info("Cleanup resources")
-			delErr := nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, nm.dhcpClient, ep.Id)
+			delErr := nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, nm.dhcpClient, ep.Id, epInfo.Mode)
 			if delErr != nil {
 				logger.Error("Deleting endpoint after create endpoint failure failed with", zap.Error(delErr))
 			}
@@ -488,13 +488,13 @@ func (nm *networkManager) GetEndpointState(networkID, containerID, netns string)
 }
 
 // DeleteEndpoint deletes an existing container endpoint.
-func (nm *networkManager) DeleteEndpoint(networkID, endpointID string, epInfo *EndpointInfo) error {
+func (nm *networkManager) DeleteEndpoint(networkID, endpointID string, epInfo *EndpointInfo, mode string) error {
 	nm.Lock()
 	defer nm.Unlock()
 
 	if nm.IsStatelessCNIMode() {
 		// Calls deleteEndpointImpl directly, skipping the get network check; does not call cns
-		return nm.DeleteEndpointStateless(networkID, epInfo)
+		return nm.DeleteEndpointStateless(networkID, epInfo, mode)
 	}
 
 	nw, err := nm.getNetwork(networkID)
@@ -502,7 +502,7 @@ func (nm *networkManager) DeleteEndpoint(networkID, endpointID string, epInfo *E
 		return err
 	}
 
-	err = nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, nm.dhcpClient, endpointID)
+	err = nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, nm.dhcpClient, endpointID, mode)
 	if err != nil {
 		return err
 	}
@@ -510,7 +510,7 @@ func (nm *networkManager) DeleteEndpoint(networkID, endpointID string, epInfo *E
 	return nil
 }
 
-func (nm *networkManager) DeleteEndpointStateless(networkID string, epInfo *EndpointInfo) error {
+func (nm *networkManager) DeleteEndpointStateless(networkID string, epInfo *EndpointInfo, mode string) error {
 	// we want to always use hnsv2 in stateless
 	// hnsv2 is only enabled if NetNs has a valid guid and the hnsv2 api is supported
 	// by passing in a dummy guid, we satisfy the first condition
@@ -546,7 +546,7 @@ func (nm *networkManager) DeleteEndpointStateless(networkID string, epInfo *Endp
 	}
 	logger.Info("Deleting endpoint with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", ep.HnsId))
 
-	err := nw.deleteEndpointImpl(nm.netlink, nm.plClient, nil, nm.netio, nm.nsClient, nm.iptablesClient, nm.dhcpClient, ep)
+	err := nw.deleteEndpointImpl(nm.netlink, nm.plClient, nil, nm.netio, nm.nsClient, nm.iptablesClient, nm.dhcpClient, ep, nw.Mode)
 	if err != nil {
 		return err
 	}
@@ -752,7 +752,7 @@ func (nm *networkManager) GetEndpointID(containerID, ifName string) string {
 
 // GetEndpointIDByNicType returns a unique endpoint ID based on the CNI mode and NIC type.
 func (nm *networkManager) GetEndpointIDByNicType(containerID, ifName string, nicType cns.NICType) string {
-	// For stateless CNI, secondary NICs use containerID-ifName as endpointID.
+	// For stateless CNI, secondary NICs use #containerID-#ifName as endpointID such as 12345678-eth1
 	if nm.IsStatelessCNIMode() && nicType != cns.InfraNIC {
 		return containerID + "-" + ifName
 	}
