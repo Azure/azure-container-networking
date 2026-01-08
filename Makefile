@@ -921,8 +921,14 @@ test-load: ## run all load tests
 		CNS_VERSION=$(CNS_VERSION) \
 		go test -timeout 40m -race -tags=load ./test/integration/load... -v
 
+test-validate: test-validate-state test-validate-networkd-restart
+
 test-validate-state:
 	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load --skip 'TestE2E*' -run ^TestValidateState
+	cd ../../..
+
+test-validate-networkd-restart:
+	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load --skip 'TestE2E*' -run ^TestValidateNetworkdRestart
 	cd ../../..
 
 test-cyclonus: ## run the cyclonus test for npm.

@@ -103,12 +103,20 @@ func (v *Validator) Validate(ctx context.Context) error {
 	}
 
 	if v.os == "linux" {
-		// We are restarting the systmemd network and checking that the connectivity works after the restart. For more details: https://github.com/cilium/cilium/issues/18706
 		log.Printf("Validating the restart network scenario")
-		err = v.validateRestartNetwork(ctx)
+		err = v.ValidateNetworkdRestart(ctx)
 		if err != nil {
 			return errors.Wrapf(err, "failed to validate restart network scenario")
 		}
+	}
+	return nil
+}
+
+func (v *Validator) ValidateNetworkdRestart(ctx context.Context) error {
+	// We are restarting the systmemd network and checking that the connectivity works after the restart. For more details: https://github.com/cilium/cilium/issues/18706
+	err := v.validateRestartNetwork(ctx)
+	if err != nil {
+		return err
 	}
 	return nil
 }
