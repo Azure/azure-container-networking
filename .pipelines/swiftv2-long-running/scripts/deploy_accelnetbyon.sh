@@ -14,8 +14,8 @@ tip_session_ids=(8fe6f0f9-1476-4c8c-8945-c16300e557a9 8fe6f0f9-1476-4c8c-8945-c1
 
 # Define VMSS configurations: node_prefix, sku, nic_count, node_count
 vmss_configs=(
-  "accelnet-highnic:Standard_D16s_v3:7:2"
-  "accelnet-default:Standard_D8s_v3:2:2"
+  "acl-high:Standard_D16s_v3:7:2"
+  "acl-def:Standard_D8s_v3:2:2"
 )
 
 create_l1vh_vmss() {
@@ -93,7 +93,7 @@ for cluster_name in $cluster_names; do
   for config in "${vmss_configs[@]}"; do
     IFS=':' read -r node_prefix vmss_sku nic_count node_count <<< "$config"
     for ((i=0; i<node_count; i++)); do
-      node_name="${cluster_name}-${node_prefix}${i}"
+      node_name="${node_prefix}${i}"
       tip_index=$((tip_base_index + tip_offset))
       tip_session_id="${tip_session_ids[$tip_index]}"
       
