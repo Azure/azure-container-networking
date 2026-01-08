@@ -79,7 +79,8 @@ spec:
                 type: string
               subnetAllocationMode:
                 default: Single
-                description: subnet allocation mode
+                description: SubnetAllocationMode is the mode chosen by user for subnet
+                  allocation
                 enum:
                 - Single
                 - PrefixBlock

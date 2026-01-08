@@ -70,7 +70,7 @@ type PodNetworkSpec struct {
 	// Deprecated - Use NetworkID
 	// +kubebuilder:validation:Optional
 	VnetGUID string `json:"vnetGUID,omitempty"`
-	// subnet allocation mode
+	// SubnetAllocationMode is the mode chosen by user for subnet allocation
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=Single
 	SubnetAllocationMode SubnetAllocationMode `json:"subnetAllocationMode,omitempty"`
