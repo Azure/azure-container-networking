@@ -9,7 +9,7 @@ steps:
       echo "expect the identities to be deleted when the namespace is deleted"
       kubectl get ciliumidentity | grep cilium-test
 
-      make test-validate-state
+      make test-validate
 
       echo "delete cilium connectivity test resources and re-validate state"
       for namespace in ${ciliumNamespace}; do

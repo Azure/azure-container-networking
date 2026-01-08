@@ -36,7 +36,7 @@ steps:
     - script: |
         echo "Start Integration Tests on Overlay Cluster"
         kubectl get po -owide -A
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true VALIDATE_NETWORKDRESTART=true INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
       retryCountOnTaskFailure: 2
       name: "integrationTest"
       displayName: "Run CNS Integration Tests on AKS Overlay"
@@ -57,26 +57,12 @@ steps:
           done
       displayName: "Restart Nodes"
 
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-        scriptLocation: "inlineScript"
-        scriptType: "bash"
-        addSpnToEnvironment: true
-        inlineScript: |
-          set -e
-          cd test/integration/load
-
-          # Scale Cluster Up/Down to confirm functioning CNS
-          ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-          kubectl get pods -owide -A
-
-          cd ../../..
-          echo "Validating Node Restart"
-          make test-validate-state OS_TYPE=linux RESTART_CASE=true CNI_TYPE=cniv2
-          kubectl delete ns load-test
-      displayName: "Validate Node Restart"
-      retryCountOnTaskFailure: 3
+    - template: ../../templates/validate-tests.yaml
+      parameters:
+        validate: "nodeRestart"
+        cni: "cniv2"
+        os: ${{ parameters.os }}
+        scaleup: ${{ parameters.scaleup }}
 
     - script: |
         echo "Run wireserver and metadata connectivity Tests"
@@ -123,23 +109,9 @@ steps:
           done
       displayName: "Restart Nodes"
 
-    - task: AzureCLI@1
-      inputs:
-        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-        scriptLocation: "inlineScript"
-        scriptType: "bash"
-        addSpnToEnvironment: true
-        inlineScript: |
-          set -e
-          cd test/integration/load
-
-          # Scale Cluster Up/Down to confirm functioning CNS
-          ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=windows go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-          kubectl get pods -owide -A
-
-          cd ../../..
-          echo "Validating Node Restart"
-          make test-validate-state OS_TYPE=windows RESTART_CASE=true CNI_TYPE=cniv2
-          kubectl delete ns load-test
-      displayName: "Validate Node Restart"
-      retryCountOnTaskFailure: 3
+    - template: ../../templates/validate-tests.yaml
+      parameters:
+        validate: "nodeRestart"
+        cni: "cniv2"
+        os: ${{ parameters.os }}
+        scaleup: ${{ parameters.scaleup }}

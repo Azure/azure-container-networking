@@ -65,9 +65,10 @@ steps:
           CNS=$(CNS_VERSION) IPAM=$(AZURE_IPAM_VERSION) && echo "Running nightly"
       else
           CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
+          export VALIDATE_NETWORKDRESTART=true
       fi
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true VALIDATE_NETWORKDRESTART=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
@@ -108,26 +109,12 @@ steps:
         done
     displayName: "Restart Nodes"
 
-  - task: AzureCLI@1
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        cd test/integration/load
-
-        # Scale Cluster Up/Down to confirm functioning CNS
-        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-        kubectl get pods -owide -A
-
-        cd ../../..
-        echo "Validating Node Restart"
-        make test-validate-state OS_TYPE=linux RESTART_CASE=true
-        kubectl delete ns load-test
-    displayName: "Validate Node Restart"
-    retryCountOnTaskFailure: 3
+  - template: ../../templates/validate-tests.yaml
+    parameters:
+      validate: "nodeRestart"
+      cni: "cilium"
+      os: ${{ parameters.os }}
+      scaleup: ${{ parameters.scaleup }}
 
   - template: ../../templates/cilium-connectivity-tests.yaml
 
@@ -158,7 +145,7 @@ steps:
         kubectl get pod -owide -A
         ciliumNamespace=`kubectl get ns | grep cilium-test | awk '{print $1}'`
 
-        make test-validate-state
+        make test-validate
 
         echo "delete cilium connectivity test resources and re-validate state"
         for namespace in ${ciliumNamespace}; do
