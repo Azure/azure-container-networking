@@ -144,7 +144,7 @@ get_ssh_public_key() {
   local keyvault_name=$2
   local subscription=$3
   
-  echo "Fetching SSH public key from Key Vault..."
+  echo "Fetching SSH public key from Key Vault..." >&2
   local ssh_public_key
   ssh_public_key=$(az keyvault secret show \
     --name "$secret_name" \
@@ -153,7 +153,7 @@ get_ssh_public_key() {
     --query value -o tsv 2>/dev/null || echo "")
 
   if [[ -z "$ssh_public_key" ]]; then
-    echo "##vso[task.logissue type=error]Failed to retrieve SSH public key from Key Vault"
+    echo "##vso[task.logissue type=error]Failed to retrieve SSH public key from Key Vault" >&2
     exit 1
   fi
   

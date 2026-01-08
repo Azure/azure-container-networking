@@ -13,7 +13,6 @@ create_linux_vmss() {
   local node_type=$2
   local vmss_sku=$3
   local nic_count=$4
-  local ssh_public_key=$5
   local node_name="${cluster_name}-${node_type}"
   local log_file="./lin-script-${node_name}.log"
   local extension_name="NodeJoin-${node_name}"
@@ -78,10 +77,10 @@ for cluster_name in $cluster_names; do
   fi
   
   echo "Creating VMSS nodes for cluster $cluster_name..."
-  create_linux_vmss "$cluster_name" "linux-highnic" "Standard_D16s_v3" "7" "$ssh_public_key"
+  create_linux_vmss "$cluster_name" "linux-highnic" "Standard_D16s_v3" "7"
   wait_for_nodes_ready "$cluster_name" "$cluster_name-linux-highnic"
 
-  create_linux_vmss "$cluster_name" "linux-default" "Standard_D8s_v3" "2" "$ssh_public_key"
+  create_linux_vmss "$cluster_name" "linux-default" "Standard_D8s_v3" "2"
   wait_for_nodes_ready "$cluster_name" "$cluster_name-linux-default"
 
   label_vmss_nodes "$cluster_name"

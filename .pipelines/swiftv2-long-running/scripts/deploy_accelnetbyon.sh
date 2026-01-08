@@ -19,6 +19,46 @@ vmss_configs=(
   "accelnet-default:Standard_D8s_v3:2:2"
 )
 
+create_l1vh_vmss() {
+  local cluster_name=$1
+  local node_name=$2
+  local vmss_sku=$3
+  local nic_count=$4
+  local TIP_ARG1=$5
+
+  bash ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/l1vhwindows.sh \
+    -l $REGION \
+    -r $RESOURCE_GROUP \
+    -s $SUBSCRIPTION_ID \
+    -v "$node_name" \
+    -e "nodenet" \
+    -t "$TIP_ARG1" \
+    -n "$RESOURCE_GROUP" \
+    -i "$cluster_name" \
+    -z "$vmss_sku" \
+    -y "singularity-standalone-testing" \
+    -q "vmssstandalonepwd" \
+    -p "vmbiceppwd" \
+    -x "l1vhstandalonestorage" \
+    > ./script1.log 2>&1
+}
+
+label_vmss_nodes() {
+  local cluster_name=$1
+  local kubeconfig_file="./kubeconfig-${cluster_name}.yaml"
+  
+  echo "Labeling BYON nodes in ${cluster_name} with workload-type=swiftv2-l1vh-accelnet-byon"
+  kubectl --kubeconfig "$kubeconfig_file" label nodes -l kubernetes.azure.com/managed=false,kubernetes.io/os=linux workload-type=swiftv2-l1vh-accelnet-byon --overwrite
+
+  echo "Labeling ${cluster_name}-accelnet-default nodes with nic-capacity=low-nic"
+  kubectl --kubeconfig "$kubeconfig_file" get nodes -o name | grep "${cluster_name}-accelnet-default" | xargs -I {} kubectl --kubeconfig "$kubeconfig_file" label {} nic-capacity=low-nic --overwrite || true
+
+  echo "Labeling ${cluster_name}-accelnet-highnic nodes with nic-capacity=high-nic"
+  kubectl --kubeconfig "$kubeconfig_file" get nodes -o name | grep "${cluster_name}-accelnet-highnic" | xargs -I {} kubectl --kubeconfig "$kubeconfig_file" label {} nic-capacity=high-nic --overwrite || true
+  
+  copy_managed_node_labels_to_byon "$kubeconfig_file"
+}
+
 cluster_index=0
 for cluster_name in $cluster_names; do
   az aks get-credentials --resource-group $RESOURCE_GROUP --name $cluster_name --file ./kubeconfig-${cluster_name}.yaml --overwrite-existing -a || exit 1
@@ -42,46 +82,8 @@ for cluster_name in $cluster_names; do
     done
   done
   
+  label_vmss_nodes "$cluster_name"
   cluster_index=$((cluster_index + 1))
 done
 
-
-create_l1vh_vmss() {
-  local cluster_name=$1
-  local node_name=$2
-  local vmss_sku=$3
-  local nic_count=$4
-  local TIP_ARG1=$5
-
-  bash .pipelines/singularity-runner/byon/l1vhwindows.sh \
-    -l $REGION \
-    -r $RESOURCE_GROUP \
-    -s $SUBSCRIPTION_ID \
-    -v "$node_name" \
-    -e "nodenet" \
-    -t "$TIP_ARG1" \
-    -n "$RESOURCE_GROUP" \
-    -i "$cluster_name" \
-    -z "$vmss_sku" \
-    -y "singularity-standalone-testing" \
-    -q "vmssstandalonepwd" \
-    -p "vmbiceppwd" \
-    -x "l1vhstandalonestorage" \
-    > ./script1.log 2>&1
-}
-
-label_vmss_nodes() {
-  local cluster_name=$1
-  local kubeconfig_file="./kubeconfig-${cluster_name}"
-  
-  echo "Labeling BYON nodes in ${cluster_name} with workload-type=swiftv2-l1vh-accelnet-byon"
-  kubectl --kubeconfig "$kubeconfig_file" label nodes -l kubernetes.azure.com/managed=false,kubernetes.io/os=linux workload-type=swiftv2-l1vh-accelnet-byon --overwrite
-
-  echo "Labeling ${cluster_name}-accelnet-default nodes with nic-capacity=low-nic"
-  kubectl --kubeconfig "$kubeconfig_file" get nodes -o name | grep "${cluster_name}-accelnet-default" | xargs -I {} kubectl --kubeconfig "$kubeconfig_file" label {} nic-capacity=low-nic --overwrite || true
-
-  echo "Labeling ${cluster_name}-accelnet-highnic nodes with nic-capacity=high-nic"
-  kubectl --kubeconfig "$kubeconfig_file" get nodes -o name | grep "${cluster_name}-accelnet-highnic" | xargs -I {} kubectl --kubeconfig "$kubeconfig_file" label {} nic-capacity=high-nic --overwrite || true
-  
-  copy_managed_node_labels_to_byon "$kubeconfig_file"
-}
+echo "VMSS deployment completed successfully for both clusters."
