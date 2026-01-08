@@ -99,7 +99,7 @@ for cluster_name in $cluster_names; do
       
       echo "Creating VMSS: $node_name with SKU: $vmss_sku, NICs: $nic_count, TIP: $tip_session_id (index: $tip_index)"
       create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count" "$tip_session_id"
-      wait_for_nodes_ready "$cluster_name" "$node_name"
+      wait_for_nodes_ready "$cluster_name" "$node_name" "1"
       tip_offset=$((tip_offset + 1))
     done
   done

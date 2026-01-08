@@ -101,10 +101,10 @@ check_if_nodes_joined_cluster() {
 wait_for_nodes_ready() {
   local cluster_name=$1
   local node_name=$2
-  local kubeconfig_file="./kubeconfig-${cluster_name}"
+  local kubeconfig_file="./kubeconfig-${cluster_name}.yaml"
+  local expected_nodes=$3
   
   echo "Waiting for nodes from VMSS '${node_name}' to join cluster and become ready..."
-  local expected_nodes=2
   if ! check_if_nodes_joined_cluster "$cluster_name" "$node_name" "$kubeconfig_file" "$expected_nodes"; then
     exit 1
   fi
@@ -115,7 +115,7 @@ wait_for_nodes_ready() {
     all_ready=true
     
     for nodename in "${nodes[@]}"; do
-      ready=$(kubectl --kubeconfig "./kubeconfig-${cluster_name}" get node "$nodename" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "False")
+      ready=$(kubectl --kubeconfig "$kubeconfig_file" get node "$nodename" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "False")
       if [ "$ready" != "True" ]; then
         echo "Node $nodename is not ready yet (status: $ready)"
         all_ready=false

@@ -78,10 +78,10 @@ for cluster_name in $cluster_names; do
   
   echo "Creating VMSS nodes for cluster $cluster_name..."
   create_linux_vmss "$cluster_name" "linux-highnic" "Standard_D16s_v3" "7"
-  wait_for_nodes_ready "$cluster_name" "$cluster_name-linux-highnic"
+  wait_for_nodes_ready "$cluster_name" "$cluster_name-linux-highnic" "2"
 
   create_linux_vmss "$cluster_name" "linux-default" "Standard_D8s_v3" "2"
-  wait_for_nodes_ready "$cluster_name" "$cluster_name-linux-default"
+  wait_for_nodes_ready "$cluster_name" "$cluster_name-linux-default" "2"
 
   label_vmss_nodes "$cluster_name"
 done
