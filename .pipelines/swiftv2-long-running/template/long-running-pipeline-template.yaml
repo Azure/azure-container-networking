@@ -178,7 +178,7 @@ stages:
     jobs: 
       - job: JoinAccelnetBYONtoAKS
         displayName: "Join Accelnet BYON VMSS to AKS Cluster"
-        timeoutInMinutes: 150
+        timeoutInMinutes: 480
         pool:
           vmImage: ubuntu-latest
         steps:
