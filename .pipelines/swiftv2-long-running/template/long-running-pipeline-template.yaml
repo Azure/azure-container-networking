@@ -152,35 +152,12 @@ stages:
         pool:
           vmImage: ubuntu-latest
         steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download kubeconfig files"
-            inputs:
-              artifactName: kubeconfigs
-              targetPath: $(Pipeline.Workspace)/kubeconfigs
-
+          - checkout: self
+            displayName: "Checkout main repository"
+          - checkout: Networking-Aquarius
+            displayName: "Checkout Networking-Aquarius repository"
           - task: AzureCLI@2
-            name: DiscoverStorageAccounts
-            displayName: "Discover storage accounts"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                STORAGE_ACCOUNT_1="$(storageAccount1)"
-                STORAGE_ACCOUNT_2="$(storageAccount2)"
-                
-                if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
-                  echo "Storage account variables not set, discovering from resource group..."
-                  STORAGE_ACCOUNT_1=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa1')].name" -o tsv)
-                  STORAGE_ACCOUNT_2=$(az storage account list -g $(rgName) --query "[?starts_with(name, 'sa2')].name" -o tsv)
-                  echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
-                fi
-                
-                echo "##vso[task.setvariable variable=storageAccount1;isOutput=true]$STORAGE_ACCOUNT_1"
-                echo "##vso[task.setvariable variable=storageAccount2;isOutput=true]$STORAGE_ACCOUNT_2"
-
-          - task: AzureCLI@2
-            displayName: "Assign RBAC for SAS token generation"
+            displayName: "Deploy Linux VMSS"
             inputs:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
               scriptType: bash
@@ -194,7 +171,36 @@ stages:
               CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
               KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
               KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
-  
+  - stage: DeployAccelnetBYON
+    displayName: Deploy Accelnet BYO nodes to AKS cluster
+    dependsOn: AKSClusterAndNetworking
+    condition: succeeded()
+    jobs: 
+      - job: JoinAccelnetBYONtoAKS
+        displayName: "Join Accelnet BYON VMSS to AKS Cluster"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            displayName: "Checkout main repository"
+          - checkout: Networking-Aquarius
+            displayName: "Checkout Networking-Aquarius repository"
+          - task: AzureCLI@2
+            displayName: "Deploy Accelnet VMSS"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_accelnetbyon.sh"
+              arguments: >
+                $(rgName)
+                ${{ parameters.location }}
+                $(Build.SourcesDirectory)
+            env:
+              SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
+              CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
+              KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
+              KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
   # Run tests for each workload type specified in the parameter
   - ${{ each workload in parameters.workloadType }}:
     - template: datapath-tests-stage.yaml
@@ -210,13 +216,9 @@ stages:
             - AKSClusterAndNetworking
         ${{ if eq(workload, 'swiftv2-linux-byon') }}:
           dependsOn: 
-            - AKSClusterAndNetworking
+            - DeployLinuxBYON
             - DataPathTests_swiftv2_linux
         ${{ if eq(workload, 'swiftv2-l1vh-accelnet-byon') }}:
           dependsOn: 
-            - AKSClusterAndNetworking
-            - DataPathTests_swiftv2_linux_byon 
-        ${{ if eq(workload, 'swiftv2-l1vh-infiniband-byon') }}:
-          dependsOn:
-            - AKSClusterAndNetworking
-            - DataPathTests_swiftv2_l1vh_accelnet_byon
+            - DeployAccelnetBYON
+            - DataPathTests_swiftv2_linux_byon
