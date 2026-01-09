@@ -77,6 +77,14 @@ spec:
                 description: NetworkID is the identifier for the network, e.g. vnet
                   guid or IB network ID
                 type: string
+              subnetAllocationMode:
+                default: Single
+                description: SubnetAllocationMode is the mode chosen by user for subnet
+                  allocation
+                enum:
+                - Single
+                - PrefixBlock
+                type: string
               subnetGUID:
                 description: customer subnet guid
                 type: string
@@ -94,6 +102,11 @@ spec:
                 items:
                   type: string
                 type: array
+              prefixBlockAllocationSize:
+                default: 16
+                description: PrefixBlockAllocationSize indicates the size of IP block
+                  allocated to the subnet
+                type: integer
               status:
                 description: Status indicates the status of PN
                 enum:
