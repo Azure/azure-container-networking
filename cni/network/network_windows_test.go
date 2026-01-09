@@ -1387,10 +1387,10 @@ func TestPluginWindowsAdd(t *testing.T) {
 // One of the routes is exactly Dst=0.0.0.0/0, Gw=0.0.0.0. The original route (1.1.1.1/24 via 10.0.0.1) is preserved.
 func TestSetupInfraVnetRoutingForMultitenancy(t *testing.T) {
 	tests := []struct {
-		name              string
-		epInfo            *network.EndpointInfo
-		wantRouteCount    int
-		expectDummyRoute  bool
+		name             string
+		epInfo           *network.EndpointInfo
+		wantRouteCount   int
+		expectDummyRoute bool
 	}{
 		{
 			name: "SkipDefaultRoutes=false — do not add dummy default route",
