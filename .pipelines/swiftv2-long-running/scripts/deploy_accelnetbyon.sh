@@ -14,8 +14,10 @@ tip_session_ids=(8fe6f0f9-1476-4c8c-8945-c16300e557a9 8fe6f0f9-1476-4c8c-8945-c1
 
 # Define VMSS configurations: node_prefix, sku, nic_count, node_count
 vmss_configs=(
-  "acl-def:Standard_D8s_v3:2:2"
-  "acl-high:Standard_D16s_v3:7:2"
+  "acldef1:Standard_D8s_v3:2"
+  "acldef2:Standard_D16s_v3:2"
+  "aclhigh1:Standard_D16s_v3:7"
+  "aclhigh2:Standard_D32s_v3:7"
 )
 
 create_l1vh_vmss() {
@@ -91,17 +93,13 @@ for cluster_name in $cluster_names; do
   tip_offset=0
   
   for config in "${vmss_configs[@]}"; do
-    IFS=':' read -r node_prefix vmss_sku nic_count node_count <<< "$config"
-    for ((i=0; i<node_count; i++)); do
-      node_name="${node_prefix}${i}"
-      tip_index=$((tip_base_index + tip_offset))
-      tip_session_id="${tip_session_ids[$tip_index]}"
-      
-      echo "Creating VMSS: $node_name with SKU: $vmss_sku, NICs: $nic_count, TIP: $tip_session_id (index: $tip_index)"
-      create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count" "$tip_session_id"
-      wait_for_nodes_ready "$cluster_name" "$node_name" "1"
-      tip_offset=$((tip_offset + 1))
-    done
+    IFS=':' read -r node_name vmss_sku nic_count <<< "$config"
+    tip_index=$((tip_base_index + tip_offset))
+    tip_session_id="${tip_session_ids[$tip_index]}"
+    echo "Creating VMSS: $node_name with SKU: $vmss_sku, NICs: $nic_count, TIP: $tip_session_id (index: $tip_index)"
+    create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count" "$tip_session_id"
+    wait_for_nodes_ready "$cluster_name" "$node_name" "1"
+    tip_offset=$((tip_offset + 1))
   done
   
   label_vmss_nodes "$cluster_name"
