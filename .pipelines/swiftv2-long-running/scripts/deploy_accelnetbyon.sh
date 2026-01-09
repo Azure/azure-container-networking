@@ -14,8 +14,8 @@ tip_session_ids=(8fe6f0f9-1476-4c8c-8945-c16300e557a9 8fe6f0f9-1476-4c8c-8945-c1
 
 # Define VMSS configurations: node_prefix, sku, nic_count, node_count
 vmss_configs=(
-  "acl-high:Standard_D16s_v3:7:2"
   "acl-def:Standard_D8s_v3:2:2"
+  "acl-high:Standard_D16s_v3:7:2"
 )
 
 create_l1vh_vmss() {
