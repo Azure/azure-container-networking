@@ -229,12 +229,12 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		return len(programmedNCs), errors.Wrap(err, "failed to get nc version list from nmagent")
 	}
 
-	// Get IMDS NC versions for delegated NIC scenarios
-	imdsNCVersions, err := service.GetIMDSNCs(ctx)
-	if err != nil {
-		// If any of the NMA API check calls, imds calls fails assume that nma build doesn't have the latest changes and create empty map
-		imdsNCVersions = make(map[string]string)
-	}
+	// Get IMDS NC versions for delegated NIC scenarios.
+	imdsNCVersions, infraNicMacAddress := service.getIMDSNCs(ctx)
+
+	// Process Windows registry keys with the retrieved MAC address (empty if not found). It is required for HNS team to configure cilium routes sepcific to windows nodes.
+	isPrefixOnNic := service.isPrefixonNicSwiftV2()
+	service.processWindowsRegistryKeys(isPrefixOnNic, infraNicMacAddress)
 
 	nmaNCs := map[string]string{}
 	for _, nc := range ncVersionListResp.Containers {
@@ -691,19 +691,19 @@ func (service *HTTPRestService) isNCDetailsAPIExists(ctx context.Context) bool {
 	return false
 }
 
-// GetIMDSNCs gets NC versions from IMDS and returns them as a map
-func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]string, error) {
+// GetIMDSNCs gets NC versions from IMDS and returns them as a map along with the MAC address
+func (service *HTTPRestService) getIMDSNCs(ctx context.Context) (ncs map[string]string, infraNicMacAddress string) {
 	imdsClient := service.imdsClient
 	if imdsClient == nil {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
 		logger.Errorf("IMDS client is not available")
-		return make(map[string]string), nil
+		return make(map[string]string), ""
 	}
 	// Check NC version support
 	if !service.isNCDetailsAPIExists(ctx) {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
 		logger.Errorf("IMDS does not support NC details API")
-		return make(map[string]string), nil
+		return make(map[string]string), ""
 	}
 
 	// Get all network interfaces from IMDS
@@ -711,11 +711,11 @@ func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]stri
 	if err != nil {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
 		logger.Errorf("Failed to get network interfaces from IMDS: %v", err)
-		return make(map[string]string), nil
+		return make(map[string]string), ""
 	}
 
 	// Build ncs map from the network interfaces
-	ncs := make(map[string]string)
+	ncs = make(map[string]string)
 	for _, iface := range networkInterfaces {
 		//nolint:staticcheck // SA1019: suppress deprecated logger.Debugf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
 		logger.Debugf("Nc id: %s and mac address: %s from IMDS call", iface.InterfaceCompartmentID, iface.MacAddress.String())
@@ -724,10 +724,24 @@ func (service *HTTPRestService) GetIMDSNCs(ctx context.Context) (map[string]stri
 
 		if ncID != "" {
 			ncs[ncID] = PrefixOnNicNCVersion // for prefix on nic version scenario nc version is 1
+		} else {
+			infraNicMacAddress = iface.MacAddress.String()
 		}
 	}
 
-	return ncs, nil
+	return ncs, infraNicMacAddress
+}
+
+// Check whether NC is SwiftV2 NIC associated NC and prefix on nic is enabled
+func (service *HTTPRestService) isPrefixonNicSwiftV2() bool {
+	for i := range service.state.ContainerStatus {
+		req := service.state.ContainerStatus[i].CreateNetworkContainerRequest
+
+		if req.SwiftV2PrefixOnNic {
+			return true
+		}
+	}
+	return false
 }
 
 // IsCIDRSuperset returns true if newCIDR is a superset of oldCIDR (i.e., all IPs in oldCIDR are contained in newCIDR).

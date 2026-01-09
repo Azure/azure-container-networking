@@ -34,6 +34,44 @@ func (c *iptablesLegacy) Delete(table, chain string, rulespec ...string) error {
 	return errors.Wrap(exec.Command("iptables-legacy", cmd...).Run(), "iptables legacy failed delete")
 }
 
+// processWindowsRegistryKeys is a no-op on Linux.
+func (service *HTTPRestService) processWindowsRegistryKeys(_ bool, _ string) {
+	// No-op on Linux
+}
+
+// linuxRegistryClient is a no-op implementation of windowsRegistryClient for Linux.
+type linuxRegistryClient struct{}
+
+// SetPrefixOnNicEnabled is a no-op on Linux.
+func (*linuxRegistryClient) SetPrefixOnNicEnabled(_ bool) error {
+	return nil
+}
+
+// SetInfraNicMacAddress is a no-op on Linux.
+func (*linuxRegistryClient) SetInfraNicMacAddress(_ string) error {
+	return nil
+}
+
+// SetInfraNicIfName is a no-op on Linux.
+func (*linuxRegistryClient) SetInfraNicIfName(_ string) error {
+	return nil
+}
+
+// SetEnableSNAT is a no-op on Linux.
+func (*linuxRegistryClient) SetEnableSNAT(_ bool) error {
+	return nil
+}
+
+// newLinuxRegistryClient creates a no-op registry client for Linux.
+func newLinuxRegistryClient() windowsRegistryClient {
+	return &linuxRegistryClient{}
+}
+
+// newRegistryClient creates the OS-specific registry client (Linux implementation).
+func newRegistryClient() windowsRegistryClient {
+	return newLinuxRegistryClient()
+}
+
 // nolint
 func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
 	service.Lock()
