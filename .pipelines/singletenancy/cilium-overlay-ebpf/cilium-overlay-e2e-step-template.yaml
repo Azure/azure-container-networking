@@ -20,7 +20,7 @@ steps:
         pwd
         kubectl cluster-info
         kubectl get pods -Aowide
-          
+
         # see makefile
         export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
         export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
@@ -37,11 +37,11 @@ steps:
   - script: |
       CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
       kubectl get pods -Aowide
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true VALIDATE_NETWORKDRESTART=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Deploy CNS and Run Azilium E2E on AKS Overlay"
-  
+
   - template: ../../templates/cilium-tests.yaml
     parameters:
       clusterName: ${{ parameters.clusterName }}
