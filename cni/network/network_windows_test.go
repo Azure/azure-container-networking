@@ -1381,3 +1381,69 @@ func TestPluginWindowsAdd(t *testing.T) {
 		})
 	}
 }
+
+// When SkipDefaultRoutes == false => Function returns early. Route list is unchanged (still 1 route, and no dummy 0.0.0.0/0 via 0.0.0.0).
+// When SkipDefaultRoutes == true, the Function appends a new route. So the total routes becomes 2.
+// One of the routes is exactly Dst=0.0.0.0/0, Gw=0.0.0.0. The original route (1.1.1.1/24 via 10.0.0.1) is preserved.
+func TestSetupInfraVnetRoutingForMultitenancy(t *testing.T) {
+	tests := []struct {
+		name              string
+		epInfo            *network.EndpointInfo
+		wantRouteCount    int
+		expectDummyRoute  bool
+	}{
+		{
+			name: "SkipDefaultRoutes=false — do not add dummy default route",
+			epInfo: &network.EndpointInfo{
+				SkipDefaultRoutes: false,
+				Routes: []network.RouteInfo{
+					{
+						Dst: *getCIDRNotationForAddress("1.1.1.1/24"),
+						Gw:  net.ParseIP("10.0.0.1"),
+					},
+				},
+			},
+			wantRouteCount:   1,
+			expectDummyRoute: false,
+		},
+		{
+			name: "SkipDefaultRoutes=true — append dummy default route 0.0.0.0/0 via 0.0.0.0",
+			epInfo: &network.EndpointInfo{
+				SkipDefaultRoutes: true,
+				Routes: []network.RouteInfo{
+					{
+						Dst: *getCIDRNotationForAddress("1.1.1.1/24"),
+						Gw:  net.ParseIP("10.0.0.1"),
+					},
+				},
+			},
+			wantRouteCount:   2,
+			expectDummyRoute: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			setupInfraVnetRoutingForMultitenancy(nil, nil, tt.epInfo)
+
+			require.Len(t, tt.epInfo.Routes, tt.wantRouteCount)
+
+			require.True(t, tt.epInfo.Routes[0].Gw.Equal(net.ParseIP("10.0.0.1")))
+
+			hasDummy := false
+			for _, r := range tt.epInfo.Routes {
+				if r.Gw.Equal(net.IPv4zero) && r.Dst.String() == "0.0.0.0/0" {
+					hasDummy = true
+					break
+				}
+			}
+
+			if tt.expectDummyRoute {
+				require.True(t, hasDummy, "expected dummy default route 0.0.0.0/0 via 0.0.0.0 to be added")
+			} else {
+				require.False(t, hasDummy, "did not expect dummy default route to be added")
+			}
+		})
+	}
+}
