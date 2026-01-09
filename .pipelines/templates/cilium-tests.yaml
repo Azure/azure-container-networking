@@ -32,7 +32,7 @@ steps:
 
   - template: ./validate-tests.yaml
     parameters:
-      validate: "nodeRestart"
+      validate: "nodeRestart, networkdRestart"
       cni: ${{ parameters.cni }}
       os: ${{ parameters.os }}
       scaleup: ${{ parameters.scaleup }}

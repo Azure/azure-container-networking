@@ -82,7 +82,7 @@ steps:
 
   - template: ../../templates/validate-tests.yaml
     parameters:
-      validate: "nodeRestart"
+      validate: "nodeRestart, networkdRestart"
       cni: "cilium_dualstack"
       os: ${{ parameters.os }}
       scaleup: ${{ parameters.scaleup }}

@@ -66,7 +66,7 @@ steps:
 
   - template: ../../templates/validate-tests.yaml
     parameters:
-      validate: "nodeRestart"
+      validate: "nodeRestart, networkdRestart"
       cni: "cniv1"
       os: ${{ parameters.os }}
       cleanup: "true"
