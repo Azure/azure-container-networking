@@ -63,7 +63,7 @@ steps:
 
     - template: ../../templates/validate-tests.yaml
       parameters:
-        validate: "nodeRestart"
+        validate: "nodeRestart, networkdRestart"
         cni: "cniv2"
         os: ${{ parameters.os }}
         scaleup: ${{ parameters.scaleup }}
@@ -119,7 +119,7 @@ steps:
 
     - template: ../../templates/validate-tests.yaml
       parameters:
-        validate: "nodeRestart"
+        validate: "nodeRestart, networkdRestart"
         cni: "cniv2"
         os: ${{ parameters.os }}
         scaleup: ${{ parameters.scaleup }}
