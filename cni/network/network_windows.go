@@ -132,7 +132,8 @@ func (plugin *NetPlugin) getNetworkName(netNs string, interfaceInfo *network.Int
 func setupInfraVnetRoutingForMultitenancy(
 	_ *cni.NetworkConfig,
 	_ *cniTypesCurr.Result,
-	epInfo *network.EndpointInfo) {
+	epInfo *network.EndpointInfo
+	) {
 	// as a workaround, HNS will not set this dummy default route (0.0.0.0/0, nexthop: 0.0.0.0)
 	// on interface when SkipDefaultRoutes is set to true.
 	// the only usage for this dummy default is to bypass HNS setting default route
