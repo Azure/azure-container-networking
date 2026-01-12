@@ -157,7 +157,8 @@ stages:
           dns: true
           portforward: true
           service: true
-          processes: 1 # Serialize testing to get granular data, prevent race conditions, false-negatives
+          nightly: true
+
 
       - job: logs
         displayName: "Nightly Logs"
