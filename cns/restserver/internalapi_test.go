@@ -1351,7 +1351,6 @@ func TestCNIConflistGenerationNewNC(t *testing.T) {
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
-		windowsRegistry:      newRegistryClient(),
 		state: &httpRestServiceState{
 			ContainerStatus: map[string]containerstatus{
 				ncID: {
@@ -1393,7 +1392,6 @@ func TestCNIConflistGenerationExistingNC(t *testing.T) {
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
-		windowsRegistry:      newRegistryClient(),
 		state: &httpRestServiceState{
 			ContainerStatus: map[string]containerstatus{
 				ncID: {
@@ -1436,7 +1434,6 @@ func TestCNIConflistGenerationNewNCTwice(t *testing.T) {
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
-		windowsRegistry:      newRegistryClient(),
 		state: &httpRestServiceState{
 			ContainerStatus: map[string]containerstatus{
 				ncID: {
@@ -1483,7 +1480,6 @@ func TestCNIConflistNotGenerated(t *testing.T) {
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
-		windowsRegistry:      newRegistryClient(),
 		state: &httpRestServiceState{
 			ContainerStatus: map[string]containerstatus{
 				newNCID: {
@@ -1520,7 +1516,6 @@ func TestCNIConflistGenerationOnNMAError(t *testing.T) {
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
-		windowsRegistry:      newRegistryClient(),
 		state: &httpRestServiceState{
 			ContainerStatus: map[string]containerstatus{
 				newNCID: {
@@ -1764,10 +1759,10 @@ func setupIMDSMockAPIsWithCustomIDs(svc *HTTPRestService, interfaceIDs []string)
 	return func() { svc.imdsClient = originalIMDS }
 }
 
-func TestGetIMDSNCsWithANDWITHOUTNCID(t *testing.T) {
+func TestGetIMDSNCDetailsWithANDWITHOUTNCID(t *testing.T) {
 	testSvc := getTestService(cns.Kubernetes)
 
-	// Set up mock IMDS client with one interface with NC ID, one without
+	// Set up mock IMDS client with two NCs and one infra NIC (empty NC ID)
 	mac1, _ := net.ParseMAC("AA:BB:CC:DD:EE:FF")
 	mac2, _ := net.ParseMAC("11:22:33:44:55:66")
 
@@ -1783,7 +1778,7 @@ func TestGetIMDSNCsWithANDWITHOUTNCID(t *testing.T) {
 						MacAddress:             imds.HardwareAddr(mac1),
 					},
 					{
-						InterfaceCompartmentID: "",
+						InterfaceCompartmentID: "", // Infra NIC
 						MacAddress:             imds.HardwareAddr(mac2),
 					},
 				}, nil
@@ -1802,13 +1797,8 @@ func TestGetIMDSNCsWithANDWITHOUTNCID(t *testing.T) {
 	defer func() { testSvc.imdsClient = originalIMDS }()
 
 	ctx := context.Background()
-	imdsNCs, infraNicMacAddress := testSvc.getIMDSNCs(ctx)
+	imdsNCs := testSvc.getIMDSNCDetails(ctx)
 
-	// Verify that NC with compartment ID is returned
-	assert.Equal(t, PrefixOnNicNCVersion, imdsNCs["nc-id-1"], "NC should have expected version")
-	assert.Len(t, imdsNCs, 1, "Only one NC should be returned (the one with NC ID)")
-
-	// Verify that MAC address is returned for interface without NC ID
-	assert.Equal(t, mac2.String(), infraNicMacAddress, "MAC address should be returned for interface without NC ID")
-	assert.NotEmpty(t, infraNicMacAddress, "MAC address should not be empty when an interface has no NC ID")
+	assert.Equal(t, PrefixOnNicNCVersion, imdsNCs["nc-id-1"], "First NC should have  version 1")
+	assert.NotContains(t, imdsNCs, "", "Infra NIC should not be included in NC map")
 }

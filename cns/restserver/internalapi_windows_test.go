@@ -7,101 +7,121 @@
 package restserver
 
 import (
+	"net"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-type mockWindowsRegistryClient struct {
-	// Store call history
-	calls []registryCall
-}
+func TestProcessIMDSData_EmptyInterfaces(t *testing.T) {
+	service := &HTTPRestService{}
 
-type registryCall struct {
-	method string
-	value  interface{}
-}
+	result := service.processIMDSData([]imds.NetworkInterface{})
 
-func (m *mockWindowsRegistryClient) SetPrefixOnNicEnabled(isEnabled bool) error {
-	m.calls = append(m.calls, registryCall{method: "SetPrefixOnNicEnabled", value: isEnabled})
-	return nil
-}
-
-func (m *mockWindowsRegistryClient) SetInfraNicMacAddress(macAddress string) error {
-	m.calls = append(m.calls, registryCall{method: "SetInfraNicMacAddress", value: macAddress})
-	return nil
-}
-
-func (m *mockWindowsRegistryClient) SetInfraNicIfName(ifName string) error {
-	m.calls = append(m.calls, registryCall{method: "SetInfraNicIfName", value: ifName})
-	return nil
-}
-
-func (m *mockWindowsRegistryClient) SetEnableSNAT(isEnabled bool) error {
-	m.calls = append(m.calls, registryCall{method: "SetEnableSNAT", value: isEnabled})
-	return nil
-}
-
-// Helper method to get the last value set for a specific method
-func (m *mockWindowsRegistryClient) getLastValue(method string) interface{} {
-	for i := len(m.calls) - 1; i >= 0; i-- {
-		if m.calls[i].method == method {
-			return m.calls[i].value
-		}
+	if len(result) != 0 {
+		t.Errorf("Expected empty result for empty input, got %d NCs", len(result))
 	}
-	return nil
 }
 
-func TestProcessWindowsRegistryKeys_EmptyMacAddress(t *testing.T) {
-	mockRegistry := &mockWindowsRegistryClient{}
+func TestProcessIMDSData_SwiftV2PrefixOnNicEnabled(t *testing.T) {
+	ncID := "nc-id-1"
+	delegatedMacAddr, _ := net.ParseMAC("00:15:5D:01:02:03")
+	infraMacAddr, _ := net.ParseMAC("00:15:5D:01:02:FF")
+
+	service := &HTTPRestService{}
+
+	interfaces := []imds.NetworkInterface{
+		{
+			MacAddress:             imds.HardwareAddr(delegatedMacAddr),
+			InterfaceCompartmentID: ncID,
+		},
+		{
+			MacAddress:             imds.HardwareAddr(infraMacAddr),
+			InterfaceCompartmentID: "",
+		},
+	}
+
+	result := service.processIMDSData(interfaces)
+
+	assert.Len(t, result, 1, "Expected one NC in result")
+	assert.Equal(t, PrefixOnNicNCVersion, result[ncID], "NC should have expected version")
+}
+
+func TestProcessIMDSData_InfraNICOnly(t *testing.T) {
+	infraMacAddr, _ := net.ParseMAC("00:15:5D:01:02:FF")
+
+	service := &HTTPRestService{}
+
+	// Only infra NIC interface (empty NC ID)
+	interfaces := []imds.NetworkInterface{
+		{
+			MacAddress:             imds.HardwareAddr(infraMacAddr),
+			InterfaceCompartmentID: "",
+		},
+	}
+
+	result := service.processIMDSData(interfaces)
+
+	if len(result) != 0 {
+		t.Errorf("Expected empty result for infra NIC only, got %d NCs", len(result))
+	}
+}
+
+func TestIsSwiftV2PrefixOnNicEnabled_NCExists_Enabled(t *testing.T) {
+	ncID := "test-nc-id"
 	service := &HTTPRestService{
-		windowsRegistry: mockRegistry,
+		state: &httpRestServiceState{
+			ContainerStatus: map[string]containerstatus{
+				ncID: {
+					ID: ncID,
+					CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+						SwiftV2PrefixOnNic: true,
+					},
+				},
+			},
+		},
+	}
+
+	result := service.isSwiftV2PrefixOnNicEnabled(ncID)
+	assert.True(t, result, "Expected SwiftV2PrefixOnNic to be enabled")
+}
+
+func TestIsSwiftV2PrefixOnNicEnabled_NCExists_Disabled(t *testing.T) {
+	ncID := "test-nc-id"
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			ContainerStatus: map[string]containerstatus{
+				ncID: {
+					ID: ncID,
+					CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+						SwiftV2PrefixOnNic: false,
+					},
+				},
+			},
+		},
+	}
+
+	result := service.isSwiftV2PrefixOnNicEnabled(ncID)
+	assert.False(t, result, "Expected SwiftV2PrefixOnNic to be disabled")
+}
+
+func TestIsSwiftV2PrefixOnNicEnabled_NCDoesNotExist(t *testing.T) {
+	service := &HTTPRestService{
 		state: &httpRestServiceState{
 			ContainerStatus: map[string]containerstatus{},
 		},
 	}
 
-	// Call processWindowsRegistryKeys with empty MAC address
-	service.processWindowsRegistryKeys(false, "")
-
-	assert.Equal(t, false, mockRegistry.getLastValue("SetPrefixOnNicEnabled"), "PrefixOnNic should be disabled")
-	assert.Equal(t, "", mockRegistry.getLastValue("SetInfraNicMacAddress"), "MAC address should be empty")
-	assert.Equal(t, "eth0", mockRegistry.getLastValue("SetInfraNicIfName"), "Interface name should be set to eth0")
-	assert.Equal(t, true, mockRegistry.getLastValue("SetEnableSNAT"), "SNAT should be enabled")
+	result := service.isSwiftV2PrefixOnNicEnabled("non-existent-nc")
+	assert.False(t, result, "Expected false when NC does not exist")
 }
 
-func TestProcessWindowsRegistryKeys_ValidMacAddress(t *testing.T) {
-	validMacAddress := "00:15:5D:01:02:03"
-	mockRegistry := &mockWindowsRegistryClient{}
-	service := &HTTPRestService{
-		windowsRegistry: mockRegistry,
-		state: &httpRestServiceState{
-			ContainerStatus: map[string]containerstatus{},
-		},
-	}
+func TestIsSwiftV2PrefixOnNicEnabled_NilState(t *testing.T) {
+	service := &HTTPRestService{}
 
-	// Call processWindowsRegistryKeys with valid MAC address
-	service.processWindowsRegistryKeys(true, validMacAddress)
-
-	assert.Equal(t, true, mockRegistry.getLastValue("SetPrefixOnNicEnabled"), "PrefixOnNic should be disabled")
-	assert.Equal(t, validMacAddress, mockRegistry.getLastValue("SetInfraNicMacAddress"), "MAC address should be set")
-	assert.Equal(t, "eth0", mockRegistry.getLastValue("SetInfraNicIfName"), "Interface name should be set to eth0")
-	assert.Equal(t, false, mockRegistry.getLastValue("SetEnableSNAT"), "SNAT should be enabled when prefix-on-NIC is disabled")
-}
-
-func TestProcessWindowsRegistryKeys_RegistryError(t *testing.T) {
-	validMacAddress := "00:15:5D:01:02:03"
-	mockRegistry := &mockWindowsRegistryClient{}
-	service := &HTTPRestService{
-		windowsRegistry: mockRegistry,
-		state: &httpRestServiceState{
-			ContainerStatus: map[string]containerstatus{},
-		},
-	}
-
-	// Call processWindowsRegistryKeys - should not panic even with error
-	require.NotPanics(t, func() {
-		service.processWindowsRegistryKeys(false, validMacAddress)
-	}, "processWindowsRegistryKeys should handle errors gracefully")
+	// This should not panic even with nil state
+	result := service.isSwiftV2PrefixOnNicEnabled("any-nc-id")
+	assert.False(t, result, "Expected false when state is nil")
 }

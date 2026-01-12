@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Microsoft/hcsshim"
@@ -36,14 +37,6 @@ func (*IPtablesProvider) GetIPTables() (iptablesClient, error) {
 
 func (*IPtablesProvider) GetIPTablesLegacy() (iptablesLegacyClient, error) {
 	return nil, errUnsupportedAPI
-}
-
-func (service *HTTPRestService) processWindowsRegistryKeys(isPrefixOnNic bool, infraNicMacAddress string) {
-	err := service.setRegistryKeysForPrefixOnNic(isPrefixOnNic, infraNicMacAddress)
-	if err != nil {
-		//nolint:staticcheck // SA1019: suppress deprecated logger.Debugf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-		logger.Debugf("failed to add keys to Windows registry: %v", err)
-	}
 }
 
 // nolint
@@ -94,47 +87,67 @@ func (service *HTTPRestService) getPrimaryNICMACAddress() (string, error) {
 	return macAddress, nil
 }
 
+// isSwiftV2PrefixOnNicEnabled checks if the specified NC has SwiftV2PrefixOnNic enabled.
+func (service *HTTPRestService) isSwiftV2PrefixOnNicEnabled(ncID string) bool {
+	if ncStatus, exists := service.state.ContainerStatus[ncID]; exists {
+		return ncStatus.CreateNetworkContainerRequest.SwiftV2PrefixOnNic
+	}
+	return false
+}
+
+func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.NetworkInterface) map[string]string {
+	ncs := make(map[string]string)
+	var infraNicMacAddress string
+	var isSwiftv2PrefixOnNic bool
+	// IMDS returns networkInterfaces that has delegated nic {nc id, mac address}, infra nic {empty nc id, mac address}.
+	for _, iface := range networkInterfaces {
+		ncID := iface.InterfaceCompartmentID
+		if ncID != "" {
+			ncs[ncID] = PrefixOnNicNCVersion
+			// Check if this NC has SwiftV2PrefixOnNic enabled
+			if service.isSwiftV2PrefixOnNicEnabled(ncID) {
+				isSwiftv2PrefixOnNic = true
+			}
+		} else {
+			infraNicMacAddress = iface.MacAddress.String()
+		}
+	}
+	if infraNicMacAddress != "" {
+		go func() {
+			// Process Windows registry keys with the retrieved MAC address (empty if not found). It is required for HNS team to configure cilium routes specific to windows nodes
+			if err := service.setRegistryKeysForPrefixOnNic(isSwiftv2PrefixOnNic, infraNicMacAddress); err != nil {
+				//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+				logger.Errorf("[Windows] Failed to set registry keys: %v", err)
+				return
+			}
+		}()
+	}
+	return ncs
+}
+
 // setRegistryKeysForPrefixOnNic configures Windows registry keys for prefix-on-NIC scenarios.
 func (service *HTTPRestService) setRegistryKeysForPrefixOnNic(enablePrefixOnNic bool, infraNicMacAddress string) error {
-	if err := service.windowsRegistry.SetPrefixOnNicEnabled(enablePrefixOnNic); err != nil {
+	if err := setRegistryValue(prefixOnNicRegistryPath, "is_prefix_on_nic_enabled", enablePrefixOnNic); err != nil {
 		return fmt.Errorf("failed to set enablePrefixOnNic key to windows registry: %w", err)
 	}
 
-	if err := service.windowsRegistry.SetInfraNicMacAddress(infraNicMacAddress); err != nil {
+	if err := setRegistryValue(prefixOnNicRegistryPath, "infra_nic_mac_address", infraNicMacAddress); err != nil {
 		return fmt.Errorf("failed to set InfraNicMacAddress key to windows registry: %w", err)
 	}
 
-	if err := service.windowsRegistry.SetInfraNicIfName(infraNicIfName); err != nil {
+	if err := setRegistryValue(prefixOnNicRegistryPath, "infra_nic_ifname", infraNicIfName); err != nil {
 		return fmt.Errorf("failed to set InfraNicIfName key to windows registry: %w", err)
 	}
 
-	if err := service.windowsRegistry.SetEnableSNAT(!enablePrefixOnNic); err != nil { // for prefix on nic,  snat should be disabled
+	if err := setRegistryValue(hnsRegistryPath, "enable_SNAT", !enablePrefixOnNic); err != nil { // for prefix on nic,  snat should be disabled
 		return fmt.Errorf("failed to set EnableSNAT key to windows registry: %w", err)
 	}
 
 	return nil
 }
 
-type windowsRegistry struct{}
-
-func (w *windowsRegistry) SetPrefixOnNicEnabled(isEnabled bool) error {
-	return w.setRegistryValue(prefixOnNicRegistryPath, "enabled", isEnabled)
-}
-
-func (w *windowsRegistry) SetInfraNicMacAddress(macAddress string) error {
-	return w.setRegistryValue(prefixOnNicRegistryPath, "infra_nic_mac_address", macAddress)
-}
-
-func (w *windowsRegistry) SetInfraNicIfName(ifName string) error {
-	return w.setRegistryValue(prefixOnNicRegistryPath, "infra_nic_ifname", ifName)
-}
-
-func (w *windowsRegistry) SetEnableSNAT(isEnabled bool) error {
-	return w.setRegistryValue(hnsRegistryPath, "EnableSNAT", isEnabled)
-}
-
 // setRegistryValue writes a value to the Windows registry.
-func (*windowsRegistry) setRegistryValue(registryPath, keyName string, value interface{}) error {
+func setRegistryValue(registryPath, keyName string, value interface{}) error {
 	key, _, err := registry.CreateKey(registry.LOCAL_MACHINE, registryPath, registry.SET_VALUE)
 	if err != nil {
 		return fmt.Errorf("failed to create/open registry key %s: %w", registryPath, err)
@@ -165,14 +178,4 @@ func (*windowsRegistry) setRegistryValue(registryPath, keyName string, value int
 	}
 	fmt.Printf("[SetValue] Set %s\\%s = %v\n", registryPath, keyName, value)
 	return nil
-}
-
-// newWindowsRegistryClient creates a new Windows registry client.
-func newWindowsRegistryClient() windowsRegistryClient {
-	return &windowsRegistry{}
-}
-
-// newRegistryClient creates the OS-specific registry client (Windows implementation).
-func newRegistryClient() windowsRegistryClient {
-	return newWindowsRegistryClient()
 }

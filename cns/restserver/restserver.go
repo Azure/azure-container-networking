@@ -76,21 +76,12 @@ type iptablesGetter interface {
 	GetIPTablesLegacy() (iptablesLegacyClient, error)
 }
 
-// windowsRegistryClient defines the interface for Windows registry operations.
-type windowsRegistryClient interface {
-	SetPrefixOnNicEnabled(isEnabled bool) error
-	SetInfraNicMacAddress(macAddress string) error
-	SetInfraNicIfName(ifName string) error
-	SetEnableSNAT(isEnabled bool) error
-}
-
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
 	dockerClient             *dockerclient.Client
 	wscli                    interfaceGetter
 	iptables                 iptablesGetter
-	windowsRegistry          windowsRegistryClient
 	nma                      nmagentClient
 	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
@@ -248,7 +239,6 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		dockerClient:             dc,
 		wscli:                    wscli,
 		iptables:                 iptg,
-		windowsRegistry:          newRegistryClient(),
 		nma:                      nmagentClient,
 		wsproxy:                  wsproxy,
 		networkContainer:         nc,

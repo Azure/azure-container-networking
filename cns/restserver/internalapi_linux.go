@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/iptables"
@@ -34,42 +35,18 @@ func (c *iptablesLegacy) Delete(table, chain string, rulespec ...string) error {
 	return errors.Wrap(exec.Command("iptables-legacy", cmd...).Run(), "iptables legacy failed delete")
 }
 
-// processWindowsRegistryKeys is a no-op on Linux.
-func (service *HTTPRestService) processWindowsRegistryKeys(_ bool, _ string) {
-	// No-op on Linux
-}
+func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.NetworkInterface) map[string]string {
+	ncs := make(map[string]string)
 
-// linuxRegistryClient is a no-op implementation of windowsRegistryClient for Linux.
-type linuxRegistryClient struct{}
+	for _, iface := range networkInterfaces {
+		ncID := iface.InterfaceCompartmentID
+		if ncID != "" {
+			ncs[ncID] = PrefixOnNicNCVersion
+			break
+		}
+	}
 
-// SetPrefixOnNicEnabled is a no-op on Linux.
-func (*linuxRegistryClient) SetPrefixOnNicEnabled(_ bool) error {
-	return nil
-}
-
-// SetInfraNicMacAddress is a no-op on Linux.
-func (*linuxRegistryClient) SetInfraNicMacAddress(_ string) error {
-	return nil
-}
-
-// SetInfraNicIfName is a no-op on Linux.
-func (*linuxRegistryClient) SetInfraNicIfName(_ string) error {
-	return nil
-}
-
-// SetEnableSNAT is a no-op on Linux.
-func (*linuxRegistryClient) SetEnableSNAT(_ bool) error {
-	return nil
-}
-
-// newLinuxRegistryClient creates a no-op registry client for Linux.
-func newLinuxRegistryClient() windowsRegistryClient {
-	return &linuxRegistryClient{}
-}
-
-// newRegistryClient creates the OS-specific registry client (Linux implementation).
-func newRegistryClient() windowsRegistryClient {
-	return newLinuxRegistryClient()
+	return ncs
 }
 
 // nolint

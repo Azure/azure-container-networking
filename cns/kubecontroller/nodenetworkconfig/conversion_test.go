@@ -229,16 +229,18 @@ func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 
 func TestCreateNCRequestFromStaticNC(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   v1alpha.NetworkContainer
-		want    *cns.CreateNetworkContainerRequest
-		wantErr bool
+		name      string
+		input     v1alpha.NetworkContainer
+		isSwiftV2 bool
+		want      *cns.CreateNetworkContainerRequest
+		wantErr   bool
 	}{
 		{
-			name:    "valid overlay",
-			input:   validOverlayNC,
-			wantErr: false,
-			want:    validOverlayRequest,
+			name:      "valid overlay",
+			input:     validOverlayNC,
+			isSwiftV2: false,
+			wantErr:   false,
+			want:      validOverlayRequest,
 		},
 		{
 			name: "malformed primary IP",
@@ -303,10 +305,18 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 		},
 		// VNET Block test cases
 		{
-			name:    "valid VNET Block",
-			input:   validVNETBlockNC,
-			wantErr: false,
-			want:    validVNETBlockRequest,
+			name:      "valid VNET Block",
+			input:     validVNETBlockNC,
+			isSwiftV2: false,
+			wantErr:   false,
+			want:      validVNETBlockRequest,
+		},
+		{
+			name:      "valid VNET Block with SwiftV2",
+			input:     validVNETBlockNC,
+			isSwiftV2: true,
+			wantErr:   false,
+			want:      validVNETBlockRequestSwiftV2,
 		},
 		{
 			name: "PrimaryIP is not CIDR",
@@ -340,7 +350,7 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CreateNCRequestFromStaticNC(tt.input, false)
+			got, err := CreateNCRequestFromStaticNC(tt.input, tt.isSwiftV2)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -372,25 +382,8 @@ func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 				Status:             "Available",
 			},
 			isSwiftV2: true,
-			want: &cns.CreateNetworkContainerRequest{
-				NetworkContainerid:   ncID,
-				NetworkContainerType: cns.Docker,
-				Version:              "1",
-				HostPrimaryIP:        "10.0.0.1",
-				IPConfiguration: cns.IPConfiguration{
-					IPSubnet: cns.IPSubnet{
-						IPAddress:    "10.0.0.1",
-						PrefixLength: 24,
-					},
-					GatewayIPAddress: "10.0.0.1",
-				},
-				SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
-					// No IPs from primary prefix
-				},
-				SwiftV2PrefixOnNic: true,
-				NCStatus:           "Available",
-			},
-			wantErr: false,
+			want:      swiftV2EnabledVNETBlockRequest,
+			wantErr:   false,
 		},
 		{
 			name: "SwiftV2 disabled with VNETBlock - should process all IP in prefix",
@@ -411,26 +404,8 @@ func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 				},
 			},
 			isSwiftV2: false,
-			want: &cns.CreateNetworkContainerRequest{
-				NetworkContainerid:   ncID,
-				NetworkContainerType: cns.Docker,
-				Version:              "1",
-				HostPrimaryIP:        "10.0.0.1",
-				IPConfiguration: cns.IPConfiguration{
-					IPSubnet: cns.IPSubnet{
-						IPAddress:    "10.0.0.1",
-						PrefixLength: 24,
-					},
-					GatewayIPAddress: "10.0.0.1",
-				},
-				SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
-					"10.0.0.0": {IPAddress: "10.0.0.0", NCVersion: 1},
-					// IP assignments
-					"10.0.0.10": {IPAddress: "10.0.0.10", NCVersion: 1},
-				},
-				NCStatus: "Available",
-			},
-			wantErr: false,
+			want:      swiftV2DisabledVNETBlockRequest,
+			wantErr:   false,
 		},
 		{
 			name: "SwiftV2 disabled with non-VNETBlock type - should process IP in prefix",
@@ -451,24 +426,8 @@ func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 				},
 			},
 			isSwiftV2: false,
-			want: &cns.CreateNetworkContainerRequest{
-				NetworkContainerid:   ncID,
-				NetworkContainerType: cns.Docker,
-				Version:              "0",
-				HostPrimaryIP:        "10.0.0.1",
-				IPConfiguration: cns.IPConfiguration{
-					IPSubnet: cns.IPSubnet{
-						IPAddress:    "10.0.0.0",
-						PrefixLength: 24,
-					},
-					GatewayIPAddress: "10.0.0.1",
-				},
-				SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
-					"10.0.0.0": {IPAddress: "10.0.0.0", NCVersion: 0},
-				},
-				NCStatus: "Available",
-			},
-			wantErr: false,
+			want:      swiftV2DisabledNonVNETBlockRequest,
+			wantErr:   false,
 		},
 	}
 
