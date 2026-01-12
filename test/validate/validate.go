@@ -95,6 +95,10 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 	}, nil
 }
 
+// Validate runs all validation checks
+// Currently includes validation for:
+// - ValidateStateFile for state file IPs
+// - ValidateNetworkdRestart for restart networkd (linux only)
 func (v *Validator) Validate(ctx context.Context) error {
 	log.Printf("Validating State File")
 	err := v.ValidateStateFile(ctx)
