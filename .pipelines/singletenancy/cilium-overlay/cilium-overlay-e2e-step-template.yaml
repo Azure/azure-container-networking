@@ -122,6 +122,15 @@ steps:
   - template: ../../templates/cilium-connectivity-tests.yaml
 
   - ${{ if eq( parameters['testHubble'], true) }}:
+      - ${{if eq( parameters['nightly'], true) }}:
+        - script: |
+            set -e
+            echo "Check Cilium Connectivity Test Logs before Daemonset restart"
+            cilium status
+            cilium connectivity test --test check-log-errors --log-check-levels error
+          name: "ciliumConnectivityLogs"
+          displayName: "Check Cilium Connectivity Test Logs"
+          condition: always()
       - script: |
           echo "enable Hubble metrics server"
           export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
