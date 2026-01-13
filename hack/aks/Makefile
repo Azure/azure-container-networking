@@ -28,6 +28,7 @@ PUBLIC_IPv4          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v4
 PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
 LTS					 ?= false
+ACNS				 ?= false
 
 
 # overrideable variables
@@ -43,6 +44,14 @@ else
 	LTS_ARGS=
 endif
 
+# Only use with *cilium* recipes
+# Advanced Container Networking Services (ACNS)
+ifeq ($(ACNS),true)
+	ACNS_ARGS=--enable-acns
+else
+	ACNS_ARGS=
+endif
+
 # Common az aks create fields
 COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--auto-upgrade-channel $(AUTOUPGRADE) \
@@ -50,9 +59,9 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--kubernetes-version $(K8S_VER) \
 	--node-count $(NODE_COUNT) \
 	--node-vm-size $(VM_SIZE) \
-	--no-ssh-key  \
+	--no-ssh-key \
 	--os-sku $(OS_SKU) \
-	$(LTS_ARGS)
+	$(LTS_ARGS) $(ACNS_ARGS)
 POD_CIDR = 192.168.0.0/16
 
 ##@ Help
@@ -112,6 +121,7 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo VMSS_NAME=$(VMSS_NAME)
 	@echo K8S_VER=$(K8S_VER)
 	@echo LTS_ARGS=$(if $(LTS_ARGS),$(LTS_ARGS),$(LTS))
+	@echo ACNS_ARGS=$(if $(ACNS_ARGS),$(ACNS_ARGS),$(ACNS))
 	@echo COMMON_AKS_FIELDS=$(COMMON_AKS_FIELDS)
 
 
@@ -297,7 +307,7 @@ swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet 
 		--tags stampcreatorserviceinfo=true \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
-		--yes 
+		--yes
 	@$(MAKE) set-kubeconf
 
 # The below Vnet Scale clusters are currently only in private preview and available with Kubernetes 1.28
