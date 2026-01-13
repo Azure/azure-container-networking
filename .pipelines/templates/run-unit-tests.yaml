@@ -104,9 +104,8 @@ stages:
             inputs:
               codeCoverageTool: 'Cobertura'
               summaryFileLocation: coverage/linux-coverage.xml
-          # Looking for PRs from merge queue
-          # Expected output refs/heads/gh-readonly-queue/master/pr-3780-f0a96a1
-          - ${{ if contains(variables['Build.SourceBranch'], 'master/pr') }}:
+          # Looking for PRs merging into master only
+          - ${{ if contains(variables['System.PullRequest.targetBranchName'], 'master') }}:
             - task: BuildQualityChecks@8
               displayName: "Check Code Coverage Regression"
               condition: always()
