@@ -67,6 +67,7 @@ stages:
   - stage: code_coverage
     displayName: Code Coverage Check
     dependsOn:
+      - setup
       - test
     jobs:
       - job: coverage
@@ -105,15 +106,14 @@ stages:
               codeCoverageTool: 'Cobertura'
               summaryFileLocation: coverage/linux-coverage.xml
           # Looking for PRs merging into master only
-          - ${{ if contains(variables['System.PullRequest.targetBranchName'], 'master') }}:
-            - task: BuildQualityChecks@8
-              displayName: "Check Code Coverage Regression"
-              condition: always()
-              inputs:
-                checkCoverage: true
-                coverageFailOption: "build"
-                coverageType: "lines"
-                fallbackOnPRTargetBranch: false
-                baseBranchRef: "master"
-                allowCoverageVariance: true
-                coverageVariance: 0.25
+          - task: BuildQualityChecks@8
+            displayName: "Check Code Coverage Regression"
+            condition: eq(variables['System.PullRequest.targetBranchName'], 'master')
+            inputs:
+              checkCoverage: true
+              coverageFailOption: "build"
+              coverageType: "lines"
+              fallbackOnPRTargetBranch: false
+              baseBranchRef: "master"
+              allowCoverageVariance: true
+              coverageVariance: 0.25
