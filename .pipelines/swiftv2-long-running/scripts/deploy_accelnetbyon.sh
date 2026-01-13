@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/byon_helper.sh"
 
 cluster_names="aks-1 aks-2"
-tip_session_ids=(4aa2ca57-8dd0-4fbd-a961-bae4142dc33c 4aa2ca57-8dd0-4fbd-a961-bae4142dc33c 7356a39e-f8e5-40e0-815d-cd53f540d505 7356a39e-f8e5-40e0-815d-cd53f540d505 4e7a03fc-c541-4845-8805-73e45028f171 4e7a03fc-c541-4845-8805-73e45028f171 f64e86da-c832-460b-995f-0e9fe2601d99 f64e86da-c832-460b-995f-0e9fe2601d99)
+tip_session_ids=(7356a39e-f8e5-40e0-815d-cd53f540d505 7356a39e-f8e5-40e0-815d-cd53f540d505 4aa2ca57-8dd0-4fbd-a961-bae4142dc33c 4aa2ca57-8dd0-4fbd-a961-bae4142dc33c 4e7a03fc-c541-4845-8805-73e45028f171 4e7a03fc-c541-4845-8805-73e45028f171 f64e86da-c832-460b-995f-0e9fe2601d99 f64e86da-c832-460b-995f-0e9fe2601d99)
 vmss_configs=(
   "aclhigh1:Standard_D16s_v6:7"
   "aclhigh2:Standard_D16s_v6:7"
