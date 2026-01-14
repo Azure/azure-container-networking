@@ -64,57 +64,56 @@ stages:
               targetPath: 'windows-coverage.out'
               artifactName: 'windows-coverage'
 
-    # Looking for PRs from merge queue
-    # Expected output refs/heads/gh-readonly-queue/master/pr-3780-f0a96a1
-  - ${{ if contains(variables['Build.SourceBranch'], 'master/pr') }}:
-    - stage: code_coverage
-      displayName: Code Coverage Check
-      dependsOn:
-        - test
-      jobs:
-        - job: coverage
-          displayName: Check Coverage
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-          steps:
-            - task: DownloadPipelineArtifact@2
-              inputs:
-                artifact: 'linux-coverage'
-                path: './'
-            - bash: |
-                # use go work to include multiple modules or gocov will omit results from those modules
-                make workspace
+  - stage: code_coverage
+    displayName: Code Coverage Check
+    dependsOn:
+      - setup
+      - test
+    jobs:
+      - job: coverage
+        displayName: Check Coverage
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: 'linux-coverage'
+              path: './'
+          - bash: |
+              # use go work to include multiple modules or gocov will omit results from those modules
+              make workspace
 
-                make tools
-                sudo ln -s $(pwd)/build/tools/bin/gocov /usr/local/bin/gocov
-                sudo ln -s $(pwd)/build/tools/bin/gocov-xml /usr/local/bin/gocov-xml
+              make tools
+              sudo ln -s $(go env GOPATH)/bin/gocov /usr/local/bin/gocov
+              sudo ln -s $(go env GOPATH)/bin/gocov-xml /usr/local/bin/gocov-xml
 
-                GOOS=linux gocov convert linux-coverage.out > linux-coverage.json
-                GOOS=linux gocov-xml < linux-coverage.json > linux-coverage.xml
+              GOOS=linux gocov convert linux-coverage.out > linux-coverage.json
+              GOOS=linux gocov-xml < linux-coverage.json > linux-coverage.xml
 
-                # TODO: Add windows coverage back in once PublishCodeCoverageResults v2 works with BuildQualityChecks
+              # TODO: Add windows coverage back in once PublishCodeCoverageResults v2 works with BuildQualityChecks
 
-                mkdir coverage
+              mkdir coverage
 
-                mv linux-coverage.xml coverage/
-              name: "Coverage"
-              displayName: "Generate Coverage Report"
-              condition: always()
+              mv linux-coverage.xml coverage/
+            name: "Coverage"
+            displayName: "Generate Coverage Report"
+            condition: always()
 
-            - task: PublishCodeCoverageResults@1
-              displayName: "Publish Code Coverage Report"
-              condition: always()
-              inputs:
-                codeCoverageTool: 'Cobertura'
-                summaryFileLocation: coverage/linux-coverage.xml
-            - task: BuildQualityChecks@8
-              displayName: "Check Code Coverage Regression"
-              condition: always()
-              inputs:
-                checkCoverage: true
-                coverageFailOption: "build"
-                coverageType: "lines"
-                fallbackOnPRTargetBranch: false
-                baseBranchRef: "master"
-                allowCoverageVariance: true
-                coverageVariance: 0.25
+          - task: PublishCodeCoverageResults@1
+            displayName: "Publish Code Coverage Report"
+            condition: always()
+            inputs:
+              codeCoverageTool: 'Cobertura'
+              summaryFileLocation: coverage/linux-coverage.xml
+          # Looking for PRs merging into master only
+          - task: BuildQualityChecks@8
+            displayName: "Check Code Coverage Regression"
+            condition: eq(variables['System.PullRequest.targetBranchName'], 'master')
+            inputs:
+              checkCoverage: true
+              coverageFailOption: "build"
+              coverageType: "lines"
+              fallbackOnPRTargetBranch: false
+              baseBranchRef: "master"
+              allowCoverageVariance: true
+              coverageVariance: 0.25
