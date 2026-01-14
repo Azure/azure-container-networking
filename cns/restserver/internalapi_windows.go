@@ -127,7 +127,8 @@ func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.Network
 
 // setRegistryKeysForPrefixOnNic configures Windows registry keys for prefix-on-NIC scenarios.
 func (service *HTTPRestService) setRegistryKeysForPrefixOnNic(enablePrefixOnNic bool, infraNicMacAddress string) error {
-	if err := setRegistryValue(prefixOnNicRegistryPath, "is_prefix_on_nic_enabled", enablePrefixOnNic); err != nil {
+	// HNS looks for specific keywords in registry, setting them here
+	if err := setRegistryValue(prefixOnNicRegistryPath, "enabled", enablePrefixOnNic); err != nil {
 		return fmt.Errorf("failed to set enablePrefixOnNic key to windows registry: %w", err)
 	}
 
@@ -139,7 +140,7 @@ func (service *HTTPRestService) setRegistryKeysForPrefixOnNic(enablePrefixOnNic 
 		return fmt.Errorf("failed to set InfraNicIfName key to windows registry: %w", err)
 	}
 
-	if err := setRegistryValue(hnsRegistryPath, "enable_SNAT", !enablePrefixOnNic); err != nil { // for prefix on nic,  snat should be disabled
+	if err := setRegistryValue(hnsRegistryPath, "EnableSNAT", !enablePrefixOnNic); err != nil { // for prefix on nic,  snat should be disabled
 		return fmt.Errorf("failed to set EnableSNAT key to windows registry: %w", err)
 	}
 
