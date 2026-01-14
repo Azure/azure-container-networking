@@ -537,9 +537,10 @@ func configureHostNCApipaEndpoint(
 		endpoint.Policies = append(endpoint.Policies, endpointPolicy)
 	}
 
-	// keep Apipa Endpoint gw as 169.254.128.1 to make sure NC to host connectivity work for both Linux and Windows containers
+	// Use a dummy default route on the APIPA endpoint to avoid conflicting with host default routes.
+	// Host↔NC connectivity still relies on being on-link in the APIPA subnet plus ACLs.
 	hcnRoute := hcn.Route{
-		NextHop:           hnsLoopbackAdapterIPAddress,
+		NextHop:           "0.0.0.0",
 		DestinationPrefix: "0.0.0.0/0",
 	}
 
