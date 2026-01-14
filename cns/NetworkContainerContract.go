@@ -504,6 +504,7 @@ type GetNetworkContainerResponse struct {
 	AllowNCToHostCommunication bool
 	SkipDefaultRoutes          bool
 	NetworkInterfaceInfo       NetworkInterfaceInfo
+	SecondaryIPConfigurations  []IPConfiguration // Secondary IPs for dual-stack support (e.g., IPv6)
 }
 
 type PodIpInfo struct {
