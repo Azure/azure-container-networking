@@ -133,7 +133,7 @@ func setupInfraVnetRoutingForMultitenancy(
 	_ *cni.NetworkConfig,
 	_ *cniTypesCurr.Result,
 	epInfo *network.EndpointInfo,
-	) {
+) {
 	// as a workaround, CNI needs to pass this dummy default route (0.0.0.0/0, nexthop: 0.0.0.0) to HNS
 	// the only usage for this dummy default is to bypass HNS setting default route, causing duplicated routes issue
 	// TODO: Remove this once HNS fix is ready
