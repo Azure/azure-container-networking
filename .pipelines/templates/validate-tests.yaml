@@ -1,0 +1,55 @@
+parameters:
+  validate: "state"
+  cni: "cilium"
+  os: "linux"
+  scaleup: 100
+  cleanup: "true"
+
+steps:
+  - ${{ if contains(parameters.validate, 'nodeRestart') }}:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          cd test/integration/load
+
+          # Scale Cluster Up/Down to confirm functioning CNS
+          ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+          kubectl get pods -owide -A
+
+          cd ../../..
+          echo "Validating Node Restart"
+          make test-validate-state OS_TYPE=${{ parameters.os }} RESTART_CASE=true CNI_TYPE=${{ parameters.cni }} CLEANUP=${{ parameters.cleanup }}
+      displayName: "Validate Node Restart"
+      retryCountOnTaskFailure: 3
+  - ${{ if contains(parameters.validate, 'networkdRestart') }}:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          echo "Validating Networkd Restart"
+          make test-validate-networkd-restart OS_TYPE=${{ parameters.os }} CLEANUP=${{ parameters.cleanup }}
+      displayName: "Validate Networkd Restart"
+      retryCountOnTaskFailure: 3
+  - ${{ if contains(parameters.validate, 'state') }}:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          echo "Validating State"
+          make test-validate-state OS_TYPE=${{ parameters.os }} CNI_TYPE=${{ parameters.cni }} CLEANUP=${{ parameters.cleanup }}
+      displayName: "Validate State"
+      retryCountOnTaskFailure: 3
+
