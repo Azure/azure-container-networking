@@ -220,15 +220,59 @@ func (m *Multitenancy) GetAllNetworkContainers(
 	ipamResult.interfaceInfo = make(map[string]network.InterfaceInfo)
 
 	for i := 0; i < len(ncResponses); i++ {
+		// Validate SecondaryIPConfigurations contains at most one IPv6
+		ipv6Config, err := validateAndGetIPv6FromSecondaryIPs(ncResponses[i].SecondaryIPConfigurations)
+		if err != nil {
+			logger.Error("Failed to validate SecondaryIPConfigurations",
+				zap.Int("ncResponseIndex", i),
+				zap.String("ncID", ncResponses[i].NetworkContainerID),
+				zap.Error(err))
+			return IPAMAddResult{}, fmt.Errorf("validation failed for NC %s: %w", ncResponses[i].NetworkContainerID, err)
+		}
+
 		// one ncResponse gets you one interface info in the returned IPAMAddResult
 		ifInfo := network.InterfaceInfo{
 			NCResponse:       &ncResponses[i],
 			HostSubnetPrefix: hostSubnetPrefixes[i],
 		}
 
+		// Process primary IPv4 configuration
 		ipconfig, routes := convertToIPConfigAndRouteInfo(ifInfo.NCResponse)
 		ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipconfig)
 		ifInfo.Routes = routes
+
+		// Process secondary IPv6 configuration if present
+		if ipv6Config != nil {
+			logger.Info("Processing IPv6 from SecondaryIPConfigurations",
+				zap.String("ipv6Address", ipv6Config.IPSubnet.IPAddress),
+				zap.String("ncID", ncResponses[i].NetworkContainerID))
+
+			ipv6Addr := net.ParseIP(ipv6Config.IPSubnet.IPAddress)
+			ipv6IPConfig := &network.IPConfig{
+				Address: net.IPNet{
+					IP:   ipv6Addr,
+					Mask: net.CIDRMask(int(ipv6Config.IPSubnet.PrefixLength), ipv6FullMask),
+				},
+			}
+
+			// Set IPv6 gateway if provided
+			if ipv6Config.GatewayIPAddress != "" {
+				ipv6IPConfig.Gateway = net.ParseIP(ipv6Config.GatewayIPAddress)
+			} else if ipv6Config.GatewayIPv6Address != "" {
+				ipv6IPConfig.Gateway = net.ParseIP(ipv6Config.GatewayIPv6Address)
+			}
+
+			// Add IPv6 configuration to the interface
+			ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipv6IPConfig)
+
+			// Add IPv6 routes if gateway is specified
+			if ipv6IPConfig.Gateway != nil {
+				_, defaultIPv6Net, _ := net.ParseCIDR("::/0")
+				dstIPv6 := net.IPNet{IP: net.ParseIP("::"), Mask: defaultIPv6Net.Mask}
+				ifInfo.Routes = append(ifInfo.Routes, network.RouteInfo{Dst: dstIPv6, Gw: ipv6IPConfig.Gateway})
+			}
+		}
+
 		ifInfo.NICType = cns.InfraNIC
 		ifInfo.SkipDefaultRoutes = ncResponses[i].SkipDefaultRoutes
 
@@ -299,7 +343,7 @@ func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName s
 	resultIpconfig.Gateway = net.ParseIP(ipconfig.GatewayIPAddress)
 	result.IPs = append(result.IPs, resultIpconfig)
 
-	if networkConfig.Routes != nil && len(networkConfig.Routes) > 0 {
+	if len(networkConfig.Routes) > 0 {
 		for _, route := range networkConfig.Routes {
 			_, routeIPnet, _ := net.ParseCIDR(route.IPAddress)
 			gwIP := net.ParseIP(route.GatewayIPAddress)
@@ -319,7 +363,37 @@ func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName s
 	return result
 }
 
+// validateAndGetIPv6FromSecondaryIPs validates that SecondaryIPConfigurations contains at most one IPv6
+// and returns it if present. Returns nil if no IPv6 is found, or an error if validation fails.
+func validateAndGetIPv6FromSecondaryIPs(secondaryIPConfigs []cns.IPConfiguration) (*cns.IPConfiguration, error) {
+	if len(secondaryIPConfigs) == 0 {
+		return nil, nil
+	}
+
+	var ipv6Config *cns.IPConfiguration
+	ipv6Count := 0
+
+	for i := range secondaryIPConfigs {
+		ipAddr := net.ParseIP(secondaryIPConfigs[i].IPSubnet.IPAddress)
+		if ipAddr == nil {
+			return nil, fmt.Errorf("%w: %s", errInvalidIPv6InSecondaryIPs, secondaryIPConfigs[i].IPSubnet.IPAddress)
+		}
+
+		// Check if this is an IPv6 address
+		if ipAddr.To4() == nil && ipAddr.To16() != nil {
+			ipv6Count++
+			if ipv6Count > 1 {
+				return nil, errMultipleIPv6InSecondaryIPs
+			}
+			ipv6Config = &secondaryIPConfigs[i]
+		}
+	}
+
+	return ipv6Config, nil
+}
+
 func convertToIPConfigAndRouteInfo(networkConfig *cns.GetNetworkContainerResponse) (*network.IPConfig, []network.RouteInfo) {
+	// Process primary IPv4 configuration
 	ipconfig := &network.IPConfig{}
 	cnsIPConfig := networkConfig.IPConfiguration
 	ipAddr := net.ParseIP(cnsIPConfig.IPSubnet.IPAddress)
@@ -333,7 +407,7 @@ func convertToIPConfigAndRouteInfo(networkConfig *cns.GetNetworkContainerRespons
 	ipconfig.Gateway = net.ParseIP(cnsIPConfig.GatewayIPAddress)
 
 	routes := make([]network.RouteInfo, 0)
-	if networkConfig.Routes != nil && len(networkConfig.Routes) > 0 {
+	if len(networkConfig.Routes) > 0 {
 		for _, route := range networkConfig.Routes {
 			_, routeIPnet, _ := net.ParseCIDR(route.IPAddress)
 			gwIP := net.ParseIP(route.GatewayIPAddress)
@@ -372,8 +446,10 @@ func (m *Multitenancy) getInterfaceInfoKey(nicType cns.NICType, i int) string {
 }
 
 var (
-	errSnatIP        = errors.New("Snat IP not populated")
-	errInfraVnet     = errors.New("infravnet not populated")
-	errSubnetOverlap = errors.New("subnet overlap error")
-	errIfaceNotFound = errors.New("Interface not found for this ip")
+	errSnatIP                      = errors.New("Snat IP not populated")
+	errInfraVnet                   = errors.New("infravnet not populated")
+	errSubnetOverlap               = errors.New("subnet overlap error")
+	errIfaceNotFound               = errors.New("Interface not found for this ip")
+	errMultipleIPv6InSecondaryIPs  = errors.New("SecondaryIPConfigurations contains more than one IPv6")
+	errInvalidIPv6InSecondaryIPs   = errors.New("SecondaryIPConfigurations contains invalid IPv6 address")
 )
