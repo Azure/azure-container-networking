@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProcessIMDSData_EmptyInterfaces(t *testing.T) {
@@ -30,7 +31,11 @@ func TestProcessIMDSData_SwiftV2PrefixOnNicEnabled(t *testing.T) {
 	delegatedMacAddr, _ := net.ParseMAC("00:15:5D:01:02:03")
 	infraMacAddr, _ := net.ParseMAC("00:15:5D:01:02:FF")
 
-	service := &HTTPRestService{}
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			ContainerStatus: map[string]containerstatus{},
+		},
+	}
 
 	interfaces := []imds.NetworkInterface{
 		{
@@ -52,7 +57,11 @@ func TestProcessIMDSData_SwiftV2PrefixOnNicEnabled(t *testing.T) {
 func TestProcessIMDSData_InfraNICOnly(t *testing.T) {
 	infraMacAddr, _ := net.ParseMAC("00:15:5D:01:02:FF")
 
-	service := &HTTPRestService{}
+	service := &HTTPRestService{
+		state: &httpRestServiceState{
+			ContainerStatus: map[string]containerstatus{},
+		},
+	}
 
 	// Only infra NIC interface (empty NC ID)
 	interfaces := []imds.NetworkInterface{
@@ -124,4 +133,68 @@ func TestIsSwiftV2PrefixOnNicEnabled_NilState(t *testing.T) {
 	// This should not panic even with nil state
 	result := service.isSwiftV2PrefixOnNicEnabled("any-nc-id")
 	assert.False(t, result, "Expected false when state is nil")
+}
+
+func TestGetInterfaceNameFromMAC_InvalidMACFormats(t *testing.T) {
+	service := &HTTPRestService{}
+
+	tests := []struct {
+		name        string
+		macAddress  string
+		expectError bool
+		errContains string
+	}{
+		{
+			name:        "invalid hex characters",
+			macAddress:  "GGHHIIJJKKLL",
+			expectError: true,
+			errContains: "failed to parse MAC address",
+		},
+		{
+			name:        "invalid hex with valid format",
+			macAddress:  "GG:HH:II:JJ:KK:LL",
+			expectError: true,
+			errContains: "failed to parse MAC address",
+		},
+		{
+			name:        "empty string",
+			macAddress:  "",
+			expectError: true,
+			errContains: "empty MAC address",
+		},
+		{
+			name:        "valid format but with Invalid MAC",
+			macAddress:  "001122334455",
+			expectError: true,
+			errContains: "failed to find interface",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := service.getInterfaceNameFromMAC(tt.macAddress)
+
+			if tt.expectError {
+				require.Error(t, err, "Expected error for MAC: %s", tt.macAddress)
+				assert.Contains(t, err.Error(), tt.errContains, "Error should contain expected message")
+				assert.Empty(t, result, "Result should be empty on error")
+			} else {
+				require.NoError(t, err, "Did not expect error for MAC: %s", tt.macAddress)
+				assert.NotEmpty(t, result, "Result should not be empty on success")
+			}
+		})
+	}
+}
+
+func TestGetInterfaceNameFromMAC_HappyPath(t *testing.T) {
+	service := &HTTPRestService{}
+	macAddress := "00:15:5D:01:02:03"
+
+	result, err := service.getInterfaceNameFromMAC(macAddress)
+
+	if err != nil {
+		assert.Contains(t, err.Error(), "failed to find interface", "Should fail on lookup, not parsing")
+	} else {
+		assert.NotEmpty(t, result, "Result should not be empty on success")
+	}
 }

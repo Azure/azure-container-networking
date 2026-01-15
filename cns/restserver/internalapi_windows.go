@@ -2,14 +2,18 @@ package restserver
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Microsoft/hcsshim"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows/registry"
@@ -20,13 +24,13 @@ const (
 	pwshTimeout             = 120 * time.Second
 	hnsRegistryPath         = `SYSTEM\CurrentControlSet\Services\HNS\wcna_state\config`
 	prefixOnNicRegistryPath = `SYSTEM\CurrentControlSet\Services\HNS\wcna_state\config\PrefixOnNic`
-	infraNicIfName          = "eth0"
 )
 
 var (
 	errUnsupportedAPI       = errors.New("unsupported api")
 	errIntOverflow          = errors.New("int value overflows uint32")
 	errUnsupportedValueType = errors.New("unsupported value type for registry key")
+	errEmptyMACAddress      = errors.New("empty MAC address")
 )
 
 type IPtablesProvider struct{}
@@ -89,6 +93,9 @@ func (service *HTTPRestService) getPrimaryNICMACAddress() (string, error) {
 
 // isSwiftV2PrefixOnNicEnabled checks if the specified NC has SwiftV2PrefixOnNic enabled.
 func (service *HTTPRestService) isSwiftV2PrefixOnNicEnabled(ncID string) bool {
+	if service.state == nil {
+		return false
+	}
 	if ncStatus, exists := service.state.ContainerStatus[ncID]; exists {
 		return ncStatus.CreateNetworkContainerRequest.SwiftV2PrefixOnNic
 	}
@@ -114,8 +121,15 @@ func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.Network
 	}
 	if infraNicMacAddress != "" {
 		go func() {
-			// Process Windows registry keys with the retrieved MAC address (empty if not found). It is required for HNS team to configure cilium routes specific to windows nodes
-			if err := service.setRegistryKeysForPrefixOnNic(isSwiftv2PrefixOnNic, infraNicMacAddress); err != nil {
+			// Get the interface name from the MAC address
+			infraNicIfName, err := service.getInterfaceNameFromMAC(infraNicMacAddress)
+			if err != nil {
+				//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+				logger.Errorf("[Windows] Failed to get interface name from MAC address to set for windows registry: %v", err)
+				return
+			}
+			// Process Windows registry keys with the retrieved MAC address and interface name. It is required for HNS team to configure cilium routes specific to windows nodes
+			if err := service.setRegistryKeysForPrefixOnNic(isSwiftv2PrefixOnNic, infraNicMacAddress, infraNicIfName); err != nil {
 				//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
 				logger.Errorf("[Windows] Failed to set registry keys: %v", err)
 				return
@@ -125,8 +139,27 @@ func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.Network
 	return ncs
 }
 
+// getInterfaceNameFromMAC retrieves the network interface name given its MAC address.
+func (service *HTTPRestService) getInterfaceNameFromMAC(macAddress string) (string, error) {
+	macFormatted := strings.ReplaceAll(strings.ReplaceAll(macAddress, ":", ""), "-", "")
+	if macFormatted == "" {
+		return "", fmt.Errorf("failed to parse MAC address: %w", errEmptyMACAddress)
+	}
+
+	macBytes, err := hex.DecodeString(macFormatted)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse MAC address %s: %w", macAddress, err)
+	}
+
+	iface, err := (&netio.NetIO{}).GetNetworkInterfaceByMac(net.HardwareAddr(macBytes))
+	if err != nil {
+		return "", fmt.Errorf("failed to find interface with MAC address %s: %w", macAddress, err)
+	}
+	return iface.Name, nil
+}
+
 // setRegistryKeysForPrefixOnNic configures Windows registry keys for prefix-on-NIC scenarios.
-func (service *HTTPRestService) setRegistryKeysForPrefixOnNic(enablePrefixOnNic bool, infraNicMacAddress string) error {
+func (service *HTTPRestService) setRegistryKeysForPrefixOnNic(enablePrefixOnNic bool, infraNicMacAddress, infraNicIfName string) error {
 	// HNS looks for specific keywords in registry, setting them here
 	if err := setRegistryValue(prefixOnNicRegistryPath, "enabled", enablePrefixOnNic); err != nil {
 		return fmt.Errorf("failed to set enablePrefixOnNic key to windows registry: %w", err)
@@ -177,6 +210,5 @@ func setRegistryValue(registryPath, keyName string, value interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to set registry value '%s': %w", keyName, err)
 	}
-	fmt.Printf("[SetValue] Set %s\\%s = %v\n", registryPath, keyName, value)
 	return nil
 }
