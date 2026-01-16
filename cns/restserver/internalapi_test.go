@@ -1758,3 +1758,47 @@ func setupIMDSMockAPIsWithCustomIDs(svc *HTTPRestService, interfaceIDs []string)
 	// Return cleanup function
 	return func() { svc.imdsClient = originalIMDS }
 }
+
+func TestGetIMDSNCDetailsWithANDWITHOUTNCID(t *testing.T) {
+	testSvc := getTestService(cns.Kubernetes)
+
+	// Set up mock IMDS client with two NCs and one infra NIC (empty NC ID)
+	mac1, _ := net.ParseMAC("AA:BB:CC:DD:EE:FF")
+	mac2, _ := net.ParseMAC("11:22:33:44:55:66")
+
+	mockIMDS := &mockIMDSAdapter{
+		mock: &struct {
+			networkInterfaces func(_ context.Context) ([]imds.NetworkInterface, error)
+			imdsVersions      func(_ context.Context) (*imds.APIVersionsResponse, error)
+		}{
+			networkInterfaces: func(_ context.Context) ([]imds.NetworkInterface, error) {
+				return []imds.NetworkInterface{
+					{
+						InterfaceCompartmentID: "nc-id-1",
+						MacAddress:             imds.HardwareAddr(mac1),
+					},
+					{
+						InterfaceCompartmentID: "", // Infra NIC
+						MacAddress:             imds.HardwareAddr(mac2),
+					},
+				}, nil
+			},
+			imdsVersions: func(_ context.Context) (*imds.APIVersionsResponse, error) {
+				return &imds.APIVersionsResponse{
+					APIVersions: []string{expectedIMDSAPIVersion},
+				}, nil
+			},
+		},
+	}
+
+	// Replace the IMDS client
+	originalIMDS := testSvc.imdsClient
+	testSvc.imdsClient = mockIMDS
+	defer func() { testSvc.imdsClient = originalIMDS }()
+
+	ctx := context.Background()
+	imdsNCs := testSvc.getIMDSNCDetails(ctx)
+
+	assert.Equal(t, PrefixOnNicNCVersion, imdsNCs["nc-id-1"], "First NC should have  version 1")
+	assert.NotContains(t, imdsNCs, "", "Infra NIC should not be included in NC map")
+}

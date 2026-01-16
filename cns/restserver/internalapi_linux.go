@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/iptables"
@@ -32,6 +33,20 @@ type iptablesLegacy struct{}
 func (c *iptablesLegacy) Delete(table, chain string, rulespec ...string) error {
 	cmd := append([]string{"-t", table, "-D", chain}, rulespec...)
 	return errors.Wrap(exec.Command("iptables-legacy", cmd...).Run(), "iptables legacy failed delete")
+}
+
+func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.NetworkInterface) map[string]string {
+	ncs := make(map[string]string)
+
+	for _, iface := range networkInterfaces {
+		ncID := iface.InterfaceCompartmentID
+		if ncID != "" {
+			ncs[ncID] = PrefixOnNicNCVersion
+			break
+		}
+	}
+
+	return ncs
 }
 
 // nolint
