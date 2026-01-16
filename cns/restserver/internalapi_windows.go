@@ -120,21 +120,18 @@ func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.Network
 		}
 	}
 	if infraNicMacAddress != "" {
-		go func() {
-			// Get the interface name from the MAC address
-			infraNicIfName, err := service.getInterfaceNameFromMAC(infraNicMacAddress)
-			if err != nil {
-				//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-				logger.Errorf("[Windows] Failed to get interface name from MAC address to set for windows registry: %v", err)
-				return
-			}
+		// Get the interface name from the MAC address
+		infraNicIfName, err := service.getInterfaceNameFromMAC(infraNicMacAddress)
+		if err != nil {
+			//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
+			logger.Errorf("Failed to get interface name from MAC address to set for windows registry: %v", err)
+		} else {
 			// Process Windows registry keys with the retrieved MAC address and interface name. It is required for HNS team to configure cilium routes specific to windows nodes
 			if err := service.setRegistryKeysForPrefixOnNic(isSwiftv2PrefixOnNic, infraNicMacAddress, infraNicIfName); err != nil {
 				//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-				logger.Errorf("[Windows] Failed to set registry keys: %v", err)
-				return
+				logger.Errorf("Failed to set windows registry keys: %v", err)
 			}
-		}()
+		}
 	}
 	return ncs
 }
