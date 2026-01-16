@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/ovsctl"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -546,4 +547,20 @@ func getDefaultGateway(routes []RouteInfo) net.IP {
 // TODO: It needs to be tested to see if HostVethName is required for SingleTenancy, WorkItem: 26606939
 func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(_ []net.IPNet, _ string) (*EndpointInfo, error) {
 	return epInfo, nil
+}
+
+// getEndpointInfoByIfNameImpl returns an array of EndpointInfo for the given endpoint based on the IfName(s) found in the network namespace.
+func (nm *networkManager) getEndpointInfoByIfNameImpl(epID, netns, infraNicName string) ([]*EndpointInfo, error) {
+	logger.Info("Fetching Secondary Endpoint from", zap.String("NetworkNameSpace", netns))
+	secondaryepClient := NewSecondaryEndpointClient(nil, nil, nil, nm.nsClient, nil, nil)
+	ret, err := secondaryepClient.FetchInterfacesFromNetnsPath(infraNicName, netns)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch secondary interfaces")
+	}
+	// appending all secondary interfaces found in the netns to the return slice
+	for _, epinfo := range ret {
+		epinfo.EndpointID = epID
+		logger.Info("Fetched EndpointInfo", zap.Any("EndpointInfo", epinfo))
+	}
+	return ret, nil
 }
