@@ -540,7 +540,7 @@ func configureHostNCApipaEndpoint(
 	// Use a dummy default route on the APIPA endpoint to avoid conflicting with host default routes.
 	// Host↔NC connectivity still relies on being on-link in the APIPA subnet plus ACLs.
 	hcnRoute := hcn.Route{
-		NextHop:           "0.0.0.0",
+		NextHop:           hnsLoopbackAdapterIPAddress,
 		DestinationPrefix: "169.254.128.0/17",
 	}
 
