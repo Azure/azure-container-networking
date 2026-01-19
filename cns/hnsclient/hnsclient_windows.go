@@ -541,7 +541,7 @@ func configureHostNCApipaEndpoint(
 	// Host↔NC connectivity still relies on being on-link in the APIPA subnet plus ACLs.
 	hcnRoute := hcn.Route{
 		NextHop:           "0.0.0.0",
-		DestinationPrefix: "0.0.0.0/0",
+		DestinationPrefix: "169.254.128.0/17",
 	}
 
 	endpoint.Routes = append(endpoint.Routes, hcnRoute)
