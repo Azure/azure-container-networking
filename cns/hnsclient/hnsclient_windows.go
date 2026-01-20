@@ -269,7 +269,7 @@ func configureHostNCApipaNetwork(localIPConfiguration cns.IPConfiguration) (*hcn
 		Routes: []hcn.Route{
 			{
 				NextHop:           localIPConfiguration.GatewayIPAddress,
-				DestinationPrefix: "0.0.0.0/0",
+				DestinationPrefix: "169.254.128.0/17",
 			},
 		},
 	}
@@ -537,8 +537,7 @@ func configureHostNCApipaEndpoint(
 		endpoint.Policies = append(endpoint.Policies, endpointPolicy)
 	}
 
-	// Use a dummy default route on the APIPA endpoint to avoid conflicting with host default routes.
-	// Host↔NC connectivity still relies on being on-link in the APIPA subnet plus ACLs.
+
 	hcnRoute := hcn.Route{
 		NextHop:           hnsLoopbackAdapterIPAddress,
 		DestinationPrefix: "169.254.128.0/17",
