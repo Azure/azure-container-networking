@@ -69,12 +69,13 @@ spec:
                     ipConstraint:
                       description: |-
                         IPConstraint specifies criteria for selecting IP addresses from the PodNetwork's subnet.
-                        Must be a valid IPv4/IPv6 address or CIDR notation. This is an optional field.
+                        Must be a valid IPv4 address or CIDR notation with /32 prefix.
+                        This is an optional field.
                         Examples:
-                          - IPv4 address: "10.0.0.1"
-                          - IPv4 CIDR:    "10.0.0.0/24"
-                          - IPv6 address: "2001:db8::1"
-                          - IPv6 CIDR:    "2001:db8::/32"
+                          - IPv4 address: "192.168.0.1"
+                          - IPv4 CIDR:    "192.168.0.1/32"
+                      maxLength: 18
+                      pattern: ^$|^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\/32)?$
                       type: string
                     podIPReservationSize:
                       default: 0
@@ -87,6 +88,11 @@ spec:
                   required:
                   - podNetwork
                   type: object
+                  x-kubernetes-validations:
+                  - message: ipConstraint is only allowed when podIPReservationSize
+                      is 1
+                    rule: self.ipConstraint == '' || self.podIPReservationSize ==
+                      1
                 type: array
               podnetwork:
                 description: Deprecated - use PodNetworkConfigs
