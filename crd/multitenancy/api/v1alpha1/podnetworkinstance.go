@@ -36,6 +36,7 @@ type PodNetworkInstanceList struct {
 }
 
 // PodNetworkConfig describes a template for how to attach a PodNetwork to a Pod
+// +kubebuilder:validation:XValidation:rule="self.ipConstraint == '' || self.podIPReservationSize == 1",message="ipConstraint is only allowed when podIPReservationSize is 1"
 type PodNetworkConfig struct {
 	// PodNetwork is the name of a PodNetwork resource
 	PodNetwork string `json:"podNetwork"`
@@ -43,13 +44,14 @@ type PodNetworkConfig struct {
 	// +kubebuilder:default=0
 	PodIPReservationSize int `json:"podIPReservationSize,omitempty"`
 	// IPConstraint specifies criteria for selecting IP addresses from the PodNetwork's subnet.
-	// Must be a valid IPv4/IPv6 address or CIDR notation. This is an optional field.
+	// Must be a valid IPv4 address or CIDR notation with /32 prefix.
+	// This is an optional field.
 	// Examples:
-	//   - IPv4 address: "10.0.0.1"
-	//   - IPv4 CIDR:    "10.0.0.0/24"
-	//   - IPv6 address: "2001:db8::1"
-	//   - IPv6 CIDR:    "2001:db8::/32"
+	//   - IPv4 address: "192.168.0.1"
+	//   - IPv4 CIDR:    "192.168.0.1/32"
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MaxLength=18
+	// +kubebuilder:validation:Pattern=`^$|^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\/32)?$`
 	IPConstraint string `json:"ipConstraint,omitempty"`
 }
 
