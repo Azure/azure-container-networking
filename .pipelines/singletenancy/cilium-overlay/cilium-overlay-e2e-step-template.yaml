@@ -124,18 +124,27 @@ steps:
   - ${{ if eq( parameters['testHubble'], true) }}:
       - ${{if eq( parameters['nightly'], true) }}:
         - script: |
-            set -e
             echo "Check Cilium Connectivity Test Logs before Daemonset restart"
             cilium status
             cilium connectivity test --test check-log-errors --log-check-levels error > output.log
+            # Capture the exit code from connectivity test
+            exitCode=$?
             cat output.log
 
+            # Node Restart is expected to cause "Non-zero (1)" in cilium agent logs and
+            # a missing init container i.e. "install-cni-binaries in pod "cilium-fmjsb" not found"
             if grep -q "Non-zero (1)" output.log; then
               echo "Expected error log from Node Restart, proceed."
               echo "Check for additional errors."
-              if grep -v "Non-zero (1)" output.log | grep "check-log-errors" | grep "Error"; then
+
+              # Check for any other errors aside from node restart
+              if grep -v "Non-zero (1)" output.log | grep -v "previous terminated container" | grep "check-log-errors" | grep "Error"; then
                 echo "##[error]Unexpected errors found in Cilium connectivity test logs"
               fi
+            elif [ $exitCode -ne 0 ]; then
+              echo "##[error]Unexpected errors found in Cilium connectivity test logs"
+            else
+              echo "Unexpected, Node restart should always cause exitCode == 1 from cilium connectivity test"
             fi
             echo "No errors found in Cilium connectivity test logs before Daemonset restart"
           name: "ciliumConnectivityLogs"
