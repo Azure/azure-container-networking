@@ -29,32 +29,54 @@ steps:
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
+  - ${{if eq( parameters['nightly'], true) }}:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+          ls -lah
+          pwd
+          kubectl cluster-info
+          kubectl get po -owide -A
 
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        ls -lah
-        pwd
-        kubectl cluster-info
-        kubectl get po -owide -A
-        if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
           echo "Running nightly"
           make -C ./hack/aks deploy-cilium-nightly
-        else
-          export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-          echo "installing cilium version ${CILIUM_VERSION_TAG} from directory ${DIR}"
-          make -C ./hack/aks deploy-cilium
-        fi
 
-        kubectl get po -owide -A
-    name: "installCilium"
-    displayName: "Install Cilium on AKS Overlay"
+          kubectl get po -owide -A
+      name: "installCilium"
+      displayName: "Install Cilium Nightly on AKS Overlay"
+
+  - ${{ else }}:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+          ls -lah
+          pwd
+          kubectl cluster-info
+          kubectl get po -owide -A
+          if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
+            echo "Running nightly"
+            make -C ./hack/aks deploy-cilium-nightly
+          else
+            export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
+            echo "installing cilium version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+            make -C ./hack/aks deploy-cilium
+          fi
+
+          kubectl get po -owide -A
+      name: "installCilium"
+      displayName: "Install Cilium on AKS Overlay"
 
   - template: ../../templates/cilium-cli.yaml
 
@@ -167,9 +189,9 @@ steps:
         name: "HubbleConnectivityTests"
         displayName: "Run Hubble Connectivity Tests"
 
-  - ${{if eq( parameters['nightly'], true) }}:
+  - ${{ if eq( parameters['nightly'], true) }}:
     - template: ../../templates/cilium-nightly-checks.yaml
-  - ${{else }}:
+  - ${{ else }}:
     - script: |
         set -e
         echo "validate pod IP assignment and check systemd-networkd restart"
@@ -195,7 +217,7 @@ steps:
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
 
-  - ${{if eq( parameters['nightly'], false) }}:
+  - ${{ if eq( parameters['nightly'], false) }}:
     - script: |
         cd hack/scripts
         chmod +x async-delete-test.sh
@@ -207,3 +229,27 @@ steps:
       displayName: "Verify Async Delete when CNS is down"
 
   - template: ../../templates/cilium-mtu-check.yaml
+
+  - ${{ if eq( parameters['nightly'], true) }}:
+    # Reset Cilium to Nightly to ensure k8s E2E are validated against nightly config
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+          ls -lah
+          pwd
+          kubectl cluster-info
+          kubectl get po -owide -A
+
+          echo "Running nightly"
+          make -C ./hack/aks deploy-cilium-nightly
+
+          kubectl rollout restart ds cilium -n kube-system
+          kubectl get po -owide -A
+      name: "resetCilium"
+      displayName: "Reset Cilium Install to Nightly config"
