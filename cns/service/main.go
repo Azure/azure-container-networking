@@ -52,7 +52,6 @@ import (
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/crd"
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate"
 	cssv1alpha1 "github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/multitenancy"
@@ -74,7 +73,6 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	kuberuntime "k8s.io/apimachinery/pkg/runtime"
@@ -1307,37 +1305,17 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 	return nil
 }
 
-type nodeNetworkConfigGetter interface {
-	Get(context.Context) (*v1alpha.NodeNetworkConfig, error)
-}
-
 type ipamStateReconciler interface {
 	ReconcileIPAMStateForSwift(ncRequests []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) cnstypes.ResponseCode
 }
 
 // TODO(rbtr) where should this live??
 // reconcileInitialCNSState initializes cns by passing pods and a CreateNetworkContainerRequest
-func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ipamReconciler ipamStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider, isSwiftV2 bool) error {
-	// Get nnc using direct client
-	nnc, err := cli.Get(ctx)
-	if err != nil {
-		if crd.IsNotDefined(err) {
-			return errors.Wrap(err, "failed to init CNS state: NNC CRD is not defined")
-		}
-		if apierrors.IsNotFound(err) {
-			return errors.Wrap(err, "failed to init CNS state: NNC not found")
-		}
-		return errors.Wrap(err, "failed to init CNS state: failed to get NNC CRD")
-	}
-
-	logger.Printf("Retrieved NNC: %+v", nnc)
-	if !nnc.DeletionTimestamp.IsZero() {
-		return errors.New("failed to init CNS state: NNC is being deleted")
-	}
-
-	// If there are no NCs, we can't initialize our state and we should fail out.
-	if len(nnc.Status.NetworkContainers) == 0 {
-		return errors.New("failed to init CNS state: no NCs found in NNC CRD")
+func reconcileInitialCNSState(nnc *v1alpha.NodeNetworkConfig, ipamReconciler ipamStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider, isSwiftV2 bool) error {
+	// if no NCs, nothing to do
+	ncCount := len(nnc.Status.NetworkContainers)
+	if ncCount == 0 {
+		return errors.New("no network containers found in NNC status")
 	}
 
 	// Get previous PodInfo state from podInfoByIPProvider
@@ -1433,7 +1411,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
 			return errors.Wrap(err, "failed to create CNS EndpointState From CNI")
 		}
-		// endpoint state needs tobe loaded in memory so the subsequent Delete calls remove the state and release the IPs.
+		// endpoint state needs to be loaded in memory so the subsequent Delete calls remove the state and release the IPs.
 		if err = httpRestServiceImplementation.EndpointStateStore.Read(restserver.EndpointStoreKey, &httpRestServiceImplementation.EndpointState); err != nil {
 			return errors.Wrap(err, "failed to restore endpoint state")
 		}
@@ -1444,35 +1422,15 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		return errors.Wrap(err, "failed to initialize ip state")
 	}
 
-	// create scoped kube clients.
-	directcli, err := client.New(kubeConfig, client.Options{Scheme: nodenetworkconfig.Scheme})
-	if err != nil {
-		return errors.Wrap(err, "failed to create ctrl client")
-	}
-	directnnccli := nodenetworkconfig.NewClient(directcli)
-	if err != nil {
-		return errors.Wrap(err, "failed to create NNC client")
-	}
-	// TODO(rbtr): nodename and namespace should be in the cns config
-	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
-
-	logger.Printf("Reconciling initial CNS state")
-	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
-	// aks addons to come up so retry a bit more aggresively here.
-	// will retry 10 times maxing out at a minute taking about 8 minutes before it gives up.
-	attempt := 0
-	_ = retry.Do(func() error {
-		attempt++
-		logger.Printf("reconciling initial CNS state attempt: %d", attempt)
-		err = reconcileInitialCNSState(ctx, directscopedcli, httpRestServiceImplementation, podInfoByIPProvider, cnsconfig.EnableSwiftV2)
-		if err != nil {
-			logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
-			nncInitFailure.Inc()
+	initializerWrapper := func(nnc *v1alpha.NodeNetworkConfig) error {
+		logger.Printf("Reconciling initial CNS state")
+		if err := reconcileInitialCNSState(nnc, httpRestServiceImplementation, podInfoByIPProvider, cnsconfig.EnableSwiftV2); err != nil {
+			return err
 		}
-		return errors.Wrap(err, "failed to initialize CNS state")
-	}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute), retry.UntilSucceeded())
-	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
-	hasNNCInitialized.Set(1)
+		hasNNCInitialized.Set(1)
+		return nil
+	}
+
 	scheme := kuberuntime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil { //nolint:govet // intentional shadow
 		return errors.Wrap(err, "failed to add corev1 to scheme")
@@ -1561,7 +1519,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
-	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2)
+	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, initializerWrapper, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2)
 	// pass Node to the Reconciler for Controller xref
 	// IPAMv1 - reconcile only status changes (where generation doesn't change).
 	// IPAMv2 - reconcile all updates.

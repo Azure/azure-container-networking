@@ -192,7 +192,7 @@ func TestReconcile(t *testing.T) {
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
-			r := NewReconciler(&tt.cnsClient, &tt.cnsClient, tt.nodeIP, false)
+			r := NewReconciler(&tt.cnsClient, func(*v1alpha.NodeNetworkConfig) error { return nil }, &tt.cnsClient, tt.nodeIP, false)
 			r.nnccli = &tt.ncGetter
 			got, err := r.Reconcile(context.Background(), tt.in)
 			if tt.wantErr {
@@ -249,7 +249,7 @@ func TestReconcileStaleNCs(t *testing.T) {
 		return &nncLog[len(nncLog)-1], nil
 	}
 
-	r := NewReconciler(&cnsClient, &cnsClient, nodeIP, false)
+	r := NewReconciler(&cnsClient, func(*v1alpha.NodeNetworkConfig) error { return nil }, &cnsClient, nodeIP, false)
 	r.nnccli = &mockNCGetter{get: nncIterator}
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{})
@@ -265,4 +265,77 @@ func TestReconcileStaleNCs(t *testing.T) {
 	assert.NotContains(t, cnsClient.state.reqsByNCID, "nc2")
 	assert.Contains(t, cnsClient.state.reqsByNCID, "nc3")
 	assert.Contains(t, cnsClient.state.reqsByNCID, "nc4")
+}
+
+func TestReconcileInitializerRunsOnceOnSuccess(t *testing.T) {
+	logger.InitLogger("", 0, 0, "")
+
+	initializerCalls := 0
+	initializer := func(*v1alpha.NodeNetworkConfig) error {
+		initializerCalls++
+		return nil
+	}
+
+	cnsClient := mockCNSClient{
+		state: cnsClientState{reqsByNCID: make(map[string]*cns.CreateNetworkContainerRequest)},
+		createOrUpdateNC: func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode { return cnstypes.Success },
+		update:           func(*v1alpha.NodeNetworkConfig) error { return nil },
+	}
+
+	ncGetter := mockNCGetter{get: func(context.Context, types.NamespacedName) (*v1alpha.NodeNetworkConfig, error) {
+		return &v1alpha.NodeNetworkConfig{Status: validSwiftStatus}, nil
+	}}
+
+	r := NewReconciler(&cnsClient, initializer, &cnsClient, "", false)
+	r.nnccli = &ncGetter
+
+	_, err := r.Reconcile(context.Background(), reconcile.Request{})
+	require.NoError(t, err)
+	_, err = r.Reconcile(context.Background(), reconcile.Request{})
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, initializerCalls)
+	assert.Nil(t, r.initializer)
+}
+
+func TestReconcileInitializerRetriesAfterFailure(t *testing.T) {
+	logger.InitLogger("", 0, 0, "")
+
+	initializerCalls := 0
+	initializer := func(*v1alpha.NodeNetworkConfig) error {
+		initializerCalls++
+		if initializerCalls == 1 {
+			return errors.New("init failed")
+		}
+		return nil
+	}
+
+	createCalls := 0
+	cnsClient := mockCNSClient{
+		state: cnsClientState{reqsByNCID: make(map[string]*cns.CreateNetworkContainerRequest)},
+		createOrUpdateNC: func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
+			createCalls++
+			return cnstypes.Success
+		},
+		update: func(*v1alpha.NodeNetworkConfig) error { return nil },
+	}
+
+	ncGetter := mockNCGetter{get: func(context.Context, types.NamespacedName) (*v1alpha.NodeNetworkConfig, error) {
+		return &v1alpha.NodeNetworkConfig{Status: validSwiftStatus}, nil
+	}}
+
+	r := NewReconciler(&cnsClient, initializer, &cnsClient, "", false)
+	r.nnccli = &ncGetter
+
+	_, err := r.Reconcile(context.Background(), reconcile.Request{})
+	require.Error(t, err)
+	assert.NotNil(t, r.initializer)
+	assert.Equal(t, 1, initializerCalls)
+	assert.Equal(t, 0, createCalls)
+
+	_, err = r.Reconcile(context.Background(), reconcile.Request{})
+	require.NoError(t, err)
+	assert.Equal(t, 2, initializerCalls)
+	assert.Equal(t, 1, createCalls)
+	assert.Nil(t, r.initializer)
 }
