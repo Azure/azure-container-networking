@@ -19,7 +19,7 @@ resources:
     - repository: Networking-Aquarius
       type: git
       name: One/Networking-Aquarius
-      ref: refs/heads/master
+      ref: refs/heads/persistent-cluster-test-metrics
 
 variables:
   - name: rgName
