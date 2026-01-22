@@ -20,7 +20,6 @@ import (
 // +kubebuilder:printcolumn:name="Subnet",type=string,priority=1,JSONPath=`.spec.subnetResourceID`
 // +kubebuilder:printcolumn:name="SubnetGUID",type=string,priority=1,JSONPath=`.spec.subnetGUID`
 // +kubebuilder:printcolumn:name="DeviceType",type=string,priority=1,JSONPath=`.spec.deviceType`
-//nolint:lll // kubebuilder must stay in one line
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.status) || !has(oldSelf.status.status) || !(oldSelf.status.status in ['Ready','InUse']) || self.spec == oldSelf.spec",message="Spec is immutable when status is Ready or InUse."
 type PodNetwork struct {
 	metav1.TypeMeta   `json:",inline"`
