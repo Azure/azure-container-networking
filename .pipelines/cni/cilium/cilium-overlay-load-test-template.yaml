@@ -92,17 +92,18 @@ stages:
 
                   if [ ! -z ${{ parameters.dualstackVersion }} ]; then
                     echo "Use dualstack version of Cilium"
-                    export CILIUM_VERSION_TAG=${{ parameters.dualstackVersion }}
-                    export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
                     export IPV6_IMAGE_REGISTRY=acnpublic.azurecr.io
                     export IPV6_HP_BPF_VERSION=$(make ipv6-hp-bpf-version)
                     echo "IPV6_HP_BPF_VERSION: $IPV6_HP_BPF_VERSION"
                     echo "IPV6_IMAGE_REGISTRY: $IPV6_IMAGE_REGISTRY"
-                    echo "installing cilium dualstack version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+                    # makefile manages cilium version
+                    unset DIR
+                    unset CILIUM_VERSION_TAG
                     make -C ./hack/aks deploy-cilium-dualstack
                   else
-                    export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-                    echo "installing cilium version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+                    # makefile manages cilium version
+                    unset DIR
+                    unset CILIUM_VERSION_TAG
                     make -C ./hack/aks deploy-cilium
                   fi
 
@@ -129,9 +130,9 @@ stages:
                   kubectl get po -owide -A
 
                   echo "install Cilium onto Overlay Cluster with hubble enabled"
-                  export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
-                  export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-                  echo "installing cilium hubble version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+                  # makefile manages cilium version
+                  unset DIR
+                  unset CILIUM_VERSION_TAG
                   make -C ./hack/aks deploy-cilium-hubble
                   kubectl get po -owide -A
 
