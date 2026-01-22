@@ -241,7 +241,7 @@ stages:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
               scriptType: bash
               scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
+              scriptPath: "azure-container-networking/.pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
               arguments: >
                 assign
                 ${{ parameters.subscriptionId }}
@@ -289,7 +289,7 @@ stages:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
               scriptType: bash
               scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
+              scriptPath: "azure-container-networking/.pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
               arguments: >
                 delete
                 ${{ parameters.subscriptionId }}
