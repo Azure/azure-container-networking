@@ -1427,6 +1427,277 @@ func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
 	}
 }
 
+func TestMarkIpsAsAvailableUntransactedUpdatesMatchingNCID(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
+		testIP1: {
+			IPAddress: testIP1,
+			NCVersion: 0,
+		},
+	}
+
+	createAndValidateNCRequest(t, secondaryIPConfigs, testNCID, "0")
+
+	// Ensure NC host version allows processing.
+	ncInfo := svc.state.ContainerStatus[testNCID]
+	ncInfo.HostVersion = "0"
+	svc.state.ContainerStatus[testNCID] = ncInfo
+
+	// Sanity check pending state before update.
+	preState, exists := svc.PodIPConfigState[testIP1]
+	require.True(t, exists, "expected IP state to exist")
+	require.Equal(t, types.PendingProgramming, preState.GetState())
+	require.Equal(t, testNCID, preState.NCID)
+
+	svc.MarkIpsAsAvailableUntransacted(testNCID, 1)
+
+	updatedState := svc.PodIPConfigState[testIP1]
+	assert.Equal(t, types.Available, updatedState.GetState())
+	updatedNC := svc.state.ContainerStatus[testNCID]
+	assert.Equal(t, 1, updatedNC.CreateNetworkContainerRequest.SecondaryIPConfigs[testIP1].NCVersion)
+}
+
+func TestMarkIpsAsAvailableUntransactedSkipsMismatchedNCID(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
+		testIP1: {
+			IPAddress: testIP1,
+			NCVersion: 0,
+		},
+	}
+
+	createAndValidateNCRequest(t, secondaryIPConfigs, testNCID, "0")
+	createAndValidateNCRequest(t, secondaryIPConfigs, testNCIDv6, "0")
+
+	// Ensure NC host version allows processing for testNCIDv6.
+	ncInfo := svc.state.ContainerStatus[testNCIDv6]
+	ncInfo.HostVersion = "0"
+	svc.state.ContainerStatus[testNCIDv6] = ncInfo
+
+	preState, exists := svc.PodIPConfigState[testIP1]
+	require.True(t, exists, "expected IP state to exist")
+	require.Equal(t, types.PendingProgramming, preState.GetState())
+	require.Equal(t, testNCID, preState.NCID)
+
+	svc.MarkIpsAsAvailableUntransacted(testNCIDv6, 1)
+
+	postState := svc.PodIPConfigState[testIP1]
+	assert.Equal(t, types.PendingProgramming, postState.GetState())
+	assert.Equal(t, testNCID, postState.NCID)
+
+	updatedNC := svc.state.ContainerStatus[testNCIDv6]
+	assert.Equal(t, 0, updatedNC.CreateNetworkContainerRequest.SecondaryIPConfigs[testIP1].NCVersion)
+}
+
+func TestMarkIpsAsAvailableUntransactedSkipsWhenHostVersionNotAdvanced(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
+		testIP1: {
+			IPAddress: testIP1,
+			NCVersion: 0,
+		},
+	}
+
+	createAndValidateNCRequest(t, secondaryIPConfigs, testNCID, "0")
+
+	ncInfo := svc.state.ContainerStatus[testNCID]
+	ncInfo.HostVersion = "2"
+	svc.state.ContainerStatus[testNCID] = ncInfo
+
+	preState := svc.PodIPConfigState[testIP1]
+	require.Equal(t, types.PendingProgramming, preState.GetState())
+
+	svc.MarkIpsAsAvailableUntransacted(testNCID, 2)
+
+	postState := svc.PodIPConfigState[testIP1]
+	assert.Equal(t, types.PendingProgramming, postState.GetState())
+	updatedNC := svc.state.ContainerStatus[testNCID]
+	assert.Equal(t, 0, updatedNC.CreateNetworkContainerRequest.SecondaryIPConfigs[testIP1].NCVersion)
+}
+
+func TestMarkIpsAsAvailableUntransactedSkipsWhenIPMissingFromState(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
+		testIP1: {
+			IPAddress: testIP1,
+			NCVersion: 0,
+		},
+	}
+
+	createAndValidateNCRequest(t, secondaryIPConfigs, testNCID, "0")
+
+	delete(svc.PodIPConfigState, testIP1)
+
+	ncInfo := svc.state.ContainerStatus[testNCID]
+	ncInfo.HostVersion = "0"
+	svc.state.ContainerStatus[testNCID] = ncInfo
+
+	svc.MarkIpsAsAvailableUntransacted(testNCID, 1)
+
+	_, exists := svc.PodIPConfigState[testIP1]
+	assert.False(t, exists)
+	updatedNC := svc.state.ContainerStatus[testNCID]
+	assert.Equal(t, 0, updatedNC.CreateNetworkContainerRequest.SecondaryIPConfigs[testIP1].NCVersion)
+}
+
+func TestMarkIpsAsAvailableUntransactedSkipsWhenIPVersionAheadOfHost(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
+		testIP1: {
+			IPAddress: testIP1,
+			NCVersion: 2,
+		},
+	}
+
+	createAndValidateNCRequest(t, secondaryIPConfigs, testNCID, "2")
+
+	ncInfo := svc.state.ContainerStatus[testNCID]
+	ncInfo.HostVersion = "0"
+	svc.state.ContainerStatus[testNCID] = ncInfo
+
+	preState := svc.PodIPConfigState[testIP1]
+	require.Equal(t, types.PendingProgramming, preState.GetState())
+
+	svc.MarkIpsAsAvailableUntransacted(testNCID, 1)
+
+	postState := svc.PodIPConfigState[testIP1]
+	assert.Equal(t, types.PendingProgramming, postState.GetState())
+	updatedNC := svc.state.ContainerStatus[testNCID]
+	assert.Equal(t, 2, updatedNC.CreateNetworkContainerRequest.SecondaryIPConfigs[testIP1].NCVersion)
+}
+
+func TestMarkIpsAsAvailableUntransactedOnlyUpdatesPendingProgramming(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
+		testIP1: {
+			IPAddress: testIP1,
+			NCVersion: 0,
+		},
+		testIP2: {
+			IPAddress: testIP2,
+			NCVersion: 0,
+		},
+	}
+
+	createAndValidateNCRequest(t, secondaryIPConfigs, testNCID, "0")
+
+	ncInfo := svc.state.ContainerStatus[testNCID]
+	ncInfo.HostVersion = "0"
+	svc.state.ContainerStatus[testNCID] = ncInfo
+
+	available := svc.PodIPConfigState[testIP2]
+	available.SetState(types.Available)
+	svc.PodIPConfigState[testIP2] = available
+
+	svc.MarkIpsAsAvailableUntransacted(testNCID, 1)
+
+	updatedPending := svc.PodIPConfigState[testIP1]
+	updatedAvailable := svc.PodIPConfigState[testIP2]
+	assert.Equal(t, types.Available, updatedPending.GetState())
+	assert.Equal(t, types.Available, updatedAvailable.GetState())
+}
+
+func TestMarkIpsAsAvailableUntransactedSkipsWhenNCNotFound(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	// Don't create any NC, just call the method with a non-existent NC ID
+	svc.MarkIpsAsAvailableUntransacted("non-existent-nc-id", 1)
+
+	// Verify no panic and no state changes
+	assert.Empty(t, svc.PodIPConfigState)
+}
+
+func TestMarkIpsAsAvailableUntransactedSkipsWhenHostVersionInvalid(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{
+		testIP1: {
+			IPAddress: testIP1,
+			NCVersion: 0,
+		},
+	}
+
+	createAndValidateNCRequest(t, secondaryIPConfigs, testNCID, "0")
+
+	// Set invalid host version
+	ncInfo := svc.state.ContainerStatus[testNCID]
+	ncInfo.HostVersion = "invalid"
+	svc.state.ContainerStatus[testNCID] = ncInfo
+
+	preState := svc.PodIPConfigState[testIP1]
+	require.Equal(t, types.PendingProgramming, preState.GetState())
+
+	svc.MarkIpsAsAvailableUntransacted(testNCID, 1)
+
+	// State should remain unchanged
+	postState := svc.PodIPConfigState[testIP1]
+	assert.Equal(t, types.PendingProgramming, postState.GetState())
+}
+
+func TestMarkIpsAsAvailableUntransactedMixedNCIDs(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	// Create first NC with testIP1
+	secondaryIPConfigs1 := map[string]cns.SecondaryIPConfig{
+		testIP1: {
+			IPAddress: testIP1,
+			NCVersion: 0,
+		},
+	}
+	createAndValidateNCRequest(t, secondaryIPConfigs1, testNCID, "0")
+
+	// Create second NC with testIP2 and testIP3
+	secondaryIPConfigs2 := map[string]cns.SecondaryIPConfig{
+		testIP2: {
+			IPAddress: testIP2,
+			NCVersion: 0,
+		},
+		testIP3: {
+			IPAddress: testIP3,
+			NCVersion: 0,
+		},
+	}
+	createAndValidateNCRequest(t, secondaryIPConfigs2, testNCIDv6, "0")
+
+	// Manually add testIP1 to second NC's SecondaryIPConfigs to simulate stale data scenario
+	ncInfo := svc.state.ContainerStatus[testNCIDv6]
+	ncInfo.HostVersion = "0"
+	ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[testIP1] = cns.SecondaryIPConfig{
+		IPAddress: testIP1,
+		NCVersion: 0,
+	}
+	svc.state.ContainerStatus[testNCIDv6] = ncInfo
+
+	// Verify initial states
+	ip1State := svc.PodIPConfigState[testIP1]
+	ip2State := svc.PodIPConfigState[testIP2]
+	ip3State := svc.PodIPConfigState[testIP3]
+	require.Equal(t, types.PendingProgramming, ip1State.GetState())
+	require.Equal(t, testNCID, ip1State.NCID)
+	require.Equal(t, types.PendingProgramming, ip2State.GetState())
+	require.Equal(t, testNCIDv6, ip2State.NCID)
+	require.Equal(t, types.PendingProgramming, ip3State.GetState())
+	require.Equal(t, testNCIDv6, ip3State.NCID)
+
+	// Call for second NC - should only update testIP2 and testIP3, not testIP1
+	svc.MarkIpsAsAvailableUntransacted(testNCIDv6, 1)
+
+	// testIP1 should remain PendingProgramming (NCID mismatch)
+	ip1StatePost := svc.PodIPConfigState[testIP1]
+	ip2StatePost := svc.PodIPConfigState[testIP2]
+	ip3StatePost := svc.PodIPConfigState[testIP3]
+	assert.Equal(t, types.PendingProgramming, ip1StatePost.GetState())
+	// testIP2 and testIP3 should be Available
+	assert.Equal(t, types.Available, ip2StatePost.GetState())
+	assert.Equal(t, types.Available, ip3StatePost.GetState())
+}
+
 func constructSecondaryIPConfigs(ipAddress, uuid string, ncVersion int, secondaryIPConfigs map[string]cns.SecondaryIPConfig) {
 	secIPConfig := cns.SecondaryIPConfig{
 		IPAddress: ipAddress,

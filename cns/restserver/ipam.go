@@ -669,30 +669,28 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newH
 		return
 	}
 	// We only need to handle the situation when dnc nc version is larger than programmed nc version
-	if previousHostNCVersion < newHostNCVersion {
+	if previousHostNCVersion >= newHostNCVersion {
 		return
 	}
 	for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
 		ipConfigStatus, exist := service.PodIPConfigState[uuid]
+		if !exist {
+			logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", secondaryIPConfigs.IPAddress, uuid)
+			continue
+		}
 		// In block allocations, IPs do not have UUIDs, so the ID is actually the IP string. In these scenarios, we need to double check that
 		// the IP is the one for the NC we are processing in case there is stale IP data in PodIPConfigState from a previous NC.
 		if ipConfigStatus.NCID != ncID {
 			logger.Errorf("IP %s with uuid as %s NCID %s mismatch with current processing NCID %s, skip updating its status", ipConfigStatus.IPAddress, uuid, ipConfigStatus.NCID, ncID)
 			continue
 		}
-		if !exist {
-			logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
-			continue
-		}
-		if ipConfigStatus.GetState() != types.PendingProgramming {
-			continue
-		}
-		if secondaryIPConfigs.NCVersion > newHostNCVersion {
+		if ipConfigStatus.GetState() != types.PendingProgramming || secondaryIPConfigs.NCVersion > newHostNCVersion {
 			continue
 		}
 		_, err := service.updateIPConfigState(uuid, types.Available, nil)
 		if err != nil {
 			logger.Errorf("Error updating IPConfig [%+v] state to Available, err: %+v", ipConfigStatus, err)
+			continue
 		}
 		secondaryIPConfigs.NCVersion = newHostNCVersion
 		ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid] = secondaryIPConfigs
