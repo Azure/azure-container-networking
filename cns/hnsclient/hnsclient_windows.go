@@ -269,7 +269,7 @@ func configureHostNCApipaNetwork(localIPConfiguration cns.IPConfiguration) (*hcn
 		Routes: []hcn.Route{
 			{
 				NextHop:           localIPConfiguration.GatewayIPAddress,
-				DestinationPrefix: "169.254.128.0/17",
+				DestinationPrefix: "0.0.0.0/0",
 			},
 		},
 	}
