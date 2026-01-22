@@ -4,6 +4,8 @@ CILIUM_VERSION_TAG               		?= v1.17.7-250927
 CILIUM_IMAGE_REGISTRY           		?= mcr.microsoft.com/containernetworking
 IPV6_IMAGE_REGISTRY						?= mcr.microsoft.com/containernetworking
 IPV6_HP_BPF_VERSION               		?= v0.0.1
+CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY 	?= mcr.microsoft.com/containernetworking
+CILIUM_LOG_COLLECTOR_VERSION_TAG 		?= v0.0.1
 
 # ebpf cilium variables
 EBPF_CILIUM_DIR				     		?= 1.17
@@ -20,6 +22,8 @@ export IPV6_IMAGE_REGISTRY
 export IPV6_HP_BPF_VERSION
 export CILIUM_VERSION_TAG
 export CILIUM_IMAGE_REGISTRY
+export CILIUM_LOG_COLLECTOR_VERSION_TAG
+export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY
 
 # ebpf
 export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY
@@ -38,6 +42,11 @@ deploy-cilium-config:
 deploy-cilium-agent:
 	kubectl apply -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-agent/files
 	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-agent/templates/daemonset.yaml | kubectl apply --server-side -f -
+
+# patch cilium agent (assuming deployed) with server-side applied cilium log collector container
+add-cilium-log-collector:
+	envsubst '$${CILIUM_LOG_COLLECTOR_VERSION_TAG},$${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/daemonset-patch.yaml | kubectl apply --server-side --field-manager=cilium-log-collector -f -
+	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/cilium-log-collector-configmap.yaml
 
 deploy-cilium-operator:
 	kubectl apply -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/files

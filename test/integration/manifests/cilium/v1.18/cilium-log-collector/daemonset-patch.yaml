@@ -9,7 +9,7 @@ spec:
     spec:
       containers:
         - name: fluent-bit
-          image: "acnpublic.azurecr.io/cilium-log-collector:linux-amd64-525a51800"
+          image: $CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY/azure-iptables-monitor:$CILIUM_LOG_COLLECTOR_VERSION_TAG
           imagePullPolicy: Always
           command:
             - /fluent-bit/bin/fluent-bit
