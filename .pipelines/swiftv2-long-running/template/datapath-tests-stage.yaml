@@ -136,10 +136,10 @@ stages:
                 
                 if go test -v -timeout=1h -tags=create_test; then
                   echo "CreatePods test PASSED"
-                  $metrics_dir/sendsingmetrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation"
+                  $metrics_dir/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation"
                 else
                   echo "CreatePods test FAILED"
-                  $metrics_dir/sendsingmetrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation"
+                  $metrics_dir/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -191,10 +191,10 @@ stages:
                 
                 if go test -v -timeout=30m -tags=connectivity_test; then
                   echo "ConnectivityTests test PASSED"
-                  $metrics_dir/sendsingmetrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests"
+                  $metrics_dir/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests"
                 else
                   echo "ConnectivityTests test FAILED"
-                  $metrics_dir/sendsingmetrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests"
+                  $metrics_dir/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -282,10 +282,10 @@ stages:
                 
                 if go test -v -timeout=30m -tags=private_endpoint_test; then
                   echo "PrivateEndpointTests test PASSED"
-                  $metrics_dir/sendsingmetrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests"
+                  $metrics_dir/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests"
                 else
                   echo "PrivateEndpointTests test FAILED"
-                  $metrics_dir/sendsingmetrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests"
+                  $metrics_dir/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -353,10 +353,10 @@ stages:
                 
                 if go test -v -timeout 1h -tags=scale_test; then
                   echo "ScaleTest test PASSED"
-                  $metrics_dir/sendsingmetrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests"
+                  $metrics_dir/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests"
                 else
                   echo "ScaleTest test FAILED"
-                  $metrics_dir/sendsingmetrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests"
+                  $metrics_dir/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -412,10 +412,10 @@ stages:
                 
                 if go test -v -timeout=1h -tags=delete_test; then
                   echo "DeleteTestResources test PASSED"
-                  $metrics_dir/sendsingmetrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources"
+                  $metrics_dir/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources"
                 else
                   echo "DeleteTestResources test FAILED"
-                  $metrics_dir/sendsingmetrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources"
+                  $metrics_dir/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
