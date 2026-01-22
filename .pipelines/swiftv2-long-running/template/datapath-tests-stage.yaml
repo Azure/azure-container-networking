@@ -110,7 +110,7 @@ stages:
                 export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
                 
-                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics"
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
                 ado_run_id="$(Build.BuildId)"
                 
                 cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
@@ -118,11 +118,11 @@ stages:
                 if go test -v -timeout=1h -tags=create_test; then
                   echo "CreatePods test PASSED"
                   cd $metrics_dir
-                  ./persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation"
                 else
                   echo "CreatePods test FAILED"
                   cd $metrics_dir
-                  ./persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -168,7 +168,7 @@ stages:
                 export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
                 
-                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics"
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
                 ado_run_id="$(Build.BuildId)"
                 
                 cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
@@ -176,11 +176,11 @@ stages:
                 if go test -v -timeout=30m -tags=connectivity_test; then
                   echo "ConnectivityTests test PASSED"
                   cd $metrics_dir
-                  ./persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests"
                 else
                   echo "ConnectivityTests test FAILED"
                   cd $metrics_dir
-                  ./persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -262,7 +262,7 @@ stages:
                 export STORAGE_ACCOUNT_1="$(DiscoverStorageAccounts.storageAccount1)"
                 export STORAGE_ACCOUNT_2="$(DiscoverStorageAccounts.storageAccount2)"
                 
-                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics"
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
                 ado_run_id="$(Build.BuildId)"
                 
                 cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
@@ -270,11 +270,11 @@ stages:
                 if go test -v -timeout=30m -tags=private_endpoint_test; then
                   echo "PrivateEndpointTests test PASSED"
                   cd $metrics_dir
-                  ./persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests"
                 else
                   echo "PrivateEndpointTests test FAILED"
                   cd $metrics_dir
-                  ./persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -336,7 +336,7 @@ stages:
                 export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
                 
-                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics"
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
                 ado_run_id="$(Build.BuildId)"
                 
                 cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
@@ -344,11 +344,11 @@ stages:
                 if go test -v -timeout 1h -tags=scale_test; then
                   echo "ScaleTest test PASSED"
                   cd $metrics_dir
-                  ./persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests"
                 else
                   echo "ScaleTest test FAILED"
                   cd $metrics_dir
-                  ./persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -398,7 +398,7 @@ stages:
                 export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
                 
-                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics"
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
                 ado_run_id="$(Build.BuildId)"
                 
                 cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
@@ -406,11 +406,11 @@ stages:
                 if go test -v -timeout=1h -tags=delete_test; then
                   echo "DeleteTestResources test PASSED"
                   cd $metrics_dir
-                  ./persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources"
                 else
                   echo "DeleteTestResources test FAILED"
                   cd $metrics_dir
-                  ./persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
