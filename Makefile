@@ -1,3 +1,5 @@
+include ./cilium-log-collector/Makefile
+
 .DEFAULT_GOAL := help
 
 # Default platform commands
@@ -33,7 +35,7 @@ endif
 # Interrogate the git repo and set some variables
 REPO_ROOT							?= $(shell git rev-parse --show-toplevel)
 REVISION							?= $(shell git rev-parse --short HEAD)
-ACN_VERSION							?= $(shell git describe --exclude "azure-iptables-monitor*" --exclude "azure-ip-masq-merger*" --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --exclude "azure-block-iptables*" --tags --always)
+ACN_VERSION							?= $(shell git describe --exclude "cilium-log-collector*" --exclude "azure-iptables-monitor*" --exclude "azure-ip-masq-merger*" --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --exclude "azure-block-iptables*" --tags --always)
 IPV6_HP_BPF_VERSION					?= $(notdir $(shell git describe --match "ipv6-hp-bpf*" --tags --always))
 AZURE_BLOCK_IPTABLES_VERSION		?= $(notdir $(shell git describe --match "azure-block-iptables*" --tags --always))
 AZURE_IPAM_VERSION					?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
@@ -124,7 +126,7 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf azure-block-iptables
+all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf azure-block-iptables cilium-log-collector
 all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image azure-iptables-monitor-image ipv6-hp-bpf-image
 else
 all-binaries: azure-cni-plugin azure-cns azure-npm
@@ -892,6 +894,7 @@ workspace: ## Set up the Go workspace.
 	go work use ./azure-ipam
 	go work use ./azure-ip-masq-merger
 	go work use ./azure-iptables-monitor
+	go work use ./cilium-log-collector
 	go work use ./dropgz
 	go work use ./zapai
 

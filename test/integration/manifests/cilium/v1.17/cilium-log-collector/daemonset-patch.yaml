@@ -1,0 +1,36 @@
+# Note: Daemonset must be server side applied prior. Then just do: kubectl apply --server-side daemonset-patch.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cilium
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: fluent-bit
+          image: "acnpublic.azurecr.io/cilium-log-collector:linux-amd64-525a51800"
+          imagePullPolicy: Always
+          command:
+            - /fluent-bit/bin/fluent-bit
+          args:
+            - --workdir=/fluent-bit/etc
+            - --config=/fluent-bit/etc/conf/fluent-bit.conf
+          volumeMounts:
+            - name: config
+              mountPath: /fluent-bit/etc/conf
+            - mountPath: /var/log
+              name: varlog
+            - mountPath: /var/lib/docker/containers
+              name: varlibdockercontainers
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: fluent-bit
+        - hostPath:
+            path: /var/log
+          name: varlog
+        - hostPath:
+            path: /var/lib/docker/containers
+          name: varlibdockercontainers

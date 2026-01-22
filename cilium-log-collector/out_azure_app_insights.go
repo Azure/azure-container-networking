@@ -1,0 +1,209 @@
+package main
+
+import (
+	"C"
+	"encoding/json"
+	"fmt"
+	"time"
+	"unsafe"
+
+	"github.com/fluent/fluent-bit-go/output"
+)
+import "github.com/microsoft/ApplicationInsights-Go/appinsights"
+
+// version is set at build time
+var version = ""
+
+// RecordProcessor handles batch record processing for testability
+type RecordProcessor struct {
+	tracker AppInsightsTracker
+	tag     string
+	debug   bool
+	logKey  string
+}
+
+// ProcessRecord represents a single log record
+type ProcessRecord struct {
+	Timestamp time.Time
+	Fields    map[interface{}]interface{}
+}
+
+// AppInsightsTracker abstracts telemetry tracking for testing
+type AppInsightsTracker interface {
+	Track(telemetry appinsights.Telemetry)
+}
+
+// RealAppInsightsTracker wraps the actual App Insights client
+type RealAppInsightsTracker struct {
+	client appinsights.TelemetryClient
+}
+
+func (r *RealAppInsightsTracker) Track(telemetry appinsights.Telemetry) {
+	r.client.Track(telemetry)
+}
+
+var (
+	client appinsights.TelemetryClient
+	debug  string
+	logKey string
+)
+
+func convertToString(v interface{}) string {
+	switch val := v.(type) {
+	case []byte:
+		return string(val)
+	case string:
+		return val
+	case map[interface{}]interface{}:
+		converted := convertToJSONCompatible(val)
+		if jsonBytes, err := json.Marshal(converted); err == nil {
+			return string(jsonBytes)
+		}
+		return fmt.Sprintf("%+v", converted)
+	default:
+		return fmt.Sprintf("%v", val)
+	}
+}
+
+// convertToJSONCompatible recursively converts map[interface{}]interface{} to map[string]interface{}
+// json.Marshal only works with map[string]interface{}
+func convertToJSONCompatible(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[interface{}]interface{}:
+		converted := make(map[string]interface{})
+		for k, v := range val {
+			keyStr := fmt.Sprintf("%v", k)
+			converted[keyStr] = convertToJSONCompatible(v)
+		}
+		return converted
+	default:
+		// returning 'v' directly leads to base64 values
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+//export FLBPluginRegister
+func FLBPluginRegister(def unsafe.Pointer) int {
+	return output.FLBPluginRegister(def, "azure_app_insights", "Azure application insights")
+}
+
+// (fluentbit will call this)
+// plugin (context) pointer to fluentbit context (state/ c code)
+//
+//export FLBPluginInit
+func FLBPluginInit(plugin unsafe.Pointer) int {
+	instrumentationKey := output.FLBPluginConfigKey(plugin, "instrumentation_key")
+	// the key that is identified as the log upon receiving the record in this plugin
+	logKey = output.FLBPluginConfigKey(plugin, "log_key")
+	if logKey == "" {
+		logKey = "log"
+	}
+	debug = output.FLBPluginConfigKey(plugin, "debug")
+	fmt.Printf("[flb-azure-app-insights] version = '%s'\n", version)
+	fmt.Printf("[flb-azure-app-insights] plugin instrumentation key = '%s'\n", instrumentationKey)
+	fmt.Printf("[flb-azure-app-insights] using log key = '%s'\n", logKey)
+	fmt.Printf("[flb-azure-app-insights] debug = '%s'\n", debug)
+
+	telemetryConfig := appinsights.NewTelemetryConfiguration(instrumentationKey)
+	telemetryConfig.MaxBatchInterval = 1 * time.Second
+	telemetryConfig.MaxBatchSize = 10
+	client = appinsights.NewTelemetryClientFromConfig(telemetryConfig)
+
+	fmt.Printf("[flb-azure-app-insights] App Insights client initialized with key: %s\n",
+		telemetryConfig.InstrumentationKey)
+	return output.FLB_OK
+}
+
+//export FLBPluginFlush
+func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
+	var ret int
+	var ts interface{}
+	var record map[interface{}]interface{}
+
+	dec := output.NewDecoder(data, int(length))
+	tracker := &RealAppInsightsTracker{client: client}
+	processor := &RecordProcessor{
+		tracker: tracker,
+		tag:     C.GoString(tag),
+		debug:   debug == "true",
+		logKey:  logKey,
+	}
+
+	count := 0
+	for {
+		ret, ts, record = output.GetRecord(dec)
+		if ret != 0 {
+			break
+		}
+
+		var timestamp time.Time
+		switch t := ts.(type) {
+		case output.FLBTime:
+			timestamp = ts.(output.FLBTime).Time
+		case uint64:
+			timestamp = time.Unix(int64(t), 0)
+		default:
+			fmt.Println("time provided invalid, defaulting to now.")
+			timestamp = time.Now()
+		}
+
+		processor.ProcessSingleRecord(ProcessRecord{
+			Timestamp: timestamp,
+			Fields:    record,
+		}, count)
+		count++
+	}
+
+	return output.FLB_OK
+}
+
+// ProcessSingleRecord handles processing of an individual record for unit testing
+func (rp *RecordProcessor) ProcessSingleRecord(record ProcessRecord, recordIndex int) {
+	customFields := make(map[string]string)
+	var logMessage string
+
+	for k, v := range record.Fields {
+		keyStr := convertToString(k)
+		valueStr := convertToString(v)
+
+		if keyStr == rp.logKey {
+			logMessage = valueStr
+		} else {
+			customFields[keyStr] = valueStr
+		}
+	}
+	customFields["fluentbit_tag"] = rp.tag
+	customFields["record_count"] = fmt.Sprintf("%d", recordIndex)
+
+	if rp.debug {
+		msg := fmt.Sprintf("[flb-azure-app-insights] #%d %s: [%s, {", recordIndex, rp.tag,
+			record.Timestamp.String())
+		for k, v := range record.Fields {
+			keyStr := convertToString(k)
+			valueStr := convertToString(v)
+			msg += fmt.Sprintf("\"%s\": %s, ", keyStr, valueStr)
+		}
+		msg += "}\n"
+		fmt.Print(msg)
+		fmt.Printf("[flb-azure-app-insights] Sent trace to App Insights: log msg=%d chars, %d custom fields\n", len(logMessage), len(customFields))
+	}
+
+	trace := appinsights.NewTraceTelemetry(logMessage, appinsights.Information)
+	for key, value := range customFields {
+		trace.Properties[key] = value
+	}
+	rp.tracker.Track(trace)
+}
+
+//export FLBPluginExit
+func FLBPluginExit() int {
+	if client != nil {
+		client.Channel().Flush()
+		time.Sleep(2 * time.Second)
+		fmt.Println("[flb-azure-app-insights] App Insights client flushed and closed")
+	}
+	return output.FLB_OK
+}
+
+func main() {
+}
