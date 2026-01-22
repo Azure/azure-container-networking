@@ -117,10 +117,6 @@ spec:
                 type: string
             type: object
         type: object
-        x-kubernetes-validations:
-        - message: Spec is immutable when status is Ready or InUse.
-          rule: '!has(oldSelf.status) || !has(oldSelf.status.status) || !(oldSelf.status.status
-            in [''Ready'',''InUse'']) || self.spec == oldSelf.spec'
     served: true
     storage: true
     subresources:
