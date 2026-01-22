@@ -36,6 +36,7 @@ type PodNetworkInstanceList struct {
 }
 
 // PodNetworkConfig describes a template for how to attach a PodNetwork to a Pod
+//nolint:lll // kubebuilder must stay in one line
 // +kubebuilder:validation:XValidation:rule="!has(self.ipConstraint) || size(self.ipConstraint) == 0 || self.podIPReservationSize == 1",message="ipConstraint can only be specified when podIPReservationSize is 1"
 type PodNetworkConfig struct {
 	// PodNetwork is the name of a PodNetwork resource
