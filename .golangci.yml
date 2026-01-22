@@ -1,13 +1,6 @@
 issues:
   max-same-issues: 0
   max-issues-per-linter: 0
-  exclude-rules:
-    - path: crd/multitenancy/api/v1alpha1/podnetwork\.go
-      linters:
-        - lll
-    - path: crd/multitenancy/api/v1alpha1/podnetworkinstance\.go
-      linters:
-        - lll
 linters:
   presets: 
   - bugs
