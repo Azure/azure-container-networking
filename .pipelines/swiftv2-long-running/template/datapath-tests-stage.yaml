@@ -71,10 +71,33 @@ stages:
               artifactName: kubeconfigs-${{ parameters.workloadType }}
               publishLocation: pipeline
 
+      - job: BuildMetricsBinary
+        displayName: "Build Metrics Binary"
+        steps:
+          - checkout: Networking-Aquarius
+            displayName: "Checkout Networking-Aquarius repository"
+
+          - task: Bash@3
+            displayName: "Build persistent-cluster-metrics binary"
+            inputs:
+              targetType: 'inline'
+              script: |
+                cd $(System.DefaultWorkingDirectory)/Networking-Aquarius
+                make -C src/dnc persistent-cluster-metrics-binary
+                chmod +x src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish metrics binary and config"
+            inputs:
+              targetPath: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
+              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}'
+              publishLocation: 'pipeline'
+
       - job: CreatePods
         displayName: "Create Swiftv2 Pods"
         dependsOn:
           - SetupKubeconfig
+          - BuildMetricsBinary
         steps:
           - checkout: self
             displayName: "Checkout azure-container-networking"
@@ -88,14 +111,18 @@ stages:
               artifactName: kubeconfigs-${{ parameters.workloadType }}
               targetPath: $(Pipeline.Workspace)/kubeconfigs
 
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download metrics binary"
+            inputs:
+              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}'
+              path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
+
           - task: Bash@3
-            displayName: "Build persistent-cluster-metrics binary"
+            displayName: "Make metrics binary executable"
             inputs:
               targetType: 'inline'
               script: |
-                cd $(System.DefaultWorkingDirectory)/Networking-Aquarius
-                make -C src/dnc persistent-cluster-metrics-binary
-                chmod +x src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
+                chmod +x $(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
 
           - task: AzureCLI@2
             name: RunCreatePods
@@ -134,6 +161,7 @@ stages:
         displayName: "Test Pod-to-Pod Connectivity"
         dependsOn:
           - CreatePods
+          - BuildMetricsBinary
         steps:
           - checkout: self
             displayName: "Checkout azure-container-networking"
@@ -147,14 +175,18 @@ stages:
               artifactName: kubeconfigs-${{ parameters.workloadType }}
               targetPath: $(Pipeline.Workspace)/kubeconfigs
 
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download metrics binary"
+            inputs:
+              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}'
+              path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
+
           - task: Bash@3
-            displayName: "Build persistent-cluster-metrics binary"
+            displayName: "Make metrics binary executable"
             inputs:
               targetType: 'inline'
               script: |
-                cd $(System.DefaultWorkingDirectory)/Networking-Aquarius
-                make -C src/dnc persistent-cluster-metrics-binary
-                chmod +x src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
+                chmod +x $(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
 
           - task: AzureCLI@2
             displayName: "Run Connectivity Tests"
@@ -192,6 +224,7 @@ stages:
         displayName: "Test Private Endpoint Access"
         dependsOn:
           - ConnectivityTests
+          - BuildMetricsBinary
         steps:
           - checkout: self
             displayName: "Checkout azure-container-networking"
@@ -205,14 +238,18 @@ stages:
               artifactName: kubeconfigs-${{ parameters.workloadType }}
               targetPath: $(Pipeline.Workspace)/kubeconfigs
 
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download metrics binary"
+            inputs:
+              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}'
+              path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
+
           - task: Bash@3
-            displayName: "Build persistent-cluster-metrics binary"
+            displayName: "Make metrics binary executable"
             inputs:
               targetType: 'inline'
               script: |
-                cd $(System.DefaultWorkingDirectory)/Networking-Aquarius
-                make -C src/dnc persistent-cluster-metrics-binary
-                chmod +x src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
+                chmod +x $(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
 
           - task: AzureCLI@2
             name: DiscoverStorageAccounts
@@ -300,6 +337,7 @@ stages:
         displayName: "Scale Tests - create and delete pods at scale"
         dependsOn: 
           - PrivateEndpointTests
+          - BuildMetricsBinary
         steps:
           - checkout: self
             displayName: "Checkout azure-container-networking"
@@ -313,14 +351,18 @@ stages:
               artifactName: kubeconfigs-${{ parameters.workloadType }}
               targetPath: $(Pipeline.Workspace)/kubeconfigs
 
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download metrics binary"
+            inputs:
+              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}'
+              path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
+
           - task: Bash@3
-            displayName: "Build persistent-cluster-metrics binary"
+            displayName: "Make metrics binary executable"
             inputs:
               targetType: 'inline'
               script: |
-                cd $(System.DefaultWorkingDirectory)/Networking-Aquarius
-                make -C src/dnc persistent-cluster-metrics-binary
-                chmod +x src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
+                chmod +x $(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
 
           - task: AzureCLI@2
             displayName: "Run Scale Test (Create and Delete)"
@@ -363,6 +405,7 @@ stages:
           - ConnectivityTests
           - PrivateEndpointTests
           - ScaleTest
+          - BuildMetricsBinary
         condition: always()
         steps:
           - checkout: self
@@ -377,14 +420,18 @@ stages:
               artifactName: kubeconfigs-${{ parameters.workloadType }}
               targetPath: $(Pipeline.Workspace)/kubeconfigs
 
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download metrics binary"
+            inputs:
+              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}'
+              path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
+
           - task: Bash@3
-            displayName: "Build persistent-cluster-metrics binary"
+            displayName: "Make metrics binary executable"
             inputs:
               targetType: 'inline'
               script: |
-                cd $(System.DefaultWorkingDirectory)/Networking-Aquarius
-                make -C src/dnc persistent-cluster-metrics-binary
-                chmod +x src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
+                chmod +x $(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
 
           - task: AzureCLI@2
             displayName: "Delete Test Resources"
