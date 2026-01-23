@@ -45,6 +45,8 @@ deploy-cilium-agent:
 
 # patch cilium agent (assuming deployed) with server-side applied cilium log collector container
 add-cilium-log-collector:
+	@echo "CILIUM_LOG_COLLECTOR_VERSION_TAG: $(CILIUM_LOG_COLLECTOR_VERSION_TAG)"
+	@echo "CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY: $(CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY)"
 	envsubst '$${CILIUM_LOG_COLLECTOR_VERSION_TAG},$${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/daemonset-patch.yaml | kubectl apply --server-side --field-manager=cilium-log-collector -f -
 	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/cilium-log-collector-configmap.yaml
 
