@@ -93,10 +93,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 	r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
 
-	// call initFunc on first reconcile
-	if err := r.initializer(nnc); err != nil {
-		logger.Errorf("[cns-rc] initializer failed during reconcile: %v", err)
-		return reconcile.Result{}, errors.Wrap(err, "initializer failed during reconcile")
+	// call initFunc on first reconcile and never again
+	if r.initializer != nil {
+		if err := r.initializer(nnc); err != nil {
+			logger.Errorf("[cns-rc] initializer failed during reconcile: %v", err)
+			return reconcile.Result{}, errors.Wrap(err, "initializer failed during reconcile")
+		}
+		r.initializer = nil
 	}
 
 	// for each NC, parse it in to a CreateNCRequest and forward it to the appropriate Listener

@@ -1411,7 +1411,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
 			return errors.Wrap(err, "failed to create CNS EndpointState From CNI")
 		}
-		// endpoint state needs tobe loaded in memory so the subsequent Delete calls remove the state and release the IPs.
+		// endpoint state needs to be loaded in memory so the subsequent Delete calls remove the state and release the IPs.
 		if err = httpRestServiceImplementation.EndpointStateStore.Read(restserver.EndpointStoreKey, &httpRestServiceImplementation.EndpointState); err != nil {
 			return errors.Wrap(err, "failed to restore endpoint state")
 		}
@@ -1422,18 +1422,12 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		return errors.Wrap(err, "failed to initialize ip state")
 	}
 
-	
-	hasInitialized := false
-	initFunc := func(nnc *v1alpha.NodeNetworkConfig) error {
-		if hasInitialized {
-			return nil
-		}
+	initializerWrapper := func(nnc *v1alpha.NodeNetworkConfig) error {
 		logger.Printf("Reconciling initial CNS state")
 		if err := reconcileInitialCNSState(nnc, httpRestServiceImplementation, podInfoByIPProvider, cnsconfig.EnableSwiftV2); err != nil {
 			return err
 		}
-		hasNNCInitialized.Set(2)
-		hasInitialized = true
+		hasNNCInitialized.Set(1)
 		return nil
 	}
 
@@ -1526,7 +1520,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
-	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, initFunc, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2)
+	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, initializerWrapper, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2)
 	// pass Node to the Reconciler for Controller xref
 	// IPAMv1 - reconcile only status changes (where generation doesn't change).
 	// IPAMv2 - reconcile all updates.
