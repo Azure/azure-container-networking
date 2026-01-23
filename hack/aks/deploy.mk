@@ -72,6 +72,11 @@ deploy-cilium-config-hubble:
 
 deploy-cilium-hubble: print-cilium-vars deploy-cilium-config-hubble deploy-cilium-agent deploy-cilium-operator wait-for-cilium
 
+# deploys the hubble components
+deploy-hubble: print-cilium-vars
+	kubectl apply -f ../../test/integration/manifests/cilium/hubble/hubble-peer-svc.yaml
+	kubectl apply -f ../../test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
+
 # cilium nightly deployment
 deploy-cilium-config-nightly:
 	kubectl apply -f ../../test/integration/manifests/cilium/cilium-nightly-config.yaml
