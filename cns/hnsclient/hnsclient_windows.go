@@ -542,6 +542,7 @@ func configureHostNCApipaEndpoint(
 	hcnRoute := hcn.Route{
 		NextHop:           hnsLoopbackAdapterIPAddress,
 		DestinationPrefix: "169.254.128.0/17",
+		Metric:            50,
 	}
 
 	endpoint.Routes = append(endpoint.Routes, hcnRoute)
