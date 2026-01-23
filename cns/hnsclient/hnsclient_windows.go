@@ -270,6 +270,7 @@ func configureHostNCApipaNetwork(localIPConfiguration cns.IPConfiguration) (*hcn
 			{
 				NextHop:           localIPConfiguration.GatewayIPAddress,
 				DestinationPrefix: "0.0.0.0/0",
+				Metric:            50,
 			},
 		},
 	}
