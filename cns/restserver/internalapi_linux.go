@@ -35,7 +35,10 @@ func (c *iptablesLegacy) Delete(table, chain string, rulespec ...string) error {
 	return errors.Wrap(exec.Command("iptables-legacy", cmd...).Run(), "iptables legacy failed delete")
 }
 
-func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.NetworkInterface) map[string]string {
+// processIMDSData, processes network interface data from IMDS for prefix-on-NIC scenarios on Linux.
+// It extracts the delegated NIC's information from IMDS network interfaces.
+// A delegated NIC is identified by having a non-empty InterfaceCompartmentID (NC ID).
+func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.NetworkInterface) (map[string]string, error) {
 	ncs := make(map[string]string)
 
 	for _, iface := range networkInterfaces {
@@ -46,7 +49,7 @@ func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.Network
 		}
 	}
 
-	return ncs
+	return ncs, nil
 }
 
 // nolint

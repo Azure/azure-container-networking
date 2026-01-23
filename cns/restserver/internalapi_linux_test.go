@@ -385,7 +385,10 @@ func TestAddSNATRules(t *testing.T) {
 func TestProcessIMDSData_EmptyInterfaces(t *testing.T) {
 	service := &HTTPRestService{}
 
-	result := service.processIMDSData([]imds.NetworkInterface{})
+	result, err := service.processIMDSData([]imds.NetworkInterface{})
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
 
 	if len(result) != 0 {
 		t.Errorf("Expected empty result for empty input, got %d NCs", len(result))
@@ -405,7 +408,10 @@ func TestProcessIMDSData_InfraNICOnly(t *testing.T) {
 		},
 	}
 
-	result := service.processIMDSData(interfaces)
+	result, err := service.processIMDSData(interfaces)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
 
 	if len(result) != 0 {
 		t.Errorf("Expected empty result for infra NIC only, got %d NCs", len(result))
@@ -430,7 +436,10 @@ func TestProcessIMDSData(t *testing.T) {
 		},
 	}
 
-	result := service.processIMDSData(interfaces)
+	result, err := service.processIMDSData(interfaces)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
 
 	if len(result) != 1 {
 		t.Errorf("Expected one NC in result, got %d", len(result))

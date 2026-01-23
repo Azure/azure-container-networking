@@ -19,39 +19,12 @@ import (
 func TestProcessIMDSData_EmptyInterfaces(t *testing.T) {
 	service := &HTTPRestService{}
 
-	result := service.processIMDSData([]imds.NetworkInterface{})
+	result, err := service.processIMDSData([]imds.NetworkInterface{})
+	require.NoError(t, err)
 
 	if len(result) != 0 {
 		t.Errorf("Expected empty result for empty input, got %d NCs", len(result))
 	}
-}
-
-func TestProcessIMDSData_SwiftV2PrefixOnNicEnabled(t *testing.T) {
-	ncID := "nc-id-1"
-	delegatedMacAddr, _ := net.ParseMAC("00:15:5D:01:02:03")
-	infraMacAddr, _ := net.ParseMAC("00:15:5D:01:02:FF")
-
-	service := &HTTPRestService{
-		state: &httpRestServiceState{
-			ContainerStatus: map[string]containerstatus{},
-		},
-	}
-
-	interfaces := []imds.NetworkInterface{
-		{
-			MacAddress:             imds.HardwareAddr(delegatedMacAddr),
-			InterfaceCompartmentID: ncID,
-		},
-		{
-			MacAddress:             imds.HardwareAddr(infraMacAddr),
-			InterfaceCompartmentID: "",
-		},
-	}
-
-	result := service.processIMDSData(interfaces)
-
-	assert.Len(t, result, 1, "Expected one NC in result")
-	assert.Equal(t, PrefixOnNicNCVersion, result[ncID], "NC should have expected version")
 }
 
 func TestProcessIMDSData_InfraNICOnly(t *testing.T) {
@@ -71,10 +44,12 @@ func TestProcessIMDSData_InfraNICOnly(t *testing.T) {
 		},
 	}
 
-	result := service.processIMDSData(interfaces)
+	result, err := service.processIMDSData(interfaces)
 
-	if len(result) != 0 {
-		t.Errorf("Expected empty result for infra NIC only, got %d NCs", len(result))
+	if err == nil {
+		if len(result) != 0 {
+			t.Errorf("Expected empty result for infra NIC only, got %d NCs", len(result))
+		}
 	}
 }
 

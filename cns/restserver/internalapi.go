@@ -229,7 +229,10 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		return len(programmedNCs), errors.Wrap(err, "failed to get nc version list from nmagent")
 	}
 	// Get IMDS NC versions for delegated NIC scenarios.
-	imdsNCVersions := service.getIMDSNCDetails(ctx)
+	imdsNCVersions, err := service.getIMDSNCDetails(ctx)
+	if err != nil {
+		return len(programmedNCs), errors.Wrap(err, "failed to get NC details from IMDS")
+	}
 
 	nmaNCs := map[string]string{}
 	for _, nc := range ncVersionListResp.Containers {
@@ -686,30 +689,35 @@ func (service *HTTPRestService) isNCDetailsAPIExists(ctx context.Context) bool {
 	return false
 }
 
-// gets nc details from IMDS and returns perform platform specific action
-func (service *HTTPRestService) getIMDSNCDetails(ctx context.Context) map[string]string {
+// getIMDSNCDetails retrieves network container information from IMDS for delegated NIC scenarios and performs platform-specific configuration.
+//
+// Returns a map of NC ID -> NC version for delegated NIC retrieved from IMDS.
+// Windows only:
+//   - Sets Windows registry keys required by HNS for Cilium route configuration in prefix-on-NIC scenarios.
+//
+// The returned map is used by syncHostNCVersion to consolidate NC version information from both NMAgent and IMDS sources.
+func (service *HTTPRestService) getIMDSNCDetails(ctx context.Context) (map[string]string, error) {
 	imdsClient := service.imdsClient
 	if imdsClient == nil {
-		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-		logger.Errorf("IMDS client is not available")
-		return map[string]string{}
+		return nil, errors.New("IMDS client is not available")
 	}
+
 	// Check NC version support
 	if !service.isNCDetailsAPIExists(ctx) {
-		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-		logger.Errorf("IMDS does not support NC details API")
-		return map[string]string{}
+		return nil, errors.New("IMDS does not support NC details API")
 	}
 
 	// Get all network interfaces from IMDS
 	networkInterfaces, err := imdsClient.GetNetworkInterfaces(ctx)
 	if err != nil {
-		//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-		logger.Errorf("Failed to get network interfaces from IMDS: %v", err)
-		return map[string]string{}
+		return nil, errors.Wrap(err, "failed to get network interfaces from IMDS")
 	}
 
-	return service.processIMDSData(networkInterfaces)
+	ncs, err := service.processIMDSData(networkInterfaces)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to process IMDS data")
+	}
+	return ncs, nil
 }
 
 // IsCIDRSuperset returns true if newCIDR is a superset of oldCIDR (i.e., all IPs in oldCIDR are contained in newCIDR).

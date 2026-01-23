@@ -11,7 +11,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/imds"
-	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Microsoft/hcsshim"
@@ -102,7 +101,13 @@ func (service *HTTPRestService) isSwiftV2PrefixOnNicEnabled(ncID string) bool {
 	return false
 }
 
-func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.NetworkInterface) map[string]string {
+// processIMDSData processes network interface data from IMDS and configures Windows registry for prefix-on-NIC scenarios.
+//
+//	It extracts the delegated NIC's information from IMDS network interfaces.
+//
+//	Configures Windows registry if an infra NIC is present, this function sets registry keys
+//	   required by HNS to configure Cilium routes for Windows nodes
+func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.NetworkInterface) (map[string]string, error) {
 	ncs := make(map[string]string)
 	var infraNicMacAddress string
 	var isSwiftv2PrefixOnNic bool
@@ -123,17 +128,14 @@ func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.Network
 		// Get the interface name from the MAC address
 		infraNicIfName, err := service.getInterfaceNameFromMAC(infraNicMacAddress)
 		if err != nil {
-			//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-			logger.Errorf("Failed to get interface name from MAC address to set for windows registry: %v", err)
-		} else {
-			// Process Windows registry keys with the retrieved MAC address and interface name. It is required for HNS team to configure cilium routes specific to windows nodes
-			if err := service.setRegistryKeysForPrefixOnNic(isSwiftv2PrefixOnNic, infraNicMacAddress, infraNicIfName); err != nil {
-				//nolint:staticcheck // SA1019: suppress deprecated logger.Printf usage. Todo: legacy logger usage is consistent in cns repo. Migrates when all logger usage is migrated
-				logger.Errorf("Failed to set windows registry keys: %v", err)
-			}
+			return nil, fmt.Errorf("failed to get interface name from MAC address to set for windows registry: %w", err)
+		}
+		// Process Windows registry keys with the retrieved MAC address and interface name. It is required for HNS team to configure cilium routes specific to windows nodes
+		if err := service.setRegistryKeysForPrefixOnNic(isSwiftv2PrefixOnNic, infraNicMacAddress, infraNicIfName); err != nil {
+			return nil, fmt.Errorf("failed to set windows registry keys for prefix on nic scenario: %w", err)
 		}
 	}
-	return ncs
+	return ncs, nil
 }
 
 // getInterfaceNameFromMAC retrieves the network interface name given its MAC address.
