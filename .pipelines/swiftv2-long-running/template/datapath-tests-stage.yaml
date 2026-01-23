@@ -82,14 +82,13 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                cd $(System.DefaultWorkingDirectory)/Networking-Aquarius
                 make -C src/dnc persistent-cluster-metrics-binary
                 chmod +x src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
 
           - task: PublishPipelineArtifact@1
             displayName: "Publish metrics binary and config"
             inputs:
-              targetPath: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
+              targetPath: '$(System.DefaultWorkingDirectory)/src/dnc'
               artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}'
               publishLocation: 'pipeline'
 
