@@ -82,11 +82,13 @@ deploy-cilium-config-nightly:
 	kubectl apply -f ../../test/integration/manifests/cilium/cilium-nightly-config.yaml
 
 deploy-cilium-agent-nightly:
-	envsubst '$${CILIUM_NIGHTLY_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
+	CILIUM_VERSION_TAG=$(CILIUM_NIGHTLY_VERSION_TAG) \
+		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
 	kubectl apply -f ../../test/integration/manifests/cilium/cilium-nightly-agent
 
 deploy-cilium-operator-nightly:
-	envsubst '$${CILIUM_NIGHTLY_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+	CILIUM_VERSION_TAG=$(CILIUM_NIGHTLY_VERSION_TAG) \
+		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
 	kubectl apply -f ../../test/integration/manifests/cilium/cilium-nightly-operator
 
 deploy-cilium-nightly: print-cilium-nightly-vars deploy-cilium-config-nightly deploy-cilium-agent-nightly deploy-cilium-operator-nightly wait-for-cilium
