@@ -25,7 +25,7 @@ linters:
     rules:
       - linters:
           - lll
-        text: '^\s*//\s*\+kubebuilder'
+        source: '^\s*//\s*\+kubebuilder'
 linters-settings:
   gocritic:
     enabled-tags:
