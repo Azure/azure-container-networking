@@ -7,6 +7,8 @@ stages:
     displayName: E2E - AKS Swiftv2 Manifold
     variables:
       TAG: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
       IMAGE_REPO_PATH: $[ format('{0}/', stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath']) ]
       ${{ if eq(parameters.dependsOn, 'publish') }}:
         IMAGE_REPO_PATH_REF: 'azure-'
@@ -27,7 +29,7 @@ stages:
           - task: TriggerBuild@3
             inputs:
               buildDefinition: '391699'
-              templateParameters: 'regions: ["westus2"], useAcnPublic: true, cnscniversion: $(TAG), cnscniversionwindows: $(TAG), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF), npmversion: $(TAG)'
+              templateParameters: 'regions: ["westus2"], useAcnPublic: true, cnscniversion: $(CNS_VERSION), cnscniversionwindows: $(CNS_VERSION), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF), npmversion: $(NPM_VERSION)'
               useSameBranch: false
               queueBuildForUserThatTriggeredBuild: true
               branchToUse: 'refs/heads/master'
