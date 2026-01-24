@@ -36,9 +36,7 @@ type PodNetworkInstanceList struct {
 }
 
 // PodNetworkConfig describes a template for how to attach a PodNetwork to a Pod
-// +kubebuilder:validation:XValidation:rule="!has(self.ipConstraint) || size(self.ipConstraint) == 0 || /
-// self.podIPReservationSize == 1", /
-// message="ipConstraint can only be specified when podIPReservationSize is 1"
+// +kubebuilder:validation:XValidation:rule="!has(self.ipConstraint) || size(self.ipConstraint) == 0 || self.podIPReservationSize == 1",message="ipConstraint can only be specified when podIPReservationSize is 1"
 type PodNetworkConfig struct {
 	// PodNetwork is the name of a PodNetwork resource
 	PodNetwork string `json:"podNetwork"`
@@ -52,7 +50,6 @@ type PodNetworkConfig struct {
 	//   - IPv4 address: "192.168.0.1"
 	//   - IPv4 CIDR:    "192.168.0.1/32"
 	// +kubebuilder:default=""
-	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MaxLength=18
 	// +kubebuilder:validation:Pattern=`^$|^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\/32)?$`
 	IPConstraint string `json:"ipConstraint,omitempty"`
