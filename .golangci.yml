@@ -21,6 +21,11 @@ linters:
   - nakedret
   - promlinter
   - revive
+  exclusions:
+    rules:
+      - linters:
+          - lll
+        text: '^\s*//\s*\+kubebuilder'
 linters-settings:
   gocritic:
     enabled-tags:
@@ -33,6 +38,4 @@ linters-settings:
     enable:
     - shadow
   lll:
-    line-length: 200    
-    exclude-rules:
-      - regex: '^\s*//\s*\+kubebuilder'
+    line-length: 200
