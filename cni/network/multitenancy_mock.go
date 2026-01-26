@@ -93,8 +93,8 @@ func (m *MockMultitenancy) GetAllNetworkContainers(
 			HostSubnetPrefix: ipNets[i],
 		}
 
-		ipconfig, routes := convertToIPConfigAndRouteInfo(ifInfo.NCResponse)
-		ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipconfig)
+		ipconfigs, routes := convertToIPConfigAndRouteInfo(ifInfo.NCResponse)
+		ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipconfigs...)
 		ifInfo.Routes = routes
 		ifInfo.NICType = cns.InfraNIC
 
