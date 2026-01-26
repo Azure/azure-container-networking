@@ -78,9 +78,12 @@ func convertToJSONCompatible(v interface{}) interface{} {
 			converted[keyStr] = convertToJSONCompatible(v)
 		}
 		return converted
+	case []byte:
+		// returning %v will lead to byte arrays, but we want string values
+		return string(val)
 	default:
-		// returning 'v' directly leads to base64 values
-		return fmt.Sprintf("%v", v)
+		// returning v directly leads to base64 values, so convert to string first
+		return fmt.Sprintf("%v", val)
 	}
 }
 

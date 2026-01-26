@@ -144,7 +144,8 @@ func TestProcessSingleRecord_NestedMapConversion(t *testing.T) {
 					"inner_count": 123,
 					"metadata3": map[interface{}]interface{}{
 						"enabled": true,
-						"timeout": 30,
+						"data":    []byte{57, 57, 54, 50},
+						"data2":   []byte{107, 117, 98, 101, 45, 115, 121, 115, 116, 101, 109},
 						"hi":      Blah{Blah: "aaah"},
 					},
 				},
@@ -180,7 +181,10 @@ func TestProcessSingleRecord_NestedMapConversion(t *testing.T) {
 	metadata3, ok := metadata2["metadata3"].(map[string]interface{})
 	require.True(t, ok, "metadata3 should be a map")
 	require.Equal(t, "true", metadata3["enabled"])
-	require.Equal(t, "30", metadata3["timeout"])
+
+	// verify byte arrays are converted to strings
+	require.Equal(t, "9962", metadata3["data"])         // [57 57 54 50] -> "9962"
+	require.Equal(t, "kube-system", metadata3["data2"]) // [107 117 98 101 45 115 121 115 116 101 109] -> "kube-system"
 
 	// %v representation of the struct
 	require.Equal(t, "{aaah}", metadata3["hi"])
