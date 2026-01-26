@@ -8,8 +8,8 @@ spec:
   template:
     spec:
       containers:
-        - name: fluent-bit
-          image: $CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY/azure-iptables-monitor:$CILIUM_LOG_COLLECTOR_VERSION_TAG
+        - name: cilium-fluent-bit
+          image: $CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY/cilium-log-collector:$CILIUM_LOG_COLLECTOR_VERSION_TAG
           imagePullPolicy: Always
           command:
             - /fluent-bit/bin/fluent-bit
@@ -27,7 +27,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: fluent-bit
+            name: cilium-fluent-bit
         - hostPath:
             path: /var/log
           name: varlog

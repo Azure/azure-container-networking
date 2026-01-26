@@ -40,5 +40,5 @@ data:
         Match                       kube.*
 kind: ConfigMap
 metadata:
-  name: fluent-bit
+  name: cilium-fluent-bit
   namespace: kube-system
