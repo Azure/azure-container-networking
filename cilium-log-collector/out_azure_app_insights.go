@@ -1,15 +1,17 @@
 package main
 
+import "C" //nolint
+
 import (
-	"C"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
-	"unsafe"
+	"unsafe" //nolint
 
 	"github.com/fluent/fluent-bit-go/output"
+	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 )
-import "github.com/microsoft/ApplicationInsights-Go/appinsights"
 
 // version is set at build time
 var version = ""
@@ -173,7 +175,7 @@ func (rp *RecordProcessor) ProcessSingleRecord(record ProcessRecord, recordIndex
 		}
 	}
 	customFields["fluentbit_tag"] = rp.tag
-	customFields["record_count"] = fmt.Sprintf("%d", recordIndex)
+	customFields["record_count"] = strconv.Itoa(recordIndex)
 
 	if rp.debug {
 		msg := fmt.Sprintf("[flb-azure-app-insights] #%d %s: [%s, {", recordIndex, rp.tag,
