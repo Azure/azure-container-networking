@@ -226,8 +226,8 @@ func (m *Multitenancy) GetAllNetworkContainers(
 			HostSubnetPrefix: hostSubnetPrefixes[i],
 		}
 
-		ipconfig, routes := convertToIPConfigAndRouteInfo(ifInfo.NCResponse)
-		ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipconfig)
+		ipconfigs, routes := convertToIPConfigAndRouteInfo(ifInfo.NCResponse)
+		ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipconfigs...)
 		ifInfo.Routes = routes
 		ifInfo.NICType = cns.InfraNIC
 		ifInfo.SkipDefaultRoutes = ncResponses[i].SkipDefaultRoutes
@@ -319,18 +319,68 @@ func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName s
 	return result
 }
 
-func convertToIPConfigAndRouteInfo(networkConfig *cns.GetNetworkContainerResponse) (*network.IPConfig, []network.RouteInfo) {
-	ipconfig := &network.IPConfig{}
+func convertToIPConfigAndRouteInfo(networkConfig *cns.GetNetworkContainerResponse) ([]*network.IPConfig, []network.RouteInfo) {
+	ipconfigs := []*network.IPConfig{}
 	cnsIPConfig := networkConfig.IPConfiguration
 	ipAddr := net.ParseIP(cnsIPConfig.IPSubnet.IPAddress)
 
-	if ipAddr.To4() != nil {
-		ipconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(cnsIPConfig.IPSubnet.PrefixLength), ipv4FullMask)}
-	} else {
-		ipconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(cnsIPConfig.IPSubnet.PrefixLength), ipv6FullMask)}
+	// Create primary IPConfig (always IPv4 in current scenarios)
+	primaryIPConfig := &network.IPConfig{
+		Address: net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(cnsIPConfig.IPSubnet.PrefixLength), ipv4FullMask)},
+		Gateway: net.ParseIP(cnsIPConfig.GatewayIPAddress),
 	}
+	ipconfigs = append(ipconfigs, primaryIPConfig)
 
-	ipconfig.Gateway = net.ParseIP(cnsIPConfig.GatewayIPAddress)
+	// Process SecondaryIPConfigs
+	// For dual-stack scenarios in multitenancy:
+	// - If a secondary is IPv6, create a separate IPConfig with IPv6 gateway
+	// - IPv4 secondaries are added to SecondaryIPs array of primary IPConfig
+	if len(networkConfig.SecondaryIPConfigs) > 0 {
+		var ipv6DualStackConfig *network.IPConfig
+
+		for _, secondaryIPConfig := range networkConfig.SecondaryIPConfigs {
+			secondaryIP := net.ParseIP(secondaryIPConfig.IPAddress)
+			if secondaryIP == nil {
+				logger.Error("Failed to parse secondary IP address",
+					zap.String("ipAddress", secondaryIPConfig.IPAddress))
+				continue
+			}
+
+			// Check if this is IPv6 for dual-stack
+			if secondaryIP.To4() == nil {
+				// IPv6 secondary - create separate IPConfig for dual-stack
+				if ipv6DualStackConfig == nil {
+					ipv6DualStackConfig = &network.IPConfig{
+						Address: net.IPNet{
+							IP:   secondaryIP,
+							Mask: net.CIDRMask(112, ipv6FullMask), // Default /112 for pod IPv6
+						},
+						Gateway: net.ParseIP(cnsIPConfig.GatewayIPv6Address),
+					}
+					logger.Info("Created separate IPv6 IPConfig for dual-stack",
+						zap.String("ipv6Address", secondaryIP.String()),
+						zap.String("ipv6Gateway", cnsIPConfig.GatewayIPv6Address))
+				} else {
+					// Additional IPv6 addresses go to IPv6 IPConfig SecondaryIPs
+					secondaryIPNet := net.IPNet{IP: secondaryIP, Mask: net.CIDRMask(112, ipv6FullMask)}
+					ipv6DualStackConfig.SecondaryIPs = append(ipv6DualStackConfig.SecondaryIPs, secondaryIPNet)
+					logger.Info("Added additional IPv6 secondary IP",
+						zap.String("secondaryIP", secondaryIPNet.String()))
+				}
+			} else {
+				// IPv4 secondary - add to primary IPConfig SecondaryIPs array
+				secondaryIPNet := net.IPNet{IP: secondaryIP, Mask: net.CIDRMask(int(cnsIPConfig.IPSubnet.PrefixLength), ipv4FullMask)}
+				primaryIPConfig.SecondaryIPs = append(primaryIPConfig.SecondaryIPs, secondaryIPNet)
+				logger.Info("Added IPv4 secondary IP",
+					zap.String("secondaryIP", secondaryIPNet.String()))
+			}
+		}
+
+		// Add the IPv6 dual-stack config as a separate IPConfig
+		if ipv6DualStackConfig != nil {
+			ipconfigs = append(ipconfigs, ipv6DualStackConfig)
+		}
+	}
 
 	routes := make([]network.RouteInfo, 0)
 	if networkConfig.Routes != nil && len(networkConfig.Routes) > 0 {
@@ -343,10 +393,10 @@ func convertToIPConfigAndRouteInfo(networkConfig *cns.GetNetworkContainerRespons
 
 	for _, ipRouteSubnet := range networkConfig.CnetAddressSpace {
 		routeIPnet := net.IPNet{IP: net.ParseIP(ipRouteSubnet.IPAddress), Mask: net.CIDRMask(int(ipRouteSubnet.PrefixLength), ipv4FullMask)}
-		routes = append(routes, network.RouteInfo{Dst: routeIPnet, Gw: ipconfig.Gateway})
+		routes = append(routes, network.RouteInfo{Dst: routeIPnet, Gw: primaryIPConfig.Gateway})
 	}
 
-	return ipconfig, routes
+	return ipconfigs, routes
 }
 
 func checkIfSubnetOverlaps(enableInfraVnet bool, nwCfg *cni.NetworkConfig, cnsNetworkConfig *cns.GetNetworkContainerResponse) bool {
