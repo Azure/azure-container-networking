@@ -40,7 +40,6 @@ steps:
         if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
           echo "Running nightly"
           # makefile manages cilium version (nightly doesn't use DIR)
-          unset DIR
           unset CILIUM_VERSION_TAG
           make -C ./hack/aks deploy-cilium-nightly
         else
