@@ -704,9 +704,21 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 
 	// for secondary (Populate addresses)
 	// initially only for infra nic but now applied to all nic types
-	addresses := make([]net.IPNet, len(opt.ifInfo.IPConfigs))
-	for i, ipconfig := range opt.ifInfo.IPConfigs {
-		addresses[i] = ipconfig.Address
+	addresses := make([]net.IPNet, 0, len(opt.ifInfo.IPConfigs))
+	for _, ipconfig := range opt.ifInfo.IPConfigs {
+		// Add the primary IP address
+		addresses = append(addresses, ipconfig.Address)
+		
+		// Add any secondary IPs (both IPv4 and IPv6) to the same interface
+		// This enables dual-stack support for Windows multitenancy Swift v1 mode
+		if len(ipconfig.SecondaryIPs) > 0 {
+			for _, secondaryIP := range ipconfig.SecondaryIPs {
+				addresses = append(addresses, secondaryIP)
+				logger.Info("Added secondary IP to endpoint addresses",
+					zap.String("secondaryIP", secondaryIP.String()),
+					zap.String("nicType", string(opt.ifInfo.NICType)))
+			}
+		}
 	}
 
 	// generate endpoint info

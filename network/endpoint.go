@@ -146,8 +146,9 @@ type InterfaceInfo struct {
 }
 
 type IPConfig struct {
-	Address net.IPNet
-	Gateway net.IP
+	Address      net.IPNet
+	Gateway      net.IP
+	SecondaryIPs []net.IPNet // Additional IPv4 and IPv6 addresses for the interface
 }
 
 type apipaClient interface {

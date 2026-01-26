@@ -523,6 +523,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		getNetworkContainerResponse = cns.GetNetworkContainerResponse{
 			NetworkContainerID:         savedReq.NetworkContainerid,
 			IPConfiguration:            savedReq.IPConfiguration,
+			SecondaryIPConfigs:         savedReq.SecondaryIPConfigs,
 			Routes:                     savedReq.Routes,
 			CnetAddressSpace:           savedReq.CnetAddressSpace,
 			MultiTenancyInfo:           savedReq.MultiTenancyInfo,
@@ -930,6 +931,7 @@ func (service *HTTPRestService) handleGetNetworkContainers(w http.ResponseWriter
 		getNcResp := cns.GetNetworkContainerResponse{
 			NetworkContainerID:         ncDetails.CreateNetworkContainerRequest.NetworkContainerid,
 			IPConfiguration:            ncDetails.CreateNetworkContainerRequest.IPConfiguration,
+			SecondaryIPConfigs:         ncDetails.CreateNetworkContainerRequest.SecondaryIPConfigs,
 			Routes:                     ncDetails.CreateNetworkContainerRequest.Routes,
 			CnetAddressSpace:           ncDetails.CreateNetworkContainerRequest.CnetAddressSpace,
 			MultiTenancyInfo:           ncDetails.CreateNetworkContainerRequest.MultiTenancyInfo,
