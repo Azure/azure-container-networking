@@ -153,6 +153,37 @@ spec:
           name: azure-ip-masq-dir
           readOnly: true
       - command:
+          - /azure-iptables-monitor
+          - -v
+          - "3"
+          - -events=true
+          - -checkMap=true
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: spec.nodeName
+        image: $AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY/azure-iptables-monitor:$AZURE_IPTABLES_MONITOR_TAG
+        imagePullPolicy: IfNotPresent
+        name: azure-iptables-monitor
+        resources: {}
+        securityContext:
+          capabilities:
+            add:
+              - NET_ADMIN
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+          - mountPath: /etc/config
+            name: iptables-config
+          - mountPath: /etc/ip6config
+            name: ip6tables-config
+          - mountPath: /azure-block-iptables-bpf-map
+            name: iptables-block-bpf-map
+            readOnly: true
+        
+      - command:
         - ./azure-ip-masq-merger
         - -v
         - "2"
@@ -444,6 +475,11 @@ spec:
           name: allowed-iptables-patterns
           optional: true
         name: iptables-config
+      - configMap:
+          defaultMode: 420
+          name: allowed-ip6tables-patterns
+          optional: true
+        name: ip6tables-config
       - hostPath:
           path: /sys/fs/bpf/azure-block-iptables
           type: DirectoryOrCreate
