@@ -1,0 +1,32 @@
+# Reusable template for metrics setup steps
+# Used by test jobs to checkout repos, download kubeconfig and metrics artifacts
+
+parameters:
+  - name: workloadType
+    type: string
+
+steps:
+  - checkout: self
+    displayName: "Checkout azure-container-networking"
+
+  - checkout: Networking-Aquarius
+    displayName: "Checkout Networking-Aquarius repository"
+
+  - task: DownloadPipelineArtifact@2
+    displayName: "Download kubeconfig files"
+    inputs:
+      artifactName: kubeconfigs-${{ parameters.workloadType }}
+      targetPath: $(Pipeline.Workspace)/kubeconfigs
+
+  - task: DownloadPipelineArtifact@2
+    displayName: "Download metrics binary"
+    inputs:
+      artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}'
+      path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
+
+  - task: Bash@3
+    displayName: "Make metrics binary executable"
+    inputs:
+      targetType: 'inline'
+      script: |
+        chmod +x $(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
