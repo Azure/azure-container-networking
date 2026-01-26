@@ -1,3 +1,4 @@
+# acnpublic: acnpublic.azurecr.io
 # general cilium variables
 DIR 									?= 1.17
 CILIUM_VERSION_TAG               		?= v1.17.7-250927
