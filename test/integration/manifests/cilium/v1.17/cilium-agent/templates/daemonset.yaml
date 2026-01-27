@@ -155,7 +155,7 @@ spec:
         - mountPath: /var/run/cilium/netns
           name: cilium-netns
           mountPropagation: HostToContainer
-      dnsPolicy: ClusterFirstWithHostNet
+      dnsPolicy: ClusterFirst
       hostNetwork: true
       initContainers:
       - name: install-cni-binaries
