@@ -26,11 +26,11 @@ schedules:
   branches:
     include: ["master"]
   always: true
-- cron: "20 22 * * *" # Every day at 2:02 PM PST (10:02 PM UTC)
-  displayName: "Test Scheduled Pipeline"
-  branches:
-    include: ["sharifna/pipeline/singularity-params"]
-  always: true
+# - cron: "20 22 * * *" # Every day at 2:02 PM PST (10:02 PM UTC)
+#   displayName: "Test Scheduled Pipeline"
+#   branches:
+#     include: ["sharifna/pipeline/singularity-params"]
+#   always: true
 
 stages:
   - stage: setup
