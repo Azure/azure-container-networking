@@ -6,9 +6,8 @@ stages:
   - stage: manifold_e2e
     displayName: E2E - AKS Swiftv2 Manifold
     variables:
-      #TAG: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      #CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
-      #NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
+      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
       IMAGE_REPO_PATH: $[ format('{0}/', stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath']) ]
       ${{ if eq(parameters.dependsOn, 'publish') }}:
         IMAGE_REPO_PATH_REF: 'azure-'
