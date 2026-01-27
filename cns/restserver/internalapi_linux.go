@@ -1,15 +1,18 @@
 package restserver
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net"
 	"os/exec"
 	"strconv"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/iptables"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	goiptables "github.com/coreos/go-iptables/iptables"
 	"github.com/pkg/errors"
@@ -32,6 +35,25 @@ type iptablesLegacy struct{}
 func (c *iptablesLegacy) Delete(table, chain string, rulespec ...string) error {
 	cmd := append([]string{"-t", table, "-D", chain}, rulespec...)
 	return errors.Wrap(exec.Command("iptables-legacy", cmd...).Run(), "iptables legacy failed delete")
+}
+
+func getInterfaceNameFromMAC(macAddress string) (string, error) {
+	macFormatted := strings.ReplaceAll(strings.ReplaceAll(macAddress, ":", ""), "-", "")
+	if macFormatted == "" {
+		return "", fmt.Errorf("failed to parse MAC address: empty MAC address")
+	}
+
+	macBytes, err := hex.DecodeString(macFormatted)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse MAC address %s: %w", macAddress, err)
+	}
+
+	iface, err := (&netio.NetIO{}).GetNetworkInterfaceByMac(net.HardwareAddr(macBytes))
+	if err != nil {
+		return "", fmt.Errorf("failed to find interface with MAC address %s: %w", macAddress, err)
+	}
+
+	return iface.Name, nil
 }
 
 // nolint
@@ -130,6 +152,31 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 			{"-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.UDP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP},
 			{"-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureDNS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.DNSPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP},
 			{"-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-d", networkutils.AzureIMDS, "-p", iptables.TCP, "--dport", strconv.Itoa(iptables.HTTPPort), "-j", iptables.Snat, "--to", req.HostPrimaryIP},
+		}
+
+		// For delegated NIC scenarios (SwiftV2), add SNAT rule for all traffic from pod subnet going out the delegated NIC interface.
+		// This ensures that pods can communicate with external services via the delegated NIC.
+		logger.Printf("[Azure CNS] Checking delegated NIC SNAT rule conditions: NICType=%v, MACAddress=%s, IPAddress=%s", req.NetworkInterfaceInfo.NICType, req.NetworkInterfaceInfo.MACAddress, req.NetworkInterfaceInfo.IPAddress)
+		if req.NetworkInterfaceInfo.NICType == cns.DelegatedVMNIC && req.NetworkInterfaceInfo.MACAddress != "" {
+			delegatedNICInfo, err := getInterfaceNameFromMAC(req.NetworkInterfaceInfo.MACAddress)
+			if err != nil {
+				logger.Printf("[Azure CNS] Warning: Failed to get delegated NIC interface name for SNAT rule: %v", err)
+			} else {
+				// Use the IP address from the request (from NNC) instead of querying the interface,
+				// as the interface may not have an IP assigned yet in some configurations.
+				delegatedNICIP := req.NetworkInterfaceInfo.IPAddress
+				if delegatedNICIP == "" {
+					logger.Printf("[Azure CNS] Warning: No IP address provided for delegated NIC %s, skipping SNAT rule", delegatedNICInfo)
+				} else {
+					logger.Printf("[Azure CNS] Found delegated NIC interface: name=%s, ipv4=%s", delegatedNICInfo, delegatedNICIP)
+					// SNAT all internet-bound traffic from pod subnet going out the delegated NIC interface to the delegated NIC IP
+					delegatedNICSNATRule := []string{"-m", "addrtype", "!", "--dst-type", "local", "-s", podSubnet.String(), "-o", delegatedNICInfo, "-j", iptables.Snat, "--to", delegatedNICIP}
+					rules = append(rules, delegatedNICSNATRule)
+					logger.Printf("[Azure CNS] Adding SNAT rule for delegated NIC: -m addrtype ! --dst-type local -s %s -o %s -j SNAT --to %s", podSubnet.String(), delegatedNICInfo, delegatedNICIP)
+				}
+			}
+		} else {
+			logger.Printf("[Azure CNS] Skipping delegated NIC SNAT rule: NICType=%v (expected %v), MACAddress empty=%v", req.NetworkInterfaceInfo.NICType, cns.DelegatedVMNIC, req.NetworkInterfaceInfo.MACAddress == "")
 		}
 
 		// check if all rules exist

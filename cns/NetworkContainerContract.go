@@ -398,6 +398,7 @@ type MultiTenancyInfo struct {
 type NetworkInterfaceInfo struct {
 	NICType    NICType
 	MACAddress string
+	IPAddress  string // Primary IPv4 address of the NIC (used for SNAT rules in delegated NIC scenarios)
 }
 
 // IPConfiguration contains details about ip config to provision in the VM.

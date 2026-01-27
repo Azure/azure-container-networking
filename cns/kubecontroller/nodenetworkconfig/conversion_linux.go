@@ -61,7 +61,26 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 		},
 		NCStatus: nc.Status,
 		NetworkInterfaceInfo: cns.NetworkInterfaceInfo{
+			NICType:    getNICTypeForNC(nc.Type, isSwiftV2),
 			MACAddress: nc.MacAddress,
+			IPAddress:  getDelegatedNICIP(nc.PrimaryIP, nc.Type, isSwiftV2),
 		},
 	}, nil
+}
+
+func getNICTypeForNC(ncType v1alpha.NCType, isSwiftV2 bool) cns.NICType {
+	if isSwiftV2 && ncType == v1alpha.VNETBlock {
+		return cns.DelegatedVMNIC
+	}
+	return ""
+}
+
+func getDelegatedNICIP(primaryIP string, ncType v1alpha.NCType, isSwiftV2 bool) string {
+	if isSwiftV2 && ncType == v1alpha.VNETBlock && primaryIP != "" {
+		prefix, err := netip.ParsePrefix(primaryIP)
+		if err == nil {
+			return prefix.Addr().String()
+		}
+	}
+	return ""
 }
