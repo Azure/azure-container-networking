@@ -113,7 +113,7 @@ func (service *HTTPRestService) restoreState() {
 			// Nothing to restore.
 			logger.Printf("[Azure CNS]  No state to restore.\n")
 		} else {
-			logger.Errorf("[Azure CNS]  Failed to restore state, err:%v. Removing azure-cns.json", err)
+			logger.Errorf("[Azure CNS]  Failed to restore state, err:%v. Removing state store", err)
 			service.store.Remove()
 		}
 
@@ -129,7 +129,7 @@ func (service *HTTPRestService) restoreState() {
 				// Nothing to restore.
 				logger.Printf("[Azure CNS]  No endpoint state to restore.\n")
 			} else {
-				logger.Errorf("[Azure CNS]  Failed to restore endpoint state, err:%v. Removing endpoints.json", err)
+				logger.Errorf("[Azure CNS]  Failed to restore endpoint state, err:%v. Removing endpoint state store", err)
 			}
 			return
 		}

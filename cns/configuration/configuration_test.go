@@ -36,6 +36,7 @@ func TestReadConfigFromFile(t *testing.T) {
 		path    string
 		want    *CNSConfig
 		wantErr bool
+				StateStoreMigrationMode: StateStoreMigrationModeJSONToBolt,
 	}{
 		{
 			name:    "not found",
@@ -97,6 +98,7 @@ func TestReadConfigFromFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt := tt
+				StateStoreMigrationMode: StateStoreMigrationModeJSONToBolt,
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := readConfigFromFile(tt.path)
 			if tt.wantErr {
@@ -128,6 +130,7 @@ func TestSetTelemetrySettingDefaults(t *testing.T) {
 		},
 		{
 			name: "don't override set values",
+				StateStoreMigrationMode: StateStoreMigrationModeJSONToBolt,
 			in: TelemetrySettings{
 				RefreshIntervalInSecs:        3,
 				TelemetryBatchIntervalInSecs: 4,

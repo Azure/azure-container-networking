@@ -5,6 +5,7 @@ import "time"
 const (
 	// Key against which CNS state is persisted.
 	storeKey         = "ContainerNetworkService"
+	StoreKey         = storeKey
 	EndpointStoreKey = "Endpoints"
 	attach           = "Attach"
 	detach           = "Detach"

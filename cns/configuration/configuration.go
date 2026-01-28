@@ -19,6 +19,9 @@ const (
 	// EnvCNSConfig is the CNS_CONFIGURATION_PATH env var key
 	EnvCNSConfig      = "CNS_CONFIGURATION_PATH"
 	defaultConfigName = "cns_config.json"
+
+	StateStoreMigrationModeJSONToBolt = "json-to-bolt"
+	StateStoreMigrationModeBoltToJSON = "bolt-to-json"
 )
 
 type CNSConfig struct {
@@ -35,6 +38,7 @@ type CNSConfig struct {
 	EnableLoggerV2              bool
 	EnablePprof                 bool
 	EnableStateMigration        bool
+	StateStoreMigrationMode     string
 	EnableSubnetScarcity        bool
 	EnableSwiftV2               bool
 	InitializeFromCNI           bool
@@ -240,6 +244,9 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 
 	if config.MinTLSVersion == "" {
 		config.MinTLSVersion = "TLS 1.2"
+	}
+	if config.StateStoreMigrationMode == "" {
+		config.StateStoreMigrationMode = StateStoreMigrationModeJSONToBolt
 	}
 	config.GRPCSettings.Enable = false
 	config.WatchPods = config.EnableIPAMv2 || config.EnableSwiftV2

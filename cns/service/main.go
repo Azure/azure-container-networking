@@ -726,17 +726,20 @@ func main() {
 	}
 
 	// Create the key value store.
-	storeFileName := storeFileLocation + name + ".json"
-	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient, nil)
+	storeFileNameJSON := storeFileLocation + name + ".json"
+	storeFileNameBolt := storeFileLocation + name + ".db"
+	config.Store, err = store.NewBoltDBStore(storeFileNameBolt, lockclient, nil)
 	if err != nil {
-		logger.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
+		logger.Errorf("Failed to create store file: %s, due to error %v\n", storeFileNameBolt, err)
 		return
 	}
 
 	// Initialize endpoint state store if cns is managing endpoint state.
+	var endpointStoreLock processlock.Interface
+	var endpointStoreJSONPath string
 	if cnsconfig.ManageEndpointState {
 		logger.Printf("[Azure CNS] Configured to manage endpoints state")
-		endpointStoreLock, err := processlock.NewFileLock(platform.CNILockPath + endpointStoreName + store.LockExtension) // nolint
+		endpointStoreLock, err = processlock.NewFileLock(platform.CNILockPath + endpointStoreName + store.LockExtension) // nolint
 		if err != nil {
 			logger.Printf("Error initializing endpoint state file lock:%v", err)
 			return
@@ -749,13 +752,28 @@ func main() {
 			return
 		}
 		// Create the key value store.
-		storeFileName := endpointStorePath + endpointStoreName + ".json"
-		logger.Printf("EndpointStoreState path is %s", storeFileName)
-		endpointStateStore, err = store.NewJsonFileStore(storeFileName, endpointStoreLock, nil)
+		endpointStoreJSONPath = endpointStorePath + endpointStoreName + ".json"
+		endpointStoreBoltPath := endpointStorePath + endpointStoreName + ".db"
+		logger.Printf("EndpointStoreState path is %s", endpointStoreBoltPath)
+		endpointStateStore, err = store.NewBoltDBStore(endpointStoreBoltPath, endpointStoreLock, nil)
 		if err != nil {
-			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", storeFileName, err)
+			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", endpointStoreBoltPath, err)
 			return
 		}
+	}
+
+	if err := migrateStateStores(
+		cnsconfig.StateStoreMigrationMode,
+		config.Store,
+		storeFileNameJSON,
+		lockclient,
+		endpointStateStore,
+		endpointStoreJSONPath,
+		endpointStoreLock,
+		cnsconfig.ManageEndpointState,
+	); err != nil {
+		logger.Errorf("Failed to migrate CNS state stores: %v", err)
+		return
 	}
 
 	wsProxy := wireserver.Proxy{
@@ -1428,14 +1446,20 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		}
 	}
 
-	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
-	if cnsconfig.EnableStateMigration && !httpRestServiceImplementation.EndpointStateStore.Exists() {
-		if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
-			return errors.Wrap(err, "failed to create CNS EndpointState From CNI")
+	// perform state migration from CNI in case CNS is set to manage the endpoint state and has empty state
+	if cnsconfig.EnableStateMigration {
+		isMissing, err := endpointStateMissing(httpRestServiceImplementation.EndpointStateStore)
+		if err != nil {
+			return errors.Wrap(err, "failed to check endpoint state")
 		}
-		// endpoint state needs tobe loaded in memory so the subsequent Delete calls remove the state and release the IPs.
-		if err = httpRestServiceImplementation.EndpointStateStore.Read(restserver.EndpointStoreKey, &httpRestServiceImplementation.EndpointState); err != nil {
-			return errors.Wrap(err, "failed to restore endpoint state")
+		if isMissing {
+			if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
+				return errors.Wrap(err, "failed to create CNS EndpointState From CNI")
+			}
+			// endpoint state needs to be loaded in memory so the subsequent Delete calls remove the state and release the IPs.
+			if err = httpRestServiceImplementation.EndpointStateStore.Read(restserver.EndpointStoreKey, &httpRestServiceImplementation.EndpointState); err != nil {
+				return errors.Wrap(err, "failed to restore endpoint state")
+			}
 		}
 	}
 

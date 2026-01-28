@@ -1319,6 +1319,15 @@ func createNCReqInternal(t *testing.T, secondaryIPConfigs map[string]cns.Seconda
 func restartService() {
 	fmt.Println("Restart Service")
 
+	if svc, ok := service.(*HTTPRestService); ok {
+		if closer, ok := svc.store.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+		if closer, ok := svc.EndpointStateStore.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+	}
+
 	service.Stop()
 	if err := startService(common.ServiceConfig{}, configuration.CNSConfig{}); err != nil {
 		fmt.Printf("Failed to restart CNS Service. Error: %v", err)

@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -33,9 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	cnsJsonFileName = "azure-cns.json"
-)
+var cnsJsonFileName = "azure-cns.db"
 
 type IPAddress struct {
 	XMLName   xml.Name `xml:"IPAddress"`
@@ -174,6 +173,13 @@ func TestMain(m *testing.M) {
 	var err error
 	logger.InitLogger("testlogs", 0, 0, "./")
 
+	tempDir, err := os.MkdirTemp("", "cns-test-store-")
+	if err != nil {
+		fmt.Printf("Failed to create temp dir for state store. Error: %v", err)
+		os.Exit(1)
+	}
+	cnsJsonFileName = filepath.Join(tempDir, "azure-cns.db")
+
 	// Create the service. If CRD channel mode is needed, then at the start of the test,
 	// it can stop the service (service.Stop), invoke startService again with new ServiceConfig (with CRD mode)
 	// perform the test and then restore the service again.
@@ -208,6 +214,7 @@ func TestMain(m *testing.M) {
 	// Cleanup.
 	service.Stop()
 	nmAgentServer.Stop()
+	os.RemoveAll(tempDir)
 
 	os.Exit(exitCode)
 }
@@ -1791,7 +1798,7 @@ func startService(serviceConfig common.ServiceConfig, _ configuration.CNSConfig)
 	config := serviceConfig
 
 	// Create the key value fileStore.
-	fileStore, err := store.NewJsonFileStore(cnsJsonFileName, processlock.NewMockFileLock(false), nil)
+	fileStore, err := store.NewBoltDBStore(cnsJsonFileName, processlock.NewMockFileLock(false), nil)
 	if err != nil {
 		logger.Errorf("Failed to create store file: %s, due to error %v\n", cnsJsonFileName, err)
 		return err
@@ -1839,10 +1846,6 @@ func startService(serviceConfig common.ServiceConfig, _ configuration.CNSConfig)
 	}
 
 	if service != nil {
-		// Create empty azure-cns.json. CNS should start successfully by deleting this file
-		file, _ := os.Create(cnsJsonFileName)
-		file.Close()
-
 		// mock localhost as primary interface IP
 		config.Server.PrimaryInterfaceIP = "localhost"
 
@@ -1858,8 +1861,8 @@ func startService(serviceConfig common.ServiceConfig, _ configuration.CNSConfig)
 			return err
 		}
 
-		if _, err := os.Stat(cnsJsonFileName); err == nil || !os.IsNotExist(err) {
-			logger.Errorf("Failed to remove empty CNS state file: %s, err:%v", cnsJsonFileName, err)
+		if _, err := os.Stat(cnsJsonFileName); err != nil {
+			logger.Errorf("Expected CNS state file to exist: %s, err:%v", cnsJsonFileName, err)
 			return err
 		}
 	}

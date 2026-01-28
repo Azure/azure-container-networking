@@ -125,6 +125,7 @@ require (
 	github.com/cilium/cilium v1.16.17
 	github.com/cilium/ebpf v0.19.0
 	github.com/jsternberg/zap-logfmt v1.3.0
+	go.etcd.io/bbolt v1.4.3
 	golang.org/x/sync v0.18.0
 	gotest.tools/v3 v3.5.2
 	k8s.io/kubectl v0.34.1
