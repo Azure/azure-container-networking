@@ -270,6 +270,7 @@ func configureHostNCApipaNetwork(localIPConfiguration cns.IPConfiguration) (*hcn
 			{
 				NextHop:           localIPConfiguration.GatewayIPAddress,
 				DestinationPrefix: "0.0.0.0/0",
+				Metric:            50,
 			},
 		},
 	}
@@ -540,7 +541,7 @@ func configureHostNCApipaEndpoint(
 	// keep Apipa Endpoint gw as 169.254.128.1 to make sure NC to host connectivity work for both Linux and Windows containers
 	hcnRoute := hcn.Route{
 		NextHop:           hnsLoopbackAdapterIPAddress,
-		DestinationPrefix: "0.0.0.0/0",
+		DestinationPrefix: "169.254.128.0/17",
 	}
 
 	endpoint.Routes = append(endpoint.Routes, hcnRoute)
