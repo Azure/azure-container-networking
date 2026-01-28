@@ -32,10 +32,12 @@ data:
         K8S-Logging.Parser On
         K8S-Logging.Exclude Off
         Buffer_Size 128KB
+        Use_tag_for_meta On
 
     [OUTPUT]
         Name                        azure_app_insights
         debug                       true
+        imds                        true
         instrumentation_key         aad482c8-f408-48e9-9380-e37fdb9ef4a3
         Match                       kube.*
 kind: ConfigMap

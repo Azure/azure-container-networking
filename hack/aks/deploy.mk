@@ -48,8 +48,8 @@ deploy-cilium-agent:
 add-cilium-log-collector:
 	@echo "CILIUM_LOG_COLLECTOR_VERSION_TAG: $(CILIUM_LOG_COLLECTOR_VERSION_TAG)"
 	@echo "CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY: $(CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY)"
-	envsubst '$${CILIUM_LOG_COLLECTOR_VERSION_TAG},$${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/daemonset-patch.yaml | kubectl apply --server-side --field-manager=cilium-log-collector -f -
 	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/cilium-log-collector-configmap.yaml
+	envsubst '$${CILIUM_LOG_COLLECTOR_VERSION_TAG},$${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/daemonset-patch.yaml | kubectl apply --server-side --field-manager=cilium-log-collector -f -
 
 deploy-cilium-operator:
 	kubectl apply -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/files

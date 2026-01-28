@@ -9,6 +9,7 @@ import (
 	"time"
 	"unsafe" //nolint
 
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/fluent/fluent-bit-go/output"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 )
@@ -45,9 +46,10 @@ func (r *RealAppInsightsTracker) Track(telemetry appinsights.Telemetry) {
 }
 
 var (
-	client appinsights.TelemetryClient
-	debug  string
-	logKey string
+	client       appinsights.TelemetryClient
+	debug        string
+	logKey       string
+	hostMetadata *common.Metadata
 )
 
 func convertToString(v interface{}) string {
@@ -104,15 +106,28 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 		logKey = "log"
 	}
 	debug = output.FLBPluginConfigKey(plugin, "debug")
+	imds := output.FLBPluginConfigKey(plugin, "imds")
 	fmt.Printf("[flb-azure-app-insights] version = '%s'\n", version)
 	fmt.Printf("[flb-azure-app-insights] plugin instrumentation key = '%s'\n", instrumentationKey)
 	fmt.Printf("[flb-azure-app-insights] using log key = '%s'\n", logKey)
 	fmt.Printf("[flb-azure-app-insights] debug = '%s'\n", debug)
+	fmt.Printf("[flb-azure-app-insights] imds = '%s'\n", imds)
 
 	telemetryConfig := appinsights.NewTelemetryConfiguration(instrumentationKey)
 	telemetryConfig.MaxBatchInterval = 1 * time.Second
 	telemetryConfig.MaxBatchSize = 10
 	client = appinsights.NewTelemetryClientFromConfig(telemetryConfig)
+
+	// retrieve IMDS data once
+	if imds == "true" {
+		metadata, err := common.GetHostMetadata("/tmp/metadata.json")
+		if err != nil {
+			fmt.Printf("[flb-azure-app-insights] Warning: Failed to get IMDS metadata: %v\n", err)
+		} else {
+			fmt.Print("[flb-azure-app-insights] Retrieved IMDS metadata\n")
+			hostMetadata = &metadata
+		}
+	}
 
 	fmt.Printf("[flb-azure-app-insights] App Insights client initialized with key: %s\n",
 		telemetryConfig.InstrumentationKey)
@@ -155,15 +170,15 @@ func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
 		processor.ProcessSingleRecord(ProcessRecord{
 			Timestamp: timestamp,
 			Fields:    record,
-		}, count)
+		}, count, hostMetadata)
 		count++
 	}
 
 	return output.FLB_OK
 }
 
-// ProcessSingleRecord handles processing of an individual record for unit testing
-func (rp *RecordProcessor) ProcessSingleRecord(record ProcessRecord, recordIndex int) {
+// ProcessSingleRecord handles processing of an individual record
+func (rp *RecordProcessor) ProcessSingleRecord(record ProcessRecord, recordIndex int, metadata *common.Metadata) {
 	customFields := make(map[string]string)
 	var logMessage string
 
@@ -180,13 +195,30 @@ func (rp *RecordProcessor) ProcessSingleRecord(record ProcessRecord, recordIndex
 	customFields["fluentbit_tag"] = rp.tag
 	customFields["record_count"] = strconv.Itoa(recordIndex)
 
+	if metadata != nil {
+		customFields["azure_location"] = metadata.Location
+		customFields["azure_vm_name"] = metadata.VMName
+		customFields["azure_offer"] = metadata.Offer
+		customFields["azure_os_type"] = metadata.OsType
+		customFields["azure_placement_group_id"] = metadata.PlacementGroupID
+		customFields["azure_platform_fault_domain"] = metadata.PlatformFaultDomain
+		customFields["azure_platform_update_domain"] = metadata.PlatformUpdateDomain
+		customFields["azure_publisher"] = metadata.Publisher
+		customFields["azure_resource_group_name"] = metadata.ResourceGroupName
+		customFields["azure_sku"] = metadata.Sku
+		customFields["azure_subscription_id"] = metadata.SubscriptionID
+		customFields["azure_tags"] = metadata.Tags
+		customFields["azure_os_version"] = metadata.OSVersion
+		customFields["azure_vm_id"] = metadata.VMID
+		customFields["azure_vm_size"] = metadata.VMSize
+		customFields["azure_kernel_version"] = metadata.KernelVersion
+	}
+
 	if rp.debug {
 		msg := fmt.Sprintf("[flb-azure-app-insights] #%d %s: [%s, {", recordIndex, rp.tag,
 			record.Timestamp.String())
-		for k, v := range record.Fields {
-			keyStr := convertToString(k)
-			valueStr := convertToString(v)
-			msg += fmt.Sprintf("\"%s\": %s, ", keyStr, valueStr)
+		for k, v := range customFields {
+			msg += fmt.Sprintf("\"%s\": %s, ", k, v)
 		}
 		msg += "}\n"
 		fmt.Print(msg)

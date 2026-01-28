@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +41,7 @@ func TestProcessSingleRecord_BasicLogging(t *testing.T) {
 		},
 	}
 
-	processor.ProcessSingleRecord(record, 0)
+	processor.ProcessSingleRecord(record, 0, nil)
 
 	require.Len(t, tracker.TrackedItems, 1)
 
@@ -49,6 +50,10 @@ func TestProcessSingleRecord_BasicLogging(t *testing.T) {
 	require.Equal(t, "info", firstTrace.Properties["level"])
 	require.Equal(t, "test.tag", firstTrace.Properties["fluentbit_tag"])
 	require.Equal(t, "0", firstTrace.Properties["record_count"])
+	
+	// metadata custom properties are not present when metadata is nil
+	_, exists := firstTrace.Properties["azure_location"]
+	require.False(t, exists, "azure_location should not exist when metadata is nil")
 }
 
 func TestProcessSingleRecord_CustomLogKey(t *testing.T) {
@@ -68,7 +73,7 @@ func TestProcessSingleRecord_CustomLogKey(t *testing.T) {
 		},
 	}
 
-	processor.ProcessSingleRecord(record, 5)
+	processor.ProcessSingleRecord(record, 5, nil)
 
 	require.Len(t, tracker.TrackedItems, 1)
 
@@ -105,7 +110,7 @@ func TestProcessSingleRecord_MultipleRecords(t *testing.T) {
 	}
 
 	for i, record := range records {
-		processor.ProcessSingleRecord(record, i)
+		processor.ProcessSingleRecord(record, i, nil)
 	}
 
 	require.Len(t, tracker.TrackedItems, 2)
@@ -153,7 +158,7 @@ func TestProcessSingleRecord_NestedMapConversion(t *testing.T) {
 		},
 	}
 
-	processor.ProcessSingleRecord(record, 0)
+	processor.ProcessSingleRecord(record, 5, nil)
 
 	require.Len(t, tracker.TrackedItems, 1)
 
@@ -207,7 +212,7 @@ func TestProcessSingleRecord_EmptyLogMessage(t *testing.T) {
 		},
 	}
 
-	processor.ProcessSingleRecord(record, 0)
+	processor.ProcessSingleRecord(record, 0, nil)
 
 	require.Len(t, tracker.TrackedItems, 1)
 
@@ -269,10 +274,84 @@ func TestRecordProcessor_DebugMode(t *testing.T) {
 	}
 
 	// this test mainly ensures debug mode doesn't break processing
-	processor.ProcessSingleRecord(record, 0)
+	processor.ProcessSingleRecord(record, 0, nil)
 
 	require.Len(t, tracker.TrackedItems, 1)
 
 	firstTrace := tracker.TrackedItems[0].(*appinsights.TraceTelemetry)
 	require.Equal(t, "dbg", firstTrace.Message)
+}
+
+func TestProcessSingleRecord_WithMetadata(t *testing.T) {
+	tracker := NewMockAppInsightsTracker()
+	processor := &RecordProcessor{
+		tracker: tracker,
+		tag:     "metadata.tag",
+		debug:   false,
+		logKey:  "log",
+	}
+
+	// Create test metadata based on real AKS node metadata
+	testMetadata := &common.Metadata{
+		Location:             "westus2",
+		VMName:               "aks-nodepool1-40525381-vmss_3",
+		Offer:                "",
+		OsType:               "Linux",
+		PlacementGroupID:     "4fa55049-160f-4d91-82e1-de2cf4b889df",
+		PlatformFaultDomain:  "0",
+		PlatformUpdateDomain: "0",
+		Publisher:            "",
+		ResourceGroupName:    "MC_over_over_westus2",
+		Sku:                  "",
+		SubscriptionID:       "624ac297-da7d-4297-94e9-e80365170323",
+		Tags:                 "aks-managed-orchestrator:Kubernetes:1.33.2",
+		OSVersion:            "202508.20.1",
+		VMID:                 "9b7f8642-3f2b-4875-8f3c-b3f83ee4d0bf",
+		VMSize:               "Standard_D16s_v3",
+		KernelVersion:        "5.15.0-1073-azure",
+	}
+
+	record := ProcessRecord{
+		Timestamp: time.Now(),
+		Fields: map[interface{}]interface{}{
+			"log":     "test log with metadata",
+			"level":   "info",
+			"service": "cilium",
+		},
+	}
+
+	processor.ProcessSingleRecord(record, 0, testMetadata)
+
+	require.Len(t, tracker.TrackedItems, 1)
+
+	firstTrace := tracker.TrackedItems[0].(*appinsights.TraceTelemetry)
+	require.Equal(t, "test log with metadata", firstTrace.Message)
+
+	expectedProperties := map[string]string{
+		// log fields
+		"level":         "info",
+		"service":       "cilium",
+		"fluentbit_tag": "metadata.tag",
+		"record_count":  "0",
+
+		// IMDS fields
+		"azure_location":               "westus2",
+		"azure_vm_name":                "aks-nodepool1-40525381-vmss_3",
+		"azure_offer":                  "",
+		"azure_os_type":                "Linux",
+		"azure_placement_group_id":     "4fa55049-160f-4d91-82e1-de2cf4b889df",
+		"azure_platform_fault_domain":  "0",
+		"azure_platform_update_domain": "0",
+		"azure_publisher":              "",
+		"azure_resource_group_name":    "MC_over_over_westus2",
+		"azure_sku":                    "",
+		"azure_subscription_id":        "624ac297-da7d-4297-94e9-e80365170323",
+		"azure_tags":                   "aks-managed-orchestrator:Kubernetes:1.33.2",
+		"azure_os_version":             "202508.20.1",
+		"azure_vm_id":                  "9b7f8642-3f2b-4875-8f3c-b3f83ee4d0bf",
+		"azure_vm_size":                "Standard_D16s_v3",
+		"azure_kernel_version":         "5.15.0-1073-azure",
+	}
+
+	require.Equal(t, expectedProperties, firstTrace.Properties)
 }
