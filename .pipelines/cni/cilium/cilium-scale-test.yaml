@@ -46,17 +46,20 @@ stages:
                 echo "Redeploy all cilium components and update cilium version. Redeploy all to catch all changes between versions"
                 pwd
 
-                export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
                 if ${IS_DUALSTACK}; then
                   echo "Use dualstack version of Cilium"
                   export IPV6_IMAGE_REGISTRY=acnpublic.azurecr.io
                   export IPV6_HP_BPF_VERSION=${IPV6_HP_BPF_VERSION}
                   echo "IPV6_HP_BPF_VERSION: $IPV6_HP_BPF_VERSION"
                   echo "IPV6_IMAGE_REGISTRY: $IPV6_IMAGE_REGISTRY"
-                  echo "installing cilium dualstack version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+                  # makefile manages cilium version
+                  unset DIR
+                  unset CILIUM_VERSION_TAG
                   make -C ./hack/aks deploy-cilium-dualstack
                 else
-                  echo "installing cilium version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+                  # makefile manages cilium version
+                  unset DIR
+                  unset CILIUM_VERSION_TAG
                   make -C ./hack/aks deploy-cilium
                 fi
                 kubectl get po -owide -A
