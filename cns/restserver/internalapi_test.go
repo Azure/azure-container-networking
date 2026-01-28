@@ -600,14 +600,14 @@ func TestSyncHostNCVersionIMDSAPIVersionNotSupported(t *testing.T) {
 			svc.imdsClient = &mockIMDSAdapter{mockIMDS}
 			defer func() { svc.imdsClient = originalIMDS }()
 
-			// Test should fail because of outdated IMDS NC that can't be updated
+			// Test should fail because IMDS API version is not supported
 			_, err := svc.syncHostNCVersion(context.Background(), orchestratorType)
 			if err == nil {
-				t.Errorf("Expected error when there are outdated IMDS NCs but API version is not supported, but got nil")
+				t.Errorf("Expected error when IMDS API version is not supported, but got nil")
 			}
 
-			// Verify the error is about being unable to update NCs
-			expectedErrorText := "unable to update some NCs"
+			// Verify the error indicates IMDS API is not supported
+			expectedErrorText := "IMDS does not support NC details API"
 			if !strings.Contains(err.Error(), expectedErrorText) {
 				t.Errorf("Expected error to contain '%s', but got: %v", expectedErrorText, err)
 			}
@@ -1757,4 +1757,131 @@ func setupIMDSMockAPIsWithCustomIDs(svc *HTTPRestService, interfaceIDs []string)
 
 	// Return cleanup function
 	return func() { svc.imdsClient = originalIMDS }
+}
+
+func TestGetIMDSNCDetailsWithNCID(t *testing.T) {
+	testSvc := getTestService(cns.Kubernetes)
+
+	mac1, _ := net.ParseMAC("AA:BB:CC:DD:EE:FF")
+	mockIMDS := &mockIMDSAdapter{
+		mock: &struct {
+			networkInterfaces func(_ context.Context) ([]imds.NetworkInterface, error)
+			imdsVersions      func(_ context.Context) (*imds.APIVersionsResponse, error)
+		}{
+			networkInterfaces: func(_ context.Context) ([]imds.NetworkInterface, error) {
+				return []imds.NetworkInterface{
+					{
+						InterfaceCompartmentID: "nc-id-1", // Delegated NIC with NC ID
+						MacAddress:             imds.HardwareAddr(mac1),
+					},
+				}, nil
+			},
+			imdsVersions: func(_ context.Context) (*imds.APIVersionsResponse, error) {
+				return &imds.APIVersionsResponse{
+					APIVersions: []string{expectedIMDSAPIVersion},
+				}, nil
+			},
+		},
+	}
+
+	// Replace the IMDS client
+	originalIMDS := testSvc.imdsClient
+	testSvc.imdsClient = mockIMDS
+	defer func() { testSvc.imdsClient = originalIMDS }()
+
+	ctx := context.Background()
+	imdsNCs, err := testSvc.getIMDSNCDetails(ctx)
+	require.NoError(t, err)
+
+	assert.Equal(t, PrefixOnNicNCVersion, imdsNCs["nc-id-1"], "NC should have  version 1")
+}
+
+func TestGetIMDSNCDetails_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name          string
+		setupMock     func() *mockIMDSAdapter
+		setNilClient  bool
+		expectedError string
+	}{
+		{
+			name:          "IMDS client is nil",
+			setNilClient:  true,
+			expectedError: "IMDS client is not available",
+		},
+		{
+			name: "IMDS does not support NC details API",
+			setupMock: func() *mockIMDSAdapter {
+				return &mockIMDSAdapter{
+					mock: &struct {
+						networkInterfaces func(_ context.Context) ([]imds.NetworkInterface, error)
+						imdsVersions      func(_ context.Context) (*imds.APIVersionsResponse, error)
+					}{
+						imdsVersions: func(_ context.Context) (*imds.APIVersionsResponse, error) {
+							return &imds.APIVersionsResponse{
+								APIVersions: []string{"2017-03-01", "2021-01-01"}, // Missing expected version
+							}, nil
+						},
+					},
+				}
+			},
+			expectedError: "IMDS does not support NC details API",
+		},
+		{
+			name: "GetIMDSVersions returns error",
+			setupMock: func() *mockIMDSAdapter {
+				return &mockIMDSAdapter{
+					mock: &struct {
+						networkInterfaces func(_ context.Context) ([]imds.NetworkInterface, error)
+						imdsVersions      func(_ context.Context) (*imds.APIVersionsResponse, error)
+					}{
+						imdsVersions: func(_ context.Context) (*imds.APIVersionsResponse, error) {
+							return nil, errors.New("IMDS versions endpoint unavailable")
+						},
+					},
+				}
+			},
+			expectedError: "IMDS does not support NC details API",
+		},
+		{
+			name: "GetNetworkInterfaces returns error",
+			setupMock: func() *mockIMDSAdapter {
+				return &mockIMDSAdapter{
+					mock: &struct {
+						networkInterfaces func(_ context.Context) ([]imds.NetworkInterface, error)
+						imdsVersions      func(_ context.Context) (*imds.APIVersionsResponse, error)
+					}{
+						networkInterfaces: func(_ context.Context) ([]imds.NetworkInterface, error) {
+							return nil, errors.New("network interfaces endpoint unavailable")
+						},
+						imdsVersions: func(_ context.Context) (*imds.APIVersionsResponse, error) {
+							return &imds.APIVersionsResponse{
+								APIVersions: []string{expectedIMDSAPIVersion},
+							}, nil
+						},
+					},
+				}
+			},
+			expectedError: "failed to get network interfaces from IMDS",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testSvc := getTestService(cns.Kubernetes)
+			originalIMDS := testSvc.imdsClient
+			if tt.setNilClient {
+				testSvc.imdsClient = nil
+			} else {
+				testSvc.imdsClient = tt.setupMock()
+			}
+			defer func() { testSvc.imdsClient = originalIMDS }()
+
+			ctx := context.Background()
+			result, err := testSvc.getIMDSNCDetails(ctx)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.expectedError)
+			assert.Nil(t, result)
+		})
+	}
 }

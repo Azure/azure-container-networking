@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/iptables"
@@ -32,6 +33,23 @@ type iptablesLegacy struct{}
 func (c *iptablesLegacy) Delete(table, chain string, rulespec ...string) error {
 	cmd := append([]string{"-t", table, "-D", chain}, rulespec...)
 	return errors.Wrap(exec.Command("iptables-legacy", cmd...).Run(), "iptables legacy failed delete")
+}
+
+// processIMDSData, processes network interface data from IMDS for prefix-on-NIC scenarios on Linux.
+// It extracts the delegated NIC's information from IMDS network interfaces.
+// A delegated NIC is identified by having a non-empty InterfaceCompartmentID (NC ID).
+func (service *HTTPRestService) processIMDSData(networkInterfaces []imds.NetworkInterface) (map[string]string, error) {
+	ncs := make(map[string]string)
+
+	for _, iface := range networkInterfaces {
+		ncID := iface.InterfaceCompartmentID
+		if ncID != "" {
+			ncs[ncID] = PrefixOnNicNCVersion
+			break
+		}
+	}
+
+	return ncs, nil
 }
 
 // nolint
