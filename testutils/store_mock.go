@@ -15,6 +15,7 @@ type KeyValueStoreMock struct {
 	ExistsBool               bool
 	ReadError                error
 	WriteError               error
+	UpdateError              error
 	FlushError               error
 	LockError                error
 	UnlockError              error
@@ -31,6 +32,24 @@ func (mockst *KeyValueStoreMock) Read(key string, value interface{}) error {
 }
 
 func (mockst *KeyValueStoreMock) Write(key string, value interface{}) error {
+	return mockst.WriteError
+}
+
+func (mockst *KeyValueStoreMock) Update(key string, initValue func() interface{}, update func(value interface{}) (bool, error)) error {
+	if mockst.UpdateError != nil {
+		return mockst.UpdateError
+	}
+	if update == nil {
+		return nil
+	}
+	value := initValue()
+	changed, err := update(value)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
+	}
 	return mockst.WriteError
 }
 

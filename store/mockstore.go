@@ -46,6 +46,37 @@ func (ms *mockStore) Write(key string, value interface{}) error {
 	return nil
 }
 
+// Update reads, mutates, and writes a key in the mock store.
+func (ms *mockStore) Update(key string, initValue func() interface{}, update func(value interface{}) (bool, error)) error {
+	value := initValue()
+	if value == nil {
+		return fmt.Errorf("initValue returned nil")
+	}
+
+	if raw, ok := ms.data[key]; ok {
+		if err := json.Unmarshal(*raw, value); err != nil {
+			return fmt.Errorf("%w", err)
+		}
+	}
+
+	changed, err := update(value)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
+	}
+
+	var updatedRaw json.RawMessage
+	updatedRaw, err = json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("%w", err)
+	}
+
+	ms.data[key] = &updatedRaw
+	return nil
+}
+
 func (ms *mockStore) Flush() error {
 	return nil
 }

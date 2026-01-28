@@ -127,6 +127,64 @@ func (kvs *jsonFileStore) Write(key string, value interface{}) error {
 	return kvs.flush()
 }
 
+// Update reads, mutates, and writes a key while holding the store lock.
+func (kvs *jsonFileStore) Update(key string, initValue func() interface{}, update func(value interface{}) (bool, error)) error {
+	kvs.Mutex.Lock()
+	defer kvs.Mutex.Unlock()
+
+	if !kvs.inSync {
+		file, err := os.Open(kvs.fileName)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+		} else {
+			b, err := io.ReadAll(file)
+			if err != nil {
+				file.Close()
+				return err
+			}
+			file.Close()
+
+			if len(b) != 0 {
+				if err := json.Unmarshal(b, &kvs.data); err != nil {
+					return err
+				}
+			}
+		}
+
+		kvs.inSync = true
+	}
+
+	value := initValue()
+	if value == nil {
+		return errors.New("initValue returned nil")
+	}
+
+	if raw, ok := kvs.data[key]; ok {
+		if err := json.Unmarshal(*raw, value); err != nil {
+			return err
+		}
+	}
+
+	changed, err := update(value)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
+	}
+
+	var updatedRaw json.RawMessage
+	updatedRaw, err = json.Marshal(value)
+	if err != nil {
+		return err
+	}
+
+	kvs.data[key] = &updatedRaw
+	return kvs.flush()
+}
+
 // Flush commits in-memory state to persistent store.
 func (kvs *jsonFileStore) Flush() error {
 	kvs.Mutex.Lock()

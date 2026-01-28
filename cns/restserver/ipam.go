@@ -115,6 +115,46 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 	}, nil
 }
 
+func (service *HTTPRestService) loadEndpointStateLocked() (map[string]*EndpointInfo, error) {
+	if service.EndpointStateStore == nil {
+		return nil, ErrStoreEmpty
+	}
+
+	state := map[string]*EndpointInfo{}
+	if err := service.EndpointStateStore.Read(EndpointStoreKey, &state); err != nil {
+		if errors.Is(err, store.ErrKeyNotFound) || errors.Is(err, store.ErrStoreEmpty) {
+			return map[string]*EndpointInfo{}, nil
+		}
+		return nil, err
+	}
+
+	if state == nil {
+		state = map[string]*EndpointInfo{}
+	}
+
+	return state, nil
+}
+
+func (service *HTTPRestService) withEndpointState(update func(state map[string]*EndpointInfo) (bool, error)) error {
+	service.endpointStateMu.Lock()
+	defer service.endpointStateMu.Unlock()
+
+	state, err := service.loadEndpointStateLocked()
+	if err != nil {
+		return err
+	}
+
+	changed, err := update(state)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
+	}
+
+	return service.EndpointStateStore.Write(EndpointStoreKey, state)
+}
+
 // requestIPConfigHandlerHelperStandalone validates the request, assign IPs and return the IPConfigs
 func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 	// For SWIFT v2 scenario, the validator function will also modify the ipconfigsRequest.
@@ -334,62 +374,59 @@ func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfi
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
 	}
-	service.Lock()
-	defer service.Unlock()
 	logger.Printf("[updateEndpointState] Updating endpoint state for infra container %s", ipconfigsRequest.InfraContainerID)
-	for i := range podIPInfo {
-		if endpointInfo, ok := service.EndpointState[ipconfigsRequest.InfraContainerID]; ok {
-			logger.Warnf("[updateEndpointState] Found existing endpoint state for infra container %s", ipconfigsRequest.InfraContainerID)
+	return service.withEndpointState(func(state map[string]*EndpointInfo) (bool, error) {
+		changed := false
+		for i := range podIPInfo {
+			endpointInfo, ok := state[ipconfigsRequest.InfraContainerID]
+			if ok {
+				logger.Warnf("[updateEndpointState] Found existing endpoint state for infra container %s", ipconfigsRequest.InfraContainerID)
+			} else {
+				endpointInfo = &EndpointInfo{PodName: podInfo.Name(), PodNamespace: podInfo.Namespace(), IfnameToIPMap: make(map[string]*IPInfo)}
+				state[ipconfigsRequest.InfraContainerID] = endpointInfo
+				changed = true
+			}
+			if endpointInfo.IfnameToIPMap == nil {
+				endpointInfo.IfnameToIPMap = make(map[string]*IPInfo)
+				changed = true
+			}
+			if endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname] == nil {
+				endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname] = &IPInfo{}
+				changed = true
+			}
+
 			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
 			if ip == nil {
 				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
-				return ErrParsePodIPFailed
+				return false, ErrParsePodIPFailed
 			}
 			if ip.To4() == nil { // is an ipv6 address
 				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 128)} // nolint
 				for _, ipconf := range endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname].IPv6 {
 					if ipconf.IP.Equal(ipconfig.IP) {
 						logger.Printf("[updateEndpointState] Found existing ipv6 ipconfig for infra container %s", ipconfigsRequest.InfraContainerID)
-						return nil
+						return false, nil
 					}
 				}
 				endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname].IPv6 = append(endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname].IPv6, ipconfig)
+				changed = true
 			} else {
 				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 32)} // nolint
 				for _, ipconf := range endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname].IPv4 {
 					if ipconf.IP.Equal(ipconfig.IP) {
 						logger.Printf("[updateEndpointState] Found existing ipv4 ipconfig for infra container %s", ipconfigsRequest.InfraContainerID)
-						return nil
+						return false, nil
 					}
 				}
 				endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname].IPv4 = append(endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname].IPv4, ipconfig)
+				changed = true
 			}
-			service.EndpointState[ipconfigsRequest.InfraContainerID] = endpointInfo
-		} else {
-			endpointInfo := &EndpointInfo{PodName: podInfo.Name(), PodNamespace: podInfo.Namespace(), IfnameToIPMap: make(map[string]*IPInfo)}
-			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
-			if ip == nil {
-				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
-				return ErrParsePodIPFailed
-			}
-			ipInfo := &IPInfo{}
-			if ip.To4() == nil { // is an ipv6 address
-				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 128)} // nolint
-				ipInfo.IPv6 = append(ipInfo.IPv6, ipconfig)
-			} else {
-				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 32)} // nolint
-				ipInfo.IPv4 = append(ipInfo.IPv4, ipconfig)
-			}
-			endpointInfo.IfnameToIPMap[ipconfigsRequest.Ifname] = ipInfo
-			service.EndpointState[ipconfigsRequest.InfraContainerID] = endpointInfo
+
+			state[ipconfigsRequest.InfraContainerID] = endpointInfo
 		}
 
-		err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
-		if err != nil {
-			return fmt.Errorf("failed to write endpoint state to store: %w", err)
-		}
-	}
-	return nil
+		return changed, nil
+	})
 }
 
 // ReleaseIPConfigHandlerHelper validates the request and removes the endpoint associated with the pod
@@ -523,19 +560,15 @@ func (service *HTTPRestService) removeEndpointState(podInfo cns.PodInfo) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
 	}
-	service.Lock()
-	defer service.Unlock()
 	logger.Printf("[removeEndpointState] Removing endpoint state for infra container %s", podInfo.InfraContainerID())
-	if _, ok := service.EndpointState[podInfo.InfraContainerID()]; ok {
-		delete(service.EndpointState, podInfo.InfraContainerID())
-		err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
-		if err != nil {
-			return fmt.Errorf("failed to write endpoint state to store: %w", err)
+	return service.withEndpointState(func(state map[string]*EndpointInfo) (bool, error) {
+		if _, ok := state[podInfo.InfraContainerID()]; ok {
+			delete(state, podInfo.InfraContainerID())
+			return true, nil
 		}
-	} else { // will not fail if no endpoint state for infra container id is found
 		logger.Printf("[removeEndpointState] No endpoint state found for infra container %s", podInfo.InfraContainerID())
-	}
-	return nil
+		return false, nil
+	})
 }
 
 // MarkIPAsPendingRelease will set the IPs which are in PendingProgramming or Available to PendingRelease state
@@ -543,37 +576,36 @@ func (service *HTTPRestService) removeEndpointState(podInfo cns.PodInfo) error {
 func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (map[string]cns.IPConfigurationStatus, error) {
 	defer service.publishIPStateMetrics()
 	pendingReleasedIps := make(map[string]cns.IPConfigurationStatus)
-	service.Lock()
-	defer service.Unlock()
-
-	for uuid, existingIpConfig := range service.PodIPConfigState {
-		if existingIpConfig.GetState() == types.PendingProgramming {
-			updatedIPConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, existingIpConfig.PodInfo)
-			if err != nil {
-				return nil, err
-			}
-
-			pendingReleasedIps[uuid] = updatedIPConfig
-			if len(pendingReleasedIps) == totalIpsToRelease {
-				return pendingReleasedIps, nil
+	if err := service.withIPAMState(func(state *ipamState) (bool, error) {
+		changed := false
+		for uuid, existingIpConfig := range state.PodIPConfigState { //nolint:gocritic // intentional value copy
+			if existingIpConfig.GetState() == types.PendingProgramming {
+				existingIpConfig.SetState(types.PendingRelease)
+				state.PodIPConfigState[uuid] = existingIpConfig
+				pendingReleasedIps[uuid] = existingIpConfig
+				changed = true
+				if len(pendingReleasedIps) == totalIpsToRelease {
+					return changed, nil
+				}
 			}
 		}
-	}
 
-	// if not all expected IPs are set to PendingRelease, then check the Available IPs
-	for uuid, existingIpConfig := range service.PodIPConfigState {
-		if existingIpConfig.GetState() == types.Available {
-			updatedIPConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, existingIpConfig.PodInfo)
-			if err != nil {
-				return nil, err
-			}
+		// if not all expected IPs are set to PendingRelease, then check the Available IPs
+		for uuid, existingIpConfig := range state.PodIPConfigState { //nolint:gocritic // intentional value copy
+			if existingIpConfig.GetState() == types.Available {
+				existingIpConfig.SetState(types.PendingRelease)
+				state.PodIPConfigState[uuid] = existingIpConfig
+				pendingReleasedIps[uuid] = existingIpConfig
+				changed = true
 
-			pendingReleasedIps[uuid] = updatedIPConfig
-
-			if len(pendingReleasedIps) == totalIpsToRelease {
-				return pendingReleasedIps, nil
+				if len(pendingReleasedIps) == totalIpsToRelease {
+					return changed, nil
+				}
 			}
 		}
+		return changed, nil
+	}); err != nil {
+		return nil, err
 	}
 
 	logger.Printf("[MarkIPAsPendingRelease] Set total ips to PendingRelease %d, expected %d", len(pendingReleasedIps), totalIpsToRelease)
@@ -588,40 +620,40 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 // MarkNIPsPendingRelease is no-op if [n] is not a positive integer.
 func (service *HTTPRestService) MarkNIPsPendingRelease(n int) (map[string]cns.IPConfigurationStatus, error) {
 	defer service.publishIPStateMetrics()
-	service.Lock()
-	defer service.Unlock()
 	// try to release from PendingProgramming
 	pendingProgrammingIPs := make(map[string]cns.IPConfigurationStatus)
-	for uuid, ipConfig := range service.PodIPConfigState { //nolint:gocritic // intentional value copy
-		if n <= 0 {
-			break
-		}
-		if ipConfig.GetState() == types.PendingProgramming {
-			updatedIPConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, ipConfig.PodInfo)
-			if err != nil {
-				return nil, err
-			}
-
-			pendingProgrammingIPs[uuid] = updatedIPConfig
-			n--
-		}
-	}
-
-	// try to release from Available
 	availableIPs := make(map[string]cns.IPConfigurationStatus)
-	for uuid, ipConfig := range service.PodIPConfigState { //nolint:gocritic // intentional value copy
-		if n <= 0 {
-			break
-		}
-		if ipConfig.GetState() == types.Available {
-			updatedIPConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, ipConfig.PodInfo)
-			if err != nil {
-				return nil, err
+	if err := service.withIPAMState(func(state *ipamState) (bool, error) {
+		changed := false
+		for uuid, ipConfig := range state.PodIPConfigState { //nolint:gocritic // intentional value copy
+			if n <= 0 {
+				break
 			}
-
-			availableIPs[uuid] = updatedIPConfig
-			n--
+			if ipConfig.GetState() == types.PendingProgramming {
+				ipConfig.SetState(types.PendingRelease)
+				state.PodIPConfigState[uuid] = ipConfig
+				pendingProgrammingIPs[uuid] = ipConfig
+				n--
+				changed = true
+			}
 		}
+
+		// try to release from Available
+		for uuid, ipConfig := range state.PodIPConfigState { //nolint:gocritic // intentional value copy
+			if n <= 0 {
+				break
+			}
+			if ipConfig.GetState() == types.Available {
+				ipConfig.SetState(types.PendingRelease)
+				state.PodIPConfigState[uuid] = ipConfig
+				availableIPs[uuid] = ipConfig
+				n--
+				changed = true
+			}
+		}
+		return changed, nil
+	}); err != nil {
+		return nil, err
 	}
 
 	// if we can release the requested quantity, return the IPs
@@ -631,23 +663,41 @@ func (service *HTTPRestService) MarkNIPsPendingRelease(n int) (map[string]cns.IP
 	}
 
 	// else revert changes
-	for uuid, ipConfig := range pendingProgrammingIPs { //nolint:gocritic // intentional value copy
-		_, _ = service.updateIPConfigState(uuid, types.PendingProgramming, ipConfig.PodInfo)
-	}
-	for uuid, ipConfig := range availableIPs { //nolint:gocritic // intentional value copy
-		_, _ = service.updateIPConfigState(uuid, types.Available, ipConfig.PodInfo)
-	}
+	_ = service.withIPAMState(func(state *ipamState) (bool, error) {
+		changed := false
+		for uuid, ipConfig := range pendingProgrammingIPs { //nolint:gocritic // intentional value copy
+			ipConfig.SetState(types.PendingProgramming)
+			state.PodIPConfigState[uuid] = ipConfig
+			changed = true
+		}
+		for uuid, ipConfig := range availableIPs { //nolint:gocritic // intentional value copy
+			ipConfig.SetState(types.Available)
+			state.PodIPConfigState[uuid] = ipConfig
+			changed = true
+		}
+		return changed, nil
+	})
 	return nil, errors.New("unable to release requested number of IPs")
 }
 
 // TODO: Add a change so that we should only update the current state if it is different than the new state
 func (service *HTTPRestService) updateIPConfigState(ipID string, updatedState types.IPState, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
-	if ipConfig, found := service.PodIPConfigState[ipID]; found {
-		logger.Printf("[updateIPConfigState] Changing IpId [%s] state to [%s], podInfo [%+v]. Current config [%+v]", ipID, updatedState, podInfo, ipConfig)
-		ipConfig.SetState(updatedState)
-		ipConfig.PodInfo = podInfo
-		service.PodIPConfigState[ipID] = ipConfig
-		return ipConfig, nil
+	var updatedIPConfig cns.IPConfigurationStatus
+	if err := service.withIPAMState(func(state *ipamState) (bool, error) {
+		if ipConfig, found := state.PodIPConfigState[ipID]; found {
+			logger.Printf("[updateIPConfigState] Changing IpId [%s] state to [%s], podInfo [%+v]. Current config [%+v]", ipID, updatedState, podInfo, ipConfig)
+			ipConfig.SetState(updatedState)
+			ipConfig.PodInfo = podInfo
+			state.PodIPConfigState[ipID] = ipConfig
+			updatedIPConfig = ipConfig
+			return true, nil
+		}
+		return false, nil
+	}); err != nil {
+		return cns.IPConfigurationStatus{}, err
+	}
+	if updatedIPConfig.ID != "" {
+		return updatedIPConfig, nil
 	}
 
 	//nolint:goerr113 //legacy
@@ -668,31 +718,43 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newH
 		}
 		// We only need to handle the situation when dnc nc version is larger than programmed nc version
 		if previousHostNCVersion < newHostNCVersion {
-			for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
-				if ipConfigStatus, exist := service.PodIPConfigState[uuid]; !exist {
-					logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
-				} else if ipConfigStatus.GetState() == types.PendingProgramming && secondaryIPConfigs.NCVersion <= newHostNCVersion {
-					_, err := service.updateIPConfigState(uuid, types.Available, nil)
-					if err != nil {
-						logger.Errorf("Error updating IPConfig [%+v] state to Available, err: %+v", ipConfigStatus, err)
+			err := service.withIPAMState(func(state *ipamState) (bool, error) {
+				changed := false
+				for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
+					ipConfigStatus, exist := state.PodIPConfigState[uuid]
+					if !exist {
+						logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
+						continue
 					}
+					if ipConfigStatus.GetState() == types.PendingProgramming && secondaryIPConfigs.NCVersion <= newHostNCVersion {
+						ipConfigStatus.SetState(types.Available)
+						state.PodIPConfigState[uuid] = ipConfigStatus
+						changed = true
 
-					// Following 2 sentence assign new host version to secondary ip config.
-					secondaryIPConfigs.NCVersion = newHostNCVersion
-					ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid] = secondaryIPConfigs
-					logger.Printf("Change ip %s with uuid %s from pending programming to %s, current secondary ip configs is %+v", ipConfigStatus.IPAddress, uuid, types.Available,
-						ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid])
+						// Following 2 sentence assign new host version to secondary ip config.
+						secondaryIPConfigs.NCVersion = newHostNCVersion
+						ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid] = secondaryIPConfigs
+						logger.Printf("Change ip %s with uuid %s from pending programming to %s, current secondary ip configs is %+v", ipConfigStatus.IPAddress, uuid, types.Available,
+							ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid])
+					}
 				}
+				return changed, nil
+			})
+			if err != nil {
+				logger.Errorf("Error updating IPConfig state to Available for NC %s, err: %+v", ncID, err)
 			}
+			service.state.ContainerStatus[ncID] = ncInfo
 		}
 	}
 }
 
 func (service *HTTPRestService) GetPodIPConfigState() map[string]cns.IPConfigurationStatus {
-	service.RLock()
-	defer service.RUnlock()
-	podIPConfigState := make(map[string]cns.IPConfigurationStatus, len(service.PodIPConfigState))
-	for k, v := range service.PodIPConfigState {
+	state, err := service.readIPAMState()
+	if err != nil {
+		return map[string]cns.IPConfigurationStatus{}
+	}
+	podIPConfigState := make(map[string]cns.IPConfigurationStatus, len(state.PodIPConfigState))
+	for k, v := range state.PodIPConfigState {
 		podIPConfigState[k] = v
 	}
 	return podIPConfigState
@@ -700,26 +762,46 @@ func (service *HTTPRestService) GetPodIPConfigState() map[string]cns.IPConfigura
 
 func (service *HTTPRestService) HandleDebugPodContext(w http.ResponseWriter, r *http.Request) { //nolint
 	opName := "handleDebugPodContext"
-	service.RLock()
-	defer service.RUnlock()
-	resp := cns.GetPodContextResponse{
-		PodContext: service.PodIPIDByPodInterfaceKey,
+	state, err := service.readIPAMState()
+	if err != nil {
+		resp := cns.GetPodContextResponse{
+			Response: cns.Response{
+				ReturnCode: types.UnexpectedError,
+				Message:    err.Error(),
+			},
+		}
+		encodeErr := common.Encode(w, &resp)
+		logger.Response(opName, resp, resp.Response.ReturnCode, encodeErr)
+		return
 	}
-	err := common.Encode(w, &resp)
+	resp := cns.GetPodContextResponse{
+		PodContext: state.PodIPIDByPodInterfaceKey,
+	}
+	err = common.Encode(w, &resp)
 	logger.Response(opName, resp, resp.Response.ReturnCode, err)
 }
 
 func (service *HTTPRestService) HandleDebugRestData(w http.ResponseWriter, r *http.Request) { //nolint
 	opName := "handleDebugRestData"
-	service.RLock()
-	defer service.RUnlock()
+	state, err := service.readIPAMState()
+	if err != nil {
+		resp := GetHTTPServiceDataResponse{
+			Response: Response{
+				ReturnCode: types.UnexpectedError,
+				Message:    err.Error(),
+			},
+		}
+		encodeErr := common.Encode(w, &resp)
+		logger.Response(opName, resp, resp.Response.ReturnCode, encodeErr)
+		return
+	}
 	resp := GetHTTPServiceDataResponse{
 		HTTPRestServiceData: HTTPRestServiceData{
-			PodIPIDByPodInterfaceKey: service.PodIPIDByPodInterfaceKey,
-			PodIPConfigState:         service.PodIPConfigState,
+			PodIPIDByPodInterfaceKey: state.PodIPIDByPodInterfaceKey,
+			PodIPConfigState:         state.PodIPConfigState,
 		},
 	}
-	err := common.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 	logger.Response(opName, resp, resp.Response.ReturnCode, err)
 }
 
@@ -738,72 +820,108 @@ func (service *HTTPRestService) HandleDebugIPAddresses(w http.ResponseWriter, r 
 		return
 	}
 	// Get all IPConfigs matching a state and return in the response
-	resp := cns.GetIPAddressStatusResponse{
-		IPConfigurationStatus: filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.PredicatesForStates(req.IPConfigStateFilter...)...),
+	state, err := service.readIPAMState()
+	if err != nil {
+		resp := cns.GetIPAddressStatusResponse{
+			Response: cns.Response{
+				ReturnCode: types.UnexpectedError,
+				Message:    err.Error(),
+			},
+		}
+		err = common.Encode(w, &resp)
+		logger.ResponseEx(opName, req, resp, resp.Response.ReturnCode, err)
+		return
 	}
-	err := common.Encode(w, &resp)
+	resp := cns.GetIPAddressStatusResponse{
+		IPConfigurationStatus: filter.MatchAnyIPConfigState(state.PodIPConfigState, filter.PredicatesForStates(req.IPConfigStateFilter...)...),
+	}
+	err = common.Encode(w, &resp)
 	logger.ResponseEx(opName, req, resp, resp.Response.ReturnCode, err)
 }
 
 // GetAssignedIPConfigs returns a filtered list of IPs which are in
 // Assigned State.
 func (service *HTTPRestService) GetAssignedIPConfigs() []cns.IPConfigurationStatus {
-	service.RLock()
-	defer service.RUnlock()
-	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StateAssigned)
+	state, err := service.readIPAMState()
+	if err != nil {
+		return []cns.IPConfigurationStatus{}
+	}
+	return filter.MatchAnyIPConfigState(state.PodIPConfigState, filter.StateAssigned)
 }
 
 // GetAvailableIPConfigs returns a filtered list of IPs which are in
 // Available State.
 func (service *HTTPRestService) GetAvailableIPConfigs() []cns.IPConfigurationStatus {
-	service.RLock()
-	defer service.RUnlock()
-	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StateAvailable)
+	state, err := service.readIPAMState()
+	if err != nil {
+		return []cns.IPConfigurationStatus{}
+	}
+	return filter.MatchAnyIPConfigState(state.PodIPConfigState, filter.StateAvailable)
 }
 
 // GetPendingProgramIPConfigs returns a filtered list of IPs which are in
 // PendingProgramming State.
 func (service *HTTPRestService) GetPendingProgramIPConfigs() []cns.IPConfigurationStatus {
-	service.RLock()
-	defer service.RUnlock()
-	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StatePendingProgramming)
+	state, err := service.readIPAMState()
+	if err != nil {
+		return []cns.IPConfigurationStatus{}
+	}
+	return filter.MatchAnyIPConfigState(state.PodIPConfigState, filter.StatePendingProgramming)
 }
 
 // GetPendingReleaseIPConfigs returns a filtered list of IPs which are in
 // PendingRelease State.
 func (service *HTTPRestService) GetPendingReleaseIPConfigs() []cns.IPConfigurationStatus {
-	service.RLock()
-	defer service.RUnlock()
-	return filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.StatePendingRelease)
+	state, err := service.readIPAMState()
+	if err != nil {
+		return []cns.IPConfigurationStatus{}
+	}
+	return filter.MatchAnyIPConfigState(state.PodIPConfigState, filter.StatePendingRelease)
 }
 
 // assignIPConfig assigns the the ipconfig to the passed Pod, sets the state as Assigned, does not take a lock.
 func (service *HTTPRestService) assignIPConfig(ipconfig cns.IPConfigurationStatus, podInfo cns.PodInfo) error { //nolint:gocritic // ignore hugeparam
-	ipconfig, err := service.updateIPConfigState(ipconfig.ID, types.Assigned, podInfo)
-	if err != nil {
-		return err
-	}
+	return service.withIPAMState(func(state *ipamState) (bool, error) {
+		current, found := state.PodIPConfigState[ipconfig.ID]
+		if !found {
+			return false, fmt.Errorf("[assignIPConfig] IPConfig %s not found", ipconfig.ID)
+		}
+		current.SetState(types.Assigned)
+		current.PodInfo = podInfo
+		state.PodIPConfigState[ipconfig.ID] = current
 
-	if service.PodIPIDByPodInterfaceKey[podInfo.Key()] == nil {
-		logger.Printf("IP config %v initialized", podInfo.Key())
-		service.PodIPIDByPodInterfaceKey[podInfo.Key()] = make([]string, 0)
-	}
+		if state.PodIPIDByPodInterfaceKey[podInfo.Key()] == nil {
+			logger.Printf("IP config %v initialized", podInfo.Key())
+			state.PodIPIDByPodInterfaceKey[podInfo.Key()] = make([]string, 0)
+		}
 
-	service.PodIPIDByPodInterfaceKey[podInfo.Key()] = append(service.PodIPIDByPodInterfaceKey[podInfo.Key()], ipconfig.ID)
-	return nil
+		state.PodIPIDByPodInterfaceKey[podInfo.Key()] = append(state.PodIPIDByPodInterfaceKey[podInfo.Key()], current.ID)
+		return true, nil
+	})
 }
 
 // unassignIPConfig unassigns the ipconfig from the passed Pod, sets the state as Available, does not take a lock.
 func (service *HTTPRestService) unassignIPConfig(ipconfig cns.IPConfigurationStatus, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) { //nolint:gocritic // ignore hugeparam
-	ipconfig, err := service.updateIPConfigState(ipconfig.ID, types.Available, nil)
+	var updatedIPConfig cns.IPConfigurationStatus
+	err := service.withIPAMState(func(state *ipamState) (bool, error) {
+		current, found := state.PodIPConfigState[ipconfig.ID]
+		if !found {
+			return false, fmt.Errorf("[unassignIPConfig] IPConfig %s not found", ipconfig.ID)
+		}
+		current.SetState(types.Available)
+		current.PodInfo = nil
+		state.PodIPConfigState[ipconfig.ID] = current
+		updatedIPConfig = current
+
+		delete(state.PodIPIDByPodInterfaceKey, podInfo.Key())
+		logger.Printf("[setIPConfigAsAvailable] Deleted outdated pod info %s from PodIPIDByOrchestratorContext since IP %s with ID %s will be released and set as Available",
+			podInfo.Key(), current.IPAddress, current.ID)
+		return true, nil
+	})
 	if err != nil {
 		return cns.IPConfigurationStatus{}, err
 	}
-
-	delete(service.PodIPIDByPodInterfaceKey, podInfo.Key())
-	logger.Printf("[setIPConfigAsAvailable] Deleted outdated pod info %s from PodIPIDByOrchestratorContext since IP %s with ID %s will be released and set as Available",
-		podInfo.Key(), ipconfig.IPAddress, ipconfig.ID)
-	return ipconfig, nil
+	return updatedIPConfig, nil
 }
 
 // Todo - CNI should also pass the IPAddress which needs to be released to validate if that is the right IP allcoated
@@ -813,9 +931,13 @@ func (service *HTTPRestService) releaseIPConfigs(podInfo cns.PodInfo) error {
 	defer service.Unlock()
 	ipsToBeReleased := make([]cns.IPConfigurationStatus, 0)
 	logger.Printf("[releaseIPConfigs] Releasing pod with key %s", podInfo.Key())
-	for i, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
+	state, err := service.readIPAMState()
+	if err != nil {
+		return err
+	}
+	for i, ipID := range state.PodIPIDByPodInterfaceKey[podInfo.Key()] {
 		if ipID != "" {
-			if ipconfig, isExist := service.PodIPConfigState[ipID]; isExist {
+			if ipconfig, isExist := state.PodIPConfigState[ipID]; isExist {
 				ipsToBeReleased = append(ipsToBeReleased, ipconfig)
 			} else {
 				//nolint:goerr113 // return error
@@ -858,35 +980,40 @@ func (service *HTTPRestService) releaseIPConfigs(podInfo cns.PodInfo) error {
 func (service *HTTPRestService) MarkExistingIPsAsPendingRelease(pendingIPIDs []string) error {
 	service.Lock()
 	defer service.Unlock()
+	return service.withIPAMState(func(state *ipamState) (bool, error) {
+		changed := false
+		for _, id := range pendingIPIDs {
+			if ipconfig, exists := state.PodIPConfigState[id]; exists {
+				if ipconfig.GetState() == types.Assigned {
+					return false, errors.Errorf("Failed to mark IP [%v] as pending, currently assigned", id)
+				}
 
-	for _, id := range pendingIPIDs {
-		if ipconfig, exists := service.PodIPConfigState[id]; exists {
-			if ipconfig.GetState() == types.Assigned {
-				return errors.Errorf("Failed to mark IP [%v] as pending, currently assigned", id)
+				logger.Printf("[MarkExistingIPsAsPending]: Marking IP [%+v] to PendingRelease", ipconfig)
+				ipconfig.SetState(types.PendingRelease)
+				state.PodIPConfigState[id] = ipconfig
+				changed = true
+			} else {
+				logger.Errorf("Inconsistent state, ipconfig with ID [%v] marked as pending release, but does not exist in state", id)
 			}
-
-			logger.Printf("[MarkExistingIPsAsPending]: Marking IP [%+v] to PendingRelease", ipconfig)
-			ipconfig.SetState(types.PendingRelease)
-			service.PodIPConfigState[id] = ipconfig
-		} else {
-			logger.Errorf("Inconsistent state, ipconfig with ID [%v] marked as pending release, but does not exist in state", id)
 		}
-	}
-	return nil
+		return changed, nil
+	})
 }
 
 // Returns the current IP configs for a pod if they exist
 func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, bool, error) {
-	service.RLock()
-	defer service.RUnlock()
+	state, err := service.readIPAMState()
+	if err != nil {
+		return []cns.PodIpInfo{}, false, err
+	}
 
-	numIPConfigs := len(service.PodIPIDByPodInterfaceKey[podInfo.Key()])
+	numIPConfigs := len(state.PodIPIDByPodInterfaceKey[podInfo.Key()])
 	podIPInfo := make([]cns.PodIpInfo, numIPConfigs)
 	ipConfigExists := false
 
-	for i, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
+	for i, ipID := range state.PodIPIDByPodInterfaceKey[podInfo.Key()] {
 		if ipID != "" {
-			if ipState, isExist := service.PodIPConfigState[ipID]; isExist {
+			if ipState, isExist := state.PodIPConfigState[ipID]; isExist {
 				if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo[i]); err != nil {
 					return podIPInfo, isExist, err
 				}
@@ -907,6 +1034,10 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desiredIPAddresses []string) ([]cns.PodIpInfo, error) {
 	service.Lock()
 	defer service.Unlock()
+	state, err := service.readIPAMState()
+	if err != nil {
+		return nil, err
+	}
 
 	// Gets the number of NCs which will determine the number of IPs given to a pod
 	numOfNCs := len(service.state.ContainerStatus)
@@ -928,7 +1059,7 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 	}
 
 	numIPConfigsAssigned := 0
-	for _, ipConfig := range service.PodIPConfigState { //nolint:gocritic // ignore copy
+	for _, ipConfig := range state.PodIPConfigState { //nolint:gocritic // ignore copy
 		_, found := desiredIPMap[ipConfig.IPAddress]
 		// keep searching until the all the desired IPs are found
 		if !found {
@@ -1023,13 +1154,17 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 
 	service.Lock()
 	defer service.Unlock()
+	state, err := service.readIPAMState()
+	if err != nil {
+		return nil, err
+	}
 	// Creates a slice of PodIpInfo with the size as number of NCs to hold the result for assigned IP configs
 	podIPInfo := make([]cns.PodIpInfo, numberOfIPs)
 	// This map is used to store whether or not we have found an available IP from an NC when looping through the pool
 	ipsToAssign := make(map[string]cns.IPConfigurationStatus)
 
 	// Searches for available IPs in the pool
-	for _, ipState := range service.PodIPConfigState {
+	for _, ipState := range state.PodIPConfigState {
 
 		// get the IPFamily of the current ipState
 		var ipStateFamily cns.IPFamily = cns.IPv4
@@ -1222,22 +1357,16 @@ func (service *HTTPRestService) DeleteEndpointStateHelper(endpointID string) err
 		return ErrStoreEmpty
 	}
 	logger.Printf("[deleteEndpointState] Deleting Endpoint state from state file %s", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
-	_, endpointExist := service.EndpointState[endpointID]
-	if !endpointExist {
-		logger.Printf("[deleteEndpointState] endpoint could not be found in the statefile %s", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
-		return fmt.Errorf("[deleteEndpointState] endpoint %s: %w", endpointID, ErrEndpointStateNotFound)
-	}
+	return service.withEndpointState(func(state map[string]*EndpointInfo) (bool, error) {
+		if _, endpointExist := state[endpointID]; !endpointExist {
+			logger.Printf("[deleteEndpointState] endpoint could not be found in the statefile %s", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
+			return false, fmt.Errorf("[deleteEndpointState] endpoint %s: %w", endpointID, ErrEndpointStateNotFound)
+		}
 
-	// Delete the endpoint from the state
-	delete(service.EndpointState, endpointID)
-
-	// Write the updated state back to the store
-	err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
-	if err != nil {
-		return fmt.Errorf("[deleteEndpointState] failed to write endpoint state to store: %w", err)
-	}
-	logger.Printf("[deleteEndpointState] successfully deleted endpoint %s from state file", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
-	return nil
+		delete(state, endpointID)
+		logger.Printf("[deleteEndpointState] successfully deleted endpoint %s from state file", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
+		return true, nil
+	})
 }
 
 // GetEndpointHandler handles the incoming GetEndpoint requests with http Get method
@@ -1283,24 +1412,23 @@ func (service *HTTPRestService) GetEndpointHandler(w http.ResponseWriter, r *htt
 func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointInfo, error) {
 	logger.Printf("[GetEndpointState] Get endpoint state for infra container %s", endpointID)
 
-	// Skip if a store is not provided.
-	if service.EndpointStateStore == nil {
-		logger.Printf("[GetEndpointState]  store not initialized.")
-		return nil, ErrStoreEmpty
-	}
-
-	err := service.EndpointStateStore.Read(EndpointStoreKey, &service.EndpointState)
+	service.endpointStateMu.Lock()
+	state, err := service.loadEndpointStateLocked()
+	service.endpointStateMu.Unlock()
 	if err != nil {
-
 		if errors.Is(err, store.ErrKeyNotFound) {
-			// Nothing to retrieve.
 			logger.Printf("[GetEndpointState]  No endpoint state to retrieve.\n")
-		} else {
-			logger.Errorf("[GetEndpointState]  Failed to retrieve state, err:%v", err)
+			return nil, ErrEndpointStateNotFound
 		}
+		if errors.Is(err, ErrStoreEmpty) {
+			logger.Printf("[GetEndpointState]  store not initialized.")
+			return nil, ErrStoreEmpty
+		}
+		logger.Errorf("[GetEndpointState]  Failed to retrieve state, err:%v", err)
 		return nil, ErrEndpointStateNotFound
 	}
-	if endpointInfo, ok := service.EndpointState[endpointID]; ok {
+
+	if endpointInfo, ok := state[endpointID]; ok {
 		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", endpointID)
 		return endpointInfo, nil
 	}
@@ -1308,7 +1436,7 @@ func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointI
 	// In case there was no endpoint founded with ContainerID as the key,
 	// then [First 8 character of containerid]-eth0 will be tried
 	legacyEndpointID := endpointID[:ContainerIDLength] + "-" + InfraInterfaceName
-	if endpointInfo, ok := service.EndpointState[legacyEndpointID]; ok {
+	if endpointInfo, ok := state[legacyEndpointID]; ok {
 		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", legacyEndpointID)
 		return endpointInfo, nil
 	}
@@ -1372,25 +1500,24 @@ func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req map[
 		return ErrStoreEmpty
 	}
 	logger.Printf("[updateEndpoint] Updating endpoint state for infra container %s", endpointID)
-	endpointInfo, endpointExist := service.EndpointState[endpointID]
-	// create a new entry in case the ednpoint does not exist in the statefile.
-	// this applies to the ACI scenario when the endpoint is not added to the statefile when the goalstate is sent to CNI
-	if !endpointExist {
-		logger.Printf("[updateEndpoint] endpoint could not be found in the statefile %s, new entry is being added", endpointID)
-		endpointInfo = &EndpointInfo{PodName: "", PodNamespace: "", IfnameToIPMap: make(map[string]*IPInfo)}
-		service.EndpointState[endpointID] = endpointInfo
-	}
-	// updating the InterfaceInfo map of endpoint states with the interfaceInfo map that is given by Stateless Azure CNI
-	for ifName, interfaceInfo := range req {
-		// updating the ipInfoMap
-		updateIPInfoMap(endpointInfo.IfnameToIPMap, interfaceInfo, ifName, endpointID)
-	}
-	err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
-	if err != nil {
-		return fmt.Errorf("[updateEndpoint] failed to write endpoint state to store for pod %s :  %w", endpointInfo.PodName, err)
-	}
-	logger.Printf("[updateEndpoint] successfully write the state to the file %s", endpointID)
-	return nil
+	return service.withEndpointState(func(state map[string]*EndpointInfo) (bool, error) {
+		endpointInfo, endpointExist := state[endpointID]
+		// create a new entry in case the endpoint does not exist in the statefile.
+		// this applies to the ACI scenario when the endpoint is not added to the statefile when the goalstate is sent to CNI
+		if !endpointExist {
+			logger.Printf("[updateEndpoint] endpoint could not be found in the statefile %s, new entry is being added", endpointID)
+			endpointInfo = &EndpointInfo{PodName: "", PodNamespace: "", IfnameToIPMap: make(map[string]*IPInfo)}
+			state[endpointID] = endpointInfo
+		}
+		// updating the InterfaceInfo map of endpoint states with the interfaceInfo map that is given by Stateless Azure CNI
+		for ifName, interfaceInfo := range req {
+			// updating the ipInfoMap
+			updateIPInfoMap(endpointInfo.IfnameToIPMap, interfaceInfo, ifName, endpointID)
+		}
+		state[endpointID] = endpointInfo
+		logger.Printf("[updateEndpoint] successfully write the state to the file %s", endpointID)
+		return true, nil
+	})
 }
 
 // updateIPInfoMap updates the IfnameToIPMap of endpoint states with the interfaceInfo map that is given by Stateless Azure CNI

@@ -557,11 +557,17 @@ func (service *HTTPRestService) MustEnsureNoStaleNCs(validNCIDs []string) {
 		valid[ncID] = struct{}{}
 	}
 
+	state, err := service.readIPAMState()
+	if err != nil {
+		logger.Errorf("[Azure CNS] Failed to read IPAM state for stale NC validation, err: %v", err)
+		return
+	}
+
 	service.Lock()
 	defer service.Unlock()
 
 	ncIDToAssignedIPs := make(map[string][]cns.IPConfigurationStatus)
-	for _, ipInfo := range service.PodIPConfigState { // nolint:gocritic // copy is fine; it's a larger change to modify the map to hold pointers
+	for _, ipInfo := range state.PodIPConfigState { // nolint:gocritic // copy is fine; it's a larger change to modify the map to hold pointers
 		if ipInfo.GetState() == types.Assigned {
 			ncIDToAssignedIPs[ipInfo.NCID] = append(ncIDToAssignedIPs[ipInfo.NCID], ipInfo)
 		}

@@ -7,6 +7,7 @@ const (
 	storeKey         = "ContainerNetworkService"
 	StoreKey         = storeKey
 	EndpointStoreKey = "Endpoints"
+	IPAMStoreKey     = "IPAMState"
 	attach           = "Attach"
 	detach           = "Detach"
 	// Rest service state identifier for named lock

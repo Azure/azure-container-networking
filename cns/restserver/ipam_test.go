@@ -75,6 +75,7 @@ type ncState struct {
 
 func getTestService(orchestratorType string) *HTTPRestService {
 	var config common.ServiceConfig
+	config.Store = store.NewMockStore("")
 	httpsvc, _ := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{},
 		&IPtablesProvider{}, &fakes.NMAgentClientFake{}, store.NewMockStore(""), nil, nil,
 		fakes.NewMockIMDSClient())
@@ -123,10 +124,14 @@ func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigsRequest) ([]cns.
 	if err != nil {
 		return []cns.IPConfigurationStatus{}, errors.Wrap(err, "failed to unmarshal pod info")
 	}
+	state, err := svc.readIPAMState()
+	if err != nil {
+		return []cns.IPConfigurationStatus{}, err
+	}
 
 	ipConfigStatus := make([]cns.IPConfigurationStatus, 0)
-	for _, ipID := range svc.PodIPIDByPodInterfaceKey[podInfo.Key()] {
-		ipConfigStatus = append(ipConfigStatus, svc.PodIPConfigState[ipID])
+	for _, ipID := range state.PodIPIDByPodInterfaceKey[podInfo.Key()] {
+		ipConfigStatus = append(ipConfigStatus, state.PodIPConfigState[ipID])
 	}
 	return ipConfigStatus, nil
 }
@@ -163,11 +168,18 @@ func updatePodIPConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 	createAndValidateNCRequest(t, secondaryIPConfigs, ncID, "-1")
 
 	// update ipconfigs to expected state
-	for ipID, ipconfig := range ipconfigs { //nolint:gocritic // ignore copy
-		if ipconfig.GetState() == types.Assigned {
-			svc.PodIPIDByPodInterfaceKey[ipconfig.PodInfo.Key()] = append(svc.PodIPIDByPodInterfaceKey[ipconfig.PodInfo.Key()], ipID)
-			svc.PodIPConfigState[ipID] = ipconfig
+	if err := svc.withIPAMState(func(state *ipamState) (bool, error) {
+		changed := false
+		for ipID, ipconfig := range ipconfigs { //nolint:gocritic // ignore copy
+			if ipconfig.GetState() == types.Assigned {
+				state.PodIPIDByPodInterfaceKey[ipconfig.PodInfo.Key()] = append(state.PodIPIDByPodInterfaceKey[ipconfig.PodInfo.Key()], ipID)
+				state.PodIPConfigState[ipID] = ipconfig
+				changed = true
+			}
 		}
+		return changed, nil
+	}); err != nil {
+		return err
 	}
 	return nil
 }
@@ -266,14 +278,14 @@ func endpointStateReadAndWrite(t *testing.T, ncStates []ncState) {
 	if err != nil {
 		t.Fatalf("Expected to not fail updating endpoint state: %+v", err)
 	}
-	assert.Equal(t, desiredState, svc.EndpointState)
+	assert.Equal(t, desiredState, readEndpointStateFromStore(t, svc))
 
 	// consecutive add of same endpoint should not change state or cause error
 	err = svc.updateEndpointState(req, testPod1Info, podIPInfo)
 	if err != nil {
 		t.Fatalf("Expected to not fail updating existing endpoint state: %+v", err)
 	}
-	assert.Equal(t, desiredState, svc.EndpointState)
+	assert.Equal(t, desiredState, readEndpointStateFromStore(t, svc))
 
 	// delete
 	desiredState = map[string]*EndpointInfo{}
@@ -281,14 +293,30 @@ func endpointStateReadAndWrite(t *testing.T, ncStates []ncState) {
 	if err != nil {
 		t.Fatalf("Expected to not fail removing endpoint state: %+v", err)
 	}
-	assert.Equal(t, desiredState, svc.EndpointState)
+	assert.Equal(t, desiredState, readEndpointStateFromStore(t, svc))
 
 	// delete non-existent endpoint should not change state or cause error
 	err = svc.removeEndpointState(testPod1Info)
 	if err != nil {
 		t.Fatalf("Expected to not fail removing non existing key: %+v", err)
 	}
-	assert.Equal(t, desiredState, svc.EndpointState)
+	assert.Equal(t, desiredState, readEndpointStateFromStore(t, svc))
+}
+
+func readEndpointStateFromStore(t *testing.T, svc *HTTPRestService) map[string]*EndpointInfo {
+	t.Helper()
+	state := map[string]*EndpointInfo{}
+	err := svc.EndpointStateStore.Read(EndpointStoreKey, &state)
+	if err != nil {
+		if errors.Is(err, store.ErrKeyNotFound) || errors.Is(err, store.ErrStoreEmpty) {
+			return map[string]*EndpointInfo{}
+		}
+		t.Fatalf("failed to read endpoint state from store: %+v", err)
+	}
+	if state == nil {
+		return map[string]*EndpointInfo{}
+	}
+	return state
 }
 
 // assign the available IP to the new pod
@@ -434,7 +462,6 @@ func getNextAvailableIPConfig(t *testing.T, ncStates []ncState) {
 	// Add already assigned pod ip to state
 	for i := range ncStates {
 		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-		svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = append(svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()], ncStates[i].ips[0])
 		state1, _ := newPodStateWithOrchestratorContext(ncStates[i].ips[0], ipIDs[i][0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod1Info)
 		state2 := newPodState(ncStates[i].ips[1], ipIDs[i][1], ncStates[i].ncID, types.Available, 0)
 		ipconfigs[state1.ID] = state1
@@ -1488,7 +1515,6 @@ func ipamMarkExistingIPConfigAsPending(t *testing.T, ncStates []ncState) {
 	// Add already assigned pod ip to state
 	for i := range ncStates {
 		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-		svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = append(svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()], ncStates[i].ips[0])
 		state1, _ := newPodStateWithOrchestratorContext(ncStates[i].ips[0], ipIDs[i][0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod1Info)
 		state2 := newPodState(ncStates[i].ips[1], ipIDs[i][1], ncStates[i].ncID, types.Available, 0)
 		ipconfigs[state1.ID] = state1
@@ -1671,7 +1697,10 @@ func TestIPAMFailToReleasePartialIPsInPool(t *testing.T) {
 		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
 	}
 	// remove the IP from the from the ipconfig map so that it throws an error when trying to release one of the IPs
-	delete(svc.PodIPConfigState, testStatev6.ID)
+	_ = svc.withIPAMState(func(state *ipamState) (bool, error) {
+		delete(state.PodIPConfigState, testStatev6.ID)
+		return true, nil
+	})
 
 	err = svc.releaseIPConfigs(testPod1Info)
 	if err == nil {
@@ -1701,7 +1730,10 @@ func TestIPAMFailToRequestPartialIPsInPool(t *testing.T) {
 		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
 	}
 	// remove the IP from the from the ipconfig map so that it throws an error when trying to release one of the IPs
-	delete(svc.PodIPConfigState, testStatev6.ID)
+	_ = svc.withIPAMState(func(state *ipamState) (bool, error) {
+		delete(state.PodIPConfigState, testStatev6.ID)
+		return true, nil
+	})
 
 	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod1Info.InterfaceID(),
@@ -2371,9 +2403,12 @@ func TestIPAMRequestIPConfigsProgrammingPendingFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Manually set IPv6 IP to PendingProgramming state after NC creation
-	ipv6State := svc.PodIPConfigState["ipv6-1"]
-	ipv6State.SetState(types.PendingProgramming)
-	svc.PodIPConfigState["ipv6-1"] = ipv6State
+	_ = svc.withIPAMState(func(state *ipamState) (bool, error) {
+		ipv6State := state.PodIPConfigState["ipv6-1"]
+		ipv6State.SetState(types.PendingProgramming)
+		state.PodIPConfigState["ipv6-1"] = ipv6State
+		return true, nil
+	})
 
 	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod1Info.InterfaceID(),

@@ -104,6 +104,50 @@ func (kvs *boltDBStore) Write(key string, value interface{}) error {
 	})
 }
 
+// Update reads, mutates, and writes a key within a single transaction.
+func (kvs *boltDBStore) Update(key string, initValue func() interface{}, update func(value interface{}) (bool, error)) error {
+	kvs.mu.Lock()
+	defer kvs.mu.Unlock()
+
+	if kvs.db == nil {
+		return errors.New("boltdb is not initialized")
+	}
+
+	return kvs.db.Update(func(tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(boltDefaultBucketName))
+		if err != nil {
+			return err
+		}
+
+		value := initValue()
+		if value == nil {
+			return errors.New("initValue returned nil")
+		}
+
+		raw := bucket.Get([]byte(key))
+		if raw != nil {
+			if err := json.Unmarshal(raw, value); err != nil {
+				return err
+			}
+		}
+
+		changed, err := update(value)
+		if err != nil {
+			return err
+		}
+		if !changed {
+			return nil
+		}
+
+		updatedRaw, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+
+		return bucket.Put([]byte(key), updatedRaw)
+	})
+}
+
 // Flush commits in-memory state to persistent store.
 func (kvs *boltDBStore) Flush() error {
 	kvs.mu.Lock()

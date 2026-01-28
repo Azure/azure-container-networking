@@ -726,7 +726,6 @@ func main() {
 	}
 
 	// Create the key value store.
-	storeFileNameJSON := storeFileLocation + name + ".json"
 	storeFileNameBolt := storeFileLocation + name + ".db"
 	config.Store, err = store.NewBoltDBStore(storeFileNameBolt, lockclient, nil)
 	if err != nil {
@@ -736,7 +735,6 @@ func main() {
 
 	// Initialize endpoint state store if cns is managing endpoint state.
 	var endpointStoreLock processlock.Interface
-	var endpointStoreJSONPath string
 	if cnsconfig.ManageEndpointState {
 		logger.Printf("[Azure CNS] Configured to manage endpoints state")
 		endpointStoreLock, err = processlock.NewFileLock(platform.CNILockPath + endpointStoreName + store.LockExtension) // nolint
@@ -752,7 +750,6 @@ func main() {
 			return
 		}
 		// Create the key value store.
-		endpointStoreJSONPath = endpointStorePath + endpointStoreName + ".json"
 		endpointStoreBoltPath := endpointStorePath + endpointStoreName + ".db"
 		logger.Printf("EndpointStoreState path is %s", endpointStoreBoltPath)
 		endpointStateStore, err = store.NewBoltDBStore(endpointStoreBoltPath, endpointStoreLock, nil)
@@ -760,20 +757,6 @@ func main() {
 			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", endpointStoreBoltPath, err)
 			return
 		}
-	}
-
-	if err := migrateStateStores(
-		cnsconfig.StateStoreMigrationMode,
-		config.Store,
-		storeFileNameJSON,
-		lockclient,
-		endpointStateStore,
-		endpointStoreJSONPath,
-		endpointStoreLock,
-		cnsconfig.ManageEndpointState,
-	); err != nil {
-		logger.Errorf("Failed to migrate CNS state stores: %v", err)
-		return
 	}
 
 	wsProxy := wireserver.Proxy{

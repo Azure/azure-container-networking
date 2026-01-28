@@ -63,8 +63,7 @@ func TestKeyValuePairsAreReinstantiatedFromJSONFile(t *testing.T) {
 
 	// Fail if the read pair does not match the expected pair.
 	if actualValue != expectedValue {
-		t.Errorf("Read pair (%v, %v) does not match the expected pair (%v, %v)",
-			testKey1, actualValue, testKey1, expectedValue)
+		t.Errorf("Read pair (%v, %v) does not match the expected pair (%v, %v)", testKey1, actualValue, testKey1, expectedValue)
 	}
 }
 
@@ -109,8 +108,7 @@ func TestKeyValuePairsArePersistedToJSONFile(t *testing.T) {
 
 	// Fail if the contents do not match expected JSON encoding.
 	if actualPair != expectedPair {
-		t.Errorf("Read pair (%v, %v) does not match the expected pair (%v, %v)",
-			testKey1, actualPair, testKey1, expectedPair)
+		t.Errorf("Read pair (%v, %v) does not match the expected pair (%v, %v)", testKey1, actualPair, testKey1, expectedPair)
 	}
 }
 
@@ -149,8 +147,7 @@ func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
 
 	// Fail if the read pair does not match the written pair.
 	if readValue != writtenValue {
-		t.Errorf("Read pair (%v, %v) does not match the written pair (%v, %v)",
-			testKey1, readValue, testKey1, writtenValue)
+		t.Errorf("Read pair (%v, %v) does not match the written pair (%v, %v)", testKey1, readValue, testKey1, writtenValue)
 	}
 
 	// Cleanup.

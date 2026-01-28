@@ -13,6 +13,7 @@ type KeyValueStore interface {
 	Exists() bool
 	Read(key string, value interface{}) error
 	Write(key string, value interface{}) error
+	Update(key string, initValue func() interface{}, update func(value interface{}) (bool, error)) error
 	Flush() error
 	Lock(timeout time.Duration) error
 	Unlock() error

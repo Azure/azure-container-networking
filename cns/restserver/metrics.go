@@ -230,8 +230,9 @@ func (service *HTTPRestService) publishIPStateMetrics() {
 
 // PodIPConfigStates returns a clone of the IP Config State map.
 func (service *HTTPRestService) PodIPConfigStates() map[string]cns.IPConfigurationStatus {
-	// copy state
-	service.RLock()
-	defer service.RUnlock()
-	return maps.Clone(service.PodIPConfigState)
+	state, err := service.readIPAMState()
+	if err != nil {
+		return map[string]cns.IPConfigurationStatus{}
+	}
+	return maps.Clone(state.PodIPConfigState)
 }

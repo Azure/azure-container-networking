@@ -86,13 +86,12 @@ type HTTPRestService struct {
 	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
 	networkContainer         *networkcontainers.NetworkContainers
-	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is slice of Pod IP (SecondaryIP) uuids.
-	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
 	routingTable             *routes.RoutingTable
 	store                    store.KeyValueStore
 	state                    *httpRestServiceState
 	podsPendingIPAssignment  *bounded.TimedSet
 	sync.RWMutex
+	endpointStateMu            sync.Mutex
 	dncPartitionKey            string
 	EndpointState              map[string]*EndpointInfo // key : container id
 	EndpointStateStore         store.KeyValueStore
@@ -134,6 +133,11 @@ type IPInfo struct {
 	MacAddress         string      `json:",omitempty"`
 	NetworkContainerID string      `json:",omitempty"`
 	NICType            cns.NICType
+}
+
+type ipamState struct {
+	PodIPIDByPodInterfaceKey map[string][]string                  `json:"podIPIDByPodInterfaceKey"`
+	PodIPConfigState         map[string]cns.IPConfigurationStatus `json:"podIPConfigState"`
 }
 
 type GetHTTPServiceDataResponse struct {
@@ -226,9 +230,6 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		PnpIDByMacAddress: make(map[string]string),
 	}
 
-	podIPIDByPodInterfaceKey := make(map[string][]string)
-	podIPConfigState := make(map[string]cns.IPConfigurationStatus)
-
 	if gen == nil {
 		gen = &NoOpConflistGenerator{}
 	}
@@ -242,8 +243,6 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		nma:                      nmagentClient,
 		wsproxy:                  wsproxy,
 		networkContainer:         nc,
-		PodIPIDByPodInterfaceKey: podIPIDByPodInterfaceKey,
-		PodIPConfigState:         podIPConfigState,
 		routingTable:             routingTable,
 		state:                    serviceState,
 		podsPendingIPAssignment:  bounded.NewTimedSet(250), // nolint:gomnd // maxpods

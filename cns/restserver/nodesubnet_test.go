@@ -116,12 +116,12 @@ func TestNodeSubnet(t *testing.T) {
 
 // checkIPassignment checks whether the IP assignment state in the HTTPRestService object matches expectation
 func checkIPassignment(t *testing.T, service *restserver.HTTPRestService, expectedIPs map[string]types.IPState) {
-	if len(service.PodIPConfigState) != len(expectedIPs) {
-		t.Fatalf("expected 2 entries in PodIPConfigState, got %d", len(service.PodIPConfigState))
+	state := service.GetPodIPConfigState()
+	if len(state) != len(expectedIPs) {
+		t.Fatalf("expected %d entries in PodIPConfigState, got %d", len(expectedIPs), len(state))
 	}
 
-	for ip := range service.GetPodIPConfigState() {
-		config := service.GetPodIPConfigState()[ip]
+	for ip, config := range state {
 		if assignmentState, exists := expectedIPs[ip]; !exists {
 			t.Fatalf("unexpected IP %s in PodIPConfigState", ip)
 		} else if config.GetState() != assignmentState {

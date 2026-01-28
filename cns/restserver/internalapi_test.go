@@ -378,8 +378,12 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 	if len(receivedSecondaryIPConfigs) != 1 {
 		t.Errorf("Unexpected receivedSecondaryIPConfigs length %d, expeted length is 1", len(receivedSecondaryIPConfigs))
 	}
+	state, err := svc.readIPAMState()
+	if err != nil {
+		t.Fatalf("failed to read IPAM state: %v", err)
+	}
 	for i := range receivedSecondaryIPConfigs {
-		podIPConfigState := svc.PodIPConfigState[i]
+		podIPConfigState := state.PodIPConfigState[i]
 		if podIPConfigState.GetState() != types.PendingProgramming {
 			t.Errorf("Unexpected State %s, expected State is %s, IP address is %s", podIPConfigState.GetState(), types.PendingProgramming, podIPConfigState.IPAddress)
 		}
@@ -407,8 +411,12 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 	if len(receivedSecondaryIPConfigs) != 1 {
 		t.Errorf("Unexpected receivedSecondaryIPConfigs length %d, expeted length is 1", len(receivedSecondaryIPConfigs))
 	}
+	state, err = svc.readIPAMState()
+	if err != nil {
+		t.Fatalf("failed to read IPAM state: %v", err)
+	}
 	for i := range receivedSecondaryIPConfigs {
-		podIPConfigState := svc.PodIPConfigState[i]
+		podIPConfigState := state.PodIPConfigState[i]
 		if podIPConfigState.GetState() != types.Available {
 			t.Errorf("Unexpected State %s, expeted State is %s, IP address is %s", podIPConfigState.GetState(), types.Available, podIPConfigState.IPAddress)
 		}
@@ -1129,10 +1137,14 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 	t.Logf("NC version in container status is %s, HostVersion is %s", containerStatus.CreateNetworkContainerRequest.Version, containerStatus.HostVersion)
 	alreadyValidated := make(map[string]string)
 	ncCount := 0
-	for ipid, ipStatus := range svc.PodIPConfigState {
+	state, err := svc.readIPAMState()
+	if err != nil {
+		t.Fatalf("failed to read IPAM state: %v", err)
+	}
+	for ipid, ipStatus := range state.PodIPConfigState {
 		ncCount++
 		// ignore any IPs that were added from a previous NC
-		if ncCount > (len(svc.state.ContainerStatus) * len(svc.PodIPConfigState)) {
+		if ncCount > (len(svc.state.ContainerStatus) * len(state.PodIPConfigState)) {
 			if ipaddress, found := alreadyValidated[ipid]; !found {
 				if secondaryIPConfig, ok := req.SecondaryIPConfigs[ipid]; !ok {
 					t.Fatalf("PodIpConfigState has stale ipId: %s, config: %+v", ipid, ipStatus)
@@ -1143,7 +1155,7 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 
 					// Validate IP state
 					if ipStatus.PodInfo != nil {
-						if _, exists := svc.PodIPIDByPodInterfaceKey[ipStatus.PodInfo.Key()]; exists {
+						if _, exists := state.PodIPIDByPodInterfaceKey[ipStatus.PodInfo.Key()]; exists {
 							if ipStatus.GetState() != types.Assigned {
 								t.Fatalf("IPId: %s State is not Assigned, ipStatus: %+v", ipid, ipStatus)
 							}
@@ -1205,14 +1217,18 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 	} else {
 		validateNetworkRequest(t, *ncRequest)
 	}
+	state, err := svc.readIPAMState()
+	if err != nil {
+		t.Fatalf("failed to read IPAM state: %v", err)
+	}
 
-	if len(expectedAssignedIPs) != len(svc.PodIPIDByPodInterfaceKey) {
-		t.Fatalf("Unexpected assigned pods, actual: %d, expected: %d", len(svc.PodIPIDByPodInterfaceKey), len(expectedAssignedIPs))
+	if len(expectedAssignedIPs) != len(state.PodIPIDByPodInterfaceKey) {
+		t.Fatalf("Unexpected assigned pods, actual: %d, expected: %d", len(state.PodIPIDByPodInterfaceKey), len(expectedAssignedIPs))
 	}
 
 	for ipaddress, podInfo := range expectedAssignedIPs {
-		for _, ipID := range svc.PodIPIDByPodInterfaceKey[podInfo.Key()] {
-			ipConfigstate := svc.PodIPConfigState[ipID]
+		for _, ipID := range state.PodIPIDByPodInterfaceKey[podInfo.Key()] {
+			ipConfigstate := state.PodIPConfigState[ipID]
 			if ipConfigstate.GetState() != types.Assigned {
 				t.Fatalf("IpAddress %s is not marked as assigned to Pod: %+v, ipState: %+v", ipaddress, podInfo, ipConfigstate)
 			}
@@ -1239,7 +1255,7 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 	if ncRequest != nil {
 		for secIPID, secIPConfig := range ncRequest.SecondaryIPConfigs {
 			// Validate IP state
-			if secIPConfigState, found := svc.PodIPConfigState[secIPID]; found {
+			if secIPConfigState, found := state.PodIPConfigState[secIPID]; found {
 				if _, exists := expectedAssignedIPs[secIPConfig.IPAddress]; exists {
 					if secIPConfigState.GetState() != types.Assigned {
 						t.Fatalf("IPId: %s State is not Assigned, ipStatus: %+v", secIPID, secIPConfigState)
@@ -1267,15 +1283,17 @@ func validateIPAMStateAfterReconcile(t *testing.T, ncReqs []*cns.CreateNetworkCo
 
 	interfaceIdx, err := newPodKeyToPodIPsMap(expectedAssignedIPs)
 	require.NoError(t, err, "expected IPs contain incorrect state")
+	state, err := svc.readIPAMState()
+	require.NoError(t, err, "failed to read IPAM state")
 
-	assert.Len(t, svc.PodIPIDByPodInterfaceKey, len(interfaceIdx), "unexepected quantity of interfaces in CNS")
+	assert.Len(t, state.PodIPIDByPodInterfaceKey, len(interfaceIdx), "unexepected quantity of interfaces in CNS")
 
 	for ipAddress, podInfo := range expectedAssignedIPs {
-		podIPUUIDs, ok := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
+		podIPUUIDs, ok := state.PodIPIDByPodInterfaceKey[podInfo.Key()]
 		assert.Truef(t, ok, "no pod uuids for pod info key %s", podInfo.Key())
 
 		for _, ipID := range podIPUUIDs {
-			ipConfigstate, ok := svc.PodIPConfigState[ipID]
+			ipConfigstate, ok := state.PodIPConfigState[ipID]
 			assert.Truef(t, ok, "ip id %s not found in CNS pod ip id index", ipID)
 			assert.Equalf(t, types.Assigned, ipConfigstate.GetState(), "ip address %s not marked as assigned to pod: %+v, ip config state: %+v", ipAddress, podInfo, ipConfigstate)
 
@@ -1297,7 +1315,7 @@ func validateIPAMStateAfterReconcile(t *testing.T, ncReqs []*cns.CreateNetworkCo
 	// validate rest of secondary IPs in available state
 	for _, ncReq := range ncReqs {
 		for secIPID, secIPConfig := range ncReq.SecondaryIPConfigs {
-			secIPConfigState, ok := svc.PodIPConfigState[secIPID]
+			secIPConfigState, ok := state.PodIPConfigState[secIPID]
 			assert.True(t, ok)
 
 			if _, isAssigned := expectedAssignedIPs[secIPConfig.IPAddress]; !isAssigned {
@@ -1332,6 +1350,12 @@ func restartService() {
 	if err := startService(common.ServiceConfig{}, configuration.CNSConfig{}); err != nil {
 		fmt.Printf("Failed to restart CNS Service. Error: %v", err)
 		os.Exit(1)
+	}
+
+	if svc, ok := service.(*HTTPRestService); ok {
+		if svc.store != nil {
+			_ = svc.store.Write(IPAMStoreKey, &ipamState{PodIPConfigState: map[string]cns.IPConfigurationStatus{}, PodIPIDByPodInterfaceKey: map[string][]string{}})
+		}
 	}
 }
 
@@ -1668,8 +1692,8 @@ func TestMustEnsureNoStaleNCs(t *testing.T) {
 			svc := HTTPRestService{
 				store:            store.NewMockStore("foo"),
 				state:            &httpRestServiceState{ContainerStatus: tt.storedNCs},
-				PodIPConfigState: tt.ipStates,
 			}
+			_ = svc.store.Write(IPAMStoreKey, &ipamState{PodIPConfigState: tt.ipStates, PodIPIDByPodInterfaceKey: map[string][]string{}})
 
 			require.NotPanics(t, func() {
 				svc.MustEnsureNoStaleNCs(tt.ncsFromReconcile)
@@ -1702,8 +1726,8 @@ func TestMustEnsureNoStaleNCs_PanicsWhenIPsFromStaleNCAreAssigned(t *testing.T) 
 	svc := HTTPRestService{
 		store:            store.NewMockStore("foo"),
 		state:            &httpRestServiceState{ContainerStatus: ncs},
-		PodIPConfigState: ipStates,
 	}
+	_ = svc.store.Write(IPAMStoreKey, &ipamState{PodIPConfigState: ipStates, PodIPIDByPodInterfaceKey: map[string][]string{}})
 
 	require.Panics(t, func() {
 		svc.MustEnsureNoStaleNCs([]string{"nc3", "nc4"})

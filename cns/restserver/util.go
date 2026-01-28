@@ -121,6 +121,7 @@ func (service *HTTPRestService) restoreState() {
 	}
 
 	logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state)
+	service.restoreIPAMState()
 
 	if service.Options[acn.OptManageEndpointState] == true {
 		err := service.EndpointStateStore.Read(EndpointStoreKey, &service.EndpointState)
@@ -136,6 +137,82 @@ func (service *HTTPRestService) restoreState() {
 		logger.Printf("[Azure CNS]  Restored endpoint state, %+v\n", service.EndpointState)
 
 	}
+}
+
+func newIPAMState() *ipamState {
+	return &ipamState{
+		PodIPIDByPodInterfaceKey: make(map[string][]string),
+		PodIPConfigState:         make(map[string]cns.IPConfigurationStatus),
+	}
+}
+
+func normalizeIPAMState(state *ipamState) {
+	if state.PodIPIDByPodInterfaceKey == nil {
+		state.PodIPIDByPodInterfaceKey = make(map[string][]string)
+	}
+	if state.PodIPConfigState == nil {
+		state.PodIPConfigState = make(map[string]cns.IPConfigurationStatus)
+	}
+	for ipID, ipConfig := range state.PodIPConfigState {
+		ipConfig.WithStateMiddleware(stateTransitionMiddleware)
+		state.PodIPConfigState[ipID] = ipConfig
+	}
+}
+
+func (service *HTTPRestService) readIPAMState() (ipamState, error) {
+	if service.store == nil {
+		return ipamState{}, ErrStoreEmpty
+	}
+
+	state := newIPAMState()
+	err := service.store.Read(IPAMStoreKey, state)
+	if err != nil {
+		if errors.Is(err, store.ErrKeyNotFound) || errors.Is(err, store.ErrStoreEmpty) {
+			normalizeIPAMState(state)
+			return *state, nil
+		}
+		return ipamState{}, err
+	}
+
+	normalizeIPAMState(state)
+	return *state, nil
+}
+
+func (service *HTTPRestService) withIPAMState(update func(state *ipamState) (bool, error)) error {
+	if service.store == nil {
+		return ErrStoreEmpty
+	}
+
+	return service.store.Update(IPAMStoreKey, func() interface{} {
+		return newIPAMState()
+	}, func(value interface{}) (bool, error) {
+		state, ok := value.(*ipamState)
+		if !ok {
+			return false, errors.New("unexpected IPAM state type")
+		}
+		normalizeIPAMState(state)
+		return update(state)
+	})
+}
+
+// restoreIPAMState restores IPAM-related state from persistent store.
+func (service *HTTPRestService) restoreIPAMState() {
+	if service.store == nil {
+		logger.Printf("[Azure CNS]  store not initialized.")
+		return
+	}
+
+	state, err := service.readIPAMState()
+	if err != nil {
+		if errors.Is(err, store.ErrKeyNotFound) || errors.Is(err, store.ErrStoreEmpty) || errors.Is(err, ErrStoreEmpty) {
+			logger.Printf("[Azure CNS]  No IPAM state to restore.\n")
+			return
+		}
+		logger.Errorf("[Azure CNS]  Failed to restore IPAM state, err:%v.", err)
+		return
+	}
+
+	logger.Printf("[Azure CNS]  Restored IPAM state, PodIPConfigState: %d, PodIPIDByPodInterfaceKey: %d\n", len(state.PodIPConfigState), len(state.PodIPIDByPodInterfaceKey))
 }
 
 func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (types.ResponseCode, string) { //nolint // legacy
@@ -270,8 +347,12 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 	}
 
 	// Validate TobeDeletedIps are ready to be deleted.
+	ipamState, err := service.readIPAMState()
+	if err != nil && !errors.Is(err, ErrStoreEmpty) {
+		return types.UnexpectedError, err.Error()
+	}
 	for ipID := range tobeDeletedIPConfigs {
-		ipConfigStatus, exists := service.PodIPConfigState[ipID]
+		ipConfigStatus, exists := ipamState.PodIPConfigState[ipID]
 		if exists {
 			// pod ip exists, validate if state is not assigned, else fail
 			if ipConfigStatus.GetState() == types.Assigned {
@@ -291,9 +372,8 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 
 	// Add new IPs
 	// TODO, will udpate NC version related variable to int, change it from string to int is a pains
-	var hostNCVersionInInt int
-	var err error
-	if hostNCVersionInInt, err = strconv.Atoi(hostVersion); err != nil {
+	hostNCVersionInInt, err := strconv.Atoi(hostVersion)
+	if err != nil {
 		return types.UnsupportedNCVersion, fmt.Sprintf("Invalid hostVersion is %s, err:%s", hostVersion, err)
 	}
 
@@ -309,45 +389,52 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVersion int, ipconfigs,
 	existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig,
 ) {
-	// add ipconfigs to state
-	for ipID, ipconfig := range ipconfigs {
-		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new
-		// NC version. Set it back to previous NC version if IP already exist.
-		if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipID]; existsInPreviousIPConfig {
-			ipconfig.NCVersion = existingIPConfig.NCVersion
-			ipconfigs[ipID] = ipconfig
-		}
+	if err := service.withIPAMState(func(state *ipamState) (bool, error) {
+		changed := false
+		// add ipconfigs to state
+		for ipID, ipconfig := range ipconfigs {
+			// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new
+			// NC version. Set it back to previous NC version if IP already exist.
+			if existingIPConfig, existsInPreviousIPConfig := existingSecondaryIPConfigs[ipID]; existsInPreviousIPConfig {
+				ipconfig.NCVersion = existingIPConfig.NCVersion
+				ipconfigs[ipID] = ipconfig
+			}
 
-		if ipState, exists := service.PodIPConfigState[ipID]; exists {
-			logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d, "+
-				"ipState: %s", ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion, ipState)
-			continue
-		}
+			if ipState, exists := state.PodIPConfigState[ipID]; exists {
+				logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d, "+
+					"ipState: %s", ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion, ipState)
+				continue
+			}
 
-		logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d",
-			ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion)
-		// Using the updated NC version attached with IP to compare with latest nmagent version and determine IP statues.
-		// When reconcile, service.PodIPConfigState doens't exist, rebuild it with the help of NC version attached with IP.
-		var newIPCNSStatus types.IPState
-		if hostVersion < ipconfig.NCVersion {
-			newIPCNSStatus = types.PendingProgramming
-		} else {
-			newIPCNSStatus = types.Available
-		}
-		// add the new State
-		ipconfigStatus := cns.IPConfigurationStatus{
-			NCID:      ncID,
-			ID:        ipID,
-			IPAddress: ipconfig.IPAddress,
-			PodInfo:   nil,
-		}
-		ipconfigStatus.WithStateMiddleware(stateTransitionMiddleware)
-		ipconfigStatus.SetState(newIPCNSStatus)
-		logger.Printf("[Azure-Cns] Add IP %s as %s", ipconfig.IPAddress, newIPCNSStatus)
+			logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d",
+				ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion)
+			// Using the updated NC version attached with IP to compare with latest nmagent version and determine IP statues.
+			// When reconcile, service.PodIPConfigState doens't exist, rebuild it with the help of NC version attached with IP.
+			var newIPCNSStatus types.IPState
+			if hostVersion < ipconfig.NCVersion {
+				newIPCNSStatus = types.PendingProgramming
+			} else {
+				newIPCNSStatus = types.Available
+			}
+			// add the new State
+			ipconfigStatus := cns.IPConfigurationStatus{
+				NCID:      ncID,
+				ID:        ipID,
+				IPAddress: ipconfig.IPAddress,
+				PodInfo:   nil,
+			}
+			ipconfigStatus.WithStateMiddleware(stateTransitionMiddleware)
+			ipconfigStatus.SetState(newIPCNSStatus)
+			logger.Printf("[Azure-Cns] Add IP %s as %s", ipconfig.IPAddress, newIPCNSStatus)
 
-		service.PodIPConfigState[ipID] = ipconfigStatus
+			state.PodIPConfigState[ipID] = ipconfigStatus
+			changed = true
 
-		// Todo Update batch API and maintain the count
+			// Todo Update batch API and maintain the count
+		}
+		return changed, nil
+	}); err != nil {
+		logger.Errorf("[Azure CNS] Failed to save IPAM state after add IP config, err: %v", err)
 	}
 }
 
@@ -367,23 +454,40 @@ func validateIPSubnet(ipSubnet cns.IPSubnet) error {
 func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 	ipID string, skipValidation bool,
 ) (types.ResponseCode, string) {
-	// this is set if caller has already done the validation
-	if !skipValidation {
-		ipConfigStatus, exists := service.PodIPConfigState[ipID]
-		if exists {
-			// pod ip exists, validate if state is not assigned, else fail
-			if ipConfigStatus.GetState() == types.Assigned {
-				errMsg := fmt.Sprintf("Failed to delete an Assigned IP %v", ipConfigStatus)
-				return types.InconsistentIPConfigState, errMsg
+	var ipConfigStatus cns.IPConfigurationStatus
+	assignedIPDeleteErr := errors.New("assigned IP cannot be deleted")
+	if err := service.withIPAMState(func(state *ipamState) (bool, error) {
+		// this is set if caller has already done the validation
+		if !skipValidation {
+			var exists bool
+			ipConfigStatus, exists = state.PodIPConfigState[ipID]
+			if exists {
+				// pod ip exists, validate if state is not assigned, else fail
+				if ipConfigStatus.GetState() == types.Assigned {
+					return false, assignedIPDeleteErr
+				}
 			}
 		}
-	}
 
-	// Delete this ip from PODIpConfigState Map
-	logger.Printf("[Azure-Cns] Delete the PodIpConfigState, IpId: %s, IPConfigStatus: %v",
-		ipID,
-		service.PodIPConfigState[ipID])
-	delete(service.PodIPConfigState, ipID)
+		if ipConfigStatus.IPAddress == "" {
+			ipConfigStatus = state.PodIPConfigState[ipID]
+		}
+		logger.Printf("[Azure-Cns] Delete the PodIpConfigState, IpId: %s, IPConfigStatus: %v",
+			ipID,
+			ipConfigStatus)
+		if _, exists := state.PodIPConfigState[ipID]; exists {
+			delete(state.PodIPConfigState, ipID)
+			return true, nil
+		}
+		return false, nil
+	}); err != nil {
+		if !skipValidation && errors.Is(err, assignedIPDeleteErr) {
+			errMsg := fmt.Sprintf("Failed to delete an Assigned IP %v", ipConfigStatus)
+			return types.InconsistentIPConfigState, errMsg
+		}
+		logger.Errorf("[Azure CNS] Failed to save IPAM state after deleting IP config, err: %v", err)
+		return types.UnexpectedError, err.Error()
+	}
 	return 0, ""
 }
 
