@@ -1645,7 +1645,6 @@ func TestMustEnsureNoStaleNCs(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.ipStatesOverrideFunc != nil {
 				tt.ipStatesOverrideFunc(tt.ipStates)
@@ -1656,10 +1655,30 @@ func TestMustEnsureNoStaleNCs(t *testing.T) {
 				}
 			}
 
+			originalIPStates := make(map[string]cns.IPConfigurationStatus, len(tt.ipStates))
+			podIPIDs := make([]string, 0, len(tt.ipStates))
+			for ipID, ipState := range tt.ipStates {
+				originalIPStates[ipID] = ipState
+				if ipState.GetState() == types.Assigned {
+					podIPIDs = append(podIPIDs, ipID)
+				}
+			}
+
+			removedNCs := make(map[string]struct{}, len(tt.expectedRemovedNCs))
+			for _, ncID := range tt.expectedRemovedNCs {
+				removedNCs[ncID] = struct{}{}
+			}
+
 			svc := HTTPRestService{
 				store:            store.NewMockStore("foo"),
 				state:            &httpRestServiceState{ContainerStatus: tt.storedNCs},
 				PodIPConfigState: tt.ipStates,
+			}
+
+			if len(podIPIDs) > 0 {
+				svc.PodIPIDByPodInterfaceKey = map[string][]string{
+					"podKey": podIPIDs,
+				}
 			}
 
 			require.NotPanics(t, func() {
@@ -1669,6 +1688,32 @@ func TestMustEnsureNoStaleNCs(t *testing.T) {
 			for _, expectedRemovedNCID := range tt.expectedRemovedNCs {
 				assert.NotContains(t, svc.state.ContainerStatus, expectedRemovedNCID)
 			}
+
+			for ipID, ipState := range originalIPStates {
+				_, removedNC := removedNCs[ipState.NCID]
+				if removedNC {
+					assert.NotContains(t, svc.PodIPConfigState, ipID)
+					continue
+				}
+				assert.Contains(t, svc.PodIPConfigState, ipID)
+			}
+
+			remainingPodIPs := svc.PodIPIDByPodInterfaceKey["podKey"]
+			if len(podIPIDs) == 0 || len(tt.expectedRemovedNCs) == len(tt.storedNCs) {
+				assert.Nil(t, remainingPodIPs)
+				return
+			}
+
+			remainingExpected := make([]string, 0, len(podIPIDs))
+			for ipID, ipState := range originalIPStates {
+				if ipState.GetState() != types.Assigned {
+					continue
+				}
+				if _, removedNC := removedNCs[ipState.NCID]; !removedNC {
+					remainingExpected = append(remainingExpected, ipID)
+				}
+			}
+			assert.ElementsMatch(t, remainingExpected, remainingPodIPs)
 		})
 	}
 }

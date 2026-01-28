@@ -668,20 +668,20 @@ func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newH
 		}
 		// We only need to handle the situation when dnc nc version is larger than programmed nc version
 		if previousHostNCVersion < newHostNCVersion {
-			for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
-				if ipConfigStatus, exist := service.PodIPConfigState[uuid]; !exist {
-					logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
+			for id, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
+				if ipConfigStatus, exist := service.PodIPConfigState[id]; !exist {
+					logger.Errorf("IP %s with id as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, id)
 				} else if ipConfigStatus.GetState() == types.PendingProgramming && secondaryIPConfigs.NCVersion <= newHostNCVersion {
-					_, err := service.updateIPConfigState(uuid, types.Available, nil)
+					_, err := service.updateIPConfigState(id, types.Available, nil)
 					if err != nil {
 						logger.Errorf("Error updating IPConfig [%+v] state to Available, err: %+v", ipConfigStatus, err)
 					}
 
 					// Following 2 sentence assign new host version to secondary ip config.
 					secondaryIPConfigs.NCVersion = newHostNCVersion
-					ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid] = secondaryIPConfigs
-					logger.Printf("Change ip %s with uuid %s from pending programming to %s, current secondary ip configs is %+v", ipConfigStatus.IPAddress, uuid, types.Available,
-						ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid])
+					ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[id] = secondaryIPConfigs
+					logger.Printf("Change ip %s with uuid %s from pending programming to %s, current secondary ip configs is %+v", ipConfigStatus.IPAddress, id, types.Available,
+						ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[id])
 				}
 			}
 		}

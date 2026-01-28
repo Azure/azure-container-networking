@@ -569,18 +569,25 @@ func (service *HTTPRestService) MustEnsureNoStaleNCs(validNCIDs []string) {
 
 	mutated := false
 	for ncID := range service.state.ContainerStatus {
-		if _, ok := valid[ncID]; !ok {
-			// stale NCs with assigned IPs are an unexpected CNS state which we need to alert on.
-			if assignedIPs, hasAssignedIPs := ncIDToAssignedIPs[ncID]; hasAssignedIPs {
-				msg := fmt.Sprintf("Unexpected state: found stale NC ID %s in CNS state with %d assigned IPs: %+v", ncID, len(assignedIPs), assignedIPs)
-				logger.Errorf(msg)
-				panic(msg)
-			}
-
-			logger.Errorf("[Azure CNS] Found stale NC ID %s in CNS state. Removing...", ncID)
-			delete(service.state.ContainerStatus, ncID)
-			mutated = true
+		if _, ok := valid[ncID]; ok {
+			continue
 		}
+		// stale NCs with assigned IPs are an unexpected CNS state which we need to alert on.
+		if assignedIPs, hasAssignedIPs := ncIDToAssignedIPs[ncID]; hasAssignedIPs {
+			msg := fmt.Sprintf("Unexpected state: found stale NC ID %s in CNS state with %d assigned IPs: %+v", ncID, len(assignedIPs), assignedIPs)
+			logger.Errorf(msg)
+			panic(msg)
+		}
+
+		for ipID, ipInfo := range service.PodIPConfigState { // nolint:gocritic // copy is fine; map values are small
+			if ipInfo.NCID == ncID {
+				delete(service.PodIPConfigState, ipID)
+			}
+		}
+
+		logger.Errorf("[Azure CNS] Found stale NC ID %s in CNS state. Removing...", ncID)
+		delete(service.state.ContainerStatus, ncID)
+		mutated = true
 	}
 
 	if mutated {

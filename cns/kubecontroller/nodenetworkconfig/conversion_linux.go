@@ -30,7 +30,6 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 
 	// Add IPs from CIDR block to the secondary IPConfigs
 	if nc.Type == v1alpha.VNETBlock {
-
 		for _, ipAssignment := range nc.IPAssignments {
 			cidrPrefix, err := netip.ParsePrefix(ipAssignment.IP)
 			if err != nil {
