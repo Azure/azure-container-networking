@@ -122,11 +122,12 @@ const (
 type cniConflistScenario string
 
 const (
-	scenarioV4Overlay        cniConflistScenario = "v4overlay"
-	scenarioDualStackOverlay cniConflistScenario = "dualStackOverlay"
-	scenarioOverlay          cniConflistScenario = "overlay"
-	scenarioCilium           cniConflistScenario = "cilium"
-	scenarioSWIFT            cniConflistScenario = "swift"
+	scenarioV4Overlay             cniConflistScenario = "v4overlay"
+	scenarioDualStackOverlay      cniConflistScenario = "dualStackOverlay"
+	scenarioOverlay               cniConflistScenario = "overlay"
+	scenarioCilium                cniConflistScenario = "cilium"
+	scenarioSWIFT                 cniConflistScenario = "swift"
+	scenarioAzurecniChainedCilium cniConflistScenario = "azurecni-chained-cilium"
 )
 
 var (
@@ -624,6 +625,8 @@ func main() {
 			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
 		case scenarioSWIFT:
 			conflistGenerator = &cniconflist.SWIFTGenerator{Writer: writer}
+		case scenarioAzurecniChainedCilium:
+			conflistGenerator = &cniconflist.AzureCNIChainedCiliumGenerator{Writer: writer}
 		default:
 			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
 			os.Exit(1)

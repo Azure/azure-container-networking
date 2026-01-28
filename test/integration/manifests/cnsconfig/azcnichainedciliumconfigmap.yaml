@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cns-config
+  namespace: kube-system
+data:
+  cns_config.json: |
+    {
+      "CNIConflistFilepath": "/etc/cni/net.d/05-azure-chained-cilium.conflist",
+      "CNIConflistScenario": "azurecni-chained-cilium",
+      "ChannelMode": "CRD",
+      "EnableAsyncPodDelete": true,
+      "EnableCNIConflistGeneration": true,
+      "EnableIPAMv2": true,
+      "EnableK8sDevicePlugin": true,
+      "EnableLoggerV2": true,
+      "EnableStateMigration": true,
+      "EnableSubnetScarcity": false,
+      "InitializeFromCNI": false,
+      "Logger": {
+        "file": {
+          "filepath": "/var/log/azure-cns/azure-cns.log",
+          "level": "info",
+          "maxBackups": 5,
+          "maxSize": 5
+        }
+      },
+      "ManageEndpointState": true,
+      "ManagedSettings": {
+        "InfrastructureNetworkID": "",
+        "NodeID": "",
+        "NodeSyncIntervalInSeconds": 30,
+        "PrivateEndpoint": ""
+      },
+      "MetricsBindAddress": ":10092",
+      "ProgramSNATIPTables": false,
+      "TelemetrySettings": {
+        "DebugMode": false,
+        "DisableAll": false,
+        "HeartBeatIntervalInMins": 30,
+        "RefreshIntervalInSecs": 15,
+        "SnapshotIntervalInMins": 60,
+        "TelemetryBatchIntervalInSecs": 15,
+        "TelemetryBatchSizeBytes": 16384
+      }
+    }
