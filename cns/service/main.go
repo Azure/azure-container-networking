@@ -1423,7 +1423,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
 		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
-		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
+		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, z, kubeConfig, node); nodeInfoErr != nil {
 			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
 		}
 	}
@@ -1698,11 +1698,16 @@ func getPodInfoByIPProvider(
 
 // createOrUpdateNodeInfoCRD polls imds to learn the VM Unique ID and then creates or updates the NodeInfo CRD
 // with that vm unique ID
-func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, node *corev1.Node) error {
+func createOrUpdateNodeInfoCRD(ctx context.Context, z *zap.Logger, restConfig *rest.Config, node *corev1.Node) error {
 	imdsCli := imds.NewClient()
-	vmUniqueID, err := imdsCli.GetVMUniqueID(ctx)
+
+	nmaConfig, err := nmagent.NewConfig("")
 	if err != nil {
-		return errors.Wrap(err, "error getting vm unique ID from imds")
+		return errors.Wrap(err, "failed to create nmagent config")
+	}
+	nmaCli, err := nmagent.NewClient(nmaConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to create nmagent client")
 	}
 
 	directcli, err := client.New(restConfig, client.Options{Scheme: multitenancy.Scheme})
@@ -1710,17 +1715,51 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 		return errors.Wrap(err, "failed to create ctrl client")
 	}
 
-	nodeInfoCli := multitenancy.NodeInfoClient{
+	nodeInfoCli := &multitenancy.NodeInfoClient{
 		Cli: directcli,
+	}
+
+	return buildAndCreateNodeInfo(ctx, z, imdsCli, nmaCli, nodeInfoCli, node)
+}
+
+// VMUniqueIDGetter is an interface for getting VM unique ID from IMDS
+type VMUniqueIDGetter interface {
+	GetVMUniqueID(ctx context.Context) (string, error)
+}
+
+// HomeAzGetter is an interface for getting HomeAZ from NMAgent
+type HomeAzGetter interface {
+	GetHomeAz(ctx context.Context) (nmagent.AzResponse, error)
+}
+
+// NodeInfoCreator is an interface for creating/updating NodeInfo CRD
+type NodeInfoCreator interface {
+	CreateOrUpdate(ctx context.Context, nodeInfo *mtv1alpha1.NodeInfo, fieldOwner string) error
+}
+
+// buildAndCreateNodeInfo builds the NodeInfo spec with VMUniqueID and HomeAZ and creates/updates the CRD
+func buildAndCreateNodeInfo(ctx context.Context, z *zap.Logger, imdsCli VMUniqueIDGetter, nmaCli HomeAzGetter, nodeInfoCli NodeInfoCreator, node *corev1.Node) error {
+	vmUniqueID, err := imdsCli.GetVMUniqueID(ctx)
+	if err != nil {
+		return errors.Wrap(err, "error getting vm unique ID from imds")
+	}
+
+	nodeInfoSpec := mtv1alpha1.NodeInfoSpec{
+		VMUniqueID: vmUniqueID,
+	}
+
+	homeAzResponse, err := nmaCli.GetHomeAz(ctx)
+	if err != nil {
+		z.Warn("failed to get HomeAZ from nmagent", zap.Error(err))
+	} else if homeAzResponse.HomeAz > 0 {
+		nodeInfoSpec.HomeAZ = fmt.Sprintf("AZ%02d", homeAzResponse.HomeAz)
 	}
 
 	nodeInfo := &mtv1alpha1.NodeInfo{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: node.Name,
 		},
-		Spec: mtv1alpha1.NodeInfoSpec{
-			VMUniqueID: vmUniqueID,
-		},
+		Spec: nodeInfoSpec,
 	}
 
 	if err := controllerutil.SetOwnerReference(node, nodeInfo, multitenancy.Scheme); err != nil {
