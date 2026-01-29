@@ -92,8 +92,8 @@ spec:
                   x-kubernetes-validations:
                   - message: ipConstraint can only be specified when podIPReservationSize
                       is 1
-                    rule: '!has(self.ipConstraint) || size(self.ipConstraint) == 0
-                      || self.podIPReservationSize == 1'
+                    rule: size(self.ipConstraint) == 0 || self.podIPReservationSize
+                      == 1
                 type: array
               podnetwork:
                 description: Deprecated - use PodNetworkConfigs
@@ -126,9 +126,6 @@ spec:
                 type: string
             type: object
         type: object
-        x-kubernetes-validations:
-        - message: Spec is immutable.
-          rule: self.spec == oldSelf.spec
     served: true
     storage: true
     subresources:

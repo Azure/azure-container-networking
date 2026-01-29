@@ -44,7 +44,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestPodNetworkInstance_IPConstraintValidation(t *testing.T) {
+func TestPodNetworkInstance_SpecValidation(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
@@ -238,122 +238,6 @@ func TestPodNetworkInstance_IPConstraintValidation(t *testing.T) {
 				deleteErr := k8sClient.Delete(ctx, &tt.pni) // cleanup
 				require.NoError(t, deleteErr, "failed to delete PNI")
 			}
-		})
-	}
-}
-
-func TestPodNetworkInstance_SpecImmutability(t *testing.T) {
-	ctx := context.Background()
-
-	tests := []struct {
-		name       string
-		initialPNI PodNetworkInstance
-		updateFunc func(*PodNetworkInstance)
-	}{
-		{
-			name: "update not allowed - no IPConstraint with podIPReservationSize 0",
-			initialPNI: PodNetworkInstance{
-				ObjectMeta: metav1.ObjectMeta{Name: "immutable-no-ip-size0", Namespace: "default"},
-				Spec: PodNetworkInstanceSpec{
-					PodNetworkConfigs: []PodNetworkConfig{
-						{PodNetwork: "net1", PodIPReservationSize: 0},
-					},
-				},
-			},
-			updateFunc: func(pni *PodNetworkInstance) {
-				pni.Spec.PodNetworkConfigs[0].PodNetwork = "net2"
-			},
-		},
-		{
-			name: "update not allowed - no IPConstraint with podIPReservationSize 1",
-			initialPNI: PodNetworkInstance{
-				ObjectMeta: metav1.ObjectMeta{Name: "immutable-no-ip-size1", Namespace: "default"},
-				Spec: PodNetworkInstanceSpec{
-					PodNetworkConfigs: []PodNetworkConfig{
-						{PodNetwork: "net1", PodIPReservationSize: 1},
-					},
-				},
-			},
-			updateFunc: func(pni *PodNetworkInstance) {
-				pni.Spec.PodNetworkConfigs[0].PodIPReservationSize = 2
-			},
-		},
-		{
-			name: "update not allowed - no IPConstraint with podIPReservationSize 2",
-			initialPNI: PodNetworkInstance{
-				ObjectMeta: metav1.ObjectMeta{Name: "immutable-no-ip-size2", Namespace: "default"},
-				Spec: PodNetworkInstanceSpec{
-					PodNetworkConfigs: []PodNetworkConfig{
-						{PodNetwork: "net1", PodIPReservationSize: 2},
-					},
-				},
-			},
-			updateFunc: func(pni *PodNetworkInstance) {
-				pni.Spec.PodNetworkConfigs[0].PodNetwork = "net2"
-			},
-		},
-		{
-			name: "update not allowed - IPConstraint blank with podIPReservationSize 1",
-			initialPNI: PodNetworkInstance{
-				ObjectMeta: metav1.ObjectMeta{Name: "immutable-blank-ip-size1", Namespace: "default"},
-				Spec: PodNetworkInstanceSpec{
-					PodNetworkConfigs: []PodNetworkConfig{
-						{PodNetwork: "net1", PodIPReservationSize: 1, IPConstraint: ""},
-					},
-				},
-			},
-			updateFunc: func(pni *PodNetworkInstance) {
-				pni.Spec.PodNetworkConfigs[0].IPConstraint = "10.0.0.1"
-			},
-		},
-		{
-			name: "update not allowed - IPConstraint with podIPReservationSize 1",
-			initialPNI: PodNetworkInstance{
-				ObjectMeta: metav1.ObjectMeta{Name: "immutable-ip-size1", Namespace: "default"},
-				Spec: PodNetworkInstanceSpec{
-					PodNetworkConfigs: []PodNetworkConfig{
-						{PodNetwork: "net1", PodIPReservationSize: 1, IPConstraint: "198.176.10.1"},
-					},
-				},
-			},
-			updateFunc: func(pni *PodNetworkInstance) {
-				pni.Spec.PodNetworkConfigs[0].IPConstraint = "198.176.10.2"
-			},
-		},
-		{
-			name: "update not allowed - IPConstraint with /32 prefix",
-			initialPNI: PodNetworkInstance{
-				ObjectMeta: metav1.ObjectMeta{Name: "immutable-ip-prefix32", Namespace: "default"},
-				Spec: PodNetworkInstanceSpec{
-					PodNetworkConfigs: []PodNetworkConfig{
-						{PodNetwork: "net1", PodIPReservationSize: 1, IPConstraint: "198.176.110.112/32"},
-					},
-				},
-			},
-			updateFunc: func(pni *PodNetworkInstance) {
-				pni.Spec.PodNetworkConfigs[0].IPConstraint = "198.176.110.113/32"
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create initial PNI
-			pni := tt.initialPNI.DeepCopy()
-			err := k8sClient.Create(ctx, pni)
-			require.NoError(t, err, "failed to create PNI")
-			defer k8sClient.Delete(ctx, pni)
-
-			// Fetch to get resourceVersion
-			fetched := &PodNetworkInstance{}
-			err = k8sClient.Get(ctx, client.ObjectKeyFromObject(pni), fetched)
-			require.NoError(t, err, "failed to fetch PNI")
-
-			// Apply update
-			tt.updateFunc(fetched)
-			err = k8sClient.Update(ctx, fetched)
-			require.Error(t, err, "spec should be immutable")
-			require.Contains(t, err.Error(), "Spec is immutable")
 		})
 	}
 }
