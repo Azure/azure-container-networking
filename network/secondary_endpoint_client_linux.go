@@ -13,7 +13,10 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"k8s.io/kubernetes/pkg/kubelet"
+)
+
+const (
+	NetworkNotReadyErrorMsg = "network is not ready"
 )
 
 var errorSecondaryEndpointClient = errors.New("SecondaryEndpointClient Error")
@@ -142,7 +145,7 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 	logger.Info("Sending DHCP packet", zap.Any("macAddress", epInfo.MacAddress), zap.String("ifName", epInfo.IfName))
 	err := client.dhcpClient.DiscoverRequest(ctx, epInfo.MacAddress, epInfo.IfName)
 	if err != nil {
-		return errors.Wrap(err, kubelet.NetworkNotReadyErrorMsg+" - failed to issue dhcp discover packet to create mapping in host")
+		return errors.Wrap(err, NetworkNotReadyErrorMsg+" - failed to issue dhcp discover packet to create mapping in host")
 	}
 	logger.Info("Finished configuring container interfaces and routes for secondary endpoint client")
 
