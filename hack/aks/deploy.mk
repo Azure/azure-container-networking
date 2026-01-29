@@ -38,10 +38,10 @@ wait-for-cilium:
 
 # vanilla cilium deployment
 deploy-cilium-config:
-	kubectl apply -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-config/cilium-config.yaml
+	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-config/cilium-config.yaml
 
 deploy-cilium-agent:
-	kubectl apply -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-agent/files
+	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-agent/files
 	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-agent/templates/daemonset.yaml | kubectl apply --server-side -f -
 
 # patch cilium agent (assuming deployed) with server-side applied cilium log collector container
@@ -52,72 +52,72 @@ add-cilium-log-collector:
 	envsubst '$${CILIUM_LOG_COLLECTOR_VERSION_TAG},$${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/daemonset-patch.yaml | kubectl apply --server-side --field-manager=cilium-log-collector -f -
 
 deploy-cilium-operator:
-	kubectl apply -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/files
-	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/files
+	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/templates/deployment.yaml | kubectl apply --server-side -f -
 
 deploy-cilium: deploy-cilium-config deploy-cilium-agent deploy-cilium-operator wait-for-cilium
 
 # cilium with hubble deployment
 deploy-cilium-config-hubble:
-	kubectl apply -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-config/cilium-config-hubble.yaml
+	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-config/cilium-config-hubble.yaml
 
 deploy-cilium-hubble: deploy-cilium-config-hubble deploy-cilium-agent deploy-cilium-operator wait-for-cilium
 
 # cilium nightly deployment
 deploy-cilium-config-nightly:
-	kubectl apply -f ../../test/integration/manifests/cilium/cilium-nightly-config.yaml
+	kubectl apply --server-side -f ../../test/integration/manifests/cilium/cilium-nightly-config.yaml
 
 deploy-cilium-agent-nightly:
-	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
-	kubectl apply -f ../../test/integration/manifests/cilium/cilium-nightly-agent
+	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/daemonset.yaml | kubectl apply --server-side -f -
+	kubectl apply --server-side -f ../../test/integration/manifests/cilium/cilium-nightly-agent
 
 deploy-cilium-operator-nightly:
-	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
-	kubectl apply -f ../../test/integration/manifests/cilium/cilium-nightly-operator
+	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/deployment.yaml | kubectl apply --server-side -f -
+	kubectl apply --server-side -f ../../test/integration/manifests/cilium/cilium-nightly-operator
 
 deploy-cilium-nightly: deploy-cilium-config-nightly deploy-cilium-agent-nightly deploy-cilium-operator-nightly wait-for-cilium
 
 # cilium dualstack deployment
 deploy-cilium-config-dualstack:
-	kubectl apply -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-config/cilium-config-dualstack.yaml
+	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-config/cilium-config-dualstack.yaml
 
 deploy-cilium-agent-dualstack:
-	kubectl apply -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-agent/files
-	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
+	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-agent/files
+	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply --server-side -f -
 
 deploy-cilium-operator-dualstack:
-	kubectl apply -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/files
-	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/files
+	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/templates/deployment.yaml | kubectl apply --server-side -f -
 
 deploy-cilium-dualstack: deploy-cilium-config-dualstack deploy-cilium-agent-dualstack deploy-cilium-operator-dualstack wait-for-cilium
 
 # ebpf
 deploy-common-ebpf-cilium:
-	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-agent/files/
-	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-operator/files/
+	@kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-agent/files/
+	@kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-operator/files/
 # set cilium version tag and registry here so they are visible as env vars to envsubst
 	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
 		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION}' < \
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/cilium-operator/templates/deployment.yaml \
-		| kubectl apply -f -
-	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/common/ciliumclusterwidenetworkpolicies.yaml
+		| kubectl apply --server-side -f -
+	@kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/common/ciliumclusterwidenetworkpolicies.yaml
 	@kubectl wait --for=condition=Established crd/ciliumclusterwidenetworkpolicies.cilium.io
-	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/common/
+	@kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/common/
 
 deploy-ebpf-overlay-cilium: deploy-common-ebpf-cilium
-	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/static/
+	@kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/static/
 	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
 		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/overlay/cilium.yaml \
-		| kubectl apply -f -
+		| kubectl apply --server-side -f -
 	@$(MAKE) wait-for-cilium
 
 deploy-ebpf-podsubnet-cilium: deploy-common-ebpf-cilium
-	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/static/
+	@kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/static/
 # ebpf podsubnet does not have ip masq merger 
 	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
 		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG}' < \
 		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/cilium.yaml \
-		| kubectl apply -f -
+		| kubectl apply --server-side -f -
 	@$(MAKE) wait-for-cilium
 

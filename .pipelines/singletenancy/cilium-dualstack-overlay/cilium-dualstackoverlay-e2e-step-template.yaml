@@ -41,6 +41,9 @@ steps:
         # IPV6_IMAGE_REGISTRY is already exported
         echo "installing cilium dualstack version ${CILIUM_VERSION_TAG} from directory ${DIR}"
         make -C ./hack/aks deploy-cilium-dualstack
+        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=acnpublic.azurecr.io
+        export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(make cilium-log-collector-version)
+        make -C ./hack/aks add-cilium-log-collector
         kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium on AKS Dualstack Overlay"

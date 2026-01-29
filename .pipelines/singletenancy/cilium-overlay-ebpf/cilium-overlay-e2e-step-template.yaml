@@ -27,6 +27,9 @@ steps:
         export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY=acnpublic.azurecr.io
         export AZURE_IP_MASQ_MERGER_TAG=$(make azure-ip-masq-merger-version)
         make -C ./hack/aks deploy-ebpf-overlay-cilium
+        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=acnpublic.azurecr.io
+        export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(make cilium-log-collector-version)
+        make -C ./hack/aks add-cilium-log-collector
 
         kubectl get pods -Aowide
     name: "installCilium"
