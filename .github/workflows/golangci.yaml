@@ -46,7 +46,7 @@ jobs:
       with:
         go-version-file: go.mod
     - name: Download generated code
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         name: generated-bpf-program-code
         path: ./bpf-prog/azure-block-iptables/pkg/blockservice
