@@ -17,7 +17,6 @@ import (
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
-// +kubebuilder:validation:XValidation:rule="self.spec == oldSelf.spec",message="Spec is immutable."
 type PodNetworkInstance struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -36,7 +35,7 @@ type PodNetworkInstanceList struct {
 }
 
 // PodNetworkConfig describes a template for how to attach a PodNetwork to a Pod
-// +kubebuilder:validation:XValidation:rule="!has(self.ipConstraint) || size(self.ipConstraint) == 0 || self.podIPReservationSize == 1",message="ipConstraint can only be specified when podIPReservationSize is 1"
+// +kubebuilder:validation:XValidation:rule="size(self.ipConstraint) == 0 || self.podIPReservationSize == 1",message="ipConstraint can only be specified when podIPReservationSize is 1"
 type PodNetworkConfig struct {
 	// PodNetwork is the name of a PodNetwork resource
 	PodNetwork string `json:"podNetwork"`
