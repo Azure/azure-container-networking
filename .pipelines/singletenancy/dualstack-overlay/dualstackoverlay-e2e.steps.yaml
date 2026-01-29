@@ -39,7 +39,7 @@ steps:
         kubectl get node
         kubectl get po -owide -A
         sudo -E env "PATH=$PATH" make test-load \
-          SCALE_UP=32 OS_TYPE=linux CNI_TYPE=dualstack VALIDATE_STATEFILE=true VALIDATE_DUALSTACK=true \
+          SCALE_UP=32 OS_TYPE=linux CNI_TYPE=dualstack VALIDATE_STATEFILE=true VALIDATE_NETWORKDRESTART=true VALIDATE_DUALSTACK=true \
           INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true CLEANUP=true \
           CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
           CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
@@ -74,26 +74,12 @@ steps:
           done
       displayName: "Restart Nodes"
 
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-        scriptLocation: "inlineScript"
-        scriptType: "bash"
-        addSpnToEnvironment: true
-        inlineScript: |
-          set -e
-          cd test/integration/load
-
-          # Scale Cluster Up/Down to confirm functioning CNS
-          ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-          kubectl get pods -owide -A
-
-          cd ../../..
-          echo "Validating Node Restart"
-          make test-validate-state OS_TYPE=linux RESTART_CASE=true CNI_TYPE=dualstack
-          kubectl delete ns load-test
-      displayName: "Validate Node Restart"
-      retryCountOnTaskFailure: 3
+    - template: ../../templates/validate-tests.yaml
+      parameters:
+        validate: "nodeRestart, networkdRestart"
+        cni: "dualstack"
+        os: ${{ parameters.os }}
+        scaleup: ${{ parameters.scaleup }}
 
   - ${{ if eq(parameters.os, 'windows') }}:
     - script: |

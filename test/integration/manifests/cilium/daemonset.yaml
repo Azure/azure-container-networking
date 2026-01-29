@@ -66,6 +66,8 @@ spec:
             httpHeaders:
             - name: brief
               value: "true"
+            - name: require-k8s-connectivity
+              value: "false"
             path: /healthz
             port: 9879
             scheme: HTTP
@@ -418,7 +420,7 @@ spec:
           path: /proc/sys/kernel
           type: Directory
         name: host-proc-sys-kernel
-      - hostPath: 
+      - hostPath:
           path: /var/run/netns
           type: DirectoryOrCreate
         name: cilium-netns

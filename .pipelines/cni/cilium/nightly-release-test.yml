@@ -157,6 +157,8 @@ stages:
           dns: true
           portforward: true
           service: true
+          nightly: true
+
 
       - job: logs
         displayName: "Nightly Logs"
