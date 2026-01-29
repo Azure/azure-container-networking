@@ -21,6 +21,11 @@ linters:
   - nakedret
   - promlinter
   - revive
+  exclusions:
+    rules:
+      - linters:
+          - lll
+        source: '^\s*//\s*\+kubebuilder'
 linters-settings:
   gocritic:
     enabled-tags:
