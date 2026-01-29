@@ -51,8 +51,9 @@ steps:
         pwd
         kubectl cluster-info
         kubectl get po -owide -A
-        export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-        echo "installing cilium version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+        # makefile manages cilium version
+        unset DIR
+        unset CILIUM_VERSION_TAG
         make -C ./hack/aks deploy-cilium
         kubectl get po -owide -A
         kubectl get crd -A

@@ -39,10 +39,13 @@ steps:
         kubectl get po -owide -A
         if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
           echo "Running nightly"
+          # makefile manages cilium version (nightly doesn't use DIR)
+          unset CILIUM_VERSION_TAG
           make -C ./hack/aks deploy-cilium-nightly
         else
-          export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-          echo "installing cilium version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+          # makefile manages cilium version
+          unset DIR
+          unset CILIUM_VERSION_TAG
           make -C ./hack/aks deploy-cilium
         fi
 
@@ -132,10 +135,10 @@ steps:
   - ${{ if eq( parameters['testHubble'], true) }}:
       - script: |
           echo "enable Hubble metrics server"
-          export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
-          export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-          kubectl apply -f test/integration/manifests/cilium/hubble/hubble-peer-svc.yaml
-          kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
+          # makefile manages cilium version
+          unset DIR
+          unset CILIUM_VERSION_TAG
+          make -C ./hack/aks deploy-hubble
           kubectl rollout restart ds cilium -n kube-system
           echo "wait <3 minutes for pods to be ready after restart"
           kubectl rollout status ds cilium -n kube-system --timeout=3m

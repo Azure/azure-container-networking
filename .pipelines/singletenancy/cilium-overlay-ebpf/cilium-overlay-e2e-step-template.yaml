@@ -21,7 +21,7 @@ steps:
         kubectl cluster-info
         kubectl get pods -Aowide
           
-        # see makefile
+        # makefile manages ebpf cilium version (ebpf doesn't use DIR or CILIUM_VERSION_TAG)
         export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
         export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
         export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY=acnpublic.azurecr.io
