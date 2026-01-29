@@ -29,32 +29,54 @@ steps:
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
+  - ${{if eq( parameters['nightly'], true) }}:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+          ls -lah
+          pwd
+          kubectl cluster-info
+          kubectl get po -owide -A
 
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        ls -lah
-        pwd
-        kubectl cluster-info
-        kubectl get po -owide -A
-        if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
           echo "Running nightly"
           make -C ./hack/aks deploy-cilium-nightly
-        else
-          export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-          echo "installing cilium version ${CILIUM_VERSION_TAG} from directory ${DIR}"
-          make -C ./hack/aks deploy-cilium
-        fi
 
-        kubectl get po -owide -A
-    name: "installCilium"
-    displayName: "Install Cilium on AKS Overlay"
+          kubectl get po -owide -A
+      name: "installCilium"
+      displayName: "Install Cilium Nightly on AKS Overlay"
+
+  - ${{ else }}:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+          ls -lah
+          pwd
+          kubectl cluster-info
+          kubectl get po -owide -A
+          if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
+            echo "Running nightly"
+            make -C ./hack/aks deploy-cilium-nightly
+          else
+            export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
+            echo "installing cilium version ${CILIUM_VERSION_TAG} from directory ${DIR}"
+            make -C ./hack/aks deploy-cilium
+          fi
+
+          kubectl get po -owide -A
+      name: "installCilium"
+      displayName: "Install Cilium on AKS Overlay"
 
   - template: ../../templates/cilium-cli.yaml
 
@@ -65,6 +87,7 @@ steps:
           CNS=$(CNS_VERSION) IPAM=$(AZURE_IPAM_VERSION) && echo "Running nightly"
       else
           CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
+          export VALIDATE_NETWORKDRESTART=true
       fi
       kubectl get po -owide -A
       sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
@@ -108,30 +131,47 @@ steps:
         done
     displayName: "Restart Nodes"
 
-  - task: AzureCLI@1
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        cd test/integration/load
-
-        # Scale Cluster Up/Down to confirm functioning CNS
-        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-        kubectl get pods -owide -A
-
-        cd ../../..
-        echo "Validating Node Restart"
-        make test-validate-state OS_TYPE=linux RESTART_CASE=true
-        kubectl delete ns load-test
-    displayName: "Validate Node Restart"
-    retryCountOnTaskFailure: 3
+  - template: ../../templates/validate-tests.yaml
+    parameters:
+      ${{if eq( parameters['nightly'], true) }}:
+        validate: "nodeRestart"
+      ${{else }}:
+        validate: "nodeRestart, networkdRestart"
+      cni: "cilium"
+      os: ${{ parameters.os }}
+      scaleup: ${{ parameters.scaleup }}
 
   - template: ../../templates/cilium-connectivity-tests.yaml
 
   - ${{ if eq( parameters['testHubble'], true) }}:
+      - ${{if eq( parameters['nightly'], true) }}:
+        - script: |
+            echo "Check Cilium Connectivity Test Logs before Daemonset restart"
+            cilium status
+            cilium connectivity test --test check-log-errors --log-check-levels error > output.log
+            # Capture the exit code from connectivity test
+            exitCode=$?
+            cat output.log
+
+            # Node Restart is expected to cause "Non-zero (1)" in cilium agent logs and
+            # a missing init container i.e. "install-cni-binaries in pod "cilium-fmjsb" not found"
+            if grep -q "Non-zero (1)" output.log; then
+              echo "Expected error log from Node Restart, proceed."
+              echo "Check for additional errors."
+
+              # Check for any other errors aside from node restart
+              if grep -v "Non-zero (1)" output.log | grep -v "previous terminated container" | grep "check-log-errors" | grep "Error"; then
+                echo "##[error]Unexpected errors found in Cilium connectivity test logs"
+              fi
+            elif [ $exitCode -ne 0 ]; then
+              echo "##[error]Unexpected errors found in Cilium connectivity test logs"
+            else
+              echo "Unexpected, Node restart should always cause exitCode == 1 from cilium connectivity test"
+            fi
+            echo "No errors found in Cilium connectivity test logs before Daemonset restart"
+          name: "ciliumConnectivityLogs"
+          displayName: "Check Cilium Connectivity Test Logs"
+          condition: always()
       - script: |
           echo "enable Hubble metrics server"
           export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
@@ -149,16 +189,16 @@ steps:
         name: "HubbleConnectivityTests"
         displayName: "Run Hubble Connectivity Tests"
 
-  - ${{if eq( parameters['nightly'], true) }}:
+  - ${{ if eq( parameters['nightly'], true) }}:
     - template: ../../templates/cilium-nightly-checks.yaml
-  - ${{else }}:
+  - ${{ else }}:
     - script: |
         set -e
         echo "validate pod IP assignment and check systemd-networkd restart"
         kubectl get pod -owide -A
         ciliumNamespace=`kubectl get ns | grep cilium-test | awk '{print $1}'`
 
-        make test-validate-state
+        make test-validate
 
         echo "delete cilium connectivity test resources and re-validate state"
         for namespace in ${ciliumNamespace}; do
@@ -177,7 +217,7 @@ steps:
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
 
-  - ${{if eq( parameters['nightly'], false) }}:
+  - ${{ if eq( parameters['nightly'], false) }}:
     - script: |
         cd hack/scripts
         chmod +x async-delete-test.sh
@@ -189,3 +229,27 @@ steps:
       displayName: "Verify Async Delete when CNS is down"
 
   - template: ../../templates/cilium-mtu-check.yaml
+
+  - ${{ if eq( parameters['nightly'], true) }}:
+    # Reset Cilium to Nightly to ensure k8s E2E are validated against nightly config
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+          ls -lah
+          pwd
+          kubectl cluster-info
+          kubectl get po -owide -A
+
+          echo "Running nightly"
+          make -C ./hack/aks deploy-cilium-nightly
+
+          kubectl rollout restart ds cilium -n kube-system
+          kubectl get po -owide -A
+      name: "resetCilium"
+      displayName: "Reset Cilium Install to Nightly config"

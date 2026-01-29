@@ -13,19 +13,20 @@ import (
 )
 
 type TestConfig struct {
-	OSType            string `env:"OS_TYPE" default:"linux"`
-	CNIType           string `env:"CNI_TYPE" default:"cilium"`
-	Iterations        int    `env:"ITERATIONS" default:"2"`
-	ScaleUpReplicas   int    `env:"SCALE_UP" default:"10"`
-	ScaleDownReplicas int    `env:"SCALE_DOWN" default:"1"`
-	Replicas          int    `env:"REPLICAS" default:"1"`
-	ValidateStateFile bool   `env:"VALIDATE_STATEFILE" default:"false"`
-	ValidateDualStack bool   `env:"VALIDATE_DUALSTACK" default:"false"`
-	ValidateV4Overlay bool   `env:"VALIDATE_V4OVERLAY" default:"false"`
-	SkipWait          bool   `env:"SKIP_WAIT" default:"false"`
-	RestartCase       bool   `env:"RESTART_CASE" default:"false"`
-	Cleanup           bool   `env:"CLEANUP" default:"false"`
-	CNSOnly           bool   `env:"CNS_ONLY" default:"false"`
+	OSType                  string `env:"OS_TYPE" default:"linux"`
+	CNIType                 string `env:"CNI_TYPE" default:"cilium"`
+	Iterations              int    `env:"ITERATIONS" default:"2"`
+	ScaleUpReplicas         int    `env:"SCALE_UP" default:"10"`
+	ScaleDownReplicas       int    `env:"SCALE_DOWN" default:"1"`
+	Replicas                int    `env:"REPLICAS" default:"1"`
+	ValidateStateFile       bool   `env:"VALIDATE_STATEFILE" default:"false"`
+	ValidateNetworkdRestart bool   `env:"VALIDATE_NETWORKDRESTART" default:"false"`
+	ValidateDualStack       bool   `env:"VALIDATE_DUALSTACK" default:"false"`
+	ValidateV4Overlay       bool   `env:"VALIDATE_V4OVERLAY" default:"false"`
+	SkipWait                bool   `env:"SKIP_WAIT" default:"false"`
+	RestartCase             bool   `env:"RESTART_CASE" default:"false"`
+	Cleanup                 bool   `env:"CLEANUP" default:"false"`
+	CNSOnly                 bool   `env:"CNS_ONLY" default:"false"`
 }
 
 const (
@@ -108,6 +109,10 @@ func TestLoad(t *testing.T) {
 		t.Run("Validate state file", TestValidateState)
 	}
 
+	if testConfig.ValidateNetworkdRestart && testConfig.OSType == "linux" {
+		t.Run("Validate systemd-networkd restart", TestValidateNetworkdRestart)
+	}
+
 	if testConfig.ValidateV4Overlay {
 		t.Run("Validate v4overlay", TestV4OverlayProperties)
 	}
@@ -174,7 +179,25 @@ func TestValidateState(t *testing.T) {
 	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType)
 	require.NoError(t, err)
 
-	err = validator.Validate(ctx)
+	err = validator.ValidateStateFile(ctx)
+	require.NoError(t, err)
+
+	if testConfig.Cleanup {
+		validator.Cleanup(ctx)
+	}
+}
+
+func TestValidateNetworkdRestart(t *testing.T) {
+	clientset := kubernetes.MustGetClientset()
+
+	config := kubernetes.MustGetRestConfig()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType)
+	require.NoError(t, err)
+
+	err = validator.ValidateNetworkdRestart(ctx)
 	require.NoError(t, err)
 
 	if testConfig.Cleanup {
@@ -259,7 +282,7 @@ func TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall(t *testing.
 	require.NoError(t, err)
 
 	// Validate the CNS state
-	err = validator.Validate(ctx)
+	err = validator.ValidateStateFile(ctx)
 	require.NoError(t, err)
 
 	// Scale it down
@@ -274,7 +297,7 @@ func TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall(t *testing.
 	require.NoError(t, err)
 
 	// Validate the CNS state
-	err = validator.Validate(ctx)
+	err = validator.ValidateStateFile(ctx)
 	require.NoError(t, err)
 
 	if testConfig.Cleanup {
