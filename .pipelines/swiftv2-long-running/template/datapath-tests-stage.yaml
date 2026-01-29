@@ -137,9 +137,7 @@ stages:
 
       - job: ConnectivityTests
         displayName: "Test Pod-to-Pod Connectivity"
-        dependsOn:
-          - CreatePods
-          - BuildMetricsBinary
+        dependsOn: CreatePods
         steps:
           - template: metrics-setup-steps.yaml
             parameters:
@@ -179,9 +177,7 @@ stages:
 
       - job: PrivateEndpointTests
         displayName: "Test Private Endpoint Access"
-        dependsOn:
-          - ConnectivityTests
-          - BuildMetricsBinary
+        dependsOn: ConnectivityTests
         steps:
           - template: metrics-setup-steps.yaml
             parameters:
@@ -271,9 +267,7 @@ stages:
       
       - job: ScaleTest
         displayName: "Scale Tests - create and delete pods at scale"
-        dependsOn: 
-          - PrivateEndpointTests
-          - BuildMetricsBinary
+        dependsOn: PrivateEndpointTests
         steps:
           - template: metrics-setup-steps.yaml
             parameters:
@@ -320,7 +314,6 @@ stages:
           - ConnectivityTests
           - PrivateEndpointTests
           - ScaleTest
-          - BuildMetricsBinary
         condition: always()
         steps:
           - template: metrics-setup-steps.yaml
