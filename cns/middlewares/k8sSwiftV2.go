@@ -12,19 +12,19 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/kubernetes/pkg/kubelet"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
-	errMTPNCNotReady            = errors.New(kubelet.NetworkNotReadyErrorMsg + " - mtpnc is not ready")
-	errGetMTPNC                 = errors.New(kubelet.NetworkNotReadyErrorMsg + " - failed to get MTPNC")
+	errMTPNCNotReady            = errors.New(NetworkNotReadyErrorMsg + " - mtpnc is not ready")
+	errGetMTPNC                 = errors.New(NetworkNotReadyErrorMsg + " - failed to get MTPNC")
 	errInvalidSWIFTv2NICType    = errors.New("invalid NIC type for SWIFT v2 scenario")
 	errInvalidMTPNCPrefixLength = errors.New("invalid prefix length for MTPNC primaryIP, must be 32")
-	errMTPNCDeleting            = errors.New(kubelet.NetworkNotReadyErrorMsg + " - mtpnc for previous pod is being deleted, waiting for new mtpnc to be ready")
+	errMTPNCDeleting            = errors.New(NetworkNotReadyErrorMsg + " - mtpnc for previous pod is being deleted, waiting for new mtpnc to be ready")
 )
 
 const (
+	NetworkNotReadyErrorMsg = "network is not ready"
 	prefixLength     = 32
 	overlayGatewayv4 = "169.254.1.1"
 	virtualGW        = "169.254.2.1"
