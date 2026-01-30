@@ -906,7 +906,7 @@ RESTART_CASE ?= false
 # CNI type is a key to direct the types of state validation done on a cluster.
 CNI_TYPE ?= cilium
 
-test-all: test-azure-ipam test-azure-ip-masq-merger test-azure-iptables-monitor test-main ## run all unit tests.
+test-all: test-azure-ipam test-azure-ip-masq-merger test-azure-iptables-monitor test-cilium-log-collector test-main ## run all unit tests.
 
 test-main:
 	go test -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=coverage-main.out $(COVER_PKG)/...
