@@ -173,8 +173,6 @@ stages:
               KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
   - stage: DeployAccelnetBYON
     displayName: Deploy Accelnet BYO nodes to AKS cluster
-    dependsOn: AKSClusterAndNetworking
-    condition: and(eq(${{ parameters.runSetupStages }}, true), succeeded())
     jobs: 
       - job: JoinAccelnetBYONtoAKS
         displayName: "Join Accelnet BYON VMSS to AKS Cluster"
