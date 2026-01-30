@@ -10,12 +10,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/byon_helper.sh"
 
 cluster_names="aks-1 aks-2"
-tip_session_ids=(7356a39e-f8e5-40e0-815d-cd53f540d505 7356a39e-f8e5-40e0-815d-cd53f540d505 4aa2ca57-8dd0-4fbd-a961-bae4142dc33c 4aa2ca57-8dd0-4fbd-a961-bae4142dc33c 4e7a03fc-c541-4845-8805-73e45028f171 4e7a03fc-c541-4845-8805-73e45028f171 f64e86da-c832-460b-995f-0e9fe2601d99 f64e86da-c832-460b-995f-0e9fe2601d99)
 vmss_configs=(
-  "aclhigh1:Standard_D16s_v6:7"
-  "aclhigh2:Standard_D16s_v6:7"
-  "acldef1:Standard_D4s_v6:2"
-  "acldef2:Standard_D4s_v6:2"
+  "aclhigh1:Internal_GPGen8MMv2_128id:7"
+  "aclhigh2:Internal_GPGen8MMv2_128id:7"
+  "acldef1:Internal_GPGen8MMv2_128id:2"
+  "acldef2:Internal_GPGen8MMv2_128id:2"
 )
 
 create_l1vh_vmss() {
@@ -23,7 +22,6 @@ create_l1vh_vmss() {
   local node_name=$2
   local vmss_sku=$3
   local nic_count=$4
-  local TIP_ARG1=$5
   local original_dir=$(pwd)
   local log_file="${original_dir}/l1vh-script-${node_name}.log"
 
@@ -39,7 +37,6 @@ create_l1vh_vmss() {
     -s $SUBSCRIPTION_ID \
     -v "$node_name" \
     -e "nodenet" \
-    -t "$TIP_ARG1" \
     -n "$RESOURCE_GROUP" \
     -i "$cluster_name" \
     -z "$vmss_sku" \
@@ -92,10 +89,8 @@ for cluster_name in $cluster_names; do
   
   for config in "${vmss_configs[@]}"; do
     IFS=':' read -r node_name vmss_sku nic_count <<< "$config"
-    tip_index=$((tip_base_index + tip_offset))
-    tip_session_id="${tip_session_ids[$tip_index]}"
-    echo "Creating VMSS: $node_name with SKU: $vmss_sku, NICs: $nic_count, TIP: $tip_session_id (index: $tip_index)"
-    create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count" "$tip_session_id"
+    echo "Creating VMSS: $node_name with SKU: $vmss_sku, NICs: $nic_count"
+    create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count"
     wait_for_nodes_ready "$cluster_name" "$node_name" "1"
     tip_offset=$((tip_offset + 1))
   done

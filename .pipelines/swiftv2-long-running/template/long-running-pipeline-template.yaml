@@ -19,7 +19,7 @@ resources:
     - repository: Networking-Aquarius
       type: git
       name: One/Networking-Aquarius
-      ref: refs/heads/accelnet-byon
+      ref: refs/heads/internal_sku_test
 
 variables:
   - name: rgName
