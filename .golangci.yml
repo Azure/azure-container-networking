@@ -1,4 +1,3 @@
-version: "2"
 issues:
   max-same-issues: 0
   max-issues-per-linter: 0
