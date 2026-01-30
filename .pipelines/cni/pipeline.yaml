@@ -74,6 +74,10 @@ stages:
               arch: amd64
               name: npm
               os: windows
+            cilium_log_collector_amd64:
+                arch: amd64
+                name: cilium-log-collector
+                os: linux
         steps:
           - template: ../containers/container-template.yaml
             parameters:
@@ -105,6 +109,10 @@ stages:
               npm_linux_arm64:
                 arch: arm64
                 name: npm
+                os: linux
+              cilium_log_collector_arm64:
+                arch: arm64
+                name: cilium-log-collector
                 os: linux
         steps:
           - template: ../containers/container-template.yaml
@@ -171,6 +179,9 @@ stages:
             npm:
               name: npm
               platforms: linux/amd64 linux/arm64 windows/amd64
+            cilium_log_collector:
+              name: cilium-log-collector
+              platforms: linux/amd64 linux/arm64
         steps:
           - template: ../containers/manifest-template.yaml
             parameters:

@@ -150,6 +150,10 @@ stages:
                 arch: amd64
                 name: ipv6-hp-bpf
                 os: linux
+              cilium_log_collector_amd64:
+                arch: amd64
+                name: cilium-log-collector
+                os: linux
           steps:
             - template: containers/container-template.yaml
               parameters:
@@ -186,6 +190,10 @@ stages:
               ipv6_hp_bpf_linux_arm64:
                 arch: arm64
                 name: ipv6-hp-bpf
+                os: linux
+              cilium_log_collector_arm64:
+                arch: arm64
+                name: cilium-log-collector
                 os: linux
           steps:
             - template: containers/container-template.yaml
@@ -267,6 +275,9 @@ stages:
                 platforms: linux/amd64 linux/arm64
               azure_iptables_monitor:
                 name: azure-iptables-monitor
+                platforms: linux/amd64 linux/arm64
+              cilium_log_collector:
+                name: cilium-log-collector
                 platforms: linux/amd64 linux/arm64
           steps:
             - template: containers/manifest-template.yaml
