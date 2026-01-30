@@ -1,4 +1,4 @@
-module github.com/fluent/fluent-bit-go/examples/out_azure_app_insights
+module github.com/Azure/azure-container-networking/cilium-log-collector
 
 go 1.24.1
 
