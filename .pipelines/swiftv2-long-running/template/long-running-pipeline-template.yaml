@@ -33,9 +33,33 @@ variables:
     value: "Standard_D16s_v3"
 
 stages:
+  # Validation stage to ensure only scheduled runs on master are allowed
+  - stage: ValidateScheduledRun
+    displayName: "Validate Scheduled Run"
+    jobs:
+      - job: CheckBuildReason
+        displayName: "Check Build Reason and Branch"
+        steps:
+          - script: |
+              echo "Build.Reason: $(Build.Reason)"
+              echo "Build.SourceBranch: $(Build.SourceBranch)"
+              if [ "$(Build.Reason)" != "Schedule" ]; then
+                echo "##vso[task.logissue type=error]This pipeline only runs on schedule. Current Build.Reason: $(Build.Reason)"
+                echo "##vso[task.complete result=Failed;]Only scheduled runs are allowed."
+                exit 1
+              fi
+              if [ "$(Build.SourceBranch)" != "refs/heads/master" ]; then
+                echo "##vso[task.logissue type=error]This pipeline only runs on master branch. Current branch: $(Build.SourceBranch)"
+                echo "##vso[task.complete result=Failed;]Only master branch is allowed."
+                exit 1
+              fi
+              echo "Validation passed: Scheduled run on master branch."
+            displayName: "Validate scheduled run on master"
+
   - stage: AKSClusterAndNetworking
     displayName: "Stage: AKS Cluster and Networking Setup"
-    condition: eq(${{ parameters.runSetupStages }}, true)
+    dependsOn: ValidateScheduledRun
+    condition: and(succeeded(), eq(${{ parameters.runSetupStages }}, true))
     jobs:
       - job: CreateResourceGroup
         displayName: "Create Resource Group"
