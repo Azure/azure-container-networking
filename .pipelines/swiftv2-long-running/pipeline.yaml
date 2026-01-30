@@ -9,6 +9,11 @@ schedules:
         - master
     always: true  # Run even if there are no code changes
 
+variables:
+  # Enforce scheduled runs only on master branch
+  - name: isScheduledMasterRun
+    value: ${{ and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranch'], 'refs/heads/master')) }}
+
 parameters:
   - name: subscriptionId
     displayName: "Azure Subscription ID"
