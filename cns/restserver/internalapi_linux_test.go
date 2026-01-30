@@ -4,11 +4,13 @@
 package restserver
 
 import (
+	"net"
 	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network/networkutils"
@@ -377,5 +379,75 @@ func TestAddSNATRules(t *testing.T) {
 				t.Fatalf("Delete call count mismatch: got %d, expected 1", actualLegacyDeleteCalls)
 			}
 		})
+	}
+}
+
+func TestProcessIMDSData_EmptyInterfaces(t *testing.T) {
+	service := &HTTPRestService{}
+
+	result, err := service.processIMDSData([]imds.NetworkInterface{})
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	if len(result) != 0 {
+		t.Errorf("Expected empty result for empty input, got %d NCs", len(result))
+	}
+}
+
+func TestProcessIMDSData_InfraNICOnly(t *testing.T) {
+	infraMacAddr, _ := net.ParseMAC("00:15:5D:01:02:FF")
+
+	service := &HTTPRestService{}
+
+	// Only infra NIC interface (empty NC ID)
+	interfaces := []imds.NetworkInterface{
+		{
+			MacAddress:             imds.HardwareAddr(infraMacAddr),
+			InterfaceCompartmentID: "",
+		},
+	}
+
+	result, err := service.processIMDSData(interfaces)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	if len(result) != 0 {
+		t.Errorf("Expected empty result for infra NIC only, got %d NCs", len(result))
+	}
+}
+
+func TestProcessIMDSData(t *testing.T) {
+	ncID := "nc-id-1"
+	ncMacAddr, _ := net.ParseMAC("00:15:5D:01:02:03")
+	infraMacAddr, _ := net.ParseMAC("00:15:5D:01:02:FF")
+
+	service := &HTTPRestService{}
+
+	interfaces := []imds.NetworkInterface{
+		{
+			MacAddress:             imds.HardwareAddr(ncMacAddr),
+			InterfaceCompartmentID: ncID,
+		},
+		{
+			MacAddress:             imds.HardwareAddr(infraMacAddr),
+			InterfaceCompartmentID: "",
+		},
+	}
+
+	result, err := service.processIMDSData(interfaces)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+
+	if len(result) != 1 {
+		t.Errorf("Expected one NC in result, got %d", len(result))
+	}
+
+	if version, exists := result[ncID]; !exists {
+		t.Errorf("Expected NC ID %s not found in result", ncID)
+	} else if version != PrefixOnNicNCVersion {
+		t.Errorf("Expected version %s, got %s", PrefixOnNicNCVersion, version)
 	}
 }
