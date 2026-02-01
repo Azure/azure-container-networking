@@ -297,10 +297,13 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 		return types.UnsupportedNCVersion, fmt.Sprintf("Invalid hostVersion is %s, err:%s", hostVersion, err)
 	}
 
-	service.addIPConfigStateUntransacted(req.NetworkContainerid, hostNCVersionInInt, req.SecondaryIPConfigs,
+	returnCode, errMsg := service.addIPConfigStateUntransacted(req.NetworkContainerid, hostNCVersionInInt, req.SecondaryIPConfigs,
 		existingSecondaryIPConfigs)
+	if returnCode != types.Success {
+		return returnCode, errMsg
+	}
 
-	return 0, ""
+	return types.Success, ""
 }
 
 // addIPConfigStateUntransacted adds the IPConfigs to the PodIpConfigState map with Available state
@@ -308,7 +311,7 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 // acquire/release the service lock.
 func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVersion int, ipconfigs,
 	existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig,
-) {
+) (types.ResponseCode, string) {
 	// add ipconfigs to state
 	for ipID, ipconfig := range ipconfigs {
 		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new
@@ -319,6 +322,11 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVe
 		}
 
 		if ipState, exists := service.PodIPConfigState[ipID]; exists {
+			if ipState.NCID != ncID {
+				errMsg := fmt.Sprintf("Duplicate IP %s with id %s belongs to NC %s, attempted to add to NC %s", ipState.IPAddress, ipID, ipState.NCID, ncID)
+				logger.Errorf(errMsg)
+				return types.InconsistentIPConfigState, errMsg
+			}
 			logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d, "+
 				"ipState: %s", ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion, ipState)
 			continue
@@ -349,6 +357,8 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVe
 
 		// Todo Update batch API and maintain the count
 	}
+
+	return types.Success, ""
 }
 
 // Todo: call this when request is received
