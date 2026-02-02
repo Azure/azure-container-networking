@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 	"unsafe" //nolint
 
@@ -114,7 +115,9 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 	fmt.Printf("[flb-azure-app-insights] imds = '%s'\n", imds)
 
 	telemetryConfig := appinsights.NewTelemetryConfiguration(instrumentationKey)
-	telemetryConfig.MaxBatchInterval = 1 * time.Second
+	// max time to wait before sending a batch of telemetry
+	telemetryConfig.MaxBatchInterval = 10 * time.Second
+	// max number of telemetry items in each request
 	telemetryConfig.MaxBatchSize = 10
 	client = appinsights.NewTelemetryClientFromConfig(telemetryConfig)
 
@@ -215,13 +218,14 @@ func (rp *RecordProcessor) ProcessSingleRecord(record ProcessRecord, recordIndex
 	}
 
 	if rp.debug {
-		msg := fmt.Sprintf("[flb-azure-app-insights] #%d %s: [%s, {", recordIndex, rp.tag,
-			record.Timestamp.String())
+		var msgBuilder strings.Builder
+		msgBuilder.WriteString(fmt.Sprintf("[flb-azure-app-insights] #%d %s: [%s, {", recordIndex, rp.tag,
+			record.Timestamp.String()))
 		for k, v := range customFields {
-			msg += fmt.Sprintf("\"%s\": %s, ", k, v)
+			msgBuilder.WriteString(fmt.Sprintf("\"%s\": %s, ", k, v))
 		}
-		msg += "}\n"
-		fmt.Print(msg)
+		msgBuilder.WriteString("}\n")
+		fmt.Print(msgBuilder.String())
 		fmt.Printf("[flb-azure-app-insights] Sent trace to App Insights: log msg=%d chars, %d custom fields\n", len(logMessage), len(customFields))
 	}
 

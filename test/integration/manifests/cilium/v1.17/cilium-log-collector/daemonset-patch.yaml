@@ -1,4 +1,4 @@
-# Note: Daemonset must be server side applied prior. Then just do: kubectl apply --server-side daemonset-patch.yaml
+# Note: Daemonset must be server side applied prior. Then just do: kubectl apply --server-side --field-manager=cilium-log-collector daemonset-patch.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:

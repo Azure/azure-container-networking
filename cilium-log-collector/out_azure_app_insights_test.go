@@ -50,7 +50,7 @@ func TestProcessSingleRecord_BasicLogging(t *testing.T) {
 	require.Equal(t, "info", firstTrace.Properties["level"])
 	require.Equal(t, "test.tag", firstTrace.Properties["fluentbit_tag"])
 	require.Equal(t, "0", firstTrace.Properties["record_count"])
-	
+
 	// metadata custom properties are not present when metadata is nil
 	_, exists := firstTrace.Properties["azure_location"]
 	require.False(t, exists, "azure_location should not exist when metadata is nil")
@@ -217,7 +217,7 @@ func TestProcessSingleRecord_EmptyLogMessage(t *testing.T) {
 	require.Len(t, tracker.TrackedItems, 1)
 
 	firstTrace := tracker.TrackedItems[0].(*appinsights.TraceTelemetry)
-	require.Equal(t, "", firstTrace.Message)
+	require.Empty(t, firstTrace.Message)
 	require.Equal(t, "info", firstTrace.Properties["level"])
 }
 
