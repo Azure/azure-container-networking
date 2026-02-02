@@ -11,10 +11,10 @@ source "${SCRIPT_DIR}/byon_helper.sh"
 
 cluster_names="aks-1 aks-2"
 vmss_configs=(
-  "aclhigh1:Internal_GPGen8MMv2_128id:7"
-  "aclhigh2:Internal_GPGen8MMv2_128id:7"
-  "acldef1:Internal_GPGen8MMv2_128id:2"
-  "acldef2:Internal_GPGen8MMv2_128id:2"
+  "aclh1:Internal_GPGen8MMv2_128id:7"
+  "aclh2:Internal_GPGen8MMv2_128id:7"
+  "acld1:Internal_GPGen8MMv2_128id:2"
+  "acld2:Internal_GPGen8MMv2_128id:2"
 )
 
 create_l1vh_vmss() {
@@ -63,39 +63,55 @@ create_l1vh_vmss() {
 
 label_vmss_nodes() {
   local cluster_name=$1
+  local cluster_prefix=$2
   local kubeconfig_file="./kubeconfig-${cluster_name}.yaml"
   
   echo "Labeling BYON nodes in ${cluster_name} with workload-type=swiftv2-l1vh-accelnet-byon"
   kubectl --kubeconfig "$kubeconfig_file" label nodes -l kubernetes.azure.com/managed=false,kubernetes.io/os=linux workload-type=swiftv2-l1vh-accelnet-byon --overwrite
 
-  echo "Labeling ${cluster_name}-accelnet-default nodes with nic-capacity=low-nic"
-  kubectl --kubeconfig "$kubeconfig_file" get nodes -o name | grep "${cluster_name}-accelnet-default" | xargs -I {} kubectl --kubeconfig "$kubeconfig_file" label {} nic-capacity=low-nic --overwrite || true
+  echo "Labeling ${cluster_prefix}acld nodes with nic-capacity=low-nic"
+  kubectl --kubeconfig "$kubeconfig_file" get nodes -o name | grep "${cluster_prefix}acld" | xargs -I {} kubectl --kubeconfig "$kubeconfig_file" label {} nic-capacity=low-nic --overwrite || true
 
-  echo "Labeling ${cluster_name}-accelnet-highnic nodes with nic-capacity=high-nic"
-  kubectl --kubeconfig "$kubeconfig_file" get nodes -o name | grep "${cluster_name}-accelnet-highnic" | xargs -I {} kubectl --kubeconfig "$kubeconfig_file" label {} nic-capacity=high-nic --overwrite || true
+  echo "Labeling ${cluster_prefix}aclh nodes with nic-capacity=high-nic"
+  kubectl --kubeconfig "$kubeconfig_file" get nodes -o name | grep "${cluster_prefix}aclh" | xargs -I {} kubectl --kubeconfig "$kubeconfig_file" label {} nic-capacity=high-nic --overwrite || true
   
   copy_managed_node_labels_to_byon "$kubeconfig_file"
 }
 
 cluster_index=0
+# Define cluster prefixes for unique VMSS naming (a1 for aks-1, a2 for aks-2)
+declare -A cluster_prefixes=( ["aks-1"]="a1" ["aks-2"]="a2" )
+
 for cluster_name in $cluster_names; do
   az identity create --name "aksbootstrap" --resource-group $RESOURCE_GROUP
   az aks get-credentials --resource-group $RESOURCE_GROUP --name $cluster_name --file ./kubeconfig-${cluster_name}.yaml --overwrite-existing -a || exit 1
+  
+  upload_kubeconfig "$cluster_name"
+  echo "Installing CNI plugins for cluster $cluster_name"
+  if ! helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
+        --set installCniPlugins.enabled=true \
+        --kubeconfig "./kubeconfig-${cluster_name}"; then
+    echo "##vso[task.logissue type=error]Failed to install CNI plugins for cluster ${cluster_name}"
+    exit 1
+  fi
+  
   bash ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/parse.sh -k ./kubeconfig-${cluster_name}.yaml -p ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/pws.ps1
 
   echo "Creating L1VH Accelnet BYON for cluster: $cluster_name"
   tip_base_index=$((cluster_index * 4))
   tip_offset=0
+  cluster_prefix="${cluster_prefixes[$cluster_name]}"
   
   for config in "${vmss_configs[@]}"; do
-    IFS=':' read -r node_name vmss_sku nic_count <<< "$config"
+    IFS=':' read -r base_node_name vmss_sku nic_count <<< "$config"
+    node_name="${cluster_prefix}${base_node_name}"
     echo "Creating VMSS: $node_name with SKU: $vmss_sku, NICs: $nic_count"
     create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count"
     # wait_for_nodes_ready "$cluster_name" "$node_name" "1"
     tip_offset=$((tip_offset + 1))
   done
   
-  label_vmss_nodes "$cluster_name"
+  label_vmss_nodes "$cluster_name" "$cluster_prefix"
   cluster_index=$((cluster_index + 1))
 done
 
