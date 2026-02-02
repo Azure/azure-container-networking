@@ -91,7 +91,7 @@ for cluster_name in $cluster_names; do
     IFS=':' read -r node_name vmss_sku nic_count <<< "$config"
     echo "Creating VMSS: $node_name with SKU: $vmss_sku, NICs: $nic_count"
     create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count"
-    wait_for_nodes_ready "$cluster_name" "$node_name" "1"
+    # wait_for_nodes_ready "$cluster_name" "$node_name" "1"
     tip_offset=$((tip_offset + 1))
   done
   
