@@ -87,6 +87,10 @@ for cluster_name in $cluster_names; do
   az aks get-credentials --resource-group $RESOURCE_GROUP --name $cluster_name --file ./kubeconfig-${cluster_name}.yaml --overwrite-existing -a || exit 1
   
   upload_kubeconfig "$cluster_name"
+  
+  echo "Applying RuntimeClass for cluster $cluster_name"
+  kubectl apply -f "${SCRIPT_DIR}/runclass.yaml" --kubeconfig "./kubeconfig-${cluster_name}.yaml" || exit 1
+  
   echo "Installing CNI plugins for cluster $cluster_name"
   if ! helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
         --set installCniPlugins.enabled=true \
