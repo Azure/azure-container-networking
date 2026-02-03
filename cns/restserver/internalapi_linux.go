@@ -13,9 +13,18 @@ import (
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	goiptables "github.com/coreos/go-iptables/iptables"
 	"github.com/pkg/errors"
+	vishnetlink "github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 const SWIFTPOSTROUTING = "SWIFT-POSTROUTING"
+
+// WireserverIP is the IP address of the Azure Wireserver (also used for DNS).
+const WireserverIP = "168.63.129.16"
+
+// WireserverRulePriority is the priority for the ip rule that routes wireserver traffic via main table.
+// This ensures wireserver traffic goes through eth0 (infra NIC) even when other rules are added.
+const WireserverRulePriority = 0
 
 type IPtablesProvider struct{}
 
@@ -175,6 +184,79 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 	}
 
 	return types.Success, ""
+}
+
+// NetlinkIPRuleClient implements IPRuleClient using the vishvananda/netlink package.
+type NetlinkIPRuleClient struct{}
+
+// RuleList lists all ip rules for the given address family.
+func (n *NetlinkIPRuleClient) RuleList(family int) ([]IPRule, error) {
+	rules, err := vishnetlink.RuleList(family)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]IPRule, len(rules))
+	for i, r := range rules {
+		result[i] = IPRule{
+			Dst:      r.Dst,
+			Table:    r.Table,
+			Priority: r.Priority,
+		}
+	}
+	return result, nil
+}
+
+// RuleAdd adds an ip rule.
+func (n *NetlinkIPRuleClient) RuleAdd(rule *IPRule) error {
+	nlRule := vishnetlink.NewRule()
+	nlRule.Dst = rule.Dst
+	nlRule.Table = rule.Table
+	nlRule.Priority = rule.Priority
+	return vishnetlink.RuleAdd(nlRule)
+}
+
+// Program ip rule to ensure wireserver traffic goes through the main routing table.
+// for delegated nic scenario pod traffic goes through eth1. For wireserver traffic to work correctly,
+// we need to ensure that traffic to wireserver ip goes through the main routing table.
+func (service *HTTPRestService) programWireserverRule() error {
+	if service.ipruleclient == nil {
+		logger.Printf("[Azure CNS] IPRuleClient not configured, skipping wireserver rule programming")
+		return nil
+	}
+
+	_, wireserverNet, err := net.ParseCIDR(WireserverIP + "/32")
+	if err != nil {
+		return errors.Wrap(err, "failed to parse wireserver IP")
+	}
+
+	// Create rule: ip rule add to 168.63.129.16/32 lookup main priority 0
+	newRule := &IPRule{
+		Dst:      wireserverNet,
+		Table:    unix.RT_TABLE_MAIN, // 254 - main routing table
+		Priority: WireserverRulePriority,
+	}
+
+	// Check if rule already exists
+	rules, err := service.ipruleclient.RuleList(vishnetlink.FAMILY_V4)
+	if err != nil {
+		return errors.Wrap(err, "failed to list existing ip rules")
+	}
+
+	for _, rule := range rules {
+		if rule.Dst != nil && rule.Dst.String() == wireserverNet.String() &&
+			rule.Table == newRule.Table && rule.Priority == newRule.Priority {
+			logger.Printf("[Azure CNS] Wireserver ip rule already exists: to %s lookup main priority %d", WireserverIP, WireserverRulePriority)
+			return nil
+		}
+	}
+
+	// Add the rule
+	if err := service.ipruleclient.RuleAdd(newRule); err != nil {
+		return errors.Wrap(err, "failed to add wireserver ip rule")
+	}
+
+	logger.Printf("[Azure CNS] Added wireserver ip rule: to %s lookup main priority %d", WireserverIP, WireserverRulePriority)
+	return nil
 }
 
 // no-op for linux

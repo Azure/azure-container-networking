@@ -76,12 +76,27 @@ type iptablesGetter interface {
 	GetIPTablesLegacy() (iptablesLegacyClient, error)
 }
 
+// IPRuleClient is an interface for netlink ip rule operations.
+// This is used to program ip rules for routing traffic to specific destinations.
+type IPRuleClient interface {
+	RuleList(family int) ([]IPRule, error)
+	RuleAdd(rule *IPRule) error
+}
+
+// IPRule represents an ip routing rule.
+type IPRule struct {
+	Dst      *net.IPNet
+	Table    int
+	Priority int
+}
+
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
 	dockerClient             *dockerclient.Client
 	wscli                    interfaceGetter
 	iptables                 iptablesGetter
+	ipruleclient             IPRuleClient
 	nma                      nmagentClient
 	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
@@ -191,7 +206,7 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, iptg iptablesGetter, nmagentClient nmagentClient,
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, iptg iptablesGetter, ipRuleClient IPRuleClient, nmagentClient nmagentClient,
 	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
 	imdsClient imdsClient,
 ) (*HTTPRestService, error) {
@@ -239,6 +254,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		dockerClient:             dc,
 		wscli:                    wscli,
 		iptables:                 iptg,
+		ipruleclient:             ipRuleClient,
 		nma:                      nmagentClient,
 		wsproxy:                  wsproxy,
 		networkContainer:         nc,
@@ -343,6 +359,14 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 
 	logger.SetContextDetails(service.state.OrchestratorType, service.state.NodeID)
 	logger.Printf("[Azure CNS]  Listening.")
+
+	// Program ip rule to ensure wireserver traffic goes through the main routing table.
+	// for delegated nic scenario pod traffic goes through eth1. For wireserver traffic to work correctly,
+	// we need to ensure that traffic to wireserver ip goes through the main routing table.
+	if err := service.programWireserverRule(); err != nil {
+		logger.Errorf("[Azure CNS] Failed to program wireserver ip rule, err:%v.", err)
+		// Don't fail init, just log the error - wireserver connectivity may still work
+	}
 
 	return nil
 }

@@ -28,6 +28,17 @@ func (*IPtablesProvider) GetIPTablesLegacy() (iptablesLegacyClient, error) {
 	return nil, errUnsupportedAPI
 }
 
+// NetlinkIPRuleClient is a no-op stub on Windows since netlink is Linux-only.
+type NetlinkIPRuleClient struct{}
+
+func (*NetlinkIPRuleClient) RuleList(_ int) ([]IPRule, error) {
+	return nil, errUnsupportedAPI
+}
+
+func (*NetlinkIPRuleClient) RuleAdd(_ *IPRule) error {
+	return errUnsupportedAPI
+}
+
 // nolint
 func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
 	return types.Success, ""
@@ -74,4 +85,9 @@ func (service *HTTPRestService) getPrimaryNICMACAddress() (string, error) {
 		return "", errors.New("MAC address not found(empty) from wireserver")
 	}
 	return macAddress, nil
+}
+
+// programWireserverRule is a no-op on Windows.
+func (service *HTTPRestService) programWireserverRule() error {
+	return nil
 }

@@ -770,7 +770,7 @@ func main() {
 	}
 
 	imdsClient := imds.NewClient()
-	httpRemoteRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, &restserver.IPtablesProvider{}, nmaClient,
+	httpRemoteRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, &restserver.IPtablesProvider{}, &restserver.NetlinkIPRuleClient{}, nmaClient,
 		endpointStateStore, conflistGenerator, homeAzMonitor, imdsClient)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
