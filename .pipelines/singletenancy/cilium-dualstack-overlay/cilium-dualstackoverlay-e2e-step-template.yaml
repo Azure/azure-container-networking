@@ -49,7 +49,7 @@ steps:
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cilium_dualstack VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cilium_dualstack VALIDATE_STATEFILE=true VALIDATE_NETWORKDRESTART=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
@@ -80,26 +80,12 @@ steps:
         done
     displayName: "Restart Nodes"
 
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        cd test/integration/load
-
-        # Scale Cluster Up/Down to confirm functioning CNS
-        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-        kubectl get pods -owide -A
-
-        cd ../../..
-        echo "Validating Node Restart"
-        make test-validate-state OS_TYPE=linux RESTART_CASE=true CNI_TYPE=cilium_dualstack
-        kubectl delete ns load-test
-    displayName: "Validate Node Restart"
-    retryCountOnTaskFailure: 3
+  - template: ../../templates/validate-tests.yaml
+    parameters:
+      validate: "nodeRestart, networkdRestart"
+      cni: "cilium_dualstack"
+      os: ${{ parameters.os }}
+      scaleup: ${{ parameters.scaleup }}
 
   - template: ../../templates/cilium-connectivity-tests.yaml
 
@@ -118,15 +104,17 @@ steps:
   - script: |
       echo "validate pod IP assignment and check systemd-networkd restart"
       kubectl get pod -owide -A
-      cd test/integration/load
-      CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
+
+      make test-validate CNI_TYPE=cilium_dualstack
+
       echo "delete cilium connectivity test resources and re-validate state"
       ciliumNamespace=`kubectl get ns | grep cilium-test | awk '{print $1}'`
       for namespace in ${ciliumNamespace}; do
         kubectl delete ns ${namespace}
       done
+
       kubectl get pod -owide -A
-      CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
+      make test-validate-state CNI_TYPE=cilium_dualstack
     name: "validatePods"
     displayName: "Validate Pods"
 

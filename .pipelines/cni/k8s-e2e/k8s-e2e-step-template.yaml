@@ -6,6 +6,7 @@ parameters:
   os: ""
   processes: "" # Number of parallel processes
   attempts: ""
+  extraArgs: "" # Additional arguments to pass to ./e2e.test
 
 
 steps:
@@ -48,7 +49,8 @@ steps:
       --ginkgo.flakeAttempts=${{ parameters.attempts }} \
       --ginkgo.v \
       --node-os-distro=${{ parameters.os }} \
-      --kubeconfig=$HOME/.kube/config
+      --kubeconfig=$HOME/.kube/config \
+      ${{ parameters.extraArgs }}
 
       # Untaint Linux nodes once testing is complete
       if ${{ lower(eq(parameters.os, 'windows')) }}

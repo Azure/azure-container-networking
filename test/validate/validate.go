@@ -95,6 +95,10 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 	}, nil
 }
 
+// Validate runs all validation checks
+// Currently includes validation for:
+// - ValidateStateFile for state file IPs
+// - ValidateNetworkdRestart for restart networkd (linux only)
 func (v *Validator) Validate(ctx context.Context) error {
 	log.Printf("Validating State File")
 	err := v.ValidateStateFile(ctx)
@@ -103,12 +107,20 @@ func (v *Validator) Validate(ctx context.Context) error {
 	}
 
 	if v.os == "linux" {
-		// We are restarting the systmemd network and checking that the connectivity works after the restart. For more details: https://github.com/cilium/cilium/issues/18706
 		log.Printf("Validating the restart network scenario")
-		err = v.validateRestartNetwork(ctx)
+		err = v.ValidateNetworkdRestart(ctx)
 		if err != nil {
 			return errors.Wrapf(err, "failed to validate restart network scenario")
 		}
+	}
+	return nil
+}
+
+func (v *Validator) ValidateNetworkdRestart(ctx context.Context) error {
+	// We are restarting the systemd network and checking that the connectivity works after the restart. For more details: https://github.com/cilium/cilium/issues/18706
+	err := v.validateRestartNetwork(ctx)
+	if err != nil {
+		return err
 	}
 	return nil
 }

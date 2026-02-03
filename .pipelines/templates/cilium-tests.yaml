@@ -1,3 +1,8 @@
+parameters:
+  cni: "cilium" # default cilium, but could be cilium_dualstack
+  os: "linux"
+  scaleup: 100
+
 steps:
   - script: |
       kubectl get po -owide -A
@@ -25,36 +30,20 @@ steps:
         done
     displayName: "Restart Nodes"
 
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        cd test/integration/load
-
-        # Scale Cluster Up/Down to confirm functioning CNS
-        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
-        kubectl get pods -owide -A
-
-        cd ../../..
-        echo "Validating Node Restart"
-        make test-validate-state OS_TYPE=linux RESTART_CASE=true
-        kubectl delete ns load-test
-    displayName: "Validate Node Restart"
-    retryCountOnTaskFailure: 3
+  - template: ./validate-tests.yaml
+    parameters:
+      validate: "nodeRestart, networkdRestart"
+      cni: ${{ parameters.cni }}
+      os: ${{ parameters.os }}
+      scaleup: ${{ parameters.scaleup }}
 
   - template: ./cilium-connectivity-tests.yaml
 
-  - script: |
-      set -e
-      echo "validate pod IP assignment and check systemd-networkd restart"
-      kubectl get pod -owide -A
-      make test-validate-state
-    name: "validatePods"
-    displayName: "Validate Pods"
+  - template: ./validate-tests.yaml
+    parameters:
+      validate: "state, networkdRestart"
+      cni: ${{ parameters.cni }}
+      os: ${{ parameters.os }}
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"
