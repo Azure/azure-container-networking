@@ -51,6 +51,14 @@ add-cilium-log-collector:
 	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/cilium-log-collector-configmap.yaml
 	envsubst '$${CILIUM_LOG_COLLECTOR_VERSION_TAG},$${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/daemonset-patch.yaml | kubectl apply --server-side --field-manager=cilium-log-collector -f -
 
+# deploy disable configmap to disable cilium log collector
+disable-cilium-log-collector:
+	kubectl apply --server-side --field-manager=cilium-log-collector -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/disable-cilium-log-collector.yaml
+
+# remove disable configmap to enable cilium log collector
+enable-cilium-log-collector:
+	kubectl delete configmap disable-cilium-log-collector -n kube-system --ignore-not-found=true
+
 deploy-cilium-operator:
 	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/files
 	envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-operator/templates/deployment.yaml | kubectl apply --server-side -f -

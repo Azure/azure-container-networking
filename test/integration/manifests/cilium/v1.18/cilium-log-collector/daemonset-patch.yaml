@@ -19,6 +19,9 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /fluent-bit/etc/conf
+            - name: disable-config
+              mountPath: /fluent-bit/etc/disable
+              readOnly: true
             - mountPath: /var/log
               name: varlog
             - mountPath: /var/lib/docker/containers
@@ -28,6 +31,10 @@ spec:
         - name: config
           configMap:
             name: cilium-fluent-bit
+        - name: disable-config
+          configMap:
+            name: disable-cilium-log-collector
+            optional: true
         - hostPath:
             path: /var/log
           name: varlog

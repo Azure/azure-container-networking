@@ -5,6 +5,7 @@ import "C" //nolint
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -15,15 +16,21 @@ import (
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 )
 
+const (
+	// disableFilePath is the path where the disable configmap is mounted
+	disableFilePath = "/fluent-bit/etc/disable/disable-cilium-log-collector"
+)
+
 // version is set at build time
 var version = ""
 
 // RecordProcessor handles batch record processing for testability
 type RecordProcessor struct {
-	tracker AppInsightsTracker
-	tag     string
-	debug   bool
-	logKey  string
+	tracker  AppInsightsTracker
+	tag      string
+	debug    bool
+	logKey   string
+	disabled bool
 }
 
 // ProcessRecord represents a single log record
@@ -51,6 +58,7 @@ var (
 	debug        string
 	logKey       string
 	hostMetadata *common.Metadata
+	disabled     bool
 )
 
 func convertToString(v interface{}) string {
@@ -100,6 +108,15 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 //
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
+	fmt.Printf("[flb-azure-app-insights] version = '%s'\n", version)
+	// check disable flag
+	if _, err := os.Stat(disableFilePath); err == nil {
+		fmt.Printf("[flb-azure-app-insights] Plugin disabled- file found at: %s\n", disableFilePath)
+		disabled = true
+		return output.FLB_OK
+	}
+	disabled = false
+
 	instrumentationKey := output.FLBPluginConfigKey(plugin, "instrumentation_key")
 	// the key that is identified as the log upon receiving the record in this plugin
 	logKey = output.FLBPluginConfigKey(plugin, "log_key")
@@ -108,7 +125,6 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 	}
 	debug = output.FLBPluginConfigKey(plugin, "debug")
 	imds := output.FLBPluginConfigKey(plugin, "imds")
-	fmt.Printf("[flb-azure-app-insights] version = '%s'\n", version)
 	fmt.Printf("[flb-azure-app-insights] plugin instrumentation key = '%s'\n", instrumentationKey)
 	fmt.Printf("[flb-azure-app-insights] using log key = '%s'\n", logKey)
 	fmt.Printf("[flb-azure-app-insights] debug = '%s'\n", debug)
@@ -146,10 +162,11 @@ func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
 	dec := output.NewDecoder(data, int(length))
 	tracker := &RealAppInsightsTracker{client: client}
 	processor := &RecordProcessor{
-		tracker: tracker,
-		tag:     C.GoString(tag),
-		debug:   debug == "true",
-		logKey:  logKey,
+		tracker:  tracker,
+		tag:      C.GoString(tag),
+		debug:    debug == "true",
+		logKey:   logKey,
+		disabled: disabled,
 	}
 
 	count := 0
@@ -182,6 +199,11 @@ func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
 
 // ProcessSingleRecord handles processing of an individual record
 func (rp *RecordProcessor) ProcessSingleRecord(record ProcessRecord, recordIndex int, metadata *common.Metadata) {
+	// if disabled, skip processing
+	if rp.disabled {
+		return
+	}
+
 	customFields := make(map[string]string)
 	var logMessage string
 

@@ -355,3 +355,27 @@ func TestProcessSingleRecord_WithMetadata(t *testing.T) {
 
 	require.Equal(t, expectedProperties, firstTrace.Properties)
 }
+
+func TestProcessSingleRecord_DisabledProcessorWithDebug(t *testing.T) {
+	tracker := NewMockAppInsightsTracker()
+	processor := &RecordProcessor{
+		tracker:  tracker,
+		tag:      "test.tag",
+		debug:    true,
+		logKey:   "log",
+		disabled: true,
+	}
+
+	record := ProcessRecord{
+		Timestamp: time.Now(),
+		Fields: map[interface{}]interface{}{
+			"log":   "test message with debug",
+			"level": "error",
+		},
+	}
+
+	processor.ProcessSingleRecord(record, 0, nil)
+
+	// no record should be processed or tracked
+	require.Empty(t, tracker.TrackedItems)
+}
