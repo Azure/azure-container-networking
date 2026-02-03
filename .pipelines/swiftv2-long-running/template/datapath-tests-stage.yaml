@@ -71,17 +71,39 @@ stages:
               artifactName: kubeconfigs-${{ parameters.workloadType }}
               publishLocation: pipeline
 
+      - job: BuildMetricsBinary
+        displayName: "Build Metrics Binary"
+        steps:
+          - checkout: Networking-Aquarius
+            displayName: "Checkout Networking-Aquarius repository"
+
+          - task: Bash@3
+            displayName: "Build persistent-cluster-metrics binary"
+            inputs:
+              targetType: 'inline'
+              script: |
+                make -C src/dnc persistent-cluster-metrics-binary
+                chmod +x src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish metrics binary and config"
+            inputs:
+              targetPath: '$(System.DefaultWorkingDirectory)/src/dnc'
+              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}'
+              publishLocation: 'pipeline'
+
       - job: CreatePods
         displayName: "Create Swiftv2 Pods"
-        dependsOn: SetupKubeconfig
+        dependsOn:
+          - SetupKubeconfig
+          - BuildMetricsBinary
         steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download kubeconfig files"
-            inputs:
-              artifactName: kubeconfigs-${{ parameters.workloadType }}
-              targetPath: $(Pipeline.Workspace)/kubeconfigs
+          - template: metrics-setup-steps.yaml
+            parameters:
+              workloadType: ${{ parameters.workloadType }}
 
           - task: AzureCLI@2
+            name: RunCreatePods
             displayName: "Create pods"
             inputs:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -92,8 +114,22 @@ stages:
                 export RG="${{ parameters.rgName }}"
                 export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
-                cd ./test/integration/swiftv2/longRunningCluster
-                go test -v -timeout=1h -tags=create_test
+                
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
+                ado_run_id="$(Build.BuildId)"
+                
+                cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
+                
+                if go test -v -timeout=1h -tags=create_test; then
+                  echo "CreatePods test PASSED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation"
+                else
+                  echo "CreatePods test FAILED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation"
+                  exit 1
+                fi
               workingDirectory: $(System.DefaultWorkingDirectory)
             env:
               KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
@@ -103,11 +139,9 @@ stages:
         displayName: "Test Pod-to-Pod Connectivity"
         dependsOn: CreatePods
         steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download kubeconfig files"
-            inputs:
-              artifactName: kubeconfigs-${{ parameters.workloadType }}
-              targetPath: $(Pipeline.Workspace)/kubeconfigs
+          - template: metrics-setup-steps.yaml
+            parameters:
+              workloadType: ${{ parameters.workloadType }}
 
           - task: AzureCLI@2
             displayName: "Run Connectivity Tests"
@@ -120,8 +154,22 @@ stages:
                 export RG="${{ parameters.rgName }}"
                 export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
-                cd ./test/integration/swiftv2/longRunningCluster
-                go test -v -timeout=30m -tags=connectivity_test
+                
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
+                ado_run_id="$(Build.BuildId)"
+                
+                cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
+                
+                if go test -v -timeout=30m -tags=connectivity_test; then
+                  echo "ConnectivityTests test PASSED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests"
+                else
+                  echo "ConnectivityTests test FAILED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests"
+                  exit 1
+                fi
               workingDirectory: $(System.DefaultWorkingDirectory)
             env:
               KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
@@ -131,11 +179,9 @@ stages:
         displayName: "Test Private Endpoint Access"
         dependsOn: ConnectivityTests
         steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download kubeconfig files"
-            inputs:
-              artifactName: kubeconfigs-${{ parameters.workloadType }}
-              targetPath: $(Pipeline.Workspace)/kubeconfigs
+          - template: metrics-setup-steps.yaml
+            parameters:
+              workloadType: ${{ parameters.workloadType }}
 
           - task: AzureCLI@2
             name: DiscoverStorageAccounts
@@ -164,7 +210,7 @@ stages:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
               scriptType: bash
               scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
+              scriptPath: "azure-container-networking/.pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
               arguments: >
                 assign
                 ${{ parameters.subscriptionId }}
@@ -184,8 +230,22 @@ stages:
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
                 export STORAGE_ACCOUNT_1="$(DiscoverStorageAccounts.storageAccount1)"
                 export STORAGE_ACCOUNT_2="$(DiscoverStorageAccounts.storageAccount2)"
-                cd ./test/integration/swiftv2/longRunningCluster
-                go test -v -timeout=30m -tags=private_endpoint_test
+                
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
+                ado_run_id="$(Build.BuildId)"
+                
+                cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
+                
+                if go test -v -timeout=30m -tags=private_endpoint_test; then
+                  echo "PrivateEndpointTests test PASSED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests"
+                else
+                  echo "PrivateEndpointTests test FAILED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests"
+                  exit 1
+                fi
               workingDirectory: $(System.DefaultWorkingDirectory)
             env:
               KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
@@ -198,7 +258,7 @@ stages:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
               scriptType: bash
               scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
+              scriptPath: "azure-container-networking/.pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
               arguments: >
                 delete
                 ${{ parameters.subscriptionId }}
@@ -207,14 +267,11 @@ stages:
       
       - job: ScaleTest
         displayName: "Scale Tests - create and delete pods at scale"
-        dependsOn: 
-          - PrivateEndpointTests
+        dependsOn: PrivateEndpointTests
         steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download kubeconfig files"
-            inputs:
-              artifactName: kubeconfigs-${{ parameters.workloadType }}
-              targetPath: $(Pipeline.Workspace)/kubeconfigs
+          - template: metrics-setup-steps.yaml
+            parameters:
+              workloadType: ${{ parameters.workloadType }}
 
           - task: AzureCLI@2
             displayName: "Run Scale Test (Create and Delete)"
@@ -229,8 +286,22 @@ stages:
                 export RG="${{ parameters.rgName }}"
                 export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
-                cd ./test/integration/swiftv2/longRunningCluster
-                go test -v -timeout 1h -tags=scale_test
+                
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
+                ado_run_id="$(Build.BuildId)"
+                
+                cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
+                
+                if go test -v -timeout 1h -tags=scale_test; then
+                  echo "ScaleTest test PASSED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests"
+                else
+                  echo "ScaleTest test FAILED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests"
+                  exit 1
+                fi
               workingDirectory: $(System.DefaultWorkingDirectory)
             env:
               KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
@@ -245,11 +316,9 @@ stages:
           - ScaleTest
         condition: always()
         steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download kubeconfig files"
-            inputs:
-              artifactName: kubeconfigs-${{ parameters.workloadType }}
-              targetPath: $(Pipeline.Workspace)/kubeconfigs
+          - template: metrics-setup-steps.yaml
+            parameters:
+              workloadType: ${{ parameters.workloadType }}
 
           - task: AzureCLI@2
             displayName: "Delete Test Resources"
@@ -262,8 +331,22 @@ stages:
                 export RG="${{ parameters.rgName }}"
                 export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
-                cd ./test/integration/swiftv2/longRunningCluster
-                go test -v -timeout=1h -tags=delete_test
+                
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
+                ado_run_id="$(Build.BuildId)"
+                
+                cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
+                
+                if go test -v -timeout=1h -tags=delete_test; then
+                  echo "DeleteTestResources test PASSED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources"
+                else
+                  echo "DeleteTestResources test FAILED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources"
+                  exit 1
+                fi
               workingDirectory: $(System.DefaultWorkingDirectory)
             env:
               KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
