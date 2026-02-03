@@ -67,7 +67,7 @@ label_vmss_nodes() {
   local kubeconfig_file="./kubeconfig-${cluster_name}.yaml"
   
   echo "Labeling BYON nodes in ${cluster_name} with workload-type=swiftv2-l1vh-accelnet-byon"
-  kubectl --kubeconfig "$kubeconfig_file" label nodes -l kubernetes.azure.com/managed=false,kubernetes.io/os=linux workload-type=swiftv2-l1vh-accelnet-byon --overwrite
+  kubectl --kubeconfig "$kubeconfig_file" label nodes -l kubernetes.azure.com/managed=false,kubernetes.io/os=windows workload-type=swiftv2-l1vh-accelnet-byon --overwrite
 
   echo "Labeling ${cluster_prefix}acld nodes with nic-capacity=low-nic"
   kubectl --kubeconfig "$kubeconfig_file" get nodes -o name | grep "${cluster_prefix}acld" | xargs -I {} kubectl --kubeconfig "$kubeconfig_file" label {} nic-capacity=low-nic --overwrite || true
