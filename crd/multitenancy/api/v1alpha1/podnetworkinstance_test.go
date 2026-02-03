@@ -14,8 +14,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
-var testEnv *envtest.Environment
-var k8sClient client.Client
+var (
+	testEnv   *envtest.Environment
+	k8sClient client.Client
+)
 
 func TestMain(m *testing.M) {
 	// Check if KUBEBUILDER_ASSETS is set
@@ -40,7 +42,7 @@ func TestMain(m *testing.M) {
 	k8sClient, _ = client.New(cfg, client.Options{Scheme: scheme})
 
 	code := m.Run()
-	testEnv.Stop()
+	_ = testEnv.Stop()
 	os.Exit(code)
 }
 
