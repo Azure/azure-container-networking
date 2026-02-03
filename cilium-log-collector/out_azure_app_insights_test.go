@@ -30,6 +30,7 @@ func TestProcessSingleRecord_BasicLogging(t *testing.T) {
 		tag:     "test.tag",
 		debug:   false,
 		logKey:  "log",
+		version: "v0.0.0",
 	}
 
 	record := ProcessRecord{
@@ -50,6 +51,7 @@ func TestProcessSingleRecord_BasicLogging(t *testing.T) {
 	require.Equal(t, "info", firstTrace.Properties["level"])
 	require.Equal(t, "test.tag", firstTrace.Properties["fluentbit_tag"])
 	require.Equal(t, "0", firstTrace.Properties["record_count"])
+	require.Equal(t, "v0.0.0", firstTrace.Properties["cilium_log_collector_version"])
 
 	// metadata custom properties are not present when metadata is nil
 	_, exists := firstTrace.Properties["azure_location"]
@@ -351,6 +353,9 @@ func TestProcessSingleRecord_WithMetadata(t *testing.T) {
 		"azure_vm_id":                  "9b7f8642-3f2b-4875-8f3c-b3f83ee4d0bf",
 		"azure_vm_size":                "Standard_D16s_v3",
 		"azure_kernel_version":         "5.15.0-1073-azure",
+
+		// no version set
+		"cilium_log_collector_version": "",
 	}
 
 	require.Equal(t, expectedProperties, firstTrace.Properties)

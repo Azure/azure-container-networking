@@ -31,6 +31,7 @@ type RecordProcessor struct {
 	debug    bool
 	logKey   string
 	disabled bool
+	version  string
 }
 
 // ProcessRecord represents a single log record
@@ -167,6 +168,7 @@ func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
 		debug:    debug == "true",
 		logKey:   logKey,
 		disabled: disabled,
+		version:  version,
 	}
 
 	count := 0
@@ -219,6 +221,7 @@ func (rp *RecordProcessor) ProcessSingleRecord(record ProcessRecord, recordIndex
 	}
 	customFields["fluentbit_tag"] = rp.tag
 	customFields["record_count"] = strconv.Itoa(recordIndex)
+	customFields["cilium_log_collector_version"] = rp.version
 
 	if metadata != nil {
 		customFields["azure_location"] = metadata.Location
