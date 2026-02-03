@@ -31,7 +31,7 @@ var validVNETBlockRequest = &cns.CreateNetworkContainerRequest{
 		GatewayIPAddress: vnetBlockDefaultGateway,
 		IPSubnet: cns.IPSubnet{
 			PrefixLength: uint8(vnetBlockSubnetPrefixLen),
-			IPAddress:    vnetBlockPrimaryIP,
+			IPAddress:    vnetBlockNodeIP,
 		},
 	},
 	NetworkContainerid:   ncID,

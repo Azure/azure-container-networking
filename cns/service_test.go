@@ -369,9 +369,12 @@ func createTestCertificate(t *testing.T) string {
 
 	pemCert = append(pemCert, pemKey...)
 
+	fileContent, err := postProcessPEMCert(pemCert)
+	require.NoError(t, err)
+
 	// Write PEM cert and key to a file in a temp dir
 	testCertFilePath := filepath.Join(t.TempDir(), "dummy.pem")
-	err = os.WriteFile(testCertFilePath, pemCert, 0o600)
+	err = os.WriteFile(testCertFilePath, fileContent, 0o600)
 	require.NoError(t, err)
 
 	t.Log("Created test certificate file at: ", testCertFilePath)

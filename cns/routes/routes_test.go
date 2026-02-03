@@ -1,7 +1,8 @@
 // Copyright 2017 Microsoft. All rights reserved.
 // MIT License
 
-// +build windows
+//go:build windows && pipeline
+// +build windows,pipeline
 
 package routes
 

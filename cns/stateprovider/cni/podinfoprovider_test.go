@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/platform"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/exec"
@@ -11,7 +12,7 @@ import (
 
 func newCNIStateFakeExec(stdout string) exec.Interface {
 	calls := []testutils.TestCmd{
-		{Cmd: []string{"/opt/cni/bin/azure-vnet"}, Stdout: stdout},
+		{Cmd: []string{platform.CNIBinaryPath}, Stdout: stdout},
 	}
 
 	fake := testutils.GetFakeExecWithScripts(calls)

@@ -54,7 +54,7 @@ stages:
           # Only run one go test per script
           - script: |
               cd azure-container-networking/
-              go test -timeout 30m -covermode atomic -coverprofile=windows-coverage.out ./npm/... ./cni/... ./platform/...
+              go test -timeout 30m -covermode atomic -coverprofile=windows-coverage.out ./cns/... ./npm/... ./cni/... ./platform/...
               go tool cover -func=windows-coverage.out
             retryCountOnTaskFailure: 3
             name: "TestWindows"
