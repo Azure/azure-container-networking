@@ -2,7 +2,7 @@ package cni
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -11,17 +11,20 @@ import (
 )
 
 func TestWriteObjectToFile(t *testing.T) {
-	name := "testdata/test"
-	err := os.MkdirAll(path.Dir(name), 0o755)
+	baseDir := t.TempDir()
+	name := filepath.Join(baseDir, "testdata", "test")
+
+	err := os.MkdirAll(filepath.Dir(name), 0o755)
 	require.NoError(t, err)
-	defer os.RemoveAll("testdata")
+	defer os.RemoveAll(filepath.Join(baseDir, "testdata"))
 
 	_, err = os.Stat(name)
 	require.ErrorIs(t, err, os.ErrNotExist)
 
 	// create empty file
-	_, err = os.Create(name)
+	f, err := os.Create(name)
 	require.NoError(t, err)
+	f.Close() // required on windows
 	defer os.Remove(name)
 
 	// check it's empty

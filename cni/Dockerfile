@@ -6,10 +6,10 @@ ARG OS_VERSION
 ARG OS
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:3f3c4ef3940fc4c8bf588acd619b05695c96a9d987b70a2258395974985c754f AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:269dfe0b7256dc91926ade7a3a2c30556648c41f23a1fee0c363520488e8e2f0 AS go
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:72b38469d220910172d0f52dcb029b3cbbb226c63522103c955778ad7ace06a8 AS mariner-core
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:94ad614201891509f6680b8d392f519df0274460417dfe6662643800822e380d AS mariner-core
 
 FROM go AS azure-vnet
 ARG OS
@@ -32,7 +32,7 @@ COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift.conflist 
 COPY --from=azure-vnet /azure-container-networking/cni/azure-linux-multitenancy-transparent-vlan.conflist /payload/azure-multitenancy-transparent-vlan.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay.conflist /payload/azure-swift-overlay.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay-dualstack.conflist /payload/azure-swift-overlay-dualstack.conflist
-COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-multitenancy.conflist /payload/azure-multitenancy.conflist
+COPY --from=azure-vnet /azure-container-networking/cni/azure-windows-multitenancy.conflist /payload/azure-multitenancy.conflist
 COPY --from=azure-vnet /azure-container-networking/telemetry/azure-vnet-telemetry.config /payload/azure-vnet-telemetry.config
 RUN cd /payload && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive /payload && for f in /payload/*.gz; do mv -- "$f" "${f%%.gz}"; done

@@ -27,7 +27,7 @@ stages:
           - task: TriggerBuild@3
             inputs:
               buildDefinition: '391699'
-              templateParameters: 'regions: ["westus2"], useAcnPublic: true, cnscniversion: $(TAG), cnscniversionwindows: $(TAG), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF)'
+              templateParameters: 'regions: ["westus2"], useAcnPublic: true, cnscniversion: $(TAG), cnscniversionwindows: $(TAG), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF), npmversion: $(TAG)'
               useSameBranch: false
               queueBuildForUserThatTriggeredBuild: true
               branchToUse: 'refs/heads/master'

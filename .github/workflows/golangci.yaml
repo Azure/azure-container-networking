@@ -15,7 +15,7 @@ jobs:
     name: Generate BPF Handling Code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -26,7 +26,7 @@ jobs:
         run: make bpf-lib && go generate ./...
 
       - name: Upload generated code
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: generated-bpf-program-code
           path: ./bpf-prog/azure-block-iptables/pkg/blockservice
@@ -39,19 +39,19 @@ jobs:
     needs: generate
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         fetch-depth: 0
     - uses: actions/setup-go@v6
       with:
         go-version-file: go.mod
     - name: Download generated code
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v7
       with:
         name: generated-bpf-program-code
         path: ./bpf-prog/azure-block-iptables/pkg/blockservice
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@v6
+      uses: golangci/golangci-lint-action@v9
       with:
         version: latest
         args: ${{ github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref) || '' }} --config=.golangci.yml --timeout=25m

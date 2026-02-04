@@ -18,7 +18,7 @@ parameters:
   - name: location
     displayName: "Deployment Region"
     type: string
-    default: "eastus2"
+    default: "westus2"
 
   - name: runSetupStages
     displayName: "Create New Infrastructure Setup"

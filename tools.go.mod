@@ -4,6 +4,8 @@ go 1.24.1
 
 // To use/update leverage -modfile=tools.go.mod field in respective go commands
 tool (
+	github.com/AlekSi/gocov-xml
+	github.com/axw/gocov/gocov
 	github.com/golang/mock/mockgen
 	github.com/golangci/golangci-lint/cmd/golangci-lint
 	github.com/jstemmer/go-junit-report
@@ -20,6 +22,7 @@ require (
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/4meepo/tagalign v1.4.2 // indirect
 	github.com/Abirdcfly/dupword v0.1.3 // indirect
+	github.com/AlekSi/gocov-xml v1.2.0 // indirect
 	github.com/Antonboom/errname v1.0.0 // indirect
 	github.com/Antonboom/nilnil v1.0.1 // indirect
 	github.com/Antonboom/testifylint v1.5.2 // indirect
@@ -41,6 +44,7 @@ require (
 	github.com/alingse/nilnesserr v0.1.2 // indirect
 	github.com/ashanbrown/forbidigo v1.6.0 // indirect
 	github.com/ashanbrown/makezero v1.2.0 // indirect
+	github.com/axw/gocov v1.2.1 // indirect
 	github.com/aymerick/raymond v2.0.2+incompatible // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bkielbasa/cyclop v1.2.3 // indirect

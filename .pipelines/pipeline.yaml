@@ -54,6 +54,8 @@ stages:
               echo $(Build.QueuedBy)
               echo $(Build.Reason) # manual, PR, IndividualCI
               echo $(Build.SourceBranch)
+              echo $(System.PullRequest.TargetBranch)
+              echo $(System.PullRequest.targetBranchName)
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
             condition: always()
