@@ -360,14 +360,6 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	logger.SetContextDetails(service.state.OrchestratorType, service.state.NodeID)
 	logger.Printf("[Azure CNS]  Listening.")
 
-	// Program ip rule to ensure wireserver traffic goes through the main routing table.
-	// for delegated nic scenario pod traffic goes through eth1. For wireserver traffic to work correctly,
-	// we need to ensure that traffic to wireserver ip goes through the main routing table.
-	if err := service.programWireserverRule(); err != nil {
-		logger.Errorf("[Azure CNS] Failed to program wireserver ip rule, err:%v.", err)
-		// Don't fail init, just log the error - wireserver connectivity may still work
-	}
-
 	return nil
 }
 

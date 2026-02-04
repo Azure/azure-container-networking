@@ -215,10 +215,10 @@ func (n *NetlinkIPRuleClient) RuleAdd(rule *IPRule) error {
 	return vishnetlink.RuleAdd(nlRule)
 }
 
-// Program ip rule to ensure wireserver traffic goes through the main routing table.
+// ProgramWireserverRule programs ip rule to ensure wireserver traffic goes through the main routing table.
 // for delegated nic scenario pod traffic goes through eth1. For wireserver traffic to work correctly,
 // we need to ensure that traffic to wireserver ip goes through the main routing table.
-func (service *HTTPRestService) programWireserverRule() error {
+func (service *HTTPRestService) ProgramWireserverRule() error {
 	if service.ipruleclient == nil {
 		logger.Printf("[Azure CNS] IPRuleClient not configured, skipping wireserver rule programming")
 		return nil

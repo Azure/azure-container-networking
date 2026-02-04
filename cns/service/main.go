@@ -1315,9 +1315,23 @@ type ipamStateReconciler interface {
 	ReconcileIPAMStateForSwift(ncRequests []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) cnstypes.ResponseCode
 }
 
+type wireserverRuleProgrammer interface {
+	ProgramWireserverRule() error
+}
+
 // TODO(rbtr) where should this live??
 // reconcileInitialCNSState initializes cns by passing pods and a CreateNetworkContainerRequest
-func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ipamReconciler ipamStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider, isSwiftV2 bool) error {
+func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ipamReconciler ipamStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider, isSwiftV2 bool, wsRuleProgrammer wireserverRuleProgrammer) error {
+	// Program ip rule to ensure wireserver traffic goes through the main routing table.
+	// for delegated nic scenario pod traffic goes through eth1. For wireserver traffic to work correctly,
+	// we need to ensure that traffic to wireserver ip goes through the main routing table.
+	if wsRuleProgrammer != nil {
+		if err := wsRuleProgrammer.ProgramWireserverRule(); err != nil {
+			logger.Errorf("[Azure CNS] Failed to program wireserver ip rule, err:%v.", err)
+			// Don't fail initialization, just log the error - wireserver connectivity may still work
+		}
+	}
+
 	// Get nnc using direct client
 	nnc, err := cli.Get(ctx)
 	if err != nil {
@@ -1464,7 +1478,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	_ = retry.Do(func() error {
 		attempt++
 		logger.Printf("reconciling initial CNS state attempt: %d", attempt)
-		err = reconcileInitialCNSState(ctx, directscopedcli, httpRestServiceImplementation, podInfoByIPProvider, cnsconfig.EnableSwiftV2)
+		err = reconcileInitialCNSState(ctx, directscopedcli, httpRestServiceImplementation, podInfoByIPProvider, cnsconfig.EnableSwiftV2, httpRestServiceImplementation)
 		if err != nil {
 			logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
 			nncInitFailure.Inc()
