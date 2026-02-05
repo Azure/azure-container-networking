@@ -54,6 +54,9 @@ steps:
           unset CILIUM_VERSION_TAG
           make -C ./hack/aks deploy-cilium
         fi
+        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=acnpublic.azurecr.io
+        export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(make cilium-log-collector-version)
+        make -C ./hack/aks add-cilium-log-collector
 
         kubectl get po -owide -A
     name: "installCilium"

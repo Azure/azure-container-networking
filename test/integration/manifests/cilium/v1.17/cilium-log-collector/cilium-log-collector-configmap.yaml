@@ -1,0 +1,46 @@
+apiVersion: v1
+data:
+  plugins.conf: |
+    [PLUGINS]
+        Path /out_azure_app_insights.so
+  fluent-bit.conf: |
+    [SERVICE]
+        Daemon Off
+        Flush 1
+        Log_Level info
+        Parsers_File /fluent-bit/etc/parsers.conf
+        Plugins_File /fluent-bit/etc/conf/plugins.conf
+        HTTP_Server Off
+        Health_Check Off
+
+    [INPUT]
+        Name tail
+        Exclude_path /var/log/containers/*fluent*.log
+        Path /var/log/containers/*cilium*.log
+        multiline.parser docker, cri
+        Tag kube.*
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+        db fluent-bit-db
+        read_from_head true
+
+    [FILTER]
+        Name kubernetes
+        Match kube.*
+        Merge_Log Off
+        Keep_Log On
+        K8S-Logging.Parser On
+        K8S-Logging.Exclude Off
+        Buffer_Size 128KB
+        Use_tag_for_meta On
+
+    [OUTPUT]
+        Name                        azure_app_insights
+        debug                       true
+        imds                        true
+        instrumentation_key         aad482c8-f408-48e9-9380-e37fdb9ef4a3
+        Match                       kube.*
+kind: ConfigMap
+metadata:
+  name: cilium-fluent-bit
+  namespace: kube-system

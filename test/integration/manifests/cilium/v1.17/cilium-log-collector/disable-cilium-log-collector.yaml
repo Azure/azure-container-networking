@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: disable-cilium-log-collector
+  namespace: kube-system
+data:
+  disable-cilium-log-collector: ""
