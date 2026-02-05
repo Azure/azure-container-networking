@@ -29,7 +29,9 @@ type cnsClient interface {
 
 type nodenetworkconfigSink func(*v1alpha.NodeNetworkConfig) error
 
+// Deprecated: use nodenetworkconfigSink instead
 type nodeNetworkConfigListener interface {
+	// Deprecated: use nodenetworkconfigSink instead
 	Update(*v1alpha.NodeNetworkConfig) error // phasing this out in favor of the sink
 }
 

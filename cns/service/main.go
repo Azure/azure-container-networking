@@ -1431,7 +1431,6 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		return nil
 	}
 
-	
 	scheme := kuberuntime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil { //nolint:govet // intentional shadow
 		return errors.Wrap(err, "failed to add corev1 to scheme")
