@@ -3,6 +3,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,11 +48,12 @@ func (cm *ConfigManager) GetConfigPath() string {
 
 // LoadConfig loads the CNS configuration from file and applies sidecar-specific defaults.
 // This method loads the config directly to avoid depending on the global cns/logger package.
-func (cm *ConfigManager) LoadConfig() (*configuration.CNSConfig, error) {
+// It always returns a valid config, falling back to defaults if loading fails.
+func (cm *ConfigManager) LoadConfig() *configuration.CNSConfig {
 	configPath, err := cm.resolveConfigPath()
 	if err != nil {
 		cm.logger.Warn("Failed to resolve config path, using defaults", zap.Error(err))
-		return cm.createDefaultConfig(), nil
+		return cm.createDefaultConfig()
 	}
 
 	cm.logger.Debug("Loading config from path", zap.String("path", configPath))
@@ -59,7 +61,7 @@ func (cm *ConfigManager) LoadConfig() (*configuration.CNSConfig, error) {
 	config, err := cm.readConfigFromFile(configPath)
 	if err != nil {
 		cm.logger.Warn("Failed to load config file, using defaults", zap.Error(err))
-		return cm.createDefaultConfig(), nil
+		return cm.createDefaultConfig()
 	}
 
 	cm.applyDefaults(config)
@@ -70,7 +72,7 @@ func (cm *ConfigManager) LoadConfig() (*configuration.CNSConfig, error) {
 		zap.String("socketPath", config.TelemetrySettings.CNITelemetrySocketPath),
 		zap.Bool("hasAppInsightsKey", cm.hasAppInsightsKey(&config.TelemetrySettings)))
 
-	return config, nil
+	return config
 }
 
 // resolveConfigPath determines the config file path from command line, environment, or default.
@@ -86,7 +88,7 @@ func (cm *ConfigManager) resolveConfigPath() (string, error) {
 	// Otherwise compose the default config path and return that.
 	dir, err := common.GetExecutableDirectory()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get executable directory: %w", err)
 	}
 	return filepath.Join(dir, defaultConfigName), nil
 }
@@ -95,11 +97,12 @@ func (cm *ConfigManager) resolveConfigPath() (string, error) {
 func (cm *ConfigManager) readConfigFromFile(path string) (*configuration.CNSConfig, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read config file %s: %w", path, err)
 	}
 	var config configuration.CNSConfig
+	//nolint:musttag // CNSConfig is from cns/configuration package and uses default json field matching
 	if err := json.Unmarshal(content, &config); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 	return &config, nil
 }

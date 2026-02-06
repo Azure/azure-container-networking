@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/Azure/azure-container-networking/telemetry"
@@ -17,9 +18,37 @@ import (
 var version = "1.0.0" // Set at build time via -ldflags
 
 func main() {
+	// Normalize legacy single-dash flags to double-dash for Cobra compatibility
+	// e.g., "-config" -> "--config" (legacy daemonset compatibility)
+	os.Args = normalizeLegacyFlags(os.Args)
+
 	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+// normalizeLegacyFlags converts single-dash long flags to double-dash format.
+// This maintains compatibility with legacy deployments that use "-config" instead of "--config".
+func normalizeLegacyFlags(args []string) []string {
+	legacyFlags := map[string]bool{
+		"-config":    true,
+		"-log-level": true,
+	}
+
+	normalized := make([]string, len(args))
+	for i, arg := range args {
+		switch {
+		case legacyFlags[arg]:
+			normalized[i] = "-" + arg // Convert -flag to --flag
+		case strings.HasPrefix(arg, "-config="):
+			normalized[i] = "-" + arg
+		case strings.HasPrefix(arg, "-log-level="):
+			normalized[i] = "-" + arg
+		default:
+			normalized[i] = arg
+		}
+	}
+	return normalized
 }
 
 func newRootCmd() *cobra.Command {
@@ -35,8 +64,9 @@ func newRootCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&configPath, "config", "", "Path to CNS configuration file")
-	cmd.Flags().StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
+	// Use StringVarP to support both --config and -c shorthand
+	cmd.Flags().StringVarP(&configPath, "config", "c", "", "Path to CNS configuration file")
+	cmd.Flags().StringVarP(&logLevel, "log-level", "l", "info", "Log level (debug, info, warn, error)")
 
 	return cmd
 }

@@ -46,10 +46,7 @@ func NewTelemetrySidecar(configManager *ConfigManager, logger *zap.Logger, versi
 
 // Run starts the telemetry sidecar service.
 func (s *TelemetrySidecar) Run(ctx context.Context) error {
-	cnsConfig, err := s.configManager.LoadConfig()
-	if err != nil {
-		return err
-	}
+	cnsConfig := s.configManager.LoadConfig()
 
 	if !s.shouldRunTelemetry(cnsConfig) {
 		s.logger.Info("CNI Telemetry disabled, entering idle mode")
@@ -60,7 +57,7 @@ func (s *TelemetrySidecar) Run(ctx context.Context) error {
 	telemetryConfig := s.buildTelemetryConfig(cnsConfig)
 
 	if err := s.startTelemetryService(ctx, telemetryConfig, cnsConfig); err != nil {
-		return err
+		return fmt.Errorf("failed to start telemetry service: %w", err)
 	}
 
 	<-ctx.Done()
@@ -110,10 +107,10 @@ func (s *TelemetrySidecar) getAppInsightsKey(cnsConfig *configuration.CNSConfig)
 }
 
 func (s *TelemetrySidecar) startTelemetryService(ctx context.Context, config telemetry.TelemetryConfig, cnsConfig *configuration.CNSConfig) error {
-	aiKey := s.getAppInsightsKey(cnsConfig)
-	if aiKey != "" {
-		os.Setenv("APPINSIGHTS_INSTRUMENTATIONKEY", aiKey)
-		if telemetry.GetAIMetadata() == "" {
+	// If we have an AI key from config or env but not from build-time, set it in the telemetry package
+	// so that CreateAITelemetryHandle and GetAIMetadata checks work correctly.
+	if telemetry.GetAIMetadata() == "" {
+		if aiKey := s.getAppInsightsKey(cnsConfig); aiKey != "" {
 			telemetry.SetAIMetadata(aiKey)
 		}
 	}
@@ -130,7 +127,7 @@ func (s *TelemetrySidecar) startTelemetryService(ctx context.Context, config tel
 	for attempt := 0; attempt < maxServerStartRetries; attempt++ {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("context cancelled during server start: %w", ctx.Err())
 		default:
 		}
 
