@@ -14,6 +14,8 @@ import (
 )
 
 const (
+	// Sidecar-specific telemetry defaults - these may differ from CNS defaults
+	// to optimize for CNI telemetry workloads (smaller, more frequent batches)
 	defaultReportToHostIntervalInSecs = 30
 	defaultRefreshTimeoutInSecs       = 15
 	defaultBatchSizeInBytes           = 16384
@@ -21,7 +23,7 @@ const (
 	defaultGetEnvRetryCount           = 2
 	defaultGetEnvRetryWaitTimeInSecs  = 3
 	pluginName                        = "AzureCNI"
-	cniTelemetryVersion               = "1.0.0"
+	maxServerStartRetries             = 10
 )
 
 // TelemetrySidecar implements the CNI telemetry service as a sidecar container,
@@ -29,20 +31,17 @@ const (
 type TelemetrySidecar struct {
 	configManager   *ConfigManager
 	logger          *zap.Logger
+	version         string
 	telemetryBuffer *telemetry.TelemetryBuffer
 }
 
 // NewTelemetrySidecar creates a new TelemetrySidecar instance.
-func NewTelemetrySidecar(configManager *ConfigManager) *TelemetrySidecar {
+func NewTelemetrySidecar(configManager *ConfigManager, logger *zap.Logger, version string) *TelemetrySidecar {
 	return &TelemetrySidecar{
 		configManager: configManager,
+		logger:        logger,
+		version:       version,
 	}
-}
-
-// SetLogger sets the logger for the sidecar.
-func (s *TelemetrySidecar) SetLogger(logger *zap.Logger) {
-	s.logger = logger
-	s.configManager.SetLogger(logger)
 }
 
 // Run starts the telemetry sidecar service.
@@ -99,7 +98,7 @@ func (s *TelemetrySidecar) buildTelemetryConfig(cnsConfig *configuration.CNSConf
 	}
 }
 
-// getAppInsightsKey returns the AppInsights key with priority: build-time > config > env vars.
+// getAppInsightsKey returns the AppInsights key with priority: build-time > config > env var.
 func (s *TelemetrySidecar) getAppInsightsKey(cnsConfig *configuration.CNSConfig) string {
 	if key := telemetry.GetAIMetadata(); key != "" {
 		return key
@@ -107,12 +106,7 @@ func (s *TelemetrySidecar) getAppInsightsKey(cnsConfig *configuration.CNSConfig)
 	if cnsConfig != nil && cnsConfig.TelemetrySettings.AppInsightsInstrumentationKey != "" {
 		return cnsConfig.TelemetrySettings.AppInsightsInstrumentationKey
 	}
-	for _, env := range appInsightsEnvVars {
-		if key := os.Getenv(env); key != "" {
-			return key
-		}
-	}
-	return ""
+	return os.Getenv(appInsightsEnvVar)
 }
 
 func (s *TelemetrySidecar) startTelemetryService(ctx context.Context, config telemetry.TelemetryConfig, cnsConfig *configuration.CNSConfig) error {
@@ -132,24 +126,39 @@ func (s *TelemetrySidecar) startTelemetryService(ctx context.Context, config tel
 
 	s.telemetryBuffer = telemetry.NewTelemetryBuffer(s.logger)
 
-	// Retry starting server until successful
-	for {
+	// Retry starting server with bounded retries and context cancellation
+	for attempt := 0; attempt < maxServerStartRetries; attempt++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		err := s.telemetryBuffer.StartServer()
 		if err == nil || s.telemetryBuffer.FdExists {
 			break
 		}
-		s.logger.Error("Telemetry server start failed, retrying", zap.Error(err))
-		errL := s.telemetryBuffer.Cleanup(telemetry.FdName)
-		if errL != nil {
+
+		s.logger.Error("Telemetry server start failed, retrying",
+			zap.Error(err),
+			zap.Int("attempt", attempt+1),
+			zap.Int("maxRetries", maxServerStartRetries))
+
+		if errL := s.telemetryBuffer.Cleanup(telemetry.FdName); errL != nil {
 			s.logger.Warn("Failed to clean up orphan socket during retry", zap.Error(errL))
 		}
+
+		if attempt == maxServerStartRetries-1 {
+			return fmt.Errorf("failed to start telemetry server after %d attempts: %w", maxServerStartRetries, err)
+		}
+
 		time.Sleep(200 * time.Millisecond)
 	}
 
 	if telemetry.GetAIMetadata() != "" {
 		aiConfig := aitelemetry.AIConfig{
 			AppName:                      pluginName,
-			AppVersion:                   cniTelemetryVersion,
+			AppVersion:                   s.version,
 			BatchSize:                    config.BatchSizeInBytes,
 			BatchInterval:                config.BatchIntervalInSecs,
 			RefreshTimeout:               config.RefreshTimeoutInSecs,

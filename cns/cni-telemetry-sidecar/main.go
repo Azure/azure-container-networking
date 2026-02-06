@@ -4,46 +4,45 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/Azure/azure-container-networking/telemetry"
+	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 
-var (
-	configPath = flag.String("config", "", "Path to CNS configuration file")
-	logLevel   = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
-	version    = "1.0.0" // Set at build time via -ldflags
-)
+var version = "1.0.0" // Set at build time via -ldflags
 
 func main() {
-	flag.Parse()
-	os.Exit(run())
+	if err := newRootCmd().Execute(); err != nil {
+		os.Exit(1)
+	}
 }
 
-func run() int {
-	logger, err := initializeLogger(*logLevel)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to initialize logger: %v\n", err)
-		return 1
+func newRootCmd() *cobra.Command {
+	var configPath string
+	var logLevel string
+
+	cmd := &cobra.Command{
+		Use:   "azure-cni-telemetry-sidecar",
+		Short: "Azure CNI Telemetry Sidecar",
+		Long:  "Collects CNI telemetry from the unix socket and sends it to Application Insights",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return run(configPath, logLevel)
+		},
 	}
-	defer logger.Sync() //nolint:errcheck // best effort
 
-	configManager := NewConfigManager(*configPath)
-	configManager.SetLogger(logger)
+	cmd.Flags().StringVar(&configPath, "config", "", "Path to CNS configuration file")
+	cmd.Flags().StringVar(&logLevel, "log-level", "info", "Log level (debug, info, warn, error)")
 
-	logger.Info("Starting Azure CNI Telemetry Sidecar",
-		zap.String("version", version),
-		zap.String("configPath", configManager.GetConfigPath()),
-		zap.Bool("hasBuiltInAIKey", telemetry.GetAIMetadata() != ""))
+	return cmd
+}
 
-	sidecar := NewTelemetrySidecar(configManager)
-	sidecar.SetLogger(logger)
-
+func run(configPath, logLevel string) error {
+	// Set up signal handling first, before any initialization that could hang
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -51,17 +50,32 @@ func run() int {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigChan
-		logger.Info("Received shutdown signal", zap.String("signal", sig.String()))
+		fmt.Fprintf(os.Stderr, "Received shutdown signal: %s\n", sig.String())
 		cancel()
 	}()
 
+	logger, err := initializeLogger(logLevel)
+	if err != nil {
+		return fmt.Errorf("failed to initialize logger: %w", err)
+	}
+	defer logger.Sync() //nolint:errcheck // best effort
+
+	configManager := NewConfigManager(configPath, logger)
+
+	logger.Info("Starting Azure CNI Telemetry Sidecar",
+		zap.String("version", version),
+		zap.String("configPath", configManager.GetConfigPath()),
+		zap.Bool("hasBuiltInAIKey", telemetry.GetAIMetadata() != ""))
+
+	sidecar := NewTelemetrySidecar(configManager, logger, version)
+
 	if err := sidecar.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("Sidecar execution failed", zap.Error(err))
-		return 1
+		return fmt.Errorf("sidecar execution failed: %w", err)
 	}
 
 	logger.Info("Shutdown complete")
-	return 0
+	return nil
 }
 
 // initializeLogger creates a zap logger with the specified level
