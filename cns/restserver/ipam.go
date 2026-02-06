@@ -658,33 +658,43 @@ func (service *HTTPRestService) updateIPConfigState(ipID string, updatedState ty
 // Note: this func is an untransacted API as the caller will take a Service lock
 func (service *HTTPRestService) MarkIpsAsAvailableUntransacted(ncID string, newHostNCVersion int) {
 	// Check whether it exist in service state and get the related nc info
-	if ncInfo, exist := service.state.ContainerStatus[ncID]; !exist {
+	ncInfo, exist := service.state.ContainerStatus[ncID]
+	if !exist {
 		logger.Errorf("Can't find NC with ID %s in service state, stop updating its pending programming IP status", ncID)
-	} else {
-		previousHostNCVersion, err := strconv.Atoi(ncInfo.HostVersion)
+		return
+	}
+	previousHostNCVersion, err := strconv.Atoi(ncInfo.HostVersion)
+	if err != nil {
+		logger.Printf("[MarkIpsAsAvailableUntransacted] Get int value from ncInfo.HostVersion %s failed: %v, can't proceed", ncInfo.HostVersion, err)
+		return
+	}
+	// We only need to handle the situation when dnc nc version is larger than programmed nc version
+	if previousHostNCVersion >= newHostNCVersion {
+		return
+	}
+	for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
+		ipConfigStatus, exist := service.PodIPConfigState[uuid]
+		if !exist {
+			logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", secondaryIPConfigs.IPAddress, uuid)
+			continue
+		}
+		// In block allocations, IPs do not have UUIDs, so the ID is actually the IP string. In these scenarios, we need to double check that
+		// the IP is the one for the NC we are processing in case there is stale IP data in PodIPConfigState from a previous NC.
+		if ipConfigStatus.NCID != ncID {
+			logger.Errorf("IP %s with uuid as %s NCID %s mismatch with current processing NCID %s, skip updating its status", ipConfigStatus.IPAddress, uuid, ipConfigStatus.NCID, ncID)
+			continue
+		}
+		if ipConfigStatus.GetState() != types.PendingProgramming || secondaryIPConfigs.NCVersion > newHostNCVersion {
+			continue
+		}
+		_, err := service.updateIPConfigState(uuid, types.Available, nil)
 		if err != nil {
-			logger.Printf("[MarkIpsAsAvailableUntransacted] Get int value from ncInfo.HostVersion %s failed: %v, can't proceed", ncInfo.HostVersion, err)
-			return
+			logger.Errorf("Error updating IPConfig [%+v] state to Available, err: %+v", ipConfigStatus, err)
+			continue
 		}
-		// We only need to handle the situation when dnc nc version is larger than programmed nc version
-		if previousHostNCVersion < newHostNCVersion {
-			for uuid, secondaryIPConfigs := range ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs {
-				if ipConfigStatus, exist := service.PodIPConfigState[uuid]; !exist {
-					logger.Errorf("IP %s with uuid as %s exist in service state Secondary IP list but can't find in PodIPConfigState", ipConfigStatus.IPAddress, uuid)
-				} else if ipConfigStatus.GetState() == types.PendingProgramming && secondaryIPConfigs.NCVersion <= newHostNCVersion {
-					_, err := service.updateIPConfigState(uuid, types.Available, nil)
-					if err != nil {
-						logger.Errorf("Error updating IPConfig [%+v] state to Available, err: %+v", ipConfigStatus, err)
-					}
-
-					// Following 2 sentence assign new host version to secondary ip config.
-					secondaryIPConfigs.NCVersion = newHostNCVersion
-					ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid] = secondaryIPConfigs
-					logger.Printf("Change ip %s with uuid %s from pending programming to %s, current secondary ip configs is %+v", ipConfigStatus.IPAddress, uuid, types.Available,
-						ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid])
-				}
-			}
-		}
+		secondaryIPConfigs.NCVersion = newHostNCVersion
+		ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid] = secondaryIPConfigs
+		logger.Printf("Change ip %s with uuid %s from pending programming to %s, current secondary ip configs is %+v", ipConfigStatus.IPAddress, uuid, types.Available, ncInfo.CreateNetworkContainerRequest.SecondaryIPConfigs[uuid])
 	}
 }
 
