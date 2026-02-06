@@ -197,10 +197,10 @@ ipv6-hp-bpf-binary: bpf-lib
 # Libraries for bpf
 bpf-lib:
 ifeq ($(GOARCH),amd64)
-	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
+	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev libbpf-dev libc6-dev nftables iproute2 gcc-multilib
 	for dir in /usr/include/x86_64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
 else ifeq ($(GOARCH),arm64)
-	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
+	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
 	for dir in /usr/include/aarch64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
 endif
 

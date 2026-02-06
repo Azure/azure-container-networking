@@ -9,7 +9,7 @@ WORKDIR /bpf-prog/ipv6-hp-bpf
 COPY ./bpf-prog/ipv6-hp-bpf .
 COPY ./bpf-prog/ipv6-hp-bpf/cmd/ipv6-hp-bpf/*.go /bpf-prog/ipv6-hp-bpf/
 COPY ./bpf-prog/ipv6-hp-bpf/include/helper.h /bpf-prog/ipv6-hp-bpf/include/helper.h
-RUN apt-get update && apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
+RUN apt-get update && apt-get install -y llvm clang linux-libc-dev libbpf-dev libc6-dev nftables iproute2
 RUN mkdir -p /tmp/lib
 RUN if [ "$ARCH" = "arm64" ]; then \
     apt-get install -y gcc-aarch64-linux-gnu && \
