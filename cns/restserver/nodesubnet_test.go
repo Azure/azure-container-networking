@@ -96,19 +96,15 @@ func TestNodeSubnet(t *testing.T) {
 
 	checkIPassignment(t, service, expectedIPs)
 
-	service.StartNodeSubnet(ctx)
+	if err := service.StartNodeSubnet(ctx); err != nil {
+		t.Fatalf("StartNodeSubnet returned an error: %v", err)
+	}
 
 	if service.GetNodesubnetIPFetcher() == nil {
 		t.Fatal("NodeSubnetIPFetcher is not initialized")
 	}
 
-	select {
-	case <-ctx.Done():
-		t.Errorf("test context done - %s", ctx.Err())
-		return
-	case <-mockCNIConflistGenerator.GenerateCalled:
-		break
-	}
+	service.Wait(ctx)
 
 	expectedIPs["10.0.0.45"] = types.Available
 	checkIPassignment(t, service, expectedIPs)
