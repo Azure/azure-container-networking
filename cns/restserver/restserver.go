@@ -76,12 +76,27 @@ type iptablesGetter interface {
 	GetIPTablesLegacy() (iptablesLegacyClient, error)
 }
 
+// IPRuleClient is an interface for netlink ip rule operations.
+// This is used to program ip rules for routing traffic to specific destinations.
+type IPRuleClient interface {
+	RuleList(family int) ([]IPRule, error)
+	RuleAdd(rule *IPRule) error
+}
+
+// IPRule represents an ip routing rule.
+type IPRule struct {
+	Dst      *net.IPNet
+	Table    int
+	Priority int
+}
+
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
 	dockerClient             *dockerclient.Client
 	wscli                    interfaceGetter
 	iptables                 iptablesGetter
+	ipruleclient             IPRuleClient
 	nma                      nmagentClient
 	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
@@ -191,7 +206,7 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, iptg iptablesGetter, nmagentClient nmagentClient,
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, iptg iptablesGetter, ipRuleClient IPRuleClient, nmagentClient nmagentClient,
 	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
 	imdsClient imdsClient,
 ) (*HTTPRestService, error) {
@@ -239,6 +254,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		dockerClient:             dc,
 		wscli:                    wscli,
 		iptables:                 iptg,
+		ipruleclient:             ipRuleClient,
 		nma:                      nmagentClient,
 		wsproxy:                  wsproxy,
 		networkContainer:         nc,
