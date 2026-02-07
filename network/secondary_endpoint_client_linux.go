@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/netns"
@@ -191,7 +192,14 @@ func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
 			logger.Error("Failed to exit netns with", zap.Error(newErrorSecondaryEndpointClient(err)))
 		}
 	}()
-	// TODO: For stateless cni linux, check if delegated vmnic type, and if so, delete using this *endpoint* struct's ifname
+	// For stateless cni linux, check if delegated vmnic type, and if so, move the interface back to host network namespace using this *endpoint* struct's ifname
+	if ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
+		if err := client.netlink.SetLinkNetNs(ep.IfName, uintptr(vmns)); err != nil {
+			wrappedErr := newErrorSecondaryEndpointClient(err)
+			logger.Error("Failed to move interface", zap.String("IfName", ep.IfName), zap.Error(wrappedErr))
+			return wrappedErr
+		}
+	}
 	for iface := range ep.SecondaryInterfaces {
 		if err := client.netlink.SetLinkNetNs(iface, uintptr(vmns)); err != nil {
 			logger.Error("Failed to move interface", zap.String("IfName", iface), zap.Error(newErrorSecondaryEndpointClient(err)))
