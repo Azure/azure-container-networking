@@ -13,7 +13,7 @@ stages:
       - ${{ if eq(parameters.dependsOn, 'publish') }}:
         - name: IMAGE_REPO_PATH_REF
           value: 'azure-'
-      - ${{ else }}:
+      - ${{ if ne(parameters.dependsOn, 'publish') }}:
         - name: IMAGE_REPO_PATH_REF
           value: $(IMAGE_REPO_PATH)
     dependsOn:
