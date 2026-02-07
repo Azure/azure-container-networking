@@ -95,23 +95,13 @@ func (s *TelemetrySidecar) buildTelemetryConfig(cnsConfig *configuration.CNSConf
 	}
 }
 
-// getAppInsightsKey returns the AppInsights key with priority: build-time > config > env var.
-func (s *TelemetrySidecar) getAppInsightsKey(cnsConfig *configuration.CNSConfig) string {
-	if key := telemetry.GetAIMetadata(); key != "" {
-		return key
-	}
-	if cnsConfig != nil && cnsConfig.TelemetrySettings.AppInsightsInstrumentationKey != "" {
-		return cnsConfig.TelemetrySettings.AppInsightsInstrumentationKey
-	}
-	return os.Getenv(appInsightsEnvVar)
-}
-
 func (s *TelemetrySidecar) startTelemetryService(ctx context.Context, config telemetry.TelemetryConfig, cnsConfig *configuration.CNSConfig) error {
-	// If we have an AI key from config or env but not from build-time, set it in the telemetry package
-	// so that CreateAITelemetryHandle and GetAIMetadata checks work correctly.
+	// Set AI key from config or env var if not already set at build time
 	if telemetry.GetAIMetadata() == "" {
-		if aiKey := s.getAppInsightsKey(cnsConfig); aiKey != "" {
-			telemetry.SetAIMetadata(aiKey)
+		if key := cnsConfig.TelemetrySettings.AppInsightsInstrumentationKey; key != "" {
+			telemetry.SetAIMetadata(key)
+		} else if key := os.Getenv(appInsightsEnvVar); key != "" {
+			telemetry.SetAIMetadata(key)
 		}
 	}
 
