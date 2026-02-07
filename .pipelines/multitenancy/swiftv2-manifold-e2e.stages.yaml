@@ -28,6 +28,7 @@ stages:
           isCustom: true
           type: linux
         steps:
+          - checkout: azure-container-networking
           - task: TriggerBuild@3
             inputs:
               buildDefinition: '391699'
