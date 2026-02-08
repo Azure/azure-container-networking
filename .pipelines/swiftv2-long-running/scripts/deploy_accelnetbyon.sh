@@ -91,13 +91,30 @@ for cluster_name in $cluster_names; do
   echo "Applying RuntimeClass for cluster $cluster_name"
   kubectl apply -f "${SCRIPT_DIR}/runclass.yaml" --kubeconfig "./kubeconfig-${cluster_name}.yaml" || exit 1
   
-  # echo "Installing CNI plugins for cluster $cluster_name"
-  # if ! helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
-  #       --set installCniPlugins.enabled=true \
-  #       --kubeconfig "./kubeconfig-${cluster_name}"; then
-  #   echo "##vso[task.logissue type=error]Failed to install CNI plugins for cluster ${cluster_name}"
-  #   exit 1
-  # fi
+  # Get the managed CNS Windows image version from AKS-RP
+  CNS_WIN_IMAGE=$(kubectl get ds azure-cns-win -n kube-system -o jsonpath='{.spec.template.spec.containers[0].image}' --kubeconfig "./kubeconfig-${cluster_name}")
+  if [[ -z "$CNS_WIN_IMAGE" ]]; then
+    echo "Warning: azure-cns-win DaemonSet not found, using default version"
+    CNS_WIN_VERSION="v1.7.9-0"  # fallback
+  else
+    CNS_WIN_VERSION=$(echo "$CNS_WIN_IMAGE" | sed -E 's|.*cns:||')
+  fi
+echo "Using AKS-RP CNS Windows version: $CNS_WIN_VERSION"
+
+  # Get Linux CNS version
+  CNS_IMAGE=$(kubectl get ds azure-cns -n kube-system -o jsonpath='{.spec.template.spec.containers[0].image}' --kubeconfig "./kubeconfig-${cluster_name}")
+  CNS_VERSION=$(echo "$CNS_IMAGE" | sed -E 's|.*cns:||')
+  echo "Using AKS-RP CNS Linux version: $CNS_VERSION"
+
+  # Install with unmanaged CNS using AKS-RP versions
+  helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
+      --set installCniPlugins.enabled=true \
+      --set azurecnsUnmanaged.enabled=true \
+      --set azurecnsUnmanaged.version=$CNS_VERSION \
+      --set azurecnsUnmanaged.versionWindows=$CNS_WIN_VERSION \
+      --set azurecnsUnmanaged.imageRegistry=mcr.microsoft.com/containernetworking \
+      --set azurecnsUnmanaged.imagePrefix="" \
+      --kubeconfig "./kubeconfig-${cluster_name}"
   
   bash ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/parse.sh -k ./kubeconfig-${cluster_name}.yaml -p ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/pws.ps1
 
