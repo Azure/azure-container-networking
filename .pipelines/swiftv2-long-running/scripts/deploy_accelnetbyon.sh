@@ -112,8 +112,8 @@ echo "Using AKS-RP CNS Windows version: $CNS_WIN_VERSION"
       --set azurecnsUnmanaged.enabled=true \
       --set azurecnsUnmanaged.version=$CNS_VERSION \
       --set azurecnsUnmanaged.versionWindows=$CNS_WIN_VERSION \
-      --set azurecnsUnmanaged.imageRegistry=mcr.microsoft.com/containernetworking \
-      --set azurecnsUnmanaged.imagePrefix="" \
+      --set azurecnsUnmanaged.imageRegistry="mcr.microsoft.com/containernetworking" \
+      --set azurecnsUnmanaged.imagePrefix="azure-" \
       --kubeconfig "./kubeconfig-${cluster_name}"
   
   bash ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/parse.sh -k ./kubeconfig-${cluster_name}.yaml -p ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/pws.ps1
