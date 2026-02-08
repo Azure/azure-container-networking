@@ -24,7 +24,7 @@ echo "Building azure-block-iptables binary..."
 if [[ -f /etc/debian_version ]]; then
 
   apt-get update -y
-  apt-get install -y --no-install-recommends llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
+  apt-get install -y --no-install-recommends llvm clang linux-libc-dev libbpf-dev libc6-dev nftables iproute2
   
   if [[ $ARCH =~ amd64 ]]; then
     apt-get install -y --no-install-recommends gcc-multilib
