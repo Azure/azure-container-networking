@@ -91,13 +91,13 @@ for cluster_name in $cluster_names; do
   echo "Applying RuntimeClass for cluster $cluster_name"
   kubectl apply -f "${SCRIPT_DIR}/runclass.yaml" --kubeconfig "./kubeconfig-${cluster_name}.yaml" || exit 1
   
-  echo "Installing CNI plugins for cluster $cluster_name"
-  if ! helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
-        --set installCniPlugins.enabled=true \
-        --kubeconfig "./kubeconfig-${cluster_name}"; then
-    echo "##vso[task.logissue type=error]Failed to install CNI plugins for cluster ${cluster_name}"
-    exit 1
-  fi
+  # echo "Installing CNI plugins for cluster $cluster_name"
+  # if ! helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
+  #       --set installCniPlugins.enabled=true \
+  #       --kubeconfig "./kubeconfig-${cluster_name}"; then
+  #   echo "##vso[task.logissue type=error]Failed to install CNI plugins for cluster ${cluster_name}"
+  #   exit 1
+  # fi
   
   bash ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/parse.sh -k ./kubeconfig-${cluster_name}.yaml -p ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/pws.ps1
 
