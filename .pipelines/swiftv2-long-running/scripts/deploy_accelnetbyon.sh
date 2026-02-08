@@ -91,6 +91,22 @@ for cluster_name in $cluster_names; do
   echo "Applying RuntimeClass for cluster $cluster_name"
   kubectl apply -f "${SCRIPT_DIR}/runclass.yaml" --kubeconfig "./kubeconfig-${cluster_name}.yaml" || exit 1
   
+  echo "Creating L1VH Accelnet BYON for cluster: $cluster_name"
+  tip_base_index=$((cluster_index * 4))
+  tip_offset=0
+  cluster_prefix="${cluster_prefixes[$cluster_name]}"
+  
+  for config in "${vmss_configs[@]}"; do
+    IFS=':' read -r base_node_name vmss_sku nic_count <<< "$config"
+    node_name="${cluster_prefix}${base_node_name}"
+    echo "Creating VMSS: $node_name with SKU: $vmss_sku, NICs: $nic_count"
+    create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count"
+    # wait_for_nodes_ready "$cluster_name" "$node_name" "1"
+    tip_offset=$((tip_offset + 1))
+  done
+  
+  label_vmss_nodes "$cluster_name" "$cluster_prefix"
+
   # Get the managed CNS Windows image version from AKS-RP
   CNS_WIN_IMAGE=$(kubectl get ds azure-cns-win -n kube-system -o jsonpath='{.spec.template.spec.containers[0].image}' --kubeconfig "./kubeconfig-${cluster_name}")
   if [[ -z "$CNS_WIN_IMAGE" ]]; then
@@ -99,7 +115,7 @@ for cluster_name in $cluster_names; do
   else
     CNS_WIN_VERSION=$(echo "$CNS_WIN_IMAGE" | sed -E 's|.*cns:||')
   fi
-echo "Using AKS-RP CNS Windows version: $CNS_WIN_VERSION"
+  echo "Using AKS-RP CNS Windows version: $CNS_WIN_VERSION"
 
   # Get Linux CNS version
   CNS_IMAGE=$(kubectl get ds azure-cns -n kube-system -o jsonpath='{.spec.template.spec.containers[0].image}' --kubeconfig "./kubeconfig-${cluster_name}")
@@ -117,21 +133,6 @@ echo "Using AKS-RP CNS Windows version: $CNS_WIN_VERSION"
       --kubeconfig "./kubeconfig-${cluster_name}"
   bash ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/parse.sh -k ./kubeconfig-${cluster_name}.yaml -p ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/pws.ps1
 
-  echo "Creating L1VH Accelnet BYON for cluster: $cluster_name"
-  tip_base_index=$((cluster_index * 4))
-  tip_offset=0
-  cluster_prefix="${cluster_prefixes[$cluster_name]}"
-  
-  for config in "${vmss_configs[@]}"; do
-    IFS=':' read -r base_node_name vmss_sku nic_count <<< "$config"
-    node_name="${cluster_prefix}${base_node_name}"
-    echo "Creating VMSS: $node_name with SKU: $vmss_sku, NICs: $nic_count"
-    create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count"
-    # wait_for_nodes_ready "$cluster_name" "$node_name" "1"
-    tip_offset=$((tip_offset + 1))
-  done
-  
-  label_vmss_nodes "$cluster_name" "$cluster_prefix"
   cluster_index=$((cluster_index + 1))
 done
 
