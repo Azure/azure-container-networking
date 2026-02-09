@@ -87,7 +87,7 @@ func (service *HTTPRestService) getPrimaryNICMACAddress() (string, error) {
 	return macAddress, nil
 }
 
-// ProgramWireserverRule is a no-op on Windows.
-func (service *HTTPRestService) ProgramWireserverRule() error {
+// AddNodeIPRule is a no-op on Windows.
+func (service *HTTPRestService) AddNodeIPRule() error {
 	return nil
 }
