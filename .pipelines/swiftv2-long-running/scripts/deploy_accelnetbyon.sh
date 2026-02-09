@@ -91,6 +91,8 @@ for cluster_name in $cluster_names; do
   echo "Applying RuntimeClass for cluster $cluster_name"
   kubectl apply -f "${SCRIPT_DIR}/runclass.yaml" --kubeconfig "./kubeconfig-${cluster_name}.yaml" || exit 1
   
+  bash ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/parse.sh -k ./kubeconfig-${cluster_name}.yaml -p ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/pws.ps1
+  
   echo "Creating L1VH Accelnet BYON for cluster: $cluster_name"
   tip_base_index=$((cluster_index * 4))
   tip_offset=0
