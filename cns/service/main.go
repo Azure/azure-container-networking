@@ -1714,12 +1714,30 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 		Cli: directcli,
 	}
 
+	nmaConfig, err := nmagent.NewConfig("")
+	if err != nil {
+		return errors.Wrap(err, "failed to create nmagent config")
+	}
+	nmaCli, err := nmagent.NewClient(nmaConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to create nmagent client")
+	}
+
+	var homeAz string
+	homeAzResponse, err := nmaCli.GetHomeAz(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get HomeAZ from nmagent")
+	} else if homeAzResponse.HomeAz > 0 {
+		homeAz = fmt.Sprintf("AZ%02d", homeAzResponse.HomeAz)
+	}
+
 	nodeInfo := &mtv1alpha1.NodeInfo{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: node.Name,
 		},
 		Spec: mtv1alpha1.NodeInfoSpec{
 			VMUniqueID: vmUniqueID,
+			HomeAZ:     homeAz,
 		},
 	}
 
