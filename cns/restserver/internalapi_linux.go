@@ -14,6 +14,7 @@ import (
 	goiptables "github.com/coreos/go-iptables/iptables"
 	"github.com/pkg/errors"
 	vishnetlink "github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 const SWIFTPOSTROUTING = "SWIFT-POSTROUTING"
@@ -24,9 +25,6 @@ const WireserverIP = "168.63.129.16"
 // WireserverRulePriority is the priority for the ip rule that routes wireserver traffic via main table.
 // This ensures wireserver traffic goes through eth0 (infra NIC) even when other rules are added.
 const WireserverRulePriority = 0
-
-// MainRouteTable is the main routing table number (equivalent to unix.RT_TABLE_MAIN).
-const MainRouteTable = 254
 
 type IPtablesProvider struct{}
 
@@ -220,7 +218,7 @@ func (n *NetlinkIPRuleClient) RuleAdd(rule *IPRule) error {
 func (service *HTTPRestService) AddNodeIPRule() error {
 	// For delegated NIC scenarios, pod traffic goes through eth1. This rule ensures that traffic to
 	// the wireserver IP goes through the correct interface via the main routing table
-	return service.addIPRule(WireserverIP, MainRouteTable, WireserverRulePriority)
+	return service.addIPRule(WireserverIP, unix.RT_TABLE_MAIN, WireserverRulePriority)
 }
 
 // addIPRule programs an ip rule to route traffic for the given destination IP
