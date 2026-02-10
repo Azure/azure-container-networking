@@ -8,6 +8,15 @@ RUN MS_GO_NOSYSTEMCRYPTO=1 CGO_ENABLED=0 go build -v -o /usr/local/bin/azure-npm
 
 FROM mcr.microsoft.com/mirror/docker/library/ubuntu:24.04 AS linux
 COPY --from=builder /usr/local/bin/azure-npm /usr/bin/azure-npm
-RUN apt-get update && apt-get install -y iptables ipset ca-certificates && apt-get autoremove -y && apt-get clean
+RUN apt-get update && apt-get install -y \
+    iptables ipset ca-certificates \
+    # Patch CVE-2025-68973 (gpgv)
+    gpgv=2.4.4-2ubuntu17.4 \
+    # Patch CVE-2025-15281, CVE-2026-0861, CVE-2026-0915 (glibc)
+    libc-bin=2.39-0ubuntu8.7 \
+    libc6=2.39-0ubuntu8.7 \
+    # Patch CVE-2025-13151 (libtasn1)
+    libtasn1-6=4.19.0-3ubuntu0.24.04.2 \
+    && apt-get autoremove -y && apt-get clean
 RUN chmod +x /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
