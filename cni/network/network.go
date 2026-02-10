@@ -18,7 +18,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
-	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/dhcp"
 	"github.com/Azure/azure-container-networking/iptables"
@@ -719,7 +718,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		*opt.infraSeen = true
 	} else {
 		ifName = "eth" + strconv.Itoa(opt.endpointIndex)
-		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, ifName)
+		endpointID = plugin.nm.GetEndpointIDByNicType(opt.args.ContainerID, ifName, opt.ifInfo.NICType)
 	}
 
 	endpointInfo := network.EndpointInfo{
@@ -1046,13 +1045,15 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	networkID, err = plugin.getNetworkID(args.Netns, nil, nwCfg)
 	if nwInfo, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
 		if !nwCfg.MultiTenancy {
-			logger.Error("Failed to query network",
-				zap.String("network", networkID),
-				zap.Error(err))
 			// Log the error if the network is not found.
 			// if cni hits this, mostly state file would be missing and it can be reboot scenario where
 			// container runtime tries to delete and create pods which existed before reboot.
-			// this condition will not apply to stateless CNI since the network struct will be crated on each call
+			// this condition will not apply to stateless CNI since the network struct will be created on Delete calls
+			if !plugin.nm.IsStatelessCNIMode() {
+				logger.Error("Failed to query network",
+					zap.String("network", networkID),
+					zap.Error(err))
+			}
 			err = nil
 		}
 	}
@@ -1075,33 +1076,23 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	if plugin.nm.IsStatelessCNIMode() {
 		// network ID is passed in and used only for migration
 		// otherwise, in stateless, we don't need the network id for deletion
-		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID)
-		// if stateless CNI fail to get the endpoint from CNS for any reason other than  Endpoint Not found
-		if err != nil {
-			// async delete should be disabled for standalone scenario
-			if errors.Is(err, network.ErrConnectionFailure) && !nwCfg.DisableAsyncDelete {
-				logger.Info("failed to connect to CNS", zap.String("containerID", args.ContainerID), zap.Error(err))
-				addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
-				logger.Info("add containerid file for Asynch delete", zap.String("containerID", args.ContainerID), zap.Error(addErr))
-				if addErr != nil {
-					logger.Error("failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
-					return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s", args.ContainerID))
-				}
-				return nil
-			}
-			if errors.Is(err, network.ErrEndpointStateNotFound) {
-				logger.Info("Endpoint Not found", zap.String("containerID", args.ContainerID), zap.Error(err))
-				return nil
-			}
+		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID, args.Netns)
+		// if stateless CNI fails to get the endpoint from CNS for any reason other than
+		// endpoint not found or connection failure, return error
+		if err != nil && !errors.Is(err, network.ErrEndpointStateNotFound) && !errors.Is(err, network.ErrConnectionFailure) {
 			logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
 			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 		}
+		// set the error to nil if endpoint state is not found or connection failure to CNS;
+		// the next if block (len(epInfos) == 0) will handle that ip release if necessary
+		err = nil
 	} else {
 		epInfos = plugin.nm.GetEndpointInfosFromContainerID(args.ContainerID)
 	}
 
 	// for when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
-	// this block is not applied to stateless CNI
+	// this block applies to stateless CNI if either endpoint state is not found or there is a CNS connection failure
+	// if there is a connection failure to CNS, IP release will be handled asynchronously by the CNS invoker (via ipamInvoker.Delete)
 	if len(epInfos) == 0 {
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		if !nwCfg.MultiTenancy {
