@@ -86,3 +86,13 @@ func CloseAITelemetryHandle() {
 		th.Close(waitTimeInSecs)
 	}
 }
+
+// GetAIMetadata returns the current aiMetadata value
+func GetAIMetadata() string {
+	return aiMetadata
+}
+
+// SetAIMetadata sets the aiMetadata value (for runtime configuration)
+func SetAIMetadata(metadata string) {
+	aiMetadata = metadata
+}
