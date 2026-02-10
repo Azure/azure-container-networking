@@ -36,8 +36,8 @@ steps:
         unset DIR
         unset CILIUM_VERSION_TAG
         make -C ./hack/aks deploy-cilium-hubble
-        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=acnpublic.azurecr.io
-        export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(make cilium-log-collector-version)
+        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=$(CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE)
+        export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE)
         make -C ./hack/aks add-cilium-log-collector
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
