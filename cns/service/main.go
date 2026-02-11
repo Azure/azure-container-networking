@@ -1322,14 +1322,6 @@ type nodeRuleProgrammer interface {
 // TODO(rbtr) where should this live??
 // reconcileInitialCNSState initializes cns by passing pods and a CreateNetworkContainerRequest
 func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ipamReconciler ipamStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider, isSwiftV2 bool, nodeProg nodeRuleProgrammer) error {
-	// Program node-level ip rules to ensure critical traffic is routed correctly.
-	if nodeProg != nil {
-		if err := nodeProg.AddNodeIPRule(); err != nil {
-			logger.Errorf("[Azure CNS] Failed to program node ip rule, err:%v.", err)
-			// Don't fail initialization, just log the error - wireserver connectivity may still work
-		}
-	}
-
 	// Get nnc using direct client
 	nnc, err := cli.Get(ctx)
 	if err != nil {
@@ -1384,6 +1376,14 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 	// Call cnsclient init cns passing those two things.
 	if err := restserver.ResponseCodeToError(ipamReconciler.ReconcileIPAMStateForSwift(ncReqs, podInfoByIP, nnc)); err != nil {
 		return errors.Wrap(err, "failed to reconcile CNS IPAM state")
+	}
+
+	// Program node-level ip rules to ensure critical traffic is routed correctly.
+	if nodeProg != nil {
+		if err := nodeProg.AddNodeIPRule(); err != nil {
+			logger.Errorf("[Azure CNS] Failed to program node ip rule, err:%v.", err)
+			// Don't fail initialization, just log the error - wireserver connectivity may still work
+		}
 	}
 
 	return nil
