@@ -23,6 +23,7 @@ const (
 
 type CNSConfig struct {
 	AZRSettings                 AZRSettings
+	AlwaysWriteNodeInfoCRD      bool
 	AsyncPodDeletePath          string
 	CNIConflistFilepath         string
 	CNIConflistScenario         string
