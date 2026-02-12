@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: cns-win-config
+  name: cns-config
   namespace: kube-system
 data:
   cns_config.json: |
@@ -15,7 +15,7 @@ data:
           "DebugMode": true,
           "SnapshotIntervalInMins": 60,
           "EnableCNITelemetry": true,
-          "CNITelemetrySocketPath": "\\\\.\\pipe\\azure-vnet-telemetry"
+          "CNITelemetrySocketPath": "/var/run/azure-vnet-telemetry.sock"
       },
       "ManagedSettings": {
           "PrivateEndpoint": "",
@@ -25,10 +25,10 @@ data:
       },
       "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs",
       "ChannelMode": "CRD",
-      "CNIConflistFilepath": "C:\\k\\azurecni\\netconf\\10-azure.conflist",
+      "CNIConflistFilepath": "/etc/cni/net.d/15-azure-swift-overlay.conflist",
       "CNIConflistScenario": "v4overlay",
       "EnableAsyncPodDelete": true,
-      "EnableCNIConflistGeneration": false,
+      "EnableCNIConflistGeneration": true,
       "EnableIPAMv2": true,
       "EnableStateMigration": false,
       "EnableSubnetScarcity": false,

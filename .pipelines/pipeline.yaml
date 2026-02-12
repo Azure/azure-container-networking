@@ -416,16 +416,16 @@ stages:
         dependsOn: ["test"]
         scaleup: 50
 
-    # Azure Overlay E2E Stateless CNI tests
-    - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml
+    # Azure Overlay E2E Stateless CNI tests (Linux + Windows with Telemetry Sidecar)
+    - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e.stages.yaml
       parameters:
         name: "azure_overlay_stateless_e2e"
         displayName: Azure Stateless CNI Overlay
-        os: windows
         clusterType: overlay-byocni-up
-        clusterName: "statelesswin"
+        clusterName: "statelesscni"
         vmSize: Standard_B2ms
-        dependsOn: ["test"]
+        k8sVersion: ""
+        dependsOn: "test"
 
     # AKS Swift E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
@@ -577,7 +577,7 @@ stages:
                 region: $(REGION_AKS_CLUSTER_TEST)
               azure_overlay_stateless_e2e:
                 name: azure_overlay_stateless_e2e
-                clusterName: "statelesswin"
+                clusterName: "statelesscni"
                 region: $(REGION_AKS_CLUSTER_TEST)
               aks_swift_e2e:
                 name: aks_swift_e2e
