@@ -56,7 +56,7 @@ spec:
                 type: boolean
               podIPReservationSize:
                 default: 0
-                description: Deprecated - use PodNetworks
+                description: Deprecated - use PodNetworkConfigs
                 type: integer
               podNetworkConfigs:
                 description: |-
@@ -66,6 +66,18 @@ spec:
                   description: PodNetworkConfig describes a template for how to attach
                     a PodNetwork to a Pod
                   properties:
+                    ipConstraint:
+                      default: ""
+                      description: |-
+                        IPConstraint specifies criteria for selecting IP addresses from the PodNetwork's subnet.
+                        Must be a valid IPv4 address or CIDR notation with /32 prefix.
+                        This is an optional field.
+                        Examples:
+                          - IPv4 address: "192.168.0.1"
+                          - IPv4 CIDR:    "192.168.0.1/32"
+                      maxLength: 18
+                      pattern: ^$|^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\/32)?$
+                      type: string
                     podIPReservationSize:
                       default: 0
                       description: PodIPReservationSize is the number of IP address
@@ -77,9 +89,14 @@ spec:
                   required:
                   - podNetwork
                   type: object
+                  x-kubernetes-validations:
+                  - message: ipConstraint can only be specified when podIPReservationSize
+                      is 1
+                    rule: size(self.ipConstraint) == 0 || self.podIPReservationSize
+                      == 1
                 type: array
               podnetwork:
-                description: Deprecated - use PodNetworks
+                description: Deprecated - use PodNetworkConfigs
                 type: string
             type: object
           status:
