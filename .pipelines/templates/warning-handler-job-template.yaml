@@ -1,0 +1,38 @@
+parameters:
+  dependsOnToEmitWarning: ""
+  clusterName: ""
+  fileSearchPattern: ""
+  searchPattern: ""
+  cni: ""
+  os: ""
+
+jobs:
+  - job: warningHandler
+    displayName: "Handle E2E Warning"
+    dependsOn: ${{ parameters.dependsOnToEmitWarning }}
+    condition: eq(dependencies.${{ parameters.dependsOnToEmitWarning }}.result, 'SucceededWithIssues')
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+      - agent.os -equals Linux
+      - Role -equals $(CUSTOM_E2E_ROLE)
+    steps:
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptLocation: "inlineScript"
+          scriptType: "bash"
+          addSpnToEnvironment: true
+          inlineScript: |
+            make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        displayName: Set Up Kubeconfig
+        condition: always()
+      - script: |
+          cd hack/scripts
+          acnLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_check_common_issues
+          acnLogs=$acnLogs cni=${{ parameters.cni }} bash collect-${{ parameters.os }}-logs.sh
+          echo "acnLogs directory: $acnLogs"
+          pwd
+          bash check-cni-log-contents.sh "$acnLogs" "${{ parameters.fileSearchPattern }}" "${{ parameters.searchPattern }}"
+        displayName: Check for known ${{ parameters.os }} issue
+        condition: always()
