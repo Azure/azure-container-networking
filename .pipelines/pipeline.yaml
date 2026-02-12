@@ -417,7 +417,7 @@ stages:
         scaleup: 50
 
     # Azure Overlay E2E Stateless CNI tests (Linux + Windows with Telemetry Sidecar)
-    - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e.stages.yaml
+    - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml
       parameters:
         name: "azure_overlay_stateless_e2e"
         displayName: Azure Stateless CNI Overlay

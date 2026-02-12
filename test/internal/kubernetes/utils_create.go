@@ -727,6 +727,10 @@ func parseCNSDaemonset(cnsScenarioMap map[CNSScenario]map[corev1.OSName]cnsDetai
 			sidecarInitContainer := *cnsScenarioDetails.sidecarInitContainer
 			// Use the same image as the main init container (dropgz)
 			sidecarInitContainer.Image = cnsScenarioDetails.initContainerName
+			// Copy Env from primary init container for Windows compatibility (e.g., PATHEXT)
+			if len(cns.Spec.Template.Spec.InitContainers) > 0 {
+				sidecarInitContainer.Env = cns.Spec.Template.Spec.InitContainers[0].Env
+			}
 			cns.Spec.Template.Spec.InitContainers = append(cns.Spec.Template.Spec.InitContainers, sidecarInitContainer)
 		}
 		if cnsScenarioDetails.sidecarContainer != nil {

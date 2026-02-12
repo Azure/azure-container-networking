@@ -39,7 +39,9 @@ steps:
         sudo -E env "PATH=$PATH" make test-load \
           SCALE_UP=32 OS_TYPE=linux CNI_TYPE=stateless VALIDATE_STATEFILE=true VALIDATE_V4OVERLAY=true \
           INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true CLEANUP=true \
-          AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version)
+          AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
+          IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) \
+          CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
       name: "LinuxOverlayControlPlaneScaleTests"
       displayName: "Linux v4Overlay ControlPlane Scale Tests"
       retryCountOnTaskFailure: 2
@@ -48,7 +50,7 @@ steps:
         echo "Validate telemetry sidecar binary is deployed on Linux nodes"
         for node in $(kubectl get nodes -o jsonpath='{.items[?(@.status.nodeInfo.operatingSystem=="linux")].metadata.name}'); do
           echo "Checking telemetry sidecar on node: $node"
-          kubectl debug node/$node -it --image=alpine -- cat /host/opt/cni/bin/azure-cni-telemetry-sidecar > /dev/null 2>&1 && echo "Telemetry sidecar binary found on $node" || echo "WARNING: Telemetry sidecar binary NOT found on $node"
+          kubectl debug node/$node --image=alpine -- cat /host/opt/cni/bin/azure-cni-telemetry-sidecar > /dev/null 2>&1 && echo "Telemetry sidecar binary found on $node" || echo "WARNING: Telemetry sidecar binary NOT found on $node"
         done
       name: "ValidateTelemetrySidecarLinux"
       displayName: "Validate Telemetry Sidecar Deployment - Linux"
@@ -117,7 +119,9 @@ steps:
         sudo -E env "PATH=$PATH" make test-load \
           SCALE_UP=32 OS_TYPE=windows CNI_TYPE=stateless VALIDATE_STATEFILE=true VALIDATE_V4OVERLAY=true \
           INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true CLEANUP=true \
-          AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version)
+          AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
+          IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) \
+          CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
       name: "WindowsOverlayControlPlaneScaleTests"
       displayName: "Windows v4Overlay ControlPlane Scale Tests"
       retryCountOnTaskFailure: 2
