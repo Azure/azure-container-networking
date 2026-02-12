@@ -5,6 +5,7 @@ package network
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"sync"
 	"time"
@@ -193,6 +194,7 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	// Read any persisted state.
 	err := nm.store.Read(storeKey, nm)
 	if err != nil {
+		var syntaxErr *json.SyntaxError
 		if err == store.ErrKeyNotFound {
 			logger.Info("network store key not found")
 			// Considered successful.
@@ -200,6 +202,17 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 		} else if err == store.ErrStoreEmpty {
 			logger.Info("network store empty")
 			return nil
+		} else if errors.As(err, &syntaxErr) {
+			// if null chars detected or failed to parse, state is unrecoverable; delete it
+			logger.Error("Failed to parse corrupted state, deleting", zap.Error(err))
+			contents, readErr := nm.store.Dump()
+			if readErr != nil {
+				logger.Error("Could not read corrupted state", zap.Error(readErr))
+			} else {
+				logger.Info("Logging state", zap.String("stateFile", contents))
+			}
+			nm.store.Remove()
+			return errors.Wrap(err, "failed to parse corrupted state")
 		} else {
 			logger.Error("Failed to restore state", zap.Error(err))
 			return err
