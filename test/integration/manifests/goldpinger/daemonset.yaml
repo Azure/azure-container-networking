@@ -14,8 +14,6 @@ spec:
         app: goldpinger
         type: goldpinger-host
     spec:
-      nodeSelector:
-        kubernetes.io/os: linux
       tolerations:
         - effect: NoSchedule
           key: node-role.kubernetes.io/master

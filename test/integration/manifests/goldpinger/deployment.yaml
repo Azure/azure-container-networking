@@ -15,8 +15,6 @@ spec:
         app: goldpinger
         type: goldpinger-pod
     spec:
-      nodeSelector:
-        kubernetes.io/os: linux
       serviceAccount: "goldpinger-serviceaccount"
       securityContext:
         runAsNonRoot: true

@@ -101,7 +101,7 @@ steps:
         kubectl wait --for=condition=Ready nodes -l kubernetes.io/os=linux --timeout=300s
         echo "Linux Datapath Test (Goldpinger)"
         cd test/integration/datapath
-        sudo -E env "PATH=$PATH" go test -count=1 datapath_linux_test.go -timeout 10m -tags=connection,integration -run ^TestDatapathLinux$
+        sudo -E env "PATH=$PATH" go test -count=1 datapath_linux_test.go -timeout 10m -tags=connection,integration -run ^TestDatapathLinux$ -osSelector=linux
       name: "LinuxDatapathTests"
       displayName: "Linux Datapath Tests (Goldpinger)"
       retryCountOnTaskFailure: 3
