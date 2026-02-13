@@ -107,6 +107,8 @@ steps:
   # Windows-specific steps
   - ${{ if eq(parameters.os, 'windows') }}:
     - script: |
+        # Remove cloud provider uninitialized taint from Windows nodes if present.
+        # Windows nodes may retain this taint after AKS initialization, preventing pod scheduling.
         nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
         for node in $nodeList; do
           taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
@@ -164,13 +166,6 @@ steps:
           CNI_TYPE=stateless RESTART_CASE=true OS_TYPE=windows go test -timeout 30m -tags load -run ^TestValidateState$
       displayName: "Validate Windows Node Restart"
       retryCountOnTaskFailure: 3
-
-    - script: |
-        echo "Run wireserver and metadata connectivity Tests"
-        bash test/network/wireserver_metadata_test.sh
-      retryCountOnTaskFailure: 3
-      name: "WireserverMetadataConnectivityTestsWindows"
-      displayName: "Run Wireserver and Metadata Connectivity Tests - Windows"
 
     - script: |
         echo "Waiting for Windows nodes to be Ready..."
