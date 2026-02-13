@@ -50,9 +50,9 @@ type cnsDetails struct {
 	containerVolumeMounts     []corev1.VolumeMount
 	configMapPath             string
 	installIPMasqAgent        bool
-	// Sidecar container support
-	sidecarContainer     *corev1.Container
-	sidecarInitContainer *corev1.Container
+	// Telemetry sidecar container and its init container that deploys the binary
+	telemetrySidecarContainer     *corev1.Container
+	telemetrySidecarInitContainer *corev1.Container
 }
 
 const (
@@ -462,8 +462,8 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayLinux(),
 				configMapPath:             cnsAzureStatelessCNIOverlayLinuxConfigMapPath,
 				installIPMasqAgent:        true,
-				sidecarContainer:          sidecarContainerForLinux(),
-				sidecarInitContainer:      sidecarInitContainerForLinux(),
+				telemetrySidecarContainer:          sidecarContainerForLinux(),
+				telemetrySidecarInitContainer:      sidecarInitContainerForLinux(),
 			},
 			corev1.Windows: {
 				daemonsetPath:          cnsWindowsDaemonSetPath,
@@ -483,8 +483,8 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayWindows(),
 				configMapPath:             cnsAzureStatelessCNIOverlayWindowsConfigMapPath,
 				installIPMasqAgent:        true,
-				sidecarContainer:          sidecarContainerForWindows(),
-				sidecarInitContainer:      sidecarInitContainerForWindows(),
+				telemetrySidecarContainer:          sidecarContainerForWindows(),
+				telemetrySidecarInitContainer:      sidecarInitContainerForWindows(),
 			},
 		},
 		EnvInstallAzilium: {
@@ -722,19 +722,19 @@ func parseCNSDaemonset(cnsScenarioMap map[CNSScenario]map[corev1.OSName]cnsDetai
 			cns.Spec.Template.Spec.Containers[0].VolumeMounts = cnsScenarioDetails.containerVolumeMounts
 		}
 
-		// add sidecar init container and container if defined
-		if cnsScenarioDetails.sidecarInitContainer != nil {
-			sidecarInitContainer := *cnsScenarioDetails.sidecarInitContainer
+		// add telemetry sidecar init container and container if defined
+		if cnsScenarioDetails.telemetrySidecarInitContainer != nil {
+			telemetrySidecarInitContainer := *cnsScenarioDetails.telemetrySidecarInitContainer
 			// Use the same image as the main init container (dropgz)
-			sidecarInitContainer.Image = cnsScenarioDetails.initContainerName
+			telemetrySidecarInitContainer.Image = cnsScenarioDetails.initContainerName
 			// Copy Env from primary init container for Windows compatibility (e.g., PATHEXT)
 			if len(cns.Spec.Template.Spec.InitContainers) > 0 {
-				sidecarInitContainer.Env = cns.Spec.Template.Spec.InitContainers[0].Env
+				telemetrySidecarInitContainer.Env = cns.Spec.Template.Spec.InitContainers[0].Env
 			}
-			cns.Spec.Template.Spec.InitContainers = append(cns.Spec.Template.Spec.InitContainers, sidecarInitContainer)
+			cns.Spec.Template.Spec.InitContainers = append(cns.Spec.Template.Spec.InitContainers, telemetrySidecarInitContainer)
 		}
-		if cnsScenarioDetails.sidecarContainer != nil {
-			cns.Spec.Template.Spec.Containers = append(cns.Spec.Template.Spec.Containers, *cnsScenarioDetails.sidecarContainer)
+		if cnsScenarioDetails.telemetrySidecarContainer != nil {
+			cns.Spec.Template.Spec.Containers = append(cns.Spec.Template.Spec.Containers, *cnsScenarioDetails.telemetrySidecarContainer)
 		}
 		return cns, cnsScenarioDetails, nil
 	}
