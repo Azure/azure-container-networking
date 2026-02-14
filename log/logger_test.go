@@ -4,6 +4,7 @@
 package log
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -17,6 +18,70 @@ import (
 const (
 	logName = "test"
 )
+
+func TestToJSONString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    interface{}
+		expected string
+	}{
+		{
+			name:     "nil value",
+			input:    nil,
+			expected: "null",
+		},
+		{
+			name:     "simple struct",
+			input:    struct{ Name string }{"test"},
+			expected: `{"Name":"test"}`,
+		},
+		{
+			name: "struct with json.RawMessage",
+			input: struct {
+				ID      string
+				Data    json.RawMessage
+				Enabled bool
+			}{
+				ID:      "123",
+				Data:    json.RawMessage(`{"foo":"bar"}`),
+				Enabled: true,
+			},
+			expected: `{"ID":"123","Data":{"foo":"bar"},"Enabled":true}`,
+		},
+		{
+			name: "nested json.RawMessage",
+			input: struct {
+				Context json.RawMessage
+			}{
+				Context: json.RawMessage(`{"PodName":"test-pod","PodNamespace":"default"}`),
+			},
+			expected: `{"Context":{"PodName":"test-pod","PodNamespace":"default"}}`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := ToJSONString(test.input)
+			assert.Equal(t, test.expected, result)
+		})
+	}
+}
+
+func TestToJSONStringFallback(t *testing.T) {
+	// Create a circular reference that cannot be marshaled to JSON
+	type Circular struct {
+		Name     string
+		Referrer *Circular
+	}
+
+	circular := &Circular{Name: "test"}
+	circular.Referrer = circular // Create circular reference
+
+	// This should fall back to %+v formatting
+	result := ToJSONString(circular)
+	assert.Contains(t, result, "test")
+	assert.Contains(t, result, "Referrer")
+}
 
 func TestNewLoggerError(t *testing.T) {
 	// we expect an error from NewLoggerE in the event that we provide an
