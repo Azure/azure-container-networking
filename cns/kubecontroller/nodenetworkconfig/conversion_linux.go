@@ -28,6 +28,9 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 		}
 	}
 
+	// hard code it for now, we can make it configurable if needed in the future.
+	// This is to prevent generating too many IPConfigs when the CIDR block is large. For example, if the CIDR block is /64, it will generate 2^64 IPConfigs which is not practical.
+	ipv6PrefixClamp := 120
 	// Add IPs from CIDR block to the secondary IPConfigs
 	if nc.Type == v1alpha.VNETBlock {
 
@@ -35,6 +38,10 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 			cidrPrefix, err := netip.ParsePrefix(ipAssignment.IP)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid CIDR block: %s", ipAssignment.IP)
+			}
+
+			if cidrPrefix.Addr().Is4In6() && cidrPrefix.Bits() < ipv6PrefixClamp {
+				cidrPrefix = netip.PrefixFrom(cidrPrefix.Masked().Addr(), ipv6PrefixClamp)
 			}
 
 			// iterate through all IP addresses in the CIDR block described by cidrPrefix and
