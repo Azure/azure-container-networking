@@ -103,6 +103,7 @@ stages:
           - template: metrics-setup-steps.yaml
             parameters:
               workloadType: ${{ parameters.workloadType }}
+              location: ${{ parameters.location }}
 
           - task: AzureCLI@2
             name: RunCreatePods
@@ -144,6 +145,7 @@ stages:
           - template: metrics-setup-steps.yaml
             parameters:
               workloadType: ${{ parameters.workloadType }}
+              location: ${{ parameters.location }}
 
           - task: AzureCLI@2
             displayName: "Run Connectivity Tests"
@@ -184,6 +186,7 @@ stages:
           - template: metrics-setup-steps.yaml
             parameters:
               workloadType: ${{ parameters.workloadType }}
+              location: ${{ parameters.location }}
 
           - task: AzureCLI@2
             name: DiscoverStorageAccounts
@@ -274,6 +277,7 @@ stages:
           - template: metrics-setup-steps.yaml
             parameters:
               workloadType: ${{ parameters.workloadType }}
+              location: ${{ parameters.location }}
 
           - task: AzureCLI@2
             displayName: "Run Scale Test (Create and Delete)"
@@ -321,6 +325,7 @@ stages:
           - template: metrics-setup-steps.yaml
             parameters:
               workloadType: ${{ parameters.workloadType }}
+              location: ${{ parameters.location }}
 
           - task: AzureCLI@2
             displayName: "Delete Test Resources"
