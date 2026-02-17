@@ -19,7 +19,7 @@ parameters:
     displayName: "Deployment Regions"
     type: object
     default:
-      - "eastuseuap"
+      - "eastus2euap"
       - "westus2"
 
   - name: runSetupStages
