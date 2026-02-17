@@ -2,8 +2,8 @@ trigger: none
 pr: none
 
 schedules:
-  - cron: "0 */3 * * *"
-    displayName: "Run tests every 3 hours"
+  - cron: "0 */6 * * *"
+    displayName: "Run tests every 6 hours"
     branches:
       include:
         - master
@@ -16,9 +16,11 @@ parameters:
     default: "37deca37-c375-4a14-b90a-043849bd2bf1"
 
   - name: location
-    displayName: "Deployment Region"
-    type: string
-    default: "westus2"
+    displayName: "Deployment Regions"
+    type: object
+    default:
+      - "eastuseuap"
+      - "westus2"
 
   - name: runSetupStages
     displayName: "Create New Infrastructure Setup"
