@@ -19,15 +19,16 @@ import (
 )
 
 const (
-	virtualGwIPVlanString = "169.254.2.1/32"
-	azureMac              = "12:34:56:78:9a:bc"                       // Packets leaving the VM should have this MAC
-	loopbackIf            = "lo"                                      // The name of the loopback interface
-	numDefaultRoutes      = 2                                         // VNET NS, when no containers use it, has this many routes
-	tunnelingTable        = 2                                         // Packets not entering on the vlan interface go to this routing table
-	tunnelingMark         = 333                                       // The packets that are to tunnel will be marked with this number
-	DisableRPFilterCmd    = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
-	numRetries            = 5
-	sleepInMs             = 100
+	virtualGwIPVlanString   = "169.254.2.1/32"
+	virtualGwIPv6VlanString = "fe80::1234:5678:9abc/128"
+	azureMac                = "12:34:56:78:9a:bc"                       // Packets leaving the VM should have this MAC
+	loopbackIf              = "lo"                                      // The name of the loopback interface
+	numDefaultRoutes        = 2                                         // VNET NS, when no containers use it, has this many routes
+	tunnelingTable          = 2                                         // Packets not entering on the vlan interface go to this routing table
+	tunnelingMark           = 333                                       // The packets that are to tunnel will be marked with this number
+	DisableRPFilterCmd      = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
+	numRetries              = 5
+	sleepInMs               = 100
 )
 
 var errNamespaceCreation = fmt.Errorf("network namespace creation error")
@@ -396,6 +397,10 @@ func (client *TransparentVlanEndpointClient) PopulateVnet(epInfo *EndpointInfo) 
 	if err != nil {
 		return errors.Wrap(err, "transparent vlan failed to disable rp filter vlan interface in vnet")
 	}
+	// Enable IPv6 forwarding in VLAN namespace
+	if err := client.netUtilsClient.EnableIPV6Forwarding(); err != nil {
+		return errors.Wrap(err, "transparent vlan failed to enable ipv6 forwarding in vnet")
+	}
 	return nil
 }
 
@@ -430,6 +435,7 @@ func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointIn
 
 // Add rules related to tunneling the packet outside of the VM, assumes all calls are idempotent. Namespace: vnet
 func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) error {
+	// IPv4 iptables rules
 	// iptables -t mangle -I PREROUTING -j MARK --set-mark <TUNNELING MARK>
 	markOption := fmt.Sprintf("MARK --set-mark %d", tunnelingMark)
 	if err := client.iptablesClient.InsertIptableRule(iptables.V4, "mangle", "PREROUTING", "", markOption); err != nil {
@@ -440,18 +446,28 @@ func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) 
 	if err := client.iptablesClient.InsertIptableRule(iptables.V4, "mangle", "PREROUTING", match, "ACCEPT"); err != nil {
 		return errors.Wrap(err, "unable to insert iptables rule accept all incoming from vlan interface")
 	}
-	// Blocks wireserver traffic from customer vnet nic
+	// Blocks wireserver traffic from customer vnet nic (IPv4 only)
 	if err := client.netUtilsClient.BlockEgressTrafficFromContainer(client.iptablesClient, iptables.V4, networkutils.AzureDNS, iptables.TCP, iptables.HTTPPort); err != nil {
 		return errors.Wrap(err, "unable to insert iptables rule to drop wireserver packets")
 	}
 
-	// Packets that are marked should go to the tunneling table
+	// IPv6 ip6tables rules
+	// ip6tables -t mangle -I PREROUTING -j MARK --set-mark <TUNNELING MARK>
+	if err := client.iptablesClient.InsertIptableRule(iptables.V6, "mangle", "PREROUTING", "", markOption); err != nil {
+		return errors.Wrap(err, "unable to insert ip6tables rule mark all packets not entering on vlan interface")
+	}
+	// ip6tables -t mangle -I PREROUTING -j ACCEPT -i <VLAN IF>
+	if err := client.iptablesClient.InsertIptableRule(iptables.V6, "mangle", "PREROUTING", match, "ACCEPT"); err != nil {
+		return errors.Wrap(err, "unable to insert ip6tables rule accept all incoming from vlan interface")
+	}
+
+	// IPv4: Packets that are marked should go to the tunneling table
 	newRule := vishnetlink.NewRule()
 	newRule.Mark = tunnelingMark
 	newRule.Table = tunnelingTable
 	rules, err := vishnetlink.RuleList(vishnetlink.FAMILY_V4)
 	if err != nil {
-		return errors.Wrap(err, "unable to get existing ip rule list")
+		return errors.Wrap(err, "unable to get existing ipv4 rule list")
 	}
 	// Check if rule exists already
 	ruleExists := false
@@ -462,7 +478,29 @@ func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) 
 	}
 	if !ruleExists {
 		if err := vishnetlink.RuleAdd(newRule); err != nil {
-			return errors.Wrap(err, "failed to add rule that forwards packet with mark to tunneling routing table")
+			return errors.Wrap(err, "failed to add ipv4 rule that forwards packet with mark to tunneling routing table")
+		}
+	}
+
+	// IPv6: Packets that are marked should go to the tunneling table
+	newRuleV6 := vishnetlink.NewRule()
+	newRuleV6.Mark = tunnelingMark
+	newRuleV6.Table = tunnelingTable
+	newRuleV6.Family = vishnetlink.FAMILY_V6
+	rulesV6, err := vishnetlink.RuleList(vishnetlink.FAMILY_V6)
+	if err != nil {
+		return errors.Wrap(err, "unable to get existing ipv6 rule list")
+	}
+	// Check if rule exists already
+	ruleExistsV6 := false
+	for index := range rulesV6 {
+		if rulesV6[index].Mark == newRuleV6.Mark {
+			ruleExistsV6 = true
+		}
+	}
+	if !ruleExistsV6 {
+		if err := vishnetlink.RuleAdd(newRuleV6); err != nil {
+			return errors.Wrap(err, "failed to add ipv6 rule that forwards packet with mark to tunneling routing table")
 		}
 	}
 
@@ -541,11 +579,13 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 		return nil
 	}
 	logger.Info("Adding default routes in container ns")
-	if err := client.addDefaultRoutes(client.containerVethName, 0); err != nil {
+	// Container NS doesn't have access to epInfo, but we always add IPv4 routes.
+	// IPv6 routes will be added separately if needed by ConfigureVnetInterfacesAndRoutesImpl
+	if err := client.addDefaultRoutes(client.containerVethName, 0, hasIPv6Addresses(epInfo.IPAddresses)); err != nil {
 		return errors.Wrap(err, "failed container ns add default routes")
 	}
 
-	if err := client.AddDefaultArp(client.containerVethName, client.vnetMac.String()); err != nil {
+	if err := client.AddDefaultArp(client.containerVethName, client.vnetMac.String(), hasIPv6Addresses(epInfo.IPAddresses)); err != nil {
 		return errors.Wrap(err, "failed container ns add default arp")
 	}
 	return nil
@@ -558,12 +598,15 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 		return errors.Wrap(err, "failed to set loopback link state to up")
 	}
 
+	// Check if endpoint has IPv6 addresses
+	hasIPv6 := hasIPv6Addresses(epInfo.IPAddresses)
+
 	// Add route specifying which device the pod ip(s) are on
 	routeInfoList := client.GetVnetRoutes(epInfo.IPAddresses)
-	if err = client.addDefaultRoutes(client.vlanIfName, 0); err != nil {
+	if err = client.addDefaultRoutes(client.vlanIfName, 0, hasIPv6); err != nil {
 		return errors.Wrap(err, "failed vnet ns add default/gateway routes (idempotent)")
 	}
-	if err = client.AddDefaultArp(client.vlanIfName, azureMac); err != nil {
+	if err = client.AddDefaultArp(client.vlanIfName, azureMac, hasIPv6); err != nil {
 		return errors.Wrap(err, "failed vnet ns add default arp entry (idempotent)")
 	}
 
@@ -574,7 +617,7 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 	if err = addRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
 		return errors.Wrap(err, "failed adding routes to vnet specific to this container")
 	}
-	if err = client.addDefaultRoutes(client.vlanIfName, tunnelingTable); err != nil {
+	if err = client.addDefaultRoutes(client.vlanIfName, tunnelingTable, hasIPv6); err != nil {
 		return errors.Wrap(err, "failed vnet ns add outbound routing table routes for tunneling (idempotent)")
 	}
 	// Return to ConfigureContainerInterfacesAndRoutes
@@ -605,11 +648,34 @@ func (client *TransparentVlanEndpointClient) GetVnetRoutes(ipAddresses []net.IPN
 	return routeInfoList
 }
 
+// Helper function to check if any IPv6 addresses are present in the list
+func hasIPv6Addresses(ipAddresses []net.IPNet) bool {
+	for _, ipAddr := range ipAddresses {
+		if ipAddr.IP.To4() == nil {
+			return true
+		}
+	}
+	return false
+}
+
 // Helper that creates routing rules for the current NS which direct packets
-// to the virtual gateway ip on linkToName device interface
-// Route 1: 169.254.2.1 dev <linkToName>
-// Route 2: default via 169.254.2.1 dev <linkToName>
-func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string, table int) error {
+// to the virtual gateway ip on linkToName device interface.
+// For IPv4: 169.254.2.1 dev <linkToName>, default via 169.254.2.1 dev <linkToName>
+// For IPv6: fe80::1234:5678:9abc dev <linkToName>, default via fe80::1234:5678:9abc dev <linkToName> (if hasIPv6 is true)
+func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string, table int, hasIPv6 bool) error {
+	if err := client.addIPv4DefaultRoutes(linkToName, table); err != nil {
+		return err
+	}
+	if hasIPv6 {
+		if err := client.addIPv6DefaultRoutes(linkToName, table); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Helper that creates IPv4 routing rules
+func (client *TransparentVlanEndpointClient) addIPv4DefaultRoutes(linkToName string, table int) error {
 	// Add route for virtualgwip (ip route add 169.254.2.1/32 dev eth0)
 	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwIPVlanString)
 	routeInfo := RouteInfo{
@@ -617,7 +683,6 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string,
 		Scope: netlink.RT_SCOPE_LINK,
 		Table: table,
 	}
-	// Difference between interface name in addRoutes and DevName: in RouteInfo?
 	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
 		return err
 	}
@@ -637,16 +702,60 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string,
 	return nil
 }
 
-// Helper that creates arp entry for the current NS which maps the virtual
-// gateway (169.254.2.1) to destMac on a particular interfaceName
-// Example: (169.254.2.1) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName>
-func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMac string) error {
+// Helper that creates IPv6 routing rules for the current NS
+// Route 1: fe80::1234:5678:9abc dev <linkToName>
+// Route 2: default via fe80::1234:5678:9abc dev <linkToName>
+func (client *TransparentVlanEndpointClient) addIPv6DefaultRoutes(linkToName string, table int) error {
+	// Add route for virtual IPv6 gateway (ip -6 route add fe80::1234:5678:9abc/128 dev eth0)
+	virtualGwIPv6, virtualGwNetv6, _ := net.ParseCIDR(virtualGwIPv6VlanString)
+	routeInfo := RouteInfo{
+		Dst:   *virtualGwNetv6,
+		Scope: netlink.RT_SCOPE_LINK,
+		Table: table,
+	}
+	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
+		return err
+	}
+
+	// Add default IPv6 route (ip -6 route add default via fe80::1234:5678:9abc dev eth0)
+	_, defaultIPv6Net, _ := net.ParseCIDR("::/0")
+	dstIPv6 := net.IPNet{IP: net.ParseIP("::"), Mask: defaultIPv6Net.Mask}
+	routeInfo = RouteInfo{
+		Dst:   dstIPv6,
+		Gw:    virtualGwIPv6,
+		Table: table,
+	}
+
+	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Helper that creates arp/neighbor entries for the current NS which map the virtual
+// gateway to destMac on a particular interfaceName.
+// For IPv4: (169.254.2.1) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName>
+// For IPv6: (fe80::1234:5678:9abc) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName> (if hasIPv6 is true)
+func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMac string, hasIPv6 bool) error {
+	if err := client.addIPv4DefaultArp(interfaceName, destMac); err != nil {
+		return err
+	}
+	if hasIPv6 {
+		if err := client.addIPv6DefaultNeighbor(interfaceName, destMac); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Helper that creates IPv4 ARP entry
+func (client *TransparentVlanEndpointClient) addIPv4DefaultArp(interfaceName, destMac string) error {
 	_, virtualGwNet, _ := net.ParseCIDR(virtualGwIPVlanString)
-	logger.Info("Adding static arp for",
+	logger.Info("Adding static arp for IPv4",
 		zap.String("IP", virtualGwNet.String()), zap.String("MAC", destMac))
 	hardwareAddr, err := net.ParseMAC(destMac)
 	if err != nil {
-		return errors.Wrap(err, "unable to parse mac")
+		return errors.Wrap(err, "unable to parse mac for ipv4 arp")
 	}
 	linkInfo := netlink.LinkInfo{
 		Name:       interfaceName,
@@ -655,7 +764,29 @@ func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMa
 	}
 
 	if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PERMANENT); err != nil {
-		return fmt.Errorf("adding arp entry failed: %w", err)
+		return fmt.Errorf("adding ipv4 arp entry failed: %w", err)
+	}
+	return nil
+}
+
+// Helper that creates IPv6 neighbor entry (NDP equivalent of ARP)
+// Example: fe80::1234:5678:9abc dev <interfaceName> lladdr 12:34:56:78:9a:bc PERMANENT
+func (client *TransparentVlanEndpointClient) addIPv6DefaultNeighbor(interfaceName, destMac string) error {
+	_, virtualGwNetv6, _ := net.ParseCIDR(virtualGwIPv6VlanString)
+	logger.Info("Adding static neighbor for IPv6",
+		zap.String("IP", virtualGwNetv6.String()), zap.String("MAC", destMac))
+	hardwareAddr, err := net.ParseMAC(destMac)
+	if err != nil {
+		return errors.Wrap(err, "unable to parse mac for ipv6 neighbor")
+	}
+	linkInfo := netlink.LinkInfo{
+		Name:       interfaceName,
+		IPAddr:     virtualGwNetv6.IP,
+		MacAddress: hardwareAddr,
+	}
+
+	if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PERMANENT); err != nil {
+		return fmt.Errorf("adding ipv6 neighbor entry failed: %w", err)
 	}
 	return nil
 }
