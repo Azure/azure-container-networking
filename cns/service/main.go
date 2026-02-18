@@ -1119,9 +1119,14 @@ func main() {
 		// at this point, rest service is running. We can now start serving new requests. So call StartNodeSubnet, which
 		// will fetch secondary IPs and generate conflist. Do not move this all before rest service start - this will cause
 		// CNI to start sending requests, and if the service doesn't start successfully, the requests will fail.
-		httpRemoteRestService.StartNodeSubnet(rootCtx)
+		if err := httpRemoteRestService.StartNodeSubnet(rootCtx); err != nil {
+			logger.Errorf("Failed to start NodeSubnet: %v", err)
+			return
+		}
 	}
 
+	// Wait for NC sync to complete before marking service as ready.
+	httpRemoteRestService.Wait(rootCtx)
 	// mark the service as "ready"
 	close(readyCh)
 	// block until process exiting
@@ -1287,22 +1292,9 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 		time.Sleep(time.Millisecond * 500)
 	}
 
-	// TODO: do we need this to be running?
-	logger.Printf("Starting SyncHostNCVersion")
-	go func() {
-		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
-		for {
-			select {
-			case <-tickerChannel:
-				timedCtx, cancel := context.WithTimeout(ctx, time.Duration(cnsconfig.SyncHostNCVersionIntervalMs)*time.Millisecond)
-				httpRestServiceImpl.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
-				cancel()
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
+	if err := httpRestServiceImpl.StartSyncHostNCVersionLoop(ctx, cnsconfig); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -1647,23 +1639,9 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		break
 	}
 
-	go func() {
-		logger.Printf("Starting SyncHostNCVersion loop.")
-		// Periodically poll vfp programmed NC version from NMAgent
-		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
-		for {
-			select {
-			case <-tickerChannel:
-				timedCtx, cancel := context.WithTimeout(ctx, time.Duration(cnsconfig.SyncHostNCVersionIntervalMs)*time.Millisecond)
-				httpRestServiceImplementation.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
-				cancel()
-			case <-ctx.Done():
-				logger.Printf("Stopping SyncHostNCVersion loop.")
-				return
-			}
-		}
-	}()
-	logger.Printf("Initialized SyncHostNCVersion loop.")
+	if err := httpRestServiceImplementation.StartSyncHostNCVersionLoop(ctx, *cnsconfig); err != nil {
+		return err
+	}
 	return nil
 }
 
