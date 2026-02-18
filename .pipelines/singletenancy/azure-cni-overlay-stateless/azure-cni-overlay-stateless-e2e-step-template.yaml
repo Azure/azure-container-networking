@@ -31,63 +31,172 @@ steps:
     name: "kubeconfig"
     displayName: "Set Kubeconfig"
 
-  - script: |
-      nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
-      for node in $nodeList; do
-        taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
-        if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
-            kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
-        fi
-      done
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=stateless VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
-    name: "WindowsOverlayControlPlaneScaleTests"
-    displayName: "Windows v4Overlay ControlPlane Scale Tests"
-    retryCountOnTaskFailure: 2
-
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
+  # Linux-specific steps
+  - ${{ if eq(parameters.os, 'linux') }}:
+    - script: |
+        echo "Start Integration Tests on Overlay Cluster - Linux"
         kubectl get po -owide -A
-        clusterName=${{ parameters.clusterName }}
-        echo "Restarting nodes"
-        for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do
-          make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
+        sudo -E env "PATH=$PATH" make test-load \
+          SCALE_UP=32 OS_TYPE=linux CNI_TYPE=stateless VALIDATE_STATEFILE=true VALIDATE_V4OVERLAY=true \
+          INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true CLEANUP=true \
+          AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version)
+      name: "LinuxOverlayControlPlaneScaleTests"
+      displayName: "Linux v4Overlay ControlPlane Scale Tests"
+      retryCountOnTaskFailure: 2
+
+    - script: |
+        set -e
+        echo "Validate telemetry sidecar container is configured in Linux CNS DaemonSet"
+        # Check if cni-telemetry-sidecar container exists in the DaemonSet spec
+        if kubectl get daemonset azure-cns -n kube-system -o jsonpath='{.spec.template.spec.containers[*].name}' | grep -q "cni-telemetry-sidecar"; then
+          echo "cni-telemetry-sidecar container found in azure-cns DaemonSet spec"
+        else
+          echo "ERROR: cni-telemetry-sidecar container NOT found in azure-cns DaemonSet spec"
+          exit 1
+        fi
+        # Note: DaemonSet pod readiness is already validated by test-load via WaitForPodDaemonset
+        # Verify telemetry sidecar container is running by checking logs from all pods
+        echo "Checking telemetry sidecar container logs..."
+        if kubectl logs -n kube-system -l k8s-app=azure-cns -c cni-telemetry-sidecar --prefix 2>/dev/null | grep -q "Telemetry service started"; then
+          echo "Telemetry sidecar started successfully on azure-cns pods"
+        else
+          echo "WARNING: Telemetry sidecar NOT started on azure-cns pods"
+          exit 1
+        fi
+      name: "ValidateTelemetrySidecarLinux"
+      displayName: "Validate Telemetry Sidecar Deployment - Linux"
+
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          kubectl get po -owide -A
+          clusterName=${{ parameters.clusterName }}
+          echo "Restarting Linux nodes"
+          for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[?tags.\"aks-managed-poolOSType\"=='Linux'].name" -o tsv); do
+            make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
+          done
+      displayName: "Restart Linux Nodes"
+
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          cd test/integration/load
+          clusterName=${{ parameters.clusterName }}
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
+          make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
+          kubectl get pods -owide -A
+          echo "Validating Linux Node Restart"
+          CNI_TYPE=stateless RESTART_CASE=true OS_TYPE=linux go test -timeout 30m -tags load -run ^TestValidateState$
+      displayName: "Validate Linux Node Restart"
+      retryCountOnTaskFailure: 3
+
+    - script: |
+        echo "Run wireserver and metadata connectivity Tests"
+        bash test/network/wireserver_metadata_test.sh
+      retryCountOnTaskFailure: 3
+      name: "WireserverMetadataConnectivityTestsLinux"
+      displayName: "Run Wireserver and Metadata Connectivity Tests - Linux"
+
+    - script: |
+        echo "Waiting for Linux nodes to be Ready..."
+        kubectl wait --for=condition=Ready nodes -l kubernetes.io/os=linux --timeout=300s
+        echo "Linux Datapath Test (Goldpinger)"
+        cd test/integration/datapath
+        sudo -E env "PATH=$PATH" go test -count=1 datapath_linux_test.go -timeout 10m -tags=connection,integration -run ^TestDatapathLinux$ -osSelector=linux
+      name: "LinuxDatapathTests"
+      displayName: "Linux Datapath Tests (Goldpinger)"
+      retryCountOnTaskFailure: 3
+
+  # Windows-specific steps
+  - ${{ if eq(parameters.os, 'windows') }}:
+    - script: |
+        # Remove cloud provider uninitialized taint from Windows nodes if present.
+        # Windows nodes may retain this taint after AKS initialization, preventing pod scheduling.
+        nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
+        for node in $nodeList; do
+          taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
+          if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
+              kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+          fi
         done
-    displayName: "Restart Nodes"
+        sudo -E env "PATH=$PATH" make test-load \
+          SCALE_UP=32 OS_TYPE=windows CNI_TYPE=stateless VALIDATE_STATEFILE=true VALIDATE_V4OVERLAY=true \
+          INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true CLEANUP=true \
+          AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version)
+      name: "WindowsOverlayControlPlaneScaleTests"
+      displayName: "Windows v4Overlay ControlPlane Scale Tests"
+      retryCountOnTaskFailure: 2
 
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        cd test/integration/load
-        clusterName=${{ parameters.clusterName }}
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
-        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-        kubectl get pods -owide -A
-        echo "Validating Node Restart"
-        CNI_TYPE=stateless RESTART_CASE=true go test -timeout 30m -tags load -run ^TestValidateState$
-    displayName: "Validate Node Restart"
-    retryCountOnTaskFailure: 3
+    - script: |
+        set -e
+        echo "Validate telemetry sidecar container is configured in Windows CNS DaemonSet"
+        # Check if cni-telemetry-sidecar container exists in the DaemonSet spec
+        if kubectl get daemonset azure-cns-win -n kube-system -o jsonpath='{.spec.template.spec.containers[*].name}' | grep -q "cni-telemetry-sidecar"; then
+          echo "cni-telemetry-sidecar container found in azure-cns-win DaemonSet spec"
+        else
+          echo "ERROR: cni-telemetry-sidecar container NOT found in azure-cns-win DaemonSet spec"
+          exit 1
+        fi
+        # Note: DaemonSet pod readiness is already validated by test-load via WaitForPodDaemonset
+        # Verify telemetry sidecar container is running by checking logs from all pods
+        echo "Checking telemetry sidecar container logs..."
+        if kubectl logs -n kube-system -l k8s-app=azure-cns-win -c cni-telemetry-sidecar --prefix 2>/dev/null | grep -q "Telemetry service started"; then
+          echo "Telemetry sidecar started successfully on azure-cns-win pods"
+        else
+          echo "WARNING: Telemetry sidecar NOT started on azure-cns-win pods"
+          exit 1
+        fi
+      name: "ValidateTelemetrySidecarWindows"
+      displayName: "Validate Telemetry Sidecar Deployment - Windows"
 
-  - script: |
-      echo "Run wireserver and metadata connectivity Tests"
-      bash test/network/wireserver_metadata_test.sh
-    retryCountOnTaskFailure: 3
-    name: "WireserverMetadataConnectivityTests"
-    displayName: "Run Wireserver and Metadata Connectivity Tests"
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          kubectl get po -owide -A
+          clusterName=${{ parameters.clusterName }}
+          echo "Restarting Windows nodes"
+          for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[?tags.\"aks-managed-poolOSType\"=='Windows'].name" -o tsv); do
+            make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
+          done
+      displayName: "Restart Windows Nodes"
 
-  - script: |
-      echo "IPv4 Overlay DataPath Test"
-      cd test/integration/datapath
-      sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
-    name: "WindowsV4OverlayDatapathTests"
-    displayName: "Windows v4Overlay Datapath Tests"
-    retryCountOnTaskFailure: 3
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          cd test/integration/load
+          clusterName=${{ parameters.clusterName }}
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
+          make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
+          kubectl get pods -owide -A
+          echo "Validating Windows Node Restart"
+          CNI_TYPE=stateless RESTART_CASE=true OS_TYPE=windows go test -timeout 30m -tags load -run ^TestValidateState$
+      displayName: "Validate Windows Node Restart"
+      retryCountOnTaskFailure: 3
+
+    - script: |
+        echo "Waiting for Windows nodes to be Ready..."
+        kubectl wait --for=condition=Ready nodes -l kubernetes.io/os=windows --timeout=300s
+        echo "IPv4 Overlay DataPath Test"
+        cd test/integration/datapath
+        sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 10m -tags=connection,integration -restartKubeproxy true -run ^TestDatapathWin$
+      name: "WindowsV4OverlayDatapathTests"
+      displayName: "Windows v4Overlay Datapath Tests"
+      retryCountOnTaskFailure: 3

@@ -42,7 +42,8 @@ const (
 var (
 	podPrefix        = flag.String("podName", "goldpinger", "Prefix for test pods")
 	podNamespace     = flag.String("namespace", "default", "Namespace for test pods")
-	nodepoolSelector = flag.String("nodepoolSelector", "nodepool1", "Provides nodepool as a Linux Node-Selector for pods")
+	nodepoolSelector = flag.String("nodepoolSelector", "nodepool1", "Provides nodepool as a Node-Selector for pods")
+	osSelector       = flag.String("osSelector", "", "OS selector for goldpinger pods (e.g., linux, windows). If empty, no OS nodeSelector is applied")
 	// TODO: add flag to support dual nic scenario
 	isDualStack    = flag.Bool("isDualStack", false, "whether system supports dualstack scenario")
 	defaultRetrier = retry.Retrier{
@@ -106,9 +107,24 @@ func setupLinuxEnvironment(t *testing.T) {
 	// Defaults from flags will not change anything
 	deployment.Spec.Selector.MatchLabels[podLabelKey] = *podPrefix
 	deployment.Spec.Template.ObjectMeta.Labels[podLabelKey] = *podPrefix
+	// Initialize nodeSelector maps if nil
+	if deployment.Spec.Template.Spec.NodeSelector == nil {
+		deployment.Spec.Template.Spec.NodeSelector = make(map[string]string)
+	}
+	// Add OS selector if specified via flag
+	if *osSelector != "" {
+		deployment.Spec.Template.Spec.NodeSelector["kubernetes.io/os"] = *osSelector
+	}
 	deployment.Spec.Template.Spec.NodeSelector[nodepoolKey] = *nodepoolSelector
 	deployment.Name = *podPrefix
 	deployment.Namespace = *podNamespace
+	if daemonset.Spec.Template.Spec.NodeSelector == nil {
+		daemonset.Spec.Template.Spec.NodeSelector = make(map[string]string)
+	}
+	// Add OS selector if specified via flag
+	if *osSelector != "" {
+		daemonset.Spec.Template.Spec.NodeSelector["kubernetes.io/os"] = *osSelector
+	}
 	daemonset.Namespace = *podNamespace
 
 	deploymentsClient := clientset.AppsV1().Deployments(*podNamespace)

@@ -45,11 +45,27 @@ stages:
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
+      # Linux tests
+      - job: ${{ parameters.name }}_linux
+        displayName: Azure Stateless CNI Overlay Test Suite | Linux - (${{ parameters.name }})
+        timeoutInMinutes: 120
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        steps:
+          - template: azure-cni-overlay-stateless-e2e-step-template.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: linux
+
+      # Windows tests (depends on Linux completing first)
       - job: ${{ parameters.name }}_windows
         displayName: Azure Stateless CNI Overlay Test Suite | Windows - (${{ parameters.name }})
+        dependsOn: ${{ parameters.name }}_linux
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
@@ -62,7 +78,18 @@ stages:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: windows
-              vmSizeWin: ${{ parameters.vmSize }}
+
+      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: linux
+          dependsOn: ${{ parameters.name }}_linux
+          datapath: true
+          dns: true
+          portforward: true
+          hostport: true
+          service: true
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
@@ -77,11 +104,24 @@ stages:
           service: true
           hybridWin: true
 
+      - job: failedE2ELogs_linux
+        displayName: "Linux Failure Logs"
+        dependsOn:
+          - ${{ parameters.name }}_linux
+          - CNI_linux
+        condition: in(dependencies.${{ parameters.name }}_linux.result, 'Failed')
+        steps:
+          - template: ../../templates/log-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: linux
+              cni: cniv2
+
       - job: failedE2ELogs_windows
         displayName: "Windows Failure Logs"
         dependsOn:
           - ${{ parameters.name }}_windows
-          - cni_windows
+          - CNI_windows
         condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed')
         steps:
           - template: ../../templates/log-template.yaml
