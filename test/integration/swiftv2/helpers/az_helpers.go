@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os/exec"
 	"strings"
 	"time"
@@ -12,7 +13,7 @@ import (
 var (
 	ErrPodNotRunning = errors.New("pod did not reach Running state")
 	ErrPodNoIP = errors.New("pod has no IP address assigned")
-	ErrPodNoEth1IP = errors.New("pod has no eth1 IP address (delegated subnet not configured?)")
+	ErrPodNoDelegatedIP = errors.New("pod has no delegated subnet IP (no non-eth0 interface with /32 address found)")
 	ErrPodContainerNotReady = errors.New("pod container not ready")
 	ErrMTPNCStuckDeletion = errors.New("MTPNC resources should have been deleted but were found")
 	ErrPodDeletionFailed = errors.New("pod still exists after deletion attempts")
@@ -344,26 +345,41 @@ func GetPodIP(kubeconfig, namespace, podName string) (string, error) {
 	return ip, nil
 }
 
-// GetPodDelegatedIP retrieves the eth1 IP address (delegated subnet IP) of a pod
-// This is the IP used for cross-VNet communication and is subject to NSG rules
+// GetPodDelegatedIP retrieves the delegated subnet IP of a pod.
+// On low-NIC nodes this is typically eth1, but on high-NIC nodes (e.g. D16s_v3)
+// the interface can be eth7 or another index depending on how many NICs the VM has.
+// We dynamically find the interface by looking for a non-eth0/non-lo interface with a /32 address,
+// which is the signature of a delegated subnet IP.
 func GetPodDelegatedIP(kubeconfig, namespace, podName string) (string, error) {
 	// Retry logic - pod might be Running but container not ready yet, or network interface still initializing
-	maxRetries := 5
+	// Delegated subnet interface may take time to be provisioned by the MTPNC controller
+	maxRetries := 10
+
+	// Find the delegated IP: look for any /32 inet address on a non-eth0, non-lo interface
+	// This works regardless of the interface name (eth1, eth7, etc.)
+	ipCmd := "ip -4 -o addr show | grep -v ' lo ' | grep -v ' eth0 ' | grep '/32' | awk '{print $4}' | cut -d'/' -f1 | head -1"
+
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 
-		// Get eth1 IP address by running 'ip addr show eth1' in the pod
 		cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "exec", podName,
-			"-n", namespace, "-c", "net-debugger", "--", "sh", "-c", "ip -4 addr show eth1 | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1")
+			"-n", namespace, "-c", "net-debugger", "--", "sh", "-c", ipCmd)
 		out, err := cmd.CombinedOutput()
 		cancel()
 
 		if err == nil {
 			ip := strings.TrimSpace(string(out))
-			if ip != "" {
+			// Validate that the output looks like an IP address
+			if ip != "" && net.ParseIP(ip) != nil {
 				return ip, nil
 			}
-			return "", fmt.Errorf("%w: pod %s in namespace %s", ErrPodNoEth1IP, podName, namespace)
+			// Delegated interface not yet provisioned - retry if attempts remain
+			if attempt < maxRetries {
+				fmt.Printf("Delegated interface not yet available for pod %s (attempt %d/%d). Waiting 10 seconds...\n", podName, attempt, maxRetries)
+				time.Sleep(10 * time.Second)
+				continue
+			}
+			return "", fmt.Errorf("%w: pod %s in namespace %s", ErrPodNoDelegatedIP, podName, namespace)
 		}
 
 		// Check for retryable errors: container not found, signal killed, context deadline exceeded
@@ -374,12 +390,12 @@ func GetPodDelegatedIP(kubeconfig, namespace, podName string) (string, error) {
 			strings.Contains(errStr, "context deadline exceeded")
 
 		if isRetryable && attempt < maxRetries {
-			fmt.Printf("Retryable error getting IP for pod %s (attempt %d/%d): %v. Waiting 5 seconds...\n", podName, attempt, maxRetries, err)
+			fmt.Printf("Retryable error getting delegated IP for pod %s (attempt %d/%d): %v. Waiting 5 seconds...\n", podName, attempt, maxRetries, err)
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		return "", fmt.Errorf("failed to get eth1 IP for %s in namespace %s: %w\nOutput: %s", podName, namespace, err, string(out))
+		return "", fmt.Errorf("failed to get delegated IP for %s in namespace %s: %w\nOutput: %s", podName, namespace, err, string(out))
 	}
 
 	return "", fmt.Errorf("%w: pod %s after %d attempts", ErrPodContainerNotReady, podName, maxRetries)
