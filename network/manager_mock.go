@@ -11,6 +11,9 @@ type MockNetworkManager struct {
 	TestEndpointInfoMap map[string]*EndpointInfo
 	TestEndpointClient  *MockEndpointClient
 	SaveStateMap        map[string]*endpoint
+	// Stateless CNI mode support
+	StatelessCNIMode bool
+	MockCNSClient    *MockCNSEndpointClient
 }
 
 // NewMockNetworkmanager returns a new mock
@@ -72,14 +75,18 @@ func (nm *MockNetworkManager) DeleteEndpoint(_, endpointID string, _ *EndpointIn
 	return nil
 }
 
-// SetStatelessCNIMode enable the statelessCNI falg and inititlizes a CNSClient
+// SetStatelessCNIMode enable the statelessCNI flag and initializes a CNSClient
 func (nm *MockNetworkManager) SetStatelessCNIMode() error {
+	nm.StatelessCNIMode = true
+	if nm.MockCNSClient == nil {
+		nm.MockCNSClient = NewMockCNSEndpointClient()
+	}
 	return nil
 }
 
 // IsStatelessCNIMode checks if the Stateless CNI mode has been enabled or not
 func (nm *MockNetworkManager) IsStatelessCNIMode() bool {
-	return false
+	return nm.StatelessCNIMode
 }
 
 // GetEndpointID returns the ContainerID value
@@ -208,7 +215,11 @@ func (nm *MockNetworkManager) GetEndpointInfosFromContainerID(containerID string
 	return ret
 }
 
-func (nm *MockNetworkManager) GetEndpointState(_, _, _ string) ([]*EndpointInfo, error) {
+func (nm *MockNetworkManager) GetEndpointState(_, containerID, ifName string) ([]*EndpointInfo, error) {
+	// GetEndpointState is only called in stateless CNI mode
+	if nm.MockCNSClient != nil {
+		return nm.MockCNSClient.GetEndpointState(containerID, ifName)
+	}
 	return []*EndpointInfo{}, nil
 }
 
