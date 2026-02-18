@@ -54,19 +54,10 @@ steps:
           echo "ERROR: cni-telemetry-sidecar container NOT found in azure-cns DaemonSet spec"
           exit 1
         fi
-        # Verify DaemonSet pods are ready
-        desired=$(kubectl get daemonset azure-cns -n kube-system -o jsonpath='{.status.desiredNumberScheduled}')
-        ready=$(kubectl get daemonset azure-cns -n kube-system -o jsonpath='{.status.numberReady}')
-        echo "DaemonSet azure-cns: desired=$desired, ready=$ready"
-        if [ "$desired" -eq "$ready" ] && [ "$desired" -gt 0 ]; then
-          echo "All azure-cns pods are ready with telemetry sidecar"
-        else
-          echo "WARNING: Not all azure-cns pods are ready (desired=$desired, ready=$ready)"
-          exit 1
-        fi
+        # Note: DaemonSet pod readiness is already validated by test-load via WaitForPodDaemonset
         # Verify telemetry sidecar container is running by checking logs from all pods
         echo "Checking telemetry sidecar container logs..."
-        if kubectl logs -n kube-system -l k8s-app=azure-cns -c cni-telemetry-sidecar --prefix 2>/dev/null | grep -q "Starting Azure CNI Telemetry Sidecar"; then
+        if kubectl logs -n kube-system -l k8s-app=azure-cns -c cni-telemetry-sidecar --prefix 2>/dev/null | grep -q "Telemetry service started"; then
           echo "Telemetry sidecar started successfully on azure-cns pods"
         else
           echo "WARNING: Telemetry sidecar NOT started on azure-cns pods"
@@ -155,19 +146,10 @@ steps:
           echo "ERROR: cni-telemetry-sidecar container NOT found in azure-cns-win DaemonSet spec"
           exit 1
         fi
-        # Verify DaemonSet pods are ready
-        desired=$(kubectl get daemonset azure-cns-win -n kube-system -o jsonpath='{.status.desiredNumberScheduled}')
-        ready=$(kubectl get daemonset azure-cns-win -n kube-system -o jsonpath='{.status.numberReady}')
-        echo "DaemonSet azure-cns-win: desired=$desired, ready=$ready"
-        if [ "$desired" -eq "$ready" ] && [ "$desired" -gt 0 ]; then
-          echo "All azure-cns-win pods are ready with telemetry sidecar"
-        else
-          echo "WARNING: Not all azure-cns-win pods are ready (desired=$desired, ready=$ready)"
-          exit 1
-        fi
+        # Note: DaemonSet pod readiness is already validated by test-load via WaitForPodDaemonset
         # Verify telemetry sidecar container is running by checking logs from all pods
         echo "Checking telemetry sidecar container logs..."
-        if kubectl logs -n kube-system -l k8s-app=azure-cns-win -c cni-telemetry-sidecar --prefix 2>/dev/null | grep -q "Starting Azure CNI Telemetry Sidecar"; then
+        if kubectl logs -n kube-system -l k8s-app=azure-cns-win -c cni-telemetry-sidecar --prefix 2>/dev/null | grep -q "Telemetry service started"; then
           echo "Telemetry sidecar started successfully on azure-cns-win pods"
         else
           echo "WARNING: Telemetry sidecar NOT started on azure-cns-win pods"
