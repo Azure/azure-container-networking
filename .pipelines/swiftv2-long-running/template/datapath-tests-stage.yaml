@@ -320,7 +320,7 @@ stages:
           - ConnectivityTests
           - PrivateEndpointTests
           - ScaleTest
-        condition: always()
+        condition: succeeded()
         steps:
           - template: metrics-setup-steps.yaml
             parameters:
