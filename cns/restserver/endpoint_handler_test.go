@@ -6,6 +6,7 @@ package restserver
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -23,11 +24,14 @@ import (
 )
 
 // getTestServiceForEndpointTests creates a test service configured for stateless CNI endpoint tests
-func getTestServiceForEndpointTests() *HTTPRestService {
+func getTestServiceForEndpointTests(t *testing.T) *HTTPRestService {
+	t.Helper()
 	var config common.ServiceConfig
-	httpsvc, _ := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{},
+	httpsvc, err := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{},
 		&IPtablesProvider{}, &fakes.NMAgentClientFake{}, store.NewMockStore(""), nil, nil,
 		fakes.NewMockIMDSClient())
+	require.NoError(t, err, "NewHTTPRestService should not return an error")
+	require.NotNil(t, httpsvc, "HTTPRestService should not be nil")
 
 	// Enable endpoint state management (required for stateless CNI)
 	httpsvc.Options = make(map[string]interface{})
@@ -42,13 +46,16 @@ func getTestServiceForEndpointTests() *HTTPRestService {
 
 // persistEndpointState writes the in-memory EndpointState to the store.
 // This is required because GetEndpointHelper reads from the store first.
-func persistEndpointState(svc *HTTPRestService) error {
-	return svc.EndpointStateStore.Write(EndpointStoreKey, svc.EndpointState)
+func persistEndpointState(s *HTTPRestService) error {
+	if err := s.EndpointStateStore.Write(EndpointStoreKey, s.EndpointState); err != nil {
+		return fmt.Errorf("failed to persist endpoint state: %w", err)
+	}
+	return nil
 }
 
 // TestGetEndpointHelper tests the GetEndpointHelper function
 func TestGetEndpointHelper(t *testing.T) {
-	svc := getTestServiceForEndpointTests()
+	service := getTestServiceForEndpointTests(t)
 
 	// Set up test endpoint state
 	containerID := "test-container-12345678901234567890"
@@ -64,9 +71,9 @@ func TestGetEndpointHelper(t *testing.T) {
 			},
 		},
 	}
-	svc.EndpointState[containerID] = testEndpoint
+	service.EndpointState[containerID] = testEndpoint
 	// Persist to store (required for GetEndpointHelper)
-	require.NoError(t, persistEndpointState(svc))
+	require.NoError(t, persistEndpointState(service))
 
 	tests := []struct {
 		name        string
@@ -89,7 +96,7 @@ func TestGetEndpointHelper(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := svc.GetEndpointHelper(tt.endpointID)
+			result, err := service.GetEndpointHelper(tt.endpointID)
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errContains != "" {
@@ -107,7 +114,7 @@ func TestGetEndpointHelper(t *testing.T) {
 
 // TestGetEndpointHelper_LegacyFormat tests legacy endpoint ID format lookup
 func TestGetEndpointHelper_LegacyFormat(t *testing.T) {
-	svc := getTestServiceForEndpointTests()
+	service := getTestServiceForEndpointTests(t)
 
 	// Set up endpoint with legacy format key (first 8 chars + "-eth0")
 	fullContainerID := "abcdefgh12345678901234567890"
@@ -124,12 +131,12 @@ func TestGetEndpointHelper_LegacyFormat(t *testing.T) {
 		},
 	}
 	// Store with legacy key
-	svc.EndpointState[legacyEndpointID] = testEndpoint
+	service.EndpointState[legacyEndpointID] = testEndpoint
 	// Persist to store (required for GetEndpointHelper)
-	require.NoError(t, persistEndpointState(svc))
+	require.NoError(t, persistEndpointState(service))
 
 	// Query with full container ID should fall back to legacy lookup
-	result, err := svc.GetEndpointHelper(fullContainerID)
+	result, err := service.GetEndpointHelper(fullContainerID)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "legacy-pod", result.PodName)
@@ -137,7 +144,7 @@ func TestGetEndpointHelper_LegacyFormat(t *testing.T) {
 
 // TestUpdateEndpointHelper tests the UpdateEndpointHelper function
 func TestUpdateEndpointHelper(t *testing.T) {
-	svc := getTestServiceForEndpointTests()
+	service := getTestServiceForEndpointTests(t)
 
 	containerID := "update-test-container"
 
@@ -152,9 +159,9 @@ func TestUpdateEndpointHelper(t *testing.T) {
 			},
 		},
 	}
-	svc.EndpointState[containerID] = initialEndpoint
+	service.EndpointState[containerID] = initialEndpoint
 	// Persist to store (required for UpdateEndpointHelper)
-	require.NoError(t, persistEndpointState(svc))
+	require.NoError(t, persistEndpointState(service))
 
 	tests := []struct {
 		name       string
@@ -216,13 +223,13 @@ func TestUpdateEndpointHelper(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := svc.UpdateEndpointHelper(tt.endpointID, tt.updateReq)
+			err := service.UpdateEndpointHelper(tt.endpointID, tt.updateReq)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				// Verify the update
-				ep, getErr := svc.GetEndpointHelper(tt.endpointID)
+				ep, getErr := service.GetEndpointHelper(tt.endpointID)
 				require.NoError(t, getErr)
 				if tt.validate != nil {
 					tt.validate(t, ep)
@@ -236,29 +243,29 @@ func TestUpdateEndpointHelper(t *testing.T) {
 func TestDeleteEndpointStateHelper(t *testing.T) {
 	tests := []struct {
 		name        string
-		setup       func(*HTTPRestService)
+		setup       func(*testing.T, *HTTPRestService)
 		endpointID  string
 		wantErr     bool
 		errContains string
 	}{
 		{
 			name: "Delete existing endpoint - success",
-			setup: func(svc *HTTPRestService) {
-				svc.EndpointState["delete-test-container"] = &EndpointInfo{
+			setup: func(t *testing.T, s *HTTPRestService) {
+				s.EndpointState["delete-test-container"] = &EndpointInfo{
 					PodName: "delete-pod",
 					IfnameToIPMap: map[string]*IPInfo{
 						"eth0": {NICType: cns.InfraNIC},
 					},
 				}
 				// Persist to store
-				_ = persistEndpointState(svc)
+				require.NoError(t, persistEndpointState(s))
 			},
 			endpointID: "delete-test-container",
 			wantErr:    false,
 		},
 		{
 			name:        "Delete non-existent endpoint - not found",
-			setup:       func(_ *HTTPRestService) {},
+			setup:       func(_ *testing.T, _ *HTTPRestService) {},
 			endpointID:  "non-existent",
 			wantErr:     true,
 			errContains: ErrEndpointStateNotFound.Error(),
@@ -267,10 +274,10 @@ func TestDeleteEndpointStateHelper(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := getTestServiceForEndpointTests()
-			tt.setup(svc)
+			service := getTestServiceForEndpointTests(t)
+			tt.setup(t, service)
 
-			err := svc.DeleteEndpointStateHelper(tt.endpointID)
+			err := service.DeleteEndpointStateHelper(tt.endpointID)
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errContains != "" {
@@ -279,7 +286,7 @@ func TestDeleteEndpointStateHelper(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				// Verify endpoint is deleted
-				_, exists := svc.EndpointState[tt.endpointID]
+				_, exists := service.EndpointState[tt.endpointID]
 				assert.False(t, exists, "Endpoint should be deleted from state")
 			}
 		})
@@ -288,7 +295,7 @@ func TestDeleteEndpointStateHelper(t *testing.T) {
 
 // TestEndpointHandlerAPI_GetMethod tests GET requests to EndpointHandlerAPI
 func TestEndpointHandlerAPI_GetMethod(t *testing.T) {
-	svc := getTestServiceForEndpointTests()
+	service := getTestServiceForEndpointTests(t)
 
 	containerID := "api-get-test-container"
 	testEndpoint := &EndpointInfo{
@@ -302,9 +309,9 @@ func TestEndpointHandlerAPI_GetMethod(t *testing.T) {
 			},
 		},
 	}
-	svc.EndpointState[containerID] = testEndpoint
+	service.EndpointState[containerID] = testEndpoint
 	// Persist to store (required for GET operations)
-	require.NoError(t, persistEndpointState(svc))
+	require.NoError(t, persistEndpointState(service))
 
 	tests := []struct {
 		name           string
@@ -325,10 +332,10 @@ func TestEndpointHandlerAPI_GetMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req := httptest.NewRequest(http.MethodGet, tt.path, http.NoBody)
 			w := httptest.NewRecorder()
 
-			svc.EndpointHandlerAPI(w, req)
+			service.EndpointHandlerAPI(w, req)
 
 			resp := w.Result()
 			defer resp.Body.Close()
@@ -344,17 +351,17 @@ func TestEndpointHandlerAPI_GetMethod(t *testing.T) {
 
 // TestEndpointHandlerAPI_PatchMethod tests PATCH requests to EndpointHandlerAPI
 func TestEndpointHandlerAPI_PatchMethod(t *testing.T) {
-	svc := getTestServiceForEndpointTests()
+	service := getTestServiceForEndpointTests(t)
 
 	containerID := "api-patch-test-container"
 	// Pre-populate endpoint
-	svc.EndpointState[containerID] = &EndpointInfo{
+	service.EndpointState[containerID] = &EndpointInfo{
 		PodName:       "patch-pod",
 		PodNamespace:  "patch-ns",
 		IfnameToIPMap: map[string]*IPInfo{"eth0": {NICType: cns.InfraNIC}},
 	}
 	// Persist to store
-	require.NoError(t, persistEndpointState(svc))
+	require.NoError(t, persistEndpointState(service))
 
 	updateReq := map[string]*IPInfo{
 		"eth0": {
@@ -362,41 +369,42 @@ func TestEndpointHandlerAPI_PatchMethod(t *testing.T) {
 			NICType:       cns.InfraNIC,
 		},
 	}
-	reqBody, _ := json.Marshal(updateReq)
+	reqBody, err := json.Marshal(updateReq)
+	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPatch, cns.EndpointPath+containerID, bytes.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
-	svc.EndpointHandlerAPI(w, req)
+	service.EndpointHandlerAPI(w, req)
 
 	resp := w.Result()
 	defer resp.Body.Close()
 
 	var response cns.Response
-	err := json.NewDecoder(resp.Body).Decode(&response)
+	err = json.NewDecoder(resp.Body).Decode(&response)
 	require.NoError(t, err)
 	assert.Equal(t, types.Success, response.ReturnCode)
 
 	// Verify the update persisted
-	ep, getErr := svc.GetEndpointHelper(containerID)
+	ep, getErr := service.GetEndpointHelper(containerID)
 	require.NoError(t, getErr)
 	assert.Equal(t, "updated-hns-id", ep.IfnameToIPMap["eth0"].HnsEndpointID)
 }
 
 // TestEndpointHandlerAPI_DeleteMethod tests DELETE requests to EndpointHandlerAPI
 func TestEndpointHandlerAPI_DeleteMethod(t *testing.T) {
-	svc := getTestServiceForEndpointTests()
+	service := getTestServiceForEndpointTests(t)
 
 	containerID := "api-delete-test-container"
 	// Pre-populate endpoint
-	svc.EndpointState[containerID] = &EndpointInfo{
+	service.EndpointState[containerID] = &EndpointInfo{
 		PodName:       "delete-pod",
 		PodNamespace:  "delete-ns",
 		IfnameToIPMap: map[string]*IPInfo{"eth0": {NICType: cns.InfraNIC}},
 	}
 	// Persist to store
-	require.NoError(t, persistEndpointState(svc))
+	require.NoError(t, persistEndpointState(service))
 
 	tests := []struct {
 		name           string
@@ -417,10 +425,10 @@ func TestEndpointHandlerAPI_DeleteMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodDelete, tt.path, nil)
+			req := httptest.NewRequest(http.MethodDelete, tt.path, http.NoBody)
 			w := httptest.NewRecorder()
 
-			svc.EndpointHandlerAPI(w, req)
+			service.EndpointHandlerAPI(w, req)
 
 			resp := w.Result()
 			defer resp.Body.Close()
@@ -433,20 +441,20 @@ func TestEndpointHandlerAPI_DeleteMethod(t *testing.T) {
 	}
 
 	// Verify endpoint is deleted
-	_, exists := svc.EndpointState[containerID]
+	_, exists := service.EndpointState[containerID]
 	assert.False(t, exists)
 }
 
 // TestEndpointHandlerAPI_OptManageEndpointStateDisabled tests that API returns error when OptManageEndpointState is false
 func TestEndpointHandlerAPI_OptManageEndpointStateDisabled(t *testing.T) {
-	svc := getTestServiceForEndpointTests()
+	service := getTestServiceForEndpointTests(t)
 	// Disable endpoint state management
-	svc.Options[acn.OptManageEndpointState] = false
+	service.Options[acn.OptManageEndpointState] = false
 
-	req := httptest.NewRequest(http.MethodGet, cns.EndpointPath+"test-container", nil)
+	req := httptest.NewRequest(http.MethodGet, cns.EndpointPath+"test-container", http.NoBody)
 	w := httptest.NewRecorder()
 
-	svc.EndpointHandlerAPI(w, req)
+	service.EndpointHandlerAPI(w, req)
 
 	resp := w.Result()
 	defer resp.Body.Close()
@@ -461,7 +469,7 @@ func TestEndpointHandlerAPI_OptManageEndpointStateDisabled(t *testing.T) {
 // 3. CNI calls GetEndpoint during DELETE to retrieve state
 // 4. CNS deletes endpoint state
 func TestStatelessCNI_EndToEnd_Flow(t *testing.T) {
-	svc := getTestServiceForEndpointTests()
+	service := getTestServiceForEndpointTests(t)
 	containerID := "e2e-stateless-container-12345678"
 
 	// Step 1: Simulate CNS creating initial endpoint state during IP allocation
@@ -476,9 +484,9 @@ func TestStatelessCNI_EndToEnd_Flow(t *testing.T) {
 			},
 		},
 	}
-	svc.EndpointState[containerID] = initialState
+	service.EndpointState[containerID] = initialState
 	// Persist to store
-	require.NoError(t, persistEndpointState(svc))
+	require.NoError(t, persistEndpointState(service))
 
 	// Step 2: CNI calls UpdateEndpoint to add HNS/Veth info after endpoint creation
 	updateReq := map[string]*IPInfo{
@@ -489,11 +497,11 @@ func TestStatelessCNI_EndToEnd_Flow(t *testing.T) {
 			NICType:       cns.InfraNIC,
 		},
 	}
-	err := svc.UpdateEndpointHelper(containerID, updateReq)
+	err := service.UpdateEndpointHelper(containerID, updateReq)
 	require.NoError(t, err)
 
 	// Verify update
-	ep, err := svc.GetEndpointHelper(containerID)
+	ep, err := service.GetEndpointHelper(containerID)
 	require.NoError(t, err)
 	assert.Equal(t, "e2e-hns-endpoint-id", ep.IfnameToIPMap["eth0"].HnsEndpointID)
 	assert.Equal(t, "e2e-veth-host", ep.IfnameToIPMap["eth0"].HostVethName)
@@ -501,27 +509,27 @@ func TestStatelessCNI_EndToEnd_Flow(t *testing.T) {
 	assert.Len(t, ep.IfnameToIPMap["eth0"].IPv4, 1)
 
 	// Step 3: CNI calls GetEndpoint during DELETE
-	retrievedEp, err := svc.GetEndpointHelper(containerID)
+	retrievedEp, err := service.GetEndpointHelper(containerID)
 	require.NoError(t, err)
 	assert.Equal(t, "e2e-pod", retrievedEp.PodName)
 	assert.Equal(t, "e2e-hns-endpoint-id", retrievedEp.IfnameToIPMap["eth0"].HnsEndpointID)
 
 	// Step 4: CNS deletes endpoint state (for SwiftV2 standalone or after IP release)
-	err = svc.DeleteEndpointStateHelper(containerID)
+	err = service.DeleteEndpointStateHelper(containerID)
 	require.NoError(t, err)
 
 	// Verify deletion
-	_, exists := svc.EndpointState[containerID]
+	_, exists := service.EndpointState[containerID]
 	assert.False(t, exists)
 }
 
 // TestStatelessCNI_SwiftV2_MultiNIC tests SwiftV2 multi-NIC scenario
 func TestStatelessCNI_SwiftV2_MultiNIC(t *testing.T) {
-	svc := getTestServiceForEndpointTests()
+	service := getTestServiceForEndpointTests(t)
 	containerID := "swiftv2-multi-nic-container"
 
 	// Set up initial state with InfraNIC
-	svc.EndpointState[containerID] = &EndpointInfo{
+	service.EndpointState[containerID] = &EndpointInfo{
 		PodName:      "swiftv2-pod",
 		PodNamespace: "swiftv2-ns",
 		IfnameToIPMap: map[string]*IPInfo{
@@ -532,7 +540,7 @@ func TestStatelessCNI_SwiftV2_MultiNIC(t *testing.T) {
 		},
 	}
 	// Persist to store
-	require.NoError(t, persistEndpointState(svc))
+	require.NoError(t, persistEndpointState(service))
 
 	// Update with FrontendNIC (SwiftV2 secondary NIC)
 	updateReq := map[string]*IPInfo{
@@ -547,11 +555,11 @@ func TestStatelessCNI_SwiftV2_MultiNIC(t *testing.T) {
 			MacAddress: "aa:bb:cc:dd:ee:ff",
 		},
 	}
-	err := svc.UpdateEndpointHelper(containerID, updateReq)
+	err := service.UpdateEndpointHelper(containerID, updateReq)
 	require.NoError(t, err)
 
 	// Verify both NICs are in state
-	ep, err := svc.GetEndpointHelper(containerID)
+	ep, err := service.GetEndpointHelper(containerID)
 	require.NoError(t, err)
 
 	// Verify InfraNIC

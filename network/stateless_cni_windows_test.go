@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/stretchr/testify/require"
@@ -52,20 +51,13 @@ func TestStatelessCNI_Delete_Windows_WithHNSEndpointID(t *testing.T) {
 	endpoints := hnsFake.Cache.GetEndpoints()
 	require.Len(t, endpoints, 1, "HNS endpoint should be created")
 
-	// Set up mock CNS client with endpoint state containing HNS IDs
-	mockCNSClient := NewMockCNSEndpointClient()
-	containerID := "test-stateless-container-windows"
-	ipInfo := CreateMockIPInfo(cns.InfraNIC, "10.0.0.10/24", hnsEndpointID, hnsNetworkID, "", "00:11:22:33:44:55")
-	mockCNSClient.SetEndpointStateWithIPInfo(containerID, "test-pod", "test-ns", map[string]*restserver.IPInfo{
-		"eth0": ipInfo,
-	})
-
 	// Create network manager in stateless mode
+	containerID := "test-stateless-container-windows"
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
 
-	// Create endpoint info from CNS state
+	// Create endpoint info with HNS IDs (in production, this comes from CNS endpoint state)
 	epInfo := &EndpointInfo{
 		EndpointID:    containerID,
 		ContainerID:   containerID,
@@ -137,29 +129,14 @@ func TestStatelessCNI_Delete_Windows_SwiftV2_MultipleNICs(t *testing.T) {
 	// Verify both endpoints created
 	require.Len(t, hnsFake.Cache.GetEndpoints(), 2)
 
-	// SwiftV2 Windows: SEPARATE endpoint entries per NIC in CNS
-	mockCNSClient := NewMockCNSEndpointClient()
 	containerID := "multi-nic-container-windows"
-
-	// InfraNIC entry keyed by containerID
-	mockCNSClient.SetEndpointStateWithIPInfo(containerID, "multi-nic-pod", "default", map[string]*restserver.IPInfo{
-		"eth0": CreateMockIPInfo(cns.InfraNIC, "10.0.0.20/24", infraEndpointID, infraNetworkID, "", "00:11:22:33:44:55"),
-	})
-
-	// FrontendNIC entry keyed by containerID-eth1 (separate entry)
 	frontendEntryID := containerID + "-eth1"
-	mockCNSClient.SetEndpointStateWithIPInfo(frontendEntryID, "multi-nic-pod", "default", map[string]*restserver.IPInfo{
-		"eth1": CreateMockIPInfo(cns.NodeNetworkInterfaceFrontendNIC, "10.1.0.20/24", frontendEndpointID, frontendNetworkID, "", "aa:bb:cc:dd:ee:ff"),
-	})
-
-	// Verify CNS has TWO separate endpoint entries
-	require.Len(t, mockCNSClient.EndpointState, 2, "SwiftV2 Windows should have separate endpoint entries per NIC")
 
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
 
-	// Delete FrontendNIC endpoint first
+	// Delete FrontendNIC endpoint first (in production, epInfo comes from CNS endpoint state)
 	frontendEpInfo := &EndpointInfo{
 		EndpointID:    frontendEntryID, // containerID-eth1
 		ContainerID:   containerID,

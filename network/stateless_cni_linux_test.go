@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/netio"
+	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/stretchr/testify/require"
 )
@@ -54,8 +54,10 @@ func TestStatelessCNI_Delete_Linux_TransparentMode(t *testing.T) {
 	err := nm.DeleteEndpointStateless("azure-test-network", epInfo, opModeTransparent)
 	require.NoError(t, err)
 
-	// Note: TransparentEndpointClient.DeleteEndpoints() returns nil without deleting
-	// This is expected behavior - the CRI removes the network namespace which cleans up the veth
+	// TransparentEndpointClient.DeleteEndpoints() intentionally does not delete the veth -
+	// the CRI removes the network namespace which automatically cleans up the veth pair.
+	// Verify no links were deleted by the endpoint client.
+	require.Empty(t, deletedLinks, "TransparentEndpointClient should not delete links directly (CRI handles cleanup)")
 }
 
 // Tests for stateless CNI DELETE operations on Linux using MockNetlink and MockNamespaceClient.
@@ -125,9 +127,11 @@ func TestStatelessCNI_Delete_Linux_BackendNIC(t *testing.T) {
 	// (see endpoint_linux.go - "endpoint deletion is not required for IB")
 }
 
-// TestStatelessCNI_Delete_Linux_NetlinkError tests error handling when netlink fails
-func TestStatelessCNI_Delete_Linux_NetlinkError(t *testing.T) {
-	// Create mock netlink that returns errors
+// TestStatelessCNI_Delete_Linux_NetlinkErrorIgnored verifies that netlink errors during
+// FrontendNIC deletion are intentionally swallowed (deleteEndpointImpl ignores DeleteEndpoints errors).
+// This ensures cleanup continues even when network namespace operations fail.
+func TestStatelessCNI_Delete_Linux_NetlinkErrorIgnored(t *testing.T) {
+	// Create mock netlink that returns errors - this will fail SetLinkNetNs
 	mockNetlink := netlink.NewMockNetlink(true, "simulated netlink failure")
 
 	nm := &networkManager{
@@ -135,21 +139,24 @@ func TestStatelessCNI_Delete_Linux_NetlinkError(t *testing.T) {
 		netlink:            mockNetlink,
 		plClient:           platform.NewMockExecClient(false),
 		netio:              &netio.MockNetIO{},
+		nsClient:           NewMockNamespaceClient(), // Required for SecondaryEndpointClient
 	}
 
 	containerID := "error-test-container"
 	epInfo := &EndpointInfo{
-		EndpointID:  containerID,
+		EndpointID:  containerID + "-eth1",
 		ContainerID: containerID,
 		Data:        make(map[string]interface{}),
-		IfName:      "eth0",
-		NICType:     cns.InfraNIC,
+		IfName:      "eth1",
+		NICType:     cns.NodeNetworkInterfaceFrontendNIC, // FrontendNIC uses SecondaryEndpointClient which calls netlink
 		HostIfName:  "veth-error",
+		NetNsPath:   "/var/run/netns/test-ns", // Required for namespace operations
 		MacAddress:  net.HardwareAddr{0x00, 0x11, 0x22, 0x33, 0x44, 0x55},
 	}
 
-	// Execute - transparent mode DeleteEndpoints returns nil regardless of netlink state
-	// so this should still succeed
+	// Execute - even though netlink.SetLinkNetNs fails, deleteEndpointImpl intentionally
+	// ignores errors from epClient.DeleteEndpoints (see //nolint:errcheck comment in endpoint_linux.go)
+	// This is by design: cleanup should continue even if namespace operations fail
 	err := nm.DeleteEndpointStateless("azure-error-network", epInfo, opModeTransparent)
 	require.NoError(t, err)
 }

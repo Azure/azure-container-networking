@@ -215,12 +215,14 @@ func (nm *MockNetworkManager) GetEndpointInfosFromContainerID(containerID string
 	return ret
 }
 
-func (nm *MockNetworkManager) GetEndpointState(_, containerID, ifName string) ([]*EndpointInfo, error) {
-	// GetEndpointState is only called in stateless CNI mode
+func (nm *MockNetworkManager) GetEndpointState(_, containerID, netns string) ([]*EndpointInfo, error) {
+	// GetEndpointState is only called in stateless CNI mode.
+	// The third argument represents netns and is not used for filtering.
 	if nm.MockCNSClient != nil {
-		return nm.MockCNSClient.GetEndpointState(containerID, ifName)
+		return nm.MockCNSClient.GetEndpointState(containerID, netns)
 	}
-	return []*EndpointInfo{}, nil
+	// When no CNS client is configured, return all mock endpoint infos for the container ID.
+	return nm.GetEndpointInfosFromContainerID(containerID), nil
 }
 
 // GetEndpointIDByNicType returns a unique endpoint ID based on the CNI mode and NIC type.

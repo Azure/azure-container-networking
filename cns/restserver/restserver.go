@@ -120,20 +120,20 @@ func (*NoOpConflistGenerator) Close() error {
 }
 
 type EndpointInfo struct {
-	PodName       string
-	PodNamespace  string
-	IfnameToIPMap map[string]*IPInfo // key : interface name, value : IPInfo
+	PodName       string             `json:"PodName,omitempty"`
+	PodNamespace  string             `json:"PodNamespace,omitempty"`
+	IfnameToIPMap map[string]*IPInfo `json:"IfnameToIPMap,omitempty"` // key : interface name, value : IPInfo
 }
 
 type IPInfo struct {
-	IPv4               []net.IPNet
-	IPv6               []net.IPNet `json:",omitempty"`
-	HnsEndpointID      string      `json:",omitempty"`
-	HnsNetworkID       string      `json:",omitempty"`
-	HostVethName       string      `json:",omitempty"`
-	MacAddress         string      `json:",omitempty"`
-	NetworkContainerID string      `json:",omitempty"`
-	NICType            cns.NICType
+	IPv4               []net.IPNet `json:"IPv4,omitempty"`
+	IPv6               []net.IPNet `json:"IPv6,omitempty"`
+	HnsEndpointID      string      `json:"HnsEndpointID,omitempty"`
+	HnsNetworkID       string      `json:"HnsNetworkID,omitempty"`
+	HostVethName       string      `json:"HostVethName,omitempty"`
+	MacAddress         string      `json:"MacAddress,omitempty"`
+	NetworkContainerID string      `json:"NetworkContainerID,omitempty"`
+	NICType            cns.NICType `json:"NICType,omitempty"`
 }
 
 type GetHTTPServiceDataResponse struct {
@@ -149,8 +149,8 @@ type HTTPRestServiceData struct { //nolint:musttag // not tagging struct for rev
 }
 
 type Response struct {
-	ReturnCode types.ResponseCode
-	Message    string
+	ReturnCode types.ResponseCode `json:"ReturnCode"`
+	Message    string             `json:"Message"`
 }
 
 // GetEndpointResponse describes response from the The GetEndpoint API.

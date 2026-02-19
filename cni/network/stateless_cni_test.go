@@ -15,17 +15,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testNamespace = "test-ns"
+)
+
 // GetStatelessTestResources creates a test NetPlugin configured for stateless CNI mode
-func GetStatelessTestResources() (*NetPlugin, *acnnetwork.MockNetworkManager) {
+func GetStatelessTestResources(t *testing.T) (*NetPlugin, *acnnetwork.MockNetworkManager) {
 	pluginName := "testplugin"
 	isIPv6 := false
 	config := &common.PluginConfig{}
 	grpcClient := &nns.MockGrpcClient{}
-	plugin, _ := NewPlugin(pluginName, config, grpcClient, &Multitenancy{})
+	plugin, err := NewPlugin(pluginName, config, grpcClient, &Multitenancy{})
+	require.NoError(t, err, "NewPlugin should not fail")
 
 	// Create mock network manager with stateless mode enabled
 	mockNetworkManager := acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil))
-	_ = mockNetworkManager.SetStatelessCNIMode()
+	err = mockNetworkManager.SetStatelessCNIMode()
+	require.NoError(t, err, "SetStatelessCNIMode should not fail")
 
 	plugin.nm = mockNetworkManager
 	plugin.ipamInvoker = NewMockIpamInvoker(isIPv6, false, false, false, false)
@@ -58,7 +64,7 @@ func createStatelessTestConfig() cni.NetworkConfig {
 
 // TestStatelessCNI_Delete_CNSGetEndpointError tests DELETE when CNS returns errors
 func TestStatelessCNI_Delete_CNSGetEndpointError(t *testing.T) {
-	plugin, mockNM := GetStatelessTestResources()
+	plugin, mockNM := GetStatelessTestResources(t)
 	nwCfgStateless := createStatelessTestConfig()
 
 	tests := []struct {
@@ -95,7 +101,7 @@ func TestStatelessCNI_Delete_CNSGetEndpointError(t *testing.T) {
 				StdinData:   nwCfgStateless.Serialize(),
 				ContainerID: "error-test-container",
 				Netns:       "error-test-container",
-				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "error-pod", "test-ns"),
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "error-pod", testNamespace),
 				IfName:      "eth0",
 			}
 
@@ -118,13 +124,14 @@ func TestStatelessCNI_Delete_HappyPath(t *testing.T) {
 	nwCfgStateless := createStatelessTestConfig()
 	containerID := "happy-path-container"
 	podName := "test-pod"
-	podNamespace := "test-ns"
+	podNamespace := testNamespace
 
 	tests := []struct {
-		name        string
-		setupState  func(*acnnetwork.MockCNSEndpointClient, *MockIpamInvoker)
-		wantErr     bool
-		description string
+		name          string
+		setupState    func(*acnnetwork.MockCNSEndpointClient, *MockIpamInvoker)
+		validateAfter func(*testing.T, *MockIpamInvoker)
+		wantErr       bool
+		description   string
 	}{
 		{
 			name: "Delete InfraNIC endpoint - IP released",
@@ -135,6 +142,11 @@ func TestStatelessCNI_Delete_HappyPath(t *testing.T) {
 				})
 				// Pre-populate ipam invoker with the IP so Delete validates it
 				mockIpam.ipMap["10.240.0.5/24"] = true
+			},
+			validateAfter: func(t *testing.T, mockIpam *MockIpamInvoker) {
+				// Verify IP was released from IPAM
+				_, exists := mockIpam.ipMap["10.240.0.5/24"]
+				require.False(t, exists, "InfraNIC IP should be released from IPAM")
 			},
 			wantErr:     false,
 			description: "InfraNIC endpoint should be deleted and IP released via ipamInvoker.Delete",
@@ -148,6 +160,10 @@ func TestStatelessCNI_Delete_HappyPath(t *testing.T) {
 				})
 				// Do NOT add to ipam invoker - delegated IPs should not be released
 			},
+			validateAfter: func(t *testing.T, mockIpam *MockIpamInvoker) {
+				// Verify ipMap is unchanged (delegated NICs don't release IPs via IPAM)
+				require.Empty(t, mockIpam.ipMap, "FrontendNIC should not trigger IPAM release")
+			},
 			wantErr:     false,
 			description: "FrontendNIC (delegated) endpoint should be deleted but IP NOT released",
 		},
@@ -160,6 +176,10 @@ func TestStatelessCNI_Delete_HappyPath(t *testing.T) {
 				})
 				// BackendNIC has no IP to release
 			},
+			validateAfter: func(t *testing.T, mockIpam *MockIpamInvoker) {
+				// Verify ipMap is unchanged (BackendNIC has no IPs)
+				require.Empty(t, mockIpam.ipMap, "BackendNIC should not trigger IPAM release")
+			},
 			wantErr:     false,
 			description: "BackendNIC endpoint should be deleted (no IP release needed)",
 		},
@@ -168,7 +188,7 @@ func TestStatelessCNI_Delete_HappyPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create fresh plugin and mocks for each test
-			plugin, mockNM := GetStatelessTestResources()
+			plugin, mockNM := GetStatelessTestResources(t)
 			mockIpam := NewMockIpamInvoker(false, false, false, false, false)
 			plugin.ipamInvoker = mockIpam
 
@@ -190,6 +210,11 @@ func TestStatelessCNI_Delete_HappyPath(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
+			// Validate side effects
+			if tt.validateAfter != nil {
+				tt.validateAfter(t, mockIpam)
+			}
 		})
 	}
 }
@@ -199,13 +224,14 @@ func TestStatelessCNI_Delete_MultiNIC(t *testing.T) {
 	nwCfgStateless := createStatelessTestConfig()
 	containerID := "multi-nic-container"
 	podName := "multi-nic-pod"
-	podNamespace := "test-ns"
+	podNamespace := testNamespace
 
 	tests := []struct {
-		name        string
-		setupState  func(*acnnetwork.MockCNSEndpointClient, *MockIpamInvoker)
-		wantErr     bool
-		description string
+		name          string
+		setupState    func(*acnnetwork.MockCNSEndpointClient, *MockIpamInvoker)
+		validateAfter func(*testing.T, *MockIpamInvoker)
+		wantErr       bool
+		description   string
 	}{
 		{
 			name: "Delete InfraNIC + FrontendNIC - only InfraNIC IP released",
@@ -217,6 +243,11 @@ func TestStatelessCNI_Delete_MultiNIC(t *testing.T) {
 				})
 				// Only InfraNIC IP should be released
 				mockIpam.ipMap["10.240.0.5/24"] = true
+			},
+			validateAfter: func(t *testing.T, mockIpam *MockIpamInvoker) {
+				// Verify InfraNIC IP was released
+				_, exists := mockIpam.ipMap["10.240.0.5/24"]
+				require.False(t, exists, "InfraNIC IP should be released from IPAM")
 			},
 			wantErr:     false,
 			description: "Both endpoints deleted, only InfraNIC IP released via ipamInvoker.Delete",
@@ -232,6 +263,11 @@ func TestStatelessCNI_Delete_MultiNIC(t *testing.T) {
 				// Only InfraNIC IP should be released
 				mockIpam.ipMap["10.240.0.5/24"] = true
 			},
+			validateAfter: func(t *testing.T, mockIpam *MockIpamInvoker) {
+				// Verify InfraNIC IP was released
+				_, exists := mockIpam.ipMap["10.240.0.5/24"]
+				require.False(t, exists, "InfraNIC IP should be released from IPAM")
+			},
 			wantErr:     false,
 			description: "Both endpoints deleted, only InfraNIC IP released",
 		},
@@ -245,6 +281,10 @@ func TestStatelessCNI_Delete_MultiNIC(t *testing.T) {
 				})
 				// Delegated IPs not released - ipMap stays empty
 			},
+			validateAfter: func(t *testing.T, mockIpam *MockIpamInvoker) {
+				// Verify ipMap is unchanged (delegated NICs don't release IPs via IPAM)
+				require.Empty(t, mockIpam.ipMap, "FrontendNICs should not trigger IPAM release")
+			},
 			wantErr:     false,
 			description: "Both FrontendNIC endpoints deleted, no IPs released (delegated)",
 		},
@@ -253,7 +293,7 @@ func TestStatelessCNI_Delete_MultiNIC(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create fresh plugin and mocks for each test
-			plugin, mockNM := GetStatelessTestResources()
+			plugin, mockNM := GetStatelessTestResources(t)
 			mockIpam := NewMockIpamInvoker(false, false, false, false, false)
 			plugin.ipamInvoker = mockIpam
 
@@ -275,6 +315,11 @@ func TestStatelessCNI_Delete_MultiNIC(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
+			// Validate side effects
+			if tt.validateAfter != nil {
+				tt.validateAfter(t, mockIpam)
+			}
 		})
 	}
 }
@@ -285,13 +330,11 @@ func TestStatelessCNI_Delete_DualStack(t *testing.T) {
 	nwCfgStateless := createStatelessTestConfig()
 	containerID := "dualstack-container"
 	podName := "dualstack-pod"
-	podNamespace := "test-ns"
+	podNamespace := testNamespace
 
 	// Create fresh plugin and mocks
-	plugin, mockNM := GetStatelessTestResources()
-	// Use a custom ipam invoker that doesn't validate IP releases
-	// The actual IP release logic is tested by TestStatelessCNI_Delete_HappyPath
-	mockIpam := &MockIpamInvoker{ipMap: make(map[string]bool)}
+	plugin, mockNM := GetStatelessTestResources(t)
+	mockIpam := NewMockIpamInvoker(false, false, false, false, false)
 	plugin.ipamInvoker = mockIpam
 
 	// Use CreateMockIPInfo helper which handles IP/mask formats correctly
@@ -305,6 +348,10 @@ func TestStatelessCNI_Delete_DualStack(t *testing.T) {
 		"eth0": ipInfo,
 	})
 
+	// Pre-populate ipam invoker with both IPs so Delete validates them
+	mockIpam.ipMap["10.240.0.5/24"] = true
+	mockIpam.ipMap["fc00::5/128"] = true
+
 	cmdArgs := &cniSkel.CmdArgs{
 		StdinData:   nwCfgStateless.Serialize(),
 		ContainerID: containerID,
@@ -316,6 +363,12 @@ func TestStatelessCNI_Delete_DualStack(t *testing.T) {
 	// Verify Delete succeeds with dual-stack endpoint
 	err := plugin.Delete(cmdArgs)
 	require.NoError(t, err)
+
+	// Verify both IPv4 and IPv6 addresses were released
+	_, v4Exists := mockIpam.ipMap["10.240.0.5/24"]
+	require.False(t, v4Exists, "IPv4 address should be released from IPAM")
+	_, v6Exists := mockIpam.ipMap["fc00::5/128"]
+	require.False(t, v6Exists, "IPv6 address should be released from IPAM")
 }
 
 // TestStatelessCNI_Delete_IpamDeleteFails tests DELETE when ipamInvoker.Delete fails
@@ -323,10 +376,10 @@ func TestStatelessCNI_Delete_IpamDeleteFails(t *testing.T) {
 	nwCfgStateless := createStatelessTestConfig()
 	containerID := "ipam-fail-container"
 	podName := "ipam-fail-pod"
-	podNamespace := "test-ns"
+	podNamespace := testNamespace
 
 	// Create fresh plugin and mocks
-	plugin, mockNM := GetStatelessTestResources()
+	plugin, mockNM := GetStatelessTestResources(t)
 	mockIpam := NewMockIpamInvoker(false, true, false, false, false) // v4Fail=true to trigger delete failure
 	plugin.ipamInvoker = mockIpam
 

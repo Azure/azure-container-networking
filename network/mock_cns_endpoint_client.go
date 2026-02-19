@@ -142,7 +142,7 @@ func (m *MockCNSEndpointClient) SetEndpointStateWithIPInfo(containerID, podName,
 }
 
 // CreateMockIPInfo is a helper to create IPInfo for testing
-func CreateMockIPInfo(nicType cns.NICType, ipv4 string, hnsEndpointID, hnsNetworkID, hostVethName, macAddress string) *restserver.IPInfo {
+func CreateMockIPInfo(nicType cns.NICType, ipv4, hnsEndpointID, hnsNetworkID, hostVethName, macAddress string) *restserver.IPInfo {
 	ipInfo := &restserver.IPInfo{
 		NICType:       nicType,
 		HnsEndpointID: hnsEndpointID,
@@ -163,59 +163,25 @@ func CreateMockIPInfo(nicType cns.NICType, ipv4 string, hnsEndpointID, hnsNetwor
 	return ipInfo
 }
 
-// GetEndpointState returns the endpoint state in EndpointInfo format for MockNetworkManager
-// This converts the CNS EndpointInfo to the network package's EndpointInfo format
-func (m *MockCNSEndpointClient) GetEndpointState(containerID, ifName string) ([]*EndpointInfo, error) {
+// GetEndpointState returns the endpoint state in EndpointInfo format for MockNetworkManager.
+// This uses the production cnsEndpointInfotoCNIEpInfos function to ensure consistent behavior
+// with production code, including legacy/unmigrated case handling where IfnameToIPMap key is "".
+// Matches the production networkManager.GetEndpointState behavior - returns ErrEndpointStateNotFound when not found.
+func (m *MockCNSEndpointClient) GetEndpointState(containerID, netns string) ([]*EndpointInfo, error) {
 	// Return error if configured
 	if m.GetEndpointErr != nil {
 		return nil, m.GetEndpointErr
 	}
 
-	endpointInfos := make([]*EndpointInfo, 0)
-
 	// Check if endpoint state exists for this containerID
+	// Production behavior: returns ErrEndpointStateNotFound when endpoint is not in state
 	epInfo, exists := m.EndpointState[containerID]
 	if !exists || epInfo == nil {
-		return endpointInfos, nil
+		return []*EndpointInfo{}, ErrEndpointStateNotFound
 	}
 
-	// Convert CNS endpoint state to EndpointInfo for each interface
-	for ifname, ipInfo := range epInfo.IfnameToIPMap {
-		// If specific ifName is requested, filter
-		if ifName != "" && ifname != ifName {
-			continue
-		}
-
-		endpointInfo := &EndpointInfo{
-			ContainerID:   containerID,
-			IfName:        ifname,
-			NICType:       ipInfo.NICType,
-			HNSEndpointID: ipInfo.HnsEndpointID,
-			HNSNetworkID:  ipInfo.HnsNetworkID,
-			HostIfName:    ipInfo.HostVethName,
-			MacAddress:    net.HardwareAddr{},
-		}
-
-		// Parse MAC address if provided
-		if ipInfo.MacAddress != "" {
-			mac, err := net.ParseMAC(ipInfo.MacAddress)
-			if err == nil {
-				endpointInfo.MacAddress = mac
-			}
-		}
-
-		// Convert IP addresses
-		for _, ipNet := range ipInfo.IPv4 {
-			ip := ipNet
-			endpointInfo.IPAddresses = append(endpointInfo.IPAddresses, ip)
-		}
-		for _, ipNet := range ipInfo.IPv6 {
-			ip := ipNet
-			endpointInfo.IPAddresses = append(endpointInfo.IPAddresses, ip)
-		}
-
-		endpointInfos = append(endpointInfos, endpointInfo)
-	}
-
-	return endpointInfos, nil
+	// Use the production conversion function to ensure consistent behavior with production code.
+	// This handles legacy cases (empty ifName mapped to InfraInterfaceName with NICType=InfraNIC)
+	// and populates all fields that production does (IfIndex, NetworkContainerID, etc.)
+	return cnsEndpointInfotoCNIEpInfos(*epInfo, containerID, netns), nil
 }
