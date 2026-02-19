@@ -862,3 +862,190 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 		})
 	}
 }
+
+// TestGetAllNetworkContainersWithIPv6Multitenancy verifies CNI multitenancy
+// correctly processes IPv6Configuration
+func TestGetAllNetworkContainersWithIPv6Multitenancy(t *testing.T) {
+	// Create NC responses with IPv6Configuration
+	ncResponseWithIPv6 := cns.GetNetworkContainerResponse{
+		PrimaryInterfaceIdentifier: "10.0.0.0/16",
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "10.1.0.5",
+				PrefixLength: 16,
+			},
+			DNSServers:       []string{"8.8.8.8"},
+			GatewayIPAddress: "10.1.0.1",
+		},
+		IPv6Configuration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "2001:db8::5",
+				PrefixLength: 64,
+			},
+			DNSServers:       []string{"2001:4860:4860::8888"},
+			GatewayIPAddress: "2001:db8::1",
+		},
+		MultiTenancyInfo: cns.MultiTenancyInfo{
+			EncapType: "1",
+			ID:        1,
+		},
+	}
+
+	ncResponses := []cns.GetNetworkContainerResponse{ncResponseWithIPv6}
+
+	podInfo := cns.KubernetesPodInfo{
+		PodName:      "test-pod",
+		PodNamespace: "test-namespace",
+	}
+	orchestratorContext, err := json.Marshal(podInfo)
+	require.NoError(t, err)
+
+	// Mock CNS client
+	cnsclient := &MockCNSClient{
+		getAllNetworkContainersConfiguration: getAllNetworkContainersConfigurationHandler{
+			orchestratorContext: orchestratorContext,
+			returnResponse:      ncResponses,
+			err:                 nil,
+		},
+	}
+
+	// Mock network IO
+	mockNetIO := &MockNetIOShim{
+		interfaceSubnet: net.IPNet{
+			IP:   net.IPv4(10, 0, 0, 0),
+			Mask: net.CIDRMask(16, 32),
+		},
+	}
+
+	multitenancy := &Multitenancy{}
+	multitenancy.Init(cnsclient, mockNetIO)
+
+	nwCfg := &cni.NetworkConfig{
+		EnableExactMatchForPodName: true,
+	}
+
+	// Get network containers (this will process IPv6Configuration)
+	ipamResult, err := multitenancy.GetAllNetworkContainers(
+		context.TODO(),
+		nwCfg,
+		"test-pod",
+		"test-namespace",
+		"eth0",
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, ipamResult)
+	require.Len(t, ipamResult.interfaceInfo, 1)
+
+	// Get the interface info
+	var ifInfo network.InterfaceInfo
+	for _, info := range ipamResult.interfaceInfo {
+		ifInfo = info
+		break
+	}
+
+	// Verify both IPv4 and IPv6 configurations are present
+	require.Len(t, ifInfo.IPConfigs, 2, "Expected 2 IP configs (IPv4 and IPv6)")
+
+	// Verify IPv6 configuration
+	ipv6Config := ifInfo.IPConfigs[1]
+	require.Equal(t, "2001:db8::5", ipv6Config.Address.IP.String())
+	require.Equal(t, 64, getPrefixLength(ipv6Config.Address.Mask))
+	require.Equal(t, "2001:db8::1", ipv6Config.Gateway.String())
+}
+
+// TestGetAllNetworkContainersEmptyIPv6Multitenancy verifies CNI handles
+// empty IPv6Configuration gracefully
+func TestGetAllNetworkContainersEmptyIPv6Multitenancy(t *testing.T) {
+	// Create NC response without IPv6Configuration (empty/zero value)
+	ncResponseWithoutIPv6 := cns.GetNetworkContainerResponse{
+		PrimaryInterfaceIdentifier: "10.0.0.0/16",
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "10.1.0.5",
+				PrefixLength: 16,
+			},
+			DNSServers:       []string{"8.8.8.8"},
+			GatewayIPAddress: "10.1.0.1",
+		},
+		// IPv6Configuration omitted (zero value)
+		MultiTenancyInfo: cns.MultiTenancyInfo{
+			EncapType: "1",
+			ID:        1,
+		},
+	}
+
+	ncResponses := []cns.GetNetworkContainerResponse{ncResponseWithoutIPv6}
+
+	podInfo := cns.KubernetesPodInfo{
+		PodName:      "test-pod",
+		PodNamespace: "test-namespace",
+	}
+	orchestratorContext, err := json.Marshal(podInfo)
+	require.NoError(t, err)
+
+	cnsclient := &MockCNSClient{
+		getAllNetworkContainersConfiguration: getAllNetworkContainersConfigurationHandler{
+			orchestratorContext: orchestratorContext,
+			returnResponse:      ncResponses,
+			err:                 nil,
+		},
+	}
+
+	mockNetIO := &MockNetIOShim{
+		interfaceSubnet: net.IPNet{
+			IP:   net.IPv4(10, 0, 0, 0),
+			Mask: net.CIDRMask(16, 32),
+		},
+	}
+
+	multitenancy := &Multitenancy{}
+	multitenancy.Init(cnsclient, mockNetIO)
+
+	nwCfg := &cni.NetworkConfig{
+		EnableExactMatchForPodName: true,
+	}
+
+	ipamResult, err := multitenancy.GetAllNetworkContainers(
+		context.TODO(),
+		nwCfg,
+		"test-pod",
+		"test-namespace",
+		"eth0",
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, ipamResult)
+	require.Len(t, ipamResult.interfaceInfo, 1)
+
+	var ifInfo network.InterfaceInfo
+	for _, info := range ipamResult.interfaceInfo {
+		ifInfo = info
+		break
+	}
+
+	// Verify only IPv4 configuration is present (no IPv6)
+	require.Len(t, ifInfo.IPConfigs, 1, "Expected only 1 IP config (IPv4 only)")
+
+	// Verify IPv4 configuration works correctly
+	ipv4Config := ifInfo.IPConfigs[0]
+	require.Equal(t, "10.1.0.5", ipv4Config.Address.IP.String())
+	require.Equal(t, "10.1.0.1", ipv4Config.Gateway.String())
+}
+
+// Helper function to get prefix length from mask
+func getPrefixLength(mask net.IPMask) int {
+	ones, _ := mask.Size()
+	return ones
+}
+
+// MockNetIOShim for testing
+type MockNetIOShim struct {
+	interfaceSubnet net.IPNet
+	callCount       int
+}
+
+func (m *MockNetIOShim) GetInterfaceSubnetWithSpecificIP(ipAddr string) *net.IPNet {
+	m.callCount++
+	return &m.interfaceSubnet
+}
