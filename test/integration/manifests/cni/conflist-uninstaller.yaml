@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: azure-cni-conflist-uninstaller
+  namespace: kube-system
+  labels:
+    app: azure-cni
+spec:
+  selector:
+    matchLabels:
+      k8s-app: azure-cni-uninstaller
+  template:
+    metadata:
+      labels:
+        k8s-app: azure-cni-uninstaller
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      priorityClassName: system-node-critical
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+      initContainers:
+        - name: cni-uninstaller
+          image: mcr.microsoft.com/azurelinux/base/core:3.0
+          imagePullPolicy: Always
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - "rm -f /etc/cni/net.d/${CONFLIST_PRIORITY}-${CONFLIST}"
+          volumeMounts:
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
+      containers:
+        - name: pause
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+      hostNetwork: true
+      volumes:
+        - name: cni-conflist
+          hostPath:
+            path: /etc/cni/net.d
+            type: Directory
+
+# Usage example:
+# envsubst '${CONFLIST},${CONFLIST_PRIORITY}' < test/integration/manifests/cni/conflist-uninstaller.yaml | kubectl apply -f -
