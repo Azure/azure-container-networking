@@ -123,6 +123,7 @@ type CreateNetworkContainerRequest struct {
 	LocalIPConfiguration       IPConfiguration
 	OrchestratorContext        json.RawMessage
 	IPConfiguration            IPConfiguration
+	IPv6Configuration          IPConfiguration // Used for CNI multitenancy in Swiftv1 scenario
 	SecondaryIPConfigs         map[string]SecondaryIPConfig // uuid is key
 	MultiTenancyInfo           MultiTenancyInfo
 	CnetAddressSpace           []IPSubnet // To setup SNAT (should include service endpoint vips).
@@ -494,6 +495,7 @@ type GetNetworkContainerRequest struct {
 type GetNetworkContainerResponse struct {
 	NetworkContainerID         string
 	IPConfiguration            IPConfiguration
+	IPv6Configuration          IPConfiguration // Used for CNI multitenancy in Swiftv1 scenario
 	Routes                     []Route
 	CnetAddressSpace           []IPSubnet
 	MultiTenancyInfo           MultiTenancyInfo
