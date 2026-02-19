@@ -866,8 +866,6 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 // TestGetAllNetworkContainersWithIPv6Multitenancy verifies CNI multitenancy
 // correctly processes IPv6Configuration
 func TestGetAllNetworkContainersWithIPv6Multitenancy(t *testing.T) {
-	require := require.New(t)
-
 	// Create NC responses with IPv6Configuration
 	ncResponseWithIPv6 := cns.GetNetworkContainerResponse{
 		PrimaryInterfaceIdentifier: "10.0.0.0/16",
@@ -900,11 +898,10 @@ func TestGetAllNetworkContainersWithIPv6Multitenancy(t *testing.T) {
 		PodNamespace: "test-namespace",
 	}
 	orchestratorContext, err := json.Marshal(podInfo)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	// Mock CNS client
 	cnsclient := &MockCNSClient{
-		require: require,
 		getAllNetworkContainersConfiguration: getAllNetworkContainersConfigurationHandler{
 			orchestratorContext: orchestratorContext,
 			returnResponse:      ncResponses,
@@ -936,9 +933,9 @@ func TestGetAllNetworkContainersWithIPv6Multitenancy(t *testing.T) {
 		"eth0",
 	)
 
-	require.NoError(err)
-	require.NotNil(ipamResult)
-	require.Len(ipamResult.interfaceInfo, 1)
+	require.NoError(t, err)
+	require.NotNil(t, ipamResult)
+	require.Len(t, ipamResult.interfaceInfo, 1)
 
 	// Get the interface info
 	var ifInfo network.InterfaceInfo
@@ -948,20 +945,18 @@ func TestGetAllNetworkContainersWithIPv6Multitenancy(t *testing.T) {
 	}
 
 	// Verify both IPv4 and IPv6 configurations are present
-	require.Len(ifInfo.IPConfigs, 2, "Expected 2 IP configs (IPv4 and IPv6)")
+	require.Len(t, ifInfo.IPConfigs, 2, "Expected 2 IP configs (IPv4 and IPv6)")
 
 	// Verify IPv6 configuration
 	ipv6Config := ifInfo.IPConfigs[1]
-	require.Equal("2001:db8::5", ipv6Config.Address.IP.String())
-	require.Equal(64, getPrefixLength(ipv6Config.Address.Mask))
-	require.Equal("2001:db8::1", ipv6Config.Gateway.String())
+	require.Equal(t, "2001:db8::5", ipv6Config.Address.IP.String())
+	require.Equal(t, 64, getPrefixLength(ipv6Config.Address.Mask))
+	require.Equal(t, "2001:db8::1", ipv6Config.Gateway.String())
 }
 
 // TestGetAllNetworkContainersEmptyIPv6Multitenancy verifies CNI handles
 // empty IPv6Configuration gracefully
 func TestGetAllNetworkContainersEmptyIPv6Multitenancy(t *testing.T) {
-	require := require.New(t)
-
 	// Create NC response without IPv6Configuration (empty/zero value)
 	ncResponseWithoutIPv6 := cns.GetNetworkContainerResponse{
 		PrimaryInterfaceIdentifier: "10.0.0.0/16",
@@ -987,10 +982,9 @@ func TestGetAllNetworkContainersEmptyIPv6Multitenancy(t *testing.T) {
 		PodNamespace: "test-namespace",
 	}
 	orchestratorContext, err := json.Marshal(podInfo)
-	require.NoError(err)
+	require.NoError(t, err)
 
 	cnsclient := &MockCNSClient{
-		require: require,
 		getAllNetworkContainersConfiguration: getAllNetworkContainersConfigurationHandler{
 			orchestratorContext: orchestratorContext,
 			returnResponse:      ncResponses,
@@ -1020,9 +1014,9 @@ func TestGetAllNetworkContainersEmptyIPv6Multitenancy(t *testing.T) {
 		"eth0",
 	)
 
-	require.NoError(err)
-	require.NotNil(ipamResult)
-	require.Len(ipamResult.interfaceInfo, 1)
+	require.NoError(t, err)
+	require.NotNil(t, ipamResult)
+	require.Len(t, ipamResult.interfaceInfo, 1)
 
 	var ifInfo network.InterfaceInfo
 	for _, info := range ipamResult.interfaceInfo {
@@ -1031,12 +1025,12 @@ func TestGetAllNetworkContainersEmptyIPv6Multitenancy(t *testing.T) {
 	}
 
 	// Verify only IPv4 configuration is present (no IPv6)
-	require.Len(ifInfo.IPConfigs, 1, "Expected only 1 IP config (IPv4 only)")
+	require.Len(t, ifInfo.IPConfigs, 1, "Expected only 1 IP config (IPv4 only)")
 
 	// Verify IPv4 configuration works correctly
 	ipv4Config := ifInfo.IPConfigs[0]
-	require.Equal("10.1.0.5", ipv4Config.Address.IP.String())
-	require.Equal("10.1.0.1", ipv4Config.Gateway.String())
+	require.Equal(t, "10.1.0.5", ipv4Config.Address.IP.String())
+	require.Equal(t, "10.1.0.1", ipv4Config.Gateway.String())
 }
 
 // Helper function to get prefix length from mask
