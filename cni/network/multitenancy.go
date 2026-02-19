@@ -228,6 +228,16 @@ func (m *Multitenancy) GetAllNetworkContainers(
 
 		ipconfig, routes := convertToIPConfigAndRouteInfo(ifInfo.NCResponse)
 		ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipconfig)
+
+		// Add IPv6Configuration if present (used for CNI multitenancy in Swiftv1 scenario)
+		if ifInfo.NCResponse.IPv6Configuration.IPSubnet.IPAddress != "" {
+			ipv6config := &network.IPConfig{}
+			ipv6Addr := net.ParseIP(ifInfo.NCResponse.IPv6Configuration.IPSubnet.IPAddress)
+			ipv6config.Address = net.IPNet{IP: ipv6Addr, Mask: net.CIDRMask(int(ifInfo.NCResponse.IPv6Configuration.IPSubnet.PrefixLength), ipv6FullMask)}
+			ipv6config.Gateway = net.ParseIP(ifInfo.NCResponse.IPv6Configuration.GatewayIPAddress)
+			ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipv6config)
+		}
+
 		ifInfo.Routes = routes
 		ifInfo.NICType = cns.InfraNIC
 		ifInfo.SkipDefaultRoutes = ncResponses[i].SkipDefaultRoutes
