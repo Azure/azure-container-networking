@@ -172,7 +172,7 @@ copy_managed_node_labels_to_byon() {
   "kubernetes\.azure\.com\/podnetwork-subnet"
   "kubernetes\.azure\.com\/podnetwork-multi-tenancy-enabled"
   "kubernetes\.azure\.com\/podnetwork-delegationguid"
-  # "kubernetes\.azure\.com\/cluster"
+  "kubernetes\.azure\.com\/cluster"
   )
   
   nodes=($(kubectl --kubeconfig "$kubeconfig_file" get nodes -l kubernetes.azure.com/managed=false -o jsonpath='{.items[*].metadata.name}'))
