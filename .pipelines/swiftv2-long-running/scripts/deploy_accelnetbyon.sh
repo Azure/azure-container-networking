@@ -76,6 +76,25 @@ label_vmss_nodes() {
   kubectl --kubeconfig "$kubeconfig_file" get nodes -o name | grep "${cluster_prefix}aclh" | xargs -I {} kubectl --kubeconfig "$kubeconfig_file" label {} nic-capacity=high-nic --overwrite || true
   
   copy_managed_node_labels_to_byon "$kubeconfig_file"
+
+  # Verify that critical labels were applied to all BYON Windows nodes
+  echo "Verifying labels on BYON Windows nodes..."
+  local missing_labels=false
+  local byon_nodes=($(kubectl --kubeconfig "$kubeconfig_file" get nodes -l kubernetes.azure.com/managed=false,kubernetes.io/os=windows -o jsonpath='{.items[*].metadata.name}'))
+  for node in "${byon_nodes[@]}"; do
+    cluster_label=$(kubectl --kubeconfig "$kubeconfig_file" get node "$node" -o jsonpath='{.metadata.labels.kubernetes\.azure\.com/cluster}' 2>/dev/null)
+    mt_label=$(kubectl --kubeconfig "$kubeconfig_file" get node "$node" -o jsonpath='{.metadata.labels.kubernetes\.azure\.com/podnetwork-multi-tenancy-enabled}' 2>/dev/null)
+    if [[ -z "$cluster_label" || -z "$mt_label" ]]; then
+      echo "##vso[task.logissue type=error]Node $node is missing critical labels (cluster='$cluster_label', multi-tenancy='$mt_label')"
+      missing_labels=true
+    else
+      echo "[OK] Node $node has cluster and podnetwork labels"
+    fi
+  done
+  if [[ "$missing_labels" == "true" ]]; then
+    echo "##vso[task.logissue type=error]Some BYON nodes are missing critical labels. NodeInfo/NNC will not be created."
+    exit 1
+  fi
 }
 
 cluster_index=0
@@ -102,7 +121,7 @@ for cluster_name in $cluster_names; do
     node_name="${cluster_prefix}${base_node_name}"
     echo "Creating VMSS: $node_name with SKU: $vmss_sku, NICs: $nic_count"
     create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count"
-    # wait_for_nodes_ready "$cluster_name" "$node_name" "1"
+    wait_for_nodes_ready "$cluster_name" "$node_name" "1"
     tip_offset=$((tip_offset + 1))
   done
   
