@@ -121,10 +121,17 @@ for cluster_name in $cluster_names; do
     node_name="${cluster_prefix}${base_node_name}"
     echo "Creating VMSS: $node_name with SKU: $vmss_sku, NICs: $nic_count"
     create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count"
-    wait_for_nodes_ready "$cluster_name" "$node_name" "1"
+    # Wait for node to join cluster (but not Ready — nodes need labels first for CNS/NNC setup)
+    kubeconfig_file="./kubeconfig-${cluster_name}.yaml"
+    if ! check_if_nodes_joined_cluster "$cluster_name" "$node_name" "$kubeconfig_file" "1"; then
+      echo "##vso[task.logissue type=error]Node $node_name did not join the cluster"
+      exit 1
+    fi
     tip_offset=$((tip_offset + 1))
   done
   
+  # Label nodes first — CNS/NNC require labels like kubernetes.azure.com/cluster
+  # and podnetwork-multi-tenancy-enabled before they configure the node
   label_vmss_nodes "$cluster_name" "$cluster_prefix"
 
   bash ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/parse.sh -k ./kubeconfig-${cluster_name}.yaml -p ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/pws.ps1
