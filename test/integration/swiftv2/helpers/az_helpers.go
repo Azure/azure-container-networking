@@ -416,6 +416,46 @@ func ExecInPod(kubeconfig, namespace, podName, command string) (string, error) {
 	return string(out), nil
 }
 
+// WaitForMTPNCCleanup waits for all MTPNCs in a namespace to be fully removed.
+// This should be called after deleting all pods but before deleting the PNI,
+// to ensure the MTPNC controller has finished releasing delegated NICs back to DNC.
+func WaitForMTPNCCleanup(kubeconfig, namespace string, maxWaitSeconds int) error {
+	pollInterval := 5 * time.Second
+	maxAttempts := maxWaitSeconds / 5
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "mtpnc", "-n", namespace, "--no-headers", "-o", "name")
+		out, err := cmd.CombinedOutput()
+		cancel()
+
+		output := strings.TrimSpace(string(out))
+		if err != nil && strings.Contains(string(out), "the server doesn't have a resource type") {
+			return nil
+		}
+
+		if output == "" {
+			fmt.Printf("All MTPNCs in namespace %s have been cleaned up (after %d seconds)\n", namespace, attempt*5)
+			return nil
+		}
+
+		mtpncCount := len(strings.Split(output, "\n"))
+		if attempt%6 == 0 { 
+			fmt.Printf("Waiting for %d MTPNCs to be cleaned up in namespace %s (attempt %d/%d)...\n", mtpncCount, namespace, attempt, maxAttempts)
+		}
+
+		time.Sleep(pollInterval)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "mtpnc", "-n", namespace, "--no-headers", "-o", "custom-columns=NAME:.metadata.name")
+	out, _ := cmd.CombinedOutput()
+	cancel()
+	return fmt.Errorf("MTPNCs still present in namespace %s after %d seconds: %s", namespace, maxWaitSeconds, strings.TrimSpace(string(out)))
+}
+
 // VerifyNoMTPNC checks if there are any pending MTPNC (MultiTenantPodNetworkConfig) resources
 // associated with a specific build ID that should have been cleaned up
 func VerifyNoMTPNC(kubeconfig, buildID string) error {
