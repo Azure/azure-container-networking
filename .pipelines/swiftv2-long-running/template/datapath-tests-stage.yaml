@@ -1,6 +1,8 @@
 parameters:
   - name: workloadType
     type: string
+  - name: location
+    type: string
   - name: subscriptionId
     type: string
   - name: rgName
@@ -19,13 +21,13 @@ parameters:
     default: []
 
 stages:
-  - stage: DataPathTests_${{ replace(parameters.workloadType, '-', '_') }}
-    displayName: "Stage: Swiftv2 Data Path Tests - ${{ parameters.workloadType }}"
+  - stage: DataPathTests_${{ replace(parameters.workloadType, '-', '_') }}_${{ replace(parameters.location, '-', '_') }}
+    displayName: "Stage: Swiftv2 Data Path Tests - ${{ parameters.workloadType }} (${{ parameters.location }})"
     ${{ if ne(length(parameters.dependsOn), 0) }}:
       dependsOn: ${{ parameters.dependsOn }}
     ${{ else }}:
       dependsOn: AKSClusterAndNetworking
-    condition: or(eq(${{ parameters.runSetupStages }}, false), succeeded())
+    condition: and(eq(variables.isAllowedRun, true), or(eq(${{ parameters.runSetupStages }}, false), succeeded()))
     variables:
       storageAccount1: ${{ parameters.storageAccount1 }}
       storageAccount2: ${{ parameters.storageAccount2 }}
@@ -68,7 +70,7 @@ stages:
             displayName: "Publish kubeconfig files"
             inputs:
               targetPath: $(Pipeline.Workspace)/kubeconfigs
-              artifactName: kubeconfigs-${{ parameters.workloadType }}
+              artifactName: kubeconfigs-${{ parameters.workloadType }}-${{ parameters.location }}
               publishLocation: pipeline
 
       - job: BuildMetricsBinary
@@ -89,7 +91,7 @@ stages:
             displayName: "Publish metrics binary and config"
             inputs:
               targetPath: '$(System.DefaultWorkingDirectory)/src/dnc'
-              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}'
+              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}-${{ parameters.location }}'
               publishLocation: 'pipeline'
 
       - job: CreatePods
@@ -101,6 +103,7 @@ stages:
           - template: metrics-setup-steps.yaml
             parameters:
               workloadType: ${{ parameters.workloadType }}
+              location: ${{ parameters.location }}
 
           - task: AzureCLI@2
             name: RunCreatePods
@@ -142,6 +145,7 @@ stages:
           - template: metrics-setup-steps.yaml
             parameters:
               workloadType: ${{ parameters.workloadType }}
+              location: ${{ parameters.location }}
 
           - task: AzureCLI@2
             displayName: "Run Connectivity Tests"
@@ -182,6 +186,7 @@ stages:
           - template: metrics-setup-steps.yaml
             parameters:
               workloadType: ${{ parameters.workloadType }}
+              location: ${{ parameters.location }}
 
           - task: AzureCLI@2
             name: DiscoverStorageAccounts
@@ -272,6 +277,7 @@ stages:
           - template: metrics-setup-steps.yaml
             parameters:
               workloadType: ${{ parameters.workloadType }}
+              location: ${{ parameters.location }}
 
           - task: AzureCLI@2
             displayName: "Run Scale Test (Create and Delete)"
@@ -319,6 +325,7 @@ stages:
           - template: metrics-setup-steps.yaml
             parameters:
               workloadType: ${{ parameters.workloadType }}
+              location: ${{ parameters.location }}
 
           - task: AzureCLI@2
             displayName: "Delete Test Resources"

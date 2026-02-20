@@ -471,8 +471,33 @@ func DeleteAllScenarios(testScenarios TestScenarios) error {
 		}
 	}
 
-	// Phase 2: Delete shared PNI/PN/Namespace resources (grouped by vnet/subnet/cluster)
-	fmt.Printf("\n=== Phase 2: Deleting shared PNI/PN/Namespace resources ===\n")
+	// Phase 2: Wait for MTPNCs to be cleaned up before deleting PNIs
+	// Pod deletion triggers async MTPNC cleanup by the controller (DNC NIC release).
+	// If we delete PNIs while MTPNCs still exist, they become orphaned.
+	fmt.Printf("\n=== Phase 2: Waiting for MTPNC cleanup ===\n")
+	namespacesChecked := make(map[string]bool)
+
+	for _, scenario := range testScenarios.Scenarios {
+		kubeconfig := getKubeconfigPath(scenario.Cluster)
+		vnetShort := strings.TrimPrefix(scenario.VnetName, "cx_vnet_")
+		vnetShort = strings.ReplaceAll(vnetShort, "_", "-")
+		subnetNameSafe := strings.ReplaceAll(scenario.SubnetName, "_", "-")
+		pnName := fmt.Sprintf("pn-%s-%s-%s", testScenarios.BuildID, vnetShort, subnetNameSafe)
+
+		nsKey := fmt.Sprintf("%s:%s", scenario.Cluster, pnName)
+		if namespacesChecked[nsKey] {
+			continue
+		}
+		namespacesChecked[nsKey] = true
+
+		fmt.Printf("Waiting for MTPNCs in namespace %s on cluster %s...\n", pnName, scenario.Cluster)
+		if err := helpers.WaitForMTPNCCleanup(kubeconfig, pnName, 300); err != nil {
+			fmt.Printf("Warning: MTPNC cleanup did not complete for %s on %s: %v\n", pnName, scenario.Cluster, err)
+		}
+	}
+
+	// Phase 3: Delete shared PNI/PN/Namespace resources (grouped by vnet/subnet/cluster)
+	fmt.Printf("\n=== Phase 3: Deleting shared PNI/PN/Namespace resources ===\n")
 	resourceGroups := make(map[string]bool)
 
 	for _, scenario := range testScenarios.Scenarios {
@@ -507,8 +532,8 @@ func DeleteAllScenarios(testScenarios TestScenarios) error {
 		}
 	}
 
-	// Phase 3: Verify no MTPNC resources are stuck
-	fmt.Printf("\n=== Phase 3: Verifying MTPNC cleanup ===\n")
+	// Phase 4: Verify no MTPNC resources are stuck
+	fmt.Printf("\n=== Phase 4: Verifying MTPNC cleanup ===\n")
 	clustersChecked := make(map[string]bool)
 
 	for _, scenario := range testScenarios.Scenarios {

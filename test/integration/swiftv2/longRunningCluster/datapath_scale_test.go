@@ -180,6 +180,14 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 				podIndex++
 			}
 
+			// Wait for all MTPNCs to be cleaned up before deleting PNI.
+			// Pod deletion triggers async MTPNC cleanup by the controller (DNC NIC release).
+			// If we delete the PNI while MTPNCs still exist, they become orphaned.
+			ginkgo.By(fmt.Sprintf("Waiting for MTPNC cleanup in namespace %s on cluster %s before deleting PNI", resources.PNName, scenario.cluster))
+			if err := helpers.WaitForMTPNCCleanup(kubeconfig, resources.PNName, 300); err != nil {
+				fmt.Printf("Warning: MTPNC cleanup did not complete: %v\n", err)
+			}
+
 			ginkgo.By(fmt.Sprintf("Deleting PodNetworkInstance: %s from namespace %s in cluster %s", resources.PNIName, resources.PNName, scenario.cluster))
 			err := helpers.DeletePodNetworkInstance(kubeconfig, resources.PNName, resources.PNIName)
 			if err != nil {
