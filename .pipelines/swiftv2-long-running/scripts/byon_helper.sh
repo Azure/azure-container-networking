@@ -172,6 +172,7 @@ copy_managed_node_labels_to_byon() {
   "kubernetes\.azure\.com\/podnetwork-subnet"
   "kubernetes\.azure\.com\/podnetwork-multi-tenancy-enabled"
   "kubernetes\.azure\.com\/podnetwork-delegationguid"
+  "kubernetes\.azure\.com\/podnetwork-swiftv2-enabled"
   "kubernetes\.azure\.com\/cluster"
   )
   
