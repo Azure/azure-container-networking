@@ -45,6 +45,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/middlewares"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
+	"github.com/Azure/azure-container-networking/cns/nodesetup"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	restserverv2 "github.com/Azure/azure-container-networking/cns/restserver/v2"
 	cnipodprovider "github.com/Azure/azure-container-networking/cns/stateprovider/cni"
@@ -827,6 +828,13 @@ func main() {
 	if err != nil {
 		logger.Errorf("Failed to set remote ARP MAC address: %v", err)
 		return
+	}
+
+	if cnsconfig.RouteWireserverViaDefaultInterface {
+		if prepErr := nodesetup.New(cnsconfig, z).Run(); prepErr != nil {
+			z.Error("failed to setup node", zap.Error(prepErr))
+			return
+		}
 	}
 
 	// We are only setting the PriorityVLANTag in 'cns.Direct' mode, because it neatly maps today, to 'isUsingMultitenancy'
