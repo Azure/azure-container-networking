@@ -31,6 +31,9 @@ create_l1vh_vmss() {
   # Change to Networking-Aquarius directory so relative paths work
   pushd ${BUILD_SOURCE_DIR}/Networking-Aquarius > /dev/null
   
+  # Export KUBECONFIG so l1vhwindows.sh's internal kubectl commands use the correct cluster
+  export KUBECONFIG="${original_dir}/kubeconfig-${cluster_name}.yaml"
+  
   bash .pipelines/singularity-runner/byon/l1vhwindows.sh \
     -l $REGION \
     -r $RESOURCE_GROUP \
@@ -59,6 +62,59 @@ create_l1vh_vmss() {
   
   echo "L1VH script completed for $node_name"
   check_vmss_exists "$RESOURCE_GROUP" "$node_name" || exit 1
+}
+
+label_single_node() {
+  local kubeconfig_file=$1
+  local node_name=$2
+  local nic_label=$3
+
+  echo "Applying labels to node ${node_name} immediately after join..."
+
+  # Get a managed node as source for podnetwork labels
+  local source_node
+  source_node=$(kubectl --kubeconfig "$kubeconfig_file" get nodes --selector='!kubernetes.azure.com/managed' -o jsonpath='{.items[0].metadata.name}')
+
+  # Find the actual k8s node name (VMSS name + instance suffix like 000000)
+  local k8s_nodes
+  k8s_nodes=($(kubectl --kubeconfig "$kubeconfig_file" get nodes -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep "^${node_name}" || true))
+
+  if [[ ${#k8s_nodes[@]} -eq 0 ]]; then
+    echo "Warning: No nodes found matching ${node_name}, skipping immediate labeling"
+    return
+  fi
+
+  local LABEL_KEYS=(
+    "kubernetes.azure.com/podnetwork-type"
+    "kubernetes.azure.com/podnetwork-subscription"
+    "kubernetes.azure.com/podnetwork-resourcegroup"
+    "kubernetes.azure.com/podnetwork-name"
+    "kubernetes.azure.com/podnetwork-subnet"
+    "kubernetes.azure.com/podnetwork-multi-tenancy-enabled"
+    "kubernetes.azure.com/podnetwork-delegationguid"
+    "kubernetes.azure.com/podnetwork-swiftv2-enabled"
+    "kubernetes.azure.com/cluster"
+  )
+
+  for k8s_node in "${k8s_nodes[@]}"; do
+    echo "Labeling $k8s_node with workload-type and nic-capacity..."
+    kubectl --kubeconfig "$kubeconfig_file" label node "$k8s_node" \
+      "workload-type=swiftv2-l1vh-accelnet-byon" \
+      "nic-capacity=${nic_label}" \
+      --overwrite
+
+    echo "Copying podnetwork labels from $source_node to $k8s_node..."
+    for label_key in "${LABEL_KEYS[@]}"; do
+      local escaped_key
+      escaped_key=$(echo "$label_key" | sed 's/\//\\\//g; s/\./\\./g')
+      local val
+      val=$(kubectl --kubeconfig "$kubeconfig_file" get node "$source_node" -o jsonpath="{.metadata.labels['${escaped_key}']}")
+      if [[ -n "$val" ]]; then
+        kubectl --kubeconfig "$kubeconfig_file" label node "$k8s_node" "${label_key}=${val}" --overwrite
+      fi
+    done
+    echo "[OK] Labels applied to $k8s_node"
+  done
 }
 
 label_vmss_nodes() {
@@ -127,11 +183,16 @@ for cluster_name in $cluster_names; do
       echo "##vso[task.logissue type=error]Node $node_name did not join the cluster"
       exit 1
     fi
+    # Label node immediately so CNS/NNC can start configuring it while other VMSSes are being created
+    local nic_label="high-nic"
+    if [[ "$base_node_name" == *"acld"* ]]; then
+      nic_label="low-nic"
+    fi
+    label_single_node "$kubeconfig_file" "$node_name" "$nic_label"
     tip_offset=$((tip_offset + 1))
   done
   
-  # Label nodes first — CNS/NNC require labels like kubernetes.azure.com/cluster
-  # and podnetwork-multi-tenancy-enabled before they configure the node
+  # Final verification pass — ensure all labels are correct
   label_vmss_nodes "$cluster_name" "$cluster_prefix"
 
   bash ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/parse.sh -k ./kubeconfig-${cluster_name}.yaml -p ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/pws.ps1
