@@ -184,7 +184,7 @@ for cluster_name in $cluster_names; do
       exit 1
     fi
     # Label node immediately so CNS/NNC can start configuring it while other VMSSes are being created
-    local nic_label="high-nic"
+    nic_label="high-nic"
     if [[ "$base_node_name" == *"acld"* ]]; then
       nic_label="low-nic"
     fi
