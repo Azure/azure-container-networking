@@ -4,7 +4,7 @@ parameters:
 
 stages:
   - stage: manifold_e2e
-    displayName: E2E - AKS Swiftv2 Manifold
+    displayName: E2E-AKS Swiftv2 Manifold
     variables:
       TAG: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       IMAGE_REPO_PATH: $[ format('{0}/', stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath']) ]

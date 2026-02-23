@@ -304,7 +304,7 @@ stages:
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
       parameters:
         name: "cilium_e2e"
-        displayName: Cilium Podsubnet
+        displayName: Cil Podsubnet
         clusterType: swift-byocni-nokubeproxy-up
         clusterName: "ciliume2e"
         vmSize: Standard_B2ms
@@ -315,7 +315,7 @@ stages:
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
       parameters:
         name: "cilium_vnetscale_e2e"
-        displayName: Cilium Podsubnet Vnet Scale Ubuntu
+        displayName: Cil Podsubnet Vnet Scale Ubuntu
         os: linux
         clusterType: vnetscale-swift-byocni-nokubeproxy-up
         clusterName: "ciliumvscalee2e"
@@ -327,7 +327,7 @@ stages:
     - template: singletenancy/cilium-ebpf/cilium-e2e-job-template.yaml
       parameters:
         name: "cilium_ebpf_podsubnet_e2e"
-        displayName: Cilium EBPF Podsubnet Ubuntu 24
+        displayName: Cil EBPF Podsubnet Ubuntu 24
         clusterType: swift-byocni-nokubeproxy-up
         clusterName: "cilbpfpode2e"
         vmSize: Standard_B2ms
@@ -338,7 +338,7 @@ stages:
     - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml
       parameters:
         name: "cilium_nodesubnet_e2e"
-        displayName: Cilium NodeSubnet
+        displayName: Cil NodeSubnet
         clusterType: nodesubnet-byocni-nokubeproxy-up
         clusterName: "cilndsubnete2e"
         vmSize: Standard_B2s
@@ -349,7 +349,7 @@ stages:
     - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_overlay_e2e"
-        displayName: Cilium on AKS Overlay
+        displayName: Cil on AKS Overlay
         clusterType: overlay-byocni-nokubeproxy-up
         clusterName: "cilovere2e"
         vmSize: Standard_B2ms
@@ -360,7 +360,7 @@ stages:
     - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml
       parameters:
         name: "cilium_dualstackoverlay_e2e"
-        displayName: Cilium on AKS DualStack Overlay
+        displayName: Cil on AKS DualStack Overlay
         os: linux
         clusterType: dualstack-byocni-nokubeproxy-up
         clusterName: "cildsovere2e"
@@ -372,7 +372,7 @@ stages:
     - template: singletenancy/cilium-overlay-ebpf/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_ebpf_overlay_e2e"
-        displayName: Cilium EBPF on AKS Overlay Azure Linux
+        displayName: Cil EBPF on AKS Overlay Azure Linux
         clusterType: overlay-byocni-nokubeproxy-up
         clusterName: "cilbpfovere2e"
         vmSize: Standard_B2ms
@@ -383,7 +383,7 @@ stages:
     - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_h_overlay_e2e"
-        displayName: Cilium on AKS Overlay with Hubble
+        displayName: Cil on AKS Overlay with Hubble
         clusterType: overlay-byocni-nokubeproxy-up
         clusterName: "cilwhleovere2e"
         vmSize: Standard_B2ms
