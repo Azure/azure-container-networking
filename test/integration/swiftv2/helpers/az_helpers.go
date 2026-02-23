@@ -426,6 +426,9 @@ func WaitForMTPNCCleanup(kubeconfig, namespace string, maxWaitSeconds int) error
 		maxAttempts = 1
 	}
 
+	consecutiveErrors := 0
+	const maxConsecutiveErrors = 5
+
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "mtpnc", "-n", namespace, "--no-headers", "-o", "name")
@@ -433,9 +436,34 @@ func WaitForMTPNCCleanup(kubeconfig, namespace string, maxWaitSeconds int) error
 		cancel()
 
 		output := strings.TrimSpace(string(out))
-		if err != nil && strings.Contains(string(out), "the server doesn't have a resource type") {
-			return nil
+
+		if err != nil {
+			// CRD not installed means no MTPNCs can exist — treat as clean
+			if strings.Contains(output, "the server doesn't have a resource type") {
+				return nil
+			}
+
+			// Classify non-retryable errors and fail fast
+			if isNonRetryableKubectlError(output) {
+				return fmt.Errorf("kubectl error while waiting for MTPNC cleanup in namespace %s: %w\nOutput: %s", namespace, err, output)
+			}
+
+			// For other errors (transient API server issues, timeouts), retry up to a limit
+			consecutiveErrors++
+			fmt.Printf("Warning: kubectl get mtpnc failed (attempt %d/%d, consecutive errors: %d/%d): %v\nOutput: %s\n",
+				attempt, maxAttempts, consecutiveErrors, maxConsecutiveErrors, err, output)
+
+			if consecutiveErrors >= maxConsecutiveErrors {
+				return fmt.Errorf("kubectl get mtpnc failed %d consecutive times in namespace %s, last error: %w\nOutput: %s",
+					maxConsecutiveErrors, namespace, err, output)
+			}
+
+			time.Sleep(pollInterval)
+			continue
 		}
+
+		// Reset consecutive error counter on success
+		consecutiveErrors = 0
 
 		if output == "" {
 			fmt.Printf("All MTPNCs in namespace %s have been cleaned up (after %d seconds)\n", namespace, attempt*5)
@@ -451,9 +479,37 @@ func WaitForMTPNCCleanup(kubeconfig, namespace string, maxWaitSeconds int) error
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "mtpnc", "-n", namespace, "--no-headers", "-o", "custom-columns=NAME:.metadata.name")
-	out, _ := cmd.CombinedOutput()
+	out, err := cmd.CombinedOutput()
 	cancel()
-	return fmt.Errorf("MTPNCs still present in namespace %s after %d seconds: %s", namespace, maxWaitSeconds, strings.TrimSpace(string(out)))
+	remaining := strings.TrimSpace(string(out))
+	if err != nil {
+		return fmt.Errorf("MTPNCs may still be present in namespace %s after %d seconds (final check failed: %w)\nOutput: %s", namespace, maxWaitSeconds, err, remaining)
+	}
+	return fmt.Errorf("MTPNCs still present in namespace %s after %d seconds: %s", namespace, maxWaitSeconds, remaining)
+}
+
+// isNonRetryableKubectlError returns true if the kubectl error output indicates
+// a problem that won't resolve by retrying (e.g., auth failures, bad kubeconfig).
+func isNonRetryableKubectlError(output string) bool {
+	lower := strings.ToLower(output)
+	nonRetryablePatterns := []string{
+		"unauthorized",
+		"forbidden",
+		"invalid configuration",
+		"no configuration has been provided",
+		"unable to read client-cert",
+		"unable to read client-key",
+		"certificate has expired",
+		"token has expired",
+		"login expired",
+		"does not exist",
+	}
+	for _, pattern := range nonRetryablePatterns {
+		if strings.Contains(lower, pattern) {
+			return true
+		}
+	}
+	return false
 }
 
 // VerifyNoMTPNC checks if there are any pending MTPNC (MultiTenantPodNetworkConfig) resources
