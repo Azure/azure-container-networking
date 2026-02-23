@@ -137,6 +137,7 @@ type createOrUpdateNetworkContainerParams struct {
 	vnetID       string
 	podName      string
 	podNamespace string
+	ipv6Config   cns.IPConfiguration
 }
 
 func getInterfaceInfo(w http.ResponseWriter, r *http.Request) {
@@ -1409,6 +1410,7 @@ func postAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkCont
 			NetworkContainerid:         cns.SwiftPrefix + ncParams[i].ncID,
 			OrchestratorContext:        ctx,
 			IPConfiguration:            ipConfig,
+			IPv6Configuration:          ncParams[i].ipv6Config,
 			PrimaryInterfaceIdentifier: "11.0.0.7",
 		}
 	}
@@ -1484,6 +1486,7 @@ func createOrUpdateNetworkContainerWithParams(params createOrUpdateNetworkContai
 		NetworkContainerid:         cns.SwiftPrefix + params.ncID,
 		OrchestratorContext:        context,
 		IPConfiguration:            ipConfig,
+		IPv6Configuration:          params.ipv6Config,
 		PrimaryInterfaceIdentifier: "11.0.0.7",
 	}
 
@@ -1993,65 +1996,22 @@ func TestGetAllNetworkContainersWithIPv6Configuration(t *testing.T) {
 		t.Fatalf("TestGetAllNetworkContainersWithIPv6Configuration failed with error:%+v", err)
 	}
 
-	// Create NC with both IPv4 and IPv6 configurations
-	var ipConfig cns.IPConfiguration
-	ipConfig.DNSServers = []string{"8.8.8.8", "8.8.4.4"}
-	ipConfig.GatewayIPAddress = "11.0.0.1"
-	var ipSubnet cns.IPSubnet
-	ipSubnet.IPAddress = "11.0.0.5"
-	ipSubnet.PrefixLength = 24
-	ipConfig.IPSubnet = ipSubnet
+	ipv6Config := cns.IPConfiguration{
+		DNSServers:       []string{"2001:4860:4860::8888", "2001:4860:4860::8844"},
+		GatewayIPAddress: "2001:db8::1",
+		IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::5", PrefixLength: 64},
+	}
 
-	// IPv6 Configuration
-	var ipv6Config cns.IPConfiguration
-	ipv6Config.DNSServers = []string{"2001:4860:4860::8888", "2001:4860:4860::8844"}
-	ipv6Config.GatewayIPAddress = "2001:db8::1"
-	var ipv6Subnet cns.IPSubnet
-	ipv6Subnet.IPAddress = "2001:db8::5"
-	ipv6Subnet.PrefixLength = 64
-	ipv6Config.IPSubnet = ipv6Subnet
+	ncParamsWithIPv6 := []createOrUpdateNetworkContainerParams{
+		{ncIP: "11.0.0.5", ncType: cns.AzureContainerInstance, ncID: "a47ac10b-58cc-0372-8567-0e02b2c3d479", ncVersion: "0", ipv6Config: ipv6Config},
+	}
 
-	podInfo := cns.KubernetesPodInfo{PodName: "testpod", PodNamespace: "testpodnamespace"}
-	ctx, err := json.Marshal(podInfo)
+	err = createOrUpdateNetworkContainerWithParams(ncParamsWithIPv6[0])
 	if err != nil {
-		t.Fatalf("Failed to marshal pod info: %+v", err)
-	}
-
-	ncID := "a47ac10b-58cc-0372-8567-0e02b2c3d479"
-	createReq := cns.CreateNetworkContainerRequest{
-		Version:                    "0",
-		NetworkContainerType:       cns.AzureContainerInstance,
-		NetworkContainerid:         cns.SwiftPrefix + ncID,
-		OrchestratorContext:        ctx,
-		IPConfiguration:            ipConfig,
-		IPv6Configuration:          ipv6Config,
-		PrimaryInterfaceIdentifier: "11.0.0.7",
-	}
-
-	// Send create request
-	var body bytes.Buffer
-	err = json.NewEncoder(&body).Encode(createReq)
-	if err != nil {
-		t.Fatalf("Failed to encode request: %+v", err)
-	}
-
-	req, err := http.NewRequest(http.MethodPost, cns.CreateOrUpdateNetworkContainer, &body)
-	if err != nil {
-		t.Fatalf("Failed to create HTTP request: %+v", err)
-	}
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	var createResp cns.CreateNetworkContainerResponse
-	err = decodeResponse(w, &createResp)
-	if err != nil || createResp.Response.ReturnCode != 0 {
-		t.Fatalf("Create NC failed with response %+v: %+v", createResp, err)
+		t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
 	}
 
 	// Retrieve all NCs and verify IPv6Configuration is present
-	ncParamsWithIPv6 := []createOrUpdateNetworkContainerParams{
-		{ncIP: "11.0.0.5", ncType: cns.AzureContainerInstance, ncID: ncID, ncVersion: "0"},
-	}
 	ncResponses, err := getAllNetworkContainers(t, ncParamsWithIPv6)
 	if err != nil {
 		t.Fatalf("TestGetAllNetworkContainersWithIPv6Configuration failed with error:%+v", err)
@@ -2062,8 +2022,8 @@ func TestGetAllNetworkContainersWithIPv6Configuration(t *testing.T) {
 	nc := ncResponses.NetworkContainers[0]
 
 	// Verify IPv6 configuration is present and correct
-	assert.Equal(t, ipv6Subnet.IPAddress, nc.IPv6Configuration.IPSubnet.IPAddress, "IPv6 address mismatch")
-	assert.Equal(t, ipv6Subnet.PrefixLength, nc.IPv6Configuration.IPSubnet.PrefixLength, "IPv6 prefix length mismatch")
+	assert.Equal(t, ipv6Config.IPSubnet.IPAddress, nc.IPv6Configuration.IPSubnet.IPAddress, "IPv6 address mismatch")
+	assert.Equal(t, ipv6Config.IPSubnet.PrefixLength, nc.IPv6Configuration.IPSubnet.PrefixLength, "IPv6 prefix length mismatch")
 	assert.Equal(t, ipv6Config.GatewayIPAddress, nc.IPv6Configuration.GatewayIPAddress, "IPv6 gateway mismatch")
 	assert.Len(t, nc.IPv6Configuration.DNSServers, len(ipv6Config.DNSServers), "IPv6 DNS servers count mismatch")
 
@@ -2083,56 +2043,17 @@ func TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6(t *testing.T) {
 		t.Fatalf("TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6 failed with error:%+v", err)
 	}
 
-	// Create NC without IPv6Configuration (backward compatibility test)
-	var ipConfig cns.IPConfiguration
-	ipConfig.DNSServers = []string{"8.8.8.8"}
-	ipConfig.GatewayIPAddress = "11.0.0.1"
-	var ipSubnet cns.IPSubnet
-	ipSubnet.IPAddress = "11.0.0.5"
-	ipSubnet.PrefixLength = 24
-	ipConfig.IPSubnet = ipSubnet
+	// Create NC without IPv6Configuration (backward compatibility test, ipv6Config left as zero value)
+	ncParams := []createOrUpdateNetworkContainerParams{
+		{ncIP: "11.0.0.5", ncType: cns.AzureContainerInstance, ncID: "a47ac10b-58cc-0372-8567-0e02b2c3d480", ncVersion: "0"},
+	}
 
-	podInfo := cns.KubernetesPodInfo{PodName: "testpod", PodNamespace: "testpodnamespace"}
-	ctx, err := json.Marshal(podInfo)
+	err = createOrUpdateNetworkContainerWithParams(ncParams[0])
 	if err != nil {
-		t.Fatalf("Failed to marshal pod info: %+v", err)
-	}
-
-	ncID := "a47ac10b-58cc-0372-8567-0e02b2c3d480"
-	createReq := cns.CreateNetworkContainerRequest{
-		Version:              "0",
-		NetworkContainerType: cns.AzureContainerInstance,
-		NetworkContainerid:   cns.SwiftPrefix + ncID,
-		OrchestratorContext:  ctx,
-		IPConfiguration:      ipConfig,
-		// IPv6Configuration omitted (zero value)
-		PrimaryInterfaceIdentifier: "11.0.0.7",
-	}
-
-	// Send create request
-	var body bytes.Buffer
-	err = json.NewEncoder(&body).Encode(createReq)
-	if err != nil {
-		t.Fatalf("Failed to encode request: %+v", err)
-	}
-
-	req, err := http.NewRequest(http.MethodPost, cns.CreateOrUpdateNetworkContainer, &body)
-	if err != nil {
-		t.Fatalf("Failed to create HTTP request: %+v", err)
-	}
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	var createResp cns.CreateNetworkContainerResponse
-	err = decodeResponse(w, &createResp)
-	if err != nil || createResp.Response.ReturnCode != 0 {
-		t.Fatalf("Create NC failed with response %+v: %+v", createResp, err)
+		t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
 	}
 
 	// Retrieve all NCs and verify IPv6Configuration is empty but doesn't cause errors
-	ncParams := []createOrUpdateNetworkContainerParams{
-		{ncIP: "11.0.0.5", ncType: cns.AzureContainerInstance, ncID: ncID, ncVersion: "0"},
-	}
 	ncResponses, err := getAllNetworkContainers(t, ncParams)
 	if err != nil {
 		t.Fatalf("TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6 failed with error:%+v", err)
@@ -2163,68 +2084,28 @@ func TestPostNetworkContainersWithIPv6(t *testing.T) {
 		t.Fatalf("TestPostNetworkContainersWithIPv6 failed with error:%+v", err)
 	}
 
-	// Create network containers with IPv6Configuration via POST (simulating DNC request)
-	var ipConfig cns.IPConfiguration
-	ipConfig.DNSServers = []string{"8.8.8.8"}
-	ipConfig.GatewayIPAddress = "11.0.0.1"
-
-	var ipv6Config cns.IPConfiguration
-	ipv6Config.DNSServers = []string{"2001:4860:4860::8888"}
-	ipv6Config.GatewayIPAddress = "2001:db8::1"
-
-	podInfo := cns.KubernetesPodInfo{PodName: "testpod", PodNamespace: "testpodnamespace"}
-	ctx, err := json.Marshal(podInfo)
-	if err != nil {
-		t.Fatalf("Failed to marshal pod info: %+v", err)
-	}
-
 	ncParamsWithIPv6 := []createOrUpdateNetworkContainerParams{
-		{ncIP: "11.0.0.5", ncType: cns.AzureContainerInstance, ncID: "a47ac10b-58cc-0372-8567-0e02b2c3d481", ncVersion: "0"},
-		{ncIP: "11.0.0.6", ncType: cns.AzureContainerInstance, ncID: "a47ac10b-58cc-0372-8567-0e02b2c3d482", ncVersion: "0"},
+		{
+			ncIP: "11.0.0.5", ncType: cns.AzureContainerInstance, ncID: "a47ac10b-58cc-0372-8567-0e02b2c3d481", ncVersion: "0",
+			ipv6Config: cns.IPConfiguration{
+				DNSServers:       []string{"2001:4860:4860::8888"},
+				GatewayIPAddress: "2001:db8::1",
+				IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::5", PrefixLength: 64},
+			},
+		},
+		{
+			ncIP: "11.0.0.6", ncType: cns.AzureContainerInstance, ncID: "a47ac10b-58cc-0372-8567-0e02b2c3d482", ncVersion: "0",
+			ipv6Config: cns.IPConfiguration{
+				DNSServers:       []string{"2001:4860:4860::8888"},
+				GatewayIPAddress: "2001:db8::1",
+				IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::6", PrefixLength: 64},
+			},
+		},
 	}
 
-	createReq := make([]cns.CreateNetworkContainerRequest, len(ncParamsWithIPv6))
-	postReq := cns.PostNetworkContainersRequest{CreateNetworkContainerRequests: createReq}
-
-	for i := 0; i < len(ncParamsWithIPv6); i++ {
-		var ipSubnet cns.IPSubnet
-		ipSubnet.IPAddress = ncParamsWithIPv6[i].ncIP
-		ipSubnet.PrefixLength = 24
-		ipConfig.IPSubnet = ipSubnet
-
-		var ipv6Subnet cns.IPSubnet
-		ipv6Subnet.IPAddress = fmt.Sprintf("2001:db8::%d", i+5)
-		ipv6Subnet.PrefixLength = 64
-		ipv6Config.IPSubnet = ipv6Subnet
-
-		postReq.CreateNetworkContainerRequests[i] = cns.CreateNetworkContainerRequest{
-			Version:                    ncParamsWithIPv6[i].ncVersion,
-			NetworkContainerType:       ncParamsWithIPv6[i].ncType,
-			NetworkContainerid:         cns.SwiftPrefix + ncParamsWithIPv6[i].ncID,
-			OrchestratorContext:        ctx,
-			IPConfiguration:            ipConfig,
-			IPv6Configuration:          ipv6Config,
-			PrimaryInterfaceIdentifier: "11.0.0.7",
-		}
-	}
-
-	var body bytes.Buffer
-	err = json.NewEncoder(&body).Encode(postReq)
+	err = postAllNetworkContainers(t, ncParamsWithIPv6)
 	if err != nil {
-		t.Fatalf("Failed to encode post request: %+v", err)
-	}
-
-	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, cns.NetworkContainersURLPath, &body)
-	if err != nil {
-		t.Fatalf("Failed to create request: %+v", err)
-	}
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	var postResp cns.PostNetworkContainersResponse
-	err = decodeResponse(w, &postResp)
-	if err != nil || postResp.Response.ReturnCode != types.Success {
-		t.Fatalf("POST failed with response %+v: %+v", postResp, err)
+		t.Fatalf("Failed to post all network containers: %+v", err)
 	}
 
 	// Verify NCs were stored with IPv6Configuration
@@ -2235,11 +2116,8 @@ func TestPostNetworkContainersWithIPv6(t *testing.T) {
 
 	// Verify each NC has IPv6Configuration
 	for i, nc := range ncResponses.NetworkContainers {
-		expectedIPv6 := postReq.CreateNetworkContainerRequests[i].IPv6Configuration.IPSubnet.IPAddress
-		assert.Equal(t, expectedIPv6, nc.IPv6Configuration.IPSubnet.IPAddress, "NC %d: IPv6 address mismatch", i)
-
-		expectedGateway := postReq.CreateNetworkContainerRequests[i].IPv6Configuration.GatewayIPAddress
-		assert.Equal(t, expectedGateway, nc.IPv6Configuration.GatewayIPAddress, "NC %d: IPv6 gateway mismatch", i)
+		assert.Equal(t, ncParamsWithIPv6[i].ipv6Config.IPSubnet.IPAddress, nc.IPv6Configuration.IPSubnet.IPAddress, "NC %d: IPv6 address mismatch", i)
+		assert.Equal(t, ncParamsWithIPv6[i].ipv6Config.GatewayIPAddress, nc.IPv6Configuration.GatewayIPAddress, "NC %d: IPv6 gateway mismatch", i)
 	}
 
 	// Cleanup
