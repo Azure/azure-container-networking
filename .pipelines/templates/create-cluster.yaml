@@ -41,6 +41,19 @@ jobs:
             mkdir -p ~/.kube/
             make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
 
+            # Check if cluster already exists
+            CLUSTER_EXISTS=$(az aks show --resource-group ${{ parameters.clusterName }} --name ${{ parameters.clusterName }} --query "name" -o tsv 2>/dev/null || echo "")
+            
+            if [ ! -z "$CLUSTER_EXISTS" ]; then
+              echo "Cluster ${{ parameters.clusterName }} already exists. Tearing it down first..."
+              make -C ./hack/aks down \
+              AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
+              CLUSTER=${{ parameters.clusterName }}
+              echo "Cluster teardown completed. Proceeding with recreation..."
+            else
+              echo "Cluster ${{ parameters.clusterName }} does not exist. Proceeding with creation..."
+            fi
+
             make -C ./hack/aks ${{ parameters.clusterType }} \
             AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
             CLUSTER=${{ parameters.clusterName }} \
