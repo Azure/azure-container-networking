@@ -62,6 +62,7 @@ steps:
     displayName: "Run Azilium E2E on AKS Overlay"
 
   - script: |
+      set -e
       kubectl get pods -A
       echo "Waiting < 2 minutes for cilium to be ready"
       # Ensure Cilium is ready Xm\Xs
