@@ -7,7 +7,6 @@ import (
 	"net"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/iprule"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -17,14 +16,14 @@ import (
 )
 
 func TestIPRulesForDst(t *testing.T) {
-	rules, err := ipRulesForDst("168.63.129.16", wireserverRulePriority)
+	rules, err := ipRulesForDst("168.63.129.16", highestIPRulePriority)
 	require.NoError(t, err)
 	require.Len(t, rules, 1)
 
 	rule := rules[0]
 	assert.Equal(t, "168.63.129.16/32", rule.Dst.String())
 	assert.Equal(t, unix.RT_TABLE_MAIN, rule.Table)
-	assert.Equal(t, wireserverRulePriority, rule.Priority)
+	assert.Equal(t, highestIPRulePriority, rule.Priority)
 }
 
 var (
@@ -34,7 +33,9 @@ var (
 
 func TestRun(t *testing.T) {
 	wireserverCIDR := "168.63.129.16/32"
+	imdsCIDR := "169.254.169.254/32"
 	_, wireserverNet, _ := net.ParseCIDR(wireserverCIDR)
+	_, imdsNet, _ := net.ParseCIDR(imdsCIDR)
 
 	tests := []struct {
 		name          string
@@ -44,16 +45,17 @@ func TestRun(t *testing.T) {
 		addFn         func(iprule.IPRule) error
 	}{
 		{
-			name:          "adds wireserver rule when rule does not exist",
-			expectedAdded: 1,
+			name:          "adds wireserver and IMDS rules when no rules exist",
+			expectedAdded: 2,
 			listFn:        func() ([]iprule.IPRule, error) { return nil, nil },
 		},
 		{
-			name:          "skips wireserver rule when it already exists (idempotency)",
+			name:          "skips rules when they already exist (idempotency)",
 			expectedAdded: 0,
 			listFn: func() ([]iprule.IPRule, error) {
 				return []iprule.IPRule{
-					{Dst: wireserverNet, Table: unix.RT_TABLE_MAIN, Priority: wireserverRulePriority},
+					{Dst: wireserverNet, Table: unix.RT_TABLE_MAIN, Priority: highestIPRulePriority},
+					{Dst: imdsNet, Table: unix.RT_TABLE_MAIN, Priority: highestIPRulePriority},
 				}, nil
 			},
 		},
@@ -91,7 +93,7 @@ func TestRun(t *testing.T) {
 				}
 			}
 
-			err := New(&configuration.CNSConfig{WireserverIP: "168.63.129.16"}, zap.NewNop()).Run()
+			err := Run(zap.NewNop())
 
 			if tt.expectedErr != "" {
 				require.Error(t, err)
@@ -104,7 +106,11 @@ func TestRun(t *testing.T) {
 			if tt.expectedAdded > 0 {
 				assert.Equal(t, wireserverCIDR, addedRules[0].Dst.String())
 				assert.Equal(t, unix.RT_TABLE_MAIN, addedRules[0].Table)
-				assert.Equal(t, wireserverRulePriority, addedRules[0].Priority)
+				assert.Equal(t, highestIPRulePriority, addedRules[0].Priority)
+
+				assert.Equal(t, imdsCIDR, addedRules[1].Dst.String())
+				assert.Equal(t, unix.RT_TABLE_MAIN, addedRules[1].Table)
+				assert.Equal(t, highestIPRulePriority, addedRules[1].Priority)
 			}
 		})
 	}

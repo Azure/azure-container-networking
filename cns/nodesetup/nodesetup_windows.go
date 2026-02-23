@@ -3,8 +3,10 @@
 
 package nodesetup
 
+import "go.uber.org/zap"
+
 // Run performs one-time node-level setup.
 // On Windows, no special node setup is currently required.
-func (nc *NodeConfiguration) Run() error {
+func Run(_ *zap.Logger) error {
 	return nil
 }

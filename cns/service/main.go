@@ -831,7 +831,7 @@ func main() {
 	}
 
 	if cnsconfig.RouteWireserverViaDefaultInterface {
-		if prepErr := nodesetup.New(cnsconfig, z).Run(); prepErr != nil {
+		if prepErr := nodesetup.Run(z); prepErr != nil {
 			z.Error("failed to setup node", zap.Error(prepErr))
 			return
 		}

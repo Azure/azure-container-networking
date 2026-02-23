@@ -7,15 +7,16 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/cns/iprule"
+	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )
 
 const (
-	// wireserverRulePriority is the priority for the ip rule that routes wireserver traffic.
-	// This ensures wireserver traffic goes through eth0 (infra NIC) even when other rules are added.
-	wireserverRulePriority = 0
+	// highestIPRulePriority is the priority for the ip rules that route infrastructure
+	// traffic (wireserver, IMDS) through the main routing table.
+	highestIPRulePriority = 0
 )
 
 // listIPRules and addIPRule are package-level variables to allow test injection.
@@ -25,13 +26,21 @@ var (
 )
 
 // Run performs one-time node-level setup.
-func (nc *NodeConfiguration) Run() error {
-	// For scenarios like Prefix on NIC v6 with Cilium CNI, pod traffic may be routed
-	// through eth1 (delegated NIC). These rules ensure critical traffic (e.g. wireserver)
-	// is routed through eth0 (infra NIC) via the main routing table.
-	rules, err := ipRulesForDst(nc.config.WireserverIP, wireserverRulePriority)
-	if err != nil {
-		return err
+func Run(z *zap.Logger) error {
+	// For scenarios like Prefix on NIC v6 with Cilium CNI based on SwiftV2, pod traffic may be routed
+	// through eth1 (delegated NIC). These rules ensure critical traffic (e.g. wireserver,
+	// IMDS) is routed through eth0 (infra NIC) via the main routing table.
+	dstIPs := []string{networkutils.AzureDNS, networkutils.AzureIMDS}
+
+	z.Info("ensuring ip rules for critical infrastructure traffic", zap.Strings("dstIPs", dstIPs))
+
+	var rules []iprule.IPRule
+	for _, ip := range dstIPs {
+		r, err := ipRulesForDst(ip, highestIPRulePriority)
+		if err != nil {
+			return err
+		}
+		rules = append(rules, r...)
 	}
 
 	if len(rules) == 0 {
@@ -39,14 +48,18 @@ func (nc *NodeConfiguration) Run() error {
 	}
 
 	existing, err := listIPRules()
+
+	z.Info("fetched existing ip rules", zap.Int("count", len(existing)))
 	if err != nil {
 		return errors.Wrap(err, "failed to list existing ip rules")
 	}
 
 	for i := range rules {
-		if err := ensureIPRule(rules[i], existing, nc.logger); err != nil {
+		if err := ensureIPRule(rules[i], existing, z); err != nil {
 			return err
 		}
+
+		z.Info("ensured ip rule exists", zap.String("dst", rules[i].Dst.String()), zap.Int("table", rules[i].Table), zap.Int("priority", rules[i].Priority))
 	}
 	return nil
 }
