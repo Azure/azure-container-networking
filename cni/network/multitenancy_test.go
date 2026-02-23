@@ -947,6 +947,12 @@ func TestGetAllNetworkContainersWithIPv6Multitenancy(t *testing.T) {
 	// Verify both IPv4 and IPv6 configurations are present
 	require.Len(t, ifInfo.IPConfigs, 2, "Expected 2 IP configs (IPv4 and IPv6)")
 
+	// Verify IPv4 configuration
+	ipv4Config := ifInfo.IPConfigs[0]
+	require.Equal(t, "10.1.0.5", ipv4Config.Address.IP.String())
+	require.Equal(t, 16, getPrefixLength(ipv4Config.Address.Mask))
+	require.Equal(t, "10.1.0.1", ipv4Config.Gateway.String())
+
 	// Verify IPv6 configuration
 	ipv6Config := ifInfo.IPConfigs[1]
 	require.Equal(t, "2001:db8::5", ipv6Config.Address.IP.String())
