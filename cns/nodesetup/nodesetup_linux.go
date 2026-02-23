@@ -27,6 +27,11 @@ var (
 
 // Run performs one-time node-level setup.
 func Run(z *zap.Logger) error {
+	return programWireserverIPRules(z)
+}
+
+// programWireserverIPRules programs ip rules for infrastructure traffic.
+func programWireserverIPRules(z *zap.Logger) error {
 	// For scenarios like Prefix on NIC v6 with Cilium CNI based on SwiftV2, pod traffic may be routed
 	// through eth1 (delegated NIC). These rules ensure critical traffic (e.g. wireserver,
 	// IMDS) is routed through eth0 (infra NIC) via the main routing table.
