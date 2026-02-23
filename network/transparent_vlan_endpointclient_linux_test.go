@@ -7,6 +7,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
@@ -195,7 +196,6 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 		},
 	}
 	for _, tt := range setLinkNetNSTests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.client.setLinkNetNSAndConfirm(tt.moveInterface, 1, tt.moveNS)
 			if tt.wantErr {
@@ -292,7 +292,6 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.client.ensureCleanPopulateVM()
 			if tt.wantErr {
@@ -499,7 +498,6 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.client.PopulateVM(tt.epInfo)
 			if tt.wantErr {
@@ -589,7 +587,6 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.client.PopulateVnet(tt.epInfo)
 			if tt.wantErr {
@@ -703,7 +700,6 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tt.client.DeleteEndpointsImpl(tt.ep, tt.routesLeft)
 		})
@@ -938,7 +934,6 @@ func TestTransparentVlanConfigureContainerInterfacesAndRoutes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.client.ConfigureContainerInterfacesAndRoutesImpl(tt.epInfo)
 			if tt.wantErr {
@@ -1009,7 +1004,6 @@ func TestTransparentVlanConfigureContainerInterfacesAndRoutes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.client.ConfigureVnetInterfacesAndRoutesImpl(tt.epInfo)
 			if tt.wantErr {
@@ -1032,6 +1026,211 @@ func createFunctionWithFailurePattern(errorPattern []error) func() error {
 		s++
 		return result
 	}
+}
+
+func TestHasIPv6Addresses(t *testing.T) {
+	tests := []struct {
+		name        string
+		ipAddresses []net.IPNet
+		expected    bool
+	}{
+		{
+			name:        "Empty list",
+			ipAddresses: []net.IPNet{},
+			expected:    false,
+		},
+		{
+			name: "IPv4 only",
+			ipAddresses: []net.IPNet{
+				{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(subnetv4Mask, ipv4Bits)},
+				{IP: net.ParseIP("10.0.0.1"), Mask: net.CIDRMask(subnetv4Mask, ipv4Bits)},
+			},
+			expected: false,
+		},
+		{
+			name: "IPv6 only",
+			ipAddresses: []net.IPNet{
+				{IP: net.ParseIP("fd11::1"), Mask: net.CIDRMask(subnetv6Mask, ipv6Bits)},
+				{IP: net.ParseIP("fd11::2"), Mask: net.CIDRMask(subnetv6Mask, ipv6Bits)},
+			},
+			expected: true,
+		},
+		{
+			name: "Dual-stack IPv4 and IPv6",
+			ipAddresses: []net.IPNet{
+				{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(subnetv4Mask, ipv4Bits)},
+				{IP: net.ParseIP("fd11::1"), Mask: net.CIDRMask(subnetv6Mask, ipv6Bits)},
+			},
+			expected: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := hasIPv6Addresses(tt.ipAddresses)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestAddDefaultRoutes(t *testing.T) {
+	nl := netlink.NewMockNetlink(false, "")
+	plc := platform.NewMockExecClient(false)
+
+	tests := []struct {
+		name     string
+		client   *TransparentVlanEndpointClient
+		linkName string
+		table    int
+		hasIPv6  bool
+		wantErr  bool
+	}{
+		{
+			name: "Dual-stack (IPv4 + IPv6) - good path",
+			client: &TransparentVlanEndpointClient{
+				netlink:        netlink.NewMockNetlink(false, ""),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+			},
+			linkName: "eth0",
+			table:    0,
+			hasIPv6:  true,
+			wantErr:  false,
+		},
+		{
+			name: "Dual-stack with tunneling table - good path",
+			client: &TransparentVlanEndpointClient{
+				netlink:        netlink.NewMockNetlink(false, ""),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+			},
+			linkName: "eth0.1",
+			table:    tunnelingTable,
+			hasIPv6:  true,
+			wantErr:  false,
+		},
+		{
+			name: "IPv4 succeeds but IPv6 route fails",
+			client: &TransparentVlanEndpointClient{
+				netlink:        netlink.NewMockNetlink(false, ""),
+				netioshim:      netio.NewMockNetIO(true, 3),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+			},
+			linkName: "eth0",
+			table:    0,
+			hasIPv6:  true,
+			wantErr:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.client.addDefaultRoutes(tt.linkName, tt.table, tt.hasIPv6)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAddDefaultArp(t *testing.T) {
+	tests := []struct {
+		name    string
+		client  *TransparentVlanEndpointClient
+		ifName  string
+		destMac string
+		hasIPv6 bool
+		wantErr bool
+	}{
+
+		{
+			name: "Dual-stack (IPv4 + IPv6) - good path",
+			client: &TransparentVlanEndpointClient{
+				netlink: netlink.NewMockNetlink(false, ""),
+			},
+			ifName:  "eth0",
+			destMac: azureMac,
+			hasIPv6: true,
+			wantErr: false,
+		},
+		{
+			name: "IPv6 neighbor fails with invalid mac",
+			client: &TransparentVlanEndpointClient{
+				netlink: netlink.NewMockNetlink(false, ""),
+			},
+			ifName:  "eth0",
+			destMac: "invalid-mac",
+			hasIPv6: true,
+			wantErr: true,
+		},
+		{
+			name: "IPv6 neighbor succeeds with working netlink",
+			client: &TransparentVlanEndpointClient{
+				netlink: netlink.NewMockNetlink(false, ""),
+			},
+			ifName:  "eth0",
+			destMac: azureMac,
+			hasIPv6: true,
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.client.AddDefaultArp(tt.ifName, tt.destMac, tt.hasIPv6)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// mockIPTablesClient is a mock for the ipTablesClient interface that tracks calls.
+type mockIPTablesClient struct {
+	insertCalls []iptablesCall
+}
+
+type iptablesCall struct {
+	version   string
+	tableName string
+	chainName string
+	match     string
+	target    string
+}
+
+func (c *mockIPTablesClient) InsertIptableRule(version, tableName, chainName, match, target string) error {
+	c.insertCalls = append(c.insertCalls, iptablesCall{version, tableName, chainName, match, target})
+	return nil
+}
+
+func (c *mockIPTablesClient) AppendIptableRule(_, _, _, _, _ string) error { return nil }
+func (c *mockIPTablesClient) DeleteIptableRule(_, _, _, _, _ string) error { return nil }
+func (c *mockIPTablesClient) CreateChain(_, _, _ string) error             { return nil }
+func (c *mockIPTablesClient) RunCmd(_, _ string) error                     { return nil }
+
+func TestAddVnetRulesIPTablesOnly(t *testing.T) {
+	nl := netlink.NewMockNetlink(false, "")
+	plc := platform.NewMockExecClient(false)
+
+	t.Run("InsertIptableRule is called for IPv6", func(t *testing.T) {
+		mockIPT := &mockIPTablesClient{}
+		client := &TransparentVlanEndpointClient{
+			vlanIfName:     "eth0.1",
+			iptablesClient: mockIPT,
+			netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+		}
+		// AddVnetRules may fail at vishnetlink calls, but iptables calls should complete first
+		client.AddVnetRules(&EndpointInfo{}) //nolint:errcheck // vishnetlink calls may fail in test env
+
+		var v6Calls int
+		for _, call := range mockIPT.insertCalls {
+			if call.version == iptables.V6 {
+				v6Calls++
+			}
+		}
+		require.Equal(t, 2, v6Calls, "expected 2 IPv6 ip6tables calls (mark + accept)")
+	})
 }
 
 func TestRunWithRetries(t *testing.T) {
@@ -1065,7 +1264,6 @@ func TestRunWithRetries(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := RunWithRetries(tt.f, runs, 100)
 			if tt.wantErr {
