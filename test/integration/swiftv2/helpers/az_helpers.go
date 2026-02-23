@@ -443,7 +443,7 @@ func WaitForMTPNCCleanup(kubeconfig, namespace string, maxWaitSeconds int) error
 		}
 
 		mtpncCount := len(strings.Split(output, "\n"))
-		if attempt%6 == 0 { 
+		if attempt%6 == 0 {
 			fmt.Printf("Waiting for %d MTPNCs to be cleaned up in namespace %s (attempt %d/%d)...\n", mtpncCount, namespace, attempt, maxAttempts)
 		}
 
