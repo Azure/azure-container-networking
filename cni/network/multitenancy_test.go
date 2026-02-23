@@ -909,16 +909,8 @@ func TestGetAllNetworkContainersWithIPv6Multitenancy(t *testing.T) {
 		},
 	}
 
-	// Mock network IO
-	mockNetIO := &MockNetIOShim{
-		interfaceSubnet: net.IPNet{
-			IP:   net.IPv4(10, 0, 0, 0),
-			Mask: net.CIDRMask(16, 32),
-		},
-	}
-
 	multitenancy := &Multitenancy{}
-	multitenancy.Init(cnsclient, mockNetIO)
+	multitenancy.Init(cnsclient, &mockNetIOShim{})
 
 	nwCfg := &cni.NetworkConfig{
 		EnableExactMatchForPodName: true,
@@ -998,15 +990,8 @@ func TestGetAllNetworkContainersEmptyIPv6Multitenancy(t *testing.T) {
 		},
 	}
 
-	mockNetIO := &MockNetIOShim{
-		interfaceSubnet: net.IPNet{
-			IP:   net.IPv4(10, 0, 0, 0),
-			Mask: net.CIDRMask(16, 32),
-		},
-	}
-
 	multitenancy := &Multitenancy{}
-	multitenancy.Init(cnsclient, mockNetIO)
+	multitenancy.Init(cnsclient, &mockNetIOShim{})
 
 	nwCfg := &cni.NetworkConfig{
 		EnableExactMatchForPodName: true,
@@ -1043,15 +1028,4 @@ func TestGetAllNetworkContainersEmptyIPv6Multitenancy(t *testing.T) {
 func getPrefixLength(mask net.IPMask) int {
 	ones, _ := mask.Size()
 	return ones
-}
-
-// MockNetIOShim for testing
-type MockNetIOShim struct {
-	interfaceSubnet net.IPNet
-	callCount       int
-}
-
-func (m *MockNetIOShim) GetInterfaceSubnetWithSpecificIP(ipAddr string) *net.IPNet {
-	m.callCount++
-	return &m.interfaceSubnet
 }
