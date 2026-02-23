@@ -226,18 +226,8 @@ func (m *Multitenancy) GetAllNetworkContainers(
 			HostSubnetPrefix: hostSubnetPrefixes[i],
 		}
 
-		ipconfig, routes := convertToIPConfigAndRouteInfo(ifInfo.NCResponse)
-		ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipconfig)
-
-		// Add IPv6Configuration if present (used for CNI multitenancy in Swiftv1 scenario)
-		if ifInfo.NCResponse.IPv6Configuration.IPSubnet.IPAddress != "" {
-			ipv6config := &network.IPConfig{}
-			ipv6Addr := net.ParseIP(ifInfo.NCResponse.IPv6Configuration.IPSubnet.IPAddress)
-			ipv6config.Address = net.IPNet{IP: ipv6Addr, Mask: net.CIDRMask(int(ifInfo.NCResponse.IPv6Configuration.IPSubnet.PrefixLength), ipv6FullMask)}
-			ipv6config.Gateway = net.ParseIP(ifInfo.NCResponse.IPv6Configuration.GatewayIPAddress)
-			ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipv6config)
-		}
-
+		ipconfigs, routes := convertToIPConfigAndRouteInfo(ifInfo.NCResponse)
+		ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipconfigs...)
 		ifInfo.Routes = routes
 		ifInfo.NICType = cns.InfraNIC
 		ifInfo.SkipDefaultRoutes = ncResponses[i].SkipDefaultRoutes
@@ -329,18 +319,27 @@ func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName s
 	return result
 }
 
-func convertToIPConfigAndRouteInfo(networkConfig *cns.GetNetworkContainerResponse) (*network.IPConfig, []network.RouteInfo) {
-	ipconfig := &network.IPConfig{}
-	cnsIPConfig := networkConfig.IPConfiguration
-	ipAddr := net.ParseIP(cnsIPConfig.IPSubnet.IPAddress)
-
-	if ipAddr.To4() != nil {
-		ipconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(cnsIPConfig.IPSubnet.PrefixLength), ipv4FullMask)}
-	} else {
-		ipconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(cnsIPConfig.IPSubnet.PrefixLength), ipv6FullMask)}
+func convertToIPConfigAndRouteInfo(networkConfig *cns.GetNetworkContainerResponse) ([]*network.IPConfig, []network.RouteInfo) {
+	// Collect IP configurations to process; always include the primary, and add IPv6 if present
+	cnsIPConfigs := []cns.IPConfiguration{networkConfig.IPConfiguration}
+	if networkConfig.IPv6Configuration.IPSubnet.IPAddress != "" {
+		cnsIPConfigs = append(cnsIPConfigs, networkConfig.IPv6Configuration)
 	}
 
-	ipconfig.Gateway = net.ParseIP(cnsIPConfig.GatewayIPAddress)
+	ipconfigs := make([]*network.IPConfig, 0, len(cnsIPConfigs))
+	for _, cnsIPConfig := range cnsIPConfigs {
+		ipconfig := &network.IPConfig{}
+		ipAddr := net.ParseIP(cnsIPConfig.IPSubnet.IPAddress)
+
+		if ipAddr.To4() != nil {
+			ipconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(cnsIPConfig.IPSubnet.PrefixLength), ipv4FullMask)}
+		} else {
+			ipconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(cnsIPConfig.IPSubnet.PrefixLength), ipv6FullMask)}
+		}
+
+		ipconfig.Gateway = net.ParseIP(cnsIPConfig.GatewayIPAddress)
+		ipconfigs = append(ipconfigs, ipconfig)
+	}
 
 	routes := make([]network.RouteInfo, 0)
 	if networkConfig.Routes != nil && len(networkConfig.Routes) > 0 {
@@ -353,10 +352,10 @@ func convertToIPConfigAndRouteInfo(networkConfig *cns.GetNetworkContainerRespons
 
 	for _, ipRouteSubnet := range networkConfig.CnetAddressSpace {
 		routeIPnet := net.IPNet{IP: net.ParseIP(ipRouteSubnet.IPAddress), Mask: net.CIDRMask(int(ipRouteSubnet.PrefixLength), ipv4FullMask)}
-		routes = append(routes, network.RouteInfo{Dst: routeIPnet, Gw: ipconfig.Gateway})
+		routes = append(routes, network.RouteInfo{Dst: routeIPnet, Gw: ipconfigs[0].Gateway})
 	}
 
-	return ipconfig, routes
+	return ipconfigs, routes
 }
 
 func checkIfSubnetOverlaps(enableInfraVnet bool, nwCfg *cni.NetworkConfig, cnsNetworkConfig *cns.GetNetworkContainerResponse) bool {
