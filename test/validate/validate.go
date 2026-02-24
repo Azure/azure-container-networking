@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"os"
+	"path/filepath"
+	"strconv"
+	"time"
 
 	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/pkg/errors"
@@ -48,6 +52,30 @@ type Validator struct {
 	cni         string
 	restartCase bool
 	os          string
+	summary     ValidationSummary
+}
+
+type ValidationSummary struct {
+	GeneratedAt string                 `json:"generatedAt"`
+	OS          string                 `json:"os"`
+	CNI         string                 `json:"cni"`
+	Namespace   string                 `json:"namespace"`
+	RestartCase bool                   `json:"restartCase"`
+	Checks      []ValidationCheckEntry `json:"checks,omitempty"`
+}
+
+type ValidationCheckEntry struct {
+	CheckName      string   `json:"checkName"`
+	NodeName       string   `json:"nodeName"`
+	ExpectedCount  int      `json:"expectedCount"`
+	ActualCount    int      `json:"actualCount"`
+	Attempts       int      `json:"attempts"`
+	DurationMS     int64    `json:"durationMS"`
+	Converged      bool     `json:"converged"`
+	MissingIPs     []string `json:"missingIPs,omitempty"`
+	UnexpectedIPs  []string `json:"unexpectedIPs,omitempty"`
+	DuplicateIPs   []string `json:"duplicateIPs,omitempty"`
+	ValidationPass bool     `json:"validationPass"`
 }
 
 type check struct {
@@ -92,10 +120,19 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 		restartCase: restartCase,
 		checks:      checks,
 		os:          os,
+		summary: ValidationSummary{
+			GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+			OS:          os,
+			CNI:         cni,
+			Namespace:   namespace,
+			RestartCase: restartCase,
+		},
 	}, nil
 }
 
 func (v *Validator) Validate(ctx context.Context) error {
+	defer v.writeSummaryIfRequested()
+
 	log.Printf("Validating State File")
 	err := v.ValidateStateFile(ctx)
 	if err != nil {
@@ -130,39 +167,133 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		return errors.Wrapf(err, "failed to get node list")
 	}
 
-	for index := range nodes.Items {
-		// get the privileged pod
-		pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, namespace, labelSelector, nodes.Items[index].Name)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get privileged pod")
-		}
-		if len(pod.Items) == 0 {
-			return errors.Errorf("there are no privileged pods on node - %v", nodes.Items[index].Name)
-		}
-		podName := pod.Items[0].Name
-		// exec into the pod to get the state file
-		log.Printf("Executing command %s on pod %s, container %s", cmd, podName, containerName)
-		result, _, err := acnk8s.ExecCmdOnPod(ctx, v.clientset, namespace, podName, containerName, cmd, v.config, true)
-		if err != nil {
-			return errors.Wrapf(err, "failed to exec into privileged pod - %s", podName)
-		}
-		filePodIps, err := stateFileIps(result)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get pod ips from state file on node %v", nodes.Items[index].Name)
-		}
-		if len(filePodIps) == 0 && v.restartCase {
-			log.Printf("No pods found on node %s", nodes.Items[index].Name)
-			continue
-		}
-		// get the pod ips
-		podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
+	maxAttempts := envInt("VALIDATE_CONVERGENCE_ATTEMPTS", 1)
+	intervalSeconds := envInt("VALIDATE_CONVERGENCE_INTERVAL_SECONDS", 0)
 
-		if err := compareIPs(filePodIps, podIps); err != nil {
-			return errors.Wrapf(err, "State file validation failed for %s on node %s", checkType, nodes.Items[index].Name)
+	for index := range nodes.Items {
+		nodeName := nodes.Items[index].Name
+		started := time.Now()
+		attempts := 0
+		converged := false
+		var comparison ipComparisonResult
+
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			attempts = attempt
+
+			pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, namespace, labelSelector, nodeName)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get privileged pod")
+			}
+			if len(pod.Items) == 0 {
+				return errors.Errorf("there are no privileged pods on node - %v", nodeName)
+			}
+			podName := pod.Items[0].Name
+
+			log.Printf("Executing command %s on pod %s, container %s", cmd, podName, containerName)
+			result, _, err := acnk8s.ExecCmdOnPod(ctx, v.clientset, namespace, podName, containerName, cmd, v.config, true)
+			if err != nil {
+				return errors.Wrapf(err, "failed to exec into privileged pod - %s", podName)
+			}
+
+			filePodIps, err := stateFileIps(result)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get pod ips from state file on node %v", nodeName)
+			}
+			if len(filePodIps) == 0 && v.restartCase {
+				comparison = ipComparisonResult{}
+				converged = true
+				log.Printf("No pods found on node %s", nodeName)
+				break
+			}
+
+			podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
+			comparison = compareIPsDetailed(filePodIps, podIps)
+			if !comparison.HasMismatch() {
+				converged = true
+				break
+			}
+
+			if attempt < maxAttempts && intervalSeconds > 0 {
+				time.Sleep(time.Duration(intervalSeconds) * time.Second)
+			}
+		}
+
+		v.summary.Checks = append(v.summary.Checks, ValidationCheckEntry{
+			CheckName:      checkType,
+			NodeName:       nodeName,
+			ExpectedCount:  comparison.ExpectedCount,
+			ActualCount:    comparison.ActualCount,
+			Attempts:       attempts,
+			DurationMS:     time.Since(started).Milliseconds(),
+			Converged:      converged,
+			MissingIPs:     comparison.MissingIPs,
+			UnexpectedIPs:  comparison.UnexpectedIPs,
+			DuplicateIPs:   comparison.DuplicateIPs,
+			ValidationPass: converged && !comparison.HasMismatch(),
+		})
+
+		if !converged || comparison.HasMismatch() {
+			return errors.Errorf(
+				"State file validation failed for %s on node %s after %d/%d attempts: expected=%d actual=%d missing=%v unexpected=%v duplicate=%v",
+				checkType,
+				nodeName,
+				attempts,
+				maxAttempts,
+				comparison.ExpectedCount,
+				comparison.ActualCount,
+				comparison.MissingIPs,
+				comparison.UnexpectedIPs,
+				comparison.DuplicateIPs,
+			)
 		}
 	}
 	log.Printf("State file validation for %s passed", checkType)
 	return nil
+}
+
+func envInt(name string, fallback int) int {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return fallback
+	}
+
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		log.Printf("invalid %s=%q, using fallback %d", name, raw, fallback)
+		return fallback
+	}
+	if v < 0 {
+		log.Printf("invalid %s=%q (<0), using fallback %d", name, raw, fallback)
+		return fallback
+	}
+
+	return v
+}
+
+func (v *Validator) writeSummaryIfRequested() {
+	summaryPath := os.Getenv("VALIDATE_SUMMARY_PATH")
+	if summaryPath == "" {
+		return
+	}
+
+	v.summary.GeneratedAt = time.Now().UTC().Format(time.RFC3339)
+	raw, err := json.MarshalIndent(v.summary, "", "  ")
+	if err != nil {
+		log.Printf("failed to marshal validation summary: %v", err)
+		return
+	}
+
+	if err := os.MkdirAll(filepath.Dir(summaryPath), 0o755); err != nil {
+		log.Printf("failed to create summary directory: %v", err)
+		return
+	}
+
+	if err := os.WriteFile(summaryPath, raw, 0o644); err != nil {
+		log.Printf("failed to write validation summary %s: %v", summaryPath, err)
+		return
+	}
+
+	log.Printf("validation summary written to %s", summaryPath)
 }
 
 func validateNodeProperties(nodes *corev1.NodeList, labels map[string]string, expectedIPCount int) error {

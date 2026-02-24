@@ -20,11 +20,15 @@ In Azure CNI modes where pods receive routable VNET IPs, CNS tracks the goal sta
 4) CNS ingests NNC as goal state; once NC is ready, IPs become Available.
 5) CNI/azure-ipam calls CNS to RequestIPConfigs/ReleaseIPConfigs during pod lifecycle.
 6) CNS acts as the IPAM store for pod IP allocation and release.
+7) After datapath provisioning, CNI updates CNS endpoint state via the EndpointHandlerAPI to persist the CNI-side container/endpoint mapping.
 
 ## Primary CNS APIs used by AKS
 Primary (current) IPAM APIs:
 - POST /network/requestipconfigs — allocate one or more IPs for a pod.
 - POST /network/releaseipconfigs — release IPs for a pod.
+
+Endpoint state APIs (used by Stateless CNI across platforms):
+- EndpointHandlerAPI — update, get, and delete endpoint state after datapath provisioning. This is how CNI persists container/endpoint mappings in CNS so that state survives CNI binary restarts.
 
 Legacy fallbacks (used when RequestIPConfigs/ReleaseIPConfigs are unsupported):
 - POST /network/requestipconfig — allocate a single IP.
@@ -40,7 +44,6 @@ Legacy fallbacks (used when RequestIPConfigs/ReleaseIPConfigs are unsupported):
 CNS writes persistent state to disk:
 - Main CNS state: /var/lib/azure-network/azure-cns.json (Linux default). Stores NCs, networks, orchestrator data, timestamps, etc.
 - Endpoint state (ManageEndpointState=true): /var/run/azure-cns/azure-endpoints.json on Linux, /k/azurecns/azure-endpoints.json on Windows. Stores containerID → endpoint IP mappings. Critical state for IPAM - any issues can leak IPs.
-- CNI state file used for migration: /var/run/azure-vnet.json (Linux default).
 
 ## Code entry points (start here)
 - Service entry: cns/service/main.go
@@ -53,6 +56,8 @@ CNS writes persistent state to disk:
 
 ## Critical caution areas
 CNS initialization and state management are high-risk code paths. Behavioral changes can cause large-scale impact. Keep changes minimal and validate thoroughly.
+
+The async delete flow (where endpoint/IP cleanup happens after the CNI DEL returns) is a particularly sensitive path — races between async deletes and new pod assignments on the same IP can cause state corruption or IP conflicts. Treat any changes to release/delete ordering with extreme care.
 
 ## SwiftV2 note
 SwiftV2 adds multitenancy and multi-NIC behaviors. Treat SwiftV2-only APIs/CRDs as specialized paths; verify scenario-specific behavior when touching related code.

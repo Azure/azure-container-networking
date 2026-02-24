@@ -97,7 +97,7 @@ stages:
 
 # Conditions for below E2E test scenarios confirm that:
 # Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn:
-# CONTROL_SCENARIO either contains 'all' or its respective scenario 'npm', 'scaleTest', 'restartNode', 'restartCNS'. It is not case sensitive
+# CONTROL_SCENARIO either contains 'all' or its respective scenario 'npm', 'scaleTest', 'restartNode', 'restartCNS', 'restartCNSDuringScale'. It is not case sensitive
 # Ex. CONTROL_SCENARIO = "restartnode SCALETEST" will only run Scale Test and Restart Test.
   - stage: ${{ parameters.name }}
     variables:
@@ -267,12 +267,17 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv2
+              summaryFileName: deploy-pods-summary.json
+              publishSummaryArtifact: "true"
+              summaryArtifactName: validate-baseline-${{ parameters.name }}-${{ parameters.os }}
       - job: restart_nodes
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartNode') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Restart Test"
         dependsOn: deploy_pods
         timeoutInMinutes: 90 # Windows podsubnet takes an extended amount of time to reconcile
         steps:
+          - download: current
+            artifact: validate-baseline-${{ parameters.name }}-${{ parameters.os }}
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -287,11 +292,41 @@ stages:
               os: ${{ parameters.os }}
               cni: cniv2
               restartCase: "true"
+              summaryFileName: restart-nodes-summary.json
+              failOnRegression: "true"
+              baselineSummaryPath: $(Pipeline.Workspace)/validate-baseline-${{ parameters.name }}-${{ parameters.os }}/deploy-pods-summary.json
+      - job: restart_cns_during_scale
+        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartCNSDuringScale') , contains(variables.CONTROL_SCENARIO, 'all') ) )
+        displayName: "Restart CNS During Scale"
+        dependsOn: restart_nodes
+        steps:
+          - download: current
+            artifact: validate-baseline-${{ parameters.name }}-${{ parameters.os }}
+          - template: ../load-test-templates/restart-cns-during-scale-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cniv2
+              scaleup: ${{ parameters.scaleup }}
+              nodeCount: ${{ parameters.nodeCount }}
+              ${{ if eq(parameters.upgradeScenario, 'true') }}:
+                logType: upgradeRestartCNSDuringScale
+          - template: ../load-test-templates/validate-state-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cniv2
+              restartCase: "true"
+              summaryFileName: restart-cns-during-scale-summary.json
+              failOnRegression: "true"
+              baselineSummaryPath: $(Pipeline.Workspace)/validate-baseline-${{ parameters.name }}-${{ parameters.os }}/deploy-pods-summary.json
       - job: restart_cns
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartCNS') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Restart and Validate CNS"
-        dependsOn: restart_nodes
+        dependsOn: restart_cns_during_scale
         steps:
+          - download: current
+            artifact: validate-baseline-${{ parameters.name }}-${{ parameters.os }}
           - template: ../load-test-templates/restart-cns-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -301,6 +336,15 @@ stages:
               nodeCount: ${{ parameters.nodeCount }}
               ${{ if eq(parameters.upgradeScenario, 'true') }}:
                 logType: upgradeRestartCNS
+          - template: ../load-test-templates/validate-state-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cniv2
+              restartCase: "true"
+              summaryFileName: restart-cns-summary.json
+              failOnRegression: "true"
+              baselineSummaryPath: $(Pipeline.Workspace)/validate-baseline-${{ parameters.name }}-${{ parameters.os }}/deploy-pods-summary.json
       - job: recover
         condition: and( not(canceled()), not(failed()) )
         displayName: "Recover Resources"
@@ -341,6 +385,7 @@ stages:
           - npm_k8se2e
           - deploy_pods
           - restart_nodes
+          - restart_cns_during_scale
           - restart_cns
           - recover
           - cni_${{ parameters.os }}
@@ -397,10 +442,15 @@ stages:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
                 cni: cniv2
+                summaryFileName: hns-deploy-pods-summary.json
+                publishSummaryArtifact: "true"
+                summaryArtifactName: validate-baseline-${{ parameters.name }}-hns-${{ parameters.os }}
         - job: restart_nodes
           displayName: "Restart Test"
           dependsOn: deploy_pods
           steps:
+            - download: current
+              artifact: validate-baseline-${{ parameters.name }}-hns-${{ parameters.os }}
             - template: ../load-test-templates/restart-node-template.yaml
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -415,10 +465,38 @@ stages:
                 os: ${{ parameters.os }}
                 cni: cniv2
                 restartCase: "true"
-        - job: restart_cns
-          displayName: "Restart and Validate CNS"
+                summaryFileName: hns-restart-nodes-summary.json
+                failOnRegression: "true"
+                baselineSummaryPath: $(Pipeline.Workspace)/validate-baseline-${{ parameters.name }}-hns-${{ parameters.os }}/hns-deploy-pods-summary.json
+        - job: restart_cns_during_scale
+          displayName: "Restart CNS During Scale"
           dependsOn: restart_nodes
           steps:
+            - download: current
+              artifact: validate-baseline-${{ parameters.name }}-hns-${{ parameters.os }}
+            - template: ../load-test-templates/restart-cns-during-scale-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                cni: cniv2
+                scaleup: ${{ parameters.scaleup }}
+                nodeCount: ${{ parameters.nodeCountWin }}
+                jobName: "HNS_restart_cns_during_scale"
+            - template: ../load-test-templates/validate-state-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                cni: cniv2
+                restartCase: "true"
+                summaryFileName: hns-restart-cns-during-scale-summary.json
+                failOnRegression: "true"
+                baselineSummaryPath: $(Pipeline.Workspace)/validate-baseline-${{ parameters.name }}-hns-${{ parameters.os }}/hns-deploy-pods-summary.json
+        - job: restart_cns
+          displayName: "Restart and Validate CNS"
+          dependsOn: restart_cns_during_scale
+          steps:
+            - download: current
+              artifact: validate-baseline-${{ parameters.name }}-hns-${{ parameters.os }}
             - template: ../load-test-templates/restart-cns-template.yaml
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -427,6 +505,15 @@ stages:
                 scaleup: ${{ parameters.scaleup }}
                 nodeCount: ${{ parameters.nodeCountWin }}
                 jobName: "HNS_restart_cns"
+            - template: ../load-test-templates/validate-state-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                cni: cniv2
+                restartCase: "true"
+                summaryFileName: hns-restart-cns-summary.json
+                failOnRegression: "true"
+                baselineSummaryPath: $(Pipeline.Workspace)/validate-baseline-${{ parameters.name }}-hns-${{ parameters.os }}/hns-deploy-pods-summary.json
         - job: recover
           condition: and( not(canceled()), not(failed()) )
           displayName: "Recover Resources"

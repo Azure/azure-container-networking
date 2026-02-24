@@ -3,27 +3,54 @@ package validate
 import (
 	"context"
 	"reflect"
+	"sort"
 
 	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
-func compareIPs(expected map[string]string, actual []string) error {
-	expectedLen := len(expected)
+type ipComparisonResult struct {
+	ExpectedCount int      `json:"expectedCount"`
+	ActualCount   int      `json:"actualCount"`
+	MissingIPs    []string `json:"missingIPs,omitempty"`
+	UnexpectedIPs []string `json:"unexpectedIPs,omitempty"`
+	DuplicateIPs  []string `json:"duplicateIPs,omitempty"`
+}
 
+func (r ipComparisonResult) HasMismatch() bool {
+	return len(r.MissingIPs) > 0 || len(r.UnexpectedIPs) > 0 || len(r.DuplicateIPs) > 0
+}
+
+func compareIPsDetailed(expected map[string]string, actual []string) ipComparisonResult {
+	result := ipComparisonResult{
+		ExpectedCount: len(expected),
+		ActualCount:   len(actual),
+	}
+
+	seen := make(map[string]struct{}, len(actual))
 	for _, ip := range actual {
-		if _, ok := expected[ip]; !ok {
-			return errors.Errorf("actual ip %s is unexpected, expected: %+v, actual: %+v", ip, expected, actual)
+		if _, found := seen[ip]; found {
+			result.DuplicateIPs = append(result.DuplicateIPs, ip)
+			continue
 		}
-		delete(expected, ip)
-	}
-	if expectedLen != len(actual) {
-		return errors.Errorf("len of expected IPs != len of actual IPs, expected: %+v, actual: %+v | Remaining, potentially leaked, IP(s) on state file - %v", expectedLen, len(actual), expected)
+		seen[ip] = struct{}{}
+
+		if _, ok := expected[ip]; !ok {
+			result.UnexpectedIPs = append(result.UnexpectedIPs, ip)
+		}
 	}
 
-	return nil
+	for ip := range expected {
+		if _, ok := seen[ip]; !ok {
+			result.MissingIPs = append(result.MissingIPs, ip)
+		}
+	}
+
+	sort.Strings(result.MissingIPs)
+	sort.Strings(result.UnexpectedIPs)
+	sort.Strings(result.DuplicateIPs)
+	return result
 }
 
 // func to get the pods ip without the node ip (ie. host network as false)
