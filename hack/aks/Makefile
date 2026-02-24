@@ -462,8 +462,8 @@ linux-swiftv2-nodepool-up: ## Add linux node pool to swiftv2 cluster
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
 
 down: ## Delete the cluster
-	$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
-	@$(MAKE) unset-kubeconf
+	-$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
+	-@$(MAKE) unset-kubeconf
 	@$(MAKE) rg-down
 
 restart-vmss: ## Restarts the nodes in the cluster
