@@ -13,8 +13,9 @@ import (
 
 // IPv6PrefixClamp caps IPv6 CIDR blocks to this prefix length to prevent
 // generating too many IPConfigs. For example, a /64 would generate 2^64 IPs
-// which is not practical. Set to 0 to disable clamping. Default is 120 (/120 = 256 IPs).
-var IPv6PrefixClamp = 120 //nolint:gochecknoglobals // configurable at startup
+// which is not practical. Set to 0 to disable clamping.
+// Configured via CNSConfig.IPv6PrefixClamp (default 120).
+var IPv6PrefixClamp int //nolint:gochecknoglobals // configurable at startup via CNSConfig
 
 var (
 	// ErrInvalidPrimaryIP indicates the NC primary IP is invalid.
