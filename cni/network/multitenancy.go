@@ -327,14 +327,17 @@ func convertToIPConfigAndRouteInfo(networkConfig *cns.GetNetworkContainerRespons
 	}
 
 	ipconfigs := make([]*network.IPConfig, 0, len(cnsIPConfigs))
+	var ipv4Gateway, ipv6Gateway net.IP
 	for _, cnsIPConfig := range cnsIPConfigs {
 		ipconfig := &network.IPConfig{}
 		ipAddr := net.ParseIP(cnsIPConfig.IPSubnet.IPAddress)
 
 		if ipAddr.To4() != nil {
 			ipconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(cnsIPConfig.IPSubnet.PrefixLength), ipv4FullMask)}
+			ipv4Gateway = net.ParseIP(cnsIPConfig.GatewayIPAddress)
 		} else {
 			ipconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(cnsIPConfig.IPSubnet.PrefixLength), ipv6FullMask)}
+			ipv6Gateway = net.ParseIP(cnsIPConfig.GatewayIPAddress)
 		}
 
 		ipconfig.Gateway = net.ParseIP(cnsIPConfig.GatewayIPAddress)
@@ -351,8 +354,17 @@ func convertToIPConfigAndRouteInfo(networkConfig *cns.GetNetworkContainerRespons
 	}
 
 	for _, ipRouteSubnet := range networkConfig.CnetAddressSpace {
-		routeIPnet := net.IPNet{IP: net.ParseIP(ipRouteSubnet.IPAddress), Mask: net.CIDRMask(int(ipRouteSubnet.PrefixLength), ipv4FullMask)}
-		routes = append(routes, network.RouteInfo{Dst: routeIPnet, Gw: ipconfigs[0].Gateway})
+		ip := net.ParseIP(ipRouteSubnet.IPAddress)
+		var routeIPnet net.IPNet
+		var gwIP net.IP
+		if ip.To4() != nil {
+			routeIPnet = net.IPNet{IP: ip, Mask: net.CIDRMask(int(ipRouteSubnet.PrefixLength), ipv4FullMask)}
+			gwIP = ipv4Gateway
+		} else {
+			routeIPnet = net.IPNet{IP: ip, Mask: net.CIDRMask(int(ipRouteSubnet.PrefixLength), ipv6FullMask)}
+			gwIP = ipv6Gateway
+		}
+		routes = append(routes, network.RouteInfo{Dst: routeIPnet, Gw: gwIP})
 	}
 
 	return ipconfigs, routes

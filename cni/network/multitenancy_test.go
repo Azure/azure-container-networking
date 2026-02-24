@@ -1029,3 +1029,90 @@ func getPrefixLength(mask net.IPMask) int {
 	ones, _ := mask.Size()
 	return ones
 }
+
+func TestConvertToIPConfigAndRouteInfoCnetAddressSpace(t *testing.T) {
+	tests := []struct {
+		name          string
+		networkConfig *cns.GetNetworkContainerResponse
+		wantRoutes    []network.RouteInfo
+	}{
+		{
+			name: "dual-stack with IPv4 CnetAddressSpace uses IPv4 gateway",
+			networkConfig: &cns.GetNetworkContainerResponse{
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet:         cns.IPSubnet{IPAddress: "10.1.0.5", PrefixLength: 16},
+					GatewayIPAddress: "10.1.0.1",
+				},
+				IPv6Configuration: cns.IPConfiguration{
+					IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::5", PrefixLength: 64},
+					GatewayIPAddress: "2001:db8::1",
+				},
+				CnetAddressSpace: []cns.IPSubnet{
+					{IPAddress: "10.2.0.0", PrefixLength: 16},
+				},
+			},
+			wantRoutes: []network.RouteInfo{
+				{
+					Dst: net.IPNet{IP: net.ParseIP("10.2.0.0"), Mask: net.CIDRMask(16, 32)},
+					Gw:  net.ParseIP("10.1.0.1"),
+				},
+			},
+		},
+		{
+			name: "dual-stack with IPv6 CnetAddressSpace uses IPv6 gateway",
+			networkConfig: &cns.GetNetworkContainerResponse{
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet:         cns.IPSubnet{IPAddress: "10.1.0.5", PrefixLength: 16},
+					GatewayIPAddress: "10.1.0.1",
+				},
+				IPv6Configuration: cns.IPConfiguration{
+					IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::5", PrefixLength: 64},
+					GatewayIPAddress: "2001:db8::1",
+				},
+				CnetAddressSpace: []cns.IPSubnet{
+					{IPAddress: "2001:db8:1::", PrefixLength: 48},
+				},
+			},
+			wantRoutes: []network.RouteInfo{
+				{
+					Dst: net.IPNet{IP: net.ParseIP("2001:db8:1::"), Mask: net.CIDRMask(48, 128)},
+					Gw:  net.ParseIP("2001:db8::1"),
+				},
+			},
+		},
+		{
+			name: "dual-stack with mixed CnetAddressSpace uses correct gateway per family",
+			networkConfig: &cns.GetNetworkContainerResponse{
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet:         cns.IPSubnet{IPAddress: "10.1.0.5", PrefixLength: 16},
+					GatewayIPAddress: "10.1.0.1",
+				},
+				IPv6Configuration: cns.IPConfiguration{
+					IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::5", PrefixLength: 64},
+					GatewayIPAddress: "2001:db8::1",
+				},
+				CnetAddressSpace: []cns.IPSubnet{
+					{IPAddress: "10.2.0.0", PrefixLength: 16},
+					{IPAddress: "2001:db8:1::", PrefixLength: 48},
+				},
+			},
+			wantRoutes: []network.RouteInfo{
+				{
+					Dst: net.IPNet{IP: net.ParseIP("10.2.0.0"), Mask: net.CIDRMask(16, 32)},
+					Gw:  net.ParseIP("10.1.0.1"),
+				},
+				{
+					Dst: net.IPNet{IP: net.ParseIP("2001:db8:1::"), Mask: net.CIDRMask(48, 128)},
+					Gw:  net.ParseIP("2001:db8::1"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, gotRoutes := convertToIPConfigAndRouteInfo(tt.networkConfig)
+			require.Equal(t, tt.wantRoutes, gotRoutes)
+		})
+	}
+}
