@@ -64,7 +64,7 @@ func rootExecute() error {
 
 	reportManager := &telemetry.ReportManager{
 		Report: &telemetry.CNIReport{
-			Context:       "AzureCNI",
+			Context:       "AzureCNIStateless",
 			SystemDetails: telemetry.SystemInfo{},
 			Version:       version,
 		},
