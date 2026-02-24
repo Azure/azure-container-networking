@@ -1457,6 +1457,9 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	// TODO(rbtr): nodename and namespace should be in the cns config
 	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
+	// Wire IPv6 prefix clamp before any NNC reconciliation so all conversions use the configured value.
+	nncctrl.IPv6PrefixClamp = cnsconfig.IPv6PrefixClamp
+
 	logger.Printf("Reconciling initial CNS state")
 	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
 	// aks addons to come up so retry a bit more aggresively here.
@@ -1562,7 +1565,6 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
-	nncctrl.IPv6PrefixClamp = cnsconfig.IPv6PrefixClamp
 	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2)
 	// pass Node to the Reconciler for Controller xref
 	// IPAMv1 - reconcile only status changes (where generation doesn't change).
