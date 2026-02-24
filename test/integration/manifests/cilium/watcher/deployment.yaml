@@ -198,7 +198,7 @@ spec:
       serviceAccountName: cilium-watcher-sa
       containers:
         - name: ds-watcher
-          image: mcr.microsoft.com/oss/v2/kubernetes/kubectl
+          image: acnpublic.azurecr.io/public/containernetworking/kubectl:v1.35.1
           command:
             - /bin/sh
             - -c
@@ -260,7 +260,7 @@ spec:
               done
 
         - name: rbac-watcher
-          image: mcr.microsoft.com/oss/v2/kubernetes/kubectl
+          image: acnpublic.azurecr.io/public/containernetworking/kubectl:v1.35.1
           command:
             - /bin/sh
             - -c
