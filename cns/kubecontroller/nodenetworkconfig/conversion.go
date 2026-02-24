@@ -11,6 +11,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	// ipv6PrefixCap is a safety limit on the IPv6 prefix length used when expanding CIDR blocks into individual IPs.
+	// When an IPv6 CIDR prefix length is smaller than this value (i.e. would produce more than 2^(128-ipv6PrefixCap) IPs),
+	// the prefix is narrowed to this length to prevent excessive memory consumption.
+	ipv6PrefixCap = 120
+)
+
 var (
 	// ErrInvalidPrimaryIP indicates the NC primary IP is invalid.
 	ErrInvalidPrimaryIP = errors.New("invalid primary IP")

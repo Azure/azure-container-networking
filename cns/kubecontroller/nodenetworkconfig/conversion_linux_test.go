@@ -106,6 +106,57 @@ var validVNETBlockRequest = &cns.CreateNetworkContainerRequest{
 	},
 }
 
+func TestCreateNCRequestFromStaticNCIPv6PrefixCap(t *testing.T) {
+	tests := []struct {
+		name      string
+		ipAssign  string
+		wantCount int
+	}{
+		{
+			name:      "IPv6 prefix /118 is capped to /120 (256 IPs)",
+			ipAssign:  "::ffff:10.0.0.0/118",
+			wantCount: 256, // 2^(128-120) = 256 IPs after cap
+		},
+		{
+			name:      "IPv6 prefix exactly /120 is not capped (256 IPs)",
+			ipAssign:  "::ffff:10.0.0.0/120",
+			wantCount: 256, // exactly at the cap
+		},
+		{
+			name:      "IPv6 prefix /126 is not capped (4 IPs)",
+			ipAssign:  "::ffff:10.0.0.0/126",
+			wantCount: 4, // 2^(128-126) = 4 IPs, no cap needed
+		},
+		{
+			name:      "IPv4 prefix /28 is not affected by IPv6 cap (16 IPs)",
+			ipAssign:  "10.0.0.0/28",
+			wantCount: 16, // 2^(32-28) = 16 IPs, IPv4 is not capped
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nc := v1alpha.NetworkContainer{
+				ID:                 ncID,
+				Type:               v1alpha.VNETBlock,
+				AssignmentMode:     v1alpha.Static,
+				PrimaryIP:          vnetBlockPrimaryIPPrefix,
+				NodeIP:             vnetBlockNodeIP,
+				SubnetAddressSpace: vnetBlockSubnetAddressSpace,
+				DefaultGateway:     vnetBlockDefaultGateway,
+				Version:            version,
+				IPAssignments: []v1alpha.IPAssignment{
+					{Name: uuid, IP: tt.ipAssign},
+				},
+			}
+			// isSwiftV2=true skips primary prefix IPs so the count reflects only the CIDR assignment
+			req, err := CreateNCRequestFromStaticNC(nc, true)
+			require.NoError(t, err)
+			assert.Len(t, req.SecondaryIPConfigs, tt.wantCount)
+		})
+	}
+}
+
 func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 	tests := []struct {
 		name      string
