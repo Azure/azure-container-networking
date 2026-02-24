@@ -228,7 +228,7 @@ func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CreateNCRequestFromStaticNC(tt.input, tt.isSwiftV2)
+			got, err := CreateNCRequestFromStaticNC(tt.input, tt.isSwiftV2, 120)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return

@@ -39,6 +39,7 @@ type CNSConfig struct {
 	EnableSubnetScarcity        bool
 	EnableSwiftV1DualStack      bool
 	EnableSwiftV2               bool
+	IPv6PrefixClamp             int
 	InitializeFromCNI           bool
 	KeyVaultSettings            KeyVaultSettings
 	Logger                      loggerv2.Config
@@ -242,6 +243,9 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 
 	if config.MinTLSVersion == "" {
 		config.MinTLSVersion = "TLS 1.2"
+	}
+	if config.IPv6PrefixClamp == 0 {
+		config.IPv6PrefixClamp = 120 //nolint:gomnd // default IPv6 prefix clamp to /120 (256 IPs)
 	}
 	config.GRPCSettings.Enable = false
 	config.WatchPods = config.EnableIPAMv2 || config.EnableSwiftV2

@@ -13,7 +13,7 @@ import (
 // by adding all IPs in the the block to the secondary IP configs list. It does not skip any IPs.
 //
 //nolint:gocritic //ignore hugeparam
-func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet, isSwiftV2 bool) (*cns.CreateNetworkContainerRequest, error) {
+func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet, isSwiftV2 bool, ipv6PrefixClamp int) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 
 	// iterate through all IP addresses in the subnet described by primaryPrefix and
@@ -31,6 +31,8 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 	// hard code it for now, we can make it configurable if needed in the future.
 	// This is to prevent generating too many IPConfigs when the CIDR block is large. For example, if the CIDR block is /64, it will generate 2^64 IPConfigs which is not practical.
 	ipv6PrefixClamp := 120
+	// ipv6PrefixClamp caps IPv6 CIDR blocks to prevent generating too many IPConfigs.
+	// For example, if the CIDR block is /64, it will generate 2^64 IPConfigs which is not practical.
 	// Add IPs from CIDR block to the secondary IPConfigs
 	if nc.Type == v1alpha.VNETBlock {
 
@@ -40,7 +42,7 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 				return nil, errors.Wrapf(err, "invalid CIDR block: %s", ipAssignment.IP)
 			}
 
-			if cidrPrefix.Addr().Is4In6() && cidrPrefix.Bits() < ipv6PrefixClamp {
+			if cidrPrefix.Addr().Is6() && ipv6PrefixClamp > 0 && cidrPrefix.Bits() < ipv6PrefixClamp {
 				cidrPrefix = netip.PrefixFrom(cidrPrefix.Masked().Addr(), ipv6PrefixClamp)
 			}
 
