@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/stretchr/testify/assert"
@@ -68,4 +70,58 @@ func TestSendRegisterNodeRequest_StatusAccepted(t *testing.T) {
 	mockClient := &MockHTTPClient{Response: mockResponse, Err: nil}
 
 	assert.Error(t, sendRegisterNodeRequest(ctx, mockClient, httpServiceFake, nodeRegisterReq, url))
+}
+
+func TestEnableSwiftV1DualStackCRD(t *testing.T) {
+	tests := []struct {
+		name              string
+		enabled           bool
+		crdCreationErr    error
+		expectCRDCreation bool
+		wantErr           bool
+	}{
+		{
+			name:              "flag disabled - CRD creation skipped",
+			enabled:           false,
+			expectCRDCreation: false,
+			wantErr:           false,
+		},
+		{
+			name:              "flag enabled - CRD created successfully",
+			enabled:           true,
+			expectCRDCreation: true,
+			wantErr:           false,
+		},
+		{
+			name:              "flag enabled - CRD creation fails",
+			enabled:           true,
+			crdCreationErr:    fmt.Errorf("error creating CRD"),
+			expectCRDCreation: true,
+			wantErr:           true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			called := false
+			createNodeInfoCRD := func() error {
+				called = true
+				return tt.crdCreationErr
+			}
+
+			config := &configuration.CNSConfig{
+				EnableSwiftV1DualStack: tt.enabled,
+			}
+
+			err := enableSwiftV1DualStackCRD(config, createNodeInfoCRD)
+
+			assert.Equal(t, tt.expectCRDCreation, called)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "swift v1 dualstack")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
