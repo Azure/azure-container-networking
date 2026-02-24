@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"testing"
@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockHTTPClient is a mock implementation of HTTPClient
@@ -20,6 +21,8 @@ type MockHTTPClient struct {
 	Response *http.Response
 	Err      error
 }
+
+var errTestFailure = errors.New("test failure")
 
 // Post is the implementation of the Post method for MockHTTPClient
 func (m *MockHTTPClient) Do(_ *http.Request) (*http.Response, error) {
@@ -95,7 +98,7 @@ func TestEnableSwiftV1DualStackCRD(t *testing.T) {
 		{
 			name:              "flag enabled - CRD creation fails",
 			enabled:           true,
-			crdCreationErr:    fmt.Errorf("error creating CRD"),
+			crdCreationErr:    errTestFailure,
 			expectCRDCreation: true,
 			wantErr:           true,
 		},
@@ -117,7 +120,7 @@ func TestEnableSwiftV1DualStackCRD(t *testing.T) {
 
 			assert.Equal(t, tt.expectCRDCreation, called)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), "swift v1 dualstack")
 			} else {
 				assert.NoError(t, err)

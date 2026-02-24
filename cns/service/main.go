@@ -1429,10 +1429,10 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	}
 
 	// populate the NodeInfo CRD for Swift V1 dualstack scenario when enabled via config
-	if err := enableSwiftV1DualStackCRD(cnsconfig, func() error {
+	if swiftV1Err := enableSwiftV1DualStackCRD(cnsconfig, func() error {
 		return createOrUpdateNodeInfoCRD(ctx, kubeConfig, node)
-	}); err != nil {
-		return err
+	}); swiftV1Err != nil {
+		return swiftV1Err
 	}
 
 	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state

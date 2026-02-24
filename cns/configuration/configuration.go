@@ -36,8 +36,8 @@ type CNSConfig struct {
 	EnablePprof                 bool
 	EnableStateMigration        bool
 	EnableSubnetScarcity        bool
-	EnableSwiftV2               bool
 	EnableSwiftV1DualStack      bool
+	EnableSwiftV2               bool
 	InitializeFromCNI           bool
 	KeyVaultSettings            KeyVaultSettings
 	Logger                      loggerv2.Config
