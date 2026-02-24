@@ -1992,9 +1992,7 @@ func TestGetHostLocalIP(t *testing.T) {
 func TestGetAllNetworkContainersWithIPv6Configuration(t *testing.T) {
 	setEnv(t)
 	err := setOrchestratorType(t, cns.ServiceFabric)
-	if err != nil {
-		t.Fatalf("TestGetAllNetworkContainersWithIPv6Configuration failed with error:%+v", err)
-	}
+	require.NoError(t, err)
 
 	ipv6Config := cns.IPConfiguration{
 		DNSServers:       []string{"2001:4860:4860::8888", "2001:4860:4860::8844"},
@@ -2007,15 +2005,11 @@ func TestGetAllNetworkContainersWithIPv6Configuration(t *testing.T) {
 	}
 
 	err = createOrUpdateNetworkContainerWithParams(ncParamsWithIPv6[0])
-	if err != nil {
-		t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
-	}
+	require.NoError(t, err)
 
 	// Retrieve all NCs and verify IPv6Configuration is present
 	ncResponses, err := getAllNetworkContainers(t, ncParamsWithIPv6)
-	if err != nil {
-		t.Fatalf("TestGetAllNetworkContainersWithIPv6Configuration failed with error:%+v", err)
-	}
+	require.NoError(t, err)
 
 	require.Len(t, ncResponses.NetworkContainers, 1, "Expected 1 network container")
 
@@ -2029,9 +2023,7 @@ func TestGetAllNetworkContainersWithIPv6Configuration(t *testing.T) {
 
 	// Cleanup
 	err = deleteNetworkContainerWithParams(ncParamsWithIPv6[0])
-	if err != nil {
-		t.Fatalf("deleteNetworkContainerWithParams failed with error:%+v", err)
-	}
+	require.NoError(t, err)
 }
 
 // TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6 verifies backward compatibility
@@ -2039,9 +2031,7 @@ func TestGetAllNetworkContainersWithIPv6Configuration(t *testing.T) {
 func TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6(t *testing.T) {
 	setEnv(t)
 	err := setOrchestratorType(t, cns.ServiceFabric)
-	if err != nil {
-		t.Fatalf("TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6 failed with error:%+v", err)
-	}
+	require.NoError(t, err)
 
 	// Create NC without IPv6Configuration (backward compatibility test, ipv6Config left as zero value)
 	ncParams := []createOrUpdateNetworkContainerParams{
@@ -2049,15 +2039,11 @@ func TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6(t *testing.T) {
 	}
 
 	err = createOrUpdateNetworkContainerWithParams(ncParams[0])
-	if err != nil {
-		t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
-	}
+	require.NoError(t, err)
 
 	// Retrieve all NCs and verify IPv6Configuration is empty but doesn't cause errors
 	ncResponses, err := getAllNetworkContainers(t, ncParams)
-	if err != nil {
-		t.Fatalf("TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6 failed with error:%+v", err)
-	}
+	require.NoError(t, err)
 
 	require.Len(t, ncResponses.NetworkContainers, 1, "Expected 1 network container")
 
@@ -2070,9 +2056,7 @@ func TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6(t *testing.T) {
 
 	// Cleanup
 	err = deleteNetworkContainerWithParams(ncParams[0])
-	if err != nil {
-		t.Fatalf("deleteNetworkContainerWithParams failed with error:%+v", err)
-	}
+	require.NoError(t, err)
 }
 
 // TestPostNetworkContainersWithIPv6 verifies POST endpoint correctly stores IPv6Configuration from DNC
@@ -2080,9 +2064,7 @@ func TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6(t *testing.T) {
 func TestPostNetworkContainersWithIPv6(t *testing.T) {
 	setEnv(t)
 	err := setOrchestratorType(t, cns.ServiceFabric)
-	if err != nil {
-		t.Fatalf("TestPostNetworkContainersWithIPv6 failed with error:%+v", err)
-	}
+	require.NoError(t, err)
 
 	ncParamsWithIPv6 := []createOrUpdateNetworkContainerParams{
 		{
@@ -2104,15 +2086,11 @@ func TestPostNetworkContainersWithIPv6(t *testing.T) {
 	}
 
 	err = postAllNetworkContainers(t, ncParamsWithIPv6)
-	if err != nil {
-		t.Fatalf("Failed to post all network containers: %+v", err)
-	}
+	require.NoError(t, err)
 
 	// Verify NCs were stored with IPv6Configuration
 	ncResponses, err := getAllNetworkContainers(t, ncParamsWithIPv6)
-	if err != nil {
-		t.Fatalf("Failed to get network containers: %+v", err)
-	}
+	require.NoError(t, err)
 
 	// Verify each NC has IPv6Configuration
 	for i, nc := range ncResponses.NetworkContainers {
@@ -2123,8 +2101,6 @@ func TestPostNetworkContainersWithIPv6(t *testing.T) {
 	// Cleanup
 	for i := 0; i < len(ncParamsWithIPv6); i++ {
 		err = deleteNetworkContainerWithParams(ncParamsWithIPv6[i])
-		if err != nil {
-			t.Fatalf("Failed to delete NC: %+v", err)
-		}
+		require.NoError(t, err)
 	}
 }
