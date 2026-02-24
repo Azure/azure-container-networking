@@ -44,21 +44,19 @@ type Reconciler struct {
 	started            chan interface{}
 	nodeIP             string
 	isSwiftV2          bool
-	ipv6PrefixClamp    int
 }
 
 // NewReconciler creates a NodeNetworkConfig Reconciler which will get updates from the Kubernetes
 // apiserver for NNC events.
 // Provided nncListeners are passed the NNC after the Reconcile preprocesses it. Note: order matters! The
 // passed Listeners are notified in the order provided.
-func NewReconciler(cnscli cnsClient, ipampoolmonitorcli nodeNetworkConfigListener, nodeIP string, isSwiftV2 bool, ipv6PrefixClamp int) *Reconciler {
+func NewReconciler(cnscli cnsClient, ipampoolmonitorcli nodeNetworkConfigListener, nodeIP string, isSwiftV2 bool) *Reconciler {
 	return &Reconciler{
 		cnscli:             cnscli,
 		ipampoolmonitorcli: ipampoolmonitorcli,
 		started:            make(chan interface{}),
 		nodeIP:             nodeIP,
 		isSwiftV2:          isSwiftV2,
-		ipv6PrefixClamp:    ipv6PrefixClamp,
 	}
 }
 
@@ -108,7 +106,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		// For Overlay and Vnet Scale Scenarios
 		case v1alpha.Static:
-			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i], r.isSwiftV2, r.ipv6PrefixClamp)
+			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i], r.isSwiftV2)
 		// For Pod Subnet scenario
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			req, err = CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
