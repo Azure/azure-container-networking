@@ -1,0 +1,60 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-egress-ipblock
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: web-frontend
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-ingress-ipblock
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# This policy is SAFE - has both ipBlock and selectors
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: safe-mixed-egress
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443

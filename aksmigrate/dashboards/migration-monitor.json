@@ -1,0 +1,490 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Cilium Agent Pod Status",
+      "description": "Shows the status of Cilium agent pods across all nodes. Panels shows running vs non-running pods.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Pods",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Running"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Not Running"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum(kube_pod_status_phase{pod=~\"cilium-.*\", namespace=\"kube-system\", phase=\"Running\"})",
+          "legendFormat": "Running",
+          "refId": "A"
+        },
+        {
+          "expr": "count(kube_pod_status_phase{pod=~\"cilium-.*\", namespace=\"kube-system\", phase!=\"Running\"} == 1)",
+          "legendFormat": "Not Running",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Cilium Endpoint Count",
+      "description": "Tracks the number of Cilium-managed endpoints by state. A healthy cluster should show most endpoints in 'ready' state.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Endpoints",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (state) (cilium_endpoint_state)",
+          "legendFormat": "{{state}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Policy Drops (Hubble)",
+      "description": "Tracks packet drops reported by Hubble, grouped by drop reason. Spikes after migration may indicate missing policy rules.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Drops/sec",
+            "drawStyle": "bars",
+            "fillOpacity": 50,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            }
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(hubble_drop_total[5m]))",
+          "legendFormat": "{{reason}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "DNS Query Latency (Hubble)",
+      "description": "DNS response time distribution observed by Hubble. High latencies after migration may indicate DNS policy issues.",
+      "type": "heatmap",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "scheme",
+            "schemeId": "Oranges"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "calculate": true,
+        "calculation": {
+          "xBuckets": {
+            "mode": "size"
+          },
+          "yBuckets": {
+            "mode": "size",
+            "scale": {
+              "log": 2,
+              "type": "log"
+            }
+          }
+        },
+        "cellGap": 1,
+        "color": {
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "mode": "scheme",
+          "scale": "exponential",
+          "schemeId": "Oranges",
+          "steps": 64
+        },
+        "tooltip": {
+          "show": true,
+          "yHistogram": true
+        },
+        "yAxis": {
+          "axisLabel": "Latency",
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(hubble_dns_response_time_seconds_bucket[5m])) by (le)",
+          "legendFormat": "{{le}}",
+          "format": "heatmap",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "TCP Connection Status (Hubble)",
+      "description": "TCP flag distribution observed by Hubble. Shows SYN, SYN-ACK, FIN, and RST rates to track connection health.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Packets/sec",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "pps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "RST"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "SYN"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum by (flag) (rate(hubble_tcp_flags_total[5m]))",
+          "legendFormat": "{{flag}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Node Reimage Progress",
+      "description": "Tracks the number of nodes in Ready condition versus total nodes. During migration, nodes are reimaged to switch from NPM to Cilium.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Nodes",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Nodes Ready"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total Nodes"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum(kube_node_status_condition{condition=\"Ready\", status=\"true\"})",
+          "legendFormat": "Nodes Ready",
+          "refId": "A"
+        },
+        {
+          "expr": "count(kube_node_status_condition{condition=\"Ready\"})",
+          "legendFormat": "Total Nodes",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Migration Checklist",
+      "description": "Step-by-step checklist for NPM-to-Cilium migration.",
+      "type": "text",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "## NPM-to-Cilium Migration Checklist\n\n### Pre-Migration\n- [ ] Run `npm-audit` to identify breaking policy changes\n- [ ] Resolve all FAIL findings from the audit report\n- [ ] Run `npm-conntest snapshot --phase pre-migration` to capture baseline connectivity\n- [ ] Run `npm-migrate --dry-run` to preview the migration plan\n- [ ] Review generated policy patches in the output directory\n- [ ] Verify no Windows node pools exist (Cilium does not support Windows)\n\n### Migration Execution\n- [ ] Run `npm-migrate` to execute the full migration\n- [ ] Monitor Cilium agent pod status (panel above) \u2014 all agents should reach Running\n- [ ] Monitor endpoint count (panel above) \u2014 should match pre-migration pod count\n- [ ] Watch for policy drops (panel above) \u2014 new drops indicate missing rules\n- [ ] Verify DNS latency remains stable (panel above)\n- [ ] Confirm all nodes reimage successfully (panel above)\n\n### Post-Migration\n- [ ] Run `npm-conntest validate --pre-snapshot <path>` to verify no regressions\n- [ ] Review any new connectivity changes (NewAllows) for security implications\n- [ ] Verify LoadBalancer and NodePort services are reachable\n- [ ] Confirm kube-proxy removal did not break service mesh (Istio/Linkerd)\n- [ ] Update monitoring dashboards to use Cilium/Hubble metrics\n- [ ] Remove old NPM-related resources and configurations\n- [ ] Document any CiliumNetworkPolicies added during migration"
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "npm",
+    "cilium",
+    "migration",
+    "kubernetes",
+    "aks"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "Prometheus",
+          "value": "Prometheus"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Datasource",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "NPM to Cilium Migration Monitor",
+  "uid": "npm-cilium-migration-monitor",
+  "version": 1
+}

@@ -1,0 +1,60 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: named-port-policy
+  namespace: staging
+spec:
+  podSelector:
+    matchLabels:
+      app: microservice-a
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: microservice-b
+      ports:
+        - protocol: TCP
+          port: http-api
+        - protocol: TCP
+          port: grpc-port
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: microservice-a-1
+  namespace: staging
+  labels:
+    app: microservice-a
+spec:
+  containers:
+    - name: app
+      image: myapp:latest
+      ports:
+        - name: http-api
+          containerPort: 8080
+          protocol: TCP
+        - name: grpc-port
+          containerPort: 9090
+          protocol: TCP
+---
+# Same app but different port number for http-api - triggers FAIL
+apiVersion: v1
+kind: Pod
+metadata:
+  name: microservice-a-2
+  namespace: staging
+  labels:
+    app: microservice-a
+spec:
+  containers:
+    - name: app
+      image: myapp:v2
+      ports:
+        - name: http-api
+          containerPort: 3000
+          protocol: TCP
+        - name: grpc-port
+          containerPort: 9090
+          protocol: TCP
