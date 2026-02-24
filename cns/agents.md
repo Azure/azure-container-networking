@@ -40,7 +40,6 @@ Legacy fallbacks (used when RequestIPConfigs/ReleaseIPConfigs are unsupported):
 CNS writes persistent state to disk:
 - Main CNS state: /var/lib/azure-network/azure-cns.json (Linux default). Stores NCs, networks, orchestrator data, timestamps, etc.
 - Endpoint state (ManageEndpointState=true): /var/run/azure-cns/azure-endpoints.json on Linux, /k/azurecns/azure-endpoints.json on Windows. Stores containerID → endpoint IP mappings. Critical state for IPAM - any issues can leak IPs.
-- CNI state file used for migration: /var/run/azure-vnet.json (Linux default).
 
 ## Code entry points (start here)
 - Service entry: cns/service/main.go
