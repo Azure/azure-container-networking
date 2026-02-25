@@ -454,7 +454,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 				waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[ncid].CreateNetworkContainerRequest.Version, ncid, nmaNCs) //nolint:lll // bad code
 				// If the return code is not success, return the error to the caller
 				if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
-					logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s", ncid)
+					logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s Message: %s", ncid, getNetworkContainerResponse.Response.Message)
 				}
 
 				vfpUpdateComplete := !waitingForUpdate
