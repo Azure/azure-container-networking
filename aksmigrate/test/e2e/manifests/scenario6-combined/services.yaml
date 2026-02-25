@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-lb
+  namespace: e2e-combined
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector:
+    app: frontend
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP

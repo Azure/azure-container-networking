@@ -349,10 +349,20 @@ func (o *Orchestrator) failState(state *types.MigrationState, err error) (*types
 }
 
 // buildKubeClient creates a Kubernetes clientset from the orchestrator's kubeconfig.
+// When kubeconfig is empty, it defaults to ~/.kube/config.
 func (o *Orchestrator) buildKubeClient() (*kubernetes.Clientset, *rest.Config, error) {
-	config, err := clientcmd.BuildConfigFromFlags("", o.kubeconfig)
+	kubeconfigPath := o.kubeconfig
+	if kubeconfigPath == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, nil, fmt.Errorf("getting home directory: %w", err)
+		}
+		kubeconfigPath = filepath.Join(home, ".kube", "config")
+	}
+
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("building kubeconfig: %w", err)
+		return nil, nil, fmt.Errorf("building kubeconfig from %s: %w", kubeconfigPath, err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
