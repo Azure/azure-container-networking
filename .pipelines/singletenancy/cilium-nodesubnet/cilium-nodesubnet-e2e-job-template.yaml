@@ -42,9 +42,9 @@ stages:
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
     condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     dependsOn:
-    - setup
-    - publish
-    - ${{ parameters.clusterName }}
+      - setup
+      - publish
+      - ${{ parameters.clusterName }}
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
@@ -54,8 +54,8 @@ stages:
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
-          - agent.os -equals Linux
-          - Role -equals $(CUSTOM_E2E_ROLE)
+            - agent.os -equals Linux
+            - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
           - template: cilium-nodesubnet-e2e-step-template.yaml
             parameters:

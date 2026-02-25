@@ -54,8 +54,7 @@ print-ebpf-cilium-vars:
 	@echo "EBPF_CILIUM_VERSION_TAG: $(EBPF_CILIUM_VERSION_TAG)"
 
 wait-for-cilium:
-	@kubectl rollout status deployment/cilium-operator -n kube-system --timeout=1200s
-	@kubectl rollout status daemonset/cilium -n kube-system --timeout=1200s
+	cilium status --wait --wait-duration 20m
 
 # vanilla cilium deployment
 deploy-cilium-config:

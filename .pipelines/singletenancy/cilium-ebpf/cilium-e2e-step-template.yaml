@@ -6,6 +6,8 @@ parameters:
 steps:
   - template: ../../templates/setup-environment.yaml
 
+  - template: ../../templates/cilium-cli.yaml
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -28,8 +30,6 @@ steps:
         kubectl get pods -Aowide
     name: "installCilium"
     displayName: "Install EBPF Podsubnet Cilium"
-
-  - template: ../../templates/cilium-cli.yaml
 
   - script: |
       echo "Start Azilium E2E Tests"

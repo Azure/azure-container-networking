@@ -4,7 +4,6 @@ parameters:
   scaleup: ""
 
 steps:
-
   - bash: |
       go version
       go env
@@ -19,6 +18,8 @@ steps:
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
+
+  - template: ../../templates/cilium-cli.yaml
 
   - task: AzureCLI@2
     inputs:
@@ -44,8 +45,6 @@ steps:
     name: "installCilium"
     displayName: "Install Cilium"
 
-  - template: ../../templates/cilium-cli.yaml
-
   - script: |
       echo "Start Azilium E2E Tests"
       kubectl get po -owide -A
@@ -63,4 +62,3 @@ steps:
     parameters:
       clusterName: ${{ parameters.clusterName }}
       scaleup: ${{ parameters.scaleup }}
-

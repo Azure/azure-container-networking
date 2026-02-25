@@ -3,9 +3,10 @@ parameters:
   clusterName: ""
   scaleup: ""
 
-
 steps:
   - template: ../../templates/setup-environment.yaml
+
+  - template: ../../templates/cilium-cli.yaml
 
   - task: AzureCLI@2
     inputs:
@@ -32,8 +33,6 @@ steps:
     name: "installCilium"
     displayName: "Install Cilium EBPF on AKS Overlay"
 
-  - template: ../../templates/cilium-cli.yaml
-
   - script: |
       CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
       kubectl get pods -Aowide
@@ -41,7 +40,7 @@ steps:
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Deploy CNS and Run Azilium E2E on AKS Overlay"
-  
+
   - template: ../../templates/cilium-tests.yaml
     parameters:
       clusterName: ${{ parameters.clusterName }}
