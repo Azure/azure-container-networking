@@ -563,11 +563,13 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 
 	logger.Info("Adding default routes and neighbor entries in container ns")
 
-	if err := client.addDefaultRoutes(client.containerVethName, 0, hasIPv6Addresses(epInfo.IPAddresses)); err != nil {
+	hasIPv6 := hasIPv6Addresses(epInfo.IPAddresses)
+
+	if err := client.addDefaultRoutes(client.containerVethName, 0, hasIPv6); err != nil {
 		return errors.Wrap(err, "failed container ns add default routes")
 	}
 
-	if err := client.AddDefaultArp(client.containerVethName, client.vnetMac.String(), hasIPv6Addresses(epInfo.IPAddresses)); err != nil {
+	if err := client.AddDefaultArp(client.containerVethName, client.vnetMac.String(), hasIPv6); err != nil {
 		return errors.Wrap(err, "failed container ns add default arp")
 	}
 	return nil
