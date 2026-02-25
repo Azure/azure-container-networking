@@ -485,7 +485,7 @@ func WaitForMTPNCCleanup(kubeconfig, namespace string, maxWaitSeconds int) error
 	if err != nil {
 		return fmt.Errorf("MTPNCs may still be present in namespace %s after %d seconds (final check failed: %w)\nOutput: %s", namespace, maxWaitSeconds, err, remaining)
 	}
-	return fmt.Errorf("MTPNCs still present in namespace %s after %d seconds: %s", namespace, maxWaitSeconds, remaining)
+	return fmt.Errorf("MTPNCs still present in namespace %s after %d seconds: %s: %w", namespace, maxWaitSeconds, remaining, ErrMTPNCStuckDeletion)
 }
 
 // isNonRetryableKubectlError returns true if the kubectl error output indicates
