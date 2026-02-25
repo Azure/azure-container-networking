@@ -435,74 +435,55 @@ func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointIn
 
 // Add rules related to tunneling the packet outside of the VM, assumes all calls are idempotent. Namespace: vnet
 func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) error {
-	// IPv4 iptables rules
-	// iptables -t mangle -I PREROUTING -j MARK --set-mark <TUNNELING MARK>
-	markOption := fmt.Sprintf("MARK --set-mark %d", tunnelingMark)
-	if err := client.iptablesClient.InsertIptableRule(iptables.V4, "mangle", "PREROUTING", "", markOption); err != nil {
-		return errors.Wrap(err, "unable to insert iptables rule mark all packets not entering on vlan interface")
-	}
-	// iptables -t mangle -I PREROUTING -j ACCEPT -i <VLAN IF>
-	match := fmt.Sprintf("-i %s", client.vlanIfName)
-	if err := client.iptablesClient.InsertIptableRule(iptables.V4, "mangle", "PREROUTING", match, "ACCEPT"); err != nil {
-		return errors.Wrap(err, "unable to insert iptables rule accept all incoming from vlan interface")
+	if err := client.addVnetMangleAndTunnelingRules(iptables.V4, vishnetlink.FAMILY_V4); err != nil {
+		return err
 	}
 	// Blocks wireserver traffic from customer vnet nic (IPv4 only)
 	if err := client.netUtilsClient.BlockEgressTrafficFromContainer(client.iptablesClient, iptables.V4, networkutils.AzureDNS, iptables.TCP, iptables.HTTPPort); err != nil {
 		return errors.Wrap(err, "unable to insert iptables rule to drop wireserver packets")
 	}
 
-	// IPv6 ip6tables rules
-	// ip6tables -t mangle -I PREROUTING -j MARK --set-mark <TUNNELING MARK>
-	if err := client.iptablesClient.InsertIptableRule(iptables.V6, "mangle", "PREROUTING", "", markOption); err != nil {
-		return errors.Wrap(err, "unable to insert ip6tables rule mark all packets not entering on vlan interface")
-	}
-	// ip6tables -t mangle -I PREROUTING -j ACCEPT -i <VLAN IF>
-	if err := client.iptablesClient.InsertIptableRule(iptables.V6, "mangle", "PREROUTING", match, "ACCEPT"); err != nil {
-		return errors.Wrap(err, "unable to insert ip6tables rule accept all incoming from vlan interface")
+	if hasIPv6Addresses(epInfo.IPAddresses) {
+		if err := client.addVnetMangleAndTunnelingRules(iptables.V6, vishnetlink.FAMILY_V6); err != nil {
+			return err
+		}
 	}
 
-	// IPv4: Packets that are marked should go to the tunneling table
+	return nil
+}
+
+// addVnetMangleAndTunnelingRules inserts iptables mangle PREROUTING rules (mark + accept)
+// and adds an ip rule to forward marked packets to the tunneling routing table.
+// version is the iptables version string (iptables.V4 or iptables.V6).
+// family is the vishvananda/netlink address family (FAMILY_V4 or FAMILY_V6).
+func (client *TransparentVlanEndpointClient) addVnetMangleAndTunnelingRules(version string, family int) error {
+	markOption := fmt.Sprintf("MARK --set-mark %d", tunnelingMark)
+	if err := client.iptablesClient.InsertIptableRule(version, "mangle", "PREROUTING", "", markOption); err != nil {
+		return errors.Wrapf(err, "unable to insert %s mangle mark rule", version)
+	}
+
+	match := fmt.Sprintf("-i %s", client.vlanIfName)
+	if err := client.iptablesClient.InsertIptableRule(version, "mangle", "PREROUTING", match, "ACCEPT"); err != nil {
+		return errors.Wrapf(err, "unable to insert %s mangle accept rule for vlan interface", version)
+	}
+
+	// Add ip rule: marked packets go to the tunneling table
 	newRule := vishnetlink.NewRule()
 	newRule.Mark = tunnelingMark
 	newRule.Table = tunnelingTable
-	rules, err := vishnetlink.RuleList(vishnetlink.FAMILY_V4)
+	newRule.Family = family
+
+	rules, err := vishnetlink.RuleList(family)
 	if err != nil {
-		return errors.Wrap(err, "unable to get existing ipv4 rule list")
+		return errors.Wrapf(err, "unable to get existing %s rule list", version)
 	}
-	// Check if rule exists already
-	ruleExists := false
 	for index := range rules {
 		if rules[index].Mark == newRule.Mark {
-			ruleExists = true
+			return nil // rule already exists
 		}
 	}
-	if !ruleExists {
-		if err := vishnetlink.RuleAdd(newRule); err != nil {
-			return errors.Wrap(err, "failed to add ipv4 rule that forwards packet with mark to tunneling routing table")
-		}
-	}
-
-	// IPv6: Packets that are marked should go to the tunneling table
-	newRuleV6 := vishnetlink.NewRule()
-	newRuleV6.Mark = tunnelingMark
-	newRuleV6.Table = tunnelingTable
-	newRuleV6.Family = vishnetlink.FAMILY_V6
-
-	// Check if rule exists already
-	rulesV6, err := vishnetlink.RuleList(vishnetlink.FAMILY_V6)
-	if err != nil {
-		return errors.Wrap(err, "unable to get existing ipv6 rule list")
-	}
-	ruleExistsV6 := false
-	for index := range rulesV6 {
-		if rulesV6[index].Mark == newRuleV6.Mark {
-			ruleExistsV6 = true
-		}
-	}
-	if !ruleExistsV6 {
-		if err := vishnetlink.RuleAdd(newRuleV6); err != nil {
-			return errors.Wrap(err, "failed to add ipv6 rule that forwards packet with mark to tunneling routing table")
-		}
+	if err := vishnetlink.RuleAdd(newRule); err != nil {
+		return errors.Wrapf(err, "failed to add %s rule for tunneling routing table", version)
 	}
 
 	return nil

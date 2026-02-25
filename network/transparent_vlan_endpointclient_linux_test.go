@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	vishnetlink "github.com/vishvananda/netlink"
 )
 
 var (
@@ -1210,27 +1211,21 @@ func (c *mockIPTablesClient) CreateChain(_, _, _ string) error             { ret
 func (c *mockIPTablesClient) RunCmd(_, _ string) error                     { return nil }
 
 func TestAddVnetRulesIPTablesOnly(t *testing.T) {
-	nl := netlink.NewMockNetlink(false, "")
-	plc := platform.NewMockExecClient(false)
+	mockIPT := &mockIPTablesClient{}
+	client := &TransparentVlanEndpointClient{
+		vlanIfName:     "eth0.1",
+		iptablesClient: mockIPT,
+	}
 
-	t.Run("InsertIptableRule is called for IPv6", func(t *testing.T) {
-		mockIPT := &mockIPTablesClient{}
-		client := &TransparentVlanEndpointClient{
-			vlanIfName:     "eth0.1",
-			iptablesClient: mockIPT,
-			netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-		}
-		// AddVnetRules may fail at vishnetlink calls, but iptables calls should complete first
-		client.AddVnetRules(&EndpointInfo{}) //nolint:errcheck // vishnetlink calls may fail in test env
+	client.addVnetMangleAndTunnelingRules(iptables.V6, vishnetlink.FAMILY_V6)
 
-		var v6Calls int
-		for _, call := range mockIPT.insertCalls {
-			if call.version == iptables.V6 {
-				v6Calls++
-			}
+	var v6Calls int
+	for _, call := range mockIPT.insertCalls {
+		if call.version == iptables.V6 {
+			v6Calls++
 		}
-		require.Equal(t, 2, v6Calls, "expected 2 IPv6 ip6tables calls (mark + accept)")
-	})
+	}
+	require.Equal(t, 2, v6Calls, "expected 2 IPv6 ip6tables calls (mark + accept)")
 }
 
 func TestRunWithRetries(t *testing.T) {

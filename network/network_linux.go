@@ -98,13 +98,10 @@ func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalIn
 		if err := nu.EnableIPV4Forwarding(); err != nil {
 			return nil, errors.Wrap(err, "ipv4 forwarding failed")
 		}
-		// Enable IPv6 (0 = don't disable)
+
+		// Enable IPv6 in the VM namespace so vlan sub-interfaces can carry IPv6.
 		if err := nu.UpdateIPV6Setting(0); err != nil {
 			return nil, errors.Wrap(err, "failed to enable ipv6 on vm")
-		}
-		// Enable IPv6 forwarding for transparent-vlan mode
-		if err := nu.EnableIPV6Forwarding(); err != nil {
-			return nil, errors.Wrap(err, "ipv6 forwarding failed")
 		}
 		// Blocks wireserver traffic from apipa nic (IPv4 only)
 		if err := nu.BlockEgressTrafficFromContainer(nm.iptablesClient, iptables.V4, networkutils.AzureDNS, iptables.TCP, iptables.HTTPPort); err != nil {
