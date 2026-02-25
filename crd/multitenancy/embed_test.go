@@ -58,3 +58,16 @@ func TestGetPodNetworkInstances(t *testing.T) {
 	_, err := GetPodNetworkInstances()
 	assert.NoError(t, err)
 }
+
+const nicNetworkConfigFilename = "manifests/multitenancy.acn.azure.com_nicnetworkconfigs.yaml"
+
+func TestEmbedNICNetworkConfig(t *testing.T) {
+	b, err := os.ReadFile(nicNetworkConfigFilename)
+	assert.NoError(t, err)
+	assert.YAMLEq(t, string(b), string(NICNetworkConfigsYAML))
+}
+
+func TestGetNICNetworkConfigs(t *testing.T) {
+	_, err := GetNICNetworkConfigs()
+	assert.NoError(t, err)
+}
