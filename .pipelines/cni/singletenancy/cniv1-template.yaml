@@ -44,7 +44,7 @@ stages:
       dependsOn:
         - setup
         - build_images
-      displayName: "Create Cluster - ${{ parameters.clusterName }}"
+      displayName: "${{ parameters.clusterName }} - Create Cluster"
       jobs:
         - job: create_aks_cluster_with_${{ parameters.name }}
           steps:
@@ -78,7 +78,7 @@ stages:
       dependsOn:
         - setup
         - build_images
-      displayName: "Create Cluster - ${{ parameters.clusterName }}"
+      displayName: "${{ parameters.clusterName }} - Create Cluster"
       jobs:
         - job: create_aks_cluster_with_${{ parameters.name }}
           steps:

@@ -22,10 +22,11 @@ steps:
     name: "GoEnv"
     displayName: "Set up the Go environment"
 
-
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
+
+  - template: ../../templates/cilium-cli.yaml
 
   - task: AzureCLI@2
     displayName: Set cluster credentials
@@ -34,8 +35,6 @@ steps:
       scriptLocation: inlineScript
       scriptType: bash
       inlineScript: make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-
-  - template: ../../templates/cilium-cli.yaml
 
   - script: |
       echo "Start Nodesubnet E2E Tests"

@@ -26,6 +26,8 @@ steps:
     inputs:
       kubectlVersion: latest
 
+  - template: ../../templates/cilium-cli.yaml
+
   - task: AzureCLI@2
     displayName: Set cluster credentials
     inputs:
@@ -33,8 +35,6 @@ steps:
       scriptLocation: inlineScript
       scriptType: bash
       inlineScript: make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-
-  - template: ../../templates/cilium-cli.yaml
 
   - script: |
       echo "Start Azilium E2E Tests"
