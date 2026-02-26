@@ -695,3 +695,90 @@ func TestDeleteEndpointStateForInfraDelegatedNIC(t *testing.T) {
 		t.Fatal("Network for InfraNIC does not exist")
 	}
 }
+
+func TestConfigureHcnEndpoint_SkipDefaultRoutes(t *testing.T) {
+	tests := []struct {
+		name             string
+		skipDefaultRoute bool
+		routes           []RouteInfo
+		expectedRoutes   int
+		expectDummyRoute bool
+	}{
+		{
+			name:             "SkipDefaultRoutes true with no routes - adds dummy",
+			skipDefaultRoute: true,
+			routes:           []RouteInfo{},
+			expectedRoutes:   1,
+			expectDummyRoute: true,
+		},
+		{
+			name:             "SkipDefaultRoutes true with existing routes - no dummy",
+			skipDefaultRoute: true,
+			routes: []RouteInfo{
+				{
+					Dst: net.IPNet{IP: net.ParseIP("10.0.0.0"), Mask: net.CIDRMask(8, 32)},
+					Gw:  net.ParseIP("172.16.1.1"),
+				},
+			},
+			expectedRoutes:   1,
+			expectDummyRoute: false,
+		},
+		{
+			name:             "SkipDefaultRoutes false - no dummy",
+			skipDefaultRoute: false,
+			routes:           []RouteInfo{},
+			expectedRoutes:   0,
+			expectDummyRoute: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nw := &network{
+				HnsId: "test-network-id",
+			}
+
+			epInfo := &EndpointInfo{
+				EndpointID:        "test-endpoint",
+				ContainerID:       "test-container",
+				NetNsPath:         "test-netns",
+				IfName:            "eth0",
+				Routes:            tt.routes,
+				SkipDefaultRoutes: tt.skipDefaultRoute,
+				MacAddress:        net.HardwareAddr("00:00:5e:00:53:01"),
+				NICType:           cns.InfraNIC,
+				EndpointDNS: DNSInfo{
+					Servers: []string{"8.8.8.8"},
+				},
+			}
+
+			hcnEndpoint, err := nw.configureHcnEndpoint(epInfo)
+			if err != nil {
+				t.Fatalf("configureHcnEndpoint failed: %v", err)
+			}
+
+			if len(hcnEndpoint.Routes) != tt.expectedRoutes {
+				t.Errorf("Expected %d routes, got %d", tt.expectedRoutes, len(hcnEndpoint.Routes))
+			}
+
+			if tt.expectDummyRoute {
+				found := false
+				for _, route := range hcnEndpoint.Routes {
+					if route.NextHop == "0.0.0.0" && route.DestinationPrefix == "0.0.0.0/0" {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Error("Expected dummy route (0.0.0.0/0 via 0.0.0.0) but not found")
+				}
+			} else {
+				for _, route := range hcnEndpoint.Routes {
+					if route.NextHop == "0.0.0.0" && route.DestinationPrefix == "0.0.0.0/0" {
+						t.Error("Found unexpected dummy route")
+					}
+				}
+			}
+		})
+	}
+}
