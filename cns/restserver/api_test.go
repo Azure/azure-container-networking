@@ -1991,6 +1991,7 @@ func TestGetHostLocalIP(t *testing.T) {
 // returns IPv6Configuration when present (ServiceFabric/Swiftv1 multitenancy scenario)
 func TestGetAllNetworkContainersWithIPv6Configuration(t *testing.T) {
 	setEnv(t)
+	cleanupAllNetworkContainers()
 	err := setOrchestratorType(t, cns.ServiceFabric)
 	require.NoError(t, err)
 
@@ -2030,6 +2031,7 @@ func TestGetAllNetworkContainersWithIPv6Configuration(t *testing.T) {
 // when IPv6Configuration is not provided (empty) in ServiceFabric scenario
 func TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6(t *testing.T) {
 	setEnv(t)
+	cleanupAllNetworkContainers()
 	err := setOrchestratorType(t, cns.ServiceFabric)
 	require.NoError(t, err)
 
@@ -2063,6 +2065,7 @@ func TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6(t *testing.T) {
 // in ServiceFabric/Swiftv1 multitenancy scenario
 func TestPostNetworkContainersWithIPv6(t *testing.T) {
 	setEnv(t)
+	cleanupAllNetworkContainers()
 	err := setOrchestratorType(t, cns.ServiceFabric)
 	require.NoError(t, err)
 
@@ -2102,5 +2105,19 @@ func TestPostNetworkContainersWithIPv6(t *testing.T) {
 	for i := 0; i < len(ncParamsWithIPv6); i++ {
 		err = deleteNetworkContainerWithParams(ncParamsWithIPv6[i])
 		require.NoError(t, err)
+	}
+}
+
+// cleanupAllNetworkContainers removes all NCs from the shared service state
+// so that tests relying on exact NC counts are not affected by stale state
+// left behind by prior test failures.
+func cleanupAllNetworkContainers() {
+	svc.Lock()
+	defer svc.Unlock()
+	for k := range svc.state.ContainerStatus {
+		delete(svc.state.ContainerStatus, k)
+	}
+	for k := range svc.state.ContainerIDByOrchestratorContext {
+		delete(svc.state.ContainerIDByOrchestratorContext, k)
 	}
 }
