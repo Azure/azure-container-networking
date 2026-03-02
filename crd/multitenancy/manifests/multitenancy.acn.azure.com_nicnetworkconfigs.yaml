@@ -18,15 +18,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.nodeName
-      name: NodeName
-      type: string
-    - jsonPath: .spec.vnetID
-      name: VNetID
-      type: string
-    - jsonPath: .spec.subnetID
-      name: SubnetID
-      type: string
+
     - jsonPath: .status.status
       name: Status
       type: string
