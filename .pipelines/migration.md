@@ -460,7 +460,7 @@ Use this section to track parity status during migration.
 | Lint | `.github/workflows/golangci.yaml` | `golangci.yaml` | complete |
 | Dockerfile regeneration | `.github/workflows/baseimages.yaml` | `baseimages.yaml` | complete |
 | CRD regeneration | `.github/workflows/crdgen.yaml` | `crdgen.yaml` | complete |
-| Unit tests + coverage | `.pipelines/templates/run-unit-tests.yaml` | `unit-tests.yaml` | planned |
+| Unit tests + coverage | `.pipelines/templates/run-unit-tests.yaml` | `unit-tests.yaml` | shadow |
 | Build validation | `.pipelines/build/binary.steps.yaml` | `build.yaml` | planned |
 | Test image build/publish | `.pipelines/build/images.jobs.yaml` | `test-images.yaml` | planned |
 | AKS singletenancy E2E | `.pipelines/singletenancy/aks/e2e.stages.yaml` | `e2e-aks.yaml` | planned |
