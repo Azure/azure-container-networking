@@ -19,16 +19,14 @@ import (
 )
 
 const (
-	virtualGwIPVlanString   = "169.254.2.1/32"
-	virtualGwIPv6VlanString = "fe80::1234:5678:9abc/128"
-	azureMac                = "12:34:56:78:9a:bc"                       // Packets leaving the VM should have this MAC
-	loopbackIf              = "lo"                                      // The name of the loopback interface
-	numDefaultRoutes        = 2                                         // VNET NS, when no containers use it, has this many routes
-	tunnelingTable          = 2                                         // Packets not entering on the vlan interface go to this routing table
-	tunnelingMark           = 333                                       // The packets that are to tunnel will be marked with this number
-	DisableRPFilterCmd      = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
-	numRetries              = 5
-	sleepInMs               = 100
+	azureMac           = "12:34:56:78:9a:bc"                       // Packets leaving the VM should have this MAC
+	loopbackIf         = "lo"                                      // The name of the loopback interface
+	numDefaultRoutes   = 2                                         // VNET NS, when no containers use it, has this many routes
+	tunnelingTable     = 2                                         // Packets not entering on the vlan interface go to this routing table
+	tunnelingMark      = 333                                       // The packets that are to tunnel will be marked with this number
+	DisableRPFilterCmd = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
+	numRetries         = 5
+	sleepInMs          = 100
 )
 
 var errNamespaceCreation = fmt.Errorf("network namespace creation error")
@@ -647,21 +645,22 @@ func hasIPv6Addresses(ipAddresses []net.IPNet) bool {
 // For IPv4: 169.254.2.1 dev <linkToName>, default via 169.254.2.1 dev <linkToName>
 // For IPv6: fe80::1234:5678:9abc dev <linkToName>, default via fe80::1234:5678:9abc dev <linkToName> (if hasIPv6 is true)
 func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string, table int, hasIPv6 bool) error {
-	if err := client.addIPv4DefaultRoutes(linkToName, table); err != nil {
+	if err := client.addDefaultRoutesHelper(linkToName, table, virtualGwIPString, defaultGwCidr, defaultGw); err != nil {
 		return err
 	}
 	if hasIPv6 {
-		if err := client.addIPv6DefaultRoutes(linkToName, table); err != nil {
+		if err := client.addDefaultRoutesHelper(linkToName, table, virtualv6GwString, defaultGwv6Cidr, defaultGwv6); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Helper that creates IPv4 routing rules
-func (client *TransparentVlanEndpointClient) addIPv4DefaultRoutes(linkToName string, table int) error {
-	// Add route for virtualgwip (ip route add 169.254.2.1/32 dev eth0)
-	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwIPVlanString)
+// addDefaultRoutesHelper creates routing rules for the given address family.
+// It adds an on-link route for the virtual gateway and a default route via that gateway.
+func (client *TransparentVlanEndpointClient) addDefaultRoutesHelper(linkToName string, table int, virtualGwCIDR, defaultCIDR, defaultAddr string) error {
+	// Add route for virtual gateway (on-link)
+	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwCIDR)
 	routeInfo := RouteInfo{
 		Dst:   *virtualGwNet,
 		Scope: netlink.RT_SCOPE_LINK,
@@ -671,9 +670,9 @@ func (client *TransparentVlanEndpointClient) addIPv4DefaultRoutes(linkToName str
 		return err
 	}
 
-	// Add default route (ip route add default via 169.254.2.1 dev eth0)
-	_, defaultIPNet, _ := net.ParseCIDR(defaultGwCidr)
-	dstIP := net.IPNet{IP: net.ParseIP(defaultGw), Mask: defaultIPNet.Mask}
+	// Add default route via virtual gateway
+	_, defaultIPNet, _ := net.ParseCIDR(defaultCIDR)
+	dstIP := net.IPNet{IP: net.ParseIP(defaultAddr), Mask: defaultIPNet.Mask}
 	routeInfo = RouteInfo{
 		Dst:   dstIP,
 		Gw:    virtualGwIP,
@@ -683,37 +682,6 @@ func (client *TransparentVlanEndpointClient) addIPv4DefaultRoutes(linkToName str
 	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
 		return err
 	}
-	return nil
-}
-
-// Helper that creates IPv6 routing rules for the current NS
-// Route 1: fe80::1234:5678:9abc dev <linkToName>
-// Route 2: default via fe80::1234:5678:9abc dev <linkToName>
-func (client *TransparentVlanEndpointClient) addIPv6DefaultRoutes(linkToName string, table int) error {
-	virtualGwIPv6, virtualGwNetv6, _ := net.ParseCIDR(virtualGwIPv6VlanString)
-	routeInfo := RouteInfo{
-		Dst:   *virtualGwNetv6,
-		Scope: netlink.RT_SCOPE_LINK,
-		Table: table,
-	}
-	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
-		return err
-	}
-	logger.Info("Added on-link route for IPv6", zap.String("IP", virtualGwNetv6.String()), zap.String("dev", linkToName))
-
-	_, defaultIPv6Net, _ := net.ParseCIDR("::/0")
-	dstIPv6 := net.IPNet{IP: net.ParseIP("::"), Mask: defaultIPv6Net.Mask}
-	routeInfo = RouteInfo{
-		Dst:   dstIPv6,
-		Gw:    virtualGwIPv6,
-		Table: table,
-	}
-
-	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
-		return err
-	}
-	logger.Info("Added default route for IPv6", zap.String("IP", virtualGwNetv6.String()), zap.String("dev", linkToName))
-
 	return nil
 }
 
@@ -735,7 +703,7 @@ func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMa
 
 // Helper that creates IPv4 ARP entry
 func (client *TransparentVlanEndpointClient) addIPv4DefaultArp(interfaceName, destMac string) error {
-	_, virtualGwNet, _ := net.ParseCIDR(virtualGwIPVlanString)
+	_, virtualGwNet, _ := net.ParseCIDR(virtualGwIPString)
 	logger.Info("Adding static arp for IPv4",
 		zap.String("IP", virtualGwNet.String()), zap.String("MAC", destMac))
 	hardwareAddr, err := net.ParseMAC(destMac)
@@ -757,7 +725,7 @@ func (client *TransparentVlanEndpointClient) addIPv4DefaultArp(interfaceName, de
 // Helper that creates IPv6 neighbor entry (NDP equivalent of ARP)
 // Example: fe80::1234:5678:9abc dev <interfaceName> lladdr 12:34:56:78:9a:bc PERMANENT
 func (client *TransparentVlanEndpointClient) addIPv6DefaultNeighbor(interfaceName, destMac string) error {
-	_, virtualGwNetv6, _ := net.ParseCIDR(virtualGwIPv6VlanString)
+	_, virtualGwNetv6, _ := net.ParseCIDR(virtualv6GwString)
 	logger.Info("Adding static neighbor for IPv6",
 		zap.String("IP", virtualGwNetv6.String()), zap.String("MAC", destMac))
 	hardwareAddr, err := net.ParseMAC(destMac)

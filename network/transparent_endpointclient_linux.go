@@ -16,6 +16,8 @@ const (
 	virtualGwIPString     = "169.254.1.1/32"
 	defaultGwCidr         = "0.0.0.0/0"
 	defaultGw             = "0.0.0.0"
+	defaultGwv6Cidr       = "::/0"
+	defaultGwv6           = "::"
 	virtualv6GwString     = "fe80::1234:5678:9abc/128"
 	defaultv6Cidr         = "::/0"
 	ipv4Bits              = 32
