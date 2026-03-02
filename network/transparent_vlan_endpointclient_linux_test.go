@@ -1210,22 +1210,42 @@ func (c *mockIPTablesClient) DeleteIptableRule(_, _, _, _, _ string) error { ret
 func (c *mockIPTablesClient) CreateChain(_, _, _ string) error             { return nil }
 func (c *mockIPTablesClient) RunCmd(_, _ string) error                     { return nil }
 
-func TestAddVnetRulesIPTablesOnly(t *testing.T) {
-	mockIPT := &mockIPTablesClient{}
-	client := &TransparentVlanEndpointClient{
-		vlanIfName:     "eth0.1",
-		iptablesClient: mockIPT,
-	}
-
-	client.addVnetMangleAndTunnelingRules(iptables.V6, vishnetlink.FAMILY_V6)
-
-	var v6Calls int
-	for _, call := range mockIPT.insertCalls {
-		if call.version == iptables.V6 {
-			v6Calls++
+func TestAddVnetRulesIPTables(t *testing.T) {
+	t.Run("IPv6 rules", func(t *testing.T) {
+		mockIPT := &mockIPTablesClient{}
+		client := &TransparentVlanEndpointClient{
+			vlanIfName:     "eth0.1",
+			iptablesClient: mockIPT,
 		}
-	}
-	require.Equal(t, 2, v6Calls, "expected 2 IPv6 ip6tables calls (mark + accept)")
+
+		client.addVnetMangleAndTunnelingRules(iptables.V6, vishnetlink.FAMILY_V6)
+
+		var v6Calls int
+		for _, call := range mockIPT.insertCalls {
+			if call.version == iptables.V6 {
+				v6Calls++
+			}
+		}
+		require.Equal(t, 2, v6Calls, "expected 2 IPv6 ip6tables calls (mark + accept)")
+	})
+
+	t.Run("IPv4 rules", func(t *testing.T) {
+		mockIPT := &mockIPTablesClient{}
+		client := &TransparentVlanEndpointClient{
+			vlanIfName:     "eth0.1",
+			iptablesClient: mockIPT,
+		}
+
+		client.addVnetMangleAndTunnelingRules(iptables.V4, vishnetlink.FAMILY_V4)
+
+		var v4Calls int
+		for _, call := range mockIPT.insertCalls {
+			if call.version == iptables.V4 {
+				v4Calls++
+			}
+		}
+		require.Equal(t, 2, v4Calls, "expected 2 IPv4 iptables calls (mark + accept)")
+	})
 }
 
 func TestRunWithRetries(t *testing.T) {
