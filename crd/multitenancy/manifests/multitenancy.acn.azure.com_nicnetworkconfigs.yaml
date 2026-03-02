@@ -18,7 +18,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-
+    - jsonPath: .spec.podNetwork
+      name: PodNetwork
+      type: string
     - jsonPath: .status.status
       name: Status
       type: string
