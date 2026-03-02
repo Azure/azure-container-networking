@@ -16,7 +16,7 @@ import (
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
-
+// +kubebuilder:printcolumn:name="PodNetwork",type=string,JSONPath=`.spec.podNetwork`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
 type NICNetworkConfig struct {
 	metav1.TypeMeta   `json:",inline"`
