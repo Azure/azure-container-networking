@@ -690,56 +690,34 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutesHelper(linkToName s
 // For IPv4: (169.254.2.1) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName>
 // For IPv6: (fe80::1234:5678:9abc) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName> (if hasIPv6 is true)
 func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMac string, hasIPv6 bool) error {
-	if err := client.addIPv4DefaultArp(interfaceName, destMac); err != nil {
+	if err := client.addDefaultNeighbors(interfaceName, destMac, virtualGwIPString); err != nil {
 		return err
 	}
 	if hasIPv6 {
-		if err := client.addIPv6DefaultNeighbor(interfaceName, destMac); err != nil {
+		if err := client.addDefaultNeighbors(interfaceName, destMac, virtualv6GwString); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Helper that creates IPv4 ARP entry
-func (client *TransparentVlanEndpointClient) addIPv4DefaultArp(interfaceName, destMac string) error {
-	_, virtualGwNet, _ := net.ParseCIDR(virtualGwIPString)
-	logger.Info("Adding static arp for IPv4",
-		zap.String("IP", virtualGwNet.String()), zap.String("MAC", destMac))
+// addDefaultNeighbors creates a static ARP/neighbor entry mapping the virtual gateway
+// specified by gatewayCIDR to destMac on interfaceName.
+func (client *TransparentVlanEndpointClient) addDefaultNeighbors(interfaceName, destMac, gatewayCIDR string) error {
+	_, gwNet, _ := net.ParseCIDR(gatewayCIDR)
+	logger.Info("Adding static neighbor entry",
+		zap.String("IP", gwNet.String()), zap.String("MAC", destMac))
 	hardwareAddr, err := net.ParseMAC(destMac)
 	if err != nil {
-		return errors.Wrap(err, "unable to parse mac for ipv4 arp")
+		return errors.Wrap(err, "unable to parse mac for neighbor entry")
 	}
 	linkInfo := netlink.LinkInfo{
 		Name:       interfaceName,
-		IPAddr:     virtualGwNet.IP,
+		IPAddr:     gwNet.IP,
 		MacAddress: hardwareAddr,
 	}
-
 	if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PERMANENT); err != nil {
-		return fmt.Errorf("adding ipv4 arp entry failed: %w", err)
-	}
-	return nil
-}
-
-// Helper that creates IPv6 neighbor entry (NDP equivalent of ARP)
-// Example: fe80::1234:5678:9abc dev <interfaceName> lladdr 12:34:56:78:9a:bc PERMANENT
-func (client *TransparentVlanEndpointClient) addIPv6DefaultNeighbor(interfaceName, destMac string) error {
-	_, virtualGwNetv6, _ := net.ParseCIDR(virtualv6GwString)
-	logger.Info("Adding static neighbor for IPv6",
-		zap.String("IP", virtualGwNetv6.String()), zap.String("MAC", destMac))
-	hardwareAddr, err := net.ParseMAC(destMac)
-	if err != nil {
-		return errors.Wrap(err, "unable to parse mac for ipv6 neighbor")
-	}
-	linkInfo := netlink.LinkInfo{
-		Name:       interfaceName,
-		IPAddr:     virtualGwNetv6.IP,
-		MacAddress: hardwareAddr,
-	}
-
-	if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PERMANENT); err != nil {
-		return fmt.Errorf("adding ipv6 neighbor entry failed: %w", err)
+		return fmt.Errorf("adding neighbor entry for %s failed: %w", gwNet.IP, err)
 	}
 	return nil
 }
