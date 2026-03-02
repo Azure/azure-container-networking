@@ -16,9 +16,7 @@ import (
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
-// +kubebuilder:printcolumn:name="NodeName",type=string,JSONPath=`.spec.nodeName`
-// +kubebuilder:printcolumn:name="VNetID",type=string,JSONPath=`.spec.vnetID`
-// +kubebuilder:printcolumn:name="SubnetID",type=string,JSONPath=`.spec.subnetID`
+
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
 type NICNetworkConfig struct {
 	metav1.TypeMeta   `json:",inline"`
