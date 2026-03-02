@@ -1,0 +1,181 @@
+name: Unit Tests
+on:
+  workflow_dispatch:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    branches:
+      - master
+      - "release/*"
+  merge_group:
+    types:
+      - checks_requested
+  push:
+    branches:
+      - master
+  schedule:
+    - cron: "0 2 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unit-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # BPF code generation (Linux prerequisite)
+  # ---------------------------------------------------------------------------
+  generate:
+    name: Generate BPF Code
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build BPF library and run go generate
+        run: make bpf-lib && go generate ./...
+
+      - name: Upload generated code
+        uses: actions/upload-artifact@v6
+        with:
+          name: generated-bpf-code
+          path: ./bpf-prog/azure-block-iptables/pkg/blockservice
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Linux unit tests (PR fast lane + merge queue slow lane)
+  # ---------------------------------------------------------------------------
+  test-linux:
+    name: Linux Unit Tests
+    needs: generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Download generated BPF code
+        uses: actions/download-artifact@v7
+        with:
+          name: generated-bpf-code
+          path: ./bpf-prog/azure-block-iptables/pkg/blockservice
+
+      - name: Install go-junit-report
+        run: make go-junit-report
+
+      - name: Run unit tests
+        run: |
+          set -euo pipefail
+          # Run all unit tests with race detection and coverage.
+          # Pipe through go-junit-report for JUnit XML output.
+          { { { {
+                sudo -E env "PATH=$PATH" make test-all;
+                echo $? >&3;
+                } | tee >($(go env GOPATH)/bin/go-junit-report > report.xml) >&4;
+              } 3>&1;
+            } | { read xs; exit $xs; }
+          } 4>&1
+
+      - name: Combine coverage files
+        if: always()
+        run: |
+          (echo "mode: atomic"; tail -q -n +2 coverage-*.out) > linux-coverage.out
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-coverage
+          path: linux-coverage.out
+          retention-days: 7
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-test-report
+          path: report.xml
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Windows unit tests (merge queue slow lane only)
+  # ---------------------------------------------------------------------------
+  test-windows:
+    name: Windows Unit Tests
+    if: github.event_name != 'pull_request'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Run Windows unit tests
+        shell: pwsh
+        run: |
+          # NPM is deprecated; exclude npm packages.
+          # cni packages with linux-only build tags are excluded for now.
+          go test -timeout 30m -covermode atomic -coverprofile=windows-coverage.out ./cns/... ./platform/...
+          go tool cover -func=windows-coverage.out
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: windows-coverage
+          path: windows-coverage.out
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Coverage report (merge queue + push + schedule)
+  # ---------------------------------------------------------------------------
+  coverage:
+    name: Coverage Report
+    needs: [test-linux]
+    if: always() && needs.test-linux.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Download Linux coverage
+        uses: actions/download-artifact@v7
+        with:
+          name: linux-coverage
+          path: ./
+
+      - name: Generate Cobertura XML
+        run: |
+          # Set up Go workspace so gocov includes all modules
+          make workspace
+          make tools
+
+          GOOS=linux $(go env GOPATH)/bin/gocov convert linux-coverage.out > linux-coverage.json
+          GOOS=linux $(go env GOPATH)/bin/gocov-xml < linux-coverage.json > linux-coverage.xml
+          mkdir -p coverage
+          mv linux-coverage.xml coverage/
+
+      - name: Upload coverage XML
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-report
+          path: coverage/linux-coverage.xml
+          retention-days: 30
