@@ -29,7 +29,6 @@ stages:
     ACN_DIR: drop_setup_env_source
     ACN_PACKAGE_PATH: github.com/Azure/azure-container-networking
     CNI_AI_PATH: $(ACN_PACKAGE_PATH)/telemetry.aiMetadata
-    CNS_AI_PATH: $(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
     NPM_AI_PATH: $(ACN_PACKAGE_PATH)/npm.aiMetadata
 
     STORAGE_ID: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
@@ -42,7 +41,6 @@ stages:
     AZURE_BLOCK_IPTABLES_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureBlockIptablesVersion'] ]
     CILIUM_LOG_COLLECTOR_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
     CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
-    CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
     IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
     NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
   jobs:
@@ -90,12 +88,6 @@ stages:
               archiveVersion: $(CNI_VERSION)
               imageTag: $(Build.BuildNumber)
               packageWithDropGZ: True
-            cns:
-              name: cns
-              extraArgs: '--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)'
-              archiveName: azure-cns
-              archiveVersion: $(CNS_VERSION)
-              imageTag: $(Build.BuildNumber)
             ipv6_hp_bpf:
               name: ipv6-hp-bpf
               extraArgs: "--build-arg DEBUG=$(System.Debug)"
@@ -132,12 +124,6 @@ stages:
               archiveVersion: $(CNI_VERSION)
               imageTag: $(Build.BuildNumber)
               packageWithDropGZ: True
-            cns:
-              name: cns
-              extraArgs: '--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)'
-              archiveName: azure-cns
-              archiveVersion: $(CNS_VERSION)
-              imageTag: $(Build.BuildNumber)
             # npm:
             #   name: npm
             #   extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
@@ -186,12 +172,6 @@ stages:
               archiveVersion: $(CNI_VERSION)
               imageTag: $(Build.BuildNumber)
               packageWithDropGZ: True
-            cns:
-              name: cns
-              extraArgs: '--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)'
-              archiveName: azure-cns
-              archiveVersion: $(CNS_VERSION)
-              imageTag: $(Build.BuildNumber)
             ipv6_hp_bpf:
               name: ipv6-hp-bpf
               extraArgs: "--build-arg DEBUG=$(System.Debug)"
@@ -221,7 +201,7 @@ stages:
       AZURE_BLOCK_IPTABLES_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureBlockIptablesVersion'] ]
       CILIUM_LOG_COLLECTOR_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
       CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
-      CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      CNS_VERSION: v1.7.12
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
       NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
 
@@ -242,9 +222,9 @@ stages:
       CNI_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cni:$(Build.BuildNumber)
       CNI_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/cni:$(Build.BuildNumber)
 
-      CNS_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cns:$(Build.BuildNumber)
-      CNS_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cns:$(Build.BuildNumber)
-      CNS_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/cns:$(Build.BuildNumber)
+      CNS_LINUX_AMD64_REF: acnpublic.azurecr.io/msp/azure-cns:v1.7.12
+      CNS_LINUX_ARM64_REF: acnpublic.azurecr.io/msp/azure-cns:v1.7.12
+      CNS_WINDOWS_AMD64_REF: acnpublic.azurecr.io/msp/azure-cns:v1.7.12
 
       IPV6_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/ipv6-hp-bpf:$(Build.BuildNumber)
       IPV6_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/ipv6-hp-bpf:$(Build.BuildNumber)
