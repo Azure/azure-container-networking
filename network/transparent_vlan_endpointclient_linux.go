@@ -19,14 +19,15 @@ import (
 )
 
 const (
-	azureMac           = "12:34:56:78:9a:bc"                       // Packets leaving the VM should have this MAC
-	loopbackIf         = "lo"                                      // The name of the loopback interface
-	numDefaultRoutes   = 2                                         // VNET NS, when no containers use it, has this many routes
-	tunnelingTable     = 2                                         // Packets not entering on the vlan interface go to this routing table
-	tunnelingMark      = 333                                       // The packets that are to tunnel will be marked with this number
-	DisableRPFilterCmd = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
-	numRetries         = 5
-	sleepInMs          = 100
+	virtualGwIPVlanString = "169.254.2.1/32"
+	azureMac              = "12:34:56:78:9a:bc"                       // Packets leaving the VM should have this MAC
+	loopbackIf            = "lo"                                      // The name of the loopback interface
+	numDefaultRoutes      = 2                                         // VNET NS, when no containers use it, has this many routes
+	tunnelingTable        = 2                                         // Packets not entering on the vlan interface go to this routing table
+	tunnelingMark         = 333                                       // The packets that are to tunnel will be marked with this number
+	DisableRPFilterCmd    = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
+	numRetries            = 5
+	sleepInMs             = 100
 )
 
 var errNamespaceCreation = fmt.Errorf("network namespace creation error")
@@ -645,7 +646,7 @@ func hasIPv6Addresses(ipAddresses []net.IPNet) bool {
 // For IPv4: 169.254.2.1 dev <linkToName>, default via 169.254.2.1 dev <linkToName>
 // For IPv6: fe80::1234:5678:9abc dev <linkToName>, default via fe80::1234:5678:9abc dev <linkToName> (if hasIPv6 is true)
 func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string, table int, hasIPv6 bool) error {
-	if err := client.addDefaultRoutesHelper(linkToName, table, virtualGwIPString, defaultGwCidr, defaultGw); err != nil {
+	if err := client.addDefaultRoutesHelper(linkToName, table, virtualGwIPVlanString, defaultGwCidr, defaultGw); err != nil {
 		return err
 	}
 	if hasIPv6 {
@@ -690,7 +691,7 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutesHelper(linkToName s
 // For IPv4: (169.254.2.1) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName>
 // For IPv6: (fe80::1234:5678:9abc) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName> (if hasIPv6 is true)
 func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMac string, hasIPv6 bool) error {
-	if err := client.addDefaultNeighbors(interfaceName, destMac, virtualGwIPString); err != nil {
+	if err := client.addDefaultNeighbors(interfaceName, destMac, virtualGwIPVlanString); err != nil {
 		return err
 	}
 	if hasIPv6 {
@@ -725,7 +726,7 @@ func (client *TransparentVlanEndpointClient) addDefaultNeighbors(interfaceName, 
 func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	// Vnet NS
 	_ = ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
-			client.DeleteEndpointsImpl(ep)
+		client.DeleteEndpointsImpl(ep)
 		return nil
 	})
 
