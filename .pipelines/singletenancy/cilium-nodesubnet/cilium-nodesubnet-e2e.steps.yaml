@@ -52,9 +52,8 @@ steps:
         pwd
         kubectl cluster-info
         kubectl get po -owide -A
-        # makefile manages cilium version
-        unset DIR
-        unset CILIUM_VERSION_TAG
+        export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
+        echo "installing cilium version ${CILIUM_VERSION_TAG} from directory ${DIR}"
         make -C ./hack/aks deploy-cilium
         export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=$(CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE)
         export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE)
