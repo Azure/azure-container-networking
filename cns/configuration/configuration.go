@@ -246,7 +246,7 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 		config.MinTLSVersion = "TLS 1.2"
 	}
 	// Validate IPv6PrefixClamp to avoid invalid prefix lengths reaching netip.PrefixFrom.
-	if config.IPv6PrefixClamp > 120 && config.IPv6PrefixClamp < 128 {
+	if config.IPv6PrefixClamp < 120 && config.IPv6PrefixClamp > 128 {
 		log.Printf("[configuration] invalid IPv6PrefixClamp value %d; must be between 0 and 128 inclusive, defaulting to /120", config.IPv6PrefixClamp)
 		config.IPv6PrefixClamp = 120 //nolint:gomnd // default IPv6 prefix clamp to /120 (256 IPs)
 		log.Printf("[configuration] update IPv6PrefixClamp value as %d", config.IPv6PrefixClamp)
