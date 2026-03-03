@@ -1253,6 +1253,16 @@ func TestAddDefaultArp(t *testing.T) {
 	}{
 
 		{
+			name: "IPv4 only - good path",
+			client: &TransparentVlanEndpointClient{
+				netlink: netlink.NewMockNetlink(false, ""),
+			},
+			ifName:  "eth0",
+			destMac: azureMac,
+			hasIPv6: false,
+			wantErr: false,
+		},
+		{
 			name: "Dual-stack (IPv4 + IPv6) - good path",
 			client: &TransparentVlanEndpointClient{
 				netlink: netlink.NewMockNetlink(false, ""),
@@ -1271,16 +1281,6 @@ func TestAddDefaultArp(t *testing.T) {
 			destMac: "invalid-mac",
 			hasIPv6: true,
 			wantErr: true,
-		},
-		{
-			name: "IPv6 neighbor succeeds with working netlink",
-			client: &TransparentVlanEndpointClient{
-				netlink: netlink.NewMockNetlink(false, ""),
-			},
-			ifName:  "eth0",
-			destMac: azureMac,
-			hasIPv6: true,
-			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
