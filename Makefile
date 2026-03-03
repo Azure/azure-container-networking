@@ -918,8 +918,10 @@ test-integration: ## run all integration tests.
 
 test-load: ## run all load tests
 	AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \
-		CNI_VERSION=$(CNI_VERSION)
-		CNS_VERSION=$(CNS_VERSION) \
+		CNI_VERSION=$(CNI_VERSION) \
+		CNS_VERSION=v1.7.12 \
+		CNS_IMAGE_REPO=ACN \
+		CNS_IMAGE_NAME_OVERRIDE=msp/azure-cns \
 		go test -timeout 40m -race -tags=load ./test/integration/load... -v
 
 test-validate-state:

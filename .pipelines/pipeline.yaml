@@ -138,14 +138,6 @@ stages:
                 arch: amd64
                 name: cni
                 os: windows
-              cns_linux_amd64:
-                arch: amd64
-                name: cns
-                os: linux
-              cns_windows_amd64:
-                arch: amd64
-                name: cns
-                os: windows
               ipv6_hp_bpf_linux_amd64:
                 arch: amd64
                 name: ipv6-hp-bpf
@@ -182,10 +174,6 @@ stages:
               cni_linux_arm64:
                 arch: arm64
                 name: cni
-                os: linux
-              cns_linux_arm64:
-                arch: arm64
-                name: cns
                 os: linux
               ipv6_hp_bpf_linux_arm64:
                 arch: arm64
@@ -263,9 +251,6 @@ stages:
                 platforms: linux/amd64 linux/arm64 windows/amd64
               cni:
                 name: cni
-                platforms: linux/amd64 linux/arm64 windows/amd64
-              cns:
-                name: cns
                 platforms: linux/amd64 linux/arm64 windows/amd64
               ipv6_hp_bpf:
                 name: ipv6-hp-bpf
