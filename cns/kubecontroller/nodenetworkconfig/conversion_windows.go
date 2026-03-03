@@ -14,7 +14,10 @@ import (
 // secondary IPs. If the gateway is not empty, it will not reserve the 2nd IP and add it as a secondary IP.
 //
 //nolint:gocritic //ignore hugeparam
-func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet, isSwiftV2 bool, ipv6PrefixClamp int) (*cns.CreateNetworkContainerRequest, error) {
+func createNCRequestFromStaticNCHelper(
+	nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix,
+	subnet cns.IPSubnet, isSwiftV2 bool, ipv6PrefixClamp int,
+) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 	// the masked address is the 0th IP in the subnet and startingAddr is the 2nd IP (*.1)
 	startingAddr := primaryIPPrefix.Masked().Addr().Next()
