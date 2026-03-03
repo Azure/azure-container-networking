@@ -28,9 +28,6 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 		}
 	}
 
-	// hard code it for now, we can make it configurable if needed in the future.
-	// This is to prevent generating too many IPConfigs when the CIDR block is large. For example, if the CIDR block is /64, it will generate 2^64 IPConfigs which is not practical.
-	ipv6PrefixClamp := 120
 	// ipv6PrefixClamp caps IPv6 CIDR blocks to prevent generating too many IPConfigs.
 	// For example, if the CIDR block is /64, it will generate 2^64 IPConfigs which is not practical.
 	// Add IPs from CIDR block to the secondary IPConfigs
