@@ -346,7 +346,7 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 		hcnEndpoint.Routes = append(hcnEndpoint.Routes, hcnRoute)
 	}
 
-	if epInfo.SkipDefaultRoutes && len(hcnEndpoint.Routes) == 0 {
+	if epInfo.SkipDefaultRoutes {
 		logger.Info("Adding dummy default route for SkipDefaultRoutes=true",
 			zap.String("endpoint", infraEpName),
 			zap.String("nicType", string(epInfo.NICType)))
