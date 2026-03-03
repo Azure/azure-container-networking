@@ -1,0 +1,49 @@
+parameters:
+  - name: name
+    type: string
+  - name: dependsOn
+    type: string
+
+stages:
+  - stage: manifold_e2e
+    displayName: E2E-AKS Swiftv2 Manifold
+    variables:
+      - name: IMAGE_REPO_PATH
+        value: $[ format('{0}/', stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath']) ]
+      - name: NPM_VERSION
+        value: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
+      # Azure Container Networking PR Pipeline
+      - ${{ if eq(parameters.dependsOn, 'publish') }}:
+        # Use azure-npm, azure-cni, and azure-cns images
+        - name: IMAGE_REPO_PATH_REF
+          value: 'azure-'
+        - name: CNS_VERSION
+          value: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      # ACN Official Build Pipeline
+      - ${{ if ne(parameters.dependsOn, 'publish') }}:
+        # Use /official/npm, /official/cni and /official/cns images
+        - name: IMAGE_REPO_PATH_REF
+          value: $(IMAGE_REPO_PATH) 
+        - name: CNS_VERSION
+          value: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    jobs:
+      - job: ${{ parameters.name }}
+        displayName: AKS Swiftv2 Multitenancy Manifold E2E Test Suite - (${{ parameters.name }})
+        timeoutInMinutes: 240
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          isCustom: true
+          type: linux
+        steps:
+          - task: TriggerBuild@3
+            inputs:
+              buildDefinition: '391699'
+              templateParameters: 'regions: ["westus2"], useAcnPublic: true, cnscniversion: $(CNS_VERSION), cnscniversionwindows: $(CNS_VERSION), cnscniImagePrefix: $(IMAGE_REPO_PATH_REF), npmversion: $(NPM_VERSION)'
+              useSameBranch: false
+              queueBuildForUserThatTriggeredBuild: true
+              branchToUse: 'refs/heads/master'
+              waitForQueuedBuildsToFinish: true
+              authenticationMethod: 'OAuth Token'      
