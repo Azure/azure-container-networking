@@ -620,7 +620,6 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 		ep         *endpoint
 		wantErr    bool
 		wantErrMsg string
-		routesLeft func() (int, error)
 	}{
 		{
 			name: "Delete endpoint delete vnet ns",
@@ -640,9 +639,6 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 			},
 			ep: &endpoint{
 				IPAddresses: IPAddresses,
-			},
-			routesLeft: func() (int, error) {
-				return numDefaultRoutes, nil
 			},
 		},
 		{
@@ -665,9 +661,6 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 			},
 			ep: &endpoint{
 				IPAddresses: IPAddresses,
-			},
-			routesLeft: func() (int, error) {
-				return numDefaultRoutes + 1, nil
 			},
 		},
 		//nolint gocritic
@@ -702,7 +695,7 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.client.DeleteEndpointsImpl(tt.ep, tt.routesLeft)
+			tt.client.DeleteEndpointsImpl(tt.ep)
 		})
 	}
 
@@ -738,7 +731,7 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 		ep := &endpoint{
 			IPAddresses: IPAddresses,
 		}
-		client.DeleteEndpointsImpl(ep, func() (int, error) { return 0, nil })
+		client.DeleteEndpointsImpl(ep)
 
 		require.Equal(t, 1, errOnDeleteRouteFlag, "error must occur during delete route path")
 		require.Equal(t, 1, deleteLinkFlag, "delete link must still be called")

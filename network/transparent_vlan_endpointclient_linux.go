@@ -725,16 +725,7 @@ func (client *TransparentVlanEndpointClient) addDefaultNeighbors(interfaceName, 
 func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	// Vnet NS
 	_ = ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
-		// Passing in functionality to get number of routes after deletion
-		getNumRoutesLeft := func() (int, error) {
-			routes, err := vishnetlink.RouteList(nil, vishnetlink.FAMILY_V4)
-			if err != nil {
-				return 0, errors.Wrap(err, "failed to get num routes left")
-			}
-			return len(routes), nil
-		}
-
-		client.DeleteEndpointsImpl(ep, getNumRoutesLeft)
+			client.DeleteEndpointsImpl(ep)
 		return nil
 	})
 
@@ -745,8 +736,8 @@ func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error
 	return nil
 }
 
-// getNumRoutesLeft is a function which gets the current number of routes in the namespace. Namespace: Vnet
-func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, _ func() (int, error)) {
+// Namespace: Vnet
+func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint) {
 	routeInfoList := client.GetVnetRoutes(ep.IPAddresses)
 	if err := deleteRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
 		logger.Error("Failed to remove routes", zap.Error(err))
