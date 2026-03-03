@@ -31,7 +31,6 @@ func createNCRequestFromStaticNCHelper(
 	}
 
 	// ipv6PrefixClamp caps IPv6 CIDR blocks to prevent generating too many IPConfigs.
-	// For example, if the CIDR block is /64, it will generate 2^64 IPConfigs which is not practical.
 	// Add IPs from CIDR block to the secondary IPConfigs
 	if nc.Type == v1alpha.VNETBlock {
 

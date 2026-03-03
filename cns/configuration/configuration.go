@@ -247,7 +247,7 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	// If IPv6PrefixClamp less than 120, large amount of IPs will be generated which could lead to OOM.
 	// If IPv6PrefixClamp greater than 128, it's an error in config since max prefix length for IPv6 is 128.
 	if config.IPv6PrefixClamp < 120 || config.IPv6PrefixClamp > 128 {
-		log.Printf("[configuration] invalid IPv6PrefixClamp value %d; must be between 0 and 128 inclusive, defaulting to /120", config.IPv6PrefixClamp)
+		log.Printf("[configuration] invalid IPv6PrefixClamp value %d; must be between 120 to 128, defaulting to /120", config.IPv6PrefixClamp)
 		config.IPv6PrefixClamp = 120 //nolint:gomnd // default IPv6 prefix clamp to /120 (256 IPs)
 	}
 	config.GRPCSettings.Enable = false
