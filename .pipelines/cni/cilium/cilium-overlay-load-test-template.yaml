@@ -74,6 +74,7 @@ stages:
         - job: deploy_cilium_components
           displayName: Deploy Cilium
           steps:
+            - template: ../../templates/cilium-cli.yaml
             - task: AzureCLI@2
               displayName: "Install Cilium, CNS, and ip-masq-agent"
               inputs:
@@ -116,6 +117,7 @@ stages:
         - job: deploy_cilium_components
           displayName: Deploy Cilium with Hubble
           steps:
+            - template: ../../templates/cilium-cli.yaml
             - task: AzureCLI@2
               displayName: "Install Cilium, CNS, and ip-masq-agent"
               inputs:
