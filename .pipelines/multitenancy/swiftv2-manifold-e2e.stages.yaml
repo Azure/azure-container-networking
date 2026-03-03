@@ -21,7 +21,7 @@ stages:
           value: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       # ACN Official Build Pipeline
       - ${{ if ne(parameters.dependsOn, 'publish') }}:
-        # Use /official/azure-cni and /official/azure-cns images
+        # Use /official/cni and /official/cns images
         - name: IMAGE_REPO_PATH_REF
           value: $(IMAGE_REPO_PATH)
         # Use latest AKS-RP released image for NPM
