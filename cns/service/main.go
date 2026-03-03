@@ -1419,7 +1419,15 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
-	// check the Node labels for Swift V2
+	// shchen hard code it for true now.
+	cnsconfig.AlwaysWriteNodeInfoCRD = true
+	if cnsconfig.AlwaysWriteNodeInfoCRD {
+		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
+			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
+		}
+	}
+
+	//check the Node labels for Swift V2
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
 		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
@@ -1462,6 +1470,9 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	}
 	// TODO(rbtr): nodename and namespace should be in the cns config
 	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
+
+	// Wire IPv6 prefix clamp before any NNC reconciliation so all conversions use the configured value.
+	nncctrl.IPv6PrefixClamp = cnsconfig.IPv6PrefixClamp
 
 	logger.Printf("Reconciling initial CNS state")
 	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
@@ -1721,12 +1732,30 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 		Cli: directcli,
 	}
 
+	nmaConfig, err := nmagent.NewConfig("")
+	if err != nil {
+		return errors.Wrap(err, "failed to create nmagent config")
+	}
+	nmaCli, err := nmagent.NewClient(nmaConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to create nmagent client")
+	}
+
+	var homeAz string
+	homeAzResponse, err := nmaCli.GetHomeAz(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get HomeAZ from nmagent")
+	} else if homeAzResponse.HomeAz > 0 {
+		homeAz = fmt.Sprintf("AZ%02d", homeAzResponse.HomeAz)
+	}
+
 	nodeInfo := &mtv1alpha1.NodeInfo{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: node.Name,
 		},
 		Spec: mtv1alpha1.NodeInfoSpec{
 			VMUniqueID: vmUniqueID,
+			HomeAZ:     homeAz,
 		},
 	}
 

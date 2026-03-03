@@ -11,6 +11,12 @@ import (
 	"github.com/pkg/errors"
 )
 
+// IPv6PrefixClamp caps IPv6 CIDR blocks to this prefix length to prevent
+// generating too many IPConfigs. For example, a /64 would generate 2^64 IPs
+// which is not practical. Set to 0 to disable clamping.
+// Configured via CNSConfig.IPv6PrefixClamp (default 120).
+var IPv6PrefixClamp int //nolint:gochecknoglobals // configurable at startup via CNSConfig
+
 var (
 	// ErrInvalidPrimaryIP indicates the NC primary IP is invalid.
 	ErrInvalidPrimaryIP = errors.New("invalid primary IP")
@@ -71,6 +77,7 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 }
 
 // CreateNCRequestFromStaticNC generates a CreateNetworkContainerRequest from a static NetworkContainer.
+// It uses the package-level IPv6PrefixClamp to cap IPv6 CIDR blocks, preventing generation of too many IPs.
 //
 //nolint:gocritic //ignore hugeparam
 func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer, isSwiftV2 bool) (*cns.CreateNetworkContainerRequest, error) {
