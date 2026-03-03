@@ -12,7 +12,10 @@ import (
 // createNCRequestFromStaticNCHelper generates a CreateNetworkContainerRequest from a static NetworkContainer
 //
 //nolint:gocritic //ignore hugeparam
-func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet, isSwiftV2 bool, ipv6PrefixClamp int) (*cns.CreateNetworkContainerRequest, error) {
+func createNCRequestFromStaticNCHelper(
+	nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix,
+	subnet cns.IPSubnet, isSwiftV2 bool, ipv6PrefixClamp int,
+) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 
 	// iterate through all IP addresses in the subnet described by primaryPrefix and
