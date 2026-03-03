@@ -72,7 +72,6 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 
 // CreateNCRequestFromStaticNC generates a CreateNetworkContainerRequest from a static NetworkContainer.
 // ipv6PrefixClamp caps IPv6 CIDR blocks to the given prefix length to prevent generating too many IPs.
-// Set to 0 to disable clamping.
 //
 //nolint:gocritic //ignore hugeparam
 func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer, isSwiftV2 bool, ipv6PrefixClamp int) (*cns.CreateNetworkContainerRequest, error) {
