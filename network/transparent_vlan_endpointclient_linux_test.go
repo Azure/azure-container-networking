@@ -613,6 +613,16 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 			Mask: net.CIDRMask(subnetv4Mask, ipv4Bits),
 		},
 	}
+	dualStackIPAddresses := []net.IPNet{
+		{
+			IP:   net.ParseIP("192.168.0.4"),
+			Mask: net.CIDRMask(subnetv4Mask, ipv4Bits),
+		},
+		{
+			IP:   net.ParseIP("fd11::1"),
+			Mask: net.CIDRMask(subnetv6Mask, ipv6Bits),
+		},
+	}
 
 	tests := []struct {
 		name       string
@@ -661,6 +671,26 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 			},
 			ep: &endpoint{
 				IPAddresses: IPAddresses,
+			},
+		},
+		{
+			name: "Delete endpoint dual-stack (IPv4 + IPv6)",
+			client: &TransparentVlanEndpointClient{
+				primaryHostIfName: "eth0",
+				vlanIfName:        "eth0.1",
+				vnetVethName:      "A1veth0",
+				containerVethName: "B1veth0",
+				vnetNSName:        "az_ns_1",
+				netnsClient: &mockNetns{
+					deleteNamed: defaultDeleteNamed,
+				},
+				netlink:        netlink.NewMockNetlink(false, ""),
+				plClient:       platform.NewMockExecClient(false),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netioshim:      netio.NewMockNetIO(false, 0),
+			},
+			ep: &endpoint{
+				IPAddresses: dualStackIPAddresses,
 			},
 		},
 		//nolint gocritic
@@ -735,6 +765,91 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 
 		require.Equal(t, 1, errOnDeleteRouteFlag, "error must occur during delete route path")
 		require.Equal(t, 1, deleteLinkFlag, "delete link must still be called")
+	})
+
+	t.Run("Delete dual-stack endpoint runs even if delete routes fails", func(t *testing.T) {
+		nl := netlink.NewMockNetlink(true, "netlink failure")
+		deleteLinkFlag := 0
+		nl.DeleteLinkFn = func(_ string) error {
+			deleteLinkFlag++
+			return errors.New("err mock")
+		}
+		errOnDeleteRouteFlag := 0
+		nl.SetDeleteRouteValidationFn(func(_ *netlink.Route) error {
+			errOnDeleteRouteFlag++
+			return errors.New("err mock")
+		})
+
+		client := TransparentVlanEndpointClient{
+			primaryHostIfName: "eth0",
+			vlanIfName:        "eth0.1",
+			vnetVethName:      "A1veth0",
+			containerVethName: "B1veth0",
+			vnetNSName:        "az_ns_1",
+			netnsClient: &mockNetns{
+				deleteNamed: defaultDeleteNamed,
+			},
+			netlink:        nl,
+			plClient:       platform.NewMockExecClient(false),
+			netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+			netioshim:      netio.NewMockNetIO(false, 0),
+		}
+		ep := &endpoint{
+			IPAddresses: dualStackIPAddresses,
+		}
+		client.DeleteEndpointsImpl(ep)
+
+		require.Equal(t, 1, errOnDeleteRouteFlag, "error must occur during delete route path for first address")
+		require.Equal(t, 1, deleteLinkFlag, "delete link must still be called even with dual-stack failure")
+	})
+
+	t.Run("Delete dual-stack endpoint verifies routes for both families", func(t *testing.T) {
+		nl := netlink.NewMockNetlink(false, "")
+		deletedRoutes := make([]netlink.Route, 0)
+		nl.SetDeleteRouteValidationFn(func(r *netlink.Route) error {
+			deletedRoutes = append(deletedRoutes, *r)
+			return nil
+		})
+		deleteLinkCalled := false
+		nl.DeleteLinkFn = func(_ string) error {
+			deleteLinkCalled = true
+			return nil
+		}
+
+		client := TransparentVlanEndpointClient{
+			primaryHostIfName: "eth0",
+			vlanIfName:        "eth0.1",
+			vnetVethName:      "A1veth0",
+			containerVethName: "B1veth0",
+			vnetNSName:        "az_ns_1",
+			netnsClient: &mockNetns{
+				deleteNamed: defaultDeleteNamed,
+			},
+			netlink:        nl,
+			plClient:       platform.NewMockExecClient(false),
+			netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+			netioshim:      netio.NewMockNetIO(false, 0),
+		}
+		ep := &endpoint{
+			IPAddresses: dualStackIPAddresses,
+		}
+		client.DeleteEndpointsImpl(ep)
+
+		require.Equal(t, 2, len(deletedRoutes), "both IPv4 and IPv6 routes should be deleted")
+		// Verify the routes correspond to the correct IPs
+		hasV4 := false
+		hasV6 := false
+		for _, r := range deletedRoutes {
+			if r.Dst != nil && r.Dst.IP.To4() != nil {
+				hasV4 = true
+			}
+			if r.Dst != nil && r.Dst.IP.To4() == nil {
+				hasV6 = true
+			}
+		}
+		require.True(t, hasV4, "should have deleted an IPv4 route")
+		require.True(t, hasV6, "should have deleted an IPv6 route")
+		require.True(t, deleteLinkCalled, "delete link must be called")
 	})
 }
 
