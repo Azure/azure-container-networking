@@ -1419,6 +1419,8 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
+	// shchen hard code it for true now.
+	cnsconfig.AlwaysWriteNodeInfoCRD = true
 	if cnsconfig.AlwaysWriteNodeInfoCRD {
 		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
 			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
