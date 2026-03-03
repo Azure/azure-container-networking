@@ -1317,7 +1317,7 @@ type ipamStateReconciler interface {
 
 // TODO(rbtr) where should this live??
 // reconcileInitialCNSState initializes cns by passing pods and a CreateNetworkContainerRequest
-func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ipamReconciler ipamStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider, isSwiftV2 bool) error {
+func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ipamReconciler ipamStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider, isSwiftV2 bool, ipv6PrefixClamp int) error {
 	// Get nnc using direct client
 	nnc, err := cli.Get(ctx)
 	if err != nil {
@@ -1356,7 +1356,7 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 		)
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		case v1alpha.Static:
-			ncRequest, err = nncctrl.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i], isSwiftV2)
+			ncRequest, err = nncctrl.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i], isSwiftV2, ipv6PrefixClamp)
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			ncRequest, err = nncctrl.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 		}
@@ -1456,9 +1456,6 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	// TODO(rbtr): nodename and namespace should be in the cns config
 	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
-	// Wire IPv6 prefix clamp before any NNC reconciliation so all conversions use the configured value.
-	nncctrl.IPv6PrefixClamp = cnsconfig.IPv6PrefixClamp
-
 	logger.Printf("Reconciling initial CNS state")
 	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
 	// aks addons to come up so retry a bit more aggresively here.
@@ -1467,7 +1464,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	_ = retry.Do(func() error {
 		attempt++
 		logger.Printf("reconciling initial CNS state attempt: %d", attempt)
-		err = reconcileInitialCNSState(ctx, directscopedcli, httpRestServiceImplementation, podInfoByIPProvider, cnsconfig.EnableSwiftV2)
+		err = reconcileInitialCNSState(ctx, directscopedcli, httpRestServiceImplementation, podInfoByIPProvider, cnsconfig.EnableSwiftV2, cnsconfig.IPv6PrefixClamp)
 		if err != nil {
 			logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
 			nncInitFailure.Inc()
@@ -1564,7 +1561,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
-	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2)
+	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2, cnsconfig.IPv6PrefixClamp)
 	// pass Node to the Reconciler for Controller xref
 	// IPAMv1 - reconcile only status changes (where generation doesn't change).
 	// IPAMv2 - reconcile all updates.

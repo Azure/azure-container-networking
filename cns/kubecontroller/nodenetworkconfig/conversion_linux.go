@@ -10,10 +10,9 @@ import (
 )
 
 // createNCRequestFromStaticNCHelper generates a CreateNetworkContainerRequest from a static NetworkContainer
-// by adding all IPs in the the block to the secondary IP configs list. It does not skip any IPs.
 //
 //nolint:gocritic //ignore hugeparam
-func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet, isSwiftV2 bool) (*cns.CreateNetworkContainerRequest, error) {
+func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet, isSwiftV2 bool, ipv6PrefixClamp int) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 
 	// iterate through all IP addresses in the subnet described by primaryPrefix and
@@ -39,8 +38,8 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 				return nil, errors.Wrapf(err, "invalid CIDR block: %s", ipAssignment.IP)
 			}
 
-			if cidrPrefix.Addr().Is6() && IPv6PrefixClamp > 0 && cidrPrefix.Bits() < IPv6PrefixClamp {
-				cidrPrefix = netip.PrefixFrom(cidrPrefix.Masked().Addr(), IPv6PrefixClamp)
+			if cidrPrefix.Addr().Is6() && ipv6PrefixClamp > 0 && cidrPrefix.Bits() < ipv6PrefixClamp {
+				cidrPrefix = netip.PrefixFrom(cidrPrefix.Masked().Addr(), ipv6PrefixClamp)
 			}
 
 			// iterate through all IP addresses in the CIDR block described by cidrPrefix and

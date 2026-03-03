@@ -11,12 +11,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// IPv6PrefixClamp caps IPv6 CIDR blocks to this prefix length to prevent
-// generating too many IPConfigs. For example, a /64 would generate 2^64 IPs
-// which is not practical. Set to 0 to disable clamping.
-// Configured via CNSConfig.IPv6PrefixClamp (default 120).
-var IPv6PrefixClamp int //nolint:gochecknoglobals // configurable at startup via CNSConfig
-
 var (
 	// ErrInvalidPrimaryIP indicates the NC primary IP is invalid.
 	ErrInvalidPrimaryIP = errors.New("invalid primary IP")
@@ -77,10 +71,11 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 }
 
 // CreateNCRequestFromStaticNC generates a CreateNetworkContainerRequest from a static NetworkContainer.
-// It uses the package-level IPv6PrefixClamp to cap IPv6 CIDR blocks, preventing generation of too many IPs.
+// ipv6PrefixClamp caps IPv6 CIDR blocks to the given prefix length to prevent generating too many IPs.
+// Set to 0 to disable clamping.
 //
 //nolint:gocritic //ignore hugeparam
-func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer, isSwiftV2 bool) (*cns.CreateNetworkContainerRequest, error) {
+func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer, isSwiftV2 bool, ipv6PrefixClamp int) (*cns.CreateNetworkContainerRequest, error) {
 	if nc.Type == v1alpha.Overlay {
 		nc.Version = 0 // fix for NMA always giving us version 0 for Overlay NCs
 	}
@@ -104,7 +99,7 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer, isSwiftV2 bool) (*
 		subnet.IPAddress = primaryPrefix.Addr().String()
 	}
 
-	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet, isSwiftV2)
+	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet, isSwiftV2, ipv6PrefixClamp)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error while creating NC request from static NC")
 	}

@@ -228,7 +228,7 @@ func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CreateNCRequestFromStaticNC(tt.input, tt.isSwiftV2)
+			got, err := CreateNCRequestFromStaticNC(tt.input, tt.isSwiftV2, 0)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -240,10 +240,6 @@ func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
 }
 
 func TestIPv6PrefixClamp(t *testing.T) {
-	// Save and restore the global IPv6PrefixClamp after each test.
-	original := IPv6PrefixClamp
-	t.Cleanup(func() { IPv6PrefixClamp = original })
-
 	tests := []struct {
 		name            string
 		ipv6PrefixClamp int
@@ -284,8 +280,6 @@ func TestIPv6PrefixClamp(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			IPv6PrefixClamp = tt.ipv6PrefixClamp
-
 			nc := v1alpha.NetworkContainer{
 				ID:                 ncID,
 				PrimaryIP:          "10.0.0.0/32",
@@ -299,7 +293,7 @@ func TestIPv6PrefixClamp(t *testing.T) {
 				},
 			}
 
-			got, err := CreateNCRequestFromStaticNC(nc, true) // swiftV2=true to skip primary prefix IPs
+			got, err := CreateNCRequestFromStaticNC(nc, true, tt.ipv6PrefixClamp) // swiftV2=true to skip primary prefix IPs
 			require.NoError(t, err)
 			assert.Len(t, got.SecondaryIPConfigs, tt.wantIPCount,
 				"expected %d IPs from CIDR %s with clamp %d", tt.wantIPCount, tt.ipAssignment, tt.ipv6PrefixClamp)
