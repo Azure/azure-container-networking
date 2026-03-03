@@ -14,6 +14,7 @@ data:
   cni-chaining-mode: generic-veth
   cluster-id: "0"
   cluster-name: default
+  custom-cni-conf: "true"
   debug: "false"
   disable-cnp-status-updates: "true"
   disable-endpoint-crd: "false"
