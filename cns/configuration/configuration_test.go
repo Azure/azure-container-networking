@@ -238,7 +238,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				MetricsBindAddress:          ":9091",
 				SyncHostNCTimeoutMs:         5,
 				SyncHostNCVersionIntervalMs: 1,
-				IPv6PrefixClamp:             112,
+				IPv6PrefixClamp:             120,
 				TelemetrySettings: TelemetrySettings{
 					TelemetryBatchSizeBytes:      3,
 					TelemetryBatchIntervalInSecs: 3,
@@ -268,7 +268,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				MetricsBindAddress:          ":9091",
 				SyncHostNCTimeoutMs:         5,
 				SyncHostNCVersionIntervalMs: 1,
-				IPv6PrefixClamp:             112,
+				IPv6PrefixClamp:             120,
 				TelemetrySettings: TelemetrySettings{
 					TelemetryBatchSizeBytes:      3,
 					TelemetryBatchIntervalInSecs: 3,
