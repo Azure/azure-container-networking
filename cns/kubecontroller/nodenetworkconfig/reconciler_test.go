@@ -192,7 +192,7 @@ func TestReconcile(t *testing.T) {
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
-			r := NewReconciler(&tt.cnsClient, &tt.cnsClient, tt.nodeIP, false, 0)
+			r := NewReconciler(&tt.cnsClient, func(*v1alpha.NodeNetworkConfig) error { return nil }, &tt.cnsClient, tt.nodeIP, false, 0)
 			r.nnccli = &tt.ncGetter
 			got, err := r.Reconcile(context.Background(), tt.in)
 			if tt.wantErr {
@@ -249,7 +249,7 @@ func TestReconcileStaleNCs(t *testing.T) {
 		return &nncLog[len(nncLog)-1], nil
 	}
 
-	r := NewReconciler(&cnsClient, &cnsClient, nodeIP, false, 0)
+	r := NewReconciler(&cnsClient, func(*v1alpha.NodeNetworkConfig) error { return nil }, &cnsClient, nodeIP, false, 0)
 	r.nnccli = &mockNCGetter{get: nncIterator}
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{})
@@ -286,7 +286,7 @@ func TestReconcileInitializerRunsOnceOnSuccess(t *testing.T) {
 		return &v1alpha.NodeNetworkConfig{Status: validSwiftStatus}, nil
 	}}
 
-	r := NewReconciler(&cnsClient, initializer, &cnsClient, "", false)
+	r := NewReconciler(&cnsClient, initializer, &cnsClient, "", false, 0)
 	r.nnccli = &ncGetter
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{})
@@ -324,7 +324,7 @@ func TestReconcileInitializerRetriesAfterFailure(t *testing.T) {
 		return &v1alpha.NodeNetworkConfig{Status: validSwiftStatus}, nil
 	}}
 
-	r := NewReconciler(&cnsClient, initializer, &cnsClient, "", false)
+	r := NewReconciler(&cnsClient, initializer, &cnsClient, "", false, 0)
 	r.nnccli = &ncGetter
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{})
