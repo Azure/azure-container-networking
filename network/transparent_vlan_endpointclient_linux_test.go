@@ -625,107 +625,61 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		client     *TransparentVlanEndpointClient
-		ep         *endpoint
-		wantErr    bool
-		wantErrMsg string
+		name                 string
+		ep                   *endpoint
+		ipAddresses          []net.IPNet
+		wantDeleteRouteCount int
+		wantDeleteLinkCalled bool
 	}{
 		{
-			name: "Delete endpoint delete vnet ns",
-			client: &TransparentVlanEndpointClient{
-				primaryHostIfName: "eth0",
-				vlanIfName:        "eth0.1",
-				vnetVethName:      "A1veth0",
-				containerVethName: "B1veth0",
-				vnetNSName:        "az_ns_1",
-				netnsClient: &mockNetns{
-					deleteNamed: defaultDeleteNamed,
-				},
-				netlink:        netlink.NewMockNetlink(false, ""),
-				plClient:       platform.NewMockExecClient(false),
-				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(false, 0),
-			},
-			ep: &endpoint{
-				IPAddresses: IPAddresses,
-			},
+			name:                 "Delete endpoint with IPv4 addresses",
+			ipAddresses:          IPAddresses,
+			wantDeleteRouteCount: 2,
+			wantDeleteLinkCalled: true,
 		},
 		{
-			name: "Delete endpoint do not delete vnet ns it is still in use",
-			client: &TransparentVlanEndpointClient{
-				primaryHostIfName: "eth0",
-				vlanIfName:        "eth0.1",
-				vnetVethName:      "A1veth0",
-				containerVethName: "B1veth0",
-				vnetNSName:        "az_ns_1",
-				netnsClient: &mockNetns{
-					deleteNamed: func(name string) (err error) {
-						return newNetnsErrorMock("netns failure")
-					},
-				},
-				netlink:        netlink.NewMockNetlink(false, ""),
-				plClient:       platform.NewMockExecClient(false),
-				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(false, 0),
-			},
-			ep: &endpoint{
-				IPAddresses: IPAddresses,
-			},
+			name:                 "Delete endpoint dual-stack (IPv4 + IPv6)",
+			ipAddresses:          dualStackIPAddresses,
+			wantDeleteRouteCount: 2,
+			wantDeleteLinkCalled: true,
 		},
-		{
-			name: "Delete endpoint dual-stack (IPv4 + IPv6)",
-			client: &TransparentVlanEndpointClient{
-				primaryHostIfName: "eth0",
-				vlanIfName:        "eth0.1",
-				vnetVethName:      "A1veth0",
-				containerVethName: "B1veth0",
-				vnetNSName:        "az_ns_1",
-				netnsClient: &mockNetns{
-					deleteNamed: defaultDeleteNamed,
-				},
-				netlink:        netlink.NewMockNetlink(false, ""),
-				plClient:       platform.NewMockExecClient(false),
-				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(false, 0),
-			},
-			ep: &endpoint{
-				IPAddresses: dualStackIPAddresses,
-			},
-		},
-		//nolint gocritic
-		/*		{
-				name: "Delete endpoint fail to delete namespace",
-				client: &TransparentVlanEndpointClient{
-					primaryHostIfName: "eth0",
-					vlanIfName:        "eth0.1",
-					vnetVethName:      "A1veth0",
-					containerVethName: "B1veth0",
-					vnetNSName:        "az_ns_1",
-					netnsClient: &mockNetns{
-						deleteNamed: func(name string) (err error) {
-							return newNetnsErrorMock("netns failure")
-						},
-					},
-					netlink:        netlink.NewMockNetlink(false, ""),
-					plClient:       platform.NewMockExecClient(false),
-					netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-					netioshim:      netio.NewMockNetIO(false, 0),
-				},
-				ep: &endpoint{
-					IPAddresses: IPAddresses,
-				},
-				routesLeft: func() (int, error) {
-					return numDefaultRoutes, nil
-				},
-				wantErr:    true,
-				wantErrMsg: "failed to delete namespace: netns failure: " + errNetnsMock.Error(),
-			},*/
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.client.DeleteEndpointsImpl(tt.ep)
+			mockNl := netlink.NewMockNetlink(false, "")
+			deleteRouteCount := 0
+			mockNl.SetDeleteRouteValidationFn(func(_ *netlink.Route) error {
+				deleteRouteCount++
+				return nil
+			})
+			deleteLinkCalled := false
+			mockNl.DeleteLinkFn = func(_ string) error {
+				deleteLinkCalled = true
+				return nil
+			}
+
+			client := &TransparentVlanEndpointClient{
+				primaryHostIfName: "eth0",
+				vlanIfName:        "eth0.1",
+				vnetVethName:      "A1veth0",
+				containerVethName: "B1veth0",
+				vnetNSName:        "az_ns_1",
+				netnsClient: &mockNetns{
+					deleteNamed: defaultDeleteNamed,
+				},
+				netlink:        mockNl,
+				plClient:       platform.NewMockExecClient(false),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netioshim:      netio.NewMockNetIO(false, 0),
+			}
+			ep := &endpoint{
+				IPAddresses: tt.ipAddresses,
+			}
+			client.DeleteEndpointsImpl(ep)
+
+			require.Equal(t, tt.wantDeleteRouteCount, deleteRouteCount, "unexpected number of route deletions")
+			require.Equal(t, tt.wantDeleteLinkCalled, deleteLinkCalled, "delete link call mismatch")
 		})
 	}
 
