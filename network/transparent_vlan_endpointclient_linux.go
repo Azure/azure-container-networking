@@ -19,6 +19,8 @@ import (
 )
 
 const (
+	defaultGwv6Cidr       = "::/0"
+	defaultGwv6           = "::"
 	virtualGwIPVlanString = "169.254.2.1/32"
 	azureMac              = "12:34:56:78:9a:bc"                       // Packets leaving the VM should have this MAC
 	loopbackIf            = "lo"                                      // The name of the loopback interface
