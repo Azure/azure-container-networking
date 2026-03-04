@@ -440,6 +440,7 @@ func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointIn
 
 // Add rules related to tunneling the packet outside of the VM, assumes all calls are idempotent. Namespace: vnet
 func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) error {
+	// iptables -t mangle -I PREROUTING -j MARK --set-mark <TUNNELING MARK>
 	if err := client.addVnetMangleAndTunnelingRules(iptables.V4, vishnetlink.FAMILY_V4); err != nil {
 		return err
 	}
