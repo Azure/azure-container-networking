@@ -86,10 +86,6 @@ var validVNETBlockRequest = &cns.CreateNetworkContainerRequest{
 }
 
 func TestIPv6PrefixClampWindows(t *testing.T) {
-	// Save and restore the global IPv6PrefixClamp after each test.
-	original := IPv6PrefixClamp
-	t.Cleanup(func() { IPv6PrefixClamp = original })
-
 	tests := []struct {
 		name            string
 		ipv6PrefixClamp int
@@ -130,8 +126,6 @@ func TestIPv6PrefixClampWindows(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			IPv6PrefixClamp = tt.ipv6PrefixClamp
-
 			nc := v1alpha.NetworkContainer{
 				ID:                 ncID,
 				PrimaryIP:          "10.0.0.0/30",
@@ -145,7 +139,7 @@ func TestIPv6PrefixClampWindows(t *testing.T) {
 				},
 			}
 
-			got, err := CreateNCRequestFromStaticNC(nc, true) // swiftV2=true to skip primary prefix IPs
+			got, err := CreateNCRequestFromStaticNC(nc, true, tt.ipv6PrefixClamp) // swiftV2=true to skip primary prefix IPs
 			require.NoError(t, err)
 			// Windows deletes lastAddr, so the count is one less than the raw CIDR size
 			// when VNETBlock IPs are the only source (swiftV2=true skips primary prefix).

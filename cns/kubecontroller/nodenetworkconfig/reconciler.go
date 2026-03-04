@@ -123,7 +123,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		// For Overlay and Vnet Scale Scenarios
 		case v1alpha.Static:
-			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i], r.isSwiftV2)
+			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i], r.isSwiftV2, r.ipv6PrefixClamp)
 		// For Pod Subnet scenario
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			req, err = CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
