@@ -626,7 +626,6 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 
 	tests := []struct {
 		name                 string
-		ep                   *endpoint
 		ipAddresses          []net.IPNet
 		wantDeleteRouteCount int
 		wantDeleteLinkCalled bool
