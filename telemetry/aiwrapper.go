@@ -9,11 +9,13 @@ import (
 )
 
 var (
-	aiMetadata           string
-	th                   aitelemetry.TelemetryHandle
-	gDisableTrace        bool
-	gDisableMetric       bool
-	ErrTelemetryDisabled = errors.New("telemetry is disabled")
+	aiMetadata               string
+	connectionString         string
+	enableAIInSovereignCloud bool
+	th                       aitelemetry.TelemetryHandle
+	gDisableTrace            bool
+	gDisableMetric           bool
+	ErrTelemetryDisabled     = errors.New("telemetry is disabled")
 )
 
 const (
@@ -33,9 +35,17 @@ func (tb *TelemetryBuffer) CreateAITelemetryHandle(aiConfig aitelemetry.AIConfig
 		return ErrTelemetryDisabled
 	}
 
-	th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
-	if err != nil {
-		return err
+	// Use connection string only if sovereign cloud is enabled
+	if enableAIInSovereignCloud && connectionString != "" {
+		th, err = aitelemetry.NewWithConnectionString(connectionString, aiConfig)
+		if err != nil {
+			return err
+		}
+	} else {
+		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
+		if err != nil {
+			return err
+		}
 	}
 
 	gDisableMetric = disableMetric
@@ -95,4 +105,24 @@ func GetAIMetadata() string {
 // SetAIMetadata sets the aiMetadata value (for runtime configuration)
 func SetAIMetadata(metadata string) {
 	aiMetadata = metadata
+}
+
+// GetConnectionString returns the current connection string value
+func GetConnectionString() string {
+	return connectionString
+}
+
+// SetConnectionString sets the connection string value (for runtime configuration)
+func SetConnectionString(connStr string) {
+	connectionString = connStr
+}
+
+// GetIsSovereignCloud returns the current sovereign cloud flag value
+func GetIsSovereignCloud() bool {
+	return enableAIInSovereignCloud
+}
+
+// SetIsSovereignCloud sets the sovereign cloud flag (for runtime configuration)
+func SetIsSovereignCloud(isSovereign bool) {
+	enableAIInSovereignCloud = isSovereign
 }
