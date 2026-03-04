@@ -100,8 +100,10 @@ func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalIn
 		}
 
 		// Enable IPv6 in the VM namespace so vlan sub-interfaces can carry IPv6.
-		if err := nu.UpdateIPV6Setting(0); err != nil {
-			return nil, errors.Wrap(err, "failed to enable ipv6 on vm")
+		if nwInfo.IsIPv6Enabled {
+			if err := nu.UpdateIPV6Setting(0); err != nil {
+				return nil, errors.Wrap(err, "failed to enable ipv6 on vm")
+			}
 		}
 		// Blocks wireserver traffic from apipa nic (IPv4 only)
 		if err := nu.BlockEgressTrafficFromContainer(nm.iptablesClient, iptables.V4, networkutils.AzureDNS, iptables.TCP, iptables.HTTPPort); err != nil {
