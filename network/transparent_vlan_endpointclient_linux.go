@@ -657,7 +657,7 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string,
 		return err
 	}
 	if hasIPv6 {
-		if err := client.addDefaultRoutesHelper(linkToName, table, virtualv6GwString, defaultIPv6Prefix, defaultIPv6Addr); err != nil {
+		if err := client.addDefaultRoutesHelper(linkToName, table, virtualGwIPVlanStringv6, defaultIPv6Prefix, defaultIPv6Addr); err != nil {
 			return err
 		}
 	}
@@ -702,7 +702,7 @@ func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMa
 		return err
 	}
 	if hasIPv6 {
-		if err := client.addDefaultNeighbors(interfaceName, destMac, virtualv6GwString); err != nil {
+		if err := client.addDefaultNeighbors(interfaceName, destMac, virtualGwIPVlanStringv6); err != nil {
 			return err
 		}
 	}
