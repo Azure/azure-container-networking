@@ -398,10 +398,14 @@ func (client *TransparentVlanEndpointClient) PopulateVnet(epInfo *EndpointInfo) 
 	if err != nil {
 		return errors.Wrap(err, "transparent vlan failed to disable rp filter vlan interface in vnet")
 	}
+
 	// Enable IPv6 forwarding in VLAN namespace
-	if err := client.netUtilsClient.EnableIPV6Forwarding(); err != nil {
-		return errors.Wrap(err, "transparent vlan failed to enable ipv6 forwarding in vnet")
+	if hasIPv6Addresses(epInfo.IPAddresses) {
+		if err := client.netUtilsClient.EnableIPV6Forwarding(); err != nil {
+			return errors.Wrap(err, "transparent vlan failed to enable ipv6 forwarding in vnet")
+		}
 	}
+
 	return nil
 }
 
