@@ -1227,12 +1227,29 @@ func TestAddDefaultArp(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "IPv6 neighbor fails with invalid mac",
+			name: "ARP fails with invalid MAC on first (IPv4) neighbor",
 			client: &TransparentVlanEndpointClient{
 				netlink: netlink.NewMockNetlink(false, ""),
 			},
 			ifName:  "eth0",
 			destMac: "invalid-mac",
+			hasIPv6: false,
+			wantErr: true,
+		},
+		{
+			name: "IPv6 neighbor insertion fails",
+			client: func() *TransparentVlanEndpointClient {
+				nl := netlink.NewMockNetlink(false, "")
+				nl.SetOrRemoveLinkAddressFn = func(linkInfo netlink.LinkInfo, _, _ int) error {
+					if linkInfo.IPAddr.To4() == nil {
+						return errors.New("mock IPv6 neighbor failure")
+					}
+					return nil
+				}
+				return &TransparentVlanEndpointClient{netlink: nl}
+			}(),
+			ifName:  "eth0",
+			destMac: azureMac,
 			hasIPv6: true,
 			wantErr: true,
 		},
