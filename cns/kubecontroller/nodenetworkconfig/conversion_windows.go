@@ -46,6 +46,11 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 				return nil, errors.Wrapf(err, "invalid CIDR block: %s", ipAssignment.IP)
 			}
 
+			// Cap IPv6 prefix length at ipv6PrefixCap to prevent too many IPs in memory.
+			if cidrPrefix.Addr().Is6() && cidrPrefix.Bits() < ipv6PrefixCap {
+				cidrPrefix = netip.PrefixFrom(cidrPrefix.Masked().Addr(), ipv6PrefixCap)
+			}
+
 			// iterate through all IP addresses in the CIDR block described by cidrPrefix and
 			// add them to the request as secondary IPConfigs.
 			for addr := cidrPrefix.Masked().Addr(); cidrPrefix.Contains(addr); addr = addr.Next() {
