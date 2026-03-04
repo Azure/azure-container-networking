@@ -43,6 +43,25 @@ type netnsClient interface {
 	IsNamespaceEqual(fd1, fd2 int) bool
 	NamespaceUniqueID(fd int) string
 }
+
+// netlinkRuleClient abstracts vishvananda/netlink policy-routing rule
+// operations so that unit tests can avoid touching real netlink sockets.
+type netlinkRuleClient interface {
+	RuleList(family int) ([]vishnetlink.Rule, error)
+	RuleAdd(rule *vishnetlink.Rule) error
+}
+
+// defaultNetlinkRuleClient delegates to the real vishvananda/netlink package.
+type defaultNetlinkRuleClient struct{}
+
+func (defaultNetlinkRuleClient) RuleList(family int) ([]vishnetlink.Rule, error) {
+	return vishnetlink.RuleList(family)
+}
+
+func (defaultNetlinkRuleClient) RuleAdd(rule *vishnetlink.Rule) error {
+	return vishnetlink.RuleAdd(rule)
+}
+
 type TransparentVlanEndpointClient struct {
 	primaryHostIfName string // So like eth0
 	vlanIfName        string // So like eth0.1
@@ -69,6 +88,7 @@ type TransparentVlanEndpointClient struct {
 	netUtilsClient           networkutils.NetworkUtils
 	nsClient                 NamespaceClientInterface
 	iptablesClient           ipTablesClient
+	nlRuleClient             netlinkRuleClient
 }
 
 func NewTransparentVlanEndpointClient(
@@ -105,6 +125,7 @@ func NewTransparentVlanEndpointClient(
 		netUtilsClient:           networkutils.NewNetworkUtils(nl, plc),
 		nsClient:                 nsc,
 		iptablesClient:           iptc,
+		nlRuleClient:             defaultNetlinkRuleClient{},
 	}
 
 	client.NewSnatClient(nw.SnatBridgeIP, localIP, ep)
@@ -479,7 +500,7 @@ func (client *TransparentVlanEndpointClient) addVnetMangleAndTunnelingRules(vers
 	newRule.Table = tunnelingTable
 	newRule.Family = family
 
-	rules, err := vishnetlink.RuleList(family)
+	rules, err := client.nlRuleClient.RuleList(family)
 	if err != nil {
 		return errors.Wrapf(err, "unable to get existing %s rule list", version)
 	}
@@ -488,7 +509,7 @@ func (client *TransparentVlanEndpointClient) addVnetMangleAndTunnelingRules(vers
 			return nil // rule already exists
 		}
 	}
-	if err := vishnetlink.RuleAdd(newRule); err != nil {
+	if err := client.nlRuleClient.RuleAdd(newRule); err != nil {
 		return errors.Wrapf(err, "failed to add %s rule for tunneling routing table", version)
 	}
 

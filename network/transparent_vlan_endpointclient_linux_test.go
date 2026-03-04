@@ -1289,15 +1289,34 @@ func (c *mockIPTablesClient) DeleteIptableRule(_, _, _, _, _ string) error { ret
 func (c *mockIPTablesClient) CreateChain(_, _, _ string) error             { return nil }
 func (c *mockIPTablesClient) RunCmd(_, _ string) error                     { return nil }
 
+// mockNetlinkRuleClient stubs vishvananda/netlink RuleList/RuleAdd so tests
+// never touch real netlink sockets or require CAP_NET_ADMIN.
+type mockNetlinkRuleClient struct {
+	rules []vishnetlink.Rule
+	added []*vishnetlink.Rule
+}
+
+func (m *mockNetlinkRuleClient) RuleList(_ int) ([]vishnetlink.Rule, error) {
+	return m.rules, nil
+}
+
+func (m *mockNetlinkRuleClient) RuleAdd(rule *vishnetlink.Rule) error {
+	m.added = append(m.added, rule)
+	return nil
+}
+
 func TestAddVnetRulesIPTables(t *testing.T) {
 	t.Run("IPv6 rules", func(t *testing.T) {
 		mockIPT := &mockIPTablesClient{}
+		mockNLRule := &mockNetlinkRuleClient{}
 		client := &TransparentVlanEndpointClient{
 			vlanIfName:     "eth0.1",
 			iptablesClient: mockIPT,
+			nlRuleClient:   mockNLRule,
 		}
 
-		client.addVnetMangleAndTunnelingRules(iptables.V6, vishnetlink.FAMILY_V6)
+		err := client.addVnetMangleAndTunnelingRules(iptables.V6, vishnetlink.FAMILY_V6)
+		require.NoError(t, err)
 
 		var v6Calls int
 		for _, call := range mockIPT.insertCalls {
@@ -1306,16 +1325,22 @@ func TestAddVnetRulesIPTables(t *testing.T) {
 			}
 		}
 		require.Equal(t, 2, v6Calls, "expected 2 IPv6 ip6tables calls (mark + accept)")
+		require.Len(t, mockNLRule.added, 1, "expected one rule added via RuleAdd")
+		require.EqualValues(t, tunnelingMark, mockNLRule.added[0].Mark)
+		require.EqualValues(t, tunnelingTable, mockNLRule.added[0].Table)
 	})
 
 	t.Run("IPv4 rules", func(t *testing.T) {
 		mockIPT := &mockIPTablesClient{}
+		mockNLRule := &mockNetlinkRuleClient{}
 		client := &TransparentVlanEndpointClient{
 			vlanIfName:     "eth0.1",
 			iptablesClient: mockIPT,
+			nlRuleClient:   mockNLRule,
 		}
 
-		client.addVnetMangleAndTunnelingRules(iptables.V4, vishnetlink.FAMILY_V4)
+		err := client.addVnetMangleAndTunnelingRules(iptables.V4, vishnetlink.FAMILY_V4)
+		require.NoError(t, err)
 
 		var v4Calls int
 		for _, call := range mockIPT.insertCalls {
@@ -1324,6 +1349,25 @@ func TestAddVnetRulesIPTables(t *testing.T) {
 			}
 		}
 		require.Equal(t, 2, v4Calls, "expected 2 IPv4 iptables calls (mark + accept)")
+		require.Len(t, mockNLRule.added, 1, "expected one rule added via RuleAdd")
+		require.EqualValues(t, tunnelingMark, mockNLRule.added[0].Mark)
+		require.EqualValues(t, tunnelingTable, mockNLRule.added[0].Table)
+	})
+
+	t.Run("skips RuleAdd when rule already exists", func(t *testing.T) {
+		mockIPT := &mockIPTablesClient{}
+		mockNLRule := &mockNetlinkRuleClient{
+			rules: []vishnetlink.Rule{{Mark: tunnelingMark}},
+		}
+		client := &TransparentVlanEndpointClient{
+			vlanIfName:     "eth0.1",
+			iptablesClient: mockIPT,
+			nlRuleClient:   mockNLRule,
+		}
+
+		err := client.addVnetMangleAndTunnelingRules(iptables.V4, vishnetlink.FAMILY_V4)
+		require.NoError(t, err)
+		require.Empty(t, mockNLRule.added, "RuleAdd should not be called when rule already exists")
 	})
 }
 
