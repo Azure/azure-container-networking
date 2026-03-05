@@ -3,6 +3,7 @@ package configuration
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -38,6 +39,7 @@ type CNSConfig struct {
 	EnableSubnetScarcity        bool
 	EnableSwiftV1DualStack      bool
 	EnableSwiftV2               bool
+	IPv6PrefixClamp             int
 	InitializeFromCNI           bool
 	KeyVaultSettings            KeyVaultSettings
 	Logger                      loggerv2.Config
@@ -241,6 +243,13 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 
 	if config.MinTLSVersion == "" {
 		config.MinTLSVersion = "TLS 1.2"
+	}
+	// Validate IPv6PrefixClamp to avoid invalid prefix lengths reaching netip.PrefixFrom.
+	// If IPv6PrefixClamp less than 120, large amount of IPs will be generated which could lead to OOM.
+	// If IPv6PrefixClamp greater than 128, it's an error in config since max prefix length for IPv6 is 128.
+	if config.IPv6PrefixClamp < 120 || config.IPv6PrefixClamp > 128 {
+		log.Printf("[configuration] invalid IPv6PrefixClamp value %d; must be between 120 to 128, defaulting to /120", config.IPv6PrefixClamp)
+		config.IPv6PrefixClamp = 120 //nolint:gomnd // default IPv6 prefix clamp to /120 (256 IPs)
 	}
 	config.GRPCSettings.Enable = false
 	config.WatchPods = config.EnableIPAMv2 || config.EnableSwiftV2

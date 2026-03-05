@@ -1311,7 +1311,10 @@ type ipamStateReconciler interface {
 
 // TODO(rbtr) where should this live??
 // reconcileInitialCNSState initializes cns by passing pods and a CreateNetworkContainerRequest
-func reconcileInitialCNSState(nnc *v1alpha.NodeNetworkConfig, ipamReconciler ipamStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider, isSwiftV2 bool) error {
+func reconcileInitialCNSState(
+	nnc *v1alpha.NodeNetworkConfig, ipamReconciler ipamStateReconciler,
+	podInfoByIPProvider cns.PodInfoByIPProvider, isSwiftV2 bool, ipv6PrefixClamp int,
+) error {
 	// if no NCs, nothing to do
 	ncCount := len(nnc.Status.NetworkContainers)
 	if ncCount == 0 {
@@ -1334,7 +1337,7 @@ func reconcileInitialCNSState(nnc *v1alpha.NodeNetworkConfig, ipamReconciler ipa
 		)
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		case v1alpha.Static:
-			ncRequest, err = nncctrl.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i], isSwiftV2)
+			ncRequest, err = nncctrl.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i], isSwiftV2, ipv6PrefixClamp)
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			ncRequest, err = nncctrl.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 		}
@@ -1431,8 +1434,8 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 
 	initializerWrapper := func(nnc *v1alpha.NodeNetworkConfig) error {
 		logger.Printf("Reconciling initial CNS state")
-		if err := reconcileInitialCNSState(nnc, httpRestServiceImplementation, podInfoByIPProvider, cnsconfig.EnableSwiftV2); err != nil {
-			return err
+		if initErr := reconcileInitialCNSState(nnc, httpRestServiceImplementation, podInfoByIPProvider, cnsconfig.EnableSwiftV2, cnsconfig.IPv6PrefixClamp); initErr != nil {
+			return initErr
 		}
 		hasNNCInitialized.Set(1)
 		return nil
@@ -1526,7 +1529,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
-	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, initializerWrapper, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2)
+	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, initializerWrapper, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2, cnsconfig.IPv6PrefixClamp)
 	// pass Node to the Reconciler for Controller xref
 	// IPAMv1 - reconcile only status changes (where generation doesn't change).
 	// IPAMv2 - reconcile all updates.
