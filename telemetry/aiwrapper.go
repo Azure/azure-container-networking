@@ -3,6 +3,7 @@ package telemetry
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/log"
@@ -39,12 +40,12 @@ func (tb *TelemetryBuffer) CreateAITelemetryHandle(aiConfig aitelemetry.AIConfig
 	if enableAIInSovereignCloud {
 		th, err = aitelemetry.NewWithConnectionString(connectionString, aiConfig)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create telemetry handle with connection string: %w", err)
 		}
 	} else {
 		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create telemetry handle: %w", err)
 		}
 	}
 
