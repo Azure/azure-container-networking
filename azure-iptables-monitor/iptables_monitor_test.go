@@ -145,6 +145,243 @@ func (m *MockEBPFClient) GetBPFMapValue(pinPath string) (uint64, error) {
 	return m.Value, m.Error
 }
 
+// MockRouteManager for route operations
+type MockRouteManager struct {
+	EnsuredRoutes []EnsuredRoute
+	RemovedRoutes []EnsuredRoute
+	EnsureError   error
+	RemoveError   error
+}
+
+type EnsuredRoute struct {
+	IP     string
+	IsIPv6 bool
+}
+
+func NewMockRouteManager() *MockRouteManager {
+	return &MockRouteManager{
+		EnsuredRoutes: make([]EnsuredRoute, 0),
+		RemovedRoutes: make([]EnsuredRoute, 0),
+	}
+}
+
+func (m *MockRouteManager) EnsureRoute(ip string, isIPv6 bool) error {
+	m.EnsuredRoutes = append(m.EnsuredRoutes, EnsuredRoute{IP: ip, IsIPv6: isIPv6})
+	return m.EnsureError
+}
+
+func (m *MockRouteManager) RemoveRoute(ip string, isIPv6 bool) error {
+	m.RemovedRoutes = append(m.RemovedRoutes, EnsuredRoute{IP: ip, IsIPv6: isIPv6})
+	return m.RemoveError
+}
+
+func TestParseSNATIPs(t *testing.T) {
+	testCases := []struct {
+		name     string
+		rules    []string
+		expected []string
+	}{
+		{
+			name:     "no rules",
+			rules:    []string{},
+			expected: nil,
+		},
+		{
+			name: "single IPv4 SNAT rule",
+			rules: []string{
+				"-A ISTIO_POSTRT -j SNAT --to-source 10.244.0.5",
+			},
+			expected: []string{"10.244.0.5"},
+		},
+		{
+			name: "single IPv6 SNAT rule",
+			rules: []string{
+				"-A ISTIO_POSTRT -j SNAT --to-source fd00::1",
+			},
+			expected: []string{"fd00::1"},
+		},
+		{
+			name: "multiple SNAT rules",
+			rules: []string{
+				"-A ISTIO_POSTRT -j SNAT --to-source 10.244.0.5",
+				"-A ISTIO_POSTRT -j SNAT --to-source 10.244.0.6",
+			},
+			expected: []string{"10.244.0.5", "10.244.0.6"},
+		},
+		{
+			name: "mixed SNAT and non-SNAT rules",
+			rules: []string{
+				"-A ISTIO_POSTRT -j RETURN",
+				"-A ISTIO_POSTRT -j SNAT --to-source 10.244.0.5",
+				"-A ISTIO_POSTRT -j MASQUERADE",
+			},
+			expected: []string{"10.244.0.5"},
+		},
+		{
+			name: "SNAT rule with extra options before target",
+			rules: []string{
+				"-A ISTIO_POSTRT -s 10.0.0.0/8 -j SNAT --to-source 10.244.0.5",
+			},
+			expected: []string{"10.244.0.5"},
+		},
+		{
+			name: "unparseable IP is skipped",
+			rules: []string{
+				"-A ISTIO_POSTRT -j SNAT --to-source not-an-ip",
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := parseSNATIPs(tc.rules)
+			require.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestSyncIstioSNATRoutes(t *testing.T) {
+	testCases := []struct {
+		name            string
+		v4Rules         map[string]map[string][]string
+		v6Rules         map[string]map[string][]string
+		initialState    map[routeKey]bool
+		ipv6Available   bool
+		expectedEnsured []EnsuredRoute
+		expectedRemoved []EnsuredRoute
+		expectedState   map[routeKey]bool
+	}{
+		{
+			name:            "no ISTIO_POSTRT chain, no state",
+			v4Rules:         map[string]map[string][]string{},
+			initialState:    map[routeKey]bool{},
+			ipv6Available:   false,
+			expectedEnsured: []EnsuredRoute{},
+			expectedRemoved: []EnsuredRoute{},
+			expectedState:   map[routeKey]bool{},
+		},
+		{
+			name: "new IPv4 SNAT rule adds route",
+			v4Rules: map[string]map[string][]string{
+				"nat": {
+					"ISTIO_POSTRT": {
+						"-A ISTIO_POSTRT -j SNAT --to-source 10.244.0.5",
+					},
+				},
+			},
+			initialState:    map[routeKey]bool{},
+			ipv6Available:   false,
+			expectedEnsured: []EnsuredRoute{{IP: "10.244.0.5", IsIPv6: false}},
+			expectedRemoved: []EnsuredRoute{},
+			expectedState:   map[routeKey]bool{{ip: "10.244.0.5", isIPv6: false}: true},
+		},
+		{
+			name: "already installed route is not re-added",
+			v4Rules: map[string]map[string][]string{
+				"nat": {
+					"ISTIO_POSTRT": {
+						"-A ISTIO_POSTRT -j SNAT --to-source 10.244.0.5",
+					},
+				},
+			},
+			initialState:    map[routeKey]bool{{ip: "10.244.0.5", isIPv6: false}: true},
+			ipv6Available:   false,
+			expectedEnsured: []EnsuredRoute{},
+			expectedRemoved: []EnsuredRoute{},
+			expectedState:   map[routeKey]bool{{ip: "10.244.0.5", isIPv6: false}: true},
+		},
+		{
+			name:    "stale route is removed when rule disappears",
+			v4Rules: map[string]map[string][]string{},
+			initialState: map[routeKey]bool{
+				{ip: "10.244.0.5", isIPv6: false}: true,
+			},
+			ipv6Available:   false,
+			expectedEnsured: []EnsuredRoute{},
+			expectedRemoved: []EnsuredRoute{{IP: "10.244.0.5", IsIPv6: false}},
+			expectedState:   map[routeKey]bool{},
+		},
+		{
+			name: "mixed: one added, one removed, one stable",
+			v4Rules: map[string]map[string][]string{
+				"nat": {
+					"ISTIO_POSTRT": {
+						"-A ISTIO_POSTRT -j SNAT --to-source 10.244.0.5",
+						"-A ISTIO_POSTRT -j SNAT --to-source 10.244.0.7",
+					},
+				},
+			},
+			initialState: map[routeKey]bool{
+				{ip: "10.244.0.5", isIPv6: false}: true, // stays
+				{ip: "10.244.0.6", isIPv6: false}: true, // stale, removed
+			},
+			ipv6Available:   false,
+			expectedEnsured: []EnsuredRoute{{IP: "10.244.0.7", IsIPv6: false}}, // new
+			expectedRemoved: []EnsuredRoute{{IP: "10.244.0.6", IsIPv6: false}},
+			expectedState: map[routeKey]bool{
+				{ip: "10.244.0.5", isIPv6: false}: true,
+				{ip: "10.244.0.7", isIPv6: false}: true,
+			},
+		},
+		{
+			name:    "IPv6 SNAT rule with ipv6 available",
+			v4Rules: map[string]map[string][]string{},
+			v6Rules: map[string]map[string][]string{
+				"nat": {
+					"ISTIO_POSTRT": {
+						"-A ISTIO_POSTRT -j SNAT --to-source fd00::1",
+					},
+				},
+			},
+			initialState:    map[routeKey]bool{},
+			ipv6Available:   true,
+			expectedEnsured: []EnsuredRoute{{IP: "fd00::1", IsIPv6: true}},
+			expectedRemoved: []EnsuredRoute{},
+			expectedState:   map[routeKey]bool{{ip: "fd00::1", isIPv6: true}: true},
+		},
+		{
+			name:    "stale IPv6 route removed",
+			v4Rules: map[string]map[string][]string{},
+			v6Rules: map[string]map[string][]string{},
+			initialState: map[routeKey]bool{
+				{ip: "fd00::1", isIPv6: true}: true,
+			},
+			ipv6Available:   true,
+			expectedEnsured: []EnsuredRoute{},
+			expectedRemoved: []EnsuredRoute{{IP: "fd00::1", IsIPv6: true}},
+			expectedState:   map[routeKey]bool{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			v4Client := NewMockIPTablesClient()
+			v4Client.rules = tc.v4Rules
+
+			v6Client := NewMockIPTablesClient()
+			if tc.v6Rules != nil {
+				v6Client.rules = tc.v6Rules
+			}
+
+			routeManager := NewMockRouteManager()
+			state := &snatRouteState{installed: tc.initialState}
+
+			deps := Dependencies{
+				IPTablesV4:   v4Client,
+				IPTablesV6:   v6Client,
+				RouteManager: routeManager,
+			}
+
+			syncIstioSNATRoutes(deps, tc.ipv6Available, state)
+
+			require.ElementsMatch(t, tc.expectedEnsured, routeManager.EnsuredRoutes, "ensured routes mismatch")
+			require.ElementsMatch(t, tc.expectedRemoved, routeManager.RemovedRoutes, "removed routes mismatch")
+			require.Equal(t, tc.expectedState, state.installed, "final state mismatch")
+		})
+	}
+}
+
 func TestHasUnexpectedRules(t *testing.T) {
 	testCases := []struct {
 		name            string

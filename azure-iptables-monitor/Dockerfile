@@ -46,12 +46,14 @@ RUN if [ "$ARCH" = "amd64" ]; then \
 RUN GOOS=$OS CGO_ENABLED=0 go generate ./bpf-prog/azure-block-iptables/...
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-block-iptables -trimpath -ldflags "-s -w -X main.version="$AZURE_BLOCK_IPTABLES_VERSION"" -gcflags="-dwarflocationlists=true" ./bpf-prog/azure-block-iptables/cmd/azure-block-iptables
 
-FROM mariner-core AS iptables
-RUN tdnf install -y iptables
+FROM mariner-core AS iptools
+RUN tdnf install -y iptables iproute
 
 FROM mariner-distroless AS linux
-COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
-COPY --from=iptables /usr/lib /usr/lib
+COPY --from=iptools /usr/sbin/*tables* /usr/sbin/
+COPY --from=iptools /usr/sbin/ip /usr/sbin/
+COPY --from=iptools /usr/lib /usr/lib
+COPY --from=iptools /usr/lib64 /usr/lib64
 COPY --from=azure-iptables-monitor /go/bin/iptables-monitor azure-iptables-monitor
 COPY --from=azure-block-iptables /go/bin/azure-block-iptables azure-block-iptables
 

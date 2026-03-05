@@ -5,7 +5,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"time"
@@ -36,12 +38,16 @@ var (
 	checkMap           = flag.Bool("checkMap", false, "Whether to check the bpf map at mapPath for increases")
 	pinPath            = flag.String("mapPath", "/azure-block-iptables-bpf-map/iptables_block_event_counter", "Path to pinned bpf map")
 	terminateOnSuccess = flag.Bool("terminateOnSuccess", false, "Whether to terminate the program when no user iptables rules found")
+	monitorIstioSNAT   = flag.Bool("monitor-istio-snat", false, "Whether to monitor ISTIO_POSTRT chain SNAT rules and add loopback routes for their IPs")
 )
 
 const (
 	label          = "kubernetes.azure.com/user-iptables-rules"
 	requestTimeout = 5 * time.Second
 )
+
+// snatRegex matches SNAT rules and captures the --to-source IP
+var snatRegex = regexp.MustCompile(`-j\s+SNAT.*--to-source\s+(\S+)`)
 
 type OSFileLineReader struct{}
 
@@ -76,6 +82,41 @@ type realEBPFClient struct{}
 
 func NewEBPFClient() EBPFClient {
 	return &realEBPFClient{}
+}
+
+// realRouteManager manages system routes via the ip command
+type realRouteManager struct{}
+
+func NewRouteManager() RouteManager {
+	return &realRouteManager{}
+}
+
+// EnsureRoute adds a route for the given IP to the loopback device, replacing any existing route
+func (r *realRouteManager) EnsureRoute(ip string, isIPv6 bool) error {
+	args := []string{"route", "replace", ip + "/32", "dev", "lo"}
+	if isIPv6 {
+		args = []string{"-6", "route", "replace", ip + "/128", "dev", "lo"}
+	}
+	cmd := exec.Command("ip", args...) // #nosec G204 -- args are validated IPs, not user-controlled
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to ensure route for %s: %w (output: %s)", ip, err, string(output))
+	}
+	return nil
+}
+
+// RemoveRoute deletes the loopback route for the given IP
+func (r *realRouteManager) RemoveRoute(ip string, isIPv6 bool) error {
+	args := []string{"route", "del", ip + "/32", "dev", "lo"}
+	if isIPv6 {
+		args = []string{"-6", "route", "del", ip + "/128", "dev", "lo"}
+	}
+	cmd := exec.Command("ip", args...) // #nosec G204 -- args are validated IPs, not user-controlled
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to remove route for %s: %w (output: %s)", ip, err, string(output))
+	}
+	return nil
 }
 
 // GetBPFMapValue queries the bpf map at pinPath and gets the value at key 0
@@ -318,11 +359,105 @@ func Check(cfg Config, deps Dependencies, previousBlocks *uint64) bool {
 	return userIPTablesRulesFound
 }
 
+// routeKey uniquely identifies an installed SNAT route
+type routeKey struct {
+	ip     string
+	isIPv6 bool
+}
+
+// snatRouteState tracks which SNAT routes are currently installed
+type snatRouteState struct {
+	installed map[routeKey]bool
+}
+
+func newSNATRouteState() *snatRouteState {
+	return &snatRouteState{installed: make(map[routeKey]bool)}
+}
+
+// parseSNATIPs extracts validated IPs from SNAT rules
+func parseSNATIPs(rules []string) []string {
+	var ips []string
+	for _, rule := range rules {
+		matches := snatRegex.FindStringSubmatch(rule)
+		if len(matches) >= 2 {
+			ipStr := matches[1]
+			if net.ParseIP(ipStr) != nil {
+				ips = append(ips, ipStr)
+			} else {
+				klog.Warningf("Skipping unparseable IP from SNAT --to-source: %s", ipStr)
+			}
+		}
+	}
+	return ips
+}
+
+// getSNATIPs queries the ISTIO_POSTRT chain and returns the set of SNAT IPs found
+func getSNATIPs(iptablesClient IPTablesClient, isIPv6 bool) map[routeKey]bool {
+	desired := make(map[routeKey]bool)
+	rules, err := iptablesClient.List("nat", "ISTIO_POSTRT")
+	if err != nil {
+		klog.V(2).Infof("Could not list ISTIO_POSTRT chain in nat table (ipv6=%v): %v", isIPv6, err)
+		return desired
+	}
+
+	for _, ip := range parseSNATIPs(rules) {
+		desired[routeKey{ip: ip, isIPv6: isIPv6}] = true
+	}
+	return desired
+}
+
+// syncIstioSNATRoutes reconciles loopback routes with current SNAT rules.
+// It adds routes for new IPs and removes routes for IPs no longer present.
+func syncIstioSNATRoutes(deps Dependencies, ipv6Available bool, state *snatRouteState) {
+	// Build the desired set of routes from current iptables rules
+	desired := getSNATIPs(deps.IPTablesV4, false)
+	if ipv6Available && deps.IPTablesV6 != nil {
+		for k, v := range getSNATIPs(deps.IPTablesV6, true) {
+			desired[k] = v
+		}
+	}
+
+	// Add routes for IPs that are desired but not yet installed
+	for key := range desired {
+		if state.installed[key] {
+			continue
+		}
+		klog.V(2).Infof("Adding loopback route for SNAT IP %s (ipv6=%v)", key.ip, key.isIPv6)
+		if err := deps.RouteManager.EnsureRoute(key.ip, key.isIPv6); err != nil {
+			klog.Errorf("Failed to add loopback route for %s: %v", key.ip, err)
+		} else {
+			state.installed[key] = true
+		}
+	}
+
+	// Remove routes for IPs that are installed but no longer desired
+	for key := range state.installed {
+		if desired[key] {
+			continue
+		}
+		klog.V(2).Infof("Removing loopback route for stale SNAT IP %s (ipv6=%v)", key.ip, key.isIPv6)
+		if err := deps.RouteManager.RemoveRoute(key.ip, key.isIPv6); err != nil {
+			klog.Errorf("Failed to remove loopback route for %s: %v", key.ip, err)
+		} else {
+			delete(state.installed, key)
+		}
+	}
+}
+
 // Run runs Check in a loop and handles the number of blocks
 func Run(cfg Config, deps Dependencies) {
 	blockCount := uint64(0)
+	var snatState *snatRouteState
+	if cfg.MonitorIstioSNAT {
+		snatState = newSNATRouteState()
+	}
 	for {
 		userIPTablesRulesFound := Check(cfg, deps, &blockCount)
+
+		if cfg.MonitorIstioSNAT {
+			syncIstioSNATRoutes(deps, cfg.IPv6Enabled, snatState)
+		}
+
 		if !userIPTablesRulesFound && cfg.TerminateOnSuccess {
 			klog.Info("No user iptables rules found, terminating the iptables monitor")
 			break
@@ -356,6 +491,7 @@ func main() {
 		CheckMap:           *checkMap,
 		PinPath:            *pinPath,
 		TerminateOnSuccess: *terminateOnSuccess,
+		MonitorIstioSNAT:   *monitorIstioSNAT,
 		NodeName:           currentNodeName,
 	}
 
@@ -395,6 +531,12 @@ func main() {
 		EBPFClient:    NewEBPFClient(),
 		FileReader:    OSFileLineReader{},
 	}
+
+	if *monitorIstioSNAT {
+		deps.RouteManager = NewRouteManager()
+		klog.Info("ISTIO SNAT monitoring enabled")
+	}
+
 	klog.Infof("Starting iptables monitor for node: %s", cfg.NodeName)
 
 	Run(cfg, deps)

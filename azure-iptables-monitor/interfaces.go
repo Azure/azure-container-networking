@@ -38,6 +38,12 @@ type EBPFClient interface {
 	GetBPFMapValue(pinPath string) (uint64, error)
 }
 
+// RouteManager interface for managing system routes
+type RouteManager interface {
+	EnsureRoute(ip string, isIPv6 bool) error
+	RemoveRoute(ip string, isIPv6 bool) error
+}
+
 // Dependencies struct holds all external dependencies
 type Dependencies struct {
 	KubeClient    KubeClient
@@ -46,6 +52,7 @@ type Dependencies struct {
 	IPTablesV6    IPTablesClient
 	EBPFClient    EBPFClient
 	FileReader    FileLineReader
+	RouteManager  RouteManager
 }
 
 // Config struct holds runtime configuration
@@ -59,6 +66,7 @@ type Config struct {
 	PinPath            string
 	NodeName           string
 	TerminateOnSuccess bool
+	MonitorIstioSNAT   bool
 }
 
 // Implementation types that wrap real k8s clients
