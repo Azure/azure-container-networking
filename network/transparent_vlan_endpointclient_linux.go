@@ -421,7 +421,7 @@ func (client *TransparentVlanEndpointClient) PopulateVnet(epInfo *EndpointInfo) 
 	}
 
 	// Enable IPv6 forwarding in VLAN namespace
-	if hasIPv6Addresses(epInfo.IPAddresses) {
+	if epInfo.IsIPv6Enabled {
 		if err := client.netUtilsClient.EnableIPV6Forwarding(); err != nil {
 			return errors.Wrap(err, "transparent vlan failed to enable ipv6 forwarding in vnet")
 		}
@@ -470,7 +470,7 @@ func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) 
 		return errors.Wrap(err, "unable to insert iptables rule to drop wireserver packets")
 	}
 
-	if hasIPv6Addresses(epInfo.IPAddresses) {
+	if epInfo.IsIPv6Enabled {
 		if err := client.addVnetMangleAndTunnelingRules(iptables.V6, vishnetlink.FAMILY_V6); err != nil {
 			return err
 		}
@@ -590,13 +590,11 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 
 	logger.Info("Adding default routes and neighbor entries in container ns")
 
-	hasIPv6 := hasIPv6Addresses(epInfo.IPAddresses)
-
-	if err := client.addDefaultRoutes(client.containerVethName, 0, hasIPv6); err != nil {
+	if err := client.addDefaultRoutes(client.containerVethName, 0, epInfo.IsIPv6Enabled); err != nil {
 		return errors.Wrap(err, "failed container ns add default routes")
 	}
 
-	if err := client.AddDefaultArp(client.containerVethName, client.vnetMac.String(), hasIPv6); err != nil {
+	if err := client.AddDefaultArp(client.containerVethName, client.vnetMac.String(), epInfo.IsIPv6Enabled); err != nil {
 		return errors.Wrap(err, "failed container ns add default arp")
 	}
 	return nil
@@ -609,15 +607,12 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 		return errors.Wrap(err, "failed to set loopback link state to up")
 	}
 
-	// Check if endpoint has IPv6 addresses
-	hasIPv6 := hasIPv6Addresses(epInfo.IPAddresses)
-
 	// Add route specifying which device the pod ip(s) are on
 	routeInfoList := client.GetVnetRoutes(epInfo.IPAddresses)
-	if err = client.addDefaultRoutes(client.vlanIfName, 0, hasIPv6); err != nil {
+	if err = client.addDefaultRoutes(client.vlanIfName, 0, epInfo.IsIPv6Enabled); err != nil {
 		return errors.Wrap(err, "failed vnet ns add default/gateway routes (idempotent)")
 	}
-	if err = client.AddDefaultArp(client.vlanIfName, azureMac, hasIPv6); err != nil {
+	if err = client.AddDefaultArp(client.vlanIfName, azureMac, epInfo.IsIPv6Enabled); err != nil {
 		return errors.Wrap(err, "failed vnet ns add default arp entry (idempotent)")
 	}
 
@@ -628,7 +623,7 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 	if err = addRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
 		return errors.Wrap(err, "failed adding routes to vnet specific to this container")
 	}
-	if err = client.addDefaultRoutes(client.vlanIfName, tunnelingTable, hasIPv6); err != nil {
+	if err = client.addDefaultRoutes(client.vlanIfName, tunnelingTable, epInfo.IsIPv6Enabled); err != nil {
 		return errors.Wrap(err, "failed vnet ns add outbound routing table routes for tunneling (idempotent)")
 	}
 	// Return to ConfigureContainerInterfacesAndRoutes
@@ -657,16 +652,6 @@ func (client *TransparentVlanEndpointClient) GetVnetRoutes(ipAddresses []net.IPN
 
 	}
 	return routeInfoList
-}
-
-// Helper function to check if any IPv6 addresses are present in the list
-func hasIPv6Addresses(ipAddresses []net.IPNet) bool {
-	for _, ipAddr := range ipAddresses {
-		if ipAddr.IP.To4() == nil {
-			return true
-		}
-	}
-	return false
 }
 
 // Helper that creates routing rules for the current NS which direct packets

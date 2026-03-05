@@ -1090,50 +1090,6 @@ func createFunctionWithFailurePattern(errorPattern []error) func() error {
 	}
 }
 
-func TestHasIPv6Addresses(t *testing.T) {
-	tests := []struct {
-		name        string
-		ipAddresses []net.IPNet
-		expected    bool
-	}{
-		{
-			name:        "Empty list",
-			ipAddresses: []net.IPNet{},
-			expected:    false,
-		},
-		{
-			name: "IPv4 only",
-			ipAddresses: []net.IPNet{
-				{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(subnetv4Mask, ipv4Bits)},
-				{IP: net.ParseIP("10.0.0.1"), Mask: net.CIDRMask(subnetv4Mask, ipv4Bits)},
-			},
-			expected: false,
-		},
-		{
-			name: "IPv6 only",
-			ipAddresses: []net.IPNet{
-				{IP: net.ParseIP("fd11::1"), Mask: net.CIDRMask(subnetv6Mask, ipv6Bits)},
-				{IP: net.ParseIP("fd11::2"), Mask: net.CIDRMask(subnetv6Mask, ipv6Bits)},
-			},
-			expected: true,
-		},
-		{
-			name: "Dual-stack IPv4 and IPv6",
-			ipAddresses: []net.IPNet{
-				{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(subnetv4Mask, ipv4Bits)},
-				{IP: net.ParseIP("fd11::1"), Mask: net.CIDRMask(subnetv6Mask, ipv6Bits)},
-			},
-			expected: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := hasIPv6Addresses(tt.ipAddresses)
-			require.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestAddDefaultRoutes(t *testing.T) {
 	nl := netlink.NewMockNetlink(false, "")
 	plc := platform.NewMockExecClient(false)
