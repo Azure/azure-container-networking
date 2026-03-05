@@ -34,10 +34,8 @@ type TelemetryConfig struct {
 	BatchSizeInBytes              int
 	GetEnvRetryCount              int
 	GetEnvRetryWaitTimeInSecs     int
-	// AIConnectionString is the connection string for AppInsights (used for sovereign clouds)
-	AIConnectionString string `json:"appInsightsConnectionString"`
-	// EnableAIInSovereignCloud enables connection string usage for sovereign cloud support
-	EnableAIInSovereignCloud bool `json:"enableAIInSovereignCloud"`
+	AIConnectionString            string
+	EnableAIInSovereignCloud      bool
 }
 
 // FdName - file descriptor name

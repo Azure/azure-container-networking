@@ -36,7 +36,7 @@ func (tb *TelemetryBuffer) CreateAITelemetryHandle(aiConfig aitelemetry.AIConfig
 	}
 
 	// Use connection string only if sovereign cloud is enabled
-	if enableAIInSovereignCloud && connectionString != "" {
+	if enableAIInSovereignCloud {
 		th, err = aitelemetry.NewWithConnectionString(connectionString, aiConfig)
 		if err != nil {
 			return err
@@ -107,22 +107,22 @@ func SetAIMetadata(metadata string) {
 	aiMetadata = metadata
 }
 
-// GetConnectionString returns the current connection string value
-func GetConnectionString() string {
+// GetAIConnectionString returns the current AI connection string value
+func GetAIConnectionString() string {
 	return connectionString
 }
 
-// SetConnectionString sets the connection string value (for runtime configuration)
-func SetConnectionString(connStr string) {
+// SetAIConnectionString sets the AI connection string value (for runtime configuration)
+func SetAIConnectionString(connStr string) {
 	connectionString = connStr
 }
 
-// GetIsSovereignCloud returns the current sovereign cloud flag value
-func GetIsSovereignCloud() bool {
+// GetEnableAIInSovereignCloud returns the current AI sovereign cloud flag value
+func GetEnableAIInSovereignCloud() bool {
 	return enableAIInSovereignCloud
 }
 
-// SetIsSovereignCloud sets the sovereign cloud flag (for runtime configuration)
-func SetIsSovereignCloud(isSovereign bool) {
+// SetEnableAIInSovereignCloud sets the AI sovereign cloud flag (for runtime configuration)
+func SetEnableAIInSovereignCloud(isSovereign bool) {
 	enableAIInSovereignCloud = isSovereign
 }

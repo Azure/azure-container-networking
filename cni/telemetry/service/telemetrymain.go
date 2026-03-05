@@ -167,10 +167,10 @@ func main() {
 		GetEnvRetryWaitTimeInSecs:    config.GetEnvRetryWaitTimeInSecs,
 	}
 
-	// If sovereign cloud is enabled, use connection string for the telemerty handle
+	// If sovereign cloud is enabled, use connection string for the telemetry handle
 	if config.EnableAIInSovereignCloud {
-		telemetry.SetConnectionString(config.AIConnectionString)
-		telemetry.SetIsSovereignCloud(true)
+		telemetry.SetAIConnectionString(config.AIConnectionString)
+		telemetry.SetEnableAIInSovereignCloud(true)
 	}
 
 	if err := tb.CreateAITelemetryHandle(aiConfig, config.DisableAll, config.DisableTrace, config.DisableMetric); err != nil { // nolint
