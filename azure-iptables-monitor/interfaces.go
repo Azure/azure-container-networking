@@ -66,7 +66,7 @@ type Config struct {
 	PinPath            string
 	NodeName           string
 	TerminateOnSuccess bool
-	MonitorIstioSNAT   bool
+	InstallIstioRoutes bool
 }
 
 // Implementation types that wrap real k8s clients
