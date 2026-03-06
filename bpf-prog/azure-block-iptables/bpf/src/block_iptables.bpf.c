@@ -13,7 +13,7 @@
 #define EPERM 1
 #define IPT_SO_SET_REPLACE 64
 #define TASK_COMM_LEN 16
-#define COMM_COUNT 4
+#define COMM_COUNT 5
 #define IPPROTO_IP 0
 #define IPPROTO_IP6 41
 #define AF_NETLINK 16
@@ -26,6 +26,7 @@
 #define IP_MASQ "ip-masq"
 #define AZURE_CNS "azure-cns"
 #define ISTIO_NODE_AGENT "install-cni"
+#define NFS_MOUNT_SCRIPTS "nfs" // nfvsv3mountscript, nfsv4mountscript
 
 char __license[] SEC("license") = "Dual MIT/GPL";
 volatile const u64 host_netns_inode = 4026531840; // Initialized by userspace
