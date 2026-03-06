@@ -148,31 +148,24 @@ func (m *MockEBPFClient) GetBPFMapValue(pinPath string) (uint64, error) {
 // MockRouteManager for route operations
 type MockRouteManager struct {
 	EnsuredRoutes []EnsuredRoute
-	RemovedRoutes []EnsuredRoute
 	EnsureError   error
-	RemoveError   error
 }
 
 type EnsuredRoute struct {
 	IP     string
 	IsIPv6 bool
+	proto  string
 }
 
 func NewMockRouteManager() *MockRouteManager {
 	return &MockRouteManager{
 		EnsuredRoutes: make([]EnsuredRoute, 0),
-		RemovedRoutes: make([]EnsuredRoute, 0),
 	}
 }
 
 func (m *MockRouteManager) EnsureRoute(ip string, isIPv6 bool) error {
 	m.EnsuredRoutes = append(m.EnsuredRoutes, EnsuredRoute{IP: ip, IsIPv6: isIPv6})
 	return m.EnsureError
-}
-
-func (m *MockRouteManager) RemoveRoute(ip string, isIPv6 bool) error {
-	m.RemovedRoutes = append(m.RemovedRoutes, EnsuredRoute{IP: ip, IsIPv6: isIPv6})
-	return m.RemoveError
 }
 
 func TestInstallIstioRoutes(t *testing.T) {
@@ -186,15 +179,15 @@ func TestInstallIstioRoutes(t *testing.T) {
 			name:        "ipv4 only",
 			ipv6Enabled: false,
 			expectedEnsured: []EnsuredRoute{
-				{IP: "169.254.7.127", IsIPv6: false},
+				{IP: "169.254.7.127", IsIPv6: false, proto: "static"},
 			},
 		},
 		{
 			name:        "ipv4 and ipv6",
 			ipv6Enabled: true,
 			expectedEnsured: []EnsuredRoute{
-				{IP: "169.254.7.127", IsIPv6: false},
-				{IP: "fd16:9254:7127:1337:ffff:ffff:ffff:ffff", IsIPv6: true},
+				{IP: "169.254.7.127", IsIPv6: false, proto: "static"},
+				{IP: "fd16:9254:7127:1337:ffff:ffff:ffff:ffff", IsIPv6: true, proto: "static"},
 			},
 		},
 		{
@@ -202,8 +195,8 @@ func TestInstallIstioRoutes(t *testing.T) {
 			ipv6Enabled: true,
 			ensureError: fmt.Errorf("route failed"),
 			expectedEnsured: []EnsuredRoute{
-				{IP: "169.254.7.127", IsIPv6: false},
-				{IP: "fd16:9254:7127:1337:ffff:ffff:ffff:ffff", IsIPv6: true},
+				{IP: "169.254.7.127", IsIPv6: false, proto: "static"},
+				{IP: "fd16:9254:7127:1337:ffff:ffff:ffff:ffff", IsIPv6: true, proto: "static"},
 			},
 		},
 	}
