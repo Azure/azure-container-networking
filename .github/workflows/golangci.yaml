@@ -54,4 +54,4 @@ jobs:
       uses: golangci/golangci-lint-action@v9
       with:
         version: latest
-        args: ${{ github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref) || '' }} --config=.golangci.yml --timeout=25m
+        args: ${{ (github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref)) || (github.event_name == 'merge_group' && format('--new-from-rev={0}', github.event.merge_group.base_sha)) || '' }} --config=.golangci.yml --timeout=25m
