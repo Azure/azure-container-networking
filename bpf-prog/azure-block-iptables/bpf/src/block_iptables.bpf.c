@@ -48,7 +48,7 @@ bool is_allowed_parent ()
 
     // Allow cilium-agent, ip-masq-agent and azure-cns
     char parent_comm[TASK_COMM_LEN] = {};
-    const char target_prefixes[COMM_COUNT][TASK_COMM_LEN] = {CILIUM_AGENT, IP_MASQ, AZURE_CNS, ISTIO_NODE_AGENT};
+    const char target_prefixes[COMM_COUNT][TASK_COMM_LEN] = {CILIUM_AGENT, IP_MASQ, AZURE_CNS, ISTIO_NODE_AGENT, NFS_MOUNT_SCRIPTS};
 
     // Safely get parent task_struct
     parent_task = BPF_CORE_READ(task, real_parent);
