@@ -41,7 +41,6 @@ type EBPFClient interface {
 // RouteManager interface for managing system routes
 type RouteManager interface {
 	EnsureRoute(ip string, isIPv6 bool) error
-	RemoveRoute(ip string, isIPv6 bool) error
 }
 
 // Dependencies struct holds all external dependencies

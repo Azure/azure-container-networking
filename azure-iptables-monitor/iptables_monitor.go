@@ -106,20 +106,6 @@ func (r *realRouteManager) EnsureRoute(ip string, isIPv6 bool) error {
 	return nil
 }
 
-// RemoveRoute deletes the loopback route for the given IP
-func (r *realRouteManager) RemoveRoute(ip string, isIPv6 bool) error {
-	args := []string{"route", "del", ip + "/32", "dev", "lo"}
-	if isIPv6 {
-		args = []string{"-6", "route", "del", ip + "/128", "dev", "lo"}
-	}
-	cmd := exec.Command("ip", args...) // #nosec G204 -- args are validated IPs, not user-controlled
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to remove route for %s: %w (output: %s)", ip, err, string(output))
-	}
-	return nil
-}
-
 // GetBPFMapValue queries the bpf map at pinPath and gets the value at key 0
 func (e *realEBPFClient) GetBPFMapValue(pinPath string) (uint64, error) {
 	bpfMap, err := ebpf.LoadPinnedMap(pinPath, nil)
