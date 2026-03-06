@@ -94,9 +94,9 @@ func NewRouteManager() RouteManager {
 
 // EnsureRoute adds a route for the given IP to the loopback device, replacing any existing route
 func (r *realRouteManager) EnsureRoute(ip string, isIPv6 bool) error {
-	args := []string{"route", "replace", ip + "/32", "dev", "lo"}
+	args := []string{"route", "replace", ip + "/32", "dev", "lo", "proto", "static"}
 	if isIPv6 {
-		args = []string{"-6", "route", "replace", ip + "/128", "dev", "lo"}
+		args = []string{"-6", "route", "replace", ip + "/128", "dev", "lo", "proto", "static"}
 	}
 	cmd := exec.Command("ip", args...) // #nosec G204 -- args are validated IPs, not user-controlled
 	output, err := cmd.CombinedOutput()
