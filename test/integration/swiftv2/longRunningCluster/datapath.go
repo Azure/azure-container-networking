@@ -83,13 +83,14 @@ func CreatePodNetworkInstance(kubeconfig string, data PNIData, templatePath stri
 }
 
 type PodData struct {
-	PodName   string
-	NodeName  string
-	OS        string
-	PNName    string
-	PNIName   string
-	Namespace string
-	Image     string
+	PodName          string
+	NodeName         string
+	OS               string
+	PNName           string
+	PNIName          string
+	Namespace        string
+	Image            string
+	RuntimeClassName string
 }
 
 func CreatePod(kubeconfig string, data PodData, templatePath string) error {
@@ -140,9 +141,9 @@ type VnetSubnetInfo struct {
 func isValidWorkloadType(workloadType string) bool {
 	validTypes := []string{
 		"swiftv2-linux",
-		"swiftv2-windows",
 		"swiftv2-linux-byon",
-		"swiftv2-windows-byon",
+		"swiftv2-l1vh-accelnet-byon",
+		// "swiftv2-l1vh-infiniband-byon",
 	}
 
 	for _, validType := range validTypes {
@@ -251,15 +252,29 @@ func CreatePodNetworkInstanceResource(resources TestResources) error {
 	return nil
 }
 
+// runtimeClassForWorkload returns the appropriate RuntimeClassName for the current workload type.
+// L1VH accelnet/infiniband BYON nodes run Windows Server 2025 and require Hyper-V isolation
+// via the runhcs-lcow RuntimeClass to run Linux containers.
+func runtimeClassForWorkload() string {
+	workloadType := strings.TrimSpace(os.Getenv("WORKLOAD_TYPE"))
+	switch workloadType {
+	case "swiftv2-l1vh-accelnet-byon", "swiftv2-l1vh-infiniband-byon":
+		return "runhcs-lcow"
+	default:
+		return ""
+	}
+}
+
 func CreatePodResource(resources TestResources, podName, nodeName string) error {
 	err := CreatePod(resources.Kubeconfig, PodData{
-		PodName:   podName,
-		NodeName:  nodeName,
-		OS:        "linux",
-		PNName:    resources.PNName,
-		PNIName:   resources.PNIName,
-		Namespace: resources.PNName,
-		Image:     resources.PodImage,
+		PodName:          podName,
+		NodeName:         nodeName,
+		OS:               "linux",
+		PNName:           resources.PNName,
+		PNIName:          resources.PNIName,
+		Namespace:        resources.PNName,
+		Image:            resources.PodImage,
+		RuntimeClassName: runtimeClassForWorkload(),
 	}, resources.PodTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to create pod %s: %w", podName, err)

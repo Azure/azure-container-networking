@@ -20,6 +20,7 @@ parameters:
     type: object
     default:
       - "eastus2euap"
+      - "centraluseuap"
       - "westus2"
 
   - name: runSetupStages
