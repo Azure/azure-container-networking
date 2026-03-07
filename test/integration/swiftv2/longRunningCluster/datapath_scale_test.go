@@ -32,6 +32,14 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 	}
 
 	ginkgo.It("creates and deletes 20 pods in a burst using device plugin", func() {
+		// Skip scale tests for L1VH accelnet/infiniband BYON workloads due to a known device plugin
+		// over-scheduling issue: the vnet-nic device plugin's Allocate() is a no-op, so the scheduler
+		// can place more pods on a node than it has physical NICs during burst creation.
+		workloadType := strings.TrimSpace(os.Getenv("WORKLOAD_TYPE"))
+		if workloadType == "swiftv2-l1vh-accelnet-byon" || workloadType == "swiftv2-l1vh-infiniband-byon" {
+			ginkgo.Skip(fmt.Sprintf("Scale tests disabled for workload type %s due to device plugin over-scheduling issue", workloadType))
+		}
+
 		// Device plugin and Kubernetes scheduler automatically place pods on nodes with available NICs
 		// Define scenarios for both clusters - 10 pods on aks-1, 10 pods on aks-2 (20 total for testing)
 		scenarios := []struct {
@@ -111,13 +119,14 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 					ginkgo.By(fmt.Sprintf("Creating pod %s in namespace %s in cluster %s (auto-scheduled)", podName, resources.PNName, cluster))
 
 					err := CreatePod(resources.Kubeconfig, PodData{
-						PodName:   podName,
-						NodeName:  "",
-						OS:        "linux",
-						PNName:    resources.PNName,
-						PNIName:   resources.PNIName,
-						Namespace: resources.PNName,
-						Image:     resources.PodImage,
+						PodName:          podName,
+						NodeName:         "",
+						OS:               "linux",
+						PNName:           resources.PNName,
+						PNIName:          resources.PNIName,
+						Namespace:        resources.PNName,
+						Image:            resources.PodImage,
+						RuntimeClassName: runtimeClassForWorkload(),
 					}, resources.PodTemplate)
 					if err != nil {
 						errors <- fmt.Errorf("failed to create pod %s in cluster %s: %w", podName, cluster, err)

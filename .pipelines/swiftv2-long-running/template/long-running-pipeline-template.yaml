@@ -10,7 +10,7 @@ parameters:
     default: false
   - name: workloadType
     type: object
-    default: [ "swiftv2-linux", "swiftv2-linux-byon" ]
+    default: [ "swiftv2-linux", "swiftv2-linux-byon", "swiftv2-l1vh-accelnet-byon" ] #"swiftv2-l1vh-infiniband-byon"
     displayName: "Swiftv2 scenarios to run"
 
 
@@ -19,7 +19,7 @@ resources:
     - repository: Networking-Aquarius
       type: git
       name: One/Networking-Aquarius
-      ref: refs/heads/master
+      ref: refs/heads/internal_sku_test
 
 variables:
   - name: vmSkuDefault
@@ -170,26 +170,69 @@ stages:
                 CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
                 KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
                 KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
-  
+
+  # Deploy Accelnet BYON nodes - currently only enabled in centraluseuap (expand to other regions when quota is available)
+  - ${{ each loc in parameters.location }}:
+    - ${{ if eq(loc, 'centraluseuap') }}:
+      - stage: DeployAccelnetBYON_${{ replace(loc, '-', '_') }}
+        displayName: "Deploy Accelnet BYO nodes to AKS cluster (${{ loc }})"
+        dependsOn: AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+        condition: and(eq(variables.isAllowedRun, true), or(eq(${{ parameters.runSetupStages }}, false), succeeded()))
+        variables:
+          rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
+        jobs: 
+          - job: JoinAccelnetBYONtoAKS
+            displayName: "Join Accelnet BYON VMSS to AKS Cluster"
+            timeoutInMinutes: 480
+            pool:
+              vmImage: ubuntu-latest
+            steps:
+              - checkout: self
+                displayName: "Checkout main repository"
+              - checkout: Networking-Aquarius
+                displayName: "Checkout Networking-Aquarius repository"
+              - task: AzureCLI@2
+                displayName: "Deploy Accelnet VMSS"
+                inputs:
+                  azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                  scriptType: bash
+                  scriptLocation: scriptPath
+                  scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_accelnetbyon.sh"
+                  arguments: >
+                    $(rgName)
+                    ${{ loc }}
+                    $(Build.SourcesDirectory)
+                env:
+                  SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
+                  CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
+                  KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
+                  KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
+
   # Run tests for each location and workload type
   - ${{ each loc in parameters.location }}:
     - ${{ each workload in parameters.workloadType }}:
-      - template: datapath-tests-stage.yaml
-        parameters:
-          workloadType: ${{ workload }}
-          location: ${{ loc }}
-          subscriptionId: ${{ parameters.subscriptionId }}
-          ${{ if eq(parameters.runSetupStages, true) }}:
-            rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
-          ${{ else }}:
-            rgName: sv2-long-run-${{ loc }}
-          storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
-          storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
-          runSetupStages: ${{ parameters.runSetupStages }}
-          ${{ if eq(workload, 'swiftv2-linux') }}:
-            dependsOn: 
-              - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
-          ${{ else }}:
-            dependsOn: 
-              - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
-              - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
+      # Skip accelnet workloads in regions where accelnet is not enabled (currently only centraluseuap has quota)
+      - ${{ if or(not(contains(workload, 'l1vh-accelnet')), eq(loc, 'centraluseuap')) }}:
+        - template: datapath-tests-stage.yaml
+          parameters:
+            workloadType: ${{ workload }}
+            location: ${{ loc }}
+            subscriptionId: ${{ parameters.subscriptionId }}
+            ${{ if eq(parameters.runSetupStages, true) }}:
+              rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
+            ${{ else }}:
+              rgName: sv2-long-run-${{ loc }}
+            storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
+            storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
+            runSetupStages: ${{ parameters.runSetupStages }}
+            ${{ if eq(workload, 'swiftv2-linux') }}:
+              dependsOn: 
+                - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+            ${{ if eq(workload, 'swiftv2-linux-byon') }}:
+              dependsOn: 
+                - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+                - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
+            ${{ if eq(workload, 'swiftv2-l1vh-accelnet-byon') }}:
+              dependsOn: 
+                - DeployAccelnetBYON_${{ replace(loc, '-', '_') }}
+                - DataPathTests_swiftv2_linux_byon_${{ replace(loc, '-', '_') }}
