@@ -579,7 +579,11 @@ func main() {
 			DebugMode:                    ts.DebugMode,
 		}
 
-		if aiKey := cnsconfig.TelemetrySettings.AppInsightsInstrumentationKey; aiKey != "" {
+		// Use connection string only if sovereign cloud is enabled
+		if ts.EnableAIInSovereignCloud && cnsconfig.TelemetrySettings.AppInsightsConnectionString != "" {
+			//nolint:staticcheck // SA1019 ignore deprecated global logger
+			logger.InitAIWithConnectionString(aiConfig, cnsconfig.TelemetrySettings.AppInsightsConnectionString, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
+		} else if aiKey := cnsconfig.TelemetrySettings.AppInsightsInstrumentationKey; aiKey != "" {
 			logger.InitAIWithIKey(aiConfig, aiKey, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
 		} else {
 			logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)

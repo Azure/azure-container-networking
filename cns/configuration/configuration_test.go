@@ -84,6 +84,8 @@ func TestReadConfigFromFile(t *testing.T) {
 					ConfigSnapshotIntervalInMins: 60,
 					TelemetryBatchIntervalInSecs: 15,
 					TelemetryBatchSizeBytes:      16384,
+					AppInsightsConnectionString:  "",
+					EnableAIInSovereignCloud:     false,
 				},
 				AZRSettings: AZRSettings{
 					PopulateHomeAzCacheRetryIntervalSecs: 60,

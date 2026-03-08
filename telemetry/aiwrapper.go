@@ -3,17 +3,20 @@ package telemetry
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/log"
 )
 
 var (
-	aiMetadata           string
-	th                   aitelemetry.TelemetryHandle
-	gDisableTrace        bool
-	gDisableMetric       bool
-	ErrTelemetryDisabled = errors.New("telemetry is disabled")
+	aiMetadata               string
+	connectionString         string
+	enableAIInSovereignCloud bool
+	th                       aitelemetry.TelemetryHandle
+	gDisableTrace            bool
+	gDisableMetric           bool
+	ErrTelemetryDisabled     = errors.New("telemetry is disabled")
 )
 
 const (
@@ -33,9 +36,17 @@ func (tb *TelemetryBuffer) CreateAITelemetryHandle(aiConfig aitelemetry.AIConfig
 		return ErrTelemetryDisabled
 	}
 
-	th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
-	if err != nil {
-		return err
+	// Use connection string only if sovereign cloud is enabled
+	if enableAIInSovereignCloud {
+		th, err = aitelemetry.NewWithConnectionString(connectionString, aiConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create telemetry handle with connection string: %w", err)
+		}
+	} else {
+		th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create telemetry handle: %w", err)
+		}
 	}
 
 	gDisableMetric = disableMetric
@@ -95,4 +106,24 @@ func GetAIMetadata() string {
 // SetAIMetadata sets the aiMetadata value (for runtime configuration)
 func SetAIMetadata(metadata string) {
 	aiMetadata = metadata
+}
+
+// GetAIConnectionString returns the current AI connection string value
+func GetAIConnectionString() string {
+	return connectionString
+}
+
+// SetAIConnectionString sets the AI connection string value (for runtime configuration)
+func SetAIConnectionString(connStr string) {
+	connectionString = connStr
+}
+
+// GetEnableAIInSovereignCloud returns the current AI sovereign cloud flag value
+func GetEnableAIInSovereignCloud() bool {
+	return enableAIInSovereignCloud
+}
+
+// SetEnableAIInSovereignCloud sets the AI sovereign cloud flag (for runtime configuration)
+func SetEnableAIInSovereignCloud(isSovereign bool) {
+	enableAIInSovereignCloud = isSovereign
 }

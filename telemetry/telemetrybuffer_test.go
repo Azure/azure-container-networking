@@ -158,6 +158,8 @@ func TestReadConfigFile(t *testing.T) {
 				RefreshTimeoutInSecs:          15,
 				BatchIntervalInSecs:           15,
 				BatchSizeInBytes:              16384,
+				AIConnectionString:            "",
+				EnableAIInSovereignCloud:      false,
 			},
 			wantErr: false,
 		},

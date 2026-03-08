@@ -71,6 +71,19 @@ func (c *logger) InitAIWithIKey(aiConfig ai.AIConfig, instrumentationKey string,
 	c.disableEventLogging = disableEventLogging
 }
 
+func (c *logger) InitAIWithConnectionString(aiConfig ai.AIConfig, connectionString string, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
+	th, err := ai.NewWithConnectionString(connectionString, aiConfig)
+	if err != nil {
+		c.logger.Errorf("Error initializing AI Telemetry with connection string:%v", err)
+		return
+	}
+	c.th = th
+	c.logger.Printf("AI Telemetry Handle created with connection string")
+	c.disableMetricLogging = disableMetricLogging
+	c.disableTraceLogging = disableTraceLogging
+	c.disableEventLogging = disableEventLogging
+}
+
 func (c *logger) Close() {
 	c.logger.Close()
 	if c.th != nil {

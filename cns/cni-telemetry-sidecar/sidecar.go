@@ -105,6 +105,14 @@ func (s *TelemetrySidecar) startTelemetryService(ctx context.Context, config tel
 		}
 	}
 
+	// Set connection string only if sovereign cloud is enabled
+	if cnsConfig.TelemetrySettings.EnableAIInSovereignCloud {
+		if connStr := cnsConfig.TelemetrySettings.AppInsightsConnectionString; connStr != "" {
+			telemetry.SetAIConnectionString(connStr)
+		}
+		telemetry.SetEnableAIInSovereignCloud(true)
+	}
+
 	// Clean up any orphan socket
 	err := telemetry.NewTelemetryBuffer(s.logger).Cleanup(telemetry.FdName)
 	if err != nil {
@@ -142,7 +150,7 @@ func (s *TelemetrySidecar) startTelemetryService(ctx context.Context, config tel
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	if telemetry.GetAIMetadata() != "" {
+	if telemetry.GetAIMetadata() != "" || telemetry.GetAIConnectionString() != "" {
 		aiConfig := aitelemetry.AIConfig{
 			AppName:                      pluginName,
 			AppVersion:                   s.version,

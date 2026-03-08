@@ -92,6 +92,10 @@ type TelemetrySettings struct {
 	ConfigSnapshotIntervalInMins int
 	// AppInsightsInstrumentationKey allows the user to override the default appinsights ikey
 	AppInsightsInstrumentationKey string
+	// Connection string for the AI resource
+	AppInsightsConnectionString string
+	// Enable AI telemetry in sovereign clouds
+	EnableAIInSovereignCloud bool
 }
 
 type ManagedSettings struct {
