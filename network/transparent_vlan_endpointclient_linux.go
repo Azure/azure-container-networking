@@ -691,7 +691,8 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutesHelper(linkToName s
 		return err
 	}
 
-	// Add default route via virtual gateway
+	// Add default route  (ip route add default via 169.254.2.1 dev eth0)
+	// (ip -6 route add default via fe80::1234:5678:9abc dev eth0)
 	_, defaultIPNet, _ := net.ParseCIDR(defaultPrefix)
 	dstIP := net.IPNet{IP: net.ParseIP(defaultAddr), Mask: defaultIPNet.Mask}
 	routeInfo = RouteInfo{
