@@ -55,11 +55,18 @@ type netlinkRuleClient interface {
 type defaultNetlinkRuleClient struct{}
 
 func (defaultNetlinkRuleClient) RuleList(family int) ([]vishnetlink.Rule, error) {
-	return vishnetlink.RuleList(family)
+	rules, err := vishnetlink.RuleList(family)
+	if err != nil {
+		return nil, errors.Wrap(err, "netlink RuleList failed")
+	}
+	return rules, nil
 }
 
 func (defaultNetlinkRuleClient) RuleAdd(rule *vishnetlink.Rule) error {
-	return vishnetlink.RuleAdd(rule)
+	if err := vishnetlink.RuleAdd(rule); err != nil {
+		return errors.Wrap(err, "netlink RuleAdd failed")
+	}
+	return nil
 }
 
 type TransparentVlanEndpointClient struct {
@@ -489,7 +496,7 @@ func (client *TransparentVlanEndpointClient) addVnetMangleAndTunnelingRules(vers
 		return errors.Wrapf(err, "unable to insert %s mangle mark rule", version)
 	}
 
-	match := fmt.Sprintf("-i %s", client.vlanIfName)
+	match := "-i " + client.vlanIfName
 	if err := client.iptablesClient.InsertIptableRule(version, "mangle", "PREROUTING", match, "ACCEPT"); err != nil {
 		return errors.Wrapf(err, "unable to insert %s mangle accept rule for vlan interface", version)
 	}

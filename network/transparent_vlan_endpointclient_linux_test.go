@@ -788,7 +788,7 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 		}
 		client.DeleteEndpointsImpl(ep)
 
-		require.Equal(t, 2, len(deletedRoutes), "both IPv4 and IPv6 routes should be deleted")
+		require.Len(t, deletedRoutes, 2, "both IPv4 and IPv6 routes should be deleted")
 		// Verify the routes correspond to the correct IPs
 		hasV4 := false
 		hasV6 := false
@@ -1281,8 +1281,8 @@ func TestAddVnetRulesIPTables(t *testing.T) {
 		}
 		require.Equal(t, 2, v6Calls, "expected 2 IPv6 ip6tables calls (mark + accept)")
 		require.Len(t, mockNLRule.added, 1, "expected one rule added via RuleAdd")
-		require.EqualValues(t, tunnelingMark, mockNLRule.added[0].Mark)
-		require.EqualValues(t, tunnelingTable, mockNLRule.added[0].Table)
+		require.Equal(t, tunnelingMark, mockNLRule.added[0].Mark)
+		require.Equal(t, tunnelingTable, mockNLRule.added[0].Table)
 	})
 
 	t.Run("IPv4 rules", func(t *testing.T) {
@@ -1305,8 +1305,8 @@ func TestAddVnetRulesIPTables(t *testing.T) {
 		}
 		require.Equal(t, 2, v4Calls, "expected 2 IPv4 iptables calls (mark + accept)")
 		require.Len(t, mockNLRule.added, 1, "expected one rule added via RuleAdd")
-		require.EqualValues(t, tunnelingMark, mockNLRule.added[0].Mark)
-		require.EqualValues(t, tunnelingTable, mockNLRule.added[0].Table)
+		require.Equal(t, tunnelingMark, mockNLRule.added[0].Mark)
+		require.Equal(t, tunnelingTable, mockNLRule.added[0].Table)
 	})
 
 	t.Run("skips RuleAdd when rule already exists", func(t *testing.T) {
