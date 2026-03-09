@@ -20,7 +20,6 @@ import (
 
 const (
 	defaultIPv6Prefix     = "::/0"
-	defaultIPv6Addr       = "::"
 	virtualGwIPVlanString = "169.254.2.1/32"
 	azureMac              = "12:34:56:78:9a:bc"                       // Packets leaving the VM should have this MAC
 	loopbackIf            = "lo"                                      // The name of the loopback interface
@@ -666,11 +665,11 @@ func (client *TransparentVlanEndpointClient) GetVnetRoutes(ipAddresses []net.IPN
 // For IPv4: 169.254.2.1 dev <linkToName>, default via 169.254.2.1 dev <linkToName>
 // For IPv6: fe80::1234:5678:9abc dev <linkToName>, default via fe80::1234:5678:9abc dev <linkToName> (if hasIPv6 is true)
 func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string, table int, hasIPv6 bool) error {
-	if err := client.addDefaultRoutesHelper(linkToName, table, virtualGwIPVlanString, defaultGwCidr, defaultGw); err != nil {
+	if err := client.addDefaultRoutesHelper(linkToName, table, virtualGwIPVlanString, defaultGwCidr); err != nil {
 		return err
 	}
 	if hasIPv6 {
-		if err := client.addDefaultRoutesHelper(linkToName, table, virtualv6GwString, defaultIPv6Prefix, defaultIPv6Addr); err != nil {
+		if err := client.addDefaultRoutesHelper(linkToName, table, virtualv6GwString, defaultIPv6Prefix); err != nil {
 			return err
 		}
 	}
@@ -679,7 +678,7 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string,
 
 // addDefaultRoutesHelper creates routing rules for the given address family.
 // It adds an on-link route for the virtual gateway and a default route via that gateway.
-func (client *TransparentVlanEndpointClient) addDefaultRoutesHelper(linkToName string, table int, virtualGwCIDR, defaultPrefix, defaultAddr string) error {
+func (client *TransparentVlanEndpointClient) addDefaultRoutesHelper(linkToName string, table int, virtualGwCIDR, defaultPrefix string) error {
 	// Add route for virtual gateway (on-link)
 	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwCIDR)
 	routeInfo := RouteInfo{
@@ -694,9 +693,8 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutesHelper(linkToName s
 	// Add default route  (ip route add default via 169.254.2.1 dev eth0)
 	// (ip -6 route add default via fe80::1234:5678:9abc dev eth0)
 	_, defaultIPNet, _ := net.ParseCIDR(defaultPrefix)
-	dstIP := net.IPNet{IP: net.ParseIP(defaultAddr), Mask: defaultIPNet.Mask}
 	routeInfo = RouteInfo{
-		Dst:   dstIP,
+		Dst:   *defaultIPNet,
 		Gw:    virtualGwIP,
 		Table: table,
 	}

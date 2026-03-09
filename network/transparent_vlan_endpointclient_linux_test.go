@@ -1281,7 +1281,7 @@ func TestAddVnetRulesIPTables(t *testing.T) {
 		}
 		require.Equal(t, 2, v6Calls, "expected 2 IPv6 ip6tables calls (mark + accept)")
 		require.Len(t, mockNLRule.added, 1, "expected one rule added via RuleAdd")
-		require.Equal(t, tunnelingMark, mockNLRule.added[0].Mark)
+		require.Equal(t, tunnelingMark, int(mockNLRule.added[0].Mark))
 		require.Equal(t, tunnelingTable, mockNLRule.added[0].Table)
 	})
 
@@ -1305,7 +1305,7 @@ func TestAddVnetRulesIPTables(t *testing.T) {
 		}
 		require.Equal(t, 2, v4Calls, "expected 2 IPv4 iptables calls (mark + accept)")
 		require.Len(t, mockNLRule.added, 1, "expected one rule added via RuleAdd")
-		require.Equal(t, tunnelingMark, mockNLRule.added[0].Mark)
+		require.Equal(t, tunnelingMark, int(mockNLRule.added[0].Mark))
 		require.Equal(t, tunnelingTable, mockNLRule.added[0].Table)
 	})
 
