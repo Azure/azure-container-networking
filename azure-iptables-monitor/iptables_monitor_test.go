@@ -164,7 +164,7 @@ func NewMockRouteManager() *MockRouteManager {
 }
 
 func (m *MockRouteManager) EnsureRoute(ip string, isIPv6 bool) error {
-	m.EnsuredRoutes = append(m.EnsuredRoutes, EnsuredRoute{IP: ip, IsIPv6: isIPv6})
+	m.EnsuredRoutes = append(m.EnsuredRoutes, EnsuredRoute{IP: ip, IsIPv6: isIPv6, proto: "static"})
 	return m.EnsureError
 }
 
