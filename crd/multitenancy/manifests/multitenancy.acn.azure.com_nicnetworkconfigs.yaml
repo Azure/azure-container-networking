@@ -14,10 +14,18 @@ spec:
     kind: NICNetworkConfig
     listKind: NICNetworkConfigList
     plural: nicnetworkconfigs
+    shortNames:
+    - nnc
     singular: nicnetworkconfig
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .spec.nodeName
+      name: Node
+      type: string
+    - jsonPath: .spec.nicName
+      name: NIC
+      type: string
     - jsonPath: .spec.podNetwork
       name: PodNetwork
       type: string
@@ -49,6 +57,16 @@ spec:
           spec:
             description: NICNetworkConfigSpec defines the desired state of NICNetworkConfig
             properties:
+              networkID:
+                description: NetworkID is the VNET GUID or network identifier
+                type: string
+              nicName:
+                description: NICName is the name of the physical NIC on the node (e.g.,
+                  eth1)
+                type: string
+              nodeName:
+                description: NodeName is the name of the node this NIC belongs to
+                type: string
               podAllocations:
                 description: PodAllocations tracks which pods are allocated on this
                   NIC
@@ -74,8 +92,16 @@ spec:
               podNetwork:
                 description: PodNetwork is the name of the PodNetwork
                 type: string
+              subnetID:
+                description: SubnetID is the ARM resource ID of the subnet (e.g.,
+                  /subscriptions/.../subnets/pod-subnet)
+                type: string
             required:
+            - networkID
+            - nicName
+            - nodeName
             - podNetwork
+            - subnetID
             type: object
           status:
             description: NICNetworkConfigStatus defines the observed state of NICNetworkConfig

@@ -12,10 +12,12 @@ import (
 // +kubebuilder:object:root=true
 
 // NICNetworkConfig is the Schema for the nicnetworkconfigs API
-// +kubebuilder:resource:scope=Namespaced
+// +kubebuilder:resource:shortName=nnc,scope=Namespaced
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
+// +kubebuilder:printcolumn:name="Node",type=string,JSONPath=`.spec.nodeName`
+// +kubebuilder:printcolumn:name="NIC",type=string,JSONPath=`.spec.nicName`
 // +kubebuilder:printcolumn:name="PodNetwork",type=string,JSONPath=`.spec.podNetwork`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
 type NICNetworkConfig struct {
@@ -39,6 +41,18 @@ type NICNetworkConfigList struct {
 type NICNetworkConfigSpec struct {
 	// PodNetwork is the name of the PodNetwork
 	PodNetwork string `json:"podNetwork"`
+
+	// NodeName is the name of the node this NIC belongs to
+	NodeName string `json:"nodeName"`
+
+	// NICName is the name of the physical NIC on the node (e.g., eth1)
+	NICName string `json:"nicName"`
+
+	// SubnetID is the ARM resource ID of the subnet (e.g., /subscriptions/.../subnets/pod-subnet)
+	SubnetID string `json:"subnetID"`
+
+	// NetworkID is the VNET GUID or network identifier
+	NetworkID string `json:"networkID"`
 
 	// PodAllocations tracks which pods are allocated on this NIC
 	// +kubebuilder:validation:Optional
