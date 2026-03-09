@@ -13,16 +13,16 @@ import (
 )
 
 const (
-	virtualGwIPString       = "169.254.1.1/32"
-	defaultGwCidr           = "0.0.0.0/0"
-	defaultGw               = "0.0.0.0"
-	virtualGwIPVlanStringv6 = "fe80::1234:5678:9abc/128"
-	defaultv6Cidr           = "::/0"
-	ipv4Bits                = 32
-	ipv6Bits                = 128
-	ipv4FullMask            = 32
-	ipv6FullMask            = 128
-	defaultHostVethHwAddr   = "aa:aa:aa:aa:aa:aa"
+	virtualGwIPString     = "169.254.1.1/32"
+	defaultGwCidr         = "0.0.0.0/0"
+	defaultGw             = "0.0.0.0"
+	virtualv6GwString     = "fe80::1234:5678:9abc/128"
+	defaultv6Cidr         = "::/0"
+	ipv4Bits              = 32
+	ipv6Bits              = 128
+	ipv4FullMask          = 32
+	ipv6FullMask          = 128
+	defaultHostVethHwAddr = "aa:aa:aa:aa:aa:aa"
 )
 
 var errorTransparentEndpointClient = errors.New("TransparentEndpointClient Error")
@@ -288,7 +288,7 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 func (client *TransparentEndpointClient) setupIPV6Routes() error {
 	// add route for virtualgwip
 	// ip -6 route add fe80::1234:5678:9abc/128 dev eth0
-	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwIPVlanStringv6)
+	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualv6GwString)
 	gwRoute := RouteInfo{
 		Dst:   *virtualGwNet,
 		Scope: netlink.RT_SCOPE_LINK,
@@ -307,7 +307,7 @@ func (client *TransparentEndpointClient) setupIPV6Routes() error {
 
 func (client *TransparentEndpointClient) setIPV6NeighEntry() error {
 	logger.Info("Add v6 neigh entry for default gw ip")
-	hostGwIP, _, _ := net.ParseCIDR(virtualGwIPVlanStringv6)
+	hostGwIP, _, _ := net.ParseCIDR(virtualv6GwString)
 	linkInfo := netlink.LinkInfo{
 		Name:       client.containerVethName,
 		IPAddr:     hostGwIP,
