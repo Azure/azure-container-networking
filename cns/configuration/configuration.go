@@ -58,6 +58,7 @@ type CNSConfig struct {
 	TelemetrySettings           TelemetrySettings
 	UseHTTPS                    bool
 	UseMTLS                     bool
+	RouteWireserverViaDefaultInterface          bool
 	WatchPods                   bool `json:"-"`
 	WireserverIP                string
 	GRPCSettings                GRPCSettings
