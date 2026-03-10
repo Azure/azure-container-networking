@@ -1155,10 +1155,10 @@ func TestAddDefaultArp(t *testing.T) {
 	tests := []struct {
 		name    string
 		client  *TransparentVlanEndpointClient
-		ifName  string
-		destMac string
-		hasIPv6 bool
-		wantErr bool
+		ifName      string
+		destMac     string
+		gatewayCIDR string
+		wantErr     bool
 	}{
 
 		{
@@ -1166,30 +1166,30 @@ func TestAddDefaultArp(t *testing.T) {
 			client: &TransparentVlanEndpointClient{
 				netlink: netlink.NewMockNetlink(false, ""),
 			},
-			ifName:  "eth0",
-			destMac: azureMac,
-			hasIPv6: false,
-			wantErr: false,
+			ifName:      "eth0",
+			destMac:     azureMac,
+			gatewayCIDR: virtualGwIPVlanString,
+			wantErr:     false,
 		},
 		{
 			name: "Dual-stack (IPv4 + IPv6) - good path",
 			client: &TransparentVlanEndpointClient{
 				netlink: netlink.NewMockNetlink(false, ""),
 			},
-			ifName:  "eth0",
-			destMac: azureMac,
-			hasIPv6: true,
-			wantErr: false,
+			ifName:      "eth0",
+			destMac:     azureMac,
+			gatewayCIDR: virtualv6GwString,
+			wantErr:     false,
 		},
 		{
 			name: "ARP fails with invalid MAC on first (IPv4) neighbor",
 			client: &TransparentVlanEndpointClient{
 				netlink: netlink.NewMockNetlink(false, ""),
 			},
-			ifName:  "eth0",
-			destMac: "invalid-mac",
-			hasIPv6: false,
-			wantErr: true,
+			ifName:      "eth0",
+			destMac:     "invalid-mac",
+			gatewayCIDR: virtualGwIPVlanString,
+			wantErr:     true,
 		},
 		{
 			name: "IPv6 neighbor insertion fails",
@@ -1203,15 +1203,15 @@ func TestAddDefaultArp(t *testing.T) {
 				}
 				return &TransparentVlanEndpointClient{netlink: nl}
 			}(),
-			ifName:  "eth0",
-			destMac: azureMac,
-			hasIPv6: true,
-			wantErr: true,
+			ifName:      "eth0",
+			destMac:     azureMac,
+			gatewayCIDR: virtualv6GwString,
+			wantErr:     true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.client.AddDefaultArp(tt.ifName, tt.destMac, tt.hasIPv6)
+			err := tt.client.addDefaultNeighbors(tt.ifName, tt.destMac, tt.gatewayCIDR)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {

@@ -600,9 +600,16 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 		return errors.Wrap(err, "failed container ns add default routes")
 	}
 
-	if err := client.AddDefaultArp(client.containerVethName, client.vnetMac.String(), epInfo.IsIPv6Enabled); err != nil {
+	if err := client.addDefaultNeighbors(client.containerVethName, client.vnetMac.String(), virtualGwIPVlanString); err != nil {
 		return errors.Wrap(err, "failed container ns add default arp")
 	}
+
+	if epInfo.IsIPv6Enabled {
+		if err := client.addDefaultNeighbors(client.containerVethName, client.vnetMac.String(), virtualv6GwString); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -616,10 +623,17 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 	// Add route specifying which device the pod ip(s) are on
 	routeInfoList := client.GetVnetRoutes(epInfo.IPAddresses)
 	if err = client.addDefaultRoutes(client.vlanIfName, 0, epInfo.IsIPv6Enabled); err != nil {
-		return errors.Wrap(err, "failed vnet ns add default/gateway routes (idempotent)")
+		return errors.Wrap(err, "failed vnet ns add default/gateway routes")
 	}
-	if err = client.AddDefaultArp(client.vlanIfName, azureMac, epInfo.IsIPv6Enabled); err != nil {
-		return errors.Wrap(err, "failed vnet ns add default arp entry (idempotent)")
+
+	if err = client.addDefaultNeighbors(client.vlanIfName, azureMac, virtualGwIPVlanString); err != nil {
+		return errors.Wrap(err, "failed vnet ns add default arp entry")
+	}
+
+	if epInfo.IsIPv6Enabled {
+		if err = client.addDefaultNeighbors(client.vlanIfName, azureMac, virtualv6GwString); err != nil {
+			return errors.Wrap(err, "failed vnet ns add default arp entry")
+		}
 	}
 
 	// Delete old route if any for this IP
@@ -709,20 +723,6 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutesHelper(linkToName s
 // gateway to destMac on a particular interfaceName.
 // For IPv4: (169.254.2.1) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName>
 // For IPv6: (fe80::1234:5678:9abc) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName> (if hasIPv6 is true)
-func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMac string, hasIPv6 bool) error {
-	if err := client.addDefaultNeighbors(interfaceName, destMac, virtualGwIPVlanString); err != nil {
-		return err
-	}
-	if hasIPv6 {
-		if err := client.addDefaultNeighbors(interfaceName, destMac, virtualv6GwString); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// addDefaultNeighbors creates a static ARP/neighbor entry mapping the virtual gateway
-// specified by gatewayCIDR to destMac on interfaceName.
 func (client *TransparentVlanEndpointClient) addDefaultNeighbors(interfaceName, destMac, gatewayCIDR string) error {
 	_, gwNet, _ := net.ParseCIDR(gatewayCIDR)
 	logger.Info("Adding static neighbor entry",
