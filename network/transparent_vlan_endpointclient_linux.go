@@ -596,7 +596,7 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 
 	logger.Info("Adding default routes and neighbor entries in container ns")
 
-	if err := client.addDefaultRoutes(client.containerVethName, 0, epInfo.IsIPv6Enabled); err != nil {
+	if err := client.addDefaultRoutesHelper(client.containerVethName, 0, virtualGwIPVlanString, defaultGwCidr); err != nil {
 		return errors.Wrap(err, "failed container ns add default routes")
 	}
 
@@ -607,6 +607,9 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 	if epInfo.IsIPv6Enabled {
 		if err := client.addDefaultNeighbors(client.containerVethName, client.vnetMac.String(), virtualv6GwString); err != nil {
 			return err
+		}
+		if err := client.addDefaultRoutesHelper(client.containerVethName, 0, virtualv6GwString, defaultIPv6Prefix); err != nil {
+			return errors.Wrap(err, "failed container ns add default routes")
 		}
 	}
 
@@ -622,7 +625,7 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 
 	// Add route specifying which device the pod ip(s) are on
 	routeInfoList := client.GetVnetRoutes(epInfo.IPAddresses)
-	if err = client.addDefaultRoutes(client.vlanIfName, 0, epInfo.IsIPv6Enabled); err != nil {
+	if err = client.addDefaultRoutesHelper(client.vlanIfName, 0, virtualGwIPVlanString, defaultGwCidr); err != nil {
 		return errors.Wrap(err, "failed vnet ns add default/gateway routes")
 	}
 
@@ -634,6 +637,9 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 		if err = client.addDefaultNeighbors(client.vlanIfName, azureMac, virtualv6GwString); err != nil {
 			return errors.Wrap(err, "failed vnet ns add default arp entry")
 		}
+		if err = client.addDefaultRoutesHelper(client.vlanIfName, 0, virtualv6GwString, defaultIPv6Prefix); err != nil {
+			return errors.Wrap(err, "failed vnet ns add default/gateway routes")
+		}
 	}
 
 	// Delete old route if any for this IP
@@ -643,7 +649,7 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 	if err = addRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
 		return errors.Wrap(err, "failed adding routes to vnet specific to this container")
 	}
-	if err = client.addDefaultRoutes(client.vlanIfName, tunnelingTable, epInfo.IsIPv6Enabled); err != nil {
+	if err = client.addDefaultRoutesHelper(client.vlanIfName, tunnelingTable, virtualGwIPVlanString, defaultGwCidr); err != nil {
 		return errors.Wrap(err, "failed vnet ns add outbound routing table routes for tunneling (idempotent)")
 	}
 	// Return to ConfigureContainerInterfacesAndRoutes
@@ -677,21 +683,7 @@ func (client *TransparentVlanEndpointClient) GetVnetRoutes(ipAddresses []net.IPN
 // Helper that creates routing rules for the current NS which direct packets
 // to the virtual gateway ip on linkToName device interface.
 // For IPv4: 169.254.2.1 dev <linkToName>, default via 169.254.2.1 dev <linkToName>
-// For IPv6: fe80::1234:5678:9abc dev <linkToName>, default via fe80::1234:5678:9abc dev <linkToName> (if hasIPv6 is true)
-func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string, table int, hasIPv6 bool) error {
-	if err := client.addDefaultRoutesHelper(linkToName, table, virtualGwIPVlanString, defaultGwCidr); err != nil {
-		return err
-	}
-	if hasIPv6 {
-		if err := client.addDefaultRoutesHelper(linkToName, table, virtualv6GwString, defaultIPv6Prefix); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// addDefaultRoutesHelper creates routing rules for the given address family.
-// It adds an on-link route for the virtual gateway and a default route via that gateway.
+// For IPv6: fe80::1234:5678:9abc dev <linkToName>, default via fe80::1234:5678:9abc dev <linkToName>
 func (client *TransparentVlanEndpointClient) addDefaultRoutesHelper(linkToName string, table int, virtualGwCIDR, defaultPrefix string) error {
 	// Add route for virtual gateway (on-link)
 	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwCIDR)
@@ -722,7 +714,7 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutesHelper(linkToName s
 // Helper that creates arp/neighbor entries for the current NS which map the virtual
 // gateway to destMac on a particular interfaceName.
 // For IPv4: (169.254.2.1) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName>
-// For IPv6: (fe80::1234:5678:9abc) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName> (if hasIPv6 is true)
+// For IPv6: (fe80::1234:5678:9abc) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName>
 func (client *TransparentVlanEndpointClient) addDefaultNeighbors(interfaceName, destMac, gatewayCIDR string) error {
 	_, gwNet, _ := net.ParseCIDR(gatewayCIDR)
 	logger.Info("Adding static neighbor entry",
