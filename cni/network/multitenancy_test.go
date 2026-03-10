@@ -969,6 +969,100 @@ func getPrefixLength(mask net.IPMask) int {
 	return ones
 }
 
+func TestGetAllNetworkContainersIPv6Enabled(t *testing.T) {
+	tests := []struct {
+		name        string
+		ncResponses []cns.GetNetworkContainerResponse
+		wantIPv6    bool
+	}{
+		{
+			name: "ipv4 only sets ipv6Enabled false",
+			ncResponses: []cns.GetNetworkContainerResponse{
+				{
+					PrimaryInterfaceIdentifier: "10.0.0.0/16",
+					IPConfiguration: cns.IPConfiguration{
+						IPSubnet:         cns.IPSubnet{IPAddress: "10.1.0.5", PrefixLength: 16},
+						GatewayIPAddress: "10.1.0.1",
+					},
+				},
+			},
+			wantIPv6: false,
+		},
+		{
+			name: "dual-stack sets ipv6Enabled true",
+			ncResponses: []cns.GetNetworkContainerResponse{
+				{
+					PrimaryInterfaceIdentifier: "10.0.0.0/16",
+					IPConfiguration: cns.IPConfiguration{
+						IPSubnet:         cns.IPSubnet{IPAddress: "10.1.0.5", PrefixLength: 16},
+						GatewayIPAddress: "10.1.0.1",
+					},
+					IPv6Configuration: cns.IPConfiguration{
+						IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::5", PrefixLength: 64},
+						GatewayIPAddress: "2001:db8::1",
+					},
+				},
+			},
+			wantIPv6: true,
+		},
+		{
+			name: "multiple NCs one with ipv6 sets ipv6Enabled true",
+			ncResponses: []cns.GetNetworkContainerResponse{
+				{
+					PrimaryInterfaceIdentifier: "10.0.0.0/16",
+					IPConfiguration: cns.IPConfiguration{
+						IPSubnet:         cns.IPSubnet{IPAddress: "10.1.0.5", PrefixLength: 16},
+						GatewayIPAddress: "10.1.0.1",
+					},
+				},
+				{
+					PrimaryInterfaceIdentifier: "10.0.0.0/16",
+					IPConfiguration: cns.IPConfiguration{
+						IPSubnet:         cns.IPSubnet{IPAddress: "10.2.0.5", PrefixLength: 16},
+						GatewayIPAddress: "10.2.0.1",
+					},
+					IPv6Configuration: cns.IPConfiguration{
+						IPSubnet:         cns.IPSubnet{IPAddress: "fd00::5", PrefixLength: 64},
+						GatewayIPAddress: "fd00::1",
+					},
+				},
+			},
+			wantIPv6: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			podInfo := cns.KubernetesPodInfo{
+				PodName:      "test-pod",
+				PodNamespace: "test-ns",
+			}
+			orchestratorContext, err := json.Marshal(podInfo)
+			require.NoError(t, err)
+
+			cnsclient := &MockCNSClient{
+				getAllNetworkContainersConfiguration: getAllNetworkContainersConfigurationHandler{
+					orchestratorContext: orchestratorContext,
+					returnResponse:      tt.ncResponses,
+				},
+			}
+
+			m := &Multitenancy{}
+			m.Init(cnsclient, &mockNetIOShim{})
+
+			result, err := m.GetAllNetworkContainers(
+				context.TODO(),
+				&cni.NetworkConfig{EnableExactMatchForPodName: true},
+				"test-pod",
+				"test-ns",
+				"eth0",
+			)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantIPv6, result.ipv6Enabled)
+		})
+	}
+}
+
 func TestConvertToIPConfigAndRouteInfoCnetAddressSpace(t *testing.T) {
 	tests := []struct {
 		name          string
