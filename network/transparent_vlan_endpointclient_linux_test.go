@@ -1095,53 +1095,96 @@ func TestAddDefaultRoutes(t *testing.T) {
 	plc := platform.NewMockExecClient(false)
 
 	tests := []struct {
-		name     string
-		client   *TransparentVlanEndpointClient
-		linkName string
-		table    int
-		hasIPv6  bool
-		wantErr  bool
+		name          string
+		client        *TransparentVlanEndpointClient
+		linkName      string
+		table         int
+		virtualGwCIDR string
+		defaultPrefix string
+		wantErr       bool
 	}{
 		{
-			name: "Dual-stack (IPv4 + IPv6) - good path",
+			name: "IPv4 good path",
 			client: &TransparentVlanEndpointClient{
 				netlink:        netlink.NewMockNetlink(false, ""),
 				netioshim:      netio.NewMockNetIO(false, 0),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 			},
-			linkName: "eth0",
-			table:    0,
-			hasIPv6:  true,
-			wantErr:  false,
+			linkName:      "eth0",
+			table:         0,
+			virtualGwCIDR: virtualGwIPVlanString,
+			defaultPrefix: defaultGwCidr,
+			wantErr:       false,
 		},
 		{
-			name: "Dual-stack with tunneling table - good path",
+			name: "IPv4 with tunneling table - good path",
 			client: &TransparentVlanEndpointClient{
 				netlink:        netlink.NewMockNetlink(false, ""),
 				netioshim:      netio.NewMockNetIO(false, 0),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 			},
-			linkName: "eth0.1",
-			table:    tunnelingTable,
-			hasIPv6:  true,
-			wantErr:  false,
+			linkName:      "eth0.1",
+			table:         tunnelingTable,
+			virtualGwCIDR: virtualGwIPVlanString,
+			defaultPrefix: defaultGwCidr,
+			wantErr:       false,
 		},
 		{
-			name: "IPv4 succeeds but IPv6 route fails",
+			name: "IPv4 route fails",
 			client: &TransparentVlanEndpointClient{
 				netlink:        netlink.NewMockNetlink(false, ""),
-				netioshim:      netio.NewMockNetIO(true, 3),
+				netioshim:      netio.NewMockNetIO(true, 2),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 			},
-			linkName: "eth0",
-			table:    0,
-			hasIPv6:  true,
-			wantErr:  true,
+			linkName:      "eth0",
+			table:         0,
+			virtualGwCIDR: virtualGwIPVlanString,
+			defaultPrefix: defaultGwCidr,
+			wantErr:       true,
+		},
+		{
+			name: "IPv6 good path",
+			client: &TransparentVlanEndpointClient{
+				netlink:        netlink.NewMockNetlink(false, ""),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+			},
+			linkName:      "eth0",
+			table:         0,
+			virtualGwCIDR: virtualv6GwString,
+			defaultPrefix: defaultIPv6Prefix,
+			wantErr:       false,
+		},
+		{
+			name: "IPv6 with tunneling table - good path",
+			client: &TransparentVlanEndpointClient{
+				netlink:        netlink.NewMockNetlink(false, ""),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+			},
+			linkName:      "eth0.1",
+			table:         tunnelingTable,
+			virtualGwCIDR: virtualv6GwString,
+			defaultPrefix: defaultIPv6Prefix,
+			wantErr:       false,
+		},
+		{
+			name: "IPv6 route fails",
+			client: &TransparentVlanEndpointClient{
+				netlink:        netlink.NewMockNetlink(false, ""),
+				netioshim:      netio.NewMockNetIO(true, 2),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+			},
+			linkName:      "eth0",
+			table:         0,
+			virtualGwCIDR: virtualv6GwString,
+			defaultPrefix: defaultIPv6Prefix,
+			wantErr:       true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.client.addDefaultRoutes(tt.linkName, tt.table, tt.hasIPv6)
+			err := tt.client.addDefaultRoutesHelper(tt.linkName, tt.table, tt.virtualGwCIDR, tt.defaultPrefix)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -1153,8 +1196,8 @@ func TestAddDefaultRoutes(t *testing.T) {
 
 func TestAddDefaultArp(t *testing.T) {
 	tests := []struct {
-		name    string
-		client  *TransparentVlanEndpointClient
+		name        string
+		client      *TransparentVlanEndpointClient
 		ifName      string
 		destMac     string
 		gatewayCIDR string
@@ -1162,7 +1205,7 @@ func TestAddDefaultArp(t *testing.T) {
 	}{
 
 		{
-			name: "IPv4 only - good path",
+			name: "IPv4 - good path",
 			client: &TransparentVlanEndpointClient{
 				netlink: netlink.NewMockNetlink(false, ""),
 			},
@@ -1172,7 +1215,7 @@ func TestAddDefaultArp(t *testing.T) {
 			wantErr:     false,
 		},
 		{
-			name: "Dual-stack (IPv4 + IPv6) - good path",
+			name: "IPv6 - good path",
 			client: &TransparentVlanEndpointClient{
 				netlink: netlink.NewMockNetlink(false, ""),
 			},
