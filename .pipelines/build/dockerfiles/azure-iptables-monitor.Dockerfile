@@ -6,13 +6,15 @@ FROM mcr.microsoft.com/azurelinux/base/core@sha256:9948138108a3d69f1dae62104599a
 # mcr.microsoft.com/azurelinux/distroless/minimal:3.0
 FROM mcr.microsoft.com/azurelinux/distroless/minimal@sha256:0801b80a0927309572b9adc99bd1813bc680473175f6e8175cd4124d95dbd50c AS mariner-distroless
 
-FROM mariner-core AS iptables
-RUN tdnf install -y iptables
+FROM mariner-core AS iptools
+RUN tdnf install -y iptables iproute
 
 FROM mariner-distroless AS linux
 ARG ARTIFACT_DIR
-COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
-COPY --from=iptables /usr/lib /usr/lib
+COPY --from=iptools /usr/sbin/*tables* /usr/sbin/
+COPY --from=iptools /usr/sbin/ip /usr/sbin/
+COPY --from=iptools /usr/lib /usr/lib
+COPY --from=iptools /usr/lib64 /usr/lib64
 COPY ${ARTIFACT_DIR}/bin/azure-iptables-monitor /azure-iptables-monitor
 COPY ${ARTIFACT_DIR}/bin/azure-block-iptables /azure-block-iptables
 
