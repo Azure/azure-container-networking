@@ -37,7 +37,7 @@ var (
 	checkMap               = flag.Bool("checkMap", false, "Whether to check the bpf map at mapPath for increases")
 	pinPath                = flag.String("mapPath", "/azure-block-iptables-bpf-map/iptables_block_event_counter", "Path to pinned bpf map")
 	terminateOnSuccess     = flag.Bool("terminateOnSuccess", false, "Whether to terminate the program when no user iptables rules found")
-	installIstioRoutesFlag = flag.Bool("istallIstioRoutes", false, "Whether to install loopback routes for Istio SNAT")
+	installIstioRoutesFlag = flag.Bool("installIstioRoutes", false, "Whether to install loopback routes for Istio SNAT")
 )
 
 const (
