@@ -24,7 +24,8 @@ At no point should connectivity to services like core dns fail.
 - no cilium anywhere
 
 ### Existing Cluster Only: Upgrade to managed cilium (should remove NPM automatically)
-Run the aks command
+Run the aks command like
+`az aks update --name <cluster name> --resource-group <rg> --network-dataplane cilium`
 
 ### All: Checkpoint
 From this point on, I am assuming you have the following
@@ -38,14 +39,14 @@ From this point on, I am assuming you have the following
 - BYO Nodes:
   - azure cni
   - unmanaged azure cns
-  - conflist is azure cni conflist (not chained)
+  - Ideally: conflist is azure cni conflist (not chained). For New Clusters: It is possible conflist is cilium conflist (not chained)-- this is fine-- you just might need to restart the node after adding the cilium watcher
   - no npm
   - Existing Cluster Only: unmanaged kube-proxy
   - For New Clusters: no kube-proxy
   - no cilium operator
 
 ### Existing Cluster Only: Create service account and cluster role binding for kube proxy 
-This is optional-- do this if you want kube proxy to come back up if it gets deleted or the node restarts for some reason
+This is optional-- do this if you want kube proxy to come back up if it gets deleted or the node restarts for some reason. Cilium once it comes up will be taking over the job of kube proxy.
 
 ### All: Clone repo + checkout branch for *.yamls
 ```
@@ -81,7 +82,9 @@ kubectl apply -f test/integration/manifests/cilium/watcher/deployment.yaml
 
 - Watcher obtains existing Cilium Daemonset from managed node
 - We overwrite Cilium Configmap values through the use of args on the `cilium-agent` container within the watcher deployment.
-- 
+
+### All: Swiftv1 Connectivity should work at this point
+If pods are stuck in creating, try restarting the node. After creating a pod you should be able to contact the cluster dns and other services.
 
 
 ### All: Quick Summary
