@@ -53,10 +53,11 @@ func TestReadConfigFromFile(t *testing.T) {
 			name: "full config",
 			path: "testdata/good.json",
 			want: &CNSConfig{
-				ChannelMode:          "Direct",
-				InitializeFromCNI:    true,
-				EnablePprof:          true,
-				EnableSubnetScarcity: true,
+				ChannelMode:            "Direct",
+				InitializeFromCNI:      true,
+				EnablePprof:            true,
+				EnableSubnetScarcity:   true,
+				EnableSwiftV1DualStack: true,
 				ManagedSettings: ManagedSettings{
 					PrivateEndpoint:           "abc",
 					InfrastructureNetworkID:   "abc",
@@ -202,6 +203,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				MetricsBindAddress:          ":9090",
 				SyncHostNCTimeoutMs:         500,
 				SyncHostNCVersionIntervalMs: 1000,
+				IPv6PrefixClamp:             120,
 				TelemetrySettings: TelemetrySettings{
 					TelemetryBatchSizeBytes:      32768,
 					TelemetryBatchIntervalInSecs: 30,
@@ -236,6 +238,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				MetricsBindAddress:          ":9091",
 				SyncHostNCTimeoutMs:         5,
 				SyncHostNCVersionIntervalMs: 1,
+				IPv6PrefixClamp:             120,
 				TelemetrySettings: TelemetrySettings{
 					TelemetryBatchSizeBytes:      3,
 					TelemetryBatchIntervalInSecs: 3,
@@ -265,6 +268,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				MetricsBindAddress:          ":9091",
 				SyncHostNCTimeoutMs:         5,
 				SyncHostNCVersionIntervalMs: 1,
+				IPv6PrefixClamp:             120,
 				TelemetrySettings: TelemetrySettings{
 					TelemetryBatchSizeBytes:      3,
 					TelemetryBatchIntervalInSecs: 3,
