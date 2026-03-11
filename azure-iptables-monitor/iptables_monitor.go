@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,15 +30,15 @@ import (
 var version string
 
 var (
-	configPath4            = flag.String("input", "/etc/config/", "Name of the directory with the ipv4 allowed regex files")
-	configPath6            = flag.String("input6", "/etc/config6/", "Name of directory with the ipv6 allowed regex files")
-	checkInterval          = flag.Int("interval", 300, "How often to check for user iptables rules and bpf map increases (in seconds)")
-	sendEvents             = flag.Bool("events", false, "Whether to send node events if unexpected iptables rules are detected")
-	ipv6Enabled            = flag.Bool("ipv6", false, "Whether to check ip6tables using the ipv6 allowlists")
-	checkMap               = flag.Bool("checkMap", false, "Whether to check the bpf map at mapPath for increases")
-	pinPath                = flag.String("mapPath", "/azure-block-iptables-bpf-map/iptables_block_event_counter", "Path to pinned bpf map")
-	terminateOnSuccess     = flag.Bool("terminateOnSuccess", false, "Whether to terminate the program when no user iptables rules found")
-	installIstioRoutesFlag = flag.Bool("installIstioRoutes", false, "Whether to install loopback routes for Istio SNAT")
+	configPath4                      = flag.String("input", "/etc/config/", "Name of the directory with the ipv4 allowed regex files")
+	configPath6                      = flag.String("input6", "/etc/config6/", "Name of directory with the ipv6 allowed regex files")
+	checkInterval                    = flag.Int("interval", 300, "How often to check for user iptables rules and bpf map increases (in seconds)")
+	sendEvents                       = flag.Bool("events", false, "Whether to send node events if unexpected iptables rules are detected")
+	ipv6Enabled                      = flag.Bool("ipv6", false, "Whether to check ip6tables using the ipv6 allowlists")
+	checkMap                         = flag.Bool("checkMap", false, "Whether to check the bpf map at mapPath for increases")
+	pinPath                          = flag.String("mapPath", "/azure-block-iptables-bpf-map/iptables_block_event_counter", "Path to pinned bpf map")
+	terminateOnSuccess               = flag.Bool("terminateOnSuccess", false, "Whether to terminate the program when no user iptables rules found")
+	installRoutesForHealthProbeReply = flag.Bool("installRoutesForHealthProbeReply", false, "Whether to install loopback routes for replies sent to kubelet health probes")
 )
 
 const (
@@ -45,9 +46,9 @@ const (
 	requestTimeout = 5 * time.Second
 )
 
-const (
-	istioIPv4 = "169.254.7.127"
-	istioIPv6 = "fd16:9254:7127:1337:ffff:ffff:ffff:ffff"
+var (
+	healthProbeSrcIPv4 netip.Addr = netip.MustParseAddr("169.254.7.127")
+	healthProbeSrcIPv6 netip.Addr = netip.MustParseAddr("fd16:9254:7127:1337:ffff:ffff:ffff:ffff")
 )
 
 type OSFileLineReader struct{}
@@ -93,10 +94,10 @@ func NewRouteManager() RouteManager {
 }
 
 // EnsureRoute adds a route for the given IP to the loopback device, replacing any existing route
-func (r *realRouteManager) EnsureRoute(ip string, isIPv6 bool) error {
-	args := []string{"route", "replace", ip + "/32", "dev", "lo", "proto", "static"}
-	if isIPv6 {
-		args = []string{"-6", "route", "replace", ip + "/128", "dev", "lo", "proto", "static"}
+func (r *realRouteManager) EnsureRoute(ip netip.Addr) error {
+	args := []string{"route", "replace", ip.String() + "/32", "dev", "lo", "proto", "static", "scope", "link"}
+	if ip.Is6() {
+		args = []string{"-6", "route", "replace", ip.String() + "/128", "dev", "lo", "proto", "static", "scope", "link"}
 	}
 	cmd := exec.Command("ip", args...) // #nosec G204 -- args are validated IPs, not user-controlled
 	output, err := cmd.CombinedOutput()
@@ -346,28 +347,28 @@ func Check(cfg Config, deps Dependencies, previousBlocks *uint64) bool {
 	return userIPTablesRulesFound
 }
 
-// installIstioRoutes installs loopback routes for the fixed Istio SNAT IPs.
+// installHealthProbeReplyRoutes installs loopback routes for replies sent to kubelet health probes.
 // IPv6 route is installed only when ipv6Enabled is true.
-func installIstioRoutes(deps Dependencies, ipv6Enabled bool) {
-	if err := deps.RouteManager.EnsureRoute(istioIPv4, false); err != nil {
-		klog.Errorf("Failed to install IPv4 Istio route: %v", err)
+func installHealthProbeReplyRoutes(deps Dependencies, ipv6Enabled bool) {
+	if err := deps.RouteManager.EnsureRoute(healthProbeSrcIPv4); err != nil {
+		klog.Errorf("Failed to install IPv4 route for health probe reply: %v", err)
 	} else {
-		klog.V(2).Infof("Installed loopback route for Istio IPv4 %s", istioIPv4)
+		klog.V(2).Infof("Installed loopback route for health probe IPv4 %s", healthProbeSrcIPv4)
 	}
 
 	if ipv6Enabled {
-		if err := deps.RouteManager.EnsureRoute(istioIPv6, true); err != nil {
-			klog.Errorf("Failed to install IPv6 Istio route: %v", err)
+		if err := deps.RouteManager.EnsureRoute(healthProbeSrcIPv6); err != nil {
+			klog.Errorf("Failed to install IPv6 route for health probe reply: %v", err)
 		} else {
-			klog.V(2).Infof("Installed loopback route for Istio IPv6 %s", istioIPv6)
+			klog.V(2).Infof("Installed loopback route for health probe IPv6 %s", healthProbeSrcIPv6)
 		}
 	}
 }
 
 // Run runs Check in a loop and handles the number of blocks
 func Run(cfg Config, deps Dependencies) {
-	if cfg.InstallIstioRoutes {
-		installIstioRoutes(deps, cfg.IPv6Enabled)
+	if cfg.InstallRoutesForHealthProbeReply {
+		installHealthProbeReplyRoutes(deps, cfg.IPv6Enabled)
 	}
 
 	blockCount := uint64(0)
@@ -400,16 +401,16 @@ func main() {
 	}
 
 	cfg := Config{
-		ConfigPath4:        *configPath4,
-		ConfigPath6:        *configPath6,
-		CheckInterval:      *checkInterval,
-		SendEvents:         *sendEvents,
-		IPv6Enabled:        *ipv6Enabled,
-		CheckMap:           *checkMap,
-		PinPath:            *pinPath,
-		TerminateOnSuccess: *terminateOnSuccess,
-		InstallIstioRoutes: *installIstioRoutesFlag,
-		NodeName:           currentNodeName,
+		ConfigPath4:                      *configPath4,
+		ConfigPath6:                      *configPath6,
+		CheckInterval:                    *checkInterval,
+		SendEvents:                       *sendEvents,
+		IPv6Enabled:                      *ipv6Enabled,
+		CheckMap:                         *checkMap,
+		PinPath:                          *pinPath,
+		TerminateOnSuccess:               *terminateOnSuccess,
+		InstallRoutesForHealthProbeReply: *installRoutesForHealthProbeReply,
+		NodeName:                         currentNodeName,
 	}
 
 	config, err := rest.InClusterConfig()
@@ -449,9 +450,9 @@ func main() {
 		FileReader:    OSFileLineReader{},
 	}
 
-	if *installIstioRoutesFlag {
+	if *installRoutesForHealthProbeReply {
 		deps.RouteManager = NewRouteManager()
-		klog.Info("Istio route installation enabled")
+		klog.Info("Route installation for health probe reply enabled")
 	}
 
 	klog.Infof("Starting iptables monitor for node: %s", cfg.NodeName)

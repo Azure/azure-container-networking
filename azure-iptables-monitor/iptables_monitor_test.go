@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"path/filepath"
 	"testing"
 
@@ -155,6 +156,7 @@ type EnsuredRoute struct {
 	IP     string
 	IsIPv6 bool
 	proto  string
+	scope  string
 }
 
 func NewMockRouteManager() *MockRouteManager {
@@ -163,12 +165,12 @@ func NewMockRouteManager() *MockRouteManager {
 	}
 }
 
-func (m *MockRouteManager) EnsureRoute(ip string, isIPv6 bool) error {
-	m.EnsuredRoutes = append(m.EnsuredRoutes, EnsuredRoute{IP: ip, IsIPv6: isIPv6, proto: "static"})
+func (m *MockRouteManager) EnsureRoute(ip netip.Addr) error {
+	m.EnsuredRoutes = append(m.EnsuredRoutes, EnsuredRoute{IP: ip.String(), IsIPv6: ip.Is6(), proto: "static", scope: "link"})
 	return m.EnsureError
 }
 
-func TestInstallIstioRoutes(t *testing.T) {
+func TestInstallHealthProbeReplyRoutes(t *testing.T) {
 	testCases := []struct {
 		name            string
 		ipv6Enabled     bool
@@ -179,15 +181,15 @@ func TestInstallIstioRoutes(t *testing.T) {
 			name:        "ipv4 only",
 			ipv6Enabled: false,
 			expectedEnsured: []EnsuredRoute{
-				{IP: "169.254.7.127", IsIPv6: false, proto: "static"},
+				{IP: "169.254.7.127", IsIPv6: false, proto: "static", scope: "link"},
 			},
 		},
 		{
 			name:        "ipv4 and ipv6",
 			ipv6Enabled: true,
 			expectedEnsured: []EnsuredRoute{
-				{IP: "169.254.7.127", IsIPv6: false, proto: "static"},
-				{IP: "fd16:9254:7127:1337:ffff:ffff:ffff:ffff", IsIPv6: true, proto: "static"},
+				{IP: "169.254.7.127", IsIPv6: false, proto: "static", scope: "link"},
+				{IP: "fd16:9254:7127:1337:ffff:ffff:ffff:ffff", IsIPv6: true, proto: "static", scope: "link"},
 			},
 		},
 		{
@@ -195,8 +197,8 @@ func TestInstallIstioRoutes(t *testing.T) {
 			ipv6Enabled: true,
 			ensureError: fmt.Errorf("route failed"),
 			expectedEnsured: []EnsuredRoute{
-				{IP: "169.254.7.127", IsIPv6: false, proto: "static"},
-				{IP: "fd16:9254:7127:1337:ffff:ffff:ffff:ffff", IsIPv6: true, proto: "static"},
+				{IP: "169.254.7.127", IsIPv6: false, proto: "static", scope: "link"},
+				{IP: "fd16:9254:7127:1337:ffff:ffff:ffff:ffff", IsIPv6: true, proto: "static", scope: "link"},
 			},
 		},
 	}
@@ -210,7 +212,7 @@ func TestInstallIstioRoutes(t *testing.T) {
 				RouteManager: routeManager,
 			}
 
-			installIstioRoutes(deps, tc.ipv6Enabled)
+			installHealthProbeReplyRoutes(deps, tc.ipv6Enabled)
 
 			require.Equal(t, tc.expectedEnsured, routeManager.EnsuredRoutes, "ensured routes mismatch")
 		})
