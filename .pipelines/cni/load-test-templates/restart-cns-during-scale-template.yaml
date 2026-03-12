@@ -1,0 +1,37 @@
+parameters:
+  clusterName: ""
+  cni: "cilium"
+  scaleup: 100
+  nodeCount: 10
+  os: ""
+  jobName: "restart_cns_during_scale"
+  logType: "restartCNSDuringScale"
+
+steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        kubectl get pod -owide -A
+
+        echo "Restart CNS during active scaling"
+        cd test/integration/load
+        scale=$(( ${{ parameters.scaleup }} * ${{ parameters.nodeCount }} ))
+        VALIDATE_STATEFILE=true SCALE_UP=$scale OS_TYPE=${{ parameters.os }} CNI_TYPE=${{ parameters.cni }} \
+          go test -count 1 -timeout 30m -tags load -run ^TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall$
+        cd ../../../
+    name: "restartCNSDuringScale"
+    displayName: "Restart CNS During Scale and Validate"
+    retryCountOnTaskFailure: 3
+
+  - template: ../../templates/log-template.yaml
+    parameters:
+      clusterName: ${{ parameters.clusterName }}
+      logType: ${{ parameters.logType }}
+      os: ${{ parameters.os }}
+      cni: ${{ parameters.cni }}
+      jobName: ${{ parameters.jobName }}
