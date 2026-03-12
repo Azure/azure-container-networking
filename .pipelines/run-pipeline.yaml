@@ -116,13 +116,12 @@ stages:
               archiveName: azure-cns
               archiveVersion: $(CNS_VERSION)
               imageTag: $(Build.BuildNumber)
-            # We do not build NPM for Windows 1.6+
-            # npm:
-            #   name: npm
-            #   extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
-            #   archiveName: azure-npm
-            #   archiveVersion: $(NPM_VERSION)
-            #   imageTag: $(Build.BuildNumber)
+            npm:
+              name: npm
+              extraArgs: '--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)'
+              archiveName: azure-npm
+              archiveVersion: $(NPM_VERSION)
+              imageTag: $(Build.BuildNumber)
 
       - job: linux_arm64
         displayName: "Linux/ARM64"
@@ -256,8 +255,8 @@ stages:
               imageReference: $(NPM_LINUX_AMD64_REF)
             - platform: linux/arm64
               imageReference: $(NPM_LINUX_ARM64_REF)
-            # - platform: windows/amd64
-            #   imageReference: $(NPM_WINDOWS_AMD64_REF)
+            - platform: windows/amd64
+              imageReference: $(NPM_WINDOWS_AMD64_REF)
 
 
   # Cilium Podsubnet E2E tests
@@ -426,7 +425,12 @@ stages:
       vmSize: Standard_B2ms
       dependsOn: manifests
       scaleup: 50
-
+  
+  # AKS Swiftv2 Manifold E2E tests
+  - template: multitenancy/swiftv2-manifold-e2e.stages.yaml
+    parameters:
+      name: "swiftv2_manifold_e2e"
+      dependsOn: manifests
 
   - stage: delete
     displayName: Delete Clusters
