@@ -228,6 +228,14 @@ func (m *Multitenancy) GetAllNetworkContainers(
 
 		ipconfigs, routes := convertToIPConfigAndRouteInfo(ifInfo.NCResponse)
 		ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipconfigs...)
+
+		// Look for ipv6
+		for _, ipconfig := range ipconfigs {
+			if ipconfig.Address.IP.To4() == nil {
+				ipamResult.ipv6Enabled = true
+			}
+		}
+
 		ifInfo.Routes = routes
 		ifInfo.NICType = cns.InfraNIC
 		ifInfo.SkipDefaultRoutes = ncResponses[i].SkipDefaultRoutes
