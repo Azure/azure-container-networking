@@ -159,6 +159,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx conte
 			NetworkContainerPrimaryIPConfig: resp[i].IPConfiguration,
 			NetworkContainerID:              resp[i].NetworkContainerID,
 			SkipDefaultRoutes:               resp[i].SkipDefaultRoutes,
+			NetworkContainerIPv6Config:      resp[i].IPv6Configuration,
 		}
 		podIPInfoList = append(podIPInfoList, podIPInfo)
 		if resp[i].AllowHostToNCCommunication || resp[i].AllowNCToHostCommunication {

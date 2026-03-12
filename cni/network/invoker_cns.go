@@ -31,6 +31,8 @@ var (
 	errInvalidArgs           = errors.New("invalid arg(s)")
 	errInvalidDefaultRouting = errors.New("add result requires exactly one interface with default routes")
 	errInvalidGatewayIP      = errors.New("invalid gateway IP")
+	errInvalidIPv6Address    = errors.New("invalid IPv6 address from NetworkContainerIPv6Config")
+	errInvalidGatewayIPv6    = errors.New("invalid gateway IPv6 address")
 	overlayGatewayV6IP       = "fe80::1234:5678:9abc"
 	watcherPath              = "/var/run/azure-vnet/deleteIDs"
 )
@@ -44,19 +46,22 @@ type CNSIPAMInvoker struct {
 }
 
 type IPResultInfo struct {
-	podIPAddress       string
-	ncSubnetPrefix     uint8
-	ncPrimaryIP        string
-	ncGatewayIPAddress string
-	hostSubnet         string
-	hostPrimaryIP      string
-	hostGateway        string
-	nicType            cns.NICType
-	macAddress         string
-	skipDefaultRoutes  bool
-	routes             []cns.Route
-	pnpID              string
-	endpointPolicies   []policy.Policy
+	podIPAddress         string
+	ncSubnetPrefix       uint8
+	ncPrimaryIP          string
+	ncGatewayIPAddress   string
+	ncSubnetV6Prefix     uint8
+	ncIPv6               string
+	ncGatewayIPv6Address string
+	hostSubnet           string
+	hostPrimaryIP        string
+	hostGateway          string
+	nicType              cns.NICType
+	macAddress           string
+	skipDefaultRoutes    bool
+	routes               []cns.Route
+	pnpID                string
+	endpointPolicies     []policy.Policy
 }
 
 func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
@@ -64,6 +69,9 @@ func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddUint8("ncSubnetPrefix", i.ncSubnetPrefix)
 	encoder.AddString("ncPrimaryIP", i.ncPrimaryIP)
 	encoder.AddString("ncGatewayIPAddress", i.ncGatewayIPAddress)
+	encoder.AddUint8("ncSubnetV6Prefix", i.ncSubnetV6Prefix)
+	encoder.AddString("ncIPv6", i.ncIPv6)
+	encoder.AddString("ncGatewayIPv6Address", i.ncGatewayIPv6Address)
 	encoder.AddString("hostSubnet", i.hostSubnet)
 	encoder.AddString("hostPrimaryIP", i.hostPrimaryIP)
 	encoder.AddString("hostGateway", i.hostGateway)
@@ -149,19 +157,22 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
-			podIPAddress:       response.PodIPInfo[i].PodIPConfig.IPAddress,
-			ncSubnetPrefix:     response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
-			ncPrimaryIP:        response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
-			ncGatewayIPAddress: response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
-			hostSubnet:         response.PodIPInfo[i].HostPrimaryIPInfo.Subnet,
-			hostPrimaryIP:      response.PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP,
-			hostGateway:        response.PodIPInfo[i].HostPrimaryIPInfo.Gateway,
-			nicType:            response.PodIPInfo[i].NICType,
-			macAddress:         response.PodIPInfo[i].MacAddress,
-			skipDefaultRoutes:  response.PodIPInfo[i].SkipDefaultRoutes,
-			routes:             response.PodIPInfo[i].Routes,
-			pnpID:              response.PodIPInfo[i].PnPID,
-			endpointPolicies:   response.PodIPInfo[i].EndpointPolicies,
+			podIPAddress:         response.PodIPInfo[i].PodIPConfig.IPAddress,
+			ncSubnetPrefix:       response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+			ncPrimaryIP:          response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
+			ncGatewayIPAddress:   response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
+			ncSubnetV6Prefix:     response.PodIPInfo[i].NetworkContainerIPv6Config.IPSubnet.PrefixLength,
+			ncIPv6:               response.PodIPInfo[i].NetworkContainerIPv6Config.IPSubnet.IPAddress,
+			ncGatewayIPv6Address: response.PodIPInfo[i].NetworkContainerIPv6Config.GatewayIPAddress,
+			hostSubnet:           response.PodIPInfo[i].HostPrimaryIPInfo.Subnet,
+			hostPrimaryIP:        response.PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP,
+			hostGateway:          response.PodIPInfo[i].HostPrimaryIPInfo.Gateway,
+			nicType:              response.PodIPInfo[i].NICType,
+			macAddress:           response.PodIPInfo[i].MacAddress,
+			skipDefaultRoutes:    response.PodIPInfo[i].SkipDefaultRoutes,
+			routes:               response.PodIPInfo[i].Routes,
+			pnpID:                response.PodIPInfo[i].PnPID,
+			endpointPolicies:     response.PodIPInfo[i].EndpointPolicies,
 		}
 
 		logger.Info("Received info for pod",
@@ -508,6 +519,42 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 		NICType:           info.nicType,
 		MacAddress:        macAddress,
 		SkipDefaultRoutes: info.skipDefaultRoutes,
+	}
+
+	// Append IPv6 IPConfig if NetworkContainerIPv6Config was populated
+	if info.ncIPv6 != "" {
+		ipv6 := net.ParseIP(info.ncIPv6)
+		if ipv6 == nil {
+			logger.Error("Invalid IPv6 address from NetworkContainerIPv6Config",
+				zap.String("ncIPv6", info.ncIPv6),
+				zap.String("macAddress", info.macAddress))
+			return errors.Wrap(errInvalidIPv6Address, info.ncIPv6)
+		}
+		if ipv6.To4() != nil {
+			return errors.Wrapf(errInvalidIPv6Address, "expected IPv6, got IPv4: %s", info.ncIPv6)
+		}
+
+		// Use the dedicated IPv6 gateway; may be nil if no IPv6 gateway was provided
+		ipv6Gateway := net.ParseIP(info.ncGatewayIPv6Address)
+		if ipv6Gateway == nil {
+			logger.Error("Invalid IPv6 gateway address from NetworkContainerIPv6Config",
+				zap.String("ncGatewayIPv6Address", info.ncGatewayIPv6Address),
+				zap.String("macAddress", info.macAddress))
+			return errors.Wrap(errInvalidGatewayIPv6, info.ncGatewayIPv6Address)
+		}
+		if ipv6Gateway.To4() != nil {
+			return errors.Wrapf(errInvalidGatewayIPv6, "expected IPv6 gateway, got IPv4: %s", info.ncGatewayIPv6Address)
+		}
+
+		ifInfo := addResult.interfaceInfo[key]
+		ifInfo.IPConfigs = append(ifInfo.IPConfigs, &network.IPConfig{
+			Address: net.IPNet{
+				IP:   ipv6,
+				Mask: net.CIDRMask(int(info.ncSubnetV6Prefix), 128),
+			},
+			Gateway: ipv6Gateway,
+		})
+		addResult.interfaceInfo[key] = ifInfo
 	}
 
 	return nil
