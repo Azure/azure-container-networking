@@ -917,9 +917,13 @@ test-integration: ## run all integration tests.
 		go test -mod=readonly -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration --skip 'TestE2E*' ./test/integration...
 
 test-load: ## run all load tests
-	AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \
-		CNI_VERSION=$(CNI_VERSION) \
+	AZURE_IPAM_VERSION=v0.4.0 \
+		CNI_VERSION=v1.7.12 \
 		CNS_VERSION=v1.7.12 \
+		IPAM_IMAGE_REPO=ACN \
+		IPAM_IMAGE_NAME_OVERRIDE=msp/azure-ipam \
+		CNI_IMAGE_REPO=ACN \
+		CNI_IMAGE_NAME_OVERRIDE=msp/azure-cni \
 		CNS_IMAGE_REPO=ACN \
 		CNS_IMAGE_NAME_OVERRIDE=msp/azure-cns \
 		go test -timeout 40m -race -tags=load ./test/integration/load... -v
