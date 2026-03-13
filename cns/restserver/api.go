@@ -1301,6 +1301,82 @@ func (service *HTTPRestService) getVMUniqueID(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// getVMUniqueIDInternal fetches the VM unique ID from IMDS. If there is an error,
+// it logs the error and returns an empty string.
+func (service *HTTPRestService) getVMUniqueIDInternal(ctx context.Context) string {
+	vmUniqueID, err := service.imdsClient.GetVMUniqueID(ctx)
+	if err != nil {
+		logger.Errorf("[Azure CNS] failed to get VM unique ID from IMDS: %v", err)
+		return ""
+	}
+	return vmUniqueID
+}
+
+func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.Request) {
+	logger.Request(service.Name, "getNICResources", nil)
+	ctx := r.Context()
+
+	switch r.Method {
+	case http.MethodGet:
+		networkInterfaces, err := service.imdsClient.GetNetworkInterfaces(ctx)
+		if err != nil {
+			resp := cns.GetNICResourcesResponse{
+				Response: cns.Response{
+					ReturnCode: types.UnexpectedError,
+					Message:    errors.Wrap(err, "failed to get NIC resources from IMDS").Error(),
+				},
+			}
+			respondJSON(w, http.StatusInternalServerError, resp)
+			logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+			return
+		}
+
+		vmUniqueID := service.getVMUniqueIDInternal(ctx)
+
+		// Enrich NIC data with NICNetworkConfig CRD info if the middleware is attached
+		var nicNCByMAC map[string]*cns.NICNCInfo
+		if service.nicNCClient != nil {
+			var enrichErr error
+			nicNCByMAC, enrichErr = service.nicNCClient.GetNICNCInfoByMAC(ctx)
+			if enrichErr != nil {
+				logger.Errorf("[Azure CNS] failed to get NICNetworkConfig enrichment data: %v", enrichErr)
+			}
+		}
+
+		nicResources := make([]cns.NICResource, 0, len(networkInterfaces))
+		for _, nic := range networkInterfaces {
+			macStr := nic.MacAddress.String()
+			res := cns.NICResource{
+				MacAddress:             macStr,
+				InterfaceCompartmentID: nic.InterfaceCompartmentID,
+				VMUniqueID:             vmUniqueID,
+			}
+			if info, ok := nicNCByMAC[macStr]; ok {
+				res.NetworkID = info.NetworkID
+				res.SubnetName = info.SubnetName
+			}
+			nicResources = append(nicResources, res)
+		}
+
+		resp := cns.GetNICResourcesResponse{
+			Response: cns.Response{
+				ReturnCode: types.Success,
+			},
+			NICResources: nicResources,
+		}
+		respondJSON(w, http.StatusOK, resp)
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+
+	default:
+		returnMessage := fmt.Sprintf("[Azure CNS] Error. getNICResources did not receive a GET."+
+			" Received: %s", r.Method)
+		returnCode := types.UnsupportedVerb
+		service.setResponse(w, returnCode, cns.GetNICResourcesResponse{
+			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+		})
+	}
+}
+
 // This function is used to query all NCs on a node from NMAgent
 func (service *HTTPRestService) nmAgentNCListHandler(w http.ResponseWriter, r *http.Request) {
 	logger.Request(service.Name, "nmAgentNCListHandler", nil)
