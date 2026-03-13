@@ -47,9 +47,9 @@ stages:
       CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
       CNS_VERSION: v1.7.12
       CNS_IMAGE_REPO: ACN
-      IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
+      IPAM_IMAGE_NAME_OVERRIDE: msp/azure-ipam
       CNS_IMAGE_NAME_OVERRIDE: msp/azure-cns
-      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+      CNI_IMAGE_NAME_OVERRIDE: msp/azure-cni
     jobs:
       - job: ${{ parameters.name }}_${{ parameters.os }}
         displayName: Azure CNI Overlay Test Suite | ${{ parameters.os }} - (${{ parameters.name }})

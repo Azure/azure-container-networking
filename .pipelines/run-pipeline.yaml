@@ -195,19 +195,19 @@ stages:
     variables:
       IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
 
-      AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
+      AZURE_IPAM_VERSION: v0.4.0
       AZURE_IP_MASQ_MERGER_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpMasqMergerVersion'] ]
       AZURE_IPTABLES_MONITOR_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIptablesMonitorVersion'] ]
       AZURE_BLOCK_IPTABLES_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureBlockIptablesVersion'] ]
       CILIUM_LOG_COLLECTOR_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
-      CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNI_VERSION: v1.7.12
       CNS_VERSION: v1.7.12
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
       NPM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
 
-      IPAM_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-ipam:$(Build.BuildNumber)
-      IPAM_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ipam:$(Build.BuildNumber)
-      IPAM_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/azure-ipam:$(Build.BuildNumber)
+      IPAM_LINUX_AMD64_REF: acnpublic.azurecr.io/msp/azure-ipam:v0.4.0
+      IPAM_LINUX_ARM64_REF: acnpublic.azurecr.io/msp/azure-ipam:v0.4.0
+      IPAM_WINDOWS_AMD64_REF: acnpublic.azurecr.io/msp/azure-ipam:v0.4.0
 
       IP_MASQ_MERGER_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-ip-masq-merger:$(Build.BuildNumber)
       IP_MASQ_MERGER_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-ip-masq-merger:$(Build.BuildNumber)
@@ -218,9 +218,9 @@ stages:
       CILIUM_LOG_COLLECTOR_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cilium-log-collector:$(Build.BuildNumber)
       CILIUM_LOG_COLLECTOR_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cilium-log-collector:$(Build.BuildNumber)
 
-      CNI_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cni:$(Build.BuildNumber)
-      CNI_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cni:$(Build.BuildNumber)
-      CNI_WINDOWS_AMD64_REF: $(IMAGE_REPO_PATH)/windows-amd64/cni:$(Build.BuildNumber)
+      CNI_LINUX_AMD64_REF: acnpublic.azurecr.io/msp/azure-cni:v1.7.12
+      CNI_LINUX_ARM64_REF: acnpublic.azurecr.io/msp/azure-cni:v1.7.12
+      CNI_WINDOWS_AMD64_REF: acnpublic.azurecr.io/msp/azure-cni:v1.7.12
 
       CNS_LINUX_AMD64_REF: acnpublic.azurecr.io/msp/azure-cns:v1.7.12
       CNS_LINUX_ARM64_REF: acnpublic.azurecr.io/msp/azure-cns:v1.7.12

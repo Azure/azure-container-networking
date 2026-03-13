@@ -48,7 +48,7 @@ stages:
       CNS_VERSION: v1.7.12
       CNS_IMAGE_REPO: ACN
       CNS_IMAGE_NAME_OVERRIDE: msp/azure-cns
-      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+      CNI_IMAGE_NAME_OVERRIDE: msp/azure-cni
     dependsOn:
     - setup
     - ${{ parameters.clusterName }}
