@@ -57,6 +57,11 @@ type imdsClient interface {
 	GetIMDSVersions(ctx context.Context) (*imds.APIVersionsResponse, error)
 }
 
+// nicNCClient enriches NICResource data with CRD information (e.g., NetworkID, SubnetName).
+type nicNCClient interface {
+	GetNICNCInfoByMAC(ctx context.Context) (map[string]*cns.NICNCInfo, error)
+}
+
 type iptablesClient interface {
 	ChainExists(table string, chain string) (bool, error)
 	NewChain(table string, chain string) error
@@ -102,6 +107,7 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
+	nicNCClient                nicNCClient
 }
 
 type CNIConflistGenerator interface {
@@ -303,6 +309,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.NetworkContainersURLPath, service.getOrRefreshNetworkContainers)
 	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.EndpointPath, service.EndpointHandlerAPI)
+	listener.AddHandler(cns.GetNICResources, service.getNICResources)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
 		listener.AddHandler(cns.GetVMUniqueID, service.getVMUniqueID)
@@ -398,4 +405,8 @@ func (service *HTTPRestService) MustGenerateCNIConflistOnce() {
 
 func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.IPConfigsHandlerMiddleware) {
 	service.IPConfigsHandlerMiddleware = middleware
+}
+
+func (service *HTTPRestService) AttachNICNCClient(client nicNCClient) {
+	service.nicNCClient = client
 }

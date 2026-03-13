@@ -21,6 +21,7 @@ const (
 	GetHomeAz                                = "/homeaz"
 	GetNCList                                = "/nclist"
 	GetVMUniqueID                            = "/metadata/vmuniqueid"
+	GetNICResources                          = "/network/nicresources"
 	CreateOrUpdateNetworkContainer           = "/network/createorupdatenetworkcontainer"
 	DeleteNetworkContainer                   = "/network/deletenetworkcontainer"
 	PublishNetworkContainer                  = "/network/publishnetworkcontainer"
