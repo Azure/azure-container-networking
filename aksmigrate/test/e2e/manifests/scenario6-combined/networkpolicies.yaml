@@ -1,0 +1,54 @@
+# CILIUM-001: ipBlock catch-all without selectors
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-catch-all
+  namespace: e2e-combined
+spec:
+  podSelector:
+    matchLabels:
+      app: db-client
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 5432
+          endPort: 5440
+---
+# CILIUM-005: deny-all ingress on LB-backed pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all-ingress-frontend
+  namespace: e2e-combined
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Ingress
+---
+# CILIUM-004: egress restriction triggers host egress warning
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restrict-backend-egress
+  namespace: e2e-combined
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53

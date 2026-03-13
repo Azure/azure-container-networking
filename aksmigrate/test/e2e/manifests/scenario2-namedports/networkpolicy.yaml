@@ -1,0 +1,15 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-named-port-http
+  namespace: e2e-namedports
+spec:
+  podSelector:
+    matchLabels:
+      app: svc-target
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP

@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: svc-target-9090
+  namespace: e2e-namedports
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: svc-target
+      variant: port-9090
+  template:
+    metadata:
+      labels:
+        app: svc-target
+        variant: port-9090
+    spec:
+      containers:
+        - name: server
+          image: nginx:1.25-alpine
+          ports:
+            - name: http
+              containerPort: 9090
