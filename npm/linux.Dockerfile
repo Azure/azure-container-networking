@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.25.7 AS builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.25.8 AS builder
 ARG VERSION
 ARG NPM_AI_PATH
 ARG NPM_AI_ID
@@ -9,16 +9,18 @@ RUN MS_GO_NOSYSTEMCRYPTO=1 CGO_ENABLED=0 go build -v -o /usr/local/bin/azure-npm
 FROM mcr.microsoft.com/mirror/docker/library/ubuntu:24.04 AS linux
 COPY --from=builder /usr/local/bin/azure-npm /usr/bin/azure-npm
 # Manually patch Ubuntu CVEs:
-# gpgv:      CVE-2025-68973 (HIGH)
-# libc-bin:  CVE-2025-15281, CVE-2026-0861, CVE-2026-0915 (MEDIUM)
-# libc6:     CVE-2025-15281, CVE-2026-0861, CVE-2026-0915 (MEDIUM)
-# libtasn1-6: CVE-2025-13151 (MEDIUM)
+# gpgv:           CVE-2025-68973 (HIGH)
+# libc-bin:       CVE-2025-15281, CVE-2026-0861, CVE-2026-0915 (MEDIUM)
+# libc6:          CVE-2025-15281, CVE-2026-0861, CVE-2026-0915 (MEDIUM)
+# libtasn1-6:     CVE-2025-13151 (MEDIUM)
+# libgnutls30t64: CVE-2025-14831 (MEDIUM), CVE-2025-9820 (LOW)
 RUN apt-get update && apt-get install -y \
     iptables ipset ca-certificates \
     gpgv=2.4.4-2ubuntu17.4 \
     libc-bin=2.39-0ubuntu8.7 \
     libc6=2.39-0ubuntu8.7 \
     libtasn1-6=4.19.0-3ubuntu0.24.04.2 \
+    libgnutls30t64=3.8.3-1.1ubuntu3.5 \
     && apt-get autoremove -y && apt-get clean
 RUN chmod +x /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
