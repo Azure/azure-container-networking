@@ -47,13 +47,18 @@ stages:
                 API_BASE="https://acn-dalec-e2e-dfazhxbfg4frcwbg.westcentralus-01.azurewebsites.net"
                 API_AUDIENCE="api://d3b254c1-a8e6-44c0-a1ed-f23fb70a432b"
 
-                TOKEN="$(az account get-access-token --resource "${API_AUDIENCE}" --query accessToken -o tsv)"
+                TOKEN="$(az account get-access-token --scope "${API_AUDIENCE}/.default" --query accessToken -o tsv)"
 
                 CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
+                  --max-time 30 \
                   -X POST "${API_BASE}/api/trigger/cni" \
                   -H "Authorization: Bearer ${TOKEN}" \
                   -H "Content-Type: application/json" \
                   -d '{}')"
 
                 echo "HTTP_CODE=${CODE}"
+                if [ "${CODE}" -lt 200 ] || [ "${CODE}" -ge 300 ]; then
+                  echo "Request failed"
+                  exit 1
+                fi
 
