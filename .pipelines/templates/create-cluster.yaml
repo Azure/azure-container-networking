@@ -43,7 +43,7 @@ jobs:
 
             # Check if cluster already exists
             CLUSTER_EXISTS=$(az aks show --resource-group ${{ parameters.clusterName }} --name ${{ parameters.clusterName }} --query "name" -o tsv 2>/dev/null || echo "")
-            
+
             if [ ! -z "$CLUSTER_EXISTS" ]; then
               echo "Cluster ${{ parameters.clusterName }} already exists. Tearing it down first..."
               make -C ./hack/aks down \
@@ -62,4 +62,3 @@ jobs:
 
             echo "Cluster successfully created"
         displayName: Cluster - ${{ parameters.clusterType }}
-        continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}

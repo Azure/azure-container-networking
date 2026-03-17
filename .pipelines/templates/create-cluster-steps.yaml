@@ -11,7 +11,6 @@ parameters:
   region: ""
   os: linux
 
-
 steps:
   - task: AzureCLI@2
     inputs:
@@ -52,4 +51,3 @@ steps:
 
         echo "Cluster successfully created"
     displayName: Cluster - ${{ parameters.clusterType }}
-    continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}
