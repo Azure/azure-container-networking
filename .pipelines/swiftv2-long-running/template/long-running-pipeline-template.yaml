@@ -175,6 +175,7 @@ stages:
     - template: datapath-tests-stage.yaml
       parameters:
         workloadType: ${{ workload }}
+        location: ${{ parameters.location }}
         subscriptionId: ${{ parameters.subscriptionId }}
         rgName: $(rgName)
         storageAccount1: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
