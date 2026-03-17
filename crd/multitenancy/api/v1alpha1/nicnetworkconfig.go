@@ -90,7 +90,7 @@ type PodAllocation struct {
 type NICNetworkConfigStatus struct {
 	// Status indicates the current status of the NIC Network Config
 	// +kubebuilder:validation:Enum=Ready;Pending;Error
-	Status NNCStatus `json:"status,omitempty"`
+	Status NICNC `json:"status,omitempty"`
 
 	// NCID is the network container id created for this NIC
 	// +kubebuilder:validation:Optional
@@ -131,13 +131,13 @@ type NICNetworkConfigStatus struct {
 	AccelnetEnabled bool `json:"accelnetEnabled,omitempty"`
 }
 
-// NNCStatus indicates the status of NIC Network Config
-type NNCStatus string
+// NICNC indicates the status of NIC Network Config
+type NICNC string
 
 const (
-	NNCStatusReady   NNCStatus = "Ready"
-	NNCStatusPending NNCStatus = "Pending"
-	NNCStatusError   NNCStatus = "Error"
+	NICNCReady   NICNC = "Ready"
+	NICNCPending NICNC = "Pending"
+	NICNCError   NICNC = "Error"
 )
 
 func init() {
