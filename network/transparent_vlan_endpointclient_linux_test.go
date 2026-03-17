@@ -1203,7 +1203,6 @@ func TestAddDefaultArp(t *testing.T) {
 		gatewayCIDR string
 		wantErr     bool
 	}{
-
 		{
 			name: "IPv4 - good path",
 			client: &TransparentVlanEndpointClient{
