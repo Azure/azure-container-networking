@@ -27,9 +27,6 @@ schedules:
     include: ["master"]
   always: true
 
-variables:
-  FUNCTION_API_APP_ID_URI: api://d3b254c1-a8e6-44c0-a1ed-f23fb70a432b
-
 stages:
   - stage: manual_auth_test_to_function_api
     displayName: Manual Auth Test To Function API
@@ -39,46 +36,36 @@ stages:
         pool:
           vmImage: ubuntu-latest
         steps:
-          - task: AzureCLI@2
-            displayName: Manual auth test to Function API (federated)
+          - task: Bash@3
+            displayName: Anonymous trigger/status validation
             inputs:
+              targetType: inline
               azureSubscription: acn-dalec-test
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
+              script: |
                 set -euo pipefail
                 API_BASE="https://acn-dalec-e2e-dfazhxbfg4frcwbg.westcentralus-01.azurewebsites.net"
+                TRIGGER_URL="${API_BASE}/api/trigger/cni"
+                STATUS_URL="${API_BASE}/api/status/cni"
 
-                if [ -z "${FUNCTION_API_APP_ID_URI:-}" ]; then
-                  echo "FUNCTION_API_APP_ID_URI is not set"
-                  exit 1
-                fi
-
-                TOKEN="$(az account get-access-token --scope "${FUNCTION_API_APP_ID_URI}/.default" --query accessToken -o tsv 2>/dev/null || true)"
-                if [ -z "${TOKEN}" ]; then
-                  echo "Failed to acquire bearer token for ${FUNCTION_API_APP_ID_URI}/.default"
-                  exit 1
-                fi
-
-                HDR_FILE="$(mktemp)"
-                BODY_FILE="$(mktemp)"
-
-                CODE="$(curl -sS -w "%{http_code}" \
-                  -D "${HDR_FILE}" \
-                  -o "${BODY_FILE}" \
+                TRIGGER_CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
                   --max-time 30 \
-                  -X POST "${API_BASE}/api/trigger/cni" \
-                  -H "Authorization: Bearer ${TOKEN}" \
+                  -X POST "${TRIGGER_URL}" \
                   -H "Content-Type: application/json" \
                   -d '{}')"
 
-                echo "HTTP_CODE=${CODE}"
-                if [ "${CODE}" -lt 200 ] || [ "${CODE}" -ge 300 ]; then
-                  echo "Request failed"
-                  echo "Response headers (auth hints):"
-                  grep -Ei 'www-authenticate|x-ms-|server|x-powered-by' "${HDR_FILE}" || true
-                  echo "Response body (first 400 chars):"
-                  head -c 400 "${BODY_FILE}" || true
+                echo "TRIGGER_HTTP_CODE=${TRIGGER_CODE}"
+                if [ "${TRIGGER_CODE}" -lt 200 ] || [ "${TRIGGER_CODE}" -ge 300 ]; then
+                  echo "Trigger request failed"
+                  exit 1
+                fi
+
+                STATUS_CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
+                  --max-time 30 \
+                  -X GET "${STATUS_URL}")"
+
+                echo "STATUS_HTTP_CODE=${STATUS_CODE}"
+                if [ "${STATUS_CODE}" -lt 200 ] || [ "${STATUS_CODE}" -ge 300 ]; then
+                  echo "Status request failed"
                   exit 1
                 fi
 
