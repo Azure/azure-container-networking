@@ -27,6 +27,9 @@ schedules:
     include: ["master"]
   always: true
 
+variables:
+  FUNCTION_API_APP_ID_URI: api://d3b254c1-a8e6-44c0-a1ed-f23fb70a432b
+
 stages:
   - stage: manual_auth_test_to_function_api
     displayName: Manual Auth Test To Function API
@@ -36,20 +39,28 @@ stages:
         pool:
           vmImage: ubuntu-latest
         steps:
-          - task: Bash@3
-            displayName: Anonymous trigger/status validation
+          - task: AzureCLI@2
+            displayName: Authenticated trigger/status validation
             inputs:
-              targetType: inline
               azureSubscription: acn-dalec-test
-              script: |
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
                 set -euo pipefail
                 API_BASE="https://acn-dalec-e2e-dfazhxbfg4frcwbg.westcentralus-01.azurewebsites.net"
                 TRIGGER_URL="${API_BASE}/api/trigger/cni"
                 STATUS_URL="${API_BASE}/api/status/cni"
 
+                TOKEN="$(az account get-access-token --scope "${FUNCTION_API_APP_ID_URI}/.default" --query accessToken -o tsv)"
+                if [ -z "${TOKEN}" ]; then
+                  echo "Failed to acquire bearer token"
+                  exit 1
+                fi
+
                 TRIGGER_CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
                   --max-time 30 \
                   -X POST "${TRIGGER_URL}" \
+                  -H "Authorization: Bearer ${TOKEN}" \
                   -H "Content-Type: application/json" \
                   -d '{}')"
 
@@ -61,7 +72,8 @@ stages:
 
                 STATUS_CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
                   --max-time 30 \
-                  -X GET "${STATUS_URL}")"
+                  -X GET "${STATUS_URL}" \
+                  -H "Authorization: Bearer ${TOKEN}")"
 
                 echo "STATUS_HTTP_CODE=${STATUS_CODE}"
                 if [ "${STATUS_CODE}" -lt 200 ] || [ "${STATUS_CODE}" -ge 300 ]; then
