@@ -63,6 +63,8 @@ stages:
 
           - task: AzureCLI@2
             displayName: Manual auth test to Function API
+            env:
+              FUNCTION_API_BEARER: $(FUNCTION_API_BEARER)
             inputs:
               azureSubscription: acn-dalec-test
               scriptType: bash
