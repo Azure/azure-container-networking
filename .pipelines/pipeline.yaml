@@ -40,32 +40,7 @@ stages:
           vmImage: ubuntu-latest
         steps:
           - task: AzureCLI@2
-            displayName: Acquire app-role token for Function API
-            inputs:
-              azureSubscription: acn-dalec-test
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                set -euo pipefail
-
-                if [ -z "${FUNCTION_API_APP_ID_URI:-}" ]; then
-                  echo "FUNCTION_API_APP_ID_URI is not set; skipping bearer token acquisition"
-                  exit 0
-                fi
-
-                TOKEN="$(az account get-access-token --scope "${FUNCTION_API_APP_ID_URI}/.default" --query accessToken -o tsv 2>/dev/null || true)"
-                if [ -z "${TOKEN}" ]; then
-                  echo "Could not acquire bearer token; will rely on function key if provided"
-                  exit 0
-                fi
-
-                echo "##vso[task.setvariable variable=FUNCTION_API_BEARER;issecret=true]${TOKEN}"
-
-          - task: AzureCLI@2
-            displayName: Manual auth test to Function API
-            env:
-              FUNCTION_API_BEARER: $(FUNCTION_API_BEARER)
-              FUNCTION_API_KEY: $(FUNCTION_API_KEY)
+            displayName: Manual auth test to Function API (federated)
             inputs:
               azureSubscription: acn-dalec-test
               scriptType: bash
@@ -73,22 +48,16 @@ stages:
               inlineScript: |
                 set -euo pipefail
                 API_BASE="https://acn-dalec-e2e-dfazhxbfg4frcwbg.westcentralus-01.azurewebsites.net"
-                TOKEN="${FUNCTION_API_BEARER:-}"
-                FUNCTION_KEY="${FUNCTION_API_KEY:-HLVHTYcVlOxIfBV953H-X--iwWK5ulmZ3Eegp2x73HYQAzFuNI95dA==}"
-                AUTH_HEADERS=()
-                REQUEST_URL="${API_BASE}/api/trigger/cni"
 
-                if [ -n "${FUNCTION_KEY}" ]; then
-                  REQUEST_URL="${API_BASE}/api/trigger/cni?code=${FUNCTION_KEY}"
-                elif [ -n "${TOKEN}" ]; then
-                  AUTH_HEADERS+=("-H" "Authorization: Bearer ${TOKEN}")
+                if [ -z "${FUNCTION_API_APP_ID_URI:-}" ]; then
+                  echo "FUNCTION_API_APP_ID_URI is not set"
+                  exit 1
                 fi
 
-                if [ ${#AUTH_HEADERS[@]} -eq 0 ]; then
-                  if [ -z "${FUNCTION_KEY}" ]; then
-                    echo "No auth provided. Set FUNCTION_API_KEY, or configure bearer token acquisition."
-                    exit 1
-                  fi
+                TOKEN="$(az account get-access-token --scope "${FUNCTION_API_APP_ID_URI}/.default" --query accessToken -o tsv 2>/dev/null || true)"
+                if [ -z "${TOKEN}" ]; then
+                  echo "Failed to acquire bearer token for ${FUNCTION_API_APP_ID_URI}/.default"
+                  exit 1
                 fi
 
                 HDR_FILE="$(mktemp)"
@@ -98,8 +67,8 @@ stages:
                   -D "${HDR_FILE}" \
                   -o "${BODY_FILE}" \
                   --max-time 30 \
-                  -X POST "${REQUEST_URL}" \
-                  "${AUTH_HEADERS[@]}" \
+                  -X POST "${API_BASE}/api/trigger/cni" \
+                  -H "Authorization: Bearer ${TOKEN}" \
                   -H "Content-Type: application/json" \
                   -d '{}')"
 
