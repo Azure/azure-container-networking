@@ -39,7 +39,7 @@ stages:
           - task: AzureCLI@2
             displayName: Manual auth test to Function API
             inputs:
-              azureSubscription: Azure Container Networking - Test New -Dalec SP
+              azureSubscription: acn-dalec-test
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
