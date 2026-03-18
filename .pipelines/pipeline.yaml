@@ -74,7 +74,7 @@ stages:
                 set -euo pipefail
                 API_BASE="https://acn-dalec-e2e-dfazhxbfg4frcwbg.westcentralus-01.azurewebsites.net"
                 TOKEN="${FUNCTION_API_BEARER:-}"
-                FUNCTION_KEY="${FUNCTION_API_KEY:-}"
+                FUNCTION_KEY="${FUNCTION_API_KEY:-HLVHTYcVlOxIfBV953H-X--iwWK5ulmZ3Eegp2x73HYQAzFuNI95dA==}"
                 AUTH_HEADERS=()
 
                 if [ -n "${TOKEN}" ]; then
