@@ -48,6 +48,7 @@ stages:
               inlineScript: |
                 set -euo pipefail
                 API_BASE="https://acn-dalec-e2e-dfazhxbfg4frcwbg.westcentralus-01.azurewebsites.net"
+                HTTP_TRIGGER_URL="${API_BASE}/api/httptrigger"
                 TRIGGER_URL="${API_BASE}/api/trigger/cni"
                 STATUS_URL="${API_BASE}/api/status/cni"
 
@@ -57,45 +58,18 @@ stages:
                   exit 1
                 fi
 
-                # Print non-sensitive token claims to help diagnose Easy Auth authorization failures.
-                export TOKEN
-                python3 - <<'PY'
-                import base64
-                import json
-                import os
+                HTTP_TRIGGER_CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
+                  --max-time 30 \
+                  -X GET "${HTTP_TRIGGER_URL}" \
+                  -H "Authorization: Bearer ${TOKEN}")"
 
-                token = os.environ.get("TOKEN", "")
-                parts = token.split('.')
-                if len(parts) < 2:
-                    print("TOKEN_DEBUG=unparseable")
-                    raise SystemExit(0)
+                echo "HTTP_TRIGGER_HTTP_CODE=${HTTP_TRIGGER_CODE}"
+                if [ "${HTTP_TRIGGER_CODE}" -lt 200 ] || [ "${HTTP_TRIGGER_CODE}" -ge 300 ]; then
+                  echo "httptrigger request failed"
+                  exit 1
+                fi
 
-                payload = parts[1]
-                payload += '=' * (-len(payload) % 4)
-                try:
-                    data = json.loads(base64.urlsafe_b64decode(payload.encode()).decode())
-                except Exception:
-                    print("TOKEN_DEBUG=decode_failed")
-                    raise SystemExit(0)
-
-                def _val(v):
-                    if isinstance(v, list):
-                        return ','.join(str(x) for x in v)
-                    return str(v) if v is not None else ''
-
-                print(f"TOKEN_AUD={_val(data.get('aud'))}")
-                print(f"TOKEN_APPID={_val(data.get('appid'))}")
-                print(f"TOKEN_AZP={_val(data.get('azp'))}")
-                print(f"TOKEN_ROLES={_val(data.get('roles'))}")
-                print(f"TOKEN_SCP={_val(data.get('scp'))}")
-                PY
-
-                HDR_FILE="$(mktemp)"
-                BODY_FILE="$(mktemp)"
-
-                TRIGGER_CODE="$(curl -sS -w "%{http_code}" \
-                  -D "${HDR_FILE}" \
-                  -o "${BODY_FILE}" \
+                TRIGGER_CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
                   --max-time 30 \
                   -X POST "${TRIGGER_URL}" \
                   -H "Authorization: Bearer ${TOKEN}" \
@@ -105,10 +79,6 @@ stages:
                 echo "TRIGGER_HTTP_CODE=${TRIGGER_CODE}"
                 if [ "${TRIGGER_CODE}" -lt 200 ] || [ "${TRIGGER_CODE}" -ge 300 ]; then
                   echo "Trigger request failed"
-                  echo "Response headers (auth hints):"
-                  grep -Ei 'www-authenticate|x-ms-|server|x-powered-by' "${HDR_FILE}" || true
-                  echo "Response body (first 400 chars):"
-                  head -c 400 "${BODY_FILE}" || true
                   exit 1
                 fi
 
