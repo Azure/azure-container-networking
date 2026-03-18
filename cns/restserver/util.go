@@ -116,13 +116,11 @@ func (service *HTTPRestService) restoreState() {
 			logger.Errorf("[Azure CNS]  Failed to restore state, err:%v. Removing azure-cns.json", err)
 			service.store.Remove()
 		}
-
-		return
+	} else {
+		logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state)
 	}
 
-	logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state)
-
-	if service.Options[acn.OptManageEndpointState] == true {
+	if service.Options[acn.OptManageEndpointState] == true && service.EndpointStateStore != nil {
 		err := service.EndpointStateStore.Read(EndpointStoreKey, &service.EndpointState)
 		if err != nil {
 			if errors.Is(err, store.ErrKeyNotFound) {
