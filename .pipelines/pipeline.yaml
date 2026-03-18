@@ -76,23 +76,29 @@ stages:
                 TOKEN="${FUNCTION_API_BEARER:-}"
                 FUNCTION_KEY="${FUNCTION_API_KEY:-HLVHTYcVlOxIfBV953H-X--iwWK5ulmZ3Eegp2x73HYQAzFuNI95dA==}"
                 AUTH_HEADERS=()
+                REQUEST_URL="${API_BASE}/api/trigger/cni"
 
-                if [ -n "${TOKEN}" ]; then
+                if [ -n "${FUNCTION_KEY}" ]; then
+                  REQUEST_URL="${API_BASE}/api/trigger/cni?code=${FUNCTION_KEY}"
+                elif [ -n "${TOKEN}" ]; then
                   AUTH_HEADERS+=("-H" "Authorization: Bearer ${TOKEN}")
                 fi
 
-                if [ -n "${FUNCTION_KEY}" ]; then
-                  AUTH_HEADERS+=("-H" "x-functions-key: ${FUNCTION_KEY}")
-                fi
-
                 if [ ${#AUTH_HEADERS[@]} -eq 0 ]; then
-                  echo "No auth provided. Set FUNCTION_API_KEY, or configure bearer token acquisition."
-                  exit 1
+                  if [ -z "${FUNCTION_KEY}" ]; then
+                    echo "No auth provided. Set FUNCTION_API_KEY, or configure bearer token acquisition."
+                    exit 1
+                  fi
                 fi
 
-                CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
+                HDR_FILE="$(mktemp)"
+                BODY_FILE="$(mktemp)"
+
+                CODE="$(curl -sS -w "%{http_code}" \
+                  -D "${HDR_FILE}" \
+                  -o "${BODY_FILE}" \
                   --max-time 30 \
-                  -X POST "${API_BASE}/api/trigger/cni" \
+                  -X POST "${REQUEST_URL}" \
                   "${AUTH_HEADERS[@]}" \
                   -H "Content-Type: application/json" \
                   -d '{}')"
@@ -100,6 +106,10 @@ stages:
                 echo "HTTP_CODE=${CODE}"
                 if [ "${CODE}" -lt 200 ] || [ "${CODE}" -ge 300 ]; then
                   echo "Request failed"
+                  echo "Response headers (auth hints):"
+                  grep -Ei 'www-authenticate|x-ms-|server|x-powered-by' "${HDR_FILE}" || true
+                  echo "Response body (first 400 chars):"
+                  head -c 400 "${BODY_FILE}" || true
                   exit 1
                 fi
 
