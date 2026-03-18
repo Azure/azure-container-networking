@@ -39,15 +39,12 @@ stages:
           - task: AzureCLI@2
             displayName: Manual auth test to Function API
             inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              azureSubscription: Azure Container Networking - Test New -Dalec SP
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
                 API_BASE="https://acn-dalec-e2e-dfazhxbfg4frcwbg.westcentralus-01.azurewebsites.net"
-                API_AUDIENCE="api://d3b254c1-a8e6-44c0-a1ed-f23fb70a432b"
-
-                TOKEN="$(az account get-access-token --scope "${API_AUDIENCE}/.default" --query accessToken -o tsv)"
 
                 CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
                   --max-time 30 \
