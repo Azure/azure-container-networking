@@ -49,7 +49,6 @@ stages:
                 CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
                   --max-time 30 \
                   -X POST "${API_BASE}/api/trigger/cni" \
-                  -H "Authorization: Bearer ${TOKEN}" \
                   -H "Content-Type: application/json" \
                   -d '{}')"
 
