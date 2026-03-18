@@ -27,6 +27,9 @@ schedules:
     include: ["master"]
   always: true
 
+variables:
+  FUNCTION_API_APP_ID_URI: api://d3b254c1-a8e6-44c0-a1ed-f23fb70a432b
+
 stages:
   - stage: manual_auth_test_to_function_api
     displayName: Manual Auth Test To Function API
@@ -37,6 +40,28 @@ stages:
           vmImage: ubuntu-latest
         steps:
           - task: AzureCLI@2
+            displayName: Acquire app-role token for Function API
+            inputs:
+              azureSubscription: acn-dalec-test
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+
+                if [ -z "${FUNCTION_API_APP_ID_URI:-}" ]; then
+                  echo "Set FUNCTION_API_APP_ID_URI (for example: api://<your-api-app-client-id>)"
+                  exit 1
+                fi
+
+                TOKEN="$(az account get-access-token --scope "${FUNCTION_API_APP_ID_URI}/.default" --query accessToken -o tsv)"
+                if [ -z "${TOKEN}" ]; then
+                  echo "Failed to acquire Function API access token"
+                  exit 1
+                fi
+
+                echo "##vso[task.setvariable variable=FUNCTION_API_BEARER;issecret=true]${TOKEN}"
+
+          - task: AzureCLI@2
             displayName: Manual auth test to Function API
             inputs:
               azureSubscription: acn-dalec-test
@@ -45,10 +70,17 @@ stages:
               inlineScript: |
                 set -euo pipefail
                 API_BASE="https://acn-dalec-e2e-dfazhxbfg4frcwbg.westcentralus-01.azurewebsites.net"
+                TOKEN="${FUNCTION_API_BEARER:-}"
+
+                if [ -z "${TOKEN}" ]; then
+                  echo "Missing token from previous step"
+                  exit 1
+                fi
 
                 CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
                   --max-time 30 \
                   -X POST "${API_BASE}/api/trigger/cni" \
+                  -H "Authorization: Bearer ${TOKEN}" \
                   -H "Content-Type: application/json" \
                   -d '{}')"
 
