@@ -128,6 +128,9 @@ type NetworkContainer struct {
 	SubnetAddressSpace string         `json:"subnetAddressSpace,omitempty"`
 	// +kubebuilder:default=0
 	// +kubebuilder:validation:Optional
+	SubnetAddressSpaceV6 string `json:"subnetAddressSpaceV6,omitempty"`
+	// +kubebuilder:default=0
+	// +kubebuilder:validation:Optional
 	Version         int64    `json:"version"`
 	NodeIP          string   `json:"nodeIP,omitempty"`
 	SubscriptionID  string   `json:"subcriptionID,omitempty"`
