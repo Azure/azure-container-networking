@@ -120,7 +120,11 @@ func (service *HTTPRestService) restoreState() {
 		logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state) //nolint:staticcheck // TODO: migrate to zap
 	}
 
-	if service.Options[acn.OptManageEndpointState] == true && service.EndpointStateStore != nil {
+	if service.Options[acn.OptManageEndpointState] == true {
+		if service.EndpointStateStore == nil {
+			logger.Errorf("[Azure CNS]  OptManageEndpointState is enabled but EndpointStateStore is not initialized; endpoint state persistence/restoration is disabled.")
+			return
+		}
 		err := service.EndpointStateStore.Read(EndpointStoreKey, &service.EndpointState)
 		if err != nil {
 			if errors.Is(err, store.ErrKeyNotFound) {
