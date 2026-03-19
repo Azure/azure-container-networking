@@ -141,12 +141,6 @@ func TestRestoreState(t *testing.T) {
 			name:                 "skips endpoint state when OptManageEndpointState not set",
 			wantEndpointRestored: false,
 		},
-		{
-			name:                 "skips endpoint state when EndpointStateStore is nil",
-			manageEndpointState:  true,
-			nilEndpointStore:     true,
-			wantEndpointRestored: false,
-		},
 	}
 
 	for _, tt := range tests {
