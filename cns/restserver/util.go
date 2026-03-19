@@ -117,7 +117,7 @@ func (service *HTTPRestService) restoreState() {
 			service.store.Remove()
 		}
 	} else {
-		logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state)
+		logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state) //nolint:staticcheck // TODO: migrate to zap
 	}
 
 	if service.Options[acn.OptManageEndpointState] == true && service.EndpointStateStore != nil {
