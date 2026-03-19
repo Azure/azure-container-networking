@@ -6,16 +6,6 @@ import (
 )
 
 var (
-	// managerStartFailures is a monotic counter which tracks the number of times the controller-runtime
-	// manager failed to start. To drive alerting based on this metric, it is recommended to use the rate
-	// of increase over a period of time. A positive rate of change indicates that the CNS is actively
-	// failing and retrying.
-	managerStartFailures = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "cns_ctrlmanager_start_failures_total",
-			Help: "Number of times the controller-runtime manager failed to start.",
-		},
-	)
 	// nncReconcilerStartFailures is a monotic counter which tracks the number of times the NNC reconciler
 	// has failed to start within the timeout period. To drive alerting based on this metric, it is
 	// recommended to use the rate of increase over a period of time. A positive rate of change indicates
@@ -45,7 +35,6 @@ var (
 
 func init() {
 	metrics.Registry.MustRegister(
-		managerStartFailures,
 		nncReconcilerStartFailures,
 		nncInitFailure,
 		hasNNCInitialized,
