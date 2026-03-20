@@ -37,7 +37,7 @@ spec:
       priority: 1
       type: string
     - jsonPath: .status.networkContainers[*].subnetAddressSpaceV6
-      name: Subnet ipv6 CIDR
+      name: Subnet CIDR v6
       priority: 1
       type: string
     - jsonPath: .status.networkContainers[*].id
