@@ -31,6 +31,18 @@ func DeleteHnsNetwork(networkName string) error {
 	return fmt.Errorf("DeleteHnsNetwork shouldn't be called for linux platform")
 }
 
+// DeleteNetworkByIDHnsV2 deletes the HNS network by its ID.
+// This is windows platform specific.
+func DeleteNetworkByIDHnsV2(networkID string) error {
+	return fmt.Errorf("DeleteNetworkByIDHnsV2 shouldn't be called for linux platform")
+}
+
+// DeleteHNSEndpointbyID deletes an HNS endpoint by its ID.
+// This is windows platform specific.
+func DeleteHNSEndpointbyID(hnsEndpointID string) error {
+	return fmt.Errorf("DeleteHNSEndpointbyID shouldn't be called for linux platform")
+}
+
 // CreateHostNCApipaEndpoint creates the endpoint in the apipa network
 // for host container connectivity
 // This is windows platform specific.

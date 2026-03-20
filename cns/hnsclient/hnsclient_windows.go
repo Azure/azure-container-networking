@@ -666,6 +666,12 @@ func deleteNetworkByIDHnsV2(
 	return nil
 }
 
+// DeleteNetworkByIDHnsV2 deletes an HNS network by its ID.
+// Returns nil if the network is already deleted (idempotent).
+func DeleteNetworkByIDHnsV2(networkID string) error {
+	return deleteNetworkByIDHnsV2(networkID)
+}
+
 func deleteEndpointByNameHnsV2(
 	endpointName string) error {
 	var (

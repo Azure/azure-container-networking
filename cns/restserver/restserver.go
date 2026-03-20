@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
+	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
@@ -101,6 +102,7 @@ type HTTPRestService struct {
 	IPConfigsHandlerMiddleware cns.IPConfigsHandlerMiddleware
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
+	hnsClient                  hnsclient.HNSClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
 }
 
@@ -252,6 +254,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		homeAzMonitor:            homeAzMonitor,
 		cniConflistGenerator:     gen,
 		imdsClient:               imdsClient,
+		hnsClient:                hnsclient.NewHNSClient(),
 	}, nil
 }
 

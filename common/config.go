@@ -104,6 +104,9 @@ const (
 	// Enable CNS to manage endpoint state
 	OptManageEndpointState = "manage-endpoint-state"
 
+	// Enable CNS to clean up stale HNS resources when a NIC/MAC is reused by a new NC
+	OptEnableStaleHNSCleanupOnNCCreate = "enable-stale-hns-cleanup-on-nc-create"
+
 	// Store file location
 	OptStoreFileLocation      = "store-file-path"
 	OptStoreFileLocationAlias = "storefilepath"
