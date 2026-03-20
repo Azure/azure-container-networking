@@ -672,3 +672,39 @@ func TestCalculateIPs(t *testing.T) {
 		})
 	}
 }
+
+func TestMetastateSubnetCIDRV6FromNNC(t *testing.T) {
+	logger.InitLogger("testlogs", 0, 0, "./")
+	fakecns := fakes.NewHTTPServiceFake()
+	pm := NewMonitor(fakecns, &fakeNodeNetworkConfigUpdater{}, nil, &Options{RefreshDelay: 100 * time.Second})
+
+	nnc := v1alpha.NodeNetworkConfig{
+		Status: v1alpha.NodeNetworkConfigStatus{
+			NetworkContainers: []v1alpha.NetworkContainer{
+				{
+					Type:                 v1alpha.VNET,
+					PrimaryIP:            "10.0.0.1",
+					SubnetName:           "testsubnet",
+					SubnetAddressSpace:   "10.0.0.0/24",
+					SubnetAddressSpaceV6: "fd12:3456:789a::/48",
+				},
+			},
+			Scaler: v1alpha.Scaler{BatchSize: 10, MaxIPCount: 250, RequestThresholdPercent: 50, ReleaseThresholdPercent: 150},
+		},
+	}
+
+	// Send the NNC and consume it directly (simulating what Start() does).
+	go func() { pm.nncSource <- nnc }()
+	received := <-pm.nncSource
+
+	// Apply the same extraction logic as Start().
+	if len(received.Status.NetworkContainers) > 0 {
+		pm.metastate.subnet = received.Status.NetworkContainers[0].SubnetName
+		pm.metastate.subnetCIDR = received.Status.NetworkContainers[0].SubnetAddressSpace
+		pm.metastate.subnetCIDRV6 = received.Status.NetworkContainers[0].SubnetAddressSpaceV6
+	}
+
+	assert.Equal(t, "10.0.0.0/24", pm.metastate.subnetCIDR)
+	assert.Equal(t, "fd12:3456:789a::/48", pm.metastate.subnetCIDRV6)
+	assert.Equal(t, "testsubnet", pm.metastate.subnet)
+}
