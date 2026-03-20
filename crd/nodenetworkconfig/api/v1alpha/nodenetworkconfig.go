@@ -20,6 +20,7 @@ import (
 // +kubebuilder:printcolumn:name="Allocated IPs",type=integer,priority=0,JSONPath=`.status.assignedIPCount`
 // +kubebuilder:printcolumn:name="Subnet",type=string,priority=1,JSONPath=`.status.networkContainers[*].subnetName`
 // +kubebuilder:printcolumn:name="Subnet CIDR",type=string,priority=1,JSONPath=`.status.networkContainers[*].subnetAddressSpace`
+// +kubebuilder:printcolumn:name="Subnet CIDR v6",type=string,priority=1,JSONPath=`.status.networkContainers[*].subnetAddressSpaceV6`
 // +kubebuilder:printcolumn:name="NC ID",type=string,priority=1,JSONPath=`.status.networkContainers[*].id`
 // +kubebuilder:printcolumn:name="NC Mode",type=string,priority=0,JSONPath=`.status.networkContainers[*].assignmentMode`
 // +kubebuilder:printcolumn:name="NC Type",type=string,priority=1,JSONPath=`.status.networkContainers[*].type`
