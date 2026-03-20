@@ -118,16 +118,16 @@ type NetworkContainer struct {
 	// +kubebuilder:default=dynamic
 	AssignmentMode AssignmentMode `json:"assignmentMode,omitempty"`
 	// +kubebuilder:default=vnet
-	Type               NCType         `json:"type,omitempty"`
-	PrimaryIP          string         `json:"primaryIP,omitempty"`
-	PrimaryIPV6        string         `json:"primaryIPV6,omitempty"`
-	SubnetName         string         `json:"subnetName,omitempty"`
-	IPAssignments      []IPAssignment `json:"ipAssignments,omitempty"`
-	DefaultGateway     string         `json:"defaultGateway,omitempty"`
-	DefaultGatewayV6   string         `json:"defaultGatewayV6,omitempty"`
-	MacAddress         string         `json:"macAddress,omitempty"`
-	SubnetAddressSpace string         `json:"subnetAddressSpace,omitempty"`
-	SubnetAddressSpaceV6 string `json:"subnetAddressSpaceV6,omitempty"`
+	Type                 NCType         `json:"type,omitempty"`
+	PrimaryIP            string         `json:"primaryIP,omitempty"`
+	PrimaryIPV6          string         `json:"primaryIPV6,omitempty"`
+	SubnetName           string         `json:"subnetName,omitempty"`
+	IPAssignments        []IPAssignment `json:"ipAssignments,omitempty"`
+	DefaultGateway       string         `json:"defaultGateway,omitempty"`
+	DefaultGatewayV6     string         `json:"defaultGatewayV6,omitempty"`
+	MacAddress           string         `json:"macAddress,omitempty"`
+	SubnetAddressSpace   string         `json:"subnetAddressSpace,omitempty"`
+	SubnetAddressSpaceV6 string         `json:"subnetAddressSpaceV6,omitempty"`
 	// +kubebuilder:default=0
 	// +kubebuilder:validation:Optional
 	Version         int64    `json:"version"`
