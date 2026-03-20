@@ -126,8 +126,6 @@ type NetworkContainer struct {
 	DefaultGatewayV6   string         `json:"defaultGatewayV6,omitempty"`
 	MacAddress         string         `json:"macAddress,omitempty"`
 	SubnetAddressSpace string         `json:"subnetAddressSpace,omitempty"`
-	// +kubebuilder:default=0
-	// +kubebuilder:validation:Optional
 	SubnetAddressSpaceV6 string `json:"subnetAddressSpaceV6,omitempty"`
 	// +kubebuilder:default=0
 	// +kubebuilder:validation:Optional
