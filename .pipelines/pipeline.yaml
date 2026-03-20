@@ -69,27 +69,51 @@ stages:
                   exit 1
                 fi
 
-                TRIGGER_CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
+                TRIGGER_RESPONSE="$(curl -sS -w "\n%{http_code}" \
                   --max-time 30 \
                   -X POST "${TRIGGER_URL}" \
                   -H "Authorization: Bearer ${TOKEN}" \
                   -H "Content-Type: application/json" \
                   -d '{}')"
 
+                TRIGGER_BODY="$(printf '%s' "${TRIGGER_RESPONSE}" | sed '$d')"
+                TRIGGER_CODE="$(printf '%s' "${TRIGGER_RESPONSE}" | tail -n1)"
+
                 echo "TRIGGER_HTTP_CODE=${TRIGGER_CODE}"
                 if [ "${TRIGGER_CODE}" -lt 200 ] || [ "${TRIGGER_CODE}" -ge 300 ]; then
-                  echo "Trigger request failed"
+                  echo "Trigger request failed. response=${TRIGGER_BODY}"
                   exit 1
                 fi
 
-                STATUS_CODE="$(curl -sS -o /dev/null -w "%{http_code}" \
+                RUN_ID="$(printf '%s' "${TRIGGER_BODY}" \
+                  | grep -oE '"runId"[[:space:]]*:[[:space:]]*("[^"]+"|[0-9]+)' \
+                  | head -n1 \
+                  | sed -E 's/.*:[[:space:]]*"?([^\"]+)"?/\1/' || true)"
+
+                if [ -z "${RUN_ID}" ]; then
+                  RUN_ID="$(printf '%s' "${TRIGGER_BODY}" \
+                    | grep -oE '"id"[[:space:]]*:[[:space:]]*("[^"]+"|[0-9]+)' \
+                    | head -n1 \
+                    | sed -E 's/.*:[[:space:]]*"?([^\"]+)"?/\1/' || true)"
+                fi
+
+                if [ -z "${RUN_ID}" ]; then
+                  echo "Trigger response missing runId/id. response=${TRIGGER_BODY}"
+                  exit 1
+                fi
+
+                STATUS_RESPONSE="$(curl -sS -w "\n%{http_code}" \
                   --max-time 30 \
-                  -X GET "${STATUS_URL}" \
+                  -X GET "${STATUS_URL}?runId=${RUN_ID}" \
                   -H "Authorization: Bearer ${TOKEN}")"
 
+                STATUS_BODY="$(printf '%s' "${STATUS_RESPONSE}" | sed '$d')"
+                STATUS_CODE="$(printf '%s' "${STATUS_RESPONSE}" | tail -n1)"
+
+                echo "RUN_ID=${RUN_ID}"
                 echo "STATUS_HTTP_CODE=${STATUS_CODE}"
                 if [ "${STATUS_CODE}" -lt 200 ] || [ "${STATUS_CODE}" -ge 300 ]; then
-                  echo "Status request failed"
+                  echo "Status request failed. runId=${RUN_ID} response=${STATUS_BODY}"
                   exit 1
                 fi
 
