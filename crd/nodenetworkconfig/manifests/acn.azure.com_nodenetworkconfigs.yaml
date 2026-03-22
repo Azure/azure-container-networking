@@ -36,6 +36,10 @@ spec:
       name: Subnet CIDR
       priority: 1
       type: string
+    - jsonPath: .status.networkContainers[*].subnetAddressSpaceV6
+      name: Subnet CIDR v6
+      priority: 1
+      type: string
     - jsonPath: .status.networkContainers[*].id
       name: NC ID
       priority: 1
@@ -146,6 +150,8 @@ spec:
                     subcriptionID:
                       type: string
                     subnetAddressSpace:
+                      type: string
+                    subnetAddressSpaceV6:
                       type: string
                     subnetID:
                       type: string
