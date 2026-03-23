@@ -114,6 +114,14 @@ stages:
             name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
           strategy:
             matrix:
+              azure_ipam_linux_amd64:
+                arch: amd64
+                name: azure-ipam
+                os: linux
+              azure_ipam_windows:
+                arch: amd64
+                name: azure-ipam
+                os: windows
               azure_ip_masq_merger_linux_amd64:
                 arch: amd64
                 name: azure-ip-masq-merger
@@ -143,6 +151,10 @@ stages:
             name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
           strategy:
             matrix:
+              azure_ipam_linux_arm64:
+                arch: arm64
+                name: azure-ipam
+                os: linux
               azure_ip_masq_merger_linux_arm64:
                 arch: arm64
                 name: azure-ip-masq-merger
@@ -222,6 +234,9 @@ stages:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           strategy:
             matrix:
+              azure_ipam:
+                name: azure-ipam
+                platforms: linux/amd64 linux/arm64 windows/amd64
               ipv6_hp_bpf:
                 name: ipv6-hp-bpf
                 platforms: linux/amd64 linux/arm64
