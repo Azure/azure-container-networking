@@ -404,6 +404,7 @@ type NetworkInterfaceInfo struct {
 // IPConfiguration contains details about ip config to provision in the VM.
 type IPConfiguration struct {
 	IPSubnet           IPSubnet
+	IPSubnetV6         IPSubnet
 	DNSServers         []string
 	GatewayIPAddress   string
 	GatewayIPv6Address string

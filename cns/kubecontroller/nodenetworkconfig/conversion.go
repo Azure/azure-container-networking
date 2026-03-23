@@ -56,17 +56,30 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 			NCVersion: int(nc.Version),
 		}
 	}
+	ipConfig := cns.IPConfiguration{
+		IPSubnet:         subnet,
+		GatewayIPAddress: nc.DefaultGateway,
+	}
+
+	if nc.SubnetAddressSpaceV6 != "" {
+		subnetV6Prefix, err := netip.ParsePrefix(nc.SubnetAddressSpaceV6)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid SubnetAddressSpaceV6 %s", nc.SubnetAddressSpaceV6)
+		}
+		ipConfig.IPSubnetV6 = cns.IPSubnet{
+			IPAddress:    nc.PrimaryIPV6,
+			PrefixLength: uint8(subnetV6Prefix.Bits()),
+		}
+	}
+
 	return &cns.CreateNetworkContainerRequest{
 		HostPrimaryIP:        nc.NodeIP,
 		SecondaryIPConfigs:   secondaryIPConfigs,
 		NetworkContainerid:   nc.ID,
 		NetworkContainerType: cns.Docker,
 		Version:              strconv.FormatInt(nc.Version, 10), //nolint:gomnd // it's decimal
-		IPConfiguration: cns.IPConfiguration{
-			IPSubnet:         subnet,
-			GatewayIPAddress: nc.DefaultGateway,
-		},
-		NCStatus: nc.Status,
+		IPConfiguration:      ipConfig,
+		NCStatus:             nc.Status,
 	}, nil
 }
 
@@ -98,7 +111,19 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer, isSwiftV2 bool, ip
 		subnet.IPAddress = primaryPrefix.Addr().String()
 	}
 
-	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet, isSwiftV2, ipv6PrefixClamp)
+	var subnetV6 cns.IPSubnet
+	if nc.SubnetAddressSpaceV6 != "" {
+		subnetV6Prefix, e := netip.ParsePrefix(nc.SubnetAddressSpaceV6)
+		if e != nil {
+			return nil, errors.Wrapf(e, "invalid SubnetAddressSpaceV6 %s", nc.SubnetAddressSpaceV6)
+		}
+		subnetV6 = cns.IPSubnet{
+			IPAddress:    nc.PrimaryIPV6,
+			PrefixLength: uint8(subnetV6Prefix.Bits()),
+		}
+	}
+
+	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet, subnetV6, isSwiftV2, ipv6PrefixClamp)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error while creating NC request from static NC")
 	}

@@ -14,7 +14,7 @@ import (
 //nolint:gocritic //ignore hugeparam
 func createNCRequestFromStaticNCHelper(
 	nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix,
-	subnet cns.IPSubnet, isSwiftV2 bool, ipv6PrefixClamp int,
+	subnet cns.IPSubnet, subnetV6 cns.IPSubnet, isSwiftV2 bool, ipv6PrefixClamp int,
 ) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 
@@ -63,6 +63,7 @@ func createNCRequestFromStaticNCHelper(
 		Version:              strconv.FormatInt(nc.Version, 10), //nolint:gomnd // it's decimal
 		IPConfiguration: cns.IPConfiguration{
 			IPSubnet:           subnet,
+			IPSubnetV6:         subnetV6,
 			GatewayIPAddress:   nc.DefaultGateway,
 			GatewayIPv6Address: nc.DefaultGatewayV6,
 		},

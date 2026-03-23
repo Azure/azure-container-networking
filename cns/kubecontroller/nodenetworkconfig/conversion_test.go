@@ -226,6 +226,35 @@ func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 	}
 }
 
+func TestCreateNCRequestFromDynamicNCWithIPv6(t *testing.T) {
+	nc := v1alpha.NetworkContainer{
+		ID:                   ncID,
+		PrimaryIP:            primaryIP,
+		PrimaryIPV6:          "fd12:3456:789a::1",
+		SubnetAddressSpace:   subnetAddressSpace,
+		SubnetAddressSpaceV6: "fd12:3456:789a::/48",
+		DefaultGateway:       defaultGateway,
+		NodeIP:               nodeIP,
+		Version:              version,
+	}
+	got, err := CreateNCRequestFromDynamicNC(nc)
+	assert.NoError(t, err)
+	assert.Equal(t, cns.IPSubnet{IPAddress: "fd12:3456:789a::1", PrefixLength: 48}, got.IPConfiguration.IPSubnetV6)
+}
+
+func TestCreateNCRequestFromDynamicNCWithInvalidIPv6Subnet(t *testing.T) {
+	nc := v1alpha.NetworkContainer{
+		ID:                   ncID,
+		PrimaryIP:            primaryIP,
+		SubnetAddressSpace:   subnetAddressSpace,
+		SubnetAddressSpaceV6: "not-a-cidr",
+		NodeIP:               nodeIP,
+		Version:              version,
+	}
+	_, err := CreateNCRequestFromDynamicNC(nc)
+	assert.Error(t, err)
+}
+
 func TestCreateNCRequestFromStaticNC(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -348,4 +377,37 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 			assert.EqualValues(t, tt.want, got)
 		})
 	}
+}
+
+func TestCreateNCRequestFromStaticNCWithIPv6(t *testing.T) {
+	nc := v1alpha.NetworkContainer{
+		ID:                   ncID,
+		AssignmentMode:       v1alpha.Static,
+		Type:                 v1alpha.Overlay,
+		PrimaryIP:            overlayPrimaryIP,
+		PrimaryIPV6:          "fd12:3456:789a::1",
+		NodeIP:               nodeIP,
+		SubnetName:           subnetName,
+		SubnetAddressSpace:   subnetAddressSpace,
+		SubnetAddressSpaceV6: "fd12:3456:789a::/48",
+		Version:              version,
+	}
+	got, err := CreateNCRequestFromStaticNC(nc, false, 0)
+	assert.NoError(t, err)
+	assert.Equal(t, cns.IPSubnet{IPAddress: "fd12:3456:789a::1", PrefixLength: 48}, got.IPConfiguration.IPSubnetV6)
+}
+
+func TestCreateNCRequestFromStaticNCWithInvalidIPv6Subnet(t *testing.T) {
+	nc := v1alpha.NetworkContainer{
+		ID:                   ncID,
+		AssignmentMode:       v1alpha.Static,
+		Type:                 v1alpha.Overlay,
+		PrimaryIP:            overlayPrimaryIP,
+		NodeIP:               nodeIP,
+		SubnetAddressSpace:   subnetAddressSpace,
+		SubnetAddressSpaceV6: "not-a-cidr",
+		Version:              version,
+	}
+	_, err := CreateNCRequestFromStaticNC(nc, false, 0)
+	assert.Error(t, err)
 }
