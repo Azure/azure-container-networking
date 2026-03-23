@@ -2706,7 +2706,7 @@ func TestConfigureSecondaryAddResult_IPv6(t *testing.T) {
 				macAddress:           macAddress,
 				nicType:              cns.NodeNetworkInterfaceFrontendNIC,
 				ncIPv6:               "fd12:3456:789a::1",
-				ncSubnetV6Prefix:     64,
+				ncSubnetPrefixIPv6:   64,
 				ncGatewayIPv6Address: "fe80::1234:5678:9abc",
 			},
 			wantErr:     false,
@@ -2732,7 +2732,7 @@ func TestConfigureSecondaryAddResult_IPv6(t *testing.T) {
 				macAddress:           macAddress,
 				nicType:              cns.NodeNetworkInterfaceFrontendNIC,
 				ncIPv6:               "not-an-ip",
-				ncSubnetV6Prefix:     64,
+				ncSubnetPrefixIPv6:   64,
 				ncGatewayIPv6Address: "fe80::1",
 			},
 			wantErr:   true,
@@ -2746,7 +2746,7 @@ func TestConfigureSecondaryAddResult_IPv6(t *testing.T) {
 				macAddress:           macAddress,
 				nicType:              cns.NodeNetworkInterfaceFrontendNIC,
 				ncIPv6:               "10.0.0.5", // IPv4 in IPv6 field
-				ncSubnetV6Prefix:     64,
+				ncSubnetPrefixIPv6:   64,
 				ncGatewayIPv6Address: "fe80::1",
 			},
 			wantErr:   true,
@@ -2760,7 +2760,7 @@ func TestConfigureSecondaryAddResult_IPv6(t *testing.T) {
 				macAddress:           macAddress,
 				nicType:              cns.NodeNetworkInterfaceFrontendNIC,
 				ncIPv6:               "fd12:3456:789a::1",
-				ncSubnetV6Prefix:     64,
+				ncSubnetPrefixIPv6:   64,
 				ncGatewayIPv6Address: "bad-gateway",
 			},
 			wantErr:   true,
@@ -2774,7 +2774,7 @@ func TestConfigureSecondaryAddResult_IPv6(t *testing.T) {
 				macAddress:           macAddress,
 				nicType:              cns.NodeNetworkInterfaceFrontendNIC,
 				ncIPv6:               "fd12:3456:789a::1",
-				ncSubnetV6Prefix:     64,
+				ncSubnetPrefixIPv6:   64,
 				ncGatewayIPv6Address: "10.0.0.1", // IPv4 in v6 gateway field
 			},
 			wantErr:   true,
@@ -2788,7 +2788,7 @@ func TestConfigureSecondaryAddResult_IPv6(t *testing.T) {
 				macAddress:           macAddress,
 				nicType:              cns.NodeNetworkInterfaceFrontendNIC,
 				ncIPv6:               "fd12:3456:789a::1",
-				ncSubnetV6Prefix:     64,
+				ncSubnetPrefixIPv6:   64,
 				ncGatewayIPv6Address: "", // empty gateway
 			},
 			wantErr:   true,
@@ -2828,7 +2828,7 @@ func TestConfigureSecondaryAddResult_IPv6(t *testing.T) {
 				v6Config := ifInfo.IPConfigs[1]
 				require.True(t, net.ParseIP(tt.info.ncIPv6).Equal(v6Config.Address.IP),
 					"IPv6 address mismatch: expected %s, got %s", tt.info.ncIPv6, v6Config.Address.IP)
-				expectedMask := net.CIDRMask(int(tt.info.ncSubnetV6Prefix), 128)
+				expectedMask := net.CIDRMask(int(tt.info.ncSubnetPrefixIPv6), 128)
 				require.Equal(t, expectedMask, v6Config.Address.Mask, "IPv6 subnet mask mismatch")
 				require.True(t, net.ParseIP(tt.info.ncGatewayIPv6Address).Equal(v6Config.Gateway),
 					"IPv6 gateway mismatch: expected %s, got %s", tt.info.ncGatewayIPv6Address, v6Config.Gateway)

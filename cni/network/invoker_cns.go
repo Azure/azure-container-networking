@@ -50,7 +50,7 @@ type IPResultInfo struct {
 	ncSubnetPrefix       uint8
 	ncPrimaryIP          string
 	ncGatewayIPAddress   string
-	ncSubnetV6Prefix     uint8
+	ncSubnetPrefixIPv6   uint8
 	ncIPv6               string
 	ncGatewayIPv6Address string
 	hostSubnet           string
@@ -69,7 +69,7 @@ func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddUint8("ncSubnetPrefix", i.ncSubnetPrefix)
 	encoder.AddString("ncPrimaryIP", i.ncPrimaryIP)
 	encoder.AddString("ncGatewayIPAddress", i.ncGatewayIPAddress)
-	encoder.AddUint8("ncSubnetV6Prefix", i.ncSubnetV6Prefix)
+	encoder.AddUint8("ncSubnetPrefixIPv6", i.ncSubnetPrefixIPv6)
 	encoder.AddString("ncIPv6", i.ncIPv6)
 	encoder.AddString("ncGatewayIPv6Address", i.ncGatewayIPv6Address)
 	encoder.AddString("hostSubnet", i.hostSubnet)
@@ -161,7 +161,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			ncSubnetPrefix:       response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
 			ncPrimaryIP:          response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
 			ncGatewayIPAddress:   response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
-			ncSubnetV6Prefix:     response.PodIPInfo[i].NetworkContainerIPv6Config.IPSubnet.PrefixLength,
+			ncSubnetPrefixIPv6:   response.PodIPInfo[i].NetworkContainerIPv6Config.IPSubnet.PrefixLength,
 			ncIPv6:               response.PodIPInfo[i].NetworkContainerIPv6Config.IPSubnet.IPAddress,
 			ncGatewayIPv6Address: response.PodIPInfo[i].NetworkContainerIPv6Config.GatewayIPAddress,
 			hostSubnet:           response.PodIPInfo[i].HostPrimaryIPInfo.Subnet,
@@ -550,7 +550,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 		ifInfo.IPConfigs = append(ifInfo.IPConfigs, &network.IPConfig{
 			Address: net.IPNet{
 				IP:   ipv6,
-				Mask: net.CIDRMask(int(info.ncSubnetV6Prefix), 128),
+				Mask: net.CIDRMask(int(info.ncSubnetPrefixIPv6), ipv6FullMask),
 			},
 			Gateway: ipv6Gateway,
 		})
