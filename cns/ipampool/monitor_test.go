@@ -674,7 +674,6 @@ func TestCalculateIPs(t *testing.T) {
 }
 
 func TestMetastateSubnetCIDRV6FromNNC(t *testing.T) {
-	logger.InitLogger("testlogs", 0, 0, "./")
 	fakecns := fakes.NewHTTPServiceFake()
 	pm := NewMonitor(fakecns, &fakeNodeNetworkConfigUpdater{}, nil, &Options{RefreshDelay: 100 * time.Second})
 
