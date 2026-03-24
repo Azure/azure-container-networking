@@ -122,8 +122,8 @@ func (pm *Monitor) Start(ctx context.Context) error {
 				// Set SubnetName, SubnetAddressSpace and Pod Network ARM ID values to the global subnet, subnetCIDR and subnetARM variables.
 				pm.metastate.subnet = nnc.Status.NetworkContainers[0].SubnetName
 				pm.metastate.subnetCIDR = nnc.Status.NetworkContainers[0].SubnetAddressSpace
-				pm.metastate.subnetCIDRV6 = nnc.Status.NetworkContainers[0].SubnetAddressSpaceV6
-				pm.metastate.subnet
+				pm.metastate.subnetARMID = GenerateARMID(&nnc.Status.NetworkContainers[0])
+			}
 			pm.metastate.primaryIPAddresses = make(map[string]struct{})
 			// Add Primary IP to Map, if not present.
 			// This is only for Swift i.e. if NC Type is vnet.
