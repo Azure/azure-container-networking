@@ -116,6 +116,11 @@ spec:
                 items:
                   type: string
                 type: array
+              cooldownPeriodInSeconds:
+                default: 30
+                description: CooldownPeriodInSeconds is the cooldown duration before
+                  retrying NIC NC operations.
+                type: integer
               deviceType:
                 description: DeviceType is the device type that this NC was created
                   for

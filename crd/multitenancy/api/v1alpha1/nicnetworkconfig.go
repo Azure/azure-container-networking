@@ -41,19 +41,14 @@ type NICNetworkConfigList struct {
 type NICNetworkConfigSpec struct {
 	// PodNetwork is the name of the PodNetwork
 	PodNetwork string `json:"podNetwork"`
-
 	// NodeName is the name of the node this NIC belongs to
 	NodeName string `json:"nodeName"`
-
 	// NICName is the name of the physical NIC on the node (e.g., eth1)
 	NICName string `json:"nicName"`
-
 	// SubnetID is the ARM resource ID of the subnet (e.g., /subscriptions/.../subnets/pod-subnet)
 	SubnetID string `json:"subnetID"`
-
 	// NetworkID is the VNET GUID or network identifier
 	NetworkID string `json:"networkID"`
-
 	// PodAllocations tracks which pods are allocated on this NIC
 	// +kubebuilder:validation:Optional
 	PodAllocations []PodAllocationRequest `json:"podAllocations,omitempty"`
@@ -63,10 +58,8 @@ type NICNetworkConfigSpec struct {
 type PodAllocationRequest struct {
 	// PodName is the name of the pod
 	PodName string `json:"podName"`
-
 	// PodNamespace is the namespace of the pod
 	PodNamespace string `json:"podNamespace"`
-
 	// MTPNC is the name of the MultitenantPodNetworkConfig
 	MTPNC string `json:"mtpnc"`
 }
@@ -75,13 +68,10 @@ type PodAllocationRequest struct {
 type PodAllocation struct {
 	// PodName is the name of the pod
 	PodName string `json:"podName"`
-
 	// PodNamespace is the namespace of the pod
 	PodNamespace string `json:"podNamespace"`
-
 	// AllocatedIP is the IP address allocated to the pod
 	AllocatedIP string `json:"allocatedIP"`
-
 	// MTPNC is the name of the MultitenantPodNetworkConfig
 	MTPNC string `json:"mtpnc"`
 }
@@ -91,41 +81,34 @@ type NICNetworkConfigStatus struct {
 	// Status indicates the current status of the NIC Network Config
 	// +kubebuilder:validation:Enum=Ready;Pending;Error
 	Status NICNC `json:"status,omitempty"`
-
 	// NCID is the network container id created for this NIC
 	// +kubebuilder:validation:Optional
 	NCID string `json:"ncID,omitempty"`
-
 	// PrimaryIP is the primary IP allocated to the network container
 	// +kubebuilder:validation:Optional
 	PrimaryIP string `json:"primaryIP,omitempty"`
-
 	// MacAddress is the MAC Address of the VM's NIC
 	MacAddress string `json:"macAddress,omitempty"`
-
 	// GatewayIP is the gateway ip of the injected subnet
 	// +kubebuilder:validation:Optional
 	GatewayIP string `json:"gatewayIP,omitempty"`
-
 	// SubnetAddressSpace is the subnet address space of the injected subnet
 	// +kubebuilder:validation:Optional
 	SubnetAddressSpace string `json:"subnetAddressSpace,omitempty"`
-
 	// AvailableIPs tracks the available IP addresses in this NC block
 	// +kubebuilder:validation:Optional
 	AvailableIPs []string `json:"availableIPs,omitempty"`
-
 	// PodAllocations tracks the allocated IP addresses to pod mapping.
 	// +kubebuilder:validation:Optional
 	PodAllocations map[string]PodAllocation `json:"podAllocations,omitempty"`
-
 	// ErrorMessage contains error details if status is Error
 	// +kubebuilder:validation:Optional
 	ErrorMessage string `json:"errorMessage,omitempty"`
-
+	// CooldownPeriodInSeconds is the cooldown duration before retrying NIC NC operations.
+	// +kubebuilder:default=30
+	CooldownPeriodInSeconds int `json:"cooldownPeriodInSeconds,omitempty"`
 	// DeviceType is the device type that this NC was created for
 	DeviceType DeviceType `json:"deviceType,omitempty"`
-
 	// AccelnetEnabled determines if the CNI will provision the NIC with accelerated networking enabled
 	// +kubebuilder:validation:Optional
 	AccelnetEnabled bool `json:"accelnetEnabled,omitempty"`
