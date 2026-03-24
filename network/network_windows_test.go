@@ -596,3 +596,91 @@ func TestConfigureHCNNetworkSwiftv2DelegatedNIC(t *testing.T) {
 		t.Fatalf("host network flags is not configured as %v when interface NIC type is delegatedVMNIC", expectedSwifv2NetworkFlags)
 	}
 }
+
+func TestConfigureHCNNetworkSubnetDefaultRouteSelection(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	extIf := externalInterface{Name: "eth0"}
+
+	testCases := []struct {
+		name                  string
+		subnets               []SubnetInfo
+		expectedRoutePrefixes []string
+	}{
+		{
+			name: "ipv4 subnet uses ipv4 default route",
+			subnets: []SubnetInfo{
+				{
+					Family:  platform.AfINET,
+					Gateway: net.ParseIP("10.0.0.1"),
+					Prefix:  net.IPNet{IP: net.ParseIP("10.0.0.0"), Mask: net.CIDRMask(24, 32)},
+				},
+			},
+			expectedRoutePrefixes: []string{"0.0.0.0/0"},
+		},
+		{
+			name: "ipv6 subnet uses ipv6 default route",
+			subnets: []SubnetInfo{
+				{
+					Family:  platform.AfINET6,
+					Gateway: net.ParseIP("fd00::1"),
+					Prefix:  net.IPNet{IP: net.ParseIP("fd00::"), Mask: net.CIDRMask(64, 128)},
+				},
+			},
+			expectedRoutePrefixes: []string{"::/0"},
+		},
+		{
+			name: "dual stack subnets map default route by family",
+			subnets: []SubnetInfo{
+				{
+					Family:  platform.AfINET,
+					Gateway: net.ParseIP("10.1.0.1"),
+					Prefix:  net.IPNet{IP: net.ParseIP("10.1.0.0"), Mask: net.CIDRMask(24, 32)},
+				},
+				{
+					Family:  platform.AfINET6,
+					Gateway: net.ParseIP("fd01::1"),
+					Prefix:  net.IPNet{IP: net.ParseIP("fd01::"), Mask: net.CIDRMask(64, 128)},
+				},
+			},
+			expectedRoutePrefixes: []string{"0.0.0.0/0", "::/0"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			nwInfo := &EndpointInfo{
+				AdapterName: "eth0",
+				NetworkID:   "test-network-id",
+				Subnets:     tc.subnets,
+				Options:     map[string]interface{}{},
+			}
+
+			hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
+			if err != nil {
+				t.Fatalf("configureHcnNetwork returned error: %v", err)
+			}
+
+			if len(hostComputeNetwork.Ipams) == 0 {
+				t.Fatal("expected at least one IPAM entry")
+			}
+
+			subnets := hostComputeNetwork.Ipams[0].Subnets
+			if len(subnets) != len(tc.expectedRoutePrefixes) {
+				t.Fatalf("unexpected subnet count: got %d, want %d", len(subnets), len(tc.expectedRoutePrefixes))
+			}
+
+			for i, expectedPrefix := range tc.expectedRoutePrefixes {
+				if len(subnets[i].Routes) == 0 {
+					t.Fatalf("expected route for subnet index %d", i)
+				}
+
+				if got := subnets[i].Routes[0].DestinationPrefix; got != expectedPrefix {
+					t.Fatalf("unexpected route destination prefix for subnet index %d: got %s, want %s", i, got, expectedPrefix)
+				}
+			}
+		})
+	}
+}
