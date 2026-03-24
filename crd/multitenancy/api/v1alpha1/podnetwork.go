@@ -92,9 +92,9 @@ type PodNetworkStatus struct {
 	// +kubebuilder:validation:Optional
 	Status          Status   `json:"status,omitempty"`
 	AddressPrefixes []string `json:"addressPrefixes,omitempty"`
-	// PrefixBlockAllocationSize indicates the size of IP block allocated to the subnet
-	// +kubebuilder:default=16
-	PrefixBlockAllocationSize int `json:"prefixBlockAllocationSize,omitempty"`
+	// PrefixBlockCIDRLength indicates the prefix length of IP block allocated to the subnet
+	// +kubebuilder:default=28
+	PrefixBlockCIDRLength int `json:"prefixBlockCIDRLength,omitempty"`
 }
 
 func init() {
