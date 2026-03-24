@@ -45,7 +45,6 @@ type metaState struct {
 	subnet             string
 	subnetARMID        string
 	subnetCIDR         string
-	subnetCIDRV6       string
 }
 
 type observer struct {
@@ -121,7 +120,6 @@ func (o *observer) observeMetrics(ctx context.Context) error {
 				// Set SubnetName, SubnetAddressSpace and Pod Network ARM ID values to the global subnet, subnetCIDR and subnetARM variables.
 				meta.subnet = nnc.Status.NetworkContainers[0].SubnetName
 				meta.subnetCIDR = nnc.Status.NetworkContainers[0].SubnetAddressSpace
-				meta.subnetCIDRV6 = nnc.Status.NetworkContainers[0].SubnetAddressSpaceV6
 				meta.subnetARMID = generateARMID(&nnc.Status.NetworkContainers[0])
 			}
 			meta.primaryIPAddresses = make(map[string]struct{})
