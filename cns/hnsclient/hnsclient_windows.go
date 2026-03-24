@@ -651,17 +651,20 @@ func deleteNetworkByIDHnsV2(
 				"error with GetNetworkByID: %v", err)
 		}
 
-		logger.Printf("Delete called on network %s which doesn't exist, treating as success", networkID)
+		logger.Printf("Delete called on network %s which doesn't exist, treating as success", networkID) //nolint:staticcheck // TODO: migrate to zap
 
 		return nil
 	}
 
 	if err = network.Delete(); err != nil {
-		networkJSON, _ := json.Marshal(network)
-		return fmt.Errorf("Failed to delete network: %s. Error: %v", string(networkJSON), err)
+		networkJSON, marshalErr := json.Marshal(network)
+		if marshalErr != nil {
+			return fmt.Errorf("failed to delete network %s: %w", network.Id, err)
+		}
+		return fmt.Errorf("failed to delete network %s: %w", string(networkJSON), err)
 	}
 
-	logger.Printf("[Azure CNS] Successfully deleted network: %s", network.Id)
+	logger.Printf("[Azure CNS] Successfully deleted network: %s", network.Id) //nolint:staticcheck // TODO: migrate to zap
 
 	return nil
 }
@@ -682,17 +685,20 @@ func deleteEndpointByNameHnsV2(
 				"error with GetEndpointByName: %v", err)
 		}
 
-		logger.Printf("[Azure CNS] Delete called on endpoint %s which doesn't exist, treating as success", endpointName)
+		logger.Printf("[Azure CNS] Delete called on endpoint %s which doesn't exist, treating as success", endpointName) //nolint:staticcheck // TODO: migrate to zap
 
 		return nil
 	}
 
 	if err = endpoint.Delete(); err != nil {
-		endpointJSON, _ := json.Marshal(endpoint)
-		return fmt.Errorf("Failed to delete endpoint: %s. Error: %v", string(endpointJSON), err)
+		endpointJSON, marshalErr := json.Marshal(endpoint)
+		if marshalErr != nil {
+			return fmt.Errorf("failed to delete endpoint %s: %w", endpoint.Id, err)
+		}
+		return fmt.Errorf("failed to delete endpoint %s: %w", string(endpointJSON), err)
 	}
 
-	logger.Printf("[Azure CNS] Successfully deleted endpoint: %s", endpoint.Id)
+	logger.Printf("[Azure CNS] Successfully deleted endpoint: %s", endpoint.Id) //nolint:staticcheck // TODO: migrate to zap
 
 	return nil
 }
@@ -734,7 +740,7 @@ func DeleteHNSEndpointbyID(hnsEndpointID string) error {
 			return fmt.Errorf("Failed to get hcn endpoint with id: %s due to err: %w", hnsEndpointID, err)
 		}
 
-		logger.Printf("Delete called on endpoint %s which doesn't exist, treating as success", hnsEndpointID)
+		logger.Printf("Delete called on endpoint %s which doesn't exist, treating as success", hnsEndpointID) //nolint:staticcheck // TODO: migrate to zap
 		return nil
 	}
 
@@ -747,7 +753,7 @@ func DeleteHNSEndpointbyID(hnsEndpointID string) error {
 		return fmt.Errorf("Failed to delete endpoint: %s. Error: %w", hnsEndpointID, err)
 	}
 
-	logger.Printf("[Azure CNS] Successfully deleted endpoint: %s", hnsEndpointID)
+	logger.Printf("[Azure CNS] Successfully deleted endpoint: %s", hnsEndpointID) //nolint:staticcheck // TODO: migrate to zap
 
 	return nil
 }
