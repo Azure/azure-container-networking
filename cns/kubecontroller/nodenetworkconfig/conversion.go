@@ -68,7 +68,7 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 		}
 		ipConfig.IPSubnetV6 = cns.IPSubnet{
 			IPAddress:    nc.PrimaryIPV6,
-			PrefixLength: uint8(subnetV6Prefix.Bits()),
+			PrefixLength: uint8(subnetV6Prefix.Bits()), //#nosec G115 -- prefix bits are 0-128, fits uint8
 		}
 	}
 
@@ -119,7 +119,7 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer, isSwiftV2 bool, ip
 		}
 		subnetV6 = cns.IPSubnet{
 			IPAddress:    nc.PrimaryIPV6,
-			PrefixLength: uint8(subnetV6Prefix.Bits()),
+			PrefixLength: uint8(subnetV6Prefix.Bits()), //#nosec G115 -- prefix bits are 0-128, fits uint8
 		}
 	}
 

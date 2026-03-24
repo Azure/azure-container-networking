@@ -109,6 +109,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			logger.Printf("subnet exhausted status = %t", pm.metastate.exhausted)
 			metrics.IpamSubnetExhaustionCount.With(prometheus.Labels{
 				metrics.SubnetLabel: pm.metastate.subnet, metrics.SubnetCIDRLabel: pm.metastate.subnetCIDR,
+				metrics.SubnetCIDRV6Label: pm.metastate.subnetCIDRV6
 				metrics.PodnetARMIDLabel: pm.metastate.subnetARMID, metrics.SubnetExhaustionStateLabel: strconv.FormatBool(pm.metastate.exhausted),
 			}).Inc()
 			select {

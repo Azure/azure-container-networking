@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -238,7 +239,7 @@ func TestCreateNCRequestFromDynamicNCWithIPv6(t *testing.T) {
 		Version:              version,
 	}
 	got, err := CreateNCRequestFromDynamicNC(nc)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, cns.IPSubnet{IPAddress: "fd12:3456:789a::1", PrefixLength: 48}, got.IPConfiguration.IPSubnetV6)
 }
 
@@ -393,7 +394,7 @@ func TestCreateNCRequestFromStaticNCWithIPv6(t *testing.T) {
 		Version:              version,
 	}
 	got, err := CreateNCRequestFromStaticNC(nc, false, 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, cns.IPSubnet{IPAddress: "fd12:3456:789a::1", PrefixLength: 48}, got.IPConfiguration.IPSubnetV6)
 }
 
