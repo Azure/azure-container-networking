@@ -26,7 +26,7 @@ jobs:
         run: make bpf-lib && go generate ./...
 
       - name: Upload generated code
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: generated-bpf-program-code
           path: ./bpf-prog/azure-block-iptables/pkg/blockservice
@@ -46,7 +46,7 @@ jobs:
       with:
         go-version-file: go.mod
     - name: Download generated code
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v8
       with:
         name: generated-bpf-program-code
         path: ./bpf-prog/azure-block-iptables/pkg/blockservice
@@ -54,4 +54,4 @@ jobs:
       uses: golangci/golangci-lint-action@v9
       with:
         version: latest
-        args: ${{ github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref) || '' }} --config=.golangci.yml --timeout=25m
+        args: ${{ (github.event_name == 'pull_request' && format('--new-from-rev=origin/{0}', github.base_ref)) || (github.event_name == 'merge_group' && format('--new-from-rev={0}', github.event.merge_group.base_sha)) || '' }} --config=.golangci.yml --timeout=25m

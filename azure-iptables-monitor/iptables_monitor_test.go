@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"path/filepath"
 	"testing"
 
@@ -143,6 +144,79 @@ func (m *MockEBPFClient) GetBPFMapValue(pinPath string) (uint64, error) {
 	m.MapValueCalls = append(m.MapValueCalls, pinPath)
 
 	return m.Value, m.Error
+}
+
+// MockRouteManager for route operations
+type MockRouteManager struct {
+	EnsuredRoutes []EnsuredRoute
+	EnsureError   error
+}
+
+type EnsuredRoute struct {
+	IP     string
+	IsIPv6 bool
+	proto  string
+	scope  string
+}
+
+func NewMockRouteManager() *MockRouteManager {
+	return &MockRouteManager{
+		EnsuredRoutes: make([]EnsuredRoute, 0),
+	}
+}
+
+func (m *MockRouteManager) EnsureRoute(ip netip.Addr) error {
+	m.EnsuredRoutes = append(m.EnsuredRoutes, EnsuredRoute{IP: ip.String(), IsIPv6: ip.Is6(), proto: "static", scope: "link"})
+	return m.EnsureError
+}
+
+func TestInstallHealthProbeReplyRoutes(t *testing.T) {
+	testCases := []struct {
+		name            string
+		ipv6Enabled     bool
+		ensureError     error
+		expectedEnsured []EnsuredRoute
+	}{
+		{
+			name:        "ipv4 only",
+			ipv6Enabled: false,
+			expectedEnsured: []EnsuredRoute{
+				{IP: "169.254.7.127", IsIPv6: false, proto: "static", scope: "link"},
+			},
+		},
+		{
+			name:        "ipv4 and ipv6",
+			ipv6Enabled: true,
+			expectedEnsured: []EnsuredRoute{
+				{IP: "169.254.7.127", IsIPv6: false, proto: "static", scope: "link"},
+				{IP: "fd16:9254:7127:1337:ffff:ffff:ffff:ffff", IsIPv6: true, proto: "static", scope: "link"},
+			},
+		},
+		{
+			name:        "error does not prevent ipv6 route",
+			ipv6Enabled: true,
+			ensureError: fmt.Errorf("route failed"),
+			expectedEnsured: []EnsuredRoute{
+				{IP: "169.254.7.127", IsIPv6: false, proto: "static", scope: "link"},
+				{IP: "fd16:9254:7127:1337:ffff:ffff:ffff:ffff", IsIPv6: true, proto: "static", scope: "link"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			routeManager := NewMockRouteManager()
+			routeManager.EnsureError = tc.ensureError
+
+			deps := Dependencies{
+				RouteManager: routeManager,
+			}
+
+			installHealthProbeReplyRoutes(deps, tc.ipv6Enabled)
+
+			require.Equal(t, tc.expectedEnsured, routeManager.EnsuredRoutes, "ensured routes mismatch")
+		})
+	}
 }
 
 func TestHasUnexpectedRules(t *testing.T) {

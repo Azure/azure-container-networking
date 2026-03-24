@@ -4,7 +4,6 @@ parameters:
   scaleup: ""
 
 steps:
-
   - bash: |
       go version
       go env
@@ -19,6 +18,8 @@ steps:
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
+
+  - template: ../../templates/cilium-cli.yaml
 
   - task: AzureCLI@2
     inputs:
@@ -49,8 +50,6 @@ steps:
     name: "installCilium"
     displayName: "Install Cilium on AKS Dualstack Overlay"
 
-  - template: ../../templates/cilium-cli.yaml
-
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
       sudo -E env "PATH=$PATH" make test-load \
@@ -61,16 +60,6 @@ steps:
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
-
-  - script: |
-      kubectl get pods -A
-      echo "Waiting < 2 minutes for cilium to be ready"
-      # Ensure Cilium is ready Xm\Xs
-      cilium status --wait --wait-duration 2m
-      kubectl get crd -A
-    retryCountOnTaskFailure: 3
-    name: "CiliumStatus"
-    displayName: "Cilium Status"
 
   - task: AzureCLI@2
     inputs:

@@ -4,6 +4,8 @@
 parameters:
   - name: workloadType
     type: string
+  - name: location
+    type: string
 
 steps:
   - checkout: self
@@ -15,13 +17,13 @@ steps:
   - task: DownloadPipelineArtifact@2
     displayName: "Download kubeconfig files"
     inputs:
-      artifactName: kubeconfigs-${{ parameters.workloadType }}
+      artifactName: kubeconfigs-${{ parameters.workloadType }}-${{ parameters.location }}
       targetPath: $(Pipeline.Workspace)/kubeconfigs
 
   - task: DownloadPipelineArtifact@2
     displayName: "Download metrics binary"
     inputs:
-      artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}'
+      artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}-${{ parameters.location }}'
       path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
 
   - task: Bash@3

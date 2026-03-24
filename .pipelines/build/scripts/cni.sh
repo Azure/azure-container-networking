@@ -54,6 +54,15 @@ pushd "$CNI_TELEMETRY_DIR"
    ./telemetrymain.go
 popd
 
+CNI_TELEMETRY_SIDECAR_DIR="$REPO_ROOT"/cns/cni-telemetry-sidecar
+pushd "$CNI_TELEMETRY_SIDECAR_DIR"
+  GOOS="$OS" go build -v -a -trimpath \
+    -o "$OUT_DIR"/bin/azure-cni-telemetry-sidecar"$FILE_EXT" \
+    -ldflags "-s -w -X main.version="$CNI_VERSION" -X "$CNI_AI_PATH"="$CNI_AI_ID"" \
+    -gcflags="-dwarflocationlists=true" \
+    .
+popd
+
 pushd "$REPO_ROOT"/cni
   cp azure-$OS.conflist "$OUT_DIR"/files/azure.conflist
   cp azure-$OS-swift.conflist "$OUT_DIR"/files/azure-swift.conflist

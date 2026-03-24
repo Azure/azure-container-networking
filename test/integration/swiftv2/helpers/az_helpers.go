@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os/exec"
 	"strings"
 	"time"
@@ -12,7 +13,7 @@ import (
 var (
 	ErrPodNotRunning = errors.New("pod did not reach Running state")
 	ErrPodNoIP = errors.New("pod has no IP address assigned")
-	ErrPodNoEth1IP = errors.New("pod has no eth1 IP address (delegated subnet not configured?)")
+	ErrPodNoDelegatedIP = errors.New("pod has no delegated subnet IP (no non-eth0 interface with /32 address found)")
 	ErrPodContainerNotReady = errors.New("pod container not ready")
 	ErrMTPNCStuckDeletion = errors.New("MTPNC resources should have been deleted but were found")
 	ErrPodDeletionFailed = errors.New("pod still exists after deletion attempts")
@@ -344,26 +345,41 @@ func GetPodIP(kubeconfig, namespace, podName string) (string, error) {
 	return ip, nil
 }
 
-// GetPodDelegatedIP retrieves the eth1 IP address (delegated subnet IP) of a pod
-// This is the IP used for cross-VNet communication and is subject to NSG rules
+// GetPodDelegatedIP retrieves the delegated subnet IP of a pod.
+// On low-NIC nodes this is typically eth1, but on high-NIC nodes (e.g. D16s_v3)
+// the interface can be eth7 or another index depending on how many NICs the VM has.
+// We dynamically find the interface by looking for a non-eth0/non-lo interface with a /32 address,
+// which is the signature of a delegated subnet IP.
 func GetPodDelegatedIP(kubeconfig, namespace, podName string) (string, error) {
 	// Retry logic - pod might be Running but container not ready yet, or network interface still initializing
-	maxRetries := 5
+	// Delegated subnet interface may take time to be provisioned by the MTPNC controller
+	maxRetries := 10
+
+	// Find the delegated IP: look for any /32 inet address on a non-eth0, non-lo interface
+	// This works regardless of the interface name (eth1, eth7, etc.)
+	ipCmd := "ip -4 -o addr show | grep -v ' lo ' | grep -v ' eth0 ' | grep '/32' | awk '{print $4}' | cut -d'/' -f1 | head -1"
+
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 
-		// Get eth1 IP address by running 'ip addr show eth1' in the pod
 		cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "exec", podName,
-			"-n", namespace, "-c", "net-debugger", "--", "sh", "-c", "ip -4 addr show eth1 | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1")
+			"-n", namespace, "-c", "net-debugger", "--", "sh", "-c", ipCmd)
 		out, err := cmd.CombinedOutput()
 		cancel()
 
 		if err == nil {
 			ip := strings.TrimSpace(string(out))
-			if ip != "" {
+			// Validate that the output looks like an IP address
+			if ip != "" && net.ParseIP(ip) != nil {
 				return ip, nil
 			}
-			return "", fmt.Errorf("%w: pod %s in namespace %s", ErrPodNoEth1IP, podName, namespace)
+			// Delegated interface not yet provisioned - retry if attempts remain
+			if attempt < maxRetries {
+				fmt.Printf("Delegated interface not yet available for pod %s (attempt %d/%d). Waiting 10 seconds...\n", podName, attempt, maxRetries)
+				time.Sleep(10 * time.Second)
+				continue
+			}
+			return "", fmt.Errorf("%w: pod %s in namespace %s", ErrPodNoDelegatedIP, podName, namespace)
 		}
 
 		// Check for retryable errors: container not found, signal killed, context deadline exceeded
@@ -374,12 +390,12 @@ func GetPodDelegatedIP(kubeconfig, namespace, podName string) (string, error) {
 			strings.Contains(errStr, "context deadline exceeded")
 
 		if isRetryable && attempt < maxRetries {
-			fmt.Printf("Retryable error getting IP for pod %s (attempt %d/%d): %v. Waiting 5 seconds...\n", podName, attempt, maxRetries, err)
+			fmt.Printf("Retryable error getting delegated IP for pod %s (attempt %d/%d): %v. Waiting 5 seconds...\n", podName, attempt, maxRetries, err)
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		return "", fmt.Errorf("failed to get eth1 IP for %s in namespace %s: %w\nOutput: %s", podName, namespace, err, string(out))
+		return "", fmt.Errorf("failed to get delegated IP for %s in namespace %s: %w\nOutput: %s", podName, namespace, err, string(out))
 	}
 
 	return "", fmt.Errorf("%w: pod %s after %d attempts", ErrPodContainerNotReady, podName, maxRetries)
@@ -398,6 +414,102 @@ func ExecInPod(kubeconfig, namespace, podName, command string) (string, error) {
 	}
 
 	return string(out), nil
+}
+
+// WaitForMTPNCCleanup waits for all MTPNCs in a namespace to be fully removed.
+// This should be called after deleting all pods but before deleting the PNI,
+// to ensure the MTPNC controller has finished releasing delegated NICs back to DNC.
+func WaitForMTPNCCleanup(kubeconfig, namespace string, maxWaitSeconds int) error {
+	pollInterval := 5 * time.Second
+	maxAttempts := maxWaitSeconds / 5
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+
+	consecutiveErrors := 0
+	const maxConsecutiveErrors = 5
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "mtpnc", "-n", namespace, "--no-headers", "-o", "name")
+		out, err := cmd.CombinedOutput()
+		cancel()
+
+		output := strings.TrimSpace(string(out))
+
+		if err != nil {
+			// CRD not installed means no MTPNCs can exist — treat as clean
+			if strings.Contains(output, "the server doesn't have a resource type") {
+				return nil
+			}
+
+			// Classify non-retryable errors and fail fast
+			if isNonRetryableKubectlError(output) {
+				return fmt.Errorf("kubectl error while waiting for MTPNC cleanup in namespace %s: %w\nOutput: %s", namespace, err, output)
+			}
+
+			// For other errors (transient API server issues, timeouts), retry up to a limit
+			consecutiveErrors++
+			fmt.Printf("Warning: kubectl get mtpnc failed (attempt %d/%d, consecutive errors: %d/%d): %v\nOutput: %s\n",
+				attempt, maxAttempts, consecutiveErrors, maxConsecutiveErrors, err, output)
+
+			if consecutiveErrors >= maxConsecutiveErrors {
+				return fmt.Errorf("kubectl get mtpnc failed %d consecutive times in namespace %s, last error: %w\nOutput: %s",
+					maxConsecutiveErrors, namespace, err, output)
+			}
+
+			time.Sleep(pollInterval)
+			continue
+		}
+
+		// Reset consecutive error counter on success
+		consecutiveErrors = 0
+
+		if output == "" {
+			fmt.Printf("All MTPNCs in namespace %s have been cleaned up (after %d seconds)\n", namespace, attempt*5)
+			return nil
+		}
+
+		mtpncCount := len(strings.Split(output, "\n"))
+		if attempt%6 == 0 {
+			fmt.Printf("Waiting for %d MTPNCs to be cleaned up in namespace %s (attempt %d/%d)...\n", mtpncCount, namespace, attempt, maxAttempts)
+		}
+
+		time.Sleep(pollInterval)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "mtpnc", "-n", namespace, "--no-headers", "-o", "custom-columns=NAME:.metadata.name")
+	out, err := cmd.CombinedOutput()
+	cancel()
+	remaining := strings.TrimSpace(string(out))
+	if err != nil {
+		return fmt.Errorf("MTPNCs may still be present in namespace %s after %d seconds (final check failed: %w)\nOutput: %s", namespace, maxWaitSeconds, err, remaining)
+	}
+	return fmt.Errorf("MTPNCs still present in namespace %s after %d seconds: %s: %w", namespace, maxWaitSeconds, remaining, ErrMTPNCStuckDeletion)
+}
+
+// isNonRetryableKubectlError returns true if the kubectl error output indicates
+// a problem that won't resolve by retrying (e.g., auth failures, bad kubeconfig).
+func isNonRetryableKubectlError(output string) bool {
+	lower := strings.ToLower(output)
+	nonRetryablePatterns := []string{
+		"unauthorized",
+		"forbidden",
+		"invalid configuration",
+		"no configuration has been provided",
+		"unable to read client-cert",
+		"unable to read client-key",
+		"certificate has expired",
+		"token has expired",
+		"login expired",
+		"does not exist",
+	}
+	for _, pattern := range nonRetryablePatterns {
+		if strings.Contains(lower, pattern) {
+			return true
+		}
+	}
+	return false
 }
 
 // VerifyNoMTPNC checks if there are any pending MTPNC (MultiTenantPodNetworkConfig) resources

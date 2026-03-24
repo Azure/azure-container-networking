@@ -57,7 +57,7 @@ jobs:
             parameters:
               testName: Datapath
               name: datapath
-              ginkgoFocus: "(.*).Networking.should|(.*).Networking.Granular|(.*)kubernetes.api"
+              ginkgoFocus: "(.*).Networking.should|(.*).Networking.Granular|(.*)kubernetes.api|(.*).NoSNAT"
               ginkgoSkip: "SCTP|Disruptive|Slow|hostNetwork|kube-proxy|IPv6"
               os: ${{ parameters.os }}
               processes: 8

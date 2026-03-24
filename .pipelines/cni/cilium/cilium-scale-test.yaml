@@ -35,6 +35,7 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
+          - template: ../../templates/cilium-cli.yaml
           - task: AzureCLI@2
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)

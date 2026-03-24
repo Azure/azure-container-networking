@@ -339,7 +339,7 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CreateNCRequestFromStaticNC(tt.input, false)
+			got, err := CreateNCRequestFromStaticNC(tt.input, false, 0)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return

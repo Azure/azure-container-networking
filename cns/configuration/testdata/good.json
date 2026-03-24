@@ -3,6 +3,7 @@
     "InitializeFromCNI": true,
     "EnablePprof": true,
     "EnableSubnetScarcity": true,
+    "EnableSwiftV1DualStack": true,
     "ManagedSettings": {
         "InfrastructureNetworkID": "abc",
         "NodeID": "abc",

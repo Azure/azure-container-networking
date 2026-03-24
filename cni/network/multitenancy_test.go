@@ -574,6 +574,17 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 
 			require.Equal(cns.InfraNIC, got.interfaceInfo[string(cns.InfraNIC)+"0"].NICType)
 			require.Equal(cns.InfraNIC, got.interfaceInfo[string(cns.InfraNIC)+"1"].NICType)
+
+			// Verify only IPv4 IPConfig is produced (no IPv6Configuration in input)
+			ifInfo0 := got.interfaceInfo[string(cns.InfraNIC)+"0"]
+			require.Len(ifInfo0.IPConfigs, 1, "Expected only 1 IP config (IPv4 only)")
+			require.Equal("10.1.0.5", ifInfo0.IPConfigs[0].Address.IP.String())
+			require.Equal("10.1.0.1", ifInfo0.IPConfigs[0].Gateway.String())
+
+			ifInfo1 := got.interfaceInfo[string(cns.InfraNIC)+"1"]
+			require.Len(ifInfo1.IPConfigs, 1, "Expected only 1 IP config (IPv4 only)")
+			require.Equal("20.1.0.5", ifInfo1.IPConfigs[0].Address.IP.String())
+			require.Equal("20.1.0.1", ifInfo1.IPConfigs[0].Gateway.String())
 		})
 	}
 }
@@ -859,6 +870,188 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 			if !errors.Is(err, errNoOrchestratorContextFound) {
 				t.Fatalf("expected an error %s but %v received", errNoOrchestratorContextFound, err)
 			}
+		})
+	}
+}
+
+// TestGetAllNetworkContainersWithIPv6Multitenancy verifies CNI multitenancy
+// correctly processes IPv6Configuration
+func TestGetAllNetworkContainersWithIPv6Multitenancy(t *testing.T) {
+	// Create NC responses with IPv6Configuration
+	ncResponseWithIPv6 := cns.GetNetworkContainerResponse{
+		PrimaryInterfaceIdentifier: "10.0.0.0/16",
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "10.1.0.5",
+				PrefixLength: 16,
+			},
+			DNSServers:       []string{"8.8.8.8"},
+			GatewayIPAddress: "10.1.0.1",
+		},
+		IPv6Configuration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "2001:db8::5",
+				PrefixLength: 64,
+			},
+			DNSServers:       []string{"2001:4860:4860::8888"},
+			GatewayIPAddress: "2001:db8::1",
+		},
+		MultiTenancyInfo: cns.MultiTenancyInfo{
+			EncapType: "1",
+			ID:        1,
+		},
+	}
+
+	ncResponses := []cns.GetNetworkContainerResponse{ncResponseWithIPv6}
+
+	podInfo := cns.KubernetesPodInfo{
+		PodName:      "test-pod",
+		PodNamespace: "test-namespace",
+	}
+	orchestratorContext, err := json.Marshal(podInfo)
+	require.NoError(t, err)
+
+	// Mock CNS client
+	cnsclient := &MockCNSClient{
+		getAllNetworkContainersConfiguration: getAllNetworkContainersConfigurationHandler{
+			orchestratorContext: orchestratorContext,
+			returnResponse:      ncResponses,
+			err:                 nil,
+		},
+	}
+
+	multitenancy := &Multitenancy{}
+	multitenancy.Init(cnsclient, &mockNetIOShim{})
+
+	nwCfg := &cni.NetworkConfig{
+		EnableExactMatchForPodName: true,
+	}
+
+	// Get network containers (this will process IPv6Configuration)
+	ipamResult, err := multitenancy.GetAllNetworkContainers(
+		context.TODO(),
+		nwCfg,
+		"test-pod",
+		"test-namespace",
+		"eth0",
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, ipamResult)
+	require.Len(t, ipamResult.interfaceInfo, 1)
+
+	// Get the interface info
+	var ifInfo network.InterfaceInfo
+	for _, info := range ipamResult.interfaceInfo {
+		ifInfo = info
+		break
+	}
+
+	// Verify both IPv4 and IPv6 configurations are present
+	require.Len(t, ifInfo.IPConfigs, 2, "Expected 2 IP configs (IPv4 and IPv6)")
+
+	// Verify IPv4 configuration
+	ipv4Config := ifInfo.IPConfigs[0]
+	require.Equal(t, "10.1.0.5", ipv4Config.Address.IP.String())
+	require.Equal(t, 16, getPrefixLength(ipv4Config.Address.Mask))
+	require.Equal(t, "10.1.0.1", ipv4Config.Gateway.String())
+
+	// Verify IPv6 configuration
+	ipv6Config := ifInfo.IPConfigs[1]
+	require.Equal(t, "2001:db8::5", ipv6Config.Address.IP.String())
+	require.Equal(t, 64, getPrefixLength(ipv6Config.Address.Mask))
+	require.Equal(t, "2001:db8::1", ipv6Config.Gateway.String())
+}
+
+// Helper function to get prefix length from mask
+func getPrefixLength(mask net.IPMask) int {
+	ones, _ := mask.Size()
+	return ones
+}
+
+func TestConvertToIPConfigAndRouteInfoCnetAddressSpace(t *testing.T) {
+	tests := []struct {
+		name          string
+		networkConfig *cns.GetNetworkContainerResponse
+		wantRoutes    []network.RouteInfo
+	}{
+		{
+			name: "dual-stack with IPv4 CnetAddressSpace uses IPv4 gateway",
+			networkConfig: &cns.GetNetworkContainerResponse{
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet:         cns.IPSubnet{IPAddress: "10.1.0.5", PrefixLength: 16},
+					GatewayIPAddress: "10.1.0.1",
+				},
+				IPv6Configuration: cns.IPConfiguration{
+					IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::5", PrefixLength: 64},
+					GatewayIPAddress: "2001:db8::1",
+				},
+				CnetAddressSpace: []cns.IPSubnet{
+					{IPAddress: "10.2.0.0", PrefixLength: 16},
+				},
+			},
+			wantRoutes: []network.RouteInfo{
+				{
+					Dst: net.IPNet{IP: net.ParseIP("10.2.0.0"), Mask: net.CIDRMask(16, 32)},
+					Gw:  net.ParseIP("10.1.0.1"),
+				},
+			},
+		},
+		{
+			name: "dual-stack with IPv6 CnetAddressSpace uses IPv6 gateway",
+			networkConfig: &cns.GetNetworkContainerResponse{
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet:         cns.IPSubnet{IPAddress: "10.1.0.5", PrefixLength: 16},
+					GatewayIPAddress: "10.1.0.1",
+				},
+				IPv6Configuration: cns.IPConfiguration{
+					IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::5", PrefixLength: 64},
+					GatewayIPAddress: "2001:db8::1",
+				},
+				CnetAddressSpace: []cns.IPSubnet{
+					{IPAddress: "2001:db8:1::", PrefixLength: 48},
+				},
+			},
+			wantRoutes: []network.RouteInfo{
+				{
+					Dst: net.IPNet{IP: net.ParseIP("2001:db8:1::"), Mask: net.CIDRMask(48, 128)},
+					Gw:  net.ParseIP("2001:db8::1"),
+				},
+			},
+		},
+		{
+			name: "dual-stack with mixed CnetAddressSpace uses correct gateway per family",
+			networkConfig: &cns.GetNetworkContainerResponse{
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet:         cns.IPSubnet{IPAddress: "10.1.0.5", PrefixLength: 16},
+					GatewayIPAddress: "10.1.0.1",
+				},
+				IPv6Configuration: cns.IPConfiguration{
+					IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::5", PrefixLength: 64},
+					GatewayIPAddress: "2001:db8::1",
+				},
+				CnetAddressSpace: []cns.IPSubnet{
+					{IPAddress: "10.2.0.0", PrefixLength: 16},
+					{IPAddress: "2001:db8:1::", PrefixLength: 48},
+				},
+			},
+			wantRoutes: []network.RouteInfo{
+				{
+					Dst: net.IPNet{IP: net.ParseIP("10.2.0.0"), Mask: net.CIDRMask(16, 32)},
+					Gw:  net.ParseIP("10.1.0.1"),
+				},
+				{
+					Dst: net.IPNet{IP: net.ParseIP("2001:db8:1::"), Mask: net.CIDRMask(48, 128)},
+					Gw:  net.ParseIP("2001:db8::1"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, gotRoutes := convertToIPConfigAndRouteInfo(tt.networkConfig)
+			require.Equal(t, tt.wantRoutes, gotRoutes)
 		})
 	}
 }

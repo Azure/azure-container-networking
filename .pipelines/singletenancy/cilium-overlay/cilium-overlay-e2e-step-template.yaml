@@ -6,7 +6,6 @@ parameters:
   scaleup: ""
   nightly: false
 
-
 steps:
   - bash: |
       echo $UID
@@ -29,6 +28,8 @@ steps:
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
+
+  - template: ../../templates/cilium-cli.yaml
 
   - task: AzureCLI@2
     inputs:
@@ -62,8 +63,6 @@ steps:
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
 
-  - template: ../../templates/cilium-cli.yaml
-
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
       if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
@@ -78,25 +77,16 @@ steps:
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
 
-  - script: |
-      kubectl get po -owide -A
-      echo "Waiting < 2 minutes for cilium to be ready"
-      # Ensure Cilium is ready Xm\Xs
-      cilium status --wait --wait-duration 2m
-      kubectl get crd -A
-    retryCountOnTaskFailure: 3
-    name: "CiliumStatus"
-    displayName: "Cilium Status"
   # Run LRP test after cns and config with lrp enabled config deployed
   - ${{ if eq( parameters['testLRP'], true) }}:
-    - script: |
-        set -e
-        cd test/integration/lrp/
-        go test ./lrp_test.go -v -tags "lrp" -count=1 -run ^TestLRP$
-        kubectl get pods -Aowide
-      retryCountOnTaskFailure: 3
-      name: "LRPTest"
-      displayName: "Run Cilium Local Redirect Policy Test"
+      - script: |
+          set -e
+          cd test/integration/lrp/
+          go test ./lrp_test.go -v -tags "lrp" -count=1 -run ^TestLRP$
+          kubectl get pods -Aowide
+        retryCountOnTaskFailure: 3
+        name: "LRPTest"
+        displayName: "Run Cilium Local Redirect Policy Test"
 
   - task: AzureCLI@1
     inputs:
@@ -155,25 +145,25 @@ steps:
         displayName: "Run Hubble Connectivity Tests"
 
   - ${{if eq( parameters['nightly'], true) }}:
-    - template: ../../templates/cilium-nightly-checks.yaml
+      - template: ../../templates/cilium-nightly-checks.yaml
   - ${{else }}:
-    - script: |
-        set -e
-        echo "validate pod IP assignment and check systemd-networkd restart"
-        kubectl get pod -owide -A
-        ciliumNamespace=`kubectl get ns | grep cilium-test | awk '{print $1}'`
+      - script: |
+          set -e
+          echo "validate pod IP assignment and check systemd-networkd restart"
+          kubectl get pod -owide -A
+          ciliumNamespace=`kubectl get ns | grep cilium-test | awk '{print $1}'`
 
-        make test-validate-state
+          make test-validate-state
 
-        echo "delete cilium connectivity test resources and re-validate state"
-        for namespace in ${ciliumNamespace}; do
-          kubectl delete ns ${namespace}
-        done
-        kubectl get pod -owide -A
+          echo "delete cilium connectivity test resources and re-validate state"
+          for namespace in ${ciliumNamespace}; do
+            kubectl delete ns ${namespace}
+          done
+          kubectl get pod -owide -A
 
-        make test-validate-state
-      name: "validatePods"
-      displayName: "Validate Pods"
+          make test-validate-state
+        name: "validatePods"
+        displayName: "Validate Pods"
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"
@@ -183,14 +173,14 @@ steps:
     displayName: "Run Wireserver and Metadata Connectivity Tests"
 
   - ${{if eq( parameters['nightly'], false) }}:
-    - script: |
-        cd hack/scripts
-        chmod +x async-delete-test.sh
-        ./async-delete-test.sh
-        if ! [ -z $(kubectl -n kube-system get ds azure-cns | grep non-existing) ]; then
-          kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
-        fi
-      name: "testAsyncDelete"
-      displayName: "Verify Async Delete when CNS is down"
+      - script: |
+          cd hack/scripts
+          chmod +x async-delete-test.sh
+          ./async-delete-test.sh
+          if ! [ -z $(kubectl -n kube-system get ds azure-cns | grep non-existing) ]; then
+            kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
+          fi
+        name: "testAsyncDelete"
+        displayName: "Verify Async Delete when CNS is down"
 
   - template: ../../templates/cilium-mtu-check.yaml

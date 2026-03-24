@@ -47,7 +47,7 @@ data:
   enable-health-check-nodeport: "true"
   enable-health-checking: "true"
   enable-host-legacy-routing: "false"
-  enable-hubble: "true"
+  enable-hubble: "false"
   enable-hubble-open-metrics: "false"
   enable-internal-traffic-policy: "true"
   enable-ip-masq-agent: "true"

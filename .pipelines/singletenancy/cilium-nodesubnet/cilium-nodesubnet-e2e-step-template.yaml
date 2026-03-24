@@ -23,26 +23,28 @@ steps:
     displayName: "Set up the Go environment"
 
   - task: AzureCLI@2
-    displayName: 'Update IP configs'
+    displayName: "Update IP configs"
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-          set -e
-          clusterName=${{ parameters.clusterName }}
-          SCALE_UP=${{ parameters.scaleup }}
-          if [ -z "$SCALE_UP" ]; then
-            SCALE_UP=32
-          fi
-          SECONDARY_IP_COUNT=$((SCALE_UP * 2)) \
-          RESOURCE_GROUP="MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST)" \
-          go run $(Build.SourcesDirectory)/test/integration/cilium-nodesubnet/ipconfigupdate.go
+        set -e
+        clusterName=${{ parameters.clusterName }}
+        SCALE_UP=${{ parameters.scaleup }}
+        if [ -z "$SCALE_UP" ]; then
+          SCALE_UP=32
+        fi
+        SECONDARY_IP_COUNT=$((SCALE_UP * 2)) \
+        RESOURCE_GROUP="MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST)" \
+        go run $(Build.SourcesDirectory)/test/integration/cilium-nodesubnet/ipconfigupdate.go
 
   - task: KubectlInstaller@0
     inputs:
       kubectlVersion: latest
+
+  - template: ../../templates/cilium-cli.yaml
 
   - task: AzureCLI@2
     inputs:
@@ -68,8 +70,6 @@ steps:
         kubectl get crd -A
     name: "installCilium"
     displayName: "Install Cilium"
-
-  - template: ../../templates/cilium-cli.yaml
 
   - script: |
       echo "Start Nodesubnet E2E Tests"

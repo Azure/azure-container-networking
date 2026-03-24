@@ -2,7 +2,7 @@ parameters:
   - name: subscriptionId
     type: string
   - name: location
-    type: string
+    type: object
   - name: resourceGroupName
     type: string
   - name: runSetupStages
@@ -22,168 +22,174 @@ resources:
       ref: refs/heads/master
 
 variables:
-  - name: rgName
-    ${{ if eq(parameters.runSetupStages, true) }}:
-      value: ${{ parameters.resourceGroupName }}
-    ${{ else }}:
-      value: sv2-long-run-${{ parameters.location }}
   - name: vmSkuDefault
     value: "Standard_D4s_v3"
   - name: vmSkuHighNIC
     value: "Standard_D16s_v3"
+  - name: isAllowedRun
+    value: ${{ ne(variables['Build.Reason'], 'IndividualCI') }}
 
 stages:
-  - stage: AKSClusterAndNetworking
-    displayName: "Stage: AKS Cluster and Networking Setup"
-    condition: eq(${{ parameters.runSetupStages }}, true)
-    jobs:
-      - job: CreateResourceGroup
-        displayName: "Create Resource Group"
-        steps:
-          - task: AzureCLI@2
-            displayName: "Create resource group"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Creating resource group $(rgName) in ${{ parameters.location }}"
-                az group create \
-                  --name "$(rgName)" \
-                  --location "${{ parameters.location }}" \
-                  --subscription "${{ parameters.subscriptionId }}"
-                echo "Resource group created successfully."
+  # Setup infrastructure for each location
+  - ${{ each loc in parameters.location }}:
+    - stage: AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+      displayName: "Stage: AKS Cluster and Networking Setup (${{ loc }})"
+      condition: eq(${{ parameters.runSetupStages }}, true)
+      variables:
+        rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
+      jobs:
+        - job: CreateResourceGroup
+          displayName: "Create Resource Group"
+          steps:
+            - task: AzureCLI@2
+              displayName: "Create resource group"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  echo "==> Creating resource group $(rgName) in ${{ loc }}"
+                  az group create \
+                    --name "$(rgName)" \
+                    --location "${{ loc }}" \
+                    --subscription "${{ parameters.subscriptionId }}"
+                  echo "Resource group created successfully."
 
-      - job: CreateCluster
-        displayName: "Create AKS Clusters"
-        dependsOn: CreateResourceGroup
-        steps:
-          - task: AzureCLI@2
-            displayName: "Create AKS clusters"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_aks.sh"
-              arguments: >
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.location }}
-                $(rgName)
-                $(vmSkuDefault)
-                $(vmSkuHighNIC)
-                $(DELEGATOR_CONTAINER_APP_NAME)
-                $(DELEGATOR_RESOURCE_GROUP)
-                $(DELEGATOR_SUBSCRIPTION)
-      
-      - job: NetworkingAndStorage
-        displayName: "Networking and Storage Setup"
-        dependsOn: CreateCluster
-        steps:
-          - task: AzureCLI@2
-            displayName: "Create customer vnets"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_vnets.sh"
-              arguments: >
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.location }}
-                $(rgName)
-                $(Build.BuildId)
-                $(DELEGATOR_CONTAINER_APP_NAME)
-                $(DELEGATOR_RESOURCE_GROUP)
-                $(DELEGATOR_SUBSCRIPTION)
+        - job: CreateCluster
+          displayName: "Create AKS Clusters"
+          dependsOn: CreateResourceGroup
+          steps:
+            - task: AzureCLI@2
+              displayName: "Create AKS clusters"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: scriptPath
+                scriptPath: ".pipelines/swiftv2-long-running/scripts/create_aks.sh"
+                arguments: >
+                  ${{ parameters.subscriptionId }}
+                  ${{ loc }}
+                  $(rgName)
+                  $(vmSkuDefault)
+                  $(vmSkuHighNIC)
+                  $(DELEGATOR_CONTAINER_APP_NAME)
+                  $(DELEGATOR_RESOURCE_GROUP)
+                  $(DELEGATOR_SUBSCRIPTION)
+        
+        - job: NetworkingAndStorage
+          displayName: "Networking and Storage Setup"
+          dependsOn: CreateCluster
+          steps:
+            - task: AzureCLI@2
+              displayName: "Create customer vnets"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: scriptPath
+                scriptPath: ".pipelines/swiftv2-long-running/scripts/create_vnets.sh"
+                arguments: >
+                  ${{ parameters.subscriptionId }}
+                  ${{ loc }}
+                  $(rgName)
+                  $(Build.BuildId)
+                  $(DELEGATOR_CONTAINER_APP_NAME)
+                  $(DELEGATOR_RESOURCE_GROUP)
+                  $(DELEGATOR_SUBSCRIPTION)
 
-          - task: AzureCLI@2
-            displayName: "Create customer vnet peerings"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_peerings.sh"
-              arguments: >
-                $(rgName)
+            - task: AzureCLI@2
+              displayName: "Create customer vnet peerings"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: scriptPath
+                scriptPath: ".pipelines/swiftv2-long-running/scripts/create_peerings.sh"
+                arguments: >
+                  $(rgName)
 
-          - task: AzureCLI@2
-            name: CreateStorageAccounts
-            displayName: "Create storage accounts"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_storage.sh"
-              arguments: >
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.location }}
-                $(rgName)
+            - task: AzureCLI@2
+              name: CreateStorageAccounts
+              displayName: "Create storage accounts"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: scriptPath
+                scriptPath: ".pipelines/swiftv2-long-running/scripts/create_storage.sh"
+                arguments: >
+                  ${{ parameters.subscriptionId }}
+                  ${{ loc }}
+                  $(rgName)
 
-          - task: AzureCLI@2
-            displayName: "Create Private Endpoint for Storage Account"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_pe.sh"
-              arguments: >
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.location }}
-                $(rgName)
-                $(CreateStorageAccounts.StorageAccount1)
-          
-          - task: AzureCLI@2
-            displayName: "Create network security groups to restrict access between subnets"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_nsg.sh"
-              arguments: >
-                ${{ parameters.subscriptionId }}
-                $(rgName)
-                ${{ parameters.location }}
-      - job: DeployLinuxBYON
-        displayName: "Join Linux BYON VMSS to AKS Cluster"
-        dependsOn:
-          - CreateCluster
-          - NetworkingAndStorage
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
-            displayName: "Checkout main repository"
-          - checkout: Networking-Aquarius
-            displayName: "Checkout Networking-Aquarius repository"
-          - task: AzureCLI@2
-            displayName: "Deploy Linux VMSS"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_linuxbyon.sh"
-              arguments: >
-                $(rgName)
-                $(Build.SourcesDirectory)
-            env:
-              SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
-              CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
-              KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
-              KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
+            - task: AzureCLI@2
+              displayName: "Create Private Endpoint for Storage Account"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: scriptPath
+                scriptPath: ".pipelines/swiftv2-long-running/scripts/create_pe.sh"
+                arguments: >
+                  ${{ parameters.subscriptionId }}
+                  ${{ loc }}
+                  $(rgName)
+                  $(CreateStorageAccounts.StorageAccount1)
+            
+            - task: AzureCLI@2
+              displayName: "Create network security groups to restrict access between subnets"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: scriptPath
+                scriptPath: ".pipelines/swiftv2-long-running/scripts/create_nsg.sh"
+                arguments: >
+                  ${{ parameters.subscriptionId }}
+                  $(rgName)
+                  ${{ loc }}
+        - job: DeployLinuxBYON
+          displayName: "Join Linux BYON VMSS to AKS Cluster"
+          dependsOn:
+            - CreateCluster
+            - NetworkingAndStorage
+          pool:
+            vmImage: ubuntu-latest
+          steps:
+            - checkout: self
+              displayName: "Checkout main repository"
+            - checkout: Networking-Aquarius
+              displayName: "Checkout Networking-Aquarius repository"
+            - task: AzureCLI@2
+              displayName: "Deploy Linux VMSS"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: scriptPath
+                scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_linuxbyon.sh"
+                arguments: >
+                  $(rgName)
+                  $(Build.SourcesDirectory)
+              env:
+                SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
+                CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
+                KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
+                KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
   
-  # Run tests for each workload type specified in the parameter
-  - ${{ each workload in parameters.workloadType }}:
-    - template: datapath-tests-stage.yaml
-      parameters:
-        workloadType: ${{ workload }}
-        subscriptionId: ${{ parameters.subscriptionId }}
-        rgName: $(rgName)
-        storageAccount1: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
-        storageAccount2: $[ stageDependencies.AKSClusterAndNetworking.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
-        runSetupStages: ${{ parameters.runSetupStages }}
-        ${{ if eq(workload, 'swiftv2-linux') }}:
-          dependsOn: 
-            - AKSClusterAndNetworking
-        ${{ else }}:
-          dependsOn: 
-            - AKSClusterAndNetworking
-            - DataPathTests_swiftv2_linux
+  # Run tests for each location and workload type
+  - ${{ each loc in parameters.location }}:
+    - ${{ each workload in parameters.workloadType }}:
+      - template: datapath-tests-stage.yaml
+        parameters:
+          workloadType: ${{ workload }}
+          location: ${{ loc }}
+          subscriptionId: ${{ parameters.subscriptionId }}
+          ${{ if eq(parameters.runSetupStages, true) }}:
+            rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
+          ${{ else }}:
+            rgName: sv2-long-run-${{ loc }}
+          storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
+          storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
+          runSetupStages: ${{ parameters.runSetupStages }}
+          ${{ if eq(workload, 'swiftv2-linux') }}:
+            dependsOn: 
+              - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+          ${{ else }}:
+            dependsOn: 
+              - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+              - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}

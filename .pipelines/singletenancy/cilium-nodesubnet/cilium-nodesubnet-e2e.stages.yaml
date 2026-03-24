@@ -13,7 +13,7 @@ parameters:
 
 stages:
   - stage: ${{ parameters.clusterName }}
-    displayName: Create Cluster - ${{ parameters.displayName }}
+    displayName: ${{ parameters.displayName }} - Create Cluster
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -30,7 +30,7 @@ stages:
           region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
-    displayName: E2E - ${{ parameters.displayName }}
+    displayName: E2E-${{ parameters.displayName }}
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
@@ -51,8 +51,8 @@ stages:
       CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
     condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     dependsOn:
-    - setup
-    - ${{ parameters.clusterName }}
+      - setup
+      - ${{ parameters.clusterName }}
     jobs:
       - job: ${{ parameters.name }}
         displayName: Nodesubnet with Cilium - (${{ parameters.name }})
@@ -60,8 +60,8 @@ stages:
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
-          - agent.os -equals Linux
-          - Role -equals $(CUSTOM_E2E_ROLE)
+            - agent.os -equals Linux
+            - Role -equals $(CUSTOM_E2E_ROLE)
           isCustom: true
           type: linux
         steps:

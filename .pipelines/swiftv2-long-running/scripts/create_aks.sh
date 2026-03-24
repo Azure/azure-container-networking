@@ -100,6 +100,9 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
     az aks get-credentials -g "$RG" -n "$CLUSTER_NAME" --admin --overwrite-existing \
       --file "/tmp/${CLUSTER_NAME}.kubeconfig"
     
+    echo "Waiting for all nodes in $CLUSTER_NAME to be Ready..."
+    kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" wait --for=condition=Ready nodes --all --timeout=10m
+
     echo "Labeling all nodes in $CLUSTER_NAME with workload-type=swiftv2-linux"
     kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label nodes --all workload-type=swiftv2-linux --overwrite
     
