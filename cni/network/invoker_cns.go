@@ -31,7 +31,7 @@ var (
 	errInvalidArgs           = errors.New("invalid arg(s)")
 	errInvalidDefaultRouting = errors.New("add result requires exactly one interface with default routes")
 	errInvalidGatewayIP      = errors.New("invalid gateway IP")
-	overlayGatewayV6IP       = "fe80::1234:5678:9abc"
+	defaultGatewayV6IP       = "fe80::1234:5678:9abc"
 	watcherPath              = "/var/run/azure-vnet/deleteIDs"
 )
 
@@ -57,6 +57,24 @@ type IPResultInfo struct {
 	routes             []cns.Route
 	pnpID              string
 	endpointPolicies   []policy.Policy
+}
+
+func getIPConfigGatewayAddress(podIP string, ipConfig cns.IPConfiguration) string {
+	parsedPodIP := net.ParseIP(podIP)
+	if parsedPodIP != nil && parsedPodIP.To4() == nil && net.ParseIP(ipConfig.GatewayIPv6Address) != nil {
+		return ipConfig.GatewayIPv6Address
+	}
+
+	return ipConfig.GatewayIPAddress
+}
+
+func getIPConfigPrefixLength(podIP string, ipConfig cns.IPConfiguration) uint8 {
+	parsedPodIP := net.ParseIP(podIP)
+	if parsedPodIP != nil && parsedPodIP.To4() == nil && ipConfig.IPSubnetV6.PrefixLength != 0 {
+		return ipConfig.IPSubnetV6.PrefixLength
+	}
+
+	return ipConfig.IPSubnet.PrefixLength
 }
 
 func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
@@ -150,9 +168,9 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
 			podIPAddress:       response.PodIPInfo[i].PodIPConfig.IPAddress,
-			ncSubnetPrefix:     response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+			ncSubnetPrefix:     getIPConfigPrefixLength(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
 			ncPrimaryIP:        response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
-			ncGatewayIPAddress: response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
+			ncGatewayIPAddress: getIPConfigGatewayAddress(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
 			hostSubnet:         response.PodIPInfo[i].HostPrimaryIPInfo.Subnet,
 			hostPrimaryIP:      response.PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP,
 			hostGateway:        response.PodIPInfo[i].HostPrimaryIPInfo.Gateway,
@@ -409,7 +427,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 				return err
 			}
 		} else if net.ParseIP(info.podIPAddress).To16() != nil {
-			ncgw = net.ParseIP(overlayGatewayV6IP)
+			ncgw = net.ParseIP(defaultGatewayV6IP)
 		} else {
 			return errors.Wrap(err, "No podIPAddress is found: %w")
 		}

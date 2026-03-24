@@ -189,8 +189,10 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 											IPAddress:    "fd11:1234::",
 											PrefixLength: 112,
 										},
-										DNSServers:       nil,
-										GatewayIPAddress: "fe80::1234:5678:9abc",
+										IPSubnetV6:         cns.IPSubnet{},
+										DNSServers:         nil,
+										GatewayIPAddress:   "fe80::1234:5678:9abc",
+										GatewayIPv6Address: "",
 									},
 									HostPrimaryIPInfo: cns.HostIPInfo{
 										Gateway:   "fe80::1234:5678:9abc",
@@ -736,10 +738,15 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 										IPSubnet: cns.IPSubnet{
 											IPAddress:    "fd11:1234::",
+											PrefixLength: 64,
+										},
+										IPSubnetV6: cns.IPSubnet{
+											IPAddress:    "fd11:1234::",
 											PrefixLength: 112,
 										},
-										DNSServers:       nil,
-										GatewayIPAddress: "fe80::1234:5678:9abc",
+										DNSServers:         nil,
+										GatewayIPAddress:   "10.0.0.1",
+										GatewayIPv6Address: "fe80::1234:5678:9abc",
 									},
 									HostPrimaryIPInfo: cns.HostIPInfo{
 										Gateway:   "fe80::1234:5678:9abc",
@@ -1048,10 +1055,15 @@ func TestRequestIPAPIsFail(t *testing.T) {
 									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 										IPSubnet: cns.IPSubnet{
 											IPAddress:    "fd11:1234::",
+											PrefixLength: 64,
+										},
+										IPSubnetV6: cns.IPSubnet{
+											IPAddress:    "fd11:1234::",
 											PrefixLength: 112,
 										},
-										DNSServers:       nil,
-										GatewayIPAddress: "fe80::1234:5678:9abc",
+										DNSServers:         nil,
+										GatewayIPAddress:   "10.0.0.1",
+										GatewayIPv6Address: "fe80::1234:5678:9abc",
 									},
 									HostPrimaryIPInfo: cns.HostIPInfo{
 										Gateway:   "fe80::1234:5678:9abc",
