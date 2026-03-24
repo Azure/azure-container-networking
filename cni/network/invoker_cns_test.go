@@ -1053,11 +1053,8 @@ func TestRequestIPAPIsFail(t *testing.T) {
 										PrefixLength: 112,
 									},
 									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnetV6: cns.IPSubnet{},
 										IPSubnet: cns.IPSubnet{
-											IPAddress:    "fd11:1234::",
-											PrefixLength: 64,
-										},
-										IPSubnetV6: cns.IPSubnet{
 											IPAddress:    "fd11:1234::",
 											PrefixLength: 112,
 										},
