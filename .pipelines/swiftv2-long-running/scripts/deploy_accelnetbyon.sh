@@ -49,14 +49,14 @@ create_l1vh_vmss() {
     -n "$RESOURCE_GROUP" \
     -i "$cluster_name" \
     -z "$vmss_sku" \
-    -y "singularity-standalone-testing" \
-    -q "vmssstandalonepwd" \
-    -p "vmbiceppwd" \
-    -x "l1vhstandalonestorage" \
+    -y "${L1VH_KEYVAULT_NAME}" \
+    -q "${L1VH_VMSS_PASSWORD_SECRET}" \
+    -p "${L1VH_VM_BICEP_PASSWORD_SECRET}" \
+    -x "${L1VH_STORAGE_SECRET}" \
     -d $nic_count \
     $keep_nat_flag \
     2>&1 | tee "$log_file"
-  local exit_code=$?
+  local exit_code=${PIPESTATUS[0]}
   
   popd > /dev/null
   set -e
@@ -104,7 +104,8 @@ label_single_node() {
 declare -A cluster_prefixes=( ["aks-1"]="a1" ["aks-2"]="a2" )
 
 for cluster_name in $cluster_names; do
-  az identity create --name "aksbootstrap" --resource-group $RESOURCE_GROUP
+  az identity show --name "aksbootstrap" --resource-group "$RESOURCE_GROUP" &>/dev/null || \
+    az identity create --name "aksbootstrap" --resource-group "$RESOURCE_GROUP"
   az aks get-credentials --resource-group $RESOURCE_GROUP --name $cluster_name --file ./kubeconfig-${cluster_name}.yaml --overwrite-existing -a || exit 1
   
   upload_kubeconfig "$cluster_name"

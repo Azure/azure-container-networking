@@ -19,7 +19,7 @@ resources:
     - repository: Networking-Aquarius
       type: git
       name: One/Networking-Aquarius
-      ref: refs/heads/internal_sku_test
+      ref: refs/heads/master
 
 variables:
   - name: vmSkuDefault
@@ -179,7 +179,10 @@ stages:
         dependsOn: AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
         condition: and(eq(variables.isAllowedRun, true), or(eq(${{ parameters.runSetupStages }}, false), succeeded()))
         variables:
-          rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
+          ${{ if eq(parameters.runSetupStages, true) }}:
+            rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
+          ${{ else }}:
+            rgName: sv2-long-run-${{ loc }}
         jobs: 
           - job: JoinAccelnetBYONtoAKS
             displayName: "Join Accelnet BYON VMSS to AKS Cluster"
@@ -207,6 +210,10 @@ stages:
                   CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
                   KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
                   KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
+                  L1VH_KEYVAULT_NAME: $(L1VH_KEYVAULT_NAME)
+                  L1VH_VMSS_PASSWORD_SECRET: $(L1VH_VMSS_PASSWORD_SECRET)
+                  L1VH_VM_BICEP_PASSWORD_SECRET: $(L1VH_VM_BICEP_PASSWORD_SECRET)
+                  L1VH_STORAGE_SECRET: $(L1VH_STORAGE_SECRET)
 
   # Run tests for each location and workload type
   - ${{ each loc in parameters.location }}:

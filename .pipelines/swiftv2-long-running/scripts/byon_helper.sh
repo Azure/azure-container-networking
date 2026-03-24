@@ -101,7 +101,7 @@ check_if_nodes_joined_cluster() {
 wait_for_nodes_ready() {
   local cluster_name=$1
   local node_name=$2
-  local kubeconfig_file="./kubeconfig-${cluster_name}.yaml"
+  local kubeconfig_file="./kubeconfig-${cluster_name}"
   local expected_nodes=$3
   
   echo "Waiting for nodes from VMSS '${node_name}' to join cluster and become ready..."
@@ -109,12 +109,16 @@ wait_for_nodes_ready() {
     exit 1
   fi
 
+  # Recompute node list locally instead of relying on the global 'nodes' array from check_if_nodes_joined_cluster
+  local ready_nodes
+  ready_nodes=($(kubectl --kubeconfig "$kubeconfig_file" get nodes -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep "^${node_name}" || true))
+
   echo "Checking if nodes are ready..."
   for ((ready_retry=1; ready_retry<=7; ready_retry++)); do
     echo "Ready check attempt $ready_retry of 7"
     all_ready=true
     
-    for nodename in "${nodes[@]}"; do
+    for nodename in "${ready_nodes[@]}"; do
       ready=$(kubectl --kubeconfig "$kubeconfig_file" get node "$nodename" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "False")
       if [ "$ready" != "True" ]; then
         echo "Node $nodename is not ready yet (status: $ready)"
@@ -182,10 +186,8 @@ copy_podnetwork_labels_to_node() {
   local target_node=$3
 
   for label_key in "${PODNETWORK_LABEL_KEYS[@]}"; do
-    local escaped_key
-    escaped_key=$(echo "$label_key" | sed 's/\//\\\//g; s/\./\\./g')
     local val
-    val=$(kubectl --kubeconfig "$kubeconfig_file" get node "$source_node" -o jsonpath="{.metadata.labels['${escaped_key}']}")
+    val=$(kubectl --kubeconfig "$kubeconfig_file" get node "$source_node" -o jsonpath="{.metadata.labels['${label_key}']}")
     if [[ -n "$val" ]]; then
       echo "Labeling node $target_node with $label_key=$val"
       kubectl --kubeconfig "$kubeconfig_file" label node "$target_node" "${label_key}=${val}" --overwrite
