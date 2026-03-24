@@ -2739,11 +2739,11 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 			err := svc.cleanupStaleHNSResources(tt.ncID, tt.mac)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
-			assert.Equal(t, tt.wantRemaining, len(svc.EndpointState))
+			assert.Len(t, svc.EndpointState, tt.wantRemaining)
 
 			if tt.wantRemovedKey != "" {
 				_, exists := svc.EndpointState[tt.wantRemovedKey]

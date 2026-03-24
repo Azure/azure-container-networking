@@ -1538,7 +1538,7 @@ func (service *HTTPRestService) cleanupStaleHNSResources(ncID, mac string) (retu
 			result = "failure"
 			errMsg = returnErr.Error()
 		}
-		logger.SendMetric(aitelemetry.Metric{
+		logger.SendMetric(aitelemetry.Metric{ //nolint:staticcheck // TODO: migrate to zap logger
 			Name:  logger.StaleHNSCleanupMetricStr,
 			Value: 1.0,
 			CustomDimensions: map[string]string{
@@ -1553,7 +1553,7 @@ func (service *HTTPRestService) cleanupStaleHNSResources(ncID, mac string) (retu
 		})
 	}()
 
-	logger.Printf("[cleanupStaleHNSResources] cleaning up stale HNS resources for container %s (MAC %s)", containerID, mac)
+	logger.Printf("[cleanupStaleHNSResources] cleaning up stale HNS resources for container %s (MAC %s)", containerID, mac) //nolint:staticcheck // TODO: migrate to zap logger
 	if ipInfo.HnsEndpointID != "" {
 		if err := service.hnsClient.DeleteEndpointByID(ipInfo.HnsEndpointID); err != nil {
 			return fmt.Errorf("failed to delete stale HNS endpoint %s: %w", ipInfo.HnsEndpointID, err)
@@ -1570,6 +1570,6 @@ func (service *HTTPRestService) cleanupStaleHNSResources(ncID, mac string) (retu
 		return fmt.Errorf("failed to remove stale endpoint state for container %s: %w", containerID, err)
 	}
 
-	logger.Printf("[cleanupStaleHNSResources] Successfully removed stale endpoint state and HNS resources for container %s", containerID)
+	logger.Printf("[cleanupStaleHNSResources] Successfully removed stale endpoint state and HNS resources for container %s", containerID) //nolint:staticcheck // TODO: migrate to zap logger
 	return nil
 }

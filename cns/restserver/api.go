@@ -540,8 +540,8 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 			hasDelegatedNIC := req.NetworkInterfaceInfo.MACAddress != "" &&
 				(req.NetworkInterfaceInfo.NICType == cns.DelegatedVMNIC || req.NetworkInterfaceInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC)
 			if cleanupEnabled && hasDelegatedNIC {
-				if err := service.cleanupStaleHNSResources(req.NetworkContainerid, req.NetworkInterfaceInfo.MACAddress); err != nil {
-					returnMessage = fmt.Sprintf("[Azure CNS] stale HNS cleanup failed for MAC %s: %v", req.NetworkInterfaceInfo.MACAddress, err)
+				if cleanupErr := service.cleanupStaleHNSResources(req.NetworkContainerid, req.NetworkInterfaceInfo.MACAddress); cleanupErr != nil {
+					returnMessage = fmt.Sprintf("[Azure CNS] stale HNS cleanup failed for MAC %s: %v", req.NetworkInterfaceInfo.MACAddress, cleanupErr)
 					returnCode = types.UnexpectedError
 					break
 				}
