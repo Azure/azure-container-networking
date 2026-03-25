@@ -20,6 +20,7 @@ var (
 	ErrPNIDeletionFailed = errors.New("PodNetworkInstance still exists after deletion attempts")
 	ErrPNDeletionFailed = errors.New("PodNetwork still exists after deletion attempts")
 	ErrNamespaceDeletionFailed = errors.New("namespace still exists after deletion attempts")
+	ErrDaemonSetNotReady = errors.New("daemonset did not become ready")
 )
 
 func runAzCommand(cmd string, args ...string) (string, error) {
@@ -346,7 +347,7 @@ func WaitForDaemonSetReady(kubeconfig, namespace, dsName string, maxRetries, sle
 		}
 	}
 
-	return fmt.Errorf("%w: daemonset %s after %d attempts", ErrPodNotRunning, dsName, maxRetries)
+	return fmt.Errorf("%w: daemonset %s after %d attempts", ErrDaemonSetNotReady, dsName, maxRetries)
 }
 
 // GetPodIP retrieves the IP address of a pod

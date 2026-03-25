@@ -26,7 +26,7 @@ const rotatingPodMaxAge = 6 * time.Hour
 // getPodCreationTime gets the created-at annotation from a pod to determine its age.
 func getPodCreationTime(kubeconfig, namespace, podName string) (time.Time, error) {
 	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName,
-		"-n", namespace, "-o", fmt.Sprintf("jsonpath={.metadata.annotations.%s}", strings.ReplaceAll(HourlyCreatedAtAnnotation, "/", "\\/")))
+		"-n", namespace, "-o", fmt.Sprintf("jsonpath={.metadata.annotations['%s']}", HourlyCreatedAtAnnotation))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return time.Time{}, fmt.Errorf("failed to get pod annotation: %w\nOutput: %s", err, string(out))

@@ -3,8 +3,8 @@
 # Each zone gets a 1-node pool. The node runs 6 rotating pods + 1 DaemonSet always-on pod.
 # Reuses the same VNet/podnet subnet as the existing nplinux pool.
 #
-# Usage: ensure_zone_nodepools.sh <SUBSCRIPTION_ID> <RESOURCE_GROUP> <CLUSTER_NAME> <VM_SKU_HIGHNIC> <ZONE_LIST>
-# Example: ensure_zone_nodepools.sh <sub-id> sv2-long-run-eastus2euap aks-1 Standard_D16s_v3 "1 2 3 4"
+# Usage: ensure_zone_nodepools.sh <SUBSCRIPTION_ID> <RESOURCE_GROUP> <CLUSTER_NAME> <VM_SKU_HIGHNIC> <ZONE_LIST> [PODS_PER_NODE]
+# Example: ensure_zone_nodepools.sh <sub-id> sv2-long-run-eastus2euap aks-1 Standard_D16s_v3 "1 2 3 4" 7
 set -euo pipefail
 
 SUBSCRIPTION_ID=$1

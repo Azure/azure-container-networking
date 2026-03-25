@@ -90,6 +90,9 @@ var _ = ginkgo.Describe("Hourly Always-On DaemonSet Tests", func() {
 		pniName := GetZonedPNIName(HourlyAlwaysOnPNIPrefix, buildID)
 		dsName := GetDaemonSetName()
 		zoneLabel := GetZoneLabel(location)
+		if zoneLabel == "" {
+			ginkgo.Fail(fmt.Sprintf("Missing zone label for always-on DaemonSet. Ensure ZONE and LOCATION are set correctly (LOCATION='%s')", location))
+		}
 
 		// Ensure namespace exists
 		err := helpers.EnsureNamespaceExists(kubeconfig, namespace)
