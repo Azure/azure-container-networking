@@ -289,9 +289,9 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 
 	// Populate subnets.
 	for _, subnet := range nwInfo.Subnets {
-		defaultIpRouteCIDR := defaultRouteCIDR
+		defaultIPRouteCIDR := defaultRouteCIDR
 		if subnet.Family == platform.AfINET6 {
-			defaultIpRouteCIDR = defaultIPv6Route
+			defaultIPRouteCIDR = defaultIPv6Route
 		}
 		hnsSubnet := hcn.Subnet{
 			IpAddressPrefix: subnet.Prefix.String(),
@@ -299,7 +299,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 			Routes: []hcn.Route{
 				{
 					NextHop:           subnet.Gateway.String(),
-					DestinationPrefix: defaultIpRouteCIDR,
+					DestinationPrefix: defaultIPRouteCIDR,
 				},
 			},
 		}

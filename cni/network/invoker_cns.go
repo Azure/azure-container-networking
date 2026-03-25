@@ -31,7 +31,7 @@ var (
 	errInvalidArgs           = errors.New("invalid arg(s)")
 	errInvalidDefaultRouting = errors.New("add result requires exactly one interface with default routes")
 	errInvalidGatewayIP      = errors.New("invalid gateway IP")
-	defaultGatewayV6IP       = "fe80::1234:5678:9abc"
+	overlayGatewayV6IP       = "fe80::1234:5678:9abc"
 	watcherPath              = "/var/run/azure-vnet/deleteIDs"
 )
 
@@ -61,8 +61,15 @@ type IPResultInfo struct {
 
 func getIPConfigGatewayAddress(podIP string, ipConfig cns.IPConfiguration) string {
 	parsedPodIP := net.ParseIP(podIP)
-	if parsedPodIP != nil && parsedPodIP.To4() == nil && net.ParseIP(ipConfig.GatewayIPv6Address) != nil {
-		return ipConfig.GatewayIPv6Address
+	if parsedPodIP != nil && parsedPodIP.To4() == nil && ipConfig.GatewayIPv6Address != "" {
+		if net.ParseIP(ipConfig.GatewayIPv6Address) != nil {
+			return ipConfig.GatewayIPv6Address
+		}
+
+		logger.Warn("Invalid GatewayIPv6Address from CNS; falling back to GatewayIPAddress",
+			zap.String("podIP", podIP),
+			zap.String("gatewayIPv6Address", ipConfig.GatewayIPv6Address),
+			zap.String("gatewayIPAddress", ipConfig.GatewayIPAddress))
 	}
 
 	return ipConfig.GatewayIPAddress
@@ -70,7 +77,7 @@ func getIPConfigGatewayAddress(podIP string, ipConfig cns.IPConfiguration) strin
 
 func getIPConfigPrefixLength(podIP string, ipConfig cns.IPConfiguration) uint8 {
 	parsedPodIP := net.ParseIP(podIP)
-	if parsedPodIP != nil && parsedPodIP.To4() == nil && ipConfig.IPSubnetV6.PrefixLength != 0 {
+	if parsedPodIP != nil && parsedPodIP.To4() == nil && ipConfig.IPSubnetV6.PrefixLength > 0 {
 		return ipConfig.IPSubnetV6.PrefixLength
 	}
 
@@ -427,7 +434,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 				return err
 			}
 		} else if net.ParseIP(info.podIPAddress).To16() != nil {
-			ncgw = net.ParseIP(defaultGatewayV6IP)
+			ncgw = net.ParseIP(overlayGatewayV6IP)
 		} else {
 			return errors.Wrap(err, "No podIPAddress is found: %w")
 		}
