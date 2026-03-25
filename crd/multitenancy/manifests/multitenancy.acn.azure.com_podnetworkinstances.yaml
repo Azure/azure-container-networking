@@ -74,7 +74,7 @@ spec:
                         This is an optional field.
                         Example: 192.168.0.1/32
                       maxLength: 18
-                      pattern: ^$|^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\/32)?$
+                      pattern: ^$|^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\/32$
                       type: string
                     podIPReservationSize:
                       default: 0

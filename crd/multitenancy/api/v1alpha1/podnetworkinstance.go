@@ -48,7 +48,7 @@ type PodNetworkConfig struct {
 	// Example: 192.168.0.1/32
 	// +kubebuilder:default=""
 	// +kubebuilder:validation:MaxLength=18
-	// +kubebuilder:validation:Pattern=`^$|^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\/32)?$`
+	// +kubebuilder:validation:Pattern=`^$|^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\/32$`
 	IPConstraint string `json:"ipConstraint,omitempty"`
 }
 
