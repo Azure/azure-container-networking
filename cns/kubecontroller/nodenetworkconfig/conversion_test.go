@@ -32,6 +32,9 @@ const (
 	vnetBlockDefaultGateway     = "10.224.0.1"
 	vnetBlockCIDR1              = "10.224.0.8/30"
 	vnetBlockCIDR2              = "10.224.0.12/30"
+	primaryIPV6                 = "fd12:3456:789a::1"
+	subnetAddressSpaceV6        = "fd12:3456:789a::/112"
+	subnetPrefixLenV6           = 112
 )
 
 var invalidStatusMultiNC = v1alpha.NodeNetworkConfigStatus{
@@ -231,16 +234,16 @@ func TestCreateNCRequestFromDynamicNCWithIPv6(t *testing.T) {
 	nc := v1alpha.NetworkContainer{
 		ID:                   ncID,
 		PrimaryIP:            primaryIP,
-		PrimaryIPV6:          "fd12:3456:789a::1",
+		PrimaryIPV6:          primaryIPV6,
 		SubnetAddressSpace:   subnetAddressSpace,
-		SubnetAddressSpaceV6: "fd12:3456:789a::/48",
+		SubnetAddressSpaceV6: subnetAddressSpaceV6,
 		DefaultGateway:       defaultGateway,
 		NodeIP:               nodeIP,
 		Version:              version,
 	}
 	got, err := CreateNCRequestFromDynamicNC(nc)
 	require.NoError(t, err)
-	assert.Equal(t, cns.IPSubnet{IPAddress: "fd12:3456:789a::1", PrefixLength: 48}, got.IPConfiguration.IPSubnetV6)
+	assert.Equal(t, cns.IPSubnet{IPAddress: primaryIPV6, PrefixLength: subnetPrefixLenV6}, got.IPConfiguration.IPSubnetV6)
 }
 
 func TestCreateNCRequestFromDynamicNCWithInvalidIPv6Subnet(t *testing.T) {
@@ -386,16 +389,16 @@ func TestCreateNCRequestFromStaticNCWithIPv6(t *testing.T) {
 		AssignmentMode:       v1alpha.Static,
 		Type:                 v1alpha.Overlay,
 		PrimaryIP:            overlayPrimaryIP,
-		PrimaryIPV6:          "fd12:3456:789a::1",
+		PrimaryIPV6:          primaryIPV6,
 		NodeIP:               nodeIP,
 		SubnetName:           subnetName,
 		SubnetAddressSpace:   subnetAddressSpace,
-		SubnetAddressSpaceV6: "fd12:3456:789a::/48",
+		SubnetAddressSpaceV6: subnetAddressSpaceV6,
 		Version:              version,
 	}
 	got, err := CreateNCRequestFromStaticNC(nc, false, 0)
 	require.NoError(t, err)
-	assert.Equal(t, cns.IPSubnet{IPAddress: "fd12:3456:789a::1", PrefixLength: 48}, got.IPConfiguration.IPSubnetV6)
+	assert.Equal(t, cns.IPSubnet{IPAddress: primaryIPV6, PrefixLength: subnetPrefixLenV6}, got.IPConfiguration.IPSubnetV6)
 }
 
 func TestCreateNCRequestFromStaticNCWithInvalidIPv6Subnet(t *testing.T) {
