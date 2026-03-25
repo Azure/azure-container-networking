@@ -428,6 +428,19 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "GatewayIPv6Address is set from DefaultGatewayV6",
+			input: v1alpha.NetworkContainer{
+				AssignmentMode:     v1alpha.Static,
+				Type:               v1alpha.Overlay,
+				PrimaryIP:          overlayPrimaryIP,
+				NodeIP:             nodeIP,
+				SubnetName:         subnetName,
+				SubnetAddressSpace: subnetAddressSpace,
+				DefaultGatewayV6:   "fd00::1",
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -439,10 +452,15 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 			}
 			require.NoError(t, err)
 			if tt.want != nil {
-				assert.Equal(t, tt.want, got)
+				if tt.want != nil {
+					assert.Equal(t, tt.want, got)
+				}
+				if tt.wantIPSubnetV6 != nil {
+					assert.Equal(t, *tt.wantIPSubnetV6, got.IPConfiguration.IPSubnetV6)
+				}
 			}
-			if tt.wantIPSubnetV6 != nil {
-				assert.Equal(t, *tt.wantIPSubnetV6, got.IPConfiguration.IPSubnetV6)
+			if tt.input.DefaultGatewayV6 != "" {
+				assert.Equal(t, tt.input.DefaultGatewayV6, got.IPConfiguration.GatewayIPv6Address)
 			}
 		})
 	}
