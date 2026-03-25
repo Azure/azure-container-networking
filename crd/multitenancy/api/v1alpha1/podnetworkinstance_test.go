@@ -169,7 +169,7 @@ func TestPodNetworkInstance_SpecValidation(t *testing.T) {
 		{
 			name: "IPConstraint without /32 prefix - not allowed",
 			pni: PodNetworkInstance{
-				ObjectMeta: metav1.ObjectMeta{Name: "test-ip-prefix32", Namespace: "default"},
+				ObjectMeta: metav1.ObjectMeta{Name: "test-ip-noprefix32", Namespace: "default"},
 				Spec: PodNetworkInstanceSpec{
 					PodNetworkConfigs: []PodNetworkConfig{
 						{PodNetwork: "net1", PodIPReservationSize: 1, IPConstraint: "198.176.110.112"},
