@@ -2797,7 +2797,6 @@ func TestConfigureSecondaryAddResult_IPv6(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			podIPConfig := &cns.IPSubnet{
 				IPAddress:    "10.0.1.10",
@@ -2811,10 +2810,7 @@ func TestConfigureSecondaryAddResult_IPv6(t *testing.T) {
 			err := configureSecondaryAddResult(&tt.info, addResult, podIPConfig, macAddress)
 
 			if tt.wantErr {
-				require.Error(t, err)
-				if tt.wantErrIs != nil {
-					require.True(t, errors.Is(err, tt.wantErrIs), "expected error %v, got %v", tt.wantErrIs, err)
-				}
+				require.ErrorIs(t, err, tt.wantErrIs)
 				return
 			}
 

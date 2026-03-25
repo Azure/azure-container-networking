@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/netip"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/log"
@@ -523,36 +524,37 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 
 	// Append IPv6 IPConfig if NetworkContainerIPv6Config was populated
 	if info.ncIPv6 != "" {
-		ipv6 := net.ParseIP(info.ncIPv6)
-		if ipv6 == nil {
+		ipv6, err := netip.ParseAddr(info.ncIPv6)
+		if err != nil {
 			logger.Error("Invalid IPv6 address from NetworkContainerIPv6Config",
 				zap.String("ncIPv6", info.ncIPv6),
-				zap.String("macAddress", info.macAddress))
+				zap.String("macAddress", info.macAddress),
+				zap.Error(err))
 			return errors.Wrap(errInvalidIPv6Address, info.ncIPv6)
 		}
-		if ipv6.To4() != nil {
+		if !ipv6.Is6() {
 			return errors.Wrapf(errInvalidIPv6Address, "expected IPv6, got IPv4: %s", info.ncIPv6)
 		}
 
-		// Use the dedicated IPv6 gateway; may be nil if no IPv6 gateway was provided
-		ipv6Gateway := net.ParseIP(info.ncGatewayIPv6Address)
-		if ipv6Gateway == nil {
+		ipv6Gateway, err := netip.ParseAddr(info.ncGatewayIPv6Address)
+		if err != nil {
 			logger.Error("Invalid IPv6 gateway address from NetworkContainerIPv6Config",
 				zap.String("ncGatewayIPv6Address", info.ncGatewayIPv6Address),
-				zap.String("macAddress", info.macAddress))
+				zap.String("macAddress", info.macAddress),
+				zap.Error(err))
 			return errors.Wrap(errInvalidGatewayIPv6, info.ncGatewayIPv6Address)
 		}
-		if ipv6Gateway.To4() != nil {
+		if !ipv6Gateway.Is6() {
 			return errors.Wrapf(errInvalidGatewayIPv6, "expected IPv6 gateway, got IPv4: %s", info.ncGatewayIPv6Address)
 		}
 
 		ifInfo := addResult.interfaceInfo[key]
 		ifInfo.IPConfigs = append(ifInfo.IPConfigs, &network.IPConfig{
 			Address: net.IPNet{
-				IP:   ipv6,
+				IP:   ipv6.AsSlice(),
 				Mask: net.CIDRMask(int(info.ncSubnetPrefixIPv6), ipv6FullMask),
 			},
-			Gateway: ipv6Gateway,
+			Gateway: ipv6Gateway.AsSlice(),
 		})
 		addResult.interfaceInfo[key] = ifInfo
 	}
