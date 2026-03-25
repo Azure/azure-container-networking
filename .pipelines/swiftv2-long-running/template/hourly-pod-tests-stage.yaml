@@ -1,0 +1,281 @@
+parameters:
+  - name: location
+    type: string
+  - name: subscriptionId
+    type: string
+  - name: rgName
+    type: string
+  - name: zone
+    type: string
+  - name: dependsOn
+    type: object
+    default: []
+
+stages:
+  - stage: HourlyPodTests_Z${{ parameters.zone }}_${{ replace(parameters.location, '-', '_') }}
+    displayName: "Stage: Hourly Pod Tests - Zone ${{ parameters.zone }} (${{ parameters.location }})"
+    ${{ if ne(length(parameters.dependsOn), 0) }}:
+      dependsOn: ${{ parameters.dependsOn }}
+    condition: eq(variables.isAllowedRun, true)
+    jobs:
+      # Setup: Get kubeconfig
+      - job: SetupKubeconfig
+        displayName: "Setup Kubeconfig Files"
+        steps:
+          - task: AzureCLI@2
+            displayName: "Generate and verify kubeconfig files"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                mkdir -p $(Pipeline.Workspace)/kubeconfigs
+
+                echo "==> Setting up kubeconfig for cluster aks-1"
+                az aks get-credentials \
+                  --resource-group ${{ parameters.rgName }} \
+                  --name aks-1 \
+                  --file $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig \
+                  --overwrite-existing \
+                  --admin
+
+                echo "==> Verifying cluster aks-1 connectivity"
+                kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig get nodes
+
+                echo "==> Confirming zone ${{ parameters.zone }} nodes exist"
+                kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig get nodes \
+                  -l "topology.kubernetes.io/zone=${{ parameters.location }}-${{ parameters.zone }},hourly-zone-pool=true" \
+                  -o custom-columns='NAME:.metadata.name,ZONE:.metadata.labels.topology\.kubernetes\.io/zone,POOL:.metadata.labels.agentpool'
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish kubeconfig files"
+            inputs:
+              targetPath: $(Pipeline.Workspace)/kubeconfigs
+              artifactName: kubeconfigs-hourly-z${{ parameters.zone }}-${{ parameters.location }}
+              publishLocation: pipeline
+
+      # Setup: Build metrics binary
+      - job: BuildMetricsBinary
+        displayName: "Build Metrics Binary"
+        steps:
+          - checkout: Networking-Aquarius
+            displayName: "Checkout Networking-Aquarius repository"
+
+          - task: Bash@3
+            displayName: "Build persistent-cluster-metrics binary"
+            inputs:
+              targetType: 'inline'
+              script: |
+                make -C src/dnc persistent-cluster-metrics-binary
+                chmod +x src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
+
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish metrics binary and config"
+            inputs:
+              targetPath: '$(System.DefaultWorkingDirectory)/src/dnc'
+              artifact: 'persistent-cluster-metrics-hourly-z${{ parameters.zone }}-${{ parameters.location }}'
+              publishLocation: 'pipeline'
+
+      # Job 1: Rotating pods (delete expired, create new, ensure 1 rotation per hour)
+      - job: RotatingPods_Z${{ parameters.zone }}
+        displayName: "Zone ${{ parameters.zone }}: Rotating Pods (6h lifetime)"
+        dependsOn:
+          - SetupKubeconfig
+          - BuildMetricsBinary
+        timeoutInMinutes: 60
+        steps:
+          - checkout: self
+            displayName: "Checkout azure-container-networking"
+
+          - checkout: Networking-Aquarius
+            displayName: "Checkout Networking-Aquarius repository"
+
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download kubeconfig files"
+            inputs:
+              artifactName: kubeconfigs-hourly-z${{ parameters.zone }}-${{ parameters.location }}
+              targetPath: $(Pipeline.Workspace)/kubeconfigs
+
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download metrics binary"
+            inputs:
+              artifact: 'persistent-cluster-metrics-hourly-z${{ parameters.zone }}-${{ parameters.location }}'
+              path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
+
+          - task: Bash@3
+            displayName: "Make metrics binary executable"
+            inputs:
+              targetType: 'inline'
+              script: |
+                chmod +x $(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
+
+          - task: AzureCLI@2
+            displayName: "Run Rotating Pod Test (Zone ${{ parameters.zone }})"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Managing rotating pods in zone ${{ parameters.zone }}"
+                export RG="${{ parameters.rgName }}"
+                export BUILD_ID="${{ parameters.rgName }}"
+                export WORKLOAD_TYPE="swiftv2-linux"
+                export ZONE="${{ parameters.zone }}"
+                export LOCATION="${{ parameters.location }}"
+
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
+                ado_run_id="$(Build.BuildId)"
+
+                cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
+
+                if go test -v -timeout=45m -tags=hourly_rotating_test; then
+                  echo "RotatingPods Zone ${{ parameters.zone }} PASSED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-rotating-z${{ parameters.zone }}" --test-scenario "Rotating pod management zone ${{ parameters.zone }}"
+                else
+                  echo "RotatingPods Zone ${{ parameters.zone }} FAILED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-rotating-z${{ parameters.zone }}" --test-scenario "Rotating pod management zone ${{ parameters.zone }}"
+                  exit 1
+                fi
+              workingDirectory: $(System.DefaultWorkingDirectory)
+            env:
+              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig
+              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
+
+      # Job 2: Always-on pods (ensure all 7 are running, recreate if not)
+      - job: AlwaysOnPods_Z${{ parameters.zone }}
+        displayName: "Zone ${{ parameters.zone }}: Always-On Pods (ensure 7 running)"
+        dependsOn:
+          - SetupKubeconfig
+          - BuildMetricsBinary
+        timeoutInMinutes: 60
+        steps:
+          - checkout: self
+            displayName: "Checkout azure-container-networking"
+
+          - checkout: Networking-Aquarius
+            displayName: "Checkout Networking-Aquarius repository"
+
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download kubeconfig files"
+            inputs:
+              artifactName: kubeconfigs-hourly-z${{ parameters.zone }}-${{ parameters.location }}
+              targetPath: $(Pipeline.Workspace)/kubeconfigs
+
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download metrics binary"
+            inputs:
+              artifact: 'persistent-cluster-metrics-hourly-z${{ parameters.zone }}-${{ parameters.location }}'
+              path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
+
+          - task: Bash@3
+            displayName: "Make metrics binary executable"
+            inputs:
+              targetType: 'inline'
+              script: |
+                chmod +x $(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
+
+          - task: AzureCLI@2
+            displayName: "Run Always-On Pod Test (Zone ${{ parameters.zone }})"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Ensuring always-on pods in zone ${{ parameters.zone }}"
+                export RG="${{ parameters.rgName }}"
+                export BUILD_ID="${{ parameters.rgName }}"
+                export WORKLOAD_TYPE="swiftv2-linux"
+                export ZONE="${{ parameters.zone }}"
+                export LOCATION="${{ parameters.location }}"
+
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
+                ado_run_id="$(Build.BuildId)"
+
+                cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
+
+                if go test -v -timeout=45m -tags=hourly_alwayson_test; then
+                  echo "AlwaysOnPods Zone ${{ parameters.zone }} PASSED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-alwayson-z${{ parameters.zone }}" --test-scenario "Always-on pod management zone ${{ parameters.zone }}"
+                else
+                  echo "AlwaysOnPods Zone ${{ parameters.zone }} FAILED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-alwayson-z${{ parameters.zone }}" --test-scenario "Always-on pod management zone ${{ parameters.zone }}"
+                  exit 1
+                fi
+              workingDirectory: $(System.DefaultWorkingDirectory)
+            env:
+              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig
+              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
+
+      # Job 3: Connectivity test between rotating and always-on pods in this zone
+      - job: HourlyConnectivityTest_Z${{ parameters.zone }}
+        displayName: "Zone ${{ parameters.zone }}: Connectivity Test"
+        dependsOn:
+          - SetupKubeconfig
+          - BuildMetricsBinary
+          - RotatingPods_Z${{ parameters.zone }}
+          - AlwaysOnPods_Z${{ parameters.zone }}
+        condition: and(succeeded('SetupKubeconfig', 'BuildMetricsBinary'), succeeded('RotatingPods_Z${{ parameters.zone }}'), succeeded('AlwaysOnPods_Z${{ parameters.zone }}'))
+        timeoutInMinutes: 30
+        steps:
+          - checkout: self
+            displayName: "Checkout azure-container-networking"
+
+          - checkout: Networking-Aquarius
+            displayName: "Checkout Networking-Aquarius repository"
+
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download kubeconfig files"
+            inputs:
+              artifactName: kubeconfigs-hourly-z${{ parameters.zone }}-${{ parameters.location }}
+              targetPath: $(Pipeline.Workspace)/kubeconfigs
+
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download metrics binary"
+            inputs:
+              artifact: 'persistent-cluster-metrics-hourly-z${{ parameters.zone }}-${{ parameters.location }}'
+              path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
+
+          - task: Bash@3
+            displayName: "Make metrics binary executable"
+            inputs:
+              targetType: 'inline'
+              script: |
+                chmod +x $(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc/output/linux_amd64/metrics/persistent-cluster-metrics
+
+          - task: AzureCLI@2
+            displayName: "Run Connectivity Tests (Zone ${{ parameters.zone }})"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Running connectivity tests in zone ${{ parameters.zone }}"
+                export RG="${{ parameters.rgName }}"
+                export BUILD_ID="${{ parameters.rgName }}"
+                export WORKLOAD_TYPE="swiftv2-linux"
+                export ZONE="${{ parameters.zone }}"
+                export LOCATION="${{ parameters.location }}"
+
+                metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
+                ado_run_id="$(Build.BuildId)"
+
+                cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
+
+                if go test -v -timeout=20m -tags=hourly_connectivity_test; then
+                  echo "Connectivity Zone ${{ parameters.zone }} PASSED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-connectivity-z${{ parameters.zone }}" --test-scenario "Hourly connectivity zone ${{ parameters.zone }}"
+                else
+                  echo "Connectivity Zone ${{ parameters.zone }} FAILED"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-connectivity-z${{ parameters.zone }}" --test-scenario "Hourly connectivity zone ${{ parameters.zone }}"
+                  exit 1
+                fi
+              workingDirectory: $(System.DefaultWorkingDirectory)
+            env:
+              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig
+              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs

@@ -97,6 +97,19 @@ func CreatePod(kubeconfig string, data PodData, templatePath string) error {
 	return applyTemplate(templatePath, data, kubeconfig)
 }
 
+type DaemonSetData struct {
+	DaemonSetName string
+	Namespace     string
+	PNIName       string
+	PNName        string
+	ZoneLabel     string
+	Image         string
+}
+
+func CreateDaemonSet(kubeconfig string, data DaemonSetData, templatePath string) error {
+	return applyTemplate(templatePath, data, kubeconfig)
+}
+
 type TestResources struct {
 	Kubeconfig         string
 	PNName             string

@@ -1,0 +1,60 @@
+parameters:
+  - name: subscriptionId
+    type: string
+  - name: regions
+    type: object
+  - name: resourceGroupName
+    type: string
+
+resources:
+  repositories:
+    - repository: Networking-Aquarius
+      type: git
+      name: One/Networking-Aquarius
+      ref: refs/heads/master
+
+variables:
+  - name: vmSkuHighNIC
+    value: "Standard_D16s_v3"
+  - name: isAllowedRun
+    value: ${{ ne(variables['Build.Reason'], 'IndividualCI') }}
+
+stages:
+  # For each region, ensure zone node pools exist, then run per-zone tests in parallel
+  - ${{ each region in parameters.regions }}:
+    # Setup stage: ensure zone node pools exist (idempotent, runs before tests)
+    - stage: EnsureZoneNodePools_${{ replace(region.location, '-', '_') }}
+      displayName: "Setup: Ensure Zone Node Pools (${{ region.location }})"
+      condition: eq(variables.isAllowedRun, true)
+      jobs:
+        - job: EnsureNodePools
+          displayName: "Create zone node pools if missing"
+          steps:
+            - checkout: self
+              displayName: "Checkout azure-container-networking"
+
+            - task: AzureCLI@2
+              displayName: "Ensure per-zone high-NIC node pools"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: scriptPath
+                scriptPath: ".pipelines/swiftv2-long-running/scripts/ensure_zone_nodepools.sh"
+                arguments: >
+                  ${{ parameters.subscriptionId }}
+                  ${{ parameters.resourceGroupName }}-${{ region.location }}
+                  aks-1
+                  $(vmSkuHighNIC)
+                  "${{ join(' ', region.zones) }}"
+                  7
+
+    # Run hourly pod tests for each zone in parallel
+    - ${{ each zone in region.zones }}:
+      - template: hourly-pod-tests-stage.yaml
+        parameters:
+          location: ${{ region.location }}
+          subscriptionId: ${{ parameters.subscriptionId }}
+          rgName: ${{ parameters.resourceGroupName }}-${{ region.location }}
+          zone: ${{ zone }}
+          dependsOn:
+            - EnsureZoneNodePools_${{ replace(region.location, '-', '_') }}

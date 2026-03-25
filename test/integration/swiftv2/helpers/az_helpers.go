@@ -325,6 +325,30 @@ func WaitForPodRunning(kubeconfig, namespace, podName string, maxRetries, sleepS
 	return fmt.Errorf("%w: pod %s after %d attempts", ErrPodNotRunning, podName, maxRetries)
 }
 
+// WaitForDaemonSetReady waits for a DaemonSet to have at least 1 ready pod with retries
+func WaitForDaemonSetReady(kubeconfig, namespace, dsName string, maxRetries, sleepSeconds int) error {
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "daemonset", dsName,
+			"-n", namespace, "-o", "jsonpath={.status.numberReady}")
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			ready := strings.TrimSpace(string(out))
+			if ready != "" && ready != "0" {
+				fmt.Printf("DaemonSet %s has %s ready pod(s)\n", dsName, ready)
+				return nil
+			}
+		}
+
+		if attempt < maxRetries {
+			fmt.Printf("DaemonSet %s not ready yet (attempt %d/%d). Waiting %d seconds...\n",
+				dsName, attempt, maxRetries, sleepSeconds)
+			time.Sleep(time.Duration(sleepSeconds) * time.Second)
+		}
+	}
+
+	return fmt.Errorf("%w: daemonset %s after %d attempts", ErrPodNotRunning, dsName, maxRetries)
+}
+
 // GetPodIP retrieves the IP address of a pod
 func GetPodIP(kubeconfig, namespace, podName string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

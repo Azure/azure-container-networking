@@ -1,0 +1,39 @@
+trigger: none
+pr: none
+
+schedules:
+  - cron: "0 * * * *"
+    displayName: "Run hourly pod tests every hour"
+    branches:
+      include:
+        - master
+    always: true  # Run even if there are no code changes
+
+parameters:
+  - name: subscriptionId
+    displayName: "Azure Subscription ID"
+    type: string
+    default: "37deca37-c375-4a14-b90a-043849bd2bf1"
+
+  - name: regions
+    displayName: "Regions with their availability zones"
+    type: object
+    default:
+      - location: eastus2euap
+        zones:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+
+  - name: resourceGroupName
+    displayName: "Resource Group Name (must match existing long-running cluster)"
+    type: string
+    default: "sv2-long-run"
+
+extends:
+  template: template/hourly-pipeline-template.yaml
+  parameters:
+    subscriptionId: ${{ parameters.subscriptionId }}
+    regions: ${{ parameters.regions }}
+    resourceGroupName: ${{ parameters.resourceGroupName }}
