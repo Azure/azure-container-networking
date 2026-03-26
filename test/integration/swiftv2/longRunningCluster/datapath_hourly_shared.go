@@ -86,8 +86,8 @@ func GetDaemonSetName() string {
 
 // GetDaemonSetPodName finds the DaemonSet pod name in the given namespace.
 func GetDaemonSetPodName(kubeconfig, namespace, dsName string) string {
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "pods",
-		"-n", namespace, "-l", fmt.Sprintf("app=%s", dsName),
+	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "pods", //nolint:gosec // test helper with controlled inputs
+		"-n", namespace, "-l", "app="+dsName,
 		"-o", "jsonpath={.items[0].metadata.name}")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
