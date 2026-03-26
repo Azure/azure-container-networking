@@ -20,6 +20,30 @@ var (
 	ErrUnsupportedNCQuantity = errors.New("unsupported number of network containers")
 )
 
+// parseIPv6Subnet validates and builds an IPSubnet from the NC's IPv6 fields.
+// Returns a zero-value IPSubnet if SubnetAddressSpaceV6 is empty.
+//
+//nolint:gocritic //ignore hugeparam
+func parseIPv6Subnet(nc v1alpha.NetworkContainer) (cns.IPSubnet, error) {
+	if nc.SubnetAddressSpaceV6 == "" {
+		return cns.IPSubnet{}, nil
+	}
+	subnetV6Prefix, err := netip.ParsePrefix(nc.SubnetAddressSpaceV6)
+	if err != nil {
+		return cns.IPSubnet{}, errors.Wrapf(err, "invalid SubnetAddressSpaceV6 %s", nc.SubnetAddressSpaceV6)
+	}
+	if !subnetV6Prefix.Addr().Is6() {
+		return cns.IPSubnet{}, errors.Errorf("SubnetAddressSpaceV6 %s is not an IPv6 prefix", nc.SubnetAddressSpaceV6)
+	}
+	if nc.PrimaryIPV6 == "" {
+		return cns.IPSubnet{}, errors.New("PrimaryIPV6 must be set when SubnetAddressSpaceV6 is specified")
+	}
+	return cns.IPSubnet{
+		IPAddress:    nc.PrimaryIPV6,
+		PrefixLength: uint8(subnetV6Prefix.Bits()), //#nosec G115 -- prefix bits are 0-128, fits uint8
+	}, nil
+}
+
 // CreateNCRequestFromDynamicNC generates a CreateNetworkContainerRequest from a dynamic NetworkContainer.
 //
 //nolint:gocritic //ignore hugeparam
@@ -61,15 +85,9 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 		GatewayIPAddress: nc.DefaultGateway,
 	}
 
-	if nc.SubnetAddressSpaceV6 != "" {
-		subnetV6Prefix, err := netip.ParsePrefix(nc.SubnetAddressSpaceV6)
-		if err != nil {
-			return nil, errors.Wrapf(err, "invalid SubnetAddressSpaceV6 %s", nc.SubnetAddressSpaceV6)
-		}
-		ipConfig.IPSubnetV6 = cns.IPSubnet{
-			IPAddress:    nc.PrimaryIPV6,
-			PrefixLength: uint8(subnetV6Prefix.Bits()), //#nosec G115 -- prefix bits are 0-128, fits uint8
-		}
+	ipConfig.IPSubnetV6, err = parseIPv6Subnet(nc)
+	if err != nil {
+		return nil, err
 	}
 
 	return &cns.CreateNetworkContainerRequest{
@@ -111,16 +129,9 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer, isSwiftV2 bool, ip
 		subnet.IPAddress = primaryPrefix.Addr().String()
 	}
 
-	var subnetV6 cns.IPSubnet
-	if nc.SubnetAddressSpaceV6 != "" {
-		subnetV6Prefix, e := netip.ParsePrefix(nc.SubnetAddressSpaceV6)
-		if e != nil {
-			return nil, errors.Wrapf(e, "invalid SubnetAddressSpaceV6 %s", nc.SubnetAddressSpaceV6)
-		}
-		subnetV6 = cns.IPSubnet{
-			IPAddress:    nc.PrimaryIPV6,
-			PrefixLength: uint8(subnetV6Prefix.Bits()), //#nosec G115 -- prefix bits are 0-128, fits uint8
-		}
+	subnetV6, err := parseIPv6Subnet(nc)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet, subnetV6, isSwiftV2, ipv6PrefixClamp)
