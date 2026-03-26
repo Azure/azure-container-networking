@@ -265,7 +265,7 @@ func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 			}
 			require.NoError(t, err)
 			if tt.want != nil {
-				assert.EqualValues(t, tt.want, got)
+				assert.Equal(t, tt.want, got)
 			}
 			if tt.wantIPSubnetV6 != nil {
 				assert.Equal(t, *tt.wantIPSubnetV6, got.IPConfiguration.IPSubnetV6)
@@ -439,7 +439,7 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 			}
 			require.NoError(t, err)
 			if tt.want != nil {
-				assert.EqualValues(t, tt.want, got)
+				assert.Equal(t, tt.want, got)
 			}
 			if tt.wantIPSubnetV6 != nil {
 				assert.Equal(t, *tt.wantIPSubnetV6, got.IPConfiguration.IPSubnetV6)
