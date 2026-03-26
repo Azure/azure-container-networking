@@ -329,9 +329,11 @@ func WaitForPodRunning(kubeconfig, namespace, podName string, maxRetries, sleepS
 // WaitForDaemonSetReady waits for a DaemonSet to have at least 1 ready pod with retries
 func WaitForDaemonSetReady(kubeconfig, namespace, dsName string, maxRetries, sleepSeconds int) error {
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "daemonset", dsName,
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "daemonset", dsName,
 			"-n", namespace, "-o", "jsonpath={.status.numberReady}")
 		out, err := cmd.CombinedOutput()
+		cancel()
 		if err == nil {
 			ready := strings.TrimSpace(string(out))
 			if ready != "" && ready != "0" {

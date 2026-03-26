@@ -1,10 +1,12 @@
 package longrunningcluster
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // Shared constants for hourly pod tests (rotating + always-on DaemonSet).
@@ -86,7 +88,9 @@ func GetDaemonSetName() string {
 
 // GetDaemonSetPodName finds the DaemonSet pod name in the given namespace.
 func GetDaemonSetPodName(kubeconfig, namespace, dsName string) string {
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "pods", //nolint:gosec // test helper with controlled inputs
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "pods", //nolint:gosec // test helper with controlled inputs
 		"-n", namespace, "-l", "app="+dsName,
 		"-o", "jsonpath={.items[0].metadata.name}")
 	out, err := cmd.CombinedOutput()
@@ -107,7 +111,9 @@ func GetZoneLabel(location string) string {
 
 // IsPodExists checks if a pod exists in the namespace.
 func IsPodExists(kubeconfig, namespace, podName string) bool {
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName,
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName,
 		"-n", namespace, "--no-headers", "--ignore-not-found")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -118,7 +124,9 @@ func IsPodExists(kubeconfig, namespace, podName string) bool {
 
 // IsPodRunning checks if a pod is in Running phase.
 func IsPodRunning(kubeconfig, namespace, podName string) bool {
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName,
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName,
 		"-n", namespace, "-o", "jsonpath={.status.phase}")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -129,7 +137,9 @@ func IsPodRunning(kubeconfig, namespace, podName string) bool {
 
 // GetNodeByLabel returns the first node matching the given label selector.
 func GetNodeByLabel(kubeconfig, labelSelector string) string {
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "nodes",
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "nodes",
 		"-l", labelSelector, "-o", "jsonpath={.items[0].metadata.name}")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -140,7 +150,9 @@ func GetNodeByLabel(kubeconfig, labelSelector string) string {
 
 // GetNodeZone returns the zone label value for a given node.
 func GetNodeZone(kubeconfig, nodeName string) string {
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "node", nodeName,
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "node", nodeName,
 		"-o", "jsonpath={.metadata.labels.topology\\.kubernetes\\.io/zone}")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
