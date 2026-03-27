@@ -1,0 +1,76 @@
+name: Tag
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Create Release Tag
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+    - name: Validate branch and derive tag
+      id: derive
+      run: |
+        branch="${{ github.ref_name }}"
+        if [[ "$branch" != release/* ]]; then
+          echo "::error::Workflow must be run from a branch starting with 'release/'. Got: $branch"
+          exit 1
+        fi
+        tag="${branch#release/}"
+        echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+    - name: Validate tag format
+      run: |
+        tag="${{ steps.derive.outputs.tag }}"
+        if [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+           [[ "$tag" =~ ^azure-ipam/v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+           [[ "$tag" =~ ^dropgz/v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+           [[ "$tag" =~ ^ipv6-hp-bpf/v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+           [[ "$tag" =~ ^azure-block-iptables/v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+           [[ "$tag" =~ ^azure-ip-masq-merger/v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+           [[ "$tag" =~ ^azure-iptables-monitor/v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+           [[ "$tag" =~ ^cilium-log-collector/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Tag '$tag' is valid."
+        else
+          echo "::error::Tag '$tag' does not match any allowed pattern (expected e.g. 'v1.2.3' or '<component>/v1.2.3')."
+          exit 1
+        fi
+
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check tag does not already exist
+      run: |
+        tag="${{ steps.derive.outputs.tag }}"
+        if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null 2>&1; then
+          echo "::error::Tag '$tag' already exists. Aborting to prevent accidental overwrite."
+          exit 1
+        fi
+        echo "Tag '$tag' does not exist yet — proceeding."
+
+    - name: Create and push tag
+      run: |
+        tag="${{ steps.derive.outputs.tag }}"
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag "$tag"
+        git push origin "$tag"
+
+    - name: Summary
+      run: |
+        tag="${{ steps.derive.outputs.tag }}"
+        sha=$(git rev-list -n 1 "$tag")
+        {
+          echo "## Tag Created :label:"
+          echo ""
+          echo "| Field | Value |"
+          echo "| --- | --- |"
+          echo "| Tag | \`$tag\` |"
+          echo "| SHA | \`$sha\` |"
+          echo "| Branch | \`${{ github.ref_name }}\` |"
+        } >> "$GITHUB_STEP_SUMMARY"
