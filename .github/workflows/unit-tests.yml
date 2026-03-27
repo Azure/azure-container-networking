@@ -12,16 +12,35 @@ permissions:
   contents: read
 
 jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      go-version: ${{ steps.goversion.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Determine Go version
+        id: goversion
+        run: |
+          version=$(find . -name go.mod -exec grep -h '^go ' {} \; | awk '{print $2}' | sort -V | tail -1)
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "Invalid Go version: $version"
+            exit 1
+          fi
+          echo "version=$version" >> $GITHUB_OUTPUT
+
   test-linux:
     name: Test Linux
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    needs: setup
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ needs.setup.outputs.go-version }}
 
       - name: Build BPF lib
         run: make bpf-lib
@@ -47,7 +66,7 @@ jobs:
           mv coverage.cover linux-coverage.out
 
       - name: Upload Linux Coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
         with:
           name: linux-coverage
           path: linux-coverage.out
@@ -55,13 +74,14 @@ jobs:
   test-windows:
     name: Test Windows
     runs-on: windows-latest
+    needs: setup
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ needs.setup.outputs.go-version }}
 
       - name: Run Windows Tests
         run: |
@@ -69,26 +89,26 @@ jobs:
           go tool cover -func=windows-coverage.out
 
       - name: Upload Windows Coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
         with:
           name: windows-coverage
           path: windows-coverage.out
 
   code-coverage:
     name: Code Coverage
-    runs-on: ubuntu-24.04
-    needs: test-linux
+    runs-on: ubuntu-latest
+    needs: [setup, test-linux]
     if: always()
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ needs.setup.outputs.go-version }}
 
       - name: Download Linux Coverage Artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
         with:
           name: linux-coverage
           path: ./
@@ -111,13 +131,13 @@ jobs:
           mv linux-coverage.xml coverage/
 
       - name: Upload Coverage Report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
         with:
           name: linux-coverage-report
           path: coverage/linux-coverage.xml
 
       - name: Publish Code Coverage Summary
-        uses: irongut/CodeCoverageSummary@v1.3.0
+        uses: irongut/CodeCoverageSummary@51cc3a756ddcd398d447c044c02cb6aa83fdae95  # v1.3.0
         with:
           filename: coverage/linux-coverage.xml
           format: markdown
