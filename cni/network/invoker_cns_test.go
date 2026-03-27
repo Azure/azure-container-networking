@@ -869,14 +869,13 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 }
 
 func TestCNSIPAMInvoker_Add_podsubnetv6(t *testing.T) {
-	req := require.New(t)
-
 	type testCase struct {
 		name           string
 		podIP          string
 		ipConfig       cns.IPConfiguration
 		wantGateway    string
 		wantPrefixSize int
+		wantErr        bool
 	}
 
 	tests := []testCase{
@@ -967,10 +966,28 @@ func TestCNSIPAMInvoker_Add_podsubnetv6(t *testing.T) {
 			wantGateway:    "10.0.0.1",
 			wantPrefixSize: 16,
 		},
+		{
+			name:  "Test CNI add invalid podIP returns error",
+			podIP: "not-a-valid-ip",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "10.0.1.0",
+					PrefixLength: 16,
+				},
+				IPSubnetV6: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 64,
+				},
+				GatewayIPAddress:   "10.0.0.1",
+				GatewayIPv6Address: "fd11:1234::1",
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(_ *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
+			req := require.New(t)
 			invoker := &CNSIPAMInvoker{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
@@ -1009,6 +1026,11 @@ func TestCNSIPAMInvoker_Add_podsubnetv6(t *testing.T) {
 				},
 				options: map[string]interface{}{},
 			})
+
+			if tt.wantErr {
+				req.Error(err)
+				return
+			}
 
 			req.NoError(err)
 

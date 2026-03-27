@@ -66,8 +66,12 @@ type IPResultInfo struct {
 }
 
 func getIPConfigGatewayAddress(podIP string, ipConfig cns.IPConfiguration) string {
-	parsedPodIP := net.ParseIP(podIP)
-	if parsedPodIP != nil && parsedPodIP.To4() == nil && ipConfig.GatewayIPv6Address != "" {
+	parsedPodIP, err := netip.ParseAddr(podIP)
+	if err != nil {
+		logger.Warn("Invalid pod IP address", zap.String("podIP", podIP))
+		return ipConfig.GatewayIPAddress
+	}
+	if parsedPodIP.IsValid() && parsedPodIP.Is6() && ipConfig.GatewayIPv6Address != "" {
 		if net.ParseIP(ipConfig.GatewayIPv6Address) != nil {
 			return ipConfig.GatewayIPv6Address
 		}
@@ -82,9 +86,19 @@ func getIPConfigGatewayAddress(podIP string, ipConfig cns.IPConfiguration) strin
 }
 
 func getIPConfigPrefixLength(podIP string, ipConfig cns.IPConfiguration) uint8 {
-	parsedPodIP := net.ParseIP(podIP)
-	if parsedPodIP != nil && parsedPodIP.To4() == nil && ipConfig.IPSubnetV6.PrefixLength > 0 {
-		return ipConfig.IPSubnetV6.PrefixLength
+	parsedPodIP, err := netip.ParseAddr(podIP)
+	if err != nil {
+		logger.Warn("Invalid pod IP address", zap.String("podIP", podIP))
+		return ipConfig.IPSubnet.PrefixLength
+	}
+	if parsedPodIP.IsValid() && parsedPodIP.Is6() {
+		if ipConfig.IPSubnetV6.PrefixLength > 0 {
+			return ipConfig.IPSubnetV6.PrefixLength
+		}
+
+		logger.Warn("IPv6 pod with zero IPSubnetV6.PrefixLength; falling back to IPSubnet.PrefixLength",
+			zap.String("podIP", podIP),
+			zap.Uint8("fallbackPrefixLength", ipConfig.IPSubnet.PrefixLength))
 	}
 
 	return ipConfig.IPSubnet.PrefixLength
