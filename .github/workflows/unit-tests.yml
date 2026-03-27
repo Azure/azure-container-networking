@@ -95,6 +95,7 @@ jobs:
           go-version: ${{ needs.setup.outputs.go-version }}
 
       - name: Run Windows Tests
+        shell: cmd
         run: |
           go test -timeout 30m -covermode atomic -coverprofile=windows-coverage.out ./cns/... ./npm/... ./cni/... ./platform/...
           go tool cover -func=windows-coverage.out
