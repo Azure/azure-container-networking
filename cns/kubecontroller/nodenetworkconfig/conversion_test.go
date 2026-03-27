@@ -258,7 +258,7 @@ func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CreateNCRequestFromStaticNC(tt.input, false, 0)
+			got, err := CreateNCRequestFromDynamicNC(tt.input)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -437,7 +437,7 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 				assert.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			if tt.want != nil {
 				assert.Equal(t, tt.want, got)
 			}
