@@ -1,0 +1,127 @@
+name: Unit Tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  test-linux:
+    name: Test Linux
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Build BPF lib
+        run: make bpf-lib
+
+      - name: Go generate
+        run: go generate ./...
+
+      - name: Install go-junit-report
+        run: make go-junit-report
+
+      - name: Run Tests
+        run: |
+          { { { {
+                sudo -E env "PATH=$PATH" make test-all;
+                echo $? >&3;
+                } | tee >($(go env GOPATH)/bin/go-junit-report > report.xml) >&4;
+              } 3>&1;
+            } | { read xs; exit $xs; }
+          } 4>&1
+
+          # combine coverage from multiple modules
+          (echo "mode: atomic"; tail -q -n +2 coverage-*.out) > coverage.cover
+          mv coverage.cover linux-coverage.out
+
+      - name: Upload Linux Coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-coverage
+          path: linux-coverage.out
+
+  test-windows:
+    name: Test Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Run Windows Tests
+        run: |
+          go test -timeout 30m -covermode atomic -coverprofile=windows-coverage.out ./cns/... ./npm/... ./cni/... ./platform/...
+          go tool cover -func=windows-coverage.out
+
+      - name: Upload Windows Coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-coverage
+          path: windows-coverage.out
+
+  code-coverage:
+    name: Code Coverage
+    runs-on: ubuntu-24.04
+    needs: test-linux
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Download Linux Coverage Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: linux-coverage
+          path: ./
+
+      - name: Generate Coverage Report
+        run: |
+          # use go work to include multiple modules or gocov will omit results from those modules
+          make workspace
+
+          make tools
+          sudo ln -s $(go env GOPATH)/bin/gocov /usr/local/bin/gocov
+          sudo ln -s $(go env GOPATH)/bin/gocov-xml /usr/local/bin/gocov-xml
+
+          GOOS=linux gocov convert linux-coverage.out > linux-coverage.json
+          GOOS=linux gocov-xml < linux-coverage.json > linux-coverage.xml
+
+          # TODO: Add windows coverage back in once PublishCodeCoverageResults v2 works with BuildQualityChecks
+
+          mkdir coverage
+          mv linux-coverage.xml coverage/
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-coverage-report
+          path: coverage/linux-coverage.xml
+
+      - name: Publish Code Coverage Summary
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage/linux-coverage.xml
+          format: markdown
+          output: both
+
+      # NOTE: The Azure DevOps BuildQualityChecks@8 task (which enforces coverage regression
+      # checks on PRs targeting master) has no direct GitHub Actions equivalent and is omitted.
