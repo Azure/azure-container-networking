@@ -37,6 +37,7 @@ var (
 	pinPath                          = flag.String("mapPath", "/azure-block-iptables-bpf-map/iptables_block_event_counter", "Path to pinned bpf map")
 	terminateOnSuccess               = flag.Bool("terminateOnSuccess", false, "Whether to terminate the program when no user iptables rules found")
 	installRoutesForHealthProbeReply = flag.Bool("installRoutesForHealthProbeReply", false, "Whether to install loopback routes for replies sent to kubelet health probes")
+	verbosity                        = flag.Int("v", 0, "Log verbosity level (0=warn, 2=info, 3=debug)")
 )
 
 const (
@@ -237,7 +238,7 @@ func hasUnexpectedRules(currentRules, allowedPatterns []string) bool {
 			}
 		}
 		if !ruleMatched {
-			slog.Info("Unexpected rule", "rule", rule)
+			slog.Warn("Unexpected rule", "rule", rule)
 			foundUnexpectedRules = true
 			// continue to iterate over remaining rules to identify all unexpected rules
 		}
@@ -280,7 +281,7 @@ func nodeHasUserIPTablesRules(fileReader FileLineReader, path string, iptablesCl
 
 		slog.Debug("Checking table", "table", table)
 		if hasUnexpectedRules(rules, referencePatterns) {
-			slog.Info("Unexpected rules detected in table", "table", table)
+			slog.Warn("Unexpected rules detected in table", "table", table)
 			userIPTablesRules = true
 		}
 	}
@@ -292,14 +293,14 @@ func nodeHasUserIPTablesRules(fileReader FileLineReader, path string, iptablesCl
 func Check(cfg Config, deps Dependencies, previousBlocks *uint64) bool {
 	userIPTablesRulesFound := nodeHasUserIPTablesRules(deps.FileReader, cfg.ConfigPath4, deps.IPTablesV4)
 	if userIPTablesRulesFound {
-		slog.Info("User iptables rules detected in IPv4 iptables")
+		slog.Warn("User iptables rules detected in IPv4 iptables")
 	}
 
 	// check ip6tables rules if enabled
 	if cfg.IPv6Enabled {
 		userIP6TablesRulesFound := nodeHasUserIPTablesRules(deps.FileReader, cfg.ConfigPath6, deps.IPTablesV6)
 		if userIP6TablesRulesFound {
-			slog.Info("User iptables rules detected in IPv6 iptables")
+			slog.Warn("User iptables rules detected in IPv6 iptables")
 		}
 		userIPTablesRulesFound = userIPTablesRulesFound || userIP6TablesRulesFound
 	}
@@ -375,7 +376,7 @@ func Run(cfg Config, deps Dependencies) {
 		userIPTablesRulesFound := Check(cfg, deps, &blockCount)
 
 		if !userIPTablesRulesFound && cfg.TerminateOnSuccess {
-			slog.Info("No user iptables rules found, terminating the iptables monitor")
+			slog.Warn("No user iptables rules found, terminating the iptables monitor")
 			break
 		}
 		time.Sleep(time.Duration(cfg.CheckInterval) * time.Second)
@@ -385,9 +386,15 @@ func Run(cfg Config, deps Dependencies) {
 func main() {
 	flag.Parse()
 
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+	logLevel := slog.LevelWarn
+	if *verbosity >= 3 {
+		logLevel = slog.LevelDebug
+	} else if *verbosity >= 2 {
+		logLevel = slog.LevelInfo
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
 
-	slog.Info("Starting", "version", version)
+	slog.Warn("Starting", "version", version)
 
 	// get current node name from environment variable
 	currentNodeName := os.Getenv("NODE_NAME")
@@ -440,7 +447,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	slog.Info("IPv6 enabled", "enabled", *ipv6Enabled)
+	slog.Warn("IPv6 enabled", "enabled", *ipv6Enabled)
 
 	deps := Dependencies{
 		KubeClient:    NewKubeClient(clientset),
@@ -453,10 +460,10 @@ func main() {
 
 	if *installRoutesForHealthProbeReply {
 		deps.RouteManager = NewRouteManager()
-		slog.Info("Route installation for health probe reply enabled")
+		slog.Warn("Route installation for health probe reply enabled")
 	}
 
-	slog.Info("Starting iptables monitor", "node", cfg.NodeName)
+	slog.Warn("Starting iptables monitor", "node", cfg.NodeName)
 
 	Run(cfg, deps)
 }

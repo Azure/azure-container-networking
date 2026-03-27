@@ -60,7 +60,11 @@ Each pattern file should contain one regex pattern per line:
 
 ## Debugging
 
-Logs are output to standard error. Increase verbosity with the `-v` flag:
+Logs are output to standard output. Increase verbosity with the `-v` flag:
+- `-v 0` or `-v 1` (default): warnings and errors only
+- `-v 2`: info, warnings, and errors
+- `-v 3`: debug, info, warnings, and errors
+
 ```bash
 ./azure-iptables-monitor -v 3
 ```
