@@ -31,9 +31,12 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
 
   test-linux:
-    name: Test Linux
-    runs-on: ubuntu-latest
+    name: Test Linux (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     needs: setup
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -76,7 +79,7 @@ jobs:
       - name: Upload Linux Coverage
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
         with:
-          name: linux-coverage
+          name: linux-coverage-${{ matrix.os }}
           path: linux-coverage.out
 
   test-windows:
@@ -118,7 +121,7 @@ jobs:
       - name: Download Linux Coverage Artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
         with:
-          name: linux-coverage
+          name: linux-coverage-ubuntu-24.04
           path: ./
 
       - name: Generate Coverage Report
