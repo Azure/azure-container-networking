@@ -6,7 +6,7 @@ CILIUM_IMAGE_REGISTRY           		?= mcr.microsoft.com/containernetworking
 IPV6_IMAGE_REGISTRY						?= mcr.microsoft.com/containernetworking
 IPV6_HP_BPF_VERSION               		?= v0.0.1
 CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY 	?= mcr.microsoft.com/containernetworking
-CILIUM_LOG_COLLECTOR_VERSION_TAG 		?= v0.0.1
+CILIUM_LOG_COLLECTOR_VERSION_TAG 		?= v0.0.1-0
 CILIUM_NIGHTLY_VERSION_TAG 				?= cilium-nightly-pipeline
 
 # ebpf cilium variables
@@ -70,6 +70,7 @@ add-cilium-log-collector:
 	@echo "CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY: $(CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY)"
 	kubectl apply --server-side -f ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/cilium-log-collector-configmap.yaml
 	envsubst '$${CILIUM_LOG_COLLECTOR_VERSION_TAG},$${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY}' < ../../test/integration/manifests/cilium/v$(DIR)/cilium-log-collector/daemonset-patch.yaml | kubectl apply --server-side --field-manager=cilium-log-collector -f -
+	kubectl rollout restart ds cilium -n kube-system
 
 # deploy disable configmap to disable cilium log collector
 disable-cilium-log-collector:
