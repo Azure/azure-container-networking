@@ -71,15 +71,16 @@ func getIPConfigGatewayAddress(podIP string, ipConfig cns.IPConfiguration) strin
 		logger.Warn("Invalid pod IP address", zap.String("podIP", podIP))
 		return ipConfig.GatewayIPAddress
 	}
-	if parsedPodIP.IsValid() && parsedPodIP.Is6() && ipConfig.GatewayIPv6Address != "" {
-		if net.ParseIP(ipConfig.GatewayIPv6Address) != nil {
+	if parsedPodIP.Is6() && ipConfig.GatewayIPv6Address != "" {
+		if _, parseErr := netip.ParseAddr(ipConfig.GatewayIPv6Address); parseErr == nil {
 			return ipConfig.GatewayIPv6Address
+		} else {
+			logger.Warn("Invalid GatewayIPv6Address from CNS; falling back to GatewayIPAddress",
+				zap.String("podIP", podIP),
+				zap.String("gatewayIPv6Address", ipConfig.GatewayIPv6Address),
+				zap.String("gatewayIPAddress", ipConfig.GatewayIPAddress),
+				zap.Error(parseErr))
 		}
-
-		logger.Warn("Invalid GatewayIPv6Address from CNS; falling back to GatewayIPAddress",
-			zap.String("podIP", podIP),
-			zap.String("gatewayIPv6Address", ipConfig.GatewayIPv6Address),
-			zap.String("gatewayIPAddress", ipConfig.GatewayIPAddress))
 	}
 
 	return ipConfig.GatewayIPAddress
@@ -91,7 +92,7 @@ func getIPConfigPrefixLength(podIP string, ipConfig cns.IPConfiguration) uint8 {
 		logger.Warn("Invalid pod IP address", zap.String("podIP", podIP))
 		return ipConfig.IPSubnet.PrefixLength
 	}
-	if parsedPodIP.IsValid() && parsedPodIP.Is6() {
+	if parsedPodIP.Is6() {
 		if ipConfig.IPSubnetV6.PrefixLength > 0 {
 			return ipConfig.IPSubnetV6.PrefixLength
 		}
@@ -199,6 +200,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		info := IPResultInfo{
 			podIPAddress:         response.PodIPInfo[i].PodIPConfig.IPAddress,
 			ncSubnetPrefix:       getIPConfigPrefixLength(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
+			// ncPrimaryIP intentionally stays IPv4 — it is only used for SNAT/iptables which are IPv4-only codepaths.
 			ncPrimaryIP:          response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
 			ncGatewayIPAddress:   getIPConfigGatewayAddress(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
 			ncSubnetPrefixIPv6:   response.PodIPInfo[i].NetworkContainerIPv6Config.IPSubnet.PrefixLength,
