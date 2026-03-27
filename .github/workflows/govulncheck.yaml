@@ -47,6 +47,7 @@ jobs:
           go-version-file: go.mod
           work-dir: ${{ matrix.module }}
           go-package: ./...
+          repo-checkout: false
 
   check-gomod-coverage:
     name: Check all go.mod files are in matrix
