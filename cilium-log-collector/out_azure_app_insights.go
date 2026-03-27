@@ -26,12 +26,14 @@ var version = ""
 
 // RecordProcessor handles batch record processing for testability
 type RecordProcessor struct {
-	tracker  AppInsightsTracker
-	tag      string
-	debug    bool
-	logKey   string
-	disabled bool
-	version  string
+	tracker            AppInsightsTracker
+	tag                string
+	debug              bool
+	logKey             string
+	disabled           bool
+	version            string
+	instrumentationKey string
+	id                 string
 }
 
 // ProcessRecord represents a single log record
@@ -54,12 +56,18 @@ func (r *RealAppInsightsTracker) Track(telemetry appinsights.Telemetry) {
 	r.client.Track(telemetry)
 }
 
+// pluginContext holds per-instance state for each output plugin instance
+type pluginContext struct {
+	client             appinsights.TelemetryClient
+	id                 string
+	debug              string
+	logKey             string
+	disabled           bool
+	instrumentationKey string
+}
+
 var (
-	client       appinsights.TelemetryClient
-	debug        string
-	logKey       string
 	hostMetadata *common.Metadata
-	disabled     bool
 )
 
 func convertToString(v interface{}) string {
@@ -110,36 +118,43 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 //export FLBPluginInit
 func FLBPluginInit(plugin unsafe.Pointer) int {
 	fmt.Printf("[flb-azure-app-insights] version = '%s'\n", version)
+
+	ctx := &pluginContext{}
+
+	ctx.id = output.FLBPluginConfigKey(plugin, "id")
+
 	// check disable flag
 	if _, err := os.Stat(disableFilePath); err == nil {
 		fmt.Printf("[flb-azure-app-insights] Plugin disabled- file found at: %s\n", disableFilePath)
-		disabled = true
+		ctx.disabled = true
+		output.FLBPluginSetContext(plugin, ctx)
 		return output.FLB_OK
 	}
-	disabled = false
+	ctx.disabled = false
 
-	instrumentationKey := output.FLBPluginConfigKey(plugin, "instrumentation_key")
+	ctx.instrumentationKey = output.FLBPluginConfigKey(plugin, "instrumentation_key")
 	// the key that is identified as the log upon receiving the record in this plugin
-	logKey = output.FLBPluginConfigKey(plugin, "log_key")
-	if logKey == "" {
-		logKey = "log"
+	ctx.logKey = output.FLBPluginConfigKey(plugin, "log_key")
+	if ctx.logKey == "" {
+		ctx.logKey = "log"
 	}
-	debug = output.FLBPluginConfigKey(plugin, "debug")
+	ctx.debug = output.FLBPluginConfigKey(plugin, "debug")
 	imds := output.FLBPluginConfigKey(plugin, "imds")
-	fmt.Printf("[flb-azure-app-insights] plugin instrumentation key = '%s'\n", instrumentationKey)
-	fmt.Printf("[flb-azure-app-insights] using log key = '%s'\n", logKey)
-	fmt.Printf("[flb-azure-app-insights] debug = '%s'\n", debug)
+	fmt.Printf("[flb-azure-app-insights] id = '%s'\n", ctx.id)
+	fmt.Printf("[flb-azure-app-insights] plugin instrumentation key = '%s'\n", ctx.instrumentationKey)
+	fmt.Printf("[flb-azure-app-insights] using log key = '%s'\n", ctx.logKey)
+	fmt.Printf("[flb-azure-app-insights] debug = '%s'\n", ctx.debug)
 	fmt.Printf("[flb-azure-app-insights] imds = '%s'\n", imds)
 
-	telemetryConfig := appinsights.NewTelemetryConfiguration(instrumentationKey)
+	telemetryConfig := appinsights.NewTelemetryConfiguration(ctx.instrumentationKey)
 	// max time to wait before sending a batch of telemetry
 	telemetryConfig.MaxBatchInterval = 10 * time.Second
 	// max number of telemetry items in each request
 	telemetryConfig.MaxBatchSize = 10
-	client = appinsights.NewTelemetryClientFromConfig(telemetryConfig)
+	ctx.client = appinsights.NewTelemetryClientFromConfig(telemetryConfig)
 
 	// retrieve IMDS data once
-	if imds == "true" {
+	if imds == "true" && hostMetadata == nil {
 		metadata, err := common.GetHostMetadata("/tmp/metadata.json")
 		if err != nil {
 			fmt.Printf("[flb-azure-app-insights] Warning: Failed to get IMDS metadata: %v\n", err)
@@ -151,24 +166,39 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 
 	fmt.Printf("[flb-azure-app-insights] App Insights client initialized with key: %s\n",
 		telemetryConfig.InstrumentationKey)
+	output.FLBPluginSetContext(plugin, ctx)
 	return output.FLB_OK
 }
 
 //export FLBPluginFlush
 func FLBPluginFlush(data unsafe.Pointer, length C.int, tag *C.char) int {
+	fmt.Println("[flb-azure-app-insights] Flush called for unknown instance")
+	return output.FLB_OK
+}
+
+//export FLBPluginFlushCtx
+func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int {
 	var ret int
 	var ts interface{}
 	var record map[interface{}]interface{}
 
+	pctx, ok := output.FLBPluginGetContext(ctx).(*pluginContext)
+	if !ok {
+		fmt.Println("[flb-azure-app-insights] error: failed to get plugin context")
+		return output.FLB_ERROR
+	}
+
 	dec := output.NewDecoder(data, int(length))
-	tracker := &RealAppInsightsTracker{client: client}
+	tracker := &RealAppInsightsTracker{client: pctx.client}
 	processor := &RecordProcessor{
-		tracker:  tracker,
-		tag:      C.GoString(tag),
-		debug:    debug == "true",
-		logKey:   logKey,
-		disabled: disabled,
-		version:  version,
+		tracker:            tracker,
+		tag:                C.GoString(tag),
+		debug:              pctx.debug == "true",
+		logKey:             pctx.logKey,
+		disabled:           pctx.disabled,
+		version:            version,
+		instrumentationKey: pctx.instrumentationKey,
+		id:                 pctx.id,
 	}
 
 	count := 0
@@ -244,7 +274,7 @@ func (rp *RecordProcessor) ProcessSingleRecord(record ProcessRecord, recordIndex
 
 	if rp.debug {
 		var msgBuilder strings.Builder
-		msgBuilder.WriteString(fmt.Sprintf("[flb-azure-app-insights] #%d %s: [%s, {", recordIndex, rp.tag,
+		msgBuilder.WriteString(fmt.Sprintf("[flb-azure-app-insights] id=%s #%d %s: [%s, {", rp.id, recordIndex, rp.tag,
 			record.Timestamp.String()))
 		for k, v := range customFields {
 			msgBuilder.WriteString(fmt.Sprintf("\"%s\": %s, ", k, v))
@@ -263,10 +293,21 @@ func (rp *RecordProcessor) ProcessSingleRecord(record ProcessRecord, recordIndex
 
 //export FLBPluginExit
 func FLBPluginExit() int {
-	if client != nil {
-		client.Channel().Flush()
+	fmt.Println("[flb-azure-app-insights] Exit called for unknown instance")
+	return output.FLB_OK
+}
+
+//export FLBPluginExitCtx
+func FLBPluginExitCtx(ctx unsafe.Pointer) int {
+	pctx, ok := output.FLBPluginGetContext(ctx).(*pluginContext)
+	if !ok {
+		fmt.Println("[flb-azure-app-insights] error: failed to get plugin context on exit")
+		return output.FLB_ERROR
+	}
+	if pctx.client != nil {
+		pctx.client.Channel().Flush()
 		time.Sleep(2 * time.Second)
-		fmt.Println("[flb-azure-app-insights] App Insights client flushed and closed")
+		fmt.Printf("[flb-azure-app-insights] App Insights client flushed and closed (id=%s)\n", pctx.id)
 	}
 	return output.FLB_OK
 }
