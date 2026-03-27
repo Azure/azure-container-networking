@@ -297,6 +297,15 @@ NPM_IMAGE						= azure-npm
 AZURE_IP_MASQ_MERGER_IMAGE		= azure-ip-masq-merger
 AZURE_IPTABLES_MONITOR_IMAGE	= azure-iptables-monitor
 
+# Fixed deploy/test image references used by utility image-name-and-tag targets.
+FIXED_IMAGE_REGISTRY            = acnpublic.azurecr.io
+FIXED_AZURE_IPAM_IMAGE          = msp/azure-ipam
+FIXED_AZURE_IPAM_VERSION        = v0.4.0
+FIXED_CNI_IMAGE                 = msp/azure-cni
+FIXED_CNI_VERSION               = v1.7.12
+FIXED_CNS_IMAGE                 = msp/azure-cns
+FIXED_CNS_VERSION               = v1.7.12
+
 ## Image platform tags.
 ACNCLI_PLATFORM_TAG					?= $(subst /,-,$(PLATFORM))-$(ACN_VERSION)
 AZURE_IPAM_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))-$(AZURE_IPAM_VERSION)
@@ -397,7 +406,7 @@ azure-ipam-image-name: # util target to print the azure-ipam  image name.
 	@echo $(AZURE_IPAM_IMAGE)
 
 azure-ipam-image-name-and-tag: # util target to print the azure-ipam image name and tag.
-	@echo $(IMAGE_REGISTRY)/$(AZURE_IPAM_IMAGE):$(AZURE_IPAM_PLATFORM_TAG)
+	@echo $(FIXED_IMAGE_REGISTRY)/$(FIXED_AZURE_IPAM_IMAGE):$(FIXED_AZURE_IPAM_VERSION)
 
 azure-ipam-image: ## build azure-ipam container image.
 	$(MAKE) container \
@@ -509,7 +518,7 @@ cni-image-name: # util target to print the cni image name.
 	@echo $(CNI_IMAGE)
 
 cni-image-name-and-tag: # util target to print the cni image name and tag.
-	@echo $(IMAGE_REGISTRY)/$(CNI_IMAGE):$(CNI_PLATFORM_TAG)
+	@echo $(FIXED_IMAGE_REGISTRY)/$(FIXED_CNI_IMAGE):$(FIXED_CNI_VERSION)
 
 cni-image: ## build cni container image.
 	$(MAKE) container \
@@ -539,7 +548,7 @@ cns-image-name: # util target to print the CNS image name
 	@echo $(CNS_IMAGE)
 
 cns-image-name-and-tag: # util target to print the CNS image name and tag.
-	@echo $(IMAGE_REGISTRY)/$(CNS_IMAGE):$(CNS_PLATFORM_TAG)
+	@echo $(FIXED_IMAGE_REGISTRY)/$(FIXED_CNS_IMAGE):$(FIXED_CNS_VERSION)
 
 cns-image: ## build cns container image.
 	$(MAKE) container \
@@ -911,9 +920,15 @@ test-main:
 	go tool cover -func=coverage-main.out
 
 test-integration: ## run all integration tests.
-	AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \
-		CNI_VERSION=$(CNI_VERSION) \
-		CNS_VERSION=$(CNS_VERSION) \
+	AZURE_IPAM_VERSION=v0.4.0 \
+		CNI_VERSION=v1.7.12 \
+		CNS_VERSION=v1.7.12 \
+		IPAM_IMAGE_REPO=ACN \
+		IPAM_IMAGE_NAME_OVERRIDE=msp/azure-ipam \
+		CNI_IMAGE_REPO=ACN \
+		CNI_IMAGE_NAME_OVERRIDE=msp/azure-cni \
+		CNS_IMAGE_REPO=ACN \
+		CNS_IMAGE_NAME_OVERRIDE=msp/azure-cns \
 		go test -mod=readonly -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration --skip 'TestE2E*' ./test/integration...
 
 test-load: ## run all load tests
