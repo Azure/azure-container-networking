@@ -53,6 +53,10 @@ jobs:
 
       - name: Run Tests
         run: |
+          # TODO: Refactor this fd-redirect/tee pipeline to work natively under
+          # bash strict mode (-e/-o pipefail). Strict mode is temporarily disabled
+          # here to preserve the original exit-code propagation behavior intact.
+          set +e +o pipefail
           { { { {
                 sudo -E env "PATH=$PATH" make test-all;
                 echo $? >&3;
@@ -60,10 +64,14 @@ jobs:
               } 3>&1;
             } | { read xs; exit $xs; }
           } 4>&1
+          test_exit=$?
+          set -eo pipefail
 
           # combine coverage from multiple modules
           (echo "mode: atomic"; tail -q -n +2 coverage-*.out) > coverage.cover
           mv coverage.cover linux-coverage.out
+
+          (exit "$test_exit")
 
       - name: Upload Linux Coverage
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
