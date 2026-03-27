@@ -16,7 +16,7 @@ stages:
     displayName: "Stage: Hourly Pod Tests - Zone ${{ parameters.zone }} (${{ parameters.location }})"
     ${{ if ne(length(parameters.dependsOn), 0) }}:
       dependsOn: ${{ parameters.dependsOn }}
-    condition: eq(variables.isAllowedRun, true)
+    condition: and(eq(variables.isAllowedRun, true), not(failed()))
     jobs:
       # Setup: Get kubeconfig
       - job: SetupKubeconfig

@@ -5,9 +5,9 @@ parameters:
     type: object
   - name: resourceGroupName
     type: string
-  - name: runSetupStages
-    type: boolean
-    default: false
+  - name: hourlyRegions
+    type: object
+    default: []
   - name: workloadType
     type: object
     default: [ "swiftv2-linux", "swiftv2-linux-byon", "swiftv2-l1vh-accelnet-byon" ] #"swiftv2-l1vh-infiniband-byon"
@@ -30,16 +30,39 @@ variables:
     value: ${{ ne(variables['Build.Reason'], 'IndividualCI') }}
 
 stages:
-  # Setup infrastructure for each location
+  # ============================================================
+  # Infrastructure verify & setup for each location (idempotent)
+  # ============================================================
   - ${{ each loc in parameters.location }}:
     - stage: AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
-      displayName: "Stage: AKS Cluster and Networking Setup (${{ loc }})"
-      condition: eq(${{ parameters.runSetupStages }}, true)
+      displayName: "Stage: Verify & Setup Infrastructure (${{ loc }})"
+      condition: eq(variables.isAllowedRun, true)
       variables:
         rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
       jobs:
+        # First: smart verification of existing infrastructure
+        - job: VerifyInfrastructure
+          displayName: "Verify Infrastructure Exists"
+          steps:
+            - checkout: self
+              displayName: "Checkout azure-container-networking"
+            - task: AzureCLI@2
+              name: InfraCheck
+              displayName: "Smart infrastructure verification"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: scriptPath
+                scriptPath: ".pipelines/swiftv2-long-running/scripts/verify_infrastructure.sh"
+                arguments: >
+                  ${{ parameters.subscriptionId }}
+                  $(rgName)
+
+        # Only run setup jobs if infrastructure is missing
         - job: CreateResourceGroup
           displayName: "Create Resource Group"
+          dependsOn: VerifyInfrastructure
+          condition: and(succeeded(), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false'))
           steps:
             - task: AzureCLI@2
               displayName: "Create resource group"
@@ -57,8 +80,13 @@ stages:
 
         - job: CreateCluster
           displayName: "Create AKS Clusters"
-          dependsOn: CreateResourceGroup
+          dependsOn:
+            - VerifyInfrastructure
+            - CreateResourceGroup
+          condition: and(not(failed()), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false'))
           steps:
+            - checkout: self
+              displayName: "Checkout azure-container-networking"
             - task: AzureCLI@2
               displayName: "Create AKS clusters"
               inputs:
@@ -78,8 +106,13 @@ stages:
         
         - job: NetworkingAndStorage
           displayName: "Networking and Storage Setup"
-          dependsOn: CreateCluster
+          dependsOn:
+            - VerifyInfrastructure
+            - CreateCluster
+          condition: and(not(failed()), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false'))
           steps:
+            - checkout: self
+              displayName: "Checkout azure-container-networking"
             - task: AzureCLI@2
               displayName: "Create customer vnets"
               inputs:
@@ -143,11 +176,14 @@ stages:
                   ${{ parameters.subscriptionId }}
                   $(rgName)
                   ${{ loc }}
+
         - job: DeployLinuxBYON
           displayName: "Join Linux BYON VMSS to AKS Cluster"
           dependsOn:
+            - VerifyInfrastructure
             - CreateCluster
             - NetworkingAndStorage
+          condition: and(not(failed()), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false'))
           pool:
             vmImage: ubuntu-latest
           steps:
@@ -215,7 +251,72 @@ stages:
                   L1VH_VM_BICEP_PASSWORD_SECRET: $(L1VH_VM_BICEP_PASSWORD_SECRET)
                   L1VH_STORAGE_SECRET: $(L1VH_STORAGE_SECRET)
 
-  # Run tests for each location and workload type
+  # ============================================================
+  # Zone node pool setup for long-running tests (idempotent, always runs)
+  # ============================================================
+  - ${{ each region in parameters.hourlyRegions }}:
+    - stage: EnsureZoneNodePools_${{ replace(region.location, '-', '_') }}
+      displayName: "Setup: Zone Node Pools (${{ region.location }})"
+      dependsOn:
+        - AKSClusterAndNetworking_${{ replace(region.location, '-', '_') }}
+      condition: and(eq(variables.isAllowedRun, true), not(failed()))
+      jobs:
+        - job: EnsureNodePools
+          displayName: "Create zone node pools if missing"
+          steps:
+            - checkout: self
+              displayName: "Checkout azure-container-networking"
+            - task: AzureCLI@2
+              displayName: "Ensure per-zone high-NIC node pools"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: scriptPath
+                scriptPath: ".pipelines/swiftv2-long-running/scripts/ensure_zone_nodepools.sh"
+                arguments: >
+                  ${{ parameters.subscriptionId }}
+                  ${{ parameters.resourceGroupName }}-${{ region.location }}
+                  aks-1
+                  $(vmSkuHighNIC)
+                  "${{ join(' ', region.zones) }}"
+                  7
+
+  # ============================================================
+  # Acquire pipeline lease (prevents concurrent runs colliding)
+  # ============================================================
+  - ${{ each loc in parameters.location }}:
+    - stage: AcquireLease_${{ replace(loc, '-', '_') }}
+      displayName: "Acquire Pipeline Lease (${{ loc }})"
+      dependsOn:
+        - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+      condition: and(eq(variables.isAllowedRun, true), not(failed()))
+      jobs:
+        - job: AcquireLease
+          displayName: "Acquire ConfigMap lease on aks-1"
+          steps:
+            - checkout: self
+              displayName: "Checkout azure-container-networking"
+            - task: AzureCLI@2
+              displayName: "Get kubeconfig and acquire lease"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  az aks get-credentials \
+                    -g "${{ parameters.resourceGroupName }}-${{ loc }}" \
+                    -n aks-1 --admin --overwrite-existing \
+                    --file /tmp/aks-1.kubeconfig
+
+                  bash .pipelines/swiftv2-long-running/scripts/acquire_pipeline_lease.sh \
+                    /tmp/aks-1.kubeconfig \
+                    "$(Build.BuildId)" \
+                    30 \
+                    120
+
+  # ============================================================
+  # Datapath tests for each location and workload type
+  # ============================================================
   - ${{ each loc in parameters.location }}:
     - ${{ each workload in parameters.workloadType }}:
       # Skip accelnet workloads in regions where accelnet is not enabled (currently only centraluseuap has quota)
@@ -235,11 +336,62 @@ stages:
             ${{ if eq(workload, 'swiftv2-linux') }}:
               dependsOn: 
                 - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+                - AcquireLease_${{ replace(loc, '-', '_') }}
             ${{ if eq(workload, 'swiftv2-linux-byon') }}:
               dependsOn: 
                 - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+                - AcquireLease_${{ replace(loc, '-', '_') }}
                 - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
             ${{ if eq(workload, 'swiftv2-l1vh-accelnet-byon') }}:
               dependsOn: 
                 - DeployAccelnetBYON_${{ replace(loc, '-', '_') }}
+                - AcquireLease_${{ replace(loc, '-', '_') }}
                 - DataPathTests_swiftv2_linux_byon_${{ replace(loc, '-', '_') }}
+
+  # ============================================================
+  # Long-running pod tests per zone (rotating + DaemonSet + connectivity)
+  # ============================================================
+  - ${{ each region in parameters.hourlyRegions }}:
+    - ${{ each zone in region.zones }}:
+      - template: hourly-pod-tests-stage.yaml
+        parameters:
+          location: ${{ region.location }}
+          subscriptionId: ${{ parameters.subscriptionId }}
+          rgName: ${{ parameters.resourceGroupName }}-${{ region.location }}
+          zone: ${{ zone }}
+          dependsOn:
+            - EnsureZoneNodePools_${{ replace(region.location, '-', '_') }}
+
+  # ============================================================
+  # Release pipeline lease (always runs, even on failure)
+  # ============================================================
+  - ${{ each loc in parameters.location }}:
+    - stage: ReleaseLease_${{ replace(loc, '-', '_') }}
+      displayName: "Release Pipeline Lease (${{ loc }})"
+      dependsOn:
+        - AcquireLease_${{ replace(loc, '-', '_') }}
+        - ${{ each workload in parameters.workloadType }}:
+          - ${{ if or(not(contains(workload, 'l1vh-accelnet')), eq(loc, 'centraluseuap')) }}:
+            - DataPathTests_${{ replace(workload, '-', '_') }}_${{ replace(loc, '-', '_') }}
+      condition: always()
+      jobs:
+        - job: ReleaseLease
+          displayName: "Release ConfigMap lease on aks-1"
+          steps:
+            - checkout: self
+              displayName: "Checkout azure-container-networking"
+            - task: AzureCLI@2
+              displayName: "Release lease"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  az aks get-credentials \
+                    -g "${{ parameters.resourceGroupName }}-${{ loc }}" \
+                    -n aks-1 --admin --overwrite-existing \
+                    --file /tmp/aks-1.kubeconfig
+
+                  bash .pipelines/swiftv2-long-running/scripts/release_pipeline_lease.sh \
+                    /tmp/aks-1.kubeconfig \
+                    "$(Build.BuildId)"

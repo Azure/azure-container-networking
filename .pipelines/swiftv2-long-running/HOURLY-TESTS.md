@@ -1,15 +1,15 @@
 # SwiftV2 Hourly Zone-Aware Pod Tests
 
-This document covers the **hourly zone-aware pod tests** — rotating pods and DaemonSet always-on pods that run persistently on the same AKS cluster used by the main SwiftV2 long-running pipeline.
+This document covers the **hourly zone-aware pod tests** — rotating pods and DaemonSet always-on pods that run persistently on the same AKS cluster used by the SwiftV2 long-running pipeline.
 
-The hourly pipeline (`hourly-pipeline.yaml`) runs every hour, per-region (currently eastus2euap), managing zone-aware rotating + always-on pod tests. It shares the same AKS cluster infrastructure as the main pipeline (no separate setup needed).
+These tests are **integrated into the main pipeline** (`pipeline.yaml`). The `hourlyRegions` parameter maps each region to its availability zones. Zone node pool creation and per-zone test stages run alongside the existing datapath tests.
 
 ### Adding a New Region
 
-The `regions` parameter in `hourly-pipeline.yaml` maps each region to its availability zones. To add a region, append an entry:
+Edit the `hourlyRegions` parameter in `pipeline.yaml`:
 
 ```yaml
-regions:
+hourlyRegions:
   - location: eastus2euap
     zones: ["1", "2", "3", "4"]
   - location: centraluseuap        # example: add a new region
@@ -24,8 +24,8 @@ Each region gets its own `EnsureZoneNodePools` setup stage followed by parallel 
 
 ### Design
 
-The hourly pipeline runs tests across **all 4 availability zones** in `eastus2euap`. Each zone has **1 high-NIC node** (`Standard_D16s_v3`, 7 NIC slots) running:
-- **6 rotating pods** — managed by the pipeline, cycled every 6 hours
+The pipeline runs tests across **all 4 availability zones** in `eastus2euap` every hour. Each zone has **1 high-NIC node** (`Standard_D16s_v3`, 7 NIC slots) running:
+- **6 rotating pods** — managed by the pipeline, cycled every 6 runs (6 hours)
 - **1 DaemonSet always-on pod** — self-healing via Kubernetes, runs indefinitely
 
 All pods use the same VNet/Subnet (`cx_vnet_v1/s1`). All 4 zones run **in parallel**.
@@ -65,19 +65,19 @@ All pods use the same VNet/Subnet (`cx_vnet_v1/s1`). All 4 zones run **in parall
 |----------|-------|
 | Node label | `hourly-zone-pool=true` + `topology.kubernetes.io/zone=<location>-<N>` |
 | Pod count | 6 (uses 6 of 7 NIC slots) |
-| Pod lifetime | 6 hours max |
-| Rotation guarantee | At least 1 pod deleted + recreated every hour |
+| Pod lifetime | 6 runs max (6 hours at hourly schedule) |
+| Rotation guarantee | At least 1 pod deleted + recreated every run |
 | VNet/Subnet | `cx_vnet_v1/s1` |
 | Pod names | `pod-rotating-0` through `pod-rotating-5` |
 
 **Rotation algorithm** (runs every hour):
 1. Scan all 6 pod slots and check each pod's `acn-test/created-at` annotation
-2. Delete any pods older than 6 hours
-3. If no pods were deleted (none expired yet), delete the **oldest** pod to guarantee at least 1 rotation per hour
+2. Delete any pods older than 6 runs (6 hours)
+3. If no pods were deleted (none expired yet), delete the **oldest** pod to guarantee at least 1 rotation per run
 4. Recreate pods for all empty slots
 5. Verify all 6 pods are in Running state
 
-**Steady-state behavior**: After 6 hours of operation, all rotating NIC slots will have been recycled at least once. Roughly 1-2 pods rotate per hour.
+**Steady-state behavior**: After 6 hours (6 runs), all rotating NIC slots will have been recycled at least once. Roughly 1-2 pods rotate per run.
 
 ### DaemonSet Always-On Pod (1 per zone, self-healing)
 
@@ -91,9 +91,9 @@ All pods use the same VNet/Subnet (`cx_vnet_v1/s1`). All 4 zones run **in parall
 | VNet/Subnet | `cx_vnet_v1/s1` |
 | DaemonSet name | `ds-alwayson-z<N>` (e.g., `ds-alwayson-z1`) |
 
-**Why a DaemonSet?** If the pod crashes or the node reboots between pipeline runs, Kubernetes automatically restarts it — no waiting for the next hourly pipeline run. The pipeline's always-on test simply verifies the DaemonSet pod is healthy.
+**Why a DaemonSet?** If the pod crashes or the node reboots between pipeline runs, Kubernetes automatically restarts it — no waiting for the next pipeline run. The pipeline's always-on test simply verifies the DaemonSet pod is healthy.
 
-**Hourly health check** (pipeline `hourly_alwayson_test`):
+**Health check** (pipeline `hourly_alwayson_test`, runs every hour):
 1. Ensure PodNetwork, PodNetworkInstance, and namespace exist (idempotent)
 2. Ensure DaemonSet exists (create if missing)
 3. Verify DaemonSet pod is Running
@@ -116,7 +116,7 @@ Both use `cx_vnet_v1/s1`. Tests use TCP via delegated subnet (eth1) with netcat 
 
 ### How It Works
 
-The `ensure_zone_nodepools.sh` script is an **idempotent** operation that runs at the start of every hourly pipeline. It:
+The `ensure_zone_nodepools.sh` script is an **idempotent** operation that runs after infrastructure verification in the main pipeline. It:
 
 1. Checks if each zone's node pool (`npz1`, `npz2`, `npz3`, `npz4`) already exists
 2. Creates missing node pools with `--zones <N>` to pin the node to a specific zone
@@ -153,25 +153,52 @@ The Go tests use this label combined with `hourly-zone-pool` to select the corre
 
 ## Pipeline Structure
 
+The hourly tests are part of the main long-running pipeline:
+
 ```
-hourly-pipeline.yaml
-  └── hourly-pipeline-template.yaml
-        ├── EnsureZoneNodePools (one-time setup, runs first)
+pipeline.yaml
+  └── long-running-pipeline-template.yaml
+        │
+        ├── AKSClusterAndNetworking (per location, idempotent)
+        │   ├── VerifyInfrastructure  ← smart check, skips setup if all exists
+        │   ├── CreateResourceGroup   ← conditional on !infraExists
+        │   ├── CreateCluster          ...
+        │   ├── NetworkingAndStorage    ...
+        │   └── DeployLinuxBYON        ...
+        │
+        ├── EnsureZoneNodePools (per hourlyRegion, depends on infra)
         │   └── ensure_zone_nodepools.sh
         │
-        ├── Zone 1 (parallel) ──┬── SetupKubeconfig
-        │                       ├── BuildMetricsBinary
-        │                       ├── RotatingPods_Z1     ──┐
-        │                       ├── AlwaysOnPods_Z1     ──┤
-        │                       └── ConnectivityTest_Z1 ──┘
+        ├── AcquireLease (ConfigMap-based, gates datapath tests only)
         │
-        ├── Zone 2 (parallel) ── same structure
-        ├── Zone 3 (parallel) ── same structure
-        └── Zone 4 (parallel) ── same structure
+        ├── DataPathTests (per location × workload type, parallel, lease-gated)
+        │   └── swiftv2-linux + swiftv2-linux-byon run in parallel
+        │
+        ├── HourlyPodTests (per zone, parallel, NOT lease-gated)
+        │   ├── Zone 1 ──┬── SetupKubeconfig
+        │   │            ├── BuildMetricsBinary
+        │   │            ├── RotatingPods_Z1     ──┐
+        │   │            ├── AlwaysOnPods_Z1     ──┤
+        │   │            └── ConnectivityTest_Z1 ──┘
+        │   ├── Zone 2 ── same structure
+        │   ├── Zone 3 ── same structure
+        │   └── Zone 4 ── same structure
+        │
+        └── ReleaseLease (always runs, gates on datapath tests only)
 ```
 
 All 4 zones run as **separate stages in parallel** after the `EnsureZoneNodePools` setup stage.
 Within each zone, `RotatingPods` and `AlwaysOnPods` run in parallel; `ConnectivityTest` waits for both.
+
+**Note**: Hourly pod tests are **not gated by the lease** — they only depend on zone node pool setup. This means they start immediately after infrastructure is ready, without waiting for the lease or datapath tests.
+
+### Idempotent Infrastructure Setup
+
+The `VerifyInfrastructure` job checks the "final products" (cluster health, VNet existence, peering state, storage accounts) before running any setup scripts. If everything exists, setup is **skipped** — saving 30+ minutes on each run.
+
+### Lease Mechanism
+
+A Kubernetes ConfigMap (`acn-pipeline-lease`) on `aks-1` acts as a distributed lock. The lease **only gates datapath tests** (not hourly pod tests). Each pipeline run acquires the lease before running datapath tests and releases it afterward. If a previous run still holds the lease, the new run waits (up to 30 minutes) or fails gracefully.
 
 ---
 
@@ -203,7 +230,7 @@ Always-on (DaemonSet):
 | Variable | Description | Set By |
 |----------|-------------|--------|
 | `RG` | Azure resource group name | Pipeline |
-| `BUILD_ID` | Stable ID for resource naming (= RG name) | Pipeline |
+| `BUILD_ID` | Stable ID for resource naming (= RG name for hourly tests; = RG + workload suffix for datapath tests) | Pipeline |
 | `ZONE` | Availability zone number ("1", "2", "3", "4") | Pipeline (hourly only) |
 | `LOCATION` | Azure region (e.g., "eastus2euap") | Pipeline (hourly only) |
 | `WORKLOAD_TYPE` | Node workload filter ("swiftv2-linux") | Pipeline |
@@ -230,13 +257,17 @@ All operations are designed to be safe to re-run. PodNetworks, PodNetworkInstanc
 
 ```
 .pipelines/swiftv2-long-running/
-├── hourly-pipeline.yaml                       # Hourly pod pipeline entry point (every hour)
+├── pipeline.yaml                              # Main pipeline entry point (every hour)
 ├── HOURLY-TESTS.md                            # This file
 ├── template/
-│   ├── hourly-pipeline-template.yaml          # Zone setup + per-zone stage fan-out
+│   ├── long-running-pipeline-template.yaml    # Infra setup + datapath tests + hourly tests
+│   ├── datapath-tests-stage.yaml              # Per-workload datapath test stage
 │   └── hourly-pod-tests-stage.yaml            # Per-zone: rotating + always-on + connectivity
 └── scripts/
-    └── ensure_zone_nodepools.sh               # Idempotent per-zone node pool creation
+    ├── verify_infrastructure.sh               # Smart infra check (skip setup if exists)
+    ├── ensure_zone_nodepools.sh               # Idempotent per-zone node pool creation
+    ├── acquire_pipeline_lease.sh              # ConfigMap lease acquisition
+    └── release_pipeline_lease.sh              # ConfigMap lease release
 
 test/integration/swiftv2/longRunningCluster/
 ├── datapath_hourly_shared.go                  # Shared constants/utils for hourly tests (zone-aware)
