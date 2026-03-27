@@ -58,7 +58,39 @@ stages:
                   ${{ parameters.subscriptionId }}
                   $(rgName)
 
-        # Only run setup jobs if infrastructure is missing
+        # Always ensure node labels are correct (survives node replacements)
+        - job: EnsureNodeLabels
+          displayName: "Ensure Node Labels"
+          dependsOn: VerifyInfrastructure
+          condition: and(succeeded(), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'true'))
+          steps:
+            - task: AzureCLI@2
+              displayName: "Apply workload-type and nic-capacity labels"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  for CLUSTER in aks-1 aks-2; do
+                    echo "==> Ensuring labels on $CLUSTER"
+                    KUBECONFIG="/tmp/${CLUSTER}.kubeconfig"
+                    az aks get-credentials -g "$(rgName)" -n "$CLUSTER" --admin \
+                      --overwrite-existing --file "$KUBECONFIG"
+
+                    echo "  Labeling nodepool1 nodes: workload-type=swiftv2-linux, nic-capacity=low-nic"
+                    kubectl --kubeconfig "$KUBECONFIG" label nodes -l agentpool=nodepool1 \
+                      workload-type=swiftv2-linux nic-capacity=low-nic --overwrite
+
+                    echo "  Labeling nplinux nodes: workload-type=swiftv2-linux, nic-capacity=high-nic"
+                    kubectl --kubeconfig "$KUBECONFIG" label nodes -l agentpool=nplinux \
+                      workload-type=swiftv2-linux nic-capacity=high-nic --overwrite
+
+                    echo "  Current node labels:"
+                    kubectl --kubeconfig "$KUBECONFIG" get nodes \
+                      -o custom-columns='NAME:.metadata.name,WORKLOAD:.metadata.labels.workload-type,NIC:.metadata.labels.nic-capacity,POOL:.metadata.labels.agentpool'
+                  done
+
+        # Only run full setup jobs if infrastructure is missing
         - job: CreateResourceGroup
           displayName: "Create Resource Group"
           dependsOn: VerifyInfrastructure
