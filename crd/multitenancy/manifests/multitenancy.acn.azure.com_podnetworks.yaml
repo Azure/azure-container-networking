@@ -119,10 +119,10 @@ spec:
         type: object
         x-kubernetes-validations:
         - message: prefixBlockCIDRLength must be 28 when subnetAllocationMode is PrefixBlock
-          rule: '!has(self.status.prefixBlockCIDRLength) || self.spec.subnetAllocationMode
+          rule: '!has(self.status) || !has(self.status.prefixBlockCIDRLength) || self.spec.subnetAllocationMode
             != ''PrefixBlock'' || self.status.prefixBlockCIDRLength == 28'
         - message: prefixBlockCIDRLength must be 0 when subnetAllocationMode is Single
-          rule: '!has(self.status.prefixBlockCIDRLength) || self.spec.subnetAllocationMode
+          rule: '!has(self.status) || !has(self.status.prefixBlockCIDRLength) || self.spec.subnetAllocationMode
             != ''Single'' || self.status.prefixBlockCIDRLength == 0'
     served: true
     storage: true
