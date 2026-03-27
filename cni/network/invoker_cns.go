@@ -72,15 +72,16 @@ func getIPConfigGatewayAddress(podIP string, ipConfig cns.IPConfiguration) strin
 		return ipConfig.GatewayIPAddress
 	}
 	if parsedPodIP.Is6() && ipConfig.GatewayIPv6Address != "" {
-		if _, parseErr := netip.ParseAddr(ipConfig.GatewayIPv6Address); parseErr == nil {
+		_, parseErr := netip.ParseAddr(ipConfig.GatewayIPv6Address)
+		if parseErr == nil {
 			return ipConfig.GatewayIPv6Address
-		} else {
-			logger.Warn("Invalid GatewayIPv6Address from CNS; falling back to GatewayIPAddress",
-				zap.String("podIP", podIP),
-				zap.String("gatewayIPv6Address", ipConfig.GatewayIPv6Address),
-				zap.String("gatewayIPAddress", ipConfig.GatewayIPAddress),
-				zap.Error(parseErr))
 		}
+
+		logger.Warn("Invalid GatewayIPv6Address from CNS; falling back to GatewayIPAddress",
+			zap.String("podIP", podIP),
+			zap.String("gatewayIPv6Address", ipConfig.GatewayIPv6Address),
+			zap.String("gatewayIPAddress", ipConfig.GatewayIPAddress),
+			zap.Error(parseErr))
 	}
 
 	return ipConfig.GatewayIPAddress
@@ -198,8 +199,8 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
-			podIPAddress:         response.PodIPInfo[i].PodIPConfig.IPAddress,
-			ncSubnetPrefix:       getIPConfigPrefixLength(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
+			podIPAddress:   response.PodIPInfo[i].PodIPConfig.IPAddress,
+			ncSubnetPrefix: getIPConfigPrefixLength(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
 			// ncPrimaryIP intentionally stays IPv4 — it is only used for SNAT/iptables which are IPv4-only codepaths.
 			ncPrimaryIP:          response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
 			ncGatewayIPAddress:   getIPConfigGatewayAddress(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
