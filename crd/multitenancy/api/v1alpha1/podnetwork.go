@@ -14,8 +14,8 @@ import (
 // PodNetwork is the Schema for the PodNetworks API
 // +kubebuilder:resource:shortName=pn,scope=Cluster
 // +kubebuilder:subresource:status
-// +kubebuilder:validation:XValidation:rule="!has(self.status.prefixBlockCIDRLength) || self.spec.subnetAllocationMode != 'PrefixBlock' || self.status.prefixBlockCIDRLength == 28",message="prefixBlockCIDRLength must be 28 when subnetAllocationMode is PrefixBlock"
-// +kubebuilder:validation:XValidation:rule="!has(self.status.prefixBlockCIDRLength) || self.spec.subnetAllocationMode != 'Single' || self.status.prefixBlockCIDRLength == 0",message="prefixBlockCIDRLength must be 0 when subnetAllocationMode is Single"
+// +kubebuilder:validation:XValidation:rule="!has(self.status) || !has(self.status.prefixBlockCIDRLength) || self.spec.subnetAllocationMode != 'PrefixBlock' || self.status.prefixBlockCIDRLength == 28",message="prefixBlockCIDRLength must be 28 when subnetAllocationMode is PrefixBlock"
+// +kubebuilder:validation:XValidation:rule="!has(self.status) || !has(self.status.prefixBlockCIDRLength) || self.spec.subnetAllocationMode != 'Single' || self.status.prefixBlockCIDRLength == 0",message="prefixBlockCIDRLength must be 0 when subnetAllocationMode is Single"
 // +kubebuilder:printcolumn:name="Status",type=string,priority=1,JSONPath=`.status.status`
 // +kubebuilder:printcolumn:name="Address Prefixes",type=string,priority=1,JSONPath=`.status.addressPrefixes`
 // +kubebuilder:printcolumn:name="Network",type=string,priority=1,JSONPath=`.spec.networkID`
