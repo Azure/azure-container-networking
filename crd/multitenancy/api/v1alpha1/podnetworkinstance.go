@@ -42,15 +42,13 @@ type PodNetworkConfig struct {
 	// PodIPReservationSize is the number of IP address to statically reserve
 	// +kubebuilder:default=0
 	PodIPReservationSize int `json:"podIPReservationSize,omitempty"`
-	// IPConstraint specifies criteria for selecting IP addresses from the PodNetwork's subnet.
-	// Must be a valid IPv4 address or CIDR notation with /32 prefix.
+	// IPConstraint specifies criteria for selecting IP address from the PodNetwork's subnet.
+	// Must be a valid IPv4 cidr with /32 prefix.
 	// This is an optional field.
-	// Examples:
-	//   - IPv4 address: "192.168.0.1"
-	//   - IPv4 CIDR:    "192.168.0.1/32"
+	// Example: 192.168.0.1/32
 	// +kubebuilder:default=""
 	// +kubebuilder:validation:MaxLength=18
-	// +kubebuilder:validation:Pattern=`^$|^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)(\/32)?$`
+	// +kubebuilder:validation:Pattern=`^$|^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\/32$`
 	IPConstraint string `json:"ipConstraint,omitempty"`
 }
 

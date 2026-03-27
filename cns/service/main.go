@@ -1583,20 +1583,18 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	// Start the Manager which starts the reconcile loop.
 	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the
 	// Monitor's internal loop.
+	// Note: controller-runtime Managers are not restartable. The *first* thing that Start() does is
+	// set the started semaphore, and *any* restart attempt will fail.
+	// The Manager is permanently marked as started and subsequent calls will always fail with
+	// "manager already started". If the Manager returns AT ALL, we must exit the process and
+	// let the kubelet restart the pod (or rebuild world, but exiting is more reliable).
 	go func() {
 		logger.Printf("Starting controller-manager.")
-		for {
-			if err := manager.Start(ctx); err != nil {
-				logger.Errorf("Failed to start controller-manager: %v", err)
-				// retry to start the request controller
-				// inc the managerStartFailures metric for failure tracking
-				managerStartFailures.Inc()
-			} else {
-				logger.Printf("Stopped controller-manager.")
-				return
-			}
-			time.Sleep(time.Second) // TODO(rbtr): make this exponential backoff
+		if err := manager.Start(ctx); err != nil {
+			logger.Errorf("Failed to start controller-manager: %v", err)
+			os.Exit(1)
 		}
+		logger.Printf("Stopped controller-manager.")
 	}()
 	logger.Printf("Initialized controller-manager.")
 	for {

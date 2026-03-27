@@ -28,7 +28,7 @@ const (
 	vEthernetAdapterPrefix = "vEthernet"
 	baseDecimal            = 10
 	bitSize                = 32
-	defaultRouteCIDR       = "0.0.0.0/0"
+	defaultIPv4Route       = "0.0.0.0/0"
 	// prefix for interface name created by azure network
 	ifNamePrefix = "vEthernet"
 	// ipv4 default hop
@@ -289,7 +289,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 
 	// Populate subnets.
 	for _, subnet := range nwInfo.Subnets {
-		defaultIPRouteCIDR := defaultRouteCIDR
+		defaultIPRouteCIDR := defaultIPv4Route
 		if subnet.Family == platform.AfINET6 {
 			defaultIPRouteCIDR = defaultIPv6Route
 		}
