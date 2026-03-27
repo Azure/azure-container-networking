@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"os"
 	"os/exec"
@@ -21,9 +22,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/component-base/logs"
-	"k8s.io/component-base/version/verflag"
-	"k8s.io/klog/v2"
 )
 
 // Version is populated by make during build.
@@ -189,7 +187,7 @@ func createNodeEvent(clientset KubeClient, nodeName, reason, message, eventType 
 		return fmt.Errorf("failed to create event for node %s: %w", nodeName, err)
 	}
 
-	klog.V(2).Infof("Created event for node %s: %s - %s", nodeName, reason, message)
+	slog.Info("Created event for node", "node", nodeName, "reason", reason, "message", message)
 	return nil
 }
 
@@ -222,7 +220,7 @@ func hasUnexpectedRules(currentRules, allowedPatterns []string) bool {
 	for _, pattern := range allowedPatterns {
 		compiled, err := regexp.Compile(pattern)
 		if err != nil {
-			klog.Errorf("Error compiling regex pattern '%s': %v", pattern, err)
+			slog.Error("Error compiling regex pattern", "pattern", pattern, "error", err)
 			continue
 		}
 		compiledPatterns = append(compiledPatterns, compiled)
@@ -233,13 +231,13 @@ func hasUnexpectedRules(currentRules, allowedPatterns []string) bool {
 		ruleMatched := false
 		for _, pattern := range compiledPatterns {
 			if pattern.MatchString(rule) {
-				klog.V(3).Infof("MATCHED: '%s' -> pattern: '%s'", rule, pattern.String())
+				slog.Debug("MATCHED", "rule", rule, "pattern", pattern.String())
 				ruleMatched = true
 				break
 			}
 		}
 		if !ruleMatched {
-			klog.Infof("Unexpected rule: %s", rule)
+			slog.Info("Unexpected rule", "rule", rule)
 			foundUnexpectedRules = true
 			// continue to iterate over remaining rules to identify all unexpected rules
 		}
@@ -257,17 +255,17 @@ func nodeHasUserIPTablesRules(fileReader FileLineReader, path string, iptablesCl
 	globalPatterns, err := fileReader.Read(filepath.Join(path, "global"))
 	if err != nil {
 		globalPatterns = []string{}
-		klog.V(2).Infof("No global patterns file found, using empty patterns")
+		slog.Info("No global patterns file found, using empty patterns")
 	}
 
 	userIPTablesRules := false
 
-	klog.V(2).Infof("Using reference patterns files in %s", path)
+	slog.Info("Using reference patterns files", "path", path)
 
 	for _, table := range tables {
 		rules, err := GetRules(iptablesClient, table)
 		if err != nil {
-			klog.Errorf("failed to get rules for table %s: %v", table, err)
+			slog.Error("Failed to get rules for table", "table", table, "error", err)
 			continue
 		}
 
@@ -275,14 +273,14 @@ func nodeHasUserIPTablesRules(fileReader FileLineReader, path string, iptablesCl
 		referencePatterns, err = fileReader.Read(filepath.Join(path, table))
 		if err != nil {
 			referencePatterns = []string{}
-			klog.V(2).Infof("No reference patterns file found for table %s", table)
+			slog.Info("No reference patterns file found for table", "table", table)
 		}
 
 		referencePatterns = append(referencePatterns, globalPatterns...)
 
-		klog.V(3).Infof("===== %s =====", table)
+		slog.Debug("Checking table", "table", table)
 		if hasUnexpectedRules(rules, referencePatterns) {
-			klog.Infof("Unexpected rules detected in table %s", table)
+			slog.Info("Unexpected rules detected in table", "table", table)
 			userIPTablesRules = true
 		}
 	}
@@ -294,14 +292,14 @@ func nodeHasUserIPTablesRules(fileReader FileLineReader, path string, iptablesCl
 func Check(cfg Config, deps Dependencies, previousBlocks *uint64) bool {
 	userIPTablesRulesFound := nodeHasUserIPTablesRules(deps.FileReader, cfg.ConfigPath4, deps.IPTablesV4)
 	if userIPTablesRulesFound {
-		klog.Info("Above user iptables rules detected in IPv4 iptables")
+		slog.Info("User iptables rules detected in IPv4 iptables")
 	}
 
 	// check ip6tables rules if enabled
 	if cfg.IPv6Enabled {
 		userIP6TablesRulesFound := nodeHasUserIPTablesRules(deps.FileReader, cfg.ConfigPath6, deps.IPTablesV6)
 		if userIP6TablesRulesFound {
-			klog.Info("Above user iptables rules detected in IPv6 iptables")
+			slog.Info("User iptables rules detected in IPv6 iptables")
 		}
 		userIPTablesRulesFound = userIPTablesRulesFound || userIP6TablesRulesFound
 	}
@@ -309,15 +307,15 @@ func Check(cfg Config, deps Dependencies, previousBlocks *uint64) bool {
 	// update label based on whether user iptables rules were found
 	err := patchLabel(deps.DynamicClient, userIPTablesRulesFound, cfg.NodeName)
 	if err != nil {
-		klog.Errorf("failed to patch label: %v", err)
+		slog.Error("Failed to patch label", "error", err)
 	} else {
-		klog.V(2).Infof("Successfully updated label for %s: %s=%v", cfg.NodeName, label, userIPTablesRulesFound)
+		slog.Info("Successfully updated label", "node", cfg.NodeName, "label", label, "value", userIPTablesRulesFound)
 	}
 
 	if cfg.SendEvents && userIPTablesRulesFound {
 		err = createNodeEvent(deps.KubeClient, cfg.NodeName, "UnexpectedIPTablesRules", "Node has unexpected iptables rules", corev1.EventTypeWarning)
 		if err != nil {
-			klog.Errorf("failed to create event: %v", err)
+			slog.Error("Failed to create event", "error", err)
 		}
 	}
 
@@ -327,9 +325,9 @@ func Check(cfg Config, deps Dependencies, previousBlocks *uint64) bool {
 		// read bpf map to check for number of blocked iptables rules
 		currentBlocks, err = deps.EBPFClient.GetBPFMapValue(cfg.PinPath)
 		if err != nil {
-			klog.Errorf("failed to get bpf map value: %v", err)
+			slog.Error("Failed to get bpf map value", "error", err)
 		}
-		klog.V(2).Infof("IPTables rules blocks: Previous: %d Current: %d", *previousBlocks, currentBlocks)
+		slog.Info("IPTables rules blocks", "previous", *previousBlocks, "current", currentBlocks)
 	}
 
 	// if number of blocked rules increased since last time
@@ -339,7 +337,7 @@ func Check(cfg Config, deps Dependencies, previousBlocks *uint64) bool {
 			"iptables rules blocked because EBPF Host Routing is enabled: aka.ms/acnsperformance"
 		err = createNodeEvent(deps.KubeClient, cfg.NodeName, "BlockedIPTablesRule", msg, corev1.EventTypeWarning)
 		if err != nil {
-			klog.Errorf("failed to create iptables block event: %v", err)
+			slog.Error("Failed to create iptables block event", "error", err)
 		}
 	}
 	// persist between runs
@@ -351,16 +349,16 @@ func Check(cfg Config, deps Dependencies, previousBlocks *uint64) bool {
 // IPv6 route is installed only when ipv6Enabled is true.
 func installHealthProbeReplyRoutes(deps Dependencies, ipv6Enabled bool) {
 	if err := deps.RouteManager.EnsureRoute(healthProbeSrcIPv4); err != nil {
-		klog.Errorf("Failed to install IPv4 route for health probe reply: %v", err)
+		slog.Error("Failed to install IPv4 route for health probe reply", "error", err)
 	} else {
-		klog.V(2).Infof("Installed loopback route for health probe IPv4 %s", healthProbeSrcIPv4)
+		slog.Info("Installed loopback route for health probe IPv4", "ip", healthProbeSrcIPv4)
 	}
 
 	if ipv6Enabled {
 		if err := deps.RouteManager.EnsureRoute(healthProbeSrcIPv6); err != nil {
-			klog.Errorf("Failed to install IPv6 route for health probe reply: %v", err)
+			slog.Error("Failed to install IPv6 route for health probe reply", "error", err)
 		} else {
-			klog.V(2).Infof("Installed loopback route for health probe IPv6 %s", healthProbeSrcIPv6)
+			slog.Info("Installed loopback route for health probe IPv6", "ip", healthProbeSrcIPv6)
 		}
 	}
 }
@@ -377,7 +375,7 @@ func Run(cfg Config, deps Dependencies) {
 		userIPTablesRulesFound := Check(cfg, deps, &blockCount)
 
 		if !userIPTablesRulesFound && cfg.TerminateOnSuccess {
-			klog.Info("No user iptables rules found, terminating the iptables monitor")
+			slog.Info("No user iptables rules found, terminating the iptables monitor")
 			break
 		}
 		time.Sleep(time.Duration(cfg.CheckInterval) * time.Second)
@@ -385,19 +383,17 @@ func Run(cfg Config, deps Dependencies) {
 }
 
 func main() {
-	klog.InitFlags(nil)
 	flag.Parse()
 
-	logs.InitLogs()
-	defer logs.FlushLogs()
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
 
-	klog.Infof("Version: %s", version)
-	verflag.PrintAndExitIfRequested()
+	slog.Info("Starting", "version", version)
 
 	// get current node name from environment variable
 	currentNodeName := os.Getenv("NODE_NAME")
 	if currentNodeName == "" {
-		klog.Fatalf("NODE_NAME environment variable not set")
+		slog.Error("NODE_NAME environment variable not set")
+		os.Exit(1)
 	}
 
 	cfg := Config{
@@ -415,31 +411,36 @@ func main() {
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		klog.Fatalf("failed to create in-cluster config: %v", err)
+		slog.Error("Failed to create in-cluster config", "error", err)
+		os.Exit(1)
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		klog.Fatalf("failed to create kubernetes clientset: %v", err)
+		slog.Error("Failed to create kubernetes clientset", "error", err)
+		os.Exit(1)
 	}
 	dynamicClient, err := dynamic.NewForConfig(config)
 	if err != nil {
-		klog.Fatalf("failed to create dynamic client: %v", err)
+		slog.Error("Failed to create dynamic client", "error", err)
+		os.Exit(1)
 	}
 
 	var iptablesClient IPTablesClient
 	iptablesClient, err = goiptables.New()
 	if err != nil {
-		klog.Fatalf("failed to create iptables client: %v", err)
+		slog.Error("Failed to create iptables client", "error", err)
+		os.Exit(1)
 	}
 
 	var ip6tablesClient IPTablesClient
 	if *ipv6Enabled {
 		ip6tablesClient, err = goiptables.New(goiptables.IPFamily(goiptables.ProtocolIPv6))
 		if err != nil {
-			klog.Fatalf("failed to create ip6tables client: %v", err)
+			slog.Error("Failed to create ip6tables client", "error", err)
+			os.Exit(1)
 		}
 	}
-	klog.Infof("IPv6: %v", *ipv6Enabled)
+	slog.Info("IPv6 enabled", "enabled", *ipv6Enabled)
 
 	deps := Dependencies{
 		KubeClient:    NewKubeClient(clientset),
@@ -452,10 +453,10 @@ func main() {
 
 	if *installRoutesForHealthProbeReply {
 		deps.RouteManager = NewRouteManager()
-		klog.Info("Route installation for health probe reply enabled")
+		slog.Info("Route installation for health probe reply enabled")
 	}
 
-	klog.Infof("Starting iptables monitor for node: %s", cfg.NodeName)
+	slog.Info("Starting iptables monitor", "node", cfg.NodeName)
 
 	Run(cfg, deps)
 }
