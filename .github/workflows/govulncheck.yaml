@@ -45,8 +45,9 @@ jobs:
 
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        if: matrix.bpf
         with:
-          go-version-file: ${{ matrix.module }}/go.mod
+          go-version-file: go.mod
 
       - name: Build BPF lib
         if: matrix.bpf
@@ -55,6 +56,11 @@ jobs:
       - name: Go generate
         if: matrix.bpf
         run: go generate ./...
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
 
       - name: Run govulncheck
         uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
