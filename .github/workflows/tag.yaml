@@ -2,6 +2,25 @@ name: Tag
 
 on:
   workflow_dispatch:
+    inputs:
+      component:
+        description: 'Component to tag'
+        required: true
+        type: choice
+        options:
+          - main
+          - azure-ipam
+          - dropgz
+          - azure-block-iptables
+          - azure-ip-masq-merger
+          - azure-iptables-monitor
+          - cilium-log-collector
+          - ipv6-hp-bpf
+      dry_run:
+        description: 'Dry run — compute and display the tag without pushing'
+        required: true
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -12,16 +31,96 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     steps:
-    - name: Validate branch and derive tag
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Fetch all tags
+      run: git fetch --tags
+
+    - name: Derive tag
       id: derive
       run: |
+        set -euo pipefail
         branch="${{ github.ref_name }}"
-        if [[ "$branch" != release/* ]]; then
-          echo "::error::Workflow must be run from a branch starting with 'release/'. Got: $branch"
+        component="${{ inputs.component }}"
+
+        # ── Validate branch and determine the active minor version ──────────
+        if [[ "$branch" == "master" ]]; then
+          is_master=true
+          # Master is always one minor ahead of the highest release/v1.X branch.
+          highest_minor=$(git ls-remote --heads origin \
+            | grep -oP '(?<=refs/heads/release/v1\.)\d+$' \
+            | sort -n | tail -1 || true)
+
+          if [[ -z "$highest_minor" ]]; then
+            echo "::error::No 'release/v1.X' branches found. Cannot determine the next minor version for master."
+            exit 1
+          fi
+
+          main_minor=$(( highest_minor + 1 ))
+
+        elif [[ "$branch" =~ ^release/v1\.([0-9]+)$ ]]; then
+          is_master=false
+          main_minor="${BASH_REMATCH[1]}"
+
+        else
+          echo "::error::This workflow must be run from 'master' or a 'release/v1.X' branch. Got: '$branch'"
           exit 1
         fi
-        tag="${branch#release/}"
-        echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+        # ── Derive tag ───────────────────────────────────────────────────────
+        # 'main' tags as `v{major}.{minor}.{patch}`; all other components tag as
+        # `{component}/v{major}.{minor}.{patch}`. Unify both via a prefix variable.
+        if [[ "$component" == "main" ]]; then
+          prefix=""
+        else
+          prefix="${component}/"
+        fi
+
+        # Find the latest tag reachable from HEAD in this component's series.
+        # Tags from diverged release trains are not ancestors of HEAD and will not
+        # appear, so each branch naturally stays within its own major.minor series.
+        latest_reachable=$(git tag --merged HEAD --list "${prefix}v*" \
+          | grep -E "^${prefix}v[0-9]+\.[0-9]+\.[0-9]+$" \
+          | sort -V | tail -1 || true)
+
+        if [[ -n "$latest_reachable" ]]; then
+          # Continue the same major.minor series already active on this branch.
+          ver=$(echo "$latest_reachable" | sed "s|${prefix}v||")
+          target_series="$(echo "$ver" | awk -F. '{print $1"."$2}')"
+        else
+          # No reachable tag — start of a new series.
+          # Derive from the global highest major.minor + 1 minor.
+          highest_series=$(git tag --list "${prefix}v*" \
+            | grep -E "^${prefix}v[0-9]+\.[0-9]+\.[0-9]+$" \
+            | sed "s|${prefix}v||" \
+            | awk -F. '{print $1"."$2}' \
+            | sort -V | tail -1 || true)
+
+          if [[ -z "$highest_series" ]]; then
+            # No tags at all for this component — seed from v1.{main_minor}.
+            target_series="1.${main_minor}"
+          else
+            ser_major=$(echo "$highest_series" | awk -F. '{print $1}')
+            ser_minor=$(echo "$highest_series" | awk -F. '{print $2}')
+            target_series="${ser_major}.$(( ser_minor + 1 ))"
+          fi
+        fi
+
+        latest=$(git tag --list "${prefix}v${target_series}.*" \
+          | grep -E "^${prefix}v[0-9]+\.[0-9]+\.[0-9]+$" \
+          | sort -V | tail -1 || true)
+
+        if [[ -z "$latest" ]]; then
+          new_tag="${prefix}v${target_series}.0"
+        else
+          patch=$(echo "$latest" | awk -F. '{print $3}')
+          new_tag="${prefix}v${target_series}.$(( patch + 1 ))"
+        fi
+
+        echo "Derived tag: ${new_tag}"
+        echo "tag=${new_tag}" >> "$GITHUB_OUTPUT"
 
     - name: Validate tag format
       run: |
@@ -40,10 +139,6 @@ jobs:
           exit 1
         fi
 
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
     - name: Check tag does not already exist
       run: |
         tag="${{ steps.derive.outputs.tag }}"
@@ -54,6 +149,7 @@ jobs:
         echo "Tag '$tag' does not exist yet — proceeding."
 
     - name: Create and push tag
+      if: ${{ !inputs.dry_run }}
       run: |
         tag="${{ steps.derive.outputs.tag }}"
         git config user.name "github-actions[bot]"
@@ -63,14 +159,26 @@ jobs:
 
     - name: Summary
       run: |
+        set -euo pipefail
         tag="${{ steps.derive.outputs.tag }}"
-        sha=$(git rev-list -n 1 "$tag")
+        dry_run="${{ inputs.dry_run }}"
+
+        if [[ "$dry_run" == "true" ]]; then
+          heading="## Dry Run — Tag NOT Pushed :eyes:"
+          sha="$(git rev-parse HEAD) (HEAD — tag not pushed)"
+        else
+          heading="## Tag Created :label:"
+          sha=$(git rev-list -n 1 "$tag")
+        fi
+
         {
-          echo "## Tag Created :label:"
+          echo "${heading}"
           echo ""
           echo "| Field | Value |"
           echo "| --- | --- |"
           echo "| Tag | \`$tag\` |"
           echo "| SHA | \`$sha\` |"
           echo "| Branch | \`${{ github.ref_name }}\` |"
+          echo "| Component | \`${{ inputs.component }}\` |"
+          echo "| Dry Run | \`$dry_run\` |"
         } >> "$GITHUB_STEP_SUMMARY"
