@@ -869,7 +869,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 }
 
 func TestCNSIPAMInvoker_Add_podsubnetv6(t *testing.T) {
-	require := require.New(t)
+	req := require.New(t)
 
 	type testCase struct {
 		name           string
@@ -970,13 +970,12 @@ func TestCNSIPAMInvoker_Add_podsubnetv6(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			invoker := &CNSIPAMInvoker{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
 				cnsClient: &MockCNSClient{
-					require: require,
+					require: req,
 					requestIPs: requestIPsHandler{
 						ipconfigArgument: getTestIPConfigsRequest(),
 						result: &cns.IPConfigsResponse{
@@ -1011,17 +1010,17 @@ func TestCNSIPAMInvoker_Add_podsubnetv6(t *testing.T) {
 				options: map[string]interface{}{},
 			})
 
-			require.NoError(err)
+			req.NoError(err)
 
 			ifInfo, ok := ipamAddResult.interfaceInfo[string(cns.InfraNIC)]
-			require.True(ok)
-			require.Len(ifInfo.IPConfigs, 1)
-			require.Len(ifInfo.Routes, 1)
+			req.True(ok)
+			req.Len(ifInfo.IPConfigs, 1)
+			req.Len(ifInfo.Routes, 1)
 
-			require.Equal(tt.wantGateway, ifInfo.IPConfigs[0].Gateway.String())
+			req.Equal(tt.wantGateway, ifInfo.IPConfigs[0].Gateway.String())
 			prefixSize, _ := ifInfo.IPConfigs[0].Address.Mask.Size()
-			require.Equal(tt.wantPrefixSize, prefixSize)
-			require.Equal(tt.wantGateway, ifInfo.Routes[0].Gw.String())
+			req.Equal(tt.wantPrefixSize, prefixSize)
+			req.Equal(tt.wantGateway, ifInfo.Routes[0].Gw.String())
 		})
 	}
 }
