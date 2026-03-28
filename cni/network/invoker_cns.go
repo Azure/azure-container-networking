@@ -199,10 +199,10 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
-			podIPAddress:   response.PodIPInfo[i].PodIPConfig.IPAddress,
-			ncSubnetPrefix: getIPConfigPrefixLength(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
 			// ncPrimaryIP intentionally stays IPv4 — it is only used for SNAT/iptables which are IPv4-only codepaths.
 			ncPrimaryIP:          response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
+			podIPAddress:         response.PodIPInfo[i].PodIPConfig.IPAddress,
+			ncSubnetPrefix:       getIPConfigPrefixLength(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
 			ncGatewayIPAddress:   getIPConfigGatewayAddress(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
 			ncSubnetPrefixIPv6:   response.PodIPInfo[i].NetworkContainerIPv6Config.IPSubnet.PrefixLength,
 			ncIPv6:               response.PodIPInfo[i].NetworkContainerIPv6Config.IPSubnet.IPAddress,
