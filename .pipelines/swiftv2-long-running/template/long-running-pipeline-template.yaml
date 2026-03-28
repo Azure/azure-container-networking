@@ -77,17 +77,52 @@ stages:
                     az aks get-credentials -g "$(rgName)" -n "$CLUSTER" --admin \
                       --overwrite-existing --file "$KUBECONFIG"
 
-                    echo "  Labeling nodepool1 nodes: workload-type=swiftv2-linux, nic-capacity=low-nic"
-                    kubectl --kubeconfig "$KUBECONFIG" label nodes -l agentpool=nodepool1 \
-                      workload-type=swiftv2-linux nic-capacity=low-nic --overwrite
+                    # Remove workload-type and nic-capacity labels from SchedulingDisabled nodes
+                    CORDONED_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes \
+                      -o jsonpath='{range .items[?(@.spec.unschedulable)]}{.metadata.name}{"\n"}{end}')
+                    if [ -n "$CORDONED_NODES" ]; then
+                      echo "  Removing labels from SchedulingDisabled (cordoned) nodes:"
+                      for NODE in $CORDONED_NODES; do
+                        echo "    Removing labels from $NODE"
+                        kubectl --kubeconfig "$KUBECONFIG" label node "$NODE" \
+                          workload-type- nic-capacity- 2>/dev/null || true
+                      done
+                    fi
 
-                    echo "  Labeling nplinux nodes: workload-type=swiftv2-linux, nic-capacity=high-nic"
-                    kubectl --kubeconfig "$KUBECONFIG" label nodes -l agentpool=nplinux \
-                      workload-type=swiftv2-linux nic-capacity=high-nic --overwrite
+                    # Label only schedulable nodepool1 nodes
+                    echo "  Labeling schedulable nodepool1 nodes: workload-type=swiftv2-linux, nic-capacity=low-nic"
+                    NODEPOOL1_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes \
+                      -l agentpool=nodepool1 \
+                      --field-selector spec.unschedulable!=true \
+                      -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+                    if [ -z "$NODEPOOL1_NODES" ]; then
+                      # field-selector may not support unschedulable; filter manually
+                      NODEPOOL1_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes -l agentpool=nodepool1 \
+                        -o json | jq -r '.items[] | select(.spec.unschedulable != true) | .metadata.name')
+                    fi
+                    for NODE in $NODEPOOL1_NODES; do
+                      kubectl --kubeconfig "$KUBECONFIG" label node "$NODE" \
+                        workload-type=swiftv2-linux nic-capacity=low-nic --overwrite
+                    done
+
+                    # Label only schedulable nplinux nodes
+                    echo "  Labeling schedulable nplinux nodes: workload-type=swiftv2-linux, nic-capacity=high-nic"
+                    NPLINUX_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes \
+                      -l agentpool=nplinux \
+                      --field-selector spec.unschedulable!=true \
+                      -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+                    if [ -z "$NPLINUX_NODES" ]; then
+                      NPLINUX_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes -l agentpool=nplinux \
+                        -o json | jq -r '.items[] | select(.spec.unschedulable != true) | .metadata.name')
+                    fi
+                    for NODE in $NPLINUX_NODES; do
+                      kubectl --kubeconfig "$KUBECONFIG" label node "$NODE" \
+                        workload-type=swiftv2-linux nic-capacity=high-nic --overwrite
+                    done
 
                     echo "  Current node labels:"
                     kubectl --kubeconfig "$KUBECONFIG" get nodes \
-                      -o custom-columns='NAME:.metadata.name,WORKLOAD:.metadata.labels.workload-type,NIC:.metadata.labels.nic-capacity,POOL:.metadata.labels.agentpool'
+                      -o custom-columns='NAME:.metadata.name,STATUS:.status.conditions[?(@.type=="Ready")].reason,SCHEDULABLE:.spec.unschedulable,WORKLOAD:.metadata.labels.workload-type,NIC:.metadata.labels.nic-capacity,POOL:.metadata.labels.agentpool'
                   done
 
         # Only run full setup jobs if infrastructure is missing
