@@ -36,7 +36,7 @@ jobs:
     needs: setup
     strategy:
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-22.04, ubuntu-24.04]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -44,6 +44,9 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6
         with:
           go-version: ${{ needs.setup.outputs.go-version }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y iptables ipset iproute2
 
       - name: Build BPF lib
         run: make bpf-lib
