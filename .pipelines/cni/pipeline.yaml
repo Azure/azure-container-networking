@@ -9,6 +9,15 @@ parameters:
   - name: upgradeScenario
     type: boolean
     default: false
+  - name: cnsImage
+    type: string
+    default: ""
+  - name: ipamImage
+    type: string
+    default: ""
+  - name: cniImage
+    type: string
+    default: ""
 
 stages:
   - stage: setup
@@ -24,6 +33,64 @@ stages:
               go version
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
+
+              cnsImage='${{ parameters.cnsImage }}'
+              ipamImage='${{ parameters.ipamImage }}'
+              cniImage='${{ parameters.cniImage }}'
+
+              if [ -n "$cnsImage" ]; then
+                cnsVersion="${cnsImage##*:}"
+                cnsImageRepo="${cnsImage%:*}"
+                cnsImageRepo="${cnsImageRepo%/azure-cns}"
+                echo "Using provided CNS image: $cnsImage"
+                echo "##vso[task.setvariable variable=useProvidedCnsImage;isOutput=true]true"
+              else
+                cnsVersion="$(make cns-version)"
+                cnsImageRepo="$CNS_IMAGE_REPO"
+                cnsImage="${cnsImageRepo}/azure-cns:${cnsVersion}"
+                echo "No CNS image provided, using default: $cnsImage"
+                echo "##vso[task.setvariable variable=useProvidedCnsImage;isOutput=true]false"
+              fi
+
+              if [ -n "$ipamImage" ]; then
+                ipamVersion="${ipamImage##*:}"
+                ipamImageRepo="${ipamImage%:*}"
+                ipamImageRepo="${ipamImageRepo%/azure-ipam}"
+                echo "Using provided IPAM image: $ipamImage"
+                echo "##vso[task.setvariable variable=useProvidedIpamImage;isOutput=true]true"
+              else
+                ipamVersion="$(make azure-ipam-version)"
+                ipamImageRepo="$IPAM_IMAGE_REPO"
+                ipamImage="${ipamImageRepo}/azure-ipam:${ipamVersion}"
+                echo "No IPAM image provided, using default: $ipamImage"
+                echo "##vso[task.setvariable variable=useProvidedIpamImage;isOutput=true]false"
+              fi
+
+              if [ -n "$cniImage" ]; then
+                cniVersion="${cniImage##*:}"
+                cniImageRepo="${cniImage%:*}"
+                cniImageRepo="${cniImageRepo%/azure-cni}"
+                echo "Using provided CNI image: $cniImage"
+                echo "##vso[task.setvariable variable=useProvidedCniImage;isOutput=true]true"
+              else
+                cniVersion="$(make cni-version)"
+                cniImageRepo="$CNI_IMAGE_REPO"
+                cniImage="${cniImageRepo}/azure-cni:${cniVersion}"
+                echo "No CNI image provided, using default: $cniImage"
+                echo "##vso[task.setvariable variable=useProvidedCniImage;isOutput=true]false"
+              fi
+
+              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$cnsVersion"
+              echo "##vso[task.setvariable variable=cnsImageRepo;isOutput=true]$cnsImageRepo"
+              echo "##vso[task.setvariable variable=resolvedCnsImage;isOutput=true]$cnsImage"
+
+              echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]$ipamVersion"
+              echo "##vso[task.setvariable variable=ipamImageRepo;isOutput=true]$ipamImageRepo"
+              echo "##vso[task.setvariable variable=resolvedIpamImage;isOutput=true]$ipamImage"
+
+              echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$cniVersion"
+              echo "##vso[task.setvariable variable=cniImageRepo;isOutput=true]$cniImageRepo"
+              echo "##vso[task.setvariable variable=resolvedCniImage;isOutput=true]$cniImage"
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
@@ -38,30 +105,33 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
           matrix:
-            azure_ipam_linux_amd64:
-              arch: amd64
-              name: azure-ipam
-              os: linux
-            azure_ipam_windows_amd64:
-              arch: amd64
-              name: azure-ipam
-              os: windows
-            cni_linux_amd64:
-              arch: amd64
-              name: cni
-              os: linux
-            cni_windows_amd64:
-              arch: amd64
-              name: cni
-              os: windows
-            cns_linux_amd64:
-              arch: amd64
-              name: cns
-              os: linux
-            cns_windows_amd64:
-              arch: amd64
-              name: cns
-              os: windows
+            ${{ if eq(parameters.ipamImage, '') }}:
+              azure_ipam_linux_amd64:
+                arch: amd64
+                name: azure-ipam
+                os: linux
+              azure_ipam_windows_amd64:
+                arch: amd64
+                name: azure-ipam
+                os: windows
+            ${{ if eq(parameters.cniImage, '') }}:
+              cni_linux_amd64:
+                arch: amd64
+                name: cni
+                os: linux
+              cni_windows_amd64:
+                arch: amd64
+                name: cni
+                os: windows
+            ${{ if eq(parameters.cnsImage, '') }}:
+              cns_linux_amd64:
+                arch: amd64
+                name: cns
+                os: linux
+              cns_windows_amd64:
+                arch: amd64
+                name: cns
+                os: windows
             ipv6_hp_bpf_linux_amd64:
               arch: amd64
               name: ipv6-hp-bpf
@@ -90,18 +160,21 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
         strategy:
           matrix:
-              azure_ipam_linux_arm64:
-                arch: arm64
-                name: azure-ipam
-                os: linux
-              cni_linux_arm64:
-                arch: arm64
-                name: cni
-                os: linux
-              cns_linux_arm64:
-                arch: arm64
-                name: cns
-                os: linux
+              ${{ if eq(parameters.ipamImage, '') }}:
+                azure_ipam_linux_arm64:
+                  arch: arm64
+                  name: azure-ipam
+                  os: linux
+              ${{ if eq(parameters.cniImage, '') }}:
+                cni_linux_arm64:
+                  arch: arm64
+                  name: cni
+                  os: linux
+              ${{ if eq(parameters.cnsImage, '') }}:
+                cns_linux_arm64:
+                  arch: arm64
+                  name: cns
+                  os: linux
               ipv6_hp_bpf_linux_arm64:
                 arch: arm64
                 name: ipv6-hp-bpf
@@ -164,15 +237,18 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
-            azure-ipam:
-              name: azure-ipam
-              platforms: linux/amd64 linux/arm64 windows/amd64
-            cni:
-              name: cni
-              platforms: linux/amd64 linux/arm64 windows/amd64
-            cns:
-              name: cns
-              platforms: linux/amd64 linux/arm64 windows/amd64
+            ${{ if eq(parameters.ipamImage, '') }}:
+              azure-ipam:
+                name: azure-ipam
+                platforms: linux/amd64 linux/arm64 windows/amd64
+            ${{ if eq(parameters.cniImage, '') }}:
+              cni:
+                name: cni
+                platforms: linux/amd64 linux/arm64 windows/amd64
+            ${{ if eq(parameters.cnsImage, '') }}:
+              cns:
+                name: cns
+                platforms: linux/amd64 linux/arm64 windows/amd64
             ipv6-hp-bpf:
               name: ipv6-hp-bpf
               platforms: linux/amd64 linux/arm64

@@ -103,6 +103,9 @@ stages:
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
       npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
+      cniVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cniVersion'] ]
+      resolvedCniImage: $[ stagedependencies.setup.env.outputs['SetEnvVars.resolvedCniImage'] ]
+      useProvidedCniImage: $[ stagedependencies.setup.env.outputs['SetEnvVars.useProvidedCniImage'] ]
       ${{ if eq(parameters.arch, 'amd64') }}:
         location: $(LOCATION_AMD64)
       ${{ if eq(parameters.arch, 'arm64') }}:
@@ -129,17 +132,29 @@ stages:
                 echo "Upload CNI"
                 echo "Deploying on Linux nodes"
                 if [ "${{parameters.os}}" == "windows" ]; then
-                  export CNI_IMAGE=$(make cni-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }} CNI_VERSION=$(make cni-version))
+                  if [ "$(useProvidedCniImage)" == "true" ]; then
+                    export CNI_IMAGE=$(resolvedCniImage)
+                  else
+                    export CNI_IMAGE=$(make cni-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }} CNI_VERSION=$(cniVersion))
+                  fi
                   echo "CNI image: $CNI_IMAGE"
                   envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
                   kubectl rollout status daemonset/azure-cni -n kube-system
                   echo "Deploying on windows nodes"
-                  export CNI_IMAGE=$(make cni-image-name-and-tag OS='windows' ARCH=${{ parameters.arch }}  OS_VERSION=${{ parameters.os_version }} CNI_VERSION=$(make cni-version))
+                  if [ "$(useProvidedCniImage)" == "true" ]; then
+                    export CNI_IMAGE=$(resolvedCniImage)
+                  else
+                    export CNI_IMAGE=$(make cni-image-name-and-tag OS='windows' ARCH=${{ parameters.arch }}  OS_VERSION=${{ parameters.os_version }} CNI_VERSION=$(cniVersion))
+                  fi
                   echo "CNI image: $CNI_IMAGE"
                   envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
                   kubectl rollout status daemonset/azure-cni-windows -n kube-system
                 else
-                  export CNI_IMAGE=$(make cni-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }} CNI_VERSION=$(make cni-version))
+                  if [ "$(useProvidedCniImage)" == "true" ]; then
+                    export CNI_IMAGE=$(resolvedCniImage)
+                  else
+                    export CNI_IMAGE=$(make cni-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }} CNI_VERSION=$(cniVersion))
+                  fi
                   echo "CNI image: $CNI_IMAGE"
                   envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
                   kubectl rollout status daemonset/azure-cni -n kube-system
