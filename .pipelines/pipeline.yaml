@@ -48,7 +48,7 @@ parameters:
     default: "__use-default__"
   - name: runName
     type: string
-    default: ""
+    default: "__use-default__"
 
 stages:
   - stage: setup
@@ -62,7 +62,7 @@ stages:
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
               CUSTOM_RUN_NAME="${{ parameters.runName }}"
-              if [ -n "$CUSTOM_RUN_NAME" ]; then
+              if [ "$CUSTOM_RUN_NAME" != "__use-default__" ]; then
                 echo "##vso[build.updatebuildnumber]$CUSTOM_RUN_NAME"
               fi
 
