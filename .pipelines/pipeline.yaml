@@ -46,6 +46,9 @@ parameters:
   - name: ipamImage
     type: string
     default: "__use-default__"
+  - name: runName
+    type: string
+    default: ""
 
 stages:
   - stage: setup
@@ -61,6 +64,11 @@ stages:
           - template: templates/git-diff-check.yaml
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
+              CUSTOM_RUN_NAME="${{ parameters.runName }}"
+              if [ -n "$CUSTOM_RUN_NAME" ]; then
+                echo "##vso[build.updatebuildnumber]$CUSTOM_RUN_NAME"
+              fi
+
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
