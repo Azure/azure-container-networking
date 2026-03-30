@@ -29,6 +29,7 @@ PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
 LTS					 ?= false
 ACNS				 ?= false
+GATEWAYAPI			 ?= false
 
 
 # overrideable variables
@@ -52,6 +53,14 @@ else
 	ACNS_ARGS=
 endif
 
+# Only use with *cilium* recipes
+# Gateway API
+ifeq ($(GATEWAYAPI),true)
+	GATEWAYAPI_ARGS=--enable-gateway-api
+else
+	GATEWAYAPI_ARGS=
+endif
+
 # Common az aks create fields
 COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--auto-upgrade-channel $(AUTOUPGRADE) \
@@ -61,7 +70,7 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--node-vm-size $(VM_SIZE) \
 	--no-ssh-key \
 	--os-sku $(OS_SKU) \
-	$(LTS_ARGS) $(ACNS_ARGS)
+	$(LTS_ARGS) $(ACNS_ARGS) $(GATEWAYAPI_ARGS)
 POD_CIDR = 192.168.0.0/16
 
 ##@ Help
@@ -122,6 +131,7 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo K8S_VER=$(K8S_VER)
 	@echo LTS_ARGS=$(if $(LTS_ARGS),$(LTS_ARGS),$(LTS))
 	@echo ACNS_ARGS=$(if $(ACNS_ARGS),$(ACNS_ARGS),$(ACNS))
+	@echo GATEWAYAPI_ARGS=$(if $(GATEWAYAPI_ARGS),$(GATEWAYAPI_ARGS),$(GATEWAYAPI))
 	@echo COMMON_AKS_FIELDS=$(COMMON_AKS_FIELDS)
 
 
