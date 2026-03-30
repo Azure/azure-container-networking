@@ -1,12 +1,15 @@
+//go:build hourly_rotating_test || hourly_alwayson_test || hourly_connectivity_test
+
 package longrunningcluster
 
 import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // Shared constants for hourly pod tests (rotating + always-on DaemonSet).
@@ -90,14 +93,9 @@ func GetDaemonSetName() string {
 func GetDaemonSetPodName(kubeconfig, namespace, dsName string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "pods", //nolint:gosec // test helper with controlled inputs
-		"-n", namespace, "-l", "app="+dsName,
-		"-o", "jsonpath={.items[0].metadata.name}")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
+	c := mustGetK8sClient(kubeconfig)
+	name, _ := getDaemonSetPodName(ctx, c, namespace, dsName)
+	return name
 }
 
 // GetZoneLabel returns the full zone label value (e.g., "eastus2euap-1").
@@ -113,50 +111,65 @@ func GetZoneLabel(location string) string {
 func IsPodExists(kubeconfig, namespace, podName string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName,
-		"-n", namespace, "--no-headers", "--ignore-not-found")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return false
-	}
-	return strings.TrimSpace(string(out)) != ""
+	c := mustGetK8sClient(kubeconfig)
+	pod := &corev1.Pod{}
+	err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: podName}, pod)
+	return err == nil
 }
 
 // IsPodRunning checks if a pod is in Running phase.
 func IsPodRunning(kubeconfig, namespace, podName string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName,
-		"-n", namespace, "-o", "jsonpath={.status.phase}")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
+	c := mustGetK8sClient(kubeconfig)
+	pod := &corev1.Pod{}
+	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: podName}, pod); err != nil {
 		return false
 	}
-	return strings.TrimSpace(string(out)) == "Running"
+	return pod.Status.Phase == corev1.PodRunning
 }
 
 // GetNodeByLabel returns the first node matching the given label selector.
 func GetNodeByLabel(kubeconfig, labelSelector string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "nodes",
-		"-l", labelSelector, "-o", "jsonpath={.items[0].metadata.name}")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
+	c := mustGetK8sClient(kubeconfig)
+	name, _ := getNodeByLabels(ctx, c, labelSelector)
+	return name
+}
+
+// IsDeploymentExists checks if a deployment exists in the namespace.
+func IsDeploymentExists(kubeconfig, namespace, deploymentName string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c := mustGetK8sClient(kubeconfig)
+	exists, _ := deploymentExists(ctx, c, namespace, deploymentName)
+	return exists
+}
+
+// IsDeploymentReady checks if a deployment has its desired replicas ready.
+func IsDeploymentReady(kubeconfig, namespace, deploymentName string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c := mustGetK8sClient(kubeconfig)
+	ready, _ := isDeploymentReady(ctx, c, namespace, deploymentName)
+	return ready
+}
+
+// GetDeploymentPodName returns the name of the pod managed by a deployment.
+func GetDeploymentPodName(kubeconfig, namespace, deploymentName string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c := mustGetK8sClient(kubeconfig)
+	name, _ := getDeploymentPodName(ctx, c, namespace, deploymentName)
+	return name
 }
 
 // GetNodeZone returns the zone label value for a given node.
 func GetNodeZone(kubeconfig, nodeName string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfig, "get", "node", nodeName,
-		"-o", "jsonpath={.metadata.labels.topology\\.kubernetes\\.io/zone}")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
+	c := mustGetK8sClient(kubeconfig)
+	zone, _ := getNodeZoneLabel(ctx, c, nodeName)
+	return zone
 }

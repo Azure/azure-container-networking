@@ -130,12 +130,15 @@ stages:
 
                 if go test -v -timeout=45m -tags=hourly_rotating_test; then
                   echo "RotatingPods Zone ${{ parameters.zone }} PASSED"
-                  cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-rotating-z${{ parameters.zone }}" --test-scenario "Rotating pod management zone ${{ parameters.zone }}"
+                  # TODO: Re-enable with a dedicated long-running metric name once persistent-cluster-metrics
+                  # in Networking-Aquarius is updated to support it. Currently disabled to avoid polluting
+                  # PersistentClusterTestsSucceeded/Failed alerts with hourly test noise.
+                  # cd $metrics_dir
+                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-rotating-z${{ parameters.zone }}" --test-scenario "Rotating pod management zone ${{ parameters.zone }}"
                 else
                   echo "RotatingPods Zone ${{ parameters.zone }} FAILED"
-                  cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-rotating-z${{ parameters.zone }}" --test-scenario "Rotating pod management zone ${{ parameters.zone }}"
+                  # cd $metrics_dir
+                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-rotating-z${{ parameters.zone }}" --test-scenario "Rotating pod management zone ${{ parameters.zone }}"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -197,12 +200,14 @@ stages:
 
                 if go test -v -timeout=45m -tags=hourly_alwayson_test; then
                   echo "AlwaysOnPods Zone ${{ parameters.zone }} PASSED"
-                  cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-alwayson-z${{ parameters.zone }}" --test-scenario "Always-on pod management zone ${{ parameters.zone }}"
+                  # TODO: Re-enable with a dedicated long-running metric name once persistent-cluster-metrics
+                  # in Networking-Aquarius is updated to support it.
+                  # cd $metrics_dir
+                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-alwayson-z${{ parameters.zone }}" --test-scenario "Always-on pod management zone ${{ parameters.zone }}"
                 else
                   echo "AlwaysOnPods Zone ${{ parameters.zone }} FAILED"
-                  cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-alwayson-z${{ parameters.zone }}" --test-scenario "Always-on pod management zone ${{ parameters.zone }}"
+                  # cd $metrics_dir
+                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-alwayson-z${{ parameters.zone }}" --test-scenario "Always-on pod management zone ${{ parameters.zone }}"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -267,12 +272,14 @@ stages:
 
                 if go test -v -timeout=20m -tags=hourly_connectivity_test; then
                   echo "Connectivity Zone ${{ parameters.zone }} PASSED"
-                  cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-connectivity-z${{ parameters.zone }}" --test-scenario "Hourly connectivity zone ${{ parameters.zone }}"
+                  # TODO: Re-enable with a dedicated long-running metric name once persistent-cluster-metrics
+                  # in Networking-Aquarius is updated to support it.
+                  # cd $metrics_dir
+                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-connectivity-z${{ parameters.zone }}" --test-scenario "Hourly connectivity zone ${{ parameters.zone }}"
                 else
                   echo "Connectivity Zone ${{ parameters.zone }} FAILED"
-                  cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-connectivity-z${{ parameters.zone }}" --test-scenario "Hourly connectivity zone ${{ parameters.zone }}"
+                  # cd $metrics_dir
+                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-connectivity-z${{ parameters.zone }}" --test-scenario "Hourly connectivity zone ${{ parameters.zone }}"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)

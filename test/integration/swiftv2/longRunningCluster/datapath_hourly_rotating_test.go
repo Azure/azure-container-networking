@@ -4,16 +4,16 @@
 package longrunningcluster
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-container-networking/test/integration/swiftv2/helpers"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func TestHourlyRotating(t *testing.T) {
@@ -23,25 +23,21 @@ func TestHourlyRotating(t *testing.T) {
 
 const rotatingPodMaxAge = 6 * time.Hour
 
-// getPodCreationTime gets the created-at annotation from a pod to determine its age.
-func getPodCreationTime(kubeconfig, namespace, podName string) (time.Time, error) {
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName,
-		"-n", namespace, "-o", fmt.Sprintf("jsonpath={.metadata.annotations['%s']}", HourlyCreatedAtAnnotation))
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to get pod annotation: %w\nOutput: %s", err, string(out))
+// getDeploymentCreationTime gets the created-at annotation from a deployment's pod template.
+func getDeploymentCreationTime(kubeconfig, namespace, deploymentName string) (time.Time, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c := mustGetK8sClient(kubeconfig)
+
+	dep := &appsv1.Deployment{}
+	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: deploymentName}, dep); err != nil {
+		return time.Time{}, fmt.Errorf("failed to get deployment %s: %w", deploymentName, err)
 	}
 
-	timeStr := strings.TrimSpace(string(out))
+	timeStr := dep.Spec.Template.Annotations[HourlyCreatedAtAnnotation]
 	if timeStr == "" {
-		// Fall back to pod creation timestamp
-		cmd = exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "pod", podName,
-			"-n", namespace, "-o", "jsonpath={.metadata.creationTimestamp}")
-		out, err = cmd.CombinedOutput()
-		if err != nil {
-			return time.Time{}, fmt.Errorf("failed to get pod creation timestamp: %w", err)
-		}
-		timeStr = strings.TrimSpace(string(out))
+		// Fall back to deployment creation timestamp
+		return dep.CreationTimestamp.Time, nil
 	}
 
 	t, err := time.Parse(time.RFC3339, timeStr)
@@ -51,85 +47,76 @@ func getPodCreationTime(kubeconfig, namespace, podName string) (time.Time, error
 	return t, nil
 }
 
-// deleteRotatingPod deletes a single pod with MTPNC cleanup wait.
-func deleteRotatingPod(kubeconfig, namespace, podName string) error {
-	fmt.Printf("Deleting rotating pod %s in namespace %s\n", podName, namespace)
-	err := helpers.DeletePod(kubeconfig, namespace, podName)
-	if err != nil {
-		return fmt.Errorf("failed to delete pod %s: %w", podName, err)
+// deleteRotatingDeployment deletes a single deployment with MTPNC cleanup wait.
+func deleteRotatingDeployment(kubeconfig, namespace, deploymentName string) error {
+	fmt.Printf("Deleting rotating deployment %s in namespace %s\n", deploymentName, namespace)
+	ctx := context.Background()
+	c := mustGetK8sClient(kubeconfig)
+
+	if err := deleteDeploymentAndWait(ctx, c, namespace, deploymentName, 90*time.Second); err != nil {
+		return fmt.Errorf("failed to delete deployment %s: %w", deploymentName, err)
 	}
-	if err := helpers.WaitForMTPNCCleanup(kubeconfig, namespace, 120); err != nil {
-		fmt.Printf("Warning: MTPNC cleanup didn't complete for pod %s: %v\n", podName, err)
+
+	if err := waitForMTPNCCleanup(ctx, c, namespace, 120*time.Second); err != nil {
+		fmt.Printf("Warning: MTPNC cleanup didn't complete for deployment %s: %v\n", deploymentName, err)
 	}
 	return nil
 }
 
-// createRotatingPod creates a single rotating pod with a created-at annotation.
-func createRotatingPod(kubeconfig, namespace, pniName, pnName, nodeName, podName, podImage string) error {
+// createRotatingDeployment creates a single rotating deployment with a created-at annotation.
+func createRotatingDeployment(kubeconfig, namespace, pniName, pnName, nodeName, deploymentName, podImage string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
+	ctx := context.Background()
+	c := mustGetK8sClient(kubeconfig)
 
-	err := CreatePod(kubeconfig, PodData{
-		PodName:   podName,
-		NodeName:  nodeName,
-		OS:        "linux",
-		PNName:    pnName,
-		PNIName:   pniName,
-		Namespace: namespace,
-		Image:     podImage,
-	}, "../../manifests/swiftv2/long-running-cluster/pod.yaml")
-	if err != nil {
-		return fmt.Errorf("failed to create pod %s: %w", podName, err)
+	dep := createDeploymentObject(DeploymentData{
+		DeploymentName: deploymentName,
+		NodeName:       nodeName,
+		PNName:         pnName,
+		PNIName:        pniName,
+		Namespace:      namespace,
+		Image:          podImage,
+		CreatedAt:      now,
+	})
+
+	if err := withRetry(ctx, 3, 5*time.Second, func() error {
+		return c.Create(ctx, dep)
+	}); err != nil {
+		return fmt.Errorf("failed to create deployment %s: %w", deploymentName, err)
 	}
 
-	// Annotate with creation time
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "annotate", "pod", podName,
-		"-n", namespace, fmt.Sprintf("%s=%s", HourlyCreatedAtAnnotation, now), "--overwrite")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("Warning: failed to annotate pod %s: %s\n", podName, string(out))
+	if err := waitForDeploymentReady(ctx, c, namespace, deploymentName, 10, 30); err != nil {
+		return fmt.Errorf("deployment %s did not become ready: %w", deploymentName, err)
 	}
 
-	err = helpers.WaitForPodRunning(kubeconfig, namespace, podName, 10, 30)
-	if err != nil {
-		return fmt.Errorf("pod %s did not reach running state: %w", podName, err)
-	}
-
-	fmt.Printf("Created rotating pod %s at %s on node %s\n", podName, now, nodeName)
+	fmt.Printf("Created rotating deployment %s at %s on node %s\n", deploymentName, now, nodeName)
 	return nil
 }
 
 // ensureRotatingPNAndPNI ensures the PodNetwork and PodNetworkInstance exist for rotating pods.
 func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "podnetwork", pnName, "--no-headers", "--ignore-not-found")
-	out, _ := cmd.CombinedOutput()
-	if strings.TrimSpace(string(out)) != "" {
+	ctx := context.Background()
+	c := mustGetK8sClient(kubeconfig)
+
+	exists, err := podNetworkExists(ctx, c, pnName)
+	gomega.Expect(err).To(gomega.BeNil(), "Failed to check PodNetwork existence")
+	if exists {
 		fmt.Printf("PodNetwork %s already exists, reusing\n", pnName)
 	} else {
 		fmt.Printf("Creating PodNetwork %s\n", pnName)
-		info, err := GetOrFetchVnetSubnetInfo(rg, "cx_vnet_v1", "s1", make(map[string]VnetSubnetInfo))
-		gomega.Expect(err).To(gomega.BeNil(), "Failed to get VNet/Subnet info for rotating PN")
-		err = CreatePodNetwork(kubeconfig, PodNetworkData{
-			PNName:      pnName,
-			VnetGUID:    info.VnetGUID,
-			SubnetGUID:  info.SubnetGUID,
-			SubnetARMID: info.SubnetARMID,
-		}, "../../manifests/swiftv2/long-running-cluster/podnetwork.yaml")
+		info, infoErr := GetOrFetchVnetSubnetInfo(rg, "cx_vnet_v1", "s1", make(map[string]VnetSubnetInfo))
+		gomega.Expect(infoErr).To(gomega.BeNil(), "Failed to get VNet/Subnet info for rotating PN")
+		err = createPodNetworkCR(ctx, c, pnName, info.VnetGUID, info.SubnetGUID, info.SubnetARMID)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to create PodNetwork")
 	}
 
-	cmd = exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "podnetworkinstance", pniName,
-		"-n", namespace, "--no-headers", "--ignore-not-found")
-	out, _ = cmd.CombinedOutput()
-	if strings.TrimSpace(string(out)) != "" {
+	exists, err = podNetworkInstanceExists(ctx, c, namespace, pniName)
+	gomega.Expect(err).To(gomega.BeNil(), "Failed to check PodNetworkInstance existence")
+	if exists {
 		fmt.Printf("PodNetworkInstance %s already exists, reusing\n", pniName)
 	} else {
 		fmt.Printf("Creating PodNetworkInstance %s\n", pniName)
-		err := CreatePodNetworkInstance(kubeconfig, PNIData{
-			PNIName:      pniName,
-			PNName:       pnName,
-			Namespace:    namespace,
-			Reservations: HourlyRotatingPodCount + 1,
-		}, "../../manifests/swiftv2/long-running-cluster/podnetworkinstance.yaml")
+		err = createPodNetworkInstanceCR(ctx, c, pniName, namespace, pnName, 0)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to create PodNetworkInstance")
 	}
 }
@@ -150,11 +137,12 @@ var _ = ginkgo.Describe("Hourly Rotating Pod Tests", func() {
 
 		kubeconfig := getKubeconfigPath("aks-1")
 		podImage := "nicolaka/netshoot:latest"
+		c := mustGetK8sClient(kubeconfig)
 
 		// Get the rotating node in this zone
 		rotatingNode := GetNodeByLabel(kubeconfig, GetRotatingNodeSelector(location))
 		gomega.Expect(rotatingNode).NotTo(gomega.BeEmpty(),
-			fmt.Sprintf("No node found with selector: %s", GetRotatingNodeSelector(location)))
+			"No node found with selector: "+GetRotatingNodeSelector(location))
 
 		// Confirm the node's zone
 		nodeZone := GetNodeZone(kubeconfig, rotatingNode)
@@ -166,49 +154,50 @@ var _ = ginkgo.Describe("Hourly Rotating Pod Tests", func() {
 		pniName := GetZonedPNIName(HourlyRotatingPNIPrefix, buildID)
 
 		// Ensure namespace exists
-		err := helpers.EnsureNamespaceExists(kubeconfig, namespace)
+		ctx := context.Background()
+		err := ensureNamespace(ctx, c, namespace)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to ensure namespace exists")
 
 		// Ensure PodNetwork and PodNetworkInstance exist (reuse across runs)
 		ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace)
 
-		// Scan existing pods: find which slots are occupied and their ages
+		// Scan existing deployments: find which slots are occupied and their ages
 		now := time.Now().UTC()
 		deletedCount := 0
 		createdCount := 0
 		existingSlots := make(map[int]bool)
 
 		for slot := 0; slot < HourlyRotatingPodCount; slot++ {
-			podName := GetRotatingPodName(slot)
-			if !IsPodExists(kubeconfig, namespace, podName) {
+			deploymentName := GetRotatingPodName(slot)
+			if !IsDeploymentExists(kubeconfig, namespace, deploymentName) {
 				continue
 			}
 			existingSlots[slot] = true
 
 			// Check age - delete if older than 6 hours
-			createdAt, err := getPodCreationTime(kubeconfig, namespace, podName)
+			createdAt, err := getDeploymentCreationTime(kubeconfig, namespace, deploymentName)
 			if err != nil {
-				fmt.Printf("Cannot determine age of pod %s, deleting: %v\n", podName, err)
-				delErr := deleteRotatingPod(kubeconfig, namespace, podName)
-				gomega.Expect(delErr).To(gomega.BeNil(), fmt.Sprintf("Failed to delete aged-out pod %s", podName))
+				fmt.Printf("Cannot determine age of deployment %s, deleting: %v\n", deploymentName, err)
+				delErr := deleteRotatingDeployment(kubeconfig, namespace, deploymentName)
+				gomega.Expect(delErr).To(gomega.BeNil(), "Failed to delete aged-out deployment "+deploymentName)
 				existingSlots[slot] = false
 				deletedCount++
 				continue
 			}
 
 			age := now.Sub(createdAt)
-			fmt.Printf("Pod %s age: %v (created at %s)\n", podName, age.Round(time.Minute), createdAt.Format(time.RFC3339))
+			fmt.Printf("Deployment %s age: %v (created at %s)\n", deploymentName, age.Round(time.Minute), createdAt.Format(time.RFC3339))
 
 			if age > rotatingPodMaxAge {
-				fmt.Printf("Pod %s exceeded max age (%v > %v), deleting\n", podName, age.Round(time.Minute), rotatingPodMaxAge)
-				delErr := deleteRotatingPod(kubeconfig, namespace, podName)
-				gomega.Expect(delErr).To(gomega.BeNil(), fmt.Sprintf("Failed to delete aged-out pod %s", podName))
+				fmt.Printf("Deployment %s exceeded max age (%v > %v), deleting\n", deploymentName, age.Round(time.Minute), rotatingPodMaxAge)
+				delErr := deleteRotatingDeployment(kubeconfig, namespace, deploymentName)
+				gomega.Expect(delErr).To(gomega.BeNil(), "Failed to delete aged-out deployment "+deploymentName)
 				existingSlots[slot] = false
 				deletedCount++
 			}
 		}
 
-		// Ensure at least 1 pod is rotated per hour even if none expired
+		// Ensure at least 1 deployment is rotated per hour even if none expired
 		if deletedCount == 0 {
 			oldestSlot := -1
 			var oldestTime time.Time
@@ -217,8 +206,8 @@ var _ = ginkgo.Describe("Hourly Rotating Pod Tests", func() {
 				if !existingSlots[slot] {
 					continue
 				}
-				podName := GetRotatingPodName(slot)
-				createdAt, err := getPodCreationTime(kubeconfig, namespace, podName)
+				deploymentName := GetRotatingPodName(slot)
+				createdAt, err := getDeploymentCreationTime(kubeconfig, namespace, deploymentName)
 				if err != nil {
 					continue
 				}
@@ -229,37 +218,37 @@ var _ = ginkgo.Describe("Hourly Rotating Pod Tests", func() {
 			}
 
 			if oldestSlot >= 0 {
-				podName := GetRotatingPodName(oldestSlot)
-				fmt.Printf("Rotating oldest pod %s (age: %v) to ensure at least 1 rotation per hour\n",
-					podName, now.Sub(oldestTime).Round(time.Minute))
-				delErr := deleteRotatingPod(kubeconfig, namespace, podName)
-				gomega.Expect(delErr).To(gomega.BeNil(), fmt.Sprintf("Failed to delete oldest pod %s", podName))
+				deploymentName := GetRotatingPodName(oldestSlot)
+				fmt.Printf("Rotating oldest deployment %s (age: %v) to ensure at least 1 rotation per hour\n",
+					deploymentName, now.Sub(oldestTime).Round(time.Minute))
+				delErr := deleteRotatingDeployment(kubeconfig, namespace, deploymentName)
+				gomega.Expect(delErr).To(gomega.BeNil(), "Failed to delete oldest deployment "+deploymentName)
 				existingSlots[oldestSlot] = false
 				deletedCount++
 			}
 		}
 
-		// Create pods for all empty slots
+		// Create deployments for all empty slots
 		for slot := 0; slot < HourlyRotatingPodCount; slot++ {
 			if existingSlots[slot] {
 				continue
 			}
-			podName := GetRotatingPodName(slot)
-			fmt.Printf("Creating pod %s in slot %d\n", podName, slot)
-			err := createRotatingPod(kubeconfig, namespace, pniName, pnName, rotatingNode, podName, podImage)
-			gomega.Expect(err).To(gomega.BeNil(), fmt.Sprintf("Failed to create rotating pod %s", podName))
+			deploymentName := GetRotatingPodName(slot)
+			fmt.Printf("Creating deployment %s in slot %d\n", deploymentName, slot)
+			err := createRotatingDeployment(kubeconfig, namespace, pniName, pnName, rotatingNode, deploymentName, podImage)
+			gomega.Expect(err).To(gomega.BeNil(), "Failed to create rotating deployment "+deploymentName)
 			createdCount++
 		}
 
-		fmt.Printf("\nRotating pod summary (zone %s): deleted=%d, created=%d\n", zone, deletedCount, createdCount)
+		fmt.Printf("\nRotating deployment summary (zone %s): deleted=%d, created=%d\n", zone, deletedCount, createdCount)
 
-		// Verify all 6 pods are running
+		// Verify all 6 deployments are ready
 		for slot := 0; slot < HourlyRotatingPodCount; slot++ {
-			podName := GetRotatingPodName(slot)
-			gomega.Expect(IsPodRunning(kubeconfig, namespace, podName)).To(gomega.BeTrue(),
-				fmt.Sprintf("Pod %s is not running after rotation", podName))
+			deploymentName := GetRotatingPodName(slot)
+			gomega.Expect(IsDeploymentReady(kubeconfig, namespace, deploymentName)).To(gomega.BeTrue(),
+				"Deployment "+deploymentName+" is not ready after rotation")
 		}
 
-		ginkgo.By(fmt.Sprintf("All 6 rotating pods are running in zone %s", zone))
+		ginkgo.By("All 6 rotating deployments are running in zone " + zone)
 	})
 })

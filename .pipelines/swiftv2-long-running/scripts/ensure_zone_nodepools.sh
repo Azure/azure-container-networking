@@ -63,11 +63,17 @@ kubectl --kubeconfig "$KUBECONFIG_FILE" wait --for=condition=Ready nodes --all -
 for ZONE in $ZONES; do
   POOL_NAME="npz${ZONE}"
 
-  echo "==> Labeling nodes in pool $POOL_NAME"
+  echo "==> Labeling and tainting nodes in pool $POOL_NAME"
   kubectl --kubeconfig "$KUBECONFIG_FILE" label nodes -l agentpool=$POOL_NAME \
     nic-capacity=high-nic \
     workload-type=swiftv2-linux \
     hourly-zone-pool=true \
+    --overwrite
+
+  # Taint zone pool nodes so only test pods with the matching toleration can schedule here.
+  # This prevents stray workloads from consuming vnet-nic capacity.
+  kubectl --kubeconfig "$KUBECONFIG_FILE" taint nodes -l agentpool=$POOL_NAME \
+    acn-test/zone-pool=true:NoSchedule \
     --overwrite
 
   # Verify zone label (AKS sets this automatically)

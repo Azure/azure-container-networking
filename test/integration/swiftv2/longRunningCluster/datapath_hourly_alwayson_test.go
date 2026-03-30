@@ -4,13 +4,11 @@
 package longrunningcluster
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/test/integration/swiftv2/helpers"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
@@ -22,49 +20,30 @@ func TestHourlyAlwaysOn(t *testing.T) {
 
 // ensureAlwaysOnPNAndPNI ensures the PodNetwork and PodNetworkInstance exist for always-on pods.
 func ensureAlwaysOnPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "podnetwork", pnName, "--no-headers", "--ignore-not-found")
-	out, _ := cmd.CombinedOutput()
-	if strings.TrimSpace(string(out)) != "" {
+	ctx := context.Background()
+	c := mustGetK8sClient(kubeconfig)
+
+	exists, err := podNetworkExists(ctx, c, pnName)
+	gomega.Expect(err).To(gomega.BeNil(), "Failed to check PodNetwork existence")
+	if exists {
 		fmt.Printf("PodNetwork %s already exists, reusing\n", pnName)
 	} else {
 		fmt.Printf("Creating PodNetwork %s\n", pnName)
-		info, err := GetOrFetchVnetSubnetInfo(rg, "cx_vnet_v1", "s1", make(map[string]VnetSubnetInfo))
-		gomega.Expect(err).To(gomega.BeNil(), "Failed to get VNet/Subnet info for always-on PN")
-		err = CreatePodNetwork(kubeconfig, PodNetworkData{
-			PNName:      pnName,
-			VnetGUID:    info.VnetGUID,
-			SubnetGUID:  info.SubnetGUID,
-			SubnetARMID: info.SubnetARMID,
-		}, "../../manifests/swiftv2/long-running-cluster/podnetwork.yaml")
-		gomega.Expect(err).To(gomega.BeNil(), "Failed to create PodNetwork")
+		info, infoErr := GetOrFetchVnetSubnetInfo(rg, "cx_vnet_v1", "s1", make(map[string]VnetSubnetInfo))
+		gomega.Expect(infoErr).To(gomega.BeNil(), "Failed to get VNet/Subnet info for always-on PN")
+		createErr := createPodNetworkCR(ctx, c, pnName, info.VnetGUID, info.SubnetGUID, info.SubnetARMID)
+		gomega.Expect(createErr).To(gomega.BeNil(), "Failed to create PodNetwork")
 	}
 
-	cmd = exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "podnetworkinstance", pniName,
-		"-n", namespace, "--no-headers", "--ignore-not-found")
-	out, _ = cmd.CombinedOutput()
-	if strings.TrimSpace(string(out)) != "" {
+	exists, err = podNetworkInstanceExists(ctx, c, namespace, pniName)
+	gomega.Expect(err).To(gomega.BeNil(), "Failed to check PodNetworkInstance existence")
+	if exists {
 		fmt.Printf("PodNetworkInstance %s already exists, reusing\n", pniName)
 	} else {
 		fmt.Printf("Creating PodNetworkInstance %s in namespace %s\n", pniName, namespace)
-		err := CreatePodNetworkInstance(kubeconfig, PNIData{
-			PNIName:      pniName,
-			PNName:       pnName,
-			Namespace:    namespace,
-			Reservations: 2, // 1 DaemonSet pod + 1 buffer
-		}, "../../manifests/swiftv2/long-running-cluster/podnetworkinstance.yaml")
-		gomega.Expect(err).To(gomega.BeNil(), "Failed to create PodNetworkInstance")
+		createErr := createPodNetworkInstanceCR(ctx, c, pniName, namespace, pnName, 0)
+		gomega.Expect(createErr).To(gomega.BeNil(), "Failed to create PodNetworkInstance")
 	}
-}
-
-// isDaemonSetExists checks if the DaemonSet already exists.
-func isDaemonSetExists(kubeconfig, namespace, dsName string) bool {
-	cmd := exec.Command("kubectl", "--kubeconfig", kubeconfig, "get", "daemonset", dsName,
-		"-n", namespace, "--no-headers", "--ignore-not-found")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return false
-	}
-	return strings.TrimSpace(string(out)) != ""
 }
 
 var _ = ginkgo.Describe("Hourly Always-On DaemonSet Tests", func() {
@@ -83,6 +62,8 @@ var _ = ginkgo.Describe("Hourly Always-On DaemonSet Tests", func() {
 
 		kubeconfig := getKubeconfigPath("aks-1")
 		podImage := "nicolaka/netshoot:latest"
+		ctx := context.Background()
+		c := mustGetK8sClient(kubeconfig)
 
 		// Zone-scoped resource names
 		namespace := GetZonedAlwaysOnNS(buildID)
@@ -95,31 +76,34 @@ var _ = ginkgo.Describe("Hourly Always-On DaemonSet Tests", func() {
 		}
 
 		// Ensure namespace exists
-		err := helpers.EnsureNamespaceExists(kubeconfig, namespace)
+		err := ensureNamespace(ctx, c, namespace)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to ensure namespace exists")
 
 		// Ensure PodNetwork and PodNetworkInstance exist
 		ensureAlwaysOnPNAndPNI(kubeconfig, rg, pnName, pniName, namespace)
 
 		// Ensure DaemonSet exists
-		if isDaemonSetExists(kubeconfig, namespace, dsName) {
+		exists, dsErr := daemonSetExists(ctx, c, namespace, dsName)
+		gomega.Expect(dsErr).To(gomega.BeNil(), "Failed to check DaemonSet existence")
+		if exists {
 			fmt.Printf("DaemonSet %s already exists, verifying pod\n", dsName)
 		} else {
 			fmt.Printf("Creating DaemonSet %s in namespace %s (zone label: %s)\n", dsName, namespace, zoneLabel)
-			err := CreateDaemonSet(kubeconfig, DaemonSetData{
+			ds := createDaemonSetObject(DaemonSetData{
 				DaemonSetName: dsName,
 				Namespace:     namespace,
 				PNIName:       pniName,
 				PNName:        pnName,
 				ZoneLabel:     zoneLabel,
 				Image:         podImage,
-			}, "../../manifests/swiftv2/long-running-cluster/daemonset.yaml")
-			gomega.Expect(err).To(gomega.BeNil(), "Failed to create DaemonSet")
+			})
+			createErr := c.Create(ctx, ds)
+			gomega.Expect(createErr).To(gomega.BeNil(), "Failed to create DaemonSet")
 		}
 
 		// Wait for DaemonSet pod to be running
 		fmt.Printf("Waiting for DaemonSet %s pod to be ready\n", dsName)
-		err = helpers.WaitForDaemonSetReady(kubeconfig, namespace, dsName, 10, 30)
+		err = waitForDaemonSetReady(ctx, c, namespace, dsName, 10, 30)
 		gomega.Expect(err).To(gomega.BeNil(), fmt.Sprintf("DaemonSet %s pod is not running", dsName))
 
 		// Verify the DaemonSet pod exists and is running
@@ -129,6 +113,6 @@ var _ = ginkgo.Describe("Hourly Always-On DaemonSet Tests", func() {
 			fmt.Sprintf("DaemonSet pod %s is not running", podName))
 
 		fmt.Printf("Always-on DaemonSet pod %s is running in zone %s\n", podName, zone)
-		ginkgo.By(fmt.Sprintf("DaemonSet always-on pod verified in zone %s", zone))
+		ginkgo.By("DaemonSet always-on pod verified in zone " + zone)
 	})
 })
