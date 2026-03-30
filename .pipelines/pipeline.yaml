@@ -46,7 +46,7 @@ parameters:
   - name: ipamImage
     type: string
     default: "__use-default__"
-  - name: runName
+  - name: runNamePrefix
     type: string
     default: "__use-default__"
 
@@ -61,9 +61,15 @@ stages:
         steps:
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
-              CUSTOM_RUN_NAME="${{ parameters.runName }}"
-              if [ "$CUSTOM_RUN_NAME" != "__use-default__" ]; then
-                echo "##vso[build.updatebuildnumber]$CUSTOM_RUN_NAME"
+              CUSTOM_RUN_NAME_PREFIX="${{ parameters.runNamePrefix }}"
+              if [ "$CUSTOM_RUN_NAME_PREFIX" != "__use-default__" ]; then
+                RUN_NAME_TO_SET="$CUSTOM_RUN_NAME_PREFIX"
+                if [[ "${CUSTOM_RUN_NAME_PREFIX,,}" == *dalec* ]]; then
+                  BUILD_REV="$(Build.BuildNumber)"
+                  BUILD_REV="${BUILD_REV##*.}"
+                  RUN_NAME_TO_SET="${CUSTOM_RUN_NAME_PREFIX}-$(Build.BuildId).${BUILD_REV}"
+                fi
+                echo "##vso[build.updatebuildnumber]$RUN_NAME_TO_SET"
               fi
 
               BUILD_NUMBER=$(Build.BuildNumber)
