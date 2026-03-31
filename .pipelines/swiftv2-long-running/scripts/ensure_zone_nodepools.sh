@@ -53,11 +53,16 @@ for ZONE in $ZONES; do
   echo "    Node pool $POOL_NAME created in zone $ZONE"
 done
 
-# Wait for all nodes to be Ready
-echo "==> Waiting for all nodes to be Ready"
+# Wait for zone pool nodes to be Ready (scoped per pool, not --all)
 KUBECONFIG_FILE="/tmp/${CLUSTER}.kubeconfig"
 az aks get-credentials -g "$RG" -n "$CLUSTER" --admin --overwrite-existing --file "$KUBECONFIG_FILE"
-kubectl --kubeconfig "$KUBECONFIG_FILE" wait --for=condition=Ready nodes --all --timeout=10m
+
+for ZONE in $ZONES; do
+  POOL_NAME="npz${ZONE}"
+  echo "==> Waiting for node pool $POOL_NAME nodes to be Ready"
+  kubectl --kubeconfig "$KUBECONFIG_FILE" wait --for=condition=Ready nodes \
+    -l agentpool="$POOL_NAME" --timeout=10m
+done
 
 # Label the zone node pool nodes
 for ZONE in $ZONES; do
