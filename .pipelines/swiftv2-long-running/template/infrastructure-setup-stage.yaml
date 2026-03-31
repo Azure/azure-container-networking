@@ -250,3 +250,74 @@ stages:
               CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
               KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
               KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
+
+      # Accelnet BYON - only for centraluseuap (verify before deploying)
+      - job: VerifyAccelnetBYON
+        displayName: "Verify Accelnet BYON VMSS (${{ parameters.location }})"
+        condition: eq('${{ parameters.location }}', 'centraluseuap')
+        steps:
+          - task: AzureCLI@2
+            name: AccelnetCheck
+            displayName: "Check if Accelnet VMSS exists"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set +e  # Don't fail on errors, we're checking existence
+                
+                echo "Checking for Accelnet VMSS in $(rgName)..."
+                VMSS_EXISTS=$(az vmss list -g "$(rgName)" --query "[?contains(name, 'accelnet')] | length(@)" -o tsv 2>/dev/null || echo "0")
+                
+                if [ "$VMSS_EXISTS" -gt 0 ]; then
+                  echo "##[section]Accelnet VMSS already exists"
+                  echo "##vso[task.setvariable variable=accelnetExists;isOutput=true]true"
+                else
+                  echo "##[section]Accelnet VMSS does not exist - will provision"
+                  echo "##vso[task.setvariable variable=accelnetExists;isOutput=true]false"
+                fi
+
+      - job: DeployAccelnetBYON
+        displayName: "Join Accelnet BYON VMSS to AKS Cluster"
+        dependsOn:
+          - VerifyInfrastructure
+          - VerifyAccelnetBYON
+          - CreateCluster
+          - NetworkingAndStorage
+        condition: |
+          and(
+            eq('${{ parameters.location }}', 'centraluseuap'),
+            not(failed()),
+            or(
+              eq(dependencies.VerifyAccelnetBYON.outputs['AccelnetCheck.accelnetExists'], 'false'),
+              eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false')
+            )
+          )
+        timeoutInMinutes: 480
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            displayName: "Checkout main repository"
+          - checkout: Networking-Aquarius
+            displayName: "Checkout Networking-Aquarius repository"
+          - task: AzureCLI@2
+            displayName: "Deploy Accelnet VMSS"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_accelnetbyon.sh"
+              arguments: >
+                $(rgName)
+                ${{ parameters.location }}
+                $(Build.SourcesDirectory)
+            env:
+              SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
+              CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
+              KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
+              KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
+              L1VH_KEYVAULT_NAME: $(L1VH_KEYVAULT_NAME)
+              L1VH_VMSS_PASSWORD_SECRET: $(L1VH_VMSS_PASSWORD_SECRET)
+              L1VH_VM_BICEP_PASSWORD_SECRET: $(L1VH_VM_BICEP_PASSWORD_SECRET)
+              L1VH_STORAGE_SECRET: $(L1VH_STORAGE_SECRET)

@@ -42,50 +42,6 @@ stages:
         vmSkuDefault: $(vmSkuDefault)
         vmSkuHighNIC: $(vmSkuHighNIC)
 
-  # Deploy Accelnet BYON nodes - currently only enabled in centraluseuap (expand to other regions when quota is available)
-  - ${{ each loc in parameters.location }}:
-    - ${{ if eq(loc, 'centraluseuap') }}:
-      - stage: DeployAccelnetBYON_${{ replace(loc, '-', '_') }}
-        displayName: "Deploy Accelnet BYO nodes to AKS cluster (${{ loc }})"
-        dependsOn: AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
-        condition: and(eq(variables.isAllowedRun, true), or(eq(${{ parameters.runSetupStages }}, false), succeeded()))
-        variables:
-          ${{ if eq(parameters.runSetupStages, true) }}:
-            rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
-          ${{ else }}:
-            rgName: sv2-long-run-${{ loc }}
-        jobs: 
-          - job: JoinAccelnetBYONtoAKS
-            displayName: "Join Accelnet BYON VMSS to AKS Cluster"
-            timeoutInMinutes: 480
-            pool:
-              vmImage: ubuntu-latest
-            steps:
-              - checkout: self
-                displayName: "Checkout main repository"
-              - checkout: Networking-Aquarius
-                displayName: "Checkout Networking-Aquarius repository"
-              - task: AzureCLI@2
-                displayName: "Deploy Accelnet VMSS"
-                inputs:
-                  azureSubscription: $(AZURE_SERVICE_CONNECTION)
-                  scriptType: bash
-                  scriptLocation: scriptPath
-                  scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_accelnetbyon.sh"
-                  arguments: >
-                    $(rgName)
-                    ${{ loc }}
-                    $(Build.SourcesDirectory)
-                env:
-                  SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
-                  CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
-                  KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
-                  KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
-                  L1VH_KEYVAULT_NAME: $(L1VH_KEYVAULT_NAME)
-                  L1VH_VMSS_PASSWORD_SECRET: $(L1VH_VMSS_PASSWORD_SECRET)
-                  L1VH_VM_BICEP_PASSWORD_SECRET: $(L1VH_VM_BICEP_PASSWORD_SECRET)
-                  L1VH_STORAGE_SECRET: $(L1VH_STORAGE_SECRET)
-
   # ============================================================
   # Long-running pod tests per zone (rotating + DaemonSet + connectivity)
   # Each zone independently ensures its own node pool exists.
@@ -147,13 +103,9 @@ stages:
             workloadType: ${{ workload }}
             location: ${{ loc }}
             subscriptionId: ${{ parameters.subscriptionId }}
-            ${{ if eq(parameters.runSetupStages, true) }}:
-              rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
-            ${{ else }}:
-              rgName: sv2-long-run-${{ loc }}
+            rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
             storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
             storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
-            runSetupStages: ${{ parameters.runSetupStages }}
             ${{ if eq(workload, 'swiftv2-linux') }}:
               dependsOn: 
                 - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
@@ -165,7 +117,7 @@ stages:
                 - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
             ${{ if eq(workload, 'swiftv2-l1vh-accelnet-byon') }}:
               dependsOn: 
-                - DeployAccelnetBYON_${{ replace(loc, '-', '_') }}
+                - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
                 - AcquireLease_${{ replace(loc, '-', '_') }}
                 - DataPathTests_swiftv2_linux_byon_${{ replace(loc, '-', '_') }}
 

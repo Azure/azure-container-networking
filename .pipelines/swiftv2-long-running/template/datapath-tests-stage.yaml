@@ -24,7 +24,7 @@ stages:
       dependsOn: ${{ parameters.dependsOn }}
     ${{ else }}:
       dependsOn: AKSClusterAndNetworking
-    condition: and(eq(variables.isAllowedRun, true), not(failed()))
+    condition: and(eq(variables.isAllowedRun, true), succeeded())
     variables:
       storageAccount1: ${{ parameters.storageAccount1 }}
       storageAccount2: ${{ parameters.storageAccount2 }}
