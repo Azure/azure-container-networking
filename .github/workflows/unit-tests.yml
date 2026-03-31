@@ -153,8 +153,6 @@ jobs:
           GOOS=linux gocov convert linux-coverage.out > linux-coverage.json
           GOOS=linux gocov-xml < linux-coverage.json > linux-coverage.xml
 
-          # TODO: Add windows coverage back in once PublishCodeCoverageResults v2 works with BuildQualityChecks
-
           mkdir coverage
           mv linux-coverage.xml coverage/
 
@@ -170,6 +168,3 @@ jobs:
           filename: coverage/linux-coverage.xml
           format: markdown
           output: both
-
-      # NOTE: The Azure DevOps BuildQualityChecks@8 task (which enforces coverage regression
-      # checks on PRs targeting master) has no direct GitHub Actions equivalent and is omitted.
