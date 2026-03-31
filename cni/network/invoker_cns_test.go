@@ -189,8 +189,10 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 											IPAddress:    "fd11:1234::",
 											PrefixLength: 112,
 										},
-										DNSServers:       nil,
-										GatewayIPAddress: "fe80::1234:5678:9abc",
+										IPSubnetV6:         cns.IPSubnet{},
+										DNSServers:         nil,
+										GatewayIPAddress:   "fe80::1234:5678:9abc",
+										GatewayIPv6Address: "",
 									},
 									HostPrimaryIPInfo: cns.HostIPInfo{
 										Gateway:   "fe80::1234:5678:9abc",
@@ -866,6 +868,185 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 	}
 }
 
+func TestCNSIPAMInvoker_Add_podsubnetv6(t *testing.T) {
+	type testCase struct {
+		name           string
+		podIP          string
+		ipConfig       cns.IPConfiguration
+		wantGateway    string
+		wantPrefixSize int
+		wantErr        bool
+	}
+
+	tests := []testCase{
+		{
+			name:  "Test happy CNI add podsubnet mode ipv6 gateway and ipSubnetV6",
+			podIP: "fd11:1234::1",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 112,
+				},
+				IPSubnetV6: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 64,
+				},
+				GatewayIPAddress:   "fe80::1",
+				GatewayIPv6Address: "fd11:1234::1",
+			},
+			wantGateway:    "fd11:1234::1",
+			wantPrefixSize: 64,
+		},
+		{
+			name:  "Test happy CNI add podsubnet mode ipv6 gateway and empty ipSubnetV6",
+			podIP: "fd11:1234::1",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 112,
+				},
+				IPSubnetV6:         cns.IPSubnet{},
+				GatewayIPAddress:   "fe80::1",
+				GatewayIPv6Address: "fd11:1234::1",
+			},
+			wantGateway:    "fd11:1234::1",
+			wantPrefixSize: 112,
+		},
+		{
+			name:  "Test happy CNI add podsubnet mode empty ipv6 gateway and ipSubnetV6",
+			podIP: "fd11:1234::1",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 112,
+				},
+				IPSubnetV6: cns.IPSubnet{
+					IPAddress:    "",
+					PrefixLength: 64,
+				},
+				GatewayIPAddress:   "fe80::1",
+				GatewayIPv6Address: "",
+			},
+			wantGateway:    "fe80::1",
+			wantPrefixSize: 64,
+		},
+		{
+			name:  "Test CNI add podsubnet mode invalid ipv6 gateway and PrefixLength 0 uses IPSubnet",
+			podIP: "fd11:1234::1",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 64,
+				},
+				IPSubnetV6: cns.IPSubnet{
+					IPAddress:    "",
+					PrefixLength: 0,
+				},
+				GatewayIPAddress:   "fe80::1",
+				GatewayIPv6Address: "bad-addr",
+			},
+			wantGateway:    "fe80::1",
+			wantPrefixSize: 64,
+		},
+		{
+			name:  "Test CNI add podsubnet mode ipv4 pod ignores populated ipv6 fields",
+			podIP: "10.0.1.10",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "10.0.1.0",
+					PrefixLength: 16,
+				},
+				IPSubnetV6: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 64,
+				},
+				GatewayIPAddress:   "10.0.0.1",
+				GatewayIPv6Address: "fd11:1234::1",
+			},
+			wantGateway:    "10.0.0.1",
+			wantPrefixSize: 16,
+		},
+		{
+			name:  "Test CNI add invalid podIP returns error",
+			podIP: "not-a-valid-ip",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "10.0.1.0",
+					PrefixLength: 16,
+				},
+				IPSubnetV6: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 64,
+				},
+				GatewayIPAddress:   "10.0.0.1",
+				GatewayIPv6Address: "fd11:1234::1",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := require.New(t)
+			invoker := &CNSIPAMInvoker{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: req,
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: getTestIPConfigsRequest(),
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    tt.podIP,
+										PrefixLength: 24,
+									},
+									NetworkContainerPrimaryIPConfig: tt.ipConfig,
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "10.0.0.1",
+										PrimaryIP: "10.0.0.2",
+										Subnet:    "10.0.0.0/24",
+									},
+									NICType: cns.InfraNIC,
+								},
+							},
+							Response: cns.Response{ReturnCode: 0},
+						},
+					},
+				},
+			}
+
+			ipamAddResult, err := invoker.Add(IPAMAddConfig{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid",
+					Netns:       "testnetns",
+					IfName:      "testifname",
+				},
+				options: map[string]interface{}{},
+			})
+
+			if tt.wantErr {
+				req.Error(err)
+				return
+			}
+
+			req.NoError(err)
+
+			ifInfo, ok := ipamAddResult.interfaceInfo[string(cns.InfraNIC)]
+			req.True(ok)
+			req.Len(ifInfo.IPConfigs, 1)
+			req.Len(ifInfo.Routes, 1)
+
+			req.Equal(tt.wantGateway, ifInfo.IPConfigs[0].Gateway.String())
+			prefixSize, _ := ifInfo.IPConfigs[0].Address.Mask.Size()
+			req.Equal(tt.wantPrefixSize, prefixSize)
+			req.Equal(tt.wantGateway, ifInfo.Routes[0].Gw.String())
+		})
+	}
+}
+
 func TestCNSIPAMInvoker_Add_UnsupportedAPI(t *testing.T) {
 	require := require.New(t) //nolint further usage of require without passing t
 
@@ -1046,6 +1227,7 @@ func TestRequestIPAPIsFail(t *testing.T) {
 										PrefixLength: 112,
 									},
 									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnetV6: cns.IPSubnet{},
 										IPSubnet: cns.IPSubnet{
 											IPAddress:    "fd11:1234::",
 											PrefixLength: 112,

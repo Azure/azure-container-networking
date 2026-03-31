@@ -65,6 +65,47 @@ type IPResultInfo struct {
 	endpointPolicies     []policy.Policy
 }
 
+func getIPConfigGatewayAddress(podIP string, ipConfig cns.IPConfiguration) string {
+	parsedPodIP, err := netip.ParseAddr(podIP)
+	if err != nil {
+		logger.Warn("Invalid pod IP address", zap.String("podIP", podIP))
+		return ipConfig.GatewayIPAddress
+	}
+	if parsedPodIP.Is6() && ipConfig.GatewayIPv6Address != "" {
+		_, parseErr := netip.ParseAddr(ipConfig.GatewayIPv6Address)
+		if parseErr == nil {
+			return ipConfig.GatewayIPv6Address
+		}
+
+		logger.Warn("Invalid GatewayIPv6Address from CNS; falling back to GatewayIPAddress",
+			zap.String("podIP", podIP),
+			zap.String("gatewayIPv6Address", ipConfig.GatewayIPv6Address),
+			zap.String("gatewayIPAddress", ipConfig.GatewayIPAddress),
+			zap.Error(parseErr))
+	}
+
+	return ipConfig.GatewayIPAddress
+}
+
+func getIPConfigPrefixLength(podIP string, ipConfig cns.IPConfiguration) uint8 {
+	parsedPodIP, err := netip.ParseAddr(podIP)
+	if err != nil {
+		logger.Warn("Invalid pod IP address", zap.String("podIP", podIP))
+		return ipConfig.IPSubnet.PrefixLength
+	}
+	if parsedPodIP.Is6() {
+		if ipConfig.IPSubnetV6.PrefixLength > 0 {
+			return ipConfig.IPSubnetV6.PrefixLength
+		}
+
+		logger.Warn("IPv6 pod with zero IPSubnetV6.PrefixLength; falling back to IPSubnet.PrefixLength",
+			zap.String("podIP", podIP),
+			zap.Uint8("fallbackPrefixLength", ipConfig.IPSubnet.PrefixLength))
+	}
+
+	return ipConfig.IPSubnet.PrefixLength
+}
+
 func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddString("podIPAddress", i.podIPAddress)
 	encoder.AddUint8("ncSubnetPrefix", i.ncSubnetPrefix)
@@ -158,10 +199,11 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
-			podIPAddress:         response.PodIPInfo[i].PodIPConfig.IPAddress,
-			ncSubnetPrefix:       response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+			// ncPrimaryIP intentionally stays IPv4 — it is only used for SNAT/iptables which are IPv4-only codepaths.
 			ncPrimaryIP:          response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
-			ncGatewayIPAddress:   response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
+			podIPAddress:         response.PodIPInfo[i].PodIPConfig.IPAddress,
+			ncSubnetPrefix:       getIPConfigPrefixLength(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
+			ncGatewayIPAddress:   getIPConfigGatewayAddress(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
 			ncSubnetPrefixIPv6:   response.PodIPInfo[i].NetworkContainerIPv6Config.IPSubnet.PrefixLength,
 			ncIPv6:               response.PodIPInfo[i].NetworkContainerIPv6Config.IPSubnet.IPAddress,
 			ncGatewayIPv6Address: response.PodIPInfo[i].NetworkContainerIPv6Config.GatewayIPAddress,
