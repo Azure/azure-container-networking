@@ -56,11 +56,19 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
   fi
 
   KUBECONFIG_FILE="/tmp/${CLUSTER}.kubeconfig"
-  az aks get-credentials -g "$RG" -n "$CLUSTER" --admin --overwrite-existing \
-    --file "$KUBECONFIG_FILE" 2>/dev/null
+  if ! az aks get-credentials -g "$RG" -n "$CLUSTER" --admin --overwrite-existing \
+    --file "$KUBECONFIG_FILE" 2>/dev/null; then
+    echo "  WARNING: Failed to get credentials for cluster $CLUSTER"
+    MISSING+=("kubeconfig:$CLUSTER")
+    INFRA_EXISTS=false
+    continue
+  fi
 
-  READY_NODES=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes --no-headers 2>/dev/null \
-    | grep -c " Ready " || true)
+  # Count Ready nodes using JSONPath to avoid false negatives from statuses like
+  # "Ready,SchedulingDisabled" (cordoned nodes) that grep " Ready " would miss.
+  READY_NODES=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes \
+    -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' \
+    2>/dev/null | grep -c "^True$" || echo "0")
 
   if [ "$READY_NODES" -lt 1 ]; then
     echo "  WARNING: Cluster $CLUSTER has no Ready nodes"

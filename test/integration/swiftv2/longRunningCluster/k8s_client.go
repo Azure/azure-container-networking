@@ -51,8 +51,12 @@ func mustGetK8sClient(kubeconfig string) client.Client {
 	}
 
 	scheme := runtime.NewScheme()
-	_ = clientgoscheme.AddToScheme(scheme)
-	_ = mtv1alpha1.AddToScheme(scheme)
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		panic(fmt.Sprintf("failed to add client-go scheme to runtime scheme: %v", err))
+	}
+	if err := mtv1alpha1.AddToScheme(scheme); err != nil {
+		panic(fmt.Sprintf("failed to add multitenancy v1alpha1 scheme to runtime scheme: %v", err))
+	}
 
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
@@ -442,7 +446,7 @@ func podSpec(nodeName, image string, privileged bool) corev1.PodSpec {
 func daemonSetPodSpec(zoneLabel, image string, privileged bool) corev1.PodSpec {
 	return corev1.PodSpec{
 		NodeSelector: map[string]string{
-			"longrunning-zone-pool":            "true",
+			"longrunning-zone-pool":       "true",
 			"topology.kubernetes.io/zone": zoneLabel,
 		},
 		Tolerations: []corev1.Toleration{

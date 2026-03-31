@@ -19,7 +19,7 @@ echo "    Zones: $ZONES"
 echo "    VM SKU: $VM_SKU"
 
 # Get the existing pod subnet ID from the cluster's VNet
-VNET_NAME=$(az network vnet list -g "$RG" --query "[?contains(name,'$CLUSTER')].name" -o tsv | head -1)
+VNET_NAME=$(az network vnet list -g "$RG" --subscription "$SUBSCRIPTION_ID" --query "[?contains(name,'$CLUSTER')].name" -o tsv | head -1)
 if [ -z "$VNET_NAME" ]; then
   echo "ERROR: Could not find VNet for cluster $CLUSTER in RG $RG"
   exit 1
@@ -31,7 +31,7 @@ for ZONE in $ZONES; do
   POOL_NAME="npz${ZONE}"
 
   # Check if node pool already exists
-  EXISTING=$(az aks nodepool show -g "$RG" --cluster-name "$CLUSTER" -n "$POOL_NAME" --query "name" -o tsv 2>/dev/null || true)
+  EXISTING=$(az aks nodepool show -g "$RG" --cluster-name "$CLUSTER" -n "$POOL_NAME" --subscription "$SUBSCRIPTION_ID" --query "name" -o tsv 2>/dev/null || true)
   if [ "$EXISTING" = "$POOL_NAME" ]; then
     echo "==> Node pool $POOL_NAME already exists in zone $ZONE, skipping creation"
     continue
@@ -55,10 +55,10 @@ done
 
 # Wait for zone pool nodes to be Ready, with VM health-check remediation
 KUBECONFIG_FILE="/tmp/${CLUSTER}.kubeconfig"
-az aks get-credentials -g "$RG" -n "$CLUSTER" --admin --overwrite-existing --file "$KUBECONFIG_FILE"
+az aks get-credentials -g "$RG" -n "$CLUSTER" --subscription "$SUBSCRIPTION_ID" --admin --overwrite-existing --file "$KUBECONFIG_FILE"
 
 # Get the VMSS resource group (AKS manages nodes in MC_* RG)
-MC_RG=$(az aks show -g "$RG" -n "$CLUSTER" --query "nodeResourceGroup" -o tsv)
+MC_RG=$(az aks show -g "$RG" -n "$CLUSTER" --subscription "$SUBSCRIPTION_ID" --query "nodeResourceGroup" -o tsv)
 echo "    Managed cluster RG: $MC_RG"
 
 MAX_REMEDIATION_ATTEMPTS=2
@@ -85,7 +85,7 @@ for ZONE in $ZONES; do
     attempt=$((attempt + 1))
 
     # Find the VMSS backing this node pool
-    VMSS_NAME=$(az vmss list -g "$MC_RG" --query "[?contains(name,'${POOL_NAME}')].name" -o tsv | head -1)
+    VMSS_NAME=$(az vmss list -g "$MC_RG" --subscription "$SUBSCRIPTION_ID" --query "[?contains(name,'${POOL_NAME}')].name" -o tsv | head -1)
     if [ -z "$VMSS_NAME" ]; then
       echo "ERROR: Could not find VMSS for pool $POOL_NAME in $MC_RG"
       exit 1
@@ -94,7 +94,7 @@ for ZONE in $ZONES; do
 
     # Check each instance in the VMSS
     remediated=false
-    INSTANCES=$(az vmss list-instances -g "$MC_RG" -n "$VMSS_NAME" \
+    INSTANCES=$(az vmss list-instances -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" \
       --query "[].{id:instanceId, state:provisioningState, powerState:instanceView.statuses[?starts_with(code,'PowerState/')].displayStatus | [0]}" \
       -o json --expand instanceView)
 
@@ -113,7 +113,7 @@ for ZONE in $ZONES; do
         echo "    Deleting failed instance $INSTANCE_ID from VMSS $VMSS_NAME..."
 
         # Delete the failed instance – VMSS auto-scaling will provision a replacement
-        az vmss delete-instances -g "$MC_RG" -n "$VMSS_NAME" --instance-ids "$INSTANCE_ID" --no-wait || true
+        az vmss delete-instances -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" --instance-ids "$INSTANCE_ID" --no-wait || true
 
         remediated=true
       fi
@@ -125,10 +125,10 @@ for ZONE in $ZONES; do
       sleep 30
 
       # Ensure the scale set still has the right instance count (1 node per zone pool)
-      CURRENT_COUNT=$(az vmss show -g "$MC_RG" -n "$VMSS_NAME" --query "sku.capacity" -o tsv)
+      CURRENT_COUNT=$(az vmss show -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" --query "sku.capacity" -o tsv)
       if [ "$CURRENT_COUNT" -lt 1 ]; then
         echo "    VMSS capacity dropped to $CURRENT_COUNT, scaling back to 1..."
-        az vmss scale -g "$MC_RG" -n "$VMSS_NAME" --new-capacity 1
+        az vmss scale -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" --new-capacity 1
       fi
 
       echo "    Waiting for replacement node to become Ready (timeout ${POST_REMEDIATION_TIMEOUT}s)..."
@@ -181,7 +181,7 @@ for ZONE in $ZONES; do
 
   # The Go tests and DaemonSet manifests expect the zone label to be "<region>-<zone>" (e.g., "eastus2euap-1").
   # Fail fast if AKS uses a different format so we can fix the code before tests silently fail.
-  LOCATION=$(az aks show -g "$RG" -n "$CLUSTER" --query location -o tsv)
+  LOCATION=$(az aks show -g "$RG" -n "$CLUSTER" --subscription "$SUBSCRIPTION_ID" --query location -o tsv)
   EXPECTED_ZONE="${LOCATION}-${ZONE}"
   if [ "$ACTUAL_ZONE" != "$EXPECTED_ZONE" ]; then
     echo "ERROR: Zone label mismatch! Expected '$EXPECTED_ZONE', got '$ACTUAL_ZONE'"

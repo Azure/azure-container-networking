@@ -74,6 +74,7 @@ stages:
             - checkout: self
               displayName: "Checkout azure-container-networking"
             - task: AzureCLI@2
+              name: AcquireLeaseStep
               displayName: "Get kubeconfig and acquire lease"
               inputs:
                 azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -85,11 +86,25 @@ stages:
                     -n aks-1 --admin --overwrite-existing \
                     --file /tmp/aks-1.kubeconfig
 
+                  set +e
                   bash .pipelines/swiftv2-long-running/scripts/acquire_pipeline_lease.sh \
                     /tmp/aks-1.kubeconfig \
                     "$(Build.BuildId)" \
-                    30 \
                     120
+                  ACQUIRE_RC=$?
+                  set -e
+
+                  if [ "$ACQUIRE_RC" -eq 0 ]; then
+                    echo "Lease acquired for this run."
+                    echo "##vso[task.setvariable variable=leaseAcquired;isOutput=true]true"
+                  elif [ "$ACQUIRE_RC" -eq 2 ]; then
+                    echo "Lease is currently held by another run. Lease-gated stages will be skipped."
+                    echo "##vso[task.setvariable variable=leaseAcquired;isOutput=true]false"
+                    exit 0
+                  else
+                    echo "ERROR: Lease acquisition failed unexpectedly with code $ACQUIRE_RC"
+                    exit "$ACQUIRE_RC"
+                  fi
 
   # ============================================================
   # Datapath tests for each location and workload type
@@ -106,6 +121,7 @@ stages:
             rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
             storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
             storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
+            leaseAcquired: $[ stageDependencies.AcquireLease_${{ replace(loc, '-', '_') }}.AcquireLease.outputs['AcquireLeaseStep.leaseAcquired'] ]
             ${{ if eq(workload, 'swiftv2-linux') }}:
               dependsOn: 
                 - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
@@ -132,7 +148,7 @@ stages:
         - ${{ each workload in parameters.workloadType }}:
           - ${{ if or(not(contains(workload, 'l1vh-accelnet')), eq(loc, 'centraluseuap')) }}:
             - DataPathTests_${{ replace(workload, '-', '_') }}_${{ replace(loc, '-', '_') }}
-      condition: always()
+      condition: and(always(), eq(dependencies.AcquireLease_${{ replace(loc, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
       jobs:
         - job: ReleaseLease
           displayName: "Release ConfigMap lease on aks-1"

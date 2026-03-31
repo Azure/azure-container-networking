@@ -95,7 +95,10 @@ func GetDaemonSetPodName(kubeconfig, namespace, dsName string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	c := mustGetK8sClient(kubeconfig)
-	name, _ := getDaemonSetPodName(ctx, c, namespace, dsName)
+	name, err := getDaemonSetPodName(ctx, c, namespace, dsName)
+	if err != nil {
+		fmt.Printf("Warning: GetDaemonSetPodName(%s/%s): %v\n", namespace, dsName, err)
+	}
 	return name
 }
 
@@ -135,7 +138,10 @@ func GetNodeByLabel(kubeconfig, labelSelector string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	c := mustGetK8sClient(kubeconfig)
-	name, _ := getNodeByLabels(ctx, c, labelSelector)
+	name, err := getNodeByLabels(ctx, c, labelSelector)
+	if err != nil {
+		fmt.Printf("Warning: GetNodeByLabel(%s): %v\n", labelSelector, err)
+	}
 	return name
 }
 
@@ -144,7 +150,10 @@ func IsDeploymentExists(kubeconfig, namespace, deploymentName string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	c := mustGetK8sClient(kubeconfig)
-	exists, _ := deploymentExists(ctx, c, namespace, deploymentName)
+	exists, err := deploymentExists(ctx, c, namespace, deploymentName)
+	if err != nil {
+		fmt.Printf("Warning: IsDeploymentExists(%s/%s): %v\n", namespace, deploymentName, err)
+	}
 	return exists
 }
 
@@ -153,7 +162,10 @@ func IsDeploymentReady(kubeconfig, namespace, deploymentName string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	c := mustGetK8sClient(kubeconfig)
-	ready, _ := isDeploymentReady(ctx, c, namespace, deploymentName)
+	ready, err := isDeploymentReady(ctx, c, namespace, deploymentName)
+	if err != nil {
+		fmt.Printf("Warning: IsDeploymentReady(%s/%s): %v\n", namespace, deploymentName, err)
+	}
 	return ready
 }
 
@@ -162,7 +174,10 @@ func GetDeploymentPodName(kubeconfig, namespace, deploymentName string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	c := mustGetK8sClient(kubeconfig)
-	name, _ := getDeploymentPodName(ctx, c, namespace, deploymentName)
+	name, err := getDeploymentPodName(ctx, c, namespace, deploymentName)
+	if err != nil {
+		fmt.Printf("Warning: GetDeploymentPodName(%s/%s): %v\n", namespace, deploymentName, err)
+	}
 	return name
 }
 
@@ -171,6 +186,9 @@ func GetNodeZone(kubeconfig, nodeName string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	c := mustGetK8sClient(kubeconfig)
-	zone, _ := getNodeZoneLabel(ctx, c, nodeName)
+	zone, err := getNodeZoneLabel(ctx, c, nodeName)
+	if err != nil {
+		fmt.Printf("Warning: GetNodeZone(%s): %v\n", nodeName, err)
+	}
 	return zone
 }

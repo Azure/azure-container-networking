@@ -174,6 +174,18 @@ var _ = ginkgo.Describe("Long-Running Rotating Pod Tests", func() {
 			}
 			existingSlots[slot] = true
 
+			// Self-heal: if the deployment is not Ready (e.g., node was replaced and the old
+			// hostname selector no longer matches any node), delete and recreate it immediately
+			// rather than waiting up to 6 hours for the age-based rotation to fire.
+			if !IsDeploymentReady(kubeconfig, namespace, deploymentName) {
+				fmt.Printf("Deployment %s is not Ready (node may have been replaced), deleting for self-heal\n", deploymentName)
+				delErr := deleteRotatingDeployment(kubeconfig, namespace, deploymentName)
+				gomega.Expect(delErr).To(gomega.BeNil(), "Failed to delete unready deployment "+deploymentName)
+				existingSlots[slot] = false
+				deletedCount++
+				continue
+			}
+
 			// Check age - delete if older than 6 hours
 			createdAt, err := getDeploymentCreationTime(kubeconfig, namespace, deploymentName)
 			if err != nil {

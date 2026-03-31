@@ -3,17 +3,17 @@
 # Prevents concurrent pipeline runs from stepping on each other.
 #
 # Lease is a ConfigMap in the 'default' namespace of aks-1.
-# If another run holds the lease (within TTL), this script waits and retries.
+# If another run holds the lease (within TTL), this script exits immediately
+# with code 2 so pipeline stages can be skipped without failing the run.
 # If the lease is expired or absent, it claims it.
 #
-# Usage: acquire_pipeline_lease.sh <kubeconfig> <run_id> [max_wait_minutes] [lease_ttl_minutes]
-# Example: acquire_pipeline_lease.sh /tmp/aks-1.kubeconfig 12345 30 240
+# Usage: acquire_pipeline_lease.sh <kubeconfig> <run_id> [lease_ttl_minutes]
+# Example: acquire_pipeline_lease.sh /tmp/aks-1.kubeconfig 12345 120
 set -euo pipefail
 
 KUBECONFIG_FILE=$1
 RUN_ID=$2
-MAX_WAIT_MIN=${3:-30}
-LEASE_TTL_MIN=${4:-120}
+LEASE_TTL_MIN=${3:-120}
 
 NAMESPACE="default"
 CM_NAME="acn-pipeline-lease"
@@ -32,7 +32,7 @@ write_lease() {
 
 echo "==> Attempting to acquire pipeline lease (run $RUN_ID)"
 echo "  ConfigMap: $CM_NAME, Namespace: $NAMESPACE"
-echo "  TTL: ${LEASE_TTL_MIN}m, Max wait: ${MAX_WAIT_MIN}m"
+echo "  TTL: ${LEASE_TTL_MIN}m"
 
 # Check for existing lease
 EXISTING=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get configmap "$CM_NAME" \
@@ -44,8 +44,10 @@ if [ -z "$EXISTING" ]; then
   exit 0
 fi
 
-EXISTING_RUN=$(echo "$EXISTING" | grep '"runId"' | head -1 | sed 's/.*"runId"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-EXISTING_EXPIRY=$(echo "$EXISTING" | grep '"expiryTime"' | head -1 | sed 's/.*"expiryTime"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+EXISTING_RUN=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get configmap "$CM_NAME" \
+  -n "$NAMESPACE" -o jsonpath='{.data.runId}' 2>/dev/null || echo "")
+EXISTING_EXPIRY=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get configmap "$CM_NAME" \
+  -n "$NAMESPACE" -o jsonpath='{.data.expiryTime}' 2>/dev/null || echo "0")
 
 # If lease is expired, claim it
 if [ "$NOW" -gt "${EXISTING_EXPIRY:-0}" ]; then
@@ -56,43 +58,8 @@ fi
 
 REMAINING=$(( (EXISTING_EXPIRY - NOW) / 60 ))
 echo "  Lease held by run $EXISTING_RUN (expires in ${REMAINING}m)"
-START_TIME=$(echo "$EXISTING" | grep '"startTime"' | head -1 | sed 's/.*"startTime"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+START_TIME=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get configmap "$CM_NAME" \
+  -n "$NAMESPACE" -o jsonpath='{.data.startTime}' 2>/dev/null || echo "")
 echo "  LEASE DETAILS: startTime=$START_TIME"
-echo "  Waiting up to ${MAX_WAIT_MIN}m for release..."
-
-ELAPSED=0
-INTERVAL=30
-while [ "$ELAPSED" -lt "$((MAX_WAIT_MIN * 60))" ]; do
-  sleep "$INTERVAL"
-  ELAPSED=$((ELAPSED + INTERVAL))
-
-  EXISTING=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get configmap "$CM_NAME" \
-    -n "$NAMESPACE" -o json 2>/dev/null || echo "")
-
-  # Lease was released
-  if [ -z "$EXISTING" ]; then
-    echo "  Lease released, acquiring..."
-    NOW=$(date +%s)
-    EXPIRY=$((NOW + LEASE_TTL_MIN * 60))
-    write_lease
-    exit 0
-  fi
-
-  EXISTING_EXPIRY=$(echo "$EXISTING" | grep '"expiryTime"' | head -1 | sed 's/.*"expiryTime"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-  NOW_CHECK=$(date +%s)
-
-  # Lease expired while we waited
-  if [ "$NOW_CHECK" -gt "${EXISTING_EXPIRY:-0}" ]; then
-    echo "  Lease expired, claiming..."
-    NOW=$(date +%s)
-    EXPIRY=$((NOW + LEASE_TTL_MIN * 60))
-    write_lease
-    exit 0
-  fi
-
-  echo "  Waiting... ($((ELAPSED / 60))m / ${MAX_WAIT_MIN}m)"
-done
-
-echo "ERROR: Could not acquire lease after ${MAX_WAIT_MIN}m. Held by run $EXISTING_RUN."
-echo "  To manually release: kubectl delete configmap $CM_NAME -n $NAMESPACE --kubeconfig '$KUBECONFIG_FILE'"
-exit 1
+echo "  Lease is currently held; skipping lease-gated stages for this run."
+exit 2
