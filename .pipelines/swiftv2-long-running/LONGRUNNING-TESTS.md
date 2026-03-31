@@ -1,15 +1,15 @@
-# SwiftV2 Hourly Zone-Aware Pod Tests
+# SwiftV2 Long-Running Zone-Aware Pod Tests
 
-This document covers the **hourly zone-aware pod tests** — rotating pods and DaemonSet always-on pods that run persistently on the same AKS cluster used by the SwiftV2 long-running pipeline.
+This document covers the **long-running zone-aware pod tests** — rotating pods and DaemonSet always-on pods that run persistently on the same AKS cluster used by the SwiftV2 long-running pipeline.
 
-These tests are **integrated into the main pipeline** (`pipeline.yaml`). The `hourlyRegions` parameter maps each region to its availability zones. Zone node pool creation and per-zone test stages run alongside the existing datapath tests.
+These tests are **integrated into the main pipeline** (`pipeline.yaml`). The `longrunningRegions` parameter maps each region to its availability zones. Zone node pool creation and per-zone test stages run alongside the existing datapath tests.
 
 ### Adding a New Region
 
-Edit the `hourlyRegions` parameter in `pipeline.yaml`:
+Edit the `longrunningRegions` parameter in `pipeline.yaml`:
 
 ```yaml
-hourlyRegions:
+longrunningRegions:
   - location: eastus2euap
     zones: ["1", "2", "3", "4"]
   - location: centraluseuap        # example: add a new region
@@ -20,7 +20,7 @@ Each region gets its own `EnsureZoneNodePools` setup stage followed by parallel 
 
 ---
 
-## Hourly Zone-Aware Pod Tests
+## Long-Running Zone-Aware Pod Tests
 
 ### Design
 
@@ -36,7 +36,7 @@ All pods use the same VNet/Subnet (`cx_vnet_v1/s1`). All 4 zones run **in parall
 │                     Region: eastus2euap                          │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────────┐│
-│  │ Zone 1 (npz1 — 1 node, hourly-zone-pool=true)              ││
+│  │ Zone 1 (npz1 — 1 node, longrunning-zone-pool=true)              ││
 │  │  ┌────────────────────────────────────────────────────────┐  ││
 │  │  │ pod-rotating-0..5  (6 pods, pipeline-managed)          │  ││
 │  │  │ ds-alwayson-z1-*   (1 DaemonSet pod, self-healing)     │  ││
@@ -63,7 +63,7 @@ All pods use the same VNet/Subnet (`cx_vnet_v1/s1`). All 4 zones run **in parall
 
 | Property | Value |
 |----------|-------|
-| Node label | `hourly-zone-pool=true` + `topology.kubernetes.io/zone=<location>-<N>` |
+| Node label | `longrunning-zone-pool=true` + `topology.kubernetes.io/zone=<location>-<N>` |
 | Pod count | 6 (uses 6 of 7 NIC slots) |
 | Pod lifetime | 6 runs max (6 hours at hourly schedule) |
 | Rotation guarantee | At least 1 pod deleted + recreated every run |
@@ -85,7 +85,7 @@ All pods use the same VNet/Subnet (`cx_vnet_v1/s1`). All 4 zones run **in parall
 
 | Property | Value |
 |----------|-------|
-| Node selector | `hourly-zone-pool=true` + `topology.kubernetes.io/zone=<location>-<N>` |
+| Node selector | `longrunning-zone-pool=true` + `topology.kubernetes.io/zone=<location>-<N>` |
 | Pod count | 1 (uses remaining NIC slot) |
 | Pod lifetime | Indefinite (Kubernetes auto-restarts if it crashes) |
 | VNet/Subnet | `cx_vnet_v1/s1` |
@@ -93,7 +93,7 @@ All pods use the same VNet/Subnet (`cx_vnet_v1/s1`). All 4 zones run **in parall
 
 **Why a DaemonSet?** If the pod crashes or the node reboots between pipeline runs, Kubernetes automatically restarts it — no waiting for the next pipeline run. The pipeline's always-on test simply verifies the DaemonSet pod is healthy.
 
-**Health check** (pipeline `hourly_alwayson_test`, runs every hour):
+**Health check** (pipeline `longrunning_alwayson_test`, runs every hour):
 1. Ensure PodNetwork, PodNetworkInstance, and namespace exist (idempotent)
 2. Ensure DaemonSet exists (create if missing)
 3. Verify DaemonSet pod is Running
@@ -121,14 +121,14 @@ The `ensure_zone_nodepools.sh` script is an **idempotent** operation that runs a
 1. Checks if each zone's node pool (`npz1`, `npz2`, `npz3`, `npz4`) already exists
 2. Creates missing node pools with `--zones <N>` to pin the node to a specific zone
 3. Waits for all nodes to be Ready
-4. Labels nodes with `nic-capacity=high-nic`, `workload-type=swiftv2-linux`, `hourly-zone-pool=true`
+4. Labels nodes with `nic-capacity=high-nic`, `workload-type=swiftv2-linux`, `longrunning-zone-pool=true`
 5. Confirms node zones via `topology.kubernetes.io/zone` label
 
 ### Node Pool Configuration
 
 | Pool | Zones | Node Count | VM SKU | NIC Slots | Labels |
 |------|-------|-----------|--------|-----------|--------|
-| `npz1` | 1 | 1 | Standard_D16s_v3 | 7 | `hourly-zone-pool=true`, `nic-capacity=high-nic`, `workload-type=swiftv2-linux` |
+| `npz1` | 1 | 1 | Standard_D16s_v3 | 7 | `longrunning-zone-pool=true`, `nic-capacity=high-nic`, `workload-type=swiftv2-linux` |
 | `npz2` | 2 | 1 | Standard_D16s_v3 | 7 | same |
 | `npz3` | 3 | 1 | Standard_D16s_v3 | 7 | same |
 | `npz4` | 4 | 1 | Standard_D16s_v3 | 7 | same |
@@ -143,17 +143,17 @@ topology.kubernetes.io/zone=eastus2euap-3
 topology.kubernetes.io/zone=eastus2euap-4
 ```
 
-The Go tests use this label combined with `hourly-zone-pool` to select the correct node:
+The Go tests use this label combined with `longrunning-zone-pool` to select the correct node:
 ```go
 // Example label selector for the zone 3 node:
-"hourly-zone-pool=true,topology.kubernetes.io/zone=eastus2euap-3"
+"longrunning-zone-pool=true,topology.kubernetes.io/zone=eastus2euap-3"
 ```
 
 ---
 
 ## Pipeline Structure
 
-The hourly tests are part of the main long-running pipeline:
+The long-running tests are part of the main long-running pipeline:
 
 ```
 pipeline.yaml
@@ -166,7 +166,7 @@ pipeline.yaml
         │   ├── NetworkingAndStorage    ...
         │   └── DeployLinuxBYON        ...
         │
-        ├── EnsureZoneNodePools (per hourlyRegion, depends on infra)
+        ├── EnsureZoneNodePools (per longrunningRegion, depends on infra)
         │   └── ensure_zone_nodepools.sh
         │
         ├── AcquireLease (ConfigMap-based, gates datapath tests only)
@@ -174,7 +174,7 @@ pipeline.yaml
         ├── DataPathTests (per location × workload type, parallel, lease-gated)
         │   └── swiftv2-linux + swiftv2-linux-byon run in parallel
         │
-        ├── HourlyPodTests (per zone, parallel, NOT lease-gated)
+        ├── LongRunningPodTests (per zone, parallel, NOT lease-gated)
         │   ├── Zone 1 ──┬── SetupKubeconfig
         │   │            ├── BuildMetricsBinary
         │   │            ├── RotatingPods_Z1     ──┐
@@ -190,7 +190,7 @@ pipeline.yaml
 All 4 zones run as **separate stages in parallel** after the `EnsureZoneNodePools` setup stage.
 Within each zone, `RotatingPods` and `AlwaysOnPods` run in parallel; `ConnectivityTest` waits for both.
 
-**Note**: Hourly pod tests are **not gated by the lease** — they only depend on zone node pool setup. This means they start immediately after infrastructure is ready, without waiting for the lease or datapath tests.
+**Note**: Long-running pod tests are **not gated by the lease** — they only depend on zone node pool setup. This means they start immediately after infrastructure is ready, without waiting for the lease or datapath tests.
 
 ### Idempotent Infrastructure Setup
 
@@ -198,7 +198,7 @@ The `VerifyInfrastructure` job checks the "final products" (cluster health, VNet
 
 ### Lease Mechanism
 
-A Kubernetes ConfigMap (`acn-pipeline-lease`) on `aks-1` acts as a distributed lock. The lease **only gates datapath tests** (not hourly pod tests). Each pipeline run acquires the lease before running datapath tests and releases it afterward. If a previous run still holds the lease, the new run waits (up to 30 minutes) or fails gracefully.
+A Kubernetes ConfigMap (`acn-pipeline-lease`) on `aks-1` acts as a distributed lock. The lease **only gates datapath tests** (not long-running pod tests). Each pipeline run acquires the lease before running datapath tests and releases it afterward. If a previous run still holds the lease, the new run waits (up to 30 minutes) or fails gracefully.
 
 ---
 
@@ -230,9 +230,9 @@ Always-on (DaemonSet):
 | Variable | Description | Set By |
 |----------|-------------|--------|
 | `RG` | Azure resource group name | Pipeline |
-| `BUILD_ID` | Stable ID for resource naming (= RG name for hourly tests; = RG + workload suffix for datapath tests) | Pipeline |
-| `ZONE` | Availability zone number ("1", "2", "3", "4") | Pipeline (hourly only) |
-| `LOCATION` | Azure region (e.g., "eastus2euap") | Pipeline (hourly only) |
+| `BUILD_ID` | Stable ID for resource naming (= RG name for long-running tests; = RG + workload suffix for datapath tests) | Pipeline |
+| `ZONE` | Availability zone number ("1", "2", "3", "4") | Pipeline (long-running only) |
+| `LOCATION` | Azure region (e.g., "eastus2euap") | Pipeline (long-running only) |
 | `WORKLOAD_TYPE` | Node workload filter ("swiftv2-linux") | Pipeline |
 | `KUBECONFIG_DIR` | Directory containing kubeconfig files | Pipeline |
 
@@ -240,7 +240,7 @@ Always-on (DaemonSet):
 
 ## Idempotency
 
-All operations are designed to be safe to re-run. PodNetworks, PodNetworkInstances, namespaces, and the DaemonSet are **created once and reused** across all hourly runs — they are never deleted by the hourly pipeline. Only rotating pods are cycled. These resources are separate from the main pipeline's resources (different naming prefixes).
+All operations are designed to be safe to re-run. PodNetworks, PodNetworkInstances, namespaces, and the DaemonSet are **created once and reused** across all long-running runs — they are never deleted by the long-running pipeline. Only rotating pods are cycled. These resources are separate from the main pipeline's resources (different naming prefixes).
 
 | Operation | Idempotency |
 |-----------|-------------|
@@ -258,11 +258,11 @@ All operations are designed to be safe to re-run. PodNetworks, PodNetworkInstanc
 ```
 .pipelines/swiftv2-long-running/
 ├── pipeline.yaml                              # Main pipeline entry point (every hour)
-├── HOURLY-TESTS.md                            # This file
+├── LONGRUNNING-TESTS.md                            # This file
 ├── template/
-│   ├── long-running-pipeline-template.yaml    # Infra setup + datapath tests + hourly tests
+│   ├── long-running-pipeline-template.yaml    # Infra setup + datapath tests + long-running tests
 │   ├── datapath-tests-stage.yaml              # Per-workload datapath test stage
-│   └── hourly-pod-tests-stage.yaml            # Per-zone: rotating + always-on + connectivity
+│   └── longrunning-pod-tests-stage.yaml            # Per-zone: rotating + always-on + connectivity
 └── scripts/
     ├── verify_infrastructure.sh               # Smart infra check (skip setup if exists)
     ├── ensure_zone_nodepools.sh               # Idempotent per-zone node pool creation
@@ -270,10 +270,10 @@ All operations are designed to be safe to re-run. PodNetworks, PodNetworkInstanc
     └── release_pipeline_lease.sh              # ConfigMap lease release
 
 test/integration/swiftv2/longRunningCluster/
-├── datapath_hourly_shared.go                  # Shared constants/utils for hourly tests (zone-aware)
-├── datapath_hourly_rotating_test.go           # Rotating pods (tag: hourly_rotating_test)
-├── datapath_hourly_alwayson_test.go           # DaemonSet always-on (tag: hourly_alwayson_test)
-└── datapath_hourly_connectivity_test.go       # Hourly connectivity (tag: hourly_connectivity_test)
+├── datapath_longrunning_shared.go                  # Shared constants/utils for long-running tests (zone-aware)
+├── datapath_longrunning_rotating_test.go           # Rotating pods (tag: longrunning_rotating_test)
+├── datapath_longrunning_alwayson_test.go           # DaemonSet always-on (tag: longrunning_alwayson_test)
+└── datapath_longrunning_connectivity_test.go       # Long-running connectivity (tag: longrunning_connectivity_test)
 
 test/integration/manifests/swiftv2/long-running-cluster/
 └── daemonset.yaml                             # DaemonSet manifest template (always-on)
@@ -287,6 +287,6 @@ Each test file uses a unique Go build tag so tests can be run independently:
 
 | Build Tag | File | Pipeline Job |
 |-----------|------|-------------|
-| `hourly_rotating_test` | `datapath_hourly_rotating_test.go` | RotatingPods_Z{N} |
-| `hourly_alwayson_test` | `datapath_hourly_alwayson_test.go` | AlwaysOnPods_Z{N} (DaemonSet) |
-| `hourly_connectivity_test` | `datapath_hourly_connectivity_test.go` | ConnectivityTest_Z{N} |
+| `longrunning_rotating_test` | `datapath_longrunning_rotating_test.go` | RotatingPods_Z{N} |
+| `longrunning_alwayson_test` | `datapath_longrunning_alwayson_test.go` | AlwaysOnPods_Z{N} (DaemonSet) |
+| `longrunning_connectivity_test` | `datapath_longrunning_connectivity_test.go` | ConnectivityTest_Z{N} |

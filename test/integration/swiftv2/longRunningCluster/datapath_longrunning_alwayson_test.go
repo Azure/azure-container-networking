@@ -1,5 +1,5 @@
-//go:build hourly_alwayson_test
-// +build hourly_alwayson_test
+//go:build longrunning_alwayson_test
+// +build longrunning_alwayson_test
 
 package longrunningcluster
 
@@ -13,9 +13,9 @@ import (
 	"github.com/onsi/gomega"
 )
 
-func TestHourlyAlwaysOn(t *testing.T) {
+func TestLongRunningAlwaysOn(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Hourly Always-On DaemonSet Suite")
+	ginkgo.RunSpecs(t, "Long-Running Always-On DaemonSet Suite")
 }
 
 // ensureAlwaysOnPNAndPNI ensures the PodNetwork and PodNetworkInstance exist for always-on pods.
@@ -29,7 +29,7 @@ func ensureAlwaysOnPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 		fmt.Printf("PodNetwork %s already exists, reusing\n", pnName)
 	} else {
 		fmt.Printf("Creating PodNetwork %s\n", pnName)
-		info, infoErr := GetOrFetchVnetSubnetInfo(rg, "cx_vnet_v1", "s1", make(map[string]VnetSubnetInfo))
+		info, infoErr := GetOrFetchVnetSubnetInfo(rg, "cx_vnet_v1", "lr", make(map[string]VnetSubnetInfo))
 		gomega.Expect(infoErr).To(gomega.BeNil(), "Failed to get VNet/Subnet info for always-on PN")
 		createErr := createPodNetworkCR(ctx, c, pnName, info.VnetGUID, info.SubnetGUID, info.SubnetARMID)
 		gomega.Expect(createErr).To(gomega.BeNil(), "Failed to create PodNetwork")
@@ -46,7 +46,7 @@ func ensureAlwaysOnPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 	}
 }
 
-var _ = ginkgo.Describe("Hourly Always-On DaemonSet Tests", func() {
+var _ = ginkgo.Describe("Long-Running Always-On DaemonSet Tests", func() {
 	ginkgo.It("ensures the always-on DaemonSet is running on the zone node", func() {
 		rg := os.Getenv("RG")
 		buildID := os.Getenv("BUILD_ID")
@@ -67,8 +67,8 @@ var _ = ginkgo.Describe("Hourly Always-On DaemonSet Tests", func() {
 
 		// Zone-scoped resource names
 		namespace := GetZonedAlwaysOnNS(buildID)
-		pnName := GetZonedPNName(HourlyAlwaysOnPNPrefix, buildID)
-		pniName := GetZonedPNIName(HourlyAlwaysOnPNIPrefix, buildID)
+		pnName := GetZonedPNName(LongRunningAlwaysOnPNPrefix, buildID)
+		pniName := GetZonedPNIName(LongRunningAlwaysOnPNIPrefix, buildID)
 		dsName := GetDaemonSetName()
 		zoneLabel := GetZoneLabel(location)
 		if zoneLabel == "" {

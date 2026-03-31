@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Idempotently creates per-zone high-NIC node pools for the hourly pod tests.
+# Idempotently creates per-zone high-NIC node pools for the long-running pod tests.
 # Each zone gets a 1-node pool. The node runs 6 rotating pods + 1 DaemonSet always-on pod.
 # Reuses the same VNet/podnet subnet as the existing nplinux pool.
 #
@@ -72,7 +72,7 @@ for ZONE in $ZONES; do
   kubectl --kubeconfig "$KUBECONFIG_FILE" label nodes -l agentpool=$POOL_NAME \
     nic-capacity=high-nic \
     workload-type=swiftv2-linux \
-    hourly-zone-pool=true \
+    longrunning-zone-pool=true \
     --overwrite
 
   # Taint zone pool nodes so only test pods with the matching toleration can schedule here.
@@ -93,7 +93,7 @@ for ZONE in $ZONES; do
   if [ "$ACTUAL_ZONE" != "$EXPECTED_ZONE" ]; then
     echo "ERROR: Zone label mismatch! Expected '$EXPECTED_ZONE', got '$ACTUAL_ZONE'"
     echo "       The Go tests use '<location>-<zone>' format (e.g., 'eastus2euap-1')."
-    echo "       Update GetZoneLabel() in datapath_hourly_shared.go and daemonset.yaml if format differs."
+    echo "       Update GetZoneLabel() in datapath_longrunning_shared.go and daemonset.yaml if format differs."
     exit 1
   fi
   echo "    Zone label verified: $ACTUAL_ZONE == $EXPECTED_ZONE"
@@ -101,6 +101,6 @@ done
 
 echo "==> Zone node pool setup complete"
 echo "==> Node summary:"
-kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l hourly-zone-pool=true \
+kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l longrunning-zone-pool=true \
   -o custom-columns='NAME:.metadata.name,ZONE:.metadata.labels.topology\.kubernetes\.io/zone,POOL:.metadata.labels.agentpool' \
   --sort-by='.metadata.labels.topology\.kubernetes\.io/zone'

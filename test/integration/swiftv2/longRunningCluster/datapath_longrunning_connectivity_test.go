@@ -1,5 +1,5 @@
-//go:build hourly_connectivity_test
-// +build hourly_connectivity_test
+//go:build longrunning_connectivity_test
+// +build longrunning_connectivity_test
 
 package longrunningcluster
 
@@ -12,12 +12,12 @@ import (
 	"github.com/onsi/gomega"
 )
 
-func TestHourlyConnectivity(t *testing.T) {
+func TestLongRunningConnectivity(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Hourly Connectivity Suite")
+	ginkgo.RunSpecs(t, "Long-Running Connectivity Suite")
 }
 
-var _ = ginkgo.Describe("Hourly Basic Datapath Connectivity Tests", func() {
+var _ = ginkgo.Describe("Long-Running Connectivity Tests", func() {
 	ginkgo.It("tests TCP connectivity between rotating and always-on pods in the same zone", func() {
 		buildID := os.Getenv("BUILD_ID")
 		if buildID == "" {
@@ -51,28 +51,28 @@ var _ = ginkgo.Describe("Hourly Basic Datapath Connectivity Tests", func() {
 		// Test connectivity between rotating pod and DaemonSet pod (same VNet)
 		connectivityTests := []ConnectivityTest{
 			{
-				Name:            "Hourly-Rotating-To-AlwaysOn-Z" + zone,
+				Name:            "LR-Rotating-To-AlwaysOn-Z" + zone,
 				SourcePod:       rotatingPodName,
 				SourceNamespace: rotatingNS,
 				DestinationPod:  dsPodName,
 				DestNamespace:   alwaysOnNS,
 				Cluster:         "aks-1",
-				Description:     fmt.Sprintf("Zone %s: rotating pod -> DaemonSet pod (cx_vnet_v1/s1)", zone),
+				Description:     fmt.Sprintf("Zone %s: rotating pod -> DaemonSet pod (cx_vnet_v1/lr)", zone),
 				ShouldFail:      false,
 			},
 			{
-				Name:            "Hourly-AlwaysOn-To-Rotating-Z" + zone,
+				Name:            "LR-AlwaysOn-To-Rotating-Z" + zone,
 				SourcePod:       dsPodName,
 				SourceNamespace: alwaysOnNS,
 				DestinationPod:  rotatingPodName,
 				DestNamespace:   rotatingNS,
 				Cluster:         "aks-1",
-				Description:     fmt.Sprintf("Zone %s: DaemonSet pod -> rotating pod (cx_vnet_v1/s1)", zone),
+				Description:     fmt.Sprintf("Zone %s: DaemonSet pod -> rotating pod (cx_vnet_v1/lr)", zone),
 				ShouldFail:      false,
 			},
 		}
 
-		ginkgo.By(fmt.Sprintf("Running %d hourly connectivity tests for zone %s", len(connectivityTests), zone))
+		ginkgo.By(fmt.Sprintf("Running %d long-running connectivity tests for zone %s", len(connectivityTests), zone))
 
 		successCount := 0
 		failureCount := 0

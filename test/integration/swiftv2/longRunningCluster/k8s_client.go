@@ -1,7 +1,7 @@
-//go:build hourly_rotating_test || hourly_alwayson_test || hourly_connectivity_test
+//go:build longrunning_rotating_test || longrunning_alwayson_test || longrunning_connectivity_test
 
 // Package-level nolint for unused: functions in this file are shared across
-// multiple build tags (hourly_rotating_test, hourly_alwayson_test, hourly_connectivity_test).
+// multiple build tags (longrunning_rotating_test, longrunning_alwayson_test, longrunning_connectivity_test).
 // Each tag only uses a subset, so the unused linter flags cross-tag symbols.
 //
 //nolint:unused // cross-build-tag shared helpers
@@ -385,7 +385,7 @@ func createDeploymentObject(data DeploymentData) *appsv1.Deployment {
 						"kubernetes.azure.com/pod-network":          data.PNName,
 					},
 					Annotations: map[string]string{
-						HourlyCreatedAtAnnotation: data.CreatedAt,
+						LongRunningCreatedAtAnnotation: data.CreatedAt,
 					},
 				},
 				Spec: podSpec(data.NodeName, data.Image, privileged),
@@ -442,7 +442,7 @@ func podSpec(nodeName, image string, privileged bool) corev1.PodSpec {
 func daemonSetPodSpec(zoneLabel, image string, privileged bool) corev1.PodSpec {
 	return corev1.PodSpec{
 		NodeSelector: map[string]string{
-			"hourly-zone-pool":            "true",
+			"longrunning-zone-pool":            "true",
 			"topology.kubernetes.io/zone": zoneLabel,
 		},
 		Tolerations: []corev1.Toleration{

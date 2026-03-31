@@ -1,5 +1,5 @@
-//go:build hourly_rotating_test
-// +build hourly_rotating_test
+//go:build longrunning_rotating_test
+// +build longrunning_rotating_test
 
 package longrunningcluster
 
@@ -16,9 +16,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func TestHourlyRotating(t *testing.T) {
+func TestLongRunningRotating(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Hourly Rotating Pod Suite")
+	ginkgo.RunSpecs(t, "Long-Running Rotating Pod Suite")
 }
 
 const rotatingPodMaxAge = 6 * time.Hour
@@ -34,7 +34,7 @@ func getDeploymentCreationTime(kubeconfig, namespace, deploymentName string) (ti
 		return time.Time{}, fmt.Errorf("failed to get deployment %s: %w", deploymentName, err)
 	}
 
-	timeStr := dep.Spec.Template.Annotations[HourlyCreatedAtAnnotation]
+	timeStr := dep.Spec.Template.Annotations[LongRunningCreatedAtAnnotation]
 	if timeStr == "" {
 		// Fall back to deployment creation timestamp
 		return dep.CreationTimestamp.Time, nil
@@ -104,7 +104,7 @@ func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 		fmt.Printf("PodNetwork %s already exists, reusing\n", pnName)
 	} else {
 		fmt.Printf("Creating PodNetwork %s\n", pnName)
-		info, infoErr := GetOrFetchVnetSubnetInfo(rg, "cx_vnet_v1", "s1", make(map[string]VnetSubnetInfo))
+		info, infoErr := GetOrFetchVnetSubnetInfo(rg, "cx_vnet_v1", "lr", make(map[string]VnetSubnetInfo))
 		gomega.Expect(infoErr).To(gomega.BeNil(), "Failed to get VNet/Subnet info for rotating PN")
 		err = createPodNetworkCR(ctx, c, pnName, info.VnetGUID, info.SubnetGUID, info.SubnetARMID)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to create PodNetwork")
@@ -121,7 +121,7 @@ func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 	}
 }
 
-var _ = ginkgo.Describe("Hourly Rotating Pod Tests", func() {
+var _ = ginkgo.Describe("Long-Running Rotating Pod Tests", func() {
 	ginkgo.It("rotates pods on the zone high-NIC node (6h lifetime, 1 per hour)", func() {
 		rg := os.Getenv("RG")
 		buildID := os.Getenv("BUILD_ID")
@@ -150,8 +150,8 @@ var _ = ginkgo.Describe("Hourly Rotating Pod Tests", func() {
 
 		// Zone-scoped resource names
 		namespace := GetZonedRotatingNS(buildID)
-		pnName := GetZonedPNName(HourlyRotatingPNPrefix, buildID)
-		pniName := GetZonedPNIName(HourlyRotatingPNIPrefix, buildID)
+		pnName := GetZonedPNName(LongRunningRotatingPNPrefix, buildID)
+		pniName := GetZonedPNIName(LongRunningRotatingPNIPrefix, buildID)
 
 		// Ensure namespace exists
 		ctx := context.Background()
@@ -167,7 +167,7 @@ var _ = ginkgo.Describe("Hourly Rotating Pod Tests", func() {
 		createdCount := 0
 		existingSlots := make(map[int]bool)
 
-		for slot := 0; slot < HourlyRotatingPodCount; slot++ {
+		for slot := 0; slot < LongRunningRotatingPodCount; slot++ {
 			deploymentName := GetRotatingPodName(slot)
 			if !IsDeploymentExists(kubeconfig, namespace, deploymentName) {
 				continue
@@ -202,7 +202,7 @@ var _ = ginkgo.Describe("Hourly Rotating Pod Tests", func() {
 			oldestSlot := -1
 			var oldestTime time.Time
 
-			for slot := 0; slot < HourlyRotatingPodCount; slot++ {
+			for slot := 0; slot < LongRunningRotatingPodCount; slot++ {
 				if !existingSlots[slot] {
 					continue
 				}
@@ -229,7 +229,7 @@ var _ = ginkgo.Describe("Hourly Rotating Pod Tests", func() {
 		}
 
 		// Create deployments for all empty slots
-		for slot := 0; slot < HourlyRotatingPodCount; slot++ {
+		for slot := 0; slot < LongRunningRotatingPodCount; slot++ {
 			if existingSlots[slot] {
 				continue
 			}
@@ -243,7 +243,7 @@ var _ = ginkgo.Describe("Hourly Rotating Pod Tests", func() {
 		fmt.Printf("\nRotating deployment summary (zone %s): deleted=%d, created=%d\n", zone, deletedCount, createdCount)
 
 		// Verify all 6 deployments are ready
-		for slot := 0; slot < HourlyRotatingPodCount; slot++ {
+		for slot := 0; slot < LongRunningRotatingPodCount; slot++ {
 			deploymentName := GetRotatingPodName(slot)
 			gomega.Expect(IsDeploymentReady(kubeconfig, namespace, deploymentName)).To(gomega.BeTrue(),
 				"Deployment "+deploymentName+" is not ready after rotation")

@@ -1,4 +1,4 @@
-//go:build hourly_rotating_test || hourly_alwayson_test || hourly_connectivity_test
+//go:build longrunning_rotating_test || longrunning_alwayson_test || longrunning_connectivity_test
 
 package longrunningcluster
 
@@ -12,19 +12,19 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-// Shared constants for hourly pod tests (rotating + always-on DaemonSet).
+// Shared constants for long-running pod tests (rotating + always-on DaemonSet).
 // These are in a non-build-tagged file so they are available to all test files.
 const (
-	HourlyRotatingPodCount    = 6
-	HourlyRotatingPodPrefix   = "pod-rotating-"
-	HourlyRotatingNSPrefix    = "ns-rotating"
-	HourlyAlwaysOnNSPrefix    = "ns-alwayson"
-	HourlyRotatingPNPrefix    = "pn-rotating"
-	HourlyAlwaysOnPNPrefix    = "pn-alwayson"
-	HourlyRotatingPNIPrefix   = "pni-rotating"
-	HourlyAlwaysOnPNIPrefix   = "pni-alwayson"
-	HourlyCreatedAtAnnotation = "acn-test/created-at"
-	HourlyDaemonSetPrefix     = "ds-alwayson"
+	LongRunningRotatingPodCount    = 6
+	LongRunningRotatingPodPrefix   = "pod-rotating-"
+	LongRunningRotatingNSPrefix    = "ns-rotating"
+	LongRunningAlwaysOnNSPrefix    = "ns-alwayson"
+	LongRunningRotatingPNPrefix    = "pn-rotating"
+	LongRunningAlwaysOnPNPrefix    = "pn-alwayson"
+	LongRunningRotatingPNIPrefix   = "pni-rotating"
+	LongRunningAlwaysOnPNIPrefix   = "pni-alwayson"
+	LongRunningCreatedAtAnnotation = "acn-test/created-at"
+	LongRunningDaemonSetPrefix     = "ds-alwayson"
 )
 
 // GetZone returns the ZONE environment variable (e.g., "1", "2", "3", "4").
@@ -45,17 +45,17 @@ func GetZoneSuffix() string {
 
 // GetRotatingPodName returns the pod name for a given rotating slot index (0-5).
 func GetRotatingPodName(slot int) string {
-	return fmt.Sprintf("%s%d", HourlyRotatingPodPrefix, slot)
+	return fmt.Sprintf("%s%d", LongRunningRotatingPodPrefix, slot)
 }
 
 // GetZonedRotatingNS returns the zone-scoped namespace for rotating pods.
 func GetZonedRotatingNS(buildID string) string {
-	return fmt.Sprintf("%s%s-%s", HourlyRotatingNSPrefix, GetZoneSuffix(), buildID)
+	return fmt.Sprintf("%s%s-%s", LongRunningRotatingNSPrefix, GetZoneSuffix(), buildID)
 }
 
 // GetZonedAlwaysOnNS returns the zone-scoped namespace for always-on pods.
 func GetZonedAlwaysOnNS(buildID string) string {
-	return fmt.Sprintf("%s%s-%s", HourlyAlwaysOnNSPrefix, GetZoneSuffix(), buildID)
+	return fmt.Sprintf("%s%s-%s", LongRunningAlwaysOnNSPrefix, GetZoneSuffix(), buildID)
 }
 
 // GetZonedPNName returns a zone-scoped PodNetwork name.
@@ -69,13 +69,13 @@ func GetZonedPNIName(prefix, buildID string) string {
 }
 
 // GetRotatingNodeSelector returns the label selector for the zone's node.
-// Each zone has 1 node labeled hourly-zone-pool=true with the AKS zone label.
+// Each zone has 1 node labeled longrunning-zone-pool=true with the AKS zone label.
 func GetRotatingNodeSelector(location string) string {
 	zone := GetZone()
 	if zone == "" {
-		return "hourly-zone-pool=true"
+		return "longrunning-zone-pool=true"
 	}
-	return fmt.Sprintf("hourly-zone-pool=true,topology.kubernetes.io/zone=%s-%s", location, zone)
+	return fmt.Sprintf("longrunning-zone-pool=true,topology.kubernetes.io/zone=%s-%s", location, zone)
 }
 
 // GetAlwaysOnNodeSelector returns the same selector as GetRotatingNodeSelector
@@ -86,7 +86,7 @@ func GetAlwaysOnNodeSelector(location string) string {
 
 // GetDaemonSetName returns the zone-scoped DaemonSet name.
 func GetDaemonSetName() string {
-	return fmt.Sprintf("%s%s", HourlyDaemonSetPrefix, GetZoneSuffix())
+	return fmt.Sprintf("%s%s", LongRunningDaemonSetPrefix, GetZoneSuffix())
 }
 
 // GetDaemonSetPodName finds the DaemonSet pod name in the given namespace.

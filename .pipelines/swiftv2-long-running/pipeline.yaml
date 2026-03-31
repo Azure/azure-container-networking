@@ -23,8 +23,8 @@ parameters:
       - "centraluseuap"
       - "westus2"
 
-  - name: hourlyRegions
-    displayName: "Hourly test region-to-zone mapping (zone-aware pods)"
+  - name: longrunningRegions
+    displayName: "Long-running test region-to-zone mapping (zone-aware pods)"
     type: object
     default:
       - location: eastus2euap
@@ -45,4 +45,4 @@ extends:
     subscriptionId: ${{ parameters.subscriptionId }}
     location: ${{ parameters.location }}
     resourceGroupName: ${{ parameters.resourceGroupName }}
-    hourlyRegions: ${{ parameters.hourlyRegions }}
+    longrunningRegions: ${{ parameters.longrunningRegions }}

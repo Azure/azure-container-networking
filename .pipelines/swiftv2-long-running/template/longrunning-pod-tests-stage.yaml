@@ -12,8 +12,8 @@ parameters:
     default: []
 
 stages:
-  - stage: HourlyPodTests_Z${{ parameters.zone }}_${{ replace(parameters.location, '-', '_') }}
-    displayName: "Stage: Hourly Pod Tests - Zone ${{ parameters.zone }} (${{ parameters.location }})"
+  - stage: LongRunningPodTests_Z${{ parameters.zone }}_${{ replace(parameters.location, '-', '_') }}
+    displayName: "Stage: Long-Running Pod Tests - Zone ${{ parameters.zone }} (${{ parameters.location }})"
     ${{ if ne(length(parameters.dependsOn), 0) }}:
       dependsOn: ${{ parameters.dependsOn }}
     condition: and(eq(variables.isAllowedRun, true), not(failed()))
@@ -44,14 +44,14 @@ stages:
 
                 echo "==> Confirming zone ${{ parameters.zone }} nodes exist"
                 kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig get nodes \
-                  -l "topology.kubernetes.io/zone=${{ parameters.location }}-${{ parameters.zone }},hourly-zone-pool=true" \
+                  -l "topology.kubernetes.io/zone=${{ parameters.location }}-${{ parameters.zone }},longrunning-zone-pool=true" \
                   -o custom-columns='NAME:.metadata.name,ZONE:.metadata.labels.topology\.kubernetes\.io/zone,POOL:.metadata.labels.agentpool'
 
           - task: PublishPipelineArtifact@1
             displayName: "Publish kubeconfig files"
             inputs:
               targetPath: $(Pipeline.Workspace)/kubeconfigs
-              artifactName: kubeconfigs-hourly-z${{ parameters.zone }}-${{ parameters.location }}
+              artifactName: kubeconfigs-longrunning-z${{ parameters.zone }}-${{ parameters.location }}
               publishLocation: pipeline
 
       # Setup: Build metrics binary
@@ -73,7 +73,7 @@ stages:
             displayName: "Publish metrics binary and config"
             inputs:
               targetPath: '$(System.DefaultWorkingDirectory)/src/dnc'
-              artifactName: 'persistent-cluster-metrics-hourly-z${{ parameters.zone }}-${{ parameters.location }}'
+              artifactName: 'persistent-cluster-metrics-longrunning-z${{ parameters.zone }}-${{ parameters.location }}'
               publishLocation: 'pipeline'
 
       # Job 1: Rotating pods (delete expired, create new, ensure 1 rotation per hour)
@@ -93,13 +93,13 @@ stages:
           - task: DownloadPipelineArtifact@2
             displayName: "Download kubeconfig files"
             inputs:
-              artifactName: kubeconfigs-hourly-z${{ parameters.zone }}-${{ parameters.location }}
+              artifactName: kubeconfigs-longrunning-z${{ parameters.zone }}-${{ parameters.location }}
               targetPath: $(Pipeline.Workspace)/kubeconfigs
 
           - task: DownloadPipelineArtifact@2
             displayName: "Download metrics binary"
             inputs:
-              artifact: 'persistent-cluster-metrics-hourly-z${{ parameters.zone }}-${{ parameters.location }}'
+              artifact: 'persistent-cluster-metrics-longrunning-z${{ parameters.zone }}-${{ parameters.location }}'
               path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
 
           - task: Bash@3
@@ -128,17 +128,17 @@ stages:
 
                 cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
 
-                if go test -v -timeout=45m -tags=hourly_rotating_test; then
+                if go test -v -timeout=45m -tags=longrunning_rotating_test; then
                   echo "RotatingPods Zone ${{ parameters.zone }} PASSED"
                   # TODO: Re-enable with a dedicated long-running metric name once persistent-cluster-metrics
                   # in Networking-Aquarius is updated to support it. Currently disabled to avoid polluting
-                  # PersistentClusterTestsSucceeded/Failed alerts with hourly test noise.
+                  # PersistentClusterTestsSucceeded/Failed alerts with long-running test noise.
                   # cd $metrics_dir
-                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-rotating-z${{ parameters.zone }}" --test-scenario "Rotating pod management zone ${{ parameters.zone }}"
+                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "longrunning-rotating-z${{ parameters.zone }}" --test-scenario "Rotating pod management zone ${{ parameters.zone }}"
                 else
                   echo "RotatingPods Zone ${{ parameters.zone }} FAILED"
                   # cd $metrics_dir
-                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-rotating-z${{ parameters.zone }}" --test-scenario "Rotating pod management zone ${{ parameters.zone }}"
+                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "longrunning-rotating-z${{ parameters.zone }}" --test-scenario "Rotating pod management zone ${{ parameters.zone }}"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -163,13 +163,13 @@ stages:
           - task: DownloadPipelineArtifact@2
             displayName: "Download kubeconfig files"
             inputs:
-              artifactName: kubeconfigs-hourly-z${{ parameters.zone }}-${{ parameters.location }}
+              artifactName: kubeconfigs-longrunning-z${{ parameters.zone }}-${{ parameters.location }}
               targetPath: $(Pipeline.Workspace)/kubeconfigs
 
           - task: DownloadPipelineArtifact@2
             displayName: "Download metrics binary"
             inputs:
-              artifact: 'persistent-cluster-metrics-hourly-z${{ parameters.zone }}-${{ parameters.location }}'
+              artifact: 'persistent-cluster-metrics-longrunning-z${{ parameters.zone }}-${{ parameters.location }}'
               path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
 
           - task: Bash@3
@@ -198,16 +198,16 @@ stages:
 
                 cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
 
-                if go test -v -timeout=45m -tags=hourly_alwayson_test; then
+                if go test -v -timeout=45m -tags=longrunning_alwayson_test; then
                   echo "AlwaysOnPods Zone ${{ parameters.zone }} PASSED"
                   # TODO: Re-enable with a dedicated long-running metric name once persistent-cluster-metrics
                   # in Networking-Aquarius is updated to support it.
                   # cd $metrics_dir
-                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-alwayson-z${{ parameters.zone }}" --test-scenario "Always-on pod management zone ${{ parameters.zone }}"
+                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "longrunning-alwayson-z${{ parameters.zone }}" --test-scenario "Always-on pod management zone ${{ parameters.zone }}"
                 else
                   echo "AlwaysOnPods Zone ${{ parameters.zone }} FAILED"
                   # cd $metrics_dir
-                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-alwayson-z${{ parameters.zone }}" --test-scenario "Always-on pod management zone ${{ parameters.zone }}"
+                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "longrunning-alwayson-z${{ parameters.zone }}" --test-scenario "Always-on pod management zone ${{ parameters.zone }}"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -216,7 +216,7 @@ stages:
               KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
 
       # Job 3: Connectivity test between rotating and always-on pods in this zone
-      - job: HourlyConnectivityTest_Z${{ parameters.zone }}
+      - job: LongRunningConnectivityTest_Z${{ parameters.zone }}
         displayName: "Zone ${{ parameters.zone }}: Connectivity Test"
         dependsOn:
           - SetupKubeconfig
@@ -235,13 +235,13 @@ stages:
           - task: DownloadPipelineArtifact@2
             displayName: "Download kubeconfig files"
             inputs:
-              artifactName: kubeconfigs-hourly-z${{ parameters.zone }}-${{ parameters.location }}
+              artifactName: kubeconfigs-longrunning-z${{ parameters.zone }}-${{ parameters.location }}
               targetPath: $(Pipeline.Workspace)/kubeconfigs
 
           - task: DownloadPipelineArtifact@2
             displayName: "Download metrics binary"
             inputs:
-              artifact: 'persistent-cluster-metrics-hourly-z${{ parameters.zone }}-${{ parameters.location }}'
+              artifact: 'persistent-cluster-metrics-longrunning-z${{ parameters.zone }}-${{ parameters.location }}'
               path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
 
           - task: Bash@3
@@ -270,16 +270,16 @@ stages:
 
                 cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
 
-                if go test -v -timeout=20m -tags=hourly_connectivity_test; then
+                if go test -v -timeout=20m -tags=longrunning_connectivity_test; then
                   echo "Connectivity Zone ${{ parameters.zone }} PASSED"
                   # TODO: Re-enable with a dedicated long-running metric name once persistent-cluster-metrics
                   # in Networking-Aquarius is updated to support it.
                   # cd $metrics_dir
-                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-connectivity-z${{ parameters.zone }}" --test-scenario "Hourly connectivity zone ${{ parameters.zone }}"
+                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "longrunning-connectivity-z${{ parameters.zone }}" --test-scenario "Long-running connectivity zone ${{ parameters.zone }}"
                 else
                   echo "Connectivity Zone ${{ parameters.zone }} FAILED"
                   # cd $metrics_dir
-                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "hourly-connectivity-z${{ parameters.zone }}" --test-scenario "Hourly connectivity zone ${{ parameters.zone }}"
+                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "longrunning-connectivity-z${{ parameters.zone }}" --test-scenario "Long-running connectivity zone ${{ parameters.zone }}"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)

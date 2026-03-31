@@ -5,7 +5,7 @@ parameters:
     type: object
   - name: resourceGroupName
     type: string
-  - name: hourlyRegions
+  - name: longrunningRegions
     type: object
     default: []
   - name: workloadType
@@ -321,7 +321,7 @@ stages:
   # ============================================================
   # Zone node pool setup for long-running tests (idempotent, always runs)
   # ============================================================
-  - ${{ each region in parameters.hourlyRegions }}:
+  - ${{ each region in parameters.longrunningRegions }}:
     - stage: EnsureZoneNodePools_${{ replace(region.location, '-', '_') }}
       displayName: "Setup: Zone Node Pools (${{ region.location }})"
       dependsOn:
@@ -418,9 +418,9 @@ stages:
   # ============================================================
   # Long-running pod tests per zone (rotating + DaemonSet + connectivity)
   # ============================================================
-  - ${{ each region in parameters.hourlyRegions }}:
+  - ${{ each region in parameters.longrunningRegions }}:
     - ${{ each zone in region.zones }}:
-      - template: hourly-pod-tests-stage.yaml
+      - template: longrunning-pod-tests-stage.yaml
         parameters:
           location: ${{ region.location }}
           subscriptionId: ${{ parameters.subscriptionId }}
