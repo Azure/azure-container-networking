@@ -7,6 +7,9 @@ parameters:
     type: string
   - name: zone
     type: string
+  - name: vmSkuHighNIC
+    type: string
+    default: "Standard_D16s_v3"
   - name: dependsOn
     type: object
     default: []
@@ -18,9 +21,31 @@ stages:
       dependsOn: ${{ parameters.dependsOn }}
     condition: and(eq(variables.isAllowedRun, true), not(failed()))
     jobs:
+      # Ensure the zone-specific node pool exists (idempotent, isolated per zone)
+      - job: EnsureNodePool_Z${{ parameters.zone }}
+        displayName: "Ensure zone ${{ parameters.zone }} node pool exists"
+        steps:
+          - checkout: self
+            displayName: "Checkout azure-container-networking"
+          - task: AzureCLI@2
+            displayName: "Ensure per-zone high-NIC node pool (zone ${{ parameters.zone }})"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/ensure_zone_nodepools.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.rgName }}
+                aks-1
+                ${{ parameters.vmSkuHighNIC }}
+                "${{ parameters.zone }}"
+                7
+
       # Setup: Get kubeconfig
       - job: SetupKubeconfig
         displayName: "Setup Kubeconfig Files"
+        dependsOn: EnsureNodePool_Z${{ parameters.zone }}
         steps:
           - task: AzureCLI@2
             displayName: "Generate and verify kubeconfig files"

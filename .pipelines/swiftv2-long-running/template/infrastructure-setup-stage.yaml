@@ -1,0 +1,252 @@
+parameters:
+  - name: subscriptionId
+    type: string
+  - name: location
+    type: string
+  - name: resourceGroupName
+    type: string
+  - name: vmSkuDefault
+    type: string
+  - name: vmSkuHighNIC
+    type: string
+
+stages:
+  - stage: AKSClusterAndNetworking_${{ replace(parameters.location, '-', '_') }}
+    displayName: "Stage: Verify & Setup Infrastructure (${{ parameters.location }})"
+    condition: eq(variables.isAllowedRun, true)
+    variables:
+      rgName: ${{ parameters.resourceGroupName }}-${{ parameters.location }}
+    jobs:
+      # First: smart verification of existing infrastructure
+      - job: VerifyInfrastructure
+        displayName: "Verify Infrastructure Exists"
+        steps:
+          - checkout: self
+            displayName: "Checkout azure-container-networking"
+          - task: AzureCLI@2
+            name: InfraCheck
+            displayName: "Smart infrastructure verification"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/verify_infrastructure.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                $(rgName)
+
+      # Always ensure node labels are correct (survives node replacements)
+      - job: EnsureNodeLabels
+        displayName: "Ensure Node Labels"
+        dependsOn: VerifyInfrastructure
+        condition: and(succeeded(), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'true'))
+        steps:
+          - task: AzureCLI@2
+            displayName: "Apply workload-type and nic-capacity labels"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                for CLUSTER in aks-1 aks-2; do
+                  echo "==> Ensuring labels on $CLUSTER"
+                  KUBECONFIG="/tmp/${CLUSTER}.kubeconfig"
+                  az aks get-credentials -g "$(rgName)" -n "$CLUSTER" --admin \
+                    --overwrite-existing --file "$KUBECONFIG"
+
+                  # Remove workload-type and nic-capacity labels from SchedulingDisabled nodes
+                  CORDONED_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes \
+                    -o jsonpath='{range .items[?(@.spec.unschedulable)]}{.metadata.name}{"\n"}{end}')
+                  if [ -n "$CORDONED_NODES" ]; then
+                    echo "  Removing labels from SchedulingDisabled (cordoned) nodes:"
+                    for NODE in $CORDONED_NODES; do
+                      echo "    Removing labels from $NODE"
+                      kubectl --kubeconfig "$KUBECONFIG" label node "$NODE" \
+                        workload-type- nic-capacity- 2>/dev/null || true
+                    done
+                  fi
+
+                  # Label only schedulable nodepool1 nodes
+                  echo "  Labeling schedulable nodepool1 nodes: workload-type=swiftv2-linux, nic-capacity=low-nic"
+                  NODEPOOL1_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes \
+                    -l agentpool=nodepool1 \
+                    --field-selector spec.unschedulable!=true \
+                    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+                  if [ -z "$NODEPOOL1_NODES" ]; then
+                    # field-selector may not support unschedulable; filter manually
+                    NODEPOOL1_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes -l agentpool=nodepool1 \
+                      -o json | jq -r '.items[] | select(.spec.unschedulable != true) | .metadata.name')
+                  fi
+                  for NODE in $NODEPOOL1_NODES; do
+                    kubectl --kubeconfig "$KUBECONFIG" label node "$NODE" \
+                      workload-type=swiftv2-linux nic-capacity=low-nic --overwrite
+                  done
+
+                  # Label only schedulable nplinux nodes
+                  echo "  Labeling schedulable nplinux nodes: workload-type=swiftv2-linux, nic-capacity=high-nic"
+                  NPLINUX_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes \
+                    -l agentpool=nplinux \
+                    --field-selector spec.unschedulable!=true \
+                    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+                  if [ -z "$NPLINUX_NODES" ]; then
+                    NPLINUX_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes -l agentpool=nplinux \
+                      -o json | jq -r '.items[] | select(.spec.unschedulable != true) | .metadata.name')
+                  fi
+                  for NODE in $NPLINUX_NODES; do
+                    kubectl --kubeconfig "$KUBECONFIG" label node "$NODE" \
+                      workload-type=swiftv2-linux nic-capacity=high-nic --overwrite
+                  done
+
+                  echo "  Current node labels:"
+                  kubectl --kubeconfig "$KUBECONFIG" get nodes \
+                    -o custom-columns='NAME:.metadata.name,STATUS:.status.conditions[?(@.type=="Ready")].reason,SCHEDULABLE:.spec.unschedulable,WORKLOAD:.metadata.labels.workload-type,NIC:.metadata.labels.nic-capacity,POOL:.metadata.labels.agentpool'
+                done
+
+      # Only run full setup jobs if infrastructure is missing
+      - job: CreateResourceGroup
+        displayName: "Create Resource Group"
+        dependsOn: VerifyInfrastructure
+        condition: and(succeeded(), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false'))
+        steps:
+          - task: AzureCLI@2
+            displayName: "Create resource group"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Creating resource group $(rgName) in ${{ parameters.location }}"
+                az group create \
+                  --name "$(rgName)" \
+                  --location "${{ parameters.location }}" \
+                  --subscription "${{ parameters.subscriptionId }}"
+                echo "Resource group created successfully."
+
+      - job: CreateCluster
+        displayName: "Create AKS Clusters"
+        dependsOn:
+          - VerifyInfrastructure
+          - CreateResourceGroup
+        condition: and(not(failed()), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false'))
+        steps:
+          - checkout: self
+            displayName: "Checkout azure-container-networking"
+          - task: AzureCLI@2
+            displayName: "Create AKS clusters"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_aks.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.location }}
+                $(rgName)
+                ${{ parameters.vmSkuDefault }}
+                ${{ parameters.vmSkuHighNIC }}
+                $(DELEGATOR_CONTAINER_APP_NAME)
+                $(DELEGATOR_RESOURCE_GROUP)
+                $(DELEGATOR_SUBSCRIPTION)
+      
+      - job: NetworkingAndStorage
+        displayName: "Networking and Storage Setup"
+        dependsOn:
+          - VerifyInfrastructure
+          - CreateCluster
+        condition: and(not(failed()), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false'))
+        steps:
+          - checkout: self
+            displayName: "Checkout azure-container-networking"
+          - task: AzureCLI@2
+            displayName: "Create customer vnets"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_vnets.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.location }}
+                $(rgName)
+                $(Build.BuildId)
+                $(DELEGATOR_CONTAINER_APP_NAME)
+                $(DELEGATOR_RESOURCE_GROUP)
+                $(DELEGATOR_SUBSCRIPTION)
+
+          - task: AzureCLI@2
+            displayName: "Create customer vnet peerings"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_peerings.sh"
+              arguments: >
+                $(rgName)
+
+          - task: AzureCLI@2
+            name: CreateStorageAccounts
+            displayName: "Create storage accounts"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_storage.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.location }}
+                $(rgName)
+
+          - task: AzureCLI@2
+            displayName: "Create Private Endpoint for Storage Account"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_pe.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                ${{ parameters.location }}
+                $(rgName)
+                $(CreateStorageAccounts.StorageAccount1)
+          
+          - task: AzureCLI@2
+            displayName: "Create network security groups to restrict access between subnets"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_nsg.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                $(rgName)
+                ${{ parameters.location }}
+
+      - job: DeployLinuxBYON
+        displayName: "Join Linux BYON VMSS to AKS Cluster"
+        dependsOn:
+          - VerifyInfrastructure
+          - CreateCluster
+          - NetworkingAndStorage
+        condition: and(not(failed()), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false'))
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            displayName: "Checkout main repository"
+          - checkout: Networking-Aquarius
+            displayName: "Checkout Networking-Aquarius repository"
+          - task: AzureCLI@2
+            displayName: "Deploy Linux VMSS"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_linuxbyon.sh"
+              arguments: >
+                $(rgName)
+                $(Build.SourcesDirectory)
+            env:
+              SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
+              CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
+              KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
+              KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
