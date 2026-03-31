@@ -31,6 +31,8 @@ write_lease() {
 }
 
 echo "==> Attempting to acquire pipeline lease (run $RUN_ID)"
+echo "  ConfigMap: $CM_NAME, Namespace: $NAMESPACE"
+echo "  TTL: ${LEASE_TTL_MIN}m, Max wait: ${MAX_WAIT_MIN}m"
 
 # Check for existing lease
 EXISTING=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get configmap "$CM_NAME" \
@@ -54,6 +56,7 @@ fi
 
 REMAINING=$(( (EXISTING_EXPIRY - NOW) / 60 ))
 echo "  Lease held by run $EXISTING_RUN (expires in ${REMAINING}m)"
+echo "  LEASE DETAILS: startTime=$(echo "$EXISTING" | grep -o '"startTime":"[^"]*"' | cut -d'"' -f4)"
 echo "  Waiting up to ${MAX_WAIT_MIN}m for release..."
 
 ELAPSED=0
@@ -90,4 +93,5 @@ while [ "$ELAPSED" -lt "$((MAX_WAIT_MIN * 60))" ]; do
 done
 
 echo "ERROR: Could not acquire lease after ${MAX_WAIT_MIN}m. Held by run $EXISTING_RUN."
+echo "  To manually release: kubectl delete configmap $CM_NAME -n $NAMESPACE --kubeconfig '$KUBECONFIG_FILE'"
 exit 1
