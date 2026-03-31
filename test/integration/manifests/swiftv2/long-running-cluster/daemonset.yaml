@@ -15,7 +15,7 @@ spec:
         kubernetes.azure.com/pod-network: {{ .PNName }}
     spec:
       nodeSelector:
-        hourly-zone-pool: "true"
+        longrunning-zone-pool: "true"
         topology.kubernetes.io/zone: {{ .ZoneLabel }}
       tolerations:
       - key: "acn-test/zone-pool"
