@@ -185,7 +185,7 @@ spec:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: spec.nodeName
-          image: $AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY/azure-iptables-monitor:$AZURE_IPTABLES_MONITOR_TAG
+          image: mcr.microsoft.com/containernetworking/azure-iptables-monitor:v0.0.4-0
           imagePullPolicy: IfNotPresent
           name: azure-iptables-monitor
           resources: {}
@@ -223,7 +223,7 @@ spec:
             - /azure-block-iptables
             - -mode=attach
             - -overwrite=true
-          image: $AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY/azure-iptables-monitor:$AZURE_IPTABLES_MONITOR_TAG
+          image: mcr.microsoft.com/containernetworking/azure-iptables-monitor:v0.0.4-0
           imagePullPolicy: IfNotPresent
           name: iptables-blocker-init
           resources: {}
@@ -248,7 +248,7 @@ spec:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: spec.nodeName
-          image: $AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY/azure-iptables-monitor:$AZURE_IPTABLES_MONITOR_TAG
+          image: mcr.microsoft.com/containernetworking/azure-iptables-monitor:v0.0.4-0
           imagePullPolicy: IfNotPresent
           name: azure-iptables-monitor-init
           resources: {}
