@@ -2,8 +2,8 @@ trigger: none
 pr: none
 
 schedules:
-  - cron: "0 */6 * * *"
-    displayName: "Run tests every 6 hours"
+  - cron: "0 * * * *"
+    displayName: "Run tests every hour"
     branches:
       include:
         - master
@@ -23,15 +23,21 @@ parameters:
       - "centraluseuap"
       - "westus2"
 
-  - name: runSetupStages
-    displayName: "Create New Infrastructure Setup"
-    type: boolean
-    default: false
+  - name: longrunningRegions
+    displayName: "Long-running test region-to-zone mapping (zone-aware pods)"
+    type: object
+    default:
+      - location: eastus2euap
+        zones:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
 
   - name: resourceGroupName
-    displayName: "Resource Group Name used when Create new Infrastructure Setup is selected"
+    displayName: "Resource Group Name prefix"
     type: string
-    default: "sv2-long-run-$(Build.BuildId)"
+    default: "sv2-long-run"
 
 extends:
   template: template/long-running-pipeline-template.yaml
@@ -39,4 +45,4 @@ extends:
     subscriptionId: ${{ parameters.subscriptionId }}
     location: ${{ parameters.location }}
     resourceGroupName: ${{ parameters.resourceGroupName }}
-    runSetupStages: ${{ parameters.runSetupStages }}
+    longrunningRegions: ${{ parameters.longrunningRegions }}

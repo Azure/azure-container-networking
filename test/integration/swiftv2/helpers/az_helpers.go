@@ -11,14 +11,14 @@ import (
 )
 
 var (
-	ErrPodNotRunning = errors.New("pod did not reach Running state")
-	ErrPodNoIP = errors.New("pod has no IP address assigned")
-	ErrPodNoDelegatedIP = errors.New("pod has no delegated subnet IP (no non-eth0 interface with /32 address found)")
-	ErrPodContainerNotReady = errors.New("pod container not ready")
-	ErrMTPNCStuckDeletion = errors.New("MTPNC resources should have been deleted but were found")
-	ErrPodDeletionFailed = errors.New("pod still exists after deletion attempts")
-	ErrPNIDeletionFailed = errors.New("PodNetworkInstance still exists after deletion attempts")
-	ErrPNDeletionFailed = errors.New("PodNetwork still exists after deletion attempts")
+	ErrPodNotRunning           = errors.New("pod did not reach Running state")
+	ErrPodNoIP                 = errors.New("pod has no IP address assigned")
+	ErrPodNoDelegatedIP        = errors.New("pod has no delegated subnet IP (no non-eth0 interface with /32 address found)")
+	ErrPodContainerNotReady    = errors.New("pod container not ready")
+	ErrMTPNCStuckDeletion      = errors.New("MTPNC resources should have been deleted but were found")
+	ErrPodDeletionFailed       = errors.New("pod still exists after deletion attempts")
+	ErrPNIDeletionFailed       = errors.New("PodNetworkInstance still exists after deletion attempts")
+	ErrPNDeletionFailed        = errors.New("PodNetwork still exists after deletion attempts")
 	ErrNamespaceDeletionFailed = errors.New("namespace still exists after deletion attempts")
 )
 

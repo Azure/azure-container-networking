@@ -29,7 +29,7 @@ var _ = ginkgo.Describe("Datapath Connectivity Tests", func() {
 		// Helper function to generate namespace from vnet and subnet
 		getNamespace := func(vnetName, subnetName string) string {
 			vnetPrefix := strings.TrimPrefix(vnetName, "cx_vnet_")
-			return fmt.Sprintf("pn-%s-%s-%s", rg, vnetPrefix, subnetName)
+			return fmt.Sprintf("pn-%s-%s-%s", buildId, vnetPrefix, subnetName)
 		}
 
 		// Define connectivity test cases
