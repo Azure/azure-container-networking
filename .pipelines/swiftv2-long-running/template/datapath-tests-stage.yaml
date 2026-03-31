@@ -27,10 +27,11 @@ stages:
       dependsOn: ${{ parameters.dependsOn }}
     ${{ else }}:
       dependsOn: AKSClusterAndNetworking
-    condition: and(eq(variables.isAllowedRun, true), succeeded(), eq('${{ parameters.leaseAcquired }}', 'true'))
+    condition: and(eq(variables.isAllowedRun, true), succeeded(), eq(variables.leaseAcquired, 'true'))
     variables:
       storageAccount1: ${{ parameters.storageAccount1 }}
       storageAccount2: ${{ parameters.storageAccount2 }}
+      leaseAcquired: ${{ parameters.leaseAcquired }}
     jobs:
       - job: SetupKubeconfig
         displayName: "Setup Kubeconfig Files"
