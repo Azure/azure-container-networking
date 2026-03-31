@@ -44,8 +44,8 @@ if [ -z "$EXISTING" ]; then
   exit 0
 fi
 
-EXISTING_RUN=$(echo "$EXISTING" | grep -o '"runId":"[^"]*"' | cut -d'"' -f4)
-EXISTING_EXPIRY=$(echo "$EXISTING" | grep -o '"expiryTime":"[^"]*"' | cut -d'"' -f4)
+EXISTING_RUN=$(echo "$EXISTING" | grep '"runId"' | head -1 | sed 's/.*"runId"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+EXISTING_EXPIRY=$(echo "$EXISTING" | grep '"expiryTime"' | head -1 | sed 's/.*"expiryTime"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
 
 # If lease is expired, claim it
 if [ "$NOW" -gt "${EXISTING_EXPIRY:-0}" ]; then
@@ -56,7 +56,8 @@ fi
 
 REMAINING=$(( (EXISTING_EXPIRY - NOW) / 60 ))
 echo "  Lease held by run $EXISTING_RUN (expires in ${REMAINING}m)"
-echo "  LEASE DETAILS: startTime=$(echo "$EXISTING" | grep -o '"startTime":"[^"]*"' | cut -d'"' -f4)"
+START_TIME=$(echo "$EXISTING" | grep '"startTime"' | head -1 | sed 's/.*"startTime"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+echo "  LEASE DETAILS: startTime=$START_TIME"
 echo "  Waiting up to ${MAX_WAIT_MIN}m for release..."
 
 ELAPSED=0
@@ -77,7 +78,7 @@ while [ "$ELAPSED" -lt "$((MAX_WAIT_MIN * 60))" ]; do
     exit 0
   fi
 
-  EXISTING_EXPIRY=$(echo "$EXISTING" | grep -o '"expiryTime":"[^"]*"' | cut -d'"' -f4)
+  EXISTING_EXPIRY=$(echo "$EXISTING" | grep '"expiryTime"' | head -1 | sed 's/.*"expiryTime"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
   NOW_CHECK=$(date +%s)
 
   # Lease expired while we waited
