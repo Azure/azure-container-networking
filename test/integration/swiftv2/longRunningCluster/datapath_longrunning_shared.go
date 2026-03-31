@@ -13,7 +13,8 @@ import (
 )
 
 // Shared constants for long-running pod tests (rotating + always-on DaemonSet).
-// These are in a non-build-tagged file so they are available to all test files.
+// These are defined in this shared file and are available to all long-running
+// tests built with the longrunning_* build tags.
 const (
 	LongRunningRotatingPodCount    = 6
 	LongRunningRotatingPodPrefix   = "pod-rotating-"
