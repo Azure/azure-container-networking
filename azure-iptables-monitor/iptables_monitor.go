@@ -383,6 +383,52 @@ func Run(cfg Config, deps Dependencies) {
 	}
 }
 
+// MultiHandler routes log messages to different outputs based on level.
+// Errors are written to both stderr and stdout so that stderr captures errors
+// for alerting while stdout retains a complete log stream.
+// All other levels (warn, info, debug) go only to stdout.
+type MultiHandler struct {
+	stderrHandler slog.Handler
+	stdoutHandler slog.Handler
+}
+
+func NewMultiHandler(level slog.Level) *MultiHandler {
+	opts := &slog.HandlerOptions{Level: level}
+	return &MultiHandler{
+		stderrHandler: slog.NewTextHandler(os.Stderr, opts),
+		stdoutHandler: slog.NewTextHandler(os.Stdout, opts),
+	}
+}
+
+func (m *MultiHandler) Enabled(_ context.Context, level slog.Level) bool {
+	return m.stdoutHandler.Enabled(context.Background(), level)
+}
+
+func (m *MultiHandler) Handle(ctx context.Context, record slog.Record) error {
+	// all levels go to stdout but errors also go to stderr
+	if err := m.stdoutHandler.Handle(ctx, record); err != nil {
+		return err
+	}
+	if record.Level >= slog.LevelError {
+		return m.stderrHandler.Handle(ctx, record)
+	}
+	return nil
+}
+
+func (m *MultiHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &MultiHandler{
+		stderrHandler: m.stderrHandler.WithAttrs(attrs),
+		stdoutHandler: m.stdoutHandler.WithAttrs(attrs),
+	}
+}
+
+func (m *MultiHandler) WithGroup(name string) slog.Handler {
+	return &MultiHandler{
+		stderrHandler: m.stderrHandler.WithGroup(name),
+		stdoutHandler: m.stdoutHandler.WithGroup(name),
+	}
+}
+
 func main() {
 	flag.Parse()
 
@@ -392,7 +438,10 @@ func main() {
 	} else if *verbosity >= 2 {
 		logLevel = slog.LevelInfo
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel})))
+
+	// Use custom handler that routes errors to stderr and warn/info/debug to stdout
+	multiHandler := NewMultiHandler(logLevel)
+	slog.SetDefault(slog.New(multiHandler))
 
 	slog.Warn("Starting", "version", version)
 

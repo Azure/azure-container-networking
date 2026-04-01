@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -630,4 +633,76 @@ func TestRunWithTerminateOnSuccess(t *testing.T) {
 	// Verify that DynamicClient was called to patch the label
 	mockDynamic := deps.DynamicClient.(*MockDynamicClient)
 	require.Len(t, mockDynamic.PatchCalls, 1, "Expected one PatchResource call")
+}
+
+func TestMultiHandler(t *testing.T) {
+	testCases := []struct {
+		name           string
+		level          slog.Level
+		logLevel       slog.Level
+		message        string
+		expectStdout   bool
+		expectStderr   bool
+	}{
+		{
+			name:         "error goes to both stdout and stderr",
+			level:        slog.LevelWarn,
+			logLevel:     slog.LevelError,
+			message:      "test error",
+			expectStdout: true,
+			expectStderr: true,
+		},
+		{
+			name:         "warn goes only to stdout",
+			level:        slog.LevelWarn,
+			logLevel:     slog.LevelWarn,
+			message:      "test warn",
+			expectStdout: true,
+			expectStderr: false,
+		},
+		{
+			name:         "info goes only to stdout",
+			level:        slog.LevelInfo,
+			logLevel:     slog.LevelInfo,
+			message:      "test info",
+			expectStdout: true,
+			expectStderr: false,
+		},
+		{
+			name:         "debug goes only to stdout",
+			level:        slog.LevelDebug,
+			logLevel:     slog.LevelDebug,
+			message:      "test debug",
+			expectStdout: true,
+			expectStderr: false,
+		},
+		{
+			name:         "info filtered out by warn level",
+			level:        slog.LevelWarn,
+			logLevel:     slog.LevelInfo,
+			message:      "should not appear",
+			expectStdout: false,
+			expectStderr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdoutBuf, stderrBuf bytes.Buffer
+			opts := &slog.HandlerOptions{Level: tc.level}
+			handler := &MultiHandler{
+				stderrHandler: slog.NewTextHandler(&stderrBuf, opts),
+				stdoutHandler: slog.NewTextHandler(&stdoutBuf, opts),
+			}
+
+			logger := slog.New(handler)
+			logger.Log(context.Background(), tc.logLevel, tc.message)
+
+			gotStdout := strings.Contains(stdoutBuf.String(), tc.message)
+			gotStderr := strings.Contains(stderrBuf.String(), tc.message)
+
+			require.Equal(t, tc.expectStdout, gotStdout, "stdout: got %q", stdoutBuf.String())
+			require.Equal(t, tc.expectStderr, gotStderr, "stderr: got %q", stderrBuf.String())
+		})
+	}
 }
