@@ -121,7 +121,7 @@ stages:
             rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
             storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
             storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
-            leaseAcquired: $[ stageDependencies.AcquireLease_${{ replace(loc, '-', '_') }}.AcquireLease.outputs['AcquireLeaseStep.leaseAcquired'] ]
+            leaseAcquired: $[ dependencies.AcquireLease_${{ replace(loc, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
             ${{ if eq(workload, 'swiftv2-linux') }}:
               dependsOn: 
                 - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
@@ -143,11 +143,17 @@ stages:
   - ${{ each loc in parameters.location }}:
     - stage: ReleaseLease_${{ replace(loc, '-', '_') }}
       displayName: "Release Pipeline Lease (${{ loc }})"
-      dependsOn:
-        - AcquireLease_${{ replace(loc, '-', '_') }}
-        - ${{ each workload in parameters.workloadType }}:
-          - ${{ if or(not(contains(workload, 'l1vh-accelnet')), eq(loc, 'centraluseuap')) }}:
-            - DataPathTests_${{ replace(workload, '-', '_') }}_${{ replace(loc, '-', '_') }}
+      ${{ if eq(loc, 'centraluseuap') }}:
+        dependsOn:
+          - AcquireLease_${{ replace(loc, '-', '_') }}
+          - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
+          - DataPathTests_swiftv2_linux_byon_${{ replace(loc, '-', '_') }}
+          - DataPathTests_swiftv2_l1vh_accelnet_byon_${{ replace(loc, '-', '_') }}
+      ${{ if ne(loc, 'centraluseuap') }}:
+        dependsOn:
+          - AcquireLease_${{ replace(loc, '-', '_') }}
+          - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
+          - DataPathTests_swiftv2_linux_byon_${{ replace(loc, '-', '_') }}
       condition: and(always(), eq(dependencies.AcquireLease_${{ replace(loc, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
       jobs:
         - job: ReleaseLease
