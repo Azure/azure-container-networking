@@ -75,12 +75,12 @@ stages:
           hostport: true
           service: true
 
-      - job: failedE2ELogs
-        displayName: "Failure Logs"
+      - job: e2eLogs
+        displayName: "Logs"
         dependsOn:
           - ${{ parameters.name }}
           - cni_linux
-        condition: failed()
+        condition: always()
         steps:
           - template: ../../templates/log-template.yaml
             parameters:

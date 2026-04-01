@@ -54,11 +54,12 @@ steps:
     displayName: Node Status
     condition: always()
   
-  - bash: |
-      kubectl describe nnc -A
-    displayName: Describe Node Network Configs (NNCs)
-    condition: and(always(), ne('${{ parameters.cni }}', 'cniv1')) # cniv1/nodesubnet scenarios do not have node network configs
-    continueOnError: true # even if nnc doesn't exist we want to continue
+  - ${{ if ne(parameters.cni, 'cniv1') }}: # cniv1/nodesubnet scenarios do not have node network configs
+    - bash: |
+        kubectl describe nnc -A
+      displayName: Describe Node Network Configs (NNCs)
+      condition: always()
+      continueOnError: true # even if nnc doesn't exist we want to continue
 
   - bash: |
       kubectl get ds -A -owide

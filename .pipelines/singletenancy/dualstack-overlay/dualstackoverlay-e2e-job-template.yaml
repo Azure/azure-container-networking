@@ -76,12 +76,12 @@ stages:
           hostport: true
           hybridWin: ${{ eq(parameters.os, 'windows') }}
 
-      - job: failedE2ELogs_${{ parameters.os }}
-        displayName: "${{ parameters.os }} Failure Logs"
+      - job: e2eLogs_${{ parameters.os }}
+        displayName: "${{ parameters.os }} Logs"
         dependsOn:
           - ${{ parameters.name }}_${{ parameters.os }}
           - CNI_${{ parameters.os }}
-        condition: in(dependencies.${{ parameters.name }}_${{ parameters.os }}.result, 'Failed')
+        condition: always()
         steps:
           - template: ../../templates/log-template.yaml
             parameters:

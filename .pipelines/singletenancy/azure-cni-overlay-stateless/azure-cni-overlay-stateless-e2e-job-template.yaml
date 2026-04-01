@@ -77,12 +77,12 @@ stages:
           service: true
           hybridWin: true
 
-      - job: failedE2ELogs_windows
-        displayName: "Windows Failure Logs"
+      - job: e2eLogs_windows
+        displayName: "Windows Logs"
         dependsOn:
           - ${{ parameters.name }}_windows
           - cni_windows
-        condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed')
+        condition: always()
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
