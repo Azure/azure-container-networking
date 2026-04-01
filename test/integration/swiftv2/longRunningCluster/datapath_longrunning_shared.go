@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/Azure/azure-container-networking/test/integration/swiftv2/helpers"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -94,8 +95,8 @@ func GetDaemonSetName() string {
 func GetDaemonSetPodName(kubeconfig, namespace, dsName string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	c := mustGetK8sClient(kubeconfig)
-	name, err := getDaemonSetPodName(ctx, c, namespace, dsName)
+	c := helpers.MustGetK8sClient(kubeconfig)
+	name, err := helpers.GetDaemonSetPodName(ctx, c, namespace, dsName)
 	if err != nil {
 		fmt.Printf("Warning: GetDaemonSetPodName(%s/%s): %v\n", namespace, dsName, err)
 	}
@@ -115,7 +116,7 @@ func GetZoneLabel(location string) string {
 func IsPodExists(kubeconfig, namespace, podName string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	c := mustGetK8sClient(kubeconfig)
+	c := helpers.MustGetK8sClient(kubeconfig)
 	pod := &corev1.Pod{}
 	err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: podName}, pod)
 	return err == nil
@@ -125,7 +126,7 @@ func IsPodExists(kubeconfig, namespace, podName string) bool {
 func IsPodRunning(kubeconfig, namespace, podName string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	c := mustGetK8sClient(kubeconfig)
+	c := helpers.MustGetK8sClient(kubeconfig)
 	pod := &corev1.Pod{}
 	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: podName}, pod); err != nil {
 		return false
@@ -137,8 +138,8 @@ func IsPodRunning(kubeconfig, namespace, podName string) bool {
 func GetNodeByLabel(kubeconfig, labelSelector string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	c := mustGetK8sClient(kubeconfig)
-	name, err := getNodeByLabels(ctx, c, labelSelector)
+	c := helpers.MustGetK8sClient(kubeconfig)
+	name, err := helpers.GetNodeByLabels(ctx, c, labelSelector)
 	if err != nil {
 		fmt.Printf("Warning: GetNodeByLabel(%s): %v\n", labelSelector, err)
 	}
@@ -149,8 +150,8 @@ func GetNodeByLabel(kubeconfig, labelSelector string) string {
 func IsDeploymentExists(kubeconfig, namespace, deploymentName string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	c := mustGetK8sClient(kubeconfig)
-	exists, err := deploymentExists(ctx, c, namespace, deploymentName)
+	c := helpers.MustGetK8sClient(kubeconfig)
+	exists, err := helpers.DeploymentExists(ctx, c, namespace, deploymentName)
 	if err != nil {
 		fmt.Printf("Warning: IsDeploymentExists(%s/%s): %v\n", namespace, deploymentName, err)
 	}
@@ -161,8 +162,8 @@ func IsDeploymentExists(kubeconfig, namespace, deploymentName string) bool {
 func IsDeploymentReady(kubeconfig, namespace, deploymentName string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	c := mustGetK8sClient(kubeconfig)
-	ready, err := isDeploymentReady(ctx, c, namespace, deploymentName)
+	c := helpers.MustGetK8sClient(kubeconfig)
+	ready, err := helpers.IsDeploymentReady(ctx, c, namespace, deploymentName)
 	if err != nil {
 		fmt.Printf("Warning: IsDeploymentReady(%s/%s): %v\n", namespace, deploymentName, err)
 	}
@@ -173,8 +174,8 @@ func IsDeploymentReady(kubeconfig, namespace, deploymentName string) bool {
 func GetDeploymentPodName(kubeconfig, namespace, deploymentName string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	c := mustGetK8sClient(kubeconfig)
-	name, err := getDeploymentPodName(ctx, c, namespace, deploymentName)
+	c := helpers.MustGetK8sClient(kubeconfig)
+	name, err := helpers.GetDeploymentPodName(ctx, c, namespace, deploymentName)
 	if err != nil {
 		fmt.Printf("Warning: GetDeploymentPodName(%s/%s): %v\n", namespace, deploymentName, err)
 	}
@@ -185,8 +186,8 @@ func GetDeploymentPodName(kubeconfig, namespace, deploymentName string) string {
 func GetNodeZone(kubeconfig, nodeName string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	c := mustGetK8sClient(kubeconfig)
-	zone, err := getNodeZoneLabel(ctx, c, nodeName)
+	c := helpers.MustGetK8sClient(kubeconfig)
+	zone, err := helpers.GetNodeZoneLabel(ctx, c, nodeName)
 	if err != nil {
 		fmt.Printf("Warning: GetNodeZone(%s): %v\n", nodeName, err)
 	}

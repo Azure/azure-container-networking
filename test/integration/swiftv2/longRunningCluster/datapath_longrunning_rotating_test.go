@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-container-networking/test/integration/swiftv2/helpers"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -27,7 +28,7 @@ const rotatingPodMaxAge = 6 * time.Hour
 func getDeploymentCreationTime(kubeconfig, namespace, deploymentName string) (time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	c := mustGetK8sClient(kubeconfig)
+	c := helpers.MustGetK8sClient(kubeconfig)
 
 	dep := &appsv1.Deployment{}
 	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: deploymentName}, dep); err != nil {
@@ -51,13 +52,13 @@ func getDeploymentCreationTime(kubeconfig, namespace, deploymentName string) (ti
 func deleteRotatingDeployment(kubeconfig, namespace, deploymentName string) error {
 	fmt.Printf("Deleting rotating deployment %s in namespace %s\n", deploymentName, namespace)
 	ctx := context.Background()
-	c := mustGetK8sClient(kubeconfig)
+	c := helpers.MustGetK8sClient(kubeconfig)
 
-	if err := deleteDeploymentAndWait(ctx, c, namespace, deploymentName, 90*time.Second); err != nil {
+	if err := helpers.DeleteDeploymentAndWait(ctx, c, namespace, deploymentName, 90*time.Second); err != nil {
 		return fmt.Errorf("failed to delete deployment %s: %w", deploymentName, err)
 	}
 
-	if err := waitForMTPNCCleanup(ctx, c, namespace, 120*time.Second); err != nil {
+	if err := helpers.WaitForMTPNCCleanupK8s(ctx, c, namespace, 120*time.Second); err != nil {
 		fmt.Printf("Warning: MTPNC cleanup didn't complete for deployment %s: %v\n", deploymentName, err)
 	}
 	return nil
@@ -67,9 +68,9 @@ func deleteRotatingDeployment(kubeconfig, namespace, deploymentName string) erro
 func createRotatingDeployment(kubeconfig, namespace, pniName, pnName, nodeName, deploymentName, podImage string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	ctx := context.Background()
-	c := mustGetK8sClient(kubeconfig)
+	c := helpers.MustGetK8sClient(kubeconfig)
 
-	dep := createDeploymentObject(DeploymentData{
+	dep := helpers.CreateDeploymentObject(helpers.LongrunningDeploymentData{
 		DeploymentName: deploymentName,
 		NodeName:       nodeName,
 		PNName:         pnName,
@@ -79,13 +80,13 @@ func createRotatingDeployment(kubeconfig, namespace, pniName, pnName, nodeName, 
 		CreatedAt:      now,
 	})
 
-	if err := withRetry(ctx, 3, 5*time.Second, func() error {
+	if err := helpers.WithRetry(ctx, 3, 5*time.Second, func() error {
 		return c.Create(ctx, dep)
 	}); err != nil {
 		return fmt.Errorf("failed to create deployment %s: %w", deploymentName, err)
 	}
 
-	if err := waitForDeploymentReady(ctx, c, namespace, deploymentName, 10, 30); err != nil {
+	if err := helpers.WaitForDeploymentReady(ctx, c, namespace, deploymentName, 10, 30); err != nil {
 		return fmt.Errorf("deployment %s did not become ready: %w", deploymentName, err)
 	}
 
@@ -96,9 +97,9 @@ func createRotatingDeployment(kubeconfig, namespace, pniName, pnName, nodeName, 
 // ensureRotatingPNAndPNI ensures the PodNetwork and PodNetworkInstance exist for rotating pods.
 func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 	ctx := context.Background()
-	c := mustGetK8sClient(kubeconfig)
+	c := helpers.MustGetK8sClient(kubeconfig)
 
-	exists, err := podNetworkExists(ctx, c, pnName)
+	exists, err := helpers.PodNetworkExists(ctx, c, pnName)
 	gomega.Expect(err).To(gomega.BeNil(), "Failed to check PodNetwork existence")
 	if exists {
 		fmt.Printf("PodNetwork %s already exists, reusing\n", pnName)
@@ -106,17 +107,17 @@ func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 		fmt.Printf("Creating PodNetwork %s\n", pnName)
 		info, infoErr := GetOrFetchVnetSubnetInfo(rg, "cx_vnet_v1", "lr", make(map[string]VnetSubnetInfo))
 		gomega.Expect(infoErr).To(gomega.BeNil(), "Failed to get VNet/Subnet info for rotating PN")
-		err = createPodNetworkCR(ctx, c, pnName, info.VnetGUID, info.SubnetGUID, info.SubnetARMID)
+		err = helpers.CreatePodNetworkCR(ctx, c, pnName, info.VnetGUID, info.SubnetGUID, info.SubnetARMID)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to create PodNetwork")
 	}
 
-	exists, err = podNetworkInstanceExists(ctx, c, namespace, pniName)
+	exists, err = helpers.PodNetworkInstanceExists(ctx, c, namespace, pniName)
 	gomega.Expect(err).To(gomega.BeNil(), "Failed to check PodNetworkInstance existence")
 	if exists {
 		fmt.Printf("PodNetworkInstance %s already exists, reusing\n", pniName)
 	} else {
 		fmt.Printf("Creating PodNetworkInstance %s\n", pniName)
-		err = createPodNetworkInstanceCR(ctx, c, pniName, namespace, pnName, 0)
+		err = helpers.CreatePodNetworkInstanceCR(ctx, c, pniName, namespace, pnName, 0)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to create PodNetworkInstance")
 	}
 }
@@ -137,7 +138,7 @@ var _ = ginkgo.Describe("Long-Running Rotating Pod Tests", func() {
 
 		kubeconfig := getKubeconfigPath("aks-1")
 		podImage := "nicolaka/netshoot:latest"
-		c := mustGetK8sClient(kubeconfig)
+		c := helpers.MustGetK8sClient(kubeconfig)
 
 		// Get the rotating node in this zone
 		rotatingNode := GetNodeByLabel(kubeconfig, GetRotatingNodeSelector(location))
@@ -155,7 +156,7 @@ var _ = ginkgo.Describe("Long-Running Rotating Pod Tests", func() {
 
 		// Ensure namespace exists
 		ctx := context.Background()
-		err := ensureNamespace(ctx, c, namespace)
+		err := helpers.EnsureNamespaceK8s(ctx, c, namespace)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to ensure namespace exists")
 
 		// Ensure PodNetwork and PodNetworkInstance exist (reuse across runs)

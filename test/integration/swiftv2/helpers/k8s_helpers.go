@@ -1,11 +1,4 @@
-//go:build longrunning_rotating_test || longrunning_alwayson_test || longrunning_connectivity_test
-
-// Package-level nolint for unused: functions in this file are shared across
-// multiple build tags (longrunning_rotating_test, longrunning_alwayson_test, longrunning_connectivity_test).
-// Each tag only uses a subset, so the unused linter flags cross-tag symbols.
-//
-//nolint:unused // cross-build-tag shared helpers
-package longrunningcluster
+package helpers
 
 import (
 	"context"
@@ -34,15 +27,40 @@ var (
 	errMTPNCStillPresent   = errors.New("MTPNCs still present")
 )
 
+const (
+	LongRunningCreatedAtAnnotation = "acn-test/created-at"
+)
+
+// LongrunningDeploymentData contains configuration for creating a deployment in long-running tests.
+type LongrunningDeploymentData struct {
+	DeploymentName string
+	Namespace      string
+	PNIName        string
+	PNName         string
+	NodeName       string
+	Image          string
+	CreatedAt      string
+}
+
+// LongrunningDaemonSetData contains configuration for creating a daemonset in long-running tests.
+type LongrunningDaemonSetData struct {
+	DaemonSetName string
+	Namespace     string
+	PNIName       string
+	PNName        string
+	ZoneLabel     string
+	Image         string
+}
+
 var (
 	clientCache   = make(map[string]client.Client) //nolint:gochecknoglobals // cached test clients
 	clientCacheMu sync.Mutex                       //nolint:gochecknoglobals // guards clientCache
 )
 
-// mustGetK8sClient returns a controller-runtime client for the given kubeconfig.
+// MustGetK8sClient returns a controller-runtime client for the given kubeconfig.
 // Clients are cached per kubeconfig path. Panics on error since test helpers
 // are only called from Ginkgo specs where a panic is equivalent to a test failure.
-func mustGetK8sClient(kubeconfig string) client.Client {
+func MustGetK8sClient(kubeconfig string) client.Client {
 	clientCacheMu.Lock()
 	defer clientCacheMu.Unlock()
 
@@ -72,9 +90,9 @@ func mustGetK8sClient(kubeconfig string) client.Client {
 	return c
 }
 
-// withRetry executes fn up to maxRetries times with a fixed delay between attempts.
+// WithRetry executes fn up to maxRetries times with a fixed delay between attempts.
 // It returns immediately on success or non-retryable errors (NotFound, AlreadyExists).
-func withRetry(ctx context.Context, maxRetries int, delay time.Duration, fn func() error) error {
+func WithRetry(ctx context.Context, maxRetries int, delay time.Duration, fn func() error) error {
 	var lastErr error
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		lastErr = fn()
@@ -97,7 +115,7 @@ func withRetry(ctx context.Context, maxRetries int, delay time.Duration, fn func
 
 // --- Namespace helpers ---
 
-func ensureNamespace(ctx context.Context, c client.Client, namespace string) error {
+func EnsureNamespaceK8s(ctx context.Context, c client.Client, namespace string) error {
 	ns := &corev1.Namespace{}
 	err := c.Get(ctx, types.NamespacedName{Name: namespace}, ns)
 	if err == nil {
@@ -117,7 +135,7 @@ func ensureNamespace(ctx context.Context, c client.Client, namespace string) err
 
 // --- Node helpers ---
 
-func getNodeByLabels(ctx context.Context, c client.Client, labelSelector string) (string, error) {
+func GetNodeByLabels(ctx context.Context, c client.Client, labelSelector string) (string, error) {
 	labels, err := metav1.ParseToLabelSelector(labelSelector)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse label selector %q: %w", labelSelector, err)
@@ -137,7 +155,7 @@ func getNodeByLabels(ctx context.Context, c client.Client, labelSelector string)
 	return nodeList.Items[0].Name, nil
 }
 
-func getNodeZoneLabel(ctx context.Context, c client.Client, nodeName string) (string, error) {
+func GetNodeZoneLabel(ctx context.Context, c client.Client, nodeName string) (string, error) {
 	node := &corev1.Node{}
 	if err := c.Get(ctx, types.NamespacedName{Name: nodeName}, node); err != nil {
 		return "", fmt.Errorf("failed to get node %s: %w", nodeName, err)
@@ -147,7 +165,7 @@ func getNodeZoneLabel(ctx context.Context, c client.Client, nodeName string) (st
 
 // --- Deployment helpers ---
 
-func deploymentExists(ctx context.Context, c client.Client, namespace, name string) (bool, error) {
+func DeploymentExists(ctx context.Context, c client.Client, namespace, name string) (bool, error) {
 	dep := &appsv1.Deployment{}
 	err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, dep)
 	if err == nil {
@@ -159,7 +177,7 @@ func deploymentExists(ctx context.Context, c client.Client, namespace, name stri
 	return false, fmt.Errorf("failed to check deployment %s: %w", name, err)
 }
 
-func isDeploymentReady(ctx context.Context, c client.Client, namespace, name string) (bool, error) {
+func IsDeploymentReady(ctx context.Context, c client.Client, namespace, name string) (bool, error) {
 	dep := &appsv1.Deployment{}
 	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, dep); err != nil {
 		return false, fmt.Errorf("failed to get deployment %s: %w", name, err)
@@ -167,7 +185,7 @@ func isDeploymentReady(ctx context.Context, c client.Client, namespace, name str
 	return dep.Status.ReadyReplicas >= 1, nil
 }
 
-func getDeploymentPodName(ctx context.Context, c client.Client, namespace, deploymentName string) (string, error) {
+func GetDeploymentPodName(ctx context.Context, c client.Client, namespace, deploymentName string) (string, error) {
 	podList := &corev1.PodList{}
 	if err := c.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabels{"app": deploymentName}); err != nil {
 		return "", fmt.Errorf("failed to list pods for deployment %s: %w", deploymentName, err)
@@ -178,7 +196,7 @@ func getDeploymentPodName(ctx context.Context, c client.Client, namespace, deplo
 	return podList.Items[0].Name, nil
 }
 
-func deleteDeploymentAndWait(ctx context.Context, c client.Client, namespace, name string, timeout time.Duration) error {
+func DeleteDeploymentAndWait(ctx context.Context, c client.Client, namespace, name string, timeout time.Duration) error {
 	dep := &appsv1.Deployment{}
 	err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, dep)
 	if apierrors.IsNotFound(err) {
@@ -206,9 +224,9 @@ func deleteDeploymentAndWait(ctx context.Context, c client.Client, namespace, na
 	return fmt.Errorf("%w: deployment %s after %v", errDeploymentPodsExist, name, timeout)
 }
 
-func waitForDeploymentReady(ctx context.Context, c client.Client, namespace, name string, maxRetries, sleepSeconds int) error {
+func WaitForDeploymentReady(ctx context.Context, c client.Client, namespace, name string, maxRetries, sleepSeconds int) error {
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		ready, err := isDeploymentReady(ctx, c, namespace, name)
+		ready, err := IsDeploymentReady(ctx, c, namespace, name)
 		if err == nil && ready {
 			fmt.Printf("Deployment %s has ready replica(s)\n", name)
 			return nil
@@ -225,7 +243,7 @@ func waitForDeploymentReady(ctx context.Context, c client.Client, namespace, nam
 
 // --- DaemonSet helpers ---
 
-func daemonSetExists(ctx context.Context, c client.Client, namespace, name string) (bool, error) {
+func DaemonSetExists(ctx context.Context, c client.Client, namespace, name string) (bool, error) {
 	ds := &appsv1.DaemonSet{}
 	err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, ds)
 	if err == nil {
@@ -237,7 +255,7 @@ func daemonSetExists(ctx context.Context, c client.Client, namespace, name strin
 	return false, fmt.Errorf("failed to check daemonset %s: %w", name, err)
 }
 
-func getDaemonSetPodName(ctx context.Context, c client.Client, namespace, dsName string) (string, error) {
+func GetDaemonSetPodName(ctx context.Context, c client.Client, namespace, dsName string) (string, error) {
 	podList := &corev1.PodList{}
 	if err := c.List(ctx, podList, client.InNamespace(namespace), client.MatchingLabels{"app": dsName}); err != nil {
 		return "", fmt.Errorf("failed to list pods for daemonset %s: %w", dsName, err)
@@ -248,7 +266,7 @@ func getDaemonSetPodName(ctx context.Context, c client.Client, namespace, dsName
 	return podList.Items[0].Name, nil
 }
 
-func waitForDaemonSetReady(ctx context.Context, c client.Client, namespace, dsName string, maxRetries, sleepSeconds int) error {
+func WaitForDaemonSetReady(ctx context.Context, c client.Client, namespace, dsName string, maxRetries, sleepSeconds int) error {
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		ds := &appsv1.DaemonSet{}
 		if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: dsName}, ds); err == nil {
@@ -269,7 +287,7 @@ func waitForDaemonSetReady(ctx context.Context, c client.Client, namespace, dsNa
 
 // --- CRD helpers (PodNetwork, PodNetworkInstance, MTPNC) ---
 
-func podNetworkExists(ctx context.Context, c client.Client, name string) (bool, error) {
+func PodNetworkExists(ctx context.Context, c client.Client, name string) (bool, error) {
 	pn := &mtv1alpha1.PodNetwork{}
 	err := c.Get(ctx, types.NamespacedName{Name: name}, pn)
 	if err == nil {
@@ -281,7 +299,7 @@ func podNetworkExists(ctx context.Context, c client.Client, name string) (bool, 
 	return false, fmt.Errorf("failed to check PodNetwork %s: %w", name, err)
 }
 
-func createPodNetworkCR(ctx context.Context, c client.Client, name, vnetGUID, subnetGUID, subnetARMID string) error {
+func CreatePodNetworkCR(ctx context.Context, c client.Client, name, vnetGUID, subnetGUID, subnetARMID string) error {
 	pn := &mtv1alpha1.PodNetwork{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -303,7 +321,7 @@ func createPodNetworkCR(ctx context.Context, c client.Client, name, vnetGUID, su
 	return nil
 }
 
-func podNetworkInstanceExists(ctx context.Context, c client.Client, namespace, name string) (bool, error) {
+func PodNetworkInstanceExists(ctx context.Context, c client.Client, namespace, name string) (bool, error) {
 	pni := &mtv1alpha1.PodNetworkInstance{}
 	err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, pni)
 	if err == nil {
@@ -315,7 +333,7 @@ func podNetworkInstanceExists(ctx context.Context, c client.Client, namespace, n
 	return false, fmt.Errorf("failed to check PodNetworkInstance %s: %w", name, err)
 }
 
-func createPodNetworkInstanceCR(ctx context.Context, c client.Client, name, namespace, pnName string, reservations int) error {
+func CreatePodNetworkInstanceCR(ctx context.Context, c client.Client, name, namespace, pnName string, reservations int) error {
 	pni := &mtv1alpha1.PodNetworkInstance{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -339,7 +357,7 @@ func createPodNetworkInstanceCR(ctx context.Context, c client.Client, name, name
 	return nil
 }
 
-func waitForMTPNCCleanup(ctx context.Context, c client.Client, namespace string, timeout time.Duration) error {
+func WaitForMTPNCCleanupK8s(ctx context.Context, c client.Client, namespace string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		mtpncList := &mtv1alpha1.MultitenantPodNetworkConfigList{}
@@ -368,7 +386,7 @@ func isNoCRDError(err error) bool {
 
 // --- Deployment creation (programmatic, replaces template) ---
 
-func createDeploymentObject(data DeploymentData) *appsv1.Deployment {
+func CreateDeploymentObject(data LongrunningDeploymentData) *appsv1.Deployment {
 	replicas := int32(1)
 	privileged := true
 	return &appsv1.Deployment{
@@ -398,7 +416,7 @@ func createDeploymentObject(data DeploymentData) *appsv1.Deployment {
 	}
 }
 
-func createDaemonSetObject(data DaemonSetData) *appsv1.DaemonSet {
+func CreateDaemonSetObject(data LongrunningDaemonSetData) *appsv1.DaemonSet {
 	privileged := true
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
