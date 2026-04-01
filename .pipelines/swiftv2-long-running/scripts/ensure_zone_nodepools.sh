@@ -163,8 +163,6 @@ for ZONE in $ZONES; do
 
   echo "==> Labeling and tainting nodes in pool $POOL_NAME"
   kubectl --kubeconfig "$KUBECONFIG_FILE" label nodes -l agentpool=$POOL_NAME \
-    nic-capacity=high-nic \
-    workload-type=swiftv2-linux \
     longrunning-zone-pool=true \
     --overwrite
 
