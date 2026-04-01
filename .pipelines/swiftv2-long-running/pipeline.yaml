@@ -1,42 +1,61 @@
+# ONE-OFF: Recreate aks-1-linux-highnic BYON nodes in eastus2euap
+# This replaces the normal pipeline on this branch only.
+# Trigger manually from ADO to fix broken BYON nodes.
+
 trigger: none
 pr: none
 
-schedules:
-  - cron: "0 */6 * * *"
-    displayName: "Run tests every 6 hours"
-    branches:
-      include:
-        - master
-    always: true  # Run even if there are no code changes
+resources:
+  repositories:
+    - repository: Networking-Aquarius
+      type: git
+      name: One/Networking-Aquarius
+      ref: refs/heads/master
 
-parameters:
-  - name: subscriptionId
-    displayName: "Azure Subscription ID"
-    type: string
-    default: "37deca37-c375-4a14-b90a-043849bd2bf1"
+pool:
+  vmImage: ubuntu-latest
 
-  - name: location
-    displayName: "Deployment Regions"
-    type: object
-    default:
-      - "eastus2euap"
-      - "centraluseuap"
-      - "westus2"
+steps:
+  - checkout: self
+    displayName: "Checkout main repository"
+  - checkout: Networking-Aquarius
+    displayName: "Checkout Networking-Aquarius repository"
 
-  - name: runSetupStages
-    displayName: "Create New Infrastructure Setup"
-    type: boolean
-    default: false
+  - task: AzureCLI@2
+    displayName: "Remove CanNotDelete lock"
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        echo "Removing lock on parent RG..."
+        az lock delete --name "sv2 persistent cluster test - pipeline resource" -g sv2-long-run-eastus2euap 2>/dev/null || true
+        echo "Lock removed (or didn't exist)"
 
-  - name: resourceGroupName
-    displayName: "Resource Group Name used when Create new Infrastructure Setup is selected"
-    type: string
-    default: "sv2-long-run-$(Build.BuildId)"
+  - task: AzureCLI@2
+    displayName: "Recreate aks-1-linux-highnic VMSS"
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: scriptPath
+      scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/recreate_aks1_highnic.sh"
+      arguments: >
+        sv2-long-run-eastus2euap
+        $(Build.SourcesDirectory)
+    env:
+      SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
+      CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
+      KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
+      KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
 
-extends:
-  template: template/long-running-pipeline-template.yaml
-  parameters:
-    subscriptionId: ${{ parameters.subscriptionId }}
-    location: ${{ parameters.location }}
-    resourceGroupName: ${{ parameters.resourceGroupName }}
-    runSetupStages: ${{ parameters.runSetupStages }}
+  - task: AzureCLI@2
+    displayName: "Restore CanNotDelete lock"
+    condition: always()
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        echo "Restoring lock on parent RG..."
+        az lock create --name "sv2 persistent cluster test - pipeline resource" --lock-type CanNotDelete -g sv2-long-run-eastus2euap || true
+        echo "Lock restored"
