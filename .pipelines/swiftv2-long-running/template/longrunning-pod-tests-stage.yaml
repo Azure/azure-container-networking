@@ -16,7 +16,7 @@ parameters:
 
 stages:
   - stage: LongRunningPodTests_Z${{ parameters.zone }}_${{ replace(parameters.location, '-', '_') }}
-    displayName: "Stage: Long-Running Pod Tests - Zone ${{ parameters.zone }} (${{ parameters.location }})"
+    displayName: "Long-Running Pod Tests - Zone ${{ parameters.zone }} (${{ parameters.location }})"
     ${{ if ne(length(parameters.dependsOn), 0) }}:
       dependsOn: ${{ parameters.dependsOn }}
     condition: and(eq(variables.isAllowedRun, true), not(failed()))

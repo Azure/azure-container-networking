@@ -12,7 +12,7 @@ parameters:
 
 stages:
   - stage: AKSClusterAndNetworking_${{ replace(parameters.location, '-', '_') }}
-    displayName: "Stage: Verify & Setup Infrastructure (${{ parameters.location }})"
+    displayName: "Verify & Setup Infrastructure (${{ parameters.location }})"
     condition: eq(variables.isAllowedRun, true)
     variables:
       rgName: ${{ parameters.resourceGroupName }}-${{ parameters.location }}
