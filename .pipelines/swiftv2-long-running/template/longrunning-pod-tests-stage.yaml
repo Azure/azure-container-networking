@@ -17,8 +17,7 @@ parameters:
 stages:
   - stage: LongRunningPodTests_Z${{ parameters.zone }}_${{ replace(parameters.location, '-', '_') }}
     displayName: "Long-Running Pod Tests - Zone ${{ parameters.zone }} (${{ parameters.location }})"
-    ${{ if ne(length(parameters.dependsOn), 0) }}:
-      dependsOn: ${{ parameters.dependsOn }}
+    dependsOn: ${{ parameters.dependsOn }}
     condition: and(eq(variables.isAllowedRun, true), not(failed()))
     jobs:
       # Ensure the zone-specific node pool exists (idempotent, isolated per zone)

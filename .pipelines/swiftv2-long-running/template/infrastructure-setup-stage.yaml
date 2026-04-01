@@ -9,10 +9,14 @@ parameters:
     type: string
   - name: vmSkuHighNIC
     type: string
+  - name: dependsOn
+    type: object
+    default: []
 
 stages:
   - stage: AKSClusterAndNetworking_${{ replace(parameters.location, '-', '_') }}
     displayName: "Verify & Setup Infrastructure (${{ parameters.location }})"
+    dependsOn: ${{ parameters.dependsOn }}
     condition: eq(variables.isAllowedRun, true)
     variables:
       rgName: ${{ parameters.resourceGroupName }}-${{ parameters.location }}

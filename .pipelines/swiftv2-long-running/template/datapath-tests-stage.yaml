@@ -23,10 +23,7 @@ parameters:
 stages:
   - stage: DataPathTests_${{ replace(parameters.workloadType, '-', '_') }}_${{ replace(parameters.location, '-', '_') }}
     displayName: "Swiftv2 Data Path Tests - ${{ parameters.workloadType }} (${{ parameters.location }})"
-    ${{ if ne(length(parameters.dependsOn), 0) }}:
-      dependsOn: ${{ parameters.dependsOn }}
-    ${{ else }}:
-      dependsOn: AKSClusterAndNetworking
+    dependsOn: ${{ parameters.dependsOn }}
     condition: and(eq(variables.isAllowedRun, true), not(failed()), eq(variables.leaseAcquired, 'true'))
     variables:
       storageAccount1: ${{ parameters.storageAccount1 }}

@@ -41,6 +41,7 @@ stages:
         resourceGroupName: ${{ parameters.resourceGroupName }}
         vmSkuDefault: $(vmSkuDefault)
         vmSkuHighNIC: $(vmSkuHighNIC)
+        dependsOn: []
 
   # ============================================================
   # Long-running pod tests per zone (rotating + DaemonSet + connectivity)
