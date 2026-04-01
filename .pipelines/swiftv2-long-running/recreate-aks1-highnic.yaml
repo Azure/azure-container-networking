@@ -1,0 +1,64 @@
+# One-off pipeline to recreate aks-1-linux-highnic BYON nodes in eastus2euap
+# Trigger manually - this only recreates the highnic VMSS for aks-1
+
+trigger: none
+pr: none
+
+resources:
+  repositories:
+    - repository: Networking-Aquarius
+      type: git
+      name: One/Networking-Aquarius
+      ref: refs/heads/master
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - name: AZURE_SERVICE_CONNECTION
+    value: "$(AZURE_SERVICE_CONNECTION)"
+
+steps:
+  - checkout: self
+    displayName: "Checkout main repository"
+  - checkout: Networking-Aquarius
+    displayName: "Checkout Networking-Aquarius repository"
+
+  - task: AzureCLI@2
+    displayName: "Remove CanNotDelete lock"
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        echo "Removing lock on parent RG..."
+        az lock delete --name "sv2 persistent cluster test - pipeline resource" -g sv2-long-run-eastus2euap 2>/dev/null || true
+        echo "Lock removed (or didn't exist)"
+
+  - task: AzureCLI@2
+    displayName: "Recreate aks-1-linux-highnic VMSS"
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: scriptPath
+      scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/recreate_aks1_highnic.sh"
+      arguments: >
+        sv2-long-run-eastus2euap
+        $(Build.SourcesDirectory)
+    env:
+      SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
+      CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
+      KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
+      KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
+
+  - task: AzureCLI@2
+    displayName: "Restore CanNotDelete lock"
+    condition: always()
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        echo "Restoring lock on parent RG..."
+        az lock create --name "sv2 persistent cluster test - pipeline resource" --lock-type CanNotDelete -g sv2-long-run-eastus2euap || true
+        echo "Lock restored"
