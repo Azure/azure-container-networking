@@ -22,9 +22,11 @@ const (
 	SimulateError MockIMDSCtxKey = "simulate-error"
 )
 
-type WireserverClientFake struct{}
-type MockIMDSCtxKey string
-type MockIMDSClient struct{}
+type (
+	WireserverClientFake struct{}
+	MockIMDSCtxKey       string
+	MockIMDSClient       struct{}
+)
 
 func (c *WireserverClientFake) GetInterfaces(ctx context.Context) (*wireserver.GetInterfacesResult, error) {
 	return &wireserver.GetInterfacesResult{
@@ -79,6 +81,10 @@ func (m *MockIMDSClient) GetNetworkInterfaces(ctx context.Context) ([]imds.Netwo
 			MacAddress:             imds.HardwareAddr(macAddr2),
 		},
 	}, nil
+}
+
+func (m *MockIMDSClient) GetNetworkInterfacesOldAPI(ctx context.Context) ([]imds.NetworkInterface, error) {
+	return m.GetNetworkInterfaces(ctx)
 }
 
 func (m *MockIMDSClient) GetIMDSVersions(ctx context.Context) (*imds.APIVersionsResponse, error) {

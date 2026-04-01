@@ -6,6 +6,7 @@ package imds
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -108,10 +109,38 @@ func (c *Client) GetVMUniqueID(ctx context.Context) (string, error) {
 	return vmUniqueID, nil
 }
 
+func (c *Client) GetNetworkInterfacesOldAPI(ctx context.Context) ([]NetworkInterface, error) {
+	var networkData NetworkInterfaces
+	err := retry.Do(func() error {
+		networkInterfaces, err := c.getInstanceMetadata(ctx, imdsNetworkPath, imdsDefaultAPIVersion)
+		if err != nil {
+			return errors.Wrap(err, "error getting IMDS network metadata")
+		}
+
+		// Parse the network metadata to the expected structure
+		jsonData, err := json.Marshal(networkInterfaces)
+		if err != nil {
+			return errors.Wrap(err, "error marshaling network metadata")
+		}
+
+		fmt.Printf("[IMDS DEBUG] network metadata: %s\n", string(jsonData))
+
+		if err := json.Unmarshal(jsonData, &networkData); err != nil {
+			return errors.Wrap(err, "error unmarshaling network metadata")
+		}
+		return nil
+	}, retry.Context(ctx), retry.Attempts(c.config.retryAttempts), retry.DelayType(retry.BackOffDelay))
+	if err != nil {
+		return nil, errors.Wrap(err, "external call failed")
+	}
+
+	return networkData.Interface, nil
+}
+
 func (c *Client) GetNetworkInterfaces(ctx context.Context) ([]NetworkInterface, error) {
 	var networkData NetworkInterfaces
 	err := retry.Do(func() error {
-		networkInterfaces, err := c.getInstanceMetadata(ctx, imdsNetworkPath, imdsNCDetailsVersion)
+		networkInterfaces, err := c.getInstanceMetadata(ctx, imdsNetworkPath, imdsDefaultAPIVersion)
 		if err != nil {
 			return errors.Wrap(err, "error getting IMDS network metadata")
 		}
@@ -140,6 +169,7 @@ func (c *Client) getInstanceMetadata(ctx context.Context, imdsMetadataPath, imds
 		return nil, errors.Wrap(err, "unable to build path to IMDS metadata for path"+imdsMetadataPath)
 	}
 	imdsRequestURL = imdsRequestURL + "?" + imdsAPIVersion + "&" + imdsFormatJSON
+	fmt.Printf("[IMDS DEBUG] requesting URL: %s\n", imdsRequestURL)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imdsRequestURL, http.NoBody)
 	if err != nil {

@@ -115,7 +115,6 @@ func TestReconcileNCStatePrimaryIPChangeShouldFail(t *testing.T) {
 
 		assert.Equal(t, types.PrimaryCANotSame, resp)
 	}
-
 }
 
 // TestReconcileNCStatePrimaryIPChangeShouldNotFail tests that reconciling NC state with
@@ -1714,6 +1713,10 @@ func (m *mockIMDSAdapter) GetVMUniqueID(_ context.Context) (string, error) {
 
 func (m *mockIMDSAdapter) GetNetworkInterfaces(ctx context.Context) ([]imds.NetworkInterface, error) {
 	return m.mock.networkInterfaces(ctx)
+}
+
+func (m *mockIMDSAdapter) GetNetworkInterfacesOldAPI(ctx context.Context) ([]imds.NetworkInterface, error) {
+	return m.GetNetworkInterfaces(ctx)
 }
 
 func (m *mockIMDSAdapter) GetIMDSVersions(ctx context.Context) (*imds.APIVersionsResponse, error) {

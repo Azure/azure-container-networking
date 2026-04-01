@@ -1318,7 +1318,7 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 
 	switch r.Method {
 	case http.MethodGet:
-		networkInterfaces, err := service.imdsClient.GetNetworkInterfaces(ctx)
+		networkInterfaces, err := service.imdsClient.GetNetworkInterfacesOldAPI(ctx)
 		if err != nil {
 			resp := cns.GetNICResourcesResponse{
 				Response: cns.Response{

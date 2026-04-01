@@ -253,7 +253,7 @@ azure-iptables-monitor-binary:
 ##@ Containers
 
 ## Common variables for all containers.
-IMAGE_REGISTRY      ?= acnpublic.azurecr.io
+IMAGE_REGISTRY      ?= acndev.azurecr.io
 OS                  ?= $(GOOS)
 ARCH                ?= $(GOARCH)
 PLATFORM            ?= $(OS)/$(ARCH)
