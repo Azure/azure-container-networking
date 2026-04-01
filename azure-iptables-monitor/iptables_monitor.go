@@ -38,6 +38,7 @@ var (
 	terminateOnSuccess               = flag.Bool("terminateOnSuccess", false, "Whether to terminate the program when no user iptables rules found")
 	installRoutesForHealthProbeReply = flag.Bool("installRoutesForHealthProbeReply", false, "Whether to install loopback routes for replies sent to kubelet health probes")
 	verbosity                        = flag.Int("v", 0, "Log verbosity level (0=warn, 2=info, 3=debug)")
+	printVersion                     = flag.Bool("version", false, "Print version and exit")
 )
 
 const (
@@ -431,6 +432,11 @@ func (m *MultiHandler) WithGroup(name string) slog.Handler {
 
 func main() {
 	flag.Parse()
+
+	if *printVersion {
+		fmt.Println(version)
+		os.Exit(0)
+	}
 
 	logLevel := slog.LevelWarn
 	if *verbosity >= 3 {
