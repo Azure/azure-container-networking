@@ -39,7 +39,7 @@ spec:
           effect: NoSchedule
       initContainers:
         - name: cni-installer
-          image:  ${CNI_IMAGE}
+          image:  mcr.microsoft.com/containernetworking/azure-cni:v1.7.9-0
           imagePullPolicy: Always
           command: ["/dropgz"]
           args:
