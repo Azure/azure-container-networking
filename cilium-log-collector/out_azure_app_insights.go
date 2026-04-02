@@ -111,37 +111,35 @@ func FLBPluginRegister(def unsafe.Pointer) int {
 	return output.FLBPluginRegister(def, "azure_app_insights", "Azure application insights")
 }
 
-// (fluentbit will call this)
-// plugin (context) pointer to fluentbit context (state/ c code)
-//
-//export FLBPluginInit
-func FLBPluginInit(plugin unsafe.Pointer) int {
-	fmt.Printf("[flb-azure-app-insights] version = '%s'\n", version)
+type configLookup func(key string) string
 
+type fileChecker func(path string) bool
+
+// initPluginContext builds a pluginContext from config values without depending on unsafe.Pointer
+func initPluginContext(lookup configLookup, fileExists fileChecker) (*pluginContext, int) {
 	ctx := &pluginContext{}
 
-	ctx.id = output.FLBPluginConfigKey(plugin, "id")
+	ctx.id = lookup("id")
 
 	// check disable flag
-	if _, err := os.Stat(disableFilePath); err == nil {
+	if fileExists(disableFilePath) {
 		fmt.Printf("[flb-azure-app-insights] Plugin disabled- file found at: %s\n", disableFilePath)
 		ctx.disabled = true
-		output.FLBPluginSetContext(plugin, ctx)
-		return output.FLB_OK
+		return ctx, output.FLB_OK
 	}
 	ctx.disabled = false
 
-	ctx.instrumentationKey = output.FLBPluginConfigKey(plugin, "instrumentation_key")
+	ctx.instrumentationKey = lookup("instrumentation_key")
 	if ctx.id == "" {
 		ctx.id = ctx.instrumentationKey
 	}
 	// the key that is identified as the log upon receiving the record in this plugin
-	ctx.logKey = output.FLBPluginConfigKey(plugin, "log_key")
+	ctx.logKey = lookup("log_key")
 	if ctx.logKey == "" {
 		ctx.logKey = "log"
 	}
-	ctx.debug = output.FLBPluginConfigKey(plugin, "debug")
-	imds := output.FLBPluginConfigKey(plugin, "imds")
+	ctx.debug = lookup("debug")
+	imds := lookup("imds")
 	fmt.Printf("[flb-azure-app-insights] id = '%s'\n", ctx.id)
 	fmt.Printf("[flb-azure-app-insights] plugin instrumentation key = '%s'\n", ctx.instrumentationKey)
 	fmt.Printf("[flb-azure-app-insights] using log key = '%s'\n", ctx.logKey)
@@ -168,8 +166,27 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 
 	fmt.Printf("[flb-azure-app-insights] App Insights client initialized with key: %s\n",
 		telemetryConfig.InstrumentationKey)
+	return ctx, output.FLB_OK
+}
+
+// (fluentbit will call this)
+// plugin (context) pointer to fluentbit context (state/ c code)
+//
+//export FLBPluginInit
+func FLBPluginInit(plugin unsafe.Pointer) int {
+	fmt.Printf("[flb-azure-app-insights] version = '%s'\n", version)
+
+	lookup := func(key string) string {
+		return output.FLBPluginConfigKey(plugin, key)
+	}
+	fileExists := func(path string) bool {
+		_, err := os.Stat(path)
+		return err == nil
+	}
+
+	ctx, ret := initPluginContext(lookup, fileExists)
 	output.FLBPluginSetContext(plugin, ctx)
-	return output.FLB_OK
+	return ret
 }
 
 //export FLBPluginFlush
