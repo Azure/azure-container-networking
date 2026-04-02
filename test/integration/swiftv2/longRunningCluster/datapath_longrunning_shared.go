@@ -104,9 +104,8 @@ func GetDaemonSetPodName(kubeconfig, namespace, dsName string) string {
 	return name
 }
 
-// GetZoneLabel returns the full zone label value (e.g., "eastus2euap-1").
-// GetZoneLabel returns the topology zone label value "<location>-<zone>" for zonal pools.
-// Returns "" for zone "0" (generic non-zonal pool) or when ZONE is unset.
+// GetZoneLabel returns the topology zone label value "<location>-<zone>" for zonal pools
+// (for example, "eastus2euap-1"), or "" when ZONE is unset or "0" for a generic non-zonal pool.
 func GetZoneLabel(location string) string {
 	zone := GetZone()
 	if zone == "" || zone == "0" {
