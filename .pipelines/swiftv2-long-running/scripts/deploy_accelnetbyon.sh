@@ -127,12 +127,30 @@ for cluster_name in $cluster_names; do
       keep_nat="true" # Pass -k (keep NAT) only on the last VMSS so NAT gateway stays attached for outbound connectivity
     fi
     echo "Creating VMSS: $node_name with SKU: $vmss_sku, NICs: $nic_count (keep_nat=$keep_nat)"
-    create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count" "$keep_nat"
-    # Wait for node to join cluster (but not Ready — nodes need labels first for CNS/NNC setup)
+    # Skip creation if VMSS already exists and node is already in the cluster
     kubeconfig_file="./kubeconfig-${cluster_name}.yaml"
-    if ! check_if_nodes_joined_cluster "$cluster_name" "$node_name" "$kubeconfig_file" "1"; then
-      echo "##vso[task.logissue type=error]Node $node_name did not join the cluster"
-      exit 1
+    if check_vmss_exists "$RESOURCE_GROUP" "$node_name" 2>/dev/null; then
+      echo "VMSS '$node_name' already exists, checking if node joined cluster..."
+      set +e
+      existing_nodes=($(kubectl --kubeconfig "$kubeconfig_file" get nodes -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep "^${node_name}" 2>/dev/null))
+      set -e
+      if [[ ${#existing_nodes[@]} -ge 1 ]]; then
+        echo "Node '$node_name' already in cluster (${#existing_nodes[@]} node(s) found). Skipping VMSS creation."
+      else
+        echo "VMSS exists but node not in cluster. Re-creating VMSS..."
+        create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count" "$keep_nat"
+        if ! check_if_nodes_joined_cluster "$cluster_name" "$node_name" "$kubeconfig_file" "1"; then
+          echo "##vso[task.logissue type=error]Node $node_name did not join the cluster"
+          exit 1
+        fi
+      fi
+    else
+      create_l1vh_vmss "$cluster_name" "$node_name" "$vmss_sku" "$nic_count" "$keep_nat"
+      # Wait for node to join cluster (but not Ready — nodes need labels first for CNS/NNC setup)
+      if ! check_if_nodes_joined_cluster "$cluster_name" "$node_name" "$kubeconfig_file" "1"; then
+        echo "##vso[task.logissue type=error]Node $node_name did not join the cluster"
+        exit 1
+      fi
     fi
     
     nic_label="high-nic"

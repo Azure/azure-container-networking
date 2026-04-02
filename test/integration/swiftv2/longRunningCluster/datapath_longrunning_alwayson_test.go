@@ -72,7 +72,7 @@ var _ = ginkgo.Describe("Long-Running Always-On DaemonSet Tests", func() {
 		pniName := GetZonedPNIName(LongRunningAlwaysOnPNIPrefix, buildID)
 		dsName := GetDaemonSetName()
 		zoneLabel := GetZoneLabel(location)
-		if zoneLabel == "" {
+		if zoneLabel == "" && zone != "0" {
 			ginkgo.Fail(fmt.Sprintf("Missing zone label for always-on DaemonSet. Ensure ZONE and LOCATION are set correctly (LOCATION='%s')", location))
 		}
 

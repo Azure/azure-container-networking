@@ -16,7 +16,9 @@ spec:
     spec:
       nodeSelector:
         longrunning-zone-pool: "true"
+        {{- if .ZoneLabel }}
         topology.kubernetes.io/zone: {{ .ZoneLabel }}
+        {{- end }}
       tolerations:
       - key: "acn-test/zone-pool"
         operator: "Equal"

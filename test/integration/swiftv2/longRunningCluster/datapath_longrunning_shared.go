@@ -72,9 +72,10 @@ func GetZonedPNIName(prefix, buildID string) string {
 
 // GetRotatingNodeSelector returns the label selector for the zone's node.
 // Each zone has 1 node labeled longrunning-zone-pool=true with the AKS zone label.
+// Zone "0" means a generic (non-zonal) nodepool — no zone label selector is applied.
 func GetRotatingNodeSelector(location string) string {
 	zone := GetZone()
-	if zone == "" {
+	if zone == "" || zone == "0" {
 		return "longrunning-zone-pool=true"
 	}
 	return fmt.Sprintf("longrunning-zone-pool=true,topology.kubernetes.io/zone=%s-%s", location, zone)
@@ -104,9 +105,11 @@ func GetDaemonSetPodName(kubeconfig, namespace, dsName string) string {
 }
 
 // GetZoneLabel returns the full zone label value (e.g., "eastus2euap-1").
+// GetZoneLabel returns the topology zone label value "<location>-<zone>" for zonal pools.
+// Returns "" for zone "0" (generic non-zonal pool) or when ZONE is unset.
 func GetZoneLabel(location string) string {
 	zone := GetZone()
-	if zone == "" {
+	if zone == "" || zone == "0" {
 		return ""
 	}
 	return fmt.Sprintf("%s-%s", location, zone)

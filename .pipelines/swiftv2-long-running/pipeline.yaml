@@ -33,6 +33,9 @@ parameters:
           - "2"
           - "3"
           - "4"
+      - location: centraluseuap
+        zones:
+          - "0"
 
   - name: resourceGroupName
     displayName: "Resource Group Name prefix"

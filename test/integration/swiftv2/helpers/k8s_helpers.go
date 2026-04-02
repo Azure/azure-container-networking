@@ -462,11 +462,14 @@ func podSpec(nodeName, image string, privileged bool) corev1.PodSpec {
 }
 
 func daemonSetPodSpec(zoneLabel, image string, privileged bool) corev1.PodSpec {
+	nodeSelector := map[string]string{
+		"longrunning-zone-pool": "true",
+	}
+	if zoneLabel != "" {
+		nodeSelector["topology.kubernetes.io/zone"] = zoneLabel
+	}
 	return corev1.PodSpec{
-		NodeSelector: map[string]string{
-			"longrunning-zone-pool":       "true",
-			"topology.kubernetes.io/zone": zoneLabel,
-		},
+		NodeSelector: nodeSelector,
 		Tolerations: []corev1.Toleration{
 			{
 				Key:      "acn-test/zone-pool",

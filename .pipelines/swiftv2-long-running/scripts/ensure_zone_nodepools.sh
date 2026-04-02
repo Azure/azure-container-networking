@@ -37,20 +37,34 @@ for ZONE in $ZONES; do
     continue
   fi
 
-  echo "==> Creating node pool $POOL_NAME in zone $ZONE (1 node, $VM_SKU)"
-  az aks nodepool add -g "$RG" -n "$POOL_NAME" \
-    --node-count 1 \
-    --node-vm-size "$VM_SKU" \
-    --cluster-name "$CLUSTER" \
-    --os-type Linux \
-    --max-pods 250 \
-    --zones "$ZONE" \
-    --subscription "$SUBSCRIPTION_ID" \
-    --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true stampcreatorserviceinfo=true "aks-nic-secondary-count=${PODS_PER_NODE}" \
-    --aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
-    --pod-subnet-id "$POD_SUBNET_ID"
+  if [ "$ZONE" = "0" ]; then
+    echo "==> Creating node pool $POOL_NAME with NO availability zone (generic) (1 node, $VM_SKU)"
+    az aks nodepool add -g "$RG" -n "$POOL_NAME" \
+      --node-count 1 \
+      --node-vm-size "$VM_SKU" \
+      --cluster-name "$CLUSTER" \
+      --os-type Linux \
+      --max-pods 250 \
+      --subscription "$SUBSCRIPTION_ID" \
+      --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true stampcreatorserviceinfo=true "aks-nic-secondary-count=${PODS_PER_NODE}" \
+      --aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
+      --pod-subnet-id "$POD_SUBNET_ID"
+  else
+    echo "==> Creating node pool $POOL_NAME in zone $ZONE (1 node, $VM_SKU)"
+    az aks nodepool add -g "$RG" -n "$POOL_NAME" \
+      --node-count 1 \
+      --node-vm-size "$VM_SKU" \
+      --cluster-name "$CLUSTER" \
+      --os-type Linux \
+      --max-pods 250 \
+      --zones "$ZONE" \
+      --subscription "$SUBSCRIPTION_ID" \
+      --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true stampcreatorserviceinfo=true "aks-nic-secondary-count=${PODS_PER_NODE}" \
+      --aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
+      --pod-subnet-id "$POD_SUBNET_ID"
+  fi
 
-  echo "    Node pool $POOL_NAME created in zone $ZONE"
+  echo "    Node pool $POOL_NAME created (zone: ${ZONE})"
 done
 
 # Wait for zone pool nodes to be Ready, with VM health-check remediation
@@ -172,22 +186,26 @@ for ZONE in $ZONES; do
     acn-test/zone-pool=true:NoSchedule \
     --overwrite
 
-  # Verify zone label (AKS sets this automatically)
+  # Verify zone label (AKS sets this automatically for zonal node pools)
   NODE=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l agentpool=$POOL_NAME -o jsonpath='{.items[0].metadata.name}')
-  ACTUAL_ZONE=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get node "$NODE" -o jsonpath='{.metadata.labels.topology\.kubernetes\.io/zone}')
-  echo "    Node $NODE zone label: $ACTUAL_ZONE"
+  if [ "$ZONE" = "0" ]; then
+    echo "    Node $NODE is a generic (non-zonal) node pool, skipping zone label verification"
+  else
+    ACTUAL_ZONE=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get node "$NODE" -o jsonpath='{.metadata.labels.topology\.kubernetes\.io/zone}')
+    echo "    Node $NODE zone label: $ACTUAL_ZONE"
 
-  # The Go tests and DaemonSet manifests expect the zone label to be "<region>-<zone>" (e.g., "eastus2euap-1").
-  # Fail fast if AKS uses a different format so we can fix the code before tests silently fail.
-  LOCATION=$(az aks show -g "$RG" -n "$CLUSTER" --subscription "$SUBSCRIPTION_ID" --query location -o tsv)
-  EXPECTED_ZONE="${LOCATION}-${ZONE}"
-  if [ "$ACTUAL_ZONE" != "$EXPECTED_ZONE" ]; then
-    echo "ERROR: Zone label mismatch! Expected '$EXPECTED_ZONE', got '$ACTUAL_ZONE'"
-    echo "       The Go tests use '<location>-<zone>' format (e.g., 'eastus2euap-1')."
-    echo "       Update GetZoneLabel() in datapath_longrunning_shared.go and daemonset.yaml if format differs."
-    exit 1
+    # The Go tests and DaemonSet manifests expect the zone label to be "<region>-<zone>" (e.g., "eastus2euap-1").
+    # Fail fast if AKS uses a different format so we can fix the code before tests silently fail.
+    LOCATION=$(az aks show -g "$RG" -n "$CLUSTER" --subscription "$SUBSCRIPTION_ID" --query location -o tsv)
+    EXPECTED_ZONE="${LOCATION}-${ZONE}"
+    if [ "$ACTUAL_ZONE" != "$EXPECTED_ZONE" ]; then
+      echo "ERROR: Zone label mismatch! Expected '$EXPECTED_ZONE', got '$ACTUAL_ZONE'"
+      echo "       The Go tests use '<location>-<zone>' format (e.g., 'eastus2euap-1')."
+      echo "       Update GetZoneLabel() in datapath_longrunning_shared.go and daemonset.yaml if format differs."
+      exit 1
+    fi
+    echo "    Zone label verified: $ACTUAL_ZONE == $EXPECTED_ZONE"
   fi
-  echo "    Zone label verified: $ACTUAL_ZONE == $EXPECTED_ZONE"
 done
 
 echo "==> Zone node pool setup complete"

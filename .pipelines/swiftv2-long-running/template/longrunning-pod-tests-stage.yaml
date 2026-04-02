@@ -66,10 +66,18 @@ stages:
                 echo "==> Verifying cluster aks-1 connectivity"
                 kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig get nodes
 
-                echo "==> Confirming zone ${{ parameters.zone }} nodes exist"
-                kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig get nodes \
-                  -l "topology.kubernetes.io/zone=${{ parameters.location }}-${{ parameters.zone }},longrunning-zone-pool=true" \
-                  -o custom-columns='NAME:.metadata.name,ZONE:.metadata.labels.topology\.kubernetes\.io/zone,POOL:.metadata.labels.agentpool'
+                ZONE="${{ parameters.zone }}"
+                if [ "$ZONE" = "0" ]; then
+                  echo "==> Confirming generic (non-zonal) longrunning nodes exist"
+                  kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig get nodes \
+                    -l "longrunning-zone-pool=true,agentpool=npz0" \
+                    -o custom-columns='NAME:.metadata.name,ZONE:.metadata.labels.topology\.kubernetes\.io/zone,POOL:.metadata.labels.agentpool'
+                else
+                  echo "==> Confirming zone ${{ parameters.zone }} nodes exist"
+                  kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig get nodes \
+                    -l "topology.kubernetes.io/zone=${{ parameters.location }}-${{ parameters.zone }},longrunning-zone-pool=true" \
+                    -o custom-columns='NAME:.metadata.name,ZONE:.metadata.labels.topology\.kubernetes\.io/zone,POOL:.metadata.labels.agentpool'
+                fi
 
           - task: PublishPipelineArtifact@1
             displayName: "Publish kubeconfig files"

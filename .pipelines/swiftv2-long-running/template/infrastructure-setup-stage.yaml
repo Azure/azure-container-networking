@@ -271,10 +271,11 @@ stages:
                 set +e  # Don't fail on errors, we're checking existence
                 
                 echo "Checking for Accelnet VMSS in $(rgName)..."
-                VMSS_EXISTS=$(az vmss list -g "$(rgName)" --query "[?contains(name, 'accelnet')] | length(@)" -o tsv 2>/dev/null || echo "0")
+                # Accelnet VMSS names use 'acl' prefix (e.g. a1aclh1, a2acld2)
+                VMSS_EXISTS=$(az vmss list -g "$(rgName)" --query "[?contains(name, 'acl')] | length(@)" -o tsv 2>/dev/null || echo "0")
                 
                 if [ "$VMSS_EXISTS" -gt 0 ]; then
-                  echo "##[section]Accelnet VMSS already exists"
+                  echo "##[section]Accelnet VMSS already exists ($VMSS_EXISTS found)"
                   echo "##vso[task.setvariable variable=accelnetExists;isOutput=true]true"
                 else
                   echo "##[section]Accelnet VMSS does not exist - will provision"

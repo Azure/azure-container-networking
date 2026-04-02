@@ -24,7 +24,7 @@ stages:
   - stage: DataPathTests_${{ replace(parameters.workloadType, '-', '_') }}_${{ replace(parameters.location, '-', '_') }}
     displayName: "Swiftv2 Data Path Tests - ${{ parameters.workloadType }} (${{ parameters.location }})"
     dependsOn: ${{ parameters.dependsOn }}
-    condition: and(eq(variables.isAllowedRun, true), not(failed()), eq(dependencies.AcquireLease_${{ replace(parameters.location, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
+    condition: and(eq(variables.isAllowedRun, true), not(canceled()), eq(dependencies.AcquireLease_${{ replace(parameters.location, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
     variables:
       storageAccount1: ${{ parameters.storageAccount1 }}
       storageAccount2: ${{ parameters.storageAccount2 }}
