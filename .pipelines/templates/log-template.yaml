@@ -88,6 +88,7 @@ steps:
         kubectl get pods -A -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName
         podList=`kubectl get pods -A -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName --no-headers | grep -v Running | awk '{print $1 "/" $2}'`
         array=($podList)
+        acnLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
 
         if [ -z ${array[0]} ]; then
           echo "There are no pods in a non-ready state."
