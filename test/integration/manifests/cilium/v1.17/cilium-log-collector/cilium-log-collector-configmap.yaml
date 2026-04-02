@@ -59,6 +59,7 @@ data:
 
     [OUTPUT]
         Name                        azure_app_insights
+        id                          cns
         debug                       true
         imds                        true
         instrumentation_key         2f6ea7db-059d-46bf-905d-4b8724b628b6
@@ -66,6 +67,7 @@ data:
 
     [OUTPUT]
         Name                        azure_app_insights
+        id                          cilium
         debug                       true
         imds                        true
         instrumentation_key         0b069f84-690d-4290-9703-747af9a35cd8

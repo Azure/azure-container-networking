@@ -26,14 +26,13 @@ var version = ""
 
 // RecordProcessor handles batch record processing for testability
 type RecordProcessor struct {
-	tracker            AppInsightsTracker
-	tag                string
-	debug              bool
-	logKey             string
-	disabled           bool
-	version            string
-	instrumentationKey string
-	id                 string
+	tracker  AppInsightsTracker
+	tag      string
+	debug    bool
+	logKey   string
+	disabled bool
+	version  string
+	id       string
 }
 
 // ProcessRecord represents a single log record
@@ -133,6 +132,9 @@ func FLBPluginInit(plugin unsafe.Pointer) int {
 	ctx.disabled = false
 
 	ctx.instrumentationKey = output.FLBPluginConfigKey(plugin, "instrumentation_key")
+	if ctx.id == "" {
+		ctx.id = ctx.instrumentationKey
+	}
 	// the key that is identified as the log upon receiving the record in this plugin
 	ctx.logKey = output.FLBPluginConfigKey(plugin, "log_key")
 	if ctx.logKey == "" {
@@ -191,14 +193,13 @@ func FLBPluginFlushCtx(ctx, data unsafe.Pointer, length C.int, tag *C.char) int 
 	dec := output.NewDecoder(data, int(length))
 	tracker := &RealAppInsightsTracker{client: pctx.client}
 	processor := &RecordProcessor{
-		tracker:            tracker,
-		tag:                C.GoString(tag),
-		debug:              pctx.debug == "true",
-		logKey:             pctx.logKey,
-		disabled:           pctx.disabled,
-		version:            version,
-		instrumentationKey: pctx.instrumentationKey,
-		id:                 pctx.id,
+		tracker:  tracker,
+		tag:      C.GoString(tag),
+		debug:    pctx.debug == "true",
+		logKey:   pctx.logKey,
+		disabled: pctx.disabled,
+		version:  version,
+		id:       pctx.id,
 	}
 
 	count := 0
