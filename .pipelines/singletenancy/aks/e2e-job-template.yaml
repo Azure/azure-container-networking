@@ -101,7 +101,7 @@ stages:
         dependsOn:
           - ${{ parameters.name }}
           - cni_${{ parameters.os }}
-        condition: always()
+        condition: or(failed(), eq(dependencies.${{ parameters.name }}.result, 'SucceededWithIssues'))
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
