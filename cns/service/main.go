@@ -1574,6 +1574,10 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	nicNCMiddleware := &middlewares.NICNetworkConfigMiddleware{Cli: manager.GetClient()}
 	httpRestServiceImplementation.AttachNICNCClient(nicNCMiddleware)
 
+	// Attach NodeInfo client to read NIC info from NodeInfo CRD
+	nodeInfoCli := &multitenancy.NodeInfoClient{Cli: manager.GetClient()}
+	httpRestServiceImplementation.AttachNodeInfoClient(nodeInfoCli, nodeName)
+
 	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
 	// NodeNetworkConfig update by the time the Reconciler tries to send it.
 	go func() {

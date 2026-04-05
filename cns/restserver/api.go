@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -1318,20 +1319,19 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 
 	switch r.Method {
 	case http.MethodGet:
-		networkInterfaces, err := service.imdsClient.GetNetworkInterfacesOldAPI(ctx)
+		// Read NIC info from NodeInfo CRD
+		nodeInfo, err := service.nodeInfoCli.Get(ctx, service.nodeName)
 		if err != nil {
 			resp := cns.GetNICResourcesResponse{
 				Response: cns.Response{
 					ReturnCode: types.UnexpectedError,
-					Message:    errors.Wrap(err, "failed to get NIC resources from IMDS").Error(),
+					Message:    errors.Wrap(err, "failed to get NIC resources from NodeInfo CRD").Error(),
 				},
 			}
 			respondJSON(w, http.StatusInternalServerError, resp)
 			logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 			return
 		}
-
-		vmUniqueID := service.getVMUniqueIDInternal(ctx)
 
 		// Enrich NIC data with NICNetworkConfig CRD info if the middleware is attached
 		var nicNCByMAC map[string]*cns.NICNCInfo
@@ -1343,15 +1343,32 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 			}
 		}
 
-		nicResources := make([]cns.NICResource, 0, len(networkInterfaces))
-		for _, nic := range networkInterfaces {
-			macStr := nic.MacAddress.String()
-			res := cns.NICResource{
-				MacAddress:             macStr,
-				InterfaceCompartmentID: nic.InterfaceCompartmentID,
-				VMUniqueID:             vmUniqueID,
+		// Build a MAC→interface name map from host network interfaces
+		ifaceNameByMAC := make(map[string]string)
+		if ifaces, ifErr := net.Interfaces(); ifErr == nil {
+			logger.Printf("[Azure CNS] successfully listed %v host network interfaces for NIC resource query", len(ifaces))
+			for _, iface := range ifaces {
+				if len(iface.HardwareAddr) > 0 {
+					ifaceNameByMAC[iface.HardwareAddr.String()] = iface.Name
+				}
 			}
-			if info, ok := nicNCByMAC[macStr]; ok {
+		} else {
+			logger.Errorf("[Azure CNS] failed to list host network interfaces: %v", ifErr)
+		}
+
+		nicResources := make([]cns.NICResource, 0, len(nodeInfo.Status.DeviceInfos))
+		for _, device := range nodeInfo.Status.DeviceInfos {
+			res := cns.NICResource{
+				MacAddress: device.MacAddress,
+				VMUniqueID: nodeInfo.Spec.VMUniqueID,
+			}
+			// Resolve MAC address to host interface name (e.g. eth1)
+			if parsedMAC, parseErr := net.ParseMAC(device.MacAddress); parseErr == nil {
+				if name, ok := ifaceNameByMAC[parsedMAC.String()]; ok {
+					res.InterfaceName = name
+				}
+			}
+			if info, ok := nicNCByMAC[device.MacAddress]; ok {
 				res.NetworkID = info.NetworkID
 				res.SubnetName = info.SubnetName
 			}
@@ -1365,7 +1382,7 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 			NICResources: nicResources,
 		}
 		respondJSON(w, http.StatusOK, resp)
-		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
 
 	default:
 		returnMessage := fmt.Sprintf("[Azure CNS] Error. getNICResources did not receive a GET."+

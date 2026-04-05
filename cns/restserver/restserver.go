@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types/bounded"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
@@ -61,6 +62,11 @@ type imdsClient interface {
 // nicNCClient enriches NICResource data with CRD information (e.g., NetworkID, SubnetName).
 type nicNCClient interface {
 	GetNICNCInfoByMAC(ctx context.Context) (map[string]*cns.NICNCInfo, error)
+}
+
+// nodeInfoClient reads NodeInfo CRDs to get NIC device info and VM metadata.
+type nodeInfoClient interface {
+	Get(ctx context.Context, name string) (*v1alpha1.NodeInfo, error)
 }
 
 type iptablesClient interface {
@@ -109,6 +115,8 @@ type HTTPRestService struct {
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
 	nicNCClient                nicNCClient
+	nodeInfoCli                nodeInfoClient
+	nodeName                   string
 }
 
 type CNIConflistGenerator interface {
@@ -410,4 +418,9 @@ func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.
 
 func (service *HTTPRestService) AttachNICNCClient(client nicNCClient) {
 	service.nicNCClient = client
+}
+
+func (service *HTTPRestService) AttachNodeInfoClient(client nodeInfoClient, nodeName string) {
+	service.nodeInfoCli = client
+	service.nodeName = nodeName
 }
