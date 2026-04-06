@@ -303,7 +303,7 @@ func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 				continue
 			}
 			if pod.Status.PodIP == "" {
-				return errors.Wrapf(err, "Pod %s/%s has not been allocated an IP yet with reason %s", pod.Namespace, pod.Name, pod.Status.Message)
+				return errors.Errorf("Pod %s/%s has not been allocated an IP yet with reason %s", pod.Namespace, pod.Name, pod.Status.Message)
 			}
 		}
 
