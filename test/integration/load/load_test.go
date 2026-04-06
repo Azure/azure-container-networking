@@ -101,7 +101,7 @@ func TestLoad(t *testing.T) {
 		kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, testConfig.ScaleUpReplicas, testConfig.SkipWait)
 	}
 	t.Log("Checking pods are running and IP assigned")
-	err = kubernetes.WaitForPodsRunning(ctx, clientset, "", "")
+	err = kubernetes.WaitForPodsRunning(ctx, clientset, "", "", "azuresecuritylinuxagent")
 	require.NoError(t, err)
 
 	if testConfig.ValidateStateFile {
