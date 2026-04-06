@@ -56,12 +56,22 @@ stages:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
-          - template: azure-cni-overlay-e2e-step-template.yaml
-            parameters:
-              name: ${{ parameters.name }}
-              clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: ${{ parameters.os }}
-              scaleup: ${{ parameters.scaleup }} # 50 in windows or 100 in linux
+          - ${{ if eq(parameters.os, 'linux') }}:
+            - template: azure-cni-overlay-e2e-step-template.yaml
+              parameters:
+                name: ${{ parameters.name }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                scaleup: ${{ parameters.scaleup }}
+          - ${{ if eq(parameters.os, 'windows') }}:
+            - template: ../../templates/windows-overlay-e2e-step-template.yaml
+              parameters:
+                name: ${{ parameters.name }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                cniType: cniv2
+                validateCniType: cniv2
+                testLoadArgs: "INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true"
+                scaleup: ${{ parameters.scaleup }}
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:

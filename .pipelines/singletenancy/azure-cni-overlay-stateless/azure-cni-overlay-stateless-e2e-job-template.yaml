@@ -57,12 +57,14 @@ stages:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
-          - template: azure-cni-overlay-stateless-e2e-step-template.yaml
+          - template: ../../templates/windows-overlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: windows
-              vmSizeWin: ${{ parameters.vmSize }}
+              cniType: stateless
+              validateCniType: stateless
+              testLoadArgs: "INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true"
+              runWireserverTests: "true"
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:

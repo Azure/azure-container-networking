@@ -56,12 +56,23 @@ stages:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
-          - template: dualstackoverlay-e2e-step-template.yaml
-            parameters:
-              name: ${{ parameters.name }}
-              clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: ${{ parameters.os }}
-              scaleup: ${{ parameters.scaleup }} # 50 in windows or 100 in linux
+          - ${{ if eq(parameters.os, 'linux') }}:
+            - template: dualstackoverlay-e2e-step-template.yaml
+              parameters:
+                name: ${{ parameters.name }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                scaleup: ${{ parameters.scaleup }}
+          - ${{ if eq(parameters.os, 'windows') }}:
+            - template: ../../templates/windows-overlay-e2e-step-template.yaml
+              parameters:
+                name: ${{ parameters.name }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                cniType: cniv2
+                validateCniType: dualstack
+                testLoadArgs: "INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true"
+                regionClusterTest: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+                scaleup: ${{ parameters.scaleup }}
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
