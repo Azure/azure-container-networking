@@ -45,8 +45,8 @@ stages:
   # Each zone independently ensures its own node pool exists.
   # ============================================================
   - ${{ each scenario in parameters.scenarios }}:
-    - ${{ each zone in scenario.longrunningZones }}:
-      - template: longrunning-pod-tests-stage.yaml
+    - ${{ each zone in scenario.longRunningPodZones }}:
+      - template: long-running-pod-tests-stage.yaml
         parameters:
           location: ${{ scenario.location }}
           subscriptionId: ${{ scenario.subscriptionId }}

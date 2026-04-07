@@ -14,12 +14,12 @@ scenarios:
     location: eastus2euap
     label: "eastus2euap"
     enableAccelnet: false
-    longrunningZones: ["1", "2", "3", "4"]
+    longRunningPodZones: ["1", "2", "3", "4"]
   - subscriptionId: "9b8218f9-..."
     location: eastus2euap
     label: "eastus2euap_baseline"
     enableAccelnet: false
-    longrunningZones: ["1", "2", "3", "4"]
+    longRunningPodZones: ["1", "2", "3", "4"]
 ```
 
 The `label` must be unique across scenarios — it is used to generate unique stage names. Two scenarios can share the same `location` (e.g., to compare subscriptions) as long as their labels differ.
@@ -276,7 +276,7 @@ All operations are designed to be safe to re-run. PodNetworks, PodNetworkInstanc
 │   ├── long-running-pipeline-template.yaml    # Infra setup + datapath tests + long-running tests
 │   ├── infrastructure-setup-stage.yaml        # Per-location infra verify + conditional setup
 │   ├── datapath-tests-stage.yaml              # Per-workload datapath test stage
-│   └── longrunning-pod-tests-stage.yaml       # Per-zone: EnsureNodePool + rotating + always-on + connectivity
+│   └── long-running-pod-tests-stage.yaml      # Per-zone: EnsureNodePool + rotating + always-on + connectivity
 └── scripts/
     ├── verify_infrastructure.sh               # Smart infra check (skip setup if exists)
     ├── ensure_zone_nodepools.sh               # Idempotent per-zone node pool creation
