@@ -1,5 +1,5 @@
 # Source images
-export GO_IMG					?= mcr.microsoft.com/oss/go/microsoft/golang:1.23-cbl-mariner2.0
+export GO_IMG					?= mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0
 export MARINER_CORE_IMG			?= mcr.microsoft.com/cbl-mariner/base/core:2.0
 export MARINER_DISTROLESS_IMG	?= mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0
 export WIN_HPC_IMG				?= mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0

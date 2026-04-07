@@ -5,8 +5,8 @@ ARG DROPGZ_VERSION=v0.0.12
 ARG OS_VERSION
 ARG OS
 
-# mcr.microsoft.com/oss/go/microsoft/golang:1.23-cbl-mariner2.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:1d8a3fc8df13298bab0d6ea34f49ded3641fd60985c7968518717e965edaef99 AS go
+# mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:b05a9bbf50a8ccfdd0ebe9f673ef29dca7c1d5e209434b35a560a4e8ae5f72b2 AS go
 
 # mcr.microsoft.com/cbl-mariner/base/core:2.0
 FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core@sha256:61b8c8e5c769784be2137cba8612c3a0f0c1752a66276b3b1b5306014a1e20e0 AS mariner-core
