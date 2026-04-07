@@ -12,7 +12,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/stale@main
+      - uses: actions/stale@db5d06a4c82d5e94513c09c406638111df61f63e # main
         id: stale
         with:
           ascending: true
@@ -27,4 +27,6 @@ jobs:
           stale-issue-message: 'This issue is stale because it has been open for 2 weeks with no activity. Remove stale label or comment to keep it open.'
           stale-pr-message: 'This pull request is stale because it has been open for 2 weeks with no activity. Remove stale label or comment or this will be closed in 7 days'
       - name: Print outputs
-        run: echo ${{ join(steps.stale.outputs.*, ',') }}
+        env:
+          STALE_OUTPUTS: ${{ join(steps.stale.outputs.*, ',') }}
+        run: echo "$STALE_OUTPUTS"
