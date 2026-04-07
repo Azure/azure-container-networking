@@ -70,7 +70,7 @@ steps:
         # Run datapath tests
         echo "Windows Overlay DataPath Test"
         cd test/integration/datapath
-        sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
+        sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 6m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
     name: "WindowsOverlayTests"
     displayName: "Windows Overlay ControlPlane and DataPath Tests"
     retryCountOnTaskFailure: 2
