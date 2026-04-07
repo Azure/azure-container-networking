@@ -1,13 +1,8 @@
 parameters:
-  - name: subscriptionId
-    type: string
-  - name: location
+  - name: scenarios
     type: object
   - name: resourceGroupName
     type: string
-  - name: longrunningRegions
-    type: object
-    default: []
   - name: workloadType
     type: object
     default: [ "swiftv2-linux", "swiftv2-linux-byon", "swiftv2-l1vh-accelnet-byon" ] #"swiftv2-l1vh-infiniband-byon"
@@ -31,42 +26,45 @@ variables:
 
 stages:
   # ============================================================
-  # Infrastructure verify & setup for each location (idempotent)
+  # Infrastructure verify & setup for each scenario (idempotent)
   # ============================================================
-  - ${{ each loc in parameters.location }}:
+  - ${{ each scenario in parameters.scenarios }}:
     - template: infrastructure-setup-stage.yaml
       parameters:
-        subscriptionId: ${{ parameters.subscriptionId }}
-        location: ${{ loc }}
+        subscriptionId: ${{ scenario.subscriptionId }}
+        location: ${{ scenario.location }}
+        stageLabel: ${{ scenario.label }}
         resourceGroupName: ${{ parameters.resourceGroupName }}
         vmSkuDefault: $(vmSkuDefault)
         vmSkuHighNIC: $(vmSkuHighNIC)
+        enableAccelnetBYON: ${{ scenario.enableAccelnet }}
         dependsOn: []
 
   # ============================================================
   # Long-running pod tests per zone (rotating + DaemonSet + connectivity)
   # Each zone independently ensures its own node pool exists.
   # ============================================================
-  - ${{ each region in parameters.longrunningRegions }}:
-    - ${{ each zone in region.zones }}:
+  - ${{ each scenario in parameters.scenarios }}:
+    - ${{ each zone in scenario.longrunningZones }}:
       - template: longrunning-pod-tests-stage.yaml
         parameters:
-          location: ${{ region.location }}
-          subscriptionId: ${{ parameters.subscriptionId }}
-          rgName: ${{ parameters.resourceGroupName }}-${{ region.location }}
+          location: ${{ scenario.location }}
+          subscriptionId: ${{ scenario.subscriptionId }}
+          stageLabel: ${{ scenario.label }}
+          rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
           zone: ${{ zone }}
           vmSkuHighNIC: $(vmSkuHighNIC)
           dependsOn:
-            - AKSClusterAndNetworking_${{ replace(region.location, '-', '_') }}
+            - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
 
   # ============================================================
   # Acquire pipeline lease (prevents concurrent runs colliding)
   # ============================================================
-  - ${{ each loc in parameters.location }}:
-    - stage: AcquireLease_${{ replace(loc, '-', '_') }}
-      displayName: "Acquire Pipeline Lease (${{ loc }})"
+  - ${{ each scenario in parameters.scenarios }}:
+    - stage: AcquireLease_${{ replace(scenario.label, '-', '_') }}
+      displayName: "Acquire Pipeline Lease (${{ scenario.label }})"
       dependsOn:
-        - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+        - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
       condition: and(eq(variables.isAllowedRun, true), not(failed()))
       jobs:
         - job: AcquireLease
@@ -83,7 +81,7 @@ stages:
                 scriptLocation: inlineScript
                 inlineScript: |
                   az aks get-credentials \
-                    -g "${{ parameters.resourceGroupName }}-${{ loc }}" \
+                    -g "${{ parameters.resourceGroupName }}-${{ scenario.location }}" \
                     -n aks-1 --admin --overwrite-existing \
                     --file /tmp/aks-1.kubeconfig
 
@@ -108,54 +106,55 @@ stages:
                   fi
 
   # ============================================================
-  # Datapath tests for each location and workload type
+  # Datapath tests for each scenario and workload type
   # ============================================================
-  - ${{ each loc in parameters.location }}:
+  - ${{ each scenario in parameters.scenarios }}:
     - ${{ each workload in parameters.workloadType }}:
-      # Skip accelnet workloads in regions where accelnet is not enabled (currently only centraluseuap has quota)
-      - ${{ if or(not(contains(workload, 'l1vh-accelnet')), eq(loc, 'centraluseuap')) }}:
+      # Skip accelnet workloads unless the scenario has accelnet enabled.
+      - ${{ if or(not(contains(workload, 'l1vh-accelnet')), scenario.enableAccelnet) }}:
         - template: datapath-tests-stage.yaml
           parameters:
             workloadType: ${{ workload }}
-            location: ${{ loc }}
-            subscriptionId: ${{ parameters.subscriptionId }}
-            rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
-            storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
-            storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
-            leaseAcquired: $[ dependencies.AcquireLease_${{ replace(loc, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
+            location: ${{ scenario.location }}
+            subscriptionId: ${{ scenario.subscriptionId }}
+            stageLabel: ${{ scenario.label }}
+            rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
+            storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
+            storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
+            leaseAcquired: $[ dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
             ${{ if eq(workload, 'swiftv2-linux') }}:
               dependsOn: 
-                - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
-                - AcquireLease_${{ replace(loc, '-', '_') }}
+                - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+                - AcquireLease_${{ replace(scenario.label, '-', '_') }}
             ${{ if eq(workload, 'swiftv2-linux-byon') }}:
               dependsOn: 
-                - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
-                - AcquireLease_${{ replace(loc, '-', '_') }}
-                - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
+                - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+                - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+                - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
             ${{ if eq(workload, 'swiftv2-l1vh-accelnet-byon') }}:
               dependsOn: 
-                - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
-                - AcquireLease_${{ replace(loc, '-', '_') }}
-                - DataPathTests_swiftv2_linux_byon_${{ replace(loc, '-', '_') }}
+                - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+                - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+                - DataPathTests_swiftv2_linux_byon_${{ replace(scenario.label, '-', '_') }}
 
   # ============================================================
   # Release pipeline lease (always runs, even on failure)
   # ============================================================
-  - ${{ each loc in parameters.location }}:
-    - stage: ReleaseLease_${{ replace(loc, '-', '_') }}
-      displayName: "Release Pipeline Lease (${{ loc }})"
-      ${{ if eq(loc, 'centraluseuap') }}:
+  - ${{ each scenario in parameters.scenarios }}:
+    - stage: ReleaseLease_${{ replace(scenario.label, '-', '_') }}
+      displayName: "Release Pipeline Lease (${{ scenario.label }})"
+      ${{ if scenario.enableAccelnet }}:
         dependsOn:
-          - AcquireLease_${{ replace(loc, '-', '_') }}
-          - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
-          - DataPathTests_swiftv2_linux_byon_${{ replace(loc, '-', '_') }}
-          - DataPathTests_swiftv2_l1vh_accelnet_byon_${{ replace(loc, '-', '_') }}
-      ${{ if ne(loc, 'centraluseuap') }}:
+          - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_linux_byon_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_l1vh_accelnet_byon_${{ replace(scenario.label, '-', '_') }}
+      ${{ if not(scenario.enableAccelnet) }}:
         dependsOn:
-          - AcquireLease_${{ replace(loc, '-', '_') }}
-          - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
-          - DataPathTests_swiftv2_linux_byon_${{ replace(loc, '-', '_') }}
-      condition: and(always(), eq(dependencies.AcquireLease_${{ replace(loc, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
+          - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_linux_byon_${{ replace(scenario.label, '-', '_') }}
+      condition: and(always(), eq(dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
       jobs:
         - job: ReleaseLease
           displayName: "Release ConfigMap lease on aks-1"
@@ -170,7 +169,7 @@ stages:
                 scriptLocation: inlineScript
                 inlineScript: |
                   az aks get-credentials \
-                    -g "${{ parameters.resourceGroupName }}-${{ loc }}" \
+                    -g "${{ parameters.resourceGroupName }}-${{ scenario.location }}" \
                     -n aks-1 --admin --overwrite-existing \
                     --file /tmp/aks-1.kubeconfig
 

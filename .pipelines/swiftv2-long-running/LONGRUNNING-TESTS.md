@@ -4,19 +4,25 @@ This document covers the **long-running zone-aware pod tests** — rotating pods
 
 These tests are **integrated into the main pipeline** (`pipeline.yaml`). The `longrunningRegions` parameter maps each region to its availability zones. Zone node pool creation and per-zone test stages run alongside the existing datapath tests.
 
-### Adding a New Region
+### Adding a New Region or Subscription
 
-Edit the `longrunningRegions` parameter in `pipeline.yaml`:
+Edit the `scenarios` parameter in `pipeline.yaml`. Each scenario entry specifies a subscription, region, unique label, accelnet flag, and long-running zones:
 
 ```yaml
-longrunningRegions:
-  - location: eastus2euap
-    zones: ["1", "2", "3", "4"]
-  - location: centraluseuap        # example: add a new region
-    zones: ["1", "2", "3"]         # only 3 zones here
+scenarios:
+  - subscriptionId: "37deca37-..."
+    location: eastus2euap
+    label: "eastus2euap"
+    enableAccelnet: false
+    longrunningZones: ["1", "2", "3", "4"]
+  - subscriptionId: "9b8218f9-..."
+    location: eastus2euap
+    label: "eastus2euap_baseline"
+    enableAccelnet: false
+    longrunningZones: ["1", "2", "3", "4"]
 ```
 
-Each region gets its own `EnsureZoneNodePools` setup stage followed by parallel per-zone test stages.
+The `label` must be unique across scenarios — it is used to generate unique stage names. Two scenarios can share the same `location` (e.g., to compare subscriptions) as long as their labels differ.
 
 ---
 

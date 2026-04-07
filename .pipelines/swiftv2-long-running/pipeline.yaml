@@ -10,32 +10,39 @@ schedules:
     always: true  # Run even if there are no code changes
 
 parameters:
-  - name: subscriptionId
-    displayName: "Azure Subscription ID"
-    type: string
-    default: "37deca37-c375-4a14-b90a-043849bd2bf1"
-
-  - name: location
-    displayName: "Deployment Regions"
+  - name: scenarios
+    displayName: "Subscription × Region test matrix"
     type: object
     default:
-      - "eastus2euap"
-      - "centraluseuap"
-      - "westus2"
-
-  - name: longrunningRegions
-    displayName: "Long-running test region-to-zone mapping (zone-aware pods)"
-    type: object
-    default:
-      - location: eastus2euap
-        zones:
+      - subscriptionId: "37deca37-c375-4a14-b90a-043849bd2bf1"
+        location: "eastus2euap"
+        label: "eastus2euap"
+        enableAccelnet: false
+        longrunningZones:
           - "1"
           - "2"
           - "3"
           - "4"
-      - location: centraluseuap
-        zones:
+      - subscriptionId: "37deca37-c375-4a14-b90a-043849bd2bf1"
+        location: "centraluseuap"
+        label: "centraluseuap"
+        enableAccelnet: true
+        longrunningZones:
           - "0"
+      - subscriptionId: "37deca37-c375-4a14-b90a-043849bd2bf1"
+        location: "westus2"
+        label: "westus2"
+        enableAccelnet: false
+        longrunningZones: []
+      - subscriptionId: "9b8218f9-902a-4d20-a65c-e98acec5362f"
+        location: "eastus2euap"
+        label: "eastus2euap_baseline"
+        enableAccelnet: false
+        longrunningZones:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
 
   - name: resourceGroupName
     displayName: "Resource Group Name prefix"
@@ -45,7 +52,5 @@ parameters:
 extends:
   template: template/long-running-pipeline-template.yaml
   parameters:
-    subscriptionId: ${{ parameters.subscriptionId }}
-    location: ${{ parameters.location }}
+    scenarios: ${{ parameters.scenarios }}
     resourceGroupName: ${{ parameters.resourceGroupName }}
-    longrunningRegions: ${{ parameters.longrunningRegions }}

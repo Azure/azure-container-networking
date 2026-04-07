@@ -3,6 +3,8 @@ parameters:
     type: string
   - name: subscriptionId
     type: string
+  - name: stageLabel
+    type: string
   - name: rgName
     type: string
   - name: zone
@@ -15,8 +17,8 @@ parameters:
     default: []
 
 stages:
-  - stage: LongRunningPodTests_Z${{ parameters.zone }}_${{ replace(parameters.location, '-', '_') }}
-    displayName: "Long-Running Pod Tests - Zone ${{ parameters.zone }} (${{ parameters.location }})"
+  - stage: LongRunningPodTests_Z${{ parameters.zone }}_${{ replace(parameters.stageLabel, '-', '_') }}
+    displayName: "Long-Running Pod Tests - Zone ${{ parameters.zone }} (${{ parameters.stageLabel }})"
     dependsOn: ${{ parameters.dependsOn }}
     condition: and(eq(variables.isAllowedRun, true), not(failed()))
     jobs:

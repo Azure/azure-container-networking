@@ -3,19 +3,24 @@ parameters:
     type: string
   - name: location
     type: string
+  - name: stageLabel
+    type: string
   - name: resourceGroupName
     type: string
   - name: vmSkuDefault
     type: string
   - name: vmSkuHighNIC
     type: string
+  - name: enableAccelnetBYON
+    type: boolean
+    default: false
   - name: dependsOn
     type: object
     default: []
 
 stages:
-  - stage: AKSClusterAndNetworking_${{ replace(parameters.location, '-', '_') }}
-    displayName: "Verify & Setup Infrastructure (${{ parameters.location }})"
+  - stage: AKSClusterAndNetworking_${{ replace(parameters.stageLabel, '-', '_') }}
+    displayName: "Verify & Setup Infrastructure (${{ parameters.stageLabel }})"
     dependsOn: ${{ parameters.dependsOn }}
     condition: eq(variables.isAllowedRun, true)
     variables:
@@ -255,10 +260,10 @@ stages:
               KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
               KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
 
-      # Accelnet BYON - only for centraluseuap (verify before deploying)
+      # Accelnet BYON - only for regions explicitly enabled by the pipeline parameters.
       - job: VerifyAccelnetBYON
         displayName: "Verify Accelnet BYON VMSS (${{ parameters.location }})"
-        condition: eq('${{ parameters.location }}', 'centraluseuap')
+        condition: eq('${{ parameters.enableAccelnetBYON }}', true)
         steps:
           - task: AzureCLI@2
             name: AccelnetCheck
@@ -291,7 +296,7 @@ stages:
           - NetworkingAndStorage
         condition: |
           and(
-            eq('${{ parameters.location }}', 'centraluseuap'),
+            eq('${{ parameters.enableAccelnetBYON }}', true),
             not(failed()),
             or(
               eq(dependencies.VerifyAccelnetBYON.outputs['AccelnetCheck.accelnetExists'], 'false'),
