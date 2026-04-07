@@ -1389,6 +1389,16 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		return errors.Wrap(err, "failed to build clientset")
 	}
 
+	// Install or update the NICNetworkConfig CRD definition in the cluster
+	mtInstaller, err := multitenancy.NewInstaller(kubeConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to create multitenancy crd installer")
+	}
+	if _, err := mtInstaller.InstallOrUpdateNICNetworkConfig(ctx); err != nil {
+		return errors.Wrap(err, "failed to install or update NICNetworkConfig CRD")
+	}
+	logger.Printf("Installed or updated NICNetworkConfig CRD")
+
 	// get nodename for scoping kube requests to node.
 	nodeName, err := configuration.NodeName()
 	if err != nil {
