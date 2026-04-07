@@ -394,6 +394,7 @@ type NICResource struct {
 	NetworkID              string `json:"networkID,omitempty"`
 	VMUniqueID             string `json:"vmUniqueID,omitempty"`
 	SubnetName             string `json:"subnetName,omitempty"`
+	Capacity               int    `json:"capacity"`
 }
 
 // GetNICResourcesResponse describes response for GetNICResources API.

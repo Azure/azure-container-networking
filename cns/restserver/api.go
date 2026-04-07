@@ -1371,6 +1371,9 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 			if info, ok := nicNCByMAC[device.MacAddress]; ok {
 				res.NetworkID = info.NetworkID
 				res.SubnetName = info.SubnetName
+				res.Capacity = 16
+			} else {
+				res.Capacity = 1
 			}
 			nicResources = append(nicResources, res)
 		}
