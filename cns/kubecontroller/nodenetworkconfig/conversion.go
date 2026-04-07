@@ -35,9 +35,6 @@ func parseIPv6Subnet(nc v1alpha.NetworkContainer) (cns.IPSubnet, error) {
 	if !subnetV6Prefix.Addr().Is6() {
 		return cns.IPSubnet{}, errors.Errorf("SubnetAddressSpaceV6 %s is not an IPv6 prefix", nc.SubnetAddressSpaceV6)
 	}
-	if nc.PrimaryIPV6 == "" {
-		return cns.IPSubnet{}, errors.New("PrimaryIPV6 must be set when SubnetAddressSpaceV6 is specified")
-	}
 	return cns.IPSubnet{
 		IPAddress:    nc.PrimaryIPV6,
 		PrefixLength: uint8(subnetV6Prefix.Bits()), //#nosec G115 -- prefix bits are 0-128, fits uint8
