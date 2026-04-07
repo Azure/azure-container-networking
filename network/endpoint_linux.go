@@ -163,6 +163,9 @@ func (nw *network) newEndpointImpl(
 					plc,
 					iptc)
 			}
+		} else if epInfo.Mode == opModeTransparentTunnel {
+			logger.Info("Transparent tunnel client")
+			epClient = NewTransparentTunnelEndpointClient(nw, epInfo, hostIfName, contIfName, nl, netioCli, plc, iptc)
 		} else if epInfo.Mode != opModeTransparent {
 			logger.Info("Bridge client")
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, epInfo.Mode, nl, plc)
@@ -181,6 +184,14 @@ func (nw *network) newEndpointImpl(
 		if err != nil {
 			logger.Error("CNI error. Delete Endpoint and rules that are created", zap.Error(err), zap.String("contIfName", contIfName))
 			if containerIf != nil {
+				// transparent-tunnel cleanup can fail (iptables/netlink) and must not
+				// be silently swallowed even on rollback — log so we have a trail of
+				// any leftover state that the next pod create will inherit.
+				if ttClient, ok := client.(*TransparentTunnelEndpointClient); ok {
+					if delErr := ttClient.DeleteTransparentTunnelRules(ep); delErr != nil {
+						logger.Error("rollback: failed to delete transparent tunnel rules", zap.Error(delErr))
+					}
+				}
 				client.DeleteEndpointRules(ep)
 			}
 			// set deleteHostVeth to true to cleanup host veth interface if created
@@ -282,6 +293,9 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			} else {
 				epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc, iptc)
 			}
+		} else if mode == opModeTransparentTunnel {
+			epInfo := ep.getInfo()
+			epClient = NewTransparentTunnelEndpointClient(nw, epInfo, ep.HostIfName, "", nl, nioc, plc, iptc)
 		} else if mode != opModeTransparent {
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", mode, nl, plc)
 		} else {
@@ -298,6 +312,16 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			}
 
 			epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", mode, nl, nioc, plc)
+		}
+	}
+
+	// transparent-tunnel cleanup is split out from DeleteEndpointRules so the
+	// caller can react to failures: stale fwmark MARK rules / ip rule / table
+	// 101 routes break routing for subsequent pods on this node, so we MUST
+	// return any error to containerd so it retries the CNI DEL.
+	if ttClient, ok := epClient.(*TransparentTunnelEndpointClient); ok {
+		if err := ttClient.DeleteTransparentTunnelRules(ep); err != nil {
+			return fmt.Errorf("failed to delete transparent tunnel rules: %w", err)
 		}
 	}
 

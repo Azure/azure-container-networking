@@ -39,6 +39,7 @@ const (
 	Filter = "filter"
 	Nat    = "nat"
 	Mangle = "mangle"
+	Raw    = "raw"
 )
 
 // target
@@ -46,6 +47,7 @@ const (
 	Accept     = "ACCEPT"
 	Drop       = "DROP"
 	Masquerade = "MASQUERADE"
+	Notrack    = "NOTRACK"
 )
 
 // actions
