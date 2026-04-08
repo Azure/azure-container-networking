@@ -84,7 +84,7 @@ stages:
           dependsOnToEmitWarning: ${{ parameters.name }}_windows
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           fileSearchPattern: "azure-vnet*.log"
-          searchPattern: "\\x00"
+          searchPattern: "\\x00|\\\\x00"
           cni: cniv2
           os: windows
 
