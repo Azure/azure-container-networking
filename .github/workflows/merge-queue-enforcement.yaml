@@ -8,7 +8,7 @@ on:
       - ready_for_review
     branches:
       - master
-      - release/*
+      - release/v[0-9]*.[0-9]*
   merge_group:
     types:
       - checks_requested
@@ -28,8 +28,8 @@ jobs:
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.base_ref }}
         run: |
-          if [[ ! "$BRANCH" =~ ^[a-zA-Z0-9_/.-]+$ ]]; then
-            echo "::error::Unexpected characters in base branch name: '$BRANCH'."
+          if [[ ! "$BRANCH" =~ ^(master|release/v[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::Unexpected base branch name: '$BRANCH'. Expected 'master' or 'release/vX.Y'."
             exit 1
           fi
           RULES=$(gh api "/repos/$REPO/rules/branches/$BRANCH" \
