@@ -83,6 +83,7 @@ stages:
                   az aks get-credentials \
                     -g "${{ parameters.resourceGroupName }}-${{ scenario.location }}" \
                     -n aks-1 --admin --overwrite-existing \
+                    --subscription "${{ scenario.subscriptionId }}" \
                     --file /tmp/aks-1.kubeconfig
 
                   set +e
@@ -171,6 +172,7 @@ stages:
                   az aks get-credentials \
                     -g "${{ parameters.resourceGroupName }}-${{ scenario.location }}" \
                     -n aks-1 --admin --overwrite-existing \
+                    --subscription "${{ scenario.subscriptionId }}" \
                     --file /tmp/aks-1.kubeconfig
 
                   bash .pipelines/swiftv2-long-running/scripts/release_pipeline_lease.sh \

@@ -4,7 +4,10 @@ set -e
 RESOURCE_GROUP=$1
 REGION=$2
 BUILD_SOURCE_DIR=$3
-SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+SUBSCRIPTION_ID=${4:-$(az account show --query id -o tsv)}
+
+echo "Setting active subscription to $SUBSCRIPTION_ID"
+az account set --subscription "$SUBSCRIPTION_ID"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/byon_helper.sh"

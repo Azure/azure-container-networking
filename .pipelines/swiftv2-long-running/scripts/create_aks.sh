@@ -15,6 +15,9 @@ CLUSTER_COUNT=2
 PODS_PER_NODE=7
 CLUSTER_PREFIX="aks"
 
+echo "Setting active subscription to $SUBSCRIPTION_ID"
+az account set --subscription "$SUBSCRIPTION_ID"
+
 
 stamp_vnet() {
     local vnet_id="$1"

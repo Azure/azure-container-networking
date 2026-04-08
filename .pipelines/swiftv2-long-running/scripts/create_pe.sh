@@ -7,6 +7,9 @@ LOCATION=$2
 RG=$3
 SA1_NAME=$4 
 
+echo "Setting active subscription to $SUBSCRIPTION_ID"
+az account set --subscription "$SUBSCRIPTION_ID"
+
 VNET_A1="cx_vnet_v1"
 VNET_A2="cx_vnet_v2"
 VNET_A3="cx_vnet_v3"

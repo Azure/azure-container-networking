@@ -57,7 +57,7 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
 
   KUBECONFIG_FILE="/tmp/${CLUSTER}.kubeconfig"
   if ! az aks get-credentials -g "$RG" -n "$CLUSTER" --admin --overwrite-existing \
-    --file "$KUBECONFIG_FILE" 2>/dev/null; then
+    --subscription "$SUBSCRIPTION_ID" --file "$KUBECONFIG_FILE" 2>/dev/null; then
     echo "  WARNING: Failed to get credentials for cluster $CLUSTER"
     MISSING+=("kubeconfig:$CLUSTER")
     INFRA_EXISTS=false

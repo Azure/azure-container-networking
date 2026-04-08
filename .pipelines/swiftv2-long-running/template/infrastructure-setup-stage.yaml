@@ -61,7 +61,7 @@ stages:
                   echo "==> Ensuring labels on $CLUSTER"
                   KUBECONFIG="/tmp/${CLUSTER}.kubeconfig"
                   az aks get-credentials -g "$(rgName)" -n "$CLUSTER" --admin \
-                    --overwrite-existing --file "$KUBECONFIG"
+                    --overwrite-existing --subscription "${{ parameters.subscriptionId }}" --file "$KUBECONFIG"
 
                   # Remove workload-type and nic-capacity labels from SchedulingDisabled nodes
                   CORDONED_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes \
@@ -191,6 +191,7 @@ stages:
               scriptPath: ".pipelines/swiftv2-long-running/scripts/create_peerings.sh"
               arguments: >
                 $(rgName)
+                ${{ parameters.subscriptionId }}
 
           - task: AzureCLI@2
             name: CreateStorageAccounts
@@ -254,6 +255,7 @@ stages:
               arguments: >
                 $(rgName)
                 $(Build.SourcesDirectory)
+                ${{ parameters.subscriptionId }}
             env:
               SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
               CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
@@ -277,7 +279,7 @@ stages:
                 
                 echo "Checking for Accelnet VMSS in $(rgName)..."
                 # Accelnet VMSS names use 'acl' prefix (e.g. a1aclh1, a2acld2)
-                VMSS_EXISTS=$(az vmss list -g "$(rgName)" --query "[?contains(name, 'acl')] | length(@)" -o tsv 2>/dev/null || echo "0")
+                VMSS_EXISTS=$(az vmss list -g "$(rgName)" --subscription "${{ parameters.subscriptionId }}" --query "[?contains(name, 'acl')] | length(@)" -o tsv 2>/dev/null || echo "0")
                 
                 if [ "$VMSS_EXISTS" -gt 0 ]; then
                   echo "##[section]Accelnet VMSS already exists ($VMSS_EXISTS found)"
@@ -322,6 +324,7 @@ stages:
                 $(rgName)
                 ${{ parameters.location }}
                 $(Build.SourcesDirectory)
+                ${{ parameters.subscriptionId }}
             env:
               SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
               CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)

@@ -61,6 +61,7 @@ stages:
                 az aks get-credentials \
                   --resource-group ${{ parameters.rgName }} \
                   --name aks-1 \
+                  --subscription ${{ parameters.subscriptionId }} \
                   --file $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig \
                   --overwrite-existing \
                   --admin

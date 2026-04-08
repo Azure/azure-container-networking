@@ -3,7 +3,11 @@ set -e
 
 RESOURCE_GROUP=$1
 BUILD_SOURCE_DIR=$2
+SUBSCRIPTION_ID=$3
 BICEP_TEMPLATE_PATH="${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/linux.bicep"
+
+echo "Setting active subscription to $SUBSCRIPTION_ID"
+az account set --subscription "$SUBSCRIPTION_ID"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/byon_helper.sh"

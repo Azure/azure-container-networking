@@ -5,6 +5,10 @@ trap 'echo "[ERROR] Failed during NSG creation or rule setup." >&2' ERR
 SUBSCRIPTION_ID=$1
 RG=$2
 LOCATION=$3
+
+echo "Setting active subscription to $SUBSCRIPTION_ID"
+az account set --subscription "$SUBSCRIPTION_ID"
+
 VNET_A1="cx_vnet_v1"
 SUBNET1_PREFIX=$(az network vnet subnet show -g "$RG" --vnet-name "$VNET_A1" -n s1 --query "addressPrefix" -o tsv)
 SUBNET2_PREFIX=$(az network vnet subnet show -g "$RG" --vnet-name "$VNET_A1" -n s2 --query "addressPrefix" -o tsv)
