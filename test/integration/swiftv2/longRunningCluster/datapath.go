@@ -91,6 +91,7 @@ type PodData struct {
 	Namespace        string
 	Image            string
 	RuntimeClassName string
+	WorkloadType     string
 }
 
 func CreatePod(kubeconfig string, data PodData, templatePath string) error {

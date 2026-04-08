@@ -40,6 +40,11 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 			ginkgo.Skip(fmt.Sprintf("Scale tests disabled for workload type %s due to device plugin over-scheduling issue", workloadType))
 		}
 
+		podOS := "linux"
+		if workloadType == "swiftv2-l1vh-accelnet-byon" {
+			podOS = "windows"
+		}
+
 		// Device plugin and Kubernetes scheduler automatically place pods on nodes with available NICs
 		// Define scenarios for both clusters - 10 pods on aks-1, 10 pods on aks-2 (20 total for testing)
 		scenarios := []struct {
@@ -121,12 +126,13 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 					err := CreatePod(resources.Kubeconfig, PodData{
 						PodName:          podName,
 						NodeName:         "",
-						OS:               "linux",
+						OS:               podOS,
 						PNName:           resources.PNName,
 						PNIName:          resources.PNIName,
 						Namespace:        resources.PNName,
 						Image:            resources.PodImage,
 						RuntimeClassName: runtimeClassForWorkload(),
+						WorkloadType:     workloadType,
 					}, resources.PodTemplate)
 					if err != nil {
 						errors <- fmt.Errorf("failed to create pod %s in cluster %s: %w", podName, cluster, err)
