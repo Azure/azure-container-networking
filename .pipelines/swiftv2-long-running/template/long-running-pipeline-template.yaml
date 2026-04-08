@@ -90,7 +90,7 @@ stages:
                   bash .pipelines/swiftv2-long-running/scripts/acquire_pipeline_lease.sh \
                     /tmp/aks-1.kubeconfig \
                     "$(Build.BuildId)" \
-                    120
+                    300
                   ACQUIRE_RC=$?
                   set -e
 
