@@ -26,29 +26,51 @@ stages:
     variables:
       rgName: ${{ parameters.resourceGroupName }}-${{ parameters.location }}
     jobs:
-      # First: smart verification of existing infrastructure
-      - job: VerifyInfrastructure
-        displayName: "Verify Infrastructure Exists"
+      # Idempotent provisioning: always run, scripts skip existing resources
+      - job: CreateResourceGroup
+        displayName: "Create Resource Group"
+        steps:
+          - task: AzureCLI@2
+            displayName: "Create resource group"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Creating resource group $(rgName) in ${{ parameters.location }}"
+                az group create \
+                  --name "$(rgName)" \
+                  --location "${{ parameters.location }}" \
+                  --subscription "${{ parameters.subscriptionId }}"
+                echo "Resource group created successfully."
+
+      - job: CreateCluster
+        displayName: "Create AKS Clusters"
+        dependsOn: CreateResourceGroup
         steps:
           - checkout: self
             displayName: "Checkout azure-container-networking"
           - task: AzureCLI@2
-            name: InfraCheck
-            displayName: "Smart infrastructure verification"
+            displayName: "Create AKS clusters"
             inputs:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
               scriptType: bash
               scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/verify_infrastructure.sh"
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_aks.sh"
               arguments: >
                 ${{ parameters.subscriptionId }}
+                ${{ parameters.location }}
                 $(rgName)
+                ${{ parameters.vmSkuDefault }}
+                ${{ parameters.vmSkuHighNIC }}
+                $(DELEGATOR_CONTAINER_APP_NAME)
+                $(DELEGATOR_RESOURCE_GROUP)
+                $(DELEGATOR_SUBSCRIPTION)
 
       # Always ensure node labels are correct (survives node replacements)
       - job: EnsureNodeLabels
         displayName: "Ensure Node Labels"
-        dependsOn: VerifyInfrastructure
-        condition: and(succeeded(), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'true'))
+        dependsOn: CreateCluster
         steps:
           - task: AzureCLI@2
             displayName: "Apply workload-type and nic-capacity labels"
@@ -111,58 +133,9 @@ stages:
                     -o custom-columns='NAME:.metadata.name,STATUS:.status.conditions[?(@.type=="Ready")].reason,SCHEDULABLE:.spec.unschedulable,WORKLOAD:.metadata.labels.workload-type,NIC:.metadata.labels.nic-capacity,POOL:.metadata.labels.agentpool'
                 done
 
-      # Only run full setup jobs if infrastructure is missing
-      - job: CreateResourceGroup
-        displayName: "Create Resource Group"
-        dependsOn: VerifyInfrastructure
-        condition: and(succeeded(), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false'))
-        steps:
-          - task: AzureCLI@2
-            displayName: "Create resource group"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "==> Creating resource group $(rgName) in ${{ parameters.location }}"
-                az group create \
-                  --name "$(rgName)" \
-                  --location "${{ parameters.location }}" \
-                  --subscription "${{ parameters.subscriptionId }}"
-                echo "Resource group created successfully."
-
-      - job: CreateCluster
-        displayName: "Create AKS Clusters"
-        dependsOn:
-          - VerifyInfrastructure
-          - CreateResourceGroup
-        condition: and(not(failed()), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false'))
-        steps:
-          - checkout: self
-            displayName: "Checkout azure-container-networking"
-          - task: AzureCLI@2
-            displayName: "Create AKS clusters"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: ".pipelines/swiftv2-long-running/scripts/create_aks.sh"
-              arguments: >
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.location }}
-                $(rgName)
-                ${{ parameters.vmSkuDefault }}
-                ${{ parameters.vmSkuHighNIC }}
-                $(DELEGATOR_CONTAINER_APP_NAME)
-                $(DELEGATOR_RESOURCE_GROUP)
-                $(DELEGATOR_SUBSCRIPTION)
-      
       - job: NetworkingAndStorage
         displayName: "Networking and Storage Setup"
-        dependsOn:
-          - VerifyInfrastructure
-          - CreateCluster
-        condition: and(not(failed()), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false'))
+        dependsOn: CreateCluster
         steps:
           - checkout: self
             displayName: "Checkout azure-container-networking"
@@ -232,10 +205,8 @@ stages:
       - job: DeployLinuxBYON
         displayName: "Join Linux BYON VMSS to AKS Cluster"
         dependsOn:
-          - VerifyInfrastructure
           - CreateCluster
           - NetworkingAndStorage
-        condition: and(not(failed()), eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false'))
         pool:
           vmImage: ubuntu-latest
         steps:
@@ -261,47 +232,16 @@ stages:
               KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
 
       # Accelnet BYON - only for regions explicitly enabled by the pipeline parameters.
-      - job: VerifyAccelnetBYON
-        displayName: "Verify Accelnet BYON VMSS (${{ parameters.location }})"
-        condition: eq('${{ parameters.enableAccelnetBYON }}', true)
-        steps:
-          - task: AzureCLI@2
-            name: AccelnetCheck
-            displayName: "Check if Accelnet VMSS exists"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                set +e  # Don't fail on errors, we're checking existence
-                
-                echo "Checking for Accelnet VMSS in $(rgName)..."
-                # Accelnet VMSS names use 'acl' prefix (e.g. a1aclh1, a2acld2)
-                VMSS_EXISTS=$(az vmss list -g "$(rgName)" --subscription "${{ parameters.subscriptionId }}" --query "[?contains(name, 'acl')] | length(@)" -o tsv 2>/dev/null || echo "0")
-                
-                if [ "$VMSS_EXISTS" -gt 0 ]; then
-                  echo "##[section]Accelnet VMSS already exists ($VMSS_EXISTS found)"
-                  echo "##vso[task.setvariable variable=accelnetExists;isOutput=true]true"
-                else
-                  echo "##[section]Accelnet VMSS does not exist - will provision"
-                  echo "##vso[task.setvariable variable=accelnetExists;isOutput=true]false"
-                fi
-
+      # The deploy script itself checks VMSS existence and skips if already joined.
       - job: DeployAccelnetBYON
         displayName: "Join Accelnet BYON VMSS to AKS Cluster"
         dependsOn:
-          - VerifyInfrastructure
-          - VerifyAccelnetBYON
           - CreateCluster
           - NetworkingAndStorage
         condition: |
           and(
             eq('${{ parameters.enableAccelnetBYON }}', true),
-            not(failed()),
-            or(
-              eq(dependencies.VerifyAccelnetBYON.outputs['AccelnetCheck.accelnetExists'], 'false'),
-              eq(dependencies.VerifyInfrastructure.outputs['InfraCheck.infraExists'], 'false')
-            )
+            not(failed())
           )
         timeoutInMinutes: 480
         pool:
