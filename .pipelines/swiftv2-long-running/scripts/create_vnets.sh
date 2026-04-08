@@ -95,9 +95,9 @@ delegate_subnet() {
     local sal
     sal=$(az rest --method get \
       --url "${subnet_id}?api-version=2024-05-01" \
-      2>/dev/null | jq -r '.properties.serviceAssociationLinks[0].properties.link // empty')
+      2>/dev/null | jq -r '.properties.serviceAssociationLinks[0].name // empty')
     if [[ -n "$sal" ]]; then
-      echo "SAL already exists on $subnet in $vnet (link: $sal). Skipping delegation."
+      echo "SAL already exists on $subnet in $vnet (name: $sal). Skipping delegation."
       return 0
     fi
 
