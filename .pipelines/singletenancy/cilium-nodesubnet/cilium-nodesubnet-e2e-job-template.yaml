@@ -64,24 +64,21 @@ stages:
               arch: ${{ parameters.arch }}
               os: ${{ parameters.os }}
               scaleup: ${{ parameters.scaleup }}
-
-      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
-        parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          datapath: true
-          dns: true
-          cni: cilium
-          portforward: true
-          service: true
-          dependsOn: ${{ parameters.name }}
+          - template: ../../templates/k8s-e2e-step-template.yaml
+            parameters:
+              sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              datapath: true
+              dns: true
+              cni: cilium
+              portforward: true
+              service: true
 
       - job: failedE2ELogs
         displayName: "Failure Logs"
         dependsOn:
           - ${{ parameters.name }}
-          - cni_${{ parameters.os }}
         condition: failed()
         steps:
           - template: ../../templates/log-template.yaml

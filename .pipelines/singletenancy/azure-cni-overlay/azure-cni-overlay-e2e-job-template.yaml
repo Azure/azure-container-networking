@@ -72,25 +72,22 @@ stages:
                 validateCniType: cniv2
                 testLoadArgs: "INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true"
                 scaleup: ${{ parameters.scaleup }}
-
-      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
-        parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          dependsOn: ${{ parameters.name }}_${{ parameters.os }}
-          datapath: true
-          dns: true
-          portforward: true
-          hostport: true
-          service: true
-          hybridWin: ${{ eq(parameters.os, 'windows') }}
+          - template: ../../templates/k8s-e2e-step-template.yaml
+            parameters:
+              sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              datapath: true
+              dns: true
+              portforward: true
+              hostport: true
+              service: true
+              hybridWin: ${{ eq(parameters.os, 'windows') }}
 
       - job: failedE2ELogs_${{ parameters.os }}
         displayName: "${{ parameters.os }} Failure Logs"
         dependsOn:
           - ${{ parameters.name }}_${{ parameters.os }}
-          - CNI_${{ parameters.os }}
         condition: in(dependencies.${{ parameters.name }}_${{ parameters.os }}.result, 'Failed')
         steps:
           - template: ../../templates/log-template.yaml

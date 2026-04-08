@@ -73,25 +73,22 @@ stages:
                 testLoadArgs: "INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true"
                 regionClusterTest: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
                 scaleup: ${{ parameters.scaleup }}
-
-      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
-        parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          dependsOn: ${{ parameters.name }}_${{ parameters.os }}
-          dualstack: ${{ eq(parameters.os, 'linux') }} # RUN IN LINUX not WINDOWS Currently broken for scenario and blocking releases, HNS is investigating. Covered by go test in E2E step template
-          dns: true
-          portforward: true
-          service: ${{ eq(parameters.os, 'linux') }}  # RUN IN LINUX NOT WINDOWS Currently broken for scenario and blocking releases, HNS is investigating.
-          hostport: true
-          hybridWin: ${{ eq(parameters.os, 'windows') }}
+          - template: ../../templates/k8s-e2e-step-template.yaml
+            parameters:
+              sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              dualstack: ${{ eq(parameters.os, 'linux') }} # RUN IN LINUX not WINDOWS Currently broken for scenario and blocking releases, HNS is investigating. Covered by go test in E2E step template
+              dns: true
+              portforward: true
+              service: ${{ eq(parameters.os, 'linux') }}  # RUN IN LINUX NOT WINDOWS Currently broken for scenario and blocking releases, HNS is investigating.
+              hostport: true
+              hybridWin: ${{ eq(parameters.os, 'windows') }}
 
       - job: failedE2ELogs_${{ parameters.os }}
         displayName: "${{ parameters.os }} Failure Logs"
         dependsOn:
           - ${{ parameters.name }}_${{ parameters.os }}
-          - CNI_${{ parameters.os }}
         condition: in(dependencies.${{ parameters.name }}_${{ parameters.os }}.result, 'Failed')
         steps:
           - template: ../../templates/log-template.yaml

@@ -65,25 +65,22 @@ stages:
               validateCniType: stateless
               testLoadArgs: "INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true"
               runWireserverTests: "true"
-
-      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
-        parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: windows
-          dependsOn: ${{ parameters.name }}_windows
-          datapath: true
-          dns: true
-          portforward: true
-          hostport: true
-          service: true
-          hybridWin: true
+          - template: ../../templates/k8s-e2e-step-template.yaml
+            parameters:
+              sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: windows
+              datapath: true
+              dns: true
+              portforward: true
+              hostport: true
+              service: true
+              hybridWin: true
 
       - job: failedE2ELogs_windows
         displayName: "Windows Failure Logs"
         dependsOn:
           - ${{ parameters.name }}_windows
-          - cni_windows
         condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed')
         steps:
           - template: ../../templates/log-template.yaml

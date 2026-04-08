@@ -72,6 +72,17 @@ stages:
               os: ${{ parameters.os }}
               os_version: ${{ parameters.os_version }}
               scaleup: ${{ parameters.scaleup }}
+          - template: ../../templates/k8s-e2e-step-template.yaml
+            parameters:
+              sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              datapath: true
+              dns: true
+              portforward: true
+              hybridWin: true
+              service: true
+              hostport: true
       
       # can only succeed with issues in linux
       - template: ../../templates/warning-handler-job-template.yaml
@@ -83,24 +94,10 @@ stages:
           cni: cniv1
           os: ${{ parameters.os }}
 
-      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
-        parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          datapath: true
-          dns: true
-          portforward: true
-          hybridWin: true
-          service: true
-          hostport: true
-          dependsOn: ${{ parameters.name }}
-
       - job: failedE2ELogs
         displayName: "Failure Logs"
         dependsOn:
           - ${{ parameters.name }}
-          - cni_${{ parameters.os }}
         condition: failed()
         steps:
           - template: ../../templates/log-template.yaml
