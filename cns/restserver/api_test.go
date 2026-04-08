@@ -137,6 +137,7 @@ type createOrUpdateNetworkContainerParams struct {
 	vnetID       string
 	podName      string
 	podNamespace string
+	ipv6Config   cns.IPConfiguration
 }
 
 func getInterfaceInfo(w http.ResponseWriter, r *http.Request) {
@@ -1409,6 +1410,7 @@ func postAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkCont
 			NetworkContainerid:         cns.SwiftPrefix + ncParams[i].ncID,
 			OrchestratorContext:        ctx,
 			IPConfiguration:            ipConfig,
+			IPv6Configuration:          ncParams[i].ipv6Config,
 			PrimaryInterfaceIdentifier: "11.0.0.7",
 		}
 	}
@@ -1484,6 +1486,7 @@ func createOrUpdateNetworkContainerWithParams(params createOrUpdateNetworkContai
 		NetworkContainerid:         cns.SwiftPrefix + params.ncID,
 		OrchestratorContext:        context,
 		IPConfiguration:            ipConfig,
+		IPv6Configuration:          params.ipv6Config,
 		PrimaryInterfaceIdentifier: "11.0.0.7",
 	}
 
@@ -1983,3 +1986,138 @@ func TestGetHostLocalIP(t *testing.T) {
 	}
 }
 */
+
+// TestGetAllNetworkContainersWithIPv6Configuration verifies that GetAllNetworkContainers API
+// returns IPv6Configuration when present (ServiceFabric/Swiftv1 multitenancy scenario)
+func TestGetAllNetworkContainersWithIPv6Configuration(t *testing.T) {
+	setEnv(t)
+	cleanupAllNetworkContainers()
+	err := setOrchestratorType(t, cns.ServiceFabric)
+	require.NoError(t, err)
+
+	ipv6Config := cns.IPConfiguration{
+		DNSServers:       []string{"2001:4860:4860::8888", "2001:4860:4860::8844"},
+		GatewayIPAddress: "2001:db8::1",
+		IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::5", PrefixLength: 64},
+	}
+
+	ncParamsWithIPv6 := []createOrUpdateNetworkContainerParams{
+		{ncIP: "11.0.0.5", ncType: cns.AzureContainerInstance, ncID: "a47ac10b-58cc-0372-8567-0e02b2c3d479", ncVersion: "0", ipv6Config: ipv6Config},
+	}
+
+	err = createOrUpdateNetworkContainerWithParams(ncParamsWithIPv6[0])
+	require.NoError(t, err)
+
+	// Retrieve all NCs and verify IPv6Configuration is present
+	ncResponses, err := getAllNetworkContainers(t, ncParamsWithIPv6)
+	require.NoError(t, err)
+
+	require.Len(t, ncResponses.NetworkContainers, 1, "Expected 1 network container")
+
+	nc := ncResponses.NetworkContainers[0]
+
+	// Verify IPv6 configuration is present and correct
+	assert.Equal(t, ipv6Config.IPSubnet.IPAddress, nc.IPv6Configuration.IPSubnet.IPAddress, "IPv6 address mismatch")
+	assert.Equal(t, ipv6Config.IPSubnet.PrefixLength, nc.IPv6Configuration.IPSubnet.PrefixLength, "IPv6 prefix length mismatch")
+	assert.Equal(t, ipv6Config.GatewayIPAddress, nc.IPv6Configuration.GatewayIPAddress, "IPv6 gateway mismatch")
+	assert.Len(t, nc.IPv6Configuration.DNSServers, len(ipv6Config.DNSServers), "IPv6 DNS servers count mismatch")
+
+	// Cleanup
+	err = deleteNetworkContainerWithParams(ncParamsWithIPv6[0])
+	require.NoError(t, err)
+}
+
+// TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6 verifies backward compatibility
+// when IPv6Configuration is not provided (empty) in ServiceFabric scenario
+func TestGetAllNetworkContainersBackwardCompatibilityEmptyIPv6(t *testing.T) {
+	setEnv(t)
+	cleanupAllNetworkContainers()
+	err := setOrchestratorType(t, cns.ServiceFabric)
+	require.NoError(t, err)
+
+	// Create NC without IPv6Configuration (backward compatibility test, ipv6Config left as zero value)
+	ncParams := []createOrUpdateNetworkContainerParams{
+		{ncIP: "11.0.0.5", ncType: cns.AzureContainerInstance, ncID: "a47ac10b-58cc-0372-8567-0e02b2c3d480", ncVersion: "0"},
+	}
+
+	err = createOrUpdateNetworkContainerWithParams(ncParams[0])
+	require.NoError(t, err)
+
+	// Retrieve all NCs and verify IPv6Configuration is empty but doesn't cause errors
+	ncResponses, err := getAllNetworkContainers(t, ncParams)
+	require.NoError(t, err)
+
+	require.Len(t, ncResponses.NetworkContainers, 1, "Expected 1 network container")
+
+	nc := ncResponses.NetworkContainers[0]
+
+	// Verify IPv6Configuration is empty (zero value) and safe
+	assert.Empty(t, nc.IPv6Configuration.IPSubnet.IPAddress, "Expected empty IPv6 address")
+	assert.Zero(t, nc.IPv6Configuration.IPSubnet.PrefixLength, "Expected IPv6 prefix length 0")
+	assert.Empty(t, nc.IPv6Configuration.GatewayIPAddress, "Expected empty IPv6 gateway")
+
+	// Cleanup
+	err = deleteNetworkContainerWithParams(ncParams[0])
+	require.NoError(t, err)
+}
+
+// TestPostNetworkContainersWithIPv6 verifies POST endpoint correctly stores IPv6Configuration from DNC
+// in ServiceFabric/Swiftv1 multitenancy scenario
+func TestPostNetworkContainersWithIPv6(t *testing.T) {
+	setEnv(t)
+	cleanupAllNetworkContainers()
+	err := setOrchestratorType(t, cns.ServiceFabric)
+	require.NoError(t, err)
+
+	ncParamsWithIPv6 := []createOrUpdateNetworkContainerParams{
+		{
+			ncIP: "11.0.0.5", ncType: cns.AzureContainerInstance, ncID: "a47ac10b-58cc-0372-8567-0e02b2c3d481", ncVersion: "0",
+			ipv6Config: cns.IPConfiguration{
+				DNSServers:       []string{"2001:4860:4860::8888"},
+				GatewayIPAddress: "2001:db8::1",
+				IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::5", PrefixLength: 64},
+			},
+		},
+		{
+			ncIP: "11.0.0.6", ncType: cns.AzureContainerInstance, ncID: "a47ac10b-58cc-0372-8567-0e02b2c3d482", ncVersion: "0",
+			ipv6Config: cns.IPConfiguration{
+				DNSServers:       []string{"2001:4860:4860::8888"},
+				GatewayIPAddress: "2001:db8::1",
+				IPSubnet:         cns.IPSubnet{IPAddress: "2001:db8::6", PrefixLength: 64},
+			},
+		},
+	}
+
+	err = postAllNetworkContainers(t, ncParamsWithIPv6)
+	require.NoError(t, err)
+
+	// Verify NCs were stored with IPv6Configuration
+	ncResponses, err := getAllNetworkContainers(t, ncParamsWithIPv6)
+	require.NoError(t, err)
+
+	// Verify each NC has IPv6Configuration
+	for i, nc := range ncResponses.NetworkContainers {
+		assert.Equal(t, ncParamsWithIPv6[i].ipv6Config.IPSubnet.IPAddress, nc.IPv6Configuration.IPSubnet.IPAddress, "NC %d: IPv6 address mismatch", i)
+		assert.Equal(t, ncParamsWithIPv6[i].ipv6Config.GatewayIPAddress, nc.IPv6Configuration.GatewayIPAddress, "NC %d: IPv6 gateway mismatch", i)
+	}
+
+	// Cleanup
+	for i := 0; i < len(ncParamsWithIPv6); i++ {
+		err = deleteNetworkContainerWithParams(ncParamsWithIPv6[i])
+		require.NoError(t, err)
+	}
+}
+
+// cleanupAllNetworkContainers removes all NCs from the shared service state
+// so that tests relying on exact NC counts are not affected by stale state
+// left behind by prior test failures.
+func cleanupAllNetworkContainers() {
+	svc.Lock()
+	defer svc.Unlock()
+	for k := range svc.state.ContainerStatus {
+		delete(svc.state.ContainerStatus, k)
+	}
+	for k := range svc.state.ContainerIDByOrchestratorContext {
+		delete(svc.state.ContainerIDByOrchestratorContext, k)
+	}
+}

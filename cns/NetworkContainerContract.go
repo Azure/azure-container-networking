@@ -123,6 +123,7 @@ type CreateNetworkContainerRequest struct {
 	LocalIPConfiguration       IPConfiguration
 	OrchestratorContext        json.RawMessage
 	IPConfiguration            IPConfiguration
+	IPv6Configuration          IPConfiguration              // Used for CNI multitenancy in Swiftv1 scenario
 	SecondaryIPConfigs         map[string]SecondaryIPConfig // uuid is key
 	MultiTenancyInfo           MultiTenancyInfo
 	CnetAddressSpace           []IPSubnet // To setup SNAT (should include service endpoint vips).
@@ -241,8 +242,8 @@ type PodInfo interface {
 }
 
 type KubernetesPodInfo struct {
-	PodName      string
-	PodNamespace string
+	PodName      string `json:"podName"`
+	PodNamespace string `json:"podNamespace"`
 }
 
 var _ PodInfo = (*podInfo)(nil)
@@ -403,6 +404,7 @@ type NetworkInterfaceInfo struct {
 // IPConfiguration contains details about ip config to provision in the VM.
 type IPConfiguration struct {
 	IPSubnet           IPSubnet
+	IPSubnetV6         IPSubnet
 	DNSServers         []string
 	GatewayIPAddress   string
 	GatewayIPv6Address string
@@ -494,6 +496,7 @@ type GetNetworkContainerRequest struct {
 type GetNetworkContainerResponse struct {
 	NetworkContainerID         string
 	IPConfiguration            IPConfiguration
+	IPv6Configuration          IPConfiguration // Used for CNI multitenancy in Swiftv1 scenario
 	Routes                     []Route
 	CnetAddressSpace           []IPSubnet
 	MultiTenancyInfo           MultiTenancyInfo
@@ -509,9 +512,11 @@ type GetNetworkContainerResponse struct {
 type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
 	NetworkContainerPrimaryIPConfig IPConfiguration
-	HostPrimaryIPInfo               HostIPInfo
-	NICType                         NICType
-	InterfaceName                   string
+	// NetworkContainerIPv6Config holds the IPv6 IP configuration used for dual-stack SwiftV2 scenarios.
+	NetworkContainerIPv6Config IPConfiguration
+	HostPrimaryIPInfo          HostIPInfo
+	NICType                    NICType
+	InterfaceName              string
 	// MacAddress of interface
 	MacAddress string
 	// SkipDefaultRoutes is true if default routes should not be added on interface
