@@ -8,8 +8,8 @@ FROM mcr.microsoft.com/azurelinux/base/core@sha256:a452d39c91576f5a2c983c7d3b625
 # mcr.microsoft.com/azurelinux/distroless/minimal:3.0
 FROM mcr.microsoft.com/azurelinux/distroless/minimal@sha256:22810fd97d6ad5ec7d5bdd5b00233a3050be01d9e26b47b16cb6f1a7f178834b AS mariner-distroless
 
-# mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:bc7423b52b62e8f0281b5f7f564eb1862dc315bc57e1373c6a81e87ef3ac39ab AS go
+# mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:8eb433398e85315f79fd5ad1bcf791a67519c2ce0277b627e244374d513a94e6 AS go
 
 
 FROM go AS azure-iptables-monitor
