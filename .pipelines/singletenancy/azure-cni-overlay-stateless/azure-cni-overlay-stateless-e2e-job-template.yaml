@@ -51,6 +51,7 @@ stages:
       - job: ${{ parameters.name }}_windows
         displayName: Azure Stateless CNI Overlay Test Suite | Windows - (${{ parameters.name }})
         timeoutInMinutes: 120
+        continueOnError: true
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
@@ -77,11 +78,21 @@ stages:
               service: true
               hybridWin: true
 
+      # can only succeed with issues in windows
+      - template: ../../templates/warning-handler-job-template.yaml
+        parameters:
+          dependsOnToEmitWarning: ${{ parameters.name }}_windows
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          fileSearchPattern: "azure-vnet*.log"
+          searchPattern: "\\x00"
+          cni: cniv2
+          os: windows
+
       - job: failedE2ELogs_windows
         displayName: "Windows Failure Logs"
         dependsOn:
           - ${{ parameters.name }}_windows
-        condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed')
+        condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed', 'SucceededWithIssues')
         steps:
           - template: ../../templates/log-template.yaml
             parameters:

@@ -50,6 +50,7 @@ stages:
       - job: ${{ parameters.name }}_${{ parameters.os }}
         displayName: Azure CNI Overlay Test Suite | ${{ parameters.os }} - (${{ parameters.name }})
         timeoutInMinutes: 120
+        continueOnError: ${{ eq(parameters.os, 'windows') }}
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
@@ -84,11 +85,22 @@ stages:
               service: true
               hybridWin: ${{ eq(parameters.os, 'windows') }}
 
+      # can only succeed with issues in windows
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - template: ../../templates/warning-handler-job-template.yaml
+          parameters:
+            dependsOnToEmitWarning: ${{ parameters.name }}_${{ parameters.os }}
+            clusterName: ${{ parameters.clusterName }}-$(commitID)
+            fileSearchPattern: "azure-vnet*.log"
+            searchPattern: "\\x00"
+            cni: cniv2
+            os: windows
+
       - job: failedE2ELogs_${{ parameters.os }}
         displayName: "${{ parameters.os }} Failure Logs"
         dependsOn:
           - ${{ parameters.name }}_${{ parameters.os }}
-        condition: in(dependencies.${{ parameters.name }}_${{ parameters.os }}.result, 'Failed')
+        condition: in(dependencies.${{ parameters.name }}_${{ parameters.os }}.result, 'Failed', 'SucceededWithIssues')
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
