@@ -9,12 +9,6 @@ parameters:
     type: string
   - name: rgName
     type: string
-  - name: storageAccount1
-    type: string
-    default: ''
-  - name: storageAccount2
-    type: string
-    default: ''
   - name: leaseAcquired
     type: string
     default: 'true'
@@ -28,8 +22,6 @@ stages:
     dependsOn: ${{ parameters.dependsOn }}
     condition: and(eq(variables.isAllowedRun, true), not(canceled()), eq(dependencies.AcquireLease_${{ replace(parameters.stageLabel, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
     variables:
-      storageAccount1: ${{ parameters.storageAccount1 }}
-      storageAccount2: ${{ parameters.storageAccount2 }}
       leaseAcquired: ${{ parameters.leaseAcquired }}
     jobs:
       - job: SetupKubeconfig
@@ -198,14 +190,14 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
-                STORAGE_ACCOUNT_1="${{ parameters.storageAccount1 }}"
-                STORAGE_ACCOUNT_2="${{ parameters.storageAccount2 }}"
+                echo "Discovering storage accounts from resource group ${{ parameters.rgName }}..."
+                STORAGE_ACCOUNT_1=$(az storage account list -g ${{ parameters.rgName }} --subscription ${{ parameters.subscriptionId }} --query "[?starts_with(name, 'sa1')].name | [0]" -o tsv)
+                STORAGE_ACCOUNT_2=$(az storage account list -g ${{ parameters.rgName }} --subscription ${{ parameters.subscriptionId }} --query "[?starts_with(name, 'sa2')].name | [0]" -o tsv)
+                echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
                 
                 if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
-                  echo "Storage account variables not set, discovering from resource group..."
-                  STORAGE_ACCOUNT_1=$(az storage account list -g ${{ parameters.rgName }} --subscription ${{ parameters.subscriptionId }} --query "[?starts_with(name, 'sa1')].name" -o tsv)
-                  STORAGE_ACCOUNT_2=$(az storage account list -g ${{ parameters.rgName }} --subscription ${{ parameters.subscriptionId }} --query "[?starts_with(name, 'sa2')].name" -o tsv)
-                  echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
+                  echo "##vso[task.logissue type=error]Could not discover storage accounts in ${{ parameters.rgName }}"
+                  exit 1
                 fi
                 
                 echo "##vso[task.setvariable variable=storageAccount1;isOutput=true]$STORAGE_ACCOUNT_1"

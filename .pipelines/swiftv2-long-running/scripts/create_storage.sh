@@ -6,33 +6,41 @@ SUBSCRIPTION_ID=$1
 LOCATION=$2
 RG=$3
 
-RAND=$(openssl rand -hex 4)
-SA1="sa1${RAND}"
-SA2="sa2${RAND}"
-
 az account set --subscription "$SUBSCRIPTION_ID"
-for SA in "$SA1" "$SA2"; do
-  echo "Creating storage account $SA"
-  az storage account create \
-    --name "$SA" \
-    --resource-group "$RG" \
-    --location "$LOCATION" \
-    --sku Standard_LRS \
-    --kind StorageV2 \
-    --allow-blob-public-access false \
-    --allow-shared-key-access false \
-    --https-only true \
-    --min-tls-version TLS1_2 \
-    --query "name" -o tsv \
-  && echo "Storage account $SA created successfully."
-  
-  if az storage account show --name "$SA" --resource-group "$RG" &>/dev/null; then
-    echo "[OK] Storage account $SA verified successfully."
-  else
-    echo "[ERROR] Storage account $SA not found after creation!" >&2
-    exit 1
-  fi
-done
+
+# Discover existing storage accounts or create new ones
+SA1=$(az storage account list -g "$RG" --query "[?starts_with(name, 'sa1')].name | [0]" -o tsv 2>/dev/null || true)
+SA2=$(az storage account list -g "$RG" --query "[?starts_with(name, 'sa2')].name | [0]" -o tsv 2>/dev/null || true)
+
+if [[ -n "$SA1" && -n "$SA2" ]]; then
+  echo "Found existing storage accounts: $SA1, $SA2. Reusing."
+else
+  RAND=$(openssl rand -hex 4)
+  SA1="${SA1:-sa1${RAND}}"
+  SA2="${SA2:-sa2${RAND}}"
+  for SA in "$SA1" "$SA2"; do
+    echo "Creating storage account $SA"
+    az storage account create \
+      --name "$SA" \
+      --resource-group "$RG" \
+      --location "$LOCATION" \
+      --sku Standard_LRS \
+      --kind StorageV2 \
+      --allow-blob-public-access false \
+      --allow-shared-key-access false \
+      --https-only true \
+      --min-tls-version TLS1_2 \
+      --query "name" -o tsv \
+    && echo "Storage account $SA created successfully."
+
+    if az storage account show --name "$SA" --resource-group "$RG" &>/dev/null; then
+      echo "[OK] Storage account $SA verified successfully."
+    else
+      echo "[ERROR] Storage account $SA not found after creation!" >&2
+      exit 1
+    fi
+  done
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bash "$SCRIPT_DIR/manage_storage_rbac.sh" assign "$SUBSCRIPTION_ID" "$RG" "$SA1 $SA2"
@@ -77,8 +85,3 @@ done
 echo "Removing RBAC role after blob upload"
 bash "$SCRIPT_DIR/manage_storage_rbac.sh" delete "$SUBSCRIPTION_ID" "$RG" "$SA1 $SA2"
 echo "All storage accounts created and verified successfully."
-
-set +x
-echo "##vso[task.setvariable variable=StorageAccount1;isOutput=true]$SA1"
-echo "##vso[task.setvariable variable=StorageAccount2;isOutput=true]$SA2"
-set -x

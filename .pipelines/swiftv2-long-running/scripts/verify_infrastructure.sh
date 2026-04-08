@@ -147,6 +147,4 @@ echo "============================================"
 
 # Set ADO output variables
 echo "##vso[task.setvariable variable=infraExists;isOutput=true]$INFRA_EXISTS"
-echo "##vso[task.setvariable variable=StorageAccount1;isOutput=true]${SA1:-}"
-echo "##vso[task.setvariable variable=StorageAccount2;isOutput=true]${SA2:-}"
 echo "##vso[task.setvariable variable=missingResources;isOutput=true]${MISSING[*]:-none}"

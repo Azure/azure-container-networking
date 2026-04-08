@@ -23,10 +23,18 @@ create_linux_vmss() {
   local kubeconfig_secret="${RESOURCE_GROUP}-${cluster_name}-kubeconfig"
                
   echo "Creating Linux VMSS Node '${node_name}' for cluster '${cluster_name}'"
+
+  # Skip if VMSS already exists
+  if check_vmss_exists "$RESOURCE_GROUP" "$node_name" 2>/dev/null; then
+    echo "VMSS '$node_name' already exists. Skipping creation."
+    return 0
+  fi
+
   set +e
   az deployment group create -n "sat${node_name}" \
     --resource-group "$RESOURCE_GROUP" \
     --template-file "$BICEP_TEMPLATE_PATH" \
+    --mode Incremental \
     --parameters vnetname="$cluster_name" \
                 subnetname="nodenet" \
                 name="$node_name" \
@@ -73,7 +81,7 @@ cluster_names="aks-1 aks-2"
 for cluster_name in $cluster_names; do
   upload_kubeconfig "$cluster_name"
   echo "Installing CNI plugins for cluster $cluster_name"
-  if ! helm install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
+  if ! helm upgrade --install -n kube-system azure-cni-plugins ${BUILD_SOURCE_DIR}/Networking-Aquarius/.pipelines/singularity-runner/byon/chart/base \
         --set installCniPlugins.enabled=true \
         --kubeconfig "./kubeconfig-${cluster_name}"; then
     echo "##vso[task.logissue type=error]Failed to install CNI plugins for cluster ${cluster_name}"

@@ -59,6 +59,13 @@ create_vnet_subets() {
   for i in "${!extra_subnet_array[@]}"; do
     subnet_name="${extra_subnet_array[$i]}"
     subnet_cidr="${extra_cidr_array[$i]}"
+
+    # Skip if subnet already exists
+    if az network vnet subnet show -g "$RG" --vnet-name "$vnet" -n "$subnet_name" &>/dev/null; then
+      echo "Subnet $subnet_name already exists in $vnet. Skipping."
+      continue
+    fi
+
     echo "Creating extra subnet: $subnet_name with CIDR: $subnet_cidr"
     
     # Only delegate pod subnets (not private endpoint subnets)

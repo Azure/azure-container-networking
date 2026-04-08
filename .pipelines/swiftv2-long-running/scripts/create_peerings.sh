@@ -25,10 +25,20 @@ verify_peering() {
 
 peer_two_vnets() {
   local rg="$1"; local v1="$2"; local v2="$3"; local name12="$4"; local name21="$5"
-  az network vnet peering create -g "$rg" -n "$name12" --vnet-name "$v1" --remote-vnet "$v2" --allow-vnet-access --output none \
-    && echo "Created peering $name12"
-  az network vnet peering create -g "$rg" -n "$name21" --vnet-name "$v2" --remote-vnet "$v1" --allow-vnet-access --output none \
-    && echo "Created peering $name21"
+
+  if az network vnet peering show -g "$rg" --vnet-name "$v1" -n "$name12" &>/dev/null; then
+    echo "Peering $name12 already exists. Skipping."
+  else
+    az network vnet peering create -g "$rg" -n "$name12" --vnet-name "$v1" --remote-vnet "$v2" --allow-vnet-access --output none \
+      && echo "Created peering $name12"
+  fi
+
+  if az network vnet peering show -g "$rg" --vnet-name "$v2" -n "$name21" &>/dev/null; then
+    echo "Peering $name21 already exists. Skipping."
+  else
+    az network vnet peering create -g "$rg" -n "$name21" --vnet-name "$v2" --remote-vnet "$v1" --allow-vnet-access --output none \
+      && echo "Created peering $name21"
+  fi
 
   verify_peering "$rg" "$v1" "$name12"
   verify_peering "$rg" "$v2" "$name21"

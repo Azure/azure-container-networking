@@ -120,8 +120,6 @@ stages:
             subscriptionId: ${{ scenario.subscriptionId }}
             stageLabel: ${{ scenario.label }}
             rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
-            storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
-            storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
             leaseAcquired: $[ dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
             ${{ if eq(workload, 'swiftv2-linux') }}:
               dependsOn: 
