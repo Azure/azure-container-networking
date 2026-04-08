@@ -416,6 +416,30 @@ stages:
         dependsOn: ["test"]
         scaleup: 50
 
+    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
+      parameters:
+        name: "win_azure_overlay_e2e2"
+        displayName: Azure Overlay Windows 2
+        os: windows
+        clusterType: overlay-byocni-up
+        clusterName: "winazovere2e2"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: ["test"]
+        scaleup: 50
+
+    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
+      parameters:
+        name: "win_azure_overlay_e2e3"
+        displayName: Azure Overlay Windows 3
+        os: windows
+        clusterType: overlay-byocni-up
+        clusterName: "winazovere2e3"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: ["test"]
+        scaleup: 50
+
     # Azure Overlay E2E Stateless CNI tests
     - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml
       parameters:
@@ -424,6 +448,26 @@ stages:
         os: windows
         clusterType: overlay-byocni-up
         clusterName: "statelesswin"
+        vmSize: Standard_B2ms
+        dependsOn: ["test"]
+
+    - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml
+      parameters:
+        name: "azure_overlay_stateless_e2e2"
+        displayName: Azure Stateless CNI Overlay 2
+        os: windows
+        clusterType: overlay-byocni-up
+        clusterName: "statelesswin2"
+        vmSize: Standard_B2ms
+        dependsOn: ["test"]
+
+    - template: singletenancy/azure-cni-overlay-stateless/azure-cni-overlay-stateless-e2e-job-template.yaml
+      parameters:
+        name: "azure_overlay_stateless_e2e3"
+        displayName: Azure Stateless CNI Overlay 3
+        os: windows
+        clusterType: overlay-byocni-up
+        clusterName: "statelesswin3"
         vmSize: Standard_B2ms
         dependsOn: ["test"]
 
@@ -501,6 +545,28 @@ stages:
         dependsOn: ["test"]
         scaleup: 50
 
+    - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
+      parameters:
+        name: "win_dualstackoverlay_e2e2"
+        displayName: AKS DualStack Overlay Windows 2
+        os: windows
+        clusterType: dualstack-overlay-byocni-up
+        clusterName: "windsovere2e2"
+        vmSize: Standard_B2ms
+        dependsOn: ["test"]
+        scaleup: 50
+
+    - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
+      parameters:
+        name: "win_dualstackoverlay_e2e3"
+        displayName: AKS DualStack Overlay Windows 3
+        os: windows
+        clusterType: dualstack-overlay-byocni-up
+        clusterName: "windsovere2e3"
+        vmSize: Standard_B2ms
+        dependsOn: ["test"]
+        scaleup: 50
+
     - ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
       # AKS Swiftv2 Manifold E2E tests
       - template: multitenancy/swiftv2-manifold-e2e.stages.yaml
@@ -515,7 +581,11 @@ stages:
         - setup
         - linux_azure_overlay_e2e
         - win_azure_overlay_e2e
+        - win_azure_overlay_e2e2
+        - win_azure_overlay_e2e3
         - azure_overlay_stateless_e2e
+        - azure_overlay_stateless_e2e2
+        - azure_overlay_stateless_e2e3
         - aks_swift_e2e
         - cilium_e2e
         - cilium_vnetscale_e2e
@@ -529,6 +599,8 @@ stages:
         - aks_windows_22_e2e
         - linux_dualstackoverlay_e2e
         - win_dualstackoverlay_e2e
+        - win_dualstackoverlay_e2e2
+        - win_dualstackoverlay_e2e3
         - cilium_dualstackoverlay_e2e
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
@@ -575,9 +647,25 @@ stages:
                 name: win_azure_overlay_e2e
                 clusterName: "winazovere2e"
                 region: $(REGION_AKS_CLUSTER_TEST)
+              windows_azure_overlay_e2e2:
+                name: win_azure_overlay_e2e2
+                clusterName: "winazovere2e2"
+                region: $(REGION_AKS_CLUSTER_TEST)
+              windows_azure_overlay_e2e3:
+                name: win_azure_overlay_e2e3
+                clusterName: "winazovere2e3"
+                region: $(REGION_AKS_CLUSTER_TEST)
               azure_overlay_stateless_e2e:
                 name: azure_overlay_stateless_e2e
                 clusterName: "statelesswin"
+                region: $(REGION_AKS_CLUSTER_TEST)
+              azure_overlay_stateless_e2e2:
+                name: azure_overlay_stateless_e2e2
+                clusterName: "statelesswin2"
+                region: $(REGION_AKS_CLUSTER_TEST)
+              azure_overlay_stateless_e2e3:
+                name: azure_overlay_stateless_e2e3
+                clusterName: "statelesswin3"
                 region: $(REGION_AKS_CLUSTER_TEST)
               aks_swift_e2e:
                 name: aks_swift_e2e
@@ -602,6 +690,14 @@ stages:
               windows_dualstackoverlay_e2e:
                 name: windows_dualstackoverlay_e2e
                 clusterName: "windsovere2e"
+                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+              windows_dualstackoverlay_e2e2:
+                name: win_dualstackoverlay_e2e2
+                clusterName: "windsovere2e2"
+                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+              windows_dualstackoverlay_e2e3:
+                name: win_dualstackoverlay_e2e3
+                clusterName: "windsovere2e3"
                 region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
               cilium_dualstackoverlay_e2e:
                 name: cilium_dualstackoverlay_e2e
