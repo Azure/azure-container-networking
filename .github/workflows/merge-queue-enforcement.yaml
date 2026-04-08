@@ -1,4 +1,4 @@
-name: merge-queue-enforcement
+name: 'Merge Queue Enforcement'
 on:
   pull_request:
     types:
@@ -21,12 +21,27 @@ jobs:
     name: Merge Queue Gate
     runs-on: ubuntu-latest
     steps:
-      - name: Enforce merge queue
+      - name: Verify merge queue rule is active on target branch
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.base_ref }}
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "::error::Direct merges into protected branches are not allowed."
-            echo "This pull request must be merged via the GitHub Merge Queue."
-            echo "Please add this PR to the merge queue to proceed."
+          if [[ ! "$BRANCH" =~ ^[a-zA-Z0-9_/.-]+$ ]]; then
+            echo "::error::Unexpected characters in base branch name: '$BRANCH'."
             exit 1
           fi
-          echo "Running in merge queue context – check passed."
+          RULES=$(gh api "/repos/$REPO/rules/branches/$BRANCH" \
+            --jq '[.[] | select(.type == "merge_queue")] | length')
+          if [[ "$RULES" -eq 0 ]]; then
+            echo "::error::No active merge queue rule found for branch '$BRANCH'."
+            echo "A branch ruleset with the 'merge_queue' rule must be configured."
+            echo "Until this is fixed, direct merges into '$BRANCH' are possible."
+            exit 1
+          fi
+          echo "Merge queue rule is active on '$BRANCH' – check passed."
+
+      - name: Confirm merge queue context
+        if: github.event_name == 'merge_group'
+        run: echo "Running in merge queue context – check passed."
