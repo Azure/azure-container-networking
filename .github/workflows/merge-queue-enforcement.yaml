@@ -1,0 +1,32 @@
+name: merge-queue-enforcement
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    branches:
+      - master
+      - release/*
+  merge_group:
+    types:
+      - checks_requested
+
+permissions:
+  contents: read
+
+jobs:
+  merge-queue-gate:
+    name: Merge Queue Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce merge queue
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "::error::Direct merges into protected branches are not allowed."
+            echo "This pull request must be merged via the GitHub Merge Queue."
+            echo "Please add this PR to the merge queue to proceed."
+            exit 1
+          fi
+          echo "Running in merge queue context – check passed."
