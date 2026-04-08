@@ -269,7 +269,7 @@ func MustSetupCNP(ctx context.Context, clientset *cilium.Clientset, cnpPath stri
 
 func Int32ToPtr(i int32) *int32 { return &i }
 
-func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string, excludeNamespaces ...string) error {
+func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string, excludeNamespaces []string) error {
 	podsClient := clientset.CoreV1().Pods(namespace)
 
 	excludeSet := make(map[string]struct{}, len(excludeNamespaces))
