@@ -117,15 +117,6 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
     
     echo "Waiting for all nodes in $CLUSTER_NAME to be Ready..."
     kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" wait --for=condition=Ready nodes --all --timeout=10m
-
-    echo "Labeling all nodes in $CLUSTER_NAME with workload-type=swiftv2-linux"
-    kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label nodes --all workload-type=swiftv2-linux --overwrite
-    
-    echo "Labeling default nodepool (nodepool1) nodes with nic-capacity=low-nic"
-    kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label nodes -l agentpool=nodepool1 nic-capacity=low-nic --overwrite
-    
-    echo "Labeling nplinux nodepool nodes with nic-capacity=high-nic"
-    kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label nodes -l agentpool=nplinux nic-capacity=high-nic --overwrite
 done
 
 echo "All clusters complete."
