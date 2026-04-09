@@ -133,6 +133,32 @@ for ZONE in $ZONES; do
       fi
     done
 
+    # Check for nodes tainted by AKS node auto-repair (remediator)
+    TAINTED_NODES=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l agentpool="$POOL_NAME" \
+      -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .spec.taints[*]}{.key}{"\n"}{end}{end}' 2>/dev/null \
+      | grep "remediator.kubernetes.azure.com/unschedulable" | cut -f1 | sort -u || true)
+
+    if [ -n "$TAINTED_NODES" ]; then
+      for TAINTED_NODE in $TAINTED_NODES; do
+        echo "    WARNING: Node $TAINTED_NODE has remediator.kubernetes.azure.com/unschedulable taint"
+
+        # Map k8s node name back to VMSS instance ID
+        # AKS node names follow the pattern: aks-<poolname>-<hash>-vmss<instanceId> (base36)
+        INSTANCE_NAME=$(az vmss list-instances -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" \
+          --query "[].{id:instanceId, computerName:osProfile.computerName}" -o json \
+          | jq -r ".[] | select(.computerName == \"$TAINTED_NODE\") | .id")
+
+        if [ -n "$INSTANCE_NAME" ]; then
+          echo "    Deleting tainted node's VMSS instance $INSTANCE_NAME from $VMSS_NAME..."
+          az vmss delete-instances -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" \
+            --instance-ids "$INSTANCE_NAME" --no-wait || true
+          remediated=true
+        else
+          echo "    Could not map node $TAINTED_NODE to a VMSS instance, skipping"
+        fi
+      done
+    fi
+
     if [ "$remediated" = "true" ]; then
       echo "    Deleted unhealthy instance(s). Waiting for VMSS to reconcile the desired count..."
       # Give VMSS time to detect the missing instance and start provisioning
