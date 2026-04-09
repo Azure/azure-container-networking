@@ -92,7 +92,7 @@ stages:
             dependsOnToEmitWarning: ${{ parameters.name }}_${{ parameters.os }}
             clusterName: ${{ parameters.clusterName }}-$(commitID)
             fileSearchPattern: "azure-vnet*.log"
-            searchPattern: "\\x00|\\\\x00"
+            searchPattern: "\\x00|\\\\x00|hcnOpenNetwork failed in Win32: The network was not found"
             cni: cniv2
             os: windows
 
