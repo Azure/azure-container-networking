@@ -81,6 +81,49 @@ POST_REMEDIATION_TIMEOUT=600  # seconds – longer wait after VM remediation
 
 for ZONE in $ZONES; do
   POOL_NAME="npz${ZONE}"
+  echo "==> Checking node pool $POOL_NAME for remediator taints before waiting for Ready"
+
+  # Pre-check: remediate nodes tainted by AKS node auto-repair BEFORE waiting for Ready.
+  # A tainted node can still be "Ready" in k8s but unschedulable for pods, so this must
+  # run first to avoid skipping remediation.
+  VMSS_NAME=$(az vmss list -g "$MC_RG" --subscription "$SUBSCRIPTION_ID" --query "[?contains(name,'${POOL_NAME}')].name" -o tsv | head -1)
+  if [ -n "$VMSS_NAME" ]; then
+    TAINTED_NODES=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l agentpool="$POOL_NAME" \
+      -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .spec.taints[*]}{.key}{"\n"}{end}{end}' 2>/dev/null \
+      | grep "remediator.kubernetes.azure.com/unschedulable" | cut -f1 | sort -u || true)
+
+    if [ -n "$TAINTED_NODES" ]; then
+      for TAINTED_NODE in $TAINTED_NODES; do
+        echo "    WARNING: Node $TAINTED_NODE has remediator.kubernetes.azure.com/unschedulable taint"
+
+        INSTANCE_ID=$(az vmss list-instances -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" \
+          --query "[].{id:instanceId, computerName:osProfile.computerName}" -o json \
+          | jq -r ".[] | select(.computerName == \"$TAINTED_NODE\") | .id")
+
+        if [ -n "$INSTANCE_ID" ]; then
+          echo "    Deleting tainted node's VMSS instance $INSTANCE_ID from $VMSS_NAME..."
+          az vmss delete-instances -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" \
+            --instance-ids "$INSTANCE_ID" --no-wait || true
+        else
+          echo "    Could not map node $TAINTED_NODE to a VMSS instance, skipping"
+        fi
+      done
+
+      echo "    Waiting for VMSS to reconcile after tainted node removal..."
+      sleep 30
+
+      CURRENT_COUNT=$(az vmss show -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" --query "sku.capacity" -o tsv)
+      if [ "$CURRENT_COUNT" -lt 1 ]; then
+        echo "    VMSS capacity dropped to $CURRENT_COUNT, scaling back to 1..."
+        az vmss scale -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" --new-capacity 1
+      fi
+
+      echo "    Waiting for replacement node to become Ready (timeout ${POST_REMEDIATION_TIMEOUT}s)..."
+      kubectl --kubeconfig "$KUBECONFIG_FILE" wait --for=condition=Ready nodes \
+        -l agentpool="$POOL_NAME" --timeout="${POST_REMEDIATION_TIMEOUT}s" 2>/dev/null || true
+    fi
+  fi
+
   echo "==> Waiting for node pool $POOL_NAME nodes to be Ready"
 
   attempt=0
@@ -132,32 +175,6 @@ for ZONE in $ZONES; do
         remediated=true
       fi
     done
-
-    # Check for nodes tainted by AKS node auto-repair (remediator)
-    TAINTED_NODES=$(kubectl --kubeconfig "$KUBECONFIG_FILE" get nodes -l agentpool="$POOL_NAME" \
-      -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .spec.taints[*]}{.key}{"\n"}{end}{end}' 2>/dev/null \
-      | grep "remediator.kubernetes.azure.com/unschedulable" | cut -f1 | sort -u || true)
-
-    if [ -n "$TAINTED_NODES" ]; then
-      for TAINTED_NODE in $TAINTED_NODES; do
-        echo "    WARNING: Node $TAINTED_NODE has remediator.kubernetes.azure.com/unschedulable taint"
-
-        # Map k8s node name back to VMSS instance ID
-        # AKS node names follow the pattern: aks-<poolname>-<hash>-vmss<instanceId> (base36)
-        INSTANCE_NAME=$(az vmss list-instances -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" \
-          --query "[].{id:instanceId, computerName:osProfile.computerName}" -o json \
-          | jq -r ".[] | select(.computerName == \"$TAINTED_NODE\") | .id")
-
-        if [ -n "$INSTANCE_NAME" ]; then
-          echo "    Deleting tainted node's VMSS instance $INSTANCE_NAME from $VMSS_NAME..."
-          az vmss delete-instances -g "$MC_RG" -n "$VMSS_NAME" --subscription "$SUBSCRIPTION_ID" \
-            --instance-ids "$INSTANCE_NAME" --no-wait || true
-          remediated=true
-        else
-          echo "    Could not map node $TAINTED_NODE to a VMSS instance, skipping"
-        fi
-      done
-    fi
 
     if [ "$remediated" = "true" ]; then
       echo "    Deleted unhealthy instance(s). Waiting for VMSS to reconcile the desired count..."
