@@ -36,13 +36,14 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		// over-scheduling issue: the vnet-nic device plugin's Allocate() is a no-op, so the scheduler
 		// can place more pods on a node than it has physical NICs during burst creation.
 		workloadType := strings.TrimSpace(os.Getenv("WORKLOAD_TYPE"))
-		if workloadType == "swiftv2-l1vh-accelnet-byon" || workloadType == "swiftv2-l1vh-infiniband-byon" {
-			ginkgo.Skip(fmt.Sprintf("Scale tests disabled for workload type %s due to device plugin over-scheduling issue", workloadType))
-		}
 
 		podOS := "linux"
 		if workloadType == "swiftv2-l1vh-accelnet-byon" {
 			podOS = "windows"
+		}
+
+		if workloadType == "swiftv2-l1vh-accelnet-byon" || workloadType == "swiftv2-l1vh-infiniband-byon" {
+			ginkgo.Skip(fmt.Sprintf("Scale tests disabled for workload type %s due to device plugin over-scheduling issue", workloadType))
 		}
 
 		// Device plugin and Kubernetes scheduler automatically place pods on nodes with available NICs
