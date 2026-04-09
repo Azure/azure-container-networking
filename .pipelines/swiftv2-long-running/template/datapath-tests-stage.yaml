@@ -64,7 +64,7 @@ stages:
             displayName: "Publish kubeconfig files"
             inputs:
               targetPath: $(Pipeline.Workspace)/kubeconfigs
-              artifactName: kubeconfigs-${{ parameters.workloadType }}-${{ parameters.location }}
+              artifactName: kubeconfigs-${{ parameters.workloadType }}-${{ parameters.stageLabel }}
               publishLocation: pipeline
 
       - job: BuildMetricsBinary
@@ -85,7 +85,7 @@ stages:
             displayName: "Publish metrics binary and config"
             inputs:
               targetPath: '$(System.DefaultWorkingDirectory)/src/dnc'
-              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}-${{ parameters.location }}'
+              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}-${{ parameters.stageLabel }}'
               publishLocation: 'pipeline'
 
       - job: CreatePods
@@ -98,6 +98,7 @@ stages:
             parameters:
               workloadType: ${{ parameters.workloadType }}
               location: ${{ parameters.location }}
+              stageLabel: ${{ parameters.stageLabel }}
 
           - task: AzureCLI@2
             name: RunCreatePods
@@ -108,6 +109,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Creating pods (8 scenarios) for workload type: ${{ parameters.workloadType }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
                 export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
@@ -140,6 +142,7 @@ stages:
             parameters:
               workloadType: ${{ parameters.workloadType }}
               location: ${{ parameters.location }}
+              stageLabel: ${{ parameters.stageLabel }}
 
           - task: AzureCLI@2
             displayName: "Run Connectivity Tests"
@@ -149,6 +152,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Running connectivity tests for workload type: ${{ parameters.workloadType }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
                 export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
@@ -181,6 +185,7 @@ stages:
             parameters:
               workloadType: ${{ parameters.workloadType }}
               location: ${{ parameters.location }}
+              stageLabel: ${{ parameters.stageLabel }}
 
           - task: AzureCLI@2
             name: DiscoverStorageAccounts
@@ -218,6 +223,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Running Private Endpoint connectivity tests for workload type: ${{ parameters.workloadType }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
                 export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
@@ -252,6 +258,7 @@ stages:
             parameters:
               workloadType: ${{ parameters.workloadType }}
               location: ${{ parameters.location }}
+              stageLabel: ${{ parameters.stageLabel }}
 
           - task: AzureCLI@2
             displayName: "Run Scale Test (Create and Delete)"
@@ -261,6 +268,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Running scale test for workload type: ${{ parameters.workloadType }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 echo "  - 10 pods in aks-1 (cx_vnet_v1/s1)"
                 echo "  - 10 pods in aks-2 (cx_vnet_v3/s1)"
                 export RG="${{ parameters.rgName }}"
@@ -300,6 +308,7 @@ stages:
             parameters:
               workloadType: ${{ parameters.workloadType }}
               location: ${{ parameters.location }}
+              stageLabel: ${{ parameters.stageLabel }}
 
           - task: AzureCLI@2
             displayName: "Delete Test Resources"
@@ -309,6 +318,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Deleting test resources (8 scenarios) for workload type: ${{ parameters.workloadType }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
                 export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"

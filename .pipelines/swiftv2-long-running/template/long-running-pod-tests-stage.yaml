@@ -86,7 +86,7 @@ stages:
             displayName: "Publish kubeconfig files"
             inputs:
               targetPath: $(Pipeline.Workspace)/kubeconfigs
-              artifactName: kubeconfigs-longrunning-z${{ parameters.zone }}-${{ parameters.location }}
+              artifactName: kubeconfigs-longrunning-z${{ parameters.zone }}-${{ parameters.stageLabel }}
               publishLocation: pipeline
 
       # Setup: Build metrics binary
@@ -108,7 +108,7 @@ stages:
             displayName: "Publish metrics binary and config"
             inputs:
               targetPath: '$(System.DefaultWorkingDirectory)/src/dnc'
-              artifactName: 'persistent-cluster-metrics-longrunning-z${{ parameters.zone }}-${{ parameters.location }}'
+              artifactName: 'persistent-cluster-metrics-longrunning-z${{ parameters.zone }}-${{ parameters.stageLabel }}'
               publishLocation: 'pipeline'
 
       # Job 1: Rotating pods (delete expired, create new, ensure 1 rotation per hour)
@@ -128,13 +128,13 @@ stages:
           - task: DownloadPipelineArtifact@2
             displayName: "Download kubeconfig files"
             inputs:
-              artifactName: kubeconfigs-longrunning-z${{ parameters.zone }}-${{ parameters.location }}
+              artifactName: kubeconfigs-longrunning-z${{ parameters.zone }}-${{ parameters.stageLabel }}
               targetPath: $(Pipeline.Workspace)/kubeconfigs
 
           - task: DownloadPipelineArtifact@2
             displayName: "Download metrics binary"
             inputs:
-              artifact: 'persistent-cluster-metrics-longrunning-z${{ parameters.zone }}-${{ parameters.location }}'
+              artifact: 'persistent-cluster-metrics-longrunning-z${{ parameters.zone }}-${{ parameters.stageLabel }}'
               path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
 
           - task: Bash@3
@@ -152,6 +152,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Managing rotating pods in zone ${{ parameters.zone }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
                 export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="swiftv2-linux"
@@ -198,13 +199,13 @@ stages:
           - task: DownloadPipelineArtifact@2
             displayName: "Download kubeconfig files"
             inputs:
-              artifactName: kubeconfigs-longrunning-z${{ parameters.zone }}-${{ parameters.location }}
+              artifactName: kubeconfigs-longrunning-z${{ parameters.zone }}-${{ parameters.stageLabel }}
               targetPath: $(Pipeline.Workspace)/kubeconfigs
 
           - task: DownloadPipelineArtifact@2
             displayName: "Download metrics binary"
             inputs:
-              artifact: 'persistent-cluster-metrics-longrunning-z${{ parameters.zone }}-${{ parameters.location }}'
+              artifact: 'persistent-cluster-metrics-longrunning-z${{ parameters.zone }}-${{ parameters.stageLabel }}'
               path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
 
           - task: Bash@3
@@ -222,6 +223,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Ensuring always-on pods in zone ${{ parameters.zone }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
                 export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="swiftv2-linux"
@@ -270,13 +272,13 @@ stages:
           - task: DownloadPipelineArtifact@2
             displayName: "Download kubeconfig files"
             inputs:
-              artifactName: kubeconfigs-longrunning-z${{ parameters.zone }}-${{ parameters.location }}
+              artifactName: kubeconfigs-longrunning-z${{ parameters.zone }}-${{ parameters.stageLabel }}
               targetPath: $(Pipeline.Workspace)/kubeconfigs
 
           - task: DownloadPipelineArtifact@2
             displayName: "Download metrics binary"
             inputs:
-              artifact: 'persistent-cluster-metrics-longrunning-z${{ parameters.zone }}-${{ parameters.location }}'
+              artifact: 'persistent-cluster-metrics-longrunning-z${{ parameters.zone }}-${{ parameters.stageLabel }}'
               path: '$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc'
 
           - task: Bash@3
@@ -294,6 +296,7 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Running connectivity tests in zone ${{ parameters.zone }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
                 export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="swiftv2-linux"
