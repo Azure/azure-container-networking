@@ -217,7 +217,19 @@ func DeleteDeploymentAndWait(ctx context.Context, c client.Client, namespace, na
 			return fmt.Errorf("failed to list pods for deployment %s: %w", name, err)
 		}
 		if len(podList.Items) == 0 {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+	// Also wait for the Deployment object itself to be fully removed
+	for time.Now().Before(deadline) {
+		check := &appsv1.Deployment{}
+		err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, check)
+		if apierrors.IsNotFound(err) {
 			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("failed to check deployment %s deletion: %w", name, err)
 		}
 		time.Sleep(2 * time.Second)
 	}
