@@ -36,13 +36,6 @@ steps:
     name: "kubeconfig"
     displayName: "Set Kubeconfig"
 
-  # set cni name to azure so windows cleanup script runs (though testing can still pass without this usually)
-  - script: |
-      cd hack/scripts
-      bash patch-kubeclusterconfig.sh || true
-    name: "PatchKubeClusterConfig"
-    displayName: "Patch kubeclusterconfig.json CNI Name"
-
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -52,6 +45,11 @@ steps:
       inlineScript: |
         set -e
         clusterName=${{ parameters.clusterName }}
+
+        # set cni name to azure so windows cleanup script runs (though testing can still pass without this usually)
+        cd hack/scripts
+        bash patch-kubeclusterconfig.sh || true
+        cd ../..
 
         # Restart nodes
         echo "Restarting nodes"
