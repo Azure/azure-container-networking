@@ -34,6 +34,11 @@ stages:
               scriptType: bash
               scriptLocation: inlineScript
               inlineScript: |
+                set -x
+                echo "==> Subscription: ${{ parameters.subscriptionId }}"
+                echo "==> Resource Group: ${{ parameters.rgName }}"
+                echo "==> Stage Label: ${{ parameters.stageLabel }}"
+                echo "==> Workload Type: ${{ parameters.workloadType }}"
                 mkdir -p $(Pipeline.Workspace)/kubeconfigs
                 
                 echo "==> Setting up kubeconfig for cluster aks-1"
@@ -145,6 +150,116 @@ stages:
               stageLabel: ${{ parameters.stageLabel }}
 
           - task: AzureCLI@2
+            displayName: "Diagnose NSG and Cluster State"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set +e
+                echo "========================================"
+                echo "DIAGNOSTIC: Pre-Connectivity-Test State"
+                echo "========================================"
+                echo "Subscription: ${{ parameters.subscriptionId }}"
+                echo "Resource Group: ${{ parameters.rgName }}"
+                echo "Stage Label: ${{ parameters.stageLabel }}"
+                echo "Workload Type: ${{ parameters.workloadType }}"
+                echo "Location: ${{ parameters.location }}"
+                echo ""
+
+                az account set --subscription "${{ parameters.subscriptionId }}"
+
+                echo "==> AKS cluster identity (proves subscription):"
+                az aks show -g "${{ parameters.rgName }}" -n aks-1 \
+                  --subscription "${{ parameters.subscriptionId }}" \
+                  --query "{name:name, id:id, fqdn:fqdn}" -o table || echo "WARN: az aks show failed"
+                echo ""
+
+                echo "==> Kubeconfig cluster server URLs:"
+                echo "  aks-1: $(kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null)"
+                echo "  aks-2: $(kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null)"
+                echo ""
+
+                echo "==> NSG associations on cx_vnet_v1/s1 and cx_vnet_v1/s2:"
+                NSG_S1=$(az network vnet subnet show -g "${{ parameters.rgName }}" --vnet-name cx_vnet_v1 -n s1 \
+                  --subscription "${{ parameters.subscriptionId }}" --query "networkSecurityGroup.id" -o tsv 2>/dev/null)
+                NSG_S2=$(az network vnet subnet show -g "${{ parameters.rgName }}" --vnet-name cx_vnet_v1 -n s2 \
+                  --subscription "${{ parameters.subscriptionId }}" --query "networkSecurityGroup.id" -o tsv 2>/dev/null)
+                echo "  s1 NSG: ${NSG_S1:-NONE}"
+                echo "  s2 NSG: ${NSG_S2:-NONE}"
+                echo ""
+
+                if [ -n "$NSG_S1" ]; then
+                  NSG_NAME=$(basename "$NSG_S1")
+                  echo "==> NSG rules on $NSG_NAME (s1 NSG):"
+                  az network nsg rule list -g "${{ parameters.rgName }}" --nsg-name "$NSG_NAME" \
+                    --subscription "${{ parameters.subscriptionId }}" \
+                    --query "[?contains(name, 'deny')]" -o table || echo "WARN: failed to list NSG rules"
+                  echo ""
+                fi
+
+                if [ -n "$NSG_S2" ] && [ "$NSG_S2" != "$NSG_S1" ]; then
+                  NSG_NAME2=$(basename "$NSG_S2")
+                  echo "==> NSG rules on $NSG_NAME2 (s2 NSG, different from s1):"
+                  az network nsg rule list -g "${{ parameters.rgName }}" --nsg-name "$NSG_NAME2" \
+                    --subscription "${{ parameters.subscriptionId }}" \
+                    --query "[?contains(name, 'deny')]" -o table || echo "WARN: failed to list NSG rules"
+                  echo ""
+                fi
+
+                BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
+                NS_S1="pn-${BUILD_ID}-v1-s1"
+                NS_S2="pn-${BUILD_ID}-v1-s2"
+                SRC_POD="pod-c1-aks1-v1s1-low"
+                DST_POD="pod-c1-aks1-v1s2-high"
+
+                echo "==> Source pod eth1 IP ($NS_S1/$SRC_POD):"
+                kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig \
+                  exec -n "$NS_S1" "$SRC_POD" -- ip addr show eth1 2>/dev/null || echo "WARN: could not exec into source pod"
+                echo ""
+
+                echo "==> Dest pod eth1 IP ($NS_S2/$DST_POD):"
+                kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig \
+                  exec -n "$NS_S2" "$DST_POD" -- ip addr show eth1 2>/dev/null || echo "WARN: could not exec into dest pod"
+                echo ""
+
+                echo "==> Pods in NSG test namespaces:"
+                kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig \
+                  get pods -n "$NS_S1" -o wide 2>/dev/null || echo "WARN: could not list pods in $NS_S1"
+                kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig \
+                  get pods -n "$NS_S2" -o wide 2>/dev/null || echo "WARN: could not list pods in $NS_S2"
+                echo ""
+                echo "======== END DIAGNOSTIC ========"
+              workingDirectory: $(System.DefaultWorkingDirectory)
+            env:
+              KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
+              KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
+
+          - task: AzureCLI@2
+            displayName: "Ensure NSG Deny Rules (re-apply before test)"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "==> Re-applying NSG deny rules immediately before connectivity tests"
+                echo "    (NRMS DINE policy may have removed them since infra setup)"
+                bash $(System.DefaultWorkingDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/create_nsg.sh \
+                  "${{ parameters.subscriptionId }}" \
+                  "${{ parameters.rgName }}" \
+                  "${{ parameters.location }}"
+                echo "==> NSG deny rules applied. Verifying..."
+                az account set --subscription "${{ parameters.subscriptionId }}"
+                NSG_S1=$(az network vnet subnet show -g "${{ parameters.rgName }}" --vnet-name cx_vnet_v1 -n s1 \
+                  --subscription "${{ parameters.subscriptionId }}" --query "networkSecurityGroup.id" -o tsv 2>/dev/null)
+                if [ -n "$NSG_S1" ]; then
+                  NSG_NAME=$(basename "$NSG_S1")
+                  az network nsg rule list -g "${{ parameters.rgName }}" --nsg-name "$NSG_NAME" \
+                    --subscription "${{ parameters.subscriptionId }}" \
+                    --query "[?contains(name, 'deny')]" -o table
+                fi
+
+          - task: AzureCLI@2
             displayName: "Run Connectivity Tests"
             inputs:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -167,11 +282,27 @@ stages:
                   cd $metrics_dir
                   output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests" --region "${{ parameters.location }}"
                 else
+                  TEST_RC=1
                   echo "ConnectivityTests test FAILED"
                   cd $metrics_dir
                   output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests" --region "${{ parameters.location }}"
-                  exit 1
                 fi
+
+                echo ""
+                echo "======== POST-TEST NSG STATE ========"
+                NSG_S1=$(az network vnet subnet show -g "${{ parameters.rgName }}" --vnet-name cx_vnet_v1 -n s1 \
+                  --subscription "${{ parameters.subscriptionId }}" --query "networkSecurityGroup.id" -o tsv 2>/dev/null || true)
+                echo "s1 NSG: ${NSG_S1:-NONE}"
+                if [ -n "$NSG_S1" ]; then
+                  NSG_NAME=$(basename "$NSG_S1")
+                  echo "Deny rules on $NSG_NAME after test:"
+                  az network nsg rule list -g "${{ parameters.rgName }}" --nsg-name "$NSG_NAME" \
+                    --subscription "${{ parameters.subscriptionId }}" \
+                    --query "[?contains(name, 'deny')]" -o table 2>/dev/null || true
+                fi
+                echo "======== END POST-TEST NSG STATE ========"
+
+                exit ${TEST_RC:-0}
               workingDirectory: $(System.DefaultWorkingDirectory)
             env:
               KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
