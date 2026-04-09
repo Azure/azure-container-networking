@@ -3,12 +3,13 @@ package ipampool
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,16 +29,108 @@ func (f fakeNodeNetworkConfigUpdaterFunc) PatchSpec(ctx context.Context, spec *v
 	return f(ctx, spec, owner)
 }
 
-type directUpdatePoolMonitor struct {
-	m *Monitor
-	cns.IPAMPoolMonitor
+// ipConfigStore is a coherent in-memory IP config store for testing.
+// It satisfies the ipConfigState interface with a single map as source of truth.
+type ipConfigStore struct {
+	configs map[string]cns.IPConfigurationStatus
+	nextIP  int
 }
 
-func (d *directUpdatePoolMonitor) Update(nnc *v1alpha.NodeNetworkConfig) error {
-	scaler := nnc.Status.Scaler
-	d.m.spec = nnc.Spec
-	d.m.metastate.minFreeCount, d.m.metastate.maxFreeCount = CalculateMinFreeIPs(scaler), CalculateMaxFreeIPs(scaler)
-	return nil
+func newIPConfigStore() *ipConfigStore {
+	return &ipConfigStore{configs: make(map[string]cns.IPConfigurationStatus)}
+}
+
+func (s *ipConfigStore) GetPodIPConfigState() map[string]cns.IPConfigurationStatus {
+	m := make(map[string]cns.IPConfigurationStatus, len(s.configs))
+	for k, v := range s.configs {
+		m[k] = v
+	}
+	return m
+}
+
+func (s *ipConfigStore) GetPendingReleaseIPConfigs() []cns.IPConfigurationStatus {
+	var out []cns.IPConfigurationStatus
+	for _, v := range s.configs {
+		if v.GetState() == types.PendingRelease {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func (s *ipConfigStore) MarkIPAsPendingRelease(n int) (map[string]cns.IPConfigurationStatus, error) {
+	marked := make(map[string]cns.IPConfigurationStatus)
+	for id, ipc := range s.configs {
+		if len(marked) >= n {
+			break
+		}
+		if ipc.GetState() == types.Available {
+			ipc.SetState(types.PendingRelease)
+			s.configs[id] = ipc
+			marked[id] = ipc
+		}
+	}
+	if len(marked) < n {
+		return nil, fmt.Errorf("not enough available IPs to mark %d as pending release (found %d)", n, len(marked))
+	}
+	return marked, nil
+}
+
+// addAvailableIPs adds n new IPs in Available state.
+func (s *ipConfigStore) addAvailableIPs(n int) {
+	for i := 0; i < n; i++ {
+		s.nextIP++
+		id := fmt.Sprintf("ip-%d", s.nextIP)
+		ipc := cns.IPConfigurationStatus{
+			ID:        id,
+			IPAddress: fmt.Sprintf("10.0.0.%d", s.nextIP),
+		}
+		ipc.SetState(types.Available)
+		s.configs[id] = ipc
+	}
+}
+
+// setAssignedTotal adjusts so that exactly n IPs are in Assigned state.
+func (s *ipConfigStore) setAssignedTotal(n int) {
+	current := 0
+	for _, ipc := range s.configs {
+		if ipc.GetState() == types.Assigned {
+			current++
+		}
+	}
+	delta := n - current
+	if delta > 0 {
+		for id, ipc := range s.configs {
+			if delta == 0 {
+				break
+			}
+			if ipc.GetState() == types.Available {
+				ipc.SetState(types.Assigned)
+				s.configs[id] = ipc
+				delta--
+			}
+		}
+	} else if delta < 0 {
+		for id, ipc := range s.configs {
+			if delta == 0 {
+				break
+			}
+			if ipc.GetState() == types.Assigned {
+				ipc.SetState(types.Available)
+				s.configs[id] = ipc
+				delta++
+			}
+		}
+	}
+}
+
+// removePendingRelease deletes all PendingRelease IPs (simulates controller cleanup).
+func (s *ipConfigStore) removePendingRelease() {
+	for id, ipc := range s.configs {
+		if ipc.GetState() == types.PendingRelease {
+			delete(s.configs, id)
+		}
+	}
 }
 
 type testState struct {
@@ -52,41 +145,50 @@ type testState struct {
 	totalIPs                int64
 }
 
-func initFakes(state testState, nnccli nodeNetworkConfigSpecUpdater) (*fakes.HTTPServiceFake, *fakes.RequestControllerFake, *Monitor) {
+// newTestMonitor creates a pool monitor with a coherent ipConfigStore stub.
+// It replaces the old initFakes + fakerc.Reconcile(true) setup.
+func newTestMonitor(state testState, nnccli nodeNetworkConfigSpecUpdater) (*ipConfigStore, *Monitor) {
 	logger.InitLogger("testlogs", 0, 0, "./")
 
-	scalarUnits := v1alpha.Scaler{
+	scaler := v1alpha.Scaler{
 		BatchSize:               state.batch,
 		RequestThresholdPercent: state.requestThresholdPercent,
 		ReleaseThresholdPercent: state.releaseThresholdPercent,
 		MaxIPCount:              state.max,
 	}
-	subnetaddresspace := "10.0.0.0/8"
 
 	if state.totalIPs == 0 {
 		state.totalIPs = state.allocated
 	}
-	fakecns := fakes.NewHTTPServiceFake()
-	fakerc := fakes.NewRequestControllerFake(fakecns, scalarUnits, subnetaddresspace, state.totalIPs)
+
+	store := newIPConfigStore()
+	store.addAvailableIPs(int(state.totalIPs))
+	store.setAssignedTotal(state.assigned)
+	if state.pendingRelease > 0 {
+		if _, err := store.MarkIPAsPendingRelease(int(state.pendingRelease)); err != nil {
+			logger.Printf("%s", err)
+		}
+	}
+
 	if nnccli == nil {
-		nnccli = &fakeNodeNetworkConfigUpdater{fakerc.NNC}
+		nnccli = &fakeNodeNetworkConfigUpdater{nnc: &v1alpha.NodeNetworkConfig{
+			Status: v1alpha.NodeNetworkConfigStatus{Scaler: scaler},
+		}}
 	}
 
-	poolmonitor := NewMonitor(fakecns, nnccli, nil, &Options{RefreshDelay: 100 * time.Second})
+	poolmonitor := NewMonitor(store, nnccli, nil, &Options{RefreshDelay: 100 * time.Second})
+	poolmonitor.spec = v1alpha.NodeNetworkConfigSpec{
+		RequestedIPCount: state.allocated,
+	}
 	poolmonitor.metastate = metaState{
-		batch:     state.batch,
-		max:       state.max,
-		exhausted: state.exhausted,
-	}
-	fakecns.PoolMonitor = &directUpdatePoolMonitor{m: poolmonitor}
-	if err := fakecns.SetNumberOfAssignedIPs(state.assigned); err != nil {
-		logger.Printf("%s", err)
-	}
-	if _, err := fakecns.MarkIPAsPendingRelease(int(state.pendingRelease)); err != nil {
-		logger.Printf("%s", err)
+		batch:        state.batch,
+		max:          state.max,
+		exhausted:    state.exhausted,
+		minFreeCount: CalculateMinFreeIPs(scaler),
+		maxFreeCount: CalculateMaxFreeIPs(scaler),
 	}
 
-	return fakecns, fakerc, poolmonitor
+	return store, poolmonitor
 }
 
 func TestPoolSizeIncrease(t *testing.T) {
@@ -137,27 +239,27 @@ func TestPoolSizeIncrease(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			fakecns, fakerc, poolmonitor := initFakes(tt.in, nil)
-			assert.NoError(t, fakerc.Reconcile(true))
+			store, poolmonitor := newTestMonitor(tt.in, nil)
 
-			// When poolmonitor reconcile is called, trigger increase and cache goal state
+			// reconcile triggers an increase request
 			assert.NoError(t, poolmonitor.reconcile(context.Background()))
-
-			// ensure pool monitor has reached quorum with cns
 			assert.Equal(t, tt.want, poolmonitor.spec.RequestedIPCount)
 
-			// request controller reconciles, carves new IPs from the test subnet and adds to CNS state
-			assert.NoError(t, fakerc.Reconcile(true))
+			// simulate controller convergence: add/remove IPs to match requested count
+			currentTotal := len(store.configs)
+			desired := int(tt.want)
+			if desired > currentTotal {
+				store.addAvailableIPs(desired - currentTotal)
+			} else if desired < currentTotal {
+				store.removePendingRelease()
+			}
 
-			// when poolmonitor reconciles again here, the IP count will be within the thresholds
-			// so no CRD update and nothing pending
+			// reconcile again: pool is now within thresholds, no further action
 			assert.NoError(t, poolmonitor.reconcile(context.Background()))
-
-			// ensure pool monitor has reached quorum with cns
 			assert.Equal(t, tt.want, poolmonitor.spec.RequestedIPCount)
 
-			// make sure IPConfig state size reflects the new pool size
-			assert.Len(t, fakecns.GetPodIPConfigState(), int(tt.want))
+			// verify the store reflects the converged pool size
+			assert.Len(t, store.GetPodIPConfigState(), int(tt.want))
 		})
 	}
 }
@@ -172,32 +274,28 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 		max:                     30,
 	}
 
-	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
-	assert.NoError(t, fakerc.Reconcile(true))
+	store, poolmonitor := newTestMonitor(initState, nil)
 
-	// When poolmonitor reconcile is called, trigger increase and cache goal state
+	// reconcile triggers increase
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// increase number of allocated IPs in CNS, within allocatable size but still inside trigger threshold
-	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(9))
+	// increase assigned IPs within trigger threshold (but don't add new IPs from controller yet)
+	store.setAssignedTotal(9)
 
-	// poolmonitor reconciles, but doesn't actually update the CRD, because there is already a pending update
+	// poolmonitor reconciles again, but doesn't update because increase is already pending
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
-
-	// ensure pool monitor has reached quorum with cns
 	assert.Equal(t, initState.allocated+(1*initState.batch), poolmonitor.spec.RequestedIPCount)
 
-	// request controller reconciles, carves new IPs from the test subnet and adds to CNS state
-	assert.NoError(t, fakerc.Reconcile(true))
+	// simulate controller convergence
+	currentTotal := len(store.configs)
+	desired := int(poolmonitor.spec.RequestedIPCount)
+	if desired > currentTotal {
+		store.addAvailableIPs(desired - currentTotal)
+	}
 
-	// when poolmonitor reconciles again here, the IP count will be within the thresholds
-	// so no CRD update and nothing pending
+	// reconcile: now within thresholds
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
-
-	// make sure IPConfig state size reflects the new pool size
-	assert.Len(t, fakecns.GetPodIPConfigState(), int(initState.allocated+(1*initState.batch)))
-
-	// ensure pool monitor has reached quorum with cns
+	assert.Len(t, store.GetPodIPConfigState(), int(initState.allocated+(1*initState.batch)))
 	assert.Equal(t, initState.allocated+(1*initState.batch), poolmonitor.spec.RequestedIPCount)
 }
 
@@ -211,19 +309,14 @@ func TestPoolSizeIncreaseIdempotency(t *testing.T) {
 		max:                     30,
 	}
 
-	_, fakerc, poolmonitor := initFakes(initState, nil)
-	assert.NoError(t, fakerc.Reconcile(true))
+	_, poolmonitor := newTestMonitor(initState, nil)
 
-	// When poolmonitor reconcile is called, trigger increase and cache goal state
+	// reconcile triggers increase
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
-
-	// ensure pool monitor has increased batch size
 	assert.Equal(t, initState.allocated+(1*initState.batch), poolmonitor.spec.RequestedIPCount)
 
-	// reconcile pool monitor a second time, then verify requested ip count is still the same
+	// reconcile again without controller convergence: requested count unchanged
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
-
-	// ensure pool monitor requested pool size is unchanged as request controller hasn't reconciled yet
 	assert.Equal(t, initState.allocated+(1*initState.batch), poolmonitor.spec.RequestedIPCount)
 }
 
@@ -237,13 +330,9 @@ func TestPoolIncreasePastNodeLimit(t *testing.T) {
 		max:                     30,
 	}
 
-	_, fakerc, poolmonitor := initFakes(initState, nil)
-	assert.NoError(t, fakerc.Reconcile(true))
+	_, poolmonitor := newTestMonitor(initState, nil)
 
-	// When poolmonitor reconcile is called, trigger increase and cache goal state
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
-
-	// ensure pool monitor has only requested the max pod ip count
 	assert.Equal(t, initState.max, poolmonitor.spec.RequestedIPCount)
 }
 
@@ -257,13 +346,9 @@ func TestPoolIncreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 		max:                     30,
 	}
 
-	_, fakerc, poolmonitor := initFakes(initState, nil)
-	assert.NoError(t, fakerc.Reconcile(true))
+	_, poolmonitor := newTestMonitor(initState, nil)
 
-	// When poolmonitor reconcile is called, trigger increase and cache goal state
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
-
-	// ensure pool monitor has only requested the max pod ip count
 	assert.Equal(t, initState.max, poolmonitor.spec.RequestedIPCount)
 }
 
@@ -277,12 +362,17 @@ func TestIncreaseWithPendingRelease(t *testing.T) {
 		max:                     250,
 		pendingRelease:          16,
 	}
-	_, rc, mon := initFakes(initState, nil)
-	assert.NoError(t, rc.Reconcile(true))
+	store, mon := newTestMonitor(initState, nil)
+
+	// first reconcile: discovers pending release IPs and publishes them in IPsNotInUse
 	assert.NoError(t, mon.reconcile(context.Background()))
 	assert.Equal(t, int64(32), mon.spec.RequestedIPCount)
 	assert.Len(t, mon.spec.IPsNotInUse, 16)
-	assert.NoError(t, rc.Reconcile(true))
+
+	// simulate controller removing pending release IPs
+	store.removePendingRelease()
+
+	// second reconcile: cleans up IPsNotInUse since pending release is now empty
 	assert.NoError(t, mon.reconcile(context.Background()))
 	assert.Equal(t, int64(32), mon.spec.RequestedIPCount)
 	assert.Empty(t, mon.spec.IPsNotInUse)
@@ -343,11 +433,10 @@ func TestPoolDecrease(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			fakecns, fakerc, poolmonitor := initFakes(tt.in, nil)
-			assert.NoError(t, fakerc.Reconcile(true))
+			store, poolmonitor := newTestMonitor(tt.in, nil)
 
-			// Decrease the number of allocated IPs down to target. This may trigger a scale down.
-			assert.NoError(t, fakecns.SetNumberOfAssignedIPs(tt.targetAssigned))
+			// decrease assigned IPs to trigger a scale down
+			store.setAssignedTotal(tt.targetAssigned)
 
 			assert.Eventually(t, func() bool {
 				_ = poolmonitor.reconcile(context.Background())
@@ -360,16 +449,14 @@ func TestPoolDecrease(t *testing.T) {
 			// verify that we have released the expected amount
 			assert.Len(t, poolmonitor.spec.IPsNotInUse, tt.wantReleased)
 
-			// reconcile the fake request controller
-			assert.NoError(t, fakerc.Reconcile(true))
+			// simulate controller removing pending release IPs
+			store.removePendingRelease()
 
-			// make sure IPConfig state size reflects the new pool size
-			assert.Len(t, fakecns.GetPodIPConfigState(), int(tt.want))
+			// verify the store reflects the new pool size
+			assert.Len(t, store.GetPodIPConfigState(), int(tt.want))
 
-			// CNS won't actually clean up the IPsNotInUse until it changes the spec for some other reason (i.e. scale up)
-			// so instead we should just verify that the CNS state has no more PendingReleaseIPConfigs,
-			// and that they were cleaned up.
-			assert.Empty(t, fakecns.GetPendingReleaseIPConfigs())
+			// verify no more pending release IPs
+			assert.Empty(t, store.GetPendingReleaseIPConfigs())
 		})
 	}
 }
@@ -384,32 +471,23 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 		max:                     30,
 	}
 
-	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
-	assert.NoError(t, fakerc.Reconcile(true))
+	store, poolmonitor := newTestMonitor(initState, nil)
 
-	// Pool monitor does nothing, as the current number of IPs falls in the threshold
+	// reconcile triggers decrease
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
-
-	// Ensure the size of the requested spec is still the same
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, int(initState.allocated-initState.batch))
-
-	// Ensure the request ipcount is now one batch size smaller than the initial IP count
 	assert.Equal(t, initState.allocated-initState.batch, poolmonitor.spec.RequestedIPCount)
 
-	// Update pods with IP count, ensure pool monitor stays the same until request controller reconciles
-	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(6))
-
-	// Ensure the size of the requested spec is still the same
+	// update assigned count; spec stays the same until controller reconciles
+	store.setAssignedTotal(6)
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, int(initState.allocated-initState.batch))
-
-	// Ensure the request ipcount is now one batch size smaller than the initial IP count
 	assert.Equal(t, initState.allocated-initState.batch, poolmonitor.spec.RequestedIPCount)
 
-	assert.NoError(t, fakerc.Reconcile(true))
+	// simulate controller removing pending release IPs
+	store.removePendingRelease()
 
+	// reconcile cleans up IPsNotInUse
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
-
-	// Ensure the spec doesn't have any IPsNotInUse after request controller has reconciled
 	assert.Empty(t, poolmonitor.spec.IPsNotInUse)
 }
 
@@ -423,35 +501,37 @@ func TestDecreaseAndIncreaseToSameCount(t *testing.T) {
 		max:                     30,
 	}
 
-	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
-	assert.NoError(t, fakerc.Reconcile(true))
+	store, poolmonitor := newTestMonitor(initState, nil)
+
+	// reconcile triggers increase to 20
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 	assert.EqualValues(t, 20, poolmonitor.spec.RequestedIPCount)
 	assert.Empty(t, poolmonitor.spec.IPsNotInUse)
 
-	// Update the IPConfig state
-	assert.NoError(t, fakerc.Reconcile(true))
+	// simulate controller convergence: add IPs to reach 20
+	store.addAvailableIPs(10)
 
-	// Release all IPs
-	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(0))
+	// release all IPs
+	store.setAssignedTotal(0)
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 	assert.EqualValues(t, 10, poolmonitor.spec.RequestedIPCount)
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, 10)
 
-	// Increase it back to 20
-	// initial pool count is 10, set 5 of them to be allocated
-	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(7))
+	// increase it back: assign 7 pods
+	store.setAssignedTotal(7)
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 	assert.EqualValues(t, 20, poolmonitor.spec.RequestedIPCount)
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, 10)
 
-	// Update the IPConfig count and dont remove the pending IPs
-	assert.NoError(t, fakerc.Reconcile(false))
+	// reconcile again without removing pending IPs: stable
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 	assert.EqualValues(t, 20, poolmonitor.spec.RequestedIPCount)
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, 10)
 
-	assert.NoError(t, fakerc.Reconcile(true))
+	// simulate controller removing pending release IPs
+	store.removePendingRelease()
+
+	// reconcile cleans up IPsNotInUse, then stabilizes
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 	assert.EqualValues(t, 20, poolmonitor.spec.RequestedIPCount)
@@ -468,34 +548,28 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 		max:                     30,
 	}
 
-	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
-	assert.NoError(t, fakerc.Reconcile(true))
+	store, poolmonitor := newTestMonitor(initState, nil)
 
-	// Pool monitor does nothing, as the current number of IPs falls in the threshold
+	// initial reconcile: no action needed (within thresholds)
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// Now Drop the Assigned count to really low, say 3. This should trigger release in 2 batches
-	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(3))
+	// drop assigned count to 3, triggering release in multiple batches
+	store.setAssignedTotal(3)
 
-	// Pool monitor does nothing, as the current number of IPs falls in the threshold
+	// first reconcile: releases one batch
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
-
-	// Ensure the size of the requested spec is still the same
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, int(initState.batch))
-
-	// Ensure the request ipcount is now one batch size smaller than the initial IP count
 	assert.Equal(t, initState.allocated-initState.batch, poolmonitor.spec.RequestedIPCount)
 
-	// Reconcile again, it should release the second batch
+	// second reconcile: releases another batch
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
-
-	// Ensure the size of the requested spec is still the same
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, int(initState.batch*2))
-
-	// Ensure the request ipcount is now one batch size smaller than the initial IP count
 	assert.Equal(t, initState.allocated-(initState.batch*2), poolmonitor.spec.RequestedIPCount)
 
-	assert.NoError(t, fakerc.Reconcile(true))
+	// simulate controller removing pending release IPs
+	store.removePendingRelease()
+
+	// reconcile cleans up
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 	assert.Empty(t, poolmonitor.spec.IPsNotInUse)
 }
@@ -509,16 +583,15 @@ func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 		releaseThresholdPercent: 150,
 		max:                     30,
 	}
-	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
-	assert.NoError(t, fakerc.Reconcile(true))
+	store, poolmonitor := newTestMonitor(initState, nil)
 
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// Trigger a batch release
-	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(5))
+	// trigger a batch release
+	store.setAssignedTotal(5)
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// Ensure poolmonitor asked for a multiple of batch size
+	// poolmonitor should ask for a multiple of batch size
 	assert.EqualValues(t, 16, poolmonitor.spec.RequestedIPCount)
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, int(initState.max%initState.batch))
 }
@@ -534,25 +607,24 @@ func TestDecreaseWithPendingRelease(t *testing.T) {
 		totalIPs:                64,
 		max:                     250,
 	}
-	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
-	fakerc.NNC.Spec.RequestedIPCount = 48
-	assert.NoError(t, fakerc.Reconcile(true))
+	store, poolmonitor := newTestMonitor(initState, nil)
+	// override the spec to simulate a previous decrease request
+	poolmonitor.spec.RequestedIPCount = 48
 
+	// first reconcile: publishes pending release IPs
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
 	// reallocate some IPs
-	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(40))
+	store.setAssignedTotal(40)
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// Ensure poolmonitor asked for a multiple of batch size
 	assert.EqualValues(t, 64, poolmonitor.spec.RequestedIPCount)
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, int(initState.pendingRelease))
 
 	// trigger a batch release
-	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(30))
+	store.setAssignedTotal(30)
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// Ensure poolmonitor asked for a multiple of batch size
 	assert.EqualValues(t, 48, poolmonitor.spec.RequestedIPCount)
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, int(initState.batch)+int(initState.pendingRelease))
 }
@@ -572,15 +644,14 @@ func TestDecreaseWithAPIServerFailure(t *testing.T) {
 		return nil, errors.New("fake APIServer failure") //nolint:goerr113 // this is a fake error
 	}
 
-	fakecns, fakerc, poolmonitor := initFakes(initState, errNNCCLi)
-	fakerc.NNC.Spec.RequestedIPCount = initState.totalIPs
-	assert.NoError(t, fakerc.Reconcile(true))
+	store, poolmonitor := newTestMonitor(initState, errNNCCLi)
 
+	// initial reconcile: no action
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
 	// release some IPs
-	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(40))
-	// check that the pool monitor panics if it is not able to publish the updated NNC
+	store.setAssignedTotal(40)
+	// pool monitor panics when it can't publish the updated NNC after retries
 	assert.Panics(t, func() {
 		_ = poolmonitor.reconcile(context.Background())
 	})
@@ -596,14 +667,12 @@ func TestPoolDecreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 		max:                     30,
 	}
 
-	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
-	assert.NoError(t, fakerc.Reconcile(true))
+	store, poolmonitor := newTestMonitor(initState, nil)
 
-	// When poolmonitor reconcile is called, trigger increase and cache goal state
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// Trigger a batch release
-	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(1))
+	// trigger a batch release
+	store.setAssignedTotal(1)
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 	assert.EqualValues(t, initState.max, poolmonitor.spec.RequestedIPCount)
 }
