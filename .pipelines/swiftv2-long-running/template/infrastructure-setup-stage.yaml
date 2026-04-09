@@ -14,6 +14,9 @@ parameters:
   - name: enableAccelnetBYON
     type: boolean
     default: false
+  - name: enableLinuxBYON
+    type: boolean
+    default: true
   - name: dependsOn
     type: object
     default: []
@@ -207,6 +210,11 @@ stages:
         dependsOn:
           - CreateCluster
           - NetworkingAndStorage
+        condition: |
+          and(
+            ${{ parameters.enableLinuxBYON }},
+            not(failed())
+          )
         pool:
           vmImage: ubuntu-latest
         steps:
