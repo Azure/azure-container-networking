@@ -18,16 +18,92 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
-	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type wireserverClientFake struct{}
+
+func (c *wireserverClientFake) GetInterfaces(_ context.Context) (*wireserver.GetInterfacesResult, error) {
+	return &wireserver.GetInterfacesResult{
+		Interface: []wireserver.Interface{
+			{
+				IsPrimary: true,
+				IPSubnet: []wireserver.Subnet{
+					{
+						Prefix: "10.0.0.0/24",
+						IPAddress: []wireserver.Address{
+							{
+								Address:   "10.0.0.4",
+								IsPrimary: true,
+							},
+						},
+					},
+				},
+			},
+		},
+	}, nil
+}
+
+type nMAgentClientFake struct{}
+
+func (n *nMAgentClientFake) SupportedAPIs(_ context.Context) ([]string, error)              { return nil, nil }
+func (n *nMAgentClientFake) GetNCVersionList(_ context.Context) (nmagent.NCVersionList, error) {
+	return nmagent.NCVersionList{}, nil
+}
+func (n *nMAgentClientFake) GetHomeAz(_ context.Context) (nmagent.AzResponse, error) {
+	return nmagent.AzResponse{}, nil
+}
+func (n *nMAgentClientFake) GetInterfaceIPInfo(_ context.Context) (nmagent.Interfaces, error) {
+	return nmagent.Interfaces{}, nil
+}
+
+type wireserverProxyFake struct{}
+
+func (w *wireserverProxyFake) JoinNetwork(_ context.Context, _ string) (*http.Response, error) {
+	return &http.Response{
+		StatusCode:    http.StatusOK,
+		Body:          io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
+		ContentLength: int64(len(`{"httpStatusCode":"200"}`)),
+	}, nil
+}
+func (w *wireserverProxyFake) PublishNC(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
+	return &http.Response{
+		StatusCode:    http.StatusOK,
+		Body:          io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
+		ContentLength: int64(len(`{"httpStatusCode":"200"}`)),
+	}, nil
+}
+func (w *wireserverProxyFake) UnpublishNC(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
+	return &http.Response{
+		StatusCode:    http.StatusOK,
+		Body:          io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"200"}`)),
+		ContentLength: int64(len(`{"httpStatusCode":"200"}`)),
+	}, nil
+}
+
+type mockIMDSClient struct{}
+
+func (m *mockIMDSClient) GetVMUniqueID(_ context.Context) (string, error) {
+	return "55b8499d-9b42-4f85-843f-24ff69f4a643", nil
+}
+
+func (m *mockIMDSClient) GetNetworkInterfaces(_ context.Context) ([]imds.NetworkInterface, error) {
+	return nil, nil
+}
+
+func (m *mockIMDSClient) GetIMDSVersions(_ context.Context) (*imds.APIVersionsResponse, error) {
+	return &imds.APIVersionsResponse{APIVersions: []string{"2021-01-01"}}, nil
+}
 
 const (
 	primaryIP           = "10.0.0.5"
@@ -151,9 +227,9 @@ func TestMain(m *testing.M) {
 	logger.InitLogger(logName, 0, 0, tmpLogDir+"/")
 	config := common.ServiceConfig{}
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{},
-		&fakes.WireserverProxyFake{}, &restserver.IPtablesProvider{}, &fakes.NMAgentClientFake{}, nil, nil, nil,
-		fakes.NewMockIMDSClient())
+	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserverClientFake{},
+		&wireserverProxyFake{}, &restserver.IPtablesProvider{}, &nMAgentClientFake{}, nil, nil, nil,
+		&mockIMDSClient{})
 	svc = httpRestService
 	httpRestService.Name = "cns-test-server"
 

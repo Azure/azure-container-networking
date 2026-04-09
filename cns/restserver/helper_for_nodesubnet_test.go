@@ -7,7 +7,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
-	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/nodesubnet"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/nmagent"
@@ -74,12 +73,12 @@ func GetRestServiceObjectForNodeSubnetTest(t *testing.T, generator CNIConflistGe
 		state:                    &httpRestServiceState{},
 		PodIPConfigState:         make(map[string]cns.IPConfigurationStatus),
 		PodIPIDByPodInterfaceKey: make(map[string][]string),
-		nma: &fakes.NMAgentClientFake{
+		nma: &nMAgentClientFake{
 			GetInterfaceIPInfoF: func(_ context.Context) (nmagent.Interfaces, error) {
 				return interfaces, nil
 			},
 		},
-		wscli: &fakes.WireserverClientFake{},
+		wscli: &wireserverClientFake{},
 	}
 }
 

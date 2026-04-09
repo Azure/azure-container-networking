@@ -21,7 +21,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
-	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	acncommon "github.com/Azure/azure-container-networking/common"
@@ -464,7 +463,7 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mnma := &fakes.NMAgentClientFake{
+	mnma := &nMAgentClientFake{
 		GetNCVersionListF: func(_ context.Context) (nmagent.NCVersionList, error) {
 			return nmagent.NCVersionList{
 				Containers: []nmagent.NCVersion{
@@ -533,11 +532,11 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	setEnv(t)
 	setOrchestratorType(t, cns.Kubernetes)
 
-	mnma := &fakes.NMAgentClientFake{}
+	mnma := &nMAgentClientFake{}
 	cleanupNMA := setMockNMAgent(svc, mnma)
 	defer cleanupNMA()
 
-	wsproxy := fakes.WireserverProxyFake{}
+	wsproxy := wireserverProxyFake{}
 	cleanupWSP := setWireserverProxy(svc, &wsproxy)
 	defer cleanupWSP()
 
@@ -724,7 +723,7 @@ func createNC(params createOrUpdateNetworkContainerParams) error {
 func TestPublishNCViaCNS(t *testing.T) {
 	fmt.Println("Test: publishNetworkContainer")
 
-	wsproxy := fakes.WireserverProxyFake{}
+	wsproxy := wireserverProxyFake{}
 	cleanup := setWireserverProxy(svc, &wsproxy)
 	defer cleanup()
 
@@ -763,7 +762,7 @@ func TestPublishNC_NMAgentApplicationErrors(t *testing.T) {
 
 	wireserverBody := `{"httpStatusCode":"401"}`
 
-	wsproxy := fakes.WireserverProxyFake{
+	wsproxy := wireserverProxyFake{
 		PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -904,7 +903,7 @@ func publishNCViaCNS(
 }
 
 func TestUnpublishNCViaCNS(t *testing.T) {
-	wsProxy := fakes.WireserverProxyFake{}
+	wsProxy := wireserverProxyFake{}
 	cleanup := setWireserverProxy(svc, &wsProxy)
 	defer cleanup()
 
@@ -953,7 +952,7 @@ func TestUnpublishViaCNSRequestBody(t *testing.T) {
 	deleteNetworkContainerURL := "http://" + nmagentEndpoint +
 		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1/method/DELETE"
 	vnet := "vnet1"
-	wsProxy := fakes.WireserverProxyFake{}
+	wsProxy := wireserverProxyFake{}
 	cleanup := setWireserverProxy(svc, &wsProxy)
 	defer cleanup()
 
@@ -1000,7 +999,7 @@ func TestUnpublishViaCNSRequestBody(t *testing.T) {
 }
 
 func TestUnpublishNCViaCNS401(t *testing.T) {
-	wsproxy := fakes.WireserverProxyFake{
+	wsproxy := wireserverProxyFake{
 		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, i []byte) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
@@ -1176,11 +1175,11 @@ func TestNMAgentNCListHandler(t *testing.T) {
 		t.Fatalf("TestNMAgentNCListHandler failed with error:%+v", errSetOrch)
 	}
 
-	mnma := &fakes.NMAgentClientFake{}
+	mnma := &nMAgentClientFake{}
 	cleanupNMA := setMockNMAgent(svc, mnma)
 	defer cleanupNMA()
 
-	wsproxy := fakes.WireserverProxyFake{}
+	wsproxy := wireserverProxyFake{}
 	cleanupWSP := setWireserverProxy(svc, &wsproxy)
 	defer cleanupWSP()
 
@@ -1665,9 +1664,9 @@ func startService(serviceConfig common.ServiceConfig, _ configuration.CNSConfig)
 	}
 	config.Store = fileStore
 
-	nmagentClient := &fakes.NMAgentClientFake{}
-	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &IPtablesProvider{},
-		nmagentClient, nil, nil, nil, fakes.NewMockIMDSClient())
+	nmagentClient := &nMAgentClientFake{}
+	service, err = NewHTTPRestService(&config, &wireserverClientFake{}, &wireserverProxyFake{}, &IPtablesProvider{},
+		nmagentClient, nil, nil, nil, newMockIMDSClient())
 	if err != nil {
 		return err
 	}
@@ -1766,7 +1765,7 @@ func TestGetVMUniqueIDSuccess(t *testing.T) {
 // Testing GetVMUniqueID API handler with failure
 func TestGetVMUniqueIDFailed(t *testing.T) {
 	ctx := context.TODO()
-	ctx = context.WithValue(ctx, fakes.SimulateError, Interface{})
+	ctx = context.WithValue(ctx, simulateError, Interface{})
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cns.GetVMUniqueID, http.NoBody)
 	if err != nil {
 		t.Fatal(err)

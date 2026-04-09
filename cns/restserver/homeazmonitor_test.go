@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/google/go-cmp/cmp"
@@ -17,13 +16,13 @@ import (
 func TestHomeAzMonitor(t *testing.T) {
 	tests := []struct {
 		name      string
-		client    *fakes.NMAgentClientFake
+		client    *nMAgentClientFake
 		homeAzExp cns.HomeAzResponse
 		shouldErr bool
 	}{
 		{
 			"happy path",
-			&fakes.NMAgentClientFake{
+			&nMAgentClientFake{
 				SupportedAPIsF: func(_ context.Context) ([]string, error) {
 					return []string{"GetHomeAz"}, nil
 				},
@@ -36,7 +35,7 @@ func TestHomeAzMonitor(t *testing.T) {
 		},
 		{
 			"getHomeAz is not supported in nmagent",
-			&fakes.NMAgentClientFake{
+			&nMAgentClientFake{
 				SupportedAPIsF: func(_ context.Context) ([]string, error) {
 					return []string{"dummy"}, nil
 				},
@@ -49,7 +48,7 @@ func TestHomeAzMonitor(t *testing.T) {
 		},
 		{
 			"api supported but home az value is not valid",
-			&fakes.NMAgentClientFake{
+			&nMAgentClientFake{
 				SupportedAPIsF: func(_ context.Context) ([]string, error) {
 					return []string{GetHomeAzAPIName}, nil
 				},
@@ -62,7 +61,7 @@ func TestHomeAzMonitor(t *testing.T) {
 		},
 		{
 			"api supported but apiVersion value is not valid",
-			&fakes.NMAgentClientFake{
+			&nMAgentClientFake{
 				SupportedAPIsF: func(_ context.Context) ([]string, error) {
 					return []string{GetHomeAzAPIName}, nil
 				},
@@ -75,7 +74,7 @@ func TestHomeAzMonitor(t *testing.T) {
 		},
 		{
 			"api supported but got unexpected errors",
-			&fakes.NMAgentClientFake{
+			&nMAgentClientFake{
 				SupportedAPIsF: func(_ context.Context) ([]string, error) {
 					return []string{GetHomeAzAPIName}, nil
 				},

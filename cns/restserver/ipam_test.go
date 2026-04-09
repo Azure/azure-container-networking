@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
-	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/middlewares"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
@@ -75,9 +74,9 @@ type ncState struct {
 
 func getTestService(orchestratorType string) *HTTPRestService {
 	var config common.ServiceConfig
-	httpsvc, _ := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{},
-		&IPtablesProvider{}, &fakes.NMAgentClientFake{}, store.NewMockStore(""), nil, nil,
-		fakes.NewMockIMDSClient())
+	httpsvc, _ := NewHTTPRestService(&config, &wireserverClientFake{}, &wireserverProxyFake{},
+		&IPtablesProvider{}, &nMAgentClientFake{}, store.NewMockStore(""), nil, nil,
+		newMockIMDSClient())
 	svc = httpsvc
 	setOrchestratorTypeInternal(orchestratorType)
 
@@ -114,8 +113,8 @@ func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigsRequest) ([]cns.
 		assert.Equal(t, dnsservers, podIPInfo[i].NetworkContainerPrimaryIPConfig.DNSServers)
 		assert.Equal(t, gatewayIP, podIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
 		assert.Equal(t, subnetPrfixLength, int(podIPInfo[i].PodIPConfig.PrefixLength))
-		assert.Equal(t, fakes.HostPrimaryIP, podIPInfo[i].HostPrimaryIPInfo.PrimaryIP)
-		assert.Equal(t, fakes.HostSubnet, podIPInfo[i].HostPrimaryIPInfo.Subnet)
+		assert.Equal(t, hostPrimaryIP, podIPInfo[i].HostPrimaryIPInfo.PrimaryIP)
+		assert.Equal(t, hostSubnet, podIPInfo[i].HostPrimaryIPInfo.Subnet)
 	}
 
 	// retrieve podinfo from orchestrator context
@@ -2029,7 +2028,7 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 	tt := []struct {
 		name             string
 		req              cns.IPConfigsRequest
-		mockNMAgent      *fakes.NMAgentClientFake
+		mockNMAgent      *nMAgentClientFake
 		expectedResponse *cns.IPConfigsResponse
 	}{
 		{
@@ -2040,7 +2039,7 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 				PodInterfaceID:      testPod1Info.InterfaceID(),
 				InfraContainerID:    testPod1Info.InfraContainerID(),
 			},
-			mockNMAgent: &fakes.NMAgentClientFake{
+			mockNMAgent: &nMAgentClientFake{
 				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 					// NMAgent returns an error, eg. NC is not programmed
 					return nma.NCVersionList{
@@ -2067,8 +2066,8 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 						NICType:    cns.DelegatedVMNIC,
 						HostPrimaryIPInfo: cns.HostIPInfo{
 							Gateway:   mockGatewayIP,
-							PrimaryIP: fakes.HostPrimaryIP,
-							Subnet:    fakes.HostSubnet,
+							PrimaryIP: hostPrimaryIP,
+							Subnet:    hostSubnet,
 						},
 					},
 				},
@@ -2082,7 +2081,7 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 				PodInterfaceID:      testPod1Info.InterfaceID(),
 				InfraContainerID:    testPod1Info.InfraContainerID(),
 			},
-			mockNMAgent: &fakes.NMAgentClientFake{
+			mockNMAgent: &nMAgentClientFake{
 				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 					// NMAgent returns an empty response with no error
 					return nma.NCVersionList{
@@ -2109,8 +2108,8 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 						NICType:    cns.DelegatedVMNIC,
 						HostPrimaryIPInfo: cns.HostIPInfo{
 							Gateway:   mockGatewayIP,
-							PrimaryIP: fakes.HostPrimaryIP,
-							Subnet:    fakes.HostSubnet,
+							PrimaryIP: hostPrimaryIP,
+							Subnet:    hostSubnet,
 						},
 					},
 				},
@@ -2124,7 +2123,7 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 				PodInterfaceID:      testPod1Info.InterfaceID(),
 				InfraContainerID:    testPod1Info.InfraContainerID(),
 			},
-			mockNMAgent: &fakes.NMAgentClientFake{
+			mockNMAgent: &nMAgentClientFake{
 				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 					// NMAgent returns an NC even if it's not programmed
 					return nma.NCVersionList{
@@ -2156,8 +2155,8 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 						NICType:    cns.DelegatedVMNIC,
 						HostPrimaryIPInfo: cns.HostIPInfo{
 							Gateway:   mockGatewayIP,
-							PrimaryIP: fakes.HostPrimaryIP,
-							Subnet:    fakes.HostSubnet,
+							PrimaryIP: hostPrimaryIP,
+							Subnet:    hostSubnet,
 						},
 					},
 				},
@@ -2236,7 +2235,7 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 	}
 }
 
-func setupMockNMAgent(t *testing.T, svc *HTTPRestService, mockNMAgent *fakes.NMAgentClientFake) {
+func setupMockNMAgent(t *testing.T, svc *HTTPRestService, mockNMAgent *nMAgentClientFake) {
 	t.Helper()
 	t.Log("Started mock NMAgent")
 	cleanupNMAgentMock := setMockNMAgent(svc, mockNMAgent)

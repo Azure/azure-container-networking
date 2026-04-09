@@ -19,7 +19,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
-	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -318,7 +317,7 @@ func TestSyncHostNCVersion(t *testing.T) {
 				t.Errorf("Unexpected nc version in containerStatus as %s, expected VM version should be 0 in string", containerStatus.CreateNetworkContainerRequest.Version)
 			}
 
-			mnma := &fakes.NMAgentClientFake{
+			mnma := &nMAgentClientFake{
 				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 					return nma.NCVersionList{
 						Containers: []nma.NCVersion{
@@ -385,7 +384,7 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 		}
 	}
 
-	mnma := &fakes.NMAgentClientFake{
+	mnma := &nMAgentClientFake{
 		GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 			return nma.NCVersionList{
 				Containers: []nma.NCVersion{
@@ -430,7 +429,7 @@ func TestSyncHostNCVersionErrorMissingNC(t *testing.T) {
 	defer cleanupIMDS()
 
 	// NMAgent returns empty
-	mnma := &fakes.NMAgentClientFake{
+	mnma := &nMAgentClientFake{
 		GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 			return nma.NCVersionList{
 				Containers: []nma.NCVersion{},
@@ -475,7 +474,7 @@ func TestSyncHostNCVersionLocalVersionHigher(t *testing.T) {
 	cleanupIMDS := setupIMDSMockAPIsWithCustomIDs(svc, []string{imdsNCID, "nc2"})
 	defer cleanupIMDS()
 
-	mnma := &fakes.NMAgentClientFake{
+	mnma := &nMAgentClientFake{
 		GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 			return nma.NCVersionList{
 				Containers: []nma.NCVersion{},
@@ -516,7 +515,7 @@ func TestSyncHostNCVersionLocalHigherThanDNC(t *testing.T) {
 	cleanupIMDS := setupIMDSMockAPIsWithCustomIDs(svc, []string{imdsNCID, "nc2"})
 	defer cleanupIMDS()
 
-	mnma := &fakes.NMAgentClientFake{
+	mnma := &nMAgentClientFake{
 		GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 			return nma.NCVersionList{
 				Containers: []nma.NCVersion{}, // Empty
@@ -561,7 +560,7 @@ func TestSyncHostNCVersionIMDSAPIVersionNotSupported(t *testing.T) {
 			svc.Unlock()
 
 			// NMAgent mock - not important for this test, just needs to not interfere
-			mnma := &fakes.NMAgentClientFake{
+			mnma := &nMAgentClientFake{
 				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 					return nma.NCVersionList{Containers: []nma.NCVersion{}}, nil
 				},
@@ -1362,7 +1361,7 @@ func TestCNIConflistGenerationNewNC(t *testing.T) {
 				},
 			},
 		},
-		nma: &fakes.NMAgentClientFake{
+		nma: &nMAgentClientFake{
 			GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 				return nma.NCVersionList{
 					Containers: []nma.NCVersion{
@@ -1377,7 +1376,7 @@ func TestCNIConflistGenerationNewNC(t *testing.T) {
 				return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 			},
 		},
-		imdsClient: fakes.NewMockIMDSClient(),
+		imdsClient: newMockIMDSClient(),
 	}
 
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
@@ -1403,7 +1402,7 @@ func TestCNIConflistGenerationExistingNC(t *testing.T) {
 				},
 			},
 		},
-		nma: &fakes.NMAgentClientFake{
+		nma: &nMAgentClientFake{
 			GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 				return nma.NCVersionList{
 					Containers: []nma.NCVersion{
@@ -1418,7 +1417,7 @@ func TestCNIConflistGenerationExistingNC(t *testing.T) {
 				return []string{}, nil
 			},
 		},
-		imdsClient: fakes.NewMockIMDSClient(),
+		imdsClient: newMockIMDSClient(),
 	}
 
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
@@ -1445,7 +1444,7 @@ func TestCNIConflistGenerationNewNCTwice(t *testing.T) {
 				},
 			},
 		},
-		nma: &fakes.NMAgentClientFake{
+		nma: &nMAgentClientFake{
 			GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 				return nma.NCVersionList{
 					Containers: []nma.NCVersion{
@@ -1460,7 +1459,7 @@ func TestCNIConflistGenerationNewNCTwice(t *testing.T) {
 				return []string{}, nil
 			},
 		},
-		imdsClient: fakes.NewMockIMDSClient(),
+		imdsClient: newMockIMDSClient(),
 	}
 
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
@@ -1491,7 +1490,7 @@ func TestCNIConflistNotGenerated(t *testing.T) {
 				},
 			},
 		},
-		nma: &fakes.NMAgentClientFake{
+		nma: &nMAgentClientFake{
 			GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 				return nma.NCVersionList{}, nil
 			},
@@ -1499,7 +1498,7 @@ func TestCNIConflistNotGenerated(t *testing.T) {
 				return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 			},
 		},
-		imdsClient: fakes.NewMockIMDSClient(),
+		imdsClient: newMockIMDSClient(),
 	}
 
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
@@ -1534,7 +1533,7 @@ func TestCNIConflistGenerationOnNMAError(t *testing.T) {
 				},
 			},
 		},
-		nma: &fakes.NMAgentClientFake{
+		nma: &nMAgentClientFake{
 			GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 				return nma.NCVersionList{}, errors.New("some nma error")
 			},
@@ -1542,7 +1541,7 @@ func TestCNIConflistGenerationOnNMAError(t *testing.T) {
 				return []string{"EnableSwiftV2NCGoalStateSupport", "OtherAPI"}, nil
 			},
 		},
-		imdsClient: fakes.NewMockIMDSClient(),
+		imdsClient: newMockIMDSClient(),
 	}
 
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
