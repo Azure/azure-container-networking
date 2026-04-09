@@ -19,6 +19,7 @@ parameters:
         label: "eastus2euap"
         enableAccelnet: false
         enableLinuxBYON: true
+        enableDatapathLinux: true
         longRunningPodZones:
           - "1"
           - "2"
@@ -29,6 +30,7 @@ parameters:
         label: "centraluseuap"
         enableAccelnet: true
         enableLinuxBYON: true
+        enableDatapathLinux: true
         longRunningPodZones:
           - "0"
       - subscriptionId: "37deca37-c375-4a14-b90a-043849bd2bf1"
@@ -36,12 +38,14 @@ parameters:
         label: "westus2"
         enableAccelnet: false
         enableLinuxBYON: true
+        enableDatapathLinux: true
         longRunningPodZones: []
       - subscriptionId: "9b8218f9-902a-4d20-a65c-e98acec5362f"
         location: "eastus2euap"
         label: "eastus2euap_baseline"
         enableAccelnet: false
         enableLinuxBYON: false
+        enableDatapathLinux: false
         longRunningPodZones:
           - "1"
           - "2"

@@ -114,9 +114,10 @@ stages:
     - ${{ each workload in parameters.workloadType }}:
       # Skip accelnet workloads unless the scenario has accelnet enabled.
       # Skip linux-byon workloads unless the scenario has linux BYON enabled.
+      # Skip swiftv2-linux workloads unless the scenario has enableDatapathLinux enabled.
       # NOTE: must use eq(x, true) — bare booleans from object params passed through
       # 'extends' are coerced to strings, and "false" is truthy.
-      - ${{ if and(or(not(contains(workload, 'l1vh-accelnet')), eq(scenario.enableAccelnet, true)), or(not(eq(workload, 'swiftv2-linux-byon')), eq(scenario.enableLinuxBYON, true))) }}:
+      - ${{ if and(or(not(eq(workload, 'swiftv2-linux')), eq(scenario.enableDatapathLinux, true)), or(not(contains(workload, 'l1vh-accelnet')), eq(scenario.enableAccelnet, true)), or(not(eq(workload, 'swiftv2-linux-byon')), eq(scenario.enableLinuxBYON, true))) }}:
         - template: datapath-tests-stage.yaml
           parameters:
             workloadType: ${{ workload }}
@@ -146,26 +147,29 @@ stages:
   - ${{ each scenario in parameters.scenarios }}:
     - stage: ReleaseLease_${{ replace(scenario.label, '-', '_') }}
       displayName: "Release Pipeline Lease (${{ scenario.label }})"
-      ${{ if and(eq(scenario.enableAccelnet, true), eq(scenario.enableLinuxBYON, true)) }}:
+      ${{ if and(eq(scenario.enableDatapathLinux, true), eq(scenario.enableAccelnet, true), eq(scenario.enableLinuxBYON, true)) }}:
         dependsOn:
           - AcquireLease_${{ replace(scenario.label, '-', '_') }}
           - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
           - DataPathTests_swiftv2_linux_byon_${{ replace(scenario.label, '-', '_') }}
           - DataPathTests_swiftv2_l1vh_accelnet_byon_${{ replace(scenario.label, '-', '_') }}
-      ${{ elseif and(not(eq(scenario.enableAccelnet, true)), eq(scenario.enableLinuxBYON, true)) }}:
+      ${{ elseif and(eq(scenario.enableDatapathLinux, true), not(eq(scenario.enableAccelnet, true)), eq(scenario.enableLinuxBYON, true)) }}:
         dependsOn:
           - AcquireLease_${{ replace(scenario.label, '-', '_') }}
           - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
           - DataPathTests_swiftv2_linux_byon_${{ replace(scenario.label, '-', '_') }}
-      ${{ elseif and(eq(scenario.enableAccelnet, true), not(eq(scenario.enableLinuxBYON, true))) }}:
+      ${{ elseif and(eq(scenario.enableDatapathLinux, true), eq(scenario.enableAccelnet, true), not(eq(scenario.enableLinuxBYON, true))) }}:
         dependsOn:
           - AcquireLease_${{ replace(scenario.label, '-', '_') }}
           - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
           - DataPathTests_swiftv2_l1vh_accelnet_byon_${{ replace(scenario.label, '-', '_') }}
+      ${{ elseif eq(scenario.enableDatapathLinux, true) }}:
+        dependsOn:
+          - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
       ${{ else }}:
         dependsOn:
           - AcquireLease_${{ replace(scenario.label, '-', '_') }}
-          - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
       condition: and(always(), eq(dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
       jobs:
         - job: ReleaseLease
