@@ -30,6 +30,10 @@ create_linux_vmss() {
     return 0
   fi
 
+  # Only fetch SSH key when we actually need to create
+  local ssh_public_key
+  ssh_public_key=$(get_ssh_public_key "$SSH_PUBLIC_KEY_SECRET_NAME" "$CLUSTER_KUBECONFIG_KEYVAULT_NAME" "$KEY_VAULT_SUBSCRIPTION")
+
   set +e
   az deployment group create -n "sat${node_name}" \
     --resource-group "$RESOURCE_GROUP" \
@@ -75,7 +79,6 @@ label_vmss_nodes() {
   copy_managed_node_labels_to_byon "$kubeconfig_file"
 }
 
-ssh_public_key=$(get_ssh_public_key "$SSH_PUBLIC_KEY_SECRET_NAME" "$CLUSTER_KUBECONFIG_KEYVAULT_NAME" "$KEY_VAULT_SUBSCRIPTION")
 cluster_names="aks-1 aks-2"
 
 for cluster_name in $cluster_names; do
