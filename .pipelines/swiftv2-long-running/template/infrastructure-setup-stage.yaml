@@ -240,7 +240,7 @@ stages:
           - NetworkingAndStorage
         condition: |
           and(
-            eq('${{ parameters.enableAccelnetBYON }}', true),
+            ${{ parameters.enableAccelnetBYON }},
             not(failed())
           )
         timeoutInMinutes: 480

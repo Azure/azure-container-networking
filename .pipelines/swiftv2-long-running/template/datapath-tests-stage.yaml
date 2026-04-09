@@ -191,9 +191,16 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "Discovering storage accounts from resource group ${{ parameters.rgName }}..."
-                STORAGE_ACCOUNT_1=$(az storage account list -g ${{ parameters.rgName }} --subscription ${{ parameters.subscriptionId }} --query "[?starts_with(name, 'sa1')].name | [0]" -o tsv)
-                STORAGE_ACCOUNT_2=$(az storage account list -g ${{ parameters.rgName }} --subscription ${{ parameters.subscriptionId }} --query "[?starts_with(name, 'sa2')].name | [0]" -o tsv)
+                STORAGE_ACCOUNT_1=$(az storage account list -g "${{ parameters.rgName }}" --subscription "${{ parameters.subscriptionId }}" --query "[?starts_with(name, 'sa1')].name | sort(@) | [0]" -o tsv)
+                STORAGE_ACCOUNT_2=$(az storage account list -g "${{ parameters.rgName }}" --subscription "${{ parameters.subscriptionId }}" --query "[?starts_with(name, 'sa2')].name | sort(@) | [0]" -o tsv)
                 echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
+                
+                SA1_COUNT=$(az storage account list -g "${{ parameters.rgName }}" --subscription "${{ parameters.subscriptionId }}" --query "[?starts_with(name, 'sa1')].name | length(@)" -o tsv)
+                SA2_COUNT=$(az storage account list -g "${{ parameters.rgName }}" --subscription "${{ parameters.subscriptionId }}" --query "[?starts_with(name, 'sa2')].name | length(@)" -o tsv)
+                if [ "$SA1_COUNT" -gt 1 ] || [ "$SA2_COUNT" -gt 1 ]; then
+                  echo "##vso[task.logissue type=error]Ambiguous storage accounts: sa1 count=$SA1_COUNT, sa2 count=$SA2_COUNT in ${{ parameters.rgName }}"
+                  exit 1
+                fi
                 
                 if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
                   echo "##vso[task.logissue type=error]Could not discover storage accounts in ${{ parameters.rgName }}"
@@ -202,19 +209,6 @@ stages:
                 
                 echo "##vso[task.setvariable variable=storageAccount1;isOutput=true]$STORAGE_ACCOUNT_1"
                 echo "##vso[task.setvariable variable=storageAccount2;isOutput=true]$STORAGE_ACCOUNT_2"
-
-          - task: AzureCLI@2
-            displayName: "Assign RBAC for SAS token generation"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: "azure-container-networking/.pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
-              arguments: >
-                assign
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.rgName }}
-                "$(DiscoverStorageAccounts.storageAccount1)"
 
           - task: AzureCLI@2
             displayName: "Run Private Endpoint Tests"
@@ -249,20 +243,6 @@ stages:
             env:
               KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
               KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
-
-          - task: AzureCLI@2
-            displayName: "Remove RBAC after tests"
-            condition: always()
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: "azure-container-networking/.pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
-              arguments: >
-                delete
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.rgName }}
-                "$(DiscoverStorageAccounts.storageAccount1) $(DiscoverStorageAccounts.storageAccount2)"
       
       - job: ScaleTest
         displayName: "Scale Tests - create and delete pods at scale"

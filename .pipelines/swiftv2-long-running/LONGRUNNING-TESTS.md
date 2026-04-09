@@ -2,7 +2,7 @@
 
 This document covers the **long-running zone-aware pod tests** — rotating pods and DaemonSet always-on pods that run persistently on the same AKS cluster used by the SwiftV2 long-running pipeline.
 
-These tests are **integrated into the main pipeline** (`pipeline.yaml`). The `longrunningRegions` parameter maps each region to its availability zones. Zone node pool creation and per-zone test stages run alongside the existing datapath tests.
+These tests are **integrated into the main pipeline** (`pipeline.yaml`). The `scenarios` parameter defines each subscription × region pair along with its availability zones. Zone node pool creation and per-zone test stages run alongside the existing datapath tests.
 
 ### Adding a New Region or Subscription
 
@@ -23,6 +23,17 @@ scenarios:
 ```
 
 The `label` must be unique across scenarios — it is used to generate unique stage names. Two scenarios can share the same `location` (e.g., to compare subscriptions) as long as their labels differ.
+
+### Prerequisites
+
+The pipeline service principal needs the following RBAC roles **pre-assigned at the subscription level** for each subscription in the `scenarios` matrix:
+
+| Role | Scope | Purpose |
+|------|-------|---------|
+| `Contributor` | Subscription | Create/manage AKS, VNets, Storage, VMSS, etc. |
+| `Storage Blob Data Contributor` | Subscription | Upload/download blobs for Private Endpoint tests |
+
+These must be assigned manually (e.g. via Azure Portal) before the first pipeline run. The pipeline does **not** self-assign roles — the service principal does not require `Microsoft.Authorization/roleAssignments/write`.
 
 ---
 
@@ -274,11 +285,10 @@ All operations are designed to be safe to re-run. PodNetworks, PodNetworkInstanc
 ├── LONGRUNNING-TESTS.md                       # This file
 ├── template/
 │   ├── long-running-pipeline-template.yaml    # Infra setup + datapath tests + long-running tests
-│   ├── infrastructure-setup-stage.yaml        # Per-location infra verify + conditional setup
+│   ├── infrastructure-setup-stage.yaml        # Per-scenario idempotent infra setup
 │   ├── datapath-tests-stage.yaml              # Per-workload datapath test stage
 │   └── long-running-pod-tests-stage.yaml      # Per-zone: EnsureNodePool + rotating + always-on + connectivity
 └── scripts/
-    ├── verify_infrastructure.sh               # Smart infra check (skip setup if exists)
     ├── ensure_zone_nodepools.sh               # Idempotent per-zone node pool creation
     ├── acquire_pipeline_lease.sh              # ConfigMap lease acquisition
     └── release_pipeline_lease.sh              # ConfigMap lease release

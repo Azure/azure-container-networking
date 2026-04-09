@@ -8,9 +8,27 @@ RG=$3
 
 az account set --subscription "$SUBSCRIPTION_ID"
 
+# Deterministic storage account discovery: sort by name, fail if ambiguous
+discover_storage_account() {
+  local prefix="$1"
+  local matches
+  matches=$(az storage account list -g "$RG" --query "[?starts_with(name, '${prefix}')].name | sort(@)" -o tsv 2>/dev/null || true)
+  if [[ -z "$matches" ]]; then
+    return 0
+  fi
+  local count
+  count=$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l | tr -d ' ')
+  if [[ "$count" -gt 1 ]]; then
+    echo "[ERROR] Multiple storage accounts found with prefix '${prefix}' in resource group '$RG':" >&2
+    printf '%s\n' "$matches" >&2
+    exit 1
+  fi
+  printf '%s\n' "$matches"
+}
+
 # Discover existing storage accounts or create new ones
-SA1=$(az storage account list -g "$RG" --query "[?starts_with(name, 'sa1')].name | [0]" -o tsv 2>/dev/null || true)
-SA2=$(az storage account list -g "$RG" --query "[?starts_with(name, 'sa2')].name | [0]" -o tsv 2>/dev/null || true)
+SA1=$(discover_storage_account "sa1")
+SA2=$(discover_storage_account "sa2")
 
 if [[ -n "$SA1" && -n "$SA2" ]]; then
   echo "Found existing storage accounts: $SA1, $SA2. Reusing."
@@ -42,8 +60,8 @@ else
   done
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-bash "$SCRIPT_DIR/manage_storage_rbac.sh" assign "$SUBSCRIPTION_ID" "$RG" "$SA1 $SA2"
+# Storage Blob Data Contributor is pre-assigned at the subscription level.
+# See LONGRUNNING-TESTS.md "Prerequisites" for required RBAC roles.
 
 for SA in "$SA1" "$SA2"; do
   echo "Creating test container in $SA"
@@ -82,6 +100,4 @@ for SA in "$SA1" "$SA2"; do
   done
 done
 
-echo "Removing RBAC role after blob upload"
-bash "$SCRIPT_DIR/manage_storage_rbac.sh" delete "$SUBSCRIPTION_ID" "$RG" "$SA1 $SA2"
 echo "All storage accounts created and verified successfully."

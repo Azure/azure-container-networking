@@ -12,7 +12,7 @@ az account set --subscription "$SUBSCRIPTION_ID"
 
 # Discover storage account if not provided
 if [[ -z "$SA1_NAME" ]]; then
-  SA1_NAME=$(az storage account list -g "$RG" --query "[?starts_with(name, 'sa1')].name | [0]" -o tsv)
+  SA1_NAME=$(az storage account list -g "$RG" --query "[?starts_with(name, 'sa1')].name | sort(@) | [0]" -o tsv)
   echo "Discovered storage account: $SA1_NAME"
 fi
 
