@@ -29,8 +29,10 @@ for pod in $podList; do
     succeeded=false
     for attempt in 1 2 3; do
       echo "Attempt $attempt: Patching windowsnodereset.ps1 on $pod"
+      # Replace ">> $global:LogPath" (or "*>> $global:LogPath", "**>>", etc.) with "*>> $global:LogPath"
+      # so that all output streams are captured to the log file. The regex is idempotent.
       if kubectl exec -n kube-system "$pod" -- powershell.exe -command \
-        "(Get-Content 'c:\k\windowsnodereset.ps1') -replace '>> \\\$global:LogPath', '*>> \$global:LogPath' | Set-Content 'c:\k\windowsnodereset.ps1'"; then
+        "(Get-Content 'c:\k\windowsnodereset.ps1') -replace '[*]*>> \\\$global:LogPath', '*>> \$global:LogPath' | Set-Content 'c:\k\windowsnodereset.ps1'"; then
         echo "Successfully patched windowsnodereset.ps1 on $pod"
         succeeded=true
         break
