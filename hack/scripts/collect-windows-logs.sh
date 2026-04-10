@@ -36,6 +36,11 @@ for pod in $podList; do
   file="azure-vnet.json"
   kubectl exec -i -n kube-system $pod -- powershell cat ../../k/$file > ${acnLogs}/"$node"_logs/privileged-output/$file
   echo "CNI State, $file, captured: ${acnLogs}/"$node"_logs/privileged-output/$file"
+
+  file="windowsnodereset.log"
+  kubectl exec -i -n kube-system $pod -- powershell cat ../../k/$file > ${acnLogs}/"$node"_logs/privileged-output/$file
+  echo "Node Reset Log, $file, captured: ${acnLogs}/"$node"_logs/privileged-output/$file"
+
   if [ ${cni} = 'cniv1' ]; then
     file="azure-vnet-ipam.json"
     kubectl exec -i -n kube-system $pod -- powershell cat ../../k/$file > ${acnLogs}/"$node"_logs/privileged-output/$file
