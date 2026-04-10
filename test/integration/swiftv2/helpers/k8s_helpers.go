@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -388,6 +389,42 @@ func WaitForMTPNCCleanupK8s(ctx context.Context, c client.Client, namespace stri
 		time.Sleep(5 * time.Second)
 	}
 	return fmt.Errorf("%w in namespace %s after %v", errMTPNCStillPresent, namespace, timeout)
+}
+
+// WaitForMTPNCCleanupByDeploymentK8s waits for MTPNCs belonging to a specific deployment to be removed.
+// Unlike WaitForMTPNCCleanupK8s which waits for ALL MTPNCs in a namespace, this only checks MTPNCs
+// whose PodName has the deployment name as a prefix (pods from deployment "foo" are named "foo-<rs>-<hash>").
+// This is safe to use when other deployments share the same namespace, and works even after the pods
+// themselves have already been deleted.
+func WaitForMTPNCCleanupByDeploymentK8s(ctx context.Context, c client.Client, namespace, deploymentName string, timeout time.Duration) error {
+	prefix := deploymentName + "-"
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		mtpncList := &mtv1alpha1.MultitenantPodNetworkConfigList{}
+		if err := c.List(ctx, mtpncList, client.InNamespace(namespace)); err != nil {
+			if apierrors.IsNotFound(err) || isNoCRDError(err) {
+				return nil
+			}
+			fmt.Printf("Warning: failed to list MTPNCs in namespace %s: %v\n", namespace, err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		// Count MTPNCs whose PodName matches the deployment's pod naming pattern
+		remaining := 0
+		for i := range mtpncList.Items {
+			if strings.HasPrefix(mtpncList.Items[i].Spec.PodName, prefix) {
+				remaining++
+			}
+		}
+		if remaining == 0 {
+			return nil
+		}
+
+		fmt.Printf("Waiting for %d MTPNCs from deployment %s to be cleaned up...\n", remaining, deploymentName)
+		time.Sleep(5 * time.Second)
+	}
+	return fmt.Errorf("%w for deployment %s in namespace %s after %v", errMTPNCStillPresent, deploymentName, namespace, timeout)
 }
 
 func isNoCRDError(err error) bool {

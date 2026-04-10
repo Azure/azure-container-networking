@@ -58,7 +58,7 @@ func deleteRotatingDeployment(kubeconfig, namespace, deploymentName string) erro
 		return fmt.Errorf("failed to delete deployment %s: %w", deploymentName, err)
 	}
 
-	if err := helpers.WaitForMTPNCCleanupK8s(ctx, c, namespace, 120*time.Second); err != nil {
+	if err := helpers.WaitForMTPNCCleanupByDeploymentK8s(ctx, c, namespace, deploymentName, 180*time.Second); err != nil {
 		fmt.Printf("Warning: MTPNC cleanup didn't complete for deployment %s: %v\n", deploymentName, err)
 	}
 	return nil
