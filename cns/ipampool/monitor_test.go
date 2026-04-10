@@ -741,3 +741,129 @@ func TestCalculateIPs(t *testing.T) {
 		})
 	}
 }
+
+func TestGetStateSnapshot(t *testing.T) {
+	store, mon := newTestMonitor(testState{
+		allocated:               20,
+		assigned:                10,
+		batch:                   16,
+		max:                     250,
+		requestThresholdPercent: 50,
+		releaseThresholdPercent: 150,
+	}, nil)
+	_ = store
+
+	snap := mon.GetStateSnapshot()
+	assert.Equal(t, CalculateMinFreeIPs(v1alpha.Scaler{BatchSize: 16, RequestThresholdPercent: 50}), snap.MinimumFreeIps)
+	assert.Equal(t, CalculateMaxFreeIPs(v1alpha.Scaler{BatchSize: 16, ReleaseThresholdPercent: 150}), snap.MaximumFreeIps)
+	assert.Equal(t, int64(0), snap.UpdatingIpsNotInUseCount)
+	assert.Equal(t, int64(20), snap.CachedNNC.Spec.RequestedIPCount)
+}
+
+func TestGenerateARMID(t *testing.T) {
+	tests := []struct {
+		name string
+		nc   v1alpha.NetworkContainer
+		want string
+	}{
+		{
+			name: "all fields populated",
+			nc: v1alpha.NetworkContainer{
+				SubscriptionID:  "sub-1",
+				ResourceGroupID: "rg-1",
+				VNETID:          "vnet-1",
+				SubnetID:        "subnet-1",
+			},
+			want: "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.Network/virtualNetworks/vnet-1/subnets/subnet-1",
+		},
+		{
+			name: "missing subscription",
+			nc:   v1alpha.NetworkContainer{ResourceGroupID: "rg", VNETID: "v", SubnetID: "s"},
+			want: "",
+		},
+		{
+			name: "missing resource group",
+			nc:   v1alpha.NetworkContainer{SubscriptionID: "sub", VNETID: "v", SubnetID: "s"},
+			want: "",
+		},
+		{
+			name: "missing vnet",
+			nc:   v1alpha.NetworkContainer{SubscriptionID: "sub", ResourceGroupID: "rg", SubnetID: "s"},
+			want: "",
+		},
+		{
+			name: "missing subnet",
+			nc:   v1alpha.NetworkContainer{SubscriptionID: "sub", ResourceGroupID: "rg", VNETID: "v"},
+			want: "",
+		},
+		{
+			name: "all empty",
+			nc:   v1alpha.NetworkContainer{},
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, GenerateARMID(&tt.nc))
+		})
+	}
+}
+
+func TestClampScaler(t *testing.T) {
+	tests := []struct {
+		name string
+		in   v1alpha.Scaler
+		want v1alpha.Scaler
+	}{
+		{
+			name: "valid scaler unchanged",
+			in:   v1alpha.Scaler{MaxIPCount: 250, BatchSize: 16, RequestThresholdPercent: 50, ReleaseThresholdPercent: 150},
+			want: v1alpha.Scaler{MaxIPCount: 250, BatchSize: 16, RequestThresholdPercent: 50, ReleaseThresholdPercent: 150},
+		},
+		{
+			name: "zero MaxIPCount gets default",
+			in:   v1alpha.Scaler{BatchSize: 16, RequestThresholdPercent: 50, ReleaseThresholdPercent: 150},
+			want: v1alpha.Scaler{MaxIPCount: DefaultMaxIPs, BatchSize: 16, RequestThresholdPercent: 50, ReleaseThresholdPercent: 150},
+		},
+		{
+			name: "zero BatchSize clamped to 1",
+			in:   v1alpha.Scaler{MaxIPCount: 250, RequestThresholdPercent: 50, ReleaseThresholdPercent: 150},
+			want: v1alpha.Scaler{MaxIPCount: 250, BatchSize: 1, RequestThresholdPercent: 50, ReleaseThresholdPercent: 150},
+		},
+		{
+			name: "BatchSize larger than MaxIPCount clamped",
+			in:   v1alpha.Scaler{MaxIPCount: 10, BatchSize: 20, RequestThresholdPercent: 50, ReleaseThresholdPercent: 150},
+			want: v1alpha.Scaler{MaxIPCount: 10, BatchSize: 10, RequestThresholdPercent: 50, ReleaseThresholdPercent: 150},
+		},
+		{
+			name: "zero RequestThresholdPercent clamped to 1",
+			in:   v1alpha.Scaler{MaxIPCount: 250, BatchSize: 16, ReleaseThresholdPercent: 200},
+			want: v1alpha.Scaler{MaxIPCount: 250, BatchSize: 16, RequestThresholdPercent: 1, ReleaseThresholdPercent: 200},
+		},
+		{
+			name: "RequestThresholdPercent over 100 clamped",
+			in:   v1alpha.Scaler{MaxIPCount: 250, BatchSize: 16, RequestThresholdPercent: 200, ReleaseThresholdPercent: 400},
+			want: v1alpha.Scaler{MaxIPCount: 250, BatchSize: 16, RequestThresholdPercent: 100, ReleaseThresholdPercent: 400},
+		},
+		{
+			name: "ReleaseThresholdPercent too close to RequestThresholdPercent gets corrected",
+			in:   v1alpha.Scaler{MaxIPCount: 250, BatchSize: 16, RequestThresholdPercent: 50, ReleaseThresholdPercent: 100},
+			want: v1alpha.Scaler{MaxIPCount: 250, BatchSize: 16, RequestThresholdPercent: 50, ReleaseThresholdPercent: 150},
+		},
+		{
+			name: "all zeros",
+			in:   v1alpha.Scaler{},
+			want: v1alpha.Scaler{MaxIPCount: DefaultMaxIPs, BatchSize: 1, RequestThresholdPercent: 1, ReleaseThresholdPercent: 101},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			mon := &Monitor{opts: &Options{MaxIPs: DefaultMaxIPs}}
+			scaler := tt.in
+			mon.clampScaler(&scaler)
+			assert.Equal(t, tt.want, scaler)
+		})
+	}
+}
