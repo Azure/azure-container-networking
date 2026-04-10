@@ -16,6 +16,9 @@ matches=$(find "$directory" -name "$file_pattern" -type f -exec grep -aP -l "$co
 
 if [ -n "$matches" ]; then
     echo "$matches"
+    echo ""
+    echo "Matching lines:"
+    find "$directory" -name "$file_pattern" -type f -exec grep -aP -n "$content_pattern" {} +
     exit 0
 else
     exit 1
