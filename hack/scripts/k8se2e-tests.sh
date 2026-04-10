@@ -1,3 +1,6 @@
+OS=$1
+TYPE=$2
+
 # Taint Linux nodes so that windows tests do not run on them and ensure no LinuxOnly tests run on windows nodes
 if [[ 'windows' == $OS ]]
 then
@@ -25,7 +28,7 @@ echo "./ginkgo --nodes=4 \
 --num-nodes=2 \
 --provider=skeleton \
 --ginkgo.focus='(.*).Networking.should|(.*).Networking.Granular|(.*)kubernetes.api' \
---ginkgo.skip='SCTP|Disruptive|Slow|hostNetwork|kube-proxy|IPv6' \
+--ginkgo.skip="SCTP|Disruptive|Slow|hostNetwork|kube-proxy|IPv6$SKIP" \
 --ginkgo.flakeAttempts=3 \
 --ginkgo.v \
 --node-os-distro=$OS \
