@@ -93,26 +93,26 @@ func (m *mockIMDSClient) GetIMDSVersions(ctx context.Context) (*imds.APIVersions
 	}, nil
 }
 
-type nMAgentClientFake struct {
+type nmaClientFake struct {
 	SupportedAPIsF      func(context.Context) ([]string, error)
 	GetNCVersionListF   func(context.Context) (nmagent.NCVersionList, error)
 	GetHomeAzF          func(context.Context) (nmagent.AzResponse, error)
 	GetInterfaceIPInfoF func(ctx context.Context) (nmagent.Interfaces, error)
 }
 
-func (n *nMAgentClientFake) SupportedAPIs(ctx context.Context) ([]string, error) {
+func (n *nmaClientFake) SupportedAPIs(ctx context.Context) ([]string, error) {
 	return n.SupportedAPIsF(ctx)
 }
 
-func (n *nMAgentClientFake) GetNCVersionList(ctx context.Context) (nmagent.NCVersionList, error) {
+func (n *nmaClientFake) GetNCVersionList(ctx context.Context) (nmagent.NCVersionList, error) {
 	return n.GetNCVersionListF(ctx)
 }
 
-func (n *nMAgentClientFake) GetHomeAz(ctx context.Context) (nmagent.AzResponse, error) {
+func (n *nmaClientFake) GetHomeAz(ctx context.Context) (nmagent.AzResponse, error) {
 	return n.GetHomeAzF(ctx)
 }
 
-func (n *nMAgentClientFake) GetInterfaceIPInfo(ctx context.Context) (nmagent.Interfaces, error) {
+func (n *nmaClientFake) GetInterfaceIPInfo(ctx context.Context) (nmagent.Interfaces, error) {
 	return n.GetInterfaceIPInfoF(ctx)
 }
 
@@ -156,7 +156,7 @@ func (w *wireserverProxyFake) UnpublishNC(ctx context.Context, ncParams cns.Netw
 	return defaultResponse(), nil
 }
 
-func setMockNMAgent(h *HTTPRestService, m *nMAgentClientFake) func() {
+func setMockNMAgent(h *HTTPRestService, m *nmaClientFake) func() {
 	// this is a hack that exists because the tests are too DRY, so the setup
 	// logic has ossified in TestMain
 

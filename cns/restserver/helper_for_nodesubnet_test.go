@@ -73,7 +73,7 @@ func GetRestServiceObjectForNodeSubnetTest(t *testing.T, generator CNIConflistGe
 		state:                    &httpRestServiceState{},
 		PodIPConfigState:         make(map[string]cns.IPConfigurationStatus),
 		PodIPIDByPodInterfaceKey: make(map[string][]string),
-		nma: &nMAgentClientFake{
+		nma: &nmaClientFake{
 			GetInterfaceIPInfoF: func(_ context.Context) (nmagent.Interfaces, error) {
 				return interfaces, nil
 			},

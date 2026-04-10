@@ -463,7 +463,7 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mnma := &nMAgentClientFake{
+	mnma := &nmaClientFake{
 		GetNCVersionListF: func(_ context.Context) (nmagent.NCVersionList, error) {
 			return nmagent.NCVersionList{
 				Containers: []nmagent.NCVersion{
@@ -532,7 +532,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	setEnv(t)
 	setOrchestratorType(t, cns.Kubernetes)
 
-	mnma := &nMAgentClientFake{}
+	mnma := &nmaClientFake{}
 	cleanupNMA := setMockNMAgent(svc, mnma)
 	defer cleanupNMA()
 
@@ -1175,7 +1175,7 @@ func TestNMAgentNCListHandler(t *testing.T) {
 		t.Fatalf("TestNMAgentNCListHandler failed with error:%+v", errSetOrch)
 	}
 
-	mnma := &nMAgentClientFake{}
+	mnma := &nmaClientFake{}
 	cleanupNMA := setMockNMAgent(svc, mnma)
 	defer cleanupNMA()
 
@@ -1664,7 +1664,7 @@ func startService(serviceConfig common.ServiceConfig, _ configuration.CNSConfig)
 	}
 	config.Store = fileStore
 
-	nmagentClient := &nMAgentClientFake{}
+	nmagentClient := &nmaClientFake{}
 	service, err = NewHTTPRestService(&config, &wireserverClientFake{}, &wireserverProxyFake{}, &IPtablesProvider{},
 		nmagentClient, nil, nil, nil, newMockIMDSClient())
 	if err != nil {

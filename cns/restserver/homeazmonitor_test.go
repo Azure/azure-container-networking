@@ -16,13 +16,13 @@ import (
 func TestHomeAzMonitor(t *testing.T) {
 	tests := []struct {
 		name      string
-		client    *nMAgentClientFake
+		client    *nmaClientFake
 		homeAzExp cns.HomeAzResponse
 		shouldErr bool
 	}{
 		{
 			"happy path",
-			&nMAgentClientFake{
+			&nmaClientFake{
 				SupportedAPIsF: func(_ context.Context) ([]string, error) {
 					return []string{"GetHomeAz"}, nil
 				},
@@ -35,7 +35,7 @@ func TestHomeAzMonitor(t *testing.T) {
 		},
 		{
 			"getHomeAz is not supported in nmagent",
-			&nMAgentClientFake{
+			&nmaClientFake{
 				SupportedAPIsF: func(_ context.Context) ([]string, error) {
 					return []string{"dummy"}, nil
 				},
@@ -48,7 +48,7 @@ func TestHomeAzMonitor(t *testing.T) {
 		},
 		{
 			"api supported but home az value is not valid",
-			&nMAgentClientFake{
+			&nmaClientFake{
 				SupportedAPIsF: func(_ context.Context) ([]string, error) {
 					return []string{GetHomeAzAPIName}, nil
 				},
@@ -61,7 +61,7 @@ func TestHomeAzMonitor(t *testing.T) {
 		},
 		{
 			"api supported but apiVersion value is not valid",
-			&nMAgentClientFake{
+			&nmaClientFake{
 				SupportedAPIsF: func(_ context.Context) ([]string, error) {
 					return []string{GetHomeAzAPIName}, nil
 				},
@@ -74,7 +74,7 @@ func TestHomeAzMonitor(t *testing.T) {
 		},
 		{
 			"api supported but got unexpected errors",
-			&nMAgentClientFake{
+			&nmaClientFake{
 				SupportedAPIsF: func(_ context.Context) ([]string, error) {
 					return []string{GetHomeAzAPIName}, nil
 				},

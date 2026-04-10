@@ -75,7 +75,7 @@ type ncState struct {
 func getTestService(orchestratorType string) *HTTPRestService {
 	var config common.ServiceConfig
 	httpsvc, _ := NewHTTPRestService(&config, &wireserverClientFake{}, &wireserverProxyFake{},
-		&IPtablesProvider{}, &nMAgentClientFake{}, store.NewMockStore(""), nil, nil,
+		&IPtablesProvider{}, &nmaClientFake{}, store.NewMockStore(""), nil, nil,
 		newMockIMDSClient())
 	svc = httpsvc
 	setOrchestratorTypeInternal(orchestratorType)
@@ -2028,7 +2028,7 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 	tt := []struct {
 		name             string
 		req              cns.IPConfigsRequest
-		mockNMAgent      *nMAgentClientFake
+		mockNMAgent      *nmaClientFake
 		expectedResponse *cns.IPConfigsResponse
 	}{
 		{
@@ -2039,7 +2039,7 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 				PodInterfaceID:      testPod1Info.InterfaceID(),
 				InfraContainerID:    testPod1Info.InfraContainerID(),
 			},
-			mockNMAgent: &nMAgentClientFake{
+			mockNMAgent: &nmaClientFake{
 				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 					// NMAgent returns an error, eg. NC is not programmed
 					return nma.NCVersionList{
@@ -2081,7 +2081,7 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 				PodInterfaceID:      testPod1Info.InterfaceID(),
 				InfraContainerID:    testPod1Info.InfraContainerID(),
 			},
-			mockNMAgent: &nMAgentClientFake{
+			mockNMAgent: &nmaClientFake{
 				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 					// NMAgent returns an empty response with no error
 					return nma.NCVersionList{
@@ -2123,7 +2123,7 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 				PodInterfaceID:      testPod1Info.InterfaceID(),
 				InfraContainerID:    testPod1Info.InfraContainerID(),
 			},
-			mockNMAgent: &nMAgentClientFake{
+			mockNMAgent: &nmaClientFake{
 				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 					// NMAgent returns an NC even if it's not programmed
 					return nma.NCVersionList{
@@ -2235,7 +2235,7 @@ func TestIPAMGetStandaloneSWIFTv2(t *testing.T) {
 	}
 }
 
-func setupMockNMAgent(t *testing.T, svc *HTTPRestService, mockNMAgent *nMAgentClientFake) {
+func setupMockNMAgent(t *testing.T, svc *HTTPRestService, mockNMAgent *nmaClientFake) {
 	t.Helper()
 	t.Log("Started mock NMAgent")
 	cleanupNMAgentMock := setMockNMAgent(svc, mockNMAgent)

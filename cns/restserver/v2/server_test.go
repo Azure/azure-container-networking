@@ -44,16 +44,16 @@ func (c *wireserverClientFake) GetInterfaces(_ context.Context) (*wireserver.Get
 	}, nil
 }
 
-type nMAgentClientFake struct{}
+type nmaClientFake struct{}
 
-func (n *nMAgentClientFake) SupportedAPIs(_ context.Context) ([]string, error)              { return nil, nil }
-func (n *nMAgentClientFake) GetNCVersionList(_ context.Context) (nmagent.NCVersionList, error) {
+func (n *nmaClientFake) SupportedAPIs(_ context.Context) ([]string, error)              { return nil, nil }
+func (n *nmaClientFake) GetNCVersionList(_ context.Context) (nmagent.NCVersionList, error) {
 	return nmagent.NCVersionList{}, nil
 }
-func (n *nMAgentClientFake) GetHomeAz(_ context.Context) (nmagent.AzResponse, error) {
+func (n *nmaClientFake) GetHomeAz(_ context.Context) (nmagent.AzResponse, error) {
 	return nmagent.AzResponse{}, nil
 }
-func (n *nMAgentClientFake) GetInterfaceIPInfo(_ context.Context) (nmagent.Interfaces, error) {
+func (n *nmaClientFake) GetInterfaceIPInfo(_ context.Context) (nmagent.Interfaces, error) {
 	return nmagent.Interfaces{}, nil
 }
 
@@ -129,7 +129,7 @@ func startService(cnsPort, cnsURL string) error {
 	// Create the service.
 	config := common.ServiceConfig{}
 
-	nmagentClient := &nMAgentClientFake{}
+	nmagentClient := &nmaClientFake{}
 	service, err := restserver.NewHTTPRestService(&config, &wireserverClientFake{},
 		&wireserverProxyFake{}, &restserver.IPtablesProvider{}, nmagentClient, nil, nil, nil,
 		&mockIMDSClient{})
