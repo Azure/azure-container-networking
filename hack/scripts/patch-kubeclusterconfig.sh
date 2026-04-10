@@ -1,8 +1,10 @@
 #!/bin/bash
-# Attempts to patch kubeclusterconfig.json on Windows nodes to set Cni.Name to "azure"
+# Attempts to patch kubeclusterconfig.json and windowsnodereset.ps1 on Windows nodes
+# - Sets Cni.Name to "azure" in kubeclusterconfig.json
+# - Replaces '>> $global:LogPath' with '*>> $global:LogPath' in windowsnodereset.ps1
 # Usage: bash patch-kubeclusterconfig.sh
 
-echo "Patching kubeclusterconfig.json CNI name on Windows nodes"
+echo "Patching kubeclusterconfig.json and windowsnodereset.ps1 on Windows nodes"
 kubectl apply -f ../../test/integration/manifests/load/privileged-daemonset-windows.yaml
 kubectl rollout status ds -n kube-system privileged-daemonset --timeout=5m
 
@@ -22,8 +24,25 @@ for pod in $podList; do
       sleep 20
     fi
   done
+
+  if [ "$succeeded" = true ]; then
+    succeeded=false
+    for attempt in 1 2 3; do
+      echo "Attempt $attempt: Patching windowsnodereset.ps1 on $pod"
+      if kubectl exec -n kube-system "$pod" -- powershell.exe -command \
+        "(Get-Content 'c:\k\windowsnodereset.ps1') -replace '>> \\\$global:LogPath', '*>> \$global:LogPath' | Set-Content 'c:\k\windowsnodereset.ps1'"; then
+        echo "Successfully patched windowsnodereset.ps1 on $pod"
+        succeeded=true
+        break
+      else
+        echo "Failed to patch windowsnodereset.ps1 on $pod (attempt $attempt)"
+        sleep 20
+      fi
+    done
+  fi
+
   if [ "$succeeded" = false ]; then
-    echo "WARNING: Failed to patch kubeclusterconfig.json on $pod after 3 attempts"
+    echo "WARNING: Failed to patch on $pod after 3 attempts"
     allSucceeded=false
   fi
 done
