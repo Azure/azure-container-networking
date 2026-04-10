@@ -101,18 +101,30 @@ type nmaClientFake struct {
 }
 
 func (n *nmaClientFake) SupportedAPIs(ctx context.Context) ([]string, error) {
+	if n.SupportedAPIsF == nil {
+		return nil, nil
+	}
 	return n.SupportedAPIsF(ctx)
 }
 
 func (n *nmaClientFake) GetNCVersionList(ctx context.Context) (nmagent.NCVersionList, error) {
+	if n.GetNCVersionListF == nil {
+		return nmagent.NCVersionList{}, nil
+	}
 	return n.GetNCVersionListF(ctx)
 }
 
 func (n *nmaClientFake) GetHomeAz(ctx context.Context) (nmagent.AzResponse, error) {
+	if n.GetHomeAzF == nil {
+		return nmagent.AzResponse{}, nil
+	}
 	return n.GetHomeAzF(ctx)
 }
 
 func (n *nmaClientFake) GetInterfaceIPInfo(ctx context.Context) (nmagent.Interfaces, error) {
+	if n.GetInterfaceIPInfoF == nil {
+		return nmagent.Interfaces{}, nil
+	}
 	return n.GetInterfaceIPInfoF(ctx)
 }
 
