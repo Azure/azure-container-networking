@@ -68,7 +68,7 @@ var _ = ginkgo.Describe("Long-Running Always-On DaemonSet Tests", func() {
 
 		// Zone-scoped resource names
 		namespace := GetZonedAlwaysOnNS(buildID)
-		pnName := GetZonedPNName(LongRunningAlwaysOnPNPrefix, buildID)
+		pnName := GetRegionPNName(buildID)
 		pniName := GetZonedPNIName(LongRunningAlwaysOnPNIPrefix, buildID)
 		dsName := GetDaemonSetName()
 		zoneLabel := GetZoneLabel(location)

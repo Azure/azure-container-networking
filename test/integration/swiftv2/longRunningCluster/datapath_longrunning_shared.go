@@ -21,8 +21,7 @@ const (
 	LongRunningRotatingPodPrefix   = "pod-rotating-"
 	LongRunningRotatingNSPrefix    = "ns-rotating"
 	LongRunningAlwaysOnNSPrefix    = "ns-alwayson"
-	LongRunningRotatingPNPrefix    = "pn-rotating"
-	LongRunningAlwaysOnPNPrefix    = "pn-alwayson"
+	LongRunningPNPrefix            = "pn-longrunning"
 	LongRunningRotatingPNIPrefix   = "pni-rotating"
 	LongRunningAlwaysOnPNIPrefix   = "pni-alwayson"
 	LongRunningCreatedAtAnnotation = "acn-test/created-at"
@@ -60,9 +59,11 @@ func GetZonedAlwaysOnNS(buildID string) string {
 	return fmt.Sprintf("%s%s-%s", LongRunningAlwaysOnNSPrefix, GetZoneSuffix(), buildID)
 }
 
-// GetZonedPNName returns a zone-scoped PodNetwork name.
-func GetZonedPNName(prefix, buildID string) string {
-	return fmt.Sprintf("%s%s-%s", prefix, GetZoneSuffix(), buildID)
+// GetRegionPNName returns the single region-scoped PodNetwork name.
+// There is one PN per region (not per zone or test type) because DNCRC
+// will not reconcile different PNs with the same network and subnet combination.
+func GetRegionPNName(buildID string) string {
+	return fmt.Sprintf("%s-%s", LongRunningPNPrefix, buildID)
 }
 
 // GetZonedPNIName returns a zone-scoped PodNetworkInstance name.

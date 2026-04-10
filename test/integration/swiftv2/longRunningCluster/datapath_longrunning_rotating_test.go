@@ -151,7 +151,7 @@ var _ = ginkgo.Describe("Long-Running Rotating Pod Tests", func() {
 
 		// Zone-scoped resource names
 		namespace := GetZonedRotatingNS(buildID)
-		pnName := GetZonedPNName(LongRunningRotatingPNPrefix, buildID)
+		pnName := GetRegionPNName(buildID)
 		pniName := GetZonedPNIName(LongRunningRotatingPNIPrefix, buildID)
 
 		// Ensure namespace exists
