@@ -166,7 +166,7 @@ func newTestMonitor(state testState, nnccli nodeNetworkConfigSpecUpdater) (*ipCo
 	store.setAssignedTotal(state.assigned)
 	if state.pendingRelease > 0 {
 		if _, err := store.MarkIPAsPendingRelease(int(state.pendingRelease)); err != nil {
-			logger.Printf("%s", err)
+			panic(fmt.Sprintf("newTestMonitor: invalid test state for pending release (%d): %v", state.pendingRelease, err))
 		}
 	}
 
