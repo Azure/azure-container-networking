@@ -50,6 +50,17 @@ steps:
     continueOnError: true # Tends to fail after node restart due to pods still restarting. This should not block other tests or logs from running.
 
   - bash: |
+      kubectl get pods -A -owide
+    displayName: All Pods
+    condition: always()
+
+  - bash: |
+      bash hack/scripts/collect-bad-pod-info.sh
+    displayName: Collect Bad Pod Info
+    condition: always()
+    continueOnError: true
+
+  - bash: |
       kubectl describe nodes
     displayName: Node Status
     condition: always()
