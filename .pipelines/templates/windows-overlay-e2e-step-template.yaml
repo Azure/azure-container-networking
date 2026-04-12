@@ -90,6 +90,11 @@ steps:
         set -e
         clusterName=${{ parameters.clusterName }}
 
+        # set cni name to azure so windows cleanup script runs (though testing can still pass without this usually)
+        cd hack/scripts
+        bash patch-kubeclusterconfig.sh || true
+        cd ../..
+
         # Restart nodes
         echo "Restarting nodes"
         kubectl get po -owide -A
