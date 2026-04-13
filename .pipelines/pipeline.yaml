@@ -55,6 +55,8 @@ stages:
               echo $(Build.QueuedBy)
               echo $(Build.Reason) # manual, PR, IndividualCI
               echo $(Build.SourceBranch)
+              echo $(System.PullRequest.TargetBranch)
+              echo $(System.PullRequest.targetBranchName)
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
             condition: always()
@@ -66,7 +68,6 @@ stages:
       displayName: Build Binaries
       dependsOn:
         - setup
-        - test
       jobs:
         - job: build
           displayName: Build Binaries
@@ -107,7 +108,6 @@ stages:
       displayName: Build Images
       dependsOn:
         - setup
-        - test
       jobs:
         - job: containerize_amd64
           displayName: Build Images
@@ -151,14 +151,10 @@ stages:
                 arch: amd64
                 name: ipv6-hp-bpf
                 os: linux
-              npm_linux_amd64:
+              cilium_log_collector_amd64:
                 arch: amd64
-                name: npm
+                name: cilium-log-collector
                 os: linux
-              npm_windows_amd64:
-                arch: amd64
-                name: npm
-                os: windows
           steps:
             - template: containers/container-template.yaml
               parameters:
@@ -196,6 +192,49 @@ stages:
                 arch: arm64
                 name: ipv6-hp-bpf
                 os: linux
+              cilium_log_collector_arm64:
+                arch: arm64
+                name: cilium-log-collector
+                os: linux
+          steps:
+            - template: containers/container-template.yaml
+              parameters:
+                arch: $(arch)
+                name: $(name)
+                os: $(os)
+
+    - stage: containerize_npm
+      displayName: Build NPM Images
+      dependsOn:
+        - setup
+      jobs:
+        - job: containerize_npm_amd64
+          displayName: Build NPM Images
+          pool:
+            name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+          strategy:
+            matrix:
+              npm_linux_amd64:
+                arch: amd64
+                name: npm
+                os: linux
+              npm_windows_amd64:
+                arch: amd64
+                name: npm
+                os: windows
+          steps:
+            - template: containers/container-template.yaml
+              parameters:
+                arch: $(arch)
+                name: $(name)
+                os: $(os)
+                os_version: $(os_version)
+        - job: containerize_npm_linux_arm64
+          displayName: Build NPM Images
+          pool:
+            name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+          strategy:
+            matrix:
               npm_linux_arm64:
                 arch: arm64
                 name: npm
@@ -232,88 +271,125 @@ stages:
               ipv6_hp_bpf:
                 name: ipv6-hp-bpf
                 platforms: linux/amd64 linux/arm64
-              npm:
-                name: npm
-                platforms: linux/amd64 linux/arm64 windows/amd64
               azure_ip_masq_merger:
                 name: azure-ip-masq-merger
                 platforms: linux/amd64 linux/arm64
               azure_iptables_monitor:
                 name: azure-iptables-monitor
                 platforms: linux/amd64 linux/arm64
+              cilium_log_collector:
+                name: cilium-log-collector
+                platforms: linux/amd64 linux/arm64
           steps:
             - template: containers/manifest-template.yaml
               parameters:
                 name: $(name)
                 platforms: $(platforms)
+    
+    - stage: publish_npm
+      displayName: Publish NPM Multiarch Manifest
+      dependsOn:
+        - containerize_npm
+      jobs:
+        - job: npm_manifest
+          displayName: Compile NPM Manifest
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          steps:
+            - template: containers/manifest-template.yaml
+              parameters:
+                name: npm
+                platforms: linux/amd64 linux/arm64 windows/amd64
 
     # Cilium Podsubnet E2E tests
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
       parameters:
         name: "cilium_e2e"
-        displayName: Cilium Podsubnet
+        displayName: Cil Podsubnet
         clusterType: swift-byocni-nokubeproxy-up
         clusterName: "ciliume2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "containerize"
+        dependsOn: ["test"]
 
     # Cilium Podsubnet Vnet Scale E2E tests
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
       parameters:
         name: "cilium_vnetscale_e2e"
-        displayName: Cilium Podsubnet Vnet Scale Ubuntu
+        displayName: Cil Podsubnet Vnet Scale Ubuntu
         os: linux
         clusterType: vnetscale-swift-byocni-nokubeproxy-up
         clusterName: "ciliumvscalee2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "containerize"
+        dependsOn: ["test"]
+
+    # Cilium EBPF Podsubnet E2E tests
+    - template: singletenancy/cilium-ebpf/cilium-e2e-job-template.yaml
+      parameters:
+        name: "cilium_ebpf_podsubnet_e2e"
+        displayName: Cil EBPF Podsubnet Ubuntu 24
+        clusterType: swift-byocni-nokubeproxy-up
+        clusterName: "cilbpfpode2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: ["test"]
   
-    
     # Cilium Nodesubnet E2E tests
     - template: singletenancy/cilium-nodesubnet/cilium-nodesubnet-e2e-job-template.yaml
       parameters:
         name: "cilium_nodesubnet_e2e"
-        displayName: Cilium NodeSubnet
+        displayName: Cil NodeSubnet
         clusterType: nodesubnet-byocni-nokubeproxy-up
         clusterName: "cilndsubnete2e"
         vmSize: Standard_B2s
-        dependsOn: "containerize"
+        k8sVersion: ""
+        dependsOn: ["test"]
 
     # Cilium Overlay E2E tests
     - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_overlay_e2e"
-        displayName: Cilium on AKS Overlay
+        displayName: Cil on AKS Overlay
         clusterType: overlay-byocni-nokubeproxy-up
         clusterName: "cilovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "containerize"
+        dependsOn: ["test"]
 
     # Cilium Dualstack Overlay E2E tests
     - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml
       parameters:
         name: "cilium_dualstackoverlay_e2e"
-        displayName: Cilium on AKS DualStack Overlay
+        displayName: Cil on AKS DualStack Overlay
         os: linux
         clusterType: dualstack-byocni-nokubeproxy-up
         clusterName: "cildsovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "containerize"
+        dependsOn: ["test"]
+    
+    # Cilium EBPF Overlay E2E tests
+    - template: singletenancy/cilium-overlay-ebpf/cilium-overlay-e2e-job-template.yaml
+      parameters:
+        name: "cilium_ebpf_overlay_e2e"
+        displayName: Cil EBPF on AKS Overlay Azure Linux
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cilbpfovere2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: ["test"]
 
-        # Cilium Overlay with hubble E2E tests
+    # Cilium Overlay with hubble E2E tests
     - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_h_overlay_e2e"
-        displayName: Cilium on AKS Overlay with Hubble
+        displayName: Cil on AKS Overlay with Hubble
         clusterType: overlay-byocni-nokubeproxy-up
         clusterName: "cilwhleovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "containerize"
+        dependsOn: ["test"]
         testHubble: true
 
     # Azure Overlay E2E tests
@@ -326,7 +402,7 @@ stages:
         clusterName: "linuxazovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "containerize"
+        dependsOn: ["test"]
         scaleup: 100
     
     # Windows Azure Overlay E2E tests
@@ -339,7 +415,7 @@ stages:
         clusterName: "winazovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "containerize"
+        dependsOn: ["test"]
         scaleup: 50
 
     # Azure Overlay E2E Stateless CNI tests
@@ -350,7 +426,7 @@ stages:
         clusterType: overlay-byocni-up
         clusterName: "statelesswin"
         vmSize: Standard_B2ms
-        dependsOn: "containerize"
+        dependsOn: ["test"]
 
     # AKS Swift E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
@@ -362,7 +438,7 @@ stages:
         clusterName: "swifte2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "containerize"
+        dependsOn: ["test"]
 
     # AKS Swift Vnet Scale E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
@@ -374,7 +450,7 @@ stages:
         clusterName: "vscaleswifte2e"
         vmSize: Standard_B2ms
         k8sVersion: "1.30"
-        dependsOn: "containerize"
+        dependsOn: ["test"]
 
     # CNIv1 E2E tests
     - template: singletenancy/aks/e2e-job-template.yaml
@@ -388,7 +464,7 @@ stages:
         vmSize: Standard_B2s
         k8sVersion: 1.25
         scaleup: 100
-        dependsOn: "containerize"
+        dependsOn: ["test"]
 
     # Windows AKS E2E tests
     - template: singletenancy/aks/e2e-job-template.yaml
@@ -402,7 +478,7 @@ stages:
         vmSize: Standard_B2ms
         os_version: "ltsc2022"
         scaleup: 50
-        dependsOn: "containerize"
+        dependsOn: ["test"]
 
     # CNI dual stack overlay E2E tests
     - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
@@ -413,7 +489,7 @@ stages:
         clusterType: dualstack-overlay-byocni-up
         clusterName: "linuxdsovere2e"
         vmSize: Standard_B2ms
-        dependsOn: "containerize"
+        dependsOn: ["test"]
         scaleup: 100
 
     # Windows DualStack Overlay E2E tests
@@ -425,8 +501,15 @@ stages:
         clusterType: dualstack-overlay-byocni-up
         clusterName: "windsovere2e"
         vmSize: Standard_B2ms
-        dependsOn: "containerize"
+        dependsOn: ["test"]
         scaleup: 50
+
+    - ${{ if eq(variables['Build.Reason'], 'Schedule') }}:
+      # AKS Swiftv2 Manifold E2E tests
+      - template: multitenancy/swiftv2-manifold-e2e.stages.yaml
+        parameters:
+          name: "swiftv2_manifold_e2e"
+          dependsOn: publish
 
     # Delete Cilium Clusters
     - stage: delete_cilium_clusters
@@ -436,8 +519,10 @@ stages:
         - setup
         - cilium_e2e
         - cilium_vnetscale_e2e
+        - cilium_ebpf_podsubnet_e2e
         - cilium_nodesubnet_e2e
         - cilium_overlay_e2e
+        - cilium_ebpf_overlay_e2e
         - cilium_dualstackoverlay_e2e
         - cilium_h_overlay_e2e
       variables:
@@ -457,6 +542,10 @@ stages:
                 cluster_name: ciliumvscalee2e
                 delete_name: cilium_vnetscale_e2e
                 delete_region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_ebpf_podsubnet:
+                cluster_name: cilbpfpode2e
+                delete_name: cilium_ebpf_podsubnet_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
               cilium_nodesubnet:
                 cluster_name: cilndsubnete2e
                 delete_name: cilium_nodesubnet_e2e
@@ -464,6 +553,10 @@ stages:
               cilium_overlay:
                 cluster_name: cilovere2e
                 delete_name: cilium_overlay_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_ebpf_overlay:
+                cluster_name: cilbpfovere2e
+                delete_name: cilium_ebpf_overlay_e2e
                 delete_region: $(REGION_AKS_CLUSTER_TEST)
               cilium_dualstack_overlay:
                 cluster_name: cildsovere2e

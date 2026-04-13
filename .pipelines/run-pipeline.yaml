@@ -39,6 +39,8 @@ stages:
     AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
     AZURE_IP_MASQ_MERGER_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpMasqMergerVersion'] ]
     AZURE_IPTABLES_MONITOR_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIptablesMonitorVersion'] ]
+    AZURE_BLOCK_IPTABLES_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureBlockIptablesVersion'] ]
+    CILIUM_LOG_COLLECTOR_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
     CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
     CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
     IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
@@ -74,6 +76,12 @@ stages:
               extraArgs: ''
               archiveName: azure-iptables-monitor
               archiveVersion: $(AZURE_IPTABLES_MONITOR_VERSION)
+              imageTag: $(Build.BuildNumber)
+            cilium_log_collector:
+              name: cilium-log-collector
+              extraArgs: ''
+              archiveName: cilium-log-collector
+              archiveVersion: $(CILIUM_LOG_COLLECTOR_VERSION)
               imageTag: $(Build.BuildNumber)
             cni:
               name: cni
@@ -165,6 +173,12 @@ stages:
               archiveName: azure-iptables-monitor
               archiveVersion: $(AZURE_IPTABLES_MONITOR_VERSION)
               imageTag: $(Build.BuildNumber)
+            cilium_log_collector:
+              name: cilium-log-collector
+              extraArgs: ''
+              archiveName: cilium-log-collector
+              archiveVersion: $(CILIUM_LOG_COLLECTOR_VERSION)
+              imageTag: $(Build.BuildNumber)
             cni:
               name: cni
               extraArgs: '--build-arg CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID)'
@@ -204,6 +218,8 @@ stages:
       AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
       AZURE_IP_MASQ_MERGER_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpMasqMergerVersion'] ]
       AZURE_IPTABLES_MONITOR_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIptablesMonitorVersion'] ]
+      AZURE_BLOCK_IPTABLES_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureBlockIptablesVersion'] ]
+      CILIUM_LOG_COLLECTOR_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
       CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
       CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
       IPV6_HP_BPF_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipv6HpBpfVersion'] ]
@@ -218,6 +234,9 @@ stages:
 
       IPTABLES_MONITOR_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/azure-iptables-monitor:$(Build.BuildNumber)
       IPTABLES_MONITOR_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/azure-iptables-monitor:$(Build.BuildNumber)
+
+      CILIUM_LOG_COLLECTOR_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cilium-log-collector:$(Build.BuildNumber)
+      CILIUM_LOG_COLLECTOR_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cilium-log-collector:$(Build.BuildNumber)
 
       CNI_LINUX_AMD64_REF: $(IMAGE_REPO_PATH)/linux-amd64/cni:$(Build.BuildNumber)
       CNI_LINUX_ARM64_REF: $(IMAGE_REPO_PATH)/linux-arm64/cni:$(Build.BuildNumber)
@@ -267,6 +286,15 @@ stages:
               imageReference: $(IPTABLES_MONITOR_LINUX_AMD64_REF)
             - platform: linux/arm64
               imageReference: $(IPTABLES_MONITOR_LINUX_ARM64_REF)
+        - job: cilium_log_collector
+          templateContext:
+            name: cilium-log-collector
+            image_tag: $(CILIUM_LOG_COLLECTOR_VERSION)
+            platforms:
+            - platform: linux/amd64
+              imageReference: $(CILIUM_LOG_COLLECTOR_LINUX_AMD64_REF)
+            - platform: linux/arm64
+              imageReference: $(CILIUM_LOG_COLLECTOR_LINUX_ARM64_REF)
         - job: cni
           templateContext:
             name: cni
@@ -477,7 +505,12 @@ stages:
       vmSize: Standard_B2ms
       dependsOn: manifests
       scaleup: 50
-
+    
+  # AKS Swiftv2 Manifold E2E tests
+  - template: multitenancy/swiftv2-manifold-e2e.stages.yaml
+    parameters:
+      name: "swiftv2_manifold_e2e"
+      dependsOn: manifests
 
   - stage: delete
     displayName: Delete Clusters

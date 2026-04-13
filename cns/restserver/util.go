@@ -116,13 +116,16 @@ func (service *HTTPRestService) restoreState() {
 			logger.Errorf("[Azure CNS]  Failed to restore state, err:%v. Removing azure-cns.json", err)
 			service.store.Remove()
 		}
-
-		return
+	} else {
+		logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state) //nolint:staticcheck // TODO: migrate to zap
 	}
 
-	logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state)
-
 	if service.Options[acn.OptManageEndpointState] == true {
+		if service.EndpointStateStore == nil {
+			//nolint:staticcheck // TODO: migrate to zap
+			logger.Errorf("[Azure CNS]  OptManageEndpointState is enabled but EndpointStateStore is not initialized; endpoint state persistence/restoration is disabled.")
+			return
+		}
 		err := service.EndpointStateStore.Read(EndpointStoreKey, &service.EndpointState)
 		if err != nil {
 			if errors.Is(err, store.ErrKeyNotFound) {
@@ -523,6 +526,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		getNetworkContainerResponse = cns.GetNetworkContainerResponse{
 			NetworkContainerID:         savedReq.NetworkContainerid,
 			IPConfiguration:            savedReq.IPConfiguration,
+			IPv6Configuration:          savedReq.IPv6Configuration,
 			Routes:                     savedReq.Routes,
 			CnetAddressSpace:           savedReq.CnetAddressSpace,
 			MultiTenancyInfo:           savedReq.MultiTenancyInfo,
@@ -530,6 +534,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 			LocalIPConfiguration:       savedReq.LocalIPConfiguration,
 			AllowHostToNCCommunication: savedReq.AllowHostToNCCommunication,
 			AllowNCToHostCommunication: savedReq.AllowNCToHostCommunication,
+			SkipDefaultRoutes:          savedReq.SkipDefaultRoutes,
 			NetworkInterfaceInfo:       savedReq.NetworkInterfaceInfo,
 		}
 
@@ -831,6 +836,8 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 
 	primaryIPCfg := ncStatus.CreateNetworkContainerRequest.IPConfiguration
 
+	podIPInfo.SkipDefaultRoutes = ncStatus.CreateNetworkContainerRequest.SkipDefaultRoutes
+
 	podIPInfo.PodIPConfig = cns.IPSubnet{
 		IPAddress:    ipConfigStatus.IPAddress,
 		PrefixLength: primaryIPCfg.IPSubnet.PrefixLength,
@@ -845,6 +852,7 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 	podIPInfo.HostPrimaryIPInfo.PrimaryIP = primaryHostInterface.PrimaryIP
 	podIPInfo.HostPrimaryIPInfo.Subnet = primaryHostInterface.Subnet
 	podIPInfo.HostPrimaryIPInfo.Gateway = primaryHostInterface.Gateway
+	podIPInfo.MacAddress = ncStatus.CreateNetworkContainerRequest.NetworkInterfaceInfo.MACAddress
 	podIPInfo.NICType = cns.InfraNIC
 
 	return nil
@@ -926,6 +934,7 @@ func (service *HTTPRestService) handleGetNetworkContainers(w http.ResponseWriter
 		getNcResp := cns.GetNetworkContainerResponse{
 			NetworkContainerID:         ncDetails.CreateNetworkContainerRequest.NetworkContainerid,
 			IPConfiguration:            ncDetails.CreateNetworkContainerRequest.IPConfiguration,
+			IPv6Configuration:          ncDetails.CreateNetworkContainerRequest.IPv6Configuration,
 			Routes:                     ncDetails.CreateNetworkContainerRequest.Routes,
 			CnetAddressSpace:           ncDetails.CreateNetworkContainerRequest.CnetAddressSpace,
 			MultiTenancyInfo:           ncDetails.CreateNetworkContainerRequest.MultiTenancyInfo,
@@ -933,6 +942,7 @@ func (service *HTTPRestService) handleGetNetworkContainers(w http.ResponseWriter
 			LocalIPConfiguration:       ncDetails.CreateNetworkContainerRequest.LocalIPConfiguration,
 			AllowHostToNCCommunication: ncDetails.CreateNetworkContainerRequest.AllowHostToNCCommunication,
 			AllowNCToHostCommunication: ncDetails.CreateNetworkContainerRequest.AllowNCToHostCommunication,
+			SkipDefaultRoutes:          ncDetails.CreateNetworkContainerRequest.SkipDefaultRoutes,
 		}
 		networkContainers[i] = getNcResp
 		i++

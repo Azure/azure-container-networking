@@ -189,8 +189,10 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 											IPAddress:    "fd11:1234::",
 											PrefixLength: 112,
 										},
-										DNSServers:       nil,
-										GatewayIPAddress: "fe80::1234:5678:9abc",
+										IPSubnetV6:         cns.IPSubnet{},
+										DNSServers:         nil,
+										GatewayIPAddress:   "fe80::1234:5678:9abc",
+										GatewayIPv6Address: "",
 									},
 									HostPrimaryIPInfo: cns.HostIPInfo{
 										Gateway:   "fe80::1234:5678:9abc",
@@ -866,6 +868,185 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 	}
 }
 
+func TestCNSIPAMInvoker_Add_podsubnetv6(t *testing.T) {
+	type testCase struct {
+		name           string
+		podIP          string
+		ipConfig       cns.IPConfiguration
+		wantGateway    string
+		wantPrefixSize int
+		wantErr        bool
+	}
+
+	tests := []testCase{
+		{
+			name:  "Test happy CNI add podsubnet mode ipv6 gateway and ipSubnetV6",
+			podIP: "fd11:1234::1",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 112,
+				},
+				IPSubnetV6: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 64,
+				},
+				GatewayIPAddress:   "fe80::1",
+				GatewayIPv6Address: "fd11:1234::1",
+			},
+			wantGateway:    "fd11:1234::1",
+			wantPrefixSize: 64,
+		},
+		{
+			name:  "Test happy CNI add podsubnet mode ipv6 gateway and empty ipSubnetV6",
+			podIP: "fd11:1234::1",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 112,
+				},
+				IPSubnetV6:         cns.IPSubnet{},
+				GatewayIPAddress:   "fe80::1",
+				GatewayIPv6Address: "fd11:1234::1",
+			},
+			wantGateway:    "fd11:1234::1",
+			wantPrefixSize: 112,
+		},
+		{
+			name:  "Test happy CNI add podsubnet mode empty ipv6 gateway and ipSubnetV6",
+			podIP: "fd11:1234::1",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 112,
+				},
+				IPSubnetV6: cns.IPSubnet{
+					IPAddress:    "",
+					PrefixLength: 64,
+				},
+				GatewayIPAddress:   "fe80::1",
+				GatewayIPv6Address: "",
+			},
+			wantGateway:    "fe80::1",
+			wantPrefixSize: 64,
+		},
+		{
+			name:  "Test CNI add podsubnet mode invalid ipv6 gateway and PrefixLength 0 uses IPSubnet",
+			podIP: "fd11:1234::1",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 64,
+				},
+				IPSubnetV6: cns.IPSubnet{
+					IPAddress:    "",
+					PrefixLength: 0,
+				},
+				GatewayIPAddress:   "fe80::1",
+				GatewayIPv6Address: "bad-addr",
+			},
+			wantGateway:    "fe80::1",
+			wantPrefixSize: 64,
+		},
+		{
+			name:  "Test CNI add podsubnet mode ipv4 pod ignores populated ipv6 fields",
+			podIP: "10.0.1.10",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "10.0.1.0",
+					PrefixLength: 16,
+				},
+				IPSubnetV6: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 64,
+				},
+				GatewayIPAddress:   "10.0.0.1",
+				GatewayIPv6Address: "fd11:1234::1",
+			},
+			wantGateway:    "10.0.0.1",
+			wantPrefixSize: 16,
+		},
+		{
+			name:  "Test CNI add invalid podIP returns error",
+			podIP: "not-a-valid-ip",
+			ipConfig: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "10.0.1.0",
+					PrefixLength: 16,
+				},
+				IPSubnetV6: cns.IPSubnet{
+					IPAddress:    "fd11:1234::",
+					PrefixLength: 64,
+				},
+				GatewayIPAddress:   "10.0.0.1",
+				GatewayIPv6Address: "fd11:1234::1",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := require.New(t)
+			invoker := &CNSIPAMInvoker{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: req,
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: getTestIPConfigsRequest(),
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    tt.podIP,
+										PrefixLength: 24,
+									},
+									NetworkContainerPrimaryIPConfig: tt.ipConfig,
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "10.0.0.1",
+										PrimaryIP: "10.0.0.2",
+										Subnet:    "10.0.0.0/24",
+									},
+									NICType: cns.InfraNIC,
+								},
+							},
+							Response: cns.Response{ReturnCode: 0},
+						},
+					},
+				},
+			}
+
+			ipamAddResult, err := invoker.Add(IPAMAddConfig{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid",
+					Netns:       "testnetns",
+					IfName:      "testifname",
+				},
+				options: map[string]interface{}{},
+			})
+
+			if tt.wantErr {
+				req.Error(err)
+				return
+			}
+
+			req.NoError(err)
+
+			ifInfo, ok := ipamAddResult.interfaceInfo[string(cns.InfraNIC)]
+			req.True(ok)
+			req.Len(ifInfo.IPConfigs, 1)
+			req.Len(ifInfo.Routes, 1)
+
+			req.Equal(tt.wantGateway, ifInfo.IPConfigs[0].Gateway.String())
+			prefixSize, _ := ifInfo.IPConfigs[0].Address.Mask.Size()
+			req.Equal(tt.wantPrefixSize, prefixSize)
+			req.Equal(tt.wantGateway, ifInfo.Routes[0].Gw.String())
+		})
+	}
+}
+
 func TestCNSIPAMInvoker_Add_UnsupportedAPI(t *testing.T) {
 	require := require.New(t) //nolint further usage of require without passing t
 
@@ -1046,6 +1227,7 @@ func TestRequestIPAPIsFail(t *testing.T) {
 										PrefixLength: 112,
 									},
 									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnetV6: cns.IPSubnet{},
 										IPSubnet: cns.IPSubnet{
 											IPAddress:    "fd11:1234::",
 											PrefixLength: 112,
@@ -1777,6 +1959,82 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "Test happy CNI add delegatedVMNIC dual-stack with IPv6",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: require,
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: cns.IPConfigsRequest{
+							PodInterfaceID:      "testcont-testifname1",
+							InfraContainerID:    "testcontainerid1",
+							OrchestratorContext: marshallPodInfo(testPodInfo),
+						},
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "10.1.1.10",
+										PrefixLength: 24,
+									},
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "10.0.0.1",
+										PrimaryIP: "10.0.0.2",
+										Subnet:    "10.0.0.1/24",
+									},
+									NICType:    cns.NodeNetworkInterfaceFrontendNIC,
+									MacAddress: macAddress,
+									NetworkContainerIPv6Config: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "fd12:3456:789a::10",
+											PrefixLength: 64,
+										},
+										GatewayIPAddress: "fe80::1234:5678:9abc",
+									},
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: nil,
+					},
+				},
+			},
+			args: args{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid1",
+					Netns:       "testnetns1",
+					IfName:      "testifname1",
+				},
+				hostSubnetPrefix: getCIDRNotationForAddress("10.0.0.1/24"),
+				options:          map[string]interface{}{},
+			},
+			wantSecondaryInterfacesInfo: map[string]network.InterfaceInfo{
+				macAddress: {
+					IPConfigs: []*network.IPConfig{
+						{
+							Address: *getCIDRNotationForAddress("10.1.1.10/24"),
+						},
+						{
+							Address: net.IPNet{
+								IP:   net.ParseIP("fd12:3456:789a::10"),
+								Mask: net.CIDRMask(64, 128),
+							},
+							Gateway: net.ParseIP("fe80::1234:5678:9abc"),
+						},
+					},
+					Routes:     []network.RouteInfo{},
+					NICType:    cns.NodeNetworkInterfaceFrontendNIC,
+					MacAddress: parsedMacAddress,
+				},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -2294,6 +2552,464 @@ func TestMultipleIBNICsToResult(t *testing.T) {
 			for _, macAddress := range macAddressList {
 				t.Logf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo[macAddress], ipamAddResult.interfaceInfo[macAddress])
 				require.EqualValues(tt.wantSecondaryInterfacesInfo[macAddress], ipamAddResult.interfaceInfo[macAddress], "incorrect response for IB")
+			}
+		})
+	}
+}
+
+func TestCNSIPAMInvoker_Add_ApipaNIC(t *testing.T) {
+	require := require.New(t)
+
+	type fields struct {
+		podName      string
+		podNamespace string
+		cnsClient    cnsclient
+		ipamMode     util.IpamMode
+	}
+	type args struct {
+		nwCfg   *cni.NetworkConfig
+		args    *cniSkel.CmdArgs
+		options map[string]interface{}
+	}
+
+	tests := []struct {
+		name            string
+		fields          fields
+		args            args
+		wantApipaResult network.InterfaceInfo
+		wantErr         bool
+		wantErrMsg      string
+	}{
+		{
+			name: "Test CNI Add with InfraNIC + ApipaNIC",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: require,
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: cns.IPConfigsRequest{
+							PodInterfaceID:      "testcont-testifname",
+							InfraContainerID:    "testcontainerid",
+							OrchestratorContext: marshallPodInfo(testPodInfo),
+						},
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "10.0.1.10",
+										PrefixLength: 24,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "10.0.1.0",
+											PrefixLength: 24,
+										},
+										GatewayIPAddress: "10.0.1.1",
+									},
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "10.0.0.1",
+										PrimaryIP: "10.0.0.1",
+										Subnet:    "10.0.0.0/24",
+									},
+									NICType: cns.InfraNIC,
+								},
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "169.254.128.10",
+										PrefixLength: 17,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										GatewayIPAddress: "169.254.128.1",
+									},
+									NICType:                    cns.ApipaNIC,
+									NetworkContainerID:         "test-nc-id",
+									AllowHostToNCCommunication: true,
+									AllowNCToHostCommunication: false,
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: nil,
+					},
+				},
+			},
+			args: args{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid",
+					Netns:       "testnetns",
+					IfName:      "testifname",
+				},
+				options: map[string]interface{}{},
+			},
+			wantApipaResult: network.InterfaceInfo{
+				IPConfigs: []*network.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.ParseIP("169.254.128.10"),
+							Mask: net.CIDRMask(17, 32),
+						},
+						Gateway: net.ParseIP("169.254.128.1"),
+					},
+				},
+				NICType:                    cns.ApipaNIC,
+				SkipDefaultRoutes:          true,
+				NetworkContainerID:         "test-nc-id",
+				AllowHostToNCCommunication: true,
+				AllowNCToHostCommunication: false,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Test CNI add with Frontend Nic + ApipaNIC",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: require,
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: cns.IPConfigsRequest{
+							PodInterfaceID:      "testcont-testifname",
+							InfraContainerID:    "testcontainerid",
+							OrchestratorContext: marshallPodInfo(testPodInfo),
+						},
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "10.0.1.10",
+										PrefixLength: 24,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "10.0.1.0",
+											PrefixLength: 24,
+										},
+										GatewayIPAddress: "10.0.1.1",
+									},
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "10.0.0.1",
+										PrimaryIP: "10.0.0.1",
+										Subnet:    "10.0.0.0/24",
+									},
+									MacAddress: "bc:9a:78:56:34:12",
+									NICType:    cns.NodeNetworkInterfaceFrontendNIC,
+								},
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "169.254.5.50",
+										PrefixLength: 16,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										GatewayIPAddress: "169.254.5.1",
+									},
+									NICType:                    cns.ApipaNIC,
+									NetworkContainerID:         "mixed-nc-id",
+									AllowHostToNCCommunication: true,
+									AllowNCToHostCommunication: false,
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: nil,
+					},
+				},
+			},
+			args: args{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid",
+					Netns:       "testnetns",
+					IfName:      "testifname",
+				},
+				options: map[string]interface{}{},
+			},
+			wantApipaResult: network.InterfaceInfo{
+				IPConfigs: []*network.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.ParseIP("169.254.5.50"),
+							Mask: net.CIDRMask(16, 32),
+						},
+						Gateway: net.ParseIP("169.254.5.1"),
+					},
+				},
+				NICType:                    cns.ApipaNIC,
+				SkipDefaultRoutes:          true,
+				NetworkContainerID:         "mixed-nc-id",
+				AllowHostToNCCommunication: true,
+				AllowNCToHostCommunication: false,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Test CNI add with ApipaNIC fails when GetIPNet fails",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: require,
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: cns.IPConfigsRequest{
+							PodInterfaceID:      "testcont-testifname",
+							InfraContainerID:    "testcontainerid",
+							OrchestratorContext: marshallPodInfo(testPodInfo),
+						},
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "invalid-ip-address",
+										PrefixLength: 16,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										GatewayIPAddress: "169.254.1.1",
+									},
+									NICType:                    cns.ApipaNIC,
+									NetworkContainerID:         "failed-nc-id",
+									AllowHostToNCCommunication: false,
+									AllowNCToHostCommunication: false,
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: nil,
+					},
+				},
+			},
+			args: args{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid",
+					Netns:       "testnetns",
+					IfName:      "testifname",
+				},
+				options: map[string]interface{}{},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(_ *testing.T) {
+			invoker := &CNSIPAMInvoker{
+				podName:      tt.fields.podName,
+				podNamespace: tt.fields.podNamespace,
+				cnsClient:    tt.fields.cnsClient,
+			}
+			if tt.fields.ipamMode != "" {
+				invoker.ipamMode = tt.fields.ipamMode
+			}
+
+			ipamAddResult, err := invoker.Add(IPAMAddConfig{
+				nwCfg:   tt.args.nwCfg,
+				args:    tt.args.args,
+				options: tt.args.options,
+			})
+
+			if tt.wantErr {
+				require.Error(err)
+				return
+			}
+
+			require.NoError(err)
+
+			// Find the ApipaNIC interface in the result
+			var apipaInterfaceFound bool
+			var actualApipaResult network.InterfaceInfo
+
+			for _, ifInfo := range ipamAddResult.interfaceInfo {
+				if ifInfo.NICType == cns.ApipaNIC {
+					apipaInterfaceFound = true
+					actualApipaResult = ifInfo
+					break
+				}
+			}
+
+			require.True(apipaInterfaceFound, "ApipaNIC interface should be found in the result")
+
+			// Verify the ApipaNIC interface info
+			// Lines around 2586-2590 should be:
+			require.Equal(string(tt.wantApipaResult.NICType), string(actualApipaResult.NICType), "NICType should match expected value")
+			require.Equal(tt.wantApipaResult.SkipDefaultRoutes, actualApipaResult.SkipDefaultRoutes)
+			require.Equal(tt.wantApipaResult.NetworkContainerID, actualApipaResult.NetworkContainerID)
+			require.Equal(tt.wantApipaResult.AllowHostToNCCommunication, actualApipaResult.AllowHostToNCCommunication)
+			require.Equal(tt.wantApipaResult.AllowNCToHostCommunication, actualApipaResult.AllowNCToHostCommunication)
+
+			// Verify IP configs
+			require.Len(actualApipaResult.IPConfigs, 1, "Should have exactly one IP config for ApipaNIC")
+			actualIPConfig := actualApipaResult.IPConfigs[0]
+			expectedIPConfig := tt.wantApipaResult.IPConfigs[0]
+
+			require.True(actualIPConfig.Address.IP.Equal(expectedIPConfig.Address.IP),
+				"IP addresses should match: expected %s, got %s",
+				expectedIPConfig.Address.IP, actualIPConfig.Address.IP)
+			require.Equal(expectedIPConfig.Address.Mask, actualIPConfig.Address.Mask,
+				"IP masks should match")
+
+			if expectedIPConfig.Gateway != nil {
+				require.NotNil(actualIPConfig.Gateway, "Gateway should not be nil")
+				require.True(actualIPConfig.Gateway.Equal(expectedIPConfig.Gateway),
+					"Gateway IPs should match: expected %s, got %s",
+					expectedIPConfig.Gateway, actualIPConfig.Gateway)
+			} else {
+				require.Nil(actualIPConfig.Gateway, "Gateway should be nil")
+			}
+		})
+	}
+}
+
+// Test configureSecondaryAddResult IPv6 path: validates all IPv6 validation branches.
+func TestConfigureSecondaryAddResult_IPv6(t *testing.T) {
+	macAddress := "12:34:56:78:9a:bc"
+
+	tests := []struct {
+		name        string
+		info        IPResultInfo
+		wantErr     bool
+		wantErrIs   error
+		wantIPCount int // expected number of IPConfigs after the call
+	}{
+		{
+			name: "happy path: valid IPv6 + gateway appended",
+			info: IPResultInfo{
+				podIPAddress:         "10.0.1.10",
+				ncGatewayIPAddress:   "10.0.0.1",
+				macAddress:           macAddress,
+				nicType:              cns.NodeNetworkInterfaceFrontendNIC,
+				ncIPv6:               "fd12:3456:789a::1",
+				ncSubnetPrefixIPv6:   64,
+				ncGatewayIPv6Address: "fe80::1234:5678:9abc",
+			},
+			wantErr:     false,
+			wantIPCount: 2, // IPv4 + IPv6
+		},
+		{
+			name: "no IPv6 config — only IPv4 returned",
+			info: IPResultInfo{
+				podIPAddress:       "10.0.1.10",
+				ncGatewayIPAddress: "10.0.0.1",
+				macAddress:         macAddress,
+				nicType:            cns.NodeNetworkInterfaceFrontendNIC,
+				ncIPv6:             "", // empty → skip IPv6
+			},
+			wantErr:     false,
+			wantIPCount: 1, // IPv4 only
+		},
+		{
+			name: "invalid IPv6 address — unparseable",
+			info: IPResultInfo{
+				podIPAddress:         "10.0.1.10",
+				ncGatewayIPAddress:   "10.0.0.1",
+				macAddress:           macAddress,
+				nicType:              cns.NodeNetworkInterfaceFrontendNIC,
+				ncIPv6:               "not-an-ip",
+				ncSubnetPrefixIPv6:   64,
+				ncGatewayIPv6Address: "fe80::1",
+			},
+			wantErr:   true,
+			wantErrIs: errInvalidIPv6Address,
+		},
+		{
+			name: "IPv4-in-IPv6 field rejected",
+			info: IPResultInfo{
+				podIPAddress:         "10.0.1.10",
+				ncGatewayIPAddress:   "10.0.0.1",
+				macAddress:           macAddress,
+				nicType:              cns.NodeNetworkInterfaceFrontendNIC,
+				ncIPv6:               "10.0.0.5", // IPv4 in IPv6 field
+				ncSubnetPrefixIPv6:   64,
+				ncGatewayIPv6Address: "fe80::1",
+			},
+			wantErr:   true,
+			wantErrIs: errInvalidIPv6Address,
+		},
+		{
+			name: "invalid IPv6 gateway — unparseable",
+			info: IPResultInfo{
+				podIPAddress:         "10.0.1.10",
+				ncGatewayIPAddress:   "10.0.0.1",
+				macAddress:           macAddress,
+				nicType:              cns.NodeNetworkInterfaceFrontendNIC,
+				ncIPv6:               "fd12:3456:789a::1",
+				ncSubnetPrefixIPv6:   64,
+				ncGatewayIPv6Address: "bad-gateway",
+			},
+			wantErr:   true,
+			wantErrIs: errInvalidGatewayIPv6,
+		},
+		{
+			name: "IPv4 gateway in IPv6 gateway field rejected",
+			info: IPResultInfo{
+				podIPAddress:         "10.0.1.10",
+				ncGatewayIPAddress:   "10.0.0.1",
+				macAddress:           macAddress,
+				nicType:              cns.NodeNetworkInterfaceFrontendNIC,
+				ncIPv6:               "fd12:3456:789a::1",
+				ncSubnetPrefixIPv6:   64,
+				ncGatewayIPv6Address: "10.0.0.1", // IPv4 in v6 gateway field
+			},
+			wantErr:   true,
+			wantErrIs: errInvalidGatewayIPv6,
+		},
+		{
+			name: "empty IPv6 gateway rejected",
+			info: IPResultInfo{
+				podIPAddress:         "10.0.1.10",
+				ncGatewayIPAddress:   "10.0.0.1",
+				macAddress:           macAddress,
+				nicType:              cns.NodeNetworkInterfaceFrontendNIC,
+				ncIPv6:               "fd12:3456:789a::1",
+				ncSubnetPrefixIPv6:   64,
+				ncGatewayIPv6Address: "", // empty gateway
+			},
+			wantErr:   true,
+			wantErrIs: errInvalidGatewayIPv6,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			podIPConfig := &cns.IPSubnet{
+				IPAddress:    "10.0.1.10",
+				PrefixLength: 24,
+			}
+
+			addResult := &IPAMAddResult{
+				interfaceInfo: make(map[string]network.InterfaceInfo),
+			}
+
+			err := configureSecondaryAddResult(&tt.info, addResult, podIPConfig, macAddress)
+
+			if tt.wantErr {
+				require.ErrorIs(t, err, tt.wantErrIs)
+				return
+			}
+
+			require.NoError(t, err)
+			ifInfo, ok := addResult.interfaceInfo[macAddress]
+			require.True(t, ok, "expected interface info for key %s", macAddress)
+			require.Len(t, ifInfo.IPConfigs, tt.wantIPCount)
+
+			if tt.wantIPCount == 2 {
+				// Verify IPv6 IPConfig is the second entry
+				v6Config := ifInfo.IPConfigs[1]
+				require.True(t, net.ParseIP(tt.info.ncIPv6).Equal(v6Config.Address.IP),
+					"IPv6 address mismatch: expected %s, got %s", tt.info.ncIPv6, v6Config.Address.IP)
+				expectedMask := net.CIDRMask(int(tt.info.ncSubnetPrefixIPv6), 128)
+				require.Equal(t, expectedMask, v6Config.Address.Mask, "IPv6 subnet mask mismatch")
+				require.True(t, net.ParseIP(tt.info.ncGatewayIPv6Address).Equal(v6Config.Gateway),
+					"IPv6 gateway mismatch: expected %s, got %s", tt.info.ncGatewayIPv6Address, v6Config.Gateway)
 			}
 		})
 	}

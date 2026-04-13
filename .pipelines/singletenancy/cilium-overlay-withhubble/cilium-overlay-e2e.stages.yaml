@@ -11,7 +11,7 @@ parameters:
 
 stages:
   - stage: ${{ parameters.clusterName }}
-    displayName: Create Cluster - ${{ parameters.displayName }}
+    displayName: ${{ parameters.displayName }} - Create Cluster
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -30,7 +30,7 @@ stages:
           region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
-    displayName: E2E - ${{ parameters.displayName }}
+    displayName: E2E-${{ parameters.displayName }}
     dependsOn:
     - setup
     - ${{ parameters.clusterName }}
@@ -47,6 +47,8 @@ stages:
       IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
       CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
       CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+      CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE: acnpublic.azurecr.io/$(IMAGE_REPO_PATH)
+      CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Overlay Test Suite - (${{ parameters.name }})

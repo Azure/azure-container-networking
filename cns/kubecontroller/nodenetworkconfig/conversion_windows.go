@@ -14,7 +14,10 @@ import (
 // secondary IPs. If the gateway is not empty, it will not reserve the 2nd IP and add it as a secondary IP.
 //
 //nolint:gocritic //ignore hugeparam
-func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet) (*cns.CreateNetworkContainerRequest, error) {
+func createNCRequestFromStaticNCHelper(
+	nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix,
+	subnet cns.IPSubnet, subnetV6 cns.IPSubnet, isSwiftV2 bool, ipv6PrefixClamp int,
+) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 	// the masked address is the 0th IP in the subnet and startingAddr is the 2nd IP (*.1)
 	startingAddr := primaryIPPrefix.Masked().Addr().Next()
@@ -27,12 +30,15 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 
 	// iterate through all IP addresses in the subnet described by primaryPrefix and
 	// add them to the request as secondary IPConfigs.
-	for addr := startingAddr; primaryIPPrefix.Contains(addr); addr = addr.Next() {
-		secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
-			IPAddress: addr.String(),
-			NCVersion: int(nc.Version),
+	// Process primary prefix IPs in all scenarios except when nc.Type is v1alpha.VNETBlock AND SwiftV2 is enabled
+	if !(isSwiftV2 && nc.Type == v1alpha.VNETBlock) {
+		for addr := startingAddr; primaryIPPrefix.Contains(addr); addr = addr.Next() {
+			secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
+				IPAddress: addr.String(),
+				NCVersion: int(nc.Version),
+			}
+			lastAddr = addr
 		}
-		lastAddr = addr
 	}
 
 	if nc.Type == v1alpha.VNETBlock {
@@ -41,6 +47,11 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 			cidrPrefix, err := netip.ParsePrefix(ipAssignment.IP)
 			if err != nil {
 				return nil, errors.Wrapf(err, "invalid CIDR block: %s", ipAssignment.IP)
+			}
+
+			// Cap IPv6 CIDR blocks to prevent generating too many IPConfigs.
+			if cidrPrefix.Addr().Is6() && ipv6PrefixClamp > 0 && cidrPrefix.Bits() < ipv6PrefixClamp {
+				cidrPrefix = netip.PrefixFrom(cidrPrefix.Masked().Addr(), ipv6PrefixClamp)
 			}
 
 			// iterate through all IP addresses in the CIDR block described by cidrPrefix and
@@ -63,8 +74,10 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 		NetworkContainerType: cns.Docker,
 		Version:              strconv.FormatInt(nc.Version, 10), //nolint:gomnd // it's decimal
 		IPConfiguration: cns.IPConfiguration{
-			IPSubnet:         subnet,
-			GatewayIPAddress: nc.DefaultGateway,
+			IPSubnet:           subnet,
+			IPSubnetV6:         subnetV6,
+			GatewayIPAddress:   nc.DefaultGateway,
+			GatewayIPv6Address: nc.DefaultGatewayV6,
 		},
 		NCStatus: nc.Status,
 	}, nil

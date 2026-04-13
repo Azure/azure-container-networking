@@ -108,7 +108,7 @@ func (nm *networkManager) newExternalInterface(ifName, subnet, nicType string) e
 
 	// Find the host interface.
 	macAddress := net.HardwareAddr{}
-	if nicType != string(cns.BackendNIC) {
+	if nicType != string(cns.BackendNIC) && nicType != string(cns.ApipaNIC) {
 		hostIf, err := net.InterfaceByName(ifName)
 		if err != nil {
 			return errors.Wrap(err, "failed to find host interface")
@@ -337,7 +337,6 @@ func (nm *networkManager) EndpointCreate(cnsclient apipaClient, epInfos []*Endpo
 				return err
 			}
 		}
-
 		ep, err := nm.createEndpoint(cnsclient, epInfo.NetworkID, epInfo)
 		if err != nil {
 			return err

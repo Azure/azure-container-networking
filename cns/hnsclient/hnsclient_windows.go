@@ -651,17 +651,20 @@ func deleteNetworkByIDHnsV2(
 				"error with GetNetworkByID: %v", err)
 		}
 
-		logger.Errorf("[Azure CNS] Delete called on the Network: %s which doesn't exist. Error: %v",
-			networkID, err)
+		logger.Printf("Delete called on network %s which doesn't exist, treating as success", networkID) //nolint:staticcheck // TODO: migrate to zap
 
 		return nil
 	}
 
 	if err = network.Delete(); err != nil {
-		return fmt.Errorf("Failed to delete network: %+v. Error: %v", network, err)
+		networkJSON, marshalErr := json.Marshal(network)
+		if marshalErr != nil {
+			return fmt.Errorf("failed to delete network %s: %w", network.Id, err)
+		}
+		return fmt.Errorf("failed to delete network %s: %w", string(networkJSON), err)
 	}
 
-	logger.Errorf("[Azure CNS] Successfully deleted network: %+v", network)
+	logger.Printf("[Azure CNS] Successfully deleted network: %s", network.Id) //nolint:staticcheck // TODO: migrate to zap
 
 	return nil
 }
@@ -682,17 +685,20 @@ func deleteEndpointByNameHnsV2(
 				"error with GetEndpointByName: %v", err)
 		}
 
-		logger.Errorf("[Azure CNS] Delete called on the Endpoint: %s which doesn't exist. Error: %v",
-			endpointName, err)
+		logger.Printf("[Azure CNS] Delete called on endpoint %s which doesn't exist, treating as success", endpointName) //nolint:staticcheck // TODO: migrate to zap
 
 		return nil
 	}
 
 	if err = endpoint.Delete(); err != nil {
-		return fmt.Errorf("Failed to delete endpoint: %+v. Error: %v", endpoint, err)
+		endpointJSON, marshalErr := json.Marshal(endpoint)
+		if marshalErr != nil {
+			return fmt.Errorf("failed to delete endpoint %s: %w", endpoint.Id, err)
+		}
+		return fmt.Errorf("failed to delete endpoint %s: %w", string(endpointJSON), err)
 	}
 
-	logger.Errorf("[Azure CNS] Successfully deleted endpoint: %+v", endpoint)
+	logger.Printf("[Azure CNS] Successfully deleted endpoint: %s", endpoint.Id) //nolint:staticcheck // TODO: migrate to zap
 
 	return nil
 }
@@ -730,11 +736,11 @@ func DeleteHNSEndpointbyID(hnsEndpointID string) error {
 		// If error is anything other than EndpointNotFoundError, return error.
 		// else log the error but don't return error because endpoint is already deleted.
 		var notFoundErr hcn.EndpointNotFoundError
-		if errors.As(err, &notFoundErr) {
+		if !errors.As(err, &notFoundErr) {
 			return fmt.Errorf("Failed to get hcn endpoint with id: %s due to err: %w", hnsEndpointID, err)
 		}
 
-		logger.Errorf("Delete called on the Endpoint which doesn't exist. Error:%v", err)
+		logger.Printf("Delete called on endpoint %s which doesn't exist, treating as success", hnsEndpointID) //nolint:staticcheck // TODO: migrate to zap
 		return nil
 	}
 
@@ -747,7 +753,7 @@ func DeleteHNSEndpointbyID(hnsEndpointID string) error {
 		return fmt.Errorf("Failed to delete endpoint: %s. Error: %w", hnsEndpointID, err)
 	}
 
-	logger.Errorf("[Azure CNS] Successfully deleted endpoint: %+v", hnsEndpointID)
+	logger.Printf("[Azure CNS] Successfully deleted endpoint: %s", hnsEndpointID) //nolint:staticcheck // TODO: migrate to zap
 
 	return nil
 }

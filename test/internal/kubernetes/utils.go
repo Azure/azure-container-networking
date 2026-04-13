@@ -269,8 +269,13 @@ func MustSetupCNP(ctx context.Context, clientset *cilium.Clientset, cnpPath stri
 
 func Int32ToPtr(i int32) *int32 { return &i }
 
-func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string) error {
+func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string, excludeNamespaces []string) error {
 	podsClient := clientset.CoreV1().Pods(namespace)
+
+	excludeSet := make(map[string]struct{}, len(excludeNamespaces))
+	for _, ns := range excludeNamespaces {
+		excludeSet[ns] = struct{}{}
+	}
 
 	checkPodIPsFn := func() error {
 		podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: labelselector})
@@ -284,6 +289,9 @@ func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 
 		for index := range podList.Items {
 			pod := podList.Items[index]
+			if _, excluded := excludeSet[pod.Namespace]; excluded {
+				continue
+			}
 			if pod.Status.Phase == corev1.PodPending {
 				return errors.New("some pods still pending")
 			}
@@ -291,8 +299,11 @@ func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 
 		for index := range podList.Items {
 			pod := podList.Items[index]
+			if _, excluded := excludeSet[pod.Namespace]; excluded {
+				continue
+			}
 			if pod.Status.PodIP == "" {
-				return errors.Wrapf(err, "Pod %s/%s has not been allocated an IP yet with reason %s", pod.Namespace, pod.Name, pod.Status.Message)
+				return errors.Errorf("Pod %s/%s has not been allocated an IP yet with reason %s", pod.Namespace, pod.Name, pod.Status.Message)
 			}
 		}
 
@@ -363,6 +374,24 @@ func WaitForDeploymentToDelete(ctx context.Context, deploymentsClient typedappsv
 	}
 	retrier := retry.Retrier{Attempts: DeleteRetryAttempts, Delay: DeleteRetryDelay}
 	return errors.Wrapf(retrier.Do(ctx, assertDeploymentNotFound), "could not assert deployment %s isNotFound", d.Name)
+}
+
+func WaitForLRPDelete(ctx context.Context, ciliumClientset *cilium.Clientset, lrp ciliumv2.CiliumLocalRedirectPolicy) error {
+	lrpClient := ciliumClientset.CiliumV2().CiliumLocalRedirectPolicies(lrp.Namespace)
+
+	checkLRPDeleted := func() error {
+		_, err := lrpClient.Get(ctx, lrp.Name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return errors.Wrapf(err, "could not get LRP %s", lrp.Name)
+		}
+		return errors.Errorf("LRP %s still present", lrp.Name)
+	}
+
+	retrier := retry.Retrier{Attempts: DeleteRetryAttempts, Delay: DeleteRetryDelay}
+	return errors.Wrap(retrier.Do(ctx, checkLRPDeleted), "failed to wait for LRP to delete")
 }
 
 func WaitForPodDaemonset(ctx context.Context, clientset *kubernetes.Clientset, namespace, daemonsetName, podLabelSelector string) error {

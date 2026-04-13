@@ -131,7 +131,7 @@ func setupLinuxEnvironment(t *testing.T) {
 	})
 
 	t.Log("Waiting for pods to be running state")
-	err = kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
+	err = kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector, nil)
 	if err != nil {
 		t.Fatalf("Pods are not in running state due to %+v", err)
 	}
@@ -171,7 +171,7 @@ func TestDatapathLinux(t *testing.T) {
 	t.Run("Linux ping tests", func(t *testing.T) {
 		// Check goldpinger health
 		t.Run("all pods have IPs assigned", func(t *testing.T) {
-			err := kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
+			err := kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector, nil)
 			if err != nil {
 				t.Fatalf("Pods are not in running state due to %+v", err)
 			}

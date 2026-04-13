@@ -35,6 +35,7 @@ Follow the steps below to build and run the program:
     - The `-checkMap` flag enables checking the pinned bpf map specified in mapPath for increases. Default: `false`
     - The `-mapPath` flag specifies the pinned bpf map path to check. Default: `/azure-block-iptables-bpf-map/iptables_block_event_counter`
     - The `-terminateOnSuccess` flag, when set, will exit the program once there are no longer user iptables rules detected. Default: `false`
+    - The `-installRoutesForHealthProbeReply` flag causes routes to be installed that would send health-probe reply packets to the host loopback interface. Default: `false`
     - The program must be in a k8s environment and `NODE_NAME` must be a set environment variable with the current node.
 
 5. The program will set the `kubernetes.azure.com/user-iptables-rules` label to `true` on the specified ciliumnode resource if unexpected rules are found, or `false` if all rules match expected patterns. Proper RBAC is required for patching (patch for ciliumnodes, create for events, get for nodes).

@@ -1,0 +1,22 @@
+steps:
+  - bash: |
+      echo $UID
+      sudo rm -rf $(System.DefaultWorkingDirectory)/*
+    displayName: "Set up OS environment"
+
+  - checkout: self
+
+  - bash: |
+      go version
+      go env
+      mkdir -p '$(GOBIN)'
+      mkdir -p '$(GOPATH)/pkg'
+      mkdir -p '$(modulePath)'
+      echo '##vso[task.prependpath]$(GOBIN)'
+      echo '##vso[task.prependpath]$(GOROOT)/bin'
+    name: "GoEnv"
+    displayName: "Set up the Go environment"
+
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest

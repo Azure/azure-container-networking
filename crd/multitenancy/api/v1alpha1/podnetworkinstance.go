@@ -17,7 +17,6 @@ import (
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
-// +kubebuilder:printcolumn:name="PodNetworks",priority=1,type=string,JSONPath=`.spec.podNetworks`
 type PodNetworkInstance struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -36,20 +35,29 @@ type PodNetworkInstanceList struct {
 }
 
 // PodNetworkConfig describes a template for how to attach a PodNetwork to a Pod
+// +kubebuilder:validation:XValidation:rule="size(self.ipConstraint) == 0 || self.podIPReservationSize == 1",message="ipConstraint can only be specified when podIPReservationSize is 1"
 type PodNetworkConfig struct {
 	// PodNetwork is the name of a PodNetwork resource
 	PodNetwork string `json:"podNetwork"`
 	// PodIPReservationSize is the number of IP address to statically reserve
 	// +kubebuilder:default=0
 	PodIPReservationSize int `json:"podIPReservationSize,omitempty"`
+	// IPConstraint specifies criteria for selecting IP address from the PodNetwork's subnet.
+	// Must be a valid IPv4 cidr with /32 prefix.
+	// This is an optional field.
+	// Example: 192.168.0.1/32
+	// +kubebuilder:default=""
+	// +kubebuilder:validation:MaxLength=18
+	// +kubebuilder:validation:Pattern=`^$|^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\/32$`
+	IPConstraint string `json:"ipConstraint,omitempty"`
 }
 
 // PodNetworkInstanceSpec defines the desired state of PodNetworkInstance
 type PodNetworkInstanceSpec struct {
-	// Deprecated - use PodNetworks
+	// Deprecated - use PodNetworkConfigs
 	// +kubebuilder:validation:Optional
 	PodNetwork string `json:"podnetwork,omitempty"`
-	// Deprecated - use PodNetworks
+	// Deprecated - use PodNetworkConfigs
 	// +kubebuilder:default=0
 	PodIPReservationSize int `json:"podIPReservationSize,omitempty"`
 	// PodNetworkConfigs describes each PodNetwork to attach to a single Pod

@@ -29,7 +29,7 @@ parameters:
 
 stages:
   - stage: ${{ parameters.clusterName }}
-    displayName: Create Cluster - ${{ parameters.displayName }}
+    displayName: ${{ parameters.displayName }} - Create Cluster
     condition: or(
         eq('${{ parameters.os }}', 'linux'),
         and(eq('${{ parameters.os }}', 'windows'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'false'))
@@ -67,7 +67,7 @@ stages:
           region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
-    displayName: E2E - ${{ parameters.displayName }}
+    displayName: E2E-${{ parameters.displayName }}
     dependsOn:
     - setup
     - publish

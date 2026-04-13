@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/netip"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/log"
@@ -31,6 +32,8 @@ var (
 	errInvalidArgs           = errors.New("invalid arg(s)")
 	errInvalidDefaultRouting = errors.New("add result requires exactly one interface with default routes")
 	errInvalidGatewayIP      = errors.New("invalid gateway IP")
+	errInvalidIPv6Address    = errors.New("invalid IPv6 address from NetworkContainerIPv6Config")
+	errInvalidGatewayIPv6    = errors.New("invalid gateway IPv6 address")
 	overlayGatewayV6IP       = "fe80::1234:5678:9abc"
 	watcherPath              = "/var/run/azure-vnet/deleteIDs"
 )
@@ -44,19 +47,63 @@ type CNSIPAMInvoker struct {
 }
 
 type IPResultInfo struct {
-	podIPAddress       string
-	ncSubnetPrefix     uint8
-	ncPrimaryIP        string
-	ncGatewayIPAddress string
-	hostSubnet         string
-	hostPrimaryIP      string
-	hostGateway        string
-	nicType            cns.NICType
-	macAddress         string
-	skipDefaultRoutes  bool
-	routes             []cns.Route
-	pnpID              string
-	endpointPolicies   []policy.Policy
+	podIPAddress         string
+	ncSubnetPrefix       uint8
+	ncPrimaryIP          string
+	ncGatewayIPAddress   string
+	ncSubnetPrefixIPv6   uint8
+	ncIPv6               string
+	ncGatewayIPv6Address string
+	hostSubnet           string
+	hostPrimaryIP        string
+	hostGateway          string
+	nicType              cns.NICType
+	macAddress           string
+	skipDefaultRoutes    bool
+	routes               []cns.Route
+	pnpID                string
+	endpointPolicies     []policy.Policy
+}
+
+func getIPConfigGatewayAddress(podIP string, ipConfig cns.IPConfiguration) string {
+	parsedPodIP, err := netip.ParseAddr(podIP)
+	if err != nil {
+		logger.Warn("Invalid pod IP address", zap.String("podIP", podIP))
+		return ipConfig.GatewayIPAddress
+	}
+	if parsedPodIP.Is6() && ipConfig.GatewayIPv6Address != "" {
+		_, parseErr := netip.ParseAddr(ipConfig.GatewayIPv6Address)
+		if parseErr == nil {
+			return ipConfig.GatewayIPv6Address
+		}
+
+		logger.Warn("Invalid GatewayIPv6Address from CNS; falling back to GatewayIPAddress",
+			zap.String("podIP", podIP),
+			zap.String("gatewayIPv6Address", ipConfig.GatewayIPv6Address),
+			zap.String("gatewayIPAddress", ipConfig.GatewayIPAddress),
+			zap.Error(parseErr))
+	}
+
+	return ipConfig.GatewayIPAddress
+}
+
+func getIPConfigPrefixLength(podIP string, ipConfig cns.IPConfiguration) uint8 {
+	parsedPodIP, err := netip.ParseAddr(podIP)
+	if err != nil {
+		logger.Warn("Invalid pod IP address", zap.String("podIP", podIP))
+		return ipConfig.IPSubnet.PrefixLength
+	}
+	if parsedPodIP.Is6() {
+		if ipConfig.IPSubnetV6.PrefixLength > 0 {
+			return ipConfig.IPSubnetV6.PrefixLength
+		}
+
+		logger.Warn("IPv6 pod with zero IPSubnetV6.PrefixLength; falling back to IPSubnet.PrefixLength",
+			zap.String("podIP", podIP),
+			zap.Uint8("fallbackPrefixLength", ipConfig.IPSubnet.PrefixLength))
+	}
+
+	return ipConfig.IPSubnet.PrefixLength
 }
 
 func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
@@ -64,6 +111,9 @@ func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddUint8("ncSubnetPrefix", i.ncSubnetPrefix)
 	encoder.AddString("ncPrimaryIP", i.ncPrimaryIP)
 	encoder.AddString("ncGatewayIPAddress", i.ncGatewayIPAddress)
+	encoder.AddUint8("ncSubnetPrefixIPv6", i.ncSubnetPrefixIPv6)
+	encoder.AddString("ncIPv6", i.ncIPv6)
+	encoder.AddString("ncGatewayIPv6Address", i.ncGatewayIPv6Address)
 	encoder.AddString("hostSubnet", i.hostSubnet)
 	encoder.AddString("hostPrimaryIP", i.hostPrimaryIP)
 	encoder.AddString("hostGateway", i.hostGateway)
@@ -149,23 +199,27 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
-			podIPAddress:       response.PodIPInfo[i].PodIPConfig.IPAddress,
-			ncSubnetPrefix:     response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
-			ncPrimaryIP:        response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
-			ncGatewayIPAddress: response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
-			hostSubnet:         response.PodIPInfo[i].HostPrimaryIPInfo.Subnet,
-			hostPrimaryIP:      response.PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP,
-			hostGateway:        response.PodIPInfo[i].HostPrimaryIPInfo.Gateway,
-			nicType:            response.PodIPInfo[i].NICType,
-			macAddress:         response.PodIPInfo[i].MacAddress,
-			skipDefaultRoutes:  response.PodIPInfo[i].SkipDefaultRoutes,
-			routes:             response.PodIPInfo[i].Routes,
-			pnpID:              response.PodIPInfo[i].PnPID,
-			endpointPolicies:   response.PodIPInfo[i].EndpointPolicies,
+			// ncPrimaryIP intentionally stays IPv4 — it is only used for SNAT/iptables which are IPv4-only codepaths.
+			ncPrimaryIP:          response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
+			podIPAddress:         response.PodIPInfo[i].PodIPConfig.IPAddress,
+			ncSubnetPrefix:       getIPConfigPrefixLength(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
+			ncGatewayIPAddress:   getIPConfigGatewayAddress(response.PodIPInfo[i].PodIPConfig.IPAddress, response.PodIPInfo[i].NetworkContainerPrimaryIPConfig),
+			ncSubnetPrefixIPv6:   response.PodIPInfo[i].NetworkContainerIPv6Config.IPSubnet.PrefixLength,
+			ncIPv6:               response.PodIPInfo[i].NetworkContainerIPv6Config.IPSubnet.IPAddress,
+			ncGatewayIPv6Address: response.PodIPInfo[i].NetworkContainerIPv6Config.GatewayIPAddress,
+			hostSubnet:           response.PodIPInfo[i].HostPrimaryIPInfo.Subnet,
+			hostPrimaryIP:        response.PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP,
+			hostGateway:          response.PodIPInfo[i].HostPrimaryIPInfo.Gateway,
+			nicType:              response.PodIPInfo[i].NICType,
+			macAddress:           response.PodIPInfo[i].MacAddress,
+			skipDefaultRoutes:    response.PodIPInfo[i].SkipDefaultRoutes,
+			routes:               response.PodIPInfo[i].Routes,
+			pnpID:                response.PodIPInfo[i].PnPID,
+			endpointPolicies:     response.PodIPInfo[i].EndpointPolicies,
 		}
 
 		logger.Info("Received info for pod",
-			zap.Any("ipInfo", info),
+			zap.Any("ipInfo", response.PodIPInfo[i]),
 			zap.Any("podInfo", podInfo))
 
 		//nolint:exhaustive // ignore exhaustive types check
@@ -192,6 +246,11 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			if err := addBackendNICToResult(&info, &addResult, key); err != nil {
 				return IPAMAddResult{}, err
 			}
+		case cns.ApipaNIC:
+			if err := configureApipaAddResult(&addResult, &response.PodIPInfo[i], key); err != nil {
+				return IPAMAddResult{}, err
+			}
+
 		case cns.InfraNIC, "":
 			// if we change from legacy cns, the nicType will be empty, so we assume it is infra nic
 			info.nicType = cns.InfraNIC
@@ -503,6 +562,69 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 		NICType:           info.nicType,
 		MacAddress:        macAddress,
 		SkipDefaultRoutes: info.skipDefaultRoutes,
+	}
+
+	// Append IPv6 IPConfig if NetworkContainerIPv6Config was populated
+	if info.ncIPv6 != "" {
+		ipv6, err := netip.ParseAddr(info.ncIPv6)
+		if err != nil {
+			logger.Error("Invalid IPv6 address from NetworkContainerIPv6Config",
+				zap.String("ncIPv6", info.ncIPv6),
+				zap.String("macAddress", info.macAddress),
+				zap.Error(err))
+			return errors.Wrap(errInvalidIPv6Address, info.ncIPv6)
+		}
+		if !ipv6.Is6() {
+			return errors.Wrapf(errInvalidIPv6Address, "expected IPv6, got IPv4: %s", info.ncIPv6)
+		}
+
+		ipv6Gateway, err := netip.ParseAddr(info.ncGatewayIPv6Address)
+		if err != nil {
+			logger.Error("Invalid IPv6 gateway address from NetworkContainerIPv6Config",
+				zap.String("ncGatewayIPv6Address", info.ncGatewayIPv6Address),
+				zap.String("macAddress", info.macAddress),
+				zap.Error(err))
+			return errors.Wrap(errInvalidGatewayIPv6, info.ncGatewayIPv6Address)
+		}
+		if !ipv6Gateway.Is6() {
+			return errors.Wrapf(errInvalidGatewayIPv6, "expected IPv6 gateway, got IPv4: %s", info.ncGatewayIPv6Address)
+		}
+
+		ifInfo := addResult.interfaceInfo[key]
+		ifInfo.IPConfigs = append(ifInfo.IPConfigs, &network.IPConfig{
+			Address: net.IPNet{
+				IP:   ipv6.AsSlice(),
+				Mask: net.CIDRMask(int(info.ncSubnetPrefixIPv6), ipv6FullMask),
+			},
+			Gateway: ipv6Gateway.AsSlice(),
+		})
+		addResult.interfaceInfo[key] = ifInfo
+	}
+
+	return nil
+}
+
+func configureApipaAddResult(addResult *IPAMAddResult, info *cns.PodIpInfo, key string) error {
+	ip, ipnet, err := info.PodIPConfig.GetIPNet()
+	if ip == nil {
+		return errors.Wrap(err, "GetIPNet failed while configuring apipa AddResult")
+	}
+
+	addResult.interfaceInfo[key] = network.InterfaceInfo{
+		IPConfigs: []*network.IPConfig{
+			{
+				Address: net.IPNet{
+					IP:   ip,
+					Mask: ipnet.Mask,
+				},
+				Gateway: net.ParseIP(info.NetworkContainerPrimaryIPConfig.GatewayIPAddress),
+			},
+		},
+		NICType:                    info.NICType,
+		SkipDefaultRoutes:          true,
+		NetworkContainerID:         info.NetworkContainerID,
+		AllowHostToNCCommunication: info.AllowHostToNCCommunication,
+		AllowNCToHostCommunication: info.AllowNCToHostCommunication,
 	}
 
 	return nil

@@ -1,0 +1,179 @@
+parameters:
+  - name: subscriptionId
+    type: string
+  - name: location
+    type: object
+  - name: resourceGroupName
+    type: string
+  - name: longrunningRegions
+    type: object
+    default: []
+  - name: workloadType
+    type: object
+    default: [ "swiftv2-linux", "swiftv2-linux-byon", "swiftv2-l1vh-accelnet-byon" ] #"swiftv2-l1vh-infiniband-byon"
+    displayName: "Swiftv2 scenarios to run"
+
+
+resources:
+  repositories:
+    - repository: Networking-Aquarius
+      type: git
+      name: One/Networking-Aquarius
+      ref: refs/heads/master
+
+variables:
+  - name: vmSkuDefault
+    value: "Standard_D4s_v3"
+  - name: vmSkuHighNIC
+    value: "Standard_D16s_v3"
+  - name: isAllowedRun
+    value: ${{ ne(variables['Build.Reason'], 'IndividualCI') }}
+
+stages:
+  # ============================================================
+  # Infrastructure verify & setup for each location (idempotent)
+  # ============================================================
+  - ${{ each loc in parameters.location }}:
+    - template: infrastructure-setup-stage.yaml
+      parameters:
+        subscriptionId: ${{ parameters.subscriptionId }}
+        location: ${{ loc }}
+        resourceGroupName: ${{ parameters.resourceGroupName }}
+        vmSkuDefault: $(vmSkuDefault)
+        vmSkuHighNIC: $(vmSkuHighNIC)
+        dependsOn: []
+
+  # ============================================================
+  # Long-running pod tests per zone (rotating + DaemonSet + connectivity)
+  # Each zone independently ensures its own node pool exists.
+  # ============================================================
+  - ${{ each region in parameters.longrunningRegions }}:
+    - ${{ each zone in region.zones }}:
+      - template: longrunning-pod-tests-stage.yaml
+        parameters:
+          location: ${{ region.location }}
+          subscriptionId: ${{ parameters.subscriptionId }}
+          rgName: ${{ parameters.resourceGroupName }}-${{ region.location }}
+          zone: ${{ zone }}
+          vmSkuHighNIC: $(vmSkuHighNIC)
+          dependsOn:
+            - AKSClusterAndNetworking_${{ replace(region.location, '-', '_') }}
+
+  # ============================================================
+  # Acquire pipeline lease (prevents concurrent runs colliding)
+  # ============================================================
+  - ${{ each loc in parameters.location }}:
+    - stage: AcquireLease_${{ replace(loc, '-', '_') }}
+      displayName: "Acquire Pipeline Lease (${{ loc }})"
+      dependsOn:
+        - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+      condition: and(eq(variables.isAllowedRun, true), not(failed()))
+      jobs:
+        - job: AcquireLease
+          displayName: "Acquire ConfigMap lease on aks-1"
+          steps:
+            - checkout: self
+              displayName: "Checkout azure-container-networking"
+            - task: AzureCLI@2
+              name: AcquireLeaseStep
+              displayName: "Get kubeconfig and acquire lease"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  az aks get-credentials \
+                    -g "${{ parameters.resourceGroupName }}-${{ loc }}" \
+                    -n aks-1 --admin --overwrite-existing \
+                    --file /tmp/aks-1.kubeconfig
+
+                  set +e
+                  bash .pipelines/swiftv2-long-running/scripts/acquire_pipeline_lease.sh \
+                    /tmp/aks-1.kubeconfig \
+                    "$(Build.BuildId)" \
+                    120
+                  ACQUIRE_RC=$?
+                  set -e
+
+                  if [ "$ACQUIRE_RC" -eq 0 ]; then
+                    echo "Lease acquired for this run."
+                    echo "##vso[task.setvariable variable=leaseAcquired;isOutput=true]true"
+                  elif [ "$ACQUIRE_RC" -eq 2 ]; then
+                    echo "Lease is currently held by another run. Lease-gated stages will be skipped."
+                    echo "##vso[task.setvariable variable=leaseAcquired;isOutput=true]false"
+                    exit 0
+                  else
+                    echo "ERROR: Lease acquisition failed unexpectedly with code $ACQUIRE_RC"
+                    exit "$ACQUIRE_RC"
+                  fi
+
+  # ============================================================
+  # Datapath tests for each location and workload type
+  # ============================================================
+  - ${{ each loc in parameters.location }}:
+    - ${{ each workload in parameters.workloadType }}:
+      # Skip accelnet workloads in regions where accelnet is not enabled (currently only centraluseuap has quota)
+      - ${{ if or(not(contains(workload, 'l1vh-accelnet')), eq(loc, 'centraluseuap')) }}:
+        - template: datapath-tests-stage.yaml
+          parameters:
+            workloadType: ${{ workload }}
+            location: ${{ loc }}
+            subscriptionId: ${{ parameters.subscriptionId }}
+            rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
+            storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
+            storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
+            leaseAcquired: $[ dependencies.AcquireLease_${{ replace(loc, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
+            ${{ if eq(workload, 'swiftv2-linux') }}:
+              dependsOn: 
+                - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+                - AcquireLease_${{ replace(loc, '-', '_') }}
+            ${{ if eq(workload, 'swiftv2-linux-byon') }}:
+              dependsOn: 
+                - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+                - AcquireLease_${{ replace(loc, '-', '_') }}
+                - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
+            ${{ if eq(workload, 'swiftv2-l1vh-accelnet-byon') }}:
+              dependsOn: 
+                - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
+                - AcquireLease_${{ replace(loc, '-', '_') }}
+                - DataPathTests_swiftv2_linux_byon_${{ replace(loc, '-', '_') }}
+
+  # ============================================================
+  # Release pipeline lease (always runs, even on failure)
+  # ============================================================
+  - ${{ each loc in parameters.location }}:
+    - stage: ReleaseLease_${{ replace(loc, '-', '_') }}
+      displayName: "Release Pipeline Lease (${{ loc }})"
+      ${{ if eq(loc, 'centraluseuap') }}:
+        dependsOn:
+          - AcquireLease_${{ replace(loc, '-', '_') }}
+          - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
+          - DataPathTests_swiftv2_linux_byon_${{ replace(loc, '-', '_') }}
+          - DataPathTests_swiftv2_l1vh_accelnet_byon_${{ replace(loc, '-', '_') }}
+      ${{ if ne(loc, 'centraluseuap') }}:
+        dependsOn:
+          - AcquireLease_${{ replace(loc, '-', '_') }}
+          - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
+          - DataPathTests_swiftv2_linux_byon_${{ replace(loc, '-', '_') }}
+      condition: and(always(), eq(dependencies.AcquireLease_${{ replace(loc, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
+      jobs:
+        - job: ReleaseLease
+          displayName: "Release ConfigMap lease on aks-1"
+          steps:
+            - checkout: self
+              displayName: "Checkout azure-container-networking"
+            - task: AzureCLI@2
+              displayName: "Release lease"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  az aks get-credentials \
+                    -g "${{ parameters.resourceGroupName }}-${{ loc }}" \
+                    -n aks-1 --admin --overwrite-existing \
+                    --file /tmp/aks-1.kubeconfig
+
+                  bash .pipelines/swiftv2-long-running/scripts/release_pipeline_lease.sh \
+                    /tmp/aks-1.kubeconfig \
+                    "$(Build.BuildId)"

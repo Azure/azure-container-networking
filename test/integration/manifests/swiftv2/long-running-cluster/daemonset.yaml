@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .DaemonSetName }}
+  namespace: {{ .Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .DaemonSetName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .DaemonSetName }}
+        kubernetes.azure.com/pod-network-instance: {{ .PNIName }}
+        kubernetes.azure.com/pod-network: {{ .PNName }}
+    spec:
+      nodeSelector:
+        longrunning-zone-pool: "true"
+        {{- if .ZoneLabel }}
+        topology.kubernetes.io/zone: {{ .ZoneLabel }}
+        {{- end }}
+      tolerations:
+      - key: "acn-test/zone-pool"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      containers:
+      - name: net-debugger
+        image: {{ .Image }}
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            echo "Always-on DaemonSet pod on $(hostname)"
+            echo "Pod IP: $(hostname -i)"
+            echo "Starting TCP listener on port 8080"
+
+            while true; do
+              echo "TCP Connection Success from $(hostname) at $(date)" | nc -l -p 8080
+            done
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 300m
+            memory: 600Mi
+            acn.azure.com/vnet-nic: "1"
+          requests:
+            cpu: 300m
+            memory: 600Mi
+            acn.azure.com/vnet-nic: "1"
+        securityContext:
+          privileged: true
+      restartPolicy: Always

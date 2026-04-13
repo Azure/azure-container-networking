@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net/netip"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,6 +39,11 @@ type EBPFClient interface {
 	GetBPFMapValue(pinPath string) (uint64, error)
 }
 
+// RouteManager interface for managing system routes
+type RouteManager interface {
+	EnsureRoute(ip netip.Addr) error
+}
+
 // Dependencies struct holds all external dependencies
 type Dependencies struct {
 	KubeClient    KubeClient
@@ -46,19 +52,21 @@ type Dependencies struct {
 	IPTablesV6    IPTablesClient
 	EBPFClient    EBPFClient
 	FileReader    FileLineReader
+	RouteManager  RouteManager
 }
 
 // Config struct holds runtime configuration
 type Config struct {
-	ConfigPath4        string
-	ConfigPath6        string
-	CheckInterval      int
-	SendEvents         bool
-	IPv6Enabled        bool
-	CheckMap           bool
-	PinPath            string
-	NodeName           string
-	TerminateOnSuccess bool
+	ConfigPath4                      string
+	ConfigPath6                      string
+	CheckInterval                    int
+	SendEvents                       bool
+	IPv6Enabled                      bool
+	CheckMap                         bool
+	PinPath                          string
+	NodeName                         string
+	TerminateOnSuccess               bool
+	InstallRoutesForHealthProbeReply bool
 }
 
 // Implementation types that wrap real k8s clients

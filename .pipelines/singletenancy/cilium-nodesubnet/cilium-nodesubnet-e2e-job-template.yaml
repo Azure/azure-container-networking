@@ -41,7 +41,7 @@ parameters:
 
 stages:
   - stage: ${{ parameters.clusterName }}
-    displayName: Create Cluster - ${{ parameters.displayName }}
+    displayName: ${{ parameters.displayName }} - Create Cluster
     condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
       - ${{ parameters.dependsOn }}
@@ -61,8 +61,8 @@ stages:
           region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
-    displayName: E2E - ${{ parameters.displayName }}
-    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
+    displayName: E2E-${{ parameters.displayName }}
+    condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
@@ -71,9 +71,9 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
     dependsOn:
-    - setup
-    - publish
-    - ${{ parameters.clusterName }}
+      - setup
+      - publish
+      - ${{ parameters.clusterName }}
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
@@ -83,8 +83,8 @@ stages:
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
-          - agent.os -equals Linux
-          - Role -equals $(CUSTOM_E2E_ROLE)
+            - agent.os -equals Linux
+            - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
           - template: cilium-nodesubnet-e2e-step-template.yaml
             parameters:

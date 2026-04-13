@@ -20,6 +20,7 @@ import (
 // +kubebuilder:printcolumn:name="Allocated IPs",type=integer,priority=0,JSONPath=`.status.assignedIPCount`
 // +kubebuilder:printcolumn:name="Subnet",type=string,priority=1,JSONPath=`.status.networkContainers[*].subnetName`
 // +kubebuilder:printcolumn:name="Subnet CIDR",type=string,priority=1,JSONPath=`.status.networkContainers[*].subnetAddressSpace`
+// +kubebuilder:printcolumn:name="Subnet CIDR v6",type=string,priority=1,JSONPath=`.status.networkContainers[*].subnetAddressSpaceV6`
 // +kubebuilder:printcolumn:name="NC ID",type=string,priority=1,JSONPath=`.status.networkContainers[*].id`
 // +kubebuilder:printcolumn:name="NC Mode",type=string,priority=0,JSONPath=`.status.networkContainers[*].assignmentMode`
 // +kubebuilder:printcolumn:name="NC Type",type=string,priority=1,JSONPath=`.status.networkContainers[*].type`
@@ -117,15 +118,16 @@ type NetworkContainer struct {
 	// +kubebuilder:default=dynamic
 	AssignmentMode AssignmentMode `json:"assignmentMode,omitempty"`
 	// +kubebuilder:default=vnet
-	Type               NCType         `json:"type,omitempty"`
-	PrimaryIP          string         `json:"primaryIP,omitempty"`
-	PrimaryIPV6        string         `json:"primaryIPV6,omitempty"`
-	SubnetName         string         `json:"subnetName,omitempty"`
-	IPAssignments      []IPAssignment `json:"ipAssignments,omitempty"`
-	DefaultGateway     string         `json:"defaultGateway,omitempty"`
-	DefaultGatewayV6   string         `json:"defaultGatewayV6,omitempty"`
-	MacAddress         string         `json:"macAddress,omitempty"`
-	SubnetAddressSpace string         `json:"subnetAddressSpace,omitempty"`
+	Type                 NCType         `json:"type,omitempty"`
+	PrimaryIP            string         `json:"primaryIP,omitempty"`
+	PrimaryIPV6          string         `json:"primaryIPV6,omitempty"`
+	SubnetName           string         `json:"subnetName,omitempty"`
+	IPAssignments        []IPAssignment `json:"ipAssignments,omitempty"`
+	DefaultGateway       string         `json:"defaultGateway,omitempty"`
+	DefaultGatewayV6     string         `json:"defaultGatewayV6,omitempty"`
+	MacAddress           string         `json:"macAddress,omitempty"`
+	SubnetAddressSpace   string         `json:"subnetAddressSpace,omitempty"`
+	SubnetAddressSpaceV6 string         `json:"subnetAddressSpaceV6,omitempty"`
 	// +kubebuilder:default=0
 	// +kubebuilder:validation:Optional
 	Version         int64    `json:"version"`

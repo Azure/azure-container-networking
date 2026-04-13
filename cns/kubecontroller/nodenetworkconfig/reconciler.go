@@ -27,8 +27,12 @@ type cnsClient interface {
 	MustEnsureNoStaleNCs(validNCIDs []string)
 }
 
+type nodenetworkconfigSink func(*v1alpha.NodeNetworkConfig) error
+
+// Deprecated: use nodenetworkconfigSink instead
 type nodeNetworkConfigListener interface {
-	Update(*v1alpha.NodeNetworkConfig) error
+	// Deprecated: use nodenetworkconfigSink instead
+	Update(*v1alpha.NodeNetworkConfig) error // phasing this out in favor of the sink
 }
 
 type nncGetter interface {
@@ -38,29 +42,35 @@ type nncGetter interface {
 // Reconciler watches for CRD status changes
 type Reconciler struct {
 	cnscli             cnsClient
-	ipampoolmonitorcli nodeNetworkConfigListener
+	ipampoolmonitorcli nodenetworkconfigSink
 	nnccli             nncGetter
 	once               sync.Once
-	started            chan interface{}
+	started            chan any
 	nodeIP             string
+	isSwiftV2          bool
+	initializer        nodenetworkconfigSink
+	ipv6PrefixClamp    int
 }
 
 // NewReconciler creates a NodeNetworkConfig Reconciler which will get updates from the Kubernetes
 // apiserver for NNC events.
 // Provided nncListeners are passed the NNC after the Reconcile preprocesses it. Note: order matters! The
 // passed Listeners are notified in the order provided.
-func NewReconciler(cnscli cnsClient, ipampoolmonitorcli nodeNetworkConfigListener, nodeIP string) *Reconciler {
+func NewReconciler(cnscli cnsClient, initializer nodenetworkconfigSink, ipampoolmonitorcli nodeNetworkConfigListener, nodeIP string, isSwiftV2 bool, ipv6PrefixClamp int) *Reconciler {
 	return &Reconciler{
 		cnscli:             cnscli,
-		ipampoolmonitorcli: ipampoolmonitorcli,
-		started:            make(chan interface{}),
+		ipampoolmonitorcli: ipampoolmonitorcli.Update,
+		started:            make(chan any),
 		nodeIP:             nodeIP,
+		isSwiftV2:          isSwiftV2,
+		initializer:        initializer,
+		ipv6PrefixClamp:    ipv6PrefixClamp,
 	}
 }
 
 // Reconcile is called on CRD status changes
 func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
-	listenersToNotify := []nodeNetworkConfigListener{}
+	listenersToNotify := []nodenetworkconfigSink{}
 	nnc, err := r.nnccli.Get(ctx, req.NamespacedName)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -87,6 +97,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 	r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
 
+	// call initFunc on first reconcile and never again
+	if r.initializer != nil {
+		if err := r.initializer(nnc); err != nil {
+			logger.Errorf("[cns-rc] initializer failed during reconcile: %v", err)
+			return reconcile.Result{}, errors.Wrap(err, "initializer failed during reconcile")
+		}
+		r.initializer = nil
+	}
+
 	// for each NC, parse it in to a CreateNCRequest and forward it to the appropriate Listener
 	for i := range nnc.Status.NetworkContainers {
 		// check if this NC matches the Node IP if we have one to check against
@@ -104,7 +123,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		// For Overlay and Vnet Scale Scenarios
 		case v1alpha.Static:
-			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
+			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i], r.isSwiftV2, r.ipv6PrefixClamp)
 		// For Pod Subnet scenario
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			req, err = CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
@@ -132,7 +151,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	// push the NNC to the registered NNC listeners.
 	for _, l := range listenersToNotify {
-		if err := l.Update(nnc); err != nil {
+		if err := l(nnc); err != nil {
 			return reconcile.Result{}, errors.Wrap(err, "nnc listener return error during update")
 		}
 	}

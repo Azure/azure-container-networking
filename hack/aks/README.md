@@ -45,4 +45,12 @@ AKS Clusters
   windows-nodepool-up                       Add windows node pool
   down                                      Delete the cluster
   vmss-restart                              Restart the nodes of the cluster
+
+Deploy (onto a byocni cluster without kube-proxy)
+  deploy-cilium                             Deploy standard Cilium with agent, operator, and config
+  deploy-cilium-hubble                      Deploy Cilium with Hubble observability enabled
+  deploy-cilium-nightly                     Deploy Cilium using nightly builds
+  deploy-cilium-dualstack                   Deploy Cilium with dual-stack IPv4/IPv6 support
+  deploy-ebpf-overlay-cilium                Deploy Cilium with eBPF dataplane on overlay networks
+  deploy-ebpf-podsubnet-cilium              Deploy Cilium with eBPF dataplane on podsubnet networks
 ```

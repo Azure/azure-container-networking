@@ -1,0 +1,51 @@
+trigger: none
+pr: none
+
+schedules:
+  - cron: "0 * * * *"
+    displayName: "Run tests every hour"
+    branches:
+      include:
+        - master
+    always: true  # Run even if there are no code changes
+
+parameters:
+  - name: subscriptionId
+    displayName: "Azure Subscription ID"
+    type: string
+    default: "37deca37-c375-4a14-b90a-043849bd2bf1"
+
+  - name: location
+    displayName: "Deployment Regions"
+    type: object
+    default:
+      - "eastus2euap"
+      - "centraluseuap"
+      - "westus2"
+
+  - name: longrunningRegions
+    displayName: "Long-running test region-to-zone mapping (zone-aware pods)"
+    type: object
+    default:
+      - location: eastus2euap
+        zones:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+      - location: centraluseuap
+        zones:
+          - "0"
+
+  - name: resourceGroupName
+    displayName: "Resource Group Name prefix"
+    type: string
+    default: "sv2-long-run"
+
+extends:
+  template: template/long-running-pipeline-template.yaml
+  parameters:
+    subscriptionId: ${{ parameters.subscriptionId }}
+    location: ${{ parameters.location }}
+    resourceGroupName: ${{ parameters.resourceGroupName }}
+    longrunningRegions: ${{ parameters.longrunningRegions }}

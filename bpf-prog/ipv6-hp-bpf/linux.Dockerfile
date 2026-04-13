@@ -1,6 +1,6 @@
 ARG ARCH
 # skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24 --format "{{.Name}}@{{.Digest}}"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:04090387119cd45c73b426f036f96dd2c44e3e82acdd27b5d95fdf0c7f36fde4 AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:f3e556c9de4dd93be774dc0fa2ce3cfa76f7744d0bacada92d1624f04ce69461 AS go
 ARG VERSION
 ARG DEBUG
 ARG OS
@@ -9,7 +9,7 @@ WORKDIR /bpf-prog/ipv6-hp-bpf
 COPY ./bpf-prog/ipv6-hp-bpf .
 COPY ./bpf-prog/ipv6-hp-bpf/cmd/ipv6-hp-bpf/*.go /bpf-prog/ipv6-hp-bpf/
 COPY ./bpf-prog/ipv6-hp-bpf/include/helper.h /bpf-prog/ipv6-hp-bpf/include/helper.h
-RUN apt-get update && apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2
+RUN apt-get update && apt-get install -y llvm clang linux-libc-dev libbpf-dev libc6-dev nftables iproute2
 RUN mkdir -p /tmp/lib
 RUN if [ "$ARCH" = "arm64" ]; then \
     apt-get install -y gcc-aarch64-linux-gnu && \

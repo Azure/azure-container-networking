@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -66,31 +67,35 @@ func NewClient() *Client {
 	testPod10.Labels = make(map[string]string)
 	testPod10.Labels[configuration.LabelPodNetworkInstanceSwiftV2] = podNetwork
 
+	testPodMtpncTerminating := v1.Pod{}
+	testPodMtpncTerminating.Labels = make(map[string]string)
+	testPodMtpncTerminating.Labels[configuration.LabelPodSwiftV2] = podNetwork
+
 	testInterfaceInfos1 := v1alpha1.InterfaceInfo{
-		NCID:            "testncid",
-		PrimaryIP:       "192.168.0.1/32",
-		MacAddress:      "00:00:00:00:00:00",
-		GatewayIP:       "10.0.0.1",
-		DeviceType:      v1alpha1.DeviceTypeVnetNIC,
-		AccelnetEnabled: false,
+		NCID:               "testncid",
+		PrimaryIP:          "192.168.0.1/32",
+		MacAddress:         "00:00:00:00:00:00",
+		GatewayIP:          "10.0.0.1",
+		DeviceType:         v1alpha1.DeviceTypeVnetNIC,
+		AccelnetEnabled:    false,
 		SubnetAddressSpace: "192.168.0.0/24",
 	}
 	testInterfaceInfos3 := v1alpha1.InterfaceInfo{
-		NCID:            "testncid",
-		PrimaryIP:       "192.168.0.1/32",
-		MacAddress:      "00:00:00:00:00:00",
-		GatewayIP:       "10.0.0.1",
-		DeviceType:      v1alpha1.DeviceTypeVnetNIC,
-		AccelnetEnabled: false,
+		NCID:               "testncid",
+		PrimaryIP:          "192.168.0.1/32",
+		MacAddress:         "00:00:00:00:00:00",
+		GatewayIP:          "10.0.0.1",
+		DeviceType:         v1alpha1.DeviceTypeVnetNIC,
+		AccelnetEnabled:    false,
 		SubnetAddressSpace: "192.168.0.0/24",
 	}
 	testInterfaceInfos5 := v1alpha1.InterfaceInfo{
-		NCID:            "testncid",
-		PrimaryIP:       "192.168.0.1/32",
-		MacAddress:      "00:00:00:00:00:00",
-		GatewayIP:       "10.0.0.1",
-		DeviceType:      v1alpha1.DeviceTypeInfiniBandNIC,
-		AccelnetEnabled: true,
+		NCID:               "testncid",
+		PrimaryIP:          "192.168.0.1/32",
+		MacAddress:         "00:00:00:00:00:00",
+		GatewayIP:          "10.0.0.1",
+		DeviceType:         v1alpha1.DeviceTypeInfiniBandNIC,
+		AccelnetEnabled:    true,
 		SubnetAddressSpace: "192.168.0.0/24",
 	}
 
@@ -166,28 +171,38 @@ func NewClient() *Client {
 		Status: v1alpha1.MultitenantPodNetworkConfigStatus{},
 	}
 
+	testMTPNCTerminating := v1alpha1.MultitenantPodNetworkConfig{
+		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+			InterfaceInfos: []v1alpha1.InterfaceInfo{testInterfaceInfos1},
+		},
+	}
+	now := metav1.Now()
+	testMTPNCTerminating.DeletionTimestamp = &now
+
 	return &Client{
 		mtPodCache: map[string]*v1.Pod{
-			"testpod1namespace/testpod1":   &testPod1,
-			"testpod3namespace/testpod3":   &testPod3,
-			"testpod4namespace/testpod4":   &testPod4,
-			"testpod5namespace/testpod5":   &testPod5,
-			"testpod6namespace/testpod6":   &testPod6,
-			"testpod7namespace/testpod7":   &testPod7,
-			"testpod8namespace/testpod8":   &testPod8,
-			"testpod9namespace/testpod9":   &testPod9,
-			"testpod10namespace/testpod10": &testPod10,
+			"testpod1namespace/testpod1":                               &testPod1,
+			"testpod3namespace/testpod3":                               &testPod3,
+			"testpod4namespace/testpod4":                               &testPod4,
+			"testpod5namespace/testpod5":                               &testPod5,
+			"testpod6namespace/testpod6":                               &testPod6,
+			"testpod7namespace/testpod7":                               &testPod7,
+			"testpod8namespace/testpod8":                               &testPod8,
+			"testpod9namespace/testpod9":                               &testPod9,
+			"testpod10namespace/testpod10":                             &testPod10,
+			"testpodMtpncTerminatingnamespace/testpodMtpncTerminating": &testPodMtpncTerminating,
 		},
 		mtpncCache: map[string]*v1alpha1.MultitenantPodNetworkConfig{
-			"testpod1namespace/testpod1":   &testMTPNC1,
-			"testpod2namespace/testpod2":   &testMTPNC2,
-			"testpod4namespace/testpod4":   &testMTPNC4,
-			"testpod5namespace/testpod5":   &testMTPNC3,
-			"testpod6namespace/testpod6":   &testMTPNC5,
-			"testpod7namespace/testpod7":   &testMTPNCMulti,
-			"testpod8namespace/testpod8":   &testMTPNC8,
-			"testpod9namespace/testpod9":   &testMTPNC9,
-			"testpod10namespace/testpod10": &testMTPNC10,
+			"testpod1namespace/testpod1":                               &testMTPNC1,
+			"testpod2namespace/testpod2":                               &testMTPNC2,
+			"testpod4namespace/testpod4":                               &testMTPNC4,
+			"testpod5namespace/testpod5":                               &testMTPNC3,
+			"testpod6namespace/testpod6":                               &testMTPNC5,
+			"testpod7namespace/testpod7":                               &testMTPNCMulti,
+			"testpod8namespace/testpod8":                               &testMTPNC8,
+			"testpod9namespace/testpod9":                               &testMTPNC9,
+			"testpod10namespace/testpod10":                             &testMTPNC10,
+			"testpodMtpncTerminatingnamespace/testpodMtpncTerminating": &testMTPNCTerminating,
 		},
 	}
 }
@@ -213,12 +228,12 @@ func (c *Client) Get(_ context.Context, key client.ObjectKey, obj client.Object,
 
 func (c *Client) SetMTPNCReady() {
 	testInterfaceInfos1 := v1alpha1.InterfaceInfo{
-		NCID:            "testncid",
-		PrimaryIP:       "192.168.0.1/32",
-		MacAddress:      "00:00:00:00:00:00",
-		GatewayIP:       "10.0.0.1",
-		DeviceType:      v1alpha1.DeviceTypeVnetNIC,
-		AccelnetEnabled: false,
+		NCID:               "testncid",
+		PrimaryIP:          "192.168.0.1/32",
+		MacAddress:         "00:00:00:00:00:00",
+		GatewayIP:          "10.0.0.1",
+		DeviceType:         v1alpha1.DeviceTypeVnetNIC,
+		AccelnetEnabled:    false,
 		SubnetAddressSpace: "192.168.0.0/24",
 	}
 

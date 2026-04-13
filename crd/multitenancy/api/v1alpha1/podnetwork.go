@@ -19,7 +19,7 @@ import (
 // +kubebuilder:printcolumn:name="Network",type=string,priority=1,JSONPath=`.spec.networkID`
 // +kubebuilder:printcolumn:name="Subnet",type=string,priority=1,JSONPath=`.spec.subnetResourceID`
 // +kubebuilder:printcolumn:name="SubnetGUID",type=string,priority=1,JSONPath=`.spec.subnetGUID`
-// +kubebuilder:printcolumn:name="DeviceType",type=string,priority=1,JSONPath=`.spec.subnetGUID`
+// +kubebuilder:printcolumn:name="DeviceType",type=string,priority=1,JSONPath=`.spec.deviceType`
 type PodNetwork struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -45,6 +45,14 @@ const (
 	DeviceTypeInfiniBandNIC DeviceType = "acn.azure.com/infiniband-nic"
 )
 
+// +kubebuilder:validation:Enum=Single;PrefixBlock
+type SubnetAllocationMode string
+
+const (
+	Single      SubnetAllocationMode = "Single"
+	PrefixBlock SubnetAllocationMode = "PrefixBlock"
+)
+
 // PodNetworkSpec defines the desired state of PodNetwork
 type PodNetworkSpec struct {
 	// NetworkID is the identifier for the network, e.g. vnet guid or IB network ID
@@ -62,6 +70,10 @@ type PodNetworkSpec struct {
 	// Deprecated - Use NetworkID
 	// +kubebuilder:validation:Optional
 	VnetGUID string `json:"vnetGUID,omitempty"`
+	// SubnetAllocationMode is the mode chosen by user for subnet allocation
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=Single
+	SubnetAllocationMode SubnetAllocationMode `json:"subnetAllocationMode,omitempty"`
 }
 
 // Status indicates the status of PN
@@ -80,6 +92,9 @@ type PodNetworkStatus struct {
 	// +kubebuilder:validation:Optional
 	Status          Status   `json:"status,omitempty"`
 	AddressPrefixes []string `json:"addressPrefixes,omitempty"`
+	// PrefixBlockAllocationSize indicates the size of IP block allocated to the subnet
+	// +kubebuilder:default=16
+	PrefixBlockAllocationSize int `json:"prefixBlockAllocationSize,omitempty"`
 }
 
 func init() {

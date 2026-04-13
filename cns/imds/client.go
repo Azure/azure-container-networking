@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/pkg/errors"
@@ -45,17 +46,18 @@ func RetryAttempts(attempts uint) ClientOption {
 }
 
 const (
-	vmUniqueIDProperty    = "vmId"
-	imdsComputePath       = "/metadata/instance/compute"
-	imdsNetworkPath       = "/metadata/instance/network"
-	imdsVersionsPath      = "/metadata/versions"
-	imdsDefaultAPIVersion = "api-version=2021-01-01"
-	imdsNCDetailsVersion  = "api-version=2025-07-24"
-	imdsFormatJSON        = "format=json"
-	metadataHeaderKey     = "Metadata"
-	metadataHeaderValue   = "true"
-	defaultRetryAttempts  = 3
-	defaultIMDSEndpoint   = "http://169.254.169.254"
+	vmUniqueIDProperty         = "vmId"
+	imdsComputePath            = "/metadata/instance/compute"
+	imdsNetworkPath            = "/metadata/instance/network"
+	imdsVersionsPath           = "/metadata/versions"
+	imdsDefaultAPIVersion      = "api-version=2021-01-01"
+	imdsNCDetailsVersion       = "api-version=2025-07-24"
+	imdsMACAddressStringLength = 12 // 6 bytes in hex equals 12 characters
+	imdsFormatJSON             = "format=json"
+	metadataHeaderKey          = "Metadata"
+	metadataHeaderValue        = "true"
+	defaultRetryAttempts       = 3
+	defaultIMDSEndpoint        = "http://169.254.169.254"
 )
 
 var (
@@ -218,12 +220,34 @@ func (h *HardwareAddr) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return errors.Wrap(err, "failed to unmarshal JSON data")
 	}
-	mac, err := net.ParseMAC(s)
+
+	mac, err := parseMacAddress(s)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse MAC address")
 	}
 	*h = HardwareAddr(mac)
 	return nil
+}
+
+// parseMacAddress is a wrapper around net.ParseMAC to handle Windows MAC address. Windows MAC address is a pure hex
+// dump without delimiter, so we need to add delimiters. This happens when CNS gets MAC address from IMDS.
+func parseMacAddress(s string) (net.HardwareAddr, error) {
+	if !strings.ContainsAny(s, ":-.") && len(s) == imdsMACAddressStringLength {
+		var sb strings.Builder
+		for i := 0; i < len(s); i += 2 {
+			if i > 0 {
+				sb.WriteByte(':')
+			}
+			sb.WriteString(s[i : i+2])
+		}
+		s = sb.String()
+	}
+
+	mac, err := net.ParseMAC(s)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse MAC address")
+	}
+	return mac, nil
 }
 
 func (h *HardwareAddr) String() string {

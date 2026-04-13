@@ -6,10 +6,10 @@ ARG OS_VERSION
 ARG OS
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:6623b87c05c87cf3a213d67f8e917a820227b7fe64582d16deaa8b486a37ef8d AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:bc7423b52b62e8f0281b5f7f564eb1862dc315bc57e1373c6a81e87ef3ac39ab AS go
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:d472a34802cd535b24ed5fbb7869456e6d8ab2c087faedb9cb32a0efe5b67a15 AS mariner-core
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:a452d39c91576f5a2c983c7d3b62521fabd08e16b4a7237e24bf2be3b06e1651 AS mariner-core
 
 FROM go AS azure-vnet
 ARG OS
@@ -22,6 +22,7 @@ RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet -trimpath -ldflags 
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet-telemetry -trimpath -ldflags "-s -w -X main.version="$VERSION" -X "$CNI_AI_PATH"="$CNI_AI_ID"" -gcflags="-dwarflocationlists=true" cni/telemetry/service/telemetrymain.go
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet-ipam -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/ipam/plugin/main.go
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet-stateless -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/network/stateless/main.go
+RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-cni-telemetry-sidecar -trimpath -ldflags "-s -w -X main.version="$VERSION" -X "$CNI_AI_PATH"="$CNI_AI_ID"" -gcflags="-dwarflocationlists=true" ./cns/cni-telemetry-sidecar
 
 FROM mariner-core AS compressor
 ARG OS
@@ -32,7 +33,7 @@ COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift.conflist 
 COPY --from=azure-vnet /azure-container-networking/cni/azure-linux-multitenancy-transparent-vlan.conflist /payload/azure-multitenancy-transparent-vlan.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay.conflist /payload/azure-swift-overlay.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay-dualstack.conflist /payload/azure-swift-overlay-dualstack.conflist
-COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-multitenancy.conflist /payload/azure-multitenancy.conflist
+COPY --from=azure-vnet /azure-container-networking/cni/azure-windows-multitenancy.conflist /payload/azure-multitenancy.conflist
 COPY --from=azure-vnet /azure-container-networking/telemetry/azure-vnet-telemetry.config /payload/azure-vnet-telemetry.config
 RUN cd /payload && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive /payload && for f in /payload/*.gz; do mv -- "$f" "${f%%.gz}"; done

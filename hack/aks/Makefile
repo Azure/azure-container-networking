@@ -1,3 +1,5 @@
+include deploy.mk
+
 .DEFAULT_GOAL: help
 
 # construct containerized azcli command
@@ -26,6 +28,8 @@ PUBLIC_IPv4          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v4
 PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
 LTS					 ?= false
+ACNS				 ?= false
+
 
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
@@ -40,6 +44,14 @@ else
 	LTS_ARGS=
 endif
 
+# Only use with *cilium* recipes
+# Advanced Container Networking Services (ACNS)
+ifeq ($(ACNS),true)
+	ACNS_ARGS=--enable-acns
+else
+	ACNS_ARGS=
+endif
+
 # Common az aks create fields
 COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--auto-upgrade-channel $(AUTOUPGRADE) \
@@ -47,9 +59,10 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--kubernetes-version $(K8S_VER) \
 	--node-count $(NODE_COUNT) \
 	--node-vm-size $(VM_SIZE) \
-	--no-ssh-key  \
+	--no-ssh-key \
 	--os-sku $(OS_SKU) \
-	$(LTS_ARGS)
+	$(LTS_ARGS) $(ACNS_ARGS)
+POD_CIDR = 192.168.0.0/16
 
 ##@ Help
 
@@ -108,6 +121,7 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo VMSS_NAME=$(VMSS_NAME)
 	@echo K8S_VER=$(K8S_VER)
 	@echo LTS_ARGS=$(if $(LTS_ARGS),$(LTS_ARGS),$(LTS))
+	@echo ACNS_ARGS=$(if $(ACNS_ARGS),$(ACNS_ARGS),$(ACNS))
 	@echo COMMON_AKS_FIELDS=$(COMMON_AKS_FIELDS)
 
 
@@ -147,6 +161,7 @@ nodesubnet-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Node
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -155,7 +170,7 @@ overlay-byocni-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay BYO CNI clu
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--yes
 	@$(MAKE) set-kubeconf
@@ -168,9 +183,10 @@ overlay-byocni-nokubeproxy-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -180,8 +196,22 @@ overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium clus
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--yes
+	@$(MAKE) set-kubeconf
+
+ebpf-overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an EBPF Overlay Cilium cluster
+	$(COMMON_AKS_FIELDS) \
+		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
+		--network-plugin azure \
+		--network-dataplane cilium \
+		--network-plugin-mode overlay \
+		--pod-cidr $(POD_CIDR) \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AdvancedNetworkingPerformancePreview \
+		--enable-acns \
+		--acns-datapath-acceleration-mode BpfVeth \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -190,7 +220,7 @@ overlay-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--yes
 	@$(MAKE) set-kubeconf
@@ -217,6 +247,7 @@ swift-byocni-nokubeproxy-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT BYO CNI
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -260,8 +291,22 @@ swiftv2-dummy-cluster-up: rg-up ipv4 swift-net-up ## Bring up a SWIFT AzCNI clus
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--tags stampcreatorserviceinfo=true \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--no-ssh-key \
+		--yes
+	@$(MAKE) set-kubeconf
+
+swiftv2-podsubnet-cluster-up: ipv4 swift-net-up ## Bring up a SWIFTv2 PodSubnet cluster
+	$(COMMON_AKS_FIELDS) \
+		--network-plugin azure \
+		--node-vm-size $(VM_SIZE) \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true \
+		--tags stampcreatorserviceinfo=true \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
+		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -286,6 +331,7 @@ vnetscale-swift-byocni-nokubeproxy-up: rg-up ipv4 vnetscale-swift-net-up ## Brin
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		--pod-ip-allocation-mode StaticBlock \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -376,7 +422,7 @@ dualstack-byocni-nokubeproxy-up: rg-up ipv4 ipv6 overlay-net-up ## Brings up a D
 		--network-plugin-mode overlay \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
-		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview,AKSHTTPCustomFeatures=Microsoft.ContainerService/Ubuntu2404Preview \
 		--kube-proxy-config $(KUBE_PROXY_JSON_PATH) \
 		--yes
 	@$(MAKE) set-kubeconf
@@ -403,9 +449,21 @@ windows-swift-nodepool-up: ## Add windows node pool
 		--subscription $(SUB) \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
 
+linux-swiftv2-nodepool-up: ## Add linux node pool to swiftv2 cluster
+	$(AZCLI) aks nodepool add -g $(GROUP) -n nplinux \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--cluster-name $(CLUSTER) \
+		--os-type Linux \
+		--max-pods 250 \
+		--subscription $(SUB) \
+		--tags fastpathenabled=true aks-nic-enable-multi-tenancy=true stampcreatorserviceinfo=true aks-nic-secondary-count=${PODS_PER_NODE} \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
+
 down: ## Delete the cluster
-	$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
-	@$(MAKE) unset-kubeconf
+	-$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
+	-@$(MAKE) unset-kubeconf
 	@$(MAKE) rg-down
 
 restart-vmss: ## Restarts the nodes in the cluster

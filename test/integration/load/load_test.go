@@ -88,7 +88,7 @@ func TestLoad(t *testing.T) {
 	kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
 
 	t.Log("Checking pods are running")
-	err = kubernetes.WaitForPodsRunning(ctx, clientset, namespace, podLabelSelector)
+	err = kubernetes.WaitForPodsRunning(ctx, clientset, namespace, podLabelSelector, nil)
 	require.NoError(t, err)
 
 	t.Log("Repeating the scale up/down cycle")
@@ -101,7 +101,7 @@ func TestLoad(t *testing.T) {
 		kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, testConfig.ScaleUpReplicas, testConfig.SkipWait)
 	}
 	t.Log("Checking pods are running and IP assigned")
-	err = kubernetes.WaitForPodsRunning(ctx, clientset, "", "")
+	err = kubernetes.WaitForPodsRunning(ctx, clientset, "", "", []string{"azuresecuritylinuxagent"})
 	require.NoError(t, err)
 
 	if testConfig.ValidateStateFile {

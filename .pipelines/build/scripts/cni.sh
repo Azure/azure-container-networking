@@ -54,12 +54,21 @@ pushd "$CNI_TELEMETRY_DIR"
    ./telemetrymain.go
 popd
 
+CNI_TELEMETRY_SIDECAR_DIR="$REPO_ROOT"/cns/cni-telemetry-sidecar
+pushd "$CNI_TELEMETRY_SIDECAR_DIR"
+  GOOS="$OS" go build -v -a -trimpath \
+    -o "$OUT_DIR"/bin/azure-cni-telemetry-sidecar"$FILE_EXT" \
+    -ldflags "-s -w -X main.version="$CNI_VERSION" -X "$CNI_AI_PATH"="$CNI_AI_ID"" \
+    -gcflags="-dwarflocationlists=true" \
+    .
+popd
+
 pushd "$REPO_ROOT"/cni
   cp azure-$OS.conflist "$OUT_DIR"/files/azure.conflist
   cp azure-$OS-swift.conflist "$OUT_DIR"/files/azure-swift.conflist
   cp azure-linux-multitenancy-transparent-vlan.conflist "$OUT_DIR"/files/azure-multitenancy-transparent-vlan.conflist
   cp azure-$OS-swift-overlay.conflist "$OUT_DIR"/files/azure-swift-overlay.conflist
   cp azure-$OS-swift-overlay-dualstack.conflist "$OUT_DIR"/files/azure-swift-overlay-dualstack.conflist
-  cp azure-$OS-multitenancy.conflist "$OUT_DIR"/files/multitenancy.conflist
+  cp azure-windows-multitenancy.conflist "$OUT_DIR"/files/multitenancy.conflist
   cp "$REPO_ROOT"/telemetry/azure-vnet-telemetry.config "$OUT_DIR"/files/azure-vnet-telemetry.config
 popd

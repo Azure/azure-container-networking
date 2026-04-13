@@ -53,10 +53,11 @@ func TestReadConfigFromFile(t *testing.T) {
 			name: "full config",
 			path: "testdata/good.json",
 			want: &CNSConfig{
-				ChannelMode:          "Direct",
-				InitializeFromCNI:    true,
-				EnablePprof:          true,
-				EnableSubnetScarcity: true,
+				ChannelMode:            "Direct",
+				InitializeFromCNI:      true,
+				EnablePprof:            true,
+				EnableSubnetScarcity:   true,
+				EnableSwiftV1DualStack: true,
 				ManagedSettings: ManagedSettings{
 					PrivateEndpoint:           "abc",
 					InfrastructureNetworkID:   "abc",
@@ -202,6 +203,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				MetricsBindAddress:          ":9090",
 				SyncHostNCTimeoutMs:         500,
 				SyncHostNCVersionIntervalMs: 1000,
+				IPv6PrefixClamp:             120,
 				TelemetrySettings: TelemetrySettings{
 					TelemetryBatchSizeBytes:      32768,
 					TelemetryBatchIntervalInSecs: 30,
@@ -222,7 +224,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					IPAddress: "localhost",
 					Port:      8080,
 				},
-				MinTLSVersion: "TLS 1.2",
+				MinTLSVersion:             "TLS 1.2",
+				MtlsClientCertSubjectName: "",
 			},
 		},
 		{
@@ -235,6 +238,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				MetricsBindAddress:          ":9091",
 				SyncHostNCTimeoutMs:         5,
 				SyncHostNCVersionIntervalMs: 1,
+				IPv6PrefixClamp:             120,
 				TelemetrySettings: TelemetrySettings{
 					TelemetryBatchSizeBytes:      3,
 					TelemetryBatchIntervalInSecs: 3,
@@ -253,7 +257,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					IPAddress: "192.168.1.1",
 					Port:      9090,
 				},
-				MinTLSVersion: "TLS 1.3",
+				MinTLSVersion:             "TLS 1.3",
+				MtlsClientCertSubjectName: "example.com",
 			},
 			want: CNSConfig{
 				ChannelMode: "Other",
@@ -263,6 +268,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				MetricsBindAddress:          ":9091",
 				SyncHostNCTimeoutMs:         5,
 				SyncHostNCVersionIntervalMs: 1,
+				IPv6PrefixClamp:             120,
 				TelemetrySettings: TelemetrySettings{
 					TelemetryBatchSizeBytes:      3,
 					TelemetryBatchIntervalInSecs: 3,
@@ -283,7 +289,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					IPAddress: "192.168.1.1",
 					Port:      9090,
 				},
-				MinTLSVersion: "TLS 1.3",
+				MinTLSVersion:             "TLS 1.3",
+				MtlsClientCertSubjectName: "example.com",
 			},
 		},
 	}

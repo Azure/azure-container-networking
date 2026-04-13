@@ -93,6 +93,9 @@ const (
 	NodeNetworkInterfaceFrontendNIC NICType = "FrontendNIC"
 	// NodeNetworkInterfaceBackendNIC is the new name for BackendNIC
 	NodeNetworkInterfaceBackendNIC NICType = "BackendNIC"
+
+	// ApipaNIC is used for internal communication between host and container
+	ApipaNIC NICType = "ApipaNIC"
 )
 
 // ChannelMode :- CNS channel modes
@@ -120,12 +123,14 @@ type CreateNetworkContainerRequest struct {
 	LocalIPConfiguration       IPConfiguration
 	OrchestratorContext        json.RawMessage
 	IPConfiguration            IPConfiguration
+	IPv6Configuration          IPConfiguration              // Used for CNI multitenancy in Swiftv1 scenario
 	SecondaryIPConfigs         map[string]SecondaryIPConfig // uuid is key
 	MultiTenancyInfo           MultiTenancyInfo
 	CnetAddressSpace           []IPSubnet // To setup SNAT (should include service endpoint vips).
 	Routes                     []Route
 	AllowHostToNCCommunication bool
 	AllowNCToHostCommunication bool
+	SkipDefaultRoutes          bool
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
 	NetworkInterfaceInfo       NetworkInterfaceInfo //nolint // introducing new field for backendnic, to be used later by cni code
@@ -161,10 +166,10 @@ func (req *CreateNetworkContainerRequest) String() string {
 	return fmt.Sprintf("CreateNetworkContainerRequest"+
 		"{Version: %s, NetworkContainerType: %s, NetworkContainerid: %s, PrimaryInterfaceIdentifier: %s, "+
 		"LocalIPConfiguration: %+v, IPConfiguration: %+v, SecondaryIPConfigs: %+v, MultitenancyInfo: %+v, "+
-		"AllowHostToNCCommunication: %t, AllowNCToHostCommunication: %t, NCStatus: %s, NetworkInterfaceInfo: %+v}",
+		"AllowHostToNCCommunication: %t, AllowNCToHostCommunication: %t, SkipDefaultRoutes: %t, NCStatus: %s, NetworkInterfaceInfo: %+v}",
 		req.Version, req.NetworkContainerType, req.NetworkContainerid, req.PrimaryInterfaceIdentifier, req.LocalIPConfiguration,
 		req.IPConfiguration, req.SecondaryIPConfigs, req.MultiTenancyInfo, req.AllowHostToNCCommunication, req.AllowNCToHostCommunication,
-		string(req.NCStatus), req.NetworkInterfaceInfo)
+		req.SkipDefaultRoutes, string(req.NCStatus), req.NetworkInterfaceInfo)
 }
 
 // NetworkContainerRequestPolicies - specifies policies associated with create network request
@@ -237,8 +242,8 @@ type PodInfo interface {
 }
 
 type KubernetesPodInfo struct {
-	PodName      string
-	PodNamespace string
+	PodName      string `json:"podName"`
+	PodNamespace string `json:"podNamespace"`
 }
 
 var _ PodInfo = (*podInfo)(nil)
@@ -398,9 +403,11 @@ type NetworkInterfaceInfo struct {
 
 // IPConfiguration contains details about ip config to provision in the VM.
 type IPConfiguration struct {
-	IPSubnet         IPSubnet
-	DNSServers       []string
-	GatewayIPAddress string
+	IPSubnet           IPSubnet
+	IPSubnetV6         IPSubnet
+	DNSServers         []string
+	GatewayIPAddress   string
+	GatewayIPv6Address string
 }
 
 // SecondaryIPConfig contains IP info of SecondaryIP
@@ -489,6 +496,7 @@ type GetNetworkContainerRequest struct {
 type GetNetworkContainerResponse struct {
 	NetworkContainerID         string
 	IPConfiguration            IPConfiguration
+	IPv6Configuration          IPConfiguration // Used for CNI multitenancy in Swiftv1 scenario
 	Routes                     []Route
 	CnetAddressSpace           []IPSubnet
 	MultiTenancyInfo           MultiTenancyInfo
@@ -497,15 +505,18 @@ type GetNetworkContainerResponse struct {
 	Response                   Response
 	AllowHostToNCCommunication bool
 	AllowNCToHostCommunication bool
+	SkipDefaultRoutes          bool
 	NetworkInterfaceInfo       NetworkInterfaceInfo
 }
 
 type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
 	NetworkContainerPrimaryIPConfig IPConfiguration
-	HostPrimaryIPInfo               HostIPInfo
-	NICType                         NICType
-	InterfaceName                   string
+	// NetworkContainerIPv6Config holds the IPv6 IP configuration used for dual-stack SwiftV2 scenarios.
+	NetworkContainerIPv6Config IPConfiguration
+	HostPrimaryIPInfo          HostIPInfo
+	NICType                    NICType
+	InterfaceName              string
 	// MacAddress of interface
 	MacAddress string
 	// SkipDefaultRoutes is true if default routes should not be added on interface
@@ -516,6 +527,12 @@ type PodIpInfo struct {
 	PnPID string
 	// Default Deny ACL's to configure on HNS endpoints for Swiftv2 window nodes
 	EndpointPolicies []policy.Policy
+	// This flag is in effect only if nic type is apipa. This allows connection originating from host to container via apipa nic and not other way.
+	AllowHostToNCCommunication bool
+	// This flag is in effect only if nic type is apipa. This allows connection originating from container to host via apipa nic and not other way.
+	AllowNCToHostCommunication bool
+	// NetworkContainerID is the ID of the network container to which this Pod IP belongs
+	NetworkContainerID string
 }
 
 type HostIPInfo struct {
@@ -755,3 +772,11 @@ type NodeRegisterRequest struct {
 	NumCores             int
 	NmAgentSupportedApis []string
 }
+
+// IPFamily - Enum for determining IPFamily when retrieving IPs from network containers
+type IPFamily string
+
+const (
+	IPv4 IPFamily = "ipv4"
+	IPv6 IPFamily = "ipv6"
+)

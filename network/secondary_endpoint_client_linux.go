@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/netns"
@@ -13,7 +14,10 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"k8s.io/kubernetes/pkg/kubelet"
+)
+
+const (
+	NetworkNotReadyErrorMsg = "network is not ready"
 )
 
 var errorSecondaryEndpointClient = errors.New("SecondaryEndpointClient Error")
@@ -142,7 +146,7 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 	logger.Info("Sending DHCP packet", zap.Any("macAddress", epInfo.MacAddress), zap.String("ifName", epInfo.IfName))
 	err := client.dhcpClient.DiscoverRequest(ctx, epInfo.MacAddress, epInfo.IfName)
 	if err != nil {
-		return errors.Wrap(err, kubelet.NetworkNotReadyErrorMsg+" - failed to issue dhcp discover packet to create mapping in host")
+		return errors.Wrap(err, NetworkNotReadyErrorMsg+" - failed to issue dhcp discover packet to create mapping in host")
 	}
 	logger.Info("Finished configuring container interfaces and routes for secondary endpoint client")
 
@@ -188,7 +192,14 @@ func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
 			logger.Error("Failed to exit netns with", zap.Error(newErrorSecondaryEndpointClient(err)))
 		}
 	}()
-	// TODO: For stateless cni linux, check if delegated vmnic type, and if so, delete using this *endpoint* struct's ifname
+	// For stateless cni linux, check if delegated vmnic type, and if so, move the interface back to host network namespace using this *endpoint* struct's ifname
+	if ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
+		if err := client.netlink.SetLinkNetNs(ep.IfName, uintptr(vmns)); err != nil {
+			wrappedErr := newErrorSecondaryEndpointClient(err)
+			logger.Error("Failed to move interface", zap.String("IfName", ep.IfName), zap.Error(wrappedErr))
+			return wrappedErr
+		}
+	}
 	for iface := range ep.SecondaryInterfaces {
 		if err := client.netlink.SetLinkNetNs(iface, uintptr(vmns)); err != nil {
 			logger.Error("Failed to move interface", zap.String("IfName", iface), zap.Error(newErrorSecondaryEndpointClient(err)))
