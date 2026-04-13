@@ -427,3 +427,150 @@ stages:
         vmSize: Standard_B2ms
         dependsOn: "containerize"
         scaleup: 50
+
+    # Delete Cilium Clusters
+    - stage: delete_cilium_clusters
+      displayName: Delete Cilium Clusters
+      condition: and(always(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
+      dependsOn:
+        - setup
+        - cilium_e2e
+        - cilium_vnetscale_e2e
+        - cilium_nodesubnet_e2e
+        - cilium_overlay_e2e
+        - cilium_dualstackoverlay_e2e
+        - cilium_h_overlay_e2e
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      jobs:
+        - job: delete
+          displayName: Delete Cluster
+          strategy:
+            matrix:
+              cilium_podsubnet:
+                cluster_name: ciliume2e
+                delete_name: cilium_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_vnetscale:
+                cluster_name: ciliumvscalee2e
+                delete_name: cilium_vnetscale_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_nodesubnet:
+                cluster_name: cilndsubnete2e
+                delete_name: cilium_nodesubnet_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_overlay:
+                cluster_name: cilovere2e
+                delete_name: cilium_overlay_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_dualstack_overlay:
+                cluster_name: cildsovere2e
+                delete_name: cilium_dualstackoverlay_e2e
+                delete_region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+              cilium_overlay_hubble:
+                cluster_name: cilwhleovere2e
+                delete_name: cilium_h_overlay_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+          steps:
+            - template: templates/delete-cluster.yaml
+              parameters:
+                name: $(delete_name)
+                clusterName: $(cluster_name)-$(commitID)
+                region: $(delete_region)
+                sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+                svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+
+    # Delete Windows Clusters
+    - stage: delete_windows_clusters
+      displayName: Delete Windows Clusters
+      condition: and(always(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true'))
+      dependsOn:
+        - setup
+        - win_azure_overlay_e2e
+        - azure_overlay_stateless_e2e
+        - aks_windows_22_e2e
+        - win_dualstackoverlay_e2e
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      jobs:
+        - job: delete
+          displayName: Delete Cluster
+          strategy:
+            matrix:
+              azure_overlay_windows:
+                cluster_name: winazovere2e
+                delete_name: win_azure_overlay_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              azure_overlay_stateless:
+                cluster_name: statelesswin
+                delete_name: azure_overlay_stateless_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              aks_windows_22:
+                cluster_name: win22e2e
+                delete_name: aks_windows_22_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              dualstack_overlay_windows:
+                cluster_name: windsovere2e
+                delete_name: win_dualstackoverlay_e2e
+                delete_region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+          steps:
+            - template: templates/delete-cluster.yaml
+              parameters:
+                name: $(delete_name)
+                clusterName: $(cluster_name)-$(commitID)
+                region: $(delete_region)
+                sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+                svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+
+    # Delete Linux Clusters
+    - stage: delete_linux_clusters
+      displayName: Delete Linux Clusters
+      condition: always()
+      dependsOn:
+        - setup
+        - linux_azure_overlay_e2e
+        - aks_swift_e2e
+        - aks_swift_vnetscale_e2e
+        - aks_ubuntu_22_linux_e2e
+        - linux_dualstackoverlay_e2e
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      jobs:
+        - job: delete
+          displayName: Delete Cluster
+          strategy:
+            matrix:
+              azure_overlay_linux:
+                cluster_name: linuxazovere2e
+                delete_name: linux_azure_overlay_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              aks_swift:
+                cluster_name: swifte2e
+                delete_name: aks_swift_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              aks_swift_vnetscale:
+                cluster_name: vscaleswifte2e
+                delete_name: aks_swift_vnetscale_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              aks_ubuntu_22:
+                cluster_name: ubuntu22e2e
+                delete_name: aks_ubuntu_22_linux_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              dualstack_overlay_linux:
+                cluster_name: linuxdsovere2e
+                delete_name: linux_dualstackoverlay_e2e
+                delete_region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+          steps:
+            - template: templates/delete-cluster.yaml
+              parameters:
+                name: $(delete_name)
+                clusterName: $(cluster_name)-$(commitID)
+                region: $(delete_region)
+                sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+                svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)

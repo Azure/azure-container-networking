@@ -27,7 +27,7 @@ parameters:
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: Create Cluster - ${{ parameters.displayName }}
-    condition: and(succeeded(), eq(stageDependencies.setup.env.outputs['GitDiffCheck.RunCiliumTests'], 'true'))
+    condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -49,7 +49,7 @@ stages:
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
-    condition: and(succeeded(), eq(stageDependencies.setup.env.outputs['GitDiffCheck.RunCiliumTests'], 'true'))
+    condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
     - setup
     - publish
@@ -102,24 +102,3 @@ stages:
               os: ${{ parameters.os }}
               cni: cilium
 
-  - stage: delete_${{ parameters.clusterName }}
-    displayName: Delete Cluster - ${{ parameters.displayName }}
-    condition: and(always(), eq(stageDependencies.setup.env.outputs['GitDiffCheck.RunCiliumTests'], 'true'))
-    dependsOn:
-      - setup
-      - ${{ parameters.name }}
-    variables:
-      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
-    jobs:
-      - job: delete
-        displayName: Delete Cluster
-        steps:
-          - template: ../../templates/delete-cluster.yaml
-            parameters:
-              name: ${{ parameters.name }}
-              clusterName: ${{ parameters.clusterName }}-$(commitID)
-              region: $(REGION_AKS_CLUSTER_TEST)
-              sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
-              svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
