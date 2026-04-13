@@ -42,6 +42,7 @@ parameters:
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: Create Cluster - ${{ parameters.displayName }}
+    condition: and(succeeded(), eq(stageDependencies.setup.env.outputs['GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -61,7 +62,7 @@ stages:
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
-    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
+    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION), eq(stageDependencies.setup.env.outputs['GitDiffCheck.RunCiliumTests'], 'true'))
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
@@ -120,8 +121,9 @@ stages:
 
   - stage: delete_${{ parameters.clusterName }}
     displayName: Delete Cluster - ${{ parameters.displayName }}
-    condition: always()
+    condition: and(always(), eq(stageDependencies.setup.env.outputs['GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
+      - setup
       - ${{ parameters.name }}
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]

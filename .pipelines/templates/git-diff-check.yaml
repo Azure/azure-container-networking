@@ -65,7 +65,27 @@ steps:
       
       echo "Run Windows Tests: $RUN_WINDOWS_TESTS"
       
+      # Check if any cilium-relevant directories were modified
+      CILIUM_DIRS=("cns/" "azure-ipam/" "azure-ip-masq-merger/" "azure-iptables-monitor/" "bpf-prog/")
+      RUN_CILIUM_TESTS=false
+      if [ -z "$CHANGED_FILES" ]; then
+        echo "No files changed, running all (including cilium)"
+        RUN_CILIUM_TESTS=true
+      else
+        for file in $CHANGED_FILES; do
+          for dir in "${CILIUM_DIRS[@]}"; do
+            if [[ "$file" == ${dir}* ]]; then
+              RUN_CILIUM_TESTS=true
+              break 2
+            fi
+          done
+        done
+      fi
+      
+      echo "Run Cilium Tests: $RUN_CILIUM_TESTS"
+      
       echo "##vso[task.setvariable variable=RunWindowsTests;isOutput=true]$RUN_WINDOWS_TESTS"
+      echo "##vso[task.setvariable variable=RunCiliumTests;isOutput=true]$RUN_CILIUM_TESTS"
     name: GitDiffCheck
     displayName: "Check Git Diff"
     condition: always()
