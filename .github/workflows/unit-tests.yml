@@ -1,0 +1,170 @@
+name: Unit Tests
+
+on:
+  push:
+    branches:
+      - master
+      - release/*
+  pull_request:
+    branches:
+      - master
+      - release/*
+  merge_group:
+    branches:
+      - master
+      - release/*
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"  # daily at 06:00 UTC
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.merge_group.head_sha || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      go-version: ${{ steps.goversion.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Determine Go version
+        id: goversion
+        run: |
+          version=$(find . -name go.mod -exec grep -h '^go ' {} \; | awk '{print $2}' | sort -V | tail -1)
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "Invalid Go version: $version"
+            exit 1
+          fi
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+  test-linux:
+    name: Test Linux (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: setup
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6
+        with:
+          go-version: ${{ needs.setup.outputs.go-version }}
+
+      - name: Install system dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y iptables ipset iproute2
+
+      - name: Build BPF lib
+        run: make bpf-lib
+
+      - name: Go generate
+        run: go generate ./...
+
+      - name: Install go-junit-report
+        run: make go-junit-report
+
+      - name: Run Tests
+        run: |
+          # TODO: Refactor this fd-redirect/tee pipeline to work natively under
+          # bash strict mode (-e/-o pipefail). Strict mode is temporarily disabled
+          # here to preserve the original exit-code propagation behavior intact.
+          set +e +o pipefail
+          { { { {
+                sudo -E env "PATH=$PATH" make test-all;
+                echo $? >&3;
+                } | tee >($(go env GOPATH)/bin/go-junit-report > report.xml) >&4;
+              } 3>&1;
+            } | { read xs; exit $xs; }
+          } 4>&1
+          test_exit=$?
+          set -eo pipefail
+
+          # combine coverage from multiple modules
+          (echo "mode: atomic"; tail -q -n +2 coverage-*.out) > coverage.cover
+          mv coverage.cover linux-coverage.out
+
+          (exit "$test_exit")
+
+      - name: Upload Linux Coverage
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
+        with:
+          name: linux-coverage-${{ matrix.os }}
+          path: linux-coverage.out
+
+  test-windows:
+    name: Test Windows
+    runs-on: windows-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6
+        with:
+          go-version: ${{ needs.setup.outputs.go-version }}
+
+      - name: Run Windows Tests
+        shell: cmd
+        run: |
+          go test -timeout 30m -covermode atomic -coverprofile=windows-coverage.out ./cns/... ./npm/... ./cni/... ./platform/...
+          go tool cover -func=windows-coverage.out
+
+      - name: Upload Windows Coverage
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
+        with:
+          name: windows-coverage
+          path: windows-coverage.out
+
+  code-coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    needs: [setup, test-linux]
+    if: always()
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417  # v6
+        with:
+          go-version: ${{ needs.setup.outputs.go-version }}
+
+      - name: Download Linux Coverage Artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
+        with:
+          name: linux-coverage-ubuntu-24.04
+          path: ./
+
+      - name: Generate Coverage Report
+        run: |
+          # use go work to include multiple modules or gocov will omit results from those modules
+          make workspace
+
+          make tools
+          sudo ln -s $(go env GOPATH)/bin/gocov /usr/local/bin/gocov
+          sudo ln -s $(go env GOPATH)/bin/gocov-xml /usr/local/bin/gocov-xml
+
+          GOOS=linux gocov convert linux-coverage.out > linux-coverage.json
+          GOOS=linux gocov-xml < linux-coverage.json > linux-coverage.xml
+
+          mkdir coverage
+          mv linux-coverage.xml coverage/
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
+        with:
+          name: linux-coverage-report
+          path: coverage/linux-coverage.xml
+
+      - name: Publish Code Coverage Summary
+        uses: irongut/CodeCoverageSummary@51cc3a756ddcd398d447c044c02cb6aa83fdae95  # v1.3.0
+        with:
+          filename: coverage/linux-coverage.xml
+          format: markdown
+          output: both
