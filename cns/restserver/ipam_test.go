@@ -2485,3 +2485,135 @@ func TestStatelessCNIStateFile(t *testing.T) {
 		})
 	}
 }
+
+// TestIPAMReleaseStaleIPOnPodRestart verifies that when a pod restarts with a new
+// InfraContainerID, the stale IP from the previous container is released and a new
+// IP is successfully allocated. This tests the fix for the crash-loop IP exhaustion bug.
+func TestIPAMReleaseStaleIPOnPodRestart(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	// Set up NC with 2 IPs
+	ipconfigs := make(map[string]cns.IPConfigurationStatus)
+	state1 := newPodState(testIP1, testIPID1, testNCID, types.Available, 0)
+	ipconfigs[state1.ID] = state1
+	state2 := newPodState(testIP2, testIPID2, testNCID, types.Available, 0)
+	ipconfigs[state2.ID] = state2
+	err := updatePodIPConfigState(t, svc, ipconfigs, testNCID)
+	require.NoError(t, err)
+
+	// Simulate first container of "mypod" getting IP1
+	oldContainerID := "aaaa1111bbbb2222cccc3333dddd4444eeee5555ffff6666"
+	oldInterfaceID := oldContainerID[:8] + "-eth0"
+	oldPodInfo := cns.NewPodInfo(oldInterfaceID, oldContainerID, "mypod", "default")
+
+	req1 := cns.IPConfigsRequest{
+		PodInterfaceID:   oldPodInfo.InterfaceID(),
+		InfraContainerID: oldPodInfo.InfraContainerID(),
+	}
+	b, _ := oldPodInfo.OrchestratorContext()
+	req1.OrchestratorContext = b
+
+	podIPInfo1, err := requestIPConfigsHelper(svc, req1)
+	require.NoError(t, err)
+	require.Len(t, podIPInfo1, 1)
+	assignedIP := podIPInfo1[0].PodIPConfig.IPAddress
+
+	// Verify the old container got an IP assigned
+	assert.Contains(t, svc.PodIPIDByPodInterfaceKey, oldPodInfo.Key())
+
+	// Simulate pod restart with a NEW InfraContainerID (no CNI DEL for old container)
+	newContainerID := "1111aaaa2222bbbb3333cccc4444dddd5555eeee6666ffff"
+	newInterfaceID := newContainerID[:8] + "-eth0"
+	newPodInfo := cns.NewPodInfo(newInterfaceID, newContainerID, "mypod", "default")
+
+	req2 := cns.IPConfigsRequest{
+		PodInterfaceID:   newPodInfo.InterfaceID(),
+		InfraContainerID: newPodInfo.InfraContainerID(),
+	}
+	b2, _ := newPodInfo.OrchestratorContext()
+	req2.OrchestratorContext = b2
+
+	// This should succeed: the stale IP from the old container should be released first
+	podIPInfo2, err := requestIPConfigsHelper(svc, req2)
+	require.NoError(t, err)
+	require.Len(t, podIPInfo2, 1)
+
+	// The released stale IP should be available and reassigned to the new container
+	assert.Equal(t, assignedIP, podIPInfo2[0].PodIPConfig.IPAddress,
+		"new container should get the same IP that was released from the old container")
+
+	// Verify the old key's IP was released and the new key got an IP
+	assert.NotContains(t, svc.PodIPIDByPodInterfaceKey, oldPodInfo.Key(),
+		"old container key should be removed from PodIPIDByPodInterfaceKey")
+	assert.Contains(t, svc.PodIPIDByPodInterfaceKey, newPodInfo.Key(),
+		"new container key should exist in PodIPIDByPodInterfaceKey")
+}
+
+// TestIPAMReleaseStaleIPOnPodRestartPreventsExhaustion verifies that repeated
+// pod restarts (crash-loop) do not exhaust the IP pool because each new allocation
+// releases the stale IP from the previous container.
+func TestIPAMReleaseStaleIPOnPodRestartPreventsExhaustion(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	// Set up NC with only 1 IP — any leak will cause exhaustion
+	ipconfigs := make(map[string]cns.IPConfigurationStatus)
+	state1 := newPodState(testIP1, testIPID1, testNCID, types.Available, 0)
+	ipconfigs[state1.ID] = state1
+	err := updatePodIPConfigState(t, svc, ipconfigs, testNCID)
+	require.NoError(t, err)
+
+	podName := "crashloop-pod"
+	podNamespace := "default"
+
+	// Simulate 5 consecutive container restarts (crash-loop), each with no CNI DEL
+	for i := 0; i < 5; i++ {
+		containerID := fmt.Sprintf("%08d0000000000000000000000000000000000000000", i)
+		interfaceID := containerID[:8] + "-eth0"
+		podInfo := cns.NewPodInfo(interfaceID, containerID, podName, podNamespace)
+
+		req := cns.IPConfigsRequest{
+			PodInterfaceID:   podInfo.InterfaceID(),
+			InfraContainerID: podInfo.InfraContainerID(),
+		}
+		b, _ := podInfo.OrchestratorContext()
+		req.OrchestratorContext = b
+
+		podIPInfo, err := requestIPConfigsHelper(svc, req)
+		require.NoError(t, err, "iteration %d should succeed", i)
+		require.Len(t, podIPInfo, 1, "iteration %d should get 1 IP", i)
+		assert.Equal(t, testIP1, podIPInfo[0].PodIPConfig.IPAddress,
+			"iteration %d should get the same IP", i)
+	}
+
+	// Verify only 1 IP is assigned (no leaks)
+	assignedCount := 0
+	for _, ipConfig := range svc.PodIPConfigState { //nolint:gocritic // ignore copy
+		if ipConfig.GetState() == types.Assigned {
+			assignedCount++
+		}
+	}
+	assert.Equal(t, 1, assignedCount, "only 1 IP should be assigned after crash-loop")
+}
+
+// TestIPAMReleaseStaleIPConfigsForPodNoStale verifies that releaseStaleIPConfigsForPod
+// is a no-op when there are no stale IPs.
+func TestIPAMReleaseStaleIPConfigsForPodNoStale(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+
+	// Set up with a normally assigned IP
+	ipconfigs := make(map[string]cns.IPConfigurationStatus)
+	state1, _ := newPodStateWithOrchestratorContext(testIP1, testIPID1, testNCID, types.Assigned, ipPrefixBitsv4, 0, testPod1Info)
+	ipconfigs[state1.ID] = state1
+	state2 := newPodState(testIP2, testIPID2, testNCID, types.Available, 0)
+	ipconfigs[state2.ID] = state2
+	err := updatePodIPConfigState(t, svc, ipconfigs, testNCID)
+	require.NoError(t, err)
+
+	// Call with a different pod — should not affect testPod1's IP
+	svc.releaseStaleIPConfigsForPod(testPod2Info)
+
+	// testPod1's IP should still be assigned
+	ip1State := svc.PodIPConfigState[testIPID1]
+	assert.Equal(t, types.Assigned, ip1State.GetState())
+	assert.Contains(t, svc.PodIPIDByPodInterfaceKey, testPod1Info.Key())
+}
