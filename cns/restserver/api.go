@@ -1343,6 +1343,16 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 			}
 		}
 
+		// Fallback: enrich NIC data with MTPNC CRD info if the middleware is attached
+		var mtpncByMAC map[string]*cns.NICNCInfo
+		if service.mtpncCli != nil {
+			var mtpncErr error
+			mtpncByMAC, mtpncErr = service.mtpncCli.GetMTPNCInfoByMAC(ctx)
+			if mtpncErr != nil {
+				logger.Errorf("[Azure CNS] failed to get MTPNC enrichment data: %v", mtpncErr)
+			}
+		}
+
 		// Build a MAC→interface name map from host network interfaces
 		ifaceNameByMAC := make(map[string]string)
 		if ifaces, ifErr := net.Interfaces(); ifErr == nil {
@@ -1372,6 +1382,11 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 				res.NetworkID = info.NetworkID
 				res.SubnetName = info.SubnetName
 				res.Capacity = 16
+			} else if info, ok := mtpncByMAC[device.MacAddress]; ok {
+				// MTPNC match: NIC is dedicated to a single pod
+				res.NetworkID = info.NetworkID
+				res.SubnetName = info.SubnetName
+				res.Capacity = 1
 			} else {
 				res.Capacity = 1
 			}

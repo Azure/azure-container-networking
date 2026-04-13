@@ -1576,8 +1576,9 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		}
 		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
 		// switch here for AKS(K8s) swiftv2 middleware to process IP configs requests
-		swiftV2Middleware := &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
+		swiftV2Middleware := &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient(), NodeName: nodeName}
 		httpRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
+		httpRestServiceImplementation.AttachMTPNCClient(swiftV2Middleware)
 	}
 
 	// Attach NICNetworkConfig middleware to enrich NIC resource data with CRD info

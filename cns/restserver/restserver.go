@@ -64,6 +64,11 @@ type nicNCClient interface {
 	GetNICNCInfoByMAC(ctx context.Context) (map[string]*cns.NICNCInfo, error)
 }
 
+// mtpncClient enriches NICResource data with MTPNC CRD information when NICNetworkConfig is absent.
+type mtpncClient interface {
+	GetMTPNCInfoByMAC(ctx context.Context) (map[string]*cns.NICNCInfo, error)
+}
+
 // nodeInfoClient reads NodeInfo CRDs to get NIC device info and VM metadata.
 type nodeInfoClient interface {
 	Get(ctx context.Context, name string) (*v1alpha1.NodeInfo, error)
@@ -115,6 +120,7 @@ type HTTPRestService struct {
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
 	nicNCClient                nicNCClient
+	mtpncCli                   mtpncClient
 	nodeInfoCli                nodeInfoClient
 	nodeName                   string
 }
@@ -418,6 +424,10 @@ func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.
 
 func (service *HTTPRestService) AttachNICNCClient(client nicNCClient) {
 	service.nicNCClient = client
+}
+
+func (service *HTTPRestService) AttachMTPNCClient(client mtpncClient) {
+	service.mtpncCli = client
 }
 
 func (service *HTTPRestService) AttachNodeInfoClient(client nodeInfoClient, nodeName string) {

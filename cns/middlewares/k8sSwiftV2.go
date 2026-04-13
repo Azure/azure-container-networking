@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"context"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
@@ -32,7 +33,8 @@ var (
 )
 
 type K8sSWIFTv2Middleware struct {
-	Cli client.Client
+	Cli      client.Client
+	NodeName string
 }
 
 // Verify interface compliance at compile time
@@ -277,4 +279,71 @@ func (k *K8sSWIFTv2Middleware) GetInfravnetAndServiceCidrs() ([]string, []string
 	v6Cidrs = append(v6Cidrs, serviceCIDRsV6...)
 
 	return v4Cidrs, v6Cidrs, nil
+}
+
+// GetMTPNCInfoByMAC lists all MTPNCs scheduled on this node and the referenced PodNetworks,
+// returning a map keyed by MAC address with network and subnet information.
+// This is used as a fallback when NICNetworkConfig CRDs are not present for a given NIC.
+func (k *K8sSWIFTv2Middleware) GetMTPNCInfoByMAC(ctx context.Context) (map[string]*cns.NICNCInfo, error) {
+	var mtpncList v1alpha1.MultitenantPodNetworkConfigList
+	if err := k.Cli.List(ctx, &mtpncList); err != nil {
+		return nil, err
+	}
+
+	// Build a PodNetwork name → PodNetwork lookup so we can resolve NetworkID and SubnetName.
+	var pnList v1alpha1.PodNetworkList
+	if err := k.Cli.List(ctx, &pnList); err != nil {
+		return nil, err
+	}
+
+	pnByName := make(map[string]*v1alpha1.PodNetwork, len(pnList.Items))
+	for i := range pnList.Items {
+		pnByName[pnList.Items[i].Name] = &pnList.Items[i]
+	}
+
+	result := make(map[string]*cns.NICNCInfo)
+	for i := range mtpncList.Items {
+		mtpnc := &mtpncList.Items[i]
+
+		// Only consider MTPNCs that are scheduled on this node.
+		if mtpnc.Status.NodeName != k.NodeName {
+			continue
+		}
+
+		pn := pnByName[mtpnc.Spec.PodNetwork]
+
+		for j := range mtpnc.Status.InterfaceInfos {
+			mac := mtpnc.Status.InterfaceInfos[j].MacAddress
+			if mac == "" {
+				continue
+			}
+			// Skip if we already recorded this MAC (first-seen wins).
+			if _, exists := result[mac]; exists {
+				continue
+			}
+
+			info := &cns.NICNCInfo{}
+			if pn != nil {
+				info.NetworkID = pn.Spec.NetworkID
+				info.SubnetName = subnetNameFromResourceID(pn.Spec.SubnetResourceID)
+			}
+			result[mac] = info
+		}
+	}
+
+	logger.Printf("[SWIFTv2Middleware] fetched %d MTPNCs on node %s, %d unique MACs with info", len(mtpncList.Items), k.NodeName, len(result))
+	return result, nil
+}
+
+// subnetNameFromResourceID extracts the trailing subnet name from an ARM resource ID.
+// e.g. ".../subnets/mySubnet" → "mySubnet"
+func subnetNameFromResourceID(resourceID string) string {
+	if resourceID == "" {
+		return ""
+	}
+	parts := strings.Split(resourceID, "/")
+	if len(parts) < 2 {
+		return resourceID
+	}
+	return parts[len(parts)-1]
 }
