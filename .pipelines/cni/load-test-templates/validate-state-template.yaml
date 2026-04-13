@@ -3,6 +3,13 @@ parameters:
   os: "linux"
   restartCase: "false"
   cni: "cilium"
+  convergenceAttempts: "5"
+  convergenceIntervalSeconds: "10"
+  baselineSummaryPath: ""
+  failOnRegression: "false"
+  summaryFileName: "validate-summary.json"
+  summaryArtifactName: "validate-summary"
+  publishSummaryArtifact: "false"
 
 steps:
   - task: AzureCLI@2
@@ -14,7 +21,49 @@ steps:
       inlineScript: |
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         kubectl get pods -A
+        summaryDir="$(Build.SourcesDirectory)/test/integration/logs/validate"
+        summaryPath="$summaryDir/${{ parameters.summaryFileName }}"
+        VALIDATE_SUMMARY_PATH="$summaryPath" \
+        VALIDATE_CONVERGENCE_ATTEMPTS=${{ parameters.convergenceAttempts }} \
+        VALIDATE_CONVERGENCE_INTERVAL_SECONDS=${{ parameters.convergenceIntervalSeconds }} \
         make test-validate-state OS_TYPE=${{ parameters.os }} RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
+        if [ -f "$summaryPath" ]; then
+          echo "Validation summary: $summaryPath"
+          cat "$summaryPath"
+        fi
     name: "ValidateState"
     displayName: "Validate State"
     retryCountOnTaskFailure: 3
+
+  - ${{ if eq(parameters.failOnRegression, 'true') }}:
+    - script: |
+        set -euo pipefail
+
+        summaryPath="$(Build.SourcesDirectory)/test/integration/logs/validate/${{ parameters.summaryFileName }}"
+
+        if [ -z "${{ parameters.baselineSummaryPath }}" ]; then
+          echo "failOnRegression=true but baselineSummaryPath is empty"
+          exit 1
+        fi
+
+        if [ ! -f "${{ parameters.baselineSummaryPath }}" ]; then
+          echo "baseline summary file not found: ${{ parameters.baselineSummaryPath }}"
+          exit 1
+        fi
+
+        if [ ! -f "$summaryPath" ]; then
+          echo "candidate summary file not found: $summaryPath"
+          exit 1
+        fi
+
+        echo "Comparing baseline vs candidate summaries"
+        go run ./test/validate/cmd/summarydiff \
+          -baseline "${{ parameters.baselineSummaryPath }}" \
+          -candidate "$summaryPath"
+      name: "CompareStateSummary"
+      displayName: "Compare State Summary"
+
+  - ${{ if eq(parameters.publishSummaryArtifact, 'true') }}:
+    - publish: $(Build.SourcesDirectory)/test/integration/logs/validate
+      artifact: ${{ parameters.summaryArtifactName }}
+      displayName: "Publish Validate Summary Artifact"
