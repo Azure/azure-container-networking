@@ -1,0 +1,21 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: azure-cns-multitenancy
+rules:
+- apiGroups: ["multitenancy.acn.azure.com"]
+  resources: ["nodeinfo", "nicnetworkconfigs", "multitenantpodnetworkconfigs"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: azure-cns-multitenancy-binding
+subjects:
+- kind: ServiceAccount
+  name: azure-cns
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: azure-cns-multitenancy
+  apiGroup: rbac.authorization.k8s.io
