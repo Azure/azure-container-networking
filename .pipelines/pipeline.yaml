@@ -343,7 +343,6 @@ stages:
         clusterType: nodesubnet-byocni-nokubeproxy-up
         clusterName: "cilndsubnete2e"
         vmSize: Standard_B2s
-        k8sVersion: ""
         dependsOn: ["test"]
 
     # Cilium Overlay E2E tests
