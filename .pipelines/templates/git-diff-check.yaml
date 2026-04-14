@@ -14,9 +14,8 @@ steps:
       # Auto-detect target branch if not specified
       TARGET_BRANCH="${{ parameters.targetBranch }}"
       if [ -z "$TARGET_BRANCH" ]; then
-        if [ "$(Build.Reason)" = "PullRequest" ]; then
-          # For pull requests, use the target branch
-          TARGET_BRANCH="$(System.PullRequest.TargetBranchName)"
+        if [ -n "$PRTARGETBRANCH" ]; then
+          TARGET_BRANCH="$PRTARGETBRANCH"
           echo "Auto-detected target branch from PR: $TARGET_BRANCH"
         else
           TARGET_BRANCH="master"

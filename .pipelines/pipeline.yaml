@@ -35,6 +35,8 @@ stages:
         displayName: Setup
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+        variables:
+          prTargetBranch: $[ variables['System.PullRequest.TargetBranchName'] ]
         steps:
           - template: templates/git-diff-check.yaml
           - script: |
