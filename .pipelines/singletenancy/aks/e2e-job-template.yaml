@@ -30,7 +30,7 @@ parameters:
     type: string
     default: ""
   - name: dependsOn
-    type: string
+    type: object
     default: ""
 
 stages:

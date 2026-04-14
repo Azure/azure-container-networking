@@ -1,6 +1,6 @@
 parameters:
   - name: dependsOn
-    type: string
+    type: object
     default: ""
   - name: name
     type: string
