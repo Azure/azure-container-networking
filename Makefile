@@ -58,6 +58,7 @@ CNI_IPAM_DIR = $(REPO_ROOT)/cni/ipam/plugin
 STATELESS_CNI_NET_DIR = $(REPO_ROOT)/cni/network/stateless
 CNI_IPAMV6_DIR = $(REPO_ROOT)/cni/ipam/pluginv6
 CNI_TELEMETRY_DIR = $(REPO_ROOT)/cni/telemetry/service
+CNI_TELEMETRY_SIDECAR_DIR = $(REPO_ROOT)/cns/cni-telemetry-sidecar
 ACNCLI_DIR = $(REPO_ROOT)/tools/acncli
 CNS_DIR = $(REPO_ROOT)/cns/service
 NPM_DIR = $(REPO_ROOT)/npm/cmd
@@ -228,6 +229,11 @@ azure-vnet-ipamv6-binary:
 # Build the Azure CNI telemetry binary.
 azure-vnet-telemetry-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+
+# Build the Azure CNI telemetry sidecar binary.
+azure-cni-telemetry-sidecar-binary:
+	$(MKDIR) $(CNI_BUILD_DIR)
+	cd $(CNI_TELEMETRY_SIDECAR_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CLI network binary.
 acncli-binary:
@@ -751,12 +757,12 @@ npm-skopeo-archive: ## export tar archive of multiplat container manifest.
 
 # Create a CNI archive for the target platform.
 .PHONY: cni-archive
-cni-archive: azure-vnet-binary azure-vnet-stateless-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary azure-vnet-telemetry-binary
+cni-archive: azure-vnet-binary azure-vnet-stateless-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary azure-vnet-telemetry-binary azure-cni-telemetry-sidecar-binary
 	$(MKDIR) $(CNI_BUILD_DIR)
 	cp cni/azure-$(GOOS).conflist $(CNI_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_BUILD_DIR)/azure-vnet-telemetry.config
 	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
-	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-ipamv6$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-ipamv6$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-cni-telemetry-sidecar$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 ifeq ($(GOOS),windows)
 	$(MKDIR) $(CNI_MULTITENANCY_BUILD_DIR)
@@ -770,30 +776,30 @@ ifeq ($(GOOS),linux)
 	cp cni/azure-$(GOOS)-multitenancy-transparent-vlan.conflist $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)/10-azure.conflist
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)
 	cp telemetry/azure-vnet-telemetry.config $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)/azure-vnet-telemetry.config
-	cp $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)
-	cd $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cp $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)
+	cd $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-cni-telemetry-sidecar$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 endif
 
 	$(MKDIR) $(CNI_SWIFT_BUILD_DIR)
 	cp cni/azure-$(GOOS)-swift.conflist $(CNI_SWIFT_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_SWIFT_BUILD_DIR)/azure-vnet-telemetry.config
-	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)
 	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
-	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-cni-telemetry-sidecar$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 	$(MKDIR) $(CNI_OVERLAY_BUILD_DIR)
 	cp cni/azure-$(GOOS)-swift-overlay.conflist $(CNI_OVERLAY_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_OVERLAY_BUILD_DIR)/azure-vnet-telemetry.config
-	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)
 	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
-	cd $(CNI_OVERLAY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_OVERLAY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cd $(CNI_OVERLAY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_OVERLAY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-cni-telemetry-sidecar$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 	$(MKDIR) $(CNI_DUALSTACK_BUILD_DIR)
 	cp cni/azure-$(GOOS)-swift-overlay-dualstack.conflist $(CNI_DUALSTACK_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_DUALSTACK_BUILD_DIR)/azure-vnet-telemetry.config
-	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_DUALSTACK_BUILD_DIR)
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) $(CNI_DUALSTACK_BUILD_DIR)
 	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_DUALSTACK_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
-	cd $(CNI_DUALSTACK_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_DUALSTACK_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cd $(CNI_DUALSTACK_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_DUALSTACK_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-cni-telemetry-sidecar$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 #baremetal mode is windows only (at least for now)
 ifeq ($(GOOS),windows)
