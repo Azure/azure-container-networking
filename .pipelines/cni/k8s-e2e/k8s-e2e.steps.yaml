@@ -7,7 +7,8 @@ parameters:
   processes: "" # Number of parallel processes
   attempts: ""
 
-
+# Alpha adds skip for test, DNS should work with a service name that starts with a digit [FeatureGate:RelaxedServiceNameValidation] [Alpha] [Feature:OffByDefault], https://github.com/kubernetes/enhancements/issues/5311
+# Ideally will also harden against other alpha features that need to be enabled by flags
 steps:
   - script: |
       set -ex
@@ -15,11 +16,13 @@ steps:
       # ginkgoSkip cant handle only |LinuxOnly. Need to have check
       if ${{ lower(and(ge(length(parameters.ginkgoSkip), 1), eq(parameters.os, 'windows'))) }}
       then
-        SKIP="|LinuxOnly"
+        SKIP='|LinuxOnly|'
       elif ${{ lower(eq(parameters.os, 'windows')) }}
       then
-        SKIP="LinuxOnly"
+        SKIP='LinuxOnly'
       fi
+
+      SKIP="${SKIP}|Alpha"
 
       # Taint Linux nodes so that windows tests do not run on them
       if ${{ lower(eq(parameters.os, 'windows')) }}
