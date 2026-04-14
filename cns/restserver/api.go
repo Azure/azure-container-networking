@@ -1320,6 +1320,7 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 	switch r.Method {
 	case http.MethodGet:
 		// Read NIC info from NodeInfo CRD
+		logger.Printf("[Azure CNS] getNICResources: fetching NodeInfo CRD for node %s", service.nodeName)
 		nodeInfo, err := service.nodeInfoCli.Get(ctx, service.nodeName)
 		if err != nil {
 			resp := cns.GetNICResourcesResponse{
@@ -1332,28 +1333,41 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 			logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 			return
 		}
+		logger.Printf("[Azure CNS] getNICResources: NodeInfo CRD retrieved successfully, found %d device infos, VMUniqueID: %s",
+			len(nodeInfo.Status.DeviceInfos), nodeInfo.Spec.VMUniqueID)
 
 		// Enrich NIC data with NICNetworkConfig CRD info if the middleware is attached
 		var nicNCByMAC map[string]*cns.NICNCInfo
 		if service.nicNCClient != nil {
+			logger.Printf("[Azure CNS] getNICResources: fetching NICNetworkConfig enrichment data")
 			var enrichErr error
 			nicNCByMAC, enrichErr = service.nicNCClient.GetNICNCInfoByMAC(ctx)
 			if enrichErr != nil {
 				logger.Errorf("[Azure CNS] failed to get NICNetworkConfig enrichment data: %v", enrichErr)
+			} else {
+				logger.Printf("[Azure CNS] getNICResources: retrieved %d NICNetworkConfig entries", len(nicNCByMAC))
 			}
+		} else {
+			logger.Printf("[Azure CNS] getNICResources: nicNCClient is nil, skipping NICNetworkConfig enrichment")
 		}
 
 		// Fallback: enrich NIC data with MTPNC CRD info if the middleware is attached
 		var mtpncByMAC map[string]*cns.NICNCInfo
 		if service.mtpncCli != nil {
+			logger.Printf("[Azure CNS] getNICResources: fetching MTPNC enrichment data")
 			var mtpncErr error
 			mtpncByMAC, mtpncErr = service.mtpncCli.GetMTPNCInfoByMAC(ctx)
 			if mtpncErr != nil {
 				logger.Errorf("[Azure CNS] failed to get MTPNC enrichment data: %v", mtpncErr)
+			} else {
+				logger.Printf("[Azure CNS] getNICResources: retrieved %d MTPNC entries", len(mtpncByMAC))
 			}
+		} else {
+			logger.Printf("[Azure CNS] getNICResources: mtpncCli is nil, skipping MTPNC enrichment")
 		}
 
 		// Build a MAC→interface name map from host network interfaces
+		logger.Printf("[Azure CNS] getNICResources: listing host network interfaces")
 		ifaceNameByMAC := make(map[string]string)
 		if ifaces, ifErr := net.Interfaces(); ifErr == nil {
 			logger.Printf("[Azure CNS] successfully listed %v host network interfaces for NIC resource query", len(ifaces))
@@ -1366,6 +1380,7 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 			logger.Errorf("[Azure CNS] failed to list host network interfaces: %v", ifErr)
 		}
 
+		logger.Printf("[Azure CNS] getNICResources: building NIC resources for %d devices", len(nodeInfo.Status.DeviceInfos))
 		nicResources := make([]cns.NICResource, 0, len(nodeInfo.Status.DeviceInfos))
 		for _, device := range nodeInfo.Status.DeviceInfos {
 			res := cns.NICResource{
@@ -1379,20 +1394,27 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 				}
 			}
 			if info, ok := nicNCByMAC[device.MacAddress]; ok {
+				logger.Printf("[Azure CNS] getNICResources: device MAC %s matched NICNetworkConfig (networkID: %s, subnet: %s)",
+					device.MacAddress, info.NetworkID, info.SubnetName)
 				res.NetworkID = info.NetworkID
 				res.SubnetName = info.SubnetName
 				res.Capacity = 16
 			} else if info, ok := mtpncByMAC[device.MacAddress]; ok {
 				// MTPNC match: NIC is dedicated to a single pod
+				logger.Printf("[Azure CNS] getNICResources: device MAC %s matched MTPNC (networkID: %s, subnet: %s)",
+					device.MacAddress, info.NetworkID, info.SubnetName)
 				res.NetworkID = info.NetworkID
 				res.SubnetName = info.SubnetName
 				res.Capacity = 1
 			} else {
+				logger.Printf("[Azure CNS] getNICResources: device MAC %s had no NICNetworkConfig or MTPNC match, defaulting capacity to 1",
+					device.MacAddress)
 				res.Capacity = 1
 			}
 			nicResources = append(nicResources, res)
 		}
 
+		logger.Printf("[Azure CNS] getNICResources: returning %d NIC resources", len(nicResources))
 		resp := cns.GetNICResourcesResponse{
 			Response: cns.Response{
 				ReturnCode: types.Success,
