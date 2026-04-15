@@ -15,52 +15,58 @@ echo "Merge base commit: $MERGE_BASE"
 echo "=== Files Changed Compared to $TARGET_BRANCH ==="
 CHANGED_FILES=$(git diff --name-only "$MERGE_BASE...HEAD")
 
-RUN_WINDOWS_TESTS=false
 if [ -z "$CHANGED_FILES" ]; then
-  echo "No files changed, running all"
-  RUN_WINDOWS_TESTS=true
-else
-  echo "$CHANGED_FILES"
+  echo "No files changed, running all tests"
+  echo "RUN_WINDOWS_TESTS=true"
+  echo "RUN_CILIUM_TESTS=true"
+  exit 0
 fi
 
-# Check if all changed files match Linux/test patterns
-LINUX_TEST_PATTERNS=(".*linux\.go$" ".*test\.go$")
+echo "$CHANGED_FILES"
 
-for file in $CHANGED_FILES; do
-  match_found=false
-  for pattern in "${LINUX_TEST_PATTERNS[@]}"; do
-    if [[ "$file" =~ $pattern ]]; then
-      match_found=true
-      break
-    fi
-  done
-  if [ "$match_found" = false ]; then
-    RUN_WINDOWS_TESTS=true
-    break
-  fi
-done
+# all_files_match_skip_patterns <changed_files> <patterns...>
+# Returns 0 (true) if every changed file matches at least one of the
+# supplied patterns (regex for =~ match). Returns 1 otherwise.
+all_files_match_skip_patterns() {
+  local changed_files="$1"
+  shift
+  local patterns=("$@")
 
-echo "Run Windows Tests: $RUN_WINDOWS_TESTS"
-
-# Check if any cilium-relevant directories were modified
-CILIUM_DIRS=("cns/" "azure-ipam/" "azure-ip-masq-merger/" "azure-iptables-monitor/" "bpf-prog/")
-RUN_CILIUM_TESTS=false
-if [ -z "$CHANGED_FILES" ]; then
-  echo "No files changed, running all (including cilium)"
-  RUN_CILIUM_TESTS=true
-else
-  for file in $CHANGED_FILES; do
-    for dir in "${CILIUM_DIRS[@]}"; do
-      if [[ "$file" == ${dir}* ]]; then
-        RUN_CILIUM_TESTS=true
-        break 2
+  for file in $changed_files; do
+    local match_found=false
+    for pattern in "${patterns[@]}"; do
+      if [[ "$file" =~ $pattern ]]; then
+        match_found=true
+        break
       fi
     done
+    if [[ "$match_found" == false ]]; then
+      return 1
+    fi
   done
-fi
+  return 0
+}
 
+# --- Windows tests ---
+WINDOWS_SKIP_PATTERNS=(".*linux\.go$" ".*test\.go$")
+
+if all_files_match_skip_patterns "$CHANGED_FILES" "${WINDOWS_SKIP_PATTERNS[@]}"; then
+  RUN_WINDOWS_TESTS=false
+else
+  RUN_WINDOWS_TESTS=true
+fi
+echo "Run Windows Tests: $RUN_WINDOWS_TESTS"
+
+# --- Cilium tests ---
+CILIUM_SKIP_PATTERNS=("^cni/" "^ipam/" "^network/")
+
+if all_files_match_skip_patterns "$CHANGED_FILES" "${CILIUM_SKIP_PATTERNS[@]}"; then
+  RUN_CILIUM_TESTS=false
+else
+  RUN_CILIUM_TESTS=true
+fi
 echo "Run Cilium Tests: $RUN_CILIUM_TESTS"
 
-# Output in a machine-readable way
+
 echo "RUN_WINDOWS_TESTS=$RUN_WINDOWS_TESTS"
 echo "RUN_CILIUM_TESTS=$RUN_CILIUM_TESTS"
