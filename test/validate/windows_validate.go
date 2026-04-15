@@ -212,7 +212,7 @@ func hnsNetworkState(result []byte) ([]HNSNetwork, error) {
 	if err := json.Unmarshal(result, &hnsNetworkResult); err == nil {
 		return hnsNetworkResult, nil
 	}
-	// if unmarshal into array above fails, try umarshal into single object
+	// if unmarshal into array above fails, try unmarshal into single object
 	var singleResult HNSNetwork
 	if err := json.Unmarshal(result, &singleResult); err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal HNS network state as array or object")

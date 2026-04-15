@@ -29,7 +29,7 @@ steps:
         curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
 
         # https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
-        # explictly unzip and strip directories from ginkgo and e2e.test
+        # explicitly unzip and strip directories from ginkgo and e2e.test
         tar -xvzf kubernetes-test-linux-amd64.tar.gz --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
 
     displayName: "Setup k8s E2E Environment"
