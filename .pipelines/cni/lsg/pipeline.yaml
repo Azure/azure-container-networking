@@ -70,6 +70,16 @@ stages:
       arch: amd64
       cni: cilium
 
+  - template: lsg-cni-integration-template.yaml
+    parameters:
+      name: ebpf_cilium_overlay
+      clusterType: ebpf-overlay-cilium-up
+      clusterName: "kup-ebpf"
+      nodeCount: 2
+      vmSize: Standard_B2ms
+      arch: amd64
+      cni: cilium
+
   # Dualstack
   - template: lsg-cni-integration-template.yaml
     parameters:
@@ -99,6 +109,7 @@ stages:
     dependsOn:
       - linux_overlay
       - cilium_overlay
+      - ebpf_cilium_overlay
       - linux_overlay_ds
       - cilium_overlay_ds
       - setup
@@ -117,6 +128,9 @@ stages:
             cilium_overlay:
               name: cilium_overlay
               clusterName: "kup-cilover"
+            ebpf_cilium_overlay:
+              name: ebpf_cilium_overlay
+              clusterName: "kup-ebpf"
         steps:
           - template: ../../templates/delete-cluster.yaml
             parameters:
