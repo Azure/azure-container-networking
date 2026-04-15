@@ -125,7 +125,7 @@ Internal Go errors are for code. Public response codes and status values are for
 // ✅ GOOD — internal error mapped to public code
 respCode := types.Success
 if err := req.Validate(); err != nil {
-    logger.Errorf("invalid request: %v", err)
+    logger.Error("invalid request", zap.Error(err))
     respCode = types.InvalidRequest
 }
 

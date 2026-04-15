@@ -104,7 +104,7 @@ type Device struct {
 }
 ```
 
-There is [a stdlib MAC type](https://pkg.go.dev/net#HardwareAddr). Use it. If the source is a `net.HardwareAddr` already, you don't have to parse it — you can compare `HardwareAddr == HardwareAddr` directly. Consolidate any special handling of MAC parsing into a single place.
+There is [a stdlib MAC type](https://pkg.go.dev/net#HardwareAddr). Use it. If the source is a `net.HardwareAddr` already, you don't have to parse it again — compare it with `bytes.Equal(a, b)` rather than `==` because `net.HardwareAddr` is a `[]byte` slice type. Comparing `string(a)`/`string(b)` or `a.String()` values can work, but be explicit about the normalization and formatting tradeoffs. If MAC comparison rules matter in multiple places, centralize them in a helper such as `EqualMAC(a, b net.HardwareAddr) bool`. Consolidate any special handling of MAC parsing into a single place.
 
 ## Custom Types Over String Typing
 
