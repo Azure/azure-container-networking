@@ -1,1 +1,1 @@
-Use all agents.md found from the root to the current directory as instructions and context, and use relevant repo skills from `.github/skills/` when applicable.
+Use all `agents.md` files found from the repository root to the current directory as instructions and context, applying them in root-to-leaf order; if instructions conflict, the `agents.md` closest to the current directory takes precedence. Use relevant repo skills from `.github/skills/` when applicable.
