@@ -51,6 +51,7 @@ stages:
       - job: ${{ parameters.name }}_windows
         displayName: Azure Stateless CNI Overlay Test Suite | Windows - (${{ parameters.name }})
         timeoutInMinutes: 120
+        # error handled by warning-handler job below
         continueOnError: true
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
@@ -84,6 +85,9 @@ stages:
           dependsOnToEmitWarning: ${{ parameters.name }}_windows
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           fileSearchPattern: "azure-vnet*.log"
+          # known windows issues that occur only in testing:
+          # - windows blue screens and writes null characters to the statefile, making it unrecoverable
+          # - the hns network gets deleted outside of the cni's control, so it still thinks the network exists
           searchPattern: "\\x00|\\\\x00|hcnOpenNetwork failed in Win32: The network was not found"
           cni: cniv2
           os: windows
@@ -99,4 +103,3 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: windows
               cni: cniv2
-

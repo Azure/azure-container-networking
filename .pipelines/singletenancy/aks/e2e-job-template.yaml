@@ -52,11 +52,7 @@ stages:
       - job: ${{ parameters.name }}
         displayName: Singletenancy AKS - (${{ parameters.name }})
         timeoutInMinutes: 120
-        # continue on error only in linux case to workaround known cniv1 issue where we leak an ip
-        # this occurs when the azure vnet ipam releases an ip from its statefile and sends a successful
-        # delete response but the azure cni gets a broken pipe error and doesn't delete the ip from its
-        # statefile. a symptom of this problem is 'Initializing HTTP client with connection timeout'
-        # appearing in the logs, which is checked below
+        # error handled by warning-handler job below
         continueOnError: ${{ eq(parameters.os, 'linux') }}
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
@@ -83,13 +79,21 @@ stages:
               hybridWin: true
               service: true
               hostport: true
-      
+
       # can only succeed with issues in linux
       - template: ../../templates/warning-handler-job-template.yaml
         parameters:
           dependsOnToEmitWarning: ${{ parameters.name }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           fileSearchPattern: "azure-vnet*.log"
+          # continue on error only in linux case to workaround known cniv1 issue where we leak an ip
+          # this occurs when the azure vnet ipam releases an ip from its statefile and sends a successful
+          # delete response but the azure cni gets a broken pipe error and doesn't delete the ip from its
+          # statefile. a symptom of this problem is 'Initializing HTTP client with connection timeout'
+          # appearing in the logs, which is checked below
+          # similar reasoning for exec: already started, which appears to be a bug in the upstream cni framework
+          # where if an exec fails, the cni framework retries on the same command object which will always fail
+          # because command objects should never be re-used
           searchPattern: "Initializing HTTP client with connection timeout|exec: already started"
           cni: cniv1
           os: ${{ parameters.os }}
