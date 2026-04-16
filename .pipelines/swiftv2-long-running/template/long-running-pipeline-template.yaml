@@ -123,6 +123,8 @@ stages:
           stageLabel: ${{ scenario.label }}
           rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
           leaseAcquired: $[ dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
+          storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount1'] ]
+          storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount2'] ]
           dependsOn:
             - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
             - AcquireLease_${{ replace(scenario.label, '-', '_') }}
@@ -137,6 +139,8 @@ stages:
           stageLabel: ${{ scenario.label }}
           rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
           leaseAcquired: $[ dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
+          storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount1'] ]
+          storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount2'] ]
           dependsOn:
             - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
             - AcquireLease_${{ replace(scenario.label, '-', '_') }}
@@ -152,6 +156,8 @@ stages:
           stageLabel: ${{ scenario.label }}
           rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
           leaseAcquired: $[ dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
+          storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount1'] ]
+          storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount2'] ]
           dependsOn:
             - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
             - AcquireLease_${{ replace(scenario.label, '-', '_') }}

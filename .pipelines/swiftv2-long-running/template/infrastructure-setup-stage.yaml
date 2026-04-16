@@ -189,6 +189,7 @@ stages:
                 ${{ parameters.subscriptionId }}
 
           - task: AzureCLI@2
+            name: CreateStorage
             displayName: "Create storage accounts"
             inputs:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -211,6 +212,7 @@ stages:
                 ${{ parameters.subscriptionId }}
                 ${{ parameters.location }}
                 $(rgName)
+                $(CreateStorage.storageAccount1)
           
           - task: AzureCLI@2
             displayName: "Create network security groups to restrict access between subnets"

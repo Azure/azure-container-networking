@@ -5,19 +5,13 @@ trap 'echo "[ERROR] Failed during Private Endpoint or DNS setup." >&2' ERR
 SUBSCRIPTION_ID=$1
 LOCATION=$2
 RG=$3
-SA1_NAME=${4:-}
+SA1_NAME=$4
 
 echo "Setting active subscription to $SUBSCRIPTION_ID"
 az account set --subscription "$SUBSCRIPTION_ID"
 
-# Discover storage account if not provided
 if [[ -z "$SA1_NAME" ]]; then
-  SA1_NAME=$(az storage account list -g "$RG" --query "[?starts_with(name, 'sa1')].name | sort(@) | [0]" -o tsv)
-  echo "Discovered storage account: $SA1_NAME"
-fi
-
-if [[ -z "$SA1_NAME" ]]; then
-  echo "[ERROR] No storage account found with prefix sa1 in $RG" >&2
+  echo "[ERROR] Storage account name must be provided as argument \$4" >&2
   exit 1
 fi
 

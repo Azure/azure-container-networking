@@ -12,6 +12,10 @@ parameters:
   - name: leaseAcquired
     type: string
     default: 'true'
+  - name: storageAccount1
+    type: string
+  - name: storageAccount2
+    type: string
   - name: dependsOn
     type: object
     default: []
@@ -23,6 +27,8 @@ stages:
     condition: and(eq(variables.isAllowedRun, true), not(canceled()), eq(dependencies.AcquireLease_${{ replace(parameters.stageLabel, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
     variables:
       leaseAcquired: ${{ parameters.leaseAcquired }}
+      storageAccount1: ${{ parameters.storageAccount1 }}
+      storageAccount2: ${{ parameters.storageAccount2 }}
     jobs:
       - job: SetupKubeconfig
         displayName: "Setup Kubeconfig Files"
@@ -188,34 +194,6 @@ stages:
               stageLabel: ${{ parameters.stageLabel }}
 
           - task: AzureCLI@2
-            name: DiscoverStorageAccounts
-            displayName: "Discover storage accounts"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                echo "Discovering storage accounts from resource group ${{ parameters.rgName }}..."
-                STORAGE_ACCOUNT_1=$(az storage account list -g "${{ parameters.rgName }}" --subscription "${{ parameters.subscriptionId }}" --query "[?starts_with(name, 'sa1')].name | sort(@) | [0]" -o tsv)
-                STORAGE_ACCOUNT_2=$(az storage account list -g "${{ parameters.rgName }}" --subscription "${{ parameters.subscriptionId }}" --query "[?starts_with(name, 'sa2')].name | sort(@) | [0]" -o tsv)
-                echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
-                
-                SA1_COUNT=$(az storage account list -g "${{ parameters.rgName }}" --subscription "${{ parameters.subscriptionId }}" --query "[?starts_with(name, 'sa1')].name | length(@)" -o tsv)
-                SA2_COUNT=$(az storage account list -g "${{ parameters.rgName }}" --subscription "${{ parameters.subscriptionId }}" --query "[?starts_with(name, 'sa2')].name | length(@)" -o tsv)
-                if [ "$SA1_COUNT" -gt 1 ] || [ "$SA2_COUNT" -gt 1 ]; then
-                  echo "##vso[task.logissue type=error]Ambiguous storage accounts: sa1 count=$SA1_COUNT, sa2 count=$SA2_COUNT in ${{ parameters.rgName }}"
-                  exit 1
-                fi
-                
-                if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
-                  echo "##vso[task.logissue type=error]Could not discover storage accounts in ${{ parameters.rgName }}"
-                  exit 1
-                fi
-                
-                echo "##vso[task.setvariable variable=storageAccount1;isOutput=true]$STORAGE_ACCOUNT_1"
-                echo "##vso[task.setvariable variable=storageAccount2;isOutput=true]$STORAGE_ACCOUNT_2"
-
-          - task: AzureCLI@2
             displayName: "Run Private Endpoint Tests"
             inputs:
               azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -227,8 +205,14 @@ stages:
                 export RG="${{ parameters.rgName }}"
                 export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
-                export STORAGE_ACCOUNT_1="$(DiscoverStorageAccounts.storageAccount1)"
-                export STORAGE_ACCOUNT_2="$(DiscoverStorageAccounts.storageAccount2)"
+                export STORAGE_ACCOUNT_1="$(storageAccount1)"
+                export STORAGE_ACCOUNT_2="$(storageAccount2)"
+                
+                if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
+                  echo "##vso[task.logissue type=error]Storage account names not available from infrastructure stage. storageAccount1=$(storageAccount1) storageAccount2=$(storageAccount2)"
+                  exit 1
+                fi
+                echo "Using storage accounts: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
                 
                 metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
                 ado_run_id="$(Build.BuildId)"
