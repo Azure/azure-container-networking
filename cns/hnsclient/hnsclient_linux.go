@@ -1,15 +1,9 @@
 package hnsclient
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/cns"
-)
-
-var (
-	errDeleteNetworkNotSupported  = errors.New("DeleteNetworkByIDHnsV2 shouldn't be called for linux platform")
-	errDeleteEndpointNotSupported = errors.New("DeleteHNSEndpointbyID shouldn't be called for linux platform")
 )
 
 // CreateDefaultExtNetwork creates the default ext network (if it doesn't exist already)
@@ -35,18 +29,6 @@ func CreateHnsNetwork(nwConfig cns.CreateHnsNetworkRequest) error {
 // This is windows platform specific.
 func DeleteHnsNetwork(networkName string) error {
 	return fmt.Errorf("DeleteHnsNetwork shouldn't be called for linux platform")
-}
-
-// DeleteNetworkByIDHnsV2 deletes the HNS network by its ID.
-// This is windows platform specific.
-func DeleteNetworkByIDHnsV2(_ string) error {
-	return errDeleteNetworkNotSupported
-}
-
-// DeleteHNSEndpointbyID deletes an HNS endpoint by its ID.
-// This is windows platform specific.
-func DeleteHNSEndpointbyID(_ string) error {
-	return errDeleteEndpointNotSupported
 }
 
 // CreateHostNCApipaEndpoint creates the endpoint in the apipa network
