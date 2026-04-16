@@ -70,6 +70,25 @@ stages:
                 $(DELEGATOR_RESOURCE_GROUP)
                 $(DELEGATOR_SUBSCRIPTION)
 
+      # Place CanNotDelete locks and deletion_due_time tags on RGs
+      - job: LockResourceGroups
+        displayName: "Lock Resource Groups (CanNotDelete)"
+        dependsOn: CreateCluster
+        steps:
+          - checkout: self
+            displayName: "Checkout azure-container-networking"
+          - task: AzureCLI@2
+            displayName: "Apply CanNotDelete locks and tags"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: scriptPath
+              scriptPath: ".pipelines/swiftv2-long-running/scripts/lock_resource_groups.sh"
+              arguments: >
+                ${{ parameters.subscriptionId }}
+                $(rgName)
+                $(Build.DefinitionName)
+
       # Always ensure node labels are correct (survives node replacements)
       - job: EnsureNodeLabels
         displayName: "Ensure Node Labels"
