@@ -151,7 +151,7 @@ func NewClient() *Client {
 			},
 		},
 	}
-	// Mtpnc with just Infiniband interface
+	// Mtpnc with just Infiniband interface.
 	testMTPNC9 := v1alpha1.MultitenantPodNetworkConfig{
 		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
 			InterfaceInfos: []v1alpha1.InterfaceInfo{
@@ -166,9 +166,20 @@ func NewClient() *Client {
 		},
 	}
 
-	// Mtpnc with just Infiniband interface
+	// Mtpnc with a shared delegated NIC.
 	testMTPNC10 := v1alpha1.MultitenantPodNetworkConfig{
-		Status: v1alpha1.MultitenantPodNetworkConfigStatus{},
+		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+			InterfaceInfos: []v1alpha1.InterfaceInfo{
+				{
+					PrimaryIP:  "192.168.10.1/32",
+					MacAddress: "00:00:00:00:00:10",
+					GatewayIP:  "10.0.0.1",
+					NCID:       "testncid10",
+					DeviceType: v1alpha1.DeviceTypeVnetNIC,
+					SharedNIC:  true,
+				},
+			},
+		},
 	}
 
 	testMTPNCTerminating := v1alpha1.MultitenantPodNetworkConfig{

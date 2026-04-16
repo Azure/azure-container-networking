@@ -520,6 +520,8 @@ type PodIpInfo struct {
 	InterfaceName              string
 	// MacAddress of interface
 	MacAddress string
+	// SharedNIC indicates the delegated NIC is shared and should not be managed by CNI.
+	SharedNIC bool `json:"sharedNic,omitempty"`
 	// SkipDefaultRoutes is true if default routes should not be added on interface
 	SkipDefaultRoutes bool
 	// Routes to configure on interface

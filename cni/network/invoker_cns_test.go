@@ -2374,6 +2374,89 @@ func TestAddNICsToCNIResult(t *testing.T) {
 	}
 }
 
+func TestCNSIPAMInvoker_Add_SwiftV2_SharedNICSkipsDelegatedInterface(t *testing.T) {
+	require := require.New(t)
+	macAddress := "12:34:56:78:9a:bc"
+
+	invoker := &CNSIPAMInvoker{
+		podName:      testPodInfo.PodName,
+		podNamespace: testPodInfo.PodNamespace,
+		cnsClient: &MockCNSClient{
+			require: require,
+			requestIPs: requestIPsHandler{
+				ipconfigArgument: cns.IPConfigsRequest{
+					PodInterfaceID:      "testcont-testifname1",
+					InfraContainerID:    "testcontainerid1",
+					OrchestratorContext: marshallPodInfo(testPodInfo),
+				},
+				result: &cns.IPConfigsResponse{
+					PodIPInfo: []cns.PodIpInfo{
+						{
+							PodIPConfig: cns.IPSubnet{
+								IPAddress:    "10.0.1.10",
+								PrefixLength: 24,
+							},
+							NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+								IPSubnet: cns.IPSubnet{
+									IPAddress:    "10.0.1.0",
+									PrefixLength: 24,
+								},
+								GatewayIPAddress: "10.0.0.1",
+							},
+							HostPrimaryIPInfo: cns.HostIPInfo{
+								Gateway:   "10.0.0.1",
+								PrimaryIP: "10.0.0.1",
+								Subnet:    "10.0.0.0/24",
+							},
+							NICType:           cns.InfraNIC,
+							SkipDefaultRoutes: true,
+						},
+						{
+							PodIPConfig: cns.IPSubnet{
+								IPAddress:    "20.1.1.10",
+								PrefixLength: 24,
+							},
+							HostPrimaryIPInfo: cns.HostIPInfo{
+								Gateway:   "20.0.0.1",
+								PrimaryIP: "20.0.0.2",
+								Subnet:    "20.0.0.1/24",
+							},
+							NICType:           cns.NodeNetworkInterfaceFrontendNIC,
+							MacAddress:        macAddress,
+							SharedNIC:         true,
+							SkipDefaultRoutes: false,
+						},
+					},
+					Response: cns.Response{
+						ReturnCode: 0,
+						Message:    "",
+					},
+				},
+				err: nil,
+			},
+		},
+	}
+
+	ipamAddResult, err := invoker.Add(IPAMAddConfig{
+		nwCfg: &cni.NetworkConfig{},
+		args: &cniSkel.CmdArgs{
+			ContainerID: "testcontainerid1",
+			Netns:       "testnetns1",
+			IfName:      "testifname1",
+		},
+		options: map[string]interface{}{},
+	})
+	require.NoError(err)
+	require.Len(ipamAddResult.interfaceInfo, 1)
+
+	infraInfo, ok := ipamAddResult.interfaceInfo[string(cns.InfraNIC)]
+	require.True(ok)
+	require.Equal(cns.InfraNIC, infraInfo.NICType)
+
+	_, delegatedPresent := ipamAddResult.interfaceInfo[macAddress]
+	require.False(delegatedPresent)
+}
+
 // Test to add multiple IB NICs to make sure CNI receives all correct IB info from CNS
 func TestMultipleIBNICsToResult(t *testing.T) {
 	require := require.New(t) //nolint further usage of require without passing t

@@ -42,6 +42,9 @@ var (
 	testPod9GUID = "2006cad4-e54d-472e-863d-c4bac66200a7"
 	testPod9Info = cns.NewPodInfo("2006cad4-eth0", testPod9GUID, "testpod9", "testpod9namespace")
 
+	testPod10GUID = "3006cad4-e54d-472e-863d-c4bac66200a7"
+	testPod10Info = cns.NewPodInfo("3006cad4-eth0", testPod10GUID, "testpod10", "testpod10namespace")
+
 	testPodMtpncTerminatingGUID = "e3b0c442-98fc-1fc1-9b93-7a1c2e5c8e6f"
 	testPodMtpncTerminatingInfo = cns.NewPodInfo("2006cad4-eth0", testPodMtpncTerminatingGUID, "testpodMtpncTerminating", "testpodMtpncTerminatingnamespace")
 )
@@ -243,6 +246,16 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 	assert.Equal(t, len(ipInfos), 1)
 	assert.Equal(t, ipInfos[0].NICType, cns.DelegatedVMNIC)
 	assert.Equal(t, ipInfos[0].SkipDefaultRoutes, false)
+}
+
+func TestGetSWIFTv2IPConfigSharedNIC(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+
+	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod10Info)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, len(ipInfos), 1)
+	assert.Equal(t, ipInfos[0].NICType, cns.DelegatedVMNIC)
+	assert.Equal(t, ipInfos[0].SharedNIC, true)
 }
 
 func TestGetSWIFTv2IPConfigFailure(t *testing.T) {

@@ -106,6 +106,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 			},
 			MacAddress:        mtpnc.Status.MacAddress,
 			NICType:           cns.DelegatedVMNIC,
+			SharedNIC:         false,
 			SkipDefaultRoutes: false,
 			// InterfaceName is empty for DelegatedVMNIC
 		})
@@ -142,6 +143,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 					},
 					MacAddress:        interfaceInfo.MacAddress,
 					NICType:           nicType,
+					SharedNIC:         interfaceInfo.SharedNIC,
 					SkipDefaultRoutes: false,
 					// InterfaceName is empty for DelegatedVMNIC and AccelnetFrontendNIC
 				}
