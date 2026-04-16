@@ -108,38 +108,54 @@ stages:
                   fi
 
   # ============================================================
-  # Datapath tests for each scenario and workload type
+  # Datapath tests for each scenario.
+  # Each workload is gated by its scenario flag (eq(x, true) is required because
+  # booleans from object params passed through 'extends' are coerced to strings).
   # ============================================================
   - ${{ each scenario in parameters.scenarios }}:
-    - ${{ each workload in parameters.workloadType }}:
-      # Skip accelnet workloads unless the scenario has accelnet enabled.
-      # Skip linux-byon workloads unless the scenario has linux BYON enabled.
-      # Skip swiftv2-linux workloads unless the scenario has enableDatapathLinux enabled.
-      # NOTE: must use eq(x, true) — bare booleans from object params passed through
-      # 'extends' are coerced to strings, and "false" is truthy.
-      - ${{ if and(or(not(eq(workload, 'swiftv2-linux')), eq(scenario.enableDatapathLinux, true)), or(not(contains(workload, 'l1vh-accelnet')), eq(scenario.enableAccelnet, true)), or(not(eq(workload, 'swiftv2-linux-byon')), eq(scenario.enableLinuxBYON, true))) }}:
-        - template: datapath-tests-stage.yaml
-          parameters:
-            workloadType: ${{ workload }}
-            location: ${{ scenario.location }}
-            subscriptionId: ${{ scenario.subscriptionId }}
-            stageLabel: ${{ scenario.label }}
-            rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
-            leaseAcquired: $[ dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
-            ${{ if eq(workload, 'swiftv2-linux') }}:
-              dependsOn: 
-                - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
-                - AcquireLease_${{ replace(scenario.label, '-', '_') }}
-            ${{ if eq(workload, 'swiftv2-linux-byon') }}:
-              dependsOn: 
-                - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
-                - AcquireLease_${{ replace(scenario.label, '-', '_') }}
-                - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
-            ${{ if eq(workload, 'swiftv2-l1vh-accelnet-byon') }}:
-              dependsOn: 
-                - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
-                - AcquireLease_${{ replace(scenario.label, '-', '_') }}
-                - DataPathTests_swiftv2_linux_byon_${{ replace(scenario.label, '-', '_') }}
+    # --- swiftv2-linux ---
+    - ${{ if eq(scenario.enableDatapathLinux, true) }}:
+      - template: datapath-tests-stage.yaml
+        parameters:
+          workloadType: swiftv2-linux
+          location: ${{ scenario.location }}
+          subscriptionId: ${{ scenario.subscriptionId }}
+          stageLabel: ${{ scenario.label }}
+          rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
+          leaseAcquired: $[ dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
+          dependsOn:
+            - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+            - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+
+    # --- swiftv2-linux-byon ---
+    - ${{ if eq(scenario.enableLinuxBYON, true) }}:
+      - template: datapath-tests-stage.yaml
+        parameters:
+          workloadType: swiftv2-linux-byon
+          location: ${{ scenario.location }}
+          subscriptionId: ${{ scenario.subscriptionId }}
+          stageLabel: ${{ scenario.label }}
+          rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
+          leaseAcquired: $[ dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
+          dependsOn:
+            - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+            - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+            - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
+
+    # --- swiftv2-l1vh-accelnet-byon ---
+    - ${{ if eq(scenario.enableAccelnet, true) }}:
+      - template: datapath-tests-stage.yaml
+        parameters:
+          workloadType: swiftv2-l1vh-accelnet-byon
+          location: ${{ scenario.location }}
+          subscriptionId: ${{ scenario.subscriptionId }}
+          stageLabel: ${{ scenario.label }}
+          rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
+          leaseAcquired: $[ dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
+          dependsOn:
+            - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+            - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+            - DataPathTests_swiftv2_linux_byon_${{ replace(scenario.label, '-', '_') }}
 
   # ============================================================
   # Release pipeline lease (always runs, even on failure)
