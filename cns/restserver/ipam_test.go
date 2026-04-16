@@ -2485,4 +2485,3 @@ func TestStatelessCNIStateFile(t *testing.T) {
 		})
 	}
 }
-

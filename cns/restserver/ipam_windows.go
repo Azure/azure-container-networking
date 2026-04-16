@@ -18,11 +18,17 @@ type HNSClient interface {
 type hnsClientImpl struct{}
 
 func (hnsClientImpl) DeleteEndpointByID(endpointID string) error {
-	return hnsclient.DeleteHNSEndpointbyID(endpointID)
+	if err := hnsclient.DeleteHNSEndpointbyID(endpointID); err != nil {
+		return fmt.Errorf("delete HNS endpoint %s: %w", endpointID, err)
+	}
+	return nil
 }
 
 func (hnsClientImpl) DeleteNetworkByID(networkID string) error {
-	return hnsclient.DeleteNetworkByIDHnsV2(networkID)
+	if err := hnsclient.DeleteNetworkByIDHnsV2(networkID); err != nil {
+		return fmt.Errorf("delete HNS network %s: %w", networkID, err)
+	}
+	return nil
 }
 
 var defaultHNSClient HNSClient = hnsClientImpl{} //nolint:gochecknoglobals // swapped in tests

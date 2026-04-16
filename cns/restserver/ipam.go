@@ -1483,4 +1483,3 @@ func (service *HTTPRestService) getIPFamiliesMap() map[cns.IPFamily]struct{} {
 func (service *HTTPRestService) GetIPFamilyCount() int {
 	return len(service.getIPFamiliesMap())
 }
-
