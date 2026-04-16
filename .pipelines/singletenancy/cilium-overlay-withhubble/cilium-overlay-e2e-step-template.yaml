@@ -49,6 +49,7 @@ steps:
         make -C ./hack/aks add-cilium-log-collector
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
+    retryCountOnTaskFailure: 2
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"

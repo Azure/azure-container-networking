@@ -48,6 +48,7 @@ steps:
         kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium on AKS Dualstack Overlay"
+    retryCountOnTaskFailure: 2
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"

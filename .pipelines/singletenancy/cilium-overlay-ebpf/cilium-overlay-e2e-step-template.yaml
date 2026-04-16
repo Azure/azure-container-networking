@@ -32,6 +32,7 @@ steps:
         kubectl get pods -Aowide
     name: "installCilium"
     displayName: "Install Cilium EBPF on AKS Overlay"
+    retryCountOnTaskFailure: 2
 
   - script: |
       CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
