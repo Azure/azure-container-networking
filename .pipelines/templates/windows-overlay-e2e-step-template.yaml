@@ -68,8 +68,6 @@ steps:
         done
 
         # Run control plane scale tests
-        export CNI_IMAGE_REPO=MCR
-        export CNS_IMAGE_REPO=MCR
         sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=${{ parameters.cniType }} VALIDATE_STATEFILE=true INSTALL_CNS=true ${{ parameters.testLoadArgs }} CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
 
         # Run datapath tests
