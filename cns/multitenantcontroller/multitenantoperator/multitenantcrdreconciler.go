@@ -125,7 +125,7 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 	}
 
 	if nc.Status.State == NCStateSucceeded {
-		logger.Printf("[WARNING] NC %s (UUID: %s) missing from CNS despite CR state Succeeded, reprogramming", request.NamespacedName.String(), nc.Spec.UUID)
+		logger.Warnf("NC %s (UUID: %s) missing from CNS despite CR state Succeeded, reprogramming", request.NamespacedName.String(), nc.Spec.UUID)
 	}
 
 	// Check that the MultiTenantInfo is set
