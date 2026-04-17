@@ -20,11 +20,14 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.nicID
-      name: NICID
+    - jsonPath: .spec.nodeName
+      name: Node
       type: string
-    - jsonPath: .spec.ncID
-      name: NCID
+    - jsonPath: .spec.nicName
+      name: NIC
+      type: string
+    - jsonPath: .spec.podNetwork
+      name: PodNetwork
       type: string
     - jsonPath: .status.status
       name: Status
@@ -54,8 +57,15 @@ spec:
           spec:
             description: NICNetworkConfigSpec defines the desired state of NICNetworkConfig
             properties:
+              networkID:
+                description: NetworkID is the VNET GUID or network identifier
+                type: string
+              nicName:
+                description: NICName is the name of the physical NIC on the node (e.g.,
+                  eth1)
+                type: string
               nodeName:
-                description: NodeName is the name of the Kubernetes node
+                description: NodeName is the name of the node this NIC belongs to
                 type: string
               podAllocations:
                 description: PodAllocations tracks which pods are allocated on this
@@ -80,15 +90,18 @@ spec:
                   type: object
                 type: array
               podNetwork:
-                description: PodNetwork is the name of the pod network
+                description: PodNetwork is the name of the PodNetwork
                 type: string
-              vnetID:
-                description: VNetID is the Azure Virtual Network ID
+              subnetID:
+                description: SubnetID is the ARM resource ID of the subnet (e.g.,
+                  /subscriptions/.../subnets/pod-subnet)
                 type: string
             required:
+            - networkID
+            - nicName
             - nodeName
             - podNetwork
-            - vnetID
+            - subnetID
             type: object
           status:
             description: NICNetworkConfigStatus defines the observed state of NICNetworkConfig
@@ -103,6 +116,11 @@ spec:
                 items:
                   type: string
                 type: array
+              cooldownPeriodInSeconds:
+                default: 30
+                description: CooldownPeriodInSeconds is the cooldown duration before
+                  retrying NIC NC operations.
+                type: integer
               deviceType:
                 description: DeviceType is the device type that this NC was created
                   for
@@ -121,9 +139,6 @@ spec:
                 type: string
               ncID:
                 description: NCID is the network container id created for this NIC
-                type: string
-              networkID:
-                description: NetworkID is the Azure network identifier for this NIC
                 type: string
               podAllocations:
                 additionalProperties:
@@ -167,10 +182,6 @@ spec:
               subnetAddressSpace:
                 description: SubnetAddressSpace is the subnet address space of the
                   injected subnet
-                type: string
-              subnetName:
-                description: SubnetName is the name of the subnet this NIC belongs
-                  to
                 type: string
             type: object
         type: object
