@@ -16,8 +16,9 @@ import (
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
-// +kubebuilder:printcolumn:name="NICID",type=string,JSONPath=`.spec.nicID`
-// +kubebuilder:printcolumn:name="NCID",type=string,JSONPath=`.spec.ncID`
+// +kubebuilder:printcolumn:name="Node",type=string,JSONPath=`.spec.nodeName`
+// +kubebuilder:printcolumn:name="NIC",type=string,JSONPath=`.spec.nicName`
+// +kubebuilder:printcolumn:name="PodNetwork",type=string,JSONPath=`.spec.podNetwork`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
 type NICNetworkConfig struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -38,12 +39,16 @@ type NICNetworkConfigList struct {
 
 // NICNetworkConfigSpec defines the desired state of NICNetworkConfig
 type NICNetworkConfigSpec struct {
-	// NodeName is the name of the Kubernetes node
-	NodeName string `json:"nodeName"`
-	// PodNetwork is the name of the pod network
+	// PodNetwork is the name of the PodNetwork
 	PodNetwork string `json:"podNetwork"`
-	// VNetID is the Azure Virtual Network ID
-	VnetID string `json:"vnetID"`
+	// NodeName is the name of the node this NIC belongs to
+	NodeName string `json:"nodeName"`
+	// NICName is the name of the physical NIC on the node (e.g., eth1)
+	NICName string `json:"nicName"`
+	// SubnetID is the ARM resource ID of the subnet (e.g., /subscriptions/.../subnets/pod-subnet)
+	SubnetID string `json:"subnetID"`
+	// NetworkID is the VNET GUID or network identifier
+	NetworkID string `json:"networkID"`
 	// PodAllocations tracks which pods are allocated on this NIC
 	// +kubebuilder:validation:Optional
 	PodAllocations []PodAllocationRequest `json:"podAllocations,omitempty"`
@@ -75,7 +80,7 @@ type PodAllocation struct {
 type NICNetworkConfigStatus struct {
 	// Status indicates the current status of the NIC Network Config
 	// +kubebuilder:validation:Enum=Ready;Pending;Error
-	Status NICNCStatus `json:"status,omitempty"`
+	Status NICNC `json:"status,omitempty"`
 	// NCID is the network container id created for this NIC
 	// +kubebuilder:validation:Optional
 	NCID string `json:"ncID,omitempty"`
@@ -99,26 +104,23 @@ type NICNetworkConfigStatus struct {
 	// ErrorMessage contains error details if status is Error
 	// +kubebuilder:validation:Optional
 	ErrorMessage string `json:"errorMessage,omitempty"`
+	// CooldownPeriodInSeconds is the cooldown duration before retrying NIC NC operations.
+	// +kubebuilder:default=30
+	CooldownPeriodInSeconds int `json:"cooldownPeriodInSeconds,omitempty"`
 	// DeviceType is the device type that this NC was created for
 	DeviceType DeviceType `json:"deviceType,omitempty"`
 	// AccelnetEnabled determines if the CNI will provision the NIC with accelerated networking enabled
 	// +kubebuilder:validation:Optional
 	AccelnetEnabled bool `json:"accelnetEnabled,omitempty"`
-	// NetworkID is the Azure network identifier for this NIC
-	// +kubebuilder:validation:Optional
-	NetworkID string `json:"networkID,omitempty"`
-	// SubnetName is the name of the subnet this NIC belongs to
-	// +kubebuilder:validation:Optional
-	SubnetName string `json:"subnetName,omitempty"`
 }
 
-// NICNCStatus indicates the status of NIC Network Config
-type NICNCStatus string
+// NICNC indicates the status of NIC Network Config
+type NICNC string
 
 const (
-	NICNCStatusReady   NICNCStatus = "Ready"
-	NICNCStatusPending NICNCStatus = "Pending"
-	NICNCStatusError   NICNCStatus = "Error"
+	NICNCReady   NICNC = "Ready"
+	NICNCPending NICNC = "Pending"
+	NICNCError   NICNC = "Error"
 )
 
 func init() {
