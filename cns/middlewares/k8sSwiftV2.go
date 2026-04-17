@@ -292,7 +292,7 @@ func (k *K8sSWIFTv2Middleware) GetMTPNCInfoByMAC(ctx context.Context) (map[strin
 		return nil, err
 	}
 
-	// Build a PodNetwork name → PodNetwork lookup so we can resolve NetworkID and SubnetName.
+	// Build a PodNetwork name → PodNetwork lookup so we can resolve NetworkID and SubnetID.
 	var pnList v1alpha1.PodNetworkList
 	if err := k.Cli.List(ctx, &pnList); err != nil {
 		return nil, err
@@ -327,7 +327,7 @@ func (k *K8sSWIFTv2Middleware) GetMTPNCInfoByMAC(ctx context.Context) (map[strin
 			info := &cns.NICNCInfo{}
 			if pn != nil {
 				info.NetworkID = pn.Spec.NetworkID
-				info.SubnetName = subnetNameFromResourceID(pn.Spec.SubnetResourceID)
+				info.SubnetID = subnetNameFromResourceID(pn.Spec.SubnetResourceID)
 			}
 			result[mac] = info
 		}

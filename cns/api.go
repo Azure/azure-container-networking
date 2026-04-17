@@ -393,7 +393,7 @@ type NICResource struct {
 	InterfaceCompartmentID string `json:"interfaceCompartmentID,omitempty"`
 	NetworkID              string `json:"networkID,omitempty"`
 	VMUniqueID             string `json:"vmUniqueID,omitempty"`
-	SubnetName             string `json:"subnetName,omitempty"`
+	SubnetID               string `json:"subnetID,omitempty"`
 	Capacity               int    `json:"capacity"`
 }
 
@@ -405,8 +405,8 @@ type GetNICResourcesResponse struct {
 
 // NICNCInfo holds NICNetworkConfig CRD data used to enrich NICResource.
 type NICNCInfo struct {
-	NetworkID  string
-	SubnetName string
+	NetworkID string
+	SubnetID  string
 }
 
 // AssignIBDevicesToPodRequest represents the request for assigning InfiniBand devices to a pod

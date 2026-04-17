@@ -1319,99 +1319,135 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 
 	switch r.Method {
 	case http.MethodGet:
-		// Read NIC info from NodeInfo CRD
+		// Step 1: Get list of NICs (MACs) from NodeInfo CRD.
 		logger.Printf("[Azure CNS] getNICResources: fetching NodeInfo CRD for node %s", service.nodeName)
 		nodeInfo, err := service.nodeInfoCli.Get(ctx, service.nodeName)
 		if err != nil {
 			resp := cns.GetNICResourcesResponse{
 				Response: cns.Response{
 					ReturnCode: types.UnexpectedError,
-					Message:    errors.Wrap(err, "failed to get NIC resources from NodeInfo CRD").Error(),
+					Message:    errors.Wrap(err, "failed to get NodeInfo CRD").Error(),
 				},
 			}
 			respondJSON(w, http.StatusInternalServerError, resp)
-			logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+			logger.Errorf("[Azure CNS] getNICResources: failed to fetch NodeInfo CRD for node %s: %v", service.nodeName, err)
 			return
 		}
-		logger.Printf("[Azure CNS] getNICResources: NodeInfo CRD retrieved successfully, found %d device infos, VMUniqueID: %s",
-			len(nodeInfo.Status.DeviceInfos), nodeInfo.Spec.VMUniqueID)
+		vmUniqueID := nodeInfo.Spec.VMUniqueID
+		logger.Printf("[Azure CNS] getNICResources: NodeInfo CRD fetched, %d devices, vmUniqueID: %s", len(nodeInfo.Status.DeviceInfos), vmUniqueID)
 
-		// Enrich NIC data with NICNetworkConfig CRD info if the middleware is attached
+		// Initialize map keyed by normalized MAC for every device in NodeInfo.
+		nicByMAC := make(map[string]*cns.NICResource, len(nodeInfo.Status.DeviceInfos))
+		for _, device := range nodeInfo.Status.DeviceInfos {
+			normalizedMAC, parseErr := net.ParseMAC(device.MacAddress)
+			if parseErr != nil {
+				logger.Errorf("[Azure CNS] getNICResources: failed to parse MAC %q from NodeInfo: %v", device.MacAddress, parseErr)
+				continue
+			}
+			key := normalizedMAC.String()
+			nicByMAC[key] = &cns.NICResource{
+				MacAddress: device.MacAddress,
+				VMUniqueID: vmUniqueID,
+			}
+			logger.Printf("[Azure CNS] getNICResources: initialized NIC entry for MAC %s", key)
+		}
+		logger.Printf("[Azure CNS] getNICResources: initialized %d NIC entries from NodeInfo", len(nicByMAC))
+
+		// Step 2: Populate InterfaceName from host network interfaces.
+		logger.Printf("[Azure CNS] getNICResources: listing host network interfaces")
+		ifaces, ifErr := net.Interfaces()
+		if ifErr != nil {
+			logger.Errorf("[Azure CNS] getNICResources: failed to list host network interfaces: %v", ifErr)
+		} else {
+			logger.Printf("[Azure CNS] getNICResources: listed %d host network interfaces", len(ifaces))
+			for _, iface := range ifaces {
+				if len(iface.HardwareAddr) == 0 {
+					continue
+				}
+				key := iface.HardwareAddr.String() // already normalized
+				if res, ok := nicByMAC[key]; ok {
+					res.InterfaceName = iface.Name
+					logger.Printf("[Azure CNS] getNICResources: MAC %s resolved to interface %s", key, iface.Name)
+				}
+			}
+		}
+
+		// Step 3: Populate NetworkID, SubnetID, and Capacity from NICNetworkConfig CRD (preferred).
 		var nicNCByMAC map[string]*cns.NICNCInfo
 		if service.nicNCClient != nil {
-			logger.Printf("[Azure CNS] getNICResources: fetching NICNetworkConfig enrichment data")
-			var enrichErr error
-			nicNCByMAC, enrichErr = service.nicNCClient.GetNICNCInfoByMAC(ctx)
-			if enrichErr != nil {
-				logger.Errorf("[Azure CNS] failed to get NICNetworkConfig enrichment data: %v", enrichErr)
+			logger.Printf("[Azure CNS] getNICResources: fetching NICNetworkConfig CRD data")
+			nicNCByMAC, err = service.nicNCClient.GetNICNCInfoByMAC(ctx)
+			if err != nil {
+				logger.Errorf("[Azure CNS] getNICResources: failed to fetch NICNetworkConfig data: %v", err)
 			} else {
-				logger.Printf("[Azure CNS] getNICResources: retrieved %d NICNetworkConfig entries", len(nicNCByMAC))
+				logger.Printf("[Azure CNS] getNICResources: fetched %d NICNetworkConfig entries", len(nicNCByMAC))
 			}
 		} else {
-			logger.Printf("[Azure CNS] getNICResources: nicNCClient is nil, skipping NICNetworkConfig enrichment")
+			logger.Printf("[Azure CNS] getNICResources: nicNCClient is nil, skipping NICNetworkConfig")
 		}
 
-		// Fallback: enrich NIC data with MTPNC CRD info if the middleware is attached
+		// Step 4: Populate NetworkID, SubnetID, and Capacity from MTPNC CRD (fallback).
 		var mtpncByMAC map[string]*cns.NICNCInfo
 		if service.mtpncCli != nil {
-			logger.Printf("[Azure CNS] getNICResources: fetching MTPNC enrichment data")
-			var mtpncErr error
-			mtpncByMAC, mtpncErr = service.mtpncCli.GetMTPNCInfoByMAC(ctx)
-			if mtpncErr != nil {
-				logger.Errorf("[Azure CNS] failed to get MTPNC enrichment data: %v", mtpncErr)
+			logger.Printf("[Azure CNS] getNICResources: fetching MTPNC CRD data")
+			mtpncByMAC, err = service.mtpncCli.GetMTPNCInfoByMAC(ctx)
+			if err != nil {
+				logger.Errorf("[Azure CNS] getNICResources: failed to fetch MTPNC data: %v", err)
 			} else {
-				logger.Printf("[Azure CNS] getNICResources: retrieved %d MTPNC entries", len(mtpncByMAC))
+				logger.Printf("[Azure CNS] getNICResources: fetched %d MTPNC entries", len(mtpncByMAC))
 			}
 		} else {
-			logger.Printf("[Azure CNS] getNICResources: mtpncCli is nil, skipping MTPNC enrichment")
+			logger.Printf("[Azure CNS] getNICResources: mtpncCli is nil, skipping MTPNC")
 		}
 
-		// Build a MAC→interface name map from host network interfaces
-		logger.Printf("[Azure CNS] getNICResources: listing host network interfaces")
-		ifaceNameByMAC := make(map[string]string)
-		if ifaces, ifErr := net.Interfaces(); ifErr == nil {
-			logger.Printf("[Azure CNS] successfully listed %v host network interfaces for NIC resource query", len(ifaces))
-			for _, iface := range ifaces {
-				if len(iface.HardwareAddr) > 0 {
-					ifaceNameByMAC[iface.HardwareAddr.String()] = iface.Name
-				}
+		// Step 5: Enrich each NIC with network info. Prefer NICNetworkConfig, fall back to MTPNC.
+		for mac, res := range nicByMAC {
+			// Normalize the stored MAC for lookups into the CRD maps (CRD maps may use raw format).
+			normalizedMAC, parseErr := net.ParseMAC(res.MacAddress)
+			if parseErr != nil {
+				logger.Errorf("[Azure CNS] getNICResources: failed to re-parse MAC %q: %v", res.MacAddress, parseErr)
+				res.Capacity = 1
+				continue
 			}
-		} else {
-			logger.Errorf("[Azure CNS] failed to list host network interfaces: %v", ifErr)
-		}
+			rawMAC := res.MacAddress
+			normalizedKey := normalizedMAC.String()
 
-		logger.Printf("[Azure CNS] getNICResources: building NIC resources for %d devices", len(nodeInfo.Status.DeviceInfos))
-		nicResources := make([]cns.NICResource, 0, len(nodeInfo.Status.DeviceInfos))
-		for _, device := range nodeInfo.Status.DeviceInfos {
-			res := cns.NICResource{
-				MacAddress: device.MacAddress,
-				VMUniqueID: nodeInfo.Spec.VMUniqueID,
-			}
-			// Resolve MAC address to host interface name (e.g. eth1)
-			if parsedMAC, parseErr := net.ParseMAC(device.MacAddress); parseErr == nil {
-				if name, ok := ifaceNameByMAC[parsedMAC.String()]; ok {
-					res.InterfaceName = name
-				}
-			}
-			if info, ok := nicNCByMAC[device.MacAddress]; ok {
-				logger.Printf("[Azure CNS] getNICResources: device MAC %s matched NICNetworkConfig (networkID: %s, subnet: %s)",
-					device.MacAddress, info.NetworkID, info.SubnetName)
+			// Try NICNetworkConfig first (lookup by both raw and normalized key).
+			if info := lookupNICNCInfo(nicNCByMAC, rawMAC, normalizedKey); info != nil {
 				res.NetworkID = info.NetworkID
-				res.SubnetName = info.SubnetName
+				res.SubnetID = info.SubnetID
 				res.Capacity = 16
-			} else if info, ok := mtpncByMAC[device.MacAddress]; ok {
-				// MTPNC match: NIC is dedicated to a single pod
-				logger.Printf("[Azure CNS] getNICResources: device MAC %s matched MTPNC (networkID: %s, subnet: %s)",
-					device.MacAddress, info.NetworkID, info.SubnetName)
-				res.NetworkID = info.NetworkID
-				res.SubnetName = info.SubnetName
-				res.Capacity = 1
-			} else {
-				logger.Printf("[Azure CNS] getNICResources: device MAC %s had no NICNetworkConfig or MTPNC match, defaulting capacity to 1",
-					device.MacAddress)
-				res.Capacity = 1
+				logger.Printf("[Azure CNS] getNICResources: MAC %s matched NICNetworkConfig (networkID: %s, subnetID: %s, capacity: 16)",
+					mac, info.NetworkID, info.SubnetID)
+				continue
 			}
-			nicResources = append(nicResources, res)
+
+			// Fall back to MTPNC.
+			if info := lookupNICNCInfo(mtpncByMAC, rawMAC, normalizedKey); info != nil {
+				res.NetworkID = info.NetworkID
+				res.SubnetID = info.SubnetID
+				res.Capacity = 1
+				logger.Printf("[Azure CNS] getNICResources: MAC %s matched MTPNC (networkID: %s, subnetID: %s, capacity: 1)",
+					mac, info.NetworkID, info.SubnetID)
+				continue
+			}
+
+			// No CRD match: default capacity.
+			res.Capacity = 1
+			logger.Printf("[Azure CNS] getNICResources: MAC %s had no NICNetworkConfig or MTPNC match, capacity: 1", mac)
+		}
+
+		// Log the final map for visibility.
+		logger.Printf("[Azure CNS] getNICResources: final NIC resource map (%d entries):", len(nicByMAC))
+		for mac, res := range nicByMAC {
+			logger.Printf("[Azure CNS] getNICResources:   MAC=%s iface=%s vmUniqueID=%s networkID=%s subnetID=%s capacity=%d",
+				mac, res.InterfaceName, res.VMUniqueID, res.NetworkID, res.SubnetID, res.Capacity)
+		}
+
+		// Convert map to slice for the response.
+		nicResources := make([]cns.NICResource, 0, len(nicByMAC))
+		for _, res := range nicByMAC {
+			nicResources = append(nicResources, *res)
 		}
 
 		logger.Printf("[Azure CNS] getNICResources: returning %d NIC resources", len(nicResources))
@@ -1432,6 +1468,20 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
 		})
 	}
+}
+
+// lookupNICNCInfo tries to find a NICNCInfo entry by raw MAC first, then by normalized MAC.
+func lookupNICNCInfo(m map[string]*cns.NICNCInfo, rawMAC, normalizedMAC string) *cns.NICNCInfo {
+	if m == nil {
+		return nil
+	}
+	if info, ok := m[rawMAC]; ok {
+		return info
+	}
+	if info, ok := m[normalizedMAC]; ok {
+		return info
+	}
+	return nil
 }
 
 // This function is used to query all NCs on a node from NMAgent

@@ -59,7 +59,7 @@ type imdsClient interface {
 	GetIMDSVersions(ctx context.Context) (*imds.APIVersionsResponse, error)
 }
 
-// nicNCClient enriches NICResource data with CRD information (e.g., NetworkID, SubnetName).
+// nicNCClient enriches NICResource data with CRD information (e.g., NetworkID, SubnetID).
 type nicNCClient interface {
 	GetNICNCInfoByMAC(ctx context.Context) (map[string]*cns.NICNCInfo, error)
 }

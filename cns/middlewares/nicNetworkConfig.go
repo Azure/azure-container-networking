@@ -26,8 +26,8 @@ func (m *NICNetworkConfigMiddleware) GetNICNCInfoByMAC(ctx context.Context) (map
 		mac := nicNCList.Items[i].Status.MacAddress
 		if mac != "" {
 			result[mac] = &cns.NICNCInfo{
-				NetworkID:  nicNCList.Items[i].Spec.NetworkID,
-				SubnetName: nicNCList.Items[i].Spec.SubnetName,
+				NetworkID: nicNCList.Items[i].Spec.NetworkID,
+				SubnetID:  nicNCList.Items[i].Spec.SubnetID,
 			}
 		}
 	}
