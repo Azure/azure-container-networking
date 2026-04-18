@@ -1366,6 +1366,15 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 				}
 				key := iface.HardwareAddr.String() // already normalized
 				if res, ok := nicByMAC[key]; ok {
+					// On Azure VMs with Accelerated Networking, a NIC appears as both a
+					// synthetic netvsc interface (e.g. eth1) and an SR-IOV VF interface
+					// (e.g. enP56082s2). Prefer the synthetic name because it is stable
+					// across VF hot-swap events; only set the VF name when no synthetic
+					// interface has been found yet.
+					if res.InterfaceName != "" && !strings.HasPrefix(iface.Name, "eth") {
+						logger.Printf("[Azure CNS] getNICResources: MAC %s skipping VF interface %s (already have %s)", key, iface.Name, res.InterfaceName)
+						continue
+					}
 					res.InterfaceName = iface.Name
 					logger.Printf("[Azure CNS] getNICResources: MAC %s resolved to interface %s", key, iface.Name)
 				}
