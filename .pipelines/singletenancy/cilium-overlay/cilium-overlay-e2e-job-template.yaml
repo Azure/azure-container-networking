@@ -12,7 +12,6 @@ stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
     dependsOn:
-      - ${{ parameters.dependsOn }}
       - setup
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
@@ -27,5 +26,4 @@ stages:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           vmSize: ${{ parameters.vmSize }}
           k8sVersion: ${{ parameters.k8sVersion }}
-          dependsOn: ${{ parameters.dependsOn }}
           region: $(REGION_AKS_CLUSTER_TEST)
