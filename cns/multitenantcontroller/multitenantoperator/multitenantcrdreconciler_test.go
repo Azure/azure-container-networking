@@ -116,7 +116,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 
 		It("Should reprogram NC when CR is in Succeeded state but NC is missing from CNS", func() {
 			uuid := uuidValue
-			var nc ncapi.MultiTenantNetworkContainer = ncapi.MultiTenantNetworkContainer{
+			nc := ncapi.MultiTenantNetworkContainer{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      namespacedName.Name,
 					Namespace: namespacedName.Namespace,
@@ -179,7 +179,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 
 		It("Should skip reconciliation when CR is in Succeeded state and NC exists in CNS", func() {
 			uuid := uuidValue
-			var nc ncapi.MultiTenantNetworkContainer = ncapi.MultiTenantNetworkContainer{
+			nc := ncapi.MultiTenantNetworkContainer{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      namespacedName.Name,
 					Namespace: namespacedName.Namespace,
@@ -214,7 +214,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 
 		It("Should return error when CR is in Succeeded state and CNS returns transient error", func() {
 			uuid := uuidValue
-			var nc ncapi.MultiTenantNetworkContainer = ncapi.MultiTenantNetworkContainer{
+			nc := ncapi.MultiTenantNetworkContainer{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      namespacedName.Name,
 					Namespace: namespacedName.Namespace,
