@@ -1,17 +1,39 @@
 parameters:
-  name: ""
-  displayName: ""
-  clusterType: ""
-  clusterName: ""
-  vmSize: ""
-  k8sVersion: ""
-  dependsOn: ""
-  scaleup: ""
-  os: ""
+  - name: name
+    type: string
+    default: ""
+  - name: displayName
+    type: string
+    default: ""
+  - name: clusterType
+    type: string
+    default: ""
+  - name: clusterName
+    type: string
+    default: ""
+  - name: vmSize
+    type: string
+    default: ""
+  - name: k8sVersion
+    type: string
+    default: ""
+  - name: dependsOn
+    type: object
+    default: ""
+  - name: scaleup
+    type: string
+    default: ""
+  - name: os
+    type: string
+    default: ""
 
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
+    condition: or(
+        eq('${{ parameters.os }}', 'linux'),
+        and(eq('${{ parameters.os }}', 'windows'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true'))
+      )
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -19,6 +41,7 @@ stages:
       name: $(BUILD_POOL_NAME_DEFAULT)
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      runWindowsTest: $[ stagedependencies.setup.env.outputs['GitDiffCheck.RunWindowsTests'] ]
     jobs:
       - template: ../../templates/create-cluster.yaml
         parameters:
@@ -50,41 +73,65 @@ stages:
       - job: ${{ parameters.name }}_${{ parameters.os }}
         displayName: Azure CNI Overlay Test Suite | ${{ parameters.os }} - (${{ parameters.name }})
         timeoutInMinutes: 120
+        # error handled by warning-handler job below
+        continueOnError: ${{ eq(parameters.os, 'windows') }}
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
-          - template: azure-cni-overlay-e2e-step-template.yaml
+          - ${{ if eq(parameters.os, 'linux') }}:
+            - template: azure-cni-overlay-e2e-step-template.yaml
+              parameters:
+                name: ${{ parameters.name }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                scaleup: ${{ parameters.scaleup }}
+          - ${{ if eq(parameters.os, 'windows') }}:
+            - template: ../../templates/windows-overlay-e2e-step-template.yaml
+              parameters:
+                name: ${{ parameters.name }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                cniType: cniv2
+                validateCniType: cniv2
+                testLoadArgs: "INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true"
+                scaleup: ${{ parameters.scaleup }}
+          - template: ../../templates/k8s-e2e-step-template.yaml
             parameters:
-              name: ${{ parameters.name }}
+              sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
-              scaleup: ${{ parameters.scaleup }} # 50 in windows or 100 in linux
+              datapath: true
+              dns: true
+              portforward: true
+              hostport: true
+              service: true
+              hybridWin: ${{ eq(parameters.os, 'windows') }}
 
-      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
-        parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          dependsOn: ${{ parameters.name }}_${{ parameters.os }}
-          datapath: true
-          dns: true
-          portforward: true
-          hostport: true
-          service: true
-          hybridWin: ${{ eq(parameters.os, 'windows') }}
+      # can only succeed with issues in windows
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - template: ../../templates/warning-handler-job-template.yaml
+          parameters:
+            dependsOnToEmitWarning: ${{ parameters.name }}_${{ parameters.os }}
+            clusterName: ${{ parameters.clusterName }}-$(commitID)
+            fileSearchPattern: "azure-vnet*.log"
+            # known windows issues that occur only in testing:
+            # - windows blue screens and writes null characters to the statefile, making it unrecoverable
+            # - the hns network gets deleted outside of the cni's control, so it still thinks the network exists
+            searchPattern: "\\x00|\\\\x00|hcnOpenNetwork failed in Win32: The network was not found"
+            cni: cniv2
+            os: windows
 
       - job: failedE2ELogs_${{ parameters.os }}
         displayName: "${{ parameters.os }} Failure Logs"
         dependsOn:
           - ${{ parameters.name }}_${{ parameters.os }}
-          - CNI_${{ parameters.os }}
-        condition: in(dependencies.${{ parameters.name }}_${{ parameters.os }}.result, 'Failed')
+        condition: in(dependencies.${{ parameters.name }}_${{ parameters.os }}.result, 'Failed', 'SucceededWithIssues')
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv2
+

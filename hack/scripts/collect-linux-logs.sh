@@ -1,5 +1,25 @@
 #!/bin/bash
 # Usage: acnLogs="./linux-logs/" cni="cniv2" bash collect-linux-logs.sh
+
+# Collect all container logs (init and sidecar) for a given pod into a directory.
+# Usage: collect_all_container_logs <pod> <output_dir>
+collect_all_container_logs() {
+  local pod=$1
+  local outdir=$2
+  # Collect logs from all init containers
+  initContainers=$(kubectl get pod -n kube-system "$pod" -o jsonpath='{.spec.initContainers[*].name}')
+  for container in $initContainers; do
+    kubectl logs -n kube-system "$pod" -c "$container" > "${outdir}/${pod}_${container}.log" 2>&1
+    echo "  Init container log captured: ${outdir}/${pod}_${container}.log"
+  done
+  # Collect logs from all (sidecar) containers
+  containers=$(kubectl get pod -n kube-system "$pod" -o jsonpath='{.spec.containers[*].name}')
+  for container in $containers; do
+    kubectl logs -n kube-system "$pod" -c "$container" > "${outdir}/${pod}_${container}.log" 2>&1
+    echo "  Container log captured: ${outdir}/${pod}_${container}.log"
+  done
+}
+
 echo "Ensure that privileged pod exists on each node"
 kubectl apply -f ../../test/integration/manifests/load/privileged-daemonset.yaml
 kubectl rollout status ds -n kube-system privileged-daemonset
@@ -89,5 +109,20 @@ if [ ${cni} = 'cilium' ]; then
     file="cilium-endpoint.json"
     kubectl exec -i -n kube-system $pod -- cilium endpoint list -o json > ${acnLogs}/"$node"_logs/Cilium-output/$file
     echo "Cilium, $file, captured: ${acnLogs}/"$node"_logs/Cilium-output/$file"
+  done
+
+  echo "------ Cilium kubectl logs ------"
+  mkdir -p ${acnLogs}/cilium-kubectl-logs/
+  echo "Directory created: ${acnLogs}/cilium-kubectl-logs/"
+
+  echo "Capture all container logs from Cilium daemonset pods"
+  for pod in $ciliumPods; do
+    collect_all_container_logs "$pod" "${acnLogs}/cilium-kubectl-logs"
+  done
+
+  echo "Capture all container logs from Cilium operator deployment pods"
+  ciliumOperatorPods=`kubectl get pods -n kube-system -l name=cilium-operator --no-headers | awk '{print $1}'`
+  for pod in $ciliumOperatorPods; do
+    collect_all_container_logs "$pod" "${acnLogs}/cilium-kubectl-logs"
   done
 fi

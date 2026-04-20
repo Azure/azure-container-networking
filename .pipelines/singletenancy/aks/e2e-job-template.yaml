@@ -1,19 +1,45 @@
 parameters:
-  name: ""
-  displayName: ""
-  arch: ""
-  os: ""
-  clusterType: ""
-  clusterName: ""
-  vmSize: ""
-  k8sVersion: ""
-  os_version: ""
-  scaleup: ""
-  dependsOn: ""
+  - name: name
+    type: string
+    default: ""
+  - name: displayName
+    type: string
+    default: ""
+  - name: arch
+    type: string
+    default: ""
+  - name: os
+    type: string
+    default: ""
+  - name: clusterType
+    type: string
+    default: ""
+  - name: clusterName
+    type: string
+    default: ""
+  - name: vmSize
+    type: string
+    default: ""
+  - name: k8sVersion
+    type: string
+    default: ""
+  - name: os_version
+    type: string
+    default: ""
+  - name: scaleup
+    type: string
+    default: ""
+  - name: dependsOn
+    type: object
+    default: ""
 
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
+    condition: or(
+        eq('${{ parameters.os }}', 'linux'),
+        and(eq('${{ parameters.os }}', 'windows'), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true'))
+      )
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -52,11 +78,7 @@ stages:
       - job: ${{ parameters.name }}
         displayName: Singletenancy AKS - (${{ parameters.name }})
         timeoutInMinutes: 120
-        # continue on error only in linux case to workaround known cniv1 issue where we leak an ip
-        # this occurs when the azure vnet ipam releases an ip from its statefile and sends a successful
-        # delete response but the azure cni gets a broken pipe error and doesn't delete the ip from its
-        # statefile. a symptom of this problem is 'Initializing HTTP client with connection timeout'
-        # appearing in the logs, which is checked below
+        # error handled by warning-handler job below
         continueOnError: ${{ eq(parameters.os, 'linux') }}
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
@@ -72,39 +94,45 @@ stages:
               os: ${{ parameters.os }}
               os_version: ${{ parameters.os_version }}
               scaleup: ${{ parameters.scaleup }}
-      
+          - template: ../../templates/k8s-e2e-step-template.yaml
+            parameters:
+              sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              datapath: true
+              dns: true
+              portforward: true
+              hybridWin: true
+              service: true
+              hostport: true
+
       # can only succeed with issues in linux
       - template: ../../templates/warning-handler-job-template.yaml
         parameters:
           dependsOnToEmitWarning: ${{ parameters.name }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           fileSearchPattern: "azure-vnet*.log"
-          searchPattern: "Initializing HTTP client with connection timeout"
+          # continue on error only in linux case to workaround known cniv1 issue where we leak an ip
+          # this occurs when the azure vnet ipam releases an ip from its statefile and sends a successful
+          # delete response but the azure cni gets a broken pipe error and doesn't delete the ip from its
+          # statefile. a symptom of this problem is 'Initializing HTTP client with connection timeout'
+          # appearing in the logs, which is checked below
+          # similar reasoning for exec: already started, which appears to be a bug in the upstream cni framework
+          # where if an exec fails, the cni framework retries on the same command object which will always fail
+          # because command objects should never be re-used
+          searchPattern: "Initializing HTTP client with connection timeout|exec: already started"
           cni: cniv1
           os: ${{ parameters.os }}
-
-      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
-        parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          datapath: true
-          dns: true
-          portforward: true
-          hybridWin: true
-          service: true
-          hostport: true
-          dependsOn: ${{ parameters.name }}
 
       - job: failedE2ELogs
         displayName: "Failure Logs"
         dependsOn:
           - ${{ parameters.name }}
-          - cni_${{ parameters.os }}
-        condition: failed()
+        condition: or(failed(), eq(dependencies.${{ parameters.name }}.result, 'SucceededWithIssues'))
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv1
+

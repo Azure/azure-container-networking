@@ -1,16 +1,33 @@
 parameters:
-  name: ""
-  displayName: ""
-  clusterType: ""
-  clusterName: ""
-  vmSize: ""
-  k8sVersion: ""
-  dependsOn: ""
-  os: "linux"
+  - name: name
+    type: string
+    default: ""
+  - name: displayName
+    type: string
+    default: ""
+  - name: clusterType
+    type: string
+    default: ""
+  - name: clusterName
+    type: string
+    default: ""
+  - name: vmSize
+    type: string
+    default: ""
+  - name: k8sVersion
+    type: string
+    default: ""
+  - name: dependsOn
+    type: object
+    default: ""
+  - name: os
+    type: string
+    default: linux
 
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
+    condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -32,6 +49,7 @@ stages:
 
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
+    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
     - setup
     - publish
@@ -43,7 +61,6 @@ stages:
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
@@ -61,24 +78,21 @@ stages:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               scaleup: 100
-
-      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
-        parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          cni: cilium
-          dependsOn: ${{ parameters.name }}
-          datapath: true
-          dns: true
-          portforward: true
-          service: true
+          - template: ../../templates/k8s-e2e-step-template.yaml
+            parameters:
+              sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cilium
+              datapath: true
+              dns: true
+              portforward: true
+              service: true
 
       - job: failedE2ELogs
         displayName: "Failure Logs"
         dependsOn:
           - ${{ parameters.name }}
-          - cni_${{ parameters.os }}
         condition: failed()
         steps:
           - template: ../../templates/log-template.yaml
@@ -86,3 +100,4 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cilium
+

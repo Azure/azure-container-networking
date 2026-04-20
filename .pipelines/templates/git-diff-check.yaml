@@ -1,0 +1,61 @@
+parameters:
+  - name: targetBranch
+    type: string
+    default: ""
+
+steps:
+  - checkout: self
+    displayName: 'Checkout Repository'
+    fetchDepth: 0
+
+  - script: |
+      set -e
+      
+      SOURCE_BRANCH="$(Build.SourceBranch)"
+      
+      # Auto-detect target branch if not specified
+      TARGET_BRANCH="${{ parameters.targetBranch }}"
+      if [ -z "$TARGET_BRANCH" ]; then
+        if [[ "$SOURCE_BRANCH" =~ ^refs/tags/ ]]; then
+          echo "Tag build detected, running all tests"
+          echo "##vso[task.setvariable variable=RunWindowsTests;isOutput=true]true"
+          echo "##vso[task.setvariable variable=RunCiliumTests;isOutput=true]true"
+          exit 0
+        elif [ -n "$PRTARGETBRANCH" ]; then
+          TARGET_BRANCH="$PRTARGETBRANCH"
+          echo "Auto-detected target branch from PR: $TARGET_BRANCH"
+        elif [[ "$SOURCE_BRANCH" =~ gh-readonly-queue/(.+)/pr- ]]; then
+          TARGET_BRANCH="${BASH_REMATCH[1]}"
+          echo "Auto-detected target branch from merge queue: $TARGET_BRANCH"
+        else
+          TARGET_BRANCH="master"
+          echo "Auto-detected target branch (default): $TARGET_BRANCH"
+        fi
+      else
+        echo "Using provided target branch: $TARGET_BRANCH"
+      fi
+      
+      echo "=== Git Diff Check Configuration ==="
+      echo "Current branch: $(Build.SourceBranchName)"
+      echo "Current commit: $(Build.SourceVersion)"
+      echo "Target branch: $TARGET_BRANCH"
+      
+      # Verify the target branch ref is available
+      if ! git rev-parse --verify "origin/$TARGET_BRANCH" >/dev/null 2>&1; then
+        echo "origin/$TARGET_BRANCH not found, falling back to master"
+        TARGET_BRANCH="master"
+      fi
+      
+      OUTPUT=$(bash hack/scripts/check-changed-files.sh "$TARGET_BRANCH")
+      echo "$OUTPUT"
+      
+      RUN_WINDOWS_TESTS=false
+      RUN_CILIUM_TESTS=false
+      echo "$OUTPUT" | grep -q '^RUN_WINDOWS_TESTS=true$' && RUN_WINDOWS_TESTS=true
+      echo "$OUTPUT" | grep -q '^RUN_CILIUM_TESTS=true$' && RUN_CILIUM_TESTS=true
+      
+      echo "##vso[task.setvariable variable=RunWindowsTests;isOutput=true]$RUN_WINDOWS_TESTS"
+      echo "##vso[task.setvariable variable=RunCiliumTests;isOutput=true]$RUN_CILIUM_TESTS"
+    name: GitDiffCheck
+    displayName: "Check Git Diff"
+    condition: always()

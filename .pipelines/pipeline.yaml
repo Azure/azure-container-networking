@@ -35,7 +35,10 @@ stages:
         displayName: Setup
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+        variables:
+          prTargetBranch: $[ variables['System.PullRequest.TargetBranchName'] ]
         steps:
+          - template: templates/git-diff-check.yaml
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
               BUILD_NUMBER=$(Build.BuildNumber)
@@ -342,7 +345,6 @@ stages:
         clusterType: nodesubnet-byocni-nokubeproxy-up
         clusterName: "cilndsubnete2e"
         vmSize: Standard_B2s
-        k8sVersion: ""
         dependsOn: ["test"]
 
     # Cilium Overlay E2E tests
@@ -404,6 +406,7 @@ stages:
         dependsOn: ["test"]
         scaleup: 100
     
+    # Windows Azure Overlay E2E tests
     - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
       parameters:
         name: "win_azure_overlay_e2e"
@@ -421,7 +424,6 @@ stages:
       parameters:
         name: "azure_overlay_stateless_e2e"
         displayName: Azure Stateless CNI Overlay
-        os: windows
         clusterType: overlay-byocni-up
         clusterName: "statelesswin"
         vmSize: Standard_B2ms
@@ -465,6 +467,7 @@ stages:
         scaleup: 100
         dependsOn: ["test"]
 
+    # Windows AKS E2E tests
     - template: singletenancy/aks/e2e-job-template.yaml
       parameters:
         name: "aks_windows_22_e2e"
@@ -490,6 +493,7 @@ stages:
         dependsOn: ["test"]
         scaleup: 100
 
+    # Windows DualStack Overlay E2E tests
     - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
       parameters:
         name: "win_dualstackoverlay_e2e"
@@ -507,111 +511,160 @@ stages:
         parameters:
           name: "swiftv2_manifold_e2e"
           dependsOn: publish
-        
-    - stage: delete
-      displayName: Delete Clusters
-      condition: always()
+
+    # Delete Cilium Clusters
+    - stage: delete_cilium_clusters
+      displayName: Delete Cilium Clusters
+      condition: and(always(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
       dependsOn:
         - setup
-        - linux_azure_overlay_e2e
-        - win_azure_overlay_e2e
-        - azure_overlay_stateless_e2e
-        - aks_swift_e2e
         - cilium_e2e
         - cilium_vnetscale_e2e
         - cilium_ebpf_podsubnet_e2e
         - cilium_nodesubnet_e2e
         - cilium_overlay_e2e
         - cilium_ebpf_overlay_e2e
-        - cilium_h_overlay_e2e
-        - aks_ubuntu_22_linux_e2e
-        - aks_swift_vnetscale_e2e
-        - aks_windows_22_e2e
-        - linux_dualstackoverlay_e2e
-        - win_dualstackoverlay_e2e
         - cilium_dualstackoverlay_e2e
+        - cilium_h_overlay_e2e
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
       jobs:
-        - job: delete_build
+        - job: delete
           displayName: Delete Cluster
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
           strategy:
             matrix:
-              cilium_e2e:
-                name: cilium_e2e
-                clusterName: "ciliume2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              cilium_vnetscale_e2e:
-                name: cilium_vnetscale_e2e
-                clusterName: "ciliumvscalee2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              cilium_ebpf_podsubnet_e2e:
-                name: cilium_ebpf_podsubnet_e2e
-                clusterName: "cilbpfpode2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              cilium_nodesubnet_e2e:
-                name: cilium_nodesubnet_e2e
-                clusterName: "cilndsubnete2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              cilium_overlay_e2e:
-                name: cilium_overlay_e2e
-                clusterName: "cilovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              cilium_ebpf_overlay_e2e:
-                name: cilium_ebpf_overlay_e2e
-                clusterName: "cilbpfovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              cilium_h_overlay_e2e:
-                name: cilium_h_overlay_e2e
-                clusterName: "cilwhleovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              linux_azure_overlay_e2e:
-                name: linux_azure_overlay_e2e
-                clusterName: "linuxazovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              windows_azure_overlay_e2e:
-                name: win_azure_overlay_e2e
-                clusterName: "winazovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              azure_overlay_stateless_e2e:
-                name: azure_overlay_stateless_e2e
-                clusterName: "statelesswin"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              aks_swift_e2e:
-                name: aks_swift_e2e
-                clusterName: "swifte2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              aks_swift_vnetscale_e2e:
-                name: aks_swift_vnetscale_e2e
-                clusterName: "vscaleswifte2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              aks_ubuntu_22_linux_e2e:
-                name: aks_ubuntu_22_linux_e2e
-                clusterName: "ubuntu22e2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              aks_windows_22_e2e:
-                name: aks_windows_22_e2e
-                clusterName: "win22e2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              linux_dualstackoverlay_e2e:
-                name: linux_dualstackoverlay_e2e
-                clusterName: "linuxdsovere2e"
-                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
-              windows_dualstackoverlay_e2e:
-                name: windows_dualstackoverlay_e2e
-                clusterName: "windsovere2e"
-                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
-              cilium_dualstackoverlay_e2e:
-                name: cilium_dualstackoverlay_e2e
-                clusterName: "cildsovere2e"
-                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+              cilium_podsubnet:
+                cluster_name: ciliume2e
+                delete_name: cilium_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_vnetscale:
+                cluster_name: ciliumvscalee2e
+                delete_name: cilium_vnetscale_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_ebpf_podsubnet:
+                cluster_name: cilbpfpode2e
+                delete_name: cilium_ebpf_podsubnet_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_nodesubnet:
+                cluster_name: cilndsubnete2e
+                delete_name: cilium_nodesubnet_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_overlay:
+                cluster_name: cilovere2e
+                delete_name: cilium_overlay_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_ebpf_overlay:
+                cluster_name: cilbpfovere2e
+                delete_name: cilium_ebpf_overlay_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              cilium_dualstack_overlay:
+                cluster_name: cildsovere2e
+                delete_name: cilium_dualstackoverlay_e2e
+                delete_region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+              cilium_overlay_hubble:
+                cluster_name: cilwhleovere2e
+                delete_name: cilium_h_overlay_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
           steps:
             - template: templates/delete-cluster.yaml
               parameters:
-                name: $(name)
-                clusterName: $(clusterName)-$(commitID)
-                region: $(region)
+                name: $(delete_name)
+                clusterName: $(cluster_name)-$(commitID)
+                region: $(delete_region)
+                sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+                svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+
+    # Delete Windows Clusters
+    - stage: delete_windows_clusters
+      displayName: Delete Windows Clusters
+      condition: and(always(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true'))
+      dependsOn:
+        - setup
+        - win_azure_overlay_e2e
+        - azure_overlay_stateless_e2e
+        - aks_windows_22_e2e
+        - win_dualstackoverlay_e2e
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      jobs:
+        - job: delete
+          displayName: Delete Cluster
+          strategy:
+            matrix:
+              azure_overlay_windows:
+                cluster_name: winazovere2e
+                delete_name: win_azure_overlay_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              azure_overlay_stateless:
+                cluster_name: statelesswin
+                delete_name: azure_overlay_stateless_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              aks_windows_22:
+                cluster_name: win22e2e
+                delete_name: aks_windows_22_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              dualstack_overlay_windows:
+                cluster_name: windsovere2e
+                delete_name: win_dualstackoverlay_e2e
+                delete_region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+          steps:
+            - template: templates/delete-cluster.yaml
+              parameters:
+                name: $(delete_name)
+                clusterName: $(cluster_name)-$(commitID)
+                region: $(delete_region)
+                sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+                svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+
+    # Delete Linux Clusters
+    - stage: delete_linux_clusters
+      displayName: Delete Linux Clusters
+      condition: always()
+      dependsOn:
+        - setup
+        - linux_azure_overlay_e2e
+        - aks_swift_e2e
+        - aks_swift_vnetscale_e2e
+        - aks_ubuntu_22_linux_e2e
+        - linux_dualstackoverlay_e2e
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      jobs:
+        - job: delete
+          displayName: Delete Cluster
+          strategy:
+            matrix:
+              azure_overlay_linux:
+                cluster_name: linuxazovere2e
+                delete_name: linux_azure_overlay_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              aks_swift:
+                cluster_name: swifte2e
+                delete_name: aks_swift_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              aks_swift_vnetscale:
+                cluster_name: vscaleswifte2e
+                delete_name: aks_swift_vnetscale_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              aks_ubuntu_22:
+                cluster_name: ubuntu22e2e
+                delete_name: aks_ubuntu_22_linux_e2e
+                delete_region: $(REGION_AKS_CLUSTER_TEST)
+              dualstack_overlay_linux:
+                cluster_name: linuxdsovere2e
+                delete_name: linux_dualstackoverlay_e2e
+                delete_region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+          steps:
+            - template: templates/delete-cluster.yaml
+              parameters:
+                name: $(delete_name)
+                clusterName: $(cluster_name)-$(commitID)
+                region: $(delete_region)
                 sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
                 svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)

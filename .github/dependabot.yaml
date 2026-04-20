@@ -9,6 +9,8 @@ updates:
       prefix: "ci"
     labels: ["ci", "dependencies"]
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -18,6 +20,8 @@ updates:
       prefix: "ci"
     labels: ["ci", "dependencies"]
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
 
   # =========================
   # DEFAULT BRANCH (master/main) — STAGED ROLLOUT
@@ -52,6 +56,8 @@ updates:
         versions: [">=0.37.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.37.0"]
+    cooldown:
+      default-days: 7
 
   # /azure-ipam: grouped minor+patch + allow majors concurrently
   - package-ecosystem: "gomod"
@@ -82,6 +88,8 @@ updates:
         versions: [">=0.37.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.37.0"]
+    cooldown:
+      default-days: 7
 
   # /dropgz: grouped minor+patch + allow majors concurrently
   - package-ecosystem: "gomod"
@@ -99,6 +107,8 @@ updates:
         applies-to: version-updates
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    cooldown:
+      default-days: 7
 
   # /zapai: grouped weekly minor+patch + allow majors concurrently
   - package-ecosystem: "gomod"
@@ -116,6 +126,8 @@ updates:
         applies-to: version-updates
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    cooldown:
+      default-days: 7
 
   # =========================
   # RELEASE BRANCHES — keep daily for v1.5, v1.6, and v1.7
@@ -149,6 +161,8 @@ updates:
         versions: [">=0.35.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.35.0"]
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "gomod"
     directory: "/azure-ipam"
@@ -177,6 +191,8 @@ updates:
         versions: [">=0.35.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.35.0"]
+    cooldown:
+      default-days: 7
 
   # release/v1.6 constraints (daily);
   - package-ecosystem: "gomod"
@@ -206,6 +222,8 @@ updates:
         versions: [">=0.32.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.32.0"]
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "gomod"
     directory: "/azure-ipam"
@@ -234,6 +252,8 @@ updates:
         versions: [">=0.32.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.32.0"]
+    cooldown:
+      default-days: 7
 
   # release/v1.5 constraints (daily)
   - package-ecosystem: "gomod"
@@ -263,6 +283,8 @@ updates:
         versions: [">=0.30.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.30.0"]
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "gomod"
     directory: "/azure-ipam"
@@ -291,3 +313,5 @@ updates:
         versions: [">=0.30.0"]
       - dependency-name: "k8s.io/kubectl"
         versions: [">=0.30.0"]
+    cooldown:
+      default-days: 7
