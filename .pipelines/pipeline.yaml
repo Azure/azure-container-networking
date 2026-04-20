@@ -66,6 +66,6 @@ stages:
       displayName: Cil on AKS Overlay
       clusterType: ebpf-overlay-cilium-up
       clusterName: "cilovere2e"
-      vmSize: Standard_B2ms
+      vmSize: Standard_D16s_v3
       k8sVersion: ""
 
