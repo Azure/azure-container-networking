@@ -60,7 +60,7 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--node-count $(NODE_COUNT) \
 	--node-vm-size $(VM_SIZE) \
 	--no-ssh-key \
-	--os-sku $(OS_SKU) \
+	--os-sku Ubuntu2404 \
 	$(LTS_ARGS) $(ACNS_ARGS)
 POD_CIDR = 192.168.0.0/16
 
