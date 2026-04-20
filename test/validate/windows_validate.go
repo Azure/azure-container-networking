@@ -205,14 +205,19 @@ func hnsStateFileIPs(result []byte) (map[string]string, error) {
 }
 
 // return windows HNS network state
+// PowerShell's ConvertTo-Json returns a single object when there is only one network,
+// so we try unmarshalling as an array first, then fall back to a single object.
 func hnsNetworkState(result []byte) ([]HNSNetwork, error) {
 	var hnsNetworkResult []HNSNetwork
-	err := json.Unmarshal(result, &hnsNetworkResult)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal HNS network state file")
+	if err := json.Unmarshal(result, &hnsNetworkResult); err == nil {
+		return hnsNetworkResult, nil
 	}
-
-	return hnsNetworkResult, nil
+	// if unmarshal into array above fails, try unmarshal into single object
+	var singleResult HNSNetwork
+	if err := json.Unmarshal(result, &singleResult); err != nil {
+		return nil, errors.Wrap(err, "failed to unmarshal HNS network state as array or object")
+	}
+	return []HNSNetwork{singleResult}, nil
 }
 
 func azureVnetIps(result []byte) (map[string]string, error) {
@@ -273,7 +278,7 @@ func validateHNSNetworkState(ctx context.Context, nodes *corev1.NodeList, client
 		if err != nil {
 			return errors.Wrap(err, "failed to exec into privileged pod")
 		}
-
+		log.Printf("results from node %s: %s", nodes.Items[index].Name, result)
 		hnsNetwork, err := hnsNetworkState(result)
 		log.Printf("hnsNetwork: %+v", hnsNetwork)
 		if err != nil {
@@ -281,11 +286,15 @@ func validateHNSNetworkState(ctx context.Context, nodes *corev1.NodeList, client
 		}
 
 		// check hns properties
-		if len(hnsNetwork) == 1 {
-			return errors.New("HNS default ext network or azure network does not exist")
+		if len(hnsNetwork) < 1 {
+			return errors.New("no HNS networks found")
 		}
 
+		foundAzure := false
 		for _, network := range hnsNetwork {
+			if network.Name == "azure" {
+				foundAzure = true
+			}
 			if network.State != 1 {
 				return errors.New("windows HNS network state is not correct")
 			}
@@ -299,6 +308,10 @@ func validateHNSNetworkState(ctx context.Context, nodes *corev1.NodeList, client
 					return errors.New("windows HNS network is missing ipv6 management IP")
 				}
 			}
+		}
+
+		if !foundAzure {
+			return errors.New("HNS 'azure' network does not exist")
 		}
 	}
 	return nil

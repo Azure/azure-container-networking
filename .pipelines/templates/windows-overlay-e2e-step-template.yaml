@@ -1,0 +1,122 @@
+parameters:
+  name: ""
+  clusterName: ""
+  cniType: "cniv2"                                    # CNI_TYPE for make test-load (cniv2 or stateless)
+  validateCniType: "cniv2"                            # CNI_TYPE for make test-validate-state (cniv2, stateless, or dualstack)
+  testLoadArgs: ""                                    # Extra args for make test-load (e.g. "INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true")
+  regionClusterTest: "$(REGION_AKS_CLUSTER_TEST)"
+  scaleup: "32"
+  runWireserverTests: "false"
+
+steps:
+  - bash: |
+      go version
+      go env
+      mkdir -p '$(GOBIN)'
+      mkdir -p '$(GOPATH)/pkg'
+      mkdir -p '$(modulePath)'
+      echo '##vso[task.prependpath]$(GOBIN)'
+      echo '##vso[task.prependpath]$(GOROOT)/bin'
+    name: "GoEnv"
+    displayName: "Set up the Go environment"
+
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+    name: "kubeconfig"
+    displayName: "Set Kubeconfig"
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        clusterName=${{ parameters.clusterName }}
+
+        # set cni name to azure so windows cleanup script runs (though testing can still pass without this usually)
+        cd hack/scripts
+        bash patch-kubeclusterconfig.sh || true
+        cd ../..
+
+        # Restart nodes
+        echo "Restarting nodes"
+        kubectl get po -owide -A
+        for val in $(az vmss list -g MC_${clusterName}_${clusterName}_${{ parameters.regionClusterTest }} --query "[].name" -o tsv); do
+          make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=${{ parameters.regionClusterTest }} VMSS_NAME=${val}
+        done
+
+        # Remove taints from Windows nodes
+        nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
+        for node in $nodeList; do
+            taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
+            if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
+                kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+            fi
+        done
+
+        # Run control plane scale tests
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=${{ parameters.cniType }} VALIDATE_STATEFILE=true INSTALL_CNS=true ${{ parameters.testLoadArgs }} CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+
+        # Run datapath tests
+        echo "Windows Overlay DataPath Test"
+        cd test/integration/datapath
+        sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 12m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
+    name: "WindowsOverlayTests"
+    displayName: "Windows Overlay ControlPlane and DataPath Tests"
+    retryCountOnTaskFailure: 2
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        clusterName=${{ parameters.clusterName }}
+
+        # set cni name to azure so windows cleanup script runs (though testing can still pass without this usually)
+        cd hack/scripts
+        bash patch-kubeclusterconfig.sh || true
+        cd ../..
+
+        # Restart nodes
+        echo "Restarting nodes"
+        kubectl get po -owide -A
+        for val in $(az vmss list -g MC_${clusterName}_${clusterName}_${{ parameters.regionClusterTest }} --query "[].name" -o tsv); do
+          make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=${{ parameters.regionClusterTest }} VMSS_NAME=${val}
+        done
+
+        # Scale Cluster Up/Down to confirm functioning CNS
+        cd test/integration/load
+        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=windows go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+        kubectl get pods -owide -A
+
+        cd ../../..
+        echo "Validating Node Restart"
+        make test-validate-state OS_TYPE=windows RESTART_CASE=true CNI_TYPE=${{ parameters.validateCniType }}
+        kubectl delete ns load-test
+    name: "WindowsOverlayValidateRestart"
+    displayName: "Validate Windows Overlay Node Restart"
+    retryCountOnTaskFailure: 2
+
+  - ${{ if eq(parameters.runWireserverTests, 'true') }}:
+    - script: |
+        echo "Run wireserver and metadata connectivity Tests"
+        bash test/network/wireserver_metadata_test.sh
+      retryCountOnTaskFailure: 3
+      name: "WireserverMetadataConnectivityTests"
+      displayName: "Run Wireserver and Metadata Connectivity Tests"

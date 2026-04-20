@@ -67,43 +67,55 @@ stages:
       - job: ${{ parameters.name }}_windows
         displayName: Azure Stateless CNI Overlay Test Suite | Windows - (${{ parameters.name }})
         timeoutInMinutes: 120
+        # error handled by warning-handler job below
+        continueOnError: true
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
-          - template: azure-cni-overlay-stateless-e2e-step-template.yaml
+          - template: ../../templates/windows-overlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
+              cniType: stateless
+              validateCniType: stateless
+              testLoadArgs: "INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true"
+              runWireserverTests: "true"
+          - template: ../../templates/k8s-e2e-step-template.yaml
+            parameters:
+              sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: windows
-              vmSizeWin: ${{ parameters.vmSize }}
+              datapath: true
+              dns: true
+              portforward: true
+              hostport: true
+              service: true
+              hybridWin: true
 
-      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
+      # can only succeed with issues in windows
+      - template: ../../templates/warning-handler-job-template.yaml
         parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          dependsOnToEmitWarning: ${{ parameters.name }}_windows
           clusterName: ${{ parameters.clusterName }}-$(commitID)
+          fileSearchPattern: "azure-vnet*.log"
+          # known windows issues that occur only in testing:
+          # - windows blue screens and writes null characters to the statefile, making it unrecoverable
+          # - the hns network gets deleted outside of the cni's control, so it still thinks the network exists
+          searchPattern: "\\x00|\\\\x00|hcnOpenNetwork failed in Win32: The network was not found"
+          cni: cniv2
           os: windows
-          dependsOn: ${{ parameters.name }}_windows
-          datapath: true
-          dns: true
-          portforward: true
-          hostport: true
-          service: true
-          hybridWin: true
 
       - job: failedE2ELogs_windows
         displayName: "Windows Failure Logs"
         dependsOn:
           - ${{ parameters.name }}_windows
-          - cni_windows
-        condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed')
+        condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed', 'SucceededWithIssues')
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: windows
               cni: cniv2
-
-

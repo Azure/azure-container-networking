@@ -70,6 +70,7 @@ steps:
         kubectl get crd -A
     name: "installCilium"
     displayName: "Install Cilium"
+    retryCountOnTaskFailure: 2
 
   - script: |
       echo "Start Nodesubnet E2E Tests"

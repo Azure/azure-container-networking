@@ -51,6 +51,7 @@ steps:
         kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium"
+    retryCountOnTaskFailure: 2
 
   - script: |
       echo "Start Azilium E2E Tests"

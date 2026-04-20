@@ -30,6 +30,7 @@ steps:
         kubectl get pods -Aowide
     name: "installCilium"
     displayName: "Install EBPF Podsubnet Cilium"
+    retryCountOnTaskFailure: 2
 
   - script: |
       echo "Start Azilium E2E Tests"

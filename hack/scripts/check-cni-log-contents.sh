@@ -12,10 +12,13 @@ file_pattern="$2"
 content_pattern="$3"
 
 # Find files matching pattern and grep for content-- use -aP so we can detect null (\x00) characters
-find "$directory" -name "$file_pattern" -type f -exec grep -aP -l "$content_pattern" {} \;
+matches=$(find "$directory" -name "$file_pattern" -type f -exec grep -aP -l "$content_pattern" {} +)
 
-# Use exec command terminator "+" to run grep once (unless there are many files)
-if find "$directory" -name "$file_pattern" -type f -exec grep -aP -q "$content_pattern" {} +; then
+if [ -n "$matches" ]; then
+    echo "$matches"
+    echo ""
+    echo "Matching lines:"
+    find "$directory" -name "$file_pattern" -type f -exec grep -aP -n "$content_pattern" {} +
     exit 0
 else
     exit 1
