@@ -11,15 +11,15 @@ AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v
 
 # overrideable defaults
 AUTOUPGRADE          ?= patch
-K8S_VER              ?= 1.33
+K8S_VER              ?= 1.34
 NODE_COUNT           ?= 2
 NODE_COUNT_WIN	     ?= $(NODE_COUNT)
 NODEUPGRADE          ?= NodeImage
 OS				     ?= linux # Used to signify if you want to bring up a windows nodePool on byocni clusters
-OS_SKU               ?= Ubuntu
+OS_SKU               ?= Ubuntu2404
 OS_SKU_WIN           ?= Windows2022
 REGION               ?= westus2
-VM_SIZE	             ?= Standard_B2s
+VM_SIZE	             ?= Standard_d16s_v3
 VM_SIZE_WIN          ?= Standard_B2s
 IP_TAG               ?= FirstPartyUsage=/NonProd
 IP_PREFIX            ?= serviceTaggedIp
@@ -198,6 +198,7 @@ overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium clus
 		--network-plugin-mode overlay \
 		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+                --enable-gateway-api --enable-azure-service-mesh \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -212,7 +213,7 @@ ebpf-overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an EBPF Overlay C
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AdvancedNetworkingPerformancePreview \
 		--enable-acns \
-		--acns-datapath-acceleration-mode BpfVeth \
+		--acns-datapath-acceleration-mode BpfVeth --enable-gateway-api --enable-azure-service-mesh \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -223,6 +224,7 @@ overlay-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--network-plugin-mode overlay \
 		--pod-cidr $(POD_CIDR) \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--enable-gateway-api --enable-azure-service-mesh \
 		--yes
 	@$(MAKE) set-kubeconf
 ifeq ($(OS),windows)
