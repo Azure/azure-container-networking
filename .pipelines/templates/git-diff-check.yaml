@@ -17,6 +17,9 @@ steps:
         if [ -n "$PRTARGETBRANCH" ]; then
           TARGET_BRANCH="$PRTARGETBRANCH"
           echo "Auto-detected target branch from PR: $TARGET_BRANCH"
+        elif [[ "$(Build.SourceBranch)" =~ gh-readonly-queue/(release/v[0-9]+\.[0-9]+)/ ]]; then
+          TARGET_BRANCH="${BASH_REMATCH[1]}"
+          echo "Auto-detected target branch from merge queue: $TARGET_BRANCH"
         else
           TARGET_BRANCH="master"
           echo "Auto-detected target branch (default): $TARGET_BRANCH"
@@ -29,6 +32,9 @@ steps:
       echo "Current branch: $(Build.SourceBranchName)"
       echo "Current commit: $(Build.SourceVersion)"
       echo "Target branch: $TARGET_BRANCH"
+      
+      # Ensure the target branch ref is available locally
+      git fetch origin "$TARGET_BRANCH" --depth=1 2>/dev/null || true
       
       OUTPUT=$(bash hack/scripts/check-changed-files.sh "$TARGET_BRANCH")
       echo "$OUTPUT"
