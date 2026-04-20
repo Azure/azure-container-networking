@@ -33,8 +33,11 @@ steps:
       echo "Current commit: $(Build.SourceVersion)"
       echo "Target branch: $TARGET_BRANCH"
       
-      # Ensure the target branch ref is available locally
-      git fetch origin "$TARGET_BRANCH" --depth=1 2>/dev/null || true
+      # Verify the target branch ref is available
+      if ! git rev-parse --verify "origin/$TARGET_BRANCH" >/dev/null 2>&1; then
+        echo "origin/$TARGET_BRANCH not found, falling back to master"
+        TARGET_BRANCH="master"
+      fi
       
       OUTPUT=$(bash hack/scripts/check-changed-files.sh "$TARGET_BRANCH")
       echo "$OUTPUT"

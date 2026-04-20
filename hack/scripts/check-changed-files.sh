@@ -48,7 +48,7 @@ all_files_match_skip_patterns() {
 }
 
 # --- Windows tests ---
-WINDOWS_SKIP_PATTERNS=(".*linux\.go$" ".*test\.go$")
+WINDOWS_SKIP_PATTERNS=("_linux\.go$" "_linux_test\.go$")
 
 if all_files_match_skip_patterns "$CHANGED_FILES" "${WINDOWS_SKIP_PATTERNS[@]}"; then
   RUN_WINDOWS_TESTS=false
