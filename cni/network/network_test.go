@@ -1852,31 +1852,31 @@ func TestValidateArgs(t *testing.T) {
 
 func TestBuildNmAgentSupportedApisURL(t *testing.T) {
 	tests := []struct {
-		name         string
-		wireServerIP string
-		expectedURL  string
+		name               string
+		wireServerAddress  string
+		expectedURL        string
 	}{
 		{
-			name:         "empty string defaults to well-known wireserver IP",
-			wireServerIP: "",
-			expectedURL:  "http://168.63.129.16/machine/plugins/?comp=nmagent&type=GetSupportedApis",
+			name:              "empty string defaults to well-known wireserver IP",
+			wireServerAddress: "",
+			expectedURL:       "http://168.63.129.16/machine/plugins/?comp=nmagent&type=GetSupportedApis",
 		},
 		{
-			name:         "custom IPv4 address",
-			wireServerIP: "10.0.0.1",
-			expectedURL:  "http://10.0.0.1/machine/plugins/?comp=nmagent&type=GetSupportedApis",
+			name:              "custom IPv4 address",
+			wireServerAddress: "10.0.0.1",
+			expectedURL:       "http://10.0.0.1/machine/plugins/?comp=nmagent&type=GetSupportedApis",
 		},
 		{
-			name:         "custom IPv4 address with port",
-			wireServerIP: "10.0.0.1:8080",
-			expectedURL:  "http://10.0.0.1:8080/machine/plugins/?comp=nmagent&type=GetSupportedApis",
+			name:              "custom IPv4 address with port",
+			wireServerAddress: "10.0.0.1:8080",
+			expectedURL:       "http://10.0.0.1:8080/machine/plugins/?comp=nmagent&type=GetSupportedApis",
 		},
 	}
 
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			result := buildNmAgentSupportedApisURL(tt.wireServerIP)
+			result := buildNmAgentSupportedApisURL(tt.wireServerAddress)
 			assert.Equal(t, tt.expectedURL, result)
 		})
 	}
