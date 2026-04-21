@@ -1,0 +1,201 @@
+name: 'Go Version Check'
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Every Monday at 9am UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run - check for updates without creating an issue'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: go-version-check
+  cancel-in-progress: true
+
+jobs:
+  check-go-update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install skopeo
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo > /dev/null
+
+      - name: Check for Go digest drift
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Parse current GO_IMG tag from images.mk
+          GO_IMG=$(grep -oP 'GO_IMG\s*\?=\s*\K\S+' build/images.mk)
+          echo "Current GO_IMG: $GO_IMG"
+          echo "go_img=$GO_IMG" >> "$GITHUB_OUTPUT"
+
+          # Extract current tag (e.g., "1.24-azurelinux3.0")
+          GO_TAG=$(echo "$GO_IMG" | grep -oP ':\K.*')
+          echo "Current tag: $GO_TAG"
+          echo "go_tag=$GO_TAG" >> "$GITHUB_OUTPUT"
+
+          # Extract Go minor version (e.g., "1.24")
+          GO_MINOR=$(echo "$GO_TAG" | grep -oP '^\d+\.\d+')
+          echo "Go minor version: $GO_MINOR"
+          echo "go_minor=$GO_MINOR" >> "$GITHUB_OUTPUT"
+
+          # Get the latest digest for the current tag from MCR
+          LATEST_DIGEST=$(skopeo inspect "docker://$GO_IMG" --format "{{.Digest}}" 2>/dev/null || echo "FAILED")
+          if [ "$LATEST_DIGEST" = "FAILED" ]; then
+            echo "::error::Failed to inspect $GO_IMG"
+            exit 1
+          fi
+          echo "Latest MCR digest: $LATEST_DIGEST"
+          echo "latest_digest=$LATEST_DIGEST" >> "$GITHUB_OUTPUT"
+
+          # Get the currently pinned digests from generated Dockerfiles
+          # Look at cni/Dockerfile as the reference (first generated Dockerfile)
+          CURRENT_DIGEST=$(grep -oP 'golang@\Ksha256:[a-f0-9]+' cni/Dockerfile | head -1 || echo "NOT_FOUND")
+          echo "Currently pinned digest: $CURRENT_DIGEST"
+          echo "current_digest=$CURRENT_DIGEST" >> "$GITHUB_OUTPUT"
+
+          # Also check bpf-prog Dockerfile (uses MCR golang, not azurelinux variant)
+          BPF_CURRENT_DIGEST=$(grep -oP 'golang@\Ksha256:[a-f0-9]+' bpf-prog/ipv6-hp-bpf/linux.Dockerfile | head -1 || echo "NOT_FOUND")
+          BPF_GO_TAG=$(grep -oP 'golang:\K[0-9.]+' bpf-prog/ipv6-hp-bpf/linux.Dockerfile | head -1 || echo "NOT_FOUND")
+          if [ "$BPF_GO_TAG" != "NOT_FOUND" ]; then
+            BPF_LATEST_DIGEST=$(skopeo inspect "docker://mcr.microsoft.com/oss/go/microsoft/golang:$BPF_GO_TAG" --format "{{.Digest}}" 2>/dev/null || echo "FAILED")
+          else
+            BPF_LATEST_DIGEST="SKIPPED"
+          fi
+          echo "BPF current digest: $BPF_CURRENT_DIGEST"
+          echo "BPF latest digest: $BPF_LATEST_DIGEST"
+          echo "bpf_current_digest=$BPF_CURRENT_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "bpf_latest_digest=$BPF_LATEST_DIGEST" >> "$GITHUB_OUTPUT"
+
+          # Also check install-go.sh DEFAULT_IMAGE digest
+          INSTALL_DIGEST=$(grep -oP 'DEFAULT_IMAGE="[^@]+@\Ksha256:[a-f0-9]+' .pipelines/build/scripts/install-go.sh | head -1 || echo "NOT_FOUND")
+          echo "install-go.sh DEFAULT_IMAGE digest: $INSTALL_DIGEST"
+          echo "install_digest=$INSTALL_DIGEST" >> "$GITHUB_OUTPUT"
+
+          # Determine if update is needed
+          UPDATE_NEEDED="false"
+          DRIFT_DETAILS=""
+
+          if [ "$CURRENT_DIGEST" != "$LATEST_DIGEST" ]; then
+            UPDATE_NEEDED="true"
+            DRIFT_DETAILS="- **Main Dockerfiles**: pinned \`${CURRENT_DIGEST:0:20}...\` → latest \`${LATEST_DIGEST:0:20}...\`"
+          fi
+
+          if [ "$BPF_LATEST_DIGEST" != "FAILED" ] && [ "$BPF_LATEST_DIGEST" != "SKIPPED" ] && [ "$BPF_CURRENT_DIGEST" != "$BPF_LATEST_DIGEST" ]; then
+            UPDATE_NEEDED="true"
+            DRIFT_DETAILS="$DRIFT_DETAILS
+          - **bpf-prog Dockerfile**: pinned \`${BPF_CURRENT_DIGEST:0:20}...\` → latest \`${BPF_LATEST_DIGEST:0:20}...\`"
+          fi
+
+          if [ "$INSTALL_DIGEST" != "$LATEST_DIGEST" ]; then
+            UPDATE_NEEDED="true"
+            DRIFT_DETAILS="$DRIFT_DETAILS
+          - **install-go.sh DEFAULT_IMAGE**: pinned \`${INSTALL_DIGEST:0:20}...\` → latest \`${LATEST_DIGEST:0:20}...\`"
+          fi
+
+          echo "update_needed=$UPDATE_NEEDED" >> "$GITHUB_OUTPUT"
+          echo "drift_details<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$DRIFT_DETAILS" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          if [ "$UPDATE_NEEDED" = "true" ]; then
+            echo "::notice::Go image digest drift detected"
+          else
+            echo "::notice::All Go image digests are up to date"
+          fi
+
+      - name: Check for existing open issue
+        if: steps.check.outputs.update_needed == 'true'
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          MARKER="go-digest-update:${{ steps.check.outputs.go_tag }}"
+          EXISTING=$(gh issue list \
+            --repo "${{ github.repository }}" \
+            --state open \
+            --search "in:body $MARKER" \
+            --json number \
+            --jq 'length')
+          echo "existing_count=$EXISTING" >> "$GITHUB_OUTPUT"
+          if [ "$EXISTING" -gt 0 ]; then
+            echo "::notice::Open issue already exists for this digest update, skipping"
+          fi
+
+      - name: Create issue for Go digest update
+        if: |
+          steps.check.outputs.update_needed == 'true'
+          && steps.existing.outputs.existing_count == '0'
+          && (github.event.inputs.dry_run != 'true')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GO_IMG: ${{ steps.check.outputs.go_img }}
+          GO_TAG: ${{ steps.check.outputs.go_tag }}
+          GO_MINOR: ${{ steps.check.outputs.go_minor }}
+          LATEST_DIGEST: ${{ steps.check.outputs.latest_digest }}
+          CURRENT_DIGEST: ${{ steps.check.outputs.current_digest }}
+          BPF_LATEST_DIGEST: ${{ steps.check.outputs.bpf_latest_digest }}
+          INSTALL_DIGEST: ${{ steps.check.outputs.install_digest }}
+          DRIFT_DETAILS: ${{ steps.check.outputs.drift_details }}
+        run: |
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "chore: Go image digest refresh for $GO_TAG" \
+            --body "## Go Image Digest Drift Detected
+
+          **Current tag:** \`$GO_IMG\`
+          **Latest MCR digest:** \`$LATEST_DIGEST\`
+
+          ### Drift Summary
+          $DRIFT_DETAILS
+
+          ### Files to Update
+
+          #### Auto-updated via \`make dockerfiles\`
+          These will be refreshed automatically when \`make dockerfiles\` is run:
+          - \`cni/Dockerfile\`
+          - \`cns/Dockerfile\`
+          - \`azure-ipam/Dockerfile\`
+          - \`azure-ip-masq-merger/Dockerfile\`
+          - \`azure-iptables-monitor/Dockerfile\`
+          - \`cilium-log-collector/Dockerfile\`
+          - Pipeline copies in \`.pipelines/build/dockerfiles/\`
+
+          #### Manual updates required
+          - [ ] \`.pipelines/build/scripts/install-go.sh\` — update \`DEFAULT_IMAGE\` to \`mcr.microsoft.com/oss/go/microsoft/golang@$LATEST_DIGEST\`
+          - [ ] \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` — update SHA to \`$BPF_LATEST_DIGEST\`
+
+          ### Steps
+          1. Run \`make dockerfiles\` to refresh all template-generated Dockerfiles
+          2. Update manual files listed above
+          3. Verify: \`docker run --rm mcr.microsoft.com/oss/go/microsoft/golang@$LATEST_DIGEST go version\`
+
+          ---
+          <!-- go-digest-update:$GO_TAG -->
+          "
+
+      - name: Summary
+        run: |
+          echo "### Go Version Check Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| GO_IMG | \`${{ steps.check.outputs.go_img }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Current digest | \`${{ steps.check.outputs.current_digest }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Latest MCR digest | \`${{ steps.check.outputs.latest_digest }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Update needed | \`${{ steps.check.outputs.update_needed }}\` |" >> "$GITHUB_STEP_SUMMARY"
