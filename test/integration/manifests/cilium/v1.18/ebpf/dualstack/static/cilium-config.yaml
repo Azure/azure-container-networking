@@ -68,6 +68,7 @@ data:
   enable-non-default-deny-policies: "true"
   enable-policy: default
   enable-remote-node-identity: "true"
+  enable-remote-node-masquerade: "true"
   enable-runtime-device-detection: "false"
   enable-sctp: "false"
   enable-session-affinity: "true"
@@ -84,8 +85,8 @@ data:
   install-no-conntrack-iptables-rules: "false"
   ipam-cilium-node-update-rate: 15s
   ipam: delegated-plugin
-  ipv4-native-routing-cidr: 10.244.0.0/16
-  ipv6-native-routing-cidr: fdd5:a27a:b4bc:99d6::/64
+  ipv4-native-routing-cidr: 10.244.0.0/16 # should match the configured pod cidr
+  ipv6-native-routing-cidr: fdd5:a27a:b4bc:99d6::/64 # should match the configured pod cidr
   k8s-client-burst: "20"
   k8s-client-qps: "10"
   k8s-require-ipv4-pod-cidr: "false"

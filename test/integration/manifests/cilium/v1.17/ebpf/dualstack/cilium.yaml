@@ -158,6 +158,7 @@ spec:
           - "3"
           - -events=true
           - -checkMap=true
+          - -ipv6=true
         env:
           - name: NODE_NAME
             valueFrom:
@@ -177,7 +178,7 @@ spec:
         volumeMounts:
           - mountPath: /etc/config
             name: iptables-config
-          - mountPath: /etc/ip6config
+          - mountPath: /etc/config6
             name: ip6tables-config
           - mountPath: /azure-block-iptables-bpf-map
             name: iptables-block-bpf-map
