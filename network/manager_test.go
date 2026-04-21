@@ -350,7 +350,7 @@ var _ = Describe("Test Manager", func() {
 					PodNamespace: "test-pod-ns",
 				}
 
-				epInfos := cnsEndpointInfotoCNIEpInfos(cnsEndpointInfo, endpointID)
+				epInfos := cnsEndpointInfotoCNIEpInfos(cnsEndpointInfo, endpointID, "")
 
 				Expect(len(epInfos)).To(Equal(1))
 				Expect(epInfos[0]).To(Equal(
@@ -400,7 +400,7 @@ var _ = Describe("Test Manager", func() {
 					PodNamespace: "test-pod-ns",
 				}
 
-				epInfos := cnsEndpointInfotoCNIEpInfos(cnsEndpointInfo, endpointID)
+				epInfos := cnsEndpointInfotoCNIEpInfos(cnsEndpointInfo, endpointID, "")
 
 				Expect(len(epInfos)).To(Equal(2))
 				Expect(epInfos).To(ContainElement(
@@ -489,3 +489,109 @@ var _ = Describe("Test Manager", func() {
 		})
 	})
 })
+
+func TestGetEndpointIDByNicType_Cases(t *testing.T) {
+	nm := &networkManager{}
+
+	cases := []struct {
+		name           string
+		stateless      bool
+		containerID    string
+		ifName         string
+		nicType        cns.NICType
+		expectedResult string
+	}{
+		{
+			name:           "Stateless InfraNIC",
+			stateless:      true,
+			containerID:    "container123",
+			ifName:         "eth0",
+			nicType:        cns.InfraNIC,
+			expectedResult: "container123",
+		},
+		{
+			name:           "Stateless SecondaryNIC",
+			stateless:      true,
+			containerID:    "container123",
+			ifName:         "eth1",
+			nicType:        cns.DelegatedVMNIC,
+			expectedResult: "container123-eth1",
+		},
+		{
+			name:           "Stateful InfraNIC",
+			stateless:      false,
+			containerID:    "container123456789",
+			ifName:         "eth0",
+			nicType:        cns.InfraNIC,
+			expectedResult: "containe-eth0", // truncated to 8 chars
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			nm.statelessCniMode = tc.stateless
+			id := nm.GetEndpointIDByNicType(tc.containerID, tc.ifName, tc.nicType)
+			if id != tc.expectedResult {
+				t.Errorf("expected %s, got %s", tc.expectedResult, id)
+			}
+		})
+	}
+}
+
+func TestCnsEndpointInfotoCNIEpInfos_Cases(t *testing.T) {
+	cases := []struct {
+		name            string
+		ifName          string
+		ipInfo          restserver.IPInfo
+		netNs           string
+		expectedNetNs   string
+		expectedIfName  string
+		expectedNICType cns.NICType
+	}{
+		{
+			name:   "NodeNetworkInterfaceFrontendNIC",
+			ifName: "eth1",
+			netNs:  "/var/run/netns/testns",
+			ipInfo: restserver.IPInfo{
+				NICType: cns.NodeNetworkInterfaceFrontendNIC,
+			},
+			expectedNetNs:   "/var/run/netns/testns",
+			expectedIfName:  "eth1",
+			expectedNICType: cns.NodeNetworkInterfaceFrontendNIC,
+		},
+		{
+			name:   "InfraNIC",
+			ifName: "eth0",
+			netNs:  "",
+			ipInfo: restserver.IPInfo{
+				NICType: cns.InfraNIC,
+			},
+			expectedNetNs:   "",
+			expectedIfName:  "eth0",
+			expectedNICType: cns.InfraNIC,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			endpointInfo := restserver.EndpointInfo{
+				IfnameToIPMap: map[string]*restserver.IPInfo{
+					tc.ifName: &tc.ipInfo,
+				},
+			}
+			epInfos := cnsEndpointInfotoCNIEpInfos(endpointInfo, "container123", tc.netNs)
+			if len(epInfos) == 0 {
+				t.Fatalf("expected at least one epInfo")
+			}
+			if epInfos[0].NetNsPath != tc.expectedNetNs {
+				t.Errorf("expected NetNsPath %q, got %q", tc.expectedNetNs, epInfos[0].NetNsPath)
+			}
+			if epInfos[0].IfName != tc.expectedIfName {
+				t.Errorf("expected IfName %q, got %q", tc.expectedIfName, epInfos[0].IfName)
+			}
+			if epInfos[0].NICType != tc.expectedNICType {
+				t.Errorf("expected NICType %v, got %v", tc.expectedNICType, epInfos[0].NICType)
+			}
+		})
+	}
+}

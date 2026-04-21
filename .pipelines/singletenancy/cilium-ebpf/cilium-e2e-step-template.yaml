@@ -6,6 +6,8 @@ parameters:
 steps:
   - template: ../../templates/setup-environment.yaml
 
+  - template: ../../templates/cilium-cli.yaml
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -20,7 +22,7 @@ steps:
         kubectl cluster-info
         kubectl get pods -Aowide
 
-        # see makefile
+        # makefile manages ebpf cilium version (ebpf doesn't use DIR or CILIUM_VERSION_TAG)
         export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
         export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
         make -C ./hack/aks deploy-ebpf-podsubnet-cilium
@@ -28,8 +30,7 @@ steps:
         kubectl get pods -Aowide
     name: "installCilium"
     displayName: "Install EBPF Podsubnet Cilium"
-
-  - template: ../../templates/cilium-cli.yaml
+    retryCountOnTaskFailure: 2
 
   - script: |
       echo "Start Azilium E2E Tests"

@@ -346,6 +346,17 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 		hcnEndpoint.Routes = append(hcnEndpoint.Routes, hcnRoute)
 	}
 
+	if epInfo.SkipDefaultRoutes {
+		logger.Info("Adding dummy default route for SkipDefaultRoutes=true",
+			zap.String("endpoint", infraEpName),
+			zap.String("nicType", string(epInfo.NICType)))
+
+		hcnEndpoint.Routes = append(hcnEndpoint.Routes, hcn.Route{
+			NextHop:           "0.0.0.0",   // Dummy gateway
+			DestinationPrefix: "0.0.0.0/0", // Default route
+		})
+	}
+
 	for _, ipAddress := range epInfo.IPAddresses {
 		prefixLength, _ := ipAddress.Mask.Size()
 		ipConfiguration := hcn.IpConfig{
@@ -542,7 +553,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
 func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.ExecClient, _ EndpointClient, _ netio.NetIOInterface, _ NamespaceClientInterface,
-	_ ipTablesClient, _ dhcpClient, ep *endpoint,
+	_ ipTablesClient, _ dhcpClient, ep *endpoint, _ string,
 ) error {
 	// endpoint deletion is not required for IB
 	if ep.NICType == cns.BackendNIC {
@@ -663,7 +674,7 @@ func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, net
 			}
 		}
 	}
-	return epInfo, errors.Wrapf(err, "No HNSEndpointID matches the IPAddress: "+ipAddresses[0].IP.String())
+	return epInfo, errors.Wrapf(err, "No HNSEndpointID matches the IPAddress: %s", ipAddresses[0].IP.String())
 }
 
 // Get PnP Device ID

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/pkg/errors"
@@ -47,6 +48,11 @@ func (s *Server) Run(ctx context.Context) error {
 	childCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	s.shutdownCh = childCtx.Done()
+
+	// remove the socket if it already exists
+	if err := os.Remove(s.address); err != nil && !os.IsNotExist(err) {
+		return errors.Wrap(err, "error removing socket")
+	}
 
 	l, err := net.Listen("unix", s.address)
 	if err != nil {

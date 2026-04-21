@@ -11,7 +11,7 @@ parameters:
 
 stages:
   - stage: ${{ parameters.clusterName }}
-    displayName: Create Cluster - ${{ parameters.displayName }}
+    displayName: ${{ parameters.displayName }} - Create Cluster
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -32,7 +32,7 @@ stages:
           region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
-    displayName: E2E - ${{ parameters.displayName }}
+    displayName: E2E-${{ parameters.displayName }}
     dependsOn:
     - setup
     - ${{ parameters.clusterName }}
@@ -77,7 +77,7 @@ stages:
           dependsOn: ${{ parameters.name }}_${{ parameters.os }}
           datapath: true
           dns: true
-          portforward: ${{ eq(parameters.os, 'linux') }} # Unblock Pipeline, broken for all windows scenarios
+          portforward: true
           hostport: true
           service: true
           hybridWin: ${{ eq(parameters.os, 'windows') }}

@@ -4,7 +4,6 @@ parameters:
   scaleup: ""
 
 steps:
-
   - bash: |
       go version
       go env
@@ -20,6 +19,8 @@ steps:
     inputs:
       kubectlVersion: latest
 
+  - template: ../../templates/cilium-cli.yaml
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -33,22 +34,16 @@ steps:
         pwd
         kubectl cluster-info
         kubectl get po -owide -A
-        echo "install Cilium ${CILIUM_VERSION_TAG}"
-        export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
-        echo "installing files from ${DIR}"
-        echo "deploy Cilium ConfigMap"
-        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
-        # Passes Cilium image to daemonset and deployment
-        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
-        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
-
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+        # makefile manages cilium version
+        unset DIR
+        unset CILIUM_VERSION_TAG
+        make -C ./hack/aks deploy-cilium
+        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=$(CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE)
+        export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE)
+        make -C ./hack/aks add-cilium-log-collector
         kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium"
-
-  - template: ../../templates/cilium-cli.yaml
 
   - script: |
       echo "Start Azilium E2E Tests"
@@ -67,4 +62,3 @@ steps:
     parameters:
       clusterName: ${{ parameters.clusterName }}
       scaleup: ${{ parameters.scaleup }}
-

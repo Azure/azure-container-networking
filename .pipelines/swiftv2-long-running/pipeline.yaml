@@ -1,4 +1,13 @@
 trigger: none
+pr: none
+
+schedules:
+  - cron: "0 * * * *"
+    displayName: "Run tests every hour"
+    branches:
+      include:
+        - master
+    always: true  # Run even if there are no code changes
 
 parameters:
   - name: subscriptionId
@@ -7,29 +16,31 @@ parameters:
     default: "37deca37-c375-4a14-b90a-043849bd2bf1"
 
   - name: location
-    displayName: "Deployment Region"
-    type: string
-    default: "centraluseuap"
+    displayName: "Deployment Regions"
+    type: object
+    default:
+      - "eastus2euap"
+      - "centraluseuap"
+      - "westus2"
+
+  - name: longrunningRegions
+    displayName: "Long-running test region-to-zone mapping (zone-aware pods)"
+    type: object
+    default:
+      - location: eastus2euap
+        zones:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+      - location: centraluseuap
+        zones:
+          - "0"
 
   - name: resourceGroupName
-    displayName: "Resource Group Name"
+    displayName: "Resource Group Name prefix"
     type: string
-    default: "long-run-$(Build.BuildId)"
-
-  - name: vmSkuDefault
-    displayName: "VM SKU for Default Node Pool"
-    type: string
-    default: "Standard_D2s_v3"
-
-  - name: vmSkuHighNIC
-    displayName: "VM SKU for High NIC Node Pool"
-    type: string
-    default: "Standard_D16s_v3"
-
-  - name: serviceConnection
-    displayName: "Azure Service Connection"
-    type: string
-    default: "Azure Container Networking - Standalone Test Service Connection"
+    default: "sv2-long-run"
 
 extends:
   template: template/long-running-pipeline-template.yaml
@@ -37,6 +48,4 @@ extends:
     subscriptionId: ${{ parameters.subscriptionId }}
     location: ${{ parameters.location }}
     resourceGroupName: ${{ parameters.resourceGroupName }}
-    vmSkuDefault: ${{ parameters.vmSkuDefault }}
-    vmSkuHighNIC: ${{ parameters.vmSkuHighNIC }}
-    serviceConnection: ${{ parameters.serviceConnection }}
+    longrunningRegions: ${{ parameters.longrunningRegions }}

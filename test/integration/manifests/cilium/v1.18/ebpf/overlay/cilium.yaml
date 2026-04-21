@@ -262,7 +262,9 @@ spec:
             - mountPath: /etc/config
               name: iptables-config
         - command:
-            - /install-plugin.sh
+            - sh
+          args:
+            - "/install-plugin.sh"
           image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
           imagePullPolicy: IfNotPresent
           name: install-cni-binaries
@@ -352,7 +354,7 @@ spec:
         - args:
             - mount | grep "/sys/fs/bpf type bpf" || mount -t bpf bpf /sys/fs/bpf
           command:
-            - /bin/bash
+            - sh
             - -c
             - --
           image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
@@ -368,7 +370,9 @@ spec:
               mountPropagation: Bidirectional
               name: bpf-maps
         - command:
-            - /init-container.sh
+            - sh
+          args:
+            - "/init-container.sh"
           env:
             - name: CILIUM_ALL_STATE
               valueFrom:

@@ -221,7 +221,7 @@ func (nw *network) newEndpoint(
 
 // DeleteEndpoint deletes an existing endpoint from the network.
 func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.ExecClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface,
-	iptc ipTablesClient, dhcpc dhcpClient, endpointID string,
+	iptc ipTablesClient, dhcpc dhcpClient, endpointID string, mode string,
 ) error {
 	var err error
 
@@ -241,7 +241,7 @@ func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.Exec
 
 	// Call the platform implementation.
 	// Pass nil for epClient and will be initialized in deleteEndpointImpl
-	err = nw.deleteEndpointImpl(nl, plc, nil, nioc, nsc, iptc, dhcpc, ep)
+	err = nw.deleteEndpointImpl(nl, plc, nil, nioc, nsc, iptc, dhcpc, ep, mode)
 	if err != nil {
 		return err
 	}

@@ -332,7 +332,7 @@ func (v *Validator) validateRestartNetwork(ctx context.Context) error {
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privilegedPod.Name, node.Name)
 		}
-		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, "", "")
+		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, "", "", []string{"azuresecuritylinuxagent"})
 		if err != nil {
 			return errors.Wrapf(err, "failed to wait for pods running")
 		}

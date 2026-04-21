@@ -139,7 +139,7 @@ func (nw *network) newEndpointImpl(
 	if epClient == nil {
 		//nolint:gocritic
 		if vlanid != 0 {
-			if nw.Mode == opModeTransparentVlan {
+			if epInfo.Mode == opModeTransparentVlan {
 				logger.Info("Transparent vlan client")
 				if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
 					nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
@@ -163,15 +163,15 @@ func (nw *network) newEndpointImpl(
 					plc,
 					iptc)
 			}
-		} else if nw.Mode != opModeTransparent {
+		} else if epInfo.Mode != opModeTransparent {
 			logger.Info("Bridge client")
-			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
+			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, epInfo.Mode, nl, plc)
 		} else if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 			logger.Info("Secondary client")
 			epClient = NewSecondaryEndpointClient(nl, netioCli, plc, nsc, dhcpclient, ep)
 		} else {
 			logger.Info("Transparent client")
-			epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, netioCli, plc)
+			epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, epInfo.Mode, nl, netioCli, plc)
 		}
 	}
 
@@ -266,7 +266,7 @@ func (nw *network) newEndpointImpl(
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
 func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, epClient EndpointClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface,
-	iptc ipTablesClient, dhcpc dhcpClient, ep *endpoint,
+	iptc ipTablesClient, dhcpc dhcpClient, ep *endpoint, mode string,
 ) error {
 	// Delete the veth pair by deleting one of the peer interfaces.
 	// Deleting the host interface is more convenient since it does not require
@@ -277,13 +277,13 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 		//nolint:gocritic
 		if ep.VlanID != 0 {
 			epInfo := ep.getInfo()
-			if nw.Mode == opModeTransparentVlan {
+			if mode == opModeTransparentVlan {
 				epClient = NewTransparentVlanEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, plc, nsc, iptc)
 			} else {
 				epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc, iptc)
 			}
-		} else if nw.Mode != opModeTransparent {
-			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
+		} else if mode != opModeTransparent {
+			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", mode, nl, plc)
 		} else {
 			// delete if secondary interfaces populated or endpoint of type delegated (new way)
 			if len(ep.SecondaryInterfaces) > 0 || ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
@@ -297,7 +297,7 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 				}
 			}
 
-			epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, nioc, plc)
+			epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", mode, nl, nioc, plc)
 		}
 	}
 

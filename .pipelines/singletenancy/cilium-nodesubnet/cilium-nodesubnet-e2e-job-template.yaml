@@ -1,19 +1,48 @@
 parameters:
-  dependsOn: ""
-  name: "cilium_nodesubnet_e2e"
-  clusterType: "nodesubnet-byocni-nokubeproxy-up"
-  clusterName: "cilndsubnete2e"
-  vmSize: ""
-  os: "linux"
-  arch: ""
-  osSKU: Ubuntu
-  hubbleEnabled: false
-  dualstackVersion: ""
-  cni: "cilium"
+  - name: dependsOn
+    type: object
+    default: ""
+  - name: name
+    type: string
+    default: cilium_nodesubnet_e2e
+  - name: displayName
+    type: string
+    default: ""
+  - name: clusterType
+    type: string
+    default: nodesubnet-byocni-nokubeproxy-up
+  - name: clusterName
+    type: string
+    default: cilndsubnete2e
+  - name: vmSize
+    type: string
+    default: ""
+  - name: os
+    type: string
+    default: linux
+  - name: arch
+    type: string
+    default: ""
+  - name: osSKU
+    type: string
+    default: Ubuntu
+  - name: hubbleEnabled
+    type: boolean
+    default: false
+  - name: dualstackVersion
+    type: string
+    default: ""
+  - name: cni
+    type: string
+    default: cilium
+  - name: scaleup
+    type: string
+    default: ""
 
 stages:
   - stage: ${{ parameters.clusterName }}
-    displayName: Create Cluster - ${{ parameters.displayName }}
+    displayName: ${{ parameters.displayName }} - Create Cluster
+    condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -32,7 +61,8 @@ stages:
           region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
-    displayName: E2E - ${{ parameters.displayName }}
+    displayName: E2E-${{ parameters.displayName }}
+    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
@@ -40,11 +70,10 @@ stages:
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     dependsOn:
-    - setup
-    - publish
-    - ${{ parameters.clusterName }}
+      - setup
+      - publish
+      - ${{ parameters.clusterName }}
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
@@ -54,8 +83,8 @@ stages:
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
-          - agent.os -equals Linux
-          - Role -equals $(CUSTOM_E2E_ROLE)
+            - agent.os -equals Linux
+            - Role -equals $(CUSTOM_E2E_ROLE)
         steps:
           - template: cilium-nodesubnet-e2e-step-template.yaml
             parameters:
@@ -64,24 +93,21 @@ stages:
               arch: ${{ parameters.arch }}
               os: ${{ parameters.os }}
               scaleup: ${{ parameters.scaleup }}
-
-      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
-        parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          datapath: true
-          dns: true
-          cni: cilium
-          portforward: true
-          service: true
-          dependsOn: ${{ parameters.name }}
+          - template: ../../templates/k8s-e2e-step-template.yaml
+            parameters:
+              sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              datapath: true
+              dns: true
+              cni: cilium
+              portforward: true
+              service: true
 
       - job: failedE2ELogs
         displayName: "Failure Logs"
         dependsOn:
           - ${{ parameters.name }}
-          - cni_${{ parameters.os }}
         condition: failed()
         steps:
           - template: ../../templates/log-template.yaml
@@ -89,3 +115,4 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cilium
+

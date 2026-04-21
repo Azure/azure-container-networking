@@ -1,3 +1,5 @@
+include ./cilium-log-collector/Makefile
+
 .DEFAULT_GOAL := help
 
 # Default platform commands
@@ -33,7 +35,7 @@ endif
 # Interrogate the git repo and set some variables
 REPO_ROOT							?= $(shell git rev-parse --show-toplevel)
 REVISION							?= $(shell git rev-parse --short HEAD)
-ACN_VERSION							?= $(shell git describe --exclude "azure-iptables-monitor*" --exclude "azure-ip-masq-merger*" --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --exclude "azure-block-iptables*" --tags --always)
+ACN_VERSION							?= $(shell git describe --exclude "cilium-log-collector*" --exclude "azure-iptables-monitor*" --exclude "azure-ip-masq-merger*" --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --exclude "azure-block-iptables*" --tags --always)
 IPV6_HP_BPF_VERSION					?= $(notdir $(shell git describe --match "ipv6-hp-bpf*" --tags --always))
 AZURE_BLOCK_IPTABLES_VERSION		?= $(notdir $(shell git describe --match "azure-block-iptables*" --tags --always))
 AZURE_IPAM_VERSION					?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
@@ -56,6 +58,7 @@ CNI_IPAM_DIR = $(REPO_ROOT)/cni/ipam/plugin
 STATELESS_CNI_NET_DIR = $(REPO_ROOT)/cni/network/stateless
 CNI_IPAMV6_DIR = $(REPO_ROOT)/cni/ipam/pluginv6
 CNI_TELEMETRY_DIR = $(REPO_ROOT)/cni/telemetry/service
+CNI_TELEMETRY_SIDECAR_DIR = $(REPO_ROOT)/cns/cni-telemetry-sidecar
 ACNCLI_DIR = $(REPO_ROOT)/tools/acncli
 CNS_DIR = $(REPO_ROOT)/cns/service
 NPM_DIR = $(REPO_ROOT)/npm/cmd
@@ -124,8 +127,8 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf azure-block-iptables
-all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image azure-iptables-monitor-image ipv6-hp-bpf-image
+all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam azure-ip-masq-merger azure-iptables-monitor ipv6-hp-bpf azure-block-iptables cilium-log-collector
+all-images: npm-image cns-image cni-manager-image azure-ip-masq-merger-image azure-iptables-monitor-image ipv6-hp-bpf-image cilium-log-collector
 else
 all-binaries: azure-cni-plugin azure-cns azure-npm
 all-images:
@@ -195,10 +198,10 @@ ipv6-hp-bpf-binary: bpf-lib
 # Libraries for bpf
 bpf-lib:
 ifeq ($(GOARCH),amd64)
-	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
+	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev libbpf-dev libc6-dev nftables iproute2 gcc-multilib
 	for dir in /usr/include/x86_64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
 else ifeq ($(GOARCH),arm64)
-	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
+	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
 	for dir in /usr/include/aarch64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
 endif
 
@@ -226,6 +229,11 @@ azure-vnet-ipamv6-binary:
 # Build the Azure CNI telemetry binary.
 azure-vnet-telemetry-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+
+# Build the Azure CNI telemetry sidecar binary.
+azure-cni-telemetry-sidecar-binary:
+	$(MKDIR) $(CNI_BUILD_DIR)
+	cd $(CNI_TELEMETRY_SIDECAR_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CLI network binary.
 acncli-binary:
@@ -749,51 +757,49 @@ npm-skopeo-archive: ## export tar archive of multiplat container manifest.
 
 # Create a CNI archive for the target platform.
 .PHONY: cni-archive
-cni-archive: azure-vnet-binary azure-vnet-stateless-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary azure-vnet-telemetry-binary
+cni-archive: azure-vnet-binary azure-vnet-stateless-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary azure-vnet-telemetry-binary azure-cni-telemetry-sidecar-binary
 	$(MKDIR) $(CNI_BUILD_DIR)
 	cp cni/azure-$(GOOS).conflist $(CNI_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_BUILD_DIR)/azure-vnet-telemetry.config
 	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
-	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-ipamv6$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-ipamv6$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-cni-telemetry-sidecar$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
+ifeq ($(GOOS),windows)
 	$(MKDIR) $(CNI_MULTITENANCY_BUILD_DIR)
 	cp cni/azure-$(GOOS)-multitenancy.conflist $(CNI_MULTITENANCY_BUILD_DIR)/10-azure.conflist
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_MULTITENANCY_BUILD_DIR)
-ifeq ($(GOOS),linux)
-	cp telemetry/azure-vnet-telemetry.config $(CNI_MULTITENANCY_BUILD_DIR)/azure-vnet-telemetry.config
-	cp $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_MULTITENANCY_BUILD_DIR)
+	cd $(CNI_MULTITENANCY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_MULTITENANCY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) 10-azure.conflist
 endif
-	cd $(CNI_MULTITENANCY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_MULTITENANCY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 ifeq ($(GOOS),linux)
 	$(MKDIR) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)
 	cp cni/azure-$(GOOS)-multitenancy-transparent-vlan.conflist $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)/10-azure.conflist
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)
 	cp telemetry/azure-vnet-telemetry.config $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)/azure-vnet-telemetry.config
-	cp $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)
-	cd $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cp $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)
+	cd $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-cni-telemetry-sidecar$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 endif
 
 	$(MKDIR) $(CNI_SWIFT_BUILD_DIR)
 	cp cni/azure-$(GOOS)-swift.conflist $(CNI_SWIFT_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_SWIFT_BUILD_DIR)/azure-vnet-telemetry.config
-	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)
 	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
-	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-cni-telemetry-sidecar$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 	$(MKDIR) $(CNI_OVERLAY_BUILD_DIR)
 	cp cni/azure-$(GOOS)-swift-overlay.conflist $(CNI_OVERLAY_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_OVERLAY_BUILD_DIR)/azure-vnet-telemetry.config
-	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)
 	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
-	cd $(CNI_OVERLAY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_OVERLAY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cd $(CNI_OVERLAY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_OVERLAY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-cni-telemetry-sidecar$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 	$(MKDIR) $(CNI_DUALSTACK_BUILD_DIR)
 	cp cni/azure-$(GOOS)-swift-overlay-dualstack.conflist $(CNI_DUALSTACK_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_DUALSTACK_BUILD_DIR)/azure-vnet-telemetry.config
-	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_DUALSTACK_BUILD_DIR)
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) $(CNI_DUALSTACK_BUILD_DIR)
 	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_DUALSTACK_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
-	cd $(CNI_DUALSTACK_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_DUALSTACK_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cd $(CNI_DUALSTACK_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_DUALSTACK_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) azure-cni-telemetry-sidecar$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 #baremetal mode is windows only (at least for now)
 ifeq ($(GOOS),windows)
@@ -892,6 +898,7 @@ workspace: ## Set up the Go workspace.
 	go work use ./azure-ipam
 	go work use ./azure-ip-masq-merger
 	go work use ./azure-iptables-monitor
+	go work use ./cilium-log-collector
 	go work use ./dropgz
 	go work use ./zapai
 
@@ -903,7 +910,7 @@ RESTART_CASE ?= false
 # CNI type is a key to direct the types of state validation done on a cluster.
 CNI_TYPE ?= cilium
 
-test-all: test-azure-ipam test-azure-ip-masq-merger test-azure-iptables-monitor test-main ## run all unit tests.
+test-all: test-azure-ipam test-azure-ip-masq-merger test-azure-iptables-monitor test-cilium-log-collector test-main ## run all unit tests.
 
 test-main:
 	go test -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=coverage-main.out $(COVER_PKG)/...
@@ -964,6 +971,10 @@ test-k8se2e-only: ## Run k8s network conformance test, use TYPE=basic for only d
 dockerfiles: renderkit ## Render all Dockerfile templates with current state of world
 	@make -f build/images.mk render PATH=cns
 	@make -f build/images.mk render PATH=cni
+	@make -f build/images.mk render PATH=azure-ipam
+	@make -f build/images.mk render PATH=azure-ip-masq-merger
+	@make -f build/images.mk render PATH=azure-iptables-monitor
+	@make -f build/images.mk render PATH=cilium-log-collector
 
 regenerate-crd: ## Regenerate CRDs
 	for makefile in $$(find ./crd/ -name "Makefile" -type f -printf '%h\n'); do \
@@ -990,13 +1001,19 @@ setup: tools install-hooks gitconfig ## performs common required repo setup
 
 ##@ Tools
 
-tools: renderkit go-junit-report
+tools: renderkit go-junit-report gocov gocov-xml
 
 renderkit: ## Install renderkit for rendering Dockerfile templates
-	@go install -modfile=$(TOOLS_GO_MOD) github.com/orellazri/renderkit
+	@GOWORK=off go install -modfile=$(TOOLS_GO_MOD) github.com/orellazri/renderkit
 
 go-junit-report: ## Install go-junit-report for converting test results to JUnit XML format
-	@go install -modfile=$(TOOLS_GO_MOD) github.com/jstemmer/go-junit-report
+	@GOWORK=off go install -modfile=$(TOOLS_GO_MOD) github.com/jstemmer/go-junit-report
+
+gocov: ## Install gocov .out > .json
+	@GOWORK=off go install -modfile=$(TOOLS_GO_MOD) github.com/axw/gocov/gocov
+
+gocov-xml: ## Install gocov-xml .json > .xml
+	@GOWORK=off go install -modfile=$(TOOLS_GO_MOD) github.com/AlekSi/gocov-xml
 
 ##@ Help
 

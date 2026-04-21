@@ -87,9 +87,11 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 		return ctrl.Result{}, nil
 	}
 
-	// Do nothing if the network container hasn't been initialized yet from control plane.
-	if nc.Status.State != NCStateInitialized {
-		logger.Printf("MultiTenantNetworkContainer %s hasn't initialized yet, skip reconciling", request.NamespacedName.String())
+	// Skip reconciliation for CRs that are not yet initialized and not previously succeeded.
+	// For "Succeeded" CRs, we must verify the NC still exists in CNS — it may have been lost
+	// due to CNS restart or state file corruption. If missing, we fall through to reprogram it.
+	if nc.Status.State != NCStateInitialized && nc.Status.State != NCStateSucceeded {
+		logger.Printf("MultiTenantNetworkContainer %s in state %s, skip reconciling", request.NamespacedName.String(), nc.Status.State) //nolint:staticcheck // TODO: migrate to cns/logger/v2
 		return ctrl.Result{}, nil
 	}
 
@@ -120,6 +122,10 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 	if !errors.As(err, &cnsRESTErr) || cnsRESTErr.ResponseCode != types.UnknownContainerID {
 		logger.Errorf("Failed to fetch NC %s (UUID: %s) from CNS: %v", request.NamespacedName.String(), nc.Spec.UUID, err)
 		return ctrl.Result{}, err
+	}
+
+	if nc.Status.State == NCStateSucceeded {
+		logger.Warnf("NC %s (UUID: %s) missing from CNS despite CR state Succeeded, reprogramming", request.NamespacedName.String(), nc.Spec.UUID) //nolint:staticcheck // TODO: migrate to cns/logger/v2
 	}
 
 	// Check that the MultiTenantInfo is set

@@ -596,3 +596,106 @@ func TestConfigureHCNNetworkSwiftv2DelegatedNIC(t *testing.T) {
 		t.Fatalf("host network flags is not configured as %v when interface NIC type is delegatedVMNIC", expectedSwifv2NetworkFlags)
 	}
 }
+
+// Test configureHcnNetwork sets ::/0 for IPv6 subnets and 0.0.0.0/0 for IPv4 subnets
+func TestConfigureHCNNetworkDualStackSubnetRoutes(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	extIf := externalInterface{
+		Name: "eth0",
+	}
+
+	_, ipv4Prefix, _ := net.ParseCIDR("10.0.1.0/24")
+	_, ipv6Prefix, _ := net.ParseCIDR("fd12:3456:789a::/64")
+
+	nwInfo := &EndpointInfo{
+		AdapterName:  "eth0",
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		NICType:      cns.NodeNetworkInterfaceFrontendNIC,
+		Data:         make(map[string]interface{}),
+		Subnets: []SubnetInfo{
+			{
+				Family:  platform.AfINET,
+				Prefix:  *ipv4Prefix,
+				Gateway: net.ParseIP("10.0.1.1"),
+			},
+			{
+				Family:  platform.AfINET6,
+				Prefix:  *ipv6Prefix,
+				Gateway: net.ParseIP("fe80::1"),
+			},
+		},
+	}
+
+	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
+	if err != nil {
+		t.Fatalf("Failed to configure hcn network due to: %v", err)
+	}
+
+	if len(hostComputeNetwork.Ipams[0].Subnets) != 2 {
+		t.Fatalf("Expected 2 subnets (IPv4 + IPv6), got %d", len(hostComputeNetwork.Ipams[0].Subnets))
+	}
+
+	// IPv4 subnet should have 0.0.0.0/0 as route destination
+	ipv4Route := hostComputeNetwork.Ipams[0].Subnets[0].Routes[0]
+	if ipv4Route.DestinationPrefix != "0.0.0.0/0" {
+		t.Fatalf("IPv4 subnet route destination should be 0.0.0.0/0, got %s", ipv4Route.DestinationPrefix)
+	}
+	if ipv4Route.NextHop != "10.0.1.1" {
+		t.Fatalf("IPv4 subnet route next hop should be 10.0.1.1, got %s", ipv4Route.NextHop)
+	}
+
+	// IPv6 subnet should have ::/0 as route destination
+	ipv6Route := hostComputeNetwork.Ipams[0].Subnets[1].Routes[0]
+	if ipv6Route.DestinationPrefix != "::/0" {
+		t.Fatalf("IPv6 subnet route destination should be ::/0, got %s", ipv6Route.DestinationPrefix)
+	}
+	if ipv6Route.NextHop != "fe80::1" {
+		t.Fatalf("IPv6 subnet route next hop should be fe80::1, got %s", ipv6Route.NextHop)
+	}
+}
+
+// Test configureHcnNetwork with IPv4 only still uses 0.0.0.0/0
+func TestConfigureHCNNetworkIPv4OnlySubnetRoute(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	extIf := externalInterface{
+		Name: "eth0",
+	}
+
+	_, ipv4Prefix, _ := net.ParseCIDR("10.0.1.0/24")
+
+	nwInfo := &EndpointInfo{
+		AdapterName:  "eth0",
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		NICType:      cns.NodeNetworkInterfaceFrontendNIC,
+		Data:         make(map[string]interface{}),
+		Subnets: []SubnetInfo{
+			{
+				Family:  platform.AfINET,
+				Prefix:  *ipv4Prefix,
+				Gateway: net.ParseIP("10.0.1.1"),
+			},
+		},
+	}
+
+	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
+	if err != nil {
+		t.Fatalf("Failed to configure hcn network due to: %v", err)
+	}
+
+	if len(hostComputeNetwork.Ipams[0].Subnets) != 1 {
+		t.Fatalf("Expected 1 subnet, got %d", len(hostComputeNetwork.Ipams[0].Subnets))
+	}
+
+	ipv4Route := hostComputeNetwork.Ipams[0].Subnets[0].Routes[0]
+	if ipv4Route.DestinationPrefix != "0.0.0.0/0" {
+		t.Fatalf("IPv4 only subnet route destination should be 0.0.0.0/0, got %s", ipv4Route.DestinationPrefix)
+	}
+}

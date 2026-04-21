@@ -32,6 +32,9 @@ const (
 	vnetBlockDefaultGateway     = "10.224.0.1"
 	vnetBlockCIDR1              = "10.224.0.8/30"
 	vnetBlockCIDR2              = "10.224.0.12/30"
+	primaryIPV6                 = "fd12:3456:789a::1"
+	subnetAddressSpaceV6        = "fd12:3456:789a::/112"
+	subnetPrefixLenV6           = 112
 )
 
 var invalidStatusMultiNC = v1alpha.NodeNetworkConfigStatus{
@@ -120,10 +123,11 @@ var validVNETBlockNC = v1alpha.NetworkContainer{
 
 func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   v1alpha.NetworkContainer
-		want    *cns.CreateNetworkContainerRequest
-		wantErr bool
+		name           string
+		input          v1alpha.NetworkContainer
+		want           *cns.CreateNetworkContainerRequest
+		wantIPSubnetV6 *cns.IPSubnet
+		wantErr        bool
 	}{
 		{
 			name:    "valid swift",
@@ -212,6 +216,44 @@ func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "valid IPv6 subnet populates IPSubnetV6",
+			input: v1alpha.NetworkContainer{
+				ID:                   ncID,
+				PrimaryIP:            primaryIP,
+				PrimaryIPV6:          primaryIPV6,
+				SubnetAddressSpace:   subnetAddressSpace,
+				SubnetAddressSpaceV6: subnetAddressSpaceV6,
+				DefaultGateway:       defaultGateway,
+				NodeIP:               nodeIP,
+				Version:              version,
+			},
+			wantIPSubnetV6: &cns.IPSubnet{IPAddress: primaryIPV6, PrefixLength: subnetPrefixLenV6},
+		},
+		{
+			name: "empty SubnetAddressSpaceV6 leaves IPSubnetV6 zero",
+			input: v1alpha.NetworkContainer{
+				ID:                 ncID,
+				PrimaryIP:          primaryIP,
+				SubnetAddressSpace: subnetAddressSpace,
+				DefaultGateway:     defaultGateway,
+				NodeIP:             nodeIP,
+				Version:            version,
+			},
+			wantIPSubnetV6: &cns.IPSubnet{},
+		},
+		{
+			name: "invalid SubnetAddressSpaceV6",
+			input: v1alpha.NetworkContainer{
+				ID:                   ncID,
+				PrimaryIP:            primaryIP,
+				SubnetAddressSpace:   subnetAddressSpace,
+				SubnetAddressSpaceV6: "not-a-cidr",
+				NodeIP:               nodeIP,
+				Version:              version,
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -221,18 +263,24 @@ func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 				assert.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
-			assert.EqualValues(t, tt.want, got)
+			require.NoError(t, err)
+			if tt.want != nil {
+				assert.Equal(t, tt.want, got)
+			}
+			if tt.wantIPSubnetV6 != nil {
+				assert.Equal(t, *tt.wantIPSubnetV6, got.IPConfiguration.IPSubnetV6)
+			}
 		})
 	}
 }
 
 func TestCreateNCRequestFromStaticNC(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   v1alpha.NetworkContainer
-		want    *cns.CreateNetworkContainerRequest
-		wantErr bool
+		name           string
+		input          v1alpha.NetworkContainer
+		want           *cns.CreateNetworkContainerRequest
+		wantIPSubnetV6 *cns.IPSubnet
+		wantErr        bool
 	}{
 		{
 			name:    "valid overlay",
@@ -336,150 +384,66 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "valid IPv6 subnet populates IPSubnetV6",
+			input: v1alpha.NetworkContainer{
+				ID:                   ncID,
+				AssignmentMode:       v1alpha.Static,
+				Type:                 v1alpha.Overlay,
+				PrimaryIP:            overlayPrimaryIP,
+				PrimaryIPV6:          primaryIPV6,
+				NodeIP:               nodeIP,
+				SubnetName:           subnetName,
+				SubnetAddressSpace:   subnetAddressSpace,
+				SubnetAddressSpaceV6: subnetAddressSpaceV6,
+				Version:              version,
+			},
+			wantIPSubnetV6: &cns.IPSubnet{IPAddress: primaryIPV6, PrefixLength: subnetPrefixLenV6},
+		},
+		{
+			name: "empty SubnetAddressSpaceV6 leaves IPSubnetV6 zero",
+			input: v1alpha.NetworkContainer{
+				ID:                 ncID,
+				AssignmentMode:     v1alpha.Static,
+				Type:               v1alpha.Overlay,
+				PrimaryIP:          overlayPrimaryIP,
+				NodeIP:             nodeIP,
+				SubnetName:         subnetName,
+				SubnetAddressSpace: subnetAddressSpace,
+				Version:            version,
+			},
+			wantIPSubnetV6: &cns.IPSubnet{},
+		},
+		{
+			name: "invalid SubnetAddressSpaceV6",
+			input: v1alpha.NetworkContainer{
+				ID:                   ncID,
+				AssignmentMode:       v1alpha.Static,
+				Type:                 v1alpha.Overlay,
+				PrimaryIP:            overlayPrimaryIP,
+				NodeIP:               nodeIP,
+				SubnetAddressSpace:   subnetAddressSpace,
+				SubnetAddressSpaceV6: "not-a-cidr",
+				Version:              version,
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CreateNCRequestFromStaticNC(tt.input, false)
-			if tt.wantErr {
-				assert.Error(t, err)
-				return
-			}
-			assert.NoError(t, err)
-			assert.EqualValues(t, tt.want, got)
-		})
-	}
-}
-
-func TestCreateNCRequestFromStaticNCWithConfig(t *testing.T) {
-	tests := []struct {
-		name      string
-		input     v1alpha.NetworkContainer
-		isSwiftV2 bool
-		want      *cns.CreateNetworkContainerRequest
-		wantErr   bool
-	}{
-		{
-			name: "SwiftV2 enabled with VNETBlock - should NOT process all IPs in prefix",
-			input: v1alpha.NetworkContainer{
-				ID:                 ncID,
-				PrimaryIP:          "10.0.0.0/32",
-				NodeIP:             "10.0.0.1",
-				Type:               v1alpha.VNETBlock,
-				SubnetAddressSpace: "10.0.0.0/24",
-				DefaultGateway:     "10.0.0.1",
-				Version:            1,
-				Status:             "Available",
-			},
-			isSwiftV2: true,
-			want: &cns.CreateNetworkContainerRequest{
-				NetworkContainerid:   ncID,
-				NetworkContainerType: cns.Docker,
-				Version:              "1",
-				HostPrimaryIP:        "10.0.0.1",
-				IPConfiguration: cns.IPConfiguration{
-					IPSubnet: cns.IPSubnet{
-						IPAddress:    "10.0.0.1",
-						PrefixLength: 24,
-					},
-					GatewayIPAddress: "10.0.0.1",
-				},
-				SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
-					// No IPs from primary prefix
-				},
-				NCStatus: "Available",
-			},
-			wantErr: false,
-		},
-		{
-			name: "SwiftV2 disabled with VNETBlock - should process all IP in prefix",
-			input: v1alpha.NetworkContainer{
-				ID:                 ncID,
-				PrimaryIP:          "10.0.0.0/32",
-				NodeIP:             "10.0.0.1",
-				Type:               v1alpha.VNETBlock,
-				SubnetAddressSpace: "10.0.0.0/24",
-				DefaultGateway:     "10.0.0.1",
-				Version:            1,
-				Status:             "Available",
-				IPAssignments: []v1alpha.IPAssignment{
-					{
-						Name: "test-ip",
-						IP:   "10.0.0.10/32",
-					},
-				},
-			},
-			isSwiftV2: false,
-			want: &cns.CreateNetworkContainerRequest{
-				NetworkContainerid:   ncID,
-				NetworkContainerType: cns.Docker,
-				Version:              "1",
-				HostPrimaryIP:        "10.0.0.1",
-				IPConfiguration: cns.IPConfiguration{
-					IPSubnet: cns.IPSubnet{
-						IPAddress:    "10.0.0.1",
-						PrefixLength: 24,
-					},
-					GatewayIPAddress: "10.0.0.1",
-				},
-				SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
-					"10.0.0.0": {IPAddress: "10.0.0.0", NCVersion: 1},
-					// IP assignments
-					"10.0.0.10": {IPAddress: "10.0.0.10", NCVersion: 1},
-				},
-				NCStatus: "Available",
-			},
-			wantErr: false,
-		},
-		{
-			name: "SwiftV2 disabled with non-VNETBlock type - should process IP in prefix",
-			input: v1alpha.NetworkContainer{
-				ID:                 ncID,
-				PrimaryIP:          "10.0.0.0/32",
-				NodeIP:             "10.0.0.1",
-				Type:               v1alpha.Overlay,
-				SubnetAddressSpace: "10.0.0.0/24",
-				DefaultGateway:     "10.0.0.1",
-				Version:            1,
-				Status:             "Available",
-				IPAssignments: []v1alpha.IPAssignment{
-					{
-						Name: "test-ip",
-						IP:   "10.0.0.10/32",
-					},
-				},
-			},
-			isSwiftV2: false,
-			want: &cns.CreateNetworkContainerRequest{
-				NetworkContainerid:   ncID,
-				NetworkContainerType: cns.Docker,
-				Version:              "0",
-				HostPrimaryIP:        "10.0.0.1",
-				IPConfiguration: cns.IPConfiguration{
-					IPSubnet: cns.IPSubnet{
-						IPAddress:    "10.0.0.0",
-						PrefixLength: 24,
-					},
-					GatewayIPAddress: "10.0.0.1",
-				},
-				SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
-					"10.0.0.0": {IPAddress: "10.0.0.0", NCVersion: 0},
-				},
-				NCStatus: "Available",
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := CreateNCRequestFromStaticNC(tt.input, tt.isSwiftV2)
+			got, err := CreateNCRequestFromStaticNC(tt.input, false, 0)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			assert.EqualValues(t, tt.want, got)
+			if tt.want != nil {
+				assert.Equal(t, tt.want, got)
+			}
+			if tt.wantIPSubnetV6 != nil {
+				assert.Equal(t, *tt.wantIPSubnetV6, got.IPConfiguration.IPSubnetV6)
+			}
 		})
 	}
 }

@@ -11,7 +11,7 @@ parameters:
 
 stages:
   - stage: ${{ parameters.clusterName }}
-    displayName: Create Cluster - ${{ parameters.displayName }}
+    displayName: ${{ parameters.displayName }} - Create Cluster
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -32,7 +32,7 @@ stages:
           region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) # Dualstack has a specific region requirement
 
   - stage: ${{ parameters.name }}
-    displayName: E2E - ${{ parameters.displayName }}
+    displayName: E2E-${{ parameters.displayName }}
     dependsOn:
     - setup
     - ${{ parameters.clusterName }}
@@ -76,7 +76,7 @@ stages:
           dependsOn: ${{ parameters.name }}_${{ parameters.os }}
           dualstack: ${{ eq(parameters.os, 'linux') }} # RUN IN LINUX not WINDOWS Currently broken for scenario and blocking releases, HNS is investigating. Covered by go test in E2E step template
           dns: true
-          portforward: ${{ eq(parameters.os, 'linux') }} # RUN IN LINUX NOT WINDOWS Currently broken for scenario and blocking releases
+          portforward: true
           service: ${{ eq(parameters.os, 'linux') }}  # RUN IN LINUX NOT WINDOWS Currently broken for scenario and blocking releases, HNS is investigating.
           hostport: true
           hybridWin: ${{ eq(parameters.os, 'windows') }}

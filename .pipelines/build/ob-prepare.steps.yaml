@@ -66,6 +66,10 @@ steps:
     echo "##vso[task.setvariable variable=azureIptablesMonitorVersion;isOutput=true]$AZUREIPTABLESMONITORVERSION"
     echo "azureIptablesMonitorVersion: $AZUREIPTABLESMONITORVERSION"
 
+    CILIUMLOGCOLLECTORVERSION=$(make cilium-log-collector-version)
+    echo "##vso[task.setvariable variable=ciliumLogCollectorVersion;isOutput=true]$CILIUMLOGCOLLECTORVERSION"
+    echo "ciliumLogCollectorVersion: $CILIUMLOGCOLLECTORVERSION"
+
     AZUREBLOCKIPTABLESVERSION=$(make azure-block-iptables-version)
     echo "##vso[task.setvariable variable=azureBlockIptablesVersion;isOutput=true]$AZUREBLOCKIPTABLESVERSION"
     echo "azureBlockIptablesVersion: $AZUREBLOCKIPTABLESVERSION"

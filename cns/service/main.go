@@ -52,7 +52,6 @@ import (
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/crd"
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate"
 	cssv1alpha1 "github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/multitenancy"
@@ -74,7 +73,6 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	kuberuntime "k8s.io/apimachinery/pkg/runtime"
@@ -86,6 +84,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
@@ -851,6 +850,9 @@ func main() {
 		// Add APIServer FQDN to Log metadata
 		logger.Log.SetAPIServer(os.Getenv("KUBERNETES_SERVICE_HOST"))
 
+		// set logger in ctrlruntime
+		ctrllog.SetLogger(zapr.NewLogger(z))
+
 		// Check the CNI statefile mount, and if the file is empty
 		// stub an empty JSON object
 		if err := cnipodprovider.WriteObjectToCNIStatefile(); err != nil { //nolint:govet //shadow okay
@@ -1303,37 +1305,20 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 	return nil
 }
 
-type nodeNetworkConfigGetter interface {
-	Get(context.Context) (*v1alpha.NodeNetworkConfig, error)
-}
-
 type ipamStateReconciler interface {
 	ReconcileIPAMStateForSwift(ncRequests []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) cnstypes.ResponseCode
 }
 
 // TODO(rbtr) where should this live??
 // reconcileInitialCNSState initializes cns by passing pods and a CreateNetworkContainerRequest
-func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ipamReconciler ipamStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider, isSwiftV2 bool) error {
-	// Get nnc using direct client
-	nnc, err := cli.Get(ctx)
-	if err != nil {
-		if crd.IsNotDefined(err) {
-			return errors.Wrap(err, "failed to init CNS state: NNC CRD is not defined")
-		}
-		if apierrors.IsNotFound(err) {
-			return errors.Wrap(err, "failed to init CNS state: NNC not found")
-		}
-		return errors.Wrap(err, "failed to init CNS state: failed to get NNC CRD")
-	}
-
-	logger.Printf("Retrieved NNC: %+v", nnc)
-	if !nnc.DeletionTimestamp.IsZero() {
-		return errors.New("failed to init CNS state: NNC is being deleted")
-	}
-
-	// If there are no NCs, we can't initialize our state and we should fail out.
-	if len(nnc.Status.NetworkContainers) == 0 {
-		return errors.New("failed to init CNS state: no NCs found in NNC CRD")
+func reconcileInitialCNSState(
+	nnc *v1alpha.NodeNetworkConfig, ipamReconciler ipamStateReconciler,
+	podInfoByIPProvider cns.PodInfoByIPProvider, isSwiftV2 bool, ipv6PrefixClamp int,
+) error {
+	// if no NCs, nothing to do
+	ncCount := len(nnc.Status.NetworkContainers)
+	if ncCount == 0 {
+		return errors.New("no network containers found in NNC status")
 	}
 
 	// Get previous PodInfo state from podInfoByIPProvider
@@ -1352,7 +1337,7 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 		)
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		case v1alpha.Static:
-			ncRequest, err = nncctrl.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i], isSwiftV2)
+			ncRequest, err = nncctrl.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i], isSwiftV2, ipv6PrefixClamp)
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			ncRequest, err = nncctrl.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 		}
@@ -1424,12 +1409,19 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		}
 	}
 
+	// populate the NodeInfo CRD for Swift V1 dualstack scenario when enabled via config
+	if cnsconfig.EnableSwiftV1DualStack {
+		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
+			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd for swift v1 dualstack")
+		}
+	}
+
 	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
 	if cnsconfig.EnableStateMigration && !httpRestServiceImplementation.EndpointStateStore.Exists() {
 		if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
 			return errors.Wrap(err, "failed to create CNS EndpointState From CNI")
 		}
-		// endpoint state needs tobe loaded in memory so the subsequent Delete calls remove the state and release the IPs.
+		// endpoint state needs to be loaded in memory so the subsequent Delete calls remove the state and release the IPs.
 		if err = httpRestServiceImplementation.EndpointStateStore.Read(restserver.EndpointStoreKey, &httpRestServiceImplementation.EndpointState); err != nil {
 			return errors.Wrap(err, "failed to restore endpoint state")
 		}
@@ -1440,35 +1432,15 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		return errors.Wrap(err, "failed to initialize ip state")
 	}
 
-	// create scoped kube clients.
-	directcli, err := client.New(kubeConfig, client.Options{Scheme: nodenetworkconfig.Scheme})
-	if err != nil {
-		return errors.Wrap(err, "failed to create ctrl client")
-	}
-	directnnccli := nodenetworkconfig.NewClient(directcli)
-	if err != nil {
-		return errors.Wrap(err, "failed to create NNC client")
-	}
-	// TODO(rbtr): nodename and namespace should be in the cns config
-	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
-
-	logger.Printf("Reconciling initial CNS state")
-	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
-	// aks addons to come up so retry a bit more aggresively here.
-	// will retry 10 times maxing out at a minute taking about 8 minutes before it gives up.
-	attempt := 0
-	_ = retry.Do(func() error {
-		attempt++
-		logger.Printf("reconciling initial CNS state attempt: %d", attempt)
-		err = reconcileInitialCNSState(ctx, directscopedcli, httpRestServiceImplementation, podInfoByIPProvider, cnsconfig.EnableSwiftV2)
-		if err != nil {
-			logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
-			nncInitFailure.Inc()
+	initializerWrapper := func(nnc *v1alpha.NodeNetworkConfig) error {
+		logger.Printf("Reconciling initial CNS state")
+		if initErr := reconcileInitialCNSState(nnc, httpRestServiceImplementation, podInfoByIPProvider, cnsconfig.EnableSwiftV2, cnsconfig.IPv6PrefixClamp); initErr != nil {
+			return initErr
 		}
-		return errors.Wrap(err, "failed to initialize CNS state")
-	}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute), retry.UntilSucceeded())
-	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
-	hasNNCInitialized.Set(1)
+		hasNNCInitialized.Set(1)
+		return nil
+	}
+
 	scheme := kuberuntime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil { //nolint:govet // intentional shadow
 		return errors.Wrap(err, "failed to add corev1 to scheme")
@@ -1557,7 +1529,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
-	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2)
+	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, initializerWrapper, poolMonitor, nodeIP, cnsconfig.EnableSwiftV2, cnsconfig.IPv6PrefixClamp)
 	// pass Node to the Reconciler for Controller xref
 	// IPAMv1 - reconcile only status changes (where generation doesn't change).
 	// IPAMv2 - reconcile all updates.
@@ -1611,20 +1583,18 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	// Start the Manager which starts the reconcile loop.
 	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the
 	// Monitor's internal loop.
+	// Note: controller-runtime Managers are not restartable. The *first* thing that Start() does is
+	// set the started semaphore, and *any* restart attempt will fail.
+	// The Manager is permanently marked as started and subsequent calls will always fail with
+	// "manager already started". If the Manager returns AT ALL, we must exit the process and
+	// let the kubelet restart the pod (or rebuild world, but exiting is more reliable).
 	go func() {
 		logger.Printf("Starting controller-manager.")
-		for {
-			if err := manager.Start(ctx); err != nil {
-				logger.Errorf("Failed to start controller-manager: %v", err)
-				// retry to start the request controller
-				// inc the managerStartFailures metric for failure tracking
-				managerStartFailures.Inc()
-			} else {
-				logger.Printf("Stopped controller-manager.")
-				return
-			}
-			time.Sleep(time.Second) // TODO(rbtr): make this exponential backoff
+		if err := manager.Start(ctx); err != nil {
+			logger.Errorf("Failed to start controller-manager: %v", err)
+			os.Exit(1)
 		}
+		logger.Printf("Stopped controller-manager.")
 	}()
 	logger.Printf("Initialized controller-manager.")
 	for {
@@ -1692,13 +1662,16 @@ func getPodInfoByIPProvider(
 	return podInfoByIPProvider, nil
 }
 
-// createOrUpdateNodeInfoCRD polls imds to learn the VM Unique ID and then creates or updates the NodeInfo CRD
-// with that vm unique ID
 func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, node *corev1.Node) error {
 	imdsCli := imds.NewClient()
-	vmUniqueID, err := imdsCli.GetVMUniqueID(ctx)
+
+	nmaConfig, err := nmagent.NewConfig("")
 	if err != nil {
-		return errors.Wrap(err, "error getting vm unique ID from imds")
+		return errors.Wrap(err, "failed to create nmagent config")
+	}
+	nmaCli, err := nmagent.NewClient(nmaConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to create nmagent client")
 	}
 
 	directcli, err := client.New(restConfig, client.Options{Scheme: multitenancy.Scheme})
@@ -1706,17 +1679,51 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 		return errors.Wrap(err, "failed to create ctrl client")
 	}
 
-	nodeInfoCli := multitenancy.NodeInfoClient{
+	nodeInfoCli := &multitenancy.NodeInfoClient{
 		Cli: directcli,
+	}
+
+	return buildAndCreateNodeInfo(ctx, imdsCli, nmaCli, nodeInfoCli, node)
+}
+
+// VMUniqueIDGetter is an interface for getting VM unique ID from IMDS
+type VMUniqueIDGetter interface {
+	GetVMUniqueID(ctx context.Context) (string, error)
+}
+
+// HomeAzGetter is an interface for getting HomeAZ from NMAgent
+type HomeAzGetter interface {
+	GetHomeAz(ctx context.Context) (nmagent.AzResponse, error)
+}
+
+// NodeInfoCreator is an interface for creating/updating NodeInfo CRD
+type NodeInfoCreator interface {
+	CreateOrUpdate(ctx context.Context, nodeInfo *mtv1alpha1.NodeInfo, fieldOwner string) error
+}
+
+// buildAndCreateNodeInfo builds the NodeInfo spec with VMUniqueID and HomeAZ and creates/updates the CRD
+func buildAndCreateNodeInfo(ctx context.Context, imdsCli VMUniqueIDGetter, nmaCli HomeAzGetter, nodeInfoCli NodeInfoCreator, node *corev1.Node) error {
+	vmUniqueID, err := imdsCli.GetVMUniqueID(ctx)
+	if err != nil {
+		return errors.Wrap(err, "error getting vm unique ID from imds")
+	}
+
+	nodeInfoSpec := mtv1alpha1.NodeInfoSpec{
+		VMUniqueID: vmUniqueID,
+	}
+
+	homeAzResponse, err := nmaCli.GetHomeAz(ctx)
+	if err != nil {
+		return errors.Wrap(err, "getting HomeAZ from NMAgent")
+	} else if homeAzResponse.HomeAz > 0 {
+		nodeInfoSpec.HomeAZ = fmt.Sprintf("AZ%02d", homeAzResponse.HomeAz)
 	}
 
 	nodeInfo := &mtv1alpha1.NodeInfo{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: node.Name,
 		},
-		Spec: mtv1alpha1.NodeInfoSpec{
-			VMUniqueID: vmUniqueID,
-		},
+		Spec: nodeInfoSpec,
 	}
 
 	if err := controllerutil.SetOwnerReference(node, nodeInfo, multitenancy.Scheme); err != nil {

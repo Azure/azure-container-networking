@@ -1,16 +1,32 @@
 parameters:
-  name: ""
-  displayName: ""
-  clusterType: ""
-  clusterName: ""
-  vmSize: ""
-  k8sVersion: ""
-  os: ""
-  dependsOn: ""
+  - name: name
+    type: string
+    default: ""
+  - name: displayName
+    type: string
+    default: ""
+  - name: clusterType
+    type: string
+    default: ""
+  - name: clusterName
+    type: string
+    default: ""
+  - name: vmSize
+    type: string
+    default: ""
+  - name: k8sVersion
+    type: string
+    default: ""
+  - name: os
+    type: string
+    default: ""
+  - name: dependsOn
+    type: object
+    default: ""
 
 stages:
   - stage: ${{ parameters.clusterName }}
-    displayName: Create Cluster - ${{ parameters.displayName }}
+    displayName: ${{ parameters.displayName }} - Create Cluster
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -32,7 +48,8 @@ stages:
           region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
-    displayName: E2E - ${{ parameters.displayName }}
+    displayName: E2E-${{ parameters.displayName }}
+    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     dependsOn:
     - setup
     - publish
@@ -44,7 +61,6 @@ stages:
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
@@ -62,24 +78,21 @@ stages:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               scaleup: 100
-
-      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
-        parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          dependsOn: ${{ parameters.name }}
-          datapath: true
-          dns: true
-          portforward: ${{ eq(parameters.os, 'linux') }} # Unblock Pipeline, broken for all windows scenarios
-          hostport: true
-          service: true
+          - template: ../../templates/k8s-e2e-step-template.yaml
+            parameters:
+              sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              datapath: true
+              dns: true
+              portforward: true
+              hostport: true
+              service: true
 
       - job: failedE2ELogs
         displayName: "Failure Logs"
         dependsOn:
           - ${{ parameters.name }}
-          - cni_linux
         condition: failed()
         steps:
           - template: ../../templates/log-template.yaml
@@ -87,3 +100,4 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv2
+
