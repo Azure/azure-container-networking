@@ -148,6 +148,14 @@ deploy-ebpf-overlay-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 		| kubectl apply -f -
 	@$(MAKE) wait-for-cilium
 
+deploy-ebpf-dualstack-overlay-cilium: print-ebpf-cilium-vars print-cilium-dualstack-vars deploy-common-ebpf-cilium
+	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/dualstack/static/
+	CILIUM_VERSION_TAG=$(EBPF_CILIUM_VERSION_TAG) CILIUM_IMAGE_REGISTRY=$(EBPF_CILIUM_IMAGE_REGISTRY) \
+		envsubst '$${CILIUM_VERSION_TAG},$${CILIUM_IMAGE_REGISTRY},$${IPV6_IMAGE_REGISTRY},$${IPV6_HP_BPF_VERSION},$${AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY},$${AZURE_IPTABLES_MONITOR_TAG},$${AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY},$${AZURE_IP_MASQ_MERGER_TAG}' < \
+		../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/dualstack/cilium.yaml \
+		| kubectl apply -f -
+	@$(MAKE) wait-for-cilium
+
 deploy-ebpf-podsubnet-cilium: print-ebpf-cilium-vars deploy-common-ebpf-cilium
 	@kubectl apply -f ../../test/integration/manifests/cilium/v$(EBPF_CILIUM_DIR)/ebpf/podsubnet/static/
 # ebpf podsubnet does not have ip masq merger 
