@@ -250,7 +250,7 @@ stages:
       dependsOn:
         - containerize
       variables:
-        Packaging.EnableSBOMSigning: false
+        Packaging.EnableSBOMSigning: true
       jobs:
         - job: manifest
           displayName: Compile Manifests
