@@ -1,11 +1,12 @@
 ARG ARCH
-# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24 --format "{{.Name}}@{{.Digest}}"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:f3e556c9de4dd93be774dc0fa2ce3cfa76f7744d0bacada92d1624f04ce69461 AS go
+# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.26 --format "{{.Name}}@{{.Digest}}"
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:6c27ae470941ef215b3eea86fcd6632a7ab975f391e5a75f546d3a76fd686705 AS go
 ARG VERSION
 ARG DEBUG
 ARG OS
 ARG ARCH
 WORKDIR /bpf-prog/ipv6-hp-bpf
+ENV GOEXPERIMENT=systemcrypto
 COPY ./bpf-prog/ipv6-hp-bpf .
 COPY ./bpf-prog/ipv6-hp-bpf/cmd/ipv6-hp-bpf/*.go /bpf-prog/ipv6-hp-bpf/
 COPY ./bpf-prog/ipv6-hp-bpf/include/helper.h /bpf-prog/ipv6-hp-bpf/include/helper.h
