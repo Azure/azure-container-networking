@@ -11,6 +11,7 @@ parameters:
 stages:
   - stage: ${{ parameters.clusterName }}
     displayName: ${{ parameters.displayName }} - Create Cluster
+    condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
       - ${{ parameters.dependsOn }}
       - setup
@@ -33,6 +34,7 @@ stages:
 
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
+    condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
     dependsOn:
     - setup
     - publish
