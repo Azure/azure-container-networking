@@ -28,6 +28,8 @@ stages:
                 make -C ./hack/aks AZCLI=az overlay-byocni-nokubeproxy-up CLUSTER=$(clustername) REGION=$(REGION_AKS_CLUSTER_TEST) NODE_COUNT=2 VM_SIZE=Standard_D4_v3 SUB=$(TESTING_SUB)
                 kubectl get pods -Aowide
 
+          - template: ../../templates/cilium-cli.yaml
+          
           - task: AzureCLI@2
             displayName: "Deploy Cilium and CNS"
             inputs:
