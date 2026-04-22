@@ -3,9 +3,11 @@ trigger: none
 
 variables:
   - name: clustername
-    value: cilscale-$(Build.BuildId)
+    value: cilscale-persistent
   - name: REGION_AKS_CLUSTER_TEST
     value: westus2
+  - name: SECONDARY_NODEPOOL
+    value: npscale
 
 stages:
   - stage: clusterLifecycle
@@ -16,7 +18,7 @@ stages:
           name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - task: AzureCLI@2
-            displayName: "Create AKS Cluster"
+            displayName: "Ensure AKS Cluster Exists"
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -25,11 +27,18 @@ stages:
               inlineScript: |
                 set -ex
                 az extension add --name aks-preview
-                make -C ./hack/aks AZCLI=az overlay-byocni-nokubeproxy-up CLUSTER=$(clustername) REGION=$(REGION_AKS_CLUSTER_TEST) NODE_COUNT=2 VM_SIZE=Standard_D4_v3 SUB=$(TESTING_SUB)
+
+                if az aks show --resource-group $(clustername) --name $(clustername) --subscription $(TESTING_SUB) &>/dev/null; then
+                  echo "Cluster $(clustername) already exists, fetching credentials"
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clustername)
+                else
+                  echo "Cluster $(clustername) does not exist, creating"
+                  make -C ./hack/aks AZCLI=az overlay-byocni-nokubeproxy-up CLUSTER=$(clustername) REGION=$(REGION_AKS_CLUSTER_TEST) NODE_COUNT=2 VM_SIZE=Standard_D4_v3 SUB=$(TESTING_SUB)
+                fi
                 kubectl get pods -Aowide
 
           - template: ../../templates/cilium-cli.yaml
-          
+
           - task: AzureCLI@2
             displayName: "Deploy Cilium and CNS"
             inputs:
@@ -39,26 +48,66 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -ex
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clustername)
-                
+
                 echo "Deploy Cilium components"
                 make -C ./hack/aks deploy-cilium
-                
-                # echo "Add Cilium Log Collector"
-                # export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=acnpublic.azurecr.io
-                # export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(make cilium-log-collector-version)
-                # make -C ./hack/aks add-cilium-log-collector
-                
+
                 echo "Deploy Azure-CNS"
                 make test-load AZURE_IPAM_VERSION=v0.4.0-0 CNI_VERSION=v1.8.1-0 CNS_ONLY=true CNS_VERSION=v1.8.1-0 INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=MCR IPAM_IMAGE_REPO=MCR CNI_IMAGE_REPO=MCR
-                
+
                 echo "Wait for all pods to be ready"
                 kubectl get pods -Aowide
                 kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=10m
                 kubectl get pods -Aowide
 
           - task: AzureCLI@2
-            displayName: "Delete AKS Cluster"
+            displayName: "Scale Nodepool Up"
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+
+                if az aks nodepool show --resource-group $(clustername) --cluster-name $(clustername) --name $(SECONDARY_NODEPOOL) --subscription $(TESTING_SUB) &>/dev/null; then
+                  echo "Nodepool $(SECONDARY_NODEPOOL) already exists, scaling to 2 nodes first"
+                  make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=2
+                else
+                  echo "Adding new nodepool $(SECONDARY_NODEPOOL) with 2 nodes"
+                  az aks nodepool add \
+                    --resource-group $(clustername) \
+                    --cluster-name $(clustername) \
+                    --name $(SECONDARY_NODEPOOL) \
+                    --node-count 2 \
+                    --node-vm-size Standard_D4_v3 \
+                    --subscription $(TESTING_SUB) \
+                    --os-type Linux \
+                    --max-pods 250
+                fi
+                kubectl get nodes -owide
+
+                echo "Scaling nodepool up to 10 nodes"
+                make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=10
+                kubectl get nodes -owide
+                kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=10m
+
+          - task: AzureCLI@2
+            displayName: "Scale Nodepool Down"
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+
+                echo "Scaling nodepool back down to 2 nodes"
+                make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=2
+                kubectl get nodes -owide
+
+          - task: AzureCLI@2
+            displayName: "Delete Secondary Nodepool"
             condition: always()
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
@@ -66,7 +115,11 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                echo "Deleting cluster $(clustername)"
-                make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clustername)
-                make -C ./hack/aks down AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(TESTING_SUB) CLUSTER=$(clustername)
+                set -ex
+                echo "Deleting secondary nodepool $(SECONDARY_NODEPOOL)"
+                az aks nodepool delete \
+                  --resource-group $(clustername) \
+                  --cluster-name $(clustername) \
+                  --name $(SECONDARY_NODEPOOL) \
+                  --subscription $(TESTING_SUB) \
+                  --yes || echo "Nodepool $(SECONDARY_NODEPOOL) not found or already deleted"
