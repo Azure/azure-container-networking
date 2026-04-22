@@ -93,7 +93,7 @@ jobs:
           (exit "$test_exit")
 
       - name: Upload Linux Coverage
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: linux-coverage-${{ matrix.os }}
           path: linux-coverage.out
@@ -117,7 +117,7 @@ jobs:
           go tool cover -func=windows-coverage.out
 
       - name: Upload Windows Coverage
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: windows-coverage
           path: windows-coverage.out
@@ -157,7 +157,7 @@ jobs:
           mv linux-coverage.xml coverage/
 
       - name: Upload Coverage Report
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
           name: linux-coverage-report
           path: coverage/linux-coverage.xml
