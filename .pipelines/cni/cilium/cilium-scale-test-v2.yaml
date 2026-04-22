@@ -6,8 +6,8 @@ stages:
     displayName: "Hello World"
     jobs:
       - job: hello_world
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
+        # pool:
+        #   name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - script: echo "Hello World"
             displayName: "Print hello world"
