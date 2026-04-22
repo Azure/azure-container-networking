@@ -1,25 +1,43 @@
 pr: none
 trigger: none
 
+variables:
+  - name: clustername
+    value: cilscale-$(Build.BuildId)
+  - name: REGION_AKS_CLUSTER_TEST
+    value: westus2
+
 stages:
-  - stage: azure_auth_smoke_test
-    displayName: "Azure Auth & Smoke Test"
+  - stage: clusterLifecycle
+    displayName: "Cilium Scale AKS Cluster"
     jobs:
-      - job: azure_smoke_test
+      - job: cluster_lifecycle
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - task: AzureCLI@2
-            displayName: "Azure CLI - List Resource Groups Smoke Test"
+            displayName: "Create AKS Cluster"
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
               inlineScript: |
-                echo "Testing Azure CLI authentication and subscription access..."
-                echo "Subscription ID: $(az account show --query id -o tsv)"
-                echo "Subscription Name: $(az account show --query name -o tsv)"
-                echo ""
-                echo "Listing all resource groups:"
-                az group list --query "[].{Name:name, Location:location}" -o table
-                echo "Azure CLI smoke test completed successfully!"
+                set -ex
+                az extension add --name aks-preview
+                make -C ./hack/aks AZCLI=az overlay-byocni-nokubeproxy-up CLUSTER=$(clustername) REGION=$(REGION_AKS_CLUSTER_TEST) NODE_COUNT=2 VM_SIZE=Standard_D4_v3 SUB=$(TESTING_SUB)
+                kubectl get pods -Aowide
+
+          - task: AzureCLI@2
+            displayName: "Delete AKS Cluster"
+            condition: always()
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                echo "Deleting cluster $(clustername)"
+                make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clustername)
+                make -C ./hack/aks down AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(TESTING_SUB) CLUSTER=$(clustername)
