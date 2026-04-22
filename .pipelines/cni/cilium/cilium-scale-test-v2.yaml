@@ -29,6 +29,33 @@ stages:
                 kubectl get pods -Aowide
 
           - task: AzureCLI@2
+            displayName: "Deploy Cilium and CNS"
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clustername)
+                
+                echo "Deploy Cilium components"
+                make -C ./hack/aks deploy-cilium
+                
+                # echo "Add Cilium Log Collector"
+                # export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=acnpublic.azurecr.io
+                # export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(make cilium-log-collector-version)
+                # make -C ./hack/aks add-cilium-log-collector
+                
+                echo "Deploy Azure-CNS"
+                make test-load AZURE_IPAM_VERSION=v0.4.0-0 CNI_VERSION=v1.8.1-0 CNS_ONLY=true CNS_VERSION=v1.8.1-0 INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=MCR IPAM_IMAGE_REPO=MCR CNI_IMAGE_REPO=MCR
+                
+                echo "Wait for all pods to be ready"
+                kubectl get pods -Aowide
+                kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=10m
+                kubectl get pods -Aowide
+
+          - task: AzureCLI@2
             displayName: "Delete AKS Cluster"
             condition: always()
             inputs:
