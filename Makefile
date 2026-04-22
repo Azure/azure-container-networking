@@ -965,6 +965,10 @@ test-k8se2e-only: ## Run k8s network conformance test, use TYPE=basic for only d
 dockerfiles: renderkit ## Render all Dockerfile templates with current state of world
 	@make -f build/images.mk render PATH=cns
 	@make -f build/images.mk render PATH=cni
+	@make -f build/images.mk render PATH=azure-ipam
+	@make -f build/images.mk render PATH=azure-ip-masq-merger
+	@make -f build/images.mk render PATH=azure-iptables-monitor
+	@make -f build/images.mk render PATH=cilium-log-collector
 
 regenerate-crd: ## Regenerate CRDs
 	for makefile in $$(find ./crd/ -name "Makefile" -type f -printf '%h\n'); do \
