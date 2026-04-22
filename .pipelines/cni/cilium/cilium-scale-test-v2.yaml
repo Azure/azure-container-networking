@@ -2,12 +2,24 @@ pr: none
 trigger: none
 
 stages:
-  - stage: hello_world
-    displayName: "Hello World"
+  - stage: azure_auth_smoke_test
+    displayName: "Azure Auth & Smoke Test"
     jobs:
-      - job: hello_world
-        # pool:
-        #   name: $(BUILD_POOL_NAME_DEFAULT)
+      - job: azure_smoke_test
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
-          - script: echo "Hello World"
-            displayName: "Print hello world"
+          - task: AzureCLI@2
+            displayName: "Azure CLI - List Resource Groups Smoke Test"
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "Testing Azure CLI authentication and subscription access..."
+                echo "Subscription ID: $(az account show --query id -o tsv)"
+                echo "Subscription Name: $(az account show --query name -o tsv)"
+                echo ""
+                echo "Listing all resource groups:"
+                az group list --query "[].{Name:name, Location:location}" -o table
+                echo "Azure CLI smoke test completed successfully!"
