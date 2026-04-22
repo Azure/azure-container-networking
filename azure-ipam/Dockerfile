@@ -3,8 +3,8 @@ ARG DROPGZ_VERSION=v0.0.12
 ARG OS_VERSION
 ARG OS
 
-# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.23.2-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:f8613198423d5cb702961f1547f9cb061f8da1c6ca9ce8da4824eb47db663cd7 AS go
+# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:b05a9bbf50a8ccfdd0ebe9f673ef29dca7c1d5e209434b35a560a4e8ae5f72b2 AS go
 
 # skopeo inspect docker://mcr.microsoft.com/cbl-mariner/base/core:2.0 --format "{{.Name}}@{{.Digest}}"
 FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core@sha256:a490e0b0869dc570ae29782c2bc17643aaaad1be102aca83ce0b96e0d0d2d328 AS mariner-core
