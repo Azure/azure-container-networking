@@ -7,6 +7,8 @@ parameters:
 steps:
   - template: ../../templates/setup-environment.yaml
 
+  - template: ../../templates/cilium-cli.yaml
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
