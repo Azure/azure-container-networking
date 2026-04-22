@@ -28,6 +28,8 @@ steps:
         export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
         export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY=acnpublic.azurecr.io
         export AZURE_IP_MASQ_MERGER_TAG=$(make azure-ip-masq-merger-version)
+        export IPV6_HP_BPF_IMAGE_REGISTRY=acnpublic.azurecr.io
+        export IPV6_HP_BPF_VERSION=$(make ipv6-hp-bpf-version)
         make -C ./hack/aks deploy-ebpf-dualstack-cilium
 
         kubectl get pods -Aowide

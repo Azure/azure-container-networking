@@ -476,6 +476,11 @@ spec:
           name: allowed-iptables-patterns
           optional: true
         name: iptables-config
+      - configMap:
+          defaultMode: 420
+          name: allowed-ip6tables-patterns
+          optional: true
+        name: ip6tables-config
       - hostPath:
           path: /sys/fs/bpf/azure-block-iptables
           type: DirectoryOrCreate
