@@ -86,8 +86,12 @@ stages:
                 AZCLI="az" GROUP="$(clustername)" CLUSTER="$(clustername)" sh ./hack/scripts/wait-cluster-update.sh
 
                 if az aks nodepool show --resource-group $(clustername) --cluster-name $(clustername) --name $(SECONDARY_NODEPOOL) --subscription $(TESTING_SUB) &>/dev/null; then
-                  echo "Nodepool $(SECONDARY_NODEPOOL) already exists, scaling to 2 nodes first"
-                  make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=2
+                  current_count=$(az aks nodepool show --resource-group $(clustername) --cluster-name $(clustername) --name $(SECONDARY_NODEPOOL) --subscription $(TESTING_SUB) --query count -o tsv)
+                  echo "Nodepool $(SECONDARY_NODEPOOL) already exists with $current_count nodes"
+                  if [ "$current_count" -ne 2 ]; then
+                    echo "Scaling to 2 nodes first"
+                    make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=2
+                  fi
                 else
                   echo "Adding new nodepool $(SECONDARY_NODEPOOL) with 2 nodes"
                   az aks nodepool add \
@@ -162,8 +166,13 @@ stages:
               inlineScript: |
                 set -ex
 
-                echo "Scaling nodepool back down to 2 nodes"
-                make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=2
+                current_count=$(az aks nodepool show --resource-group $(clustername) --cluster-name $(clustername) --name $(SECONDARY_NODEPOOL) --subscription $(TESTING_SUB) --query count -o tsv)
+                if [ "$current_count" -ne 2 ]; then
+                  echo "Scaling nodepool back down to 2 nodes (currently $current_count)"
+                  make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=2
+                else
+                  echo "Nodepool already at 2 nodes, skipping scale down"
+                fi
                 kubectl get nodes -owide
 
   - stage: deleteNodepool
