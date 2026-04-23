@@ -50,46 +50,56 @@ steps:
     continueOnError: true # Tends to fail after node restart due to pods still restarting. This should not block other tests or logs from running.
 
   - bash: |
-      kubectl get pods -A -owide
+      set -o pipefail
+      kubectl get pods -A -owide 2>&1 | tee $(acnLogs)/all-pods.txt
     displayName: All Pods
     condition: always()
 
   - bash: |
-      bash hack/scripts/collect-bad-pod-info.sh
+      set -o pipefail
+      bash hack/scripts/collect-bad-pod-info.sh 2>&1 | tee $(acnLogs)/bad-pod-info.txt
     displayName: Collect Bad Pod Info
     condition: always()
     continueOnError: true
 
   - bash: |
-      kubectl describe nodes
+      set -o pipefail
+      kubectl describe nodes 2>&1 | tee $(acnLogs)/node-status.txt
     displayName: Node Status
     condition: always()
   
   - bash: |
-      kubectl describe nnc -A
+      set -o pipefail
+      kubectl describe nnc -A 2>&1 | tee $(acnLogs)/node-network-configs.txt
     displayName: Describe Node Network Configs (NNCs)
     condition: and(always(), ne('${{ parameters.cni }}', 'cniv1')) # cniv1/nodesubnet scenarios do not have node network configs
     continueOnError: true # even if nnc doesn't exist we want to continue
 
   - bash: |
-      kubectl get ds -A -owide
-      echo "Capture daemonset images being used"
-      dsList=`kubectl get ds -A | grep kube-system | awk '{print $2}'`
-      for ds in $dsList; do
-        echo "$ds"
-        kubectl describe ds -n kube-system $ds | grep Image
-      done
+      set -o pipefail
+      {
+        kubectl get ds -A -owide
+        echo "Capture daemonset images being used"
+        dsList=`kubectl get ds -A | grep kube-system | awk '{print $2}'`
+        for ds in $dsList; do
+          echo "$ds"
+          kubectl describe ds -n kube-system $ds | grep Image
+        done
+      } 2>&1 | tee $(acnLogs)/daemonset-images.txt
     displayName: Daemonset Images
     condition: always()
 
   - bash: |
-      kubectl get deploy -A -owide
-      echo "Capture deployment images being used"
-      deployList=`kubectl get deploy -A | grep kube-system | awk '{print $2}'`
-      for deploy in $deployList; do
-        echo "$deploy"
-        kubectl describe deploy -n kube-system $deploy | grep Image
-      done
+      set -o pipefail
+      {
+        kubectl get deploy -A -owide
+        echo "Capture deployment images being used"
+        deployList=`kubectl get deploy -A | grep kube-system | awk '{print $2}'`
+        for deploy in $deployList; do
+          echo "$deploy"
+          kubectl describe deploy -n kube-system $deploy | grep Image
+        done
+      } 2>&1 | tee $(acnLogs)/deployment-images.txt
     displayName: Deployment Images
     condition: always()
 
