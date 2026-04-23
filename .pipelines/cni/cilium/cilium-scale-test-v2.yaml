@@ -70,6 +70,8 @@ stages:
               inlineScript: |
                 set -ex
 
+                AZCLI="az" GROUP="$(clustername)" CLUSTER="$(clustername)" sh ./hack/scripts/wait-cluster-update.sh
+
                 if az aks nodepool show --resource-group $(clustername) --cluster-name $(clustername) --name $(SECONDARY_NODEPOOL) --subscription $(TESTING_SUB) &>/dev/null; then
                   echo "Nodepool $(SECONDARY_NODEPOOL) already exists, scaling to 2 nodes first"
                   make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=2
@@ -121,5 +123,4 @@ stages:
                   --resource-group $(clustername) \
                   --cluster-name $(clustername) \
                   --name $(SECONDARY_NODEPOOL) \
-                  --subscription $(TESTING_SUB) \
-                  --yes || echo "Nodepool $(SECONDARY_NODEPOOL) not found or already deleted"
+                  --subscription $(TESTING_SUB) || echo "Nodepool $(SECONDARY_NODEPOOL) not found or already deleted"
