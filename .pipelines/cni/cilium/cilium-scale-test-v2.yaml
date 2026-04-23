@@ -1,6 +1,12 @@
 pr: none
 trigger: none
 
+parameters:
+  - name: deleteNodepool
+    displayName: "Delete secondary nodepool (manual cleanup)"
+    type: boolean
+    default: false
+
 variables:
   - name: clustername
     value: cilscale-persistent
@@ -16,6 +22,7 @@ stages:
       - job: cluster_lifecycle
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
+        timeoutInMinutes: 120
         steps:
           - task: AzureCLI@2
             displayName: "Ensure AKS Cluster Exists"
@@ -97,7 +104,16 @@ stages:
 
           - script: |
               bash ./hack/scripts/collect-bad-pod-info.sh
+            condition: always()
             displayName: "Collect Bad Pod Info"
+
+          - script: |
+              set -ex
+              echo "Labeling all nodes with slo=true"
+              kubectl label nodes --all slo=true --overwrite
+              echo "Verifying node labels"
+              kubectl get nodes --show-labels
+            displayName: "Label Nodes with SLO"
 
           - task: AzureCLI@2
             displayName: "Scale Nodepool Down"
@@ -113,9 +129,17 @@ stages:
                 make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=2
                 kubectl get nodes -owide
 
+  - stage: deleteNodepool
+    displayName: "Delete Secondary Nodepool (Manual)"
+    dependsOn: []
+    condition: eq('${{ parameters.deleteNodepool }}', true)
+    jobs:
+      - job: delete_nodepool
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
           - task: AzureCLI@2
-            displayName: "Scale Nodepool to Zero"
-            condition: always()
+            displayName: "Delete Nodepool $(SECONDARY_NODEPOOL)"
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -123,6 +147,10 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -ex
-                echo "Scaling secondary nodepool $(SECONDARY_NODEPOOL) to zero nodes"
-                make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=0 || echo "Nodepool $(SECONDARY_NODEPOOL) not found or already scaled to zero"
-                kubectl get nodes -owide
+                echo "Deleting secondary nodepool $(SECONDARY_NODEPOOL) from cluster $(clustername)"
+                az aks nodepool delete \
+                  --resource-group $(clustername) \
+                  --cluster-name $(clustername) \
+                  --name $(SECONDARY_NODEPOOL) \
+                  --subscription $(TESTING_SUB)
+                echo "Nodepool $(SECONDARY_NODEPOOL) deleted successfully"
