@@ -6,6 +6,10 @@ parameters:
     displayName: "Delete secondary nodepool (manual cleanup)"
     type: boolean
     default: false
+  - name: deletePrometheusNodepool
+    displayName: "Delete prometheus nodepool (manual cleanup)"
+    type: boolean
+    default: false
 
 variables:
   - name: clustername
@@ -14,6 +18,8 @@ variables:
     value: westus2
   - name: SECONDARY_NODEPOOL
     value: npscale
+  - name: PROMETHEUS_NODEPOOL
+    value: prometheus
 
 stages:
   - stage: clusterLifecycle
@@ -102,6 +108,35 @@ stages:
                 kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=20m || true
                 kubectl get pods -Aowide
 
+          - task: AzureCLI@2
+            displayName: "Ensure Prometheus Nodepool Exists"
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+
+                AZCLI="az" GROUP="$(clustername)" CLUSTER="$(clustername)" sh ./hack/scripts/wait-cluster-update.sh
+
+                if az aks nodepool show --resource-group $(clustername) --cluster-name $(clustername) --name $(PROMETHEUS_NODEPOOL) --subscription $(TESTING_SUB) &>/dev/null; then
+                  echo "Nodepool $(PROMETHEUS_NODEPOOL) already exists"
+                else
+                  echo "Adding nodepool $(PROMETHEUS_NODEPOOL) with 1 node"
+                  az aks nodepool add \
+                    --resource-group $(clustername) \
+                    --cluster-name $(clustername) \
+                    --name $(PROMETHEUS_NODEPOOL) \
+                    --node-count 1 \
+                    --node-vm-size Standard_D48a_v4 \
+                    --subscription $(TESTING_SUB) \
+                    --os-type Linux \
+                    --mode User \
+                    --max-pods 250
+                fi
+                kubectl get nodes -owide
+
           - script: |
               bash ./hack/scripts/collect-bad-pod-info.sh
             condition: always()
@@ -109,11 +144,13 @@ stages:
 
           - script: |
               set -ex
-              echo "Labeling all nodes with slo=true"
-              kubectl label nodes --all slo=true --overwrite
+              echo "Labeling $(SECONDARY_NODEPOOL) nodes with slo=true"
+              kubectl label nodes -l agentpool=$(SECONDARY_NODEPOOL) slo=true --overwrite
+              echo "Labeling $(PROMETHEUS_NODEPOOL) nodes with prometheus=true"
+              kubectl label nodes -l agentpool=$(PROMETHEUS_NODEPOOL) prometheus=true --overwrite
               echo "Verifying node labels"
               kubectl get nodes --show-labels
-            displayName: "Label Nodes with SLO"
+            displayName: "Label Nodes"
 
           - task: AzureCLI@2
             displayName: "Scale Nodepool Down"
@@ -154,3 +191,29 @@ stages:
                   --name $(SECONDARY_NODEPOOL) \
                   --subscription $(TESTING_SUB)
                 echo "Nodepool $(SECONDARY_NODEPOOL) deleted successfully"
+
+  - stage: deletePrometheusNodepool
+    displayName: "Delete Prometheus Nodepool (Manual)"
+    dependsOn: []
+    condition: eq('${{ parameters.deletePrometheusNodepool }}', true)
+    jobs:
+      - job: delete_prometheus_nodepool
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - task: AzureCLI@2
+            displayName: "Delete Nodepool $(PROMETHEUS_NODEPOOL)"
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                echo "Deleting prometheus nodepool $(PROMETHEUS_NODEPOOL) from cluster $(clustername)"
+                az aks nodepool delete \
+                  --resource-group $(clustername) \
+                  --cluster-name $(clustername) \
+                  --name $(PROMETHEUS_NODEPOOL) \
+                  --subscription $(TESTING_SUB)
+                echo "Nodepool $(PROMETHEUS_NODEPOOL) deleted successfully"
