@@ -92,7 +92,7 @@ stages:
                 echo "Scaling nodepool up to 10 nodes"
                 make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=10
                 kubectl get nodes -owide
-                kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=10m
+                kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=20m
 
           - task: AzureCLI@2
             displayName: "Scale Nodepool Down"
