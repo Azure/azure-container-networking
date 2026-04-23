@@ -552,7 +552,8 @@ func configureHostNCApipaEndpoint(
 
 	endpoint.IpConfigurations = append(endpoint.IpConfigurations, ipConfiguration)
 
-	logger.Printf("[Azure CNS] Configured HostNCApipaEndpoint: %+v", endpoint)
+	logger.Printf("[Azure CNS] Configured HostNCApipaEndpoint with ID: %s, Name: %s, Network: %s",
+		endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
 
 	return endpoint, nil
 }
@@ -584,7 +585,8 @@ func CreateHostNCApipaEndpoint(
 	}
 
 	if endpoint != nil {
-		logger.Debugf("[Azure CNS] Found existing endpoint: %+v", endpoint)
+		logger.Debugf("[Azure CNS] Found existing endpoint with ID: %s, Name: %s, Network: %s",
+			endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
 		return endpoint.Id, nil
 	}
 
@@ -608,14 +610,16 @@ func CreateHostNCApipaEndpoint(
 		return "", err
 	}
 
-	logger.Printf("[Azure CNS] Creating HostNCApipaEndpoint for host container connectivity: %+v", endpoint)
+	logger.Printf("[Azure CNS] Creating HostNCApipaEndpoint for host container connectivity: %s, Network: %s",
+		endpoint.Name, endpoint.HostComputeNetwork)
 	if endpoint, err = endpoint.Create(); err != nil {
 		err = fmt.Errorf("Failed to create HostNCApipaEndpoint: %s. Error: %v", endpointName, err)
 		logger.Errorf("[Azure CNS] %s", err.Error())
 		return "", err
 	}
 
-	logger.Printf("[Azure CNS] Successfully created HostNCApipaEndpoint: %+v", endpoint)
+	logger.Printf("[Azure CNS] Successfully created HostNCApipaEndpoint with ID: %s, Name: %s, Network: %s",
+		endpoint.Id, endpoint.Name, endpoint.HostComputeNetwork)
 
 	return endpoint.Id, nil
 }
