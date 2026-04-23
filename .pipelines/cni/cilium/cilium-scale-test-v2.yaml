@@ -109,7 +109,7 @@ stages:
                 kubectl get nodes -owide
 
           - task: AzureCLI@2
-            displayName: "Delete Secondary Nodepool"
+            displayName: "Scale Nodepool to Zero"
             condition: always()
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
@@ -118,9 +118,6 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -ex
-                echo "Deleting secondary nodepool $(SECONDARY_NODEPOOL)"
-                az aks nodepool delete \
-                  --resource-group $(clustername) \
-                  --cluster-name $(clustername) \
-                  --name $(SECONDARY_NODEPOOL) \
-                  --subscription $(TESTING_SUB) || echo "Nodepool $(SECONDARY_NODEPOOL) not found or already deleted"
+                echo "Scaling secondary nodepool $(SECONDARY_NODEPOOL) to zero nodes"
+                make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=0 || echo "Nodepool $(SECONDARY_NODEPOOL) not found or already scaled to zero"
+                kubectl get nodes -owide
