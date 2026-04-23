@@ -128,7 +128,7 @@ stages:
         displayName: "Failure Logs"
         dependsOn:
           - ${{ parameters.name }}
-        condition: or(failed(), eq(dependencies.${{ parameters.name }}.result, 'SucceededWithIssues'))
+        condition: always()
         steps:
           - template: ../../templates/log-template.yaml
             parameters:

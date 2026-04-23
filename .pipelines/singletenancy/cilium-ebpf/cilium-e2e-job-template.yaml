@@ -78,7 +78,7 @@ stages:
         displayName: "Failure Logs"
         dependsOn:
           - ${{ parameters.name }}
-        condition: failed()
+        condition: always()
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
