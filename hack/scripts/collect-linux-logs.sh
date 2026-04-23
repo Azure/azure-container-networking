@@ -126,3 +126,14 @@ if [ ${cni} = 'cilium' ]; then
     collect_all_container_logs "$pod" "${acnLogs}/cilium-kubectl-logs"
   done
 fi
+
+echo "------ Containerd work ------"
+for pod in $podList; do
+  node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name --no-headers | awk '{print $1}'`
+  mkdir -p ${acnLogs}/"$node"_logs/containerd-output/
+  echo "Directory created: ${acnLogs}/"$node"_logs/containerd-output/"
+
+  file="containerd.log"
+  kubectl exec -i -n kube-system $pod -- journalctl -u containerd --no-pager -n 1000 > ${acnLogs}/"$node"_logs/containerd-output/$file 2>&1
+  echo "Containerd log, $file, captured: ${acnLogs}/"$node"_logs/containerd-output/$file"
+done
