@@ -22,13 +22,13 @@ variables:
     value: prometheus
 
 stages:
-  - stage: setup
-    displayName: "Setup - Cluster & Nodepools"
+  - stage: clusterLifecycle
+    displayName: "Cilium Scale AKS Cluster"
     jobs:
-      - job: setup
+      - job: cluster_lifecycle
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-        timeoutInMinutes: 120
+        timeoutInMinutes: 240
         steps:
           - task: AzureCLI@2
             displayName: "Ensure AKS Cluster Exists"
@@ -88,10 +88,6 @@ stages:
                 if az aks nodepool show --resource-group $(clustername) --cluster-name $(clustername) --name $(SECONDARY_NODEPOOL) --subscription $(TESTING_SUB) &>/dev/null; then
                   current_count=$(az aks nodepool show --resource-group $(clustername) --cluster-name $(clustername) --name $(SECONDARY_NODEPOOL) --subscription $(TESTING_SUB) --query count -o tsv)
                   echo "Nodepool $(SECONDARY_NODEPOOL) already exists with $current_count nodes"
-                  if [ "$current_count" -ne 2 ]; then
-                    echo "Scaling to 2 nodes first"
-                    make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=2
-                  fi
                 else
                   echo "Adding new nodepool $(SECONDARY_NODEPOOL) with 2 nodes"
                   az aks nodepool add \
@@ -103,11 +99,15 @@ stages:
                     --subscription $(TESTING_SUB) \
                     --os-type Linux \
                     --max-pods 250
+                  current_count=2
                 fi
-                kubectl get nodes -owide
 
-                echo "Scaling nodepool up to 10 nodes"
-                make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=10
+                if [ "$current_count" -ne 10 ]; then
+                  echo "Scaling nodepool to 10 nodes (currently $current_count)"
+                  make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=10
+                else
+                  echo "Nodepool already at 10 nodes, skipping scale up"
+                fi
                 kubectl get nodes -owide
                 kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=20m || true
                 kubectl get pods -Aowide
@@ -156,27 +156,6 @@ stages:
               kubectl get nodes --show-labels
             displayName: "Label Nodes"
 
-  - stage: testing
-    displayName: "Testing - Perf Tests"
-    dependsOn: setup
-    jobs:
-      - job: perf_tests
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        timeoutInMinutes: 120
-        steps:
-          - task: AzureCLI@2
-            displayName: "Fetch Kubeconfig"
-            inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                set -ex
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clustername)
-                kubectl get nodes -owide
-
           - script: |
               set -ex
               PERF_TESTS_DIR=$(Agent.TempDirectory)/perf-tests
@@ -216,7 +195,7 @@ stages:
 
   - stage: scaleDown
     displayName: "Scale Down - Nodepool"
-    dependsOn: testing
+    dependsOn: clusterLifecycle
     condition: succeededOrFailed()
     jobs:
       - job: scale_down
