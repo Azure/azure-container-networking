@@ -10,6 +10,10 @@ parameters:
     displayName: "Delete prometheus nodepool (manual cleanup)"
     type: boolean
     default: false
+  - name: nodeCount
+    displayName: "Target node count for secondary nodepool"
+    type: number
+    default: 110
 
 variables:
   - name: clustername
@@ -84,6 +88,7 @@ stages:
                 set -ex
 
                 AZCLI="az" GROUP="$(clustername)" CLUSTER="$(clustername)" sh ./hack/scripts/wait-cluster-update.sh
+                TARGET_COUNT=${{ parameters.nodeCount }}
 
                 if az aks nodepool show --resource-group $(clustername) --cluster-name $(clustername) --name $(SECONDARY_NODEPOOL) --subscription $(TESTING_SUB) &>/dev/null; then
                   current_count=$(az aks nodepool show --resource-group $(clustername) --cluster-name $(clustername) --name $(SECONDARY_NODEPOOL) --subscription $(TESTING_SUB) --query count -o tsv)
@@ -102,11 +107,23 @@ stages:
                   current_count=2
                 fi
 
-                if [ "$current_count" -ne 10 ]; then
-                  echo "Scaling nodepool to 10 nodes (currently $current_count)"
-                  make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=10
+                BATCH_SIZE=100
+                if [ "$current_count" -lt "$TARGET_COUNT" ]; then
+                  while [ "$current_count" -lt "$TARGET_COUNT" ]; do
+                    new_count=$((current_count + BATCH_SIZE))
+                    if [ "$new_count" -gt "$TARGET_COUNT" ]; then
+                      new_count=$TARGET_COUNT
+                    fi
+                    echo "Scaling nodepool from $current_count to $new_count nodes"
+                    make -C ./hack/aks scale-nodes AZCLI=az CLUSTER=$(clustername) NODEPOOL=$(SECONDARY_NODEPOOL) NODE_COUNT=$new_count
+                    current_count=$new_count
+                    if [ "$current_count" -lt "$TARGET_COUNT" ]; then
+                      echo "Pausing 30s before next batch..."
+                      sleep 30
+                    fi
+                  done
                 else
-                  echo "Nodepool already at 10 nodes, skipping scale up"
+                  echo "Nodepool already at $current_count nodes (target: $TARGET_COUNT), skipping scale up"
                 fi
                 kubectl get nodes -owide
                 kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=20m || true
@@ -165,7 +182,7 @@ stages:
               cd clusterloader2
               CL2_PROMETHEUS_SCRAPE_KUBE_PROXY=false \
               CL2_ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE=false \
-              ./run-podstartup.sh cil-test-results ~/.kube/config $(clustername) 4 2
+              ./run-podstartup.sh cil-test-results ~/.kube/config $(clustername) ${{ parameters.nodeCount }} 20
             displayName: "Run Perf Tests"
             continueOnError: true
 
