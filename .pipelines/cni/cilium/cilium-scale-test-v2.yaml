@@ -173,9 +173,15 @@ stages:
               set -ex
               PERF_TESTS_DIR=$(Agent.TempDirectory)/perf-tests
               RESULTS_DIR="$PERF_TESTS_DIR/clusterloader2/results/cil-test-results"
+              # Rename files containing ":" since publish artifacts does not support that character
+              find "$RESULTS_DIR" -depth -name '*:*' | while read -r f; do
+                dir="$(dirname "$f")"
+                base="$(basename "$f")"
+                mv "$f" "$dir/$(echo "$base" | sed 's/:/_/g')"
+              done
               ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)/cil-test-results"
               mkdir -p "$ARTIFACT_DIR"
-              sudo cp -r "$RESULTS_DIR"/* "$ARTIFACT_DIR"
+              cp -r "$RESULTS_DIR"/* "$ARTIFACT_DIR"
             displayName: "Copy Perf Test Results"
             condition: always()
 
