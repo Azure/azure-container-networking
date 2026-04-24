@@ -22,10 +22,10 @@ variables:
     value: prometheus
 
 stages:
-  - stage: clusterLifecycle
-    displayName: "Cilium Scale AKS Cluster"
+  - stage: setup
+    displayName: "Setup - Cluster & Nodepools"
     jobs:
-      - job: cluster_lifecycle
+      - job: setup
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
         timeoutInMinutes: 120
@@ -156,12 +156,33 @@ stages:
               kubectl get nodes --show-labels
             displayName: "Label Nodes"
 
+  - stage: testing
+    displayName: "Testing - Perf Tests"
+    dependsOn: setup
+    jobs:
+      - job: perf_tests
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        timeoutInMinutes: 120
+        steps:
+          - task: AzureCLI@2
+            displayName: "Fetch Kubeconfig"
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clustername)
+                kubectl get nodes -owide
+
           - script: |
               set -ex
               PERF_TESTS_DIR=$(Agent.TempDirectory)/perf-tests
               git clone https://github.com/QxBytes/perf-tests.git "$PERF_TESTS_DIR"
               cd "$PERF_TESTS_DIR"
-              git checkout bad31e768aa089a3b5b16384508d3539acf3f21e
+              git checkout alew/scale-test
               cd clusterloader2
               CL2_PROMETHEUS_SCRAPE_KUBE_PROXY=false \
               CL2_ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE=false \
@@ -193,6 +214,16 @@ stages:
             name: "PublishPerfTestResults"
             displayName: "Publish Perf Test Results"
 
+  - stage: scaleDown
+    displayName: "Scale Down - Nodepool"
+    dependsOn: testing
+    condition: succeededOrFailed()
+    jobs:
+      - job: scale_down
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        timeoutInMinutes: 30
+        steps:
           - task: AzureCLI@2
             displayName: "Scale Nodepool Down"
             inputs:
