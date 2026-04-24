@@ -112,7 +112,7 @@ stages:
         displayName: "Windows Failure Logs"
         dependsOn:
           - ${{ parameters.name }}_windows
-        condition: always()
+        condition: in(dependencies.${{ parameters.name }}_windows.result, 'Failed', 'SucceededWithIssues')
         steps:
           - template: ../../templates/log-template.yaml
             parameters:
