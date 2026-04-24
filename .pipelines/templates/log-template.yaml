@@ -51,26 +51,26 @@ steps:
 
   - bash: |
       set -o pipefail
-      kubectl get pods -A -owide 2>&1 | tee $(acnLogs)/all-pods.txt
+      kubectl get pods -A -owide 2>&1 | tee "$(acnLogs)/all-pods.txt"
     displayName: All Pods
     condition: always()
 
   - bash: |
       set -o pipefail
-      bash hack/scripts/collect-bad-pod-info.sh 2>&1 | tee $(acnLogs)/bad-pod-info.txt
+      bash hack/scripts/collect-bad-pod-info.sh 2>&1 | tee "$(acnLogs)/bad-pod-info.txt"
     displayName: Collect Bad Pod Info
     condition: always()
     continueOnError: true
 
   - bash: |
       set -o pipefail
-      kubectl describe nodes 2>&1 | tee $(acnLogs)/node-status.txt
+      kubectl describe nodes 2>&1 | tee "$(acnLogs)/node-status.txt"
     displayName: Node Status
     condition: always()
   
   - bash: |
       set -o pipefail
-      kubectl describe nnc -A 2>&1 | tee $(acnLogs)/node-network-configs.txt
+      kubectl describe nnc -A 2>&1 | tee "$(acnLogs)/node-network-configs.txt"
     displayName: Describe Node Network Configs (NNCs)
     condition: and(always(), ne('${{ parameters.cni }}', 'cniv1')) # cniv1/nodesubnet scenarios do not have node network configs
     continueOnError: true # even if nnc doesn't exist we want to continue
@@ -85,7 +85,7 @@ steps:
           echo "$ds"
           kubectl describe ds -n kube-system $ds | grep Image
         done
-      } 2>&1 | tee $(acnLogs)/daemonset-images.txt
+      } 2>&1 | tee "$(acnLogs)/daemonset-images.txt"
     displayName: Daemonset Images
     condition: always()
 
@@ -99,7 +99,7 @@ steps:
           echo "$deploy"
           kubectl describe deploy -n kube-system $deploy | grep Image
         done
-      } 2>&1 | tee $(acnLogs)/deployment-images.txt
+      } 2>&1 | tee "$(acnLogs)/deployment-images.txt"
     displayName: Deployment Images
     condition: always()
 
