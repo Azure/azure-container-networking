@@ -172,7 +172,7 @@ stages:
           - script: |
               set -ex
               PERF_TESTS_DIR=$(Agent.TempDirectory)/perf-tests
-              RESULTS_DIR="$PERF_TESTS_DIR/clusterloader2/cil-test-results"
+              RESULTS_DIR="$PERF_TESTS_DIR/clusterloader2/results/cil-test-results"
               ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)/cil-test-results"
               mkdir -p "$ARTIFACT_DIR"
               sudo cp -r "$RESULTS_DIR"/* "$ARTIFACT_DIR"
