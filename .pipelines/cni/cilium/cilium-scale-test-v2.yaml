@@ -156,6 +156,37 @@ stages:
               kubectl get nodes --show-labels
             displayName: "Label Nodes"
 
+          - script: |
+              set -ex
+              PERF_TESTS_DIR=$(Agent.TempDirectory)/perf-tests
+              git clone https://github.com/QxBytes/perf-tests.git "$PERF_TESTS_DIR"
+              cd "$PERF_TESTS_DIR"
+              git checkout bad31e768aa089a3b5b16384508d3539acf3f21e
+              cd clusterloader2
+              CL2_PROMETHEUS_SCRAPE_KUBE_PROXY=false \
+              CL2_ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE=false \
+              ./run-podstartup.sh cil-test-results ~/.kube/config $(clustername) 4 2
+            displayName: "Run Perf Tests"
+            continueOnError: true
+
+          - script: |
+              set -ex
+              PERF_TESTS_DIR=$(Agent.TempDirectory)/perf-tests
+              RESULTS_DIR="$PERF_TESTS_DIR/clusterloader2/cil-test-results"
+              ARTIFACT_DIR="$(Build.ArtifactStagingDirectory)/cil-test-results"
+              mkdir -p "$ARTIFACT_DIR"
+              sudo cp -r "$RESULTS_DIR"/* "$ARTIFACT_DIR"
+            displayName: "Copy Perf Test Results"
+            condition: always()
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: cil-test-results
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/cil-test-results"
+            condition: always()
+            name: "PublishPerfTestResults"
+            displayName: "Publish Perf Test Results"
+
           - task: AzureCLI@2
             displayName: "Scale Nodepool Down"
             inputs:
