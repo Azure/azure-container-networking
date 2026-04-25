@@ -1,6 +1,7 @@
 package restserver
 
 import (
+	"net"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -115,27 +116,132 @@ func TestFindEndpointStateByMAC(t *testing.T) {
 	}
 }
 
-func TestCleanupStaleHNSResources(t *testing.T) {
+func TestFindStaleContainerByApipaIP(t *testing.T) {
 	tests := []struct {
 		name            string
 		endpointState   map[string]*EndpointInfo
-		containerStatus map[string]containerstatus // NC goal state (azure-cns.json)
-		mac             string
-		ncID            string // incoming NC ID for the CreateNC request
-		hnsErr          error  // error to return from mock HNS client
-		wantErr         bool
-		wantRemaining   int
-		wantRemovedKey  string
+		ncID            string
+		apipaIP         string
+		wantContainerID string
+		wantIfName      string
+		wantFound       bool
 	}{
 		{
-			name:          "no stale entries",
+			name:          "empty apipaIP returns nil",
+			endpointState: map[string]*EndpointInfo{},
+			ncID:          "Swift_new-nc",
+			apipaIP:       "",
+		},
+		{
+			name:          "empty endpoint state returns nil",
+			endpointState: map[string]*EndpointInfo{},
+			ncID:          "Swift_new-nc",
+			apipaIP:       "169.254.128.4",
+		},
+		{
+			name: "skips APIPA belonging to the same NC",
+			endpointState: map[string]*EndpointInfo{
+				"container-1": {
+					IfnameToIPMap: map[string]*IPInfo{
+						"HostNCApipaEndpoint-Swift_new-nc": {
+							NICType:            cns.ApipaNIC,
+							NetworkContainerID: "Swift_new-nc",
+							IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.128.4").To4(), Mask: net.CIDRMask(16, 32)}},
+							HnsEndpointID:      "apipa-ep-1",
+						},
+					},
+				},
+			},
+			ncID:    "Swift_new-nc",
+			apipaIP: "169.254.128.4",
+		},
+		{
+			name: "returns stale APIPA with matching IP from a different NC",
+			endpointState: map[string]*EndpointInfo{
+				"container-1": {
+					IfnameToIPMap: map[string]*IPInfo{
+						"Ethernet 4": {
+							NICType:       cns.DelegatedVMNIC,
+							MacAddress:    "00:22:48:b5:f5:11",
+							HnsEndpointID: "ep-delegated",
+							HnsNetworkID:  "net-delegated",
+						},
+						"HostNCApipaEndpoint-Swift_old-nc": {
+							NICType:            cns.ApipaNIC,
+							NetworkContainerID: "Swift_old-nc",
+							IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.128.4").To4(), Mask: net.CIDRMask(16, 32)}},
+							HnsEndpointID:      "apipa-ep-1",
+						},
+					},
+				},
+			},
+			ncID:            "Swift_new-nc",
+			apipaIP:         "169.254.128.4",
+			wantContainerID: "container-1",
+			wantIfName:      "HostNCApipaEndpoint-Swift_old-nc",
+			wantFound:       true,
+		},
+		{
+			name: "skips APIPA with non-matching IP",
+			endpointState: map[string]*EndpointInfo{
+				"container-1": {
+					IfnameToIPMap: map[string]*IPInfo{
+						"HostNCApipaEndpoint-Swift_old-nc": {
+							NICType:            cns.ApipaNIC,
+							NetworkContainerID: "Swift_old-nc",
+							IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.128.5").To4(), Mask: net.CIDRMask(16, 32)}},
+							HnsEndpointID:      "apipa-ep-1",
+						},
+					},
+				},
+			},
+			ncID:    "Swift_new-nc",
+			apipaIP: "169.254.128.4",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := getTestService(cns.AzureContainerInstance)
+			svc.EndpointState = tt.endpointState
+			containerID, ifName, ipInfo := svc.findStaleContainerByApipaIP(tt.ncID, tt.apipaIP)
+			if tt.wantFound {
+				assert.Equal(t, tt.wantContainerID, containerID)
+				assert.Equal(t, tt.wantIfName, ifName)
+				assert.NotNil(t, ipInfo)
+			} else {
+				assert.Empty(t, containerID)
+				assert.Empty(t, ifName)
+				assert.Nil(t, ipInfo)
+			}
+		})
+	}
+}
+
+func TestCleanupStaleHNSResources(t *testing.T) {
+	tests := []struct {
+		name                 string
+		endpointState        map[string]*EndpointInfo
+		containerStatus      map[string]containerstatus // NC goal state (azure-cns.json)
+		mac                  string
+		ncID                 string // incoming NC ID for the CreateNC request
+		apipaIP              string // incoming APIPA IP for the CreateNC request
+		hnsErr               error  // error to return from mock HNS client
+		wantErr              bool
+		wantRemaining        int
+		wantRemovedKey       string
+		wantDeletedEndpoints []string
+		wantDeletedNetworks  []string
+	}{
+		{
+			name:          "no-op when endpoint state is empty",
 			endpointState: map[string]*EndpointInfo{},
 			mac:           "00:11:22:33:44:55",
 			ncID:          "Swift_new-nc",
 			wantRemaining: 0,
 		},
 		{
-			name: "match found, cleanup succeeds",
+			name: "deletes stale delegated NIC endpoint and network by MAC",
 			endpointState: map[string]*EndpointInfo{
 				"stale-container": {
 					PodName: "pod1", PodNamespace: "ns1",
