@@ -250,13 +250,15 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:            "00:11:22:33:44:55",
-			ncID:           "Swift_new-nc",
-			wantRemaining:  0,
-			wantRemovedKey: "stale-container",
+			mac:                  "00:11:22:33:44:55",
+			ncID:                 "Swift_new-nc",
+			wantRemaining:        0,
+			wantRemovedKey:       "stale-container",
+			wantDeletedEndpoints: []string{"ep-1"},
+			wantDeletedNetworks:  []string{"net-1"},
 		},
 		{
-			name: "match found, HNS delete fails",
+			name: "returns error when HNS endpoint delete fails",
 			endpointState: map[string]*EndpointInfo{
 				"stale-container": {
 					PodName: "pod1", PodNamespace: "ns1",
@@ -272,7 +274,7 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 			wantRemaining: 1,
 		},
 		{
-			name: "no match, different MAC",
+			name: "no-op when no endpoint matches the MAC",
 			endpointState: map[string]*EndpointInfo{
 				"container-1": {
 					PodName: "pod1", PodNamespace: "ns1",
@@ -286,7 +288,7 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 			wantRemaining: 1,
 		},
 		{
-			name: "no match, wrong NIC type",
+			name: "no-op when MAC matches only an InfraNIC",
 			endpointState: map[string]*EndpointInfo{
 				"container-1": {
 					PodName: "pod1", PodNamespace: "ns1",
@@ -300,7 +302,7 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 			wantRemaining: 1,
 		},
 		{
-			name: "different NC ID exists in NC goal state for the same MAC, cleanup proceeds",
+			name: "cleans up when NC goal state has a different NC for the same MAC",
 			endpointState: map[string]*EndpointInfo{
 				"stale-container": {
 					PodName: "pod1", PodNamespace: "ns1",
@@ -320,13 +322,15 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:            "00:11:22:33:44:55",
-			ncID:           "Swift_new-nc", // different NC ID → MAC was reassigned, cleanup should proceed
-			wantRemaining:  0,
-			wantRemovedKey: "stale-container",
+			mac:                  "00:11:22:33:44:55",
+			ncID:                 "Swift_new-nc", // different NC ID → MAC was reassigned, cleanup should proceed
+			wantRemaining:        0,
+			wantRemovedKey:       "stale-container",
+			wantDeletedEndpoints: []string{"ep-1"},
+			wantDeletedNetworks:  []string{"net-1"},
 		},
 		{
-			name: "same NC ID exists in NC goal state for the same MAC, skip cleanup",
+			name: "skips cleanup when NC goal state has the same NC for the MAC",
 			endpointState: map[string]*EndpointInfo{
 				"live-container": {
 					PodName: "pod1", PodNamespace: "ns1",
@@ -350,6 +354,119 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 			ncID:          "Swift_test-nc", // same NC ID as in NC goal state
 			wantRemaining: 1,               // endpoint state NOT deleted because same NC+MAC exists
 		},
+		{
+			name: "deletes both stale APIPA and delegated NIC in the same container",
+			endpointState: map[string]*EndpointInfo{
+				"stale-container": {
+					PodName: "pod1", PodNamespace: "ns1",
+					IfnameToIPMap: map[string]*IPInfo{
+						"Ethernet 4": {NICType: cns.DelegatedVMNIC, MacAddress: "00:22:48:b5:f5:11", HnsEndpointID: "ep-delegated", HnsNetworkID: "net-delegated"},
+						"HostNCApipaEndpoint-Swift_old-nc": {
+							NICType:            cns.ApipaNIC,
+							NetworkContainerID: "Swift_old-nc",
+							IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.128.4").To4(), Mask: net.CIDRMask(16, 32)}},
+							HnsEndpointID:      "apipa-ep-1",
+						},
+					},
+				},
+			},
+			mac:                  "00:22:48:b5:f5:11",
+			ncID:                 "Swift_new-nc",
+			apipaIP:              "169.254.128.4",
+			wantRemaining:        0,
+			wantRemovedKey:       "stale-container",
+			wantDeletedEndpoints: []string{"apipa-ep-1", "ep-delegated"},
+			wantDeletedNetworks:  []string{"net-delegated"},
+		},
+		{
+			name: "deletes stale APIPA container HNS resources when APIPA IP matches but MAC does not",
+			endpointState: map[string]*EndpointInfo{
+				"container-1": {
+					PodName: "pod1", PodNamespace: "ns1",
+					IfnameToIPMap: map[string]*IPInfo{
+						"Ethernet 4": {NICType: cns.DelegatedVMNIC, MacAddress: "aa:bb:cc:dd:ee:ff", HnsEndpointID: "ep-other", HnsNetworkID: "net-other"},
+						"HostNCApipaEndpoint-Swift_old-nc": {
+							NICType:            cns.ApipaNIC,
+							NetworkContainerID: "Swift_old-nc",
+							IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.128.5").To4(), Mask: net.CIDRMask(16, 32)}},
+							HnsEndpointID:      "apipa-ep-2",
+						},
+					},
+				},
+			},
+			mac:                  "00:22:48:b5:f5:11", // no match for this MAC
+			ncID:                 "Swift_new-nc",
+			apipaIP:              "169.254.128.5",
+			wantRemaining:        0,
+			wantRemovedKey:       "container-1",
+			wantDeletedEndpoints: []string{"apipa-ep-2", "ep-other"},
+			wantDeletedNetworks:  []string{"net-other"},
+		},
+		{
+			name: "returns error on APIPA HNS delete failure without cleaning delegated NIC",
+			endpointState: map[string]*EndpointInfo{
+				"stale-container": {
+					PodName: "pod1", PodNamespace: "ns1",
+					IfnameToIPMap: map[string]*IPInfo{
+						"Ethernet 4": {NICType: cns.DelegatedVMNIC, MacAddress: "00:22:48:b5:f5:11", HnsEndpointID: "ep-delegated", HnsNetworkID: "net-delegated"},
+						"HostNCApipaEndpoint-Swift_old-nc": {
+							NICType:            cns.ApipaNIC,
+							NetworkContainerID: "Swift_old-nc",
+							IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.128.4").To4(), Mask: net.CIDRMask(16, 32)}},
+							HnsEndpointID:      "apipa-ep-1",
+						},
+					},
+				},
+			},
+			mac:           "00:22:48:b5:f5:11",
+			ncID:          "Swift_new-nc",
+			apipaIP:       "169.254.128.4",
+			hnsErr:        errors.New("HNS access denied"),
+			wantErr:       true,
+			wantRemaining: 1, // nothing removed
+		},
+		{
+			name: "deletes orphaned APIPA via MAC-based container cleanup when APIPA IP differs",
+			endpointState: map[string]*EndpointInfo{
+				"stale-container": {
+					PodName: "pod1", PodNamespace: "ns1",
+					IfnameToIPMap: map[string]*IPInfo{
+						"Ethernet 4": {NICType: cns.DelegatedVMNIC, MacAddress: "00:22:48:b5:f5:11", HnsEndpointID: "ep-delegated", HnsNetworkID: "net-delegated"},
+						"HostNCApipaEndpoint-Swift_old-nc": {
+							NICType:            cns.ApipaNIC,
+							NetworkContainerID: "Swift_old-nc",
+							IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.128.6").To4(), Mask: net.CIDRMask(17, 32)}},
+							HnsEndpointID:      "apipa-ep-orphan",
+						},
+					},
+				},
+			},
+			mac:                  "00:22:48:b5:f5:11",
+			ncID:                 "Swift_new-nc",
+			apipaIP:              "169.254.128.4", // different from the stale APIPA IP 128.6
+			wantRemaining:        0,
+			wantRemovedKey:       "stale-container",
+			wantDeletedEndpoints: []string{"apipa-ep-orphan", "ep-delegated"},
+			wantDeletedNetworks:  []string{"net-delegated"},
+		},
+		{
+			name: "cleans up delegated NIC when no APIPA IP is provided",
+			endpointState: map[string]*EndpointInfo{
+				"stale-container": {
+					PodName: "pod1", PodNamespace: "ns1",
+					IfnameToIPMap: map[string]*IPInfo{
+						"eth0": {NICType: cns.DelegatedVMNIC, MacAddress: "00:11:22:33:44:55", HnsEndpointID: "ep-1", HnsNetworkID: "net-1"},
+					},
+				},
+			},
+			mac:                  "00:11:22:33:44:55",
+			ncID:                 "Swift_new-nc",
+			apipaIP:              "",
+			wantRemaining:        0,
+			wantRemovedKey:       "stale-container",
+			wantDeletedEndpoints: []string{"ep-1"},
+			wantDeletedNetworks:  []string{"net-1"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -368,7 +485,7 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 			t.Cleanup(func() { defaultHNSClient = orig })
 			defaultHNSClient = mockClient
 
-			err := svc.cleanupStaleHNSResources(tt.ncID, tt.mac)
+			err := svc.cleanupStaleHNSResources(tt.ncID, tt.mac, tt.apipaIP)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -387,10 +504,13 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 				require.NoError(t, readErr)
 				_, existsInStore := persisted[tt.wantRemovedKey]
 				assert.False(t, existsInStore, "expected key %s to be removed from persisted store", tt.wantRemovedKey)
+			}
 
-				// Verify mock was called with correct IDs
-				assert.Equal(t, []string{"ep-1"}, mockClient.deletedEndpointIDs)
-				assert.Equal(t, []string{"net-1"}, mockClient.deletedNetworkIDs)
+			if tt.wantDeletedEndpoints != nil {
+				assert.ElementsMatch(t, tt.wantDeletedEndpoints, mockClient.deletedEndpointIDs)
+			}
+			if tt.wantDeletedNetworks != nil {
+				assert.ElementsMatch(t, tt.wantDeletedNetworks, mockClient.deletedNetworkIDs)
 			}
 		})
 	}
