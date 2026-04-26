@@ -32,7 +32,7 @@ stages:
       - job: cluster_lifecycle
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-        timeoutInMinutes: 240
+        timeoutInMinutes: 420
         steps:
           - task: AzureCLI@2
             displayName: "Ensure AKS Cluster Exists"
@@ -159,11 +159,6 @@ stages:
                 kubectl get nodes -owide
 
           - script: |
-              bash ./hack/scripts/collect-bad-pod-info.sh
-            condition: always()
-            displayName: "Collect Bad Pod Info"
-
-          - script: |
               set -ex
               echo "Labeling $(SECONDARY_NODEPOOL) nodes with slo=true"
               kubectl label nodes -l agentpool=$(SECONDARY_NODEPOOL) slo=true --overwrite
@@ -218,7 +213,7 @@ stages:
       - job: scale_down
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-        timeoutInMinutes: 30
+        timeoutInMinutes: 120
         steps:
           - task: AzureCLI@2
             displayName: "Scale Nodepool Down"
