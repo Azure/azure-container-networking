@@ -131,12 +131,14 @@ func TestFindStaleContainerByApipaIP(t *testing.T) {
 			endpointState: map[string]*EndpointInfo{},
 			ncID:          "Swift_new-nc",
 			apipaIP:       "",
+			wantFound:     false,
 		},
 		{
 			name:          "empty endpoint state returns nil",
 			endpointState: map[string]*EndpointInfo{},
 			ncID:          "Swift_new-nc",
 			apipaIP:       "169.254.128.4",
+			wantFound:     false,
 		},
 		{
 			name: "skips APIPA belonging to the same NC",
@@ -152,8 +154,27 @@ func TestFindStaleContainerByApipaIP(t *testing.T) {
 					},
 				},
 			},
-			ncID:    "Swift_new-nc",
-			apipaIP: "169.254.128.4",
+			ncID:      "Swift_new-nc",
+			apipaIP:   "169.254.128.4",
+			wantFound: false,
+		},
+		{
+			name: "skips APIPA with non-matching IP",
+			endpointState: map[string]*EndpointInfo{
+				"container-1": {
+					IfnameToIPMap: map[string]*IPInfo{
+						"HostNCApipaEndpoint-Swift_old-nc": {
+							NICType:            cns.ApipaNIC,
+							NetworkContainerID: "Swift_old-nc",
+							IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.128.5").To4(), Mask: net.CIDRMask(16, 32)}},
+							HnsEndpointID:      "apipa-ep-1",
+						},
+					},
+				},
+			},
+			ncID:      "Swift_new-nc",
+			apipaIP:   "169.254.128.4",
+			wantFound: false,
 		},
 		{
 			name: "returns stale APIPA with matching IP from a different NC",
@@ -180,23 +201,6 @@ func TestFindStaleContainerByApipaIP(t *testing.T) {
 			wantContainerID: "container-1",
 			wantIfName:      "HostNCApipaEndpoint-Swift_old-nc",
 			wantFound:       true,
-		},
-		{
-			name: "skips APIPA with non-matching IP",
-			endpointState: map[string]*EndpointInfo{
-				"container-1": {
-					IfnameToIPMap: map[string]*IPInfo{
-						"HostNCApipaEndpoint-Swift_old-nc": {
-							NICType:            cns.ApipaNIC,
-							NetworkContainerID: "Swift_old-nc",
-							IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.128.5").To4(), Mask: net.CIDRMask(16, 32)}},
-							HnsEndpointID:      "apipa-ep-1",
-						},
-					},
-				},
-			},
-			ncID:    "Swift_new-nc",
-			apipaIP: "169.254.128.4",
 		},
 	}
 
