@@ -120,6 +120,8 @@ stages:
                     if [ "$current_count" -lt "$TARGET_COUNT" ]; then
                       echo "Pausing 30s before next batch..."
                       sleep 30
+                      kubectl get nodes -owide
+                      kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=20m || true
                     fi
                   done
                 else
