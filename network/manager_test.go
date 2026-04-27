@@ -491,11 +491,11 @@ var _ = Describe("Test Manager", func() {
 				mac1, _ := net.ParseMAC("12:34:56:78:9a:bc")
 				endpoints := []*endpoint{
 					{
-						IfName:             "HostNCApipaEndpoint-Swift_abc123",
-						NICType:            cns.ApipaNIC,
-						HnsId:              "hnsEndpointID1",
-						MacAddress:         mac1,
-						IPAddresses:        []net.IPNet{
+						IfName:     "HostNCApipaEndpoint-Swift_abc123",
+						NICType:    cns.ApipaNIC,
+						HnsId:      "hnsEndpointID1",
+						MacAddress: mac1,
+						IPAddresses: []net.IPNet{
 							{IP: net.ParseIP("169.254.0.4"), Mask: net.CIDRMask(16, 32)},
 							{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(128, 128)},
 						},
