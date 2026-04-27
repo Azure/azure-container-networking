@@ -225,6 +225,8 @@ stages:
               inlineScript: |
                 set -ex
 
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clustername)
+
                 current_count=$(az aks nodepool show --resource-group $(clustername) --cluster-name $(clustername) --name $(SECONDARY_NODEPOOL) --subscription $(TESTING_SUB) --query count -o tsv)
                 if [ "$current_count" -ne 2 ]; then
                   echo "Scaling nodepool back down to 2 nodes (currently $current_count)"
