@@ -1852,9 +1852,9 @@ func TestValidateArgs(t *testing.T) {
 
 func TestBuildNmAgentSupportedApisURL(t *testing.T) {
 	tests := []struct {
-		name               string
-		wireServerAddress  string
-		expectedURL        string
+		name              string
+		wireServerAddress string
+		expectedURL       string
 	}{
 		{
 			name:              "empty string defaults to well-known wireserver IP",
@@ -1874,7 +1874,6 @@ func TestBuildNmAgentSupportedApisURL(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			result := buildNmAgentSupportedApisURL(tt.wireServerAddress)
 			assert.Equal(t, tt.expectedURL, result)
