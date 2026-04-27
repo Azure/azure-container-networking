@@ -224,25 +224,25 @@ func TestFindStaleContainerByApipaIP(t *testing.T) {
 
 func TestCleanupStaleHNSResources(t *testing.T) {
 	tests := []struct {
-		name                 string
-		endpointState        map[string]*EndpointInfo
-		containerStatus      map[string]containerstatus // NC goal state (azure-cns.json)
-		mac                  string
-		ncID                 string // incoming NC ID for the CreateNC request
-		apipaIP              string // incoming APIPA IP for the CreateNC request
-		hnsErr               error  // error to return from mock HNS client
-		wantErr              bool
-		wantRemaining        int
-		wantRemovedKey       string
-		wantDeletedEndpoints []string
-		wantDeletedNetworks  []string
+		name                   string
+		endpointState          map[string]*EndpointInfo
+		containerStatus        map[string]containerstatus // NC goal state (azure-cns.json)
+		mac                    string
+		ncID                   string // incoming NC ID for the CreateNC request
+		apipaIP                string // incoming APIPA IP for the CreateNC request
+		hnsErr                 error  // error to return from mock HNS client
+		wantErr                bool
+		wantRemainingEndpoints int
+		wantRemovedKey         string
+		wantDeletedEndpoints   []string
+		wantDeletedNetworks    []string
 	}{
 		{
-			name:          "no-op when endpoint state is empty",
-			endpointState: map[string]*EndpointInfo{},
-			mac:           "00:11:22:33:44:55",
-			ncID:          "Swift_new-nc",
-			wantRemaining: 0,
+			name:                   "no-op when endpoint state is empty",
+			endpointState:          map[string]*EndpointInfo{},
+			mac:                    "00:11:22:33:44:55",
+			ncID:                   "Swift_new-nc",
+			wantRemainingEndpoints: 0,
 		},
 		{
 			name: "deletes stale delegated NIC endpoint and network by MAC",
@@ -254,12 +254,12 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:                  "00:11:22:33:44:55",
-			ncID:                 "Swift_new-nc",
-			wantRemaining:        0,
-			wantRemovedKey:       "stale-container",
-			wantDeletedEndpoints: []string{"ep-1"},
-			wantDeletedNetworks:  []string{"net-1"},
+			mac:                    "00:11:22:33:44:55",
+			ncID:                   "Swift_new-nc",
+			wantRemainingEndpoints: 0,
+			wantRemovedKey:         "stale-container",
+			wantDeletedEndpoints:   []string{"ep-1"},
+			wantDeletedNetworks:    []string{"net-1"},
 		},
 		{
 			name: "returns error when HNS endpoint delete fails",
@@ -271,11 +271,11 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:           "00:11:22:33:44:55",
-			ncID:          "Swift_new-nc",
-			hnsErr:        errors.New("HNS access denied"),
-			wantErr:       true,
-			wantRemaining: 1,
+			mac:                    "00:11:22:33:44:55",
+			ncID:                   "Swift_new-nc",
+			hnsErr:                 errors.New("HNS access denied"),
+			wantErr:                true,
+			wantRemainingEndpoints: 1,
 		},
 		{
 			name: "no-op when no endpoint matches the MAC",
@@ -287,9 +287,9 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:           "00:11:22:33:44:55",
-			ncID:          "Swift_new-nc",
-			wantRemaining: 1,
+			mac:                    "00:11:22:33:44:55",
+			ncID:                   "Swift_new-nc",
+			wantRemainingEndpoints: 1,
 		},
 		{
 			name: "no-op when MAC matches only an InfraNIC",
@@ -301,9 +301,9 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:           "00:11:22:33:44:55",
-			ncID:          "Swift_new-nc",
-			wantRemaining: 1,
+			mac:                    "00:11:22:33:44:55",
+			ncID:                   "Swift_new-nc",
+			wantRemainingEndpoints: 1,
 		},
 		{
 			name: "cleans up when NC goal state has a different NC for the same MAC",
@@ -326,12 +326,12 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:                  "00:11:22:33:44:55",
-			ncID:                 "Swift_new-nc", // different NC ID → MAC was reassigned, cleanup should proceed
-			wantRemaining:        0,
-			wantRemovedKey:       "stale-container",
-			wantDeletedEndpoints: []string{"ep-1"},
-			wantDeletedNetworks:  []string{"net-1"},
+			mac:                    "00:11:22:33:44:55",
+			ncID:                   "Swift_new-nc", // different NC ID → MAC was reassigned, cleanup should proceed
+			wantRemainingEndpoints: 0,
+			wantRemovedKey:         "stale-container",
+			wantDeletedEndpoints:   []string{"ep-1"},
+			wantDeletedNetworks:    []string{"net-1"},
 		},
 		{
 			name: "skips cleanup when NC goal state has the same NC for the MAC",
@@ -354,9 +354,9 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:           "00:11:22:33:44:55",
-			ncID:          "Swift_test-nc", // same NC ID as in NC goal state
-			wantRemaining: 1,               // endpoint state NOT deleted because same NC+MAC exists
+			mac:                    "00:11:22:33:44:55",
+			ncID:                   "Swift_test-nc", // same NC ID as in NC goal state
+			wantRemainingEndpoints: 1,               // endpoint state NOT deleted because same NC+MAC exists
 		},
 		{
 			name: "deletes both stale APIPA and delegated NIC in the same container",
@@ -374,13 +374,13 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:                  "00:22:48:b5:f5:11",
-			ncID:                 "Swift_new-nc",
-			apipaIP:              "169.254.128.4",
-			wantRemaining:        0,
-			wantRemovedKey:       "stale-container",
-			wantDeletedEndpoints: []string{"apipa-ep-1", "ep-delegated"},
-			wantDeletedNetworks:  []string{"net-delegated"},
+			mac:                    "00:22:48:b5:f5:11",
+			ncID:                   "Swift_new-nc",
+			apipaIP:                "169.254.128.4",
+			wantRemainingEndpoints: 0,
+			wantRemovedKey:         "stale-container",
+			wantDeletedEndpoints:   []string{"apipa-ep-1", "ep-delegated"},
+			wantDeletedNetworks:    []string{"net-delegated"},
 		},
 		{
 			name: "deletes stale APIPA container HNS resources when APIPA IP matches but MAC does not",
@@ -398,13 +398,13 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:                  "00:22:48:b5:f5:11", // no match for this MAC
-			ncID:                 "Swift_new-nc",
-			apipaIP:              "169.254.128.5",
-			wantRemaining:        0,
-			wantRemovedKey:       "container-1",
-			wantDeletedEndpoints: []string{"apipa-ep-2", "ep-other"},
-			wantDeletedNetworks:  []string{"net-other"},
+			mac:                    "00:22:48:b5:f5:11", // no match for this MAC
+			ncID:                   "Swift_new-nc",
+			apipaIP:                "169.254.128.5",
+			wantRemainingEndpoints: 0,
+			wantRemovedKey:         "container-1",
+			wantDeletedEndpoints:   []string{"apipa-ep-2", "ep-other"},
+			wantDeletedNetworks:    []string{"net-other"},
 		},
 		{
 			name: "returns error on APIPA HNS delete failure without cleaning delegated NIC",
@@ -422,12 +422,12 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:           "00:22:48:b5:f5:11",
-			ncID:          "Swift_new-nc",
-			apipaIP:       "169.254.128.4",
-			hnsErr:        errors.New("HNS access denied"),
-			wantErr:       true,
-			wantRemaining: 1, // nothing removed
+			mac:                    "00:22:48:b5:f5:11",
+			ncID:                   "Swift_new-nc",
+			apipaIP:                "169.254.128.4",
+			hnsErr:                 errors.New("HNS access denied"),
+			wantErr:                true,
+			wantRemainingEndpoints: 1, // nothing removed
 		},
 		{
 			name: "deletes orphaned APIPA via MAC-based container cleanup when APIPA IP differs",
@@ -445,13 +445,13 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:                  "00:22:48:b5:f5:11",
-			ncID:                 "Swift_new-nc",
-			apipaIP:              "169.254.128.4", // different from the stale APIPA IP 128.6
-			wantRemaining:        0,
-			wantRemovedKey:       "stale-container",
-			wantDeletedEndpoints: []string{"apipa-ep-orphan", "ep-delegated"},
-			wantDeletedNetworks:  []string{"net-delegated"},
+			mac:                    "00:22:48:b5:f5:11",
+			ncID:                   "Swift_new-nc",
+			apipaIP:                "169.254.128.4", // different from the stale APIPA IP 128.6
+			wantRemainingEndpoints: 0,
+			wantRemovedKey:         "stale-container",
+			wantDeletedEndpoints:   []string{"apipa-ep-orphan", "ep-delegated"},
+			wantDeletedNetworks:    []string{"net-delegated"},
 		},
 		{
 			name: "cleans up delegated NIC when no APIPA IP is provided",
@@ -463,13 +463,13 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 					},
 				},
 			},
-			mac:                  "00:11:22:33:44:55",
-			ncID:                 "Swift_new-nc",
-			apipaIP:              "",
-			wantRemaining:        0,
-			wantRemovedKey:       "stale-container",
-			wantDeletedEndpoints: []string{"ep-1"},
-			wantDeletedNetworks:  []string{"net-1"},
+			mac:                    "00:11:22:33:44:55",
+			ncID:                   "Swift_new-nc",
+			apipaIP:                "",
+			wantRemainingEndpoints: 0,
+			wantRemovedKey:         "stale-container",
+			wantDeletedEndpoints:   []string{"ep-1"},
+			wantDeletedNetworks:    []string{"net-1"},
 		},
 	}
 
@@ -496,7 +496,7 @@ func TestCleanupStaleHNSResources(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			assert.Len(t, svc.EndpointState, tt.wantRemaining)
+			assert.Len(t, svc.EndpointState, tt.wantRemainingEndpoints)
 
 			if tt.wantRemovedKey != "" {
 				_, exists := svc.EndpointState[tt.wantRemovedKey]
