@@ -163,6 +163,9 @@ func (nw *network) newEndpointImpl(
 					plc,
 					iptc)
 			}
+		} else if epInfo.Mode == opModeTransparentTunnel {
+			logger.Info("Transparent tunnel client")
+			epClient = NewTransparentTunnelEndpointClient(nw, epInfo, hostIfName, contIfName, nl, netioCli, plc, iptc)
 		} else if epInfo.Mode != opModeTransparent {
 			logger.Info("Bridge client")
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, epInfo.Mode, nl, plc)
@@ -282,6 +285,9 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			} else {
 				epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc, iptc)
 			}
+		} else if mode == opModeTransparentTunnel {
+			epInfo := ep.getInfo()
+			epClient = NewTransparentTunnelEndpointClient(nw, epInfo, ep.HostIfName, "", nl, nioc, plc, iptc)
 		} else if mode != opModeTransparent {
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", mode, nl, plc)
 		} else {
