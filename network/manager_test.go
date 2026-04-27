@@ -495,7 +495,10 @@ var _ = Describe("Test Manager", func() {
 						NICType:            cns.ApipaNIC,
 						HnsId:              "hnsEndpointID1",
 						MacAddress:         mac1,
-						IPAddresses:        []net.IPNet{{IP: net.ParseIP("169.254.0.4"), Mask: net.CIDRMask(16, 32)}},
+						IPAddresses:        []net.IPNet{
+							{IP: net.ParseIP("169.254.0.4"), Mask: net.CIDRMask(16, 32)},
+							{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(128, 128)},
+						},
 						NetworkContainerID: "Swift_abc123",
 					},
 				}
@@ -509,6 +512,7 @@ var _ = Describe("Test Manager", func() {
 						HnsEndpointID:      "hnsEndpointID1",
 						MacAddress:         "12:34:56:78:9a:bc",
 						IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.0.4"), Mask: net.CIDRMask(16, 32)}},
+						IPv6:               []net.IPNet{{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(128, 128)}},
 						NetworkContainerID: "Swift_abc123",
 					},
 				))
