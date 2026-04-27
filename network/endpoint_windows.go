@@ -445,6 +445,7 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 		ContainerID:        epInfo.ContainerID,
 		NICType:            cns.ApipaNIC,
 		NetworkContainerID: epInfo.NetworkContainerID,
+		IPAddresses:        epInfo.IPAddresses,
 	}
 
 	return ep, nil

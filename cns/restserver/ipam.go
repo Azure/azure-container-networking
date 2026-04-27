@@ -1432,6 +1432,13 @@ func updateIPInfoMap(iPInfo map[string]*IPInfo, interfaceInfo *IPInfo, ifName, e
 		iPInfo[ifName].NetworkContainerID = interfaceInfo.NetworkContainerID
 		logger.Printf("[updateEndpoint] update the endpoint %s with NetworkContainerID  %s", endpointID, interfaceInfo.NetworkContainerID) //nolint
 	}
+
+	if len(interfaceInfo.IPv4) > 0 {
+		iPInfo[ifName].IPv4 = interfaceInfo.IPv4
+	}
+	if len(interfaceInfo.IPv6) > 0 {
+		iPInfo[ifName].IPv6 = interfaceInfo.IPv6
+	}
 }
 
 // verifyUpdateEndpointStateRequest verify the CNI request body for the UpdateENdpointState API
