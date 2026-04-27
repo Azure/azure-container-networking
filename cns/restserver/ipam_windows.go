@@ -93,11 +93,11 @@ func (service *HTTPRestService) ncAlreadyExistsForMAC(ncID, mac string) bool {
 	return normalizeMAC(nc.CreateNetworkContainerRequest.NetworkInterfaceInfo.MACAddress) == normalizeMAC(mac)
 }
 
-// cleanupStaleContainerHNSResources deletes ALL HNS resources (delegated NIC endpoint+network
-// and any APIPA endpoints) for a container, then removes the container from EndpointState.
+// cleanupContainerHNSResources deletes all HNS resources (delegated NIC endpoint+network
+// and any APIPA endpoints) for a SwiftV2 container, then removes the container from EndpointState.
 // Caller must hold the service lock.
-func (service *HTTPRestService) cleanupStaleContainerHNSResources(containerID string) (hnsEndpointID, hnsNetworkID string, _ error) {
-	logger.Printf("[cleanupStaleContainerHNSResources] cleaning up all HNS resources for container %s", containerID) //nolint:staticcheck // TODO: migrate to zap logger
+func (service *HTTPRestService) cleanupContainerHNSResources(containerID string) (hnsEndpointID, hnsNetworkID string, _ error) {
+	logger.Printf("[cleanupContainerHNSResources] cleaning up all HNS resources for container %s", containerID) //nolint:staticcheck // TODO: migrate to zap logger
 
 	var apipaEndpointID string
 	if epInfo, ok := service.EndpointState[containerID]; ok {
@@ -113,36 +113,36 @@ func (service *HTTPRestService) cleanupStaleContainerHNSResources(containerID st
 	}
 
 	if apipaEndpointID != "" {
-		logger.Printf("[cleanupStaleContainerHNSResources] deleting APIPA HNS endpoint %s in container %s", apipaEndpointID, containerID) //nolint:staticcheck // TODO: migrate to zap logger
+		logger.Printf("[cleanupContainerHNSResources] deleting APIPA HNS endpoint %s in container %s", apipaEndpointID, containerID) //nolint:staticcheck // TODO: migrate to zap logger
 		if err := defaultHNSClient.DeleteEndpointByID(apipaEndpointID); err != nil {
 			return hnsEndpointID, hnsNetworkID, fmt.Errorf("failed to delete APIPA HNS endpoint %s in container %s: %w", apipaEndpointID, containerID, err)
 		}
 	}
 
 	if hnsEndpointID != "" {
-		logger.Printf("[cleanupStaleContainerHNSResources] deleting HNS endpoint %s in container %s", hnsEndpointID, containerID) //nolint:staticcheck // TODO: migrate to zap logger
+		logger.Printf("[cleanupContainerHNSResources] deleting HNS endpoint %s in container %s", hnsEndpointID, containerID) //nolint:staticcheck // TODO: migrate to zap logger
 		if err := defaultHNSClient.DeleteEndpointByID(hnsEndpointID); err != nil {
-			return hnsEndpointID, hnsNetworkID, fmt.Errorf("failed to delete stale HNS endpoint %s: %w", hnsEndpointID, err)
+			return hnsEndpointID, hnsNetworkID, fmt.Errorf("failed to delete HNS endpoint %s: %w", hnsEndpointID, err)
 		}
 	}
 
 	if hnsNetworkID != "" {
-		logger.Printf("[cleanupStaleContainerHNSResources] deleting HNS network %s in container %s", hnsNetworkID, containerID) //nolint:staticcheck // TODO: migrate to zap logger
+		logger.Printf("[cleanupContainerHNSResources] deleting HNS network %s in container %s", hnsNetworkID, containerID) //nolint:staticcheck // TODO: migrate to zap logger
 		if err := defaultHNSClient.DeleteNetworkByID(hnsNetworkID); err != nil {
-			return hnsEndpointID, hnsNetworkID, fmt.Errorf("failed to delete stale HNS network %s: %w", hnsNetworkID, err)
+			return hnsEndpointID, hnsNetworkID, fmt.Errorf("failed to delete HNS network %s: %w", hnsNetworkID, err)
 		}
 	}
 
 	if err := service.DeleteEndpointStateHelper(containerID); err != nil {
-		return hnsEndpointID, hnsNetworkID, fmt.Errorf("failed to remove stale container %s from endpoint state file: %w", containerID, err)
+		return hnsEndpointID, hnsNetworkID, fmt.Errorf("failed to remove container %s from endpoint state file: %w", containerID, err)
 	}
 
-	logger.Printf("[cleanupStaleContainerHNSResources] successfully removed all HNS resources and state for container %s", containerID) //nolint:staticcheck // TODO: migrate to zap logger
+	logger.Printf("[cleanupContainerHNSResources] successfully removed all HNS resources and state for container %s", containerID) //nolint:staticcheck // TODO: migrate to zap logger
 
 	return hnsEndpointID, hnsNetworkID, nil
 }
 
-// cleanupStaleHNSResources removes HNS endpoints/networks left behind by a previous NC
+// cleanupStaleHNSResources removes HNS endpoints/networks left behind by a previous SwiftV2 NC
 // that used the same delegated NIC MAC and was unable to be cleaned up (eg. no CNI DEL was called), then deletes the stale EndpointState entries.
 func (service *HTTPRestService) cleanupStaleHNSResources(ncID, mac, apipaIP string) (returnErr error) {
 	service.Lock()
@@ -183,7 +183,7 @@ func (service *HTTPRestService) cleanupStaleHNSResources(ncID, mac, apipaIP stri
 	apipaContainerID, _, apipaInfo := service.findStaleContainerByApipaIP(ncID, apipaIP)
 	if apipaInfo != nil {
 		apipaEndpointID = apipaInfo.HnsEndpointID
-		if _, _, err := service.cleanupStaleContainerHNSResources(apipaContainerID); err != nil {
+		if _, _, err := service.cleanupContainerHNSResources(apipaContainerID); err != nil {
 			return err
 		}
 	}
@@ -195,7 +195,7 @@ func (service *HTTPRestService) cleanupStaleHNSResources(ncID, mac, apipaIP stri
 	}
 
 	var err error
-	hnsEndpointID, hnsNetworkID, err = service.cleanupStaleContainerHNSResources(containerID)
+	hnsEndpointID, hnsNetworkID, err = service.cleanupContainerHNSResources(containerID)
 	if err != nil {
 		return err
 	}
