@@ -3,8 +3,9 @@
 ARG ARCH
 ARG OS
 
-# mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:bc7423b52b62e8f0281b5f7f564eb1862dc315bc57e1373c6a81e87ef3ac39ab AS go
+# mcr.microsoft.com/oss/go/microsoft/golang:1.25-azurelinux3.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:3efee8683ba87f9b3e0155cd932f9b79b16354e11410bffaa91a974ad13b9954 AS go
+ENV GOEXPERIMENT=nosystemcrypto
 
 FROM go AS azure-ip-masq-merger
 ARG OS

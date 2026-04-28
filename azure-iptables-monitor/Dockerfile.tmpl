@@ -10,6 +10,7 @@ FROM {{.MARINER_DISTROLESS_PIN}} AS mariner-distroless
 
 # {{.GO_IMG}}
 FROM --platform=linux/${ARCH} {{.GO_PIN}} AS go
+ENV GOEXPERIMENT=nosystemcrypto
 
 
 FROM go AS azure-iptables-monitor

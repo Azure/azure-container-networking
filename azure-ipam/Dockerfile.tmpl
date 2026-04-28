@@ -7,6 +7,7 @@ ARG OS
 
 # {{.GO_IMG}}
 FROM --platform=linux/${ARCH} {{.GO_PIN}} AS go
+ENV GOEXPERIMENT=nosystemcrypto
 
 # {{.MARINER_CORE_IMG}}
 FROM --platform=linux/${ARCH} {{.MARINER_CORE_PIN}} AS mariner-core
