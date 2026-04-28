@@ -36,6 +36,12 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 		// over-scheduling issue: the vnet-nic device plugin's Allocate() is a no-op, so the scheduler
 		// can place more pods on a node than it has physical NICs during burst creation.
 		workloadType := strings.TrimSpace(os.Getenv("WORKLOAD_TYPE"))
+
+		podOS := "linux"
+		if workloadType == "swiftv2-l1vh-accelnet-byon" {
+			podOS = "windows"
+		}
+
 		if workloadType == "swiftv2-l1vh-accelnet-byon" || workloadType == "swiftv2-l1vh-infiniband-byon" {
 			ginkgo.Skip(fmt.Sprintf("Scale tests disabled for workload type %s due to device plugin over-scheduling issue", workloadType))
 		}
@@ -121,12 +127,13 @@ var _ = ginkgo.Describe("Datapath Scale Tests", func() {
 					err := CreatePod(resources.Kubeconfig, PodData{
 						PodName:          podName,
 						NodeName:         "",
-						OS:               "linux",
+						OS:               podOS,
 						PNName:           resources.PNName,
 						PNIName:          resources.PNIName,
 						Namespace:        resources.PNName,
 						Image:            resources.PodImage,
 						RuntimeClassName: runtimeClassForWorkload(),
+						WorkloadType:     workloadType,
 					}, resources.PodTemplate)
 					if err != nil {
 						errors <- fmt.Errorf("failed to create pod %s in cluster %s: %w", podName, cluster, err)
