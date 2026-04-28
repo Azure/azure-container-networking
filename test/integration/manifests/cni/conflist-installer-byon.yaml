@@ -62,6 +62,3 @@ spec:
           hostPath:
             path: /etc/cni/net.d
             type: Directory
-
-# acnpublic.azurecr.io/azure-cni:linux-amd64-v1.7.5-3-g93d32acd0
-# envsubst '${CONFLIST},${CONFLIST_PRIORITY},${CNI_IMAGE}' < test/integration/manifests/cni/conflist-installer.yaml | kubectl apply -f -

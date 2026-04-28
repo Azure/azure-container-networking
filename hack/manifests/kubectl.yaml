@@ -6,7 +6,7 @@ metadata:
 spec:
   containers:
   - name: kubectl
-    image: mcr.microsoft.com/oss/v2/kubernetes/kubectl
+    image: docker.io/bitnami/kubectl:latest
     command: ["/bin/bash", "-c", "--"]
     args: ["sleep 3600"]
     env:
