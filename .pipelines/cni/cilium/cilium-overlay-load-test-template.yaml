@@ -53,11 +53,6 @@ stages:
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
       cnsVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsVersion'] ]
-      ipamVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.ipamVersion'] ]
-      cnsImageRepo: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsImageRepo'] ]
-      ipamImageRepo: $[ stagedependencies.setup.env.outputs['SetEnvVars.ipamImageRepo'] ]
-      useProvidedCnsImage: $[ stagedependencies.setup.env.outputs['SetEnvVars.useProvidedCnsImage'] ]
-      useProvidedIpamImage: $[ stagedependencies.setup.env.outputs['SetEnvVars.useProvidedIpamImage'] ]
       ${{ if contains(parameters.clusterName, 'rdma') }}:
         location: $(LOCATION_RDMA)
       ${{ elseif eq(parameters.arch, 'arm64') }}:
@@ -171,57 +166,47 @@ stages:
                 if [ ${{parameters.upgradeScenario}} = "true" ]
                 then
                     echo "Upgrade scenario is true, using upgrade azure ipam and cns version from pipeline variables"
-                    IPAM=$(ipamVersion)
-                    CNS=$(cnsVersion)
-                    if [ "$(useProvidedIpamImage)" != "true" ] && [ -z "$UPGRADE_AZURE_IPAM_VERSION" ]
+                    if [ -z "$UPGRADE_AZURE_IPAM_VERSION" ]
                     then
-                      echo "UPGRADE_AZURE_IPAM_VERSION is not set, using setup resolved value"
-                    elif [ "$(useProvidedIpamImage)" != "true" ]; then
-                      IPAM=$UPGRADE_AZURE_IPAM_VERSION
+                      echo "UPGRADE_AZURE_IPAM_VERSION is not set, using default value"
+                      IPAM=$(make azure-ipam-version)
+                    else
+                      IPAM=$(UPGRADE_AZURE_IPAM_VERSION)
                       echo "UPGRADE_AZURE_IPAM_VERSION is set to $IPAM"
                     fi
 
-                    if [ "$(useProvidedCnsImage)" != "true" ] && [ -z "$UPGRADE_CNS_VERSION" ]
+                    if [ -z "$UPGRADE_CNS_VERSION" ]
                     then
-                      echo "UPGRADE_CNS_VERSION is not set, using setup resolved value"
-                    elif [ "$(useProvidedCnsImage)" != "true" ]; then
-                      CNS=$UPGRADE_CNS_VERSION
+                      echo "UPGRADE_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$(UPGRADE_CNS_VERSION)
                       echo "UPGRADE_CNS_VERSION is set to $CNS"
                     fi
-                    if [ "$(useProvidedIpamImage)" != "true" ] && [ -n "$UPGRADE_IPAM_IMAGE_REPO" ]; then
-                      IPAM_IMAGE_REPO=$UPGRADE_IPAM_IMAGE_REPO
-                    else
-                      IPAM_IMAGE_REPO=$(ipamImageRepo)
-                    fi
-                    if [ "$(useProvidedCnsImage)" != "true" ] && [ -n "$UPGRADE_CNS_IMAGE_REPO" ]; then
-                      CNS_IMAGE_REPO=$UPGRADE_CNS_IMAGE_REPO
-                    else
-                      CNS_IMAGE_REPO=$(cnsImageRepo)
-                    fi
+                    IPAM_IMAGE_REPO=$(UPGRADE_IPAM_IMAGE_REPO)
+                    CNS_IMAGE_REPO=$(UPGRADE_CNS_IMAGE_REPO)
                     echo Deploying with Azure Ipam version $IPAM from $IPAM_IMAGE_REPO and CNS version $CNS from $CNS_IMAGE_REPO
                 else
-                    IPAM=$(ipamVersion)
-                    CNS=$(cnsVersion)
-                    if [ "$(useProvidedIpamImage)" != "true" ] && [ -z "$TEST_AZURE_IPAM_VERSION" ]
+                    if [ -z "$TEST_AZURE_IPAM_VERSION" ]
                     then
-                      echo "TEST_AZURE_IPAM_VERSION is not set, using setup resolved value"
-                    elif [ "$(useProvidedIpamImage)" != "true" ]; then
-                      IPAM=$TEST_AZURE_IPAM_VERSION
+                      echo "TEST_AZURE_IPAM_VERSION is not set, using default value"
+                      IPAM=$(make azure-ipam-version)
+                    else
+                      IPAM=$(TEST_AZURE_IPAM_VERSION)
                       echo "TEST_AZURE_IPAM_VERSION is set to $IPAM"
                     fi
-                    if [ "$(useProvidedCnsImage)" != "true" ] && [ -z "$TEST_CNS_VERSION" ]
+                    if [ -z "$TEST_CNS_VERSION" ]
                     then
-                      echo "TEST_CNS_VERSION is not set, using setup resolved value"
-                    elif [ "$(useProvidedCnsImage)" != "true" ]; then
-                      CNS=$TEST_CNS_VERSION
+                      echo "TEST_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
+                      CNS=$(TEST_CNS_VERSION)
                       echo "TEST_CNS_VERSION is set to $CNS"
                     fi
-                    IPAM_IMAGE_REPO=$(ipamImageRepo)
-                    CNS_IMAGE_REPO=$(cnsImageRepo)
                 fi
 
                 echo "Deploy Azure-CNS"
-                sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=${CNS_IMAGE_REPO} IPAM_IMAGE_REPO=${IPAM_IMAGE_REPO}
+                sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO)
                 kubectl get po -owide -A
                 kubectl get crd -A
 

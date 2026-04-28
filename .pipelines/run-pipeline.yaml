@@ -1,8 +1,3 @@
-variables:
-  OVERRIDE_CNI_IMAGE: __use-default__
-  OVERRIDE_CNS_IMAGE: __use-default__
-  OVERRIDE_IPAM_IMAGE: __use-default__
-
 stages:
 - stage: setup
   displayName: ACN

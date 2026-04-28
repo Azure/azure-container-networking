@@ -103,13 +103,6 @@ stages:
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
       cnsVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsVersion'] ]
-      ipamVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.ipamVersion'] ]
-      cniVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cniVersion'] ]
-      cnsImageRepo: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsImageRepo'] ]
-      ipamImageRepo: $[ stagedependencies.setup.env.outputs['SetEnvVars.ipamImageRepo'] ]
-      cniImageRepo: $[ stagedependencies.setup.env.outputs['SetEnvVars.cniImageRepo'] ]
-      useProvidedCnsImage: $[ stagedependencies.setup.env.outputs['SetEnvVars.useProvidedCnsImage'] ]
-      useProvidedIpamImage: $[ stagedependencies.setup.env.outputs['SetEnvVars.useProvidedIpamImage'] ]
       npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
       ${{ if eq(parameters.os, 'windows') }}:
         nodeCount: ${{ parameters.nodeCountWin }}
@@ -150,51 +143,31 @@ stages:
                   kubectl cluster-info
                   kubectl get po -owide -A
                   if [ ${{parameters.upgradeScenario}} == "true" ]; then
-                    IPAM=$(ipamVersion)
-                    if [ "$(useProvidedIpamImage)" != "true" ] && [ -n "$UPGRADE_AZURE_IPAM_VERSION" ]; then
-                      IPAM=$UPGRADE_AZURE_IPAM_VERSION
-                    fi
-                    if [ "$(useProvidedCnsImage)" != "true" ] && [ -z "$UPGRADE_CNS_VERSION" ]
+                    if [ -z "$UPGRADE_CNS_VERSION" ]
                     then
-                      echo "UPGRADE_CNS_VERSION is not set, using setup resolved value"
-                      CNS=$(cnsVersion)
-                    elif [ "$(useProvidedCnsImage)" == "true" ]; then
-                      CNS=$(cnsVersion)
+                      echo "UPGRADE_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
                     else
                       CNS=$UPGRADE_CNS_VERSION
                       echo "UPGRADE_CNS_VERSION is set to $CNS"
                     fi
-                    if [ "$(useProvidedIpamImage)" != "true" ] && [ -n "$UPGRADE_IPAM_IMAGE_REPO" ]; then
-                      IPAM_IMAGE_REPO=$UPGRADE_IPAM_IMAGE_REPO
-                    else
-                      IPAM_IMAGE_REPO=$(ipamImageRepo)
-                    fi
-                    if [ "$(useProvidedCnsImage)" != "true" ] && [ -n "$UPGRADE_CNS_IMAGE_REPO" ]; then
-                      CNS_IMAGE_REPO=$UPGRADE_CNS_IMAGE_REPO
-                    else
-                      CNS_IMAGE_REPO=$(cnsImageRepo)
-                    fi
+                    IPAM_IMAGE_REPO=$UPGRADE_IPAM_IMAGE_REPO
+                    CNS_IMAGE_REPO=$UPGRADE_CNS_IMAGE_REPO
                   else
-                    CNS=$(cnsVersion)
-                    if [ "$(useProvidedCnsImage)" != "true" ] && [ -n "$TEST_CNS_VERSION" ]; then
+                    if [ -z "$TEST_CNS_VERSION" ]
+                    then
+                      echo "TEST_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
                       CNS=$TEST_CNS_VERSION
                       echo "TEST_CNS_VERSION is set to $CNS"
-                    else
-                      echo "TEST_CNS_VERSION is not set, using setup resolved value"
                     fi
-                    IPAM=$(ipamVersion)
-                    if [ "$(useProvidedIpamImage)" != "true" ] && [ -n "$TEST_AZURE_IPAM_VERSION" ]; then
-                      IPAM=$TEST_AZURE_IPAM_VERSION
-                      echo "TEST_AZURE_IPAM_VERSION is set to $IPAM"
-                    fi
-                    CNS_IMAGE_REPO=$(cnsImageRepo)
-                    IPAM_IMAGE_REPO=$(ipamImageRepo)
                   fi
 
                   if [ "${{parameters.os}}" == "windows" ]; then
-                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=$(cniVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=${CNS_IMAGE_REPO} IPAM_IMAGE_REPO=${IPAM_IMAGE_REPO} CNI_IMAGE_REPO=$(cniImageRepo)
+                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   else
-                    sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=$(cniVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=${CNS_IMAGE_REPO} IPAM_IMAGE_REPO=${IPAM_IMAGE_REPO} CNI_IMAGE_REPO=$(cniImageRepo)
+                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   fi
 
               name: "overlaye2e"
@@ -212,50 +185,30 @@ stages:
                   kubectl cluster-info
                   kubectl get po -owide -A
                   if [ ${{parameters.upgradeScenario}} == "true" ]; then
-                    IPAM=$(ipamVersion)
-                    if [ "$(useProvidedIpamImage)" != "true" ] && [ -n "$UPGRADE_AZURE_IPAM_VERSION" ]; then
-                      IPAM=$UPGRADE_AZURE_IPAM_VERSION
-                    fi
-                    if [ "$(useProvidedCnsImage)" != "true" ] && [ -z "$UPGRADE_CNS_VERSION" ]
+                    if [ -z "$UPGRADE_CNS_VERSION" ]
                     then
-                      echo "UPGRADE_CNS_VERSION is not set, using setup resolved value"
-                      CNS=$(cnsVersion)
-                    elif [ "$(useProvidedCnsImage)" == "true" ]; then
-                      CNS=$(cnsVersion)
+                      echo "UPGRADE_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
                     else
                       CNS=$UPGRADE_CNS_VERSION
                       echo "UPGRADE_CNS_VERSION is set to $CNS"
                     fi
-                    if [ "$(useProvidedIpamImage)" != "true" ] && [ -n "$UPGRADE_IPAM_IMAGE_REPO" ]; then
-                      IPAM_IMAGE_REPO=$UPGRADE_IPAM_IMAGE_REPO
-                    else
-                      IPAM_IMAGE_REPO=$(ipamImageRepo)
-                    fi
-                    if [ "$(useProvidedCnsImage)" != "true" ] && [ -n "$UPGRADE_CNS_IMAGE_REPO" ]; then
-                      CNS_IMAGE_REPO=$UPGRADE_CNS_IMAGE_REPO
-                    else
-                      CNS_IMAGE_REPO=$(cnsImageRepo)
-                    fi
+                    IPAM_IMAGE_REPO=$UPGRADE_IPAM_IMAGE_REPO
+                    CNS_IMAGE_REPO=$UPGRADE_CNS_IMAGE_REPO
                   else
-                    CNS=$(cnsVersion)
-                    if [ "$(useProvidedCnsImage)" != "true" ] && [ -n "$TEST_CNS_VERSION" ]; then
+                    if [ -z "$TEST_CNS_VERSION" ]
+                    then
+                      echo "TEST_CNS_VERSION is not set, using default value"
+                      CNS=$(make cns-version)
+                    else
                       CNS=$TEST_CNS_VERSION
                       echo "TEST_CNS_VERSION is set to $CNS"
-                    else
-                      echo "TEST_CNS_VERSION is not set, using setup resolved value"
                     fi
-                    IPAM=$(ipamVersion)
-                    if [ "$(useProvidedIpamImage)" != "true" ] && [ -n "$TEST_AZURE_IPAM_VERSION" ]; then
-                      IPAM=$TEST_AZURE_IPAM_VERSION
-                      echo "TEST_AZURE_IPAM_VERSION is set to $IPAM"
-                    fi
-                    CNS_IMAGE_REPO=$(cnsImageRepo)
-                    IPAM_IMAGE_REPO=$(ipamImageRepo)
                   fi
                   if [ "${{parameters.os}}" == "windows" ]; then
-                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=$(cniVersion) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=${CNS_IMAGE_REPO} IPAM_IMAGE_REPO=${IPAM_IMAGE_REPO} CNI_IMAGE_REPO=$(cniImageRepo)
+                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   else
-                    sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=$(cniVersion) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=${CNS_IMAGE_REPO} IPAM_IMAGE_REPO=${IPAM_IMAGE_REPO} CNI_IMAGE_REPO=$(cniImageRepo)
+                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   fi
               name: "swifte2e"
               displayName: "Swift Integration"
