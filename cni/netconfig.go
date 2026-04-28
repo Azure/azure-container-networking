@@ -80,6 +80,7 @@ type NetworkConfig struct {
 	RuntimeConfig                 RuntimeConfig   `json:"runtimeConfig,omitempty"`
 	WindowsSettings               WindowsSettings `json:"windowsSettings,omitempty"`
 	AdditionalArgs                []KVPair        `json:"AdditionalArgs,omitempty"`
+	WireServerAddress             string          `json:"wireServerAddress,omitempty"`
 }
 
 type WindowsSettings struct {

@@ -62,13 +62,14 @@ const (
 )
 
 const (
-	// URL to query NMAgent version and determine whether we snat on host
-	nmAgentSupportedApisURL = "http://168.63.129.16/machine/plugins/?comp=nmagent&type=GetSupportedApis"
 	// Only SNAT support (no DNS support)
 	nmAgentSnatSupportAPI = "NetworkManagementSnatSupport"
 	// SNAT and DNS are both supported
 	nmAgentSnatAndDnsSupportAPI = "NetworkManagementDNSSupport"
 )
+
+// defaultWireServerAddress is the Azure Wire Server IP address.
+const defaultWireServerAddress = "168.63.129.16"
 
 // temporary consts related func determineSnat() which is to be deleted after
 // a baking period with newest NMAgent changes
@@ -344,6 +345,13 @@ func (plugin *NetPlugin) getNetworkInfo(netNs string, interfaceInfo *network.Int
 	return nwInfo
 }
 
+func buildNmAgentSupportedApisURL(wireServerAddress string) string {
+	if wireServerAddress == "" {
+		wireServerAddress = defaultWireServerAddress
+	}
+	return fmt.Sprintf("http://%s/machine/plugins/?comp=nmagent&type=GetSupportedApis", wireServerAddress)
+}
+
 // CNI implementation
 // https://github.com/containernetworking/cni/blob/master/SPEC.md
 
@@ -499,6 +507,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// multitenancy (swift v1) -> one interface info
 		telemetryClient.Settings().Context = "AzureCNIMultitenancy"
 		plugin.multitenancyClient.Init(cnsClient, AzureNetIOShim{})
+
+		nmAgentSupportedApisURL := buildNmAgentSupportedApisURL(nwCfg.WireServerAddress)
 
 		// Temporary if block to determining whether we disable SNAT on host (for multi-tenant scenario only)
 		if enableSnatForDNS, nwCfg.EnableSnatOnHost, err = plugin.multitenancyClient.DetermineSnatFeatureOnHost(
