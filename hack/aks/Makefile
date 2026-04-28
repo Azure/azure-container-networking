@@ -29,6 +29,7 @@ PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
 LTS					 ?= false
 ACNS				 ?= false
+TIER 				 ?= free
 
 
 # overrideable variables
@@ -61,6 +62,7 @@ COMMON_AKS_FIELDS = $(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 	--node-vm-size $(VM_SIZE) \
 	--no-ssh-key \
 	--os-sku $(OS_SKU) \
+	--tier $(TIER) \
 	$(LTS_ARGS) $(ACNS_ARGS)
 POD_CIDR = 192.168.0.0/16
 
