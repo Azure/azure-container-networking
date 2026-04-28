@@ -83,7 +83,7 @@ stages:
               echo "##vso[task.setvariable variable=cnsImagePrefix;isOutput=true]azure-"
 
               # Shared parser for cniImage/cnsImage/ipamImage override inputs.
-              . ./.pipelines/scripts/parse_override_image.sh
+              . ./hack/scripts/parse_override_image.sh
 
               read -r USE_CNI CNI_REPO CNI_NAME CNI_VERSION <<< "$(parse_override_image '${{ parameters.cniImage }}' azure-cni $(make cni-version))"
               read -r USE_CNS CNS_REPO CNS_NAME CNS_VERSION <<< "$(parse_override_image '${{ parameters.cnsImage }}' azure-cns $(make cns-version))"
