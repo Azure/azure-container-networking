@@ -50,7 +50,7 @@ stages:
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clustername)
                 else
                   echo "Cluster $(clustername) does not exist, creating"
-                  make -C ./hack/aks AZCLI=az overlay-byocni-nokubeproxy-up CLUSTER=$(clustername) REGION=$(REGION_AKS_CLUSTER_TEST) NODE_COUNT=2 VM_SIZE=Standard_D4_v3 SUB=$(TESTING_SUB)
+                  make -C ./hack/aks AZCLI=az overlay-byocni-nokubeproxy-up CLUSTER=$(clustername) REGION=$(REGION_AKS_CLUSTER_TEST) NODE_COUNT=2 VM_SIZE=Standard_D4_v3 SUB=$(TESTING_SUB) POD_CIDR="100.64.0.0/10"
                 fi
                 kubectl get pods -Aowide
 
