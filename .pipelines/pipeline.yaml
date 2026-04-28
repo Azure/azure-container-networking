@@ -46,6 +46,8 @@ parameters:
   - name: ipamImage
     type: string
     default: "__use-default__"
+  # Optional build-number prefix to differentiate DALEC release runs.
+  # Applied in setup only when the value contains "dalec".
   - name: runNamePrefix
     type: string
     default: "__use-default__"
