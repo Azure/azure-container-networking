@@ -55,7 +55,8 @@ git checkout master
 ```
 
 ### All: Update Conflist
-
+> [!NOTE]
+> You can replace `acnpublic.azurecr.io/public/containernetworking/azure-cni:v1.7.5-3` with an mcr image in prod that has the chained cilium conflist. The installer only installs the conflist (not cni) so the above image should be sufficient.
 ```
 export CONFLIST=azure-chained-cilium.conflist
 export CONFLIST_PRIORITY=05
