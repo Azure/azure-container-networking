@@ -87,6 +87,11 @@ stages:
                 defaultName="$2"
                 defaultVersion="$3"
 
+                # Input -> output examples:
+                # 1) image="__use-default__" => "false ACN <defaultName> <defaultVersion>"
+                # 2) image="acnpublic.azurecr.io/azure-cns:v1.2.3" => "true ACN azure-cns v1.2.3"
+                # 3) image="mcr.microsoft.com/containernetworking/azure-cni@sha256:abc" => "true MCR azure-cni @sha256:abc"
+
                 if [ -z "$image" ] || [ "$image" = "__use-default__" ]; then
                   echo "false ACN ${defaultName} ${defaultVersion}"
                   return
@@ -133,6 +138,11 @@ stages:
               echo "##vso[task.setvariable variable=cniImageNameOverride;isOutput=true]${CNI_NAME}"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]${CNI_VERSION}"
 
+              # Example (CNS):
+              # cnsImage="__use-default__" -> useProvidedCnsImage=false, cnsImageRepo=ACN,
+              # cnsImageNameOverride=azure-cns, cnsVersion=<make cns-version>
+              # cnsImage="mcr.microsoft.com/containernetworking/azure-cns:v1.2.3" ->
+              # useProvidedCnsImage=true, cnsImageRepo=MCR, cnsImageNameOverride=azure-cns, cnsVersion=v1.2.3
               echo "##vso[task.setvariable variable=useProvidedCnsImage;isOutput=true]${USE_CNS}"
               echo "##vso[task.setvariable variable=cnsImageRepo;isOutput=true]${CNS_REPO}"
               echo "##vso[task.setvariable variable=cnsImageNameOverride;isOutput=true]${CNS_NAME}"
