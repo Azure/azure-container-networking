@@ -1371,7 +1371,7 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 					// (e.g. enP56082s2). Prefer the synthetic name because it is stable
 					// across VF hot-swap events; only set the VF name when no synthetic
 					// interface has been found yet.
-					if res.InterfaceName != "" && !strings.HasPrefix(iface.Name, "eth") {
+					if res.InterfaceName != "" && !strings.Contains(iface.Name, "eth") {
 						logger.Printf("[Azure CNS] getNICResources: MAC %s skipping VF interface %s (already have %s)", key, iface.Name, res.InterfaceName)
 						continue
 					}

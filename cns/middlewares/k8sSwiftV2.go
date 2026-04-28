@@ -292,18 +292,8 @@ func (k *K8sSWIFTv2Middleware) GetMTPNCInfoByMAC(ctx context.Context) (map[strin
 		return nil, err
 	}
 
-	// Build a PodNetwork name → PodNetwork lookup so we can resolve NetworkID and SubnetID.
-	var pnList v1alpha1.PodNetworkList
-	if err := k.Cli.List(ctx, &pnList); err != nil {
-		return nil, err
-	}
-
-	pnByName := make(map[string]*v1alpha1.PodNetwork, len(pnList.Items))
-	for i := range pnList.Items {
-		pnByName[pnList.Items[i].Name] = &pnList.Items[i]
-	}
-
 	result := make(map[string]*cns.NICNCInfo)
+	pnCache := make(map[string]*v1alpha1.PodNetwork)
 	for i := range mtpncList.Items {
 		mtpnc := &mtpncList.Items[i]
 
@@ -312,7 +302,11 @@ func (k *K8sSWIFTv2Middleware) GetMTPNCInfoByMAC(ctx context.Context) (map[strin
 			continue
 		}
 
-		pn := pnByName[mtpnc.Spec.PodNetwork]
+		pnNames, err := k.resolveMTPNCPodNetworkNames(ctx, mtpnc)
+		if err != nil {
+			logger.Errorf("[SWIFTv2Middleware] failed to resolve PodNetwork for MTPNC %s/%s: %v", mtpnc.Namespace, mtpnc.Name, err)
+			continue
+		}
 
 		for j := range mtpnc.Status.InterfaceInfos {
 			mac := mtpnc.Status.InterfaceInfos[j].MacAddress
@@ -324,17 +318,92 @@ func (k *K8sSWIFTv2Middleware) GetMTPNCInfoByMAC(ctx context.Context) (map[strin
 				continue
 			}
 
-			info := &cns.NICNCInfo{}
-			if pn != nil {
-				info.NetworkID = pn.Spec.NetworkID
-				info.SubnetID = subnetNameFromResourceID(pn.Spec.SubnetResourceID)
+			pn := k.podNetworkForInterface(ctx, pnNames, j, pnCache)
+			if pn == nil {
+				logger.Printf("[SWIFTv2Middleware] MTPNC %s/%s interface %d MAC %s has no resolved PodNetwork", mtpnc.Namespace, mtpnc.Name, j, mac)
+				continue
 			}
-			result[mac] = info
+			result[mac] = nicNCInfoFromPodNetwork(pn)
+		}
+
+		if len(mtpnc.Status.InterfaceInfos) == 0 && mtpnc.Status.MacAddress != "" {
+			if _, exists := result[mtpnc.Status.MacAddress]; exists {
+				continue
+			}
+			pn := k.podNetworkForInterface(ctx, pnNames, 0, pnCache)
+			if pn == nil {
+				logger.Printf("[SWIFTv2Middleware] MTPNC %s/%s MAC %s has no resolved PodNetwork", mtpnc.Namespace, mtpnc.Name, mtpnc.Status.MacAddress)
+				continue
+			}
+			result[mtpnc.Status.MacAddress] = nicNCInfoFromPodNetwork(pn)
 		}
 	}
 
 	logger.Printf("[SWIFTv2Middleware] fetched %d MTPNCs on node %s, %d unique MACs with info", len(mtpncList.Items), k.NodeName, len(result))
 	return result, nil
+}
+
+func (k *K8sSWIFTv2Middleware) resolveMTPNCPodNetworkNames(ctx context.Context, mtpnc *v1alpha1.MultitenantPodNetworkConfig) ([]string, error) {
+	if mtpnc.Spec.PodNetwork != "" {
+		return []string{mtpnc.Spec.PodNetwork}, nil
+	}
+	if mtpnc.Spec.PodNetworkInstance == "" {
+		return nil, nil
+	}
+
+	var pni v1alpha1.PodNetworkInstance
+	if err := k.Cli.Get(ctx, k8stypes.NamespacedName{Namespace: mtpnc.Namespace, Name: mtpnc.Spec.PodNetworkInstance}, &pni); err != nil {
+		return nil, err
+	}
+
+	var pnNames []string
+	if pni.Spec.PodNetwork != "" {
+		pnNames = append(pnNames, pni.Spec.PodNetwork)
+	}
+	for _, config := range pni.Spec.PodNetworkConfigs {
+		if config.PodNetwork != "" {
+			pnNames = append(pnNames, config.PodNetwork)
+		}
+	}
+	return pnNames, nil
+}
+
+func (k *K8sSWIFTv2Middleware) podNetworkForInterface(ctx context.Context, pnNames []string, interfaceIndex int, cache map[string]*v1alpha1.PodNetwork) *v1alpha1.PodNetwork {
+	if len(pnNames) == 0 {
+		return nil
+	}
+
+	pnName := pnNames[0]
+	if len(pnNames) > 1 {
+		if interfaceIndex >= len(pnNames) {
+			logger.Printf("[SWIFTv2Middleware] interface index %d has no matching PodNetwork among %d PodNetworks", interfaceIndex, len(pnNames))
+			return nil
+		}
+		pnName = pnNames[interfaceIndex]
+	}
+
+	if pn, ok := cache[pnName]; ok {
+		return pn
+	}
+
+	var pn v1alpha1.PodNetwork
+	if err := k.Cli.Get(ctx, k8stypes.NamespacedName{Name: pnName}, &pn); err != nil {
+		logger.Errorf("[SWIFTv2Middleware] failed to get PodNetwork %s: %v", pnName, err)
+		return nil
+	}
+	cache[pnName] = &pn
+	return &pn
+}
+
+func nicNCInfoFromPodNetwork(pn *v1alpha1.PodNetwork) *cns.NICNCInfo {
+	networkID := pn.Spec.NetworkID
+	if networkID == "" {
+		networkID = pn.Spec.VnetGUID
+	}
+	return &cns.NICNCInfo{
+		NetworkID: networkID,
+		SubnetID:  subnetNameFromResourceID(pn.Spec.SubnetResourceID),
+	}
 }
 
 // subnetNameFromResourceID extracts the trailing subnet name from an ARM resource ID.
