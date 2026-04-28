@@ -1758,3 +1758,154 @@ func setupIMDSMockAPIsWithCustomIDs(svc *HTTPRestService, interfaceIDs []string)
 	// Return cleanup function
 	return func() { svc.imdsClient = originalIMDS }
 }
+
+// TestReconcileIPAMStateForNodeSubnetReleasesStaleIPs verifies that
+// ReconcileIPAMStateForNodeSubnet releases IPs that are Assigned to pods
+// that are no longer running on the node (i.e. their key is not in podInfoByIP).
+func TestReconcileIPAMStateForNodeSubnetReleasesStaleIPs(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+
+	// Create an NC with 4 secondary IPs
+	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+	ipIDs := make([]string, 4)
+	for i := 0; i < 4; i++ {
+		ipaddress := fmt.Sprintf("10.0.0.%d", 6+i)
+		secIPConfig := newSecondaryIPConfig(ipaddress, -1)
+		ipID := uuid.New().String()
+		ipIDs[i] = ipID
+		secondaryIPConfigs[ipID] = secIPConfig
+	}
+	ncReq := generateNetworkContainerRequest(secondaryIPConfigs, "nodesubnet-nc1", "-1")
+
+	// Simulate: 2 pods are currently running, and 1 stale pod (old InfraContainerID) has leaked IPs.
+	// Pod1 (running) has IP 10.0.0.6
+	// Pod2 (running) has IP 10.0.0.7
+	// Pod1's OLD container (stale) had IP 10.0.0.8 — this should be released.
+	// 10.0.0.9 is available
+	activePodInfo := map[string]cns.PodInfo{
+		"10.0.0.6": cns.NewPodInfo("newcontainer1", "newcont1-eth0", "pod1", "ns1"),
+		"10.0.0.7": cns.NewPodInfo("container2", "cont2-eth0", "pod2", "ns1"),
+	}
+
+	returnCode := svc.ReconcileIPAMStateForNodeSubnet(
+		[]*cns.CreateNetworkContainerRequest{ncReq}, activePodInfo,
+	)
+	require.Equal(t, types.Success, returnCode)
+
+	// Verify: 2 IPs should be Assigned, rest should be Available
+	assignedCount := 0
+	availableCount := 0
+	for _, ipConfig := range svc.PodIPConfigState { //nolint:gocritic // ignore copy
+		switch ipConfig.GetState() {
+		case types.Assigned:
+			assignedCount++
+		case types.Available:
+			availableCount++
+		}
+	}
+	assert.Equal(t, 2, assignedCount, "only the 2 active pods should have Assigned IPs")
+	assert.Equal(t, 2, availableCount, "remaining 2 IPs should be Available")
+}
+
+// TestReconcileIPAMStateForNodeSubnetReleasesStaleFromPreviousContainer
+// simulates the exact crash-loop scenario: a pod previously had an IP under an
+// old InfraContainerID, and now has a new InfraContainerID. The reconciliation
+// should assign the IP for the current container and release the stale one.
+func TestReconcileIPAMStateForNodeSubnetReleasesStaleFromPreviousContainer(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+
+	// Create NC with 2 IPs
+	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+	ipID1 := uuid.New().String()
+	ipID2 := uuid.New().String()
+	secondaryIPConfigs[ipID1] = newSecondaryIPConfig("10.0.0.6", -1)
+	secondaryIPConfigs[ipID2] = newSecondaryIPConfig("10.0.0.7", -1)
+	ncReq := generateNetworkContainerRequest(secondaryIPConfigs, "nodesubnet-nc2", "-1")
+
+	// First reconcile: pod1 with OLD container gets 10.0.0.6
+	oldPodInfo := map[string]cns.PodInfo{
+		"10.0.0.6": cns.NewPodInfo("oldcontainer", "oldcont-eth0", "pod1", "ns1"),
+	}
+
+	returnCode := svc.ReconcileIPAMStateForNodeSubnet(
+		[]*cns.CreateNetworkContainerRequest{ncReq}, oldPodInfo,
+	)
+	require.Equal(t, types.Success, returnCode)
+
+	// Verify old container has 1 assigned IP
+	assert.Len(t, svc.PodIPIDByPodInterfaceKey, 1)
+
+	// Second reconcile: pod1 has restarted with NEW container, IP is now 10.0.0.6 again
+	// The old container's key is no longer active.
+	newPodInfo := map[string]cns.PodInfo{
+		"10.0.0.6": cns.NewPodInfo("newcontainer", "newcont-eth0", "pod1", "ns1"),
+	}
+
+	returnCode = svc.ReconcileIPAMStateForNodeSubnet(
+		[]*cns.CreateNetworkContainerRequest{ncReq}, newPodInfo,
+	)
+	require.Equal(t, types.Success, returnCode)
+
+	// The old container key should be gone, only the new one should have an IP
+	assert.Len(t, svc.PodIPIDByPodInterfaceKey, 1,
+		"only the new container key should remain")
+
+	_, hasNewKey := svc.PodIPIDByPodInterfaceKey[cns.NewPodInfo("newcontainer", "newcont-eth0", "pod1", "ns1").Key()]
+	assert.True(t, hasNewKey, "new container key should be present")
+
+	_, hasOldKey := svc.PodIPIDByPodInterfaceKey[cns.NewPodInfo("oldcontainer", "oldcont-eth0", "pod1", "ns1").Key()]
+	assert.False(t, hasOldKey, "old container key should have been cleaned up")
+
+	// Verify IP states: 1 Assigned, 1 Available
+	assignedCount := 0
+	availableCount := 0
+	for _, ipConfig := range svc.PodIPConfigState { //nolint:gocritic // ignore copy
+		switch ipConfig.GetState() {
+		case types.Assigned:
+			assignedCount++
+		case types.Available:
+			availableCount++
+		}
+	}
+	assert.Equal(t, 1, assignedCount)
+	assert.Equal(t, 1, availableCount)
+}
+
+// TestReleaseStaleAssignedIPsNoOp verifies releaseStaleAssignedIPs does nothing
+// when all Assigned IPs belong to active pods.
+func TestReleaseStaleAssignedIPsNoOp(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+
+	// Create NC with 2 IPs
+	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+	ipID1 := uuid.New().String()
+	ipID2 := uuid.New().String()
+	secondaryIPConfigs[ipID1] = newSecondaryIPConfig("10.0.0.6", -1)
+	secondaryIPConfigs[ipID2] = newSecondaryIPConfig("10.0.0.7", -1)
+	ncReq := generateNetworkContainerRequest(secondaryIPConfigs, "nodesubnet-nc3", "-1")
+
+	// Both pods are active
+	podInfo := map[string]cns.PodInfo{
+		"10.0.0.6": cns.NewPodInfo("container1", "cont1-eth0", "pod1", "ns1"),
+		"10.0.0.7": cns.NewPodInfo("container2", "cont2-eth0", "pod2", "ns1"),
+	}
+
+	returnCode := svc.ReconcileIPAMStateForNodeSubnet(
+		[]*cns.CreateNetworkContainerRequest{ncReq}, podInfo,
+	)
+	require.Equal(t, types.Success, returnCode)
+
+	// Both IPs should be Assigned, neither should be released
+	assert.Len(t, svc.PodIPIDByPodInterfaceKey, 2)
+	for _, ipConfig := range svc.PodIPConfigState { //nolint:gocritic // ignore copy
+		if ipConfig.PodInfo != nil {
+			assert.Equal(t, types.Assigned, ipConfig.GetState())
+		}
+	}
+}

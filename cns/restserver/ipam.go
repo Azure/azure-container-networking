@@ -856,6 +856,43 @@ func (service *HTTPRestService) releaseIPConfigs(podInfo cns.PodInfo) error {
 	return nil
 }
 
+// releaseStaleIPConfigsForPod finds and releases IP configs that are assigned
+// to the same pod (by name and namespace) but with a different interface key.
+// This cleans up leaked IPs from previous container sandboxes of a restarted pod,
+// where each restart created a new InfraContainerID and thus a new key, but the
+// old IP assignment was never released via CNI DEL.
+func (service *HTTPRestService) releaseStaleIPConfigsForPod(podInfo cns.PodInfo) {
+	if podInfo.Name() == "" || podInfo.Namespace() == "" {
+		return
+	}
+
+	// Collect stale pod infos under read lock. A stale entry is one that is
+	// Assigned to the same pod name+namespace but under a different interface key
+	// (i.e. a previous sandbox's InfraContainerID).
+	service.RLock()
+	stalePodKeys := make(map[string]cns.PodInfo)
+	for _, ipConfig := range service.PodIPConfigState {
+		if ipConfig.GetState() != types.Assigned || ipConfig.PodInfo == nil {
+			continue
+		}
+		if ipConfig.PodInfo.Name() == podInfo.Name() &&
+			ipConfig.PodInfo.Namespace() == podInfo.Namespace() &&
+			ipConfig.PodInfo.Key() != podInfo.Key() {
+			stalePodKeys[ipConfig.PodInfo.Key()] = ipConfig.PodInfo
+		}
+	}
+	service.RUnlock()
+
+	// Release stale IPs. Each releaseIPConfigs call acquires its own write lock.
+	for _, stalePodInfo := range stalePodKeys {
+		logger.Printf("[releaseStaleIPConfigsForPod] Releasing stale IPs for pod %s/%s with old key %s (current key: %s)",
+			stalePodInfo.Name(), stalePodInfo.Namespace(), stalePodInfo.Key(), podInfo.Key())
+		if err := service.releaseIPConfigs(stalePodInfo); err != nil {
+			logger.Errorf("[releaseStaleIPConfigsForPod] Failed to release stale IPs for key %s: %v", stalePodInfo.Key(), err)
+		}
+	}
+}
+
 // MarkExistingIPsAsPendingRelease is called when CNS is starting up and there are existing ipconfigs in the CRD that are marked as pending.
 func (service *HTTPRestService) MarkExistingIPsAsPendingRelease(pendingIPIDs []string) error {
 	service.Lock()
@@ -1125,6 +1162,12 @@ func requestIPConfigsHelper(service *HTTPRestService, req cns.IPConfigsRequest) 
 	if podIPInfo, isExist, err := service.GetExistingIPConfig(podInfo); err != nil || isExist {
 		return podIPInfo, err
 	}
+
+	// Release any stale IP assignments from previous containers of the same pod.
+	// When a pod's container restarts, it gets a new InfraContainerID and thus a
+	// new interface key. The old IP assignment (under the old key) is orphaned
+	// if CNI DEL was not called or failed. Clean those up before allocating.
+	service.releaseStaleIPConfigsForPod(podInfo)
 
 	// if the desired IP configs are not specified, assign any free IPConfigs
 	if len(req.DesiredIPAddresses) == 0 {

@@ -459,7 +459,45 @@ func (service *HTTPRestService) ReconcileIPAMStateForNodeSubnet(ncReqs []*cns.Cr
 		return returnCode
 	}
 
+	// Build set of active pod keys and release any stale Assigned IPs that
+	// don't correspond to currently running pods. This handles cases where
+	// CNS state was persisted with orphaned IP assignments from previous
+	// container restarts.
+	activePodKeys := make(map[string]bool, len(podInfoByIP))
+	for _, pi := range podInfoByIP {
+		activePodKeys[pi.Key()] = true
+	}
+	service.releaseStaleAssignedIPs(activePodKeys)
+
 	return types.Success
+}
+
+// releaseStaleAssignedIPs releases any IPs that are marked as Assigned but whose
+// pod key is not in the set of active pod keys. This is used during startup
+// reconciliation to clean up leaked IP assignments from previous container sandboxes.
+func (service *HTTPRestService) releaseStaleAssignedIPs(activePodKeys map[string]bool) {
+	// Collect stale pod infos under read lock.
+	service.RLock()
+	stalePodInfos := make(map[string]cns.PodInfo)
+	for _, ipConfig := range service.PodIPConfigState {
+		if ipConfig.GetState() != types.Assigned || ipConfig.PodInfo == nil {
+			continue
+		}
+		if !activePodKeys[ipConfig.PodInfo.Key()] {
+			stalePodInfos[ipConfig.PodInfo.Key()] = ipConfig.PodInfo
+		}
+	}
+	service.RUnlock()
+
+	// Release stale IPs. Each releaseIPConfigs call acquires its own write lock.
+	for _, stalePodInfo := range stalePodInfos {
+		logger.Printf("[releaseStaleAssignedIPs] Releasing stale IP for key %s (pod %s/%s)",
+			stalePodInfo.Key(), stalePodInfo.Name(), stalePodInfo.Namespace())
+		if err := service.releaseIPConfigs(stalePodInfo); err != nil {
+			logger.Errorf("[releaseStaleAssignedIPs] Failed to release stale IPs for key %s: %v",
+				stalePodInfo.Key(), err)
+		}
+	}
 }
 
 var (
