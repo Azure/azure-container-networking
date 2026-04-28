@@ -23,7 +23,7 @@ stages:
       - ${{ if ne(parameters.dependsOn, 'publish') }}:
         # Use /official/cni and /official/cns images
         - name: IMAGE_REPO_PATH_REF
-          value: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsImagePrefix'] ]
+          value: $(IMAGE_REPO_PATH)
         # Use latest AKS-RP released image for NPM
         - name: NPM_VERSION
           value: "none"  
