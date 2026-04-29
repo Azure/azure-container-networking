@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cilium-watcher-sa
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cilium-watcher-role
+  namespace: kube-system
+rules:
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    verbs: ["get", "list", "create", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cilium-watcher-binding
+  namespace: kube-system
+subjects:
+  - kind: ServiceAccount
+    name: cilium-watcher-sa
+roleRef:
+  kind: Role
+  name: cilium-watcher-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cilium-watcher
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cilium-watcher
+  template:
+    metadata:
+      labels:
+        app: cilium-watcher
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.azure.com/managed
+                    # enforce watcher runs on managed nodes (exclude nodes labeled managed=false)
+                    operator: NotIn
+                    values:
+                      - "false"
+      hostNetwork: true
+      serviceAccountName: cilium-watcher-sa
+      containers:
+        - name: ds-watcher
+          image: acnpublic.azurecr.io/public/containernetworking/kubectl:v1.35.1
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+          command:
+            - /bin/sh
+            - -c
+            - |
+
+              NAMESPACE="kube-system"
+              export ORIGINAL_DAEMONSET="cilium"
+              export MODIFIED_DAEMONSET="cilium-unmanaged"
+
+              update_daemonset() {
+                local temp_file="/tmp/${ORIGINAL_DAEMONSET}_daemonset.yaml"
+
+                echo "Fetching the latest Cilium DaemonSet YAML..."
+                kubectl get daemonset $ORIGINAL_DAEMONSET -n $NAMESPACE -oyaml > "$temp_file"
+
+                echo "Modifying the YAML..."
+                # Change the name of the DaemonSet
+                yq eval '.metadata.name = strenv(MODIFIED_DAEMONSET)' -i "$temp_file"
+
+                yq eval 'del(.metadata.annotations)' -i "$temp_file"
+                yq eval 'del(.metadata.labels)' -i "$temp_file"
+
+                # Remove metadata.annotations and metadata.labels.app.kubernetes.io/managed-by
+                yq eval 'del(.spec.template.metadata.annotations)' -i "$temp_file"
+                yq eval 'del(.spec.template.metadata.labels."kubernetes.azure.com/managedby")' -i "$temp_file"
+                # Keep k8s-app=cilium on pods, but use a unique selector label to avoid overlap with the managed DS
+                yq eval '.spec.template.metadata.labels."cilium-variant" = "unmanaged"' -i "$temp_file"
+                yq eval '.spec.selector.matchLabels = {"cilium-variant": "unmanaged"}' -i "$temp_file"
+
+                # yq eval '.spec.template.spec.containers[0].args += ["--enable-bandwidth-manager"]' -i "$temp_file"
+                yq eval '.spec.template.spec.containers[0].args += ["--cni-chaining-mode=generic-veth"]' -i "$temp_file"
+                # yq eval '.spec.template.spec.containers[0].args += ["--enable-host-legacy-routing=false"]' -i "$temp_file"
+
+                # UNCOMMENT below line to run cilium with kube proxy on the node, COMMENT below line once kube proxy is removed to set healthz back to default 10256 port
+                # yq eval '.spec.template.spec.containers[0].args += ["--kube-proxy-replacement-healthz-bind-address=0.0.0.0:50257"]' -i "$temp_file"
+
+                # Keep the managed cilium service account - no need to duplicate RBAC
+
+                # Replace node affinity requirement
+                yq eval 'del(.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[].matchExpressions[] | select(.key == "kubernetes.azure.com/ebpf-dataplane"))' -i "$temp_file"
+                yq eval 'with(.spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[]; .matchExpressions |= map(select(.key != "kubernetes.azure.com/cluster")) | .matchExpressions += {"key": "kubernetes.azure.com/managed", "operator": "In", "values": ["false"]})' -i "$temp_file"
+
+                # Remove status section
+                yq eval 'del(.status)' -i "$temp_file"
+
+                # Ensure no duplicate conflicts
+                yq eval 'del(.metadata.resourceVersion)' -i "$temp_file"
+                yq eval 'del(.metadata.uid)' -i "$temp_file"
+
+                echo "Applying the modified DaemonSet..."
+                cat "$temp_file"
+                kubectl apply -f "$temp_file"
+                echo "Cilium Unmanaged DaemonSet updated!"
+              }
+
+              kubectl get daemonset $ORIGINAL_DAEMONSET -n $NAMESPACE -w | while read -r line; do
+              if echo "$line" | grep -q "$ORIGINAL_DAEMONSET"; then
+                echo "Detected change in $ORIGINAL_DAEMONSET, updating..."
+                update_daemonset
+              fi
+              done
