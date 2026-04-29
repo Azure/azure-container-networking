@@ -27,6 +27,31 @@ schedules:
     include: ["master"]
   always: true
 
+parameters:
+  - name: buildCni
+    type: boolean
+    default: true
+  - name: buildCns
+    type: boolean
+    default: true
+  - name: buildIpam
+    type: boolean
+    default: true
+  - name: cniImage
+    type: string
+    default: "__use-default__"
+  - name: cnsImage
+    type: string
+    default: "__use-default__"
+  - name: ipamImage
+    type: string
+    default: "__use-default__"
+  # Optional build-number prefix to differentiate DALEC release runs.
+  # Applied in setup only when the value contains "dalec".
+  - name: runNamePrefix
+    type: string
+    default: "__use-default__"
+
 stages:
   - stage: setup
     displayName: ACN
@@ -41,11 +66,49 @@ stages:
           - template: templates/git-diff-check.yaml
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
+              CUSTOM_RUN_NAME_PREFIX="${{ parameters.runNamePrefix }}"
+              if [ -n "$CUSTOM_RUN_NAME_PREFIX" ] && [[ "${CUSTOM_RUN_NAME_PREFIX,,}" == *dalec* ]]; then
+                BUILD_REV="$(Build.BuildNumber)"
+                BUILD_REV="${BUILD_REV##*.}"
+                RUN_DATE="$(date +%Y%m%d)"
+                echo "##vso[build.updatebuildnumber]${CUSTOM_RUN_NAME_PREFIX}-${RUN_DATE}.${BUILD_REV}"
+              fi
+
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
+              echo "##vso[task.setvariable variable=imageRepositoryPath;isOutput=true]acnpublic.azurecr.io"
+              echo "##vso[task.setvariable variable=cnsImagePrefix;isOutput=true]azure-"
+
+              # Shared parser for cniImage/cnsImage/ipamImage override inputs.
+              . ./hack/scripts/parse_override_image.sh
+
+              read -r USE_CNI CNI_REPO CNI_NAME CNI_VERSION <<< "$(parse_override_image '${{ parameters.cniImage }}' azure-cni $(make cni-version))"
+              read -r USE_CNS CNS_REPO CNS_NAME CNS_VERSION <<< "$(parse_override_image '${{ parameters.cnsImage }}' azure-cns $(make cns-version))"
+              read -r USE_IPAM IPAM_REPO IPAM_NAME IPAM_VERSION <<< "$(parse_override_image '${{ parameters.ipamImage }}' azure-ipam $(make azure-ipam-version))"
+
+              echo "##vso[task.setvariable variable=useProvidedCniImage;isOutput=true]${USE_CNI}"
+              echo "##vso[task.setvariable variable=cniImageRepo;isOutput=true]${CNI_REPO}"
+              echo "##vso[task.setvariable variable=cniImageNameOverride;isOutput=true]${CNI_NAME}"
+              echo "##vso[task.setvariable variable=cniVersion;isOutput=true]${CNI_VERSION}"
+
+              # Example (CNS):
+              # cnsImage="__use-default__" -> useProvidedCnsImage=false, cnsImageRepo=ACN,
+              # cnsImageNameOverride=azure-cns, cnsVersion=<make cns-version>
+              # cnsImage="mcr.microsoft.com/containernetworking/azure-cns:v1.2.3" ->
+              # useProvidedCnsImage=true, cnsImageRepo=MCR, cnsImageNameOverride=azure-cns, cnsVersion=v1.2.3
+              echo "##vso[task.setvariable variable=useProvidedCnsImage;isOutput=true]${USE_CNS}"
+              echo "##vso[task.setvariable variable=cnsImageRepo;isOutput=true]${CNS_REPO}"
+              echo "##vso[task.setvariable variable=cnsImageNameOverride;isOutput=true]${CNS_NAME}"
+              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]${CNS_VERSION}"
+
+              echo "##vso[task.setvariable variable=useProvidedIpamImage;isOutput=true]${USE_IPAM}"
+              echo "##vso[task.setvariable variable=ipamImageRepo;isOutput=true]${IPAM_REPO}"
+              echo "##vso[task.setvariable variable=ipamImageNameOverride;isOutput=true]${IPAM_NAME}"
+              echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]${IPAM_VERSION}"
+
               cat /etc/os-release
               uname -a
               sudo chown -R $(whoami):$(whoami) .
@@ -54,7 +117,7 @@ stages:
               which go
               echo $PATH
               echo "------"
-              echo $(Build.QueuedBy)
+              echo "$(Build.QueuedBy)"
               echo $(Build.Reason) # manual, PR, IndividualCI
               echo $(Build.SourceBranch)
               echo $(System.PullRequest.TargetBranch)
@@ -117,14 +180,15 @@ stages:
             name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
           strategy:
             matrix:
-              azure_ipam_linux_amd64:
-                arch: amd64
-                name: azure-ipam
-                os: linux
-              azure_ipam_windows:
-                arch: amd64
-                name: azure-ipam
-                os: windows
+              ${{ if eq(parameters.buildIpam, true) }}:
+                azure_ipam_linux_amd64:
+                  arch: amd64
+                  name: azure-ipam
+                  os: linux
+                azure_ipam_windows:
+                  arch: amd64
+                  name: azure-ipam
+                  os: windows
               azure_ip_masq_merger_linux_amd64:
                 arch: amd64
                 name: azure-ip-masq-merger
@@ -133,22 +197,24 @@ stages:
                 arch: amd64
                 name: azure-iptables-monitor
                 os: linux
-              cni_linux_amd64:
-                arch: amd64
-                name: cni
-                os: linux
-              cni_windows_amd64:
-                arch: amd64
-                name: cni
-                os: windows
-              cns_linux_amd64:
-                arch: amd64
-                name: cns
-                os: linux
-              cns_windows_amd64:
-                arch: amd64
-                name: cns
-                os: windows
+              ${{ if eq(parameters.buildCni, true) }}:
+                cni_linux_amd64:
+                  arch: amd64
+                  name: cni
+                  os: linux
+                cni_windows_amd64:
+                  arch: amd64
+                  name: cni
+                  os: windows
+              ${{ if eq(parameters.buildCns, true) }}:
+                cns_linux_amd64:
+                  arch: amd64
+                  name: cns
+                  os: linux
+                cns_windows_amd64:
+                  arch: amd64
+                  name: cns
+                  os: windows
               ipv6_hp_bpf_linux_amd64:
                 arch: amd64
                 name: ipv6-hp-bpf
@@ -170,10 +236,11 @@ stages:
             name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
           strategy:
             matrix:
-              azure_ipam_linux_arm64:
-                arch: arm64
-                name: azure-ipam
-                os: linux
+              ${{ if eq(parameters.buildIpam, true) }}:
+                azure_ipam_linux_arm64:
+                  arch: arm64
+                  name: azure-ipam
+                  os: linux
               azure_ip_masq_merger_linux_arm64:
                 arch: arm64
                 name: azure-ip-masq-merger
@@ -182,14 +249,16 @@ stages:
                 arch: arm64
                 name: azure-iptables-monitor
                 os: linux
-              cni_linux_arm64:
-                arch: arm64
-                name: cni
-                os: linux
-              cns_linux_arm64:
-                arch: arm64
-                name: cns
-                os: linux
+              ${{ if eq(parameters.buildCni, true) }}:
+                cni_linux_arm64:
+                  arch: arm64
+                  name: cni
+                  os: linux
+              ${{ if eq(parameters.buildCns, true) }}:
+                cns_linux_arm64:
+                  arch: arm64
+                  name: cns
+                  os: linux
               ipv6_hp_bpf_linux_arm64:
                 arch: arm64
                 name: ipv6-hp-bpf
@@ -261,15 +330,18 @@ stages:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           strategy:
             matrix:
-              azure_ipam:
-                name: azure-ipam
-                platforms: linux/amd64 linux/arm64 windows/amd64
-              cni:
-                name: cni
-                platforms: linux/amd64 linux/arm64 windows/amd64
-              cns:
-                name: cns
-                platforms: linux/amd64 linux/arm64 windows/amd64
+              ${{ if eq(parameters.buildIpam, true) }}:
+                azure_ipam:
+                  name: azure-ipam
+                  platforms: linux/amd64 linux/arm64 windows/amd64
+              ${{ if eq(parameters.buildCni, true) }}:
+                cni:
+                  name: cni
+                  platforms: linux/amd64 linux/arm64 windows/amd64
+              ${{ if eq(parameters.buildCns, true) }}:
+                cns:
+                  name: cns
+                  platforms: linux/amd64 linux/arm64 windows/amd64
               ipv6_hp_bpf:
                 name: ipv6-hp-bpf
                 platforms: linux/amd64 linux/arm64

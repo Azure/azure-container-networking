@@ -59,6 +59,12 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      CNS_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      AZURE_IPAM_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamVersion'] ]
+      CNS_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsImageRepo'] ]
+      IPAM_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamImageRepo'] ]
+      CNS_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsImageNameOverride'] ]
+      IPAM_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamImageNameOverride'] ]
       IPV6_IMAGE_REGISTRY: acnpublic.azurecr.io
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)

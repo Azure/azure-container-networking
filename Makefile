@@ -924,7 +924,7 @@ test-integration: ## run all integration tests.
 
 test-load: ## run all load tests
 	AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \
-		CNI_VERSION=$(CNI_VERSION)
+		CNI_VERSION=$(CNI_VERSION) \
 		CNS_VERSION=$(CNS_VERSION) \
 		go test -timeout 40m -race -tags=load ./test/integration/load... -v
 

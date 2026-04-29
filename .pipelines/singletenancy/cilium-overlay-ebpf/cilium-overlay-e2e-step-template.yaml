@@ -35,7 +35,10 @@ steps:
     retryCountOnTaskFailure: 2
 
   - script: |
-      CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
+      # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
+
+      CNS=${CNS_VERSION:-$(make cns-version)}
+      IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
       kubectl get pods -Aowide
       sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
     retryCountOnTaskFailure: 3

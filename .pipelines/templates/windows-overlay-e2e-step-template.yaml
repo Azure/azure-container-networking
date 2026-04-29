@@ -68,7 +68,12 @@ steps:
         done
 
         # Run control plane scale tests
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=${{ parameters.cniType }} VALIDATE_STATEFILE=true INSTALL_CNS=true ${{ parameters.testLoadArgs }} CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+        # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
+
+        IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
+        CNS=${CNS_VERSION:-$(make cns-version)}
+        CNI=${CNI_VERSION:-$(make cni-version)}
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=${{ parameters.scaleup }} OS_TYPE=windows CNI_TYPE=${{ parameters.cniType }} VALIDATE_STATEFILE=true INSTALL_CNS=true ${{ parameters.testLoadArgs }} AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=${CNI} CLEANUP=true
 
         # Run datapath tests
         echo "Windows Overlay DataPath Test"

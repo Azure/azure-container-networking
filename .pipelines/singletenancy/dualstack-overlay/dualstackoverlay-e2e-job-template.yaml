@@ -66,6 +66,12 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      CNS_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      CNI_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsImageRepo'] ]
+      CNI_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniImageRepo'] ]
+      CNS_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsImageNameOverride'] ]
+      CNI_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniImageNameOverride'] ]
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
