@@ -10,6 +10,11 @@ spec:
   {{- if .RuntimeClassName }}
   runtimeClassName: {{ .RuntimeClassName }}
   {{- end }}
+  nodeSelector:
+    kubernetes.io/os: {{ .OS }}
+    {{- if .WorkloadType }}
+    workload-type: {{ .WorkloadType }}
+    {{- end }}
   containers:
   - name: net-debugger
     image: {{ .Image }}
