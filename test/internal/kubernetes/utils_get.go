@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"context"
+	"log"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -46,6 +47,14 @@ func GetPodsIpsByNode(ctx context.Context, clientset *kubernetes.Clientset, name
 	}
 	ips := make([]string, 0, len(pods.Items)*2) //nolint
 	for index := range pods.Items {
+		// skip succeeded/failed pods since even though we released those ips internally,
+		// the api server still reports their existence
+		phase := pods.Items[index].Status.Phase
+		if phase == corev1.PodSucceeded || phase == corev1.PodFailed {
+			log.Printf("skipping pod %s/%s on node %s in terminal phase %s (IPs: %v) when collecting pod IPs",
+				pods.Items[index].Namespace, pods.Items[index].Name, nodeName, phase, pods.Items[index].Status.PodIPs)
+			continue
+		}
 		for _, podIP := range pods.Items[index].Status.PodIPs {
 			ips = append(ips, podIP.IP)
 		}
