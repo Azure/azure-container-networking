@@ -21,6 +21,8 @@ spec:
       name: VMUniqueID
       type: string
     name: v1alpha1
+    selectableFields:
+    - jsonPath: .spec.vmUniqueID
     schema:
       openAPIV3Schema:
         description: NodeInfo is the Schema for the NodeInfo API

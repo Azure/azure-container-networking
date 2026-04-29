@@ -17,6 +17,11 @@ import (
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
+// +kubebuilder:selectablefield:JSONPath=`.spec.podNetworkInstance`
+// +kubebuilder:selectablefield:JSONPath=`.spec.podNetwork`
+// +kubebuilder:selectablefield:JSONPath=`.spec.podName`
+// +kubebuilder:selectablefield:JSONPath=`.status.status`
+// +kubebuilder:selectablefield:JSONPath=`.status.nodeName`
 // +kubebuilder:printcolumn:name="PodNetworkInstance",type=string,JSONPath=`.spec.podNetworkInstance`
 // +kubebuilder:printcolumn:name="PodName",type=string,JSONPath=`.spec.podName`
 // +kubebuilder:printcolumn:name="PodUID",type=string,JSONPath=`.spec.podUID`

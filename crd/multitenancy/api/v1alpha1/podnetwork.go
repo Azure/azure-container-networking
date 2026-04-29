@@ -14,6 +14,11 @@ import (
 // PodNetwork is the Schema for the PodNetworks API
 // +kubebuilder:resource:shortName=pn,scope=Cluster
 // +kubebuilder:subresource:status
+// +kubebuilder:selectablefield:JSONPath=`.spec.networkID`
+// +kubebuilder:selectablefield:JSONPath=`.spec.subnetResourceID`
+// +kubebuilder:selectablefield:JSONPath=`.spec.subnetGUID`
+// +kubebuilder:selectablefield:JSONPath=`.spec.deviceType`
+// +kubebuilder:selectablefield:JSONPath=`.status.status`
 // +kubebuilder:printcolumn:name="Status",type=string,priority=1,JSONPath=`.status.status`
 // +kubebuilder:printcolumn:name="Address Prefixes",type=string,priority=1,JSONPath=`.status.addressPrefixes`
 // +kubebuilder:printcolumn:name="Network",type=string,priority=1,JSONPath=`.spec.networkID`

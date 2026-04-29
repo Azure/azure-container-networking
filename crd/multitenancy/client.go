@@ -12,6 +12,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilversion "k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -27,7 +29,8 @@ func init() {
 
 // Installer provides methods to manage the lifecycle of the custom resource definition.
 type Installer struct {
-	cli typedv1.CustomResourceDefinitionInterface
+	cli        typedv1.CustomResourceDefinitionInterface
+	k8sVersion *utilversion.Version
 }
 
 func NewInstaller(c *rest.Config) (*Installer, error) {
@@ -35,17 +38,71 @@ func NewInstaller(c *rest.Config) (*Installer, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to init crd client")
 	}
+
+	k8sVersion, err := detectServerVersion(c)
+	if err != nil {
+		// Keep running; fallback behavior strips selectable fields on unknown versions.
+		k8sVersion = nil
+	}
+
 	return &Installer{
-		cli: cli,
+		cli:        cli,
+		k8sVersion: k8sVersion,
 	}, nil
 }
 
+func (i *Installer) makeCRDVersionSafe(res *v1.CustomResourceDefinition) *v1.CustomResourceDefinition {
+	res = ensureSelectableFieldsVersionSafe(res, i.k8sVersion)
+	return res
+}
+
+func ensureSelectableFieldsVersionSafe(res *v1.CustomResourceDefinition, k8sVersion *utilversion.Version) *v1.CustomResourceDefinition {
+	if k8sVersion != nil && k8sVersion.AtLeast(utilversion.MustParseGeneric("1.31.0")) {
+		return res
+	}
+
+	cleanedCrd := res.DeepCopy()
+	for idx := range cleanedCrd.Spec.Versions {
+		cleanedCrd.Spec.Versions[idx].SelectableFields = nil
+	}
+
+	return cleanedCrd
+}
+
+func detectServerVersion(c *rest.Config) (*utilversion.Version, error) {
+	disco, err := discovery.NewDiscoveryClientForConfig(c)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to init discovery client")
+	}
+
+	serverVersion, err := disco.ServerVersion()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get server version")
+	}
+
+	parsedK8sVersion, err := utilversion.ParseGeneric(serverVersion.GitVersion)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse server version")
+	}
+
+	return parsedK8sVersion, nil
+}
+
 func (i *Installer) create(ctx context.Context, res *v1.CustomResourceDefinition) (*v1.CustomResourceDefinition, error) {
-	res, err := i.cli.Create(ctx, res, metav1.CreateOptions{})
+	res, err := i.cli.Create(ctx, i.makeCRDVersionSafe(res), metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create crd")
 	}
 	return res, nil
+}
+
+func (i *Installer) update(ctx context.Context, res *v1.CustomResourceDefinition) (*v1.CustomResourceDefinition, error) {
+	updated, err := i.cli.Update(ctx, i.makeCRDVersionSafe(res), metav1.UpdateOptions{})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to update existing crd")
+	}
+
+	return updated, nil
 }
 
 // Installs the embedded MultitenantPodNetworkConfig CRD definition in the cluster.
@@ -76,9 +133,9 @@ func (i *Installer) InstallOrUpdateMTPNC(ctx context.Context) (*v1.CustomResourc
 	if !reflect.DeepEqual(mtpnc.Spec.Versions, current.Spec.Versions) {
 		mtpnc.SetResourceVersion(current.GetResourceVersion())
 		previous := *current
-		current, err = i.cli.Update(ctx, mtpnc, metav1.UpdateOptions{})
+		current, err = i.update(ctx, mtpnc)
 		if err != nil {
-			return &previous, errors.Wrap(err, "failed to update existing mtpnc crd")
+			return &previous, err
 		}
 	}
 	return current, nil
@@ -112,9 +169,9 @@ func (i *Installer) InstallOrUpdateNodeInfo(ctx context.Context) (*v1.CustomReso
 	if !reflect.DeepEqual(nodeinfo.Spec.Versions, current.Spec.Versions) {
 		nodeinfo.SetResourceVersion(current.GetResourceVersion())
 		previous := *current
-		current, err = i.cli.Update(ctx, nodeinfo, metav1.UpdateOptions{})
+		current, err = i.update(ctx, nodeinfo)
 		if err != nil {
-			return &previous, errors.Wrap(err, "failed to update existing nodeinfo crd")
+			return &previous, err
 		}
 	}
 	return current, nil
@@ -148,9 +205,9 @@ func (i *Installer) InstallOrUpdatePodNetwork(ctx context.Context) (*v1.CustomRe
 	if !reflect.DeepEqual(podNetwork.Spec.Versions, current.Spec.Versions) {
 		podNetwork.SetResourceVersion(current.GetResourceVersion())
 		previous := *current
-		current, err = i.cli.Update(ctx, podNetwork, metav1.UpdateOptions{})
+		current, err = i.update(ctx, podNetwork)
 		if err != nil {
-			return &previous, errors.Wrap(err, "failed to update existing podnetwork crd")
+			return &previous, err
 		}
 	}
 	return current, nil
@@ -184,9 +241,9 @@ func (i *Installer) InstallOrUpdatePodNetworkInstance(ctx context.Context) (*v1.
 	if !reflect.DeepEqual(podnetworkinstance.Spec.Versions, current.Spec.Versions) {
 		podnetworkinstance.SetResourceVersion(current.GetResourceVersion())
 		previous := *current
-		current, err = i.cli.Update(ctx, podnetworkinstance, metav1.UpdateOptions{})
+		current, err = i.update(ctx, podnetworkinstance)
 		if err != nil {
-			return &previous, errors.Wrap(err, "failed to update existing podnetworkinstance crd")
+			return &previous, err
 		}
 	}
 	return current, nil
