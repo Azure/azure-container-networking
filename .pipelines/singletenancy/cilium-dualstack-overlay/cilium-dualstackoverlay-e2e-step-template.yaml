@@ -52,6 +52,8 @@ steps:
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
+      # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
+
       IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
       CNS=${CNS_VERSION:-$(make cns-version)}
       sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cilium_dualstack VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true

@@ -53,6 +53,8 @@ steps:
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
+      # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
+
       CNS=${CNS_VERSION}
       IPAM=${AZURE_IPAM_VERSION}
       if [ -z "$CNS" ] || [ -z "$IPAM" ]; then

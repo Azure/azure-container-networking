@@ -35,6 +35,8 @@ steps:
   - script: |
       echo "Start Integration Tests on Overlay Cluster"
       kubectl get po -owide -A
+      # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
+
       IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
       CNS=${CNS_VERSION:-$(make cns-version)}
       CNI=${CNI_VERSION:-$(make cni-version)}

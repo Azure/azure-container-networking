@@ -54,6 +54,8 @@ steps:
         echo "Deploying on Linux nodes"
 
         overrideCniImage=""
+        # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
+
         if [ -n "$CNI_VERSION" ]; then
           overrideCniImage=$(build_override_image || true)
         fi
