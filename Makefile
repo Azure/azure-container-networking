@@ -916,45 +916,13 @@ test-main:
 	go test -mod=readonly -buildvcs=false -tags "unit" --skip 'TestE2E*' -race -covermode atomic -coverprofile=coverage-main.out $(COVER_PKG)/...
 	go tool cover -func=coverage-main.out
 
-print-test-images: ## print effective test images from repo/name/version inputs.
-	@set -e; \
-	resolve_repo() { \
-		case "$$1" in \
-			MCR) echo "mcr.microsoft.com/containernetworking" ;; \
-			""|ACN) echo "acnpublic.azurecr.io" ;; \
-			*) echo "acnpublic.azurecr.io" ;; \
-		esac; \
-	}; \
-	format_image() { \
-		repo="$$1"; name="$$2"; version="$$3"; \
-		if [ -z "$$version" ]; then \
-			echo "$$repo/$$name:<empty-version>"; \
-		elif [[ "$$version" == @* ]]; then \
-			echo "$$repo/$$name$$version"; \
-		else \
-			echo "$$repo/$$name:$$version"; \
-		fi; \
-	}; \
-	ipam_repo=$$(resolve_repo "$${IPAM_IMAGE_REPO}"); \
-	cni_repo=$$(resolve_repo "$${CNI_IMAGE_REPO}"); \
-	cns_repo=$$(resolve_repo "$${CNS_IMAGE_REPO}"); \
-	ipam_name="$${IPAM_IMAGE_NAME_OVERRIDE:-azure-ipam}"; \
-	cni_name="$${CNI_IMAGE_NAME_OVERRIDE:-azure-cni}"; \
-	cns_name="$${CNS_IMAGE_NAME_OVERRIDE:-azure-cns}"; \
-	echo "=================================================================="; \
-	echo "Test image selection:"; \
-	echo "  AZURE_IPAM_IMAGE=$$(format_image "$$ipam_repo" "$$ipam_name" "${AZURE_IPAM_VERSION}")"; \
-	echo "  CNI_IMAGE=$$(format_image "$$cni_repo" "$$cni_name" "${CNI_VERSION}")"; \
-	echo "  CNS_IMAGE=$$(format_image "$$cns_repo" "$$cns_name" "${CNS_VERSION}")"; \
-	echo "=================================================================="
-
-test-integration: print-test-images ## run all integration tests.
+test-integration: ## run all integration tests.
 	AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \
 		CNI_VERSION=$(CNI_VERSION) \
 		CNS_VERSION=$(CNS_VERSION) \
 		go test -mod=readonly -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration --skip 'TestE2E*' ./test/integration...
 
-test-load: print-test-images ## run all load tests
+test-load: ## run all load tests
 	AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \
 		CNI_VERSION=$(CNI_VERSION) \
 		CNS_VERSION=$(CNS_VERSION) \
