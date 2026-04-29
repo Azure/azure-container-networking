@@ -33,6 +33,12 @@ spec:
       name: Status
       type: string
     name: v1alpha1
+    selectableFields:
+    - jsonPath: .spec.podNetworkInstance
+    - jsonPath: .spec.podNetwork
+    - jsonPath: .spec.podName
+    - jsonPath: .status.status
+    - jsonPath: .status.nodeName
     schema:
       openAPIV3Schema:
         description: MultitenantPodNetworkConfig is the Schema for the multitenantpodnetworkconfigs

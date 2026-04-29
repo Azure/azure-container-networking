@@ -42,6 +42,12 @@ spec:
       priority: 1
       type: string
     name: v1alpha1
+    selectableFields:
+    - jsonPath: .spec.networkID
+    - jsonPath: .spec.subnetResourceID
+    - jsonPath: .spec.subnetGUID
+    - jsonPath: .spec.deviceType
+    - jsonPath: .status.status
     schema:
       openAPIV3Schema:
         description: PodNetwork is the Schema for the PodNetworks API
