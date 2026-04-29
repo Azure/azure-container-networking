@@ -12,7 +12,7 @@ metadata:
 rules:
   - apiGroups: ["apps"]
     resources: ["daemonsets"]
-    verbs: ["get", "list", "create", "watch", "patch", "apply"]
+    verbs: ["get", "list", "create", "watch", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -48,7 +48,7 @@ spec:
             nodeSelectorTerms:
               - matchExpressions:
                   - key: kubernetes.azure.com/managed
-                    # set on unmanaged nodes
+                    # enforce watcher runs on managed nodes (exclude nodes labeled managed=false)
                     operator: NotIn
                     values:
                       - "false"

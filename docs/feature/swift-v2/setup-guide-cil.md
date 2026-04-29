@@ -51,6 +51,7 @@ This is optional-- do this if you want kube proxy to come back up if it gets del
 ### All: Clone repo + checkout branch for *.yamls
 ```
 git clone https://github.com/Azure/azure-container-networking.git
+cd azure-container-networking
 git checkout master
 ```
 
@@ -109,6 +110,6 @@ If pods are stuck in creating, try restarting the node. After creating a pod you
   - no unmanaged kube-proxy
   - no cilium operator
 
-## Quick Vaildation testing
+## Quick Validation testing
 Check Cilium Management with
 - `kubectl get cep -A`
