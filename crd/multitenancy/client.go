@@ -61,12 +61,12 @@ func ensureSelectableFieldsVersionSafe(res *v1.CustomResourceDefinition, k8sVers
 		return res
 	}
 
-	copy := res.DeepCopy()
-	for idx := range copy.Spec.Versions {
-		copy.Spec.Versions[idx].SelectableFields = nil
+	cleanedCrd := res.DeepCopy()
+	for idx := range cleanedCrd.Spec.Versions {
+		cleanedCrd.Spec.Versions[idx].SelectableFields = nil
 	}
 
-	return copy
+	return cleanedCrd
 }
 
 func detectServerVersion(c *rest.Config) (*utilversion.Version, error) {
