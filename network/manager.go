@@ -880,7 +880,7 @@ func generateCNSIPInfoMap(eps []*endpoint) map[string]*restserver.IPInfo {
 		for _, ipAddr := range ep.IPAddresses {
 			if ipAddr.IP.To4() != nil {
 				ipInfo.IPv4 = append(ipInfo.IPv4, ipAddr)
-			} else {
+			} else if ipAddr.IP.To16() != nil {
 				ipInfo.IPv6 = append(ipInfo.IPv6, ipAddr)
 			}
 		}
