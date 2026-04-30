@@ -201,6 +201,7 @@ overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an Overlay Cilium clus
 		--yes
 	@$(MAKE) set-kubeconf
 
+ebpf-overlay-cilium-up: OS_SKU := $(if $(filter Ubuntu2404 AzureLinux,$(OS_SKU)),$(OS_SKU),Ubuntu2404)
 ebpf-overlay-cilium-up: rg-up ipv4 overlay-net-up ## Brings up an EBPF Overlay Cilium cluster
 	$(COMMON_AKS_FIELDS) \
 		--load-balancer-outbound-ips $(PUBLIC_IPv4) \
