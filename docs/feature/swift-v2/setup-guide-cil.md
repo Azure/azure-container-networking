@@ -39,7 +39,7 @@ From this point on, I am assuming you have the following
 - BYO Nodes:
   - azure cni
   - unmanaged azure cns
-  - Ideally: conflist is azure cni conflist (not chained). For New Clusters: It is possible conflist is cilium conflist (not chained)-- this is fine-- you just might need to restart the node after adding the cilium watcher
+  - Ideally: conflist is azure cni conflist (not chained). For New Clusters: It is possible conflist is cilium conflist (not chained)-- this is fine-- you just might need to restart the node after adding the cilium unmanaged ds
   - no npm
   - Existing Cluster Only: unmanaged kube-proxy
   - For New Clusters: no kube-proxy
@@ -65,25 +65,26 @@ export CNI_IMAGE=acnpublic.azurecr.io/public/containernetworking/azure-cni:v1.7.
 envsubst '${CONFLIST},${CONFLIST_PRIORITY},${CNI_IMAGE}' < test/integration/manifests/cni/conflist-installer-byon.yaml | kubectl apply -f -
 ```
 
-### Existing Cluster Only: Apply Watcher with Alt Healthz Bind Port
+### Existing Cluster Only: Apply Unmanaged Cilium Daemonset with Alt Healthz Bind Port
+Unmanaged daemonset uses Cilium v1.18.6 (matches AKS managed Cilium for k8s 1.34 overlay clusters).
 ```
-kubectl apply -f test/integration/manifests/cilium/watcher/deployment-alt-healthz-port.yaml
+kubectl apply -f test/integration/manifests/cilium/v1.18/unmanaged/daemonset-alt-healthz-port.yaml
 ```
-- This is the same as the normal watcher except we set the healthz port to 50257 to not conflict with kube proxy on the unmanaged nodes
+- This is the same as the normal unmanaged cilium ds except we set the healthz port to 50257 to not conflict with kube proxy on the unmanaged nodes
 - Cilium should come up successfully
-- Both daemonsets have kube proxy replacement true
+- The managed and unmanaged Cilium daemonsets both have kube-proxy replacement enabled
 
 ### Existing Cluster Only: Remove kube-proxy
 - Cilium should be able to take on the role of kube proxy
-- After removing kube-proxy succeeds, we can start to apply the normal watcher below
+- After removing kube-proxy succeeds, we can start to apply the normal unmanaged cilium ds below
 
-### All: Apply Watcher
+### All: Apply Unmanaged Cilium Daemonset
+Assuming k8s 1.34. Unmanaged daemonset uses Cilium v1.18.6 (matches AKS managed Cilium for k8s 1.34 overlay clusters).
 ```
-kubectl apply -f test/integration/manifests/cilium/watcher/deployment.yaml
+kubectl apply -f test/integration/manifests/cilium/v1.18/unmanaged/daemonset.yaml
 ```
 
-- Watcher obtains existing Cilium Daemonset from managed node
-- We overwrite Cilium Configmap values through the use of args on the `cilium-agent` container within the watcher deployment.
+- We override Cilium configmap defaults via args on the `cilium-agent` container in the unmanaged daemonset.
 
 ### All: Swiftv1 Connectivity should work at this point
 If pods are stuck in creating, try restarting the node. After creating a pod you should be able to contact the cluster dns and other services.
@@ -91,7 +92,7 @@ If pods are stuck in creating, try restarting the node. After creating a pod you
 
 ### All: Quick Summary
 - Apply conflist installer to update conflist on BYON
-- Apply Watcher and Overwrite existing CM values through `cilium-agent` container
+- Apply unmanaged cilium ds and override CM defaults via args on the `cilium-agent` container
 
 ### All: Checkpoint
 - System nodes: 
