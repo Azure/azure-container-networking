@@ -8,11 +8,10 @@ set -eux
 # Priority:
 #   1. MSFT_GO_IMAGE env var (explicit override)
 #   2. Parsed from the source Dockerfile for $name
-#   3. Hardcoded fallback digest below
+#   3. Hardcoded fallback image below
 #
-# To update the fallback, run:
-#   skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0 --format "{{.Name}}@{{.Digest}}"
-DEFAULT_IMAGE="mcr.microsoft.com/oss/go/microsoft/golang@sha256:3999f970bb52b7413ef9be2803173d4fd7f1f3c59362a98a0c78d155e3a0e59f"
+# Fallback to latest msft-go image.
+DEFAULT_IMAGE="mcr.microsoft.com/oss/go/microsoft/golang:latest"
 
 # Resolves the golang image from the source Dockerfile for the given $name.
 # Echoes the image reference, or empty string if it cannot be determined.
