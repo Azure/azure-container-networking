@@ -77,7 +77,7 @@ type EndpointClient interface {
 // NetworkManager manages the set of container networking resources.
 type networkManager struct {
 	statelessCniMode   bool
-	CnsClient          *cnsclient.Client
+	CnsClient          CNSClient // Interface for CNS client operations (injectable for testing)
 	Version            string
 	TimeStamp          time.Time
 	ExternalInterfaces map[string]*externalInterface
@@ -455,7 +455,6 @@ func validateUpdateEndpointState(endpointID string, ifNameToIPInfoMap map[string
 }
 
 // GetEndpointState will make a call to CNS GetEndpointState API in the stateless CNI mode to fetch the endpointInfo
-// TODO unit tests need to be added, WorkItem: 26606939
 // In stateless cni, container id is the endpoint id, so you can pass in either
 func (nm *networkManager) GetEndpointState(networkID, containerID, netns string) ([]*EndpointInfo, error) {
 	endpointResponse, err := nm.CnsClient.GetEndpoint(context.TODO(), containerID)
