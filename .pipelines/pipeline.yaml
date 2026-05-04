@@ -599,7 +599,7 @@ stages:
     # Delete Cilium Clusters
     - stage: delete_cilium_clusters
       displayName: Delete Cilium Clusters
-      condition: and(always(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
+      condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
       dependsOn:
         - setup
         - cilium_e2e
@@ -668,7 +668,7 @@ stages:
     # Delete Windows Clusters
     - stage: delete_windows_clusters
       displayName: Delete Windows Clusters
-      condition: and(always(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true'))
+      condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunWindowsTests'], 'true'))
       dependsOn:
         - setup
         - win_azure_overlay_e2e
@@ -712,7 +712,7 @@ stages:
     # Delete Linux Clusters
     - stage: delete_linux_clusters
       displayName: Delete Linux Clusters
-      condition: always()
+      condition: succeeded()
       dependsOn:
         - setup
         - linux_azure_overlay_e2e
