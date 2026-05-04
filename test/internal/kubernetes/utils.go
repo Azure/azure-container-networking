@@ -554,8 +554,8 @@ func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespac
 		errResult = stderr.Bytes()
 
 		if err != nil {
-			log.Printf("Error: %v had error %v from command - %v", podName, err, cmd)
-			return errors.Wrapf(err, "error in executing command %s", cmd)
+			log.Printf("Error: %v had error %v from command - %v; stdout: %s; stderr: %s", podName, err, cmd, result, errResult)
+			return errors.Wrapf(err, "error in executing command %s; stderr: %s", cmd, errResult)
 		}
 		if len(stdout.Bytes()) == 0 {
 			log.Printf("Warning: %v had 0 bytes returned from command - %v", podName, cmd)
