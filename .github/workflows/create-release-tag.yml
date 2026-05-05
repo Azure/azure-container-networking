@@ -1,0 +1,180 @@
+name: Create Release Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_prefix:
+        description: Tag prefix. Choose none for root tags like v1.2.3
+        required: true
+        default: none
+        type: choice
+        options:
+          - none
+          - azure-block-iptables
+          - azure-ip-masq-merger
+          - azure-ipam
+          - azure-iptables-monitor
+          - cilium-log-collector
+          - cni-dropgz
+          - dropgz
+          - ipv6-hp-bpf
+          - zapai
+      tag_name:
+        description: Tag version in Go release format, e.g. v1.2.3
+        required: true
+        type: string
+      target_ref:
+        description: Full 40-character commit SHA to tag
+        required: true
+        type: string
+      reason:
+        description: Reason for creating this tag
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Tag Request
+    runs-on: ubuntu-latest
+    outputs:
+      target_sha: ${{ steps.validate.outputs.target_sha }}
+      target_ref: ${{ steps.validate.outputs.target_ref }}
+      full_tag: ${{ steps.validate.outputs.full_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate inputs and target
+        id: validate
+        env:
+          TAG_PREFIX: ${{ inputs.tag_prefix }}
+          TAG_NAME: ${{ inputs.tag_name }}
+          TARGET_REF: ${{ inputs.target_ref }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$TAG_PREFIX" == "none" ]]; then
+            FULL_TAG="$TAG_NAME"
+          else
+            FULL_TAG="$TAG_PREFIX/$TAG_NAME"
+          fi
+
+          if ! echo "$TAG_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid tag format: $TAG_NAME"
+            echo "::error::Use Go release tag format vMAJOR.MINOR.PATCH, e.g. v1.7.18"
+            exit 1
+          fi
+
+          if ! echo "$TARGET_REF" | grep -Eq '^[0-9a-fA-F]{40}$'; then
+            echo "target_ref must be a full 40-character commit SHA: $TARGET_REF"
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags --refs origin "refs/tags/$FULL_TAG" >/dev/null 2>&1; then
+            echo "Tag already exists on origin: $FULL_TAG"
+            exit 1
+          fi
+
+          git fetch --quiet origin --tags
+
+          if ! TARGET_SHA=$(git rev-parse "$TARGET_REF^{commit}" 2>/dev/null); then
+            echo "Unable to resolve target_ref to a commit: $TARGET_REF"
+            exit 1
+          fi
+
+          if git show-ref --verify --quiet "refs/tags/$TARGET_REF"; then
+            echo "target_ref must be a commit SHA, not a tag: $TARGET_REF"
+            exit 1
+          fi
+
+          echo "target_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
+          echo "target_ref=$TARGET_REF" >> "$GITHUB_OUTPUT"
+          echo "full_tag=$FULL_TAG" >> "$GITHUB_OUTPUT"
+          echo "Validated request for $FULL_TAG on $TARGET_REF ($TARGET_SHA)"
+
+  create_tag:
+    name: Create Tag (Approval Required)
+    runs-on: ubuntu-latest
+    needs: validate
+    # Operational requirement:
+    # - This workflow expects a GitHub Environment named `tag-approval`.
+    # - Configure that environment with required reviewers / approval rules
+    #   to gate release tag creation in this repository.
+    # - In forks or newly created repositories, create and maintain the
+    #   `tag-approval` environment before using this workflow, or update this
+    #   workflow to reference the repository's documented approval environment.
+    environment: tag-approval
+    permissions:
+      contents: write
+    concurrency:
+      group: release-tag-${{ inputs.tag_prefix }}-${{ inputs.tag_name }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout target commit
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ needs.validate.outputs.target_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Re-check remote tag does not exist
+        env:
+          FULL_TAG: ${{ needs.validate.outputs.full_tag }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags --refs origin "refs/tags/$FULL_TAG" >/dev/null 2>&1; then
+            echo "Tag already exists on origin: $FULL_TAG"
+            exit 1
+          fi
+
+      - name: Create and push annotated tag
+        env:
+          FULL_TAG: ${{ needs.validate.outputs.full_tag }}
+          TARGET_SHA: ${{ needs.validate.outputs.target_sha }}
+          TARGET_REF: ${{ needs.validate.outputs.target_ref }}
+          REASON: ${{ inputs.reason }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          TAG_MESSAGE=$(cat <<EOF
+          Release $FULL_TAG
+
+          Target SHA: $TARGET_SHA
+          Target Ref: $TARGET_REF
+          Requested By: $GITHUB_ACTOR
+          Reason: $REASON
+          Workflow Run: $RUN_URL
+          EOF
+          )
+
+          git tag -a "$FULL_TAG" "$TARGET_SHA" -m "$TAG_MESSAGE"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$FULL_TAG"
+
+      - name: Write summary
+        env:
+          FULL_TAG: ${{ needs.validate.outputs.full_tag }}
+          TARGET_SHA: ${{ needs.validate.outputs.target_sha }}
+          TARGET_REF: ${{ needs.validate.outputs.target_ref }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          {
+            echo "## Release Tag Created"
+            echo ""
+            echo "- Tag: $FULL_TAG"
+            echo "- Target SHA: $TARGET_SHA"
+            echo "- Target Ref: $TARGET_REF"
+            echo "- Requested By: $GITHUB_ACTOR"
+            echo "- Reason: $REASON"
+            echo "- Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } >> "$GITHUB_STEP_SUMMARY"
