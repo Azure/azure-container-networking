@@ -14,5 +14,6 @@ data:
       - 100.64.0.0/10
       - 10.244.0.0/16
       - 10.10.0.0/16
+      - 10.224.0.0/12
     masqLinkLocal: false
     masqLinkLocalIPv6: true
