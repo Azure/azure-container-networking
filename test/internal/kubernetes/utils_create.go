@@ -50,6 +50,9 @@ type cnsDetails struct {
 	containerVolumeMounts     []corev1.VolumeMount
 	configMapPath             string
 	installIPMasqAgent        bool
+	// Telemetry sidecar container and its init container that deploys the binary
+	telemetrySidecarContainer     *corev1.Container
+	telemetrySidecarInitContainer *corev1.Container
 }
 
 const (
@@ -365,6 +368,7 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 	cnsOverlayConfigMapPath := cnsConfigFolder + "/overlayconfigmap.yaml"
 	cnsAzureCNIOverlayLinuxConfigMapPath := cnsConfigFolder + "/azurecnioverlaylinuxconfigmap.yaml"
 	cnsAzureCNIOverlayWindowsConfigMapPath := cnsConfigFolder + "/azurecnioverlaywindowsconfigmap.yaml"
+	cnsAzureStatelessCNIOverlayLinuxConfigMapPath := cnsConfigFolder + "/azurestatelesscnioverlaylinuxconfigmap.yaml"
 	cnsAzureStatelessCNIOverlayWindowsConfigMapPath := cnsConfigFolder + "/azurestatelesscnioverlaywindowsconfigmap.yaml"
 	cnsAzureCNIDualStackLinuxConfigMapPath := cnsConfigFolder + "/azurecnidualstackoverlaylinuxconfigmap.yaml"
 	cnsAzureCNIDualStackWindowsConfigMapPath := cnsConfigFolder + "/azurecnidualstackoverlaywindowsconfigmap.yaml"
@@ -450,15 +454,16 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				serviceAccountPath:     cnsServiceAccountPath,
 				initContainerArgs: []string{
 					"deploy",
-					"azure-vnet", "-o", "/opt/cni/bin/azure-vnet",
-					"azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry",
+					"azure-vnet-stateless", "-o", "/opt/cni/bin/azure-vnet",
 				},
 				initContainerName:         initContainerNameCNI,
 				volumes:                   volumesForAzureCNIOverlayLinux(),
 				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayLinux(),
 				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayLinux(),
-				configMapPath:             cnsAzureCNIOverlayLinuxConfigMapPath,
+				configMapPath:             cnsAzureStatelessCNIOverlayLinuxConfigMapPath,
 				installIPMasqAgent:        true,
+				telemetrySidecarContainer:          sidecarContainerForLinux(),
+				telemetrySidecarInitContainer:      sidecarInitContainerForLinux(),
 			},
 			corev1.Windows: {
 				daemonsetPath:          cnsWindowsDaemonSetPath,
@@ -478,6 +483,8 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayWindows(),
 				configMapPath:             cnsAzureStatelessCNIOverlayWindowsConfigMapPath,
 				installIPMasqAgent:        true,
+				telemetrySidecarContainer:          sidecarContainerForWindows(),
+				telemetrySidecarInitContainer:      sidecarInitContainerForWindows(),
 			},
 		},
 		EnvInstallAzilium: {
@@ -714,6 +721,21 @@ func parseCNSDaemonset(cnsScenarioMap map[CNSScenario]map[corev1.OSName]cnsDetai
 		if len(cnsScenarioDetails.containerVolumeMounts) > 0 {
 			cns.Spec.Template.Spec.Containers[0].VolumeMounts = cnsScenarioDetails.containerVolumeMounts
 		}
+
+		// add telemetry sidecar init container and container if defined
+		if cnsScenarioDetails.telemetrySidecarInitContainer != nil {
+			telemetrySidecarInitContainer := *cnsScenarioDetails.telemetrySidecarInitContainer
+			// Use the same image as the main init container (dropgz)
+			telemetrySidecarInitContainer.Image = cnsScenarioDetails.initContainerName
+			// Copy Env from primary init container for Windows compatibility (e.g., PATHEXT)
+			if len(cns.Spec.Template.Spec.InitContainers) > 0 {
+				telemetrySidecarInitContainer.Env = cns.Spec.Template.Spec.InitContainers[0].Env
+			}
+			cns.Spec.Template.Spec.InitContainers = append(cns.Spec.Template.Spec.InitContainers, telemetrySidecarInitContainer)
+		}
+		if cnsScenarioDetails.telemetrySidecarContainer != nil {
+			cns.Spec.Template.Spec.Containers = append(cns.Spec.Template.Spec.Containers, *cnsScenarioDetails.telemetrySidecarContainer)
+		}
 		return cns, cnsScenarioDetails, nil
 	}
 	return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(ErrNoCNSScenarioDefined, "no CNSSCenario env vars set to true, must explicitly set one to true")
@@ -813,6 +835,15 @@ func volumesForAzureCNIOverlayLinux() []corev1.Volume {
 				HostPath: &corev1.HostPathVolumeSource{
 					Path: "/run/xtables.lock",
 					Type: hostPathTypePtr(corev1.HostPathFile),
+				},
+			},
+		},
+		{
+			Name: "tmp",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/run",
+					Type: hostPathTypePtr(corev1.HostPathDirectory),
 				},
 			},
 		},
@@ -933,6 +964,118 @@ func cnsVolumeMountsForAzureCNIOverlayWindows() []corev1.VolumeMount {
 		{
 			Name:      "azure-vnet",
 			MountPath: "/var/run/azure-vnet",
+		},
+	}
+}
+
+// sidecarContainerForLinux returns the telemetry sidecar container config for Linux.
+func sidecarContainerForLinux() *corev1.Container {
+	return &corev1.Container{
+		Name:  "cni-telemetry-sidecar",
+		Image: "mcr.microsoft.com/cbl-mariner/base/core:2.0",
+		Command: []string{
+			"/opt/cni/bin/azure-cni-telemetry-sidecar",
+		},
+		Args: []string{
+			"--log-level",
+			"debug",
+		},
+		Env: []corev1.EnvVar{
+			{
+				Name:  "CNS_CONFIGURATION_PATH",
+				Value: "/etc/azure-cns/cns_config.json",
+			},
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "cns-config",
+				MountPath: "/etc/azure-cns",
+			},
+			{
+				Name:      "tmp",
+				MountPath: "/var/run",
+			},
+			{
+				Name:      "log",
+				MountPath: "/var/log",
+			},
+			{
+				Name:      "cni-bin",
+				MountPath: "/opt/cni/bin",
+			},
+		},
+	}
+}
+
+// sidecarInitContainerForLinux returns the init container that deploys the telemetry sidecar binary.
+func sidecarInitContainerForLinux() *corev1.Container {
+	return &corev1.Container{
+		Name:    "cni-telemetry-sidecar-installer",
+		Image:   "", // Will be set dynamically to CNI image
+		Command: []string{"/dropgz"},
+		Args: []string{
+			"deploy",
+			"azure-cni-telemetry-sidecar", "-o", "/opt/cni/bin/azure-cni-telemetry-sidecar",
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "cni-bin",
+				MountPath: "/opt/cni/bin",
+			},
+		},
+	}
+}
+
+// sidecarContainerForWindows returns the telemetry sidecar container config for Windows.
+func sidecarContainerForWindows() *corev1.Container {
+	return &corev1.Container{
+		Name:  "cni-telemetry-sidecar",
+		Image: "mcr.microsoft.com/windows/servercore:ltsc2022",
+		Command: []string{
+			"/k/azurecni/bin/azure-cni-telemetry-sidecar.exe",
+		},
+		Args: []string{
+			"--log-level",
+			"debug",
+		},
+		Env: []corev1.EnvVar{
+			{
+				Name:  "CNS_CONFIGURATION_PATH",
+				Value: "/etc/azure-cns/cns_config.json",
+			},
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "cns-config",
+				MountPath: "/etc/azure-cns",
+			},
+			{
+				Name:      "log",
+				MountPath: "/k/azurecns",
+			},
+			{
+				Name:      "cni-bin",
+				MountPath: "/k/azurecni/bin",
+			},
+		},
+	}
+}
+
+// sidecarInitContainerForWindows returns the init container that deploys the telemetry sidecar binary for Windows.
+func sidecarInitContainerForWindows() *corev1.Container {
+	return &corev1.Container{
+		Name:    "cni-telemetry-sidecar-installer",
+		Image:   "", // Will be set dynamically to CNI image
+		Command: []string{"$env:CONTAINER_SANDBOX_MOUNT_POINT/dropgz"},
+		Args: []string{
+			"deploy",
+			"azure-cni-telemetry-sidecar", "-o", "/k/azurecni/bin/azure-cni-telemetry-sidecar.exe",
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "cni-bin",
+				MountPath: "/k/azurecni/bin",
+			},
 		},
 	}
 }
