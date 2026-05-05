@@ -48,6 +48,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Validate inputs and target
         id: validate
@@ -120,6 +121,7 @@ jobs:
         with:
           ref: ${{ needs.validate.outputs.target_sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Re-check remote tag does not exist
         env:
@@ -137,6 +139,7 @@ jobs:
           TARGET_SHA: ${{ needs.validate.outputs.target_sha }}
           TARGET_REF: ${{ needs.validate.outputs.target_ref }}
           REASON: ${{ inputs.reason }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -156,7 +159,7 @@ jobs:
           )
 
           git tag -a "$FULL_TAG" "$TARGET_SHA" -m "$TAG_MESSAGE"
-          git push origin "refs/tags/$FULL_TAG"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$FULL_TAG"
 
       - name: Write summary
         env:
