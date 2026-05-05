@@ -128,15 +128,6 @@ steps:
   # Windows-specific steps
   - ${{ if eq(parameters.os, 'windows') }}:
     - script: |
-        # Remove cloud provider uninitialized taint from Windows nodes if present.
-        # Windows nodes may retain this taint after AKS initialization, preventing pod scheduling.
-        nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
-        for node in $nodeList; do
-          taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
-          if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
-              kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
-          fi
-        done
         sudo -E env "PATH=$PATH" make test-load \
           SCALE_UP=32 OS_TYPE=windows CNI_TYPE=stateless VALIDATE_STATEFILE=true VALIDATE_V4OVERLAY=true \
           INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true CLEANUP=true \
