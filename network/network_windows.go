@@ -278,15 +278,16 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 		vlanid = (int)(vlanID)
 	}
 
+	// Enable non-persistent flag so networks are removed after host reboot
+	hcnNetwork.Flags = hcn.EnableNonPersistent
+
 	// AccelnetNIC flag: hcn.EnableIov(9216) - treat Delegated/FrontendNIC also the same as Accelnet
 	// For L1VH with accelnet, hcn.DisableHostPort and hcn.EnableIov must be configured
 	if nwInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 		hcnNetwork.Type = hcn.Transparent
-		// set transparent network as non-persistent so that networks will be gone after the node gets rebooted
-		// hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableIov | hcn.EnableNonPersistent (1024 + 8192 + 8 = 9224)
-		hcnNetwork.Flags = hcn.DisableHostPort | hcn.EnableIov | hcn.EnableNonPersistent
+		// hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableIov (1024 + 8192 = 9216)
+		hcnNetwork.Flags |= hcn.DisableHostPort | hcn.EnableIov
 	}
-
 	// Populate subnets.
 	for _, subnet := range nwInfo.Subnets {
 		// Choose route based on IP family
