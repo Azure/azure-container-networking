@@ -512,7 +512,7 @@ stages:
         clusterName: "statelesscni"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "test"
+        dependsOn: ["test"]
 
     # AKS Swift E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
@@ -657,42 +657,6 @@ stages:
                 name: cilium_dualstackoverlay_e2e
                 clusterName: "cildsovere2e"
                 region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
-              linux_azure_overlay_e2e:
-                name: linux_azure_overlay_e2e
-                clusterName: "linuxazovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              windows_azure_overlay_e2e:
-                name: win_azure_overlay_e2e
-                clusterName: "winazovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              azure_overlay_stateless_e2e:
-                name: azure_overlay_stateless_e2e
-                clusterName: "statelesscni"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              aks_swift_e2e:
-                name: aks_swift_e2e
-                clusterName: "swifte2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              aks_swift_vnetscale_e2e:
-                name: aks_swift_vnetscale_e2e
-                clusterName: "vscaleswifte2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              aks_ubuntu_22_linux_e2e:
-                name: aks_ubuntu_22_linux_e2e
-                clusterName: "ubuntu22e2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              aks_windows_22_e2e:
-                name: aks_windows_22_e2e
-                clusterName: "win22e2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
-              linux_dualstackoverlay_e2e:
-                name: linux_dualstackoverlay_e2e
-                clusterName: "linuxdsovere2e"
-                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
-              windows_dualstackoverlay_e2e:
-                name: windows_dualstackoverlay_e2e
-                clusterName: "windsovere2e"
-                region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
           steps:
             - template: templates/delete-cluster.yaml
               parameters:
@@ -726,7 +690,7 @@ stages:
                 delete_name: win_azure_overlay_e2e
                 delete_region: $(REGION_AKS_CLUSTER_TEST)
               azure_overlay_stateless:
-                cluster_name: statelesswin
+                cluster_name: statelesscni
                 delete_name: azure_overlay_stateless_e2e
                 delete_region: $(REGION_AKS_CLUSTER_TEST)
               aks_windows_22:
