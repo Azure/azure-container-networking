@@ -932,7 +932,7 @@ func main() {
 
 		// Populate the NodeInfo CRD with HomeAZ for multi-tenant nodes
 		if err = createOrUpdateNodeInfoCRDForMultiTenant(rootCtx); err != nil {
-			logger.Errorf("Failed to create or update NodeInfo CRD for multi-tenant: %v", err)
+			z.Error("Failed to create or update NodeInfo CRD for multi-tenant", zap.Error(err))
 			return
 		}
 	}
@@ -1700,7 +1700,7 @@ func createOrUpdateNodeInfoCRDForMultiTenant(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to get kubeconfig")
 	}
-	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
+	kubeConfig.UserAgent = "azure-cns-" + version
 
 	clientset, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {

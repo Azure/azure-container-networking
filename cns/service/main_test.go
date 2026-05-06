@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -279,7 +280,7 @@ func TestBuildAndCreateNodeInfo_MultiTenantCRD(t *testing.T) {
 				assert.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, nodeInfoCli.createdNodeInfo)
 			assert.Equal(t, tt.vmUniqueID, nodeInfoCli.createdNodeInfo.Spec.VMUniqueID)
 			assert.Equal(t, tt.expectedAZ, nodeInfoCli.createdNodeInfo.Spec.HomeAZ)
