@@ -204,12 +204,15 @@ Tests use these labels to select appropriate nodes dynamically:
 
 **Node Pool Configuration**:
 
-| Node Pool | VM SKU | NICs | Label | Pods per Node |
-|-----------|--------|------|-------|---------------|
-| nodepool1 (default) | `Standard_D4s_v3` | 1 | `nic-capacity=low-nic` | 1 |
-| nplinux | `Standard_D16s_v3` | 7 | `nic-capacity=high-nic` | 1 (current test logic) |
+| Node Pool | VM SKU | NICs | OS | Label | Pods per Node |
+|-----------|--------|------|----|-------|---------------|
+| nodepool1 (default) | `Standard_D4s_v3` | 1 | Linux | `nic-capacity=low-nic`, `workload-type=swiftv2-linux` | 1 |
+| nplinux | `Standard_D16s_v3` | 7 | Linux | `nic-capacity=high-nic`, `workload-type=swiftv2-linux` | 1 (current test logic) |
+| npwin (optional, opt-in via `enableManagedWindows: true`) | `Standard_D16s_v3` | 7 | Windows2022 | `nic-capacity=high-nic`, `workload-type=swiftv2-windows` | n/a (no datapath stage yet) |
 
 **Note**: VM SKUs are hardcoded as constants in the pipeline template and cannot be changed by users.
+
+The `npwin` pool is gated by the `enableManagedWindows` flag on each scenario in `pipeline.yaml` and is **off by default**. When enabled, `create_aks.sh` first ensures the cluster has Windows admin credentials (via `az aks update --windows-admin-*` if not already set) and then adds the `npwin` swiftv2 pool with the same multi-tenancy tags and headers as `nplinux`. Tests targeting `workload-type=swiftv2-windows` are not yet wired into the pipeline; this change only provides the infra so partner teams (e.g., livemigration) can run their existing Windows workloads on the cluster.
 
 ## File Structure
 

@@ -17,6 +17,9 @@ parameters:
   - name: enableLinuxBYON
     type: boolean
     default: true
+  - name: enableManagedWindows
+    type: boolean
+    default: false
   - name: dependsOn
     type: object
     default: []
@@ -69,6 +72,7 @@ stages:
                 $(DELEGATOR_CONTAINER_APP_NAME)
                 $(DELEGATOR_RESOURCE_GROUP)
                 $(DELEGATOR_SUBSCRIPTION)
+                ${{ parameters.enableManagedWindows }}
 
       # Place CanNotDelete locks and deletion_due_time tags on RGs
       - job: LockResourceGroups
@@ -148,6 +152,21 @@ stages:
                   for NODE in $NPLINUX_NODES; do
                     kubectl --kubeconfig "$KUBECONFIG" label node "$NODE" \
                       workload-type=swiftv2-linux nic-capacity=high-nic --overwrite
+                  done
+
+                  # Label only schedulable npwin nodes (managed Windows pool, optional per-scenario)
+                  echo "  Labeling schedulable npwin nodes (if any): workload-type=swiftv2-windows, nic-capacity=high-nic"
+                  NPWIN_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes \
+                    -l agentpool=npwin \
+                    --field-selector spec.unschedulable!=true \
+                    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+                  if [ -z "$NPWIN_NODES" ]; then
+                    NPWIN_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes -l agentpool=npwin \
+                      -o json | jq -r '.items[] | select(.spec.unschedulable != true) | .metadata.name')
+                  fi
+                  for NODE in $NPWIN_NODES; do
+                    kubectl --kubeconfig "$KUBECONFIG" label node "$NODE" \
+                      workload-type=swiftv2-windows nic-capacity=high-nic --overwrite
                   done
 
                   echo "  Current node labels:"

@@ -20,6 +20,7 @@ parameters:
         enableAccelnet: false
         enableLinuxBYON: true
         enableDatapathLinux: true
+        enableManagedWindows: false
         longRunningPodZones:
           - "1"
           - "2"
@@ -31,6 +32,7 @@ parameters:
         enableAccelnet: true
         enableLinuxBYON: true
         enableDatapathLinux: true
+        enableManagedWindows: false
         longRunningPodZones:
           - "0"
       - subscriptionId: "37deca37-c375-4a14-b90a-043849bd2bf1"
@@ -39,6 +41,7 @@ parameters:
         enableAccelnet: false
         enableLinuxBYON: true
         enableDatapathLinux: true
+        enableManagedWindows: false
         longRunningPodZones: []
       - subscriptionId: "9b8218f9-902a-4d20-a65c-e98acec5362f"
         location: "eastus2euap"
@@ -46,6 +49,7 @@ parameters:
         enableAccelnet: false
         enableLinuxBYON: false
         enableDatapathLinux: false
+        enableManagedWindows: false
         longRunningPodZones:
           - "1"
           - "2"

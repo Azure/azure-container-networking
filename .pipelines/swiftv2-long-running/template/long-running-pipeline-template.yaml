@@ -39,6 +39,7 @@ stages:
         vmSkuHighNIC: $(vmSkuHighNIC)
         enableAccelnetBYON: ${{ scenario.enableAccelnet }}
         enableLinuxBYON: ${{ scenario.enableLinuxBYON }}
+        enableManagedWindows: ${{ coalesce(scenario.enableManagedWindows, false) }}
         dependsOn: []
 
   # ============================================================
