@@ -91,35 +91,15 @@ jobs:
           echo "full_tag=$FULL_TAG" >> "$GITHUB_OUTPUT"
           echo "Validated request for $FULL_TAG on $TARGET_SHA"
 
-  approve_tag:
-    name: Approve Tag
-    runs-on: ubuntu-latest
-    needs: validate
-    # Operational requirement:
-    # - This workflow expects a GitHub Environment named `tag-approval`.
-    # - Configure that environment with required reviewers / approval rules
-    #   to gate release tag creation in this repository.
-    # - In forks or newly created repositories, create and maintain the
-    #   `tag-approval` environment before using this workflow, or update this
-    #   workflow to reference the repository's documented approval environment.
-    environment: tag-approval
-    concurrency:
-      group: release-tag-${{ inputs.tag_prefix }}-${{ inputs.tag_name }}
-      cancel-in-progress: false
-    steps:
-      - name: Echo tag
-        env:
-          FULL_TAG: ${{ needs.validate.outputs.full_tag }}
-        run: echo $FULL_TAG
-
   create_tag:
     name: Create and Push Tag
     runs-on: ubuntu-latest
+    environment: tag-approval
     permissions:
       contents: write
+      deployments: write
     needs:
       - validate
-      - approve_tag
     steps:
       - name: Checkout target commit
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -137,6 +117,31 @@ jobs:
             echo "Tag already exists on origin: $FULL_TAG"
             exit 1
           fi
+
+      - name: Record successful tag-approval deployment for target SHA
+        env:
+          TARGET_SHA: ${{ needs.validate.outputs.target_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          DEPLOYMENT_ID=$(gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/deployments" \
+            -f ref="$TARGET_SHA" \
+            -f environment="tag-approval" \
+            -f required_contexts[] \
+            -F auto_merge=false \
+            --jq '.id')
+
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state="success" \
+            -f environment="tag-approval" \
+            -f auto_inactive=false >/dev/null
 
       - name: Create and push annotated tag
         env:
