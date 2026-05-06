@@ -1417,6 +1417,12 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		}
 	}
 
+	if cnsconfig.EnableHomeAz {
+		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
+			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd for home az")
+		}
+	}
+
 	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
 	if cnsconfig.EnableStateMigration && !httpRestServiceImplementation.EndpointStateStore.Exists() {
 		if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
