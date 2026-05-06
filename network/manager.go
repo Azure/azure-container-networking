@@ -519,7 +519,7 @@ func (nm *networkManager) DeleteEndpointStateless(networkID string, epInfo *Endp
 	nw := &network{
 		Id:           networkID, // currently unused in stateless cni
 		HnsId:        epInfo.HNSNetworkID,
-		Mode:         opModeTransparent,
+		Mode:         mode,
 		SnatBridgeIP: "",
 		NetNs:        dummyGUID, // to trigger hns v2, windows
 		extIf: &externalInterface{

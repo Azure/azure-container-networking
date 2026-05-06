@@ -5,6 +5,7 @@ package network
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"net"
 	"strings"
@@ -19,6 +20,8 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
+
+var errTransparentTunnelRequiresHNSv2 = stderrors.New("transparent-tunnel mode requires HNS v2 (container namespace), HNS v1 is not supported")
 
 const (
 	// hcnSchemaVersionMajor indicates major version number for hcn schema
@@ -166,8 +169,32 @@ func (nw *network) newEndpointImpl(
 			return nil, err
 		}
 
-		return nw.newEndpointImplHnsV2(cli, epInfo)
+		ep, createErr := nw.newEndpointImplHnsV2(cli, epInfo)
+		if createErr != nil {
+			return nil, createErr
+		}
 
+		// For transparent-tunnel mode, add /32 host routes to steer pod traffic
+		// through the gateway where VFP enforces NSG rules.
+		if nw.Mode == opModeTransparentTunnel {
+			gw := ipv4Gateway(nw.Subnets)
+			if err := addTransparentTunnelRoutes(plc, ep.IPAddresses, gw); err != nil {
+				// Route programming failed — roll back the HNS endpoint to avoid
+				// a live endpoint that bypasses VFP/NSG enforcement.
+				logger.Error("transparent-tunnel: rolling back HNS endpoint after route failure",
+					zap.String("hnsId", ep.HnsId), zap.Error(err))
+				_ = nw.deleteEndpointImplHnsV2(ep)
+				return nil, fmt.Errorf("transparent-tunnel route setup failed, endpoint rolled back: %w", err)
+			}
+		}
+
+		return ep, nil
+
+	}
+
+	// transparent-tunnel mode requires HNSv2 for transparent-tunnel /32 route enforcement.
+	if nw.Mode == opModeTransparentTunnel {
+		return nil, errTransparentTunnelRequiresHNSv2
 	}
 
 	return nw.newEndpointImplHnsV1(epInfo, plc)
@@ -553,7 +580,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.ExecClient, _ EndpointClient, _ netio.NetIOInterface, _ NamespaceClientInterface,
+func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, plc platform.ExecClient, _ EndpointClient, _ netio.NetIOInterface, _ NamespaceClientInterface,
 	_ ipTablesClient, _ dhcpClient, ep *endpoint, _ string,
 ) error {
 	// endpoint deletion is not required for IB
@@ -570,15 +597,24 @@ func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.Exe
 		return nil
 	}
 
+	var hnsErr error
 	if useHnsV2, err := UseHnsV2(ep.NetNs); useHnsV2 {
 		if err != nil {
 			return err
 		}
-
-		return nw.deleteEndpointImplHnsV2(ep)
+		hnsErr = nw.deleteEndpointImplHnsV2(ep)
+	} else {
+		hnsErr = nw.deleteEndpointImplHnsV1(ep)
 	}
 
-	return nw.deleteEndpointImplHnsV1(ep)
+	// For transparent-tunnel mode, remove /32 host routes AFTER deleting the HNS endpoint.
+	// This ordering ensures that if HNS delete fails, the routes remain in place to keep
+	// VFP/NSG enforcement active on the still-live endpoint.
+	if hnsErr == nil && nw.Mode == opModeTransparentTunnel {
+		deleteTransparentTunnelRoutes(plc, ep.IPAddresses)
+	}
+
+	return hnsErr
 }
 
 // deleteEndpointImplHnsV1 deletes an existing endpoint from the network using HNS v1.
