@@ -4,10 +4,12 @@ package load
 
 import (
 	"context"
+	"log"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
+	"github.com/Azure/azure-container-networking/test/internal/retry"
 	"github.com/Azure/azure-container-networking/test/validate"
 	"github.com/stretchr/testify/require"
 )
@@ -258,8 +260,8 @@ func TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall(t *testing.
 	err = kubernetes.WaitForPodDeployment(ctx, clientset, namespace, deployment.Name, podLabelSelector, testConfig.ScaleUpReplicas)
 	require.NoError(t, err)
 
-	// Validate the CNS state
-	err = validator.Validate(ctx)
+	// Validate the CNS state with retry to allow async pod delete processing to complete
+	err = validateWithRetry(ctx, validator)
 	require.NoError(t, err)
 
 	// Scale it down
@@ -273,8 +275,8 @@ func TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall(t *testing.
 	err = kubernetes.WaitForPodDeployment(ctx, clientset, namespace, deployment.Name, podLabelSelector, testConfig.ScaleDownReplicas)
 	require.NoError(t, err)
 
-	// Validate the CNS state
-	err = validator.Validate(ctx)
+	// Validate the CNS state with retry to allow async pod delete processing to complete
+	err = validateWithRetry(ctx, validator)
 	require.NoError(t, err)
 
 	if testConfig.Cleanup {
@@ -329,4 +331,19 @@ func TestDualStackProperties(t *testing.T) {
 	if testConfig.Cleanup {
 		validator.Cleanup(ctx)
 	}
+}
+
+// validateWithRetry waits for async pod delete processing to complete, then
+// validates CNS state with retries. The async delete ticker in CNS fires every
+// 15s, so we wait 20s upfront and retry 3 times at 15s intervals to handle
+// the race between CNS restart and HNS endpoint cleanup.
+func validateWithRetry(ctx context.Context, validator *validate.Validator) error {
+	const asyncDeleteSettleTime = 20 * time.Second
+	log.Printf("Waiting %v for async pod delete processing to settle", asyncDeleteSettleTime)
+	time.Sleep(asyncDeleteSettleTime)
+
+	retrier := retry.Retrier{Attempts: 3, Delay: 15 * time.Second}
+	return retrier.Do(ctx, func() error {
+		return validator.Validate(ctx)
+	})
 }
