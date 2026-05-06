@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -228,6 +229,62 @@ func TestBuildNodeInfoSpec_WithHomeAZ(t *testing.T) {
 			if exp.VMUniqueID != got.VMUniqueID {
 				t.Error("received NodeInfo VMUniqueID differs from expected: exp:", exp.VMUniqueID, "got:", got.VMUniqueID)
 			}
+		})
+	}
+}
+
+// TestBuildAndCreateNodeInfo_MultiTenantCRD verifies that buildAndCreateNodeInfo
+// correctly creates a NodeInfo CRD in the MultiTenantCRD channel mode scenario.
+func TestBuildAndCreateNodeInfo_MultiTenantCRD(t *testing.T) {
+	tests := []struct {
+		name        string
+		vmUniqueID  string
+		homeAz      uint
+		expectedAZ  string
+		expectError bool
+	}{
+		{
+			name:        "multi-tenant CRD with valid HomeAZ",
+			vmUniqueID:  "mt-vm-unique-id",
+			homeAz:      3,
+			expectedAZ:  "AZ03",
+			expectError: false,
+		},
+		{
+			name:        "multi-tenant CRD with no HomeAZ",
+			vmUniqueID:  "mt-vm-no-az",
+			homeAz:      0,
+			expectedAZ:  "",
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			imdsCli := &mockIMDSClient{
+				vmUniqueID: tt.vmUniqueID,
+			}
+			nmaCli := &mockNMAgentClient{
+				homeAzResponse: nmagent.AzResponse{HomeAz: tt.homeAz},
+			}
+			nodeInfoCli := &mockNodeInfoClient{}
+			node := &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mt-test-node",
+					UID:  "mt-test-uid",
+				},
+			}
+
+			err := buildAndCreateNodeInfo(context.Background(), imdsCli, nmaCli, nodeInfoCli, node)
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.NotNil(t, nodeInfoCli.createdNodeInfo)
+			assert.Equal(t, tt.vmUniqueID, nodeInfoCli.createdNodeInfo.Spec.VMUniqueID)
+			assert.Equal(t, tt.expectedAZ, nodeInfoCli.createdNodeInfo.Spec.HomeAZ)
+			assert.Equal(t, "mt-test-node", nodeInfoCli.createdNodeInfo.Name)
 		})
 	}
 }

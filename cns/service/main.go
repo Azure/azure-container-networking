@@ -929,6 +929,12 @@ func main() {
 			logger.Errorf("Failed to start multiTenantController, err:%v.\n", err)
 			return
 		}
+
+		// Populate the NodeInfo CRD with HomeAZ for multi-tenant nodes
+		if err = createOrUpdateNodeInfoCRDForMultiTenant(rootCtx); err != nil {
+			z.Error("Failed to create or update NodeInfo CRD for multi-tenant", zap.Error(err))
+			return
+		}
 	}
 
 	if cnsconfig.EnableSwiftV2 && cnsconfig.EnableK8sDevicePlugin {
@@ -1685,6 +1691,33 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 	}
 
 	return buildAndCreateNodeInfo(ctx, imdsCli, nmaCli, nodeInfoCli, node)
+}
+
+// createOrUpdateNodeInfoCRDForMultiTenant is a self-contained helper for the MultiTenantCRD path
+// that fetches kubeconfig and node info internally.
+func createOrUpdateNodeInfoCRDForMultiTenant(ctx context.Context) error {
+	kubeConfig, err := ctrl.GetConfig()
+	if err != nil {
+		return errors.Wrap(err, "failed to get kubeconfig")
+	}
+	kubeConfig.UserAgent = "azure-cns-" + version
+
+	clientset, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to build clientset")
+	}
+
+	nodeName, err := configuration.NodeName()
+	if err != nil {
+		return errors.Wrap(err, "failed to get NodeName")
+	}
+
+	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node %s", nodeName)
+	}
+
+	return createOrUpdateNodeInfoCRD(ctx, kubeConfig, node)
 }
 
 // VMUniqueIDGetter is an interface for getting VM unique ID from IMDS
