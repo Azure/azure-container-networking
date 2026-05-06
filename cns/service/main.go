@@ -1255,6 +1255,23 @@ func InitializeMultiTenantController(ctx context.Context, httpRestService cns.HT
 	}
 	httpRestServiceImpl.SetNodeOrchestrator(&orchestrator)
 
+	// populate the NodeInfo CRD for the MultiTenantCRD channel mode
+	clientset, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to build clientset")
+	}
+	nodeName, err := configuration.NodeName()
+	if err != nil {
+		return errors.Wrap(err, "failed to get NodeName")
+	}
+	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node %s", nodeName)
+	}
+	if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
+		return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd for multitenant crd mode")
+	}
+
 	// Create multiTenantController.
 	multiTenantController, err = multitenantoperator.New(httpRestServiceImpl, kubeConfig)
 	if err != nil {
