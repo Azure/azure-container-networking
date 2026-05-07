@@ -168,7 +168,11 @@ stages:
     # Uses a dedicated stage template (no PrivateEndpoint / Scale jobs) targeting the
     # *_windows_test build tags. BUILD_ID embeds the workload type so namespaces and
     # pod names do not collide with the Linux variants on the same shared cluster.
-    - ${{ if eq(scenario.enableManagedWindows, true) }}:
+    # Gated on BOTH enableManagedWindows (infra: npwin/npwinl pools exist) AND
+    # enableDatapathWindows (run the datapath tests). This mirrors the Linux split
+    # (enableLinuxBYON / enableAccelnet vs enableDatapathLinux) so a user can
+    # provision the Windows pools without running the datapath tests.
+    - ${{ if and(eq(scenario.enableManagedWindows, true), eq(scenario.enableDatapathWindows, true)) }}:
       - template: datapath-windows-tests-stage.yaml
         parameters:
           workloadType: swiftv2-windows
@@ -197,7 +201,7 @@ stages:
           - DataPathTests_swiftv2_linux_byon_${{ replace(scenario.label, '-', '_') }}
         - ${{ if eq(scenario.enableAccelnet, true) }}:
           - DataPathTests_swiftv2_l1vh_accelnet_byon_${{ replace(scenario.label, '-', '_') }}
-        - ${{ if eq(scenario.enableManagedWindows, true) }}:
+        - ${{ if and(eq(scenario.enableManagedWindows, true), eq(scenario.enableDatapathWindows, true)) }}:
           - DataPathTests_swiftv2_windows_${{ replace(scenario.label, '-', '_') }}
       condition: and(always(), eq(dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
       jobs:
