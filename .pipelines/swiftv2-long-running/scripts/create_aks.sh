@@ -10,8 +10,9 @@ DELEGATOR_APP_NAME=$6
 DELEGATOR_RG=$7
 DELEGATOR_SUB=$8
 # Optional managed Windows nodepool. Off by default; set to "true" (typically via
-# the pipeline scenario flag) to provision the npwin pool.
-ENABLE_MANAGED_WINDOWS=${9:-"false"}
+# the pipeline scenario flag) to provision the npwin pool. Normalize to lowercase
+# because Azure DevOps serializes YAML booleans as "True"/"False".
+ENABLE_MANAGED_WINDOWS=$(echo "${9:-false}" | tr '[:upper:]' '[:lower:]')
 DELEGATOR_BASE_URL=${10:-"http://localhost:8080"}
 WINDOWS_ADMIN_USERNAME="${WINDOWS_ADMIN_USERNAME:-azureuser}"
 
