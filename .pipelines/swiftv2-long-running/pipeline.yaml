@@ -20,7 +20,7 @@ parameters:
         enableAccelnet: false
         enableLinuxBYON: true
         enableDatapathLinux: true
-        enableManagedWindows: false
+        enableManagedWindows: true
         longRunningPodZones:
           - "1"
           - "2"
