@@ -138,6 +138,7 @@ type TestResources struct {
 	PodImage           string
 	Reservations       int
 	Namespace          string
+	OS                 string // "linux" or "windows"; empty defaults to "linux"
 }
 
 type PodScenario struct {
@@ -147,6 +148,7 @@ type PodScenario struct {
 	SubnetName    string // e.g., "s1", "s2"
 	NodeSelector  string // "low-nic" or "high-nic"
 	PodNameSuffix string // Unique suffix for pod name
+	OS            string // "linux" or "windows"; empty defaults to "linux"
 }
 
 type TestScenarios struct {
@@ -170,6 +172,7 @@ func isValidWorkloadType(workloadType string) bool {
 		"swiftv2-linux",
 		"swiftv2-linux-byon",
 		"swiftv2-l1vh-accelnet-byon",
+		"swiftv2-windows",
 		// "swiftv2-l1vh-infiniband-byon",
 	}
 
@@ -293,10 +296,15 @@ func runtimeClassForWorkload() string {
 }
 
 func CreatePodResource(resources TestResources, podName, nodeName string) error {
+	podOS := resources.OS
+	if podOS == "" {
+		podOS = "linux"
+	}
+
 	err := CreatePod(resources.Kubeconfig, PodData{
 		PodName:          podName,
 		NodeName:         nodeName,
-		OS:               "linux",
+		OS:               podOS,
 		PNName:           resources.PNName,
 		PNIName:          resources.PNIName,
 		Namespace:        resources.PNName,
@@ -307,7 +315,14 @@ func CreatePodResource(resources TestResources, podName, nodeName string) error 
 		return fmt.Errorf("failed to create pod %s: %w", podName, err)
 	}
 
-	err = helpers.WaitForPodRunning(resources.Kubeconfig, resources.PNName, podName, 10, 30)
+	// Windows containers take significantly longer than Linux to pull and start
+	// (multi-GB base images, container start-up cost).
+	waitRetries := 10
+	if podOS == "windows" {
+		waitRetries = 30
+	}
+
+	err = helpers.WaitForPodRunning(resources.Kubeconfig, resources.PNName, podName, waitRetries, 30)
 	if err != nil {
 		return fmt.Errorf("pod %s did not reach running state: %w", podName, err)
 	}
@@ -361,6 +376,15 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 	pnName := fmt.Sprintf("pn-%s-%s-%s", testScenarios.BuildID, vnetShort, subnetNameSafe)
 	pniName := fmt.Sprintf("pni-%s-%s-%s", testScenarios.BuildID, vnetShort, subnetNameSafe)
 
+	podOS := scenario.OS
+	if podOS == "" {
+		podOS = "linux"
+	}
+	podTemplate := "../../manifests/swiftv2/long-running-cluster/pod.yaml"
+	if podOS == "windows" {
+		podTemplate = "../../manifests/swiftv2/long-running-cluster/pod-windows.yaml"
+	}
+
 	resources := TestResources{
 		Kubeconfig:         kubeconfig,
 		PNName:             pnName,
@@ -371,9 +395,10 @@ func CreateScenarioResources(scenario PodScenario, testScenarios TestScenarios) 
 		SubnetToken:        netInfo.SubnetToken,
 		PodNetworkTemplate: "../../manifests/swiftv2/long-running-cluster/podnetwork.yaml",
 		PNITemplate:        "../../manifests/swiftv2/long-running-cluster/podnetworkinstance.yaml",
-		PodTemplate:        "../../manifests/swiftv2/long-running-cluster/pod.yaml",
+		PodTemplate:        podTemplate,
 		PodImage:           testScenarios.PodImage,
 		Reservations:       2,
+		OS:                 podOS,
 	}
 
 	// Step 1: Create PodNetwork

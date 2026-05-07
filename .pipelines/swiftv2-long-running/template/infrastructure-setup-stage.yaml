@@ -169,6 +169,21 @@ stages:
                       workload-type=swiftv2-windows nic-capacity=high-nic --overwrite
                   done
 
+                  # Label only schedulable npwinl nodes (managed Windows low-NIC pool, optional per-scenario)
+                  echo "  Labeling schedulable npwinl nodes (if any): workload-type=swiftv2-windows, nic-capacity=low-nic"
+                  NPWINL_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes \
+                    -l agentpool=npwinl \
+                    --field-selector spec.unschedulable!=true \
+                    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+                  if [ -z "$NPWINL_NODES" ]; then
+                    NPWINL_NODES=$(kubectl --kubeconfig "$KUBECONFIG" get nodes -l agentpool=npwinl \
+                      -o json | jq -r '.items[] | select(.spec.unschedulable != true) | .metadata.name')
+                  fi
+                  for NODE in $NPWINL_NODES; do
+                    kubectl --kubeconfig "$KUBECONFIG" label node "$NODE" \
+                      workload-type=swiftv2-windows nic-capacity=low-nic --overwrite
+                  done
+
                   echo "  Current node labels:"
                   kubectl --kubeconfig "$KUBECONFIG" get nodes \
                     -o custom-columns='NAME:.metadata.name,STATUS:.status.conditions[?(@.type=="Ready")].reason,SCHEDULABLE:.spec.unschedulable,WORKLOAD:.metadata.labels.workload-type,NIC:.metadata.labels.nic-capacity,POOL:.metadata.labels.agentpool'

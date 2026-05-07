@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .PodName }}
+  namespace: {{ .Namespace }}
+  labels:
+    kubernetes.azure.com/pod-network-instance: {{ .PNIName }}
+    kubernetes.azure.com/pod-network: {{ .PNName }}
+spec:
+  nodeSelector:
+    kubernetes.io/os: {{ .OS }}
+    kubernetes.io/hostname: {{ .NodeName }}
+  containers:
+  - name: net-debugger
+    image: {{ .Image }}
+    command: ["pwsh", "-NoProfile", "-Command"]
+    args:
+      - |
+        Write-Host "Pod Network Diagnostics started on $env:COMPUTERNAME"
+        Write-Host "Starting TCP listener on port 8080"
+        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, 8080)
+        $listener.Start()
+        while ($true) {
+          try {
+            $client = $listener.AcceptTcpClient()
+            $stream = $client.GetStream()
+            $writer = New-Object System.IO.StreamWriter($stream)
+            $writer.AutoFlush = $true
+            $writer.WriteLine("TCP Connection Success from $env:COMPUTERNAME at $(Get-Date -Format o)")
+            $client.Close()
+          } catch {
+            Write-Host "Listener error: $_"
+          }
+        }
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+  restartPolicy: Always
