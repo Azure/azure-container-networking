@@ -178,6 +178,16 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP})
 		result.Routes = append(result.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP})
 
+		// Add IPv6 default route if the NC has an IPv6 configuration.
+		if cnsNetworkConfig.IPv6Configuration.IPSubnet.IPAddress != "" &&
+			cnsNetworkConfig.IPv6Configuration.GatewayIPAddress != "" {
+			_, defaultIPv6Net, _ := net.ParseCIDR("::/0")
+			dstIPv6 := net.IPNet{IP: net.ParseIP("::"), Mask: defaultIPv6Net.Mask}
+			gwIPv6 := net.ParseIP(cnsNetworkConfig.IPv6Configuration.GatewayIPAddress)
+			epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: dstIPv6, Gw: gwIPv6})
+			result.Routes = append(result.Routes, network.RouteInfo{Dst: dstIPv6, Gw: gwIPv6})
+		}
+
 		if epInfo.EnableSnatForDns {
 			logger.Info("add SNAT for DNS enabled")
 			addSnatForDNS(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
