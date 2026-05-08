@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/test/integration/swiftv2/helpers"
 	"github.com/onsi/ginkgo"
@@ -19,7 +20,7 @@ func TestLongRunningAlwaysOn(t *testing.T) {
 	ginkgo.RunSpecs(t, "Long-Running Always-On DaemonSet Suite")
 }
 
-// ensureAlwaysOnPNAndPNI ensures the PodNetwork and PodNetworkInstance exist for always-on pods.
+// ensureAlwaysOnPNAndPNI ensures the PodNetwork and PodNetworkInstance exist and are Ready for always-on pods.
 func ensureAlwaysOnPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 	ctx := context.Background()
 	c := helpers.MustGetK8sClient(kubeconfig)
@@ -36,6 +37,10 @@ func ensureAlwaysOnPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 		gomega.Expect(createErr).To(gomega.BeNil(), "Failed to create PodNetwork")
 	}
 
+	fmt.Printf("Waiting for PodNetwork %s to become Ready\n", pnName)
+	gomega.Expect(helpers.WaitForPodNetworkReady(ctx, c, pnName, 5*time.Minute)).To(gomega.BeNil(),
+		fmt.Sprintf("PodNetwork %s did not become Ready", pnName))
+
 	exists, err = helpers.PodNetworkInstanceExists(ctx, c, namespace, pniName)
 	gomega.Expect(err).To(gomega.BeNil(), "Failed to check PodNetworkInstance existence")
 	if exists {
@@ -45,6 +50,10 @@ func ensureAlwaysOnPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 		createErr := helpers.CreatePodNetworkInstanceCR(ctx, c, pniName, namespace, pnName, 0)
 		gomega.Expect(createErr).To(gomega.BeNil(), "Failed to create PodNetworkInstance")
 	}
+
+	fmt.Printf("Waiting for PodNetworkInstance %s/%s to become Ready\n", namespace, pniName)
+	gomega.Expect(helpers.WaitForPodNetworkInstanceReady(ctx, c, namespace, pniName, 5*time.Minute)).To(gomega.BeNil(),
+		fmt.Sprintf("PodNetworkInstance %s/%s did not become Ready", namespace, pniName))
 }
 
 var _ = ginkgo.Describe("Long-Running Always-On DaemonSet Tests", func() {

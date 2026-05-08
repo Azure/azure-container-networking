@@ -254,6 +254,14 @@ func CreatePodNetworkResource(resources TestResources) error {
 	if err != nil {
 		return fmt.Errorf("failed to create PodNetwork: %w", err)
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	c := helpers.MustGetK8sClient(resources.Kubeconfig)
+	fmt.Printf("Waiting for PodNetwork %s to become Ready\n", resources.PNName)
+	if err := helpers.WaitForPodNetworkReady(ctx, c, resources.PNName, 5*time.Minute); err != nil {
+		return fmt.Errorf("PodNetwork %s did not become Ready: %w", resources.PNName, err)
+	}
 	return nil
 }
 
@@ -278,6 +286,14 @@ func CreatePodNetworkInstanceResource(resources TestResources) error {
 	}, resources.PNITemplate)
 	if err != nil {
 		return fmt.Errorf("failed to create PodNetworkInstance: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	c := helpers.MustGetK8sClient(resources.Kubeconfig)
+	fmt.Printf("Waiting for PodNetworkInstance %s/%s to become Ready\n", namespace, resources.PNIName)
+	if err := helpers.WaitForPodNetworkInstanceReady(ctx, c, namespace, resources.PNIName, 5*time.Minute); err != nil {
+		return fmt.Errorf("PodNetworkInstance %s/%s did not become Ready: %w", namespace, resources.PNIName, err)
 	}
 	return nil
 }

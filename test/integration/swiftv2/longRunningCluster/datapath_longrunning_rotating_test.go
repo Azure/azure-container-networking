@@ -94,7 +94,7 @@ func createRotatingDeployment(kubeconfig, namespace, pniName, pnName, nodeName, 
 	return nil
 }
 
-// ensureRotatingPNAndPNI ensures the PodNetwork and PodNetworkInstance exist for rotating pods.
+// ensureRotatingPNAndPNI ensures the PodNetwork and PodNetworkInstance exist and are Ready for rotating pods.
 func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 	ctx := context.Background()
 	c := helpers.MustGetK8sClient(kubeconfig)
@@ -111,6 +111,10 @@ func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to create PodNetwork")
 	}
 
+	fmt.Printf("Waiting for PodNetwork %s to become Ready\n", pnName)
+	gomega.Expect(helpers.WaitForPodNetworkReady(ctx, c, pnName, 5*time.Minute)).To(gomega.BeNil(),
+		fmt.Sprintf("PodNetwork %s did not become Ready", pnName))
+
 	exists, err = helpers.PodNetworkInstanceExists(ctx, c, namespace, pniName)
 	gomega.Expect(err).To(gomega.BeNil(), "Failed to check PodNetworkInstance existence")
 	if exists {
@@ -120,6 +124,10 @@ func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 		err = helpers.CreatePodNetworkInstanceCR(ctx, c, pniName, namespace, pnName, 0)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to create PodNetworkInstance")
 	}
+
+	fmt.Printf("Waiting for PodNetworkInstance %s/%s to become Ready\n", namespace, pniName)
+	gomega.Expect(helpers.WaitForPodNetworkInstanceReady(ctx, c, namespace, pniName, 5*time.Minute)).To(gomega.BeNil(),
+		fmt.Sprintf("PodNetworkInstance %s/%s did not become Ready", namespace, pniName))
 }
 
 var _ = ginkgo.Describe("Long-Running Rotating Pod Tests", func() {

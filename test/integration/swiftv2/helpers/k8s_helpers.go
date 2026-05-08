@@ -26,6 +26,8 @@ var (
 	errDeploymentPodsExist = errors.New("deployment pods not fully removed")
 	errDaemonSetNotReady   = errors.New("daemonset not ready")
 	errMTPNCStillPresent   = errors.New("MTPNCs still present")
+	errPNNotReady          = errors.New("PodNetwork not ready")
+	errPNINotReady         = errors.New("PodNetworkInstance not ready")
 )
 
 const (
@@ -368,6 +370,48 @@ func CreatePodNetworkInstanceCR(ctx context.Context, c client.Client, name, name
 		return fmt.Errorf("failed to create PodNetworkInstance %s: %w", name, err)
 	}
 	return nil
+}
+
+// WaitForPodNetworkReady polls the PodNetwork until its status is Ready or the timeout elapses.
+func WaitForPodNetworkReady(ctx context.Context, c client.Client, name string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastStatus mtv1alpha1.Status
+	for time.Now().Before(deadline) {
+		pn := &mtv1alpha1.PodNetwork{}
+		if err := c.Get(ctx, types.NamespacedName{Name: name}, pn); err != nil {
+			if !apierrors.IsNotFound(err) {
+				fmt.Printf("Warning: failed to get PodNetwork %s: %v\n", name, err)
+			}
+		} else {
+			lastStatus = pn.Status.Status
+			if lastStatus == mtv1alpha1.Ready || lastStatus == mtv1alpha1.InUse {
+				return nil
+			}
+		}
+		time.Sleep(5 * time.Second)
+	}
+	return fmt.Errorf("%w: PodNetwork %s after %v (last status=%q)", errPNNotReady, name, timeout, lastStatus)
+}
+
+// WaitForPodNetworkInstanceReady polls the PodNetworkInstance until its status is Ready or the timeout elapses.
+func WaitForPodNetworkInstanceReady(ctx context.Context, c client.Client, namespace, name string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastStatus mtv1alpha1.PNIStatus
+	for time.Now().Before(deadline) {
+		pni := &mtv1alpha1.PodNetworkInstance{}
+		if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, pni); err != nil {
+			if !apierrors.IsNotFound(err) {
+				fmt.Printf("Warning: failed to get PodNetworkInstance %s/%s: %v\n", namespace, name, err)
+			}
+		} else {
+			lastStatus = pni.Status.Status
+			if lastStatus == mtv1alpha1.PNIStatusReady {
+				return nil
+			}
+		}
+		time.Sleep(5 * time.Second)
+	}
+	return fmt.Errorf("%w: PodNetworkInstance %s/%s after %v (last status=%q)", errPNINotReady, namespace, name, timeout, lastStatus)
 }
 
 func WaitForMTPNCCleanupK8s(ctx context.Context, c client.Client, namespace string, timeout time.Duration) error {
