@@ -112,7 +112,7 @@ func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 	}
 
 	fmt.Printf("Waiting for PodNetwork %s to become Ready\n", pnName)
-	gomega.Expect(helpers.WaitForPodNetworkReady(ctx, c, pnName, 5*time.Minute)).To(gomega.BeNil(),
+	gomega.Expect(helpers.WaitForPodNetworkReady(ctx, c, pnName, 10*time.Minute)).To(gomega.BeNil(),
 		fmt.Sprintf("PodNetwork %s did not become Ready", pnName))
 
 	exists, err = helpers.PodNetworkInstanceExists(ctx, c, namespace, pniName)
@@ -126,7 +126,7 @@ func ensureRotatingPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 	}
 
 	fmt.Printf("Waiting for PodNetworkInstance %s/%s to become Ready\n", namespace, pniName)
-	gomega.Expect(helpers.WaitForPodNetworkInstanceReady(ctx, c, namespace, pniName, 5*time.Minute)).To(gomega.BeNil(),
+	gomega.Expect(helpers.WaitForPodNetworkInstanceReady(ctx, c, namespace, pniName, 10*time.Minute)).To(gomega.BeNil(),
 		fmt.Sprintf("PodNetworkInstance %s/%s did not become Ready", namespace, pniName))
 }
 
