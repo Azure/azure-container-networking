@@ -40,12 +40,20 @@ type MultiTenantNetworkContainerSpec struct {
 type MultiTenantNetworkContainerStatus struct {
 	// The IP address
 	IP string `json:"ip,omitempty"`
+	// The IPv6 address (single host address from the allocated v6 prefix)
+	IPv6 string `json:"ipv6,omitempty"`
+	// The IPv6 prefix allocated for this NC (e.g. /112)
+	IPv6Prefix string `json:"ipv6Prefix,omitempty"`
 	// The gateway IP address
 	Gateway string `json:"gateway,omitempty"`
+	// The IPv6 gateway address
+	GatewayV6 string `json:"gatewayV6,omitempty"`
 	// The state of network container
 	State string `json:"state,omitempty"`
 	// The subnet CIDR
 	IPSubnet string `json:"ipSubnet,omitempty"`
+	// The IPv6 subnet CIDR
+	IPSubnetV6 string `json:"ipSubnetV6,omitempty"`
 	// The primary interface identifier
 	PrimaryInterfaceIdentifier string `json:"primaryInterfaceIdentifier,omitempty"`
 	// MultiTenantInfo holds the encap type and id

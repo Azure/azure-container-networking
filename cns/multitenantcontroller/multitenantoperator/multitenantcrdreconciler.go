@@ -142,6 +142,7 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 		return ctrl.Result{}, err
 	}
 	prefixLength, _ := ipNet.Mask.Size()
+
 	networkContainerRequest := &cns.CreateNetworkContainerRequest{
 		NetworkContainerid:   nc.Spec.UUID,
 		OrchestratorContext:  orchestratorContext,
@@ -159,6 +160,25 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 			EncapType: nc.Status.MultiTenantInfo.EncapType,
 			ID:        int(nc.Status.MultiTenantInfo.ID),
 		},
+	}
+
+	// Populate IPv6Configuration when the NC is dual-stack. azure-vnet's
+	// multitenancy CNI path consumes IPv6Configuration to program a v6 address
+	// and gateway on the secondary interface.
+	if nc.Status.IPv6 != "" && nc.Status.IPSubnetV6 != "" {
+		_, ipNetV6, err := net.ParseCIDR(nc.Status.IPSubnetV6)
+		if err != nil {
+			logger.Errorf("Failed to parse IPSubnetV6 %s for NC %s: %v", nc.Status.IPSubnetV6, nc.Spec.UUID, err)
+			return ctrl.Result{}, err
+		}
+		prefixLengthV6, _ := ipNetV6.Mask.Size()
+		networkContainerRequest.IPv6Configuration = cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    nc.Status.IPv6,
+				PrefixLength: uint8(prefixLengthV6),
+			},
+			GatewayIPAddress: nc.Status.GatewayV6,
+		}
 	}
 	logger.Printf("CreateOrUpdateNC with networkContainerRequest: %#v", networkContainerRequest)
 	responseCode := r.CNSRestService.CreateOrUpdateNetworkContainerInternal(networkContainerRequest)

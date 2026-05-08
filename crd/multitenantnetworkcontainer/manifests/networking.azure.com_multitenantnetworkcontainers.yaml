@@ -70,11 +70,24 @@ spec:
               gateway:
                 description: The gateway IP address
                 type: string
+              gatewayV6:
+                description: The IPv6 gateway address
+                type: string
               ip:
                 description: The IP address
                 type: string
               ipSubnet:
                 description: The subnet CIDR
+                type: string
+              ipSubnetV6:
+                description: The IPv6 subnet CIDR
+                type: string
+              ipv6:
+                description: The IPv6 address (single host address from the allocated
+                  v6 prefix)
+                type: string
+              ipv6Prefix:
+                description: The IPv6 prefix allocated for this NC (e.g. /112)
                 type: string
               multiTenantInfo:
                 description: MultiTenantInfo holds the encap type and id
