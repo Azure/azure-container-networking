@@ -27,6 +27,19 @@ az account set --subscription "$SUBSCRIPTION_ID"
 stamp_vnet() {
     local vnet_id="$1"
 
+    # Idempotency guard: stamp_vnet sets the 'stampcreatorserviceinfo=true' tag
+    # on the VNet as a side-effect of a successful PUT to the delegator. If the
+    # tag is already present, the cluster's VNet is already registered with DNC
+    # and re-stamping is unnecessary. This lets stamp_vnet be called on every
+    # pipeline run without depending on cluster-creation state.
+    local existing_tag
+    existing_tag=$(az network vnet show --ids "$vnet_id" \
+      --query "tags.stampcreatorserviceinfo" -o tsv 2>/dev/null || true)
+    if [[ "$existing_tag" == "true" ]]; then
+        echo "VNet $vnet_id already stamped (stampcreatorserviceinfo=true). Skipping."
+        return 0
+    fi
+
     responseFile="response.txt"
     modified_vnet="${vnet_id//\//%2F}"
     cmd_stamp_curl="'curl -v -X PUT ${DELEGATOR_BASE_URL}/VirtualNetwork/$modified_vnet/stampcreatorservicename'"
@@ -130,10 +143,14 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
         CLUSTER=$CLUSTER_NAME \
         VM_SIZE=$VM_SKU_DEFAULT
       wait_for_provisioning "$RG" "$CLUSTER_NAME"
-
-      vnet_id=$(az network vnet show -g "$RG" --name "$CLUSTER_NAME" --query id -o tsv)
-      stamp_vnet "$vnet_id"
     fi
+
+    # Always (re-)stamp the cluster VNet. stamp_vnet is idempotent (it short-
+    # circuits when stampcreatorserviceinfo=true is already set), so this is
+    # safe to run on every pipeline run. This also self-heals clusters that
+    # were created in a prior run where the stamp call failed or was skipped.
+    vnet_id=$(az network vnet show -g "$RG" --name "$CLUSTER_NAME" --query id -o tsv)
+    stamp_vnet "$vnet_id"
 
     # Add high-NIC nodepool if it doesn't exist
     NPLINUX_EXISTS=$(az aks nodepool show -g "$RG" --cluster-name "$CLUSTER_NAME" -n nplinux --query provisioningState -o tsv 2>/dev/null || true)
