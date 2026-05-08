@@ -1425,9 +1425,10 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 			if info := lookupNICNCInfo(nicNCByMAC, rawMAC, normalizedKey); info != nil {
 				res.NetworkID = info.NetworkID
 				res.SubnetID = info.SubnetID
+				res.PrimaryIP = info.PrimaryIP
 				res.Capacity = 16
-				logger.Printf("[Azure CNS] getNICResources: MAC %s matched NICNetworkConfig (networkID: %s, subnetID: %s, capacity: 16)",
-					mac, info.NetworkID, info.SubnetID)
+				logger.Printf("[Azure CNS] getNICResources: MAC %s matched NICNetworkConfig (networkID: %s, subnetID: %s, primaryIP: %s, capacity: 16)",
+					mac, info.NetworkID, info.SubnetID, info.PrimaryIP)
 				continue
 			}
 
@@ -1449,8 +1450,8 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 		// Log the final map for visibility.
 		logger.Printf("[Azure CNS] getNICResources: final NIC resource map (%d entries):", len(nicByMAC))
 		for mac, res := range nicByMAC {
-			logger.Printf("[Azure CNS] getNICResources:   MAC=%s iface=%s vmUniqueID=%s networkID=%s subnetID=%s capacity=%d",
-				mac, res.InterfaceName, res.VMUniqueID, res.NetworkID, res.SubnetID, res.Capacity)
+			logger.Printf("[Azure CNS] getNICResources:   MAC=%s iface=%s vmUniqueID=%s networkID=%s subnetID=%s primaryIP=%s capacity=%d",
+				mac, res.InterfaceName, res.VMUniqueID, res.NetworkID, res.SubnetID, res.PrimaryIP, res.Capacity)
 		}
 
 		// Convert map to slice for the response.

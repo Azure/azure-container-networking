@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"context"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -24,11 +25,19 @@ func (m *NICNetworkConfigMiddleware) GetNICNCInfoByMAC(ctx context.Context) (map
 	result := make(map[string]*cns.NICNCInfo, len(nicNCList.Items))
 	for i := range nicNCList.Items {
 		mac := nicNCList.Items[i].Status.MacAddress
-		if mac != "" {
-			result[mac] = &cns.NICNCInfo{
-				NetworkID: nicNCList.Items[i].Spec.NetworkID,
-				SubnetID:  nicNCList.Items[i].Spec.SubnetID,
-			}
+		if mac == "" {
+			continue
+		}
+		// Status.PrimaryIP is in CIDR form (e.g., "165.0.0.16/28"). Strip the
+		// prefix length so consumers get just the IP address.
+		primaryIP := nicNCList.Items[i].Status.PrimaryIP
+		if idx := strings.IndexByte(primaryIP, '/'); idx > 0 {
+			primaryIP = primaryIP[:idx]
+		}
+		result[mac] = &cns.NICNCInfo{
+			NetworkID: nicNCList.Items[i].Spec.NetworkID,
+			SubnetID:  nicNCList.Items[i].Spec.SubnetID,
+			PrimaryIP: primaryIP,
 		}
 	}
 

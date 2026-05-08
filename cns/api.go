@@ -395,6 +395,12 @@ type NICResource struct {
 	VMUniqueID             string `json:"vmUniqueID,omitempty"`
 	SubnetID               string `json:"subnetID,omitempty"`
 	Capacity               int    `json:"capacity"`
+	// PrimaryIP is the host-underlay primary IP for the NIC (the address
+	// NMAgent provisions as the NIC's primary CA on the SwiftV2 fabric).
+	// Sourced from the NICNetworkConfig CRD's Status.PrimaryIP with the
+	// prefix length stripped (e.g., "165.0.0.16/28" → "165.0.0.16").
+	// Empty when the NIC has no NICNetworkConfig CRD or the field is unset.
+	PrimaryIP string `json:"primaryIP,omitempty"`
 }
 
 // GetNICResourcesResponse describes response for GetNICResources API.
@@ -407,6 +413,10 @@ type GetNICResourcesResponse struct {
 type NICNCInfo struct {
 	NetworkID string
 	SubnetID  string
+	// PrimaryIP is the NIC's host-underlay primary IP, parsed from the CRD's
+	// Status.PrimaryIP with the prefix length removed. Empty for entries
+	// derived from MTPNC fallback (MTPNC PrimaryIP is per-pod, not per-NIC).
+	PrimaryIP string
 }
 
 // AssignIBDevicesToPodRequest represents the request for assigning InfiniBand devices to a pod
