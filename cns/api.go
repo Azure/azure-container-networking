@@ -396,9 +396,14 @@ type NICResource struct {
 	SubnetID               string `json:"subnetID,omitempty"`
 	Capacity               int    `json:"capacity"`
 	// PrimaryIP is the host-underlay primary IP for the NIC (the address
-	// NMAgent provisions as the NIC's primary CA on the SwiftV2 fabric).
-	// Sourced from the NICNetworkConfig CRD's Status.PrimaryIP with the
-	// prefix length stripped (e.g., "165.0.0.16/28" → "165.0.0.16").
+	// NMAgent provisions as the NIC's primary CA on the SwiftV2 fabric),
+	// formatted as a CIDR using the *subnet* address-space prefix length
+	// — e.g., "165.0.0.16/20" — not the narrower NC prefix-on-NIC range
+	// from Status.PrimaryIP. This shape lets the consumer (dranet) call
+	// `ip addr add <primaryIP> dev eth1` and have the kernel install a
+	// connected route covering every pod IP in the customer subnet, not
+	// just the pods on this NIC.
+	//
 	// Empty when the NIC has no NICNetworkConfig CRD or the field is unset.
 	PrimaryIP string `json:"primaryIP,omitempty"`
 }
@@ -413,9 +418,11 @@ type GetNICResourcesResponse struct {
 type NICNCInfo struct {
 	NetworkID string
 	SubnetID  string
-	// PrimaryIP is the NIC's host-underlay primary IP, parsed from the CRD's
-	// Status.PrimaryIP with the prefix length removed. Empty for entries
-	// derived from MTPNC fallback (MTPNC PrimaryIP is per-pod, not per-NIC).
+	// PrimaryIP is the NIC's host-underlay primary IP as a CIDR using the
+	// VNet subnet address-space prefix length (e.g., "165.0.0.16/20"),
+	// parsed from CRD's Status.PrimaryIP (IP) + Status.SubnetAddressSpace
+	// (prefix). Empty for entries derived from MTPNC fallback (MTPNC
+	// PrimaryIP is per-pod, not per-NIC).
 	PrimaryIP string
 }
 
