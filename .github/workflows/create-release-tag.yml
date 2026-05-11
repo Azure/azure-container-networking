@@ -94,12 +94,18 @@ jobs:
   create_tag:
     name: Create and Push Tag
     runs-on: ubuntu-latest
+    # Requires a repository environment named tag-approval.
+    # Configure that environment with the intended approval and ruleset settings,
+    # or this job may block awaiting approval or fail where the environment does not exist.
     environment: tag-approval
     permissions:
       contents: write
       deployments: write
     needs:
       - validate
+    concurrency:
+      group: create-release-tag-${{ needs.validate.outputs.full_tag }}
+      cancel-in-progress: false
     steps:
       - name: Checkout target commit
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -121,7 +127,7 @@ jobs:
       - name: Record successful tag-approval deployment for target SHA
         env:
           TARGET_SHA: ${{ needs.validate.outputs.target_sha }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
