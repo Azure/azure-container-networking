@@ -225,6 +225,62 @@ func TestLock(t *testing.T) {
 	}
 }
 
+// slowFileLock simulates a file lock that blocks until unblocked via a channel,
+// and tracks whether Unlock was called.
+type slowFileLock struct {
+	blockCh    chan struct{} // close to unblock Lock
+	unlockCh   chan struct{} // closed when Unlock is called
+	lockCalled chan struct{} // closed when Lock begins waiting
+}
+
+func newSlowFileLock() *slowFileLock {
+	return &slowFileLock{
+		blockCh:    make(chan struct{}),
+		unlockCh:   make(chan struct{}),
+		lockCalled: make(chan struct{}),
+	}
+}
+
+func (l *slowFileLock) Lock() error {
+	close(l.lockCalled) // signal that Lock has been entered
+	<-l.blockCh         // block until test unblocks us
+	return nil
+}
+
+func (l *slowFileLock) Unlock() error {
+	close(l.unlockCh)
+	return nil
+}
+
+// TestLockTimeoutReleasesOrphanedLock verifies that when Lock times out, the
+// file lock is released after the background goroutine eventually acquires it.
+// Before the fix, the orphaned lock was never released, causing a goroutine
+// leak and permanently blocking subsequent Lock calls.
+func TestLockTimeoutReleasesOrphanedLock(t *testing.T) {
+	fl := newSlowFileLock()
+	kvs, err := NewJsonFileStore(testFileName, fl, nil)
+	require.NoError(t, err)
+	defer os.Remove(testFileName)
+
+	// Lock with a very short timeout so it times out while slowFileLock blocks.
+	err = kvs.Lock(1 * time.Millisecond)
+	require.ErrorIs(t, err, ErrTimeoutLockingStore)
+
+	// Wait for the background goroutine to enter Lock().
+	<-fl.lockCalled
+
+	// Unblock the background goroutine — it now "acquires" the file lock.
+	close(fl.blockCh)
+
+	// The cleanup goroutine should call Unlock. Wait up to 1 second.
+	select {
+	case <-fl.unlockCh:
+		// Success: the orphaned lock was released.
+	case <-time.After(1 * time.Second):
+		t.Fatal("orphaned file lock was never released after timeout — goroutine leak")
+	}
+}
+
 // test case for testing newjsonfilestore idempotent
 func TestFileName(t *testing.T) {
 	_, err := NewJsonFileStore("", processlock.NewMockFileLock(false), nil)
