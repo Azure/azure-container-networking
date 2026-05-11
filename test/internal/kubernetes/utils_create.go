@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	typedciliumv2 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/cilium.io/v2"
@@ -50,6 +51,7 @@ type cnsDetails struct {
 	containerVolumeMounts     []corev1.VolumeMount
 	configMapPath             string
 	installIPMasqAgent        bool
+	useNodeSubnetIPMasq       bool
 }
 
 const (
@@ -224,7 +226,7 @@ func MustCreateNamespace(ctx context.Context, clienset *kubernetes.Clientset, na
 	}
 }
 
-func InstallIPMasqAgent(ctx context.Context, clientset *kubernetes.Clientset) error {
+func InstallIPMasqAgent(ctx context.Context, clientset *kubernetes.Clientset, nodeSubnet bool) error {
 	manifestDir, err := getManifestFolder()
 	if err != nil {
 		return errors.Wrap(err, "failed to get manifest folder")
@@ -235,8 +237,16 @@ func InstallIPMasqAgent(ctx context.Context, clientset *kubernetes.Clientset) er
 	reconcileConfigPath := path.Join(ipMasqAgentDir, "/config-reconcile.yaml")
 	daemonsetPath := path.Join(ipMasqAgentDir, "/ip-masq-agent.yaml")
 
-	MustSetupConfigMap(ctx, clientset, customConfigPath)
-	MustSetupConfigMap(ctx, clientset, reconcileConfigPath)
+	customCM, _ := MustSetupConfigMap(ctx, clientset, customConfigPath)
+	reconcileCM, _ := MustSetupConfigMap(ctx, clientset, reconcileConfigPath)
+
+	if nodeSubnet {
+		nodeSubnetCIDR := "10.10.0.0/16"
+		addCIDRToIPMasqConfig(&customCM, "ip-masq-agent", nodeSubnetCIDR)
+		addCIDRToIPMasqConfig(&reconcileCM, "ip-masq-agent-reconciled", nodeSubnetCIDR)
+		mustUpdateConfigMap(ctx, clientset, customCM)
+		mustUpdateConfigMap(ctx, clientset, reconcileCM)
+	}
 
 	ds := MustParseDaemonSet(daemonsetPath)
 	dsClient := clientset.AppsV1().DaemonSets(ds.Namespace)
@@ -247,6 +257,22 @@ func InstallIPMasqAgent(ctx context.Context, clientset *kubernetes.Clientset) er
 	}
 
 	return nil
+}
+
+// addCIDRToIPMasqConfig appends a CIDR to the nonMasqueradeCIDRs list in the
+// ip-masq-agent configmap data.
+func addCIDRToIPMasqConfig(cm *corev1.ConfigMap, dataKey, cidr string) {
+	data := cm.Data[dataKey]
+	// Insert the CIDR entry before the masqLinkLocal line
+	data = strings.Replace(data, "\nmasqLinkLocal", "\n  - "+cidr+"\nmasqLinkLocal", 1)
+	cm.Data[dataKey] = data
+}
+
+func mustUpdateConfigMap(ctx context.Context, clientset *kubernetes.Clientset, cm corev1.ConfigMap) {
+	configmaps := clientset.CoreV1().ConfigMaps(cm.Namespace)
+	if _, err := configmaps.Update(ctx, &cm, metav1.UpdateOptions{}); err != nil {
+		log.Fatal(errors.Wrapf(err, "failed to update configmap %s", cm.Name))
+	}
 }
 
 func InstallCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, logDir string) (func() error, error) {
@@ -512,8 +538,9 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 					"azure-ipam", "-o", "/opt/cni/bin/azure-ipam",
 				},
 				initContainerName:  initContainerNameIPAM,
-				configMapPath:      cnsNodeSubnetLinuxConfigMapPath,
-				installIPMasqAgent: true,
+				configMapPath:       cnsNodeSubnetLinuxConfigMapPath,
+				installIPMasqAgent:  true,
+				useNodeSubnetIPMasq: true,
 			},
 		},
 		EnvInstallOverlay: {
@@ -642,7 +669,7 @@ func setupCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cns
 
 	if cnsScenarioDetails.installIPMasqAgent {
 		log.Printf("Installing IP Masq Agent")
-		if err := InstallIPMasqAgent(ctx, clientset); err != nil {
+		if err := InstallIPMasqAgent(ctx, clientset, cnsScenarioDetails.useNodeSubnetIPMasq); err != nil {
 			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to install ip masq agent")
 		}
 	}
