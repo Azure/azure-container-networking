@@ -112,7 +112,7 @@ stages:
                 echo "==> Creating windows pods (8 scenarios) for workload type: ${{ parameters.workloadType }}"
                 az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
-                export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
+                export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
 
                 metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
@@ -156,7 +156,7 @@ stages:
                 echo "==> Running windows connectivity tests for workload type: ${{ parameters.workloadType }}"
                 az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
-                export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
+                export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
 
                 metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
@@ -202,7 +202,7 @@ stages:
                 echo "==> Deleting windows test resources (8 scenarios) for workload type: ${{ parameters.workloadType }}"
                 az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
-                export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
+                export BUILD_ID="${{ parameters.rgName }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
 
                 metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
