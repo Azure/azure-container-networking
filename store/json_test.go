@@ -267,7 +267,12 @@ func TestLockTimeoutReleasesOrphanedLock(t *testing.T) {
 	require.ErrorIs(t, err, ErrTimeoutLockingStore)
 
 	// Wait for the background goroutine to enter Lock().
-	<-fl.lockCalled
+	select {
+	case <-fl.lockCalled:
+		// Success: the background goroutine reached Lock().
+	case <-time.After(1 * time.Second):
+		t.Fatal("background goroutine never reached file lock acquisition")
+	}
 
 	// Unblock the background goroutine — it now "acquires" the file lock.
 	close(fl.blockCh)

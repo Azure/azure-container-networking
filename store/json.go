@@ -189,7 +189,8 @@ func (kvs *jsonFileStore) Lock(timeout time.Duration) error {
 	kvs.Mutex.Lock()
 	defer kvs.Mutex.Unlock()
 
-	afterTime := time.After(timeout)
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 	status := make(chan error, 1) // buffered so lockUtil doesn't block after timeout
 
 	if kvs.logger != nil {
@@ -202,13 +203,19 @@ func (kvs *jsonFileStore) Lock(timeout time.Duration) error {
 
 	var err error
 	select {
-	case <-afterTime:
+	case <-timer.C:
 		// lockUtil may still be waiting on the file lock. When it eventually
 		// acquires it, release it so subsequent Lock calls are not permanently
 		// blocked.
 		go func() {
 			if lockErr := <-status; lockErr == nil {
-				kvs.processLock.Unlock() //nolint:errcheck // best-effort cleanup
+				if err := kvs.processLock.Unlock(); err != nil {
+					if kvs.logger != nil {
+						kvs.logger.Error("Failed to release process lock during timeout cleanup", zap.Error(err))
+					} else {
+						log.Printf("Failed to release process lock during timeout cleanup: %v", err)
+					}
+				}
 			}
 		}()
 		return ErrTimeoutLockingStore
