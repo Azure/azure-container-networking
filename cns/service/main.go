@@ -1414,7 +1414,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	}
 
 	// populate the NodeInfo CRD for Swift V1 dualstack scenario when enabled via config
-	if cnsconfig.EnableSwiftV1DualStack {
+	if cnsconfig.EnableSwiftV1DualStack || cnsconfig.EnableHomeAz {
 		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
 			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd for swift v1 dualstack")
 		}
