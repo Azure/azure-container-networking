@@ -2,12 +2,15 @@ package validate
 
 import (
 	"context"
+	"log"
 	"reflect"
+	"strings"
 
 	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 func compareIPs(expected map[string]string, actual []string) error {
@@ -46,6 +49,42 @@ func getPodIPsWithoutNodeIP(ctx context.Context, clientset *kubernetes.Clientset
 		}
 	}
 	return podsIpsWithoutNodeIP
+}
+
+// getCiliumInternalEndpointIPs execs into the cilium agent pod on the given node
+// and runs `cilium endpoint list` to find IPs of reserved:ingress endpoints.
+// These are not real Kubernetes pods but still have IPs allocated from CNS.
+// Returns nil when Cilium is not installed or the exec fails.
+func getCiliumInternalEndpointIPs(ctx context.Context, clientset *kubernetes.Clientset, config *rest.Config, nodeName string) []string {
+	pods, err := acnk8s.GetPodsByNode(ctx, clientset, "kube-system", "k8s-app=cilium", nodeName)
+	if err != nil || len(pods.Items) == 0 {
+		return nil
+	}
+
+	cmd := []string{"bash", "-c", "cilium endpoint list | grep 'reserved:ingress' | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+'"}
+	result, _, err := acnk8s.ExecCmdOnPod(ctx, clientset, "kube-system", pods.Items[0].Name, "cilium-agent", cmd, config, true)
+	if err != nil {
+		return nil
+	}
+
+	return parseCiliumIngressIPs(result)
+}
+
+// parseCiliumIngressIPs parses the output of the grep pipeline that extracts
+// reserved:ingress endpoint IPs from `cilium endpoint list`.
+func parseCiliumIngressIPs(output []byte) []string {
+	var ips []string
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if ip := strings.TrimSpace(line); ip != "" {
+			ips = append(ips, ip)
+		}
+	}
+	if len(ips) > 0 {
+		log.Printf("Parsed Cilium internal endpoint IPs: %v", ips)
+	} else {
+		log.Printf("No Cilium internal endpoint IPs found in output")
+	}
+	return ips
 }
 
 func contain(obj, target interface{}) bool {

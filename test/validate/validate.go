@@ -156,6 +156,8 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		}
 		// get the pod ips
 		podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
+		// include IPs from Cilium internal endpoints that are not real K8s pods
+		podIps = append(podIps, getCiliumInternalEndpointIPs(ctx, v.clientset, v.config, nodes.Items[index].Name)...)
 
 		if err := compareIPs(filePodIps, podIps); err != nil {
 			return errors.Wrapf(err, "State file validation failed for %s on node %s", checkType, nodes.Items[index].Name)
