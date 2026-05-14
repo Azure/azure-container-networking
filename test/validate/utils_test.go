@@ -4,6 +4,8 @@ import (
 	"testing"
 )
 
+const firstIngressIP = "10.224.0.55"
+
 func TestParseCiliumIngressIPs(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -12,13 +14,13 @@ func TestParseCiliumIngressIPs(t *testing.T) {
 	}{
 		{
 			name:     "single IP",
-			output:   []byte("10.224.0.55\n"),
-			expected: []string{"10.224.0.55"},
+			output:   []byte(firstIngressIP + "\n"),
+			expected: []string{firstIngressIP},
 		},
 		{
 			name:     "multiple IPs",
-			output:   []byte("10.224.0.55\n10.224.0.60\n"),
-			expected: []string{"10.224.0.55", "10.224.0.60"},
+			output:   []byte(firstIngressIP + "\n10.224.0.60\n"),
+			expected: []string{firstIngressIP, "10.224.0.60"},
 		},
 		{
 			name:     "empty output",
@@ -32,8 +34,8 @@ func TestParseCiliumIngressIPs(t *testing.T) {
 		},
 		{
 			name:     "trailing newlines and spaces",
-			output:   []byte("  10.224.0.55  \n  10.224.0.60  \n\n"),
-			expected: []string{"10.224.0.55", "10.224.0.60"},
+			output:   []byte("  " + firstIngressIP + "  \n  10.224.0.60  \n\n"),
+			expected: []string{firstIngressIP, "10.224.0.60"},
 		},
 		{
 			name:     "single IP no trailing newline",

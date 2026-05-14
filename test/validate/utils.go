@@ -13,6 +13,8 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+const bashCommand = "bash"
+
 func compareIPs(expected map[string]string, actual []string) error {
 	expectedLen := len(expected)
 
@@ -61,7 +63,7 @@ func getCiliumInternalEndpointIPs(ctx context.Context, clientset *kubernetes.Cli
 		return nil
 	}
 
-	cmd := []string{"bash", "-c", "cilium endpoint list | grep 'reserved:ingress' | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+'"}
+	cmd := []string{bashCommand, "-c", "cilium endpoint list | grep 'reserved:ingress' | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+'"}
 	result, _, err := acnk8s.ExecCmdOnPod(ctx, clientset, "kube-system", pods.Items[0].Name, "cilium-agent", cmd, config, true)
 	if err != nil {
 		return nil
