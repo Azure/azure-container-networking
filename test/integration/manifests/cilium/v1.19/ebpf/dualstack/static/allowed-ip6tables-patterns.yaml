@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allowed-ip6tables-patterns
+  namespace: kube-system
+data:
+  filter: |
+
+  global: |
+    ^-N .*
+    ^-P .*
+    ^-A (KUBE-FIREWALL) .*
+
+    ^-A .* -j (KUBE-FIREWALL)
+    ^-A IP-MASQ-AGENT
+    ^-A .* -j IP-MASQ-AGENT
+    
+    ^.*--comment.*cilium:
+    ^.*--comment.*cilium-feeder:
+    ^.*--comment.*AKS managed: added by AgentBaker
+  mangle: |
+
+  nat: |
+    -A POSTROUTING -j SWIFT
+    -A SWIFT -s
+    -A POSTROUTING -j SWIFT-POSTROUTING
+    -A SWIFT-POSTROUTING -s
+  raw: |
+    ^.*--comment.*localdns: skip conntrack
+  security: |
