@@ -63,7 +63,7 @@ func getCiliumInternalEndpointIPs(ctx context.Context, clientset *kubernetes.Cli
 		return nil
 	}
 
-	cmd := []string{bashCommand, "-c", "cilium endpoint list | grep 'reserved:ingress' | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+' || true"}
+	cmd := []string{bashCommand, "-c", "cilium endpoint list | grep 'reserved:ingress' | grep -oE '([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+|[0-9a-f:]+:[0-9a-f:]+)' || true"}
 	result, _, err := acnk8s.ExecCmdOnPod(ctx, clientset, "kube-system", pods.Items[0].Name, "cilium-agent", cmd, config, true)
 	if err != nil {
 		return nil
