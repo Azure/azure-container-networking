@@ -9,6 +9,7 @@
 # Rules are evaluated in this order, and the last match is used for auto-assignment.
 *                           @azure/azure-sdn-members
 /.github/                   @azure/acn-admins
+/.github/workflows/         @azure/azure-sdn-members
 /cns/                       @azure/acn-cns-reviewers
 /cni/                       @azure/acn-cni-reviewers
 /dropgz/                    @rbtr @camrynl @paulyufan2 @ashvindeodhar @thatmattlong
