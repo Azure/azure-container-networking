@@ -462,6 +462,26 @@ linux-swiftv2-nodepool-up: ## Add linux node pool to swiftv2 cluster
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
 
+# Parameterized SwiftV2 Windows nodepool. Defaults match the high-NIC pool
+# (npwin); override NODEPOOL_NAME_WIN/VM_SIZE_WIN/MAX_PODS_WIN/NIC_SECONDARY_COUNT
+# to provision a low-NIC variant (e.g. npwinl).
+NODEPOOL_NAME_WIN   ?= npwin
+MAX_PODS_WIN        ?= 250
+NIC_SECONDARY_COUNT ?= $(PODS_PER_NODE)
+
+windows-swiftv2-nodepool-up: ## Add windows node pool to swiftv2 cluster
+	$(AZCLI) aks nodepool add -g $(GROUP) -n $(NODEPOOL_NAME_WIN) \
+		--node-count $(NODE_COUNT_WIN) \
+		--node-vm-size $(VM_SIZE_WIN) \
+		--cluster-name $(CLUSTER) \
+		--os-type Windows \
+		--os-sku $(OS_SKU_WIN) \
+		--max-pods $(MAX_PODS_WIN) \
+		--subscription $(SUB) \
+		--tags fastpathenabled=true aks-nic-enable-multi-tenancy=true stampcreatorserviceinfo=true aks-nic-secondary-count=$(NIC_SECONDARY_COUNT) \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
+
 down: ## Delete the cluster
 	-$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
 	-@$(MAKE) unset-kubeconf

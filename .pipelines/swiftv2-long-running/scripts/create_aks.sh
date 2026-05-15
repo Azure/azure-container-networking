@@ -169,27 +169,25 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
     # Optional managed Windows swiftv2 nodepools. Mirrors the Linux topology:
     #   npwin  = high-NIC ($VM_SKU_HIGHNIC, aks-nic-secondary-count=$PODS_PER_NODE)
     #   npwinl = low-NIC  ($VM_SKU_DEFAULT, aks-nic-secondary-count=1)
-    # Both share the same multi-tenancy tags/headers as nplinux/nodepool1.
+    # Both share the same multi-tenancy tags/headers as nplinux/nodepool1 via
+    # the shared `windows-swiftv2-nodepool-up` Makefile target.
     if [[ "$ENABLE_MANAGED_WINDOWS" == "true" ]]; then
       NPWIN_EXISTS=$(az aks nodepool show -g "$RG" --cluster-name "$CLUSTER_NAME" -n npwin --query provisioningState -o tsv 2>/dev/null || true)
       if [[ -n "$NPWIN_EXISTS" ]]; then
         echo "Nodepool npwin already exists on $CLUSTER_NAME (state: $NPWIN_EXISTS). Skipping."
       else
         ensure_windows_enabled "$CLUSTER_NAME" "$RG" "$SUBSCRIPTION_ID"
-
-        POD_SUBNET_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG}/providers/Microsoft.Network/virtualNetworks/${CLUSTER_NAME}/subnets/podnet"
-        echo "Adding managed Windows swiftv2 nodepool npwin on $CLUSTER_NAME"
-        az aks nodepool add -g "$RG" -n npwin \
-          --cluster-name "$CLUSTER_NAME" \
-          --subscription "$SUBSCRIPTION_ID" \
-          --node-count 2 \
-          --node-vm-size "$VM_SKU_HIGHNIC" \
-          --os-type Windows \
-          --os-sku Windows2022 \
-          --max-pods 250 \
-          --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true stampcreatorserviceinfo=true "aks-nic-secondary-count=${PODS_PER_NODE}" \
-          --aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
-          --pod-subnet-id "$POD_SUBNET_ID"
+        make -C ./hack/aks windows-swiftv2-nodepool-up \
+          AZCLI=az \
+          GROUP=$RG \
+          SUB=$SUBSCRIPTION_ID \
+          CLUSTER=$CLUSTER_NAME \
+          VNET=$CLUSTER_NAME \
+          NODEPOOL_NAME_WIN=npwin \
+          NODE_COUNT_WIN=2 \
+          VM_SIZE_WIN=$VM_SKU_HIGHNIC \
+          MAX_PODS_WIN=250 \
+          NIC_SECONDARY_COUNT=$PODS_PER_NODE
       fi
 
       NPWINL_EXISTS=$(az aks nodepool show -g "$RG" --cluster-name "$CLUSTER_NAME" -n npwinl --query provisioningState -o tsv 2>/dev/null || true)
@@ -197,20 +195,17 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
         echo "Nodepool npwinl already exists on $CLUSTER_NAME (state: $NPWINL_EXISTS). Skipping."
       else
         ensure_windows_enabled "$CLUSTER_NAME" "$RG" "$SUBSCRIPTION_ID"
-
-        POD_SUBNET_ID="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RG}/providers/Microsoft.Network/virtualNetworks/${CLUSTER_NAME}/subnets/podnet"
-        echo "Adding managed Windows swiftv2 low-NIC nodepool npwinl on $CLUSTER_NAME"
-        az aks nodepool add -g "$RG" -n npwinl \
-          --cluster-name "$CLUSTER_NAME" \
-          --subscription "$SUBSCRIPTION_ID" \
-          --node-count 2 \
-          --node-vm-size "$VM_SKU_DEFAULT" \
-          --os-type Windows \
-          --os-sku Windows2022 \
-          --max-pods 30 \
-          --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true stampcreatorserviceinfo=true "aks-nic-secondary-count=1" \
-          --aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/NetworkingMultiTenancyPreview \
-          --pod-subnet-id "$POD_SUBNET_ID"
+        make -C ./hack/aks windows-swiftv2-nodepool-up \
+          AZCLI=az \
+          GROUP=$RG \
+          SUB=$SUBSCRIPTION_ID \
+          CLUSTER=$CLUSTER_NAME \
+          VNET=$CLUSTER_NAME \
+          NODEPOOL_NAME_WIN=npwinl \
+          NODE_COUNT_WIN=2 \
+          VM_SIZE_WIN=$VM_SKU_DEFAULT \
+          MAX_PODS_WIN=30 \
+          NIC_SECONDARY_COUNT=1
       fi
     fi
 
