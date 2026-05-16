@@ -13,6 +13,11 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+const (
+	ciliumBinary        = "cilium"
+	reservedIngressLabel = "reserved:ingress"
+)
+
 func compareIPs(expected map[string]string, actual []string) error {
 	expectedLen := len(expected)
 
@@ -54,13 +59,12 @@ func getPodIPsWithoutNodeIP(ctx context.Context, clientset *kubernetes.Clientset
 // hasL7PolicyEnabled checks if L7 policy is enabled on the given node by looking
 // for a cilium pod and an acns-security-agent pod with a cilium-envoy container.
 func hasL7PolicyEnabled(ctx context.Context, clientset *kubernetes.Clientset, nodeName string) bool {
-
 	pods, err := acnk8s.GetPodsByNode(ctx, clientset, "kube-system", "k8s-app=acns-security-agent", nodeName)
 	if err != nil || len(pods.Items) == 0 {
 		return false
 	}
-	for _, c := range pods.Items[0].Spec.Containers {
-		if c.Name == "cilium-envoy" {
+	for i := range pods.Items[0].Spec.Containers {
+		if pods.Items[0].Spec.Containers[i].Name == "cilium-envoy" {
 			return true
 		}
 	}
@@ -78,7 +82,7 @@ func getCiliumInternalEndpointIPs(ctx context.Context, clientset *kubernetes.Cli
 		return nil
 	}
 
-	cmd := []string{"cilium", "endpoint", "list", "-o", "json"}
+	cmd := []string{ciliumBinary, "endpoint", "list", "-o", "json"}
 	result, _, err := acnk8s.ExecCmdOnPod(ctx, clientset, "kube-system", pods.Items[0].Name, "cilium-agent", cmd, config, false)
 	if err != nil {
 		return nil
@@ -100,7 +104,7 @@ func parseCiliumIngressIPs(output []byte) []string {
 	for _, ep := range endpoints {
 		isIngress := false
 		for _, label := range ep.Status.Labels.SecurityRelevant {
-			if label == "reserved:ingress" {
+			if label == reservedIngressLabel {
 				isIngress = true
 				break
 			}
