@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	ciliumBinary        = "cilium"
+	ciliumBinary         = "cilium"
 	reservedIngressLabel = "reserved:ingress"
 )
 
