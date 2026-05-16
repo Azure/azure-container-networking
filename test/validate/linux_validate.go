@@ -146,7 +146,12 @@ type CiliumEndpointStatus struct {
 }
 
 type NetworkingStatus struct {
+	Labels     EndpointLabels       `json:"labels"`
 	Networking NetworkingAddressing `json:"networking"`
+}
+
+type EndpointLabels struct {
+	SecurityRelevant []string `json:"security-relevant"`
 }
 
 type NetworkingAddressing struct {

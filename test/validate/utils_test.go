@@ -1,10 +1,14 @@
 package validate
 
 import (
+	"encoding/json"
 	"testing"
 )
 
-const firstIngressIP = "10.224.0.55"
+func makeCiliumEndpointJSON(endpoints []CiliumEndpointStatus) []byte {
+	b, _ := json.Marshal(endpoints)
+	return b
+}
 
 func TestParseCiliumIngressIPs(t *testing.T) {
 	tests := []struct {
@@ -13,14 +17,24 @@ func TestParseCiliumIngressIPs(t *testing.T) {
 		expected []string
 	}{
 		{
-			name:     "single IP",
-			output:   []byte(firstIngressIP + "\n"),
-			expected: []string{firstIngressIP},
+			name: "single IP",
+			output: makeCiliumEndpointJSON([]CiliumEndpointStatus{
+				{Status: NetworkingStatus{
+					Labels:     EndpointLabels{SecurityRelevant: []string{"reserved:ingress"}},
+					Networking: NetworkingAddressing{Addresses: []Address{{IPv4: "10.224.0.55"}}},
+				}},
+			}),
+			expected: []string{"10.224.0.55"},
 		},
 		{
-			name:     "multiple IPs",
-			output:   []byte(firstIngressIP + "\n10.224.0.60\n"),
-			expected: []string{firstIngressIP, "10.224.0.60"},
+			name: "multiple IPs",
+			output: makeCiliumEndpointJSON([]CiliumEndpointStatus{
+				{Status: NetworkingStatus{
+					Labels:     EndpointLabels{SecurityRelevant: []string{"reserved:ingress"}},
+					Networking: NetworkingAddressing{Addresses: []Address{{IPv4: "10.224.0.55"}, {IPv4: "10.224.0.60"}}},
+				}},
+			}),
+			expected: []string{"10.224.0.55", "10.224.0.60"},
 		},
 		{
 			name:     "empty output",
@@ -28,19 +42,29 @@ func TestParseCiliumIngressIPs(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name:     "whitespace only",
-			output:   []byte("   \n  \n"),
+			name:     "empty JSON array",
+			output:   []byte("[]"),
 			expected: nil,
 		},
 		{
-			name:     "trailing newlines and spaces",
-			output:   []byte("  " + firstIngressIP + "  \n  10.224.0.60  \n\n"),
-			expected: []string{firstIngressIP, "10.224.0.60"},
+			name: "non-ingress endpoint ignored",
+			output: makeCiliumEndpointJSON([]CiliumEndpointStatus{
+				{Status: NetworkingStatus{
+					Labels:     EndpointLabels{SecurityRelevant: []string{"reserved:host"}},
+					Networking: NetworkingAddressing{Addresses: []Address{{IPv4: "10.224.0.55"}}},
+				}},
+			}),
+			expected: nil,
 		},
 		{
-			name:     "single IP no trailing newline",
-			output:   []byte("10.0.0.1"),
-			expected: []string{"10.0.0.1"},
+			name: "dualstack IPs",
+			output: makeCiliumEndpointJSON([]CiliumEndpointStatus{
+				{Status: NetworkingStatus{
+					Labels:     EndpointLabels{SecurityRelevant: []string{"reserved:ingress"}},
+					Networking: NetworkingAddressing{Addresses: []Address{{IPv4: "10.224.0.55", IPv6: "fd00::1"}}},
+				}},
+			}),
+			expected: []string{"10.224.0.55", "fd00::1"},
 		},
 	}
 
