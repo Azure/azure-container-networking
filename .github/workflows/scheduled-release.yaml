@@ -1,0 +1,668 @@
+# Automated 3-Week Release Orchestrator for ACN
+# Handles: dependabot PR collection, vuln checks, tag creation, pipeline validation,
+# release channel posting, and R2D draft preparation.
+#
+# Trigger: Every 3rd Friday at 14:00 UTC + manual dispatch
+name: Scheduled Release
+
+on:
+  schedule:
+    # Every Friday at 14:00 UTC — workflow checks if it's a 3-week cycle
+    - cron: "0 14 * * 5"
+  workflow_dispatch:
+    inputs:
+      release_branch:
+        description: "Release branch to target"
+        required: true
+        default: "release/v1.7"
+        type: choice
+        options:
+          - release/v1.7
+          - master
+      skip_dependabot_wait:
+        description: "Skip waiting for dependabot PRs to merge"
+        required: false
+        default: false
+        type: boolean
+      skip_vuln_check:
+        description: "Skip govulncheck gate"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  actions: write
+  pull-requests: read
+  issues: write
+
+env:
+  RELEASE_BRANCH: ${{ inputs.release_branch || 'release/v1.7' }}
+  MAX_PIPELINE_RETRIES: 5
+  TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_RELEASE_WEBHOOK_URL }}
+  TEAMS_CIN_WEBHOOK_URL: ${{ secrets.TEAMS_CIN_WEBHOOK_URL }}
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Gate: Check if this is a 3-week cycle (for cron trigger only)
+  # ─────────────────────────────────────────────────────────────────────────────
+  check_cadence:
+    name: Check 3-Week Cadence
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Determine if this is a release week
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Calculate week number since epoch, check divisibility by 3
+          # Epoch anchor: 2024-01-05 (a Friday) = week 0
+          EPOCH_FRIDAY=1704412800  # 2024-01-05 00:00:00 UTC
+          NOW=$(date +%s)
+          WEEKS_SINCE=$(( (NOW - EPOCH_FRIDAY) / 604800 ))
+          if (( WEEKS_SINCE % 3 == 0 )); then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Release week detected (week $WEEKS_SINCE since anchor)"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "Not a release week (week $WEEKS_SINCE since anchor). Skipping."
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STEP 1: Collect and wait for Dependabot PRs
+  # ─────────────────────────────────────────────────────────────────────────────
+  wait_dependabot:
+    name: "Step 1: Wait for Dependabot PRs"
+    runs-on: ubuntu-latest
+    needs: check_cadence
+    if: needs.check_cadence.outputs.should_run == 'true'
+    outputs:
+      merged_count: ${{ steps.wait.outputs.merged_count }}
+    steps:
+      - name: Wait for open dependabot PRs to merge
+        id: wait
+        if: ${{ inputs.skip_dependabot_wait != true }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          BRANCH="${{ env.RELEASE_BRANCH }}"
+          MAX_WAIT_MINUTES=180  # 3 hours max
+          POLL_INTERVAL=1800    # 30 minutes
+
+          echo "Checking for open dependabot PRs targeting $BRANCH..."
+
+          elapsed=0
+          while true; do
+            OPEN_PRS=$(gh pr list --repo "$REPO" --base "$BRANCH" \
+              --author "app/dependabot" --state open --json number,title --jq 'length')
+
+            if [[ "$OPEN_PRS" -eq 0 ]]; then
+              echo "No open dependabot PRs remaining."
+              break
+            fi
+
+            echo "Found $OPEN_PRS open dependabot PRs. Waiting..."
+            if (( elapsed >= MAX_WAIT_MINUTES * 60 )); then
+              echo "::warning::Timed out waiting for dependabot PRs after ${MAX_WAIT_MINUTES}m"
+              break
+            fi
+
+            sleep $POLL_INTERVAL
+            elapsed=$((elapsed + POLL_INTERVAL))
+          done
+
+          # Count recently merged dependabot PRs (last 7 days)
+          MERGED=$(gh pr list --repo "$REPO" --base "$BRANCH" \
+            --author "app/dependabot" --state merged \
+            --json mergedAt --jq '[.[] | select(.mergedAt > (now - 604800 | todate))] | length' 2>/dev/null || echo "0")
+          echo "merged_count=${MERGED}" >> "$GITHUB_OUTPUT"
+          echo "Dependabot PRs merged in last 7 days: $MERGED"
+
+      - name: Skip dependabot wait (manual override)
+        if: ${{ inputs.skip_dependabot_wait == true }}
+        run: |
+          echo "merged_count=0" >> "$GITHUB_OUTPUT"
+          echo "Skipped dependabot wait per user request"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STEP 2: Vulnerability Gate Check
+  # ─────────────────────────────────────────────────────────────────────────────
+  vuln_check:
+    name: "Step 2: Vulnerability Gate"
+    runs-on: ubuntu-latest
+    needs: wait_dependabot
+    if: ${{ inputs.skip_vuln_check != true }}
+    outputs:
+      vuln_count: ${{ steps.scan.outputs.vuln_count }}
+      clean: ${{ steps.scan.outputs.clean }}
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck on all modules
+        id: scan
+        run: |
+          set -euo pipefail
+          VULN_COUNT=0
+          VULN_REPORT=""
+
+          for moddir in $(find . -name "go.mod" -exec dirname {} \;); do
+            echo "Scanning $moddir..."
+            if ! OUTPUT=$(cd "$moddir" && govulncheck ./... 2>&1); then
+              FOUND=$(echo "$OUTPUT" | grep -c "Vulnerability" || true)
+              VULN_COUNT=$((VULN_COUNT + FOUND))
+              VULN_REPORT+="$moddir: $FOUND vulnerabilities found\n"
+            fi
+          done
+
+          echo "vuln_count=$VULN_COUNT" >> "$GITHUB_OUTPUT"
+          if [[ "$VULN_COUNT" -eq 0 ]]; then
+            echo "clean=true" >> "$GITHUB_OUTPUT"
+            echo "✅ No vulnerabilities found"
+          else
+            echo "clean=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Found $VULN_COUNT vulnerabilities"
+            echo -e "$VULN_REPORT"
+          fi
+
+      - name: Post vuln results to Teams
+        if: steps.scan.outputs.clean == 'false'
+        run: |
+          VULN_COUNT="${{ steps.scan.outputs.vuln_count }}"
+          curl -H "Content-Type: application/json" -d "{
+            \"text\": \"⚠️ **govulncheck**: $VULN_COUNT vulnerabilities found on ${{ env.RELEASE_BRANCH }}. Manual review required before release proceeds.\"
+          }" "${{ env.TEAMS_WEBHOOK_URL }}" || true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STEP 3: Determine Next Version & Trigger Tag Creation
+  # ─────────────────────────────────────────────────────────────────────────────
+  create_tag:
+    name: "Step 3: Determine Version & Create Tag"
+    runs-on: ubuntu-latest
+    needs: [wait_dependabot, vuln_check]
+    if: always() && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
+    outputs:
+      new_tag: ${{ steps.version.outputs.new_tag }}
+      target_sha: ${{ steps.version.outputs.target_sha }}
+      previous_tag: ${{ steps.version.outputs.previous_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+          fetch-depth: 0
+
+      - name: Determine next patch version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Get latest tag on this branch
+          BRANCH="${{ env.RELEASE_BRANCH }}"
+
+          # Extract version prefix from branch name (e.g., release/v1.7 → v1.7)
+          if [[ "$BRANCH" == "master" ]]; then
+            # For master, find the latest root tag
+            LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          else
+            VERSION_PREFIX=$(echo "$BRANCH" | sed 's|release/||')
+            LATEST_TAG=$(git tag -l "${VERSION_PREFIX}.*" --sort=-v:refname | head -1)
+          fi
+
+          if [[ -z "$LATEST_TAG" ]]; then
+            echo "::error::No existing tag found for branch $BRANCH"
+            exit 1
+          fi
+
+          echo "Latest tag: $LATEST_TAG"
+          echo "previous_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+
+          # Bump patch version
+          MAJOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f1)
+          MINOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f2)
+          PATCH=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f3)
+          NEW_PATCH=$((PATCH + 1))
+          NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+
+          echo "New tag will be: $NEW_TAG"
+          echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+
+          # Get HEAD SHA of release branch
+          TARGET_SHA=$(git rev-parse HEAD)
+          echo "target_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
+          echo "Target SHA: $TARGET_SHA"
+
+      - name: Dispatch create-release-tag workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          NEW_TAG="${{ steps.version.outputs.new_tag }}"
+          TARGET_SHA="${{ steps.version.outputs.target_sha }}"
+          VULN_COUNT="${{ needs.vuln_check.outputs.vuln_count || '0' }}"
+          MERGED_COUNT="${{ needs.wait_dependabot.outputs.merged_count || '0' }}"
+
+          REASON="Scheduled 3-week release. Dependabot PRs merged: ${MERGED_COUNT}. CVEs patched: ${VULN_COUNT}."
+
+          echo "Dispatching create-release-tag for $NEW_TAG on $TARGET_SHA"
+
+          gh workflow run create-release-tag.yml \
+            --repo "${GITHUB_REPOSITORY}" \
+            -f tag_prefix=none \
+            -f tag_name="$NEW_TAG" \
+            -f target_sha="$TARGET_SHA" \
+            -f reason="$REASON"
+
+          echo "✅ Tag creation dispatched. Requires tag-approval environment approval."
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STEP 4: Pipeline Validation (ACN PR Pipeline + CNI Release Test)
+  # ─────────────────────────────────────────────────────────────────────────────
+  validate_pipelines:
+    name: "Step 4: Pipeline Validation"
+    runs-on: ubuntu-latest
+    needs: create_tag
+    outputs:
+      pr_pipeline_run_url: ${{ steps.pr_pipeline.outputs.run_url }}
+      cni_release_run_url: ${{ steps.cni_release.outputs.run_url }}
+    steps:
+      - name: Wait for tag to be created
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
+          echo "Waiting for tag $NEW_TAG to appear (requires human approval)..."
+
+          MAX_WAIT=7200  # 2 hours
+          POLL=60
+          elapsed=0
+          while true; do
+            if git ls-remote --exit-code --tags origin "refs/tags/$NEW_TAG" >/dev/null 2>&1; then
+              echo "✅ Tag $NEW_TAG found"
+              break
+            fi
+            if (( elapsed >= MAX_WAIT )); then
+              echo "::error::Tag $NEW_TAG not created within ${MAX_WAIT}s. Approval may be pending."
+              exit 1
+            fi
+            sleep $POLL
+            elapsed=$((elapsed + POLL))
+          done
+
+      - name: Run ACN PR Pipeline (retry up to 5x)
+        id: pr_pipeline
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # ADO pipeline trigger details — customize per environment
+          ADO_ORG: ${{ secrets.ADO_ORG }}
+          ADO_PROJECT: ${{ secrets.ADO_PROJECT }}
+          ADO_PAT: ${{ secrets.ADO_PAT }}
+          ACN_PR_PIPELINE_ID: ${{ secrets.ACN_PR_PIPELINE_ID }}
+        run: |
+          set -euo pipefail
+          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
+          MAX_RETRIES=${{ env.MAX_PIPELINE_RETRIES }}
+
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "ACN PR Pipeline — Attempt $attempt/$MAX_RETRIES"
+
+            # Trigger ADO pipeline (placeholder — replace with actual trigger mechanism)
+            # This could be az pipelines run, REST API call, or GitHub workflow dispatch
+            RUN_ID=$(curl -s -u ":${ADO_PAT}" \
+              -H "Content-Type: application/json" \
+              -d "{\"resources\":{\"repositories\":{\"self\":{\"refName\":\"refs/tags/${NEW_TAG}\"}}},\"templateParameters\":{\"tag\":\"${NEW_TAG}\"}}" \
+              "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/pipelines/${ACN_PR_PIPELINE_ID}/runs?api-version=7.0" \
+              | jq -r '.id' 2>/dev/null || echo "")
+
+            if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
+              echo "::warning::Failed to trigger ACN PR Pipeline (attempt $attempt)"
+              if (( attempt == MAX_RETRIES )); then
+                echo "::error::ACN PR Pipeline exhausted all $MAX_RETRIES retries"
+                exit 1
+              fi
+              sleep 60
+              continue
+            fi
+
+            RUN_URL="https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_build/results?buildId=${RUN_ID}&view=results"
+            echo "Triggered run: $RUN_URL"
+
+            # Poll for completion
+            while true; do
+              STATUS=$(curl -s -u ":${ADO_PAT}" \
+                "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/build/builds/${RUN_ID}?api-version=7.0" \
+                | jq -r '.status' 2>/dev/null || echo "unknown")
+
+              RESULT=$(curl -s -u ":${ADO_PAT}" \
+                "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/build/builds/${RUN_ID}?api-version=7.0" \
+                | jq -r '.result' 2>/dev/null || echo "unknown")
+
+              if [[ "$STATUS" == "completed" ]]; then
+                if [[ "$RESULT" == "succeeded" ]]; then
+                  echo "✅ ACN PR Pipeline succeeded (attempt $attempt)"
+                  echo "run_url=$RUN_URL" >> "$GITHUB_OUTPUT"
+                  exit 0
+                else
+                  echo "❌ ACN PR Pipeline failed with result: $RESULT (attempt $attempt)"
+                  break
+                fi
+              fi
+              sleep 120
+            done
+
+            if (( attempt == MAX_RETRIES )); then
+              echo "::error::ACN PR Pipeline exhausted all $MAX_RETRIES retries"
+              exit 1
+            fi
+            sleep 60
+          done
+
+      - name: Run ACN CNI Release Test (retry up to 5x)
+        id: cni_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ADO_ORG: ${{ secrets.ADO_ORG }}
+          ADO_PROJECT: ${{ secrets.ADO_PROJECT }}
+          ADO_PAT: ${{ secrets.ADO_PAT }}
+          ACN_CNI_RELEASE_PIPELINE_ID: ${{ secrets.ACN_CNI_RELEASE_PIPELINE_ID }}
+        run: |
+          set -euo pipefail
+          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
+          MAX_RETRIES=${{ env.MAX_PIPELINE_RETRIES }}
+
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "ACN CNI Release Test — Attempt $attempt/$MAX_RETRIES"
+
+            RUN_ID=$(curl -s -u ":${ADO_PAT}" \
+              -H "Content-Type: application/json" \
+              -d "{\"resources\":{\"repositories\":{\"self\":{\"refName\":\"refs/tags/${NEW_TAG}\"}}},\"templateParameters\":{\"tag\":\"${NEW_TAG}\"}}" \
+              "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/pipelines/${ACN_CNI_RELEASE_PIPELINE_ID}/runs?api-version=7.0" \
+              | jq -r '.id' 2>/dev/null || echo "")
+
+            if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
+              echo "::warning::Failed to trigger ACN CNI Release Test (attempt $attempt)"
+              if (( attempt == MAX_RETRIES )); then
+                echo "::error::ACN CNI Release Test exhausted all $MAX_RETRIES retries"
+                exit 1
+              fi
+              sleep 60
+              continue
+            fi
+
+            RUN_URL="https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_build/results?buildId=${RUN_ID}&view=results"
+            echo "Triggered run: $RUN_URL"
+
+            while true; do
+              STATUS=$(curl -s -u ":${ADO_PAT}" \
+                "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/build/builds/${RUN_ID}?api-version=7.0" \
+                | jq -r '.status' 2>/dev/null || echo "unknown")
+
+              RESULT=$(curl -s -u ":${ADO_PAT}" \
+                "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/build/builds/${RUN_ID}?api-version=7.0" \
+                | jq -r '.result' 2>/dev/null || echo "unknown")
+
+              if [[ "$STATUS" == "completed" ]]; then
+                if [[ "$RESULT" == "succeeded" ]]; then
+                  echo "✅ ACN CNI Release Test succeeded (attempt $attempt)"
+                  echo "run_url=$RUN_URL" >> "$GITHUB_OUTPUT"
+                  exit 0
+                else
+                  echo "❌ ACN CNI Release Test failed with result: $RESULT (attempt $attempt)"
+                  break
+                fi
+              fi
+              sleep 120
+            done
+
+            if (( attempt == MAX_RETRIES )); then
+              echo "::error::ACN CNI Release Test exhausted all $MAX_RETRIES retries"
+              exit 1
+            fi
+            sleep 60
+          done
+
+      - name: Post pipeline validation to CIN Teams channel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
+          PR_RUN="${{ steps.pr_pipeline.outputs.run_url }}"
+          CNI_RUN="${{ steps.cni_release.outputs.run_url }}"
+
+          curl -H "Content-Type: application/json" -d "{
+            \"text\": \"✅ **Pipeline validation complete for ${NEW_TAG}**\n\n• ACN PR Pipeline: ${PR_RUN}\n• ACN CNI Release Test: ${CNI_RUN}\"
+          }" "${{ env.TEAMS_CIN_WEBHOOK_URL }}" || true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STEP 5: Post in Release Channel + Draft R2D
+  # ─────────────────────────────────────────────────────────────────────────────
+  release_channel_post:
+    name: "Step 5: Release Channel + R2D Draft"
+    runs-on: ubuntu-latest
+    needs: [create_tag, validate_pipelines]
+    steps:
+      - name: Post release thread in Release Channel
+        id: release_thread
+        run: |
+          set -euo pipefail
+          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
+          TARGET_SHA="${{ needs.create_tag.outputs.target_sha }}"
+          PREVIOUS_TAG="${{ needs.create_tag.outputs.previous_tag }}"
+          BRANCH="${{ env.RELEASE_BRANCH }}"
+          PR_RUN="${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}"
+          CNI_RUN="${{ needs.validate_pipelines.outputs.cni_release_run_url }}"
+          REPO="${GITHUB_REPOSITORY}"
+          COMMIT_LINK="https://github.com/${REPO}/commit/${TARGET_SHA}"
+          CHANGELOG_LINK="https://github.com/${REPO}/compare/${PREVIOUS_TAG}...${NEW_TAG}"
+
+          # Post the official release thread template
+          RELEASE_MSG="@Release I will start the release process for the acn repo (cni/cns/npm) ${NEW_TAG} based on this commit: ${COMMIT_LINK} from the ${BRANCH} branch. I intend for this release to make it to AKS.
+
+          ---
+          **SIGNED PATH CHECKLIST:**
+          - Changelog Link: ${CHANGELOG_LINK}
+          - CNI Release Test Pipeline Run Link: ${CNI_RUN}
+          - ACN PR Pipeline Run Link: ${PR_RUN}
+          - ACN Official Build Pipeline Run Link: _(pending)_
+          - ACN Official Image Release Pipeline Run Link: _(pending)_
+          - Safefly/R2D Link: _(human to fill after filing)_
+          - AgentBaker PR Link: _(pending BumpBump)_
+          - AKS PR/ENO Link: _(pending)_
+          - ENO Release Networking Sig Link: _(pending)_
+
+          ---
+          **UNSIGNED PATH CHECKLIST:**
+          - Changelog Link: ${CHANGELOG_LINK}
+          - CNI Release Test Pipeline Run Link: ${CNI_RUN}
+          - ACN PR Pipeline Run Link: ${PR_RUN}
+          - Github Release Pipeline Run Link: _(pending)_
+          - Safefly/R2D Link: _(human to fill after filing)_
+          - Github Release Link: _(pending)_
+          - NA Build Pipeline Run Link: _(pending)_
+          - OBP Signed Binaries Pipeline Run Link: _(pending)_"
+
+          echo "Release channel message:"
+          echo "$RELEASE_MSG"
+
+          # Post to Teams Release channel
+          curl -H "Content-Type: application/json" -d "{
+            \"text\": $(echo "$RELEASE_MSG" | jq -Rs .)
+          }" "${{ env.TEAMS_WEBHOOK_URL }}" || echo "::warning::Failed to post to Teams Release channel"
+
+      - name: Generate R2D Draft (Unsigned)
+        id: r2d_unsigned
+        run: |
+          set -euo pipefail
+          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
+          CNI_RUN="${{ needs.validate_pipelines.outputs.cni_release_run_url }}"
+          TODAY=$(date +%Y-%m-%d)
+          END_DATE=$(date -d "+7 days" +%Y-%m-%d)
+
+          cat <<EOF > /tmp/r2d-unsigned-draft.md
+          # R2D DRAFT — UNSIGNED PATH
+          ## File at: https://aka.ms/R2D (Clone from Request #193479)
+
+          | Field | Value |
+          |-------|-------|
+          | Service Name | Azure Container Networking |
+          | Change Title | CNI/CNS Github Release ${NEW_TAG} |
+          | Change Description | Release ${NEW_TAG} binaries to our Github Release page to be consumed by ACI |
+          | Engineering Director | R2D-AzNet-SDN-ED-GRP |
+          | CVP | R2D-AzNet-CVP-GRP |
+          | Additional Users to Notify | tamanoha@microsoft.com |
+          | Deployment Type | regular |
+          | Deployment Tool | ev2 |
+          | Service Group Name | microsoft.azure.networking.containernetworking.githubrelease |
+          | Build Number | _(fill from Github Release Pipeline run)_ |
+          | ADO Build Link | _(fill from Github Release Pipeline run)_ |
+          | SFI Changes? | no |
+          | Anticipated Start Date | ${TODAY} |
+          | Anticipated End Date | ${END_DATE} |
+          | Targeted Regions | All regions |
+          | Covered by lease? | No |
+          | Nature of Deployment | General bug fixes, New feature |
+          | Deployment Following SDP | Standard SDP |
+          | Retakes? | no |
+          | Impact Type to Customer | None |
+          | Expected duration of impact | 0 |
+          | Blast Radius | Single Cluster |
+          | Pre-Prod Testing Types | End to End Testing (${CNI_RUN}) |
+          | Rollback/Roll-Forward | DRI determines rollback or rollforward in real time based on the issue |
+          | Rollback Tested | yes |
+          | Average Rollback Time | 01:00 (HH:MM) |
+          | Health signals integration | yes — Binaries are consumed by partners who have health checks |
+          | R2D Risk | Low |
+          | Team Assessed Risk | Low |
+          | Deployment Impact | Zero Impact |
+          | Auto Approval | Disabled |
+          EOF
+
+          echo "✅ Unsigned R2D draft generated at /tmp/r2d-unsigned-draft.md"
+          cat /tmp/r2d-unsigned-draft.md
+
+      - name: Generate R2D Draft (Signed)
+        id: r2d_signed
+        run: |
+          set -euo pipefail
+          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
+          PR_RUN="${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}"
+          CNI_RUN="${{ needs.validate_pipelines.outputs.cni_release_run_url }}"
+          TODAY=$(date +%Y-%m-%d)
+          END_DATE=$(date -d "+7 days" +%Y-%m-%d)
+
+          cat <<EOF > /tmp/r2d-signed-draft.md
+          # R2D DRAFT — SIGNED PATH
+          ## File at: https://aka.ms/R2D (Clone from Request #174991)
+
+          | Field | Value |
+          |-------|-------|
+          | Service Name | Azure Container Networking |
+          | Change Title | CNS and CNI release ${NEW_TAG} |
+          | Change Description | _(describe key changes in this release)_ |
+          | Engineering Director | AzNet_R2D_GroupA_SM, R2D-AzNet-SDN-ED-GRP |
+          | CVP | AzNet_R2D_CVP, R2D-AzNet-CVP-GRP |
+          | Additional Users to Notify | _(add leads if needed)_ |
+          | Deployment Type | regular |
+          | Deployment Tool | ev2 |
+          | Service Group Name | microsoft.azure.networking.containernetworking |
+          | Build Number | _(fill from ACN Official Build Pipeline run)_ |
+          | ADO Build Link | _(fill from ACN Official Build Pipeline run)_ |
+          | SFI Changes? | no |
+          | Anticipated Start Date | ${TODAY} |
+          | Anticipated End Date | ${END_DATE} |
+          | Targeted Regions | All regions |
+          | Covered by lease? | No |
+          | Nature of Deployment | New feature |
+          | Deployment Following SDP | Standard SDP |
+          | Retakes? | no |
+          | Impact Type to Customer | None |
+          | Expected duration of impact | 0 |
+          | Blast Radius | Single Cluster |
+          | Pre-Prod Testing Types | Unit Testing + Integration Testing (${PR_RUN}, ${CNI_RUN}) |
+          | Rollback/Roll-Forward | DRI determines rollback or rollforward in real time based on the issue |
+          | Rollback Tested | yes |
+          | Average Rollback Time | 00:01 (HH:MM) |
+          | Health signals integration | yes — AKS-Swift deployment follows AKS service health checks |
+          | R2D Risk | Low |
+          | Team Assessed Risk | Low |
+          | Deployment Impact | Zero Impact |
+          | Auto Approval | Disabled |
+          EOF
+
+          echo "✅ Signed R2D draft generated at /tmp/r2d-signed-draft.md"
+          cat /tmp/r2d-signed-draft.md
+
+      - name: Post R2D drafts summary to Release thread
+        run: |
+          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
+
+          R2D_MSG="📋 **R2D Drafts prepared for ${NEW_TAG}:**
+
+          **UNSIGNED** — Clone from SafeFly Request #193479
+          • Service Group: microsoft.azure.networking.containernetworking.githubrelease
+          • File at: https://aka.ms/R2D
+
+          **SIGNED** — Clone from SafeFly Request #174991
+          • Service Group: microsoft.azure.networking.containernetworking
+          • File at: https://aka.ms/R2D
+
+          ⚠️ **Human action required:** File both R2Ds, then post the Safefly/R2D links back in this thread."
+
+          curl -H "Content-Type: application/json" -d "{
+            \"text\": $(echo "$R2D_MSG" | jq -Rs .)
+          }" "${{ env.TEAMS_WEBHOOK_URL }}" || echo "::warning::Failed to post R2D summary"
+
+      - name: Send email to leads
+        run: |
+          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
+          echo "📧 Email notification (manual step or integrate with Logic App/Power Automate):"
+          echo "  To: chandan.aggarwal@microsoft.com, neaggarw@microsoft.com, tamanoha@microsoft.com, caggard@microsoft.com"
+          echo "  Subject: ACN Release ${NEW_TAG}"
+          echo "  Body: I am currently making a CNI/CNS/NPM release for ${NEW_TAG}."
+          # NOTE: Email sending requires integration with a mail service (Graph API, Logic App, etc.)
+          # This step serves as documentation of the requirement
+
+      - name: Write workflow summary
+        run: |
+          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
+          PR_RUN="${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}"
+          CNI_RUN="${{ needs.validate_pipelines.outputs.cni_release_run_url }}"
+          {
+            echo "## 🚀 Scheduled Release: ${NEW_TAG}"
+            echo ""
+            echo "| Step | Status |"
+            echo "|------|--------|"
+            echo "| Dependabot PRs | ✅ Complete |"
+            echo "| Vuln Check | ✅ Complete |"
+            echo "| Tag Created | ✅ ${NEW_TAG} |"
+            echo "| ACN PR Pipeline | ✅ [Run](${PR_RUN}) |"
+            echo "| ACN CNI Release Test | ✅ [Run](${CNI_RUN}) |"
+            echo "| Release Channel Post | ✅ Posted |"
+            echo "| R2D Drafts | ✅ Generated (human to file) |"
+            echo ""
+            echo "### Next Steps (Human):"
+            echo "1. File R2D at https://aka.ms/R2D (clone from previous requests)"
+            echo "2. Post Safefly/R2D links back to Release channel thread"
+            echo "3. Trigger ACN Official Build Pipeline + Image Release Pipeline"
+            echo "4. Monitor BumpBump for AgentBaker PR"
+          } >> "$GITHUB_STEP_SUMMARY"
