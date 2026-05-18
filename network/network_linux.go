@@ -116,7 +116,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalIn
 	err := nm.handleCommonOptions(ifName, nwInfo)
 	if err != nil {
 		logger.Error("handleCommonOptions failed with", zap.Error(err))
-		return nil, err
+		return nil, errors.Wrap(err, NetworkNotReadyErrorMsg)
 	}
 
 	// Create the network object.
