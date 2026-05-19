@@ -31,6 +31,12 @@ var (
 	dualStackCount = 2
 )
 
+// isInterfaceMaster reports whether the named interface is an upper (master) device.
+// Windows does not have the Linux netvsc + VF bonding model, so all interfaces are treated as master.
+func isInterfaceMaster(_ string) bool {
+	return true
+}
+
 func addDefaultRoute(_ string, _ *network.EndpointInfo, _ *network.InterfaceInfo) {
 }
 
