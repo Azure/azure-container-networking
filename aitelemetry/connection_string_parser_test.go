@@ -48,6 +48,15 @@ func TestParseConnectionString(t *testing.T) {
 			want:             nil,
 			wantErr:          true,
 		},
+		{
+			name:             "Valid connection string without trailing slash on ingestion endpoint",
+			connectionString: "InstrumentationKey=0000-0000-0000-0000-0000;IngestionEndpoint=https://ingestion.endpoint.com",
+			want: &connectionVars{
+				instrumentationKey: "0000-0000-0000-0000-0000",
+				ingestionURL:       "https://ingestion.endpoint.com/v2.1/track",
+			},
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {

@@ -167,6 +167,13 @@ func main() {
 		GetEnvRetryWaitTimeInSecs:    config.GetEnvRetryWaitTimeInSecs,
 	}
 
+	// Use the connection string path only when sovereign cloud is enabled AND a
+	// connection string is provided; otherwise fall back to the legacy iKey path.
+	if config.EnableAIInSovereignCloud && config.AIConnectionString != "" {
+		telemetry.SetAIConnectionString(config.AIConnectionString)
+		telemetry.SetEnableAIInSovereignCloud(true)
+	}
+
 	if err := tb.CreateAITelemetryHandle(aiConfig, config.DisableAll, config.DisableTrace, config.DisableMetric); err != nil { // nolint
 		logger.Error("AI Handle creation error:", zap.Error(err))
 	}

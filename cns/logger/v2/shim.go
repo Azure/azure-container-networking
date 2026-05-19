@@ -51,6 +51,8 @@ func (*shim) InitAI(aitelemetry.AIConfig, bool, bool, bool) {}
 
 func (*shim) InitAIWithIKey(aitelemetry.AIConfig, string, bool, bool, bool) {}
 
+func (*shim) InitAIWithConnectionString(aitelemetry.AIConfig, string, bool, bool, bool) {}
+
 func (s *shim) SetContextDetails(string, string) {}
 
 func (s *shim) SetAPIServer(string) {}

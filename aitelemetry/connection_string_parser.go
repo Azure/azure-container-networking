@@ -39,6 +39,9 @@ func parseConnectionString(connectionString string) (*connectionVars, error) {
 			connectionVars.instrumentationKey = value
 		case "ingestionendpoint":
 			if value != "" {
+				if !strings.HasSuffix(value, "/") {
+					value += "/"
+				}
 				connectionVars.ingestionURL = value + "v2.1/track"
 			}
 		}
