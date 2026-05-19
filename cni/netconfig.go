@@ -80,6 +80,12 @@ type NetworkConfig struct {
 	RuntimeConfig                 RuntimeConfig   `json:"runtimeConfig,omitempty"`
 	WindowsSettings               WindowsSettings `json:"windowsSettings,omitempty"`
 	AdditionalArgs                []KVPair        `json:"AdditionalArgs,omitempty"`
+	// Env selects the runtime environment for environment-specific behavior
+	// (e.g. which Wire Server endpoint to use). Recognized values:
+	//   ""      - production (default)
+	//   "test"  - test environment
+	// The JSON tag is "env" so conflist files can set: "env": "test"
+	Env string `json:"env,omitempty"`
 }
 
 type WindowsSettings struct {

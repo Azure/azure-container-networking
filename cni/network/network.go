@@ -62,13 +62,34 @@ const (
 )
 
 const (
-	// URL to query NMAgent version and determine whether we snat on host
-	nmAgentSupportedApisURL = "http://168.63.129.16/machine/plugins/?comp=nmagent&type=GetSupportedApis"
 	// Only SNAT support (no DNS support)
 	nmAgentSnatSupportAPI = "NetworkManagementSnatSupport"
 	// SNAT and DNS are both supported
 	nmAgentSnatAndDnsSupportAPI = "NetworkManagementDNSSupport"
 )
+
+// Wire Server addresses per environment.
+const (
+	// defaultWireServerAddress is the well-known Azure Wire Server IP used in production.
+	defaultWireServerAddress = "168.63.129.16"
+	// testWireServerAddress is the Wire Server endpoint used in test setups.
+	testWireServerAddress = "127.0.0.1:11281"
+)
+
+// Recognized values for cni.NetworkConfig.Env.
+const (
+	envTest = "test"
+)
+
+// wireServerAddressForEnv returns the Wire Server address to use for the given
+// environment value from the conflist ("env" field). Anything other than the
+// recognized test environment falls back to the production default.
+func wireServerAddressForEnv(env string) string {
+	if env == envTest {
+		return testWireServerAddress
+	}
+	return defaultWireServerAddress
+}
 
 // temporary consts related func determineSnat() which is to be deleted after
 // a baking period with newest NMAgent changes
@@ -344,6 +365,10 @@ func (plugin *NetPlugin) getNetworkInfo(netNs string, interfaceInfo *network.Int
 	return nwInfo
 }
 
+func buildNmAgentSupportedApisURL(wireServerAddress string) string {
+	return fmt.Sprintf("http://%s/machine/plugins/?comp=nmagent&type=GetSupportedApis", wireServerAddress)
+}
+
 // CNI implementation
 // https://github.com/containernetworking/cni/blob/master/SPEC.md
 
@@ -499,6 +524,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// multitenancy (swift v1) -> one interface info
 		telemetryClient.Settings().Context = "AzureCNIMultitenancy"
 		plugin.multitenancyClient.Init(cnsClient, AzureNetIOShim{})
+
+		nmAgentSupportedApisURL := buildNmAgentSupportedApisURL(wireServerAddressForEnv(nwCfg.Env))
 
 		// Temporary if block to determining whether we disable SNAT on host (for multi-tenant scenario only)
 		if enableSnatForDNS, nwCfg.EnableSnatOnHost, err = plugin.multitenancyClient.DetermineSnatFeatureOnHost(
