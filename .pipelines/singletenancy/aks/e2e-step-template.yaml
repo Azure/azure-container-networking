@@ -28,21 +28,62 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         set -e
+        get_image_registry() {
+          case "$1" in
+            MCR) echo "mcr.microsoft.com/containernetworking" ;;
+            *) echo "acnpublic.azurecr.io" ;;
+          esac
+        }
+
+        build_override_image() {
+          repo=$(get_image_registry "$CNI_IMAGE_REPO")
+          name="${CNI_IMAGE_NAME_OVERRIDE:-azure-cni}"
+          version="${CNI_VERSION}"
+          if [ -z "$version" ]; then
+            return 1
+          fi
+          if [[ "$version" == @* ]]; then
+            echo "${repo}/${name}${version}"
+          else
+            echo "${repo}/${name}:${version}"
+          fi
+        }
+
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         echo "Upload CNI"
         echo "Deploying on Linux nodes"
+
+        overrideCniImage=""
+        # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
+
+        if [ -n "$CNI_VERSION" ]; then
+          overrideCniImage=$(build_override_image || true)
+        fi
+
         if [ "${{parameters.os}}" == "windows" ]; then
-          export CNI_IMAGE=$(make cni-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }})
+          if [ -n "$overrideCniImage" ]; then
+            export CNI_IMAGE="$overrideCniImage"
+          else
+            export CNI_IMAGE=$(make cni-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }})
+          fi
           echo "CNI image: $CNI_IMAGE"
           envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
           kubectl rollout status daemonset/azure-cni -n kube-system
           echo "Deploying on windows nodes"
-          export CNI_IMAGE=$( make cni-image-name-and-tag OS='windows' ARCH=${{ parameters.arch }} OS_VERSION=${{ parameters.os_version }})
+          if [ -n "$overrideCniImage" ]; then
+            export CNI_IMAGE="$overrideCniImage"
+          else
+            export CNI_IMAGE=$( make cni-image-name-and-tag OS='windows' ARCH=${{ parameters.arch }} OS_VERSION=${{ parameters.os_version }})
+          fi
           echo "CNI image: $CNI_IMAGE"
           envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
           kubectl rollout status daemonset/azure-cni-windows -n kube-system
         else
-          export CNI_IMAGE=$(make cni-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }})
+          if [ -n "$overrideCniImage" ]; then
+            export CNI_IMAGE="$overrideCniImage"
+          else
+            export CNI_IMAGE=$(make cni-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }})
+          fi
           echo "CNI image: $CNI_IMAGE"
           envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
           kubectl rollout status daemonset/azure-cni -n kube-system

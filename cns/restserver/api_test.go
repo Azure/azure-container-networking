@@ -2095,10 +2095,17 @@ func TestPostNetworkContainersWithIPv6(t *testing.T) {
 	ncResponses, err := getAllNetworkContainers(t, ncParamsWithIPv6)
 	require.NoError(t, err)
 
-	// Verify each NC has IPv6Configuration
-	for i, nc := range ncResponses.NetworkContainers {
-		assert.Equal(t, ncParamsWithIPv6[i].ipv6Config.IPSubnet.IPAddress, nc.IPv6Configuration.IPSubnet.IPAddress, "NC %d: IPv6 address mismatch", i)
-		assert.Equal(t, ncParamsWithIPv6[i].ipv6Config.GatewayIPAddress, nc.IPv6Configuration.GatewayIPAddress, "NC %d: IPv6 gateway mismatch", i)
+	// Verify each NC has IPv6Configuration (index by NC ID to avoid ordering assumptions)
+	ncByID := make(map[string]cns.GetNetworkContainerResponse, len(ncResponses.NetworkContainers))
+	for _, nc := range ncResponses.NetworkContainers {
+		ncByID[nc.NetworkContainerID] = nc
+	}
+	for i, params := range ncParamsWithIPv6 {
+		ncID := "Swift_" + params.ncID
+		nc, ok := ncByID[ncID]
+		require.True(t, ok, "NC %d (%s) not found in response", i, ncID)
+		assert.Equal(t, params.ipv6Config.IPSubnet.IPAddress, nc.IPv6Configuration.IPSubnet.IPAddress, "NC %d: IPv6 address mismatch", i)
+		assert.Equal(t, params.ipv6Config.GatewayIPAddress, nc.IPv6Configuration.GatewayIPAddress, "NC %d: IPv6 gateway mismatch", i)
 	}
 
 	// Cleanup

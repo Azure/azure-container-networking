@@ -869,7 +869,7 @@ func generateCNSIPInfoMap(eps []*endpoint) map[string]*restserver.IPInfo {
 	ifNametoIPInfoMap := make(map[string]*restserver.IPInfo) // key : interface name, value : IPInfo
 
 	for _, ep := range eps {
-		ifNametoIPInfoMap[ep.IfName] = &restserver.IPInfo{ // in windows, the nicname is args ifname, in linux, it's ethX
+		ipInfo := &restserver.IPInfo{ // in windows, the nicname is args ifname, in linux, it's ethX
 			NICType:            ep.NICType,
 			HnsEndpointID:      ep.HnsId,
 			HnsNetworkID:       ep.HNSNetworkID,
@@ -877,6 +877,14 @@ func generateCNSIPInfoMap(eps []*endpoint) map[string]*restserver.IPInfo {
 			MacAddress:         ep.MacAddress.String(),
 			NetworkContainerID: ep.NetworkContainerID,
 		}
+		for _, ipAddr := range ep.IPAddresses {
+			if ipAddr.IP.To4() != nil {
+				ipInfo.IPv4 = append(ipInfo.IPv4, ipAddr)
+			} else if ipAddr.IP.To16() != nil {
+				ipInfo.IPv6 = append(ipInfo.IPv6, ipAddr)
+			}
+		}
+		ifNametoIPInfoMap[ep.IfName] = ipInfo
 	}
 
 	return ifNametoIPInfoMap

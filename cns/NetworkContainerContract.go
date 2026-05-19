@@ -404,6 +404,7 @@ type NetworkInterfaceInfo struct {
 // IPConfiguration contains details about ip config to provision in the VM.
 type IPConfiguration struct {
 	IPSubnet           IPSubnet
+	IPSubnetV6         IPSubnet
 	DNSServers         []string
 	GatewayIPAddress   string
 	GatewayIPv6Address string
@@ -511,9 +512,11 @@ type GetNetworkContainerResponse struct {
 type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
 	NetworkContainerPrimaryIPConfig IPConfiguration
-	HostPrimaryIPInfo               HostIPInfo
-	NICType                         NICType
-	InterfaceName                   string
+	// NetworkContainerIPv6Config holds the IPv6 IP configuration used for dual-stack SwiftV2 scenarios.
+	NetworkContainerIPv6Config IPConfiguration
+	HostPrimaryIPInfo          HostIPInfo
+	NICType                    NICType
+	InterfaceName              string
 	// MacAddress of interface
 	MacAddress string
 	// SkipDefaultRoutes is true if default routes should not be added on interface

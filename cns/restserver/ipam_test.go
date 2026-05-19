@@ -2419,6 +2419,35 @@ func TestStatelessCNIStateFile(t *testing.T) {
 			want:       endpointInfo2,
 			wantErr:    false,
 		},
+		{
+			name:       "APIPA: update endpoint with IPv4 address",
+			endpointID: endpointInfo1ContainerID,
+			req: map[string]*IPInfo{
+				"HostNCApipaEndpoint-Swift_abc123": {
+					IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.0.4").To4(), Mask: net.CIDRMask(16, 32)}},
+					HnsEndpointID:      "apipa-hns-id",
+					NICType:            cns.ApipaNIC,
+					NetworkContainerID: "Swift_abc123",
+				},
+			},
+			store: svc.EndpointStateStore,
+			want: &EndpointInfo{
+				PodName: "pod1", PodNamespace: "default", IfnameToIPMap: map[string]*IPInfo{
+					"eth0": {
+						IPv4:          []net.IPNet{{IP: net.IPv4(10, 0, 0, 1), Mask: net.IPv4Mask(255, 255, 255, 0)}},
+						HnsEndpointID: "5c15cccc-830a-4dff-81f3-4b1e55cb7dcb",
+						NICType:       cns.InfraNIC,
+					},
+					"HostNCApipaEndpoint-Swift_abc123": {
+						IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.0.4"), Mask: net.CIDRMask(16, 32)}},
+						HnsEndpointID:      "apipa-hns-id",
+						NICType:            cns.ApipaNIC,
+						NetworkContainerID: "Swift_abc123",
+					},
+				},
+			},
+			wantErr: false,
+		},
 	}
 	ncStates := []ncState{
 		{

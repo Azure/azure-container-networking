@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -31,6 +32,9 @@ const (
 	vnetBlockDefaultGateway     = "10.224.0.1"
 	vnetBlockCIDR1              = "10.224.0.8/30"
 	vnetBlockCIDR2              = "10.224.0.12/30"
+	primaryIPV6                 = "fd12:3456:789a::1"
+	subnetAddressSpaceV6        = "fd12:3456:789a::/112"
+	subnetPrefixLenV6           = 112
 )
 
 var invalidStatusMultiNC = v1alpha.NodeNetworkConfigStatus{
@@ -119,10 +123,11 @@ var validVNETBlockNC = v1alpha.NetworkContainer{
 
 func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   v1alpha.NetworkContainer
-		want    *cns.CreateNetworkContainerRequest
-		wantErr bool
+		name           string
+		input          v1alpha.NetworkContainer
+		want           *cns.CreateNetworkContainerRequest
+		wantIPSubnetV6 *cns.IPSubnet
+		wantErr        bool
 	}{
 		{
 			name:    "valid swift",
@@ -211,6 +216,44 @@ func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "valid IPv6 subnet populates IPSubnetV6",
+			input: v1alpha.NetworkContainer{
+				ID:                   ncID,
+				PrimaryIP:            primaryIP,
+				PrimaryIPV6:          primaryIPV6,
+				SubnetAddressSpace:   subnetAddressSpace,
+				SubnetAddressSpaceV6: subnetAddressSpaceV6,
+				DefaultGateway:       defaultGateway,
+				NodeIP:               nodeIP,
+				Version:              version,
+			},
+			wantIPSubnetV6: &cns.IPSubnet{IPAddress: primaryIPV6, PrefixLength: subnetPrefixLenV6},
+		},
+		{
+			name: "empty SubnetAddressSpaceV6 leaves IPSubnetV6 zero",
+			input: v1alpha.NetworkContainer{
+				ID:                 ncID,
+				PrimaryIP:          primaryIP,
+				SubnetAddressSpace: subnetAddressSpace,
+				DefaultGateway:     defaultGateway,
+				NodeIP:             nodeIP,
+				Version:            version,
+			},
+			wantIPSubnetV6: &cns.IPSubnet{},
+		},
+		{
+			name: "invalid SubnetAddressSpaceV6",
+			input: v1alpha.NetworkContainer{
+				ID:                   ncID,
+				PrimaryIP:            primaryIP,
+				SubnetAddressSpace:   subnetAddressSpace,
+				SubnetAddressSpaceV6: "not-a-cidr",
+				NodeIP:               nodeIP,
+				Version:              version,
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -220,18 +263,24 @@ func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 				assert.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
-			assert.EqualValues(t, tt.want, got)
+			require.NoError(t, err)
+			if tt.want != nil {
+				assert.Equal(t, tt.want, got)
+			}
+			if tt.wantIPSubnetV6 != nil {
+				assert.Equal(t, *tt.wantIPSubnetV6, got.IPConfiguration.IPSubnetV6)
+			}
 		})
 	}
 }
 
 func TestCreateNCRequestFromStaticNC(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   v1alpha.NetworkContainer
-		want    *cns.CreateNetworkContainerRequest
-		wantErr bool
+		name           string
+		input          v1alpha.NetworkContainer
+		want           *cns.CreateNetworkContainerRequest
+		wantIPSubnetV6 *cns.IPSubnet
+		wantErr        bool
 	}{
 		{
 			name:    "valid overlay",
@@ -335,6 +384,50 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "valid IPv6 subnet populates IPSubnetV6",
+			input: v1alpha.NetworkContainer{
+				ID:                   ncID,
+				AssignmentMode:       v1alpha.Static,
+				Type:                 v1alpha.Overlay,
+				PrimaryIP:            overlayPrimaryIP,
+				PrimaryIPV6:          primaryIPV6,
+				NodeIP:               nodeIP,
+				SubnetName:           subnetName,
+				SubnetAddressSpace:   subnetAddressSpace,
+				SubnetAddressSpaceV6: subnetAddressSpaceV6,
+				Version:              version,
+			},
+			wantIPSubnetV6: &cns.IPSubnet{IPAddress: primaryIPV6, PrefixLength: subnetPrefixLenV6},
+		},
+		{
+			name: "empty SubnetAddressSpaceV6 leaves IPSubnetV6 zero",
+			input: v1alpha.NetworkContainer{
+				ID:                 ncID,
+				AssignmentMode:     v1alpha.Static,
+				Type:               v1alpha.Overlay,
+				PrimaryIP:          overlayPrimaryIP,
+				NodeIP:             nodeIP,
+				SubnetName:         subnetName,
+				SubnetAddressSpace: subnetAddressSpace,
+				Version:            version,
+			},
+			wantIPSubnetV6: &cns.IPSubnet{},
+		},
+		{
+			name: "invalid SubnetAddressSpaceV6",
+			input: v1alpha.NetworkContainer{
+				ID:                   ncID,
+				AssignmentMode:       v1alpha.Static,
+				Type:                 v1alpha.Overlay,
+				PrimaryIP:            overlayPrimaryIP,
+				NodeIP:               nodeIP,
+				SubnetAddressSpace:   subnetAddressSpace,
+				SubnetAddressSpaceV6: "not-a-cidr",
+				Version:              version,
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -344,8 +437,13 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 				assert.Error(t, err)
 				return
 			}
-			assert.NoError(t, err)
-			assert.EqualValues(t, tt.want, got)
+			require.NoError(t, err)
+			if tt.want != nil {
+				assert.Equal(t, tt.want, got)
+			}
+			if tt.wantIPSubnetV6 != nil {
+				assert.Equal(t, *tt.wantIPSubnetV6, got.IPConfiguration.IPSubnetV6)
+			}
 		})
 	}
 }

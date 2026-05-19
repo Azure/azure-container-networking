@@ -1,0 +1,23 @@
+# {{.RENDER_MSG}}
+# SOURCE: {{.SRC_PIPE}}
+ARG ARCH
+
+# {{.MARINER_CORE_IMG}}
+FROM {{.MARINER_CORE_PIN}} AS mariner-core
+
+# {{.MARINER_DISTROLESS_IMG}}
+FROM {{.MARINER_DISTROLESS_PIN}} AS mariner-distroless
+
+FROM mariner-core AS iptools
+RUN tdnf install -y iptables iproute
+
+FROM mariner-distroless AS linux
+ARG ARTIFACT_DIR
+COPY --from=iptools /usr/sbin/*tables* /usr/sbin/
+COPY --from=iptools /usr/sbin/ip /usr/sbin/
+COPY --from=iptools /usr/lib /usr/lib
+COPY --from=iptools /usr/lib64 /usr/lib64
+COPY ${ARTIFACT_DIR}/bin/azure-iptables-monitor /azure-iptables-monitor
+COPY ${ARTIFACT_DIR}/bin/azure-block-iptables /azure-block-iptables
+
+ENTRYPOINT ["/azure-iptables-monitor"]

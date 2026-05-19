@@ -7,6 +7,9 @@ metadata:
     kubernetes.azure.com/pod-network-instance: {{ .PNIName }}
     kubernetes.azure.com/pod-network: {{ .PNName }}
 spec:
+  {{- if .RuntimeClassName }}
+  runtimeClassName: {{ .RuntimeClassName }}
+  {{- end }}
   containers:
   - name: net-debugger
     image: {{ .Image }}

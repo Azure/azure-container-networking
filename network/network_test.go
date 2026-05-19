@@ -201,6 +201,66 @@ var _ = Describe("Test Network", func() {
 				Expect(nw).To(BeNil())
 			})
 		})
+
+		Context("When IsIPv6Enabled is true in transparent vlan mode", func() {
+			It("Should call UpdateIPV6Setting with disable_ipv6=0", func() {
+				mockPlClient := platform.NewMockExecClient(false)
+				var capturedCmds []string
+				mockPlClient.SetExecRawCommand(func(cmd string) (string, error) {
+					capturedCmds = append(capturedCmds, cmd)
+					return "", nil
+				})
+
+				nm := &networkManager{
+					ExternalInterfaces: map[string]*externalInterface{},
+					plClient:           mockPlClient,
+					iptablesClient:     &mockIPTablesClient{},
+				}
+				nm.ExternalInterfaces["eth0"] = &externalInterface{
+					Networks: map[string]*network{},
+				}
+				nwInfo := &EndpointInfo{
+					NetworkID:     "nw",
+					MasterIfName:  "eth0",
+					Mode:          opModeTransparentVlan,
+					IsIPv6Enabled: true,
+				}
+				nw, err := nm.newNetwork(nwInfo)
+				Expect(err).To(BeNil())
+				Expect(nw).NotTo(BeNil())
+				Expect(capturedCmds).To(ContainElement("sysctl -w net.ipv6.conf.all.disable_ipv6=0"))
+			})
+		})
+
+		Context("When IsIPv6Enabled is false in transparent vlan mode", func() {
+			It("Should not call UpdateIPV6Setting", func() {
+				mockPlClient := platform.NewMockExecClient(false)
+				var capturedCmds []string
+				mockPlClient.SetExecRawCommand(func(cmd string) (string, error) {
+					capturedCmds = append(capturedCmds, cmd)
+					return "", nil
+				})
+
+				nm := &networkManager{
+					ExternalInterfaces: map[string]*externalInterface{},
+					plClient:           mockPlClient,
+					iptablesClient:     &mockIPTablesClient{},
+				}
+				nm.ExternalInterfaces["eth0"] = &externalInterface{
+					Networks: map[string]*network{},
+				}
+				nwInfo := &EndpointInfo{
+					NetworkID:     "nw",
+					MasterIfName:  "eth0",
+					Mode:          opModeTransparentVlan,
+					IsIPv6Enabled: false,
+				}
+				nw, err := nm.newNetwork(nwInfo)
+				Expect(err).To(BeNil())
+				Expect(nw).NotTo(BeNil())
+				Expect(capturedCmds).NotTo(ContainElement("sysctl -w net.ipv6.conf.all.disable_ipv6=0"))
+			})
+		})
 	})
 
 	Describe("Test deleteNetwork", func() {

@@ -42,7 +42,7 @@ spec:
       containers:
         - name: cns-container
           image: acnpublic.azurecr.io/azure-cns:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
           securityContext:
             capabilities:
@@ -88,7 +88,7 @@ spec:
                     fieldPath: spec.nodeName
         - name: debug
           image: mcr.microsoft.com/cbl-mariner/base/core:2.0
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command: ["sleep", "3600"]
           securityContext:
             capabilities:

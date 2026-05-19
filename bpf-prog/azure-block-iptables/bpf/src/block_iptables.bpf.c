@@ -13,7 +13,7 @@
 #define EPERM 1
 #define IPT_SO_SET_REPLACE 64
 #define TASK_COMM_LEN 16
-#define COMM_COUNT 5
+#define COMM_COUNT 6
 #define IPPROTO_IP 0
 #define IPPROTO_IP6 41
 #define AF_NETLINK 16
@@ -27,6 +27,7 @@
 #define AZURE_CNS "azure-cns"
 #define ISTIO_NODE_AGENT "install-cni"
 #define NFS_MOUNT_SCRIPTS "nfs" // nfvsv3mountscript, nfsv4mountscript
+#define WAAGENT "python" // this allows all python processes including waagent. Will narrow down in the future.
 
 char __license[] SEC("license") = "Dual MIT/GPL";
 volatile const u64 host_netns_inode = 4026531840; // Initialized by userspace
@@ -46,9 +47,9 @@ bool is_allowed_parent ()
     struct task_struct *task = (struct task_struct *)bpf_get_current_task();
     struct task_struct *parent_task = NULL;
 
-    // Allow cilium-agent, ip-masq-agent and azure-cns
+    // Allow cilium-agent, ip-masq-agent, nfs, istio, waagent and azure-cns
     char parent_comm[TASK_COMM_LEN] = {};
-    const char target_prefixes[COMM_COUNT][TASK_COMM_LEN] = {CILIUM_AGENT, IP_MASQ, AZURE_CNS, ISTIO_NODE_AGENT, NFS_MOUNT_SCRIPTS};
+    const char target_prefixes[COMM_COUNT][TASK_COMM_LEN] = {CILIUM_AGENT, IP_MASQ, AZURE_CNS, ISTIO_NODE_AGENT, NFS_MOUNT_SCRIPTS, WAAGENT};
 
     // Safely get parent task_struct
     parent_task = BPF_CORE_READ(task, real_parent);
@@ -74,6 +75,9 @@ bool is_allowed_parent ()
             return 1;
         }
     }
+
+    parent_comm[TASK_COMM_LEN - 1] = '\0'; // Ensure null termination
+    bpf_printk("Blocked iptables rule - parent comm: %s, pid: %d\n", parent_comm, BPF_CORE_READ(parent_task, pid));
 
     return 0; // Block
 }

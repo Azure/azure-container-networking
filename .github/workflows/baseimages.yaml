@@ -11,14 +11,18 @@ on:
     types:
       - checks_requested
 
+permissions:
+  contents: read
+
 jobs:
   render:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       with:
         fetch-depth: 0
-    - uses: actions/setup-go@v6
+        persist-credentials: false
+    - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
       with:
         go-version-file: go.mod
     - name: go env

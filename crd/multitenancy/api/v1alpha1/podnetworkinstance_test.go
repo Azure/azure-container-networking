@@ -135,7 +135,7 @@ func TestPodNetworkInstance_SpecValidation(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "test-ip-size0", Namespace: "default"},
 				Spec: PodNetworkInstanceSpec{
 					PodNetworkConfigs: []PodNetworkConfig{
-						{PodNetwork: "net1", PodIPReservationSize: 0, IPConstraint: "198.176.10.1"},
+						{PodNetwork: "net1", PodIPReservationSize: 0, IPConstraint: "198.176.10.1/32"},
 					},
 				},
 			},
@@ -147,7 +147,7 @@ func TestPodNetworkInstance_SpecValidation(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "test-ip-size1", Namespace: "default"},
 				Spec: PodNetworkInstanceSpec{
 					PodNetworkConfigs: []PodNetworkConfig{
-						{PodNetwork: "net1", PodIPReservationSize: 1, IPConstraint: "198.176.10.1"},
+						{PodNetwork: "net1", PodIPReservationSize: 1, IPConstraint: "198.176.10.1/32"},
 					},
 				},
 			},
@@ -159,25 +159,26 @@ func TestPodNetworkInstance_SpecValidation(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "test-ip-size2", Namespace: "default"},
 				Spec: PodNetworkInstanceSpec{
 					PodNetworkConfigs: []PodNetworkConfig{
-						{PodNetwork: "net1", PodIPReservationSize: 2, IPConstraint: "198.176.10.1"},
+						{PodNetwork: "net1", PodIPReservationSize: 2, IPConstraint: "198.176.10.1/32"},
 					},
 				},
 			},
 			expectError: true, // ipConstraint only allowed when podIPReservationSize is 1
 		},
-		// IPConstraint with CIDR prefix tests
+		// IPConstraint without /32 prefix
 		{
-			name: "IPConstraint with /32 prefix - create allowed",
+			name: "IPConstraint without /32 prefix - not allowed",
 			pni: PodNetworkInstance{
-				ObjectMeta: metav1.ObjectMeta{Name: "test-ip-prefix32", Namespace: "default"},
+				ObjectMeta: metav1.ObjectMeta{Name: "test-ip-noprefix32", Namespace: "default"},
 				Spec: PodNetworkInstanceSpec{
 					PodNetworkConfigs: []PodNetworkConfig{
-						{PodNetwork: "net1", PodIPReservationSize: 1, IPConstraint: "198.176.110.112/32"},
+						{PodNetwork: "net1", PodIPReservationSize: 1, IPConstraint: "198.176.110.112"},
 					},
 				},
 			},
-			expectError: false,
+			expectError: true, // Pattern requires /32 prefix
 		},
+		// IPConstraint with CIDR prefix tests
 		{
 			name: "IPConstraint with /24 prefix - not allowed",
 			pni: PodNetworkInstance{
@@ -222,7 +223,7 @@ func TestPodNetworkInstance_SpecValidation(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "test-ip-octet-overflow", Namespace: "default"},
 				Spec: PodNetworkInstanceSpec{
 					PodNetworkConfigs: []PodNetworkConfig{
-						{PodNetwork: "net1", PodIPReservationSize: 1, IPConstraint: "256.176.10.1"},
+						{PodNetwork: "net1", PodIPReservationSize: 1, IPConstraint: "256.176.10.1/32"},
 					},
 				},
 			},

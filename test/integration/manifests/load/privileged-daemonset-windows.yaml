@@ -19,6 +19,8 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/os: windows
+      tolerations:
+      - operator: Exists
       containers:
         - name: powershell
           image: mcr.microsoft.com/powershell:lts-nanoserver-1809

@@ -146,7 +146,12 @@ type CiliumEndpointStatus struct {
 }
 
 type NetworkingStatus struct {
+	Labels     EndpointLabels       `json:"labels"`
 	Networking NetworkingAddressing `json:"networking"`
+}
+
+type EndpointLabels struct {
+	SecurityRelevant []string `json:"security-relevant"`
 }
 
 type NetworkingAddressing struct {
@@ -332,7 +337,7 @@ func (v *Validator) validateRestartNetwork(ctx context.Context) error {
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privilegedPod.Name, node.Name)
 		}
-		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, "", "")
+		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, "", "", []string{"azuresecuritylinuxagent"})
 		if err != nil {
 			return errors.Wrapf(err, "failed to wait for pods running")
 		}

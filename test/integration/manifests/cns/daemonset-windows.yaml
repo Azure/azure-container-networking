@@ -45,7 +45,7 @@ spec:
       containers:
         - name: cns-container
           image: acnpublic.azurecr.io/azure-cns:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             privileged: true
           workingDir: $env:CONTAINER_SANDBOX_MOUNT_POINT

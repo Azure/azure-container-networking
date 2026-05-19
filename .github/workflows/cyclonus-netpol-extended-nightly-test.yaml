@@ -6,6 +6,9 @@ on:
     # run once a day at midnight
     - cron: "0 0 * * *"
 
+permissions:
+  contents: read
+
 jobs:
   cyclonus-test:
     runs-on: ubuntu-latest
@@ -22,14 +25,16 @@ jobs:
           ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
 
       - name: Setup Kind
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           version: "v0.22.0"
           kubectl_version: "v1.27.7"
@@ -71,7 +76,7 @@ jobs:
           mv ./test/cyclonus/cyclonus-test.txt ./cyclonus-test_${{ matrix.profile }}.txt
 
       - name: "Upload Logs"
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
           name: logs-${{ matrix.profile }}

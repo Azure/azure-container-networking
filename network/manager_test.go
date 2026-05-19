@@ -486,6 +486,37 @@ var _ = Describe("Test Manager", func() {
 					},
 				))
 			})
+
+			It("Should include IPv4 and IPv6 addresses from endpoint IPAddresses", func() {
+				mac1, _ := net.ParseMAC("12:34:56:78:9a:bc")
+				endpoints := []*endpoint{
+					{
+						IfName:     "HostNCApipaEndpoint-Swift_abc123",
+						NICType:    cns.ApipaNIC,
+						HnsId:      "hnsEndpointID1",
+						MacAddress: mac1,
+						IPAddresses: []net.IPNet{
+							{IP: net.ParseIP("169.254.0.4"), Mask: net.CIDRMask(16, 32)},
+							{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(128, 128)},
+						},
+						NetworkContainerID: "Swift_abc123",
+					},
+				}
+				cnsEpInfos := generateCNSIPInfoMap(endpoints)
+				Expect(len(cnsEpInfos)).To(Equal(1))
+
+				Expect(cnsEpInfos).To(HaveKey("HostNCApipaEndpoint-Swift_abc123"))
+				Expect(cnsEpInfos["HostNCApipaEndpoint-Swift_abc123"]).To(Equal(
+					&restserver.IPInfo{
+						NICType:            cns.ApipaNIC,
+						HnsEndpointID:      "hnsEndpointID1",
+						MacAddress:         "12:34:56:78:9a:bc",
+						IPv4:               []net.IPNet{{IP: net.ParseIP("169.254.0.4"), Mask: net.CIDRMask(16, 32)}},
+						IPv6:               []net.IPNet{{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(128, 128)}},
+						NetworkContainerID: "Swift_abc123",
+					},
+				))
+			})
 		})
 	})
 })

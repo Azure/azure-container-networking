@@ -54,6 +54,7 @@ steps:
       make test-validate-state
     name: "validatePods"
     displayName: "Validate Pods"
+    retryCountOnTaskFailure: 3
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"

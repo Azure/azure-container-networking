@@ -18,11 +18,12 @@ func newErrorMockNetlink(errStr string) error {
 type routeValidateFn func(route *Route) error
 
 type MockNetlink struct {
-	returnError   bool
-	errorString   string
-	deleteRouteFn routeValidateFn
-	addRouteFn    routeValidateFn
-	DeleteLinkFn  func(name string) error
+	returnError              bool
+	errorString              string
+	deleteRouteFn            routeValidateFn
+	addRouteFn               routeValidateFn
+	DeleteLinkFn             func(name string) error
+	SetOrRemoveLinkAddressFn func(linkInfo LinkInfo, mode, flags int) error
 }
 
 func NewMockNetlink(returnError bool, errorString string) *MockNetlink {
@@ -94,7 +95,10 @@ func (f *MockNetlink) SetLinkHairpin(string, bool) error {
 	return f.error()
 }
 
-func (f *MockNetlink) SetOrRemoveLinkAddress(LinkInfo, int, int) error {
+func (f *MockNetlink) SetOrRemoveLinkAddress(linkInfo LinkInfo, mode, flags int) error {
+	if f.SetOrRemoveLinkAddressFn != nil {
+		return f.SetOrRemoveLinkAddressFn(linkInfo, mode, flags)
+	}
 	return f.error()
 }
 

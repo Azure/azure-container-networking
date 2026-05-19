@@ -5,7 +5,15 @@ trap 'echo "[ERROR] Failed during Private Endpoint or DNS setup." >&2' ERR
 SUBSCRIPTION_ID=$1
 LOCATION=$2
 RG=$3
-SA1_NAME=$4 
+SA1_NAME=$4
+
+echo "Setting active subscription to $SUBSCRIPTION_ID"
+az account set --subscription "$SUBSCRIPTION_ID"
+
+if [[ -z "$SA1_NAME" ]]; then
+  echo "[ERROR] Storage account name must be provided as argument \$4" >&2
+  exit 1
+fi
 
 VNET_A1="cx_vnet_v1"
 VNET_A2="cx_vnet_v2"
@@ -45,20 +53,28 @@ verify_private_endpoint() {
 }
 
 echo "Creating Private DNS zone: $PRIVATE_DNS_ZONE"
-az network private-dns zone create -g "$RG" -n "$PRIVATE_DNS_ZONE" --output none \
-  && echo "[OK] DNS zone $PRIVATE_DNS_ZONE created."
+if az network private-dns zone show -g "$RG" -n "$PRIVATE_DNS_ZONE" &>/dev/null; then
+  echo "[OK] DNS zone $PRIVATE_DNS_ZONE already exists. Skipping."
+else
+  az network private-dns zone create -g "$RG" -n "$PRIVATE_DNS_ZONE" --output none \
+    && echo "[OK] DNS zone $PRIVATE_DNS_ZONE created."
+fi
 verify_dns_zone "$RG" "$PRIVATE_DNS_ZONE"
 
 for VNET in "$VNET_A1" "$VNET_A2" "$VNET_A3"; do
   LINK_NAME="${VNET}-link"
-  echo "Linking DNS zone $PRIVATE_DNS_ZONE to VNet $VNET"
-  az network private-dns link vnet create \
-    -g "$RG" -n "$LINK_NAME" \
-    --zone-name "$PRIVATE_DNS_ZONE" \
-    --virtual-network "$VNET" \
-    --registration-enabled false \
-    --output none \
-    && echo "[OK] Linked DNS zone to $VNET."
+  if az network private-dns link vnet show -g "$RG" --zone-name "$PRIVATE_DNS_ZONE" -n "$LINK_NAME" &>/dev/null; then
+    echo "[OK] DNS link $LINK_NAME already exists. Skipping."
+  else
+    echo "Linking DNS zone $PRIVATE_DNS_ZONE to VNet $VNET"
+    az network private-dns link vnet create \
+      -g "$RG" -n "$LINK_NAME" \
+      --zone-name "$PRIVATE_DNS_ZONE" \
+      --virtual-network "$VNET" \
+      --registration-enabled false \
+      --output none \
+      && echo "[OK] Linked DNS zone to $VNET."
+  fi
   verify_dns_link "$RG" "$PRIVATE_DNS_ZONE" "$LINK_NAME"
 done
 
@@ -73,14 +89,18 @@ for CLUSTER in "aks-1" "aks-2"; do
   fi
   
   LINK_NAME="${CLUSTER}-vnet-link"
-  echo "Linking DNS zone to $CLUSTER VNet"
-  az network private-dns link vnet create \
-    -g "$RG" -n "$LINK_NAME" \
-    --zone-name "$PRIVATE_DNS_ZONE" \
-    --virtual-network "$AKS_VNET_ID" \
-    --registration-enabled false \
-    --output none \
-    && echo "[OK] Linked DNS zone to $CLUSTER VNet."
+  if az network private-dns link vnet show -g "$RG" --zone-name "$PRIVATE_DNS_ZONE" -n "$LINK_NAME" &>/dev/null; then
+    echo "[OK] DNS link $LINK_NAME already exists. Skipping."
+  else
+    echo "Linking DNS zone to $CLUSTER VNet"
+    az network private-dns link vnet create \
+      -g "$RG" -n "$LINK_NAME" \
+      --zone-name "$PRIVATE_DNS_ZONE" \
+      --virtual-network "$AKS_VNET_ID" \
+      --registration-enabled false \
+      --output none \
+      && echo "[OK] Linked DNS zone to $CLUSTER VNet."
+  fi
   verify_dns_link "$RG" "$PRIVATE_DNS_ZONE" "$LINK_NAME"
 done
 
@@ -88,17 +108,22 @@ echo "Creating Private Endpoint for Storage Account: $SA1_NAME"
 SA1_ID=$(az storage account show -g "$RG" -n "$SA1_NAME" --query id -o tsv)
 DNS_ZONE_ID=$(az network private-dns zone show -g "$RG" -n "$PRIVATE_DNS_ZONE" --query id -o tsv)
 
-az network private-endpoint create \
-  -g "$RG" -n "$PE_NAME" -l "$LOCATION" \
-  --vnet-name "$VNET_A1" --subnet "$SUBNET_PE_A1" \
-  --private-connection-resource-id "$SA1_ID" \
-  --group-id blob \
-  --connection-name "${PE_NAME}-conn" \
-  --output none \
-  && echo "[OK] Private Endpoint $PE_NAME created for $SA1_NAME."
+if az network private-endpoint show -g "$RG" -n "$PE_NAME" &>/dev/null; then
+  echo "[OK] Private Endpoint $PE_NAME already exists. Skipping."
+else
+  az network private-endpoint create \
+    -g "$RG" -n "$PE_NAME" -l "$LOCATION" \
+    --vnet-name "$VNET_A1" --subnet "$SUBNET_PE_A1" \
+    --private-connection-resource-id "$SA1_ID" \
+    --group-id blob \
+    --connection-name "${PE_NAME}-conn" \
+    --output none \
+    && echo "[OK] Private Endpoint $PE_NAME created for $SA1_NAME."
+fi
 verify_private_endpoint "$RG" "$PE_NAME"
 
 echo "Creating Private DNS Zone Group to register DNS record"
+# dns-zone-group create is idempotent (creates or updates)
 az network private-endpoint dns-zone-group create \
   -g "$RG" \
   --endpoint-name "$PE_NAME" \

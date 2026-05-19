@@ -15,10 +15,21 @@ data:
 
     [INPUT]
         Name tail
+        Tag cns.*
+        Exclude_path /var/log/containers/*fluent*.log
+        Path /var/log/containers/*cns-container*.log
+        multiline.parser docker, cri
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+        db fluent-bit-cns-db
+        read_from_head true
+
+    [INPUT]
+        Name tail
+        Tag cilium.*
         Exclude_path /var/log/containers/*fluent*.log
         Path /var/log/containers/*cilium*.log
         multiline.parser docker, cri
-        Tag kube.*
         Mem_Buf_Limit 5MB
         Skip_Long_Lines On
         db fluent-bit-db
@@ -26,7 +37,19 @@ data:
 
     [FILTER]
         Name kubernetes
-        Match kube.*
+        Match cns.*
+        Kube_Tag_Prefix cns.var.log.containers.
+        Merge_Log Off
+        Keep_Log On
+        K8S-Logging.Parser On
+        K8S-Logging.Exclude Off
+        Buffer_Size 128KB
+        Use_tag_for_meta On
+
+    [FILTER]
+        Name kubernetes
+        Match cilium.*
+        Kube_Tag_Prefix cilium.var.log.containers.
         Merge_Log Off
         Keep_Log On
         K8S-Logging.Parser On
@@ -36,10 +59,20 @@ data:
 
     [OUTPUT]
         Name                        azure_app_insights
+        id                          cns
         debug                       true
         imds                        true
-        instrumentation_key         aad482c8-f408-48e9-9380-e37fdb9ef4a3
-        Match                       kube.*
+        instrumentation_key         2f6ea7db-059d-46bf-905d-4b8724b628b6
+        Match                       cns.*
+
+    [OUTPUT]
+        Name                        azure_app_insights
+        id                          cilium
+        debug                       true
+        imds                        true
+        instrumentation_key         0b069f84-690d-4290-9703-747af9a35cd8
+        Match                       cilium.*
+
 kind: ConfigMap
 metadata:
   name: cilium-fluent-bit

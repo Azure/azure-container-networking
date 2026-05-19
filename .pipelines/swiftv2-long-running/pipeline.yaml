@@ -2,40 +2,63 @@ trigger: none
 pr: none
 
 schedules:
-  - cron: "0 */6 * * *"
-    displayName: "Run tests every 6 hours"
+  - cron: "0 * * * *"
+    displayName: "Run tests every hour"
     branches:
       include:
         - master
     always: true  # Run even if there are no code changes
 
 parameters:
-  - name: subscriptionId
-    displayName: "Azure Subscription ID"
-    type: string
-    default: "37deca37-c375-4a14-b90a-043849bd2bf1"
-
-  - name: location
-    displayName: "Deployment Regions"
+  - name: scenarios
+    displayName: "Subscription × Region test matrix"
     type: object
     default:
-      - "eastus2euap"
-      - "westus2"
-
-  - name: runSetupStages
-    displayName: "Create New Infrastructure Setup"
-    type: boolean
-    default: false
+      - subscriptionId: "37deca37-c375-4a14-b90a-043849bd2bf1"
+        location: "eastus2euap"
+        label: "eastus2euap"
+        enableAccelnet: false
+        enableLinuxBYON: true
+        enableDatapathLinux: true
+        longRunningPodZones:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+      - subscriptionId: "37deca37-c375-4a14-b90a-043849bd2bf1"
+        location: "centraluseuap"
+        label: "centraluseuap"
+        enableAccelnet: true
+        enableLinuxBYON: true
+        enableDatapathLinux: true
+        longRunningPodZones:
+          - "0"
+      - subscriptionId: "37deca37-c375-4a14-b90a-043849bd2bf1"
+        location: "westus2"
+        label: "westus2"
+        enableAccelnet: false
+        enableLinuxBYON: true
+        enableDatapathLinux: true
+        longRunningPodZones: []
+      - subscriptionId: "9b8218f9-902a-4d20-a65c-e98acec5362f"
+        location: "eastus2euap"
+        label: "eastus2euap_baseline"
+        enableAccelnet: false
+        enableLinuxBYON: false
+        enableDatapathLinux: false
+        longRunningPodZones:
+          - "1"
+          - "2"
+          - "3"
+          - "4"
 
   - name: resourceGroupName
-    displayName: "Resource Group Name used when Create new Infrastructure Setup is selected"
+    displayName: "Resource Group Name prefix"
     type: string
-    default: "sv2-long-run-$(Build.BuildId)"
+    default: "sv2-long-run"
 
 extends:
   template: template/long-running-pipeline-template.yaml
   parameters:
-    subscriptionId: ${{ parameters.subscriptionId }}
-    location: ${{ parameters.location }}
+    scenarios: ${{ parameters.scenarios }}
     resourceGroupName: ${{ parameters.resourceGroupName }}
-    runSetupStages: ${{ parameters.runSetupStages }}

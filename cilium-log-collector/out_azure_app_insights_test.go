@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/fluent/fluent-bit-go/output"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	"github.com/stretchr/testify/require"
 )
@@ -383,4 +384,83 @@ func TestProcessSingleRecord_DisabledProcessorWithDebug(t *testing.T) {
 
 	// no record should be processed or tracked
 	require.Empty(t, tracker.TrackedItems)
+}
+
+// helper to create a configLookup from a map
+func makeLookup(configs map[string]string) configLookup {
+	return func(key string) string {
+		return configs[key]
+	}
+}
+
+func TestInitPluginContext_DefaultLogKey(t *testing.T) {
+	lookup := makeLookup(map[string]string{
+		"instrumentation_key": "test-key",
+		"debug":               "true",
+	})
+	fileExists := func(string) bool { return false }
+
+	ctx, ret := initPluginContext(lookup, fileExists)
+	require.Equal(t, output.FLB_OK, ret)
+	require.Equal(t, "log", ctx.logKey)
+	require.Equal(t, "true", ctx.debug)
+	require.Equal(t, "test-key", ctx.instrumentationKey)
+	require.False(t, ctx.disabled)
+}
+
+func TestInitPluginContext_CustomLogKey(t *testing.T) {
+	lookup := makeLookup(map[string]string{
+		"instrumentation_key": "test-key",
+		"log_key":             "message",
+	})
+	fileExists := func(string) bool { return false }
+
+	ctx, ret := initPluginContext(lookup, fileExists)
+	require.Equal(t, output.FLB_OK, ret)
+	require.Equal(t, "message", ctx.logKey)
+}
+
+func TestInitPluginContext_Disabled(t *testing.T) {
+	lookup := makeLookup(map[string]string{
+		"id": "my-id",
+	})
+	fileExists := func(string) bool { return true }
+
+	ctx, ret := initPluginContext(lookup, fileExists)
+	require.Equal(t, output.FLB_OK, ret)
+	require.True(t, ctx.disabled)
+	require.Equal(t, "my-id", ctx.id)
+	// instrumentationKey should not be set when disabled
+	require.Empty(t, ctx.instrumentationKey)
+}
+
+func TestInitPluginContext_ExplicitId(t *testing.T) {
+	lookup := makeLookup(map[string]string{
+		"id":                  "cilium",
+		"instrumentation_key": "some-key",
+	})
+	fileExists := func(string) bool { return false }
+
+	ctx, _ := initPluginContext(lookup, fileExists)
+	require.Equal(t, "cilium", ctx.id)
+}
+
+func TestInitPluginContext_IdFallsBackToInstrumentationKey(t *testing.T) {
+	lookup := makeLookup(map[string]string{
+		"instrumentation_key": "fallback-key",
+	})
+	fileExists := func(string) bool { return false }
+
+	ctx, _ := initPluginContext(lookup, fileExists)
+	require.Equal(t, "fallback-key", ctx.id)
+}
+
+func TestInitPluginContext_BothEmpty(t *testing.T) {
+	lookup := makeLookup(map[string]string{})
+	fileExists := func(string) bool { return false }
+
+	ctx, ret := initPluginContext(lookup, fileExists)
+	require.Equal(t, output.FLB_OK, ret)
+	require.Empty(t, ctx.id)
+	require.Equal(t, "log", ctx.logKey)
 }

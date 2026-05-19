@@ -28,7 +28,7 @@ const (
 	vEthernetAdapterPrefix = "vEthernet"
 	baseDecimal            = 10
 	bitSize                = 32
-	defaultRouteCIDR       = "0.0.0.0/0"
+	defaultIPv4Route       = "0.0.0.0/0"
 	// prefix for interface name created by azure network
 	ifNamePrefix = "vEthernet"
 	// ipv4 default hop
@@ -278,24 +278,31 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 		vlanid = (int)(vlanID)
 	}
 
+	// Enable non-persistent flag so networks are removed after host reboot
+	hcnNetwork.Flags = hcn.EnableNonPersistent
+
 	// AccelnetNIC flag: hcn.EnableIov(9216) - treat Delegated/FrontendNIC also the same as Accelnet
 	// For L1VH with accelnet, hcn.DisableHostPort and hcn.EnableIov must be configured
 	if nwInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 		hcnNetwork.Type = hcn.Transparent
-		// set transparent network as non-persistent so that networks will be gone after the node gets rebooted
-		// hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableIov | hcn.EnableNonPersistent (1024 + 8192 + 8 = 9224)
-		hcnNetwork.Flags = hcn.DisableHostPort | hcn.EnableIov | hcn.EnableNonPersistent
+		// hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableIov (1024 + 8192 = 9216)
+		hcnNetwork.Flags |= hcn.DisableHostPort | hcn.EnableIov
 	}
-
 	// Populate subnets.
 	for _, subnet := range nwInfo.Subnets {
+		// Choose route based on IP family
+		routeDest := defaultIPv4Route
+		if subnet.Prefix.IP.To4() == nil {
+			routeDest = defaultIPv6Route
+		}
+
 		hnsSubnet := hcn.Subnet{
 			IpAddressPrefix: subnet.Prefix.String(),
 			// Set the Gateway route
 			Routes: []hcn.Route{
 				{
 					NextHop:           subnet.Gateway.String(),
-					DestinationPrefix: defaultRouteCIDR,
+					DestinationPrefix: routeDest,
 				},
 			},
 		}

@@ -43,7 +43,11 @@ steps:
       pwd
       kubectl cluster-info
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+      # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
+
+      CNS=${CNS_VERSION:-$(make cns-version)}
+      CNI=${CNI_VERSION:-$(make cni-version)}
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_VERSION=${CNS} CNI_VERSION=${CNI} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"

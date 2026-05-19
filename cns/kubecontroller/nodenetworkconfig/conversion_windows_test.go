@@ -150,3 +150,19 @@ func TestIPv6PrefixClampWindows(t *testing.T) {
 		})
 	}
 }
+
+func TestGatewayIPv6AddressWindows(t *testing.T) {
+	nc := v1alpha.NetworkContainer{
+		AssignmentMode:     v1alpha.Static,
+		Type:               v1alpha.Overlay,
+		ID:                 ncID,
+		PrimaryIP:          overlayPrimaryIP,
+		NodeIP:             nodeIP,
+		SubnetName:         subnetName,
+		SubnetAddressSpace: subnetAddressSpace,
+		DefaultGatewayV6:   "fd00::1",
+	}
+	got, err := CreateNCRequestFromStaticNC(nc, false, 0)
+	require.NoError(t, err)
+	assert.Equal(t, "fd00::1", got.IPConfiguration.GatewayIPv6Address)
+}

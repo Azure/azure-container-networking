@@ -114,6 +114,139 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 			Expect(err).To(BeNil())
 		})
 
+		It("Should reprogram NC when CR is in Succeeded state but NC is missing from CNS", func() {
+			uuid := uuidValue
+			nc := ncapi.MultiTenantNetworkContainer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      namespacedName.Name,
+					Namespace: namespacedName.Namespace,
+				},
+				Spec: ncapi.MultiTenantNetworkContainerSpec{
+					UUID: uuid,
+				},
+				Status: ncapi.MultiTenantNetworkContainerStatus{
+					State: NCStateSucceeded,
+					MultiTenantInfo: ncapi.MultiTenantInfo{
+						EncapType: "Vlan",
+						ID:        1,
+					},
+					IPSubnet: "10.0.0.0/8",
+					IP:       "10.1.0.0",
+				},
+			}
+
+			orchestratorContext, err := json.Marshal(podInfo)
+			Expect(err).To(BeNil())
+
+			kubeClient.EXPECT().Get(gomock.Any(), namespacedName, gomock.Any()).SetArg(2, nc)
+			// NC is missing from CNS — returns UnknownContainerID
+			cnsRestService.EXPECT().GetNetworkContainerInternal(cns.GetNetworkContainerRequest{
+				NetworkContainerid:  uuid,
+				OrchestratorContext: orchestratorContext,
+			}).Return(cns.GetNetworkContainerResponse{}, cnstypes.UnknownContainerID)
+
+			// Should reprogram the NC
+			cnsRestService.EXPECT().CreateOrUpdateNetworkContainerInternal(&cns.CreateNetworkContainerRequest{
+				NetworkContainerid:   nc.Spec.UUID,
+				OrchestratorContext:  orchestratorContext,
+				NetworkContainerType: cns.Kubernetes,
+				Version:              "0",
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    nc.Status.IP,
+						PrefixLength: 8,
+					},
+					GatewayIPAddress: nc.Status.Gateway,
+				},
+				PrimaryInterfaceIdentifier: nc.Status.PrimaryInterfaceIdentifier,
+				MultiTenancyInfo: cns.MultiTenancyInfo{
+					EncapType: nc.Status.MultiTenantInfo.EncapType,
+					ID:        int(nc.Status.MultiTenantInfo.ID),
+				},
+			}).Return(cnstypes.Success)
+
+			kubeClient.EXPECT().Status().DoAndReturn(func() client.SubResourceWriter {
+				nc.Status.State = NCStateSucceeded
+				statusWriter.EXPECT().Update(gomock.Any(), gomock.Any()).SetArg(1, nc)
+				return statusWriter
+			})
+
+			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{
+				NamespacedName: namespacedName,
+			})
+			Expect(err).To(BeNil())
+		})
+
+		It("Should skip reconciliation when CR is in Succeeded state and NC exists in CNS", func() {
+			uuid := uuidValue
+			nc := ncapi.MultiTenantNetworkContainer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      namespacedName.Name,
+					Namespace: namespacedName.Namespace,
+				},
+				Spec: ncapi.MultiTenantNetworkContainerSpec{
+					UUID: uuid,
+				},
+				Status: ncapi.MultiTenantNetworkContainerStatus{
+					State: NCStateSucceeded,
+					MultiTenantInfo: ncapi.MultiTenantInfo{
+						EncapType: "Vlan",
+						ID:        1,
+					},
+				},
+			}
+
+			orchestratorContext, err := json.Marshal(podInfo)
+			Expect(err).To(BeNil())
+
+			kubeClient.EXPECT().Get(gomock.Any(), namespacedName, gomock.Any()).SetArg(2, nc)
+			// NC exists in CNS — should skip without reprogramming
+			cnsRestService.EXPECT().GetNetworkContainerInternal(cns.GetNetworkContainerRequest{
+				NetworkContainerid:  uuid,
+				OrchestratorContext: orchestratorContext,
+			}).Return(cns.GetNetworkContainerResponse{}, cnstypes.Success)
+
+			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{
+				NamespacedName: namespacedName,
+			})
+			Expect(err).To(BeNil())
+		})
+
+		It("Should return error when CR is in Succeeded state and CNS returns transient error", func() {
+			uuid := uuidValue
+			nc := ncapi.MultiTenantNetworkContainer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      namespacedName.Name,
+					Namespace: namespacedName.Namespace,
+				},
+				Spec: ncapi.MultiTenantNetworkContainerSpec{
+					UUID: uuid,
+				},
+				Status: ncapi.MultiTenantNetworkContainerStatus{
+					State: NCStateSucceeded,
+					MultiTenantInfo: ncapi.MultiTenantInfo{
+						EncapType: "Vlan",
+						ID:        1,
+					},
+				},
+			}
+
+			orchestratorContext, err := json.Marshal(podInfo)
+			Expect(err).To(BeNil())
+
+			kubeClient.EXPECT().Get(gomock.Any(), namespacedName, gomock.Any()).SetArg(2, nc)
+			// CNS returns an internal error — should NOT reprogram, should surface error
+			cnsRestService.EXPECT().GetNetworkContainerInternal(cns.GetNetworkContainerRequest{
+				NetworkContainerid:  uuid,
+				OrchestratorContext: orchestratorContext,
+			}).Return(cns.GetNetworkContainerResponse{}, cnstypes.UnexpectedError)
+
+			_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{
+				NamespacedName: namespacedName,
+			})
+			Expect(err).NotTo(BeNil())
+		})
+
 		It("Should succeed when the NC is in Initialized state and it has not yet been persisted in CNS", func() {
 			uuid := uuidValue
 			var nc ncapi.MultiTenantNetworkContainer = ncapi.MultiTenantNetworkContainer{

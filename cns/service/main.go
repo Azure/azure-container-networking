@@ -120,11 +120,12 @@ const (
 type cniConflistScenario string
 
 const (
-	scenarioV4Overlay        cniConflistScenario = "v4overlay"
-	scenarioDualStackOverlay cniConflistScenario = "dualStackOverlay"
-	scenarioOverlay          cniConflistScenario = "overlay"
-	scenarioCilium           cniConflistScenario = "cilium"
-	scenarioSWIFT            cniConflistScenario = "swift"
+	scenarioV4Overlay             cniConflistScenario = "v4overlay"
+	scenarioDualStackOverlay      cniConflistScenario = "dualStackOverlay"
+	scenarioOverlay               cniConflistScenario = "overlay"
+	scenarioCilium                cniConflistScenario = "cilium"
+	scenarioSWIFT                 cniConflistScenario = "swift"
+	scenarioAzurecniChainedCilium cniConflistScenario = "azurecni-chained-cilium"
 )
 
 var (
@@ -622,6 +623,8 @@ func main() {
 			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
 		case scenarioSWIFT:
 			conflistGenerator = &cniconflist.SWIFTGenerator{Writer: writer}
+		case scenarioAzurecniChainedCilium:
+			conflistGenerator = &cniconflist.AzureCNIChainedCiliumGenerator{Writer: writer}
 		default:
 			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
 			os.Exit(1)
@@ -785,6 +788,7 @@ func main() {
 	httpRemoteRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
 	httpRemoteRestService.SetOption(acn.OptProgramSNATIPTables, cnsconfig.ProgramSNATIPTables)
 	httpRemoteRestService.SetOption(acn.OptManageEndpointState, cnsconfig.ManageEndpointState)
+	httpRemoteRestService.SetOption(acn.OptEnableStaleHNSCleanupOnNCCreate, cnsconfig.EnableStaleHNSCleanupOnNCCreate)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {

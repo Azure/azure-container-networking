@@ -5,6 +5,7 @@ const (
 	// Metrics
 	HeartBeatMetricStr       = "HeartBeat"
 	ConfigSnapshotMetricsStr = "ConfigSnapshot"
+	StaleHNSCleanupMetricStr = "StaleHNSResourceCleanup"
 
 	// Dimensions
 	orchestratorTypeKey             = "OrchestratorType"

@@ -15,6 +15,9 @@ CLUSTER_COUNT=2
 PODS_PER_NODE=7
 CLUSTER_PREFIX="aks"
 
+echo "Setting active subscription to $SUBSCRIPTION_ID"
+az account set --subscription "$SUBSCRIPTION_ID"
+
 
 stamp_vnet() {
     local vnet_id="$1"
@@ -77,40 +80,43 @@ for i in $(seq 1 "$CLUSTER_COUNT"); do
 
     CLUSTER_NAME="${CLUSTER_PREFIX}-${i}"
 
-    make -C ./hack/aks azcfg AZCLI=az REGION=$LOCATION
-    make -C ./hack/aks swiftv2-podsubnet-cluster-up \
-      AZCLI=az REGION=$LOCATION \
-      SUB=$SUBSCRIPTION_ID \
-      GROUP=$RG \
-      CLUSTER=$CLUSTER_NAME \
-      VM_SIZE=$VM_SKU_DEFAULT
-    wait_for_provisioning "$RG" "$CLUSTER_NAME"
+    # Check if cluster already exists and is healthy
+    EXISTING_STATE=$(az aks show -g "$RG" -n "$CLUSTER_NAME" --query provisioningState -o tsv 2>/dev/null || true)
+    if [[ "$EXISTING_STATE" == "Succeeded" ]]; then
+      echo "Cluster $CLUSTER_NAME already exists (state: $EXISTING_STATE). Skipping creation."
+    else
+      make -C ./hack/aks azcfg AZCLI=az REGION=$LOCATION
+      make -C ./hack/aks swiftv2-podsubnet-cluster-up \
+        AZCLI=az REGION=$LOCATION \
+        SUB=$SUBSCRIPTION_ID \
+        GROUP=$RG \
+        CLUSTER=$CLUSTER_NAME \
+        VM_SIZE=$VM_SKU_DEFAULT
+      wait_for_provisioning "$RG" "$CLUSTER_NAME"
 
-    vnet_id=$(az network vnet show -g "$RG" --name "$CLUSTER_NAME" --query id -o tsv)
-    stamp_vnet "$vnet_id"
+      vnet_id=$(az network vnet show -g "$RG" --name "$CLUSTER_NAME" --query id -o tsv)
+      stamp_vnet "$vnet_id"
+    fi
 
-    make -C ./hack/aks linux-swiftv2-nodepool-up \
-      AZCLI=az REGION=$LOCATION \
-      GROUP=$RG \
-      VM_SIZE=$VM_SKU_HIGHNIC \
-      PODS_PER_NODE=$PODS_PER_NODE \
-      CLUSTER=$CLUSTER_NAME \
-      SUB=$SUBSCRIPTION_ID
+    # Add high-NIC nodepool if it doesn't exist
+    NPLINUX_EXISTS=$(az aks nodepool show -g "$RG" --cluster-name "$CLUSTER_NAME" -n nplinux --query provisioningState -o tsv 2>/dev/null || true)
+    if [[ -n "$NPLINUX_EXISTS" ]]; then
+      echo "Nodepool nplinux already exists on $CLUSTER_NAME (state: $NPLINUX_EXISTS). Skipping."
+    else
+      make -C ./hack/aks linux-swiftv2-nodepool-up \
+        AZCLI=az REGION=$LOCATION \
+        GROUP=$RG \
+        VM_SIZE=$VM_SKU_HIGHNIC \
+        PODS_PER_NODE=$PODS_PER_NODE \
+        CLUSTER=$CLUSTER_NAME \
+        SUB=$SUBSCRIPTION_ID
+    fi
 
     az aks get-credentials -g "$RG" -n "$CLUSTER_NAME" --admin --overwrite-existing \
       --file "/tmp/${CLUSTER_NAME}.kubeconfig"
     
     echo "Waiting for all nodes in $CLUSTER_NAME to be Ready..."
     kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" wait --for=condition=Ready nodes --all --timeout=10m
-
-    echo "Labeling all nodes in $CLUSTER_NAME with workload-type=swiftv2-linux"
-    kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label nodes --all workload-type=swiftv2-linux --overwrite
-    
-    echo "Labeling default nodepool (nodepool1) nodes with nic-capacity=low-nic"
-    kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label nodes -l agentpool=nodepool1 nic-capacity=low-nic --overwrite
-    
-    echo "Labeling nplinux nodepool nodes with nic-capacity=high-nic"
-    kubectl --kubeconfig "/tmp/${CLUSTER_NAME}.kubeconfig" label nodes -l agentpool=nplinux nic-capacity=high-nic --overwrite
 done
 
 echo "All clusters complete."

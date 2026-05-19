@@ -156,6 +156,11 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		}
 		// get the pod ips
 		podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
+		// include IPs from Cilium internal endpoints (reserved:ingress) that are not real K8s pods.
+		// These only exist when L7 policy is enabled, indicated by the acns-security-agent pod with cilium-envoy container.
+		if hasL7PolicyEnabled(ctx, v.clientset, nodes.Items[index].Name) {
+			podIps = append(podIps, getCiliumInternalEndpointIPs(ctx, v.clientset, v.config, nodes.Items[index].Name)...)
+		}
 
 		if err := compareIPs(filePodIps, podIps); err != nil {
 			return errors.Wrapf(err, "State file validation failed for %s on node %s", checkType, nodes.Items[index].Name)

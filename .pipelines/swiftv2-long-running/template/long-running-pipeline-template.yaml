@@ -1,16 +1,11 @@
 parameters:
-  - name: subscriptionId
-    type: string
-  - name: location
+  - name: scenarios
     type: object
   - name: resourceGroupName
     type: string
-  - name: runSetupStages
-    type: boolean
-    default: false
   - name: workloadType
     type: object
-    default: [ "swiftv2-linux", "swiftv2-linux-byon" ]
+    default: [ "swiftv2-linux", "swiftv2-linux-byon", "swiftv2-l1vh-accelnet-byon" ] #"swiftv2-l1vh-infiniband-byon"
     displayName: "Swiftv2 scenarios to run"
 
 
@@ -30,166 +25,193 @@ variables:
     value: ${{ ne(variables['Build.Reason'], 'IndividualCI') }}
 
 stages:
-  # Setup infrastructure for each location
-  - ${{ each loc in parameters.location }}:
-    - stage: AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
-      displayName: "Stage: AKS Cluster and Networking Setup (${{ loc }})"
-      condition: eq(${{ parameters.runSetupStages }}, true)
-      variables:
-        rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
+  # ============================================================
+  # Infrastructure verify & setup for each scenario (idempotent)
+  # ============================================================
+  - ${{ each scenario in parameters.scenarios }}:
+    - template: infrastructure-setup-stage.yaml
+      parameters:
+        subscriptionId: ${{ scenario.subscriptionId }}
+        location: ${{ scenario.location }}
+        stageLabel: ${{ scenario.label }}
+        resourceGroupName: ${{ parameters.resourceGroupName }}
+        vmSkuDefault: $(vmSkuDefault)
+        vmSkuHighNIC: $(vmSkuHighNIC)
+        enableAccelnetBYON: ${{ scenario.enableAccelnet }}
+        enableLinuxBYON: ${{ scenario.enableLinuxBYON }}
+        dependsOn: []
+
+  # ============================================================
+  # Long-running pod tests per zone (rotating + DaemonSet + connectivity)
+  # Each zone independently ensures its own node pool exists.
+  # ============================================================
+  - ${{ each scenario in parameters.scenarios }}:
+    - ${{ each zone in scenario.longRunningPodZones }}:
+      - template: long-running-pod-tests-stage.yaml
+        parameters:
+          location: ${{ scenario.location }}
+          subscriptionId: ${{ scenario.subscriptionId }}
+          stageLabel: ${{ scenario.label }}
+          rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
+          zone: ${{ zone }}
+          vmSkuHighNIC: $(vmSkuHighNIC)
+          dependsOn:
+            - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+
+  # ============================================================
+  # Acquire pipeline lease (prevents concurrent runs colliding)
+  # ============================================================
+  - ${{ each scenario in parameters.scenarios }}:
+    - stage: AcquireLease_${{ replace(scenario.label, '-', '_') }}
+      displayName: "Acquire Pipeline Lease (${{ scenario.label }})"
+      dependsOn:
+        - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+      condition: and(eq(variables.isAllowedRun, true), not(failed()))
       jobs:
-        - job: CreateResourceGroup
-          displayName: "Create Resource Group"
+        - job: AcquireLease
+          displayName: "Acquire ConfigMap lease on aks-1"
           steps:
+            - checkout: self
+              displayName: "Checkout azure-container-networking"
             - task: AzureCLI@2
-              displayName: "Create resource group"
+              name: AcquireLeaseStep
+              displayName: "Get kubeconfig and acquire lease"
               inputs:
                 azureSubscription: $(AZURE_SERVICE_CONNECTION)
                 scriptType: bash
                 scriptLocation: inlineScript
                 inlineScript: |
-                  echo "==> Creating resource group $(rgName) in ${{ loc }}"
-                  az group create \
-                    --name "$(rgName)" \
-                    --location "${{ loc }}" \
-                    --subscription "${{ parameters.subscriptionId }}"
-                  echo "Resource group created successfully."
+                  az aks get-credentials \
+                    -g "${{ parameters.resourceGroupName }}-${{ scenario.location }}" \
+                    -n aks-1 --admin --overwrite-existing \
+                    --subscription "${{ scenario.subscriptionId }}" \
+                    --file /tmp/aks-1.kubeconfig
 
-        - job: CreateCluster
-          displayName: "Create AKS Clusters"
-          dependsOn: CreateResourceGroup
-          steps:
-            - task: AzureCLI@2
-              displayName: "Create AKS clusters"
-              inputs:
-                azureSubscription: $(AZURE_SERVICE_CONNECTION)
-                scriptType: bash
-                scriptLocation: scriptPath
-                scriptPath: ".pipelines/swiftv2-long-running/scripts/create_aks.sh"
-                arguments: >
-                  ${{ parameters.subscriptionId }}
-                  ${{ loc }}
-                  $(rgName)
-                  $(vmSkuDefault)
-                  $(vmSkuHighNIC)
-                  $(DELEGATOR_CONTAINER_APP_NAME)
-                  $(DELEGATOR_RESOURCE_GROUP)
-                  $(DELEGATOR_SUBSCRIPTION)
-        
-        - job: NetworkingAndStorage
-          displayName: "Networking and Storage Setup"
-          dependsOn: CreateCluster
-          steps:
-            - task: AzureCLI@2
-              displayName: "Create customer vnets"
-              inputs:
-                azureSubscription: $(AZURE_SERVICE_CONNECTION)
-                scriptType: bash
-                scriptLocation: scriptPath
-                scriptPath: ".pipelines/swiftv2-long-running/scripts/create_vnets.sh"
-                arguments: >
-                  ${{ parameters.subscriptionId }}
-                  ${{ loc }}
-                  $(rgName)
-                  $(Build.BuildId)
-                  $(DELEGATOR_CONTAINER_APP_NAME)
-                  $(DELEGATOR_RESOURCE_GROUP)
-                  $(DELEGATOR_SUBSCRIPTION)
+                  set +e
+                  bash .pipelines/swiftv2-long-running/scripts/acquire_pipeline_lease.sh \
+                    /tmp/aks-1.kubeconfig \
+                    "$(Build.BuildId)" \
+                    300
+                  ACQUIRE_RC=$?
+                  set -e
 
-            - task: AzureCLI@2
-              displayName: "Create customer vnet peerings"
-              inputs:
-                azureSubscription: $(AZURE_SERVICE_CONNECTION)
-                scriptType: bash
-                scriptLocation: scriptPath
-                scriptPath: ".pipelines/swiftv2-long-running/scripts/create_peerings.sh"
-                arguments: >
-                  $(rgName)
+                  if [ "$ACQUIRE_RC" -eq 0 ]; then
+                    echo "Lease acquired for this run."
+                    echo "##vso[task.setvariable variable=leaseAcquired;isOutput=true]true"
+                  elif [ "$ACQUIRE_RC" -eq 2 ]; then
+                    echo "Lease is currently held by another run. Lease-gated stages will be skipped."
+                    echo "##vso[task.setvariable variable=leaseAcquired;isOutput=true]false"
+                    exit 0
+                  else
+                    echo "ERROR: Lease acquisition failed unexpectedly with code $ACQUIRE_RC"
+                    exit "$ACQUIRE_RC"
+                  fi
 
-            - task: AzureCLI@2
-              name: CreateStorageAccounts
-              displayName: "Create storage accounts"
-              inputs:
-                azureSubscription: $(AZURE_SERVICE_CONNECTION)
-                scriptType: bash
-                scriptLocation: scriptPath
-                scriptPath: ".pipelines/swiftv2-long-running/scripts/create_storage.sh"
-                arguments: >
-                  ${{ parameters.subscriptionId }}
-                  ${{ loc }}
-                  $(rgName)
-
-            - task: AzureCLI@2
-              displayName: "Create Private Endpoint for Storage Account"
-              inputs:
-                azureSubscription: $(AZURE_SERVICE_CONNECTION)
-                scriptType: bash
-                scriptLocation: scriptPath
-                scriptPath: ".pipelines/swiftv2-long-running/scripts/create_pe.sh"
-                arguments: >
-                  ${{ parameters.subscriptionId }}
-                  ${{ loc }}
-                  $(rgName)
-                  $(CreateStorageAccounts.StorageAccount1)
-            
-            - task: AzureCLI@2
-              displayName: "Create network security groups to restrict access between subnets"
-              inputs:
-                azureSubscription: $(AZURE_SERVICE_CONNECTION)
-                scriptType: bash
-                scriptLocation: scriptPath
-                scriptPath: ".pipelines/swiftv2-long-running/scripts/create_nsg.sh"
-                arguments: >
-                  ${{ parameters.subscriptionId }}
-                  $(rgName)
-                  ${{ loc }}
-        - job: DeployLinuxBYON
-          displayName: "Join Linux BYON VMSS to AKS Cluster"
-          dependsOn:
-            - CreateCluster
-            - NetworkingAndStorage
-          pool:
-            vmImage: ubuntu-latest
-          steps:
-            - checkout: self
-              displayName: "Checkout main repository"
-            - checkout: Networking-Aquarius
-              displayName: "Checkout Networking-Aquarius repository"
-            - task: AzureCLI@2
-              displayName: "Deploy Linux VMSS"
-              inputs:
-                azureSubscription: $(AZURE_SERVICE_CONNECTION)
-                scriptType: bash
-                scriptLocation: scriptPath
-                scriptPath: "$(Build.SourcesDirectory)/azure-container-networking/.pipelines/swiftv2-long-running/scripts/deploy_linuxbyon.sh"
-                arguments: >
-                  $(rgName)
-                  $(Build.SourcesDirectory)
-              env:
-                SSH_PUBLIC_KEY_SECRET_NAME: $(SSH_PUBLIC_KEY_SECRET_NAME)
-                CLUSTER_KUBECONFIG_KEYVAULT_NAME: $(CLUSTER_KUBECONFIG_KEYVAULT_NAME)
-                KEY_VAULT_RESOURCE_GROUP: $(KEY_VAULT_RESOURCE_GROUP)
-                KEY_VAULT_SUBSCRIPTION: $(KEY_VAULT_SUBSCRIPTION)
-  
-  # Run tests for each location and workload type
-  - ${{ each loc in parameters.location }}:
-    - ${{ each workload in parameters.workloadType }}:
+  # ============================================================
+  # Datapath tests for each scenario.
+  # Each workload is gated by its scenario flag (eq(x, true) is required because
+  # booleans from object params passed through 'extends' are coerced to strings).
+  # ============================================================
+  - ${{ each scenario in parameters.scenarios }}:
+    # --- swiftv2-linux ---
+    - ${{ if eq(scenario.enableDatapathLinux, true) }}:
       - template: datapath-tests-stage.yaml
         parameters:
-          workloadType: ${{ workload }}
-          location: ${{ loc }}
-          subscriptionId: ${{ parameters.subscriptionId }}
-          ${{ if eq(parameters.runSetupStages, true) }}:
-            rgName: ${{ parameters.resourceGroupName }}-${{ loc }}
-          ${{ else }}:
-            rgName: sv2-long-run-${{ loc }}
-          storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount1'] ]
-          storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorageAccounts.StorageAccount2'] ]
-          runSetupStages: ${{ parameters.runSetupStages }}
-          ${{ if eq(workload, 'swiftv2-linux') }}:
-            dependsOn: 
-              - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
-          ${{ else }}:
-            dependsOn: 
-              - AKSClusterAndNetworking_${{ replace(loc, '-', '_') }}
-              - DataPathTests_swiftv2_linux_${{ replace(loc, '-', '_') }}
+          workloadType: swiftv2-linux
+          location: ${{ scenario.location }}
+          subscriptionId: ${{ scenario.subscriptionId }}
+          stageLabel: ${{ scenario.label }}
+          rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
+          leaseAcquired: $[ dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
+          storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount1'] ]
+          storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount2'] ]
+          dependsOn:
+            - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+            - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+
+    # --- swiftv2-linux-byon ---
+    - ${{ if eq(scenario.enableLinuxBYON, true) }}:
+      - template: datapath-tests-stage.yaml
+        parameters:
+          workloadType: swiftv2-linux-byon
+          location: ${{ scenario.location }}
+          subscriptionId: ${{ scenario.subscriptionId }}
+          stageLabel: ${{ scenario.label }}
+          rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
+          leaseAcquired: $[ dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
+          storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount1'] ]
+          storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount2'] ]
+          dependsOn:
+            - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+            - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+            - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
+
+    # --- swiftv2-l1vh-accelnet-byon ---
+    - ${{ if eq(scenario.enableAccelnet, true) }}:
+      - template: datapath-tests-stage.yaml
+        parameters:
+          workloadType: swiftv2-l1vh-accelnet-byon
+          location: ${{ scenario.location }}
+          subscriptionId: ${{ scenario.subscriptionId }}
+          stageLabel: ${{ scenario.label }}
+          rgName: ${{ parameters.resourceGroupName }}-${{ scenario.location }}
+          leaseAcquired: $[ dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'] ]
+          storageAccount1: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount1'] ]
+          storageAccount2: $[ stageDependencies.AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}.NetworkingAndStorage.outputs['CreateStorage.storageAccount2'] ]
+          dependsOn:
+            - AKSClusterAndNetworking_${{ replace(scenario.label, '-', '_') }}
+            - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+            - DataPathTests_swiftv2_linux_byon_${{ replace(scenario.label, '-', '_') }}
+
+  # ============================================================
+  # Release pipeline lease (always runs, even on failure)
+  # ============================================================
+  - ${{ each scenario in parameters.scenarios }}:
+    - stage: ReleaseLease_${{ replace(scenario.label, '-', '_') }}
+      displayName: "Release Pipeline Lease (${{ scenario.label }})"
+      ${{ if and(eq(scenario.enableDatapathLinux, true), eq(scenario.enableAccelnet, true), eq(scenario.enableLinuxBYON, true)) }}:
+        dependsOn:
+          - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_linux_byon_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_l1vh_accelnet_byon_${{ replace(scenario.label, '-', '_') }}
+      ${{ elseif and(eq(scenario.enableDatapathLinux, true), not(eq(scenario.enableAccelnet, true)), eq(scenario.enableLinuxBYON, true)) }}:
+        dependsOn:
+          - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_linux_byon_${{ replace(scenario.label, '-', '_') }}
+      ${{ elseif and(eq(scenario.enableDatapathLinux, true), eq(scenario.enableAccelnet, true), not(eq(scenario.enableLinuxBYON, true))) }}:
+        dependsOn:
+          - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_l1vh_accelnet_byon_${{ replace(scenario.label, '-', '_') }}
+      ${{ elseif eq(scenario.enableDatapathLinux, true) }}:
+        dependsOn:
+          - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+          - DataPathTests_swiftv2_linux_${{ replace(scenario.label, '-', '_') }}
+      ${{ else }}:
+        dependsOn:
+          - AcquireLease_${{ replace(scenario.label, '-', '_') }}
+      condition: and(always(), eq(dependencies.AcquireLease_${{ replace(scenario.label, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
+      jobs:
+        - job: ReleaseLease
+          displayName: "Release ConfigMap lease on aks-1"
+          steps:
+            - checkout: self
+              displayName: "Checkout azure-container-networking"
+            - task: AzureCLI@2
+              displayName: "Release lease"
+              inputs:
+                azureSubscription: $(AZURE_SERVICE_CONNECTION)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
+                  az aks get-credentials \
+                    -g "${{ parameters.resourceGroupName }}-${{ scenario.location }}" \
+                    -n aks-1 --admin --overwrite-existing \
+                    --subscription "${{ scenario.subscriptionId }}" \
+                    --file /tmp/aks-1.kubeconfig
+
+                  bash .pipelines/swiftv2-long-running/scripts/release_pipeline_lease.sh \
+                    /tmp/aks-1.kubeconfig \
+                    "$(Build.BuildId)"

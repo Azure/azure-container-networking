@@ -6,36 +6,69 @@ SUBSCRIPTION_ID=$1
 LOCATION=$2
 RG=$3
 
-RAND=$(openssl rand -hex 4)
-SA1="sa1${RAND}"
-SA2="sa2${RAND}"
-
 az account set --subscription "$SUBSCRIPTION_ID"
-for SA in "$SA1" "$SA2"; do
-  echo "Creating storage account $SA"
-  az storage account create \
-    --name "$SA" \
-    --resource-group "$RG" \
-    --location "$LOCATION" \
-    --sku Standard_LRS \
-    --kind StorageV2 \
-    --allow-blob-public-access false \
-    --allow-shared-key-access false \
-    --https-only true \
-    --min-tls-version TLS1_2 \
-    --query "name" -o tsv \
-  && echo "Storage account $SA created successfully."
-  
-  if az storage account show --name "$SA" --resource-group "$RG" &>/dev/null; then
-    echo "[OK] Storage account $SA verified successfully."
-  else
-    echo "[ERROR] Storage account $SA not found after creation!" >&2
+
+TAG_KEY="swiftv2-longrun-role"
+
+# Discover storage account by the unique pipeline tag
+discover_storage_account() {
+  local role="$1"
+  local matches
+  matches=$(az storage account list -g "$RG" --query "[?tags.\"${TAG_KEY}\" == '${role}'].name | sort(@)" -o tsv 2>/dev/null || true)
+  if [[ -z "$matches" ]]; then
+    return 0
+  fi
+  local count
+  count=$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l | tr -d ' ')
+  if [[ "$count" -gt 1 ]]; then
+    echo "[ERROR] Multiple storage accounts found with tag ${TAG_KEY}=${role} in resource group '$RG':" >&2
+    printf '%s\n' "$matches" >&2
     exit 1
   fi
-done
+  printf '%s\n' "$matches"
+}
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-bash "$SCRIPT_DIR/manage_storage_rbac.sh" assign "$SUBSCRIPTION_ID" "$RG" "$SA1 $SA2"
+# Discover existing storage accounts or create new ones
+SA1=$(discover_storage_account "sa1")
+SA2=$(discover_storage_account "sa2")
+
+if [[ -n "$SA1" && -n "$SA2" ]]; then
+  echo "Found existing storage accounts: $SA1, $SA2. Reusing."
+else
+  RAND=$(openssl rand -hex 4)
+  SA1="${SA1:-sa1${RAND}}"
+  SA2="${SA2:-sa2${RAND}}"
+  ROLES=("sa1" "sa2")
+  IDX=0
+  for SA in "$SA1" "$SA2"; do
+    ROLE="${ROLES[$IDX]}"
+    echo "Creating storage account $SA with tag ${TAG_KEY}=${ROLE}"
+    az storage account create \
+      --name "$SA" \
+      --resource-group "$RG" \
+      --location "$LOCATION" \
+      --sku Standard_LRS \
+      --kind StorageV2 \
+      --allow-blob-public-access false \
+      --allow-shared-key-access false \
+      --https-only true \
+      --min-tls-version TLS1_2 \
+      --tags "${TAG_KEY}=${ROLE}" \
+      --query "name" -o tsv \
+    && echo "Storage account $SA created successfully."
+
+    if az storage account show --name "$SA" --resource-group "$RG" &>/dev/null; then
+      echo "[OK] Storage account $SA verified successfully."
+    else
+      echo "[ERROR] Storage account $SA not found after creation!" >&2
+      exit 1
+    fi
+    IDX=$((IDX + 1))
+  done
+fi
+
+# Storage Blob Data Contributor is pre-assigned at the subscription level.
+# See LONGRUNNING-TESTS.md "Prerequisites" for required RBAC roles.
 
 for SA in "$SA1" "$SA2"; do
   echo "Creating test container in $SA"
@@ -74,11 +107,11 @@ for SA in "$SA1" "$SA2"; do
   done
 done
 
-echo "Removing RBAC role after blob upload"
-bash "$SCRIPT_DIR/manage_storage_rbac.sh" delete "$SUBSCRIPTION_ID" "$RG" "$SA1 $SA2"
-echo "All storage accounts created and verified successfully."
+# Export storage account names as Azure DevOps output variables so downstream
+# stages can consume them without rediscovering.
+echo "##vso[task.setvariable variable=storageAccount1;isOutput=true]$SA1"
+echo "##vso[task.setvariable variable=storageAccount2;isOutput=true]$SA2"
 
-set +x
-echo "##vso[task.setvariable variable=StorageAccount1;isOutput=true]$SA1"
-echo "##vso[task.setvariable variable=StorageAccount2;isOutput=true]$SA2"
-set -x
+echo "All storage accounts created and verified successfully."
+echo "  storageAccount1=$SA1"
+echo "  storageAccount2=$SA2"

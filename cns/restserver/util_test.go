@@ -3,7 +3,12 @@ package restserver
 import (
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/common"
+	acn "github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAreNCsPresent(t *testing.T) {
@@ -109,6 +114,73 @@ func TestContainsNC(t *testing.T) {
 			ncs.Add("swift_2abc")
 			assert.Equal(t, tt.want1, ncs.Contains("swift_1abc"))
 			assert.Equal(t, tt.want2, ncs.Contains("swift_3abc"))
+		})
+	}
+}
+
+func TestRestoreState(t *testing.T) {
+	tests := []struct {
+		name                 string
+		writeMainState       bool
+		manageEndpointState  bool
+		nilEndpointStore     bool
+		wantEndpointRestored bool
+	}{
+		{
+			name:                 "endpoint state restored when main state read fails",
+			manageEndpointState:  true,
+			wantEndpointRestored: true,
+		},
+		{
+			name:                 "endpoint state restored when main state succeeds",
+			writeMainState:       true,
+			manageEndpointState:  true,
+			wantEndpointRestored: true,
+		},
+		{
+			name:                 "skips endpoint state when OptManageEndpointState not set",
+			wantEndpointRestored: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mainStore := store.NewMockStore("")
+			if tt.writeMainState {
+				require.NoError(t, mainStore.Write(storeKey, &httpRestServiceState{}))
+			}
+
+			var endpointStore store.KeyValueStore
+			if !tt.nilEndpointStore {
+				endpointStore = store.NewMockStore("")
+				require.NoError(t, endpointStore.Write(EndpointStoreKey, map[string]*EndpointInfo{
+					"container1": {PodName: "pod1"},
+				}))
+			}
+
+			options := map[string]interface{}{}
+			if tt.manageEndpointState {
+				options[acn.OptManageEndpointState] = true
+			}
+
+			svc := HTTPRestService{
+				Service: &cns.Service{
+					Service: &common.Service{Options: options},
+				},
+				store:              mainStore,
+				state:              &httpRestServiceState{},
+				EndpointStateStore: endpointStore,
+				EndpointState:      make(map[string]*EndpointInfo),
+			}
+
+			svc.restoreState()
+
+			if tt.wantEndpointRestored {
+				require.Len(t, svc.EndpointState, 1)
+				assert.Equal(t, "pod1", svc.EndpointState["container1"].PodName)
+			} else {
+				assert.Empty(t, svc.EndpointState)
+			}
 		})
 	}
 }

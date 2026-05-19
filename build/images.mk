@@ -28,3 +28,9 @@ print:
 render:
 	${GOPATH}/bin/renderkit -f ${SRC} --ds env:// > ${DEST}
 	${GOPATH}/bin/renderkit -f ${SRC_PIPE} --ds env:// > ${DEST_PIPE}
+
+render-simple:
+	${GOPATH}/bin/renderkit -f ${SRC} --ds env:// > ${DEST}
+
+render-pipe:
+	${GOPATH}/bin/renderkit -f ${SRC_PIPE} --ds env:// > ${DEST_PIPE}

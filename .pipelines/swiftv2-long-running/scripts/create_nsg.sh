@@ -5,6 +5,10 @@ trap 'echo "[ERROR] Failed during NSG creation or rule setup." >&2' ERR
 SUBSCRIPTION_ID=$1
 RG=$2
 LOCATION=$3
+
+echo "Setting active subscription to $SUBSCRIPTION_ID"
+az account set --subscription "$SUBSCRIPTION_ID"
+
 VNET_A1="cx_vnet_v1"
 SUBNET1_PREFIX=$(az network vnet subnet show -g "$RG" --vnet-name "$VNET_A1" -n s1 --query "addressPrefix" -o tsv)
 SUBNET2_PREFIX=$(az network vnet subnet show -g "$RG" --vnet-name "$VNET_A1" -n s2 --query "addressPrefix" -o tsv)
@@ -90,15 +94,23 @@ wait_for_nsg() {
 
 wait_for_nsg "$RG" "$NSG_S1_NAME"
 
+# Idempotent NSG rule creation — skips if rule already exists
+create_nsg_rule_if_missing() {
+  local rg="$1" nsg="$2" rule_name="$3"
+  shift 3
+  if az network nsg rule show -g "$rg" --nsg-name "$nsg" -n "$rule_name" &>/dev/null; then
+    echo "[OK] NSG rule $rule_name already exists on $nsg. Skipping."
+    return 0
+  fi
+  az network nsg rule create --resource-group "$rg" --nsg-name "$nsg" --name "$rule_name" "$@" --output none
+}
+
 if [[ "$NSG_S1_NAME" == "$NSG_S2_NAME" ]]; then
   echo "Both subnets share the same NSG: $NSG_S1_NAME"
   echo "Creating all NSG rules on shared NSG with unique priorities"
   
   echo "Creating NSG rule on $NSG_S1_NAME to DENY OUTBOUND traffic from Subnet1 ($SUBNET1_PREFIX) to Subnet2 ($SUBNET2_PREFIX)"
-  az network nsg rule create \
-    --resource-group "$RG" \
-    --nsg-name "$NSG_S1_NAME" \
-    --name deny-s1-to-s2-outbound \
+  create_nsg_rule_if_missing "$RG" "$NSG_S1_NAME" "deny-s1-to-s2-outbound" \
     --priority 100 \
     --source-address-prefixes "$SUBNET1_PREFIX" \
     --destination-address-prefixes "$SUBNET2_PREFIX" \
@@ -108,16 +120,12 @@ if [[ "$NSG_S1_NAME" == "$NSG_S2_NAME" ]]; then
     --access Deny \
     --protocol "*" \
     --description "Deny outbound traffic from Subnet1 to Subnet2" \
-    --output none \
     && echo "[OK] Deny outbound rule from Subnet1 → Subnet2 created on $NSG_S1_NAME."
   
   verify_nsg_rule "$RG" "$NSG_S1_NAME" "deny-s1-to-s2-outbound"
   
   echo "Creating NSG rule on $NSG_S1_NAME to DENY INBOUND traffic from Subnet2 ($SUBNET2_PREFIX) to Subnet1 ($SUBNET1_PREFIX)"
-  az network nsg rule create \
-    --resource-group "$RG" \
-    --nsg-name "$NSG_S1_NAME" \
-    --name deny-s2-to-s1-inbound \
+  create_nsg_rule_if_missing "$RG" "$NSG_S1_NAME" "deny-s2-to-s1-inbound" \
     --priority 100 \
     --source-address-prefixes "$SUBNET2_PREFIX" \
     --destination-address-prefixes "$SUBNET1_PREFIX" \
@@ -127,16 +135,12 @@ if [[ "$NSG_S1_NAME" == "$NSG_S2_NAME" ]]; then
     --access Deny \
     --protocol "*" \
     --description "Deny inbound traffic from Subnet2 to Subnet1" \
-    --output none \
     && echo "[OK] Deny inbound rule from Subnet2 → Subnet1 created on $NSG_S1_NAME."
   
   verify_nsg_rule "$RG" "$NSG_S1_NAME" "deny-s2-to-s1-inbound"
   
   echo "Creating NSG rule on $NSG_S1_NAME to DENY OUTBOUND traffic from Subnet2 ($SUBNET2_PREFIX) to Subnet1 ($SUBNET1_PREFIX)"
-  az network nsg rule create \
-    --resource-group "$RG" \
-    --nsg-name "$NSG_S1_NAME" \
-    --name deny-s2-to-s1-outbound \
+  create_nsg_rule_if_missing "$RG" "$NSG_S1_NAME" "deny-s2-to-s1-outbound" \
     --priority 110 \
     --source-address-prefixes "$SUBNET2_PREFIX" \
     --destination-address-prefixes "$SUBNET1_PREFIX" \
@@ -146,16 +150,12 @@ if [[ "$NSG_S1_NAME" == "$NSG_S2_NAME" ]]; then
     --access Deny \
     --protocol "*" \
     --description "Deny outbound traffic from Subnet2 to Subnet1" \
-    --output none \
     && echo "[OK] Deny outbound rule from Subnet2 → Subnet1 created on $NSG_S1_NAME."
   
   verify_nsg_rule "$RG" "$NSG_S1_NAME" "deny-s2-to-s1-outbound"
   
   echo "Creating NSG rule on $NSG_S1_NAME to DENY INBOUND traffic from Subnet1 ($SUBNET1_PREFIX) to Subnet2 ($SUBNET2_PREFIX)"
-  az network nsg rule create \
-    --resource-group "$RG" \
-    --nsg-name "$NSG_S1_NAME" \
-    --name deny-s1-to-s2-inbound \
+  create_nsg_rule_if_missing "$RG" "$NSG_S1_NAME" "deny-s1-to-s2-inbound" \
     --priority 110 \
     --source-address-prefixes "$SUBNET1_PREFIX" \
     --destination-address-prefixes "$SUBNET2_PREFIX" \
@@ -165,7 +165,6 @@ if [[ "$NSG_S1_NAME" == "$NSG_S2_NAME" ]]; then
     --access Deny \
     --protocol "*" \
     --description "Deny inbound traffic from Subnet1 to Subnet2" \
-    --output none \
     && echo "[OK] Deny inbound rule from Subnet1 → Subnet2 created on $NSG_S1_NAME."
   
   verify_nsg_rule "$RG" "$NSG_S1_NAME" "deny-s1-to-s2-inbound"
@@ -178,10 +177,7 @@ else
   wait_for_nsg "$RG" "$NSG_S2_NAME"
   
   echo "Creating NSG rule on $NSG_S1_NAME to DENY OUTBOUND traffic from Subnet1 ($SUBNET1_PREFIX) to Subnet2 ($SUBNET2_PREFIX)"
-  az network nsg rule create \
-    --resource-group "$RG" \
-    --nsg-name "$NSG_S1_NAME" \
-    --name deny-s1-to-s2-outbound \
+  create_nsg_rule_if_missing "$RG" "$NSG_S1_NAME" "deny-s1-to-s2-outbound" \
     --priority 100 \
     --source-address-prefixes "$SUBNET1_PREFIX" \
     --destination-address-prefixes "$SUBNET2_PREFIX" \
@@ -191,16 +187,12 @@ else
     --access Deny \
     --protocol "*" \
     --description "Deny outbound traffic from Subnet1 to Subnet2" \
-    --output none \
     && echo "[OK] Deny outbound rule from Subnet1 → Subnet2 created on $NSG_S1_NAME."
   
   verify_nsg_rule "$RG" "$NSG_S1_NAME" "deny-s1-to-s2-outbound"
   
   echo "Creating NSG rule on $NSG_S1_NAME to DENY INBOUND traffic from Subnet2 ($SUBNET2_PREFIX) to Subnet1 ($SUBNET1_PREFIX)"
-  az network nsg rule create \
-    --resource-group "$RG" \
-    --nsg-name "$NSG_S1_NAME" \
-    --name deny-s2-to-s1-inbound \
+  create_nsg_rule_if_missing "$RG" "$NSG_S1_NAME" "deny-s2-to-s1-inbound" \
     --priority 110 \
     --source-address-prefixes "$SUBNET2_PREFIX" \
     --destination-address-prefixes "$SUBNET1_PREFIX" \
@@ -210,16 +202,12 @@ else
     --access Deny \
     --protocol "*" \
     --description "Deny inbound traffic from Subnet2 to Subnet1" \
-    --output none \
     && echo "[OK] Deny inbound rule from Subnet2 → Subnet1 created on $NSG_S1_NAME."
   
   verify_nsg_rule "$RG" "$NSG_S1_NAME" "deny-s2-to-s1-inbound"
   
   echo "Creating NSG rule on $NSG_S2_NAME to DENY OUTBOUND traffic from Subnet2 ($SUBNET2_PREFIX) to Subnet1 ($SUBNET1_PREFIX)"
-  az network nsg rule create \
-    --resource-group "$RG" \
-    --nsg-name "$NSG_S2_NAME" \
-    --name deny-s2-to-s1-outbound \
+  create_nsg_rule_if_missing "$RG" "$NSG_S2_NAME" "deny-s2-to-s1-outbound" \
     --priority 100 \
     --source-address-prefixes "$SUBNET2_PREFIX" \
     --destination-address-prefixes "$SUBNET1_PREFIX" \
@@ -229,16 +217,12 @@ else
     --access Deny \
     --protocol "*" \
     --description "Deny outbound traffic from Subnet2 to Subnet1" \
-    --output none \
     && echo "[OK] Deny outbound rule from Subnet2 → Subnet1 created on $NSG_S2_NAME."
   
   verify_nsg_rule "$RG" "$NSG_S2_NAME" "deny-s2-to-s1-outbound"
   
   echo "Creating NSG rule on $NSG_S2_NAME to DENY INBOUND traffic from Subnet1 ($SUBNET1_PREFIX) to Subnet2 ($SUBNET2_PREFIX)"
-  az network nsg rule create \
-    --resource-group "$RG" \
-    --nsg-name "$NSG_S2_NAME" \
-    --name deny-s1-to-s2-inbound \
+  create_nsg_rule_if_missing "$RG" "$NSG_S2_NAME" "deny-s1-to-s2-inbound" \
     --priority 110 \
     --source-address-prefixes "$SUBNET1_PREFIX" \
     --destination-address-prefixes "$SUBNET2_PREFIX" \
@@ -248,7 +232,6 @@ else
     --access Deny \
     --protocol "*" \
     --description "Deny inbound traffic from Subnet1 to Subnet2" \
-    --output none \
     && echo "[OK] Deny inbound rule from Subnet1 → Subnet2 created on $NSG_S2_NAME."
   
   verify_nsg_rule "$RG" "$NSG_S2_NAME" "deny-s1-to-s2-inbound"

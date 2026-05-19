@@ -5,30 +5,28 @@ parameters:
     type: string
   - name: subscriptionId
     type: string
+  - name: stageLabel
+    type: string
   - name: rgName
     type: string
+  - name: leaseAcquired
+    type: string
+    default: 'true'
   - name: storageAccount1
     type: string
-    default: ''
   - name: storageAccount2
     type: string
-    default: ''
-  - name: runSetupStages
-    type: boolean
-    default: false
   - name: dependsOn
     type: object
     default: []
 
 stages:
-  - stage: DataPathTests_${{ replace(parameters.workloadType, '-', '_') }}_${{ replace(parameters.location, '-', '_') }}
-    displayName: "Stage: Swiftv2 Data Path Tests - ${{ parameters.workloadType }} (${{ parameters.location }})"
-    ${{ if ne(length(parameters.dependsOn), 0) }}:
-      dependsOn: ${{ parameters.dependsOn }}
-    ${{ else }}:
-      dependsOn: AKSClusterAndNetworking
-    condition: and(eq(variables.isAllowedRun, true), or(eq(${{ parameters.runSetupStages }}, false), succeeded()))
+  - stage: DataPathTests_${{ replace(parameters.workloadType, '-', '_') }}_${{ replace(parameters.stageLabel, '-', '_') }}
+    displayName: "Swiftv2 Data Path Tests - ${{ parameters.workloadType }} (${{ parameters.stageLabel }})"
+    dependsOn: ${{ parameters.dependsOn }}
+    condition: and(eq(variables.isAllowedRun, true), not(canceled()), eq(dependencies.AcquireLease_${{ replace(parameters.stageLabel, '-', '_') }}.outputs['AcquireLease.AcquireLeaseStep.leaseAcquired'], 'true'))
     variables:
+      leaseAcquired: ${{ parameters.leaseAcquired }}
       storageAccount1: ${{ parameters.storageAccount1 }}
       storageAccount2: ${{ parameters.storageAccount2 }}
     jobs:
@@ -48,6 +46,7 @@ stages:
                 az aks get-credentials \
                   --resource-group ${{ parameters.rgName }} \
                   --name aks-1 \
+                  --subscription ${{ parameters.subscriptionId }} \
                   --file $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig \
                   --overwrite-existing \
                   --admin
@@ -56,6 +55,7 @@ stages:
                 az aks get-credentials \
                   --resource-group ${{ parameters.rgName }} \
                   --name aks-2 \
+                  --subscription ${{ parameters.subscriptionId }} \
                   --file $(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig \
                   --overwrite-existing \
                   --admin
@@ -70,7 +70,7 @@ stages:
             displayName: "Publish kubeconfig files"
             inputs:
               targetPath: $(Pipeline.Workspace)/kubeconfigs
-              artifactName: kubeconfigs-${{ parameters.workloadType }}-${{ parameters.location }}
+              artifactName: kubeconfigs-${{ parameters.workloadType }}-${{ parameters.stageLabel }}
               publishLocation: pipeline
 
       - job: BuildMetricsBinary
@@ -91,7 +91,7 @@ stages:
             displayName: "Publish metrics binary and config"
             inputs:
               targetPath: '$(System.DefaultWorkingDirectory)/src/dnc'
-              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}-${{ parameters.location }}'
+              artifact: 'persistent-cluster-metrics-${{ parameters.workloadType }}-${{ parameters.stageLabel }}'
               publishLocation: 'pipeline'
 
       - job: CreatePods
@@ -104,6 +104,7 @@ stages:
             parameters:
               workloadType: ${{ parameters.workloadType }}
               location: ${{ parameters.location }}
+              stageLabel: ${{ parameters.stageLabel }}
 
           - task: AzureCLI@2
             name: RunCreatePods
@@ -114,8 +115,9 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Creating pods (8 scenarios) for workload type: ${{ parameters.workloadType }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
-                export BUILD_ID="${{ parameters.rgName }}"
+                export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
                 
                 metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
@@ -126,11 +128,11 @@ stages:
                 if go test -v -timeout=1h -tags=create_test; then
                   echo "CreatePods test PASSED"
                   cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation" --region "${{ parameters.location }}"
                 else
                   echo "CreatePods test FAILED"
                   cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Pod creation" --region "${{ parameters.location }}"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -146,6 +148,7 @@ stages:
             parameters:
               workloadType: ${{ parameters.workloadType }}
               location: ${{ parameters.location }}
+              stageLabel: ${{ parameters.stageLabel }}
 
           - task: AzureCLI@2
             displayName: "Run Connectivity Tests"
@@ -155,8 +158,9 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Running connectivity tests for workload type: ${{ parameters.workloadType }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
-                export BUILD_ID="${{ parameters.rgName }}"
+                export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
                 
                 metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
@@ -167,11 +171,11 @@ stages:
                 if go test -v -timeout=30m -tags=connectivity_test; then
                   echo "ConnectivityTests test PASSED"
                   cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests" --region "${{ parameters.location }}"
                 else
                   echo "ConnectivityTests test FAILED"
                   cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Connectivity tests" --region "${{ parameters.location }}"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -187,40 +191,7 @@ stages:
             parameters:
               workloadType: ${{ parameters.workloadType }}
               location: ${{ parameters.location }}
-
-          - task: AzureCLI@2
-            name: DiscoverStorageAccounts
-            displayName: "Discover storage accounts"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: inlineScript
-              inlineScript: |
-                STORAGE_ACCOUNT_1="${{ parameters.storageAccount1 }}"
-                STORAGE_ACCOUNT_2="${{ parameters.storageAccount2 }}"
-                
-                if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
-                  echo "Storage account variables not set, discovering from resource group..."
-                  STORAGE_ACCOUNT_1=$(az storage account list -g ${{ parameters.rgName }} --query "[?starts_with(name, 'sa1')].name" -o tsv)
-                  STORAGE_ACCOUNT_2=$(az storage account list -g ${{ parameters.rgName }} --query "[?starts_with(name, 'sa2')].name" -o tsv)
-                  echo "Discovered: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
-                fi
-                
-                echo "##vso[task.setvariable variable=storageAccount1;isOutput=true]$STORAGE_ACCOUNT_1"
-                echo "##vso[task.setvariable variable=storageAccount2;isOutput=true]$STORAGE_ACCOUNT_2"
-
-          - task: AzureCLI@2
-            displayName: "Assign RBAC for SAS token generation"
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: "azure-container-networking/.pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
-              arguments: >
-                assign
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.rgName }}
-                "$(DiscoverStorageAccounts.storageAccount1)"
+              stageLabel: ${{ parameters.stageLabel }}
 
           - task: AzureCLI@2
             displayName: "Run Private Endpoint Tests"
@@ -230,11 +201,18 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Running Private Endpoint connectivity tests for workload type: ${{ parameters.workloadType }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
-                export BUILD_ID="${{ parameters.rgName }}"
+                export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
-                export STORAGE_ACCOUNT_1="$(DiscoverStorageAccounts.storageAccount1)"
-                export STORAGE_ACCOUNT_2="$(DiscoverStorageAccounts.storageAccount2)"
+                export STORAGE_ACCOUNT_1="$(storageAccount1)"
+                export STORAGE_ACCOUNT_2="$(storageAccount2)"
+                
+                if [ -z "$STORAGE_ACCOUNT_1" ] || [ -z "$STORAGE_ACCOUNT_2" ]; then
+                  echo "##vso[task.logissue type=error]Storage account names not available from infrastructure stage. storageAccount1=$(storageAccount1) storageAccount2=$(storageAccount2)"
+                  exit 1
+                fi
+                echo "Using storage accounts: STORAGE_ACCOUNT_1=$STORAGE_ACCOUNT_1, STORAGE_ACCOUNT_2=$STORAGE_ACCOUNT_2"
                 
                 metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
                 ado_run_id="$(Build.BuildId)"
@@ -244,31 +222,17 @@ stages:
                 if go test -v -timeout=30m -tags=private_endpoint_test; then
                   echo "PrivateEndpointTests test PASSED"
                   cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests" --region "${{ parameters.location }}"
                 else
                   echo "PrivateEndpointTests test FAILED"
                   cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Private endpoint tests" --region "${{ parameters.location }}"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
             env:
               KUBECONFIG: $(Pipeline.Workspace)/kubeconfigs/aks-1.kubeconfig:$(Pipeline.Workspace)/kubeconfigs/aks-2.kubeconfig
               KUBECONFIG_DIR: $(Pipeline.Workspace)/kubeconfigs
-
-          - task: AzureCLI@2
-            displayName: "Remove RBAC after tests"
-            condition: always()
-            inputs:
-              azureSubscription: $(AZURE_SERVICE_CONNECTION)
-              scriptType: bash
-              scriptLocation: scriptPath
-              scriptPath: "azure-container-networking/.pipelines/swiftv2-long-running/scripts/manage_storage_rbac.sh"
-              arguments: >
-                delete
-                ${{ parameters.subscriptionId }}
-                ${{ parameters.rgName }}
-                "$(DiscoverStorageAccounts.storageAccount1) $(DiscoverStorageAccounts.storageAccount2)"
       
       - job: ScaleTest
         displayName: "Scale Tests - create and delete pods at scale"
@@ -278,6 +242,7 @@ stages:
             parameters:
               workloadType: ${{ parameters.workloadType }}
               location: ${{ parameters.location }}
+              stageLabel: ${{ parameters.stageLabel }}
 
           - task: AzureCLI@2
             displayName: "Run Scale Test (Create and Delete)"
@@ -287,10 +252,11 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Running scale test for workload type: ${{ parameters.workloadType }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 echo "  - 10 pods in aks-1 (cx_vnet_v1/s1)"
                 echo "  - 10 pods in aks-2 (cx_vnet_v3/s1)"
                 export RG="${{ parameters.rgName }}"
-                export BUILD_ID="${{ parameters.rgName }}"
+                export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
                 
                 metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
@@ -301,11 +267,11 @@ stages:
                 if go test -v -timeout 1h -tags=scale_test; then
                   echo "ScaleTest test PASSED"
                   cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests" --region "${{ parameters.location }}"
                 else
                   echo "ScaleTest test FAILED"
                   cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Scale tests" --region "${{ parameters.location }}"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -326,6 +292,7 @@ stages:
             parameters:
               workloadType: ${{ parameters.workloadType }}
               location: ${{ parameters.location }}
+              stageLabel: ${{ parameters.stageLabel }}
 
           - task: AzureCLI@2
             displayName: "Delete Test Resources"
@@ -335,8 +302,9 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 echo "==> Deleting test resources (8 scenarios) for workload type: ${{ parameters.workloadType }}"
+                az account set --subscription "${{ parameters.subscriptionId }}"
                 export RG="${{ parameters.rgName }}"
-                export BUILD_ID="${{ parameters.rgName }}"
+                export BUILD_ID="${{ parameters.rgName }}-${{ replace(parameters.workloadType, 'swiftv2-', '') }}"
                 export WORKLOAD_TYPE="${{ parameters.workloadType }}"
                 
                 metrics_dir="$(System.DefaultWorkingDirectory)/Networking-Aquarius/src/dnc"
@@ -347,11 +315,11 @@ stages:
                 if go test -v -timeout=1h -tags=delete_test; then
                   echo "DeleteTestResources test PASSED"
                   cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources" --region "${{ parameters.location }}"
                 else
                   echo "DeleteTestResources test FAILED"
                   cd $metrics_dir
-                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources"
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "${{ parameters.workloadType }}" --test-scenario "Delete test resources" --region "${{ parameters.location }}"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)

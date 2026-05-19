@@ -1126,12 +1126,22 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	logger.Info("Deleting the endpoints from the ipam")
 	// delete endpoint state in cns and in statefile
 	for _, epInfo := range epInfos {
+		// Skip known non-Infra NIC types: their IPs are not allocated by ipamInvoker.Add
+		// (they come from the host APIPA range or SwiftV2 static allocation), so the invoker
+		// has no record to release. Stateless CNI populates IPAddresses for every NIC type,
+		// so this guard is what stops Delete from leaking into ipamInvoker paths.
+		if epInfo.NICType == cns.DelegatedVMNIC ||
+			epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC ||
+			epInfo.NICType == cns.ApipaNIC {
+			continue
+		}
+
 		logger.Info("Deleting endpoint",
 			zap.String("endpointID", epInfo.EndpointID))
 		telemetryClient.SendEvent("Deleting endpoint: " + epInfo.EndpointID)
 
-		if !nwCfg.MultiTenancy && (epInfo.NICType == cns.InfraNIC || epInfo.NICType == "") {
-			// Delegated/secondary nic ips are statically allocated so we don't need to release
+		isInfraOrLegacyNIC := epInfo.NICType == cns.InfraNIC || epInfo.NICType == ""
+		if !nwCfg.MultiTenancy && isInfraOrLegacyNIC {
 			// Call into IPAM plugin to release the endpoint's addresses.
 			for i := range epInfo.IPAddresses {
 				logger.Info("Release ip", zap.String("ip", epInfo.IPAddresses[i].IP.String()))

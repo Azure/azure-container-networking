@@ -19,6 +19,8 @@ spec:
     spec:
       hostNetwork: true
       hostPID: true
+      tolerations:
+      - operator: Exists
       containers:
         - name: privileged-container
           image: mcr.microsoft.com/mirror/docker/library/alpine:3.16
