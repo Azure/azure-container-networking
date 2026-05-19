@@ -33,9 +33,8 @@ steps:
         set -e
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         ls -lah
-        # makefile manages cilium version
-        unset DIR
-        unset CILIUM_VERSION_TAG
+        export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
+        export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
         make -C ./hack/aks deploy-cilium-hubble
         export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=$(CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE)
         export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE)
@@ -102,9 +101,8 @@ steps:
   - ${{ if eq( parameters['testHubble'], true) }}:
       - script: |
           echo "enable Hubble metrics server"
-          # makefile manages cilium version
-          unset DIR
-          unset CILIUM_VERSION_TAG
+          export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
+          export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
           make -C ./hack/aks deploy-hubble
           kubectl rollout restart ds cilium -n kube-system
           echo "wait <3 minutes for pods to be ready after restart"
