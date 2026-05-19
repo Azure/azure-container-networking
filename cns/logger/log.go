@@ -27,7 +27,7 @@ type loggershim interface {
 var (
 	Log             loggershim
 	AppInsightsIKey = aiMetadata
-	aiMetadata      string // set at build time via ldflags
+	aiMetadata      string // this var is set at build time.
 )
 
 // Deprecated: The global logger is deprecated. Migrate to zap using the cns/logger/v2 package and pass the logger instead.

@@ -167,9 +167,8 @@ func main() {
 		GetEnvRetryWaitTimeInSecs:    config.GetEnvRetryWaitTimeInSecs,
 	}
 
-	// Use the connection string path only when sovereign cloud is enabled AND a
-	// connection string is provided; otherwise fall back to the legacy iKey path.
-	if config.EnableAIInSovereignCloud && config.AIConnectionString != "" {
+	// If sovereign cloud is enabled, use connection string for the telemetry handle
+	if config.EnableAIInSovereignCloud {
 		telemetry.SetAIConnectionString(config.AIConnectionString)
 		telemetry.SetEnableAIInSovereignCloud(true)
 	}

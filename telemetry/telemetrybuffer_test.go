@@ -1,6 +1,8 @@
 package telemetry
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -147,6 +149,7 @@ func TestReadConfigFile(t *testing.T) {
 	tests := []struct {
 		name     string
 		fileName string
+		content  string
 		want     TelemetryConfig
 		wantErr  bool
 	}{
@@ -164,6 +167,18 @@ func TestReadConfigFile(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "parse non-empty connection string and sovereign flag",
+			content: `{
+				"AIConnectionString": "InstrumentationKey=abc;IngestionEndpoint=https://x/",
+				"EnableAIInSovereignCloud": true
+			}`,
+			want: TelemetryConfig{
+				AIConnectionString:       "InstrumentationKey=abc;IngestionEndpoint=https://x/",
+				EnableAIInSovereignCloud: true,
+			},
+			wantErr: false,
+		},
+		{
 			name:     "read non-existing file",
 			fileName: "non-existing-file",
 			want:     TelemetryConfig{},
@@ -174,7 +189,12 @@ func TestReadConfigFile(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ReadConfigFile(tt.fileName)
+			fileName := tt.fileName
+			if tt.content != "" {
+				fileName = filepath.Join(t.TempDir(), "telemetry.config")
+				require.NoError(t, os.WriteFile(fileName, []byte(tt.content), 0o600))
+			}
+			got, err := ReadConfigFile(fileName)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
