@@ -2,6 +2,7 @@ package network
 
 import (
 	"net"
+	"os"
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -18,6 +19,15 @@ const (
 )
 
 const snatConfigFileName = "/tmp/snatConfig"
+
+// isInterfaceMaster reports whether the named interface is an upper (master) device.
+// On Linux with accelerated networking, the VF (e.g. enP12217s2) is bonded to the
+// netvsc upper device (e.g. eth1). Only the VF has a /sys/class/net/<name>/master
+// symlink; the upper device does not.
+func isInterfaceMaster(name string) bool {
+	_, err := os.Stat("/sys/class/net/" + name + "/master")
+	return err != nil
+}
 
 func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *network.InterfaceInfo) {
 	_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
