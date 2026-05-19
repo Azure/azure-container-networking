@@ -1857,19 +1857,14 @@ func TestBuildNmAgentSupportedApisURL(t *testing.T) {
 		expectedURL       string
 	}{
 		{
-			name:              "empty string defaults to well-known wireserver IP",
-			wireServerAddress: "",
+			name:              "production wire server address",
+			wireServerAddress: defaultWireServerAddress,
 			expectedURL:       "http://168.63.129.16/machine/plugins/?comp=nmagent&type=GetSupportedApis",
 		},
 		{
-			name:              "custom IPv4 address",
-			wireServerAddress: "10.0.0.1",
-			expectedURL:       "http://10.0.0.1/machine/plugins/?comp=nmagent&type=GetSupportedApis",
-		},
-		{
-			name:              "custom IPv4 address with port",
-			wireServerAddress: "10.0.0.1:8080",
-			expectedURL:       "http://10.0.0.1:8080/machine/plugins/?comp=nmagent&type=GetSupportedApis",
+			name:              "test wire server address",
+			wireServerAddress: testWireServerAddress,
+			expectedURL:       "http://127.0.0.1:11281/machine/plugins/?comp=nmagent&type=GetSupportedApis",
 		},
 	}
 
@@ -1877,6 +1872,36 @@ func TestBuildNmAgentSupportedApisURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := buildNmAgentSupportedApisURL(tt.wireServerAddress)
 			assert.Equal(t, tt.expectedURL, result)
+		})
+	}
+}
+
+func TestWireServerAddressForEnv(t *testing.T) {
+	tests := []struct {
+		name     string
+		env      string
+		expected string
+	}{
+		{
+			name:     "empty env defaults to production wire server",
+			env:      "",
+			expected: defaultWireServerAddress,
+		},
+		{
+			name:     "unknown env defaults to production wire server",
+			env:      "staging",
+			expected: defaultWireServerAddress,
+		},
+		{
+			name:     "test env returns test wire server",
+			env:      envTest,
+			expected: testWireServerAddress,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, wireServerAddressForEnv(tt.env))
 		})
 	}
 }

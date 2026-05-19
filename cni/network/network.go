@@ -68,8 +68,28 @@ const (
 	nmAgentSnatAndDnsSupportAPI = "NetworkManagementDNSSupport"
 )
 
-// defaultWireServerAddress is the Azure Wire Server IP address.
-const defaultWireServerAddress = "168.63.129.16"
+// Wire Server addresses per environment.
+const (
+	// defaultWireServerAddress is the well-known Azure Wire Server IP used in production.
+	defaultWireServerAddress = "168.63.129.16"
+	// testWireServerAddress is the Wire Server endpoint used in test setups.
+	testWireServerAddress = "127.0.0.1:11281"
+)
+
+// Recognized values for cni.NetworkConfig.Env.
+const (
+	envTest = "test"
+)
+
+// wireServerAddressForEnv returns the Wire Server address to use for the given
+// environment value from the conflist ("env" field). Anything other than the
+// recognized test environment falls back to the production default.
+func wireServerAddressForEnv(env string) string {
+	if env == envTest {
+		return testWireServerAddress
+	}
+	return defaultWireServerAddress
+}
 
 // temporary consts related func determineSnat() which is to be deleted after
 // a baking period with newest NMAgent changes
@@ -346,9 +366,6 @@ func (plugin *NetPlugin) getNetworkInfo(netNs string, interfaceInfo *network.Int
 }
 
 func buildNmAgentSupportedApisURL(wireServerAddress string) string {
-	if wireServerAddress == "" {
-		wireServerAddress = defaultWireServerAddress
-	}
 	return fmt.Sprintf("http://%s/machine/plugins/?comp=nmagent&type=GetSupportedApis", wireServerAddress)
 }
 
@@ -508,7 +525,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		telemetryClient.Settings().Context = "AzureCNIMultitenancy"
 		plugin.multitenancyClient.Init(cnsClient, AzureNetIOShim{})
 
-		nmAgentSupportedApisURL := buildNmAgentSupportedApisURL(nwCfg.WireServerAddress)
+		nmAgentSupportedApisURL := buildNmAgentSupportedApisURL(wireServerAddressForEnv(nwCfg.Env))
 
 		// Temporary if block to determining whether we disable SNAT on host (for multi-tenant scenario only)
 		if enableSnatForDNS, nwCfg.EnableSnatOnHost, err = plugin.multitenancyClient.DetermineSnatFeatureOnHost(
