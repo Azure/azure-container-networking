@@ -784,19 +784,29 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	setNetworkOptions(opt.ifInfo.NCResponse, &endpointInfo)
 
 	// update endpoint policies
-	policyArgs := PolicyArgs{
-		subnetInfos: endpointInfo.Subnets, // getEndpointPolicies requires nwInfo.Subnets only (checked)
-		nwCfg:       opt.nwCfg,
-		ipconfigs:   opt.ifInfo.IPConfigs,
+	//
+	// SwiftV2 FrontendNIC (delegated VM NIC / Accelnet) endpoints land on a
+	// Transparent HNS network, which rejects OutBoundNAT-derived policies with
+	// HCN_E_ENDPOINT_ATTACHMENT_NOT_SUPPORTED (0x803B0007) on attach. The
+	// LoopbackDSR policy synthesized here (when windowsSettings.enableLoopbackDSR
+	// is set) is serialized by the Windows HCN backend as an OutBoundNAT with
+	// Destinations=[<podIP>], so it must be skipped for FrontendNIC endpoints.
+	// IPv6 NAT is likewise only relevant to InfraNIC.
+	if opt.ifInfo.NICType != cns.NodeNetworkInterfaceFrontendNIC {
+		policyArgs := PolicyArgs{
+			subnetInfos: endpointInfo.Subnets, // getEndpointPolicies requires nwInfo.Subnets only (checked)
+			nwCfg:       opt.nwCfg,
+			ipconfigs:   opt.ifInfo.IPConfigs,
+		}
+		endpointPolicies, err := getEndpointPolicies(policyArgs)
+		if err != nil {
+			logger.Error("Failed to get endpoint policies", zap.Error(err))
+			return nil, err
+		}
+		// create endpoint policies by appending to network policies
+		// the value passed into NetworkPolicies should be unaffected since we reassign here
+		opt.policies = append(opt.policies, endpointPolicies...)
 	}
-	endpointPolicies, err := getEndpointPolicies(policyArgs)
-	if err != nil {
-		logger.Error("Failed to get endpoint policies", zap.Error(err))
-		return nil, err
-	}
-	// create endpoint policies by appending to network policies
-	// the value passed into NetworkPolicies should be unaffected since we reassign here
-	opt.policies = append(opt.policies, endpointPolicies...)
 
 	// appends endpoint policies specific to this interface
 	opt.policies = append(opt.policies, opt.ifInfo.EndpointPolicies...)
