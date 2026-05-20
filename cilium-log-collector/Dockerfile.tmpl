@@ -12,5 +12,5 @@ WORKDIR /cilium-log-collector
 COPY ./cilium-log-collector .
 RUN go build -buildmode=c-shared -a -o out_azure_app_insights.so -trimpath -ldflags "-X main.version=$VERSION" -gcflags="-dwarflocationlists=true" .
 
-FROM mcr.microsoft.com/oss/v2/fluent/fluent-bit:v4.2.2 as linux
+FROM mcr.microsoft.com/oss/v2/fluent/fluent-bit:v4.2.3-7 as linux
 COPY --from=fluent-bit-plugin /cilium-log-collector/out_azure_app_insights.so /out_azure_app_insights.so
