@@ -134,14 +134,18 @@ func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalIn
 
 func (nm *networkManager) handleCommonOptions(ifName string, nwInfo *EndpointInfo) error {
 	var err error
-	if routes, exists := nwInfo.Options[RoutesKey]; exists {
+	// Only apply RoutesKey routes for InfraNIC - host gateway routes (set by setHostOptions)
+	// are not reachable from secondary NICs like DelegatedVMNIC which are on different subnets.
+	// Empty NICType is treated as InfraNIC for legacy compatibility.
+	if routes, exists := nwInfo.Options[RoutesKey]; exists && (nwInfo.NICType == cns.InfraNIC || nwInfo.NICType == "") {
 		err = addRoutes(nm.netlink, nm.netio, ifName, routes.([]RouteInfo))
 		if err != nil {
 			return err
 		}
 	}
 
-	if iptcmds, exists := nwInfo.Options[IPTablesKey]; exists {
+	// IPTables rules (SNAT for DNS/IMDS) are also only relevant for InfraNIC traffic
+	if iptcmds, exists := nwInfo.Options[IPTablesKey]; exists && (nwInfo.NICType == cns.InfraNIC || nwInfo.NICType == "") {
 		err = nm.addToIptables(iptcmds.([]iptables.IPTableEntry))
 		if err != nil {
 			return err
