@@ -1,6 +1,7 @@
 package network
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 
@@ -27,7 +28,7 @@ const snatConfigFileName = "/tmp/snatConfig"
 func isInterfaceMaster(name string) (bool, error) {
 	link, err := vishnetlink.LinkByName(name)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("link by name %q: %w", name, err)
 	}
 
 	return link.Attrs().MasterIndex == 0, nil
