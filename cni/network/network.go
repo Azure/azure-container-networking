@@ -225,7 +225,18 @@ func (plugin *NetPlugin) findInterfaceByMAC(macAddress string) string {
 		if iface.HardwareAddr.String() != macAddress {
 			continue
 		}
-		if !isInterfaceMaster(iface.Name) {
+		isMaster, err := isInterfaceMaster(iface.Name)
+		if err != nil {
+			logger.Warn("failed to determine interface master relationship",
+				zap.String("name", iface.Name),
+				zap.String("mac", macAddress),
+				zap.Error(err))
+			if fallback == "" {
+				fallback = iface.Name
+			}
+			continue
+		}
+		if !isMaster {
 			logger.Info("skipping non-master interface with matching MAC",
 				zap.String("name", iface.Name), zap.String("mac", macAddress))
 			if fallback == "" {
