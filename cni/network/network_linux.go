@@ -20,17 +20,25 @@ const (
 
 const snatConfigFileName = "/tmp/snatConfig"
 
-// isInterfaceMaster reports whether the named interface is an upper (master) device.
-// On Linux with accelerated networking, the VF (e.g. enP12217s2) is bonded to the
-// netvsc upper device (e.g. eth1). A VF has a non-zero MasterIndex while
-// the upper device does not.
-func isInterfaceMaster(name string) (bool, error) {
+// resolveMasterInterface returns the name of the upper (master) interface for the
+// given interface name. On Linux with accelerated networking, the VF (e.g.
+// enP12217s2) is bonded to the netvsc upper device (e.g. eth1). A VF has a
+// non-zero MasterIndex; the upper device does not. If name is already the
+// upper device, it is returned unchanged.
+func resolveMasterInterface(name string) (string, error) {
 	link, err := vishnetlink.LinkByName(name)
 	if err != nil {
-		return false, err
+		return "", err
 	}
-
-	return link.Attrs().MasterIndex == 0, nil
+	masterIndex := link.Attrs().MasterIndex
+	if masterIndex == 0 {
+		return name, nil
+	}
+	master, err := vishnetlink.LinkByIndex(masterIndex)
+	if err != nil {
+		return "", err
+	}
+	return master.Attrs().Name, nil
 }
 
 func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *network.InterfaceInfo) {
