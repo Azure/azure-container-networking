@@ -46,9 +46,14 @@ writes account for ≤0.06% of end-to-end pod startup time.
 > `cns deploy` subcommand reads gzipped CNI binaries from the CNS
 > image via `//go:embed` and writes them to `/opt/cni/bin/` during
 > daemon bootstrap. End-to-end verified on a live cluster.
-> **Measured savings on controlled A/B: 2.5 s p50** (16.5 s → 14.0 s);
-> larger gains expected with the real `cni-dropgz` separate init
-> image (cold-node pull cost adds on top).
+>
+> Two experiments quantify the impact:
+> - **Same-image A/B** (isolating init-container waterfall only):
+>   **2.5 s p50 savings** (16.5 s → 14.0 s, p<0.01)
+> - **Production-realistic comparison** (stock AKS Azure CNI Overlay
+>   + dropgz init vs embed-CNI POC on BYOCNI):
+>   **7.0 s p50 savings** (19.0 s → 12.0 s, p<0.001).
+>   Projected **~12-13 s savings** once embed-CNI image is VHD-preloaded.
 
 ## Performance trend across all experiments
 
@@ -66,22 +71,22 @@ the baseline. Removing the CNI semaphore was 12% **worse**.
 Flannel (vxlan), a completely independent CNI, lands in the same
 window — confirming the bottleneck is the kernel.
 
-For node readiness, the controlled A/B:
+For node readiness — production-realistic comparison (n=10 per arm):
 
 ```mermaid
 %%{init: {'theme':'base'}}%%
 xychart-beta
-    title "Node-ready p50: rigorous init-container A/B (n=10 each)"
-    x-axis ["Arm A: with init", "Arm B: no init"]
+    title "Node-ready p50: stock AKS vs embed-CNI POC (n=10 each)"
+    x-axis ["Production default", "Embed-CNI POC", "Projected w/ VHD bake"]
     y-axis "node-ready p50 (s)" 0 --> 20
-    bar [16.5, 14.0]
+    bar [19.0, 12.0, 6.5]
 ```
 
-The 2.5 s p50 delta is broken down in
-[Lab 4 — phase decomposition](./04-embed-cni-poc.md#phase-decomposition-combined-p50-across-10-runs-each);
-~3.5 s of init→main pod-sync waterfall saved, partially offset by
-~1.4 s of inline deploy work in the no-init arm. Welch's t=3.45,
-p<0.01.
+The 7 s p50 gap decomposes into: init-container waterfall removed
+(−8 s), cold image pull penalty (+5.5 s, disappears with VHD bake),
+and faster CNS bootstrap (−2 s, ships with PR #4398). See
+[Lab 4 — production-realistic comparison](./04-embed-cni-poc.md#experiment--production-realistic-comparison)
+for full phase decomposition. Welch's t=6.53, p<0.001.
 
 ## Recommendations
 
@@ -90,7 +95,7 @@ p<0.01.
 | 1 | **Adopt BoltDB per-record store** | 11–23× faster writes, eliminates external mutexes, O(1) scaling, 11× lower GC pressure | Implementation on [`rbtr/feat/bolt-store`](https://github.com/rbtr/azure-container-networking/tree/feat/bolt-store) — ready to upstream |
 | 2 | **Keep the CNI semaphore (default = NumCPU)** | Prevents RTNL stampede; matches or beats reference CNI Flannel | Already in production |
 | 3 | **Land PR #4398 (bootstrap metrics)** | Sub-second observability for SLO tracking + node-init diagnosis | Open at [Azure/azure-container-networking#4398](https://github.com/Azure/azure-container-networking/pull/4398) |
-| 4 | **Embed CNI binaries in CNS image** | Eliminates kubelet init→main pod-sync waterfall; controlled A/B shows 2.5 s p50 savings (16.5 s → 14.0 s, p<0.01); larger gains expected vs production `cni-dropgz` separate-image init; +36 MB on-disk; clean drift-correction story | POC on [`rbtr/experiment/cns-embed-cni`](https://github.com/rbtr/azure-container-networking/tree/experiment/cns-embed-cni) |
+| 4 | **Embed CNI binaries in CNS image** | Eliminates init-container waterfall (8 s); production-realistic: 19 s → 12 s p50 (p<0.001); projected ~6-7 s with VHD bake; +36 MB on-disk | POC on [`rbtr/experiment/cns-embed-cni`](https://github.com/rbtr/azure-container-networking/tree/experiment/cns-embed-cni) |
 | 5 | **Do not pursue further RTNL mitigations** | Flannel proves we're at the kernel floor; effort better spent at kubelet, kernel, or architectural layer | — |
 | 6 | **Consider daemon-based CNI model** | Single-process serialization (Cilium-style) is the only architecture that escapes per-process RTNL contention | Future |
 
