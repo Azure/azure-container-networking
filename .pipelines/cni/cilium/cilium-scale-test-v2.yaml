@@ -14,6 +14,18 @@ parameters:
     displayName: "Target node count for secondary nodepool"
     type: number
     default: 110
+  - name: ciliumImageRegistry
+    displayName: "Cilium image registry (used for cilium/cilium and cilium/operator-generic)"
+    type: string
+    default: mcr.microsoft.com/containernetworking
+  - name: ciliumVersionTag
+    displayName: "Cilium image tag"
+    type: string
+    default: v1.17.7-250927
+  - name: ciliumManifestDir
+    displayName: "Cilium manifest directory under test/integration/manifests/cilium/v<DIR>"
+    type: string
+    default: "1.17"
 
 variables:
   - name: clustername
@@ -67,7 +79,7 @@ stages:
                 set -ex
 
                 echo "Deploy Cilium components"
-                make -C ./hack/aks deploy-cilium
+                make -C ./hack/aks deploy-cilium DIR=${{ parameters.ciliumManifestDir }} CILIUM_IMAGE_REGISTRY=${{ parameters.ciliumImageRegistry }} CILIUM_VERSION_TAG=${{ parameters.ciliumVersionTag }}
 
                 echo "Deploy Azure-CNS"
                 make test-load AZURE_IPAM_VERSION=v0.4.0-0 CNI_VERSION=v1.8.1-0 CNS_ONLY=true CNS_VERSION=v1.8.1-0 INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=MCR IPAM_IMAGE_REPO=MCR CNI_IMAGE_REPO=MCR
