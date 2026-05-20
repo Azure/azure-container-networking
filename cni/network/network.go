@@ -567,13 +567,24 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
 		networkID, _ := plugin.getNetworkID(args.Netns, &ifInfo, nwCfg)
 
+		// SwiftV2 FrontendNIC (delegated VM NIC / Accelnet) endpoints land on a
+		// Transparent HNS network, which does not support OutBoundNAT policies and
+		// rejects them with HCN_E_ENDPOINT_ATTACHMENT_NOT_SUPPORTED (0x803B0007),
+		// failing pod sandbox attach. Drop OutBoundNAT from both the natInfo
+		// (Swift DNS/IMDS SNAT) and the conflist-derived policies for this NIC.
+		ifPolicies := policies
+		if ifInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
+			natInfo = nil
+			ifPolicies = filterOutOutBoundNATPolicies(policies)
+		}
+
 		createEpInfoOpt := createEpInfoOpt{
 			nwCfg:            nwCfg,
 			cnsNetworkConfig: ifInfo.NCResponse,
 			ipamAddResult:    ipamAddResult,
 			azIpamResult:     azIpamResult,
 			args:             args,
-			policies:         policies,
+			policies:         ifPolicies,
 			k8sPodName:       k8sPodName,
 			k8sNamespace:     k8sNamespace,
 			enableInfraVnet:  enableInfraVnet,
@@ -1460,4 +1471,52 @@ func (plugin *NetPlugin) validateArgs(args *cniSkel.CmdArgs, nwCfg *cni.NetworkC
 	}
 
 	return nil
+}
+
+// filterOutOutBoundNATPolicies returns a copy of the input policy slice with
+// all entries that resolve to an HNS OutBoundNAT policy removed. Used for
+// SwiftV2 FrontendNIC endpoints, which land on a Transparent HNS network that
+// does not support OutBoundNAT and rejects it with
+// HCN_E_ENDPOINT_ATTACHMENT_NOT_SUPPORTED (0x803B0007) on attach.
+//
+// Conflist-derived policies arrive with outer Type=="EndpointPolicy" and the
+// real policy kind encoded inside Data as {"Type":"<kind>", ...}; bare
+// in-code policies set Type directly. We strip both shapes, and we also strip
+// LoopbackDSR because the Windows backend serializes it as an OutboundNAT on
+// the endpoint, which Transparent networks likewise reject.
+//
+// Returns nil when the input is nil/empty or when every entry was filtered
+// out, preserving the nil-policy semantics expected by downstream code.
+func filterOutOutBoundNATPolicies(in []policy.Policy) []policy.Policy {
+	if len(in) == 0 {
+		return nil
+	}
+	var out []policy.Policy
+	for _, p := range in {
+		if isOutBoundNATLikePolicy(p) {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+// isOutBoundNATLikePolicy reports whether p will be applied to an HNS
+// endpoint as an OutBoundNAT policy. It matches both the bare-Type shape and
+// the conflist-wrapped shape (outer Type=="EndpointPolicy", inner Data.Type
+// in {OutBoundNAT, LoopbackDSR}).
+func isOutBoundNATLikePolicy(p policy.Policy) bool {
+	if p.Type == policy.OutBoundNatPolicy {
+		return true
+	}
+	if len(p.Data) == 0 {
+		return false
+	}
+	var inner struct {
+		Type policy.CNIPolicyType `json:"Type"`
+	}
+	if err := json.Unmarshal(p.Data, &inner); err != nil {
+		return false
+	}
+	return inner.Type == policy.OutBoundNatPolicy || inner.Type == policy.LoopbackDSRPolicy
 }

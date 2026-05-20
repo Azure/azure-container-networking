@@ -1849,3 +1849,61 @@ func TestValidateArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestFilterOutOutBoundNATPolicies(t *testing.T) {
+	in := []policy.Policy{
+		{Type: policy.OutBoundNatPolicy, Data: []byte(`{}`)},
+		{Type: policy.ACLPolicy, Data: []byte(`{}`)},
+		{Type: policy.OutBoundNatPolicy, Data: []byte(`{}`)},
+		{Type: policy.RoutePolicy, Data: []byte(`{}`)},
+	}
+	out := filterOutOutBoundNATPolicies(in)
+	require.Len(t, out, 2)
+	for _, p := range out {
+		require.NotEqual(t, policy.OutBoundNatPolicy, p.Type)
+	}
+	// input not mutated
+	require.Len(t, in, 4)
+	require.Equal(t, policy.OutBoundNatPolicy, in[0].Type)
+
+	// nil input yields nil (preserve nil semantics for downstream consumers)
+	require.Nil(t, filterOutOutBoundNATPolicies(nil))
+
+	// empty input yields nil
+	require.Nil(t, filterOutOutBoundNATPolicies([]policy.Policy{}))
+
+	// all OutBoundNAT input yields nil
+	require.Nil(t, filterOutOutBoundNATPolicies([]policy.Policy{
+		{Type: policy.OutBoundNatPolicy},
+		{Type: policy.OutBoundNatPolicy},
+	}))
+
+	// Conflist-wrapped form: outer Type=="EndpointPolicy", real type encoded
+	// inside Data. This is the shape produced by cni.GetPoliciesFromNwCfg
+	// against an AKS conflist. The filter must strip OutBoundNAT and
+	// LoopbackDSR (the Windows backend serializes LoopbackDSR as an
+	// OutboundNatPolicy on the endpoint, which the SwiftV2 Transparent network
+	// also rejects).
+	wrapped := []policy.Policy{
+		{Type: policy.EndpointPolicy, Data: []byte(`{"Type":"OutBoundNAT","ExceptionList":["10.16.1.0/24"]}`)},
+		{Type: policy.EndpointPolicy, Data: []byte(`{"Type":"ACL","Action":"Allow","Direction":"In","Priority":65500}`)},
+		{Type: policy.EndpointPolicy, Data: []byte(`{"Type":"LoopbackDSR","IPAddress":"172.26.0.4"}`)},
+		{Type: policy.EndpointPolicy, Data: []byte(`{"Type":"ACL","Action":"Allow","Direction":"Out","Priority":65500}`)},
+	}
+	out = filterOutOutBoundNATPolicies(wrapped)
+	require.Len(t, out, 2, "OutBoundNAT and LoopbackDSR should both be removed from the conflist-wrapped form")
+	for _, p := range out {
+		require.False(t, isOutBoundNATLikePolicy(p), "filtered slice must not contain OutBoundNAT-like entries")
+	}
+
+	// Mixed bare + wrapped inputs.
+	mixed := []policy.Policy{
+		{Type: policy.OutBoundNatPolicy},
+		{Type: policy.EndpointPolicy, Data: []byte(`{"Type":"OutBoundNAT"}`)},
+		{Type: policy.EndpointPolicy, Data: []byte(`{"Type":"LoopbackDSR","IPAddress":"1.2.3.4"}`)},
+		{Type: policy.EndpointPolicy, Data: []byte(`{"Type":"ACL","Action":"Allow"}`)},
+	}
+	out = filterOutOutBoundNATPolicies(mixed)
+	require.Len(t, out, 1)
+	require.Equal(t, policy.EndpointPolicy, out[0].Type)
+}
