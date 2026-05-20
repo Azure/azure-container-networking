@@ -3,14 +3,17 @@ package restserver
 import (
 	"maps"
 	"net/http"
+	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/prometheus/client_golang/prometheus"
-	"sigs.k8s.io/controller-runtime/pkg/metrics"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
 const (
@@ -114,7 +117,7 @@ var (
 )
 
 func init() {
-	metrics.Registry.MustRegister(
+	ctrlmetrics.Registry.MustRegister(
 		HTTPRequestLatency,
 		ipAssignmentLatency,
 		ipConfigStatusStateTransitionTime,
@@ -158,6 +161,10 @@ type ipState struct {
 	assignedIPs int64
 	// availableIPs are the IPs in state "Available".
 	availableIPs int64
+	// availableV4IPs are the IPs in state "Available" with IPv4 addresses.
+	availableV4IPs int64
+	// availableV6IPs are the IPs in state "Available" with IPv6 addresses.
+	availableV6IPs int64
 	// programmingIPs are the IPs in state "PendingProgramming".
 	programmingIPs int64
 	// releasingIPs are the IPs in state "PendingReleasr".
@@ -190,6 +197,12 @@ func (a *asyncMetricsRecorder) record() {
 		}
 		if ipConfig.GetState() == types.Available {
 			state.availableIPs++
+			switch ipFamily(ipConfig.IPAddress) {
+			case ipFamilyV4:
+				state.availableV4IPs++
+			case ipFamilyV6:
+				state.availableV6IPs++
+			}
 		}
 		if ipConfig.GetState() == types.PendingProgramming {
 			state.programmingIPs++
@@ -213,6 +226,36 @@ func (a *asyncMetricsRecorder) record() {
 	availableIPCount.WithLabelValues(labels...).Set(float64(state.availableIPs))
 	pendingProgrammingIPCount.WithLabelValues(labels...).Set(float64(state.programmingIPs))
 	pendingReleaseIPCount.WithLabelValues(labels...).Set(float64(state.releasingIPs))
+
+	// Feed per-family Available counts to the bootstrap recorder so
+	// it can fire cns_ready_to_assign_seconds when the mode-aware
+	// predicate is satisfied. NotifyAvailableIPCount short-circuits
+	// once the gauge has fired, so this is cheap on every call after
+	// startup.
+	metric.NotifyAvailableIPCount(uint64(state.availableV4IPs), uint64(state.availableV6IPs))
+}
+
+const (
+	ipFamilyUnknown = iota
+	ipFamilyV4
+	ipFamilyV6
+)
+
+// ipFamily classifies a CNS-stored IP string as v4 or v6. CNS stores
+// the address as a bare textual form (e.g. "10.0.0.5" or
+// "fd00::5"); a "/" prefix length suffix is tolerated.
+func ipFamily(s string) int {
+	if i := strings.IndexByte(s, '/'); i >= 0 {
+		s = s[:i]
+	}
+	addr, err := netip.ParseAddr(s)
+	if err != nil {
+		return ipFamilyUnknown
+	}
+	if addr.Is4() {
+		return ipFamilyV4
+	}
+	return ipFamilyV6
 }
 
 // publishIPStateMetrics logs and publishes the IP Config state metrics to Prometheus.

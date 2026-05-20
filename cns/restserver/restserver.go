@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
 	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/nodesubnet"
 	"github.com/Azure/azure-container-networking/cns/routes"
@@ -393,6 +394,10 @@ func (service *HTTPRestService) MustGenerateCNIConflistOnce() {
 		if err := service.cniConflistGenerator.Close(); err != nil {
 			panic("unable to close the cni conflist output stream: " + err.Error())
 		}
+		// Atomic rename happens in Close(); record only after both
+		// Generate and Close have succeeded so the timestamp reflects
+		// the file being visible at its final path.
+		metric.RecordConflistWritten()
 	})
 }
 

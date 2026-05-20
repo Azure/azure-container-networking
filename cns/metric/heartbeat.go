@@ -11,12 +11,20 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/types"
 )
 
+// HomeAzGetter is the consumer-side interface SendHeartBeat uses to
+// query the current Home AZ. Defined here (not in restserver) to
+// keep cns/metric free of a back-edge into cns/restserver, which
+// would create an import cycle now that restserver imports
+// cns/metric for the bootstrap-metric setters.
+type HomeAzGetter interface {
+	GetHomeAz(ctx context.Context) cns.GetHomeAzResponse
+}
+
 // SendHeartBeat emits node metrics periodically
-func SendHeartBeat(ctx context.Context, heartbeatInterval time.Duration, homeAzMonitor *restserver.HomeAzMonitor, channelMode string) {
+func SendHeartBeat(ctx context.Context, heartbeatInterval time.Duration, homeAzMonitor HomeAzGetter, channelMode string) {
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
 	for {

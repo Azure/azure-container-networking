@@ -19,6 +19,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/cns/nodesubnet"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
@@ -177,6 +178,9 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	programmedNCCount, err := service.syncHostNCVersion(ctx, channelMode)
 	// even if we get an error, we want to write the CNI conflist if we have any NC programmed to any version
 	if programmedNCCount > 0 {
+		// Both calls are once-guarded, so calling them on every
+		// successful sync is cheap.
+		metric.RecordFirstNCProgrammed()
 		// This will only be done once per lifetime of the CNS process. This function is threadsafe and will panic
 		// if it fails, so it is safe to call in a non-preemptable goroutine.
 		go service.MustGenerateCNIConflistOnce()

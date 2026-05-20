@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/nodesubnet"
 	"github.com/Azure/azure-container-networking/cns/types"
@@ -98,6 +99,7 @@ func (service *HTTPRestService) saveState() error {
 
 // restoreState restores CNS state from persistent store.
 func (service *HTTPRestService) restoreState() {
+	defer metric.RecordStateRestored()
 	logger.Printf("[Azure CNS] restoreState")
 
 	// Skip if a store is not provided.

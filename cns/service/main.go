@@ -498,6 +498,15 @@ func main() {
 	// Initialize and parse command line arguments.
 	acn.ParseArgs(&args, printVersion)
 
+	// Capture process-wide bootstrap signals as early as possible. The
+	// boot-state classifier reads /proc/sys/kernel/random/boot_id and
+	// compares it to the value persisted at /var/lib/azure-network/.cns_boot_id;
+	// running it before any state I/O guarantees the classification
+	// reflects pre-restore reality.
+	metric.RecordStartTime()
+	metric.SetBuildInfo(version)
+	metric.ClassifyAndRecordBootState()
+
 	cniPath := acn.GetArg(acn.OptNetPluginPath).(string)
 	cniConfigFile := acn.GetArg(acn.OptNetPluginConfigFile).(string)
 	cnsURL := acn.GetArg(acn.OptCnsURL).(string)
@@ -696,6 +705,22 @@ func main() {
 	}
 	if isManaged, ok := acn.GetArg(acn.OptManaged).(bool); ok && isManaged {
 		config.ChannelMode = cns.Managed
+	}
+
+	// Publish the active CNS mode for dashboard pivoting now that the
+	// channel mode is finalized. Configure the ready-to-assign
+	// recorder with the predicate appropriate for the mode.
+	metric.SetMode(
+		config.ChannelMode,
+		cnsconfig.EnableIPAMv2,
+		cnsconfig.EnableSwiftV2,
+		cnsconfig.ManageEndpointState,
+		cnsconfig.EnableSwiftV1DualStack,
+	)
+	if config.ChannelMode == cns.AzureHost {
+		metric.SetReadyToAssignMode(metric.ReadyToAssignModeNodeSubnet, false)
+	} else {
+		metric.SetReadyToAssignMode(metric.ReadyToAssignModeCRD, cnsconfig.EnableSwiftV1DualStack)
 	}
 
 	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
@@ -922,6 +947,7 @@ func main() {
 			logger.Errorf("[Azure CNS] Failed to initialize node subnet: %v", err)
 			return
 		}
+		metric.NotifyNodeSubnetReady()
 	}
 
 	// Initialize multi-tenant controller if the CNS is running in MultiTenantCRD mode.
@@ -1018,6 +1044,7 @@ func main() {
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)
 			return
 		}
+		metric.RecordHTTPListenerReady()
 
 	}
 
@@ -1442,6 +1469,7 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 			return initErr
 		}
 		hasNNCInitialized.Set(1)
+		metric.RecordInitialIPAMReconciled()
 		return nil
 	}
 
