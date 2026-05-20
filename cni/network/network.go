@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"slices"
 	"strconv"
 	"time"
 
@@ -639,6 +640,24 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 		}
 	}()
+
+	// Sort epInfos so InfraNIC is processed first. In stateless mode, ExternalInterfaces is empty
+	// on every ADD, so whichever NIC is processed first determines which interface the network
+	// gets bound to. If DelegatedVMNIC wins the race, the network gets created with eth1 as extIf.
+	// SecondaryEndpointClient then moves eth1 into the pod namespace, and the subsequent InfraNIC
+	// iteration finds the network bound to that now-gone interface, causing
+	// TransparentEndpointClient.AddEndpoints to fail with "no such network interface".
+	slices.SortStableFunc(epInfos, func(a, b *network.EndpointInfo) int {
+		aIsInfra := a.NICType == cns.InfraNIC || a.NICType == ""
+		bIsInfra := b.NICType == cns.InfraNIC || b.NICType == ""
+		if aIsInfra && !bIsInfra {
+			return -1
+		}
+		if !aIsInfra && bIsInfra {
+			return 1
+		}
+		return 0
+	})
 
 	err = plugin.nm.EndpointCreate(cnsclient, epInfos)
 	if err != nil {

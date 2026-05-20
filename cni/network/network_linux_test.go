@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -793,4 +794,42 @@ func (m *mockInterfaceGetter) GetNetworkInterfaces() ([]net.Interface, error) {
 
 func (m *mockInterfaceGetter) GetNetworkInterfaceAddrs(_ *net.Interface) ([]net.Addr, error) {
 	return nil, errNotImplemented
+}
+
+func TestSortEpInfosInfraNICFirst(t *testing.T) {
+	// Replicate the sort logic used before EndpointCreate to verify InfraNIC
+	// is always processed first regardless of input order.
+	epInfos := []*network.EndpointInfo{
+		{
+			NICType:    cns.DelegatedVMNIC,
+			EndpointID: "delegated-ep",
+			NetworkID:  network.DefaultNetworkID,
+		},
+		{
+			NICType:    cns.InfraNIC,
+			EndpointID: "infra-ep",
+			NetworkID:  network.DefaultNetworkID,
+		},
+		{
+			NICType:    cns.NodeNetworkInterfaceFrontendNIC,
+			EndpointID: "frontend-ep",
+			NetworkID:  "other",
+		},
+	}
+
+	slices.SortStableFunc(epInfos, func(a, b *network.EndpointInfo) int {
+		aIsInfra := a.NICType == cns.InfraNIC || a.NICType == ""
+		bIsInfra := b.NICType == cns.InfraNIC || b.NICType == ""
+		if aIsInfra && !bIsInfra {
+			return -1
+		}
+		if !aIsInfra && bIsInfra {
+			return 1
+		}
+		return 0
+	})
+
+	assert.Equal(t, cns.InfraNIC, epInfos[0].NICType, "InfraNIC should be sorted first")
+	assert.Equal(t, cns.DelegatedVMNIC, epInfos[1].NICType, "DelegatedVMNIC should come after InfraNIC")
+	assert.Equal(t, cns.NodeNetworkInterfaceFrontendNIC, epInfos[2].NICType, "FrontendNIC should come last")
 }
