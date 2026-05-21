@@ -1,6 +1,7 @@
 package network
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
+	vishnetlink "github.com/vishvananda/netlink"
 	"go.uber.org/zap"
 )
 
@@ -18,6 +20,27 @@ const (
 )
 
 const snatConfigFileName = "/tmp/snatConfig"
+
+// resolveMasterInterface returns the name of the upper (master) interface for the
+// given interface name. On Linux with accelerated networking, the VF (e.g.
+// enP12217s2) is bonded to the netvsc upper device (e.g. eth1). A VF has a
+// non-zero MasterIndex; the upper device does not. If name is already the
+// upper device, it is returned unchanged.
+func resolveMasterInterface(name string) (string, error) {
+	link, err := vishnetlink.LinkByName(name)
+	if err != nil {
+		return "", fmt.Errorf("get link %q: %w", name, err)
+	}
+	masterIndex := link.Attrs().MasterIndex
+	if masterIndex == 0 {
+		return name, nil
+	}
+	master, err := vishnetlink.LinkByIndex(masterIndex)
+	if err != nil {
+		return "", fmt.Errorf("get master link by index %d: %w", masterIndex, err)
+	}
+	return master.Attrs().Name, nil
+}
 
 func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *network.InterfaceInfo) {
 	_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
