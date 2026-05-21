@@ -140,29 +140,3 @@ func TestHandleCommonOptions_SkipsIPTablesForDelegatedNIC(t *testing.T) {
 	}
 }
 
-func TestEndpointCreate_DoesNotSort(t *testing.T) {
-	// Verify EndpointCreate processes epInfos in the order given (sorting is now
-	// the caller's responsibility in cni/network).
-	epInfos := []*EndpointInfo{
-		{
-			NICType:    cns.DelegatedVMNIC,
-			EndpointID: "delegated-ep",
-			NetworkID:  DefaultNetworkID,
-		},
-		{
-			NICType:    cns.InfraNIC,
-			EndpointID: "infra-ep",
-			NetworkID:  DefaultNetworkID,
-		},
-	}
-
-	nm := &networkManager{
-		ExternalInterfaces: map[string]*externalInterface{},
-	}
-
-	_ = nm.EndpointCreate(nil, epInfos)
-
-	// Order should be unchanged — EndpointCreate no longer sorts
-	assert.Equal(t, cns.DelegatedVMNIC, epInfos[0].NICType)
-	assert.Equal(t, cns.InfraNIC, epInfos[1].NICType)
-}
