@@ -97,6 +97,7 @@ stages:
                     export IPV6_HP_BPF_VERSION=$(make ipv6-hp-bpf-version)
                     echo "IPV6_HP_BPF_VERSION: $IPV6_HP_BPF_VERSION"
                     echo "IPV6_IMAGE_REGISTRY: $IPV6_IMAGE_REGISTRY"
+                    export DIR=$(echo ${CILIUM_VERSION_TAG#v} | cut -d. -f1,2)
                     echo "installing cilium dualstack version ${CILIUM_VERSION_TAG} from directory ${DIR}"
                     make -C ./hack/aks deploy-cilium-dualstack
                   else
