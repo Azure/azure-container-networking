@@ -16,3 +16,5 @@ type Config struct {
 }
 
 func (c *Config) normalize() {}
+
+func (c *Config) AppendETWFields([]zapcore.Field) {}

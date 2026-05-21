@@ -18,15 +18,12 @@ type Core struct {
 
 func New(providerName, eventName string, encoder zapcore.Encoder, levelEnabler zapcore.LevelEnabler) (zapcore.Core, func(), error) {
 	provider, err := etw.NewProviderWithOptions(providerName)
-	if err != nil {
-		return nil, func() { _ = provider.Close() }, errors.Wrap(err, "failed to create ETW provider")
-	}
 	return &Core{
 		provider:     provider,
 		eventName:    eventName,
 		encoder:      encoder,
 		LevelEnabler: levelEnabler,
-	}, func() { _ = provider.Close() }, nil
+	}, func() { _ = provider.Close() }, err //nolint:wrapcheck // ignore
 }
 
 func (core *Core) With(fields []zapcore.Field) zapcore.Core {

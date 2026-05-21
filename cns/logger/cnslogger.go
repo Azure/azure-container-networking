@@ -94,8 +94,11 @@ func (c *logger) SetAPIServer(apiserver string) {
 
 func (c *logger) Printf(format string, args ...any) {
 	c.logger.Logf(format, args...)
+	if c.disableTraceLogging {
+		return
+	}
 	c.zapLogger.Info(fmt.Sprintf(format, args...))
-	if c.th == nil || c.disableTraceLogging {
+	if c.th == nil {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
@@ -104,8 +107,11 @@ func (c *logger) Printf(format string, args ...any) {
 
 func (c *logger) Debugf(format string, args ...any) {
 	c.logger.Debugf(format, args...)
+	if c.disableTraceLogging {
+		return
+	}
 	c.zapLogger.Debug(fmt.Sprintf(format, args...))
-	if c.th == nil || c.disableTraceLogging {
+	if c.th == nil {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
@@ -114,8 +120,11 @@ func (c *logger) Debugf(format string, args ...any) {
 
 func (c *logger) Warnf(format string, args ...any) {
 	c.logger.Warnf(format, args...)
+	if c.disableTraceLogging {
+		return
+	}
 	c.zapLogger.Warn(fmt.Sprintf(format, args...))
-	if c.th == nil || c.disableTraceLogging {
+	if c.th == nil {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
@@ -124,8 +133,11 @@ func (c *logger) Warnf(format string, args ...any) {
 
 func (c *logger) Errorf(format string, args ...any) {
 	c.logger.Errorf(format, args...)
+	if c.disableTraceLogging {
+		return
+	}
 	c.zapLogger.Error(fmt.Sprintf(format, args...))
-	if c.th == nil || c.disableTraceLogging {
+	if c.th == nil {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
@@ -200,7 +212,11 @@ func (c *logger) sendTraceInternal(msg string, lvl ai.Level) {
 }
 
 func (c *logger) LogEvent(event ai.Event) {
-	if c.th == nil || c.disableEventLogging {
+	if c.disableEventLogging {
+		return
+	}
+	c.zapLogger.Info(event.EventName, zap.String("resource_id", event.ResourceID), zap.Any("properties", event.Properties))
+	if c.th == nil {
 		return
 	}
 	c.m.RLock()

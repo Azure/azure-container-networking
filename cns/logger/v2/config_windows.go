@@ -26,3 +26,9 @@ func (c *Config) normalize() {
 		}
 	}
 }
+
+func (c *Config) AppendETWFields(fields []zapcore.Field) {
+	if c.ETW != nil {
+		c.ETW.Fields = append(c.ETW.Fields, fields...)
+	}
+}
