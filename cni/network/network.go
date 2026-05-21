@@ -227,11 +227,11 @@ func (plugin *NetPlugin) findInterfaceByMAC(macAddress string) string {
 		}
 		master, err := resolveMasterInterface(iface.Name)
 		if err != nil {
-			logger.Error("failed to resolve master interface",
+			logger.Warn("failed to resolve master interface, falling back to interface name",
 				zap.String("name", iface.Name),
 				zap.String("mac", macAddress),
 				zap.Error(err))
-			return ""
+			return iface.Name
 		}
 		return master
 	}
