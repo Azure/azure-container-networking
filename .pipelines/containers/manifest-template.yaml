@@ -45,13 +45,10 @@ steps:
       inlineScript: |
         docker logout
 
-  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-    displayName: "Add SBOM Generator tool"
-    inputs:
-      BuildDropPath: "$(Build.ArtifactStagingDirectory)"
-
+  # SBOM generation moved to the consolidated sbom_publish stage.
+  # Published here as an intermediate artifact named per image.
   - task: PublishBuildArtifacts@1
     inputs:
-      artifactName: "output"
+      artifactName: "unsigned-images-${{ parameters.name }}"
       pathtoPublish: "$(Build.ArtifactStagingDirectory)"
     condition: succeeded()
