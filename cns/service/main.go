@@ -635,9 +635,22 @@ func main() {
 	// If this errors, we will not have metadata in the AI logs. Should we exit?
 	metadata, _ := acn.GetHostMetadata(aitelemetry.MetadataFile)
 	aifields := loggerv2.MetadataToFields(metadata)
+	host, _ := os.Hostname()
+	hostMetadataFields := []zap.Field{
+		zap.String("hostname", host),
+		zap.String("version", version),
+		zap.String("kubernetes_apiserver", os.Getenv("KUBERNETES_SERVICE_HOST")),
+	}
+
+	// Attach IMDS metadata and logger-level fields to the v1 logger's ETW output.
+	allFields := append([]zap.Field{}, aifields...)
+	allFields = append(allFields, hostMetadataFields...)
+	logger.SetZapFields(allFields...) //nolint:staticcheck // ignore new deprecation
+
 	if cnsconfig.Logger.AppInsights != nil {
 		cnsconfig.Logger.AppInsights.Fields = append(cnsconfig.Logger.AppInsights.Fields, aifields...)
 	}
+	cnsconfig.Logger.AppendETWFields(aifields)
 
 	// build the zap logger
 	z, c, err := loggerv2.New(&cnsconfig.Logger)
@@ -646,8 +659,7 @@ func main() {
 		fmt.Printf("failed to create logger: %v", err)
 		os.Exit(1)
 	}
-	host, _ := os.Hostname()
-	z = z.With(zap.String("hostname", host), zap.String("version", version), zap.String("kubernetes_apiserver", os.Getenv("KUBERNETES_SERVICE_HOST")))
+	z = z.With(hostMetadataFields...)
 	config.Logger = z.With(zap.String("module", "cns service"))
 	// Set the v2 logger to the global logger if v2 logger enabled.
 	if cnsconfig.EnableLoggerV2 {

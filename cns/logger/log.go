@@ -4,6 +4,7 @@ package logger
 import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"go.uber.org/zap"
 )
 
 type loggershim interface {
@@ -28,6 +29,13 @@ var (
 	AppInsightsIKey = aiMetadata
 	aiMetadata      string // this var is set at build time.
 )
+
+// Deprecated: The global logger is deprecated. Migrate to zap using the cns/logger/v2 package and pass the logger instead.
+func SetZapFields(fields ...zap.Field) {
+	if l, ok := Log.(*logger); ok {
+		l.zapLogger = l.zapLogger.With(fields...)
+	}
+}
 
 // Deprecated: The global logger is deprecated. Migrate to zap using the cns/logger/v2 package and pass the logger instead.
 func Close() {

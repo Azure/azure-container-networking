@@ -45,5 +45,6 @@ func ETWCore(cfg *ETWConfig) (zapcore.Core, func(), error) {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
-	return zapetw.New(cfg.ProviderName, cfg.EventName, &ctrlzap.KubeAwareEncoder{Encoder: jsonEncoder}, cfg.level) //nolint:wrapcheck // ignore
+	core, closer, err := zapetw.New(cfg.ProviderName, cfg.EventName, &ctrlzap.KubeAwareEncoder{Encoder: jsonEncoder}, cfg.level)
+	return core.With(cfg.Fields), closer, err //nolint:wrapcheck // ignore
 }
