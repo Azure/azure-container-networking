@@ -1,6 +1,7 @@
 package network
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 
@@ -28,7 +29,7 @@ const snatConfigFileName = "/tmp/snatConfig"
 func resolveMasterInterface(name string) (string, error) {
 	link, err := vishnetlink.LinkByName(name)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get link %q: %w", name, err)
 	}
 	masterIndex := link.Attrs().MasterIndex
 	if masterIndex == 0 {
@@ -36,7 +37,7 @@ func resolveMasterInterface(name string) (string, error) {
 	}
 	master, err := vishnetlink.LinkByIndex(masterIndex)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get master link by index %d: %w", masterIndex, err)
 	}
 	return master.Attrs().Name, nil
 }
