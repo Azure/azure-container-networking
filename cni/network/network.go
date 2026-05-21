@@ -787,7 +787,8 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 			nwCfg:       opt.nwCfg,
 			ipconfigs:   opt.ifInfo.IPConfigs,
 		}
-		endpointPolicies, err := getEndpointPolicies(policyArgs)
+		var endpointPolicies []policy.Policy
+		endpointPolicies, err = getEndpointPolicies(policyArgs)
 		if err != nil {
 			logger.Error("Failed to get endpoint policies", zap.Error(err))
 			return nil, err
