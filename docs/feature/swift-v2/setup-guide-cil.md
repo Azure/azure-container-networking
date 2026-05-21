@@ -25,7 +25,17 @@ At no point should connectivity to services like core dns fail.
 
 ### Existing Cluster Only: Upgrade to managed cilium (should remove NPM automatically)
 Run the aks command like
-`az aks update --name <cluster name> --resource-group <rg> --network-dataplane cilium`
+`az aks update --name <cluster name> --resource-group <rg> --network-dataplane cilium --network-policy cilium`
+
+> [!NOTE]
+> Both `--network-dataplane cilium` and `--network-policy cilium` are required. The API will reject the request if only `--network-dataplane cilium` is specified.
+
+> [!TIP]
+> If your cluster has a single system node pool, the upgrade may fail with a `PodDrainFailure` due to Pod Disruption Budgets (e.g., `konnectivity-agent`). To work around this, delete the blocking PDBs before running the update — AKS addon manager will recreate them after the upgrade:
+> ```
+> kubectl delete pdb konnectivity-agent -n kube-system --ignore-not-found
+> kubectl delete pdb coredns -n kube-system --ignore-not-found
+> ```
 
 ### All: Checkpoint
 From this point on, I am assuming you have the following
