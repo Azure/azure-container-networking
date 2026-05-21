@@ -37,7 +37,7 @@ func resolveMasterInterface(name string) (string, error) {
 	}
 	master, err := vishnetlink.LinkByIndex(masterIndex)
 	if err != nil {
-		return "", fmt.Errorf("get master link by index %d: %w", masterIndex, err)
+		return "", fmt.Errorf("get master link by index %d failed with: %w", masterIndex, err)
 	}
 	return master.Attrs().Name, nil
 }
