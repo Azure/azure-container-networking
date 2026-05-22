@@ -31,11 +31,19 @@ type netlinkClient interface {
 type defaultNetlinkClient struct{}
 
 func (defaultNetlinkClient) LinkByName(name string) (vishnetlink.Link, error) {
-	return vishnetlink.LinkByName(name)
+	link, err := vishnetlink.LinkByName(name)
+	if err != nil {
+		return nil, fmt.Errorf("get link by name: %w", err)
+	}
+	return link, nil
 }
 
 func (defaultNetlinkClient) LinkByIndex(index int) (vishnetlink.Link, error) {
-	return vishnetlink.LinkByIndex(index)
+	link, err := vishnetlink.LinkByIndex(index)
+	if err != nil {
+		return nil, fmt.Errorf("get link by index: %w", err)
+	}
+	return link, nil
 }
 
 // nlClient is the active netlink client used by resolveMasterInterface.

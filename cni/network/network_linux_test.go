@@ -569,6 +569,20 @@ func stubResolveMasterInterface(t *testing.T, ifName string) {
 	t.Cleanup(func() { nlClient = original })
 }
 
+// sentinel errors for mock netlink client.
+var (
+	errLinkNotFound      = errors.New("link not found")
+	errLinkNotFoundByIdx = errors.New("link not found by index")
+	errNotImplemented    = errors.New("not implemented")
+)
+
+// test interface name constants used across resolveMasterInterface and findInterfaceByMAC tests.
+const (
+	testVFInterface  = "enP12217s2"
+	testVF2Interface = "enP100s1"
+	testMACAddr      = "00:22:48:d5:56:86"
+)
+
 // mockNetlinkClient implements netlinkClient for unit testing resolveMasterInterface.
 type mockNetlinkClient struct {
 	links map[string]vishnetlink.Link // keyed by name
@@ -578,7 +592,7 @@ type mockNetlinkClient struct {
 func (m *mockNetlinkClient) LinkByName(name string) (vishnetlink.Link, error) {
 	l, ok := m.links[name]
 	if !ok {
-		return nil, fmt.Errorf("link not found: %s", name)
+		return nil, fmt.Errorf("%w: %s", errLinkNotFound, name)
 	}
 	return l, nil
 }
@@ -586,7 +600,7 @@ func (m *mockNetlinkClient) LinkByName(name string) (vishnetlink.Link, error) {
 func (m *mockNetlinkClient) LinkByIndex(index int) (vishnetlink.Link, error) {
 	l, ok := m.byIdx[index]
 	if !ok {
-		return nil, fmt.Errorf("link not found by index: %d", index)
+		return nil, fmt.Errorf("%w: %d", errLinkNotFoundByIdx, index)
 	}
 	return l, nil
 }
@@ -601,38 +615,38 @@ func TestResolveMasterInterface(t *testing.T) {
 	}{
 		{
 			name:   "interface is already master (MasterIndex == 0)",
-			ifName: "eth1",
+			ifName: snatInterface,
 			client: &mockNetlinkClient{
 				links: map[string]vishnetlink.Link{
-					"eth1": &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        "eth1",
+					snatInterface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
+						Name:        snatInterface,
 						Index:       2,
 						MasterIndex: 0,
 					}},
 				},
 			},
-			wantResult: "eth1",
+			wantResult: snatInterface,
 		},
 		{
 			name:   "VF resolves to master upper device",
-			ifName: "enP12217s2",
+			ifName: testVFInterface,
 			client: &mockNetlinkClient{
 				links: map[string]vishnetlink.Link{
-					"enP12217s2": &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        "enP12217s2",
+					testVFInterface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
+						Name:        testVFInterface,
 						Index:       5,
 						MasterIndex: 2,
 					}},
 				},
 				byIdx: map[int]vishnetlink.Link{
 					2: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        "eth1",
+						Name:        snatInterface,
 						Index:       2,
 						MasterIndex: 0,
 					}},
 				},
 			},
-			wantResult: "eth1",
+			wantResult: snatInterface,
 		},
 		{
 			name:   "LinkByName fails returns error",
@@ -644,11 +658,11 @@ func TestResolveMasterInterface(t *testing.T) {
 		},
 		{
 			name:   "LinkByIndex fails returns error",
-			ifName: "enP100s1",
+			ifName: testVF2Interface,
 			client: &mockNetlinkClient{
 				links: map[string]vishnetlink.Link{
-					"enP100s1": &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        "enP100s1",
+					testVF2Interface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
+						Name:        testVF2Interface,
 						Index:       10,
 						MasterIndex: 99, // master index that doesn't exist
 					}},
@@ -677,7 +691,7 @@ func TestResolveMasterInterface(t *testing.T) {
 }
 
 func TestFindInterfaceByMAC_WithMasterResolution(t *testing.T) {
-	mac, _ := net.ParseMAC("00:22:48:d5:56:86")
+	mac, _ := net.ParseMAC(testMACAddr)
 
 	tests := []struct {
 		name       string
@@ -688,50 +702,50 @@ func TestFindInterfaceByMAC_WithMasterResolution(t *testing.T) {
 	}{
 		{
 			name:    "single master match returns master name",
-			macAddr: "00:22:48:d5:56:86",
+			macAddr: testMACAddr,
 			interfaces: []net.Interface{
-				{Name: "eth1", HardwareAddr: mac},
+				{Name: snatInterface, HardwareAddr: mac},
 			},
 			client: &mockNetlinkClient{
 				links: map[string]vishnetlink.Link{
-					"eth1": &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        "eth1",
+					snatInterface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
+						Name:        snatInterface,
 						Index:       2,
 						MasterIndex: 0,
 					}},
 				},
 			},
-			wantResult: "eth1",
+			wantResult: snatInterface,
 		},
 		{
 			name:    "VF matched resolves to master",
-			macAddr: "00:22:48:d5:56:86",
+			macAddr: testMACAddr,
 			interfaces: []net.Interface{
-				{Name: "enP12217s2", HardwareAddr: mac},
+				{Name: testVFInterface, HardwareAddr: mac},
 			},
 			client: &mockNetlinkClient{
 				links: map[string]vishnetlink.Link{
-					"enP12217s2": &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        "enP12217s2",
+					testVFInterface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
+						Name:        testVFInterface,
 						Index:       5,
 						MasterIndex: 2,
 					}},
 				},
 				byIdx: map[int]vishnetlink.Link{
 					2: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        "eth1",
+						Name:        snatInterface,
 						Index:       2,
 						MasterIndex: 0,
 					}},
 				},
 			},
-			wantResult: "eth1",
+			wantResult: snatInterface,
 		},
 		{
 			name:    "resolve error returns empty",
-			macAddr: "00:22:48:d5:56:86",
+			macAddr: testMACAddr,
 			interfaces: []net.Interface{
-				{Name: "enP100s1", HardwareAddr: mac},
+				{Name: testVF2Interface, HardwareAddr: mac},
 			},
 			client: &mockNetlinkClient{
 				links: map[string]vishnetlink.Link{}, // LinkByName will fail
@@ -740,7 +754,7 @@ func TestFindInterfaceByMAC_WithMasterResolution(t *testing.T) {
 		},
 		{
 			name:    "no MAC match returns empty string",
-			macAddr: "00:22:48:d5:56:86",
+			macAddr: testMACAddr,
 			interfaces: []net.Interface{
 				{Name: "eth0", HardwareAddr: net.HardwareAddr{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF}},
 			},
@@ -777,5 +791,5 @@ func (m *mockInterfaceGetter) GetNetworkInterfaces() ([]net.Interface, error) {
 }
 
 func (m *mockInterfaceGetter) GetNetworkInterfaceAddrs(_ *net.Interface) ([]net.Addr, error) {
-	return nil, errors.New("not implemented")
+	return nil, errNotImplemented
 }
