@@ -57,16 +57,16 @@ git checkout master
 
 ### All: Update Conflist
 > [!NOTE]
-> You can replace `acnpublic.azurecr.io/public/containernetworking/azure-cni:v1.7.5-3` with an mcr image in prod that has the chained cilium conflist. The installer only installs the conflist (not cni) so the above image should be sufficient.
+> The image below is an mcr image in prod that has the chained cilium conflist. The installer only installs the conflist (not cni) so this image is sufficient.
 ```
 export CONFLIST=azure-chained-cilium.conflist
 export CONFLIST_PRIORITY=05
-export CNI_IMAGE=acnpublic.azurecr.io/public/containernetworking/azure-cni:v1.7.5-3
+export CNI_IMAGE=mcr.microsoft.com/containernetworking/v2/azure-cni:v1.8.7-1
 envsubst '${CONFLIST},${CONFLIST_PRIORITY},${CNI_IMAGE}' < test/integration/manifests/cni/conflist-installer-byon.yaml | kubectl apply -f -
 ```
 
 ### Existing Cluster Only: Apply Unmanaged Cilium Daemonset with Alt Healthz Bind Port
-Unmanaged daemonset uses Cilium v1.18.6 (matches AKS managed Cilium for k8s 1.34 overlay clusters).
+Unmanaged daemonset uses Cilium v1.18.9 (matches AKS managed Cilium for k8s 1.34 overlay clusters).
 ```
 kubectl apply -f test/integration/manifests/cilium/v1.18/unmanaged/daemonset-alt-healthz-port.yaml
 ```
@@ -79,7 +79,7 @@ kubectl apply -f test/integration/manifests/cilium/v1.18/unmanaged/daemonset-alt
 - After removing kube-proxy succeeds, we can start to apply the normal unmanaged cilium ds below
 
 ### All: Apply Unmanaged Cilium Daemonset
-Assuming k8s 1.34. Unmanaged daemonset uses Cilium v1.18.6 (matches AKS managed Cilium for k8s 1.34 overlay clusters).
+Assuming k8s 1.34. Unmanaged daemonset uses Cilium v1.18.9 (matches AKS managed Cilium for k8s 1.34 overlay clusters).
 ```
 kubectl apply -f test/integration/manifests/cilium/v1.18/unmanaged/daemonset.yaml
 ```
