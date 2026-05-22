@@ -31,6 +31,13 @@ var (
 	dualStackCount = 2
 )
 
+// resolveMasterInterface returns the master interface name for the given interface.
+// Windows does not have the Linux netvsc + VF bonding model, so the name is
+// returned unchanged.
+func resolveMasterInterface(name string) (string, error) {
+	return name, nil
+}
+
 func addDefaultRoute(_ string, _ *network.EndpointInfo, _ *network.InterfaceInfo) {
 }
 
