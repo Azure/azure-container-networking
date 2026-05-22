@@ -1586,6 +1586,8 @@ func TestFindMasterInterface(t *testing.T) {
 	plugin, _ := cni.NewPlugin("name", "0.3.0")
 	endpointIndex := 1
 	macAddress := "12:34:56:78:90:ab"
+	parsedMAC, err := net.ParseMAC(macAddress)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name        string
@@ -1730,7 +1732,7 @@ func TestFindMasterInterface(t *testing.T) {
 					interfaces: []net.Interface{
 						{
 							Name:         "eth1",
-							HardwareAddr: net.HardwareAddr(macAddress),
+							HardwareAddr: parsedMAC,
 						},
 					},
 				},
@@ -1738,7 +1740,7 @@ func TestFindMasterInterface(t *testing.T) {
 			endpointOpt: createEpInfoOpt{
 				ifInfo: &acnnetwork.InterfaceInfo{
 					NICType:    cns.NodeNetworkInterfaceFrontendNIC,
-					MacAddress: net.HardwareAddr(macAddress),
+					MacAddress: parsedMAC,
 				},
 			},
 			want:    "eth1",
@@ -1750,7 +1752,7 @@ func TestFindMasterInterface(t *testing.T) {
 				endpointIndex: endpointIndex,
 				ifInfo: &acnnetwork.InterfaceInfo{
 					NICType:    cns.BackendNIC,
-					MacAddress: net.HardwareAddr(macAddress),
+					MacAddress: parsedMAC,
 				},
 			},
 			want:    ibInterfacePrefix + strconv.Itoa(endpointIndex),
@@ -1762,7 +1764,7 @@ func TestFindMasterInterface(t *testing.T) {
 				endpointIndex: endpointIndex,
 				ifInfo: &acnnetwork.InterfaceInfo{
 					NICType:    "invalidType",
-					MacAddress: net.HardwareAddr(macAddress),
+					MacAddress: parsedMAC,
 				},
 			},
 			want:    "", // default interface name is ""

@@ -709,7 +709,7 @@ func TestFindInterfaceByMAC_WithMasterResolution(t *testing.T) {
 			wantResult: "eth1",
 		},
 		{
-			name:    "resolve error falls back to matched interface name",
+			name:    "resolve error returns empty",
 			macAddr: "00:22:48:d5:56:86",
 			interfaces: []net.Interface{
 				{Name: "enP100s1", HardwareAddr: mac},
@@ -717,7 +717,7 @@ func TestFindInterfaceByMAC_WithMasterResolution(t *testing.T) {
 			client: &mockNetlinkClient{
 				links: map[string]vishnetlink.Link{}, // LinkByName will fail
 			},
-			wantResult: "enP100s1",
+			wantResult: "",
 		},
 		{
 			name:    "no MAC match returns empty string",
