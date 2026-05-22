@@ -22,6 +22,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// stubResolveMasterInterface is a no-op on Windows because resolveMasterInterface
+// already returns (name, nil). Used by cross-platform tests in network_test.go.
+func stubResolveMasterInterface(_ *testing.T, _ string) {}
+
 func init() {
 	network.Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
 	network.Hnsv1 = hnswrapper.NewHnsv1wrapperFake()

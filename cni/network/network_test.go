@@ -1594,7 +1594,8 @@ func TestFindMasterInterface(t *testing.T) {
 		endpointOpt createEpInfoOpt
 		plugin      *NetPlugin
 		nwCfg       *cni.NetworkConfig
-		want        string // expected master interface name
+		setup       func(t *testing.T) // optional per-test setup; called before the test runs
+		want        string             // expected master interface name
 		wantErr     bool
 	}{
 		{
@@ -1743,6 +1744,7 @@ func TestFindMasterInterface(t *testing.T) {
 					MacAddress: parsedMAC,
 				},
 			},
+			setup:   func(t *testing.T) { stubResolveMasterInterface(t, "eth1") },
 			want:    "eth1",
 			wantErr: false,
 		},
@@ -1775,6 +1777,9 @@ func TestFindMasterInterface(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.setup != nil {
+				tt.setup(t)
+			}
 			masterInterface := tt.plugin.findMasterInterface(&tt.endpointOpt)
 			t.Logf("masterInterface is %s\n", masterInterface)
 			require.Equal(t, tt.want, masterInterface)

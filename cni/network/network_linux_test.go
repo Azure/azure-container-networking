@@ -253,6 +253,7 @@ func TestPluginLinuxAdd(t *testing.T) {
 		name   string
 		plugin *NetPlugin
 		args   *cniSkel.CmdArgs
+		setup  func(t *testing.T)
 		want   []endpointEntry
 		match  func(*network.EndpointInfo, *network.EndpointInfo) bool
 	}{
@@ -377,6 +378,7 @@ func TestPluginLinuxAdd(t *testing.T) {
 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
 				IfName:      eth0IfName,
 			},
+			setup: func(t *testing.T) { stubResolveMasterInterface(t, "secondary") },
 			match: func(ei1, ei2 *network.EndpointInfo) bool {
 				return ei1.NICType == ei2.NICType
 			},
@@ -500,6 +502,9 @@ func TestPluginLinuxAdd(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.setup != nil {
+				tt.setup(t)
+			}
 			err := tt.plugin.Add(tt.args)
 			require.NoError(t, err)
 			allEndpoints, _ := tt.plugin.nm.GetAllEndpoints("")
@@ -548,6 +553,20 @@ func TestPluginLinuxAdd(t *testing.T) {
 			require.Empty(t, allEndpoints)
 		})
 	}
+}
+
+// stubResolveMasterInterface installs a mock nlClient that treats the given interface as a
+// master (MasterIndex == 0), so resolveMasterInterface returns the name unchanged.
+// Used by cross-platform tests in network_test.go that exercise the delegated NIC path.
+func stubResolveMasterInterface(t *testing.T, ifName string) {
+	t.Helper()
+	original := nlClient
+	nlClient = &mockNetlinkClient{
+		links: map[string]vishnetlink.Link{
+			ifName: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{Name: ifName, MasterIndex: 0}},
+		},
+	}
+	t.Cleanup(func() { nlClient = original })
 }
 
 // mockNetlinkClient implements netlinkClient for unit testing resolveMasterInterface.
