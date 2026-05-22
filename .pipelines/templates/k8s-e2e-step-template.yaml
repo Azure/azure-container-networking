@@ -26,6 +26,11 @@ steps:
         # pulling k8s version from AKS.
         eval k8sVersion="v"$( az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query "currentKubernetesVersion")
         echo $k8sVersion
+        # Persist the cluster's k8s version so the per-test step templates can
+        # gate alpha-default-off [FeatureGate:*] e2e specs (AKS does not expose
+        # kube-apiserver --feature-gates, so they cannot be enabled on a stock
+        # managed cluster and the corresponding specs must be skipped).
+        echo "$k8sVersion" > ./k8s-version
         curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
 
         # https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
