@@ -29,11 +29,8 @@ PUBLIC_IPv6          ?= $(PUBLIC_IP_ID)/$(IP_PREFIX)-$(CLUSTER)-v6
 KUBE_PROXY_JSON_PATH ?= ./kube-proxy.json
 LTS					 ?= false
 ACNS				 ?= false
-<<<<<<< HEAD
 GATEWAYAPI			 ?= false
-=======
 TIER 				 ?= free
->>>>>>> e86a9d3d9 (add premium tier for testing)
 
 
 # overrideable variables
