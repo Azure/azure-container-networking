@@ -21,13 +21,34 @@ const (
 
 const snatConfigFileName = "/tmp/snatConfig"
 
+// netlinkClient abstracts vishvananda/netlink link-lookup calls for testing.
+type netlinkClient interface {
+	LinkByName(name string) (vishnetlink.Link, error)
+	LinkByIndex(index int) (vishnetlink.Link, error)
+}
+
+// defaultNetlinkClient delegates to the real vishvananda/netlink package functions.
+type defaultNetlinkClient struct{}
+
+func (defaultNetlinkClient) LinkByName(name string) (vishnetlink.Link, error) {
+	return vishnetlink.LinkByName(name)
+}
+
+func (defaultNetlinkClient) LinkByIndex(index int) (vishnetlink.Link, error) {
+	return vishnetlink.LinkByIndex(index)
+}
+
+// nlClient is the active netlink client used by resolveMasterInterface.
+// Override in tests to inject a mock.
+var nlClient netlinkClient = defaultNetlinkClient{}
+
 // resolveMasterInterface returns the name of the upper (master) interface for the
 // given interface name. On Linux with accelerated networking, the VF (e.g.
 // enP12217s2) is bonded to the netvsc upper device (e.g. eth1). A VF has a
 // non-zero MasterIndex; the upper device does not. If name is already the
 // upper device, it is returned unchanged.
 func resolveMasterInterface(name string) (string, error) {
-	link, err := vishnetlink.LinkByName(name)
+	link, err := nlClient.LinkByName(name)
 	if err != nil {
 		return "", fmt.Errorf("get link %q: %w", name, err)
 	}
@@ -35,7 +56,7 @@ func resolveMasterInterface(name string) (string, error) {
 	if masterIndex == 0 {
 		return name, nil
 	}
-	master, err := vishnetlink.LinkByIndex(masterIndex)
+	master, err := nlClient.LinkByIndex(masterIndex)
 	if err != nil {
 		return "", fmt.Errorf("get master link by index %d failed with: %w", masterIndex, err)
 	}
