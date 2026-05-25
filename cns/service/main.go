@@ -585,8 +585,9 @@ func main() {
 			//nolint:staticcheck // SA1019 ignore deprecated global logger
 			logger.InitAIWithConnectionString(aiConfig, ts.AppInsightsConnectionString, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
 		case aiInstrumentationKey:
+			//nolint:staticcheck // SA1019 ignore deprecated global logger
 			logger.InitAIWithIKey(aiConfig, ts.AppInsightsInstrumentationKey, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
-		default:
+		case aiDefault:
 			logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
 		}
 
