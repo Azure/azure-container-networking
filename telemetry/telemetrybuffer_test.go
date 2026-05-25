@@ -162,19 +162,16 @@ func TestReadConfigFile(t *testing.T) {
 				BatchIntervalInSecs:           15,
 				BatchSizeInBytes:              16384,
 				AIConnectionString:            "",
-				EnableAIInSovereignCloud:      false,
 			},
 			wantErr: false,
 		},
 		{
-			name: "parse non-empty connection string and sovereign flag",
+			name: "parse non-empty connection string",
 			content: `{
-				"AIConnectionString": "InstrumentationKey=abc;IngestionEndpoint=https://x/",
-				"EnableAIInSovereignCloud": true
+				"AIConnectionString": "InstrumentationKey=abc;IngestionEndpoint=https://x/"
 			}`,
 			want: TelemetryConfig{
-				AIConnectionString:       "InstrumentationKey=abc;IngestionEndpoint=https://x/",
-				EnableAIInSovereignCloud: true,
+				AIConnectionString: "InstrumentationKey=abc;IngestionEndpoint=https://x/",
 			},
 			wantErr: false,
 		},

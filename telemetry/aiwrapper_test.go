@@ -12,7 +12,6 @@ func TestCreateAITelemetryHandle(t *testing.T) {
 		name             string
 		aiConfig         aitelemetry.AIConfig
 		connectionString string
-		enableSovereign  bool
 		disableAll       bool
 		disableMetric    bool
 		disableTrace     bool
@@ -27,11 +26,10 @@ func TestCreateAITelemetryHandle(t *testing.T) {
 			wantErr:       true,
 		},
 		{
-			name:             "sovereign cloud enabled with empty connection string returns error",
+			name:             "telemetry handle created with connection string",
 			aiConfig:         aitelemetry.AIConfig{},
-			connectionString: "",
-			enableSovereign:  true,
-			wantErr:          true,
+			connectionString: "InstrumentationKey=abc;IngestionEndpoint=https://x/",
+			wantErr:          false,
 		},
 	}
 
@@ -39,10 +37,8 @@ func TestCreateAITelemetryHandle(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			SetAIConnectionString(tt.connectionString)
-			SetEnableAIInSovereignCloud(tt.enableSovereign)
 			t.Cleanup(func() {
 				SetAIConnectionString("")
-				SetEnableAIInSovereignCloud(false)
 			})
 
 			tb := NewTelemetryBuffer(nil)

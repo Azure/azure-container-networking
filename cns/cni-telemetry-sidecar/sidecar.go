@@ -105,12 +105,9 @@ func (s *TelemetrySidecar) startTelemetryService(ctx context.Context, config tel
 		}
 	}
 
-	// Set connection string only if sovereign cloud is enabled
-	if cnsConfig.TelemetrySettings.EnableAIInSovereignCloud {
-		if connStr := cnsConfig.TelemetrySettings.AppInsightsConnectionString; connStr != "" {
-			telemetry.SetAIConnectionString(connStr)
-		}
-		telemetry.SetEnableAIInSovereignCloud(true)
+	// Set AI connection string from config if provided
+	if connStr := cnsConfig.TelemetrySettings.AppInsightsConnectionString; connStr != "" {
+		telemetry.SetAIConnectionString(connStr)
 	}
 
 	// Clean up any orphan socket

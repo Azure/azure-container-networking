@@ -10,13 +10,12 @@ import (
 )
 
 var (
-	aiMetadata               string
-	connectionString         string
-	enableAIInSovereignCloud bool
-	th                       aitelemetry.TelemetryHandle
-	gDisableTrace            bool
-	gDisableMetric           bool
-	ErrTelemetryDisabled     = errors.New("telemetry is disabled")
+	aiMetadata           string
+	connectionString     string
+	th                   aitelemetry.TelemetryHandle
+	gDisableTrace        bool
+	gDisableMetric       bool
+	ErrTelemetryDisabled = errors.New("telemetry is disabled")
 )
 
 const (
@@ -36,8 +35,8 @@ func (tb *TelemetryBuffer) CreateAITelemetryHandle(aiConfig aitelemetry.AIConfig
 		return ErrTelemetryDisabled
 	}
 
-	// Use connection string only if sovereign cloud is enabled
-	if enableAIInSovereignCloud {
+	// Use the connection string if configured. Fall back to the instrumentation key otherwise.
+	if connectionString != "" {
 		th, err = aitelemetry.NewWithConnectionString(connectionString, aiConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create telemetry handle with connection string: %w", err)
@@ -116,14 +115,4 @@ func GetAIConnectionString() string {
 // SetAIConnectionString sets the AI connection string value (for runtime configuration)
 func SetAIConnectionString(connStr string) {
 	connectionString = connStr
-}
-
-// GetEnableAIInSovereignCloud returns the current AI sovereign cloud flag value
-func GetEnableAIInSovereignCloud() bool {
-	return enableAIInSovereignCloud
-}
-
-// SetEnableAIInSovereignCloud sets the AI sovereign cloud flag (for runtime configuration)
-func SetEnableAIInSovereignCloud(isSovereign bool) {
-	enableAIInSovereignCloud = isSovereign
 }

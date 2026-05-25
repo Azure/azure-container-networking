@@ -39,6 +39,7 @@ func parseConnectionString(connectionString string) (*connectionVars, error) {
 			connectionVars.instrumentationKey = value
 		case "ingestionendpoint":
 			if value != "" {
+				// Ensure trailing slash so the ingestion URL path joins cleanly
 				if !strings.HasSuffix(value, "/") {
 					value += "/"
 				}
