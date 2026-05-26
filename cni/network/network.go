@@ -233,6 +233,10 @@ func (plugin *NetPlugin) findInterfaceByMAC(macAddress string) string {
 				zap.Error(err))
 			return ""
 		}
+		logger.Info("found master interface by MAC",
+			zap.String("resolved-master", ifName),
+			zap.String("interface", iface.Name),
+			zap.String("mac", macAddress))
 		return ifName
 	}
 	logger.Error("failed to find interface by MAC", zap.String("macAddress", macAddress), zap.Strings("macs", macs))
