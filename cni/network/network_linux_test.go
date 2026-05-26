@@ -578,9 +578,10 @@ var (
 
 // test interface name constants used across resolveMasterInterface and findInterfaceByMAC tests.
 const (
-	testVFInterface  = "enP12217s2"
-	testVF2Interface = "enP100s1"
-	testMACAddr      = "00:22:48:d5:56:86"
+	testMasterInterface = "eth1"       // upper/master interface (netvsc) name
+	testVFInterface     = "enP12217s2" // VF interface bonded to testMasterInterface
+	testVF2Interface    = "enP100s1"   // another VF interface used in error-path tests
+	testMACAddr         = "00:22:48:d5:56:86"
 )
 
 // mockNetlinkClient implements netlinkClient for unit testing resolveMasterInterface.
@@ -615,17 +616,17 @@ func TestResolveMasterInterface(t *testing.T) {
 	}{
 		{
 			name:   "interface is already master (MasterIndex == 0)",
-			ifName: snatInterface,
+			ifName: testMasterInterface,
 			client: &mockNetlinkClient{
 				links: map[string]vishnetlink.Link{
-					snatInterface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        snatInterface,
+					testMasterInterface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
+						Name:        testMasterInterface,
 						Index:       2,
 						MasterIndex: 0,
 					}},
 				},
 			},
-			wantResult: snatInterface,
+			wantResult: testMasterInterface,
 		},
 		{
 			name:   "VF resolves to master upper device",
@@ -640,13 +641,13 @@ func TestResolveMasterInterface(t *testing.T) {
 				},
 				byIdx: map[int]vishnetlink.Link{
 					2: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        snatInterface,
+						Name:        testMasterInterface,
 						Index:       2,
 						MasterIndex: 0,
 					}},
 				},
 			},
-			wantResult: snatInterface,
+			wantResult: testMasterInterface,
 		},
 		{
 			name:   "LinkByName fails returns error",
@@ -704,18 +705,18 @@ func TestFindInterfaceByMAC_WithMasterResolution(t *testing.T) {
 			name:    "single master match returns master name",
 			macAddr: testMACAddr,
 			interfaces: []net.Interface{
-				{Name: snatInterface, HardwareAddr: mac},
+				{Name: testMasterInterface, HardwareAddr: mac},
 			},
 			client: &mockNetlinkClient{
 				links: map[string]vishnetlink.Link{
-					snatInterface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        snatInterface,
+					testMasterInterface: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
+						Name:        testMasterInterface,
 						Index:       2,
 						MasterIndex: 0,
 					}},
 				},
 			},
-			wantResult: snatInterface,
+			wantResult: testMasterInterface,
 		},
 		{
 			name:    "VF matched resolves to master",
@@ -733,13 +734,13 @@ func TestFindInterfaceByMAC_WithMasterResolution(t *testing.T) {
 				},
 				byIdx: map[int]vishnetlink.Link{
 					2: &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{
-						Name:        snatInterface,
+						Name:        testMasterInterface,
 						Index:       2,
 						MasterIndex: 0,
 					}},
 				},
 			},
-			wantResult: snatInterface,
+			wantResult: testMasterInterface,
 		},
 		{
 			name:    "resolve error returns empty",
