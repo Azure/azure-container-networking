@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -50,6 +51,25 @@ func printVersion() {
 }
 
 func rootExecute() error {
+	// Enrich all CNI loggers with host metadata so ETW events carry VM identity for diagnostics.
+	metadataFile := filepath.Join(os.TempDir(), "azuremetadata.json")
+	if metadata, err := common.GetHostMetadata(metadataFile); err == nil {
+		host, _ := os.Hostname()
+		zaplog.SetMetadata(
+			zap.String("hostname", host),
+			zap.String("version", version),
+			zap.String("kubernetes_apiserver", os.Getenv("KUBERNETES_SERVICE_HOST")),
+			zap.String("account", metadata.SubscriptionID),
+			zap.String("anonymous_user_id", metadata.VMName),
+			zap.String("location", metadata.Location),
+			zap.String("resource_group", metadata.ResourceGroupName),
+			zap.String("vm_size", metadata.VMSize),
+			zap.String("os_version", metadata.OSVersion),
+			zap.String("vm_id", metadata.VMID),
+			zap.String("session_id", metadata.VMID),
+		)
+	}
+
 	var config common.PluginConfig
 
 	config.Version = version
