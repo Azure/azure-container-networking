@@ -209,7 +209,10 @@ func (plugin *NetPlugin) Stop() {
 	logger.Info("Plugin stopped")
 }
 
-// findInterfaceByMAC returns the name of the master interface
+// findInterfaceByMAC returns the name of the master interface matching the given MAC.
+// With accelerated networking, both the netvsc upper device (e.g. eth1) and the VF
+// (e.g. enP12217s2) share the same MAC. When the matched interface is a VF, this
+// function resolves and returns its master.
 func (plugin *NetPlugin) findInterfaceByMAC(macAddress string) string {
 	interfaces, err := plugin.netClient.GetNetworkInterfaces()
 	if err != nil {
@@ -218,14 +221,26 @@ func (plugin *NetPlugin) findInterfaceByMAC(macAddress string) string {
 	}
 	macs := make([]string, 0, len(interfaces))
 	for _, iface := range interfaces {
-		// find master interface by macAddress for Swiftv2
-		macs = append(macs, iface.HardwareAddr.String())
-		if iface.HardwareAddr.String() == macAddress {
-			return iface.Name
+		mac := iface.HardwareAddr.String()
+		macs = append(macs, mac)
+		if mac != macAddress {
+			continue
 		}
+		ifName, err := resolveMasterInterface(iface.Name)
+		if err != nil {
+			logger.Error("failed to resolve master interface",
+				zap.String("name", iface.Name),
+				zap.String("mac", macAddress),
+				zap.Error(err))
+			return ""
+		}
+		logger.Info("found master interface by MAC",
+			zap.String("resolved-master", ifName),
+			zap.String("interface", iface.Name),
+			zap.String("mac", macAddress))
+		return ifName
 	}
-	// Failed to find a suitable interface.
-	logger.Error("Failed to find interface by MAC", zap.String("macAddress", macAddress), zap.Strings("interfaces", macs))
+	logger.Error("failed to find interface by MAC", zap.String("macAddress", macAddress), zap.Strings("macs", macs))
 	return ""
 }
 

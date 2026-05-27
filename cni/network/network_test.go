@@ -1586,13 +1586,16 @@ func TestFindMasterInterface(t *testing.T) {
 	plugin, _ := cni.NewPlugin("name", "0.3.0")
 	endpointIndex := 1
 	macAddress := "12:34:56:78:90:ab"
+	parsedMAC, err := net.ParseMAC(macAddress)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name        string
 		endpointOpt createEpInfoOpt
 		plugin      *NetPlugin
 		nwCfg       *cni.NetworkConfig
-		want        string // expected master interface name
+		setup       func(t *testing.T) // optional per-test setup; called before the test runs
+		want        string             // expected master interface name
 		wantErr     bool
 	}{
 		{
@@ -1730,7 +1733,7 @@ func TestFindMasterInterface(t *testing.T) {
 					interfaces: []net.Interface{
 						{
 							Name:         "eth1",
-							HardwareAddr: net.HardwareAddr(macAddress),
+							HardwareAddr: parsedMAC,
 						},
 					},
 				},
@@ -1738,9 +1741,10 @@ func TestFindMasterInterface(t *testing.T) {
 			endpointOpt: createEpInfoOpt{
 				ifInfo: &acnnetwork.InterfaceInfo{
 					NICType:    cns.NodeNetworkInterfaceFrontendNIC,
-					MacAddress: net.HardwareAddr(macAddress),
+					MacAddress: parsedMAC,
 				},
 			},
+			setup:   func(t *testing.T) { stubResolveMasterInterface(t, "eth1") },
 			want:    "eth1",
 			wantErr: false,
 		},
@@ -1750,7 +1754,7 @@ func TestFindMasterInterface(t *testing.T) {
 				endpointIndex: endpointIndex,
 				ifInfo: &acnnetwork.InterfaceInfo{
 					NICType:    cns.BackendNIC,
-					MacAddress: net.HardwareAddr(macAddress),
+					MacAddress: parsedMAC,
 				},
 			},
 			want:    ibInterfacePrefix + strconv.Itoa(endpointIndex),
@@ -1762,7 +1766,7 @@ func TestFindMasterInterface(t *testing.T) {
 				endpointIndex: endpointIndex,
 				ifInfo: &acnnetwork.InterfaceInfo{
 					NICType:    "invalidType",
-					MacAddress: net.HardwareAddr(macAddress),
+					MacAddress: parsedMAC,
 				},
 			},
 			want:    "", // default interface name is ""
@@ -1773,6 +1777,9 @@ func TestFindMasterInterface(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.setup != nil {
+				tt.setup(t)
+			}
 			masterInterface := tt.plugin.findMasterInterface(&tt.endpointOpt)
 			t.Logf("masterInterface is %s\n", masterInterface)
 			require.Equal(t, tt.want, masterInterface)

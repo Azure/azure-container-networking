@@ -1,6 +1,7 @@
 package network
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
+	vishnetlink "github.com/vishvananda/netlink"
 	"go.uber.org/zap"
 )
 
@@ -18,6 +20,56 @@ const (
 )
 
 const snatConfigFileName = "/tmp/snatConfig"
+
+// netlinkClient abstracts vishvananda/netlink link-lookup calls for testing.
+type netlinkClient interface {
+	LinkByName(name string) (vishnetlink.Link, error)
+	LinkByIndex(index int) (vishnetlink.Link, error)
+}
+
+// defaultNetlinkClient delegates to the real vishvananda/netlink package functions.
+type defaultNetlinkClient struct{}
+
+func (defaultNetlinkClient) LinkByName(name string) (vishnetlink.Link, error) {
+	link, err := vishnetlink.LinkByName(name)
+	if err != nil {
+		return nil, fmt.Errorf("get link by name: %w", err)
+	}
+	return link, nil
+}
+
+func (defaultNetlinkClient) LinkByIndex(index int) (vishnetlink.Link, error) {
+	link, err := vishnetlink.LinkByIndex(index)
+	if err != nil {
+		return nil, fmt.Errorf("get link by index: %w", err)
+	}
+	return link, nil
+}
+
+// nlClient is the active netlink client used by resolveMasterInterface.
+// Override in tests to inject a mock.
+var nlClient netlinkClient = defaultNetlinkClient{}
+
+// resolveMasterInterface returns the name of the upper (master) interface for the
+// given interface name. On Linux with accelerated networking, the VF (e.g.
+// enP12217s2) is bonded to the netvsc upper device (e.g. eth1). A VF has a
+// non-zero MasterIndex; the upper device does not. If name is already the
+// upper device, it is returned unchanged.
+func resolveMasterInterface(name string) (string, error) {
+	link, err := nlClient.LinkByName(name)
+	if err != nil {
+		return "", fmt.Errorf("get link %q: %w", name, err)
+	}
+	masterIndex := link.Attrs().MasterIndex
+	if masterIndex == 0 {
+		return name, nil
+	}
+	master, err := nlClient.LinkByIndex(masterIndex)
+	if err != nil {
+		return "", fmt.Errorf("get master link by index %d failed with: %w", masterIndex, err)
+	}
+	return master.Attrs().Name, nil
+}
 
 func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *network.InterfaceInfo) {
 	_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
