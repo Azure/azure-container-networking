@@ -2,6 +2,6 @@
 # SOURCE: {{.SRC_PIPE}}
 ARG ARCH
 
-FROM mcr.microsoft.com/oss/v2/fluent/fluent-bit:v4.2.3-7 as linux
+FROM mcr.microsoft.com/oss/v2/fluent/fluent-bit:v4.2.3-8 as linux
 ARG ARTIFACT_DIR
 COPY ${ARTIFACT_DIR}/bin/out_azure_app_insights.so /out_azure_app_insights.so
