@@ -141,6 +141,8 @@ stages:
           pool:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           steps:
+            - template: templates/clean-up-disk-space.yaml
+
             - script: |
                 make bpf-lib
                 make all-binaries-platforms
