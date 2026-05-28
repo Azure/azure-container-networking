@@ -246,7 +246,7 @@ func (iMgr *IPSetManager) AddToSets(addToSets []*IPSetMetadata, ip, podKey strin
 
 	if !validateIPSetMemberIP(ip) {
 		msg := fmt.Sprintf("error: failed to add to sets: invalid ip %s", ip)
-		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "%s", msg)
 		return npmerrors.Errorf(npmerrors.AppendIPSet, true, msg)
 	}
 
@@ -282,7 +282,7 @@ func (iMgr *IPSetManager) RemoveFromSets(removeFromSets []*IPSetMetadata, ip, po
 
 	if !validateIPSetMemberIP(ip) {
 		msg := fmt.Sprintf("error: failed to add to sets: invalid ip %s", ip)
-		metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "%s", msg)
 		return npmerrors.Errorf(npmerrors.AppendIPSet, true, msg)
 	}
 

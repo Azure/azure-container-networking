@@ -106,7 +106,7 @@ func SendLog(operationID int, msg string, printLog bool) {
 		CustomDimensions: make(map[string]string),
 	}
 	if printLog {
-		klog.Infof(msg)
+		klog.Info(msg)
 	}
 	if th == nil {
 		return
