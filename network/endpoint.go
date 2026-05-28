@@ -107,7 +107,7 @@ type EndpointInfo struct {
 	Subnets                       []SubnetInfo
 	BridgeName                    string
 	NetNs                         string // used in windows
-	Options                       map[string]interface{}
+	Options                       map[string]interface{} // populated only for InfraNIC; nil for non-infra NICs
 	DisableHairpinOnHostInterface bool
 	IsIPv6Enabled                 bool
 	HostSubnetPrefix              string // can be used later to add an external interface

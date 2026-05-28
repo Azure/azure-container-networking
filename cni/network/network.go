@@ -736,6 +736,15 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		endpointID = plugin.nm.GetEndpointIDByNicType(opt.args.ContainerID, ifName, opt.ifInfo.NICType)
 	}
 
+	// Only copy options (RoutesKey, IPTablesKey, SNATIPKey) for InfraNIC or legacy (empty NICType).
+	// These options are infra-only host-namespace constructs set by setHostOptions and are not
+	// applicable to delegated/secondary NICs on either Linux or Windows.
+	// For non-infra NICs, options remains nil so handleCommonOptions becomes a no-op.
+	var options map[string]interface{}
+	if opt.ifInfo.NICType == cns.InfraNIC || opt.ifInfo.NICType == "" {
+		options = opt.ipamAddConfig.shallowCopyIpamAddConfigOptions()
+	}
+
 	endpointInfo := network.EndpointInfo{
 		NetworkID:                     opt.networkID,
 		Mode:                          opt.ipamAddConfig.nwCfg.Mode,
@@ -744,7 +753,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		BridgeName:                    opt.ipamAddConfig.nwCfg.Bridge,
 		NetworkPolicies:               networkPolicies, // nw and ep policies separated to avoid possible conflicts
 		NetNs:                         opt.ipamAddConfig.args.Netns,
-		Options:                       opt.ipamAddConfig.shallowCopyIpamAddConfigOptions(),
+		Options:                       options,
 		DisableHairpinOnHostInterface: opt.ipamAddConfig.nwCfg.DisableHairpinOnHostInterface,
 		IsIPv6Enabled:                 opt.ipv6Enabled, // present infra only
 

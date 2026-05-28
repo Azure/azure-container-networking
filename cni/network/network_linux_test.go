@@ -472,9 +472,7 @@ func TestPluginLinuxAdd(t *testing.T) {
 							},
 							Suffix: "myDomain",
 						},
-						Options: map[string]interface{}{
-							"testflag": "copy",
-						},
+						Options: nil,
 						// matches with cns ip configuration
 						IPAddresses: []net.IPNet{
 							{
