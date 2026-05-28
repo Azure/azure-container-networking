@@ -15,6 +15,7 @@ COPY --from=builder /usr/local/bin/azure-npm /usr/bin/azure-npm
 # libtasn1-6:     CVE-2025-13151 (MEDIUM)
 # dpkg:           CVE-2026-2219 (MEDIUM)
 # libcap2:        CVE-2026-4878 (MEDIUM)
+# libgcrypt20:    CVE-2026-41989 (MEDIUM)
 # libgnutls30t64: CVE-2026-33845, CVE-2026-33846, CVE-2026-3832, CVE-2026-3833,
 #                 CVE-2026-42009, CVE-2026-42010, CVE-2026-42011, CVE-2026-42012,
 #                 CVE-2026-42013, CVE-2026-42014, CVE-2026-42015, CVE-2026-5260,
@@ -30,6 +31,7 @@ RUN apt-get update && apt-get install -y \
     libtasn1-6=4.19.0-3ubuntu0.24.04.2 \
     dpkg=1.22.6ubuntu6.6 \
     libcap2=1:2.66-5ubuntu2.4 \
+    libgcrypt20=1.10.3-2ubuntu0.1 \
     libgnutls30t64=3.8.3-1.1ubuntu3.6 \
     libsystemd0=255.4-1ubuntu8.14 \
     libudev1=255.4-1ubuntu8.14 \
