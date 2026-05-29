@@ -11,7 +11,7 @@ FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:b
 FROM mcr.microsoft.com/cbl-mariner/base/core@sha256:61b8c8e5c769784be2137cba8612c3a0f0c1752a66276b3b1b5306014a1e20e0 AS mariner-core
 
 # mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0
-FROM mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:16d7c214232ee1db683e767a7a30a47f9976801c929b0f2f300521c595eb33ff AS mariner-distroless
+FROM mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:4fb6c12ad8ef326f648872121030fa132b820b4a85345754f17fefcdf5a4b5ff AS mariner-distroless
 
 FROM --platform=linux/${ARCH} go AS builder
 ARG OS
