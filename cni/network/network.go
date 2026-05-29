@@ -648,12 +648,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	// iteration finds the network bound to that now-gone interface, causing
 	// TransparentEndpointClient.AddEndpoints to fail with "no such network interface".
 	slices.SortStableFunc(epInfos, func(a, b *network.EndpointInfo) int {
-		aIsInfra := a.NICType == cns.InfraNIC || a.NICType == ""
-		bIsInfra := b.NICType == cns.InfraNIC || b.NICType == ""
-		if aIsInfra && !bIsInfra {
+		if isInfraOrLegacyNICType(a.NICType) && !isInfraOrLegacyNICType(b.NICType) {
 			return -1
 		}
-		if !aIsInfra && bIsInfra {
+		if !isInfraOrLegacyNICType(a.NICType) && isInfraOrLegacyNICType(b.NICType) {
 			return 1
 		}
 		return 0
@@ -664,6 +662,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return errors.Wrap(err, "failed to create endpoint") // behavior can change if you don't assign to err prior to returning
 	}
 	return nil
+}
+
+// isInfraOrLegacyNICType returns true if the NIC type is InfraNIC or empty (legacy).
+// Empty NICType is treated as infra for backward compatibility with older CNS responses.
+func isInfraOrLegacyNICType(nicType cns.NICType) bool {
+	return nicType == cns.InfraNIC || nicType == ""
 }
 
 func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
@@ -1174,8 +1178,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			zap.String("endpointID", epInfo.EndpointID))
 		telemetryClient.SendEvent("Deleting endpoint: " + epInfo.EndpointID)
 
-		isInfraOrLegacyNIC := epInfo.NICType == cns.InfraNIC || epInfo.NICType == ""
-		if !nwCfg.MultiTenancy && isInfraOrLegacyNIC {
+		if !nwCfg.MultiTenancy && isInfraOrLegacyNICType(epInfo.NICType) {
 			// Call into IPAM plugin to release the endpoint's addresses.
 			for i := range epInfo.IPAddresses {
 				logger.Info("Release ip", zap.String("ip", epInfo.IPAddresses[i].IP.String()))
