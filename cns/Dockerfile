@@ -8,7 +8,7 @@ ARG OS
 FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:b05a9bbf50a8ccfdd0ebe9f673ef29dca7c1d5e209434b35a560a4e8ae5f72b2 AS go
 
 # mcr.microsoft.com/cbl-mariner/base/core:2.0
-FROM mcr.microsoft.com/cbl-mariner/base/core@sha256:61b8c8e5c769784be2137cba8612c3a0f0c1752a66276b3b1b5306014a1e20e0 AS mariner-core
+FROM mcr.microsoft.com/cbl-mariner/base/core@sha256:c833841d2dcfd3081d2ee807050d19368854f70d9b6faef027463e2c6f45ee41 AS mariner-core
 
 # mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0
 FROM mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:16d7c214232ee1db683e767a7a30a47f9976801c929b0f2f300521c595eb33ff AS mariner-distroless
