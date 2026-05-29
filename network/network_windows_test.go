@@ -563,7 +563,8 @@ func TestConfigureHCNNetworkInfraNIC(t *testing.T) {
 // Test Configure HCN Network for Swiftv2 DelegatedNIC HostComputeNetwork fields
 func TestConfigureHCNNetworkSwiftv2DelegatedNIC(t *testing.T) {
 	expectedSwiftv2NetworkMode := hcn.Transparent
-	expectedSwifv2NetworkFlags := hcn.EnableNonPersistent | hcn.DisableHostPort | hcn.EnableIov
+	// FrontendNIC no longer sets hcn.EnableIov: see configureHcnNetwork comment.
+	expectedSwifv2NetworkFlags := hcn.EnableNonPersistent | hcn.DisableHostPort
 
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},

@@ -281,12 +281,14 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 	// Enable non-persistent flag so networks are removed after host reboot
 	hcnNetwork.Flags = hcn.EnableNonPersistent
 
-	// AccelnetNIC flag: hcn.EnableIov(9216) - treat Delegated/FrontendNIC also the same as Accelnet
-	// For L1VH with accelnet, hcn.DisableHostPort and hcn.EnableIov must be configured
+	// SwiftV2 FrontendNIC: use a Transparent network with HostPort disabled, but do
+	// NOT set hcn.EnableIov here. EnableIov forces HCS to bind an SR-IOV VF at silo
+	// attach time; on hosts without a free AccelNet VF that fails with
+	// HCN_E_PORT_NOT_FOUND (0x803B0007). AccelNet acceleration, if required, must be
+	// enabled separately rather than implied by the FrontendNIC NIC type.
 	if nwInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 		hcnNetwork.Type = hcn.Transparent
-		// hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableIov (1024 + 8192 = 9216)
-		hcnNetwork.Flags |= hcn.DisableHostPort | hcn.EnableIov
+		hcnNetwork.Flags |= hcn.DisableHostPort
 	}
 	// Populate subnets.
 	for _, subnet := range nwInfo.Subnets {

@@ -327,15 +327,11 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 		return nil, err
 	}
 
-	// add hcnEndpoint policy for accelnet for frontendNIC
-	if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
-		endpointPolicy, err := policy.AddAccelnetPolicySetting()
-		if err != nil {
-			logger.Error("Failed to set iov endpoint policy", zap.Error(err))
-			return nil, errors.Wrapf(err, "Failed to set iov endpoint policy for endpointId :%s", epInfo.EndpointID)
-		}
-		hcnEndpoint.Policies = append(hcnEndpoint.Policies, endpointPolicy)
-	}
+	// SwiftV2: skip the AccelNet/IOV endpoint policy on FrontendNIC.
+	// HCS attach-namespace fails with HCN_E_PORT_NOT_FOUND (0x803B0007) when an IOV
+	// policy is attached but no SR-IOV VF can be bound (e.g. non-AccelNet hosts, or
+	// hosts where the VF is already in use). Leaving the policy off lets the silo
+	// attach succeed; AccelNet acceleration, if needed, must be enabled out-of-band.
 
 	for _, route := range epInfo.Routes {
 		hcnRoute := hcn.Route{
