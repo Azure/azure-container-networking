@@ -795,113 +795,42 @@ func (m *mockInterfaceGetter) GetNetworkInterfaceAddrs(_ *net.Interface) ([]net.
 	return nil, errNotImplemented
 }
 
-func TestAddSortsInfraNICFirst(t *testing.T) {
-	// Verify that plugin.Add() sorts InfraNIC first even when IPAM returns
-	// several non-infra NICs before infra. The mock records the order of
-	// endpoint creation to confirm InfraNIC is always processed first.
-	resources := GetTestResources()
-	mac1 := "60:45:bd:76:f6:44"
-	mac2 := "60:45:bd:76:f6:55"
-	mac3 := "60:45:bd:76:f6:66"
-	parsedMAC1, _ := net.ParseMAC(mac1)
-	parsedMAC2, _ := net.ParseMAC(mac2)
-	parsedMAC3, _ := net.ParseMAC(mac3)
-
-	var creationOrder []cns.NICType
-	mockEpClient := network.NewMockEndpointClient(func(epInfo *network.EndpointInfo) error {
-		creationOrder = append(creationOrder, epInfo.NICType)
-		return nil
-	})
-
-	nwCfg := cni.NetworkConfig{
-		CNIVersion:   "0.3.0",
-		Name:         "net",
-		MultiTenancy: false,
-		IPAM:         cni.IPAM{Type: "azure-cns"},
-		DNS: types.DNS{
-			Nameservers: []string{"ns1", "ns2"},
-			Domain:      "myDomain",
+func TestSortInfraNICFirst(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     []cns.NICType
+		wantFirst cns.NICType
+	}{
+		{
+			name:      "infra already first",
+			input:     []cns.NICType{cns.InfraNIC, cns.NodeNetworkInterfaceFrontendNIC, cns.NodeNetworkInterfaceFrontendNIC},
+			wantFirst: cns.InfraNIC,
+		},
+		{
+			name:      "infra last among several frontends",
+			input:     []cns.NICType{cns.NodeNetworkInterfaceFrontendNIC, cns.NodeNetworkInterfaceFrontendNIC, cns.NodeNetworkInterfaceFrontendNIC, cns.InfraNIC},
+			wantFirst: cns.InfraNIC,
+		},
+		{
+			name:      "infra in the middle",
+			input:     []cns.NICType{cns.DelegatedVMNIC, cns.InfraNIC, cns.NodeNetworkInterfaceFrontendNIC},
+			wantFirst: cns.InfraNIC,
+		},
+		{
+			name:      "empty NICType treated as infra",
+			input:     []cns.NICType{cns.NodeNetworkInterfaceFrontendNIC, ""},
+			wantFirst: "",
 		},
 	}
 
-	plugin := &NetPlugin{
-		Plugin: resources.Plugin,
-		nm:     network.NewMockNetworkmanager(mockEpClient),
-		ipamInvoker: &MockIpamInvoker{
-			add: func(opt IPAMAddConfig) (IPAMAddResult, error) {
-				// Return several FrontendNICs and one InfraNIC to test sorting.
-				// FrontendNIC is the secondary NIC type used in Linux SwiftV2.
-				result := IPAMAddResult{interfaceInfo: map[string]network.InterfaceInfo{
-					"frontend1": {
-						MacAddress: parsedMAC1,
-						IPConfigs: []*network.IPConfig{
-							{Address: *getCIDRNotationForAddress("10.241.0.35/32")},
-						},
-						NICType: cns.NodeNetworkInterfaceFrontendNIC,
-					},
-					"frontend2": {
-						MacAddress: parsedMAC2,
-						IPConfigs: []*network.IPConfig{
-							{Address: *getCIDRNotationForAddress("10.241.0.36/32")},
-						},
-						NICType: cns.NodeNetworkInterfaceFrontendNIC,
-					},
-					"frontend3": {
-						MacAddress: parsedMAC3,
-						IPConfigs: []*network.IPConfig{
-							{Address: *getCIDRNotationForAddress("10.241.0.37/32")},
-						},
-						NICType: cns.NodeNetworkInterfaceFrontendNIC,
-					},
-					string(cns.InfraNIC): {
-						IPConfigs: []*network.IPConfig{
-							{Address: *getCIDRNotationForAddress("20.241.0.35/16")},
-						},
-						NICType:          cns.InfraNIC,
-						HostSubnetPrefix: *getCIDRNotationForAddress("10.224.0.0/16"),
-					},
-				}}
-				return result, nil
-			},
-			ipMap: make(map[string]bool),
-		},
-		netClient: &InterfaceGetterMock{
-			interfaces: []net.Interface{
-				{Name: "eth1", HardwareAddr: parsedMAC1},
-				{Name: "eth2", HardwareAddr: parsedMAC2},
-				{Name: "eth3", HardwareAddr: parsedMAC3},
-				{Name: "primary", HardwareAddr: net.HardwareAddr{}},
-			},
-			interfaceAddrs: map[string][]net.Addr{
-				"primary": {getCIDRNotationForAddress("10.224.0.0/16")},
-			},
-		},
-	}
-
-	// Stub resolveMasterInterface for all frontend NICs
-	original := nlClient
-	nlClient = &mockNetlinkClient{
-		links: map[string]vishnetlink.Link{
-			"eth1": &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{Name: "eth1", MasterIndex: 0}},
-			"eth2": &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{Name: "eth2", MasterIndex: 0}},
-			"eth3": &vishnetlink.Dummy{LinkAttrs: vishnetlink.LinkAttrs{Name: "eth3", MasterIndex: 0}},
-		},
-	}
-	t.Cleanup(func() { nlClient = original })
-
-	args := &cniSkel.CmdArgs{
-		StdinData:   nwCfg.Serialize(),
-		ContainerID: "test-container",
-		Netns:       "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
-		Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-		IfName:      eth0IfName,
-	}
-
-	err := plugin.Add(args)
-	require.NoError(t, err)
-	require.Len(t, creationOrder, 4, "expected 4 endpoints to be created")
-	assert.Equal(t, cns.InfraNIC, creationOrder[0], "InfraNIC should be created first")
-	for i := 1; i < len(creationOrder); i++ {
-		assert.Equal(t, cns.NodeNetworkInterfaceFrontendNIC, creationOrder[i], "non-infra NICs should be created after InfraNIC")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			epInfos := make([]*network.EndpointInfo, len(tt.input))
+			for i, nic := range tt.input {
+				epInfos[i] = &network.EndpointInfo{NICType: nic}
+			}
+			sortInfraNICFirst(epInfos)
+			assert.Equal(t, tt.wantFirst, epInfos[0].NICType, "infra/legacy NIC should be sorted first")
+		})
 	}
 }

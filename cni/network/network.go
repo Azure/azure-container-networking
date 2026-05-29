@@ -647,6 +647,18 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	// SecondaryEndpointClient then moves eth1 into the pod namespace, and the subsequent InfraNIC
 	// iteration finds the network bound to that now-gone interface, causing
 	// TransparentEndpointClient.AddEndpoints to fail with "no such network interface".
+	sortInfraNICFirst(epInfos)
+
+	err = plugin.nm.EndpointCreate(cnsclient, epInfos)
+	if err != nil {
+		return errors.Wrap(err, "failed to create endpoint") // behavior can change if you don't assign to err prior to returning
+	}
+	return nil
+}
+
+// sortInfraNICFirst sorts endpoint infos so that InfraNIC (or legacy empty NICType)
+// entries come before all other NIC types, preserving relative order among equals.
+func sortInfraNICFirst(epInfos []*network.EndpointInfo) {
 	slices.SortStableFunc(epInfos, func(a, b *network.EndpointInfo) int {
 		if isInfraOrLegacyNICType(a.NICType) && !isInfraOrLegacyNICType(b.NICType) {
 			return -1
@@ -656,12 +668,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 		return 0
 	})
-
-	err = plugin.nm.EndpointCreate(cnsclient, epInfos)
-	if err != nil {
-		return errors.Wrap(err, "failed to create endpoint") // behavior can change if you don't assign to err prior to returning
-	}
-	return nil
 }
 
 // isInfraOrLegacyNICType returns true if the NIC type is InfraNIC or empty (legacy).
