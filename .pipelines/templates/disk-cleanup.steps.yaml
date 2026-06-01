@@ -1,0 +1,28 @@
+steps:
+  - script: |
+      set -e
+      echo "=== Tool locations BEFORE cleanup ==="
+      which go || true
+      go version || true
+      echo "=== Disk space BEFORE cleanup ==="
+      df -h /
+      echo "Removing unnecessary files to free up disk space..."
+      sudo rm -rf \
+        /opt/google/chrome \
+        /opt/microsoft/msedge \
+        /opt/microsoft/powershell \
+        /opt/pipx \
+        /usr/lib/mono \
+        /usr/local/julia* \
+        /usr/local/lib/android \
+        /usr/local/lib/node_modules \
+        /usr/local/share/chromium \
+        /usr/local/share/powershell \
+        /usr/share/dotnet \
+        /usr/share/swift
+      echo "=== Tool locations AFTER cleanup ==="
+      which go || true
+      go version || true
+      echo "=== Disk space AFTER cleanup ==="
+      df -h /
+    displayName: "Clean up disk space"
