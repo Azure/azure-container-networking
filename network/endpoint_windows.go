@@ -639,7 +639,7 @@ func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, net
 			}
 		}
 	}
-	return epInfo, errors.Wrapf(err, "No HNSEndpointID matches the IPAddress: "+ipAddresses[0].IP.String())
+	return epInfo, errors.Wrapf(err, "No HNSEndpointID matches the IPAddress: %s", ipAddresses[0].IP.String())
 }
 
 // Get PnP Device ID

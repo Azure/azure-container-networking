@@ -247,7 +247,7 @@ func (h Hnsv2wrapperwithtimeout) RemoveNamespaceEndpoint(namespaceId string, end
 	case res := <-r:
 		return res
 	case <-ctx.Done():
-		return errors.Wrapf(ErrHNSCallTimeout, "RemoveNamespaceEndpoint %w , timeout value is %s seconds", h.HnsCallTimeout.String())
+		return errors.Wrapf(ErrHNSCallTimeout, "RemoveNamespaceEndpoint, timeout value is %s seconds", h.HnsCallTimeout.String())
 	}
 }
 
@@ -270,7 +270,7 @@ func (h Hnsv2wrapperwithtimeout) GetNetworkByName(networkName string) (*hcn.Host
 	case res := <-r:
 		return res.network, res.Err
 	case <-ctx.Done():
-		return nil, errors.Wrapf(ErrHNSCallTimeout, "GetNetworkByName %w , timeout value is %s seconds", h.HnsCallTimeout.String())
+		return nil, errors.Wrapf(ErrHNSCallTimeout, "GetNetworkByName, timeout value is %s seconds", h.HnsCallTimeout.String())
 	}
 }
 
@@ -293,7 +293,7 @@ func (h Hnsv2wrapperwithtimeout) GetNetworkByID(networkId string) (*hcn.HostComp
 	case res := <-r:
 		return res.network, res.Err
 	case <-ctx.Done():
-		return nil, errors.Wrapf(ErrHNSCallTimeout, "GetNetworkByID %w , timeout value is %s seconds", h.HnsCallTimeout.String())
+		return nil, errors.Wrapf(ErrHNSCallTimeout, "GetNetworkByID, timeout value is %s seconds", h.HnsCallTimeout.String())
 	}
 }
 
@@ -316,7 +316,7 @@ func (h Hnsv2wrapperwithtimeout) GetEndpointByID(endpointId string) (*hcn.HostCo
 	case res := <-r:
 		return res.endpoint, res.Err
 	case <-ctx.Done():
-		return nil, errors.Wrapf(ErrHNSCallTimeout, "GetEndpointByID %w , timeout value is %s seconds", h.HnsCallTimeout.String())
+		return nil, errors.Wrapf(ErrHNSCallTimeout, "GetEndpointByID, timeout value is %s seconds", h.HnsCallTimeout.String())
 	}
 }
 
@@ -338,7 +338,7 @@ func (h Hnsv2wrapperwithtimeout) ListEndpointsOfNetwork(networkId string) ([]hcn
 	case res := <-r:
 		return res.endpoints, res.Err
 	case <-ctx.Done():
-		return nil, errors.Wrapf(ErrHNSCallTimeout, "ListEndpointsOfNetwork %w , timeout value is %s seconds", h.HnsCallTimeout.String())
+		return nil, errors.Wrapf(ErrHNSCallTimeout, "ListEndpointsOfNetwork, timeout value is %s seconds", h.HnsCallTimeout.String())
 	}
 }
 
@@ -379,7 +379,7 @@ func (h Hnsv2wrapperwithtimeout) ApplyEndpointPolicy(endpoint *hcn.HostComputeEn
 	case res := <-r:
 		return res
 	case <-ctx.Done():
-		return errors.Wrapf(ErrHNSCallTimeout, "ApplyEndpointPolicy %w , timeout value is %s seconds", h.HnsCallTimeout.String())
+		return errors.Wrapf(ErrHNSCallTimeout, "ApplyEndpointPolicy, timeout value is %s seconds", h.HnsCallTimeout.String())
 	}
 }
 
@@ -401,7 +401,7 @@ func (h Hnsv2wrapperwithtimeout) GetEndpointByName(endpointName string) (*hcn.Ho
 	case res := <-r:
 		return res.endpoint, res.Err
 	case <-ctx.Done():
-		return nil, errors.Wrapf(ErrHNSCallTimeout, "GetEndpointByName %w , timeout value is %s seconds", h.HnsCallTimeout.String())
+		return nil, errors.Wrapf(ErrHNSCallTimeout, "GetEndpointByName, timeout value is %s seconds", h.HnsCallTimeout.String())
 	}
 }
 
