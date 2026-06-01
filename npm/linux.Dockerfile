@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.25.8 AS builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.25.10 AS builder
 ARG VERSION
 ARG NPM_AI_PATH
 ARG NPM_AI_ID
@@ -13,14 +13,29 @@ COPY --from=builder /usr/local/bin/azure-npm /usr/bin/azure-npm
 # libc-bin:       CVE-2025-15281, CVE-2026-0861, CVE-2026-0915 (MEDIUM)
 # libc6:          CVE-2025-15281, CVE-2026-0861, CVE-2026-0915 (MEDIUM)
 # libtasn1-6:     CVE-2025-13151 (MEDIUM)
-# libgnutls30t64: CVE-2025-14831 (MEDIUM), CVE-2025-9820 (LOW)
+# dpkg:           CVE-2026-2219 (MEDIUM)
+# libcap2:        CVE-2026-4878 (MEDIUM)
+# libgcrypt20:    CVE-2026-41989 (MEDIUM)
+# libgnutls30t64: CVE-2026-33845, CVE-2026-33846, CVE-2026-3832, CVE-2026-3833,
+#                 CVE-2026-42009, CVE-2026-42010, CVE-2026-42011, CVE-2026-42012,
+#                 CVE-2026-42013, CVE-2026-42014, CVE-2026-42015, CVE-2026-5260,
+#                 CVE-2026-5419 (MEDIUM)
+# libsystemd0:    CVE-2026-29111 (MEDIUM)
+# libudev1:       CVE-2026-29111 (MEDIUM)
+# sed:            CVE-2026-5958 (MEDIUM)
 RUN apt-get update && apt-get install -y \
     iptables ipset ca-certificates \
     gpgv=2.4.4-2ubuntu17.4 \
     libc-bin=2.39-0ubuntu8.7 \
     libc6=2.39-0ubuntu8.7 \
     libtasn1-6=4.19.0-3ubuntu0.24.04.2 \
-    libgnutls30t64=3.8.3-1.1ubuntu3.5 \
+    dpkg=1.22.6ubuntu6.6 \
+    libcap2=1:2.66-5ubuntu2.4 \
+    libgcrypt20=1.10.3-2ubuntu0.1 \
+    libgnutls30t64=3.8.3-1.1ubuntu3.6 \
+    libsystemd0=255.4-1ubuntu8.14 \
+    libudev1=255.4-1ubuntu8.14 \
+    sed=4.9-2ubuntu0.24.04.1 \
     && apt-get autoremove -y && apt-get clean
 RUN chmod +x /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
