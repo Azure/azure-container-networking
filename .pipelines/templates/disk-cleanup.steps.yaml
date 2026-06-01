@@ -8,7 +8,6 @@ steps:
       df -h /
       echo "Removing unnecessary files to free up disk space..."
       sudo rm -rf \
-        /opt/hostedtoolcache \
         /opt/google/chrome \
         /opt/microsoft/msedge \
         /opt/microsoft/powershell \
