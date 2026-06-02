@@ -290,9 +290,9 @@ jobs:
             sudo rm -rf /usr/local/go && sudo mv /tmp/usr/local/go /usr/local/go
           fi
           echo "/usr/local/go/bin" >> "$GITHUB_PATH"
-          # Install renderkit from repo's pinned tools.go.mod
+          # Install renderkit from repo's pinned tools-go/go.mod
           GOPATH=$(go env GOPATH 2>/dev/null || echo "$HOME/go")
-          RENDERKIT_VER=$(grep 'orellazri/renderkit' tools.go.mod | awk '{print $2}')
+          RENDERKIT_VER=$(grep 'orellazri/renderkit' tools-go/go.mod | awk '{print $2}')
           go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
 
@@ -347,13 +347,13 @@ jobs:
           # Regenerate template Dockerfiles (picks up new digest via skopeo)
           make dockerfiles
 
-          # If Go version changed in the image, also bump go.mod and tools.go.mod
+          # If Go version changed in the image, also bump go.mod and tools-go/go.mod
           if [ "$GO_VERSION_CHANGED" = "true" ] && [ "$LATEST_GO_VERSION" != "UNKNOWN" ]; then
             sed -i "s/^go ${GOMOD_VERSION}/go ${LATEST_GO_VERSION}/" go.mod
             go mod tidy
-            if [ -f tools.go.mod ]; then
-              sed -i "s/^go .*/go ${LATEST_GO_VERSION}/" tools.go.mod
-              go mod tidy -modfile=tools.go.mod
+            if [ -f tools-go/go.mod ]; then
+              sed -i "s/^go .*/go ${LATEST_GO_VERSION}/" tools-go/go.mod
+              go mod tidy -modfile=tools-go/go.mod
             fi
           fi
 
@@ -395,12 +395,12 @@ jobs:
           sed -i "s|\(GO_IMG.*\?=.*golang:\)${GO_MINOR}-${BASE_OS}|\1${LATEST_PATCH}-${BASE_OS}|" \
             build/images.mk
 
-          # 2. Update go.mod and tools.go.mod
+          # 2. Update go.mod and tools-go/go.mod
           sed -i "s/^go ${GOMOD_VERSION}/go ${LATEST_PATCH}/" go.mod
           go mod tidy
-          if [ -f tools.go.mod ]; then
-            sed -i "s/^go .*/go ${LATEST_PATCH}/" tools.go.mod
-            go mod tidy -modfile=tools.go.mod
+          if [ -f tools-go/go.mod ]; then
+            sed -i "s/^go .*/go ${LATEST_PATCH}/" tools-go/go.mod
+            go mod tidy -modfile=tools-go/go.mod
           fi
 
           # 3. Update install-go.sh
@@ -566,38 +566,103 @@ jobs:
             sudo rm -rf /usr/local/go && sudo mv /tmp/usr/local/go /usr/local/go
           fi
           echo "/usr/local/go/bin" >> "$GITHUB_PATH"
-          # Install renderkit from repo's pinned tools.go.mod
+          # Install renderkit from repo's pinned tools-go/go.mod
           GOPATH=$(go env GOPATH 2>/dev/null || echo "$HOME/go")
-          RENDERKIT_VER=$(grep 'orellazri/renderkit' tools.go.mod | awk '{print $2}')
+          RENDERKIT_VER=$(grep 'orellazri/renderkit' tools-go/go.mod | awk '{print $2}')
           go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
+
+      - name: Fetch MS Go FIPS requirements for target version
+        id: msgo_fips
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_MINOR: ${{ needs.check-go-update.outputs.go_minor }}
+        run: |
+          # Fetch authoritative FIPS/crypto docs from microsoft/go
+          # This ensures the workflow adapts automatically when requirements change between versions
+          TARGET_MIN_NUM=$(echo "$TARGET_MINOR" | cut -d. -f2)
+
+          NOCGO_DOC=$(gh api "repos/microsoft/go/contents/eng/doc/NocgoOpenSSL.md?ref=microsoft/main" \
+            --jq '.content' | base64 -d 2>/dev/null || echo "")
+
+          # Determine GOEXPERIMENT requirements based on version and CGO setting
+          # Source: https://github.com/microsoft/go/blob/microsoft/main/eng/doc/NocgoOpenSSL.md
+          #
+          # Go 1.27+: systemcrypto works without cgo (nocgo backend is default on Linux)
+          # Go 1.26:  systemcrypto REQUIRES CGO_ENABLED=1; CGO_ENABLED=0 cannot use it
+          #           (experimental ms_nocgo_opensslcrypto exists but is not production-ready)
+          # Go <1.26: no systemcrypto support
+          if [ "$TARGET_MIN_NUM" -ge 27 ]; then
+            echo "goexp_cgo1=systemcrypto" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=systemcrypto" >> "$GITHUB_OUTPUT"
+            echo "nocgo_default=true" >> "$GITHUB_OUTPUT"
+          elif [ "$TARGET_MIN_NUM" -ge 26 ]; then
+            echo "goexp_cgo1=systemcrypto" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=" >> "$GITHUB_OUTPUT"
+            echo "nocgo_default=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "goexp_cgo1=" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=" >> "$GITHUB_OUTPUT"
+            echo "nocgo_default=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Check version-specific docs for any breaking changes
+          VERSION_DOC=$(gh api "repos/microsoft/go/contents/docs/go1.${TARGET_MIN_NUM}.md?ref=microsoft/main" \
+            --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo "")
+          if [ -n "$VERSION_DOC" ]; then
+            echo "::notice::Found MS Go version-specific docs for 1.${TARGET_MIN_NUM}"
+            echo "has_version_doc=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_version_doc=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "::notice::FIPS rules for Go 1.${TARGET_MIN_NUM}: CGO=1 → GOEXPERIMENT=$([ $TARGET_MIN_NUM -ge 26 ] && echo systemcrypto || echo none), CGO=0 → GOEXPERIMENT=$([ $TARGET_MIN_NUM -ge 27 ] && echo systemcrypto || echo none)"
 
       - name: Check prerequisites on release branch
         id: prereqs
         env:
           TARGET_MINOR: ${{ needs.check-go-update.outputs.go_minor }}
           MATRIX_BRANCH: ${{ matrix.branch }}
+          GOEXP_CGO1: ${{ steps.msgo_fips.outputs.goexp_cgo1 }}
+          GOEXP_CGO0: ${{ steps.msgo_fips.outputs.goexp_cgo0 }}
         run: |
-          # Check if release branch has FIPS setup (needed for Go 1.26+)
-          # Verify GOEXPERIMENT is in ALL Dockerfile templates and pipeline build scripts
-          HAS_GOEXPERIMENT="true"
-          MISSING_GOEXPERIMENT=""
-          # Check ALL Dockerfile templates that use a Go build stage
-          while IFS= read -r tmpl; do
-            if grep -q "golang" "$tmpl" && ! grep -q "GOEXPERIMENT=systemcrypto" "$tmpl"; then
-              HAS_GOEXPERIMENT="false"
-              MISSING_GOEXPERIMENT="${MISSING_GOEXPERIMENT} ${tmpl}"
-            fi
-          done < <(find . -name '*.Dockerfile.tmpl' -o -name 'Dockerfile.tmpl' | grep -v vendor || true)
-          # Check ALL pipeline build scripts that invoke go build
-          while IFS= read -r script; do
-            if grep -q "go build\|go install\|CGO_ENABLED" "$script" && ! grep -q "GOEXPERIMENT=systemcrypto" "$script"; then
-              HAS_GOEXPERIMENT="false"
-              MISSING_GOEXPERIMENT="${MISSING_GOEXPERIMENT} ${script}"
-            fi
-          done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
-          if [ -n "$MISSING_GOEXPERIMENT" ]; then
-            echo "::warning::GOEXPERIMENT missing from:$MISSING_GOEXPERIMENT"
+          # Check if release branch has correct FIPS setup for the target Go version
+          # GOEXPERIMENT=systemcrypto is only required where CGO_ENABLED=1
+          # For CGO_ENABLED=0 scripts/Dockerfiles, GOEXPERIMENT should NOT be set (Go 1.26)
+          FIPS_CORRECT="true"
+          FIPS_ISSUES=""
+
+          # Check scripts that use CGO_ENABLED=1 — these MUST have GOEXPERIMENT
+          if [ -n "$GOEXP_CGO1" ]; then
+            while IFS= read -r script; do
+              if grep -q "CGO_ENABLED=1" "$script" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO1" "$script"; then
+                FIPS_CORRECT="false"
+                FIPS_ISSUES="${FIPS_ISSUES} ${script}(missing GOEXPERIMENT for CGO=1)"
+              fi
+            done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
+          fi
+
+          # Check scripts that use CGO_ENABLED=0 — these should NOT have GOEXPERIMENT (Go 1.26)
+          if [ -z "$GOEXP_CGO0" ]; then
+            while IFS= read -r script; do
+              if grep -q "CGO_ENABLED=0" "$script" && grep -q "GOEXPERIMENT=systemcrypto" "$script"; then
+                FIPS_CORRECT="false"
+                FIPS_ISSUES="${FIPS_ISSUES} ${script}(incorrect GOEXPERIMENT with CGO=0)"
+              fi
+            done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
+          fi
+
+          # Check Dockerfiles with CGO_ENABLED=1 — need GOEXPERIMENT
+          if [ -n "$GOEXP_CGO1" ]; then
+            while IFS= read -r tmpl; do
+              if grep -q "CGO_ENABLED=1" "$tmpl" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO1" "$tmpl"; then
+                FIPS_CORRECT="false"
+                FIPS_ISSUES="${FIPS_ISSUES} ${tmpl}(missing GOEXPERIMENT for CGO=1)"
+              fi
+            done < <(find . -name '*.Dockerfile.tmpl' -o -name 'Dockerfile.tmpl' -o -name '*.Dockerfile' | grep -v vendor || true)
+          fi
+
+          if [ -n "$FIPS_ISSUES" ]; then
+            echo "::warning::FIPS configuration issues:$FIPS_ISSUES"
           fi
 
           HAS_DISTROLESS_BASE="false"
@@ -611,18 +676,17 @@ jobs:
           BRANCH_GO_MINOR=$(echo "$BRANCH_GO_TAG" | grep -oP '^\d+\.\d+')
 
           echo "branch_go_minor=$BRANCH_GO_MINOR" >> "$GITHUB_OUTPUT"
-          echo "has_goexperiment=$HAS_GOEXPERIMENT" >> "$GITHUB_OUTPUT"
+          echo "fips_correct=$FIPS_CORRECT" >> "$GITHUB_OUTPUT"
           echo "has_distroless_base=$HAS_DISTROLESS_BASE" >> "$GITHUB_OUTPUT"
 
-          # If master is bumping to a version that requires FIPS and release branch
-          # doesn't have FIPS, we can't auto-backport — need manual intervention
+          # If target version requires FIPS and release branch isn't set up correctly
           TARGET_MIN_NUM=$(echo "$TARGET_MINOR" | cut -d. -f2)
           FIPS_NEEDED="false"
-          if [ "$TARGET_MIN_NUM" -ge 26 ] && [ "$HAS_GOEXPERIMENT" = "false" ]; then
+          if [ "$TARGET_MIN_NUM" -ge 26 ] && [ "$FIPS_CORRECT" = "false" ]; then
             FIPS_NEEDED="true"
           fi
           echo "fips_needed=$FIPS_NEEDED" >> "$GITHUB_OUTPUT"
-          echo "::notice::Release branch ${MATRIX_BRANCH}: Go=$BRANCH_GO_MINOR, FIPS=$HAS_GOEXPERIMENT+$HAS_DISTROLESS_BASE, FIPS needed=$FIPS_NEEDED"
+          echo "::notice::Release branch ${MATRIX_BRANCH}: Go=$BRANCH_GO_MINOR, FIPS correct=$FIPS_CORRECT, distroless/base=$HAS_DISTROLESS_BASE, FIPS needed=$FIPS_NEEDED"
 
       - name: Check for existing backport PR
         id: existing_bp
@@ -657,8 +721,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           MATRIX_BRANCH: ${{ matrix.branch }}
-          HAS_GOEXPERIMENT: ${{ steps.prereqs.outputs.has_goexperiment }}
+          FIPS_CORRECT: ${{ steps.prereqs.outputs.fips_correct }}
           HAS_DISTROLESS_BASE: ${{ steps.prereqs.outputs.has_distroless_base }}
+          GOEXP_CGO1: ${{ steps.msgo_fips.outputs.goexp_cgo1 }}
+          GOEXP_CGO0: ${{ steps.msgo_fips.outputs.goexp_cgo0 }}
         run: |
           # Check for existing open prerequisite issue (dedup)
           EXISTING_ISSUE=$(gh issue list \
@@ -680,20 +746,27 @@ jobs:
             --body "## Prerequisites Needed on \`${MATRIX_BRANCH}\`
 
           The Go version automation detected a digest/patch update on master, but
-          \`${MATRIX_BRANCH}\` is missing FIPS prerequisites needed for the current Go version.
+          \`${MATRIX_BRANCH}\` has incorrect FIPS configuration for the current Go version.
 
-          **Missing on \`${MATRIX_BRANCH}\`:**
-          - GOEXPERIMENT=systemcrypto: \`${HAS_GOEXPERIMENT}\`
+          **Current FIPS status on \`${MATRIX_BRANCH}\`:**
+          - FIPS correctly configured: \`${FIPS_CORRECT}\`
           - distroless/base: \`${HAS_DISTROLESS_BASE}\`
+
+          **FIPS rules (from [MS Go docs](https://github.com/microsoft/go/blob/microsoft/main/eng/doc/NocgoOpenSSL.md)):**
+          - CGO_ENABLED=1 scripts/Dockerfiles: GOEXPERIMENT=\`${GOEXP_CGO1}\`
+          - CGO_ENABLED=0 scripts/Dockerfiles: GOEXPERIMENT=\`${GOEXP_CGO0:-<none>}\`
 
           **Action required:**
           1. Backport FIPS base image changes to \`${MATRIX_BRANCH}\`:
              - Update \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` to \`distroless/base:3.0\`
              - Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` runtime to \`azurelinux/distroless/base:3.0\`
-          2. Add \`GOEXPERIMENT=systemcrypto\` to all templates and pipeline scripts
-          3. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` if present
-          4. Run \`make dockerfiles\` to regenerate
-          5. After merged, the next automation run will auto-backport the Go version bump
+          2. Add \`GOEXPERIMENT=systemcrypto\` ONLY to scripts/Dockerfiles where \`CGO_ENABLED=1\`
+          3. REMOVE \`GOEXPERIMENT=systemcrypto\` from scripts/Dockerfiles where \`CGO_ENABLED=0\`
+          4. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` if present
+          5. Run \`make dockerfiles\` to regenerate
+          6. After merged, the next automation run will auto-backport the Go version bump
+
+          **Reference:** https://github.com/microsoft/go/blob/microsoft/main/eng/doc/NocgoOpenSSL.md
 
           Follow \`.github/copilot-instructions.md\` for full FIPS setup details.
 
@@ -731,9 +804,9 @@ jobs:
             CURRENT_GOMOD=$(grep -oP '^go \K[0-9.]+' go.mod)
             sed -i "s/^go ${CURRENT_GOMOD}/go ${LATEST_GO_VERSION}/" go.mod
             go mod tidy
-            if [ -f tools.go.mod ]; then
-              sed -i "s/^go .*/go ${LATEST_GO_VERSION}/" tools.go.mod
-              go mod tidy -modfile=tools.go.mod
+            if [ -f tools-go/go.mod ]; then
+              sed -i "s/^go .*/go ${LATEST_GO_VERSION}/" tools-go/go.mod
+              go mod tidy -modfile=tools-go/go.mod
             fi
           fi
 
@@ -779,9 +852,9 @@ jobs:
             CURRENT_GOMOD=$(grep -oP '^go \K[0-9.]+' go.mod)
             sed -i "s/^go ${CURRENT_GOMOD}/go ${LATEST_PATCH}/" go.mod
             go mod tidy
-            if [ -f tools.go.mod ]; then
-              sed -i "s/^go .*/go ${LATEST_PATCH}/" tools.go.mod
-              go mod tidy -modfile=tools.go.mod
+            if [ -f tools-go/go.mod ]; then
+              sed -i "s/^go .*/go ${LATEST_PATCH}/" tools-go/go.mod
+              go mod tidy -modfile=tools-go/go.mod
             fi
 
             sed -i "s|DEFAULT_IMAGE=\"${MCR_IMG}@sha256:[a-f0-9]*\"|DEFAULT_IMAGE=\"${MCR_IMG}@${LATEST_PATCH_DIGEST}\"|" \
@@ -899,25 +972,62 @@ jobs:
             --jq 'length')
           echo "existing_count=$EXISTING" >> "$GITHUB_OUTPUT"
 
+      - name: Fetch MS Go FIPS requirements
+        id: msgo_fips_tier3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST_MINOR: ${{ needs.check-go-update.outputs.latest_minor }}
+        run: |
+          # Fetch FIPS/crypto requirements from microsoft/go for the TARGET version
+          TARGET_MIN_NUM=$(echo "$LATEST_MINOR" | grep -oP '^\d+\.(\d+)' | cut -d. -f2)
+
+          # Determine GOEXPERIMENT rules per version
+          if [ "$TARGET_MIN_NUM" -ge 27 ]; then
+            echo "goexp_cgo1=systemcrypto" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=systemcrypto" >> "$GITHUB_OUTPUT"
+          elif [ "$TARGET_MIN_NUM" -ge 26 ]; then
+            echo "goexp_cgo1=systemcrypto" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=" >> "$GITHUB_OUTPUT"
+          else
+            echo "goexp_cgo1=" >> "$GITHUB_OUTPUT"
+            echo "goexp_cgo0=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Detect FIPS readiness
         id: fips
+        env:
+          GOEXP_CGO1: ${{ steps.msgo_fips_tier3.outputs.goexp_cgo1 }}
+          GOEXP_CGO0: ${{ steps.msgo_fips_tier3.outputs.goexp_cgo0 }}
         run: |
-          # Check if FIPS setup is in place across ALL required files
-          HAS_GOEXPERIMENT="true"
-          # Check ALL Dockerfile templates that use a Go build stage
-          while IFS= read -r tmpl; do
-            if grep -q "golang" "$tmpl" && ! grep -q "GOEXPERIMENT=systemcrypto" "$tmpl"; then
-              HAS_GOEXPERIMENT="false"
-              echo "::warning::GOEXPERIMENT missing from $tmpl"
-            fi
-          done < <(find . -name '*.Dockerfile.tmpl' -o -name 'Dockerfile.tmpl' | grep -v vendor || true)
-          # Check ALL pipeline build scripts that invoke go build
-          while IFS= read -r script; do
-            if grep -q "go build\|go install\|CGO_ENABLED" "$script" && ! grep -q "GOEXPERIMENT=systemcrypto" "$script"; then
-              HAS_GOEXPERIMENT="false"
-              echo "::warning::GOEXPERIMENT missing from $script"
-            fi
-          done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
+          # Check if FIPS setup is correct — only require GOEXPERIMENT where CGO_ENABLED=1
+          FIPS_CORRECT="true"
+
+          # CGO_ENABLED=1 scripts must have GOEXPERIMENT if required
+          if [ -n "$GOEXP_CGO1" ]; then
+            while IFS= read -r script; do
+              if grep -q "CGO_ENABLED=1" "$script" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO1" "$script"; then
+                FIPS_CORRECT="false"
+                echo "::warning::GOEXPERIMENT=$GOEXP_CGO1 missing from CGO=1 script: $script"
+              fi
+            done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
+
+            while IFS= read -r tmpl; do
+              if grep -q "CGO_ENABLED=1" "$tmpl" && ! grep -q "GOEXPERIMENT=$GOEXP_CGO1" "$tmpl"; then
+                FIPS_CORRECT="false"
+                echo "::warning::GOEXPERIMENT=$GOEXP_CGO1 missing from CGO=1 Dockerfile: $tmpl"
+              fi
+            done < <(find . -name '*.Dockerfile.tmpl' -o -name 'Dockerfile.tmpl' -o -name '*.Dockerfile' | grep -v vendor || true)
+          fi
+
+          # CGO_ENABLED=0 scripts should NOT have GOEXPERIMENT (unless Go 1.27+ where it works without cgo)
+          if [ -z "$GOEXP_CGO0" ]; then
+            while IFS= read -r script; do
+              if grep -q "CGO_ENABLED=0" "$script" && grep -q "GOEXPERIMENT=systemcrypto" "$script"; then
+                FIPS_CORRECT="false"
+                echo "::warning::Incorrect GOEXPERIMENT in CGO=0 script: $script"
+              fi
+            done < <(find .pipelines/build/scripts -name '*.sh' -type f 2>/dev/null || true)
+          fi
 
           HAS_DISTROLESS_BASE="false"
           if grep -q "distroless/base" build/images.mk 2>/dev/null; then
@@ -925,11 +1035,11 @@ jobs:
           fi
 
           FIPS_READY="false"
-          if [ "$HAS_GOEXPERIMENT" = "true" ] && [ "$HAS_DISTROLESS_BASE" = "true" ]; then
+          if [ "$FIPS_CORRECT" = "true" ] && [ "$HAS_DISTROLESS_BASE" = "true" ]; then
             FIPS_READY="true"
           fi
           echo "fips_ready=$FIPS_READY" >> "$GITHUB_OUTPUT"
-          echo "::notice::FIPS ready: $FIPS_READY (GOEXPERIMENT=$HAS_GOEXPERIMENT, distroless/base=$HAS_DISTROLESS_BASE)"
+          echo "::notice::FIPS ready: $FIPS_READY (FIPS correct=$FIPS_CORRECT, distroless/base=$HAS_DISTROLESS_BASE)"
 
       - name: Create issue and assign Copilot agent
         if: steps.existing.outputs.existing_count == '0'
@@ -940,26 +1050,45 @@ jobs:
           LATEST_MINOR_TAG: ${{ needs.check-go-update.outputs.latest_minor_tag }}
           GOMOD_VER: ${{ needs.check-go-update.outputs.gomod_version }}
           FIPS_READY: ${{ steps.fips.outputs.fips_ready }}
+          GOEXP_CGO1: ${{ steps.msgo_fips_tier3.outputs.goexp_cgo1 }}
+          GOEXP_CGO0: ${{ steps.msgo_fips_tier3.outputs.goexp_cgo0 }}
           REPO: ${{ github.repository }}
         run: |
           LATEST_MINOR_BASE=$(echo "$LATEST_MINOR" | grep -oP '^\d+\.\d+')
           LATEST_MIN_NUM=$(echo "$LATEST_MINOR_BASE" | cut -d. -f2)
 
-          # Build FIPS instructions based on current state
+          # Build FIPS instructions based on current state and target version
           FIPS_SECTION=""
           if [ "$FIPS_READY" = "true" ]; then
             FIPS_SECTION="
           ### FIPS Status: ✅ Already configured
-          GOEXPERIMENT=systemcrypto and distroless/base are already in place.
+          GOEXPERIMENT and distroless/base are already correctly configured.
           No FIPS changes needed for this upgrade."
+          elif [ "$LATEST_MIN_NUM" -ge 27 ]; then
+            FIPS_SECTION="
+          ### ⚠️ FIPS / System Crypto Requirements
+          Go 1.27+ lifts the cgo requirement for systemcrypto on Linux.
+          \`GOEXPERIMENT=systemcrypto\` can now be set in ALL scripts/Dockerfiles regardless of CGO setting.
+          Reference: https://github.com/microsoft/go/blob/microsoft/main/eng/doc/NocgoOpenSSL.md
+
+          1. Set \`GOEXPERIMENT=systemcrypto\` in ALL Dockerfile templates and pipeline build scripts
+          2. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles if present
+          3. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
+          4. Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` runtime base to \`azurelinux/distroless/base:3.0\`"
           elif [ "$LATEST_MIN_NUM" -ge 26 ]; then
             FIPS_SECTION="
-          ### ⚠️ FIPS / System Crypto Requirements (NOT YET CONFIGURED)
-          Go 1.26+ requires system crypto for FIPS compliance. You MUST:
-          1. Set \`GOEXPERIMENT=systemcrypto\` in all Dockerfile templates (\`.tmpl\` files) and pipeline build scripts (\`.pipelines/build/scripts/*.sh\`)
-          2. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles if present
-          3. Change \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` from \`distroless/minimal\` to \`distroless/base\`
-          4. Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` runtime base to \`azurelinux/distroless/base:3.0\`"
+          ### ⚠️ FIPS / System Crypto Requirements
+          Go 1.26 requires \`CGO_ENABLED=1\` for \`GOEXPERIMENT=systemcrypto\` to work.
+          Reference: https://github.com/microsoft/go/blob/microsoft/main/eng/doc/NocgoOpenSSL.md
+
+          **CRITICAL: Only set GOEXPERIMENT=systemcrypto where CGO_ENABLED=1.**
+          For CGO_ENABLED=0 builds, do NOT set GOEXPERIMENT (it has no effect and is misleading).
+
+          1. Add \`GOEXPERIMENT=systemcrypto\` ONLY in scripts/Dockerfiles with \`CGO_ENABLED=1\` (e.g., cilium-log-collector)
+          2. REMOVE \`GOEXPERIMENT=systemcrypto\` from scripts/Dockerfiles with \`CGO_ENABLED=0\`
+          3. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles if present
+          4. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
+          5. Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` runtime base to \`azurelinux/distroless/base:3.0\`"
           fi
 
           # Agent instructions embedded in issue body
@@ -971,43 +1100,57 @@ jobs:
 
           ### Instructions for Copilot Agent
 
-          Follow the Go Version Upgrade Procedure in \`.github/copilot-instructions.md\`.
+          Use the \`acn-go-version-bump\` skill (\`.github/skills/acn-go-version-bump/SKILL.md\`).
 
-          **Before making changes:**
-          1. Read the [Go ${LATEST_MINOR_BASE} release notes](https://go.dev/doc/go${LATEST_MINOR_BASE}) and identify any breaking changes or deprecated APIs
-          2. Check if any new build flags or environment variables are required
-          3. Verify that key dependencies (controller-runtime, client-go, etc.) support Go ${LATEST_MINOR_BASE}
+          **Step 0 (MANDATORY): Analyze MS Go Documentation**
 
-          **Required changes:**
+          Before making ANY code changes, fetch and analyze ALL relevant MS Go docs for version ${LATEST_MINOR_BASE}:
+
+          \`\`\`bash
+          # Fetch all docs — analyze each for requirements that affect this repo
+          gh api \"repos/microsoft/go/contents/docs/go${LATEST_MINOR_BASE}.md?ref=microsoft/main\" --jq '.content' | base64 -d
+          gh api \"repos/microsoft/go/contents/eng/doc/NocgoOpenSSL.md?ref=microsoft/main\" --jq '.content' | base64 -d
+          gh api \"repos/microsoft/go/contents/eng/doc/MigrationGuide.md?ref=microsoft/main\" --jq '.content' | base64 -d
+          gh api \"repos/microsoft/go/contents/eng/doc/fips/UserGuide.md?ref=microsoft/main\" --jq '.content' | base64 -d
+          gh api \"repos/microsoft/go/contents/eng/doc/AdditionalFeatures.md?ref=microsoft/main\" --jq '.content' | base64 -d
+          \`\`\`
+
+          Produce a **Requirements Matrix** that cross-references the docs against this repo:
+          - Build environment: GOEXPERIMENT rules per CGO setting, build flags, GOTOOLCHAIN behavior
+          - Runtime: required system libraries, base image requirements, architecture limits
+          - Crypto/FIPS: which backend is selected, CGO requirements, API behavior changes
+          - Compatibility: deprecated APIs, module system changes, dependency support
+
+          **Include the Requirements Matrix in your PR description.**
+
+          **Step 1: Execute Changes (based on your analysis)**
+
           1. Update \`build/images.mk\`: \`GO_IMG\` → \`${MCR_REPO}:${LATEST_MINOR}-${BASE_OS}\`
-          2. Update \`go.mod\`: \`go ${LATEST_MINOR}\`
-          3. Update \`tools.go.mod\`: \`go ${LATEST_MINOR}\`
-          4. Run \`go mod tidy\` and \`go mod tidy -modfile=tools.go.mod\` — resolve any dependency conflicts
-          5. Check \`cilium-log-collector/go.mod\` and any other sub-module go.mod files — update if appropriate
-          6. Get new SHA: \`skopeo inspect docker://${MCR_REPO}:${LATEST_MINOR}-${BASE_OS} --format \"{{.Digest}}\"\`
-          7. Update \`.pipelines/build/scripts/install-go.sh\` \`DEFAULT_IMAGE\` with new SHA
-          8. Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` Go image SHA
-          9. Update \`npm/linux.Dockerfile\` and \`npm/windows.Dockerfile\` tags to \`${LATEST_MINOR}\`
-          10. Update \`.devcontainer/Dockerfile\` VARIANT
-          11. Run \`make dockerfiles\` to regenerate all template Dockerfiles
-          12. Run \`go build ./...\` to verify compilation
-          13. Run \`go vet ./...\` to check for issues
+          2. Update \`go.mod\` and \`tools-go/go.mod\` (use \`.1\` minimum patch)
+          3. Run \`go mod tidy\` on both modules
+          4. Apply FIPS/crypto changes per your doc analysis (do NOT blindly reuse previous version's rules)
+          5. Update all SHA references (install-go.sh, bpf-prog, npm Dockerfiles)
+          6. Run \`make dockerfiles\`
+          7. Run \`go build ./...\` and \`go vet ./...\`
+
+          **Key dependency check:** Verify controller-runtime, client-go, and cilium support Go ${LATEST_MINOR_BASE}
           ${FIPS_SECTION}
 
           ### Acceptance Criteria
-          - [ ] All files listed above are updated on master
+          - [ ] Requirements Matrix included in PR description
+          - [ ] All version sources updated consistently
           - [ ] \`go build ./...\` passes
           - [ ] \`make dockerfiles\` output matches committed files
-          - [ ] No new \`replace\` directives added to go.mod (unless absolutely necessary)
-          - [ ] PR description summarizes any breaking changes found
-          - [ ] **Backport PR created for \`release/v1.7\`** with same changes (see below)
+          - [ ] No new \`replace\` directives (unless necessary and explained)
+          - [ ] FIPS/crypto config correct per MS Go docs for THIS specific version
+          - [ ] **Backport PR created for \`release/v1.7\`**
 
           ### Backport to \`release/v1.7\`
 
           After the master PR is complete, create a **second PR** targeting \`release/v1.7\`:
           1. Check out \`release/v1.7\`
           2. Apply the same Go version + SHA changes
-          3. If \`release/v1.7\` is missing FIPS prerequisites (GOEXPERIMENT, distroless/base), add those too
+          3. If \`release/v1.7\` is missing prerequisites (based on your analysis), add those too
           4. Run \`make dockerfiles\` and \`go mod tidy\` on that branch
           5. Title: \`chore(release/v1.7): upgrade Go ${GO_MINOR} → ${LATEST_MINOR}\`
           6. Verify \`go build ./...\` passes on release branch
