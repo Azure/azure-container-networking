@@ -1,7 +1,7 @@
 .DEFAULT_GOAL = all
 
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
-CONTROLLER_GEN = go tool -modfile=$(REPO_ROOT)/tools.go.mod controller-gen
+CONTROLLER_GEN = go tool -modfile=$(REPO_ROOT)/tools-go/go.mod controller-gen
 
 all: generate manifests
 

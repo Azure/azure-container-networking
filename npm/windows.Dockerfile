@@ -5,7 +5,6 @@ ARG NPM_AI_PATH
 ARG NPM_AI_ID
 WORKDIR /usr/local/src
 COPY . .
-ENV GOEXPERIMENT=systemcrypto
 RUN GOOS=windows CGO_ENABLED=0 go build -v -o /usr/local/bin/azure-npm.exe -ldflags "-s -w -X main.version="$VERSION" -X "$NPM_AI_PATH"="$NPM_AI_ID"" -gcflags="-dwarflocationlists=true" npm/cmd/*.go
 
 # intermediate for win-ltsc2022

@@ -10,7 +10,6 @@ FROM mcr.microsoft.com/azurelinux/distroless/base@sha256:32820d2cf20e896aa911174
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0
 FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:eb3ce814e96f3319f1b5985021021682b47975f6decfe00eaac84abff0ae25c9 AS go
-ENV GOEXPERIMENT=systemcrypto
 
 
 FROM go AS azure-iptables-monitor

@@ -6,7 +6,6 @@ ARG DEBUG
 ARG OS
 ARG ARCH
 WORKDIR /bpf-prog/ipv6-hp-bpf
-ENV GOEXPERIMENT=systemcrypto
 COPY ./bpf-prog/ipv6-hp-bpf .
 COPY ./bpf-prog/ipv6-hp-bpf/cmd/ipv6-hp-bpf/*.go /bpf-prog/ipv6-hp-bpf/
 COPY ./bpf-prog/ipv6-hp-bpf/include/helper.h /bpf-prog/ipv6-hp-bpf/include/helper.h

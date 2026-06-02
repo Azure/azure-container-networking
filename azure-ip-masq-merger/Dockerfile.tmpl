@@ -5,7 +5,6 @@ ARG OS
 
 # {{.GO_IMG}}
 FROM --platform=linux/${ARCH} {{.GO_PIN}} AS go
-ENV GOEXPERIMENT=systemcrypto
 
 FROM go AS azure-ip-masq-merger
 ARG OS

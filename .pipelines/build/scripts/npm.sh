@@ -4,7 +4,6 @@ set -eux
 [[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
 export CGO_ENABLED=0
-export GOEXPERIMENT=systemcrypto
 
 mkdir -p "$OUT_DIR"/files
 mkdir -p "$OUT_DIR"/bin

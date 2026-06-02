@@ -5,7 +5,6 @@ set -eux
 FILE_EXT=''
 
 export CGO_ENABLED=0
-export GOEXPERIMENT=systemcrypto
 
 mkdir -p "$OUT_DIR"/bin
 mkdir -p "$OUT_DIR"/files
