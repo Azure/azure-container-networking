@@ -298,8 +298,8 @@ func SerializeHcnSubnetVlanPolicy(vlanID uint32) ([]byte, error) {
 	return vlanSubnetPolicyBytes, nil
 }
 
-// GetHcnNetAdapterPolicy returns network adapter name policy.
-func GetHcnNetAdapterPolicy(networkAdapterName string) (hcn.NetworkPolicy, error) {
+// GetHcnNetAdapterNamePolicy returns network adapter name policy.
+func GetHcnNetAdapterNamePolicy(networkAdapterName string) (hcn.NetworkPolicy, error) {
 	networkAdapterNamePolicy := hcn.NetworkPolicy{
 		Type: hcn.NetAdapterName,
 	}
@@ -316,6 +316,31 @@ func GetHcnNetAdapterPolicy(networkAdapterName string) (hcn.NetworkPolicy, error
 	networkAdapterNamePolicy.Settings = netAdapterNamePolicySettingBytes
 
 	return networkAdapterNamePolicy, nil
+}
+
+// TODO: estebanca: This type must be from hcsshim
+type ProviderAddressNetworkPolicySetting struct {
+	ProviderAddress string `json:"ProviderAddress"`
+}
+
+func GetHcnNetAdapterAddressPolicy(networkAdapterAddress string) (hcn.NetworkPolicy, error) {
+
+	networkAdapterAddressPolicy := hcn.NetworkPolicy{
+		Type: hcn.ProviderAddress,
+	}
+
+	netAdapterAddressPolicySetting := &ProviderAddressNetworkPolicySetting{
+		ProviderAddress: networkAdapterAddress,
+	}
+
+	netAdapterAddressPolicySettingBytes, err := json.Marshal(netAdapterAddressPolicySetting)
+	if err != nil {
+		return networkAdapterAddressPolicy, err
+	}
+
+	networkAdapterAddressPolicy.Settings = netAdapterAddressPolicySettingBytes
+
+	return networkAdapterAddressPolicy, nil
 }
 
 // GetHcnOutBoundNATPolicy returns outBoundNAT policy.

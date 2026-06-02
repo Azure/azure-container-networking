@@ -6,6 +6,7 @@ package network
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -240,6 +241,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 	// per hns team, the hns calls fails if passed a vSwitch interface
 	// Pass adapter name here if it is not empty, this is cause if we don't tell HNS which adapter to use
 	// it will just pick one randomly, this is a problem for customers that have multiple adapters
+	netAdapterNamePolicyAdded := false
 	if nwInfo.AdapterName != "" || !strings.HasPrefix(extIf.Name, vEthernetAdapterPrefix) {
 		var adapterName string
 		if nwInfo.AdapterName != "" {
@@ -250,13 +252,38 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 
 		logger.Info("Adapter name used with HNS is", zap.String("adapterName", adapterName))
 
-		netAdapterNamePolicy, err := policy.GetHcnNetAdapterPolicy(adapterName)
+		netAdapterNamePolicy, err := policy.GetHcnNetAdapterNamePolicy(adapterName)
 		if err != nil {
 			logger.Error("Failed to serialize network adapter policy due to", zap.Error(err))
 			return nil, err
 		}
 
 		hcnNetwork.Policies = append(hcnNetwork.Policies, netAdapterNamePolicy)
+		netAdapterNamePolicyAdded = true
+	}
+
+	if !netAdapterNamePolicyAdded {
+		primaryInterfaceIdentifier := nwInfo.PrimaryInterfaceIdentifier
+		if primaryInterfaceIdentifier == "" {
+			return nil, errors.New("PrimaryInterfaceIdentifier is empty. Adapter Address policy can't be applied")
+		}
+
+		var providerAddress string
+		// Based on cns/NetworkContainerContract.go, PrimaryInterfaceIdentifier can be either an IP or a CIDR
+		if ip, _, err := net.ParseCIDR(primaryInterfaceIdentifier); err == nil {
+			providerAddress = ip.String()
+		} else if ip := net.ParseIP(primaryInterfaceIdentifier); ip != nil {
+			providerAddress = ip.String()
+		} else {
+			return nil, fmt.Errorf("PrimaryInterfaceIdentifier %q is not a valid IP or CIDR", primaryInterfaceIdentifier)
+		}
+
+		adapterAddressPolicy, err := policy.GetHcnNetAdapterAddressPolicy(providerAddress)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to serialize network adapter address policy: %w", err)
+		}
+
+		hcnNetwork.Policies = append(hcnNetwork.Policies, adapterAddressPolicy)
 	}
 
 	// Set hcn subnet policy

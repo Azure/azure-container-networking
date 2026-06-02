@@ -1029,7 +1029,8 @@ func TestPluginWindowsAdd(t *testing.T) {
 				// should match with GetTestCNSResponse1
 				{
 					epInfo: &network.EndpointInfo{
-						ContainerID: "test-container",
+						PrimaryInterfaceIdentifier: "20.240.0.4/24",
+						ContainerID:                "test-container",
 						Data: map[string]interface{}{
 							"cnetAddressSpace": []string(nil),
 						},
@@ -1109,7 +1110,8 @@ func TestPluginWindowsAdd(t *testing.T) {
 				// should match with GetTestCNSResponse2
 				{
 					epInfo: &network.EndpointInfo{
-						ContainerID: "test-container",
+						PrimaryInterfaceIdentifier: "10.240.0.4/24",
+						ContainerID:                "test-container",
 						Data: map[string]interface{}{
 							"cnetAddressSpace": []string(nil),
 						},

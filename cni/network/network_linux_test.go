@@ -279,7 +279,9 @@ func TestPluginLinuxAdd(t *testing.T) {
 				// should match with GetTestCNSResponse3
 				{
 					epInfo: &network.EndpointInfo{
-						ContainerID: "test-container",
+
+						PrimaryInterfaceIdentifier: "20.240.0.4/24",
+						ContainerID:                "test-container",
 						Data: map[string]interface{}{
 							"VlanID":       1, // Vlan ID used here
 							"localIP":      "168.254.0.4/17",
@@ -522,6 +524,7 @@ func TestPluginLinuxAdd(t *testing.T) {
 					// omit endpoint id and ifname fields as they are nondeterministic
 					endpointInfo.EndpointID = ""
 					endpointInfo.IfName = ""
+					endpointInfo.PrimaryInterfaceIdentifier = "20.240.0.4/24"
 
 					require.Equal(t, wantedEndpointEntry.epInfo, endpointInfo)
 				}
