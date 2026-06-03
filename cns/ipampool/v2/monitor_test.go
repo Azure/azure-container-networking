@@ -18,26 +18,68 @@ import (
 )
 
 type ipStateStoreMock struct {
-	pendingReleaseIPConfigs map[string]cns.IPConfigurationStatus
-	err                     error
+	podIPConfigState map[string]cns.IPConfigurationStatus
+	markCalls        []int
+	err              error
 }
 
 func (m *ipStateStoreMock) GetPendingReleaseIPConfigs() []cns.IPConfigurationStatus {
-	return maps.Values(m.pendingReleaseIPConfigs)
+	return maps.Values(m.pendingReleaseIPConfigMap())
+}
+
+func (m *ipStateStoreMock) GetPodIPConfigState() map[string]cns.IPConfigurationStatus {
+	state := make(map[string]cns.IPConfigurationStatus, len(m.podIPConfigState))
+	maps.Copy(state, m.podIPConfigState)
+	return state
 }
 
 func (m *ipStateStoreMock) MarkNIPsPendingRelease(n int) (map[string]cns.IPConfigurationStatus, error) {
+	m.markCalls = append(m.markCalls, n)
+	if n <= 0 {
+		return m.pendingReleaseIPConfigMap(), nil
+	}
 	if m.err != nil {
 		return nil, m.err
 	}
-	newPendingRelease := pendingReleaseGenerator(n)
-	maps.Copy(newPendingRelease, m.pendingReleaseIPConfigs)
-	m.pendingReleaseIPConfigs = newPendingRelease
-	return m.pendingReleaseIPConfigs, nil
+	releasable := make([]string, 0, n)
+	for id, ipConfig := range m.podIPConfigState {
+		if ipConfig.GetState() == types.PendingProgramming {
+			releasable = append(releasable, id)
+			if len(releasable) == n {
+				break
+			}
+		}
+	}
+	for id, ipConfig := range m.podIPConfigState {
+		if len(releasable) == n {
+			break
+		}
+		if ipConfig.GetState() == types.Available {
+			releasable = append(releasable, id)
+		}
+	}
+	if len(releasable) < n {
+		return nil, errors.New("unable to release requested number of IPs")
+	}
+	for _, id := range releasable {
+		ipConfig := m.podIPConfigState[id]
+		ipConfig.SetState(types.PendingRelease)
+		m.podIPConfigState[id] = ipConfig
+	}
+	return m.pendingReleaseIPConfigMap(), nil
 }
 
-// pendingReleaseGenerator generates a variable number of random pendingRelease IPConfigs.
-func pendingReleaseGenerator(n int) map[string]cns.IPConfigurationStatus {
+func (m *ipStateStoreMock) pendingReleaseIPConfigMap() map[string]cns.IPConfigurationStatus {
+	pendingRelease := make(map[string]cns.IPConfigurationStatus)
+	for id, ipConfig := range m.podIPConfigState {
+		if ipConfig.GetState() == types.PendingRelease {
+			pendingRelease[id] = ipConfig
+		}
+	}
+	return pendingRelease
+}
+
+func ipConfigStateGenerator(n int, state types.IPState) map[string]cns.IPConfigurationStatus {
 	m := make(map[string]cns.IPConfigurationStatus, n)
 	ip := netip.MustParseAddr("10.0.0.0")
 	for i := 0; i < n; i++ {
@@ -47,10 +89,32 @@ func pendingReleaseGenerator(n int) map[string]cns.IPConfigurationStatus {
 			ID:        id,
 			IPAddress: ip.String(),
 		}
-		status.SetState(types.PendingRelease)
+		status.SetState(state)
 		m[id] = status
 	}
 	return m
+}
+
+// pendingReleaseGenerator generates a variable number of random pendingRelease IPConfigs.
+func pendingReleaseGenerator(n int) map[string]cns.IPConfigurationStatus {
+	return ipConfigStateGenerator(n, types.PendingRelease)
+}
+
+func mergeIPConfigStates(groups ...map[string]cns.IPConfigurationStatus) map[string]cns.IPConfigurationStatus {
+	merged := make(map[string]cns.IPConfigurationStatus)
+	for _, group := range groups {
+		maps.Copy(merged, group)
+	}
+	return merged
+}
+
+func ipStateStoreWithCounts(pendingRelease, available int) ipStateStoreMock {
+	return ipStateStoreMock{
+		podIPConfigState: mergeIPConfigStates(
+			ipConfigStateGenerator(pendingRelease, types.PendingRelease),
+			ipConfigStateGenerator(available, types.Available),
+		),
+	}
 }
 
 func TestPendingReleaseIPConfigsGenerator(t *testing.T) {
@@ -90,7 +154,7 @@ func TestBuildNNCSpec(t *testing.T) {
 			t.Parallel()
 			pm := &Monitor{
 				store: &ipStateStoreMock{
-					pendingReleaseIPConfigs: tt.pendingReleaseIPConfigs,
+					podIPConfigState: tt.pendingReleaseIPConfigs,
 				},
 			}
 			spec := pm.buildNNCSpec(tt.request)
@@ -102,11 +166,18 @@ func TestBuildNNCSpec(t *testing.T) {
 }
 
 type nncClientMock struct {
-	req v1alpha.NodeNetworkConfigSpec
-	err error
+	req          v1alpha.NodeNetworkConfigSpec
+	patchSpecs   []v1alpha.NodeNetworkConfigSpec
+	failPatchCnt int
+	err          error
 }
 
 func (m *nncClientMock) PatchSpec(_ context.Context, spec *v1alpha.NodeNetworkConfigSpec, _ string) (*v1alpha.NodeNetworkConfig, error) {
+	m.patchSpecs = append(m.patchSpecs, *spec)
+	if m.failPatchCnt > 0 {
+		m.failPatchCnt--
+		return nil, m.err
+	}
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -116,17 +187,19 @@ func (m *nncClientMock) PatchSpec(_ context.Context, spec *v1alpha.NodeNetworkCo
 
 func TestReconcile(t *testing.T) {
 	tests := []struct {
-		name               string
-		demand             int64
-		request            int64
-		scaler             scaler
-		nnccli             nncClientMock
-		store              ipStateStoreMock
-		wantRequest        int64
-		wantPendingRelease int
-		wantErr            bool
+		name                 string
+		demand               int64
+		request              int64
+		scaler               scaler
+		nnccli               nncClientMock
+		store                ipStateStoreMock
+		wantRequest          int64
+		wantPendingRelease   int
+		wantPatchCalls       int
+		wantPatchRequest     int64
+		wantMarkReleaseCalls []int
+		wantErr              bool
 	}{
-		// no-op case
 		{
 			name:    "no delta",
 			demand:  5,
@@ -144,7 +217,6 @@ func TestReconcile(t *testing.T) {
 			store:       ipStateStoreMock{},
 			wantRequest: 16,
 		},
-		// fail to mark IPs pending release
 		{
 			name:    "fail to release",
 			demand:  6,
@@ -160,12 +232,13 @@ func TestReconcile(t *testing.T) {
 				},
 			},
 			store: ipStateStoreMock{
-				err: errors.Errorf("failed to mark IPs pending release"),
+				podIPConfigState: ipStateStoreWithCounts(0, 32).podIPConfigState,
+				err:              errors.Errorf("failed to mark IPs pending release"),
 			},
-			wantRequest: 32,
-			wantErr:     true,
+			wantRequest:          32,
+			wantMarkReleaseCalls: []int{16},
+			wantErr:              true,
 		},
-		// fail to Patch NNC Spec
 		{
 			name:    "fail to patch",
 			demand:  20,
@@ -181,11 +254,12 @@ func TestReconcile(t *testing.T) {
 				},
 				err: errors.Errorf("failed to patch NNC Spec"),
 			},
-			store:       ipStateStoreMock{},
-			wantRequest: 16,
-			wantErr:     true,
+			store:            ipStateStoreMock{},
+			wantRequest:      16,
+			wantPatchCalls:   1,
+			wantPatchRequest: 32,
+			wantErr:          true,
 		},
-		// normal scale ups with no pending release
 		{
 			name:    "single scale up",
 			demand:  15,
@@ -195,9 +269,11 @@ func TestReconcile(t *testing.T) {
 				buffer: .5,
 				max:    250,
 			},
-			nnccli:      nncClientMock{},
-			store:       ipStateStoreMock{},
-			wantRequest: 32,
+			nnccli:           nncClientMock{},
+			store:            ipStateStoreMock{},
+			wantRequest:      32,
+			wantPatchCalls:   1,
+			wantPatchRequest: 32,
 		},
 		{
 			name:    "big scale up",
@@ -208,9 +284,11 @@ func TestReconcile(t *testing.T) {
 				buffer: .5,
 				max:    250,
 			},
-			nnccli:      nncClientMock{},
-			store:       ipStateStoreMock{},
-			wantRequest: 96,
+			nnccli:           nncClientMock{},
+			store:            ipStateStoreMock{},
+			wantRequest:      96,
+			wantPatchCalls:   1,
+			wantPatchRequest: 96,
 		},
 		{
 			name:    "capped scale up",
@@ -221,11 +299,12 @@ func TestReconcile(t *testing.T) {
 				buffer: .5,
 				max:    250,
 			},
-			nnccli:      nncClientMock{},
-			store:       ipStateStoreMock{},
-			wantRequest: 250,
+			nnccli:           nncClientMock{},
+			store:            ipStateStoreMock{},
+			wantRequest:      250,
+			wantPatchCalls:   1,
+			wantPatchRequest: 250,
 		},
-		// normal scale down with no previously pending release
 		{
 			name:    "single scale down",
 			demand:  5,
@@ -235,10 +314,13 @@ func TestReconcile(t *testing.T) {
 				buffer: .5,
 				max:    250,
 			},
-			nnccli:             nncClientMock{},
-			store:              ipStateStoreMock{},
-			wantRequest:        16,
-			wantPendingRelease: 16,
+			nnccli:               nncClientMock{},
+			store:                ipStateStoreWithCounts(0, 32),
+			wantRequest:          16,
+			wantPendingRelease:   16,
+			wantPatchCalls:       1,
+			wantPatchRequest:     16,
+			wantMarkReleaseCalls: []int{16},
 		},
 		{
 			name:    "big scale down",
@@ -249,10 +331,13 @@ func TestReconcile(t *testing.T) {
 				buffer: .5,
 				max:    250,
 			},
-			nnccli:             nncClientMock{},
-			store:              ipStateStoreMock{},
-			wantRequest:        16,
-			wantPendingRelease: 112,
+			nnccli:               nncClientMock{},
+			store:                ipStateStoreWithCounts(0, 128),
+			wantRequest:          16,
+			wantPendingRelease:   112,
+			wantPatchCalls:       1,
+			wantPatchRequest:     16,
+			wantMarkReleaseCalls: []int{112},
 		},
 		{
 			name:    "capped scale down",
@@ -263,12 +348,14 @@ func TestReconcile(t *testing.T) {
 				buffer: .5,
 				max:    250,
 			},
-			nnccli:             nncClientMock{},
-			store:              ipStateStoreMock{},
-			wantRequest:        16,
-			wantPendingRelease: 16,
+			nnccli:               nncClientMock{},
+			store:                ipStateStoreWithCounts(0, 32),
+			wantRequest:          16,
+			wantPendingRelease:   16,
+			wantPatchCalls:       1,
+			wantPatchRequest:     16,
+			wantMarkReleaseCalls: []int{16},
 		},
-		// realign to batch if request is skewed
 		{
 			name:    "scale up unskew",
 			demand:  15,
@@ -278,9 +365,11 @@ func TestReconcile(t *testing.T) {
 				buffer: .5,
 				max:    250,
 			},
-			nnccli:      nncClientMock{},
-			store:       ipStateStoreMock{},
-			wantRequest: 32,
+			nnccli:           nncClientMock{},
+			store:            ipStateStoreMock{},
+			wantRequest:      32,
+			wantPatchCalls:   1,
+			wantPatchRequest: 32,
 		},
 		{
 			name:    "scale down unskew",
@@ -291,12 +380,14 @@ func TestReconcile(t *testing.T) {
 				buffer: .5,
 				max:    250,
 			},
-			nnccli:             nncClientMock{},
-			store:              ipStateStoreMock{},
-			wantRequest:        16,
-			wantPendingRelease: 21,
+			nnccli:               nncClientMock{},
+			store:                ipStateStoreWithCounts(0, 37),
+			wantRequest:          16,
+			wantPendingRelease:   21,
+			wantPatchCalls:       1,
+			wantPatchRequest:     16,
+			wantMarkReleaseCalls: []int{21},
 		},
-		// normal scale up with previous pending release
 		{
 			name:    "single scale up with pending release",
 			demand:  20,
@@ -306,14 +397,13 @@ func TestReconcile(t *testing.T) {
 				buffer: .5,
 				max:    250,
 			},
-			nnccli: nncClientMock{},
-			store: ipStateStoreMock{
-				pendingReleaseIPConfigs: pendingReleaseGenerator(16),
-			},
+			nnccli:             nncClientMock{},
+			store:              ipStateStoreWithCounts(16, 16),
 			wantRequest:        32,
 			wantPendingRelease: 16,
+			wantPatchCalls:     1,
+			wantPatchRequest:   32,
 		},
-		// normal scale down with previous pending release
 		{
 			name:    "single scale down with pending release",
 			demand:  5,
@@ -323,17 +413,35 @@ func TestReconcile(t *testing.T) {
 				buffer: .5,
 				max:    250,
 			},
-			nnccli: nncClientMock{},
-			store: ipStateStoreMock{
-				pendingReleaseIPConfigs: pendingReleaseGenerator(16),
+			nnccli:               nncClientMock{},
+			store:                ipStateStoreWithCounts(16, 32),
+			wantRequest:          16,
+			wantPendingRelease:   32,
+			wantPatchCalls:       1,
+			wantPatchRequest:     16,
+			wantMarkReleaseCalls: []int{16},
+		},
+		{
+			name:    "scale down with stale request and existing pending release",
+			demand:  5,
+			request: 48,
+			scaler: scaler{
+				batch:  16,
+				buffer: .5,
+				max:    250,
 			},
-			wantRequest:        16,
-			wantPendingRelease: 32,
+			nnccli:               nncClientMock{},
+			store:                ipStateStoreWithCounts(16, 16),
+			wantRequest:          16,
+			wantPendingRelease:   16,
+			wantPatchCalls:       1,
+			wantPatchRequest:     16,
+			wantMarkReleaseCalls: []int{0},
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			tt := tt
 			t.Parallel()
 			pm := &Monitor{
 				z:       zap.NewNop(),
@@ -350,9 +458,54 @@ func TestReconcile(t *testing.T) {
 				require.NoError(t, err)
 			}
 			assert.Equal(t, tt.wantRequest, pm.request)
-			assert.Equal(t, tt.wantRequest, tt.nnccli.req.RequestedIPCount)
-			assert.Len(t, tt.nnccli.req.IPsNotInUse, tt.wantPendingRelease)
-			assert.Equal(t, tt.wantRequest, pm.request)
+			assert.Equal(t, tt.wantMarkReleaseCalls, tt.store.markCalls)
+			assert.Len(t, tt.nnccli.patchSpecs, tt.wantPatchCalls)
+			if tt.wantPatchCalls > 0 {
+				spec := tt.nnccli.patchSpecs[tt.wantPatchCalls-1]
+				assert.Equal(t, tt.wantPatchRequest, spec.RequestedIPCount)
+				assert.Len(t, spec.IPsNotInUse, tt.wantPendingRelease)
+			}
+			if !tt.wantErr && tt.wantPatchCalls > 0 {
+				assert.Equal(t, tt.wantPatchRequest, tt.nnccli.req.RequestedIPCount)
+				assert.Len(t, tt.nnccli.req.IPsNotInUse, tt.wantPendingRelease)
+			}
 		})
 	}
+}
+
+func TestReconcileRetriesPatchFailureWithoutExtraRelease(t *testing.T) {
+	t.Parallel()
+
+	store := ipStateStoreWithCounts(0, 32)
+	nnccli := &nncClientMock{
+		failPatchCnt: 1,
+		err:          errors.New("failed to patch NNC Spec"),
+	}
+	pm := &Monitor{
+		z:       zap.NewNop(),
+		demand:  5,
+		request: 32,
+		scaler: scaler{
+			batch:  16,
+			buffer: .5,
+			max:    250,
+		},
+		nnccli: nnccli,
+		store:  &store,
+	}
+
+	err := pm.reconcile(context.Background())
+	require.Error(t, err)
+	assert.Equal(t, int64(32), pm.request)
+	assert.Equal(t, []int{16}, store.markCalls)
+	assert.Len(t, store.GetPendingReleaseIPConfigs(), 16)
+
+	nnccli.err = nil
+	err = pm.reconcile(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int64(16), pm.request)
+	assert.Equal(t, []int{16, 0}, store.markCalls)
+	require.Len(t, nnccli.patchSpecs, 2)
+	assert.Equal(t, int64(16), nnccli.req.RequestedIPCount)
+	assert.Len(t, nnccli.req.IPsNotInUse, 16)
 }

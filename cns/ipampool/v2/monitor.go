@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
@@ -26,6 +27,7 @@ type nodeNetworkConfigSpecUpdater interface {
 
 type ipStateStore interface {
 	GetPendingReleaseIPConfigs() []cns.IPConfigurationStatus
+	GetPodIPConfigState() map[string]cns.IPConfigurationStatus
 	MarkNIPsPendingRelease(n int) (map[string]cns.IPConfigurationStatus, error)
 }
 
@@ -128,9 +130,15 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 		return nil
 	}
 	pm.z.Info("scaling pool", zap.Int64("delta", delta))
-	// try to release -delta IPs. this is no-op if delta is negative.
-	if _, err := pm.store.MarkNIPsPendingRelease(int(-delta)); err != nil {
-		return errors.Wrapf(err, "failed to mark sufficient IPs as PendingRelease, wanted %d", pm.request-target)
+	if delta < 0 {
+		currentNonPendingIPCount := countNonPendingReleaseIPConfigs(pm.store.GetPodIPConfigState())
+		toRelease := currentNonPendingIPCount - target
+		if toRelease < 0 {
+			toRelease = 0
+		}
+		if _, err := pm.store.MarkNIPsPendingRelease(int(toRelease)); err != nil {
+			return errors.Wrapf(err, "failed to mark sufficient IPs as PendingRelease, wanted %d", toRelease)
+		}
 	}
 	spec := pm.buildNNCSpec(target)
 	if _, err := pm.nnccli.PatchSpec(ctx, &spec, fieldManager); err != nil {
@@ -139,6 +147,16 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 	pm.request = target
 	pm.z.Info("scaled pool", zap.Int64("request", pm.request))
 	return nil
+}
+
+func countNonPendingReleaseIPConfigs(ipConfigState map[string]cns.IPConfigurationStatus) int64 {
+	var count int64
+	for _, ipConfig := range ipConfigState {
+		if ipConfig.GetState() != types.PendingRelease {
+			count++
+		}
+	}
+	return count
 }
 
 // buildNNCSpec translates CNS's map of IPs to be released and requested IP count into an NNC Spec.
