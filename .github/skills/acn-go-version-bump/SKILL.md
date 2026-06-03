@@ -246,10 +246,10 @@ After making all changes:
 - Pipeline uses `.pipelines/build/scripts/install-go.sh`
 
 ### Component CGO Map (current as of Go 1.26)
-| Component | CGO_ENABLED | Build Mode | Notes |
-|-----------|:-----------:|:----------:|-------|
-| cni, cns, npm, dropgz, azure-ipam, azure-ip-masq-merger, azure-iptables-monitor, ipv6-hp-bpf | 0 | static binary | Standard components |
-| cilium-log-collector | 1 | c-shared (.so) | Fluent Bit plugin, requires CGO |
+| Component | CGO_ENABLED | GOEXPERIMENT | Build Mode | Notes |
+|-----------|:-----------:|:------------:|:----------:|-------|
+| cni, cns, npm, dropgz, azure-ipam, azure-ip-masq-merger, azure-iptables-monitor, ipv6-hp-bpf | 0 | ms_nocgo_opensslcrypto | static binary | Nocgo OpenSSL backend (systemcrypto requires CGO) |
+| cilium-log-collector | 1 | systemcrypto | c-shared (.so) | Fluent Bit plugin, requires CGO |
 
 ### Important Notes
 
