@@ -157,7 +157,7 @@ ACN uses **floating minor version tags** for the Go build image (`build/images.m
 ```
 build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary tag
     ├── → go.mod (go 1.XX.Y)                           ← must match (use .1+ not .0)
-    ├── → tools-go/go.mod (go 1.XX.Y)                  ← must match
+    ├── → tools-go/go.mod (go 1.XX.Y)                  ← must match (formerly tools.go.mod, moved to own dir for Go 1.26 compat)
     ├── → .devcontainer/Dockerfile (VARIANT="1.XX")
     ├── → .pipelines/build/scripts/install-go.sh (DEFAULT_IMAGE SHA)
     ├── → bpf-prog/ipv6-hp-bpf/linux.Dockerfile (Go image SHA)

@@ -25,6 +25,10 @@ print:
 	@echo ${MARINER_DISTROLESS_PIN}
 	@echo ${WIN_HPC_PIN}
 
+# Print any variable: make -f build/images.mk print-GO_IMG
+print-%:
+	@echo $($*)
+
 render:
 	${GOPATH}/bin/renderkit -f ${SRC} --ds env:// > ${DEST}
 	${GOPATH}/bin/renderkit -f ${SRC_PIPE} --ds env:// > ${DEST_PIPE}
