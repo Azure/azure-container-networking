@@ -35,6 +35,7 @@ RUN if [ "$ARCH" = "arm64" ]; then \
     cp /lib/"$ARCH"/libbsd.so.0 /tmp/lib/ && \
     cp /lib/"$ARCH"/libmd.so.0 /tmp/lib/
 ENV C_INCLUDE_PATH=/usr/include/bpf
+ENV GOEXPERIMENT=ms_nocgo_opensslcrypto
 RUN if [ "$DEBUG" = "true" ]; then echo "\n#define DEBUG" >> /bpf-prog/ipv6-hp-bpf/include/helper.h; fi
 RUN GOOS=$OS CGO_ENABLED=0 go generate ./...
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/ipv6-hp-bpf -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .

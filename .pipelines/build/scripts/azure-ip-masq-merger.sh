@@ -5,6 +5,8 @@ set -eux
 FILE_EXT=''
 
 export CGO_ENABLED=0
+# Go 1.26 Linux-only: use nocgo OpenSSL backend (systemcrypto default requires CGO)
+export GOEXPERIMENT=ms_nocgo_opensslcrypto
 
 mkdir -p "$OUT_DIR"/bin
 mkdir -p "$OUT_DIR"/files

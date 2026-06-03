@@ -32,6 +32,12 @@ ARCHIVE_EXT = zip
 EXE_EXT 	= .exe
 endif
 
+# Go 1.26 on Linux: systemcrypto (default) requires CGO; use nocgo OpenSSL backend for CGO_ENABLED=0 builds
+# Only applied to binary build targets, not tooling (renderkit, mockgen, etc.)
+ifneq ($(GOOS),windows)
+ACN_GOEXPERIMENT := ms_nocgo_opensslcrypto
+endif
+
 # Interrogate the git repo and set some variables
 REPO_ROOT							?= $(shell git rev-parse --show-toplevel)
 REVISION							?= $(shell git rev-parse --short HEAD)
@@ -188,12 +194,12 @@ zapai-version: ## prints the zapai version
 
 # Build the delegated IPAM plugin binary.
 azure-ipam-binary:
-	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version=$(AZURE_IPAM_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version=$(AZURE_IPAM_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the ipv6-hp-bpf binary.
 ipv6-hp-bpf-binary: bpf-lib
-	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./...
-	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go generate ./...
+	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Libraries for bpf
 bpf-lib:
@@ -207,54 +213,54 @@ endif
 
 # Build the azure-block-iptables binary.
 azure-block-iptables-binary: bpf-lib
-	cd $(AZURE_BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 go generate ./...
-	cd $(AZURE_BLOCK_IPTABLES_DIR)/cmd/azure-block-iptables && CGO_ENABLED=0 go build -v -o $(AZURE_BLOCK_IPTABLES_BUILD_DIR)/azure-block-iptables$(EXE_EXT) -ldflags "-X main.version=$(AZURE_BLOCK_IPTABLES_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(AZURE_BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go generate ./...
+	cd $(AZURE_BLOCK_IPTABLES_DIR)/cmd/azure-block-iptables && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(AZURE_BLOCK_IPTABLES_BUILD_DIR)/azure-block-iptables$(EXE_EXT) -ldflags "-X main.version=$(AZURE_BLOCK_IPTABLES_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI network binary.
 azure-vnet-binary:
-	cd $(CNI_NET_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_NET_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI stateless network binary
 azure-vnet-stateless-binary:
-	cd $(STATELESS_CNI_NET_DIR) && CGO_ENABLED=0 go build -v -o $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(STATELESS_CNI_NET_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAM binary.
 azure-vnet-ipam-binary:
-	cd $(CNI_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_IPAM_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAMV6 binary.
 azure-vnet-ipamv6-binary:
-	cd $(CNI_IPAMV6_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_IPAMV6_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI telemetry binary.
 azure-vnet-telemetry-binary:
-	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI telemetry sidecar binary.
 azure-cni-telemetry-sidecar-binary:
 	$(MKDIR) $(CNI_BUILD_DIR)
-	cd $(CNI_TELEMETRY_SIDECAR_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_TELEMETRY_SIDECAR_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(CNI_BUILD_DIR)/azure-cni-telemetry-sidecar$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CLI network binary.
 acncli-binary:
-	cd $(ACNCLI_DIR) && CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(ACNCLI_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNS binary.
 azure-cns-binary:
-	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(CNS_VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID) -X $(CNI_AI_PATH)=$(CNI_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(CNS_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(CNS_VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID) -X $(CNI_AI_PATH)=$(CNI_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure NPM binary.
 azure-npm-binary:
-	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
-	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(NPM_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the azure-ip-masq-merger binary.
 azure-ip-masq-merger-binary:
-	cd $(AZURE_IP_MASQ_MERGER_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IP_MASQ_MERGER_BUILD_DIR)/azure-ip-masq-merger$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IP_MASQ_MERGER_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
+	cd $(AZURE_IP_MASQ_MERGER_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(AZURE_IP_MASQ_MERGER_BUILD_DIR)/azure-ip-masq-merger$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IP_MASQ_MERGER_VERSION) $(LD_BUILD_FLAGS)" -gcflags="-dwarflocationlists=true"
 
 # Build the azure-iptables-monitor binary.
 azure-iptables-monitor-binary:
-	cd $(AZURE_IPTABLES_MONITOR_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPTABLES_MONITOR_BUILD_DIR)/azure-iptables-monitor$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IPTABLES_MONITOR_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(AZURE_IPTABLES_MONITOR_DIR) && CGO_ENABLED=0 GOEXPERIMENT=$(ACN_GOEXPERIMENT) go build -v -o $(AZURE_IPTABLES_MONITOR_BUILD_DIR)/azure-iptables-monitor$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IPTABLES_MONITOR_VERSION)" -gcflags="-dwarflocationlists=true"
 
 ##@ Containers
 

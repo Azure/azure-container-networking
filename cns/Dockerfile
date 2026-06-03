@@ -5,19 +5,20 @@ ARG OS_VERSION
 ARG OS
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:eb3ce814e96f3319f1b5985021021682b47975f6decfe00eaac84abff0ae25c9 AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:5f95bf70f4c437de4a6ba1f72ef1532f69fca392c131fff2172993cabbea359c AS go
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM mcr.microsoft.com/azurelinux/base/core@sha256:35149ae8dd179684f969944f54a337c665a64e702486154eb44253fb39c2505b AS mariner-core
+FROM mcr.microsoft.com/azurelinux/base/core@sha256:2d83ae6e0d21cd58973633948d903038679f70fb594d6565626f29ddc162fe0c AS mariner-core
 
 # mcr.microsoft.com/azurelinux/distroless/base:3.0
-FROM mcr.microsoft.com/azurelinux/distroless/base@sha256:32820d2cf20e896aa9111742dd683dd0ccff370f742e256889bb3bb50320c0d4 AS mariner-distroless
+FROM mcr.microsoft.com/azurelinux/distroless/base@sha256:60a4f5539feea275365474c3600bba9c426872c5a86f80755acd169618da335e AS mariner-distroless
 
 FROM --platform=linux/${ARCH} go AS builder
 ARG OS
 ARG CNS_AI_ID
 ARG CNS_AI_PATH
 ARG VERSION
+ENV GOEXPERIMENT=ms_nocgo_opensslcrypto
 WORKDIR /azure-container-networking
 COPY . .
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-cns -ldflags "-s -w -X main.version="$VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID"" -gcflags="-dwarflocationlists=true" cns/service/*.go

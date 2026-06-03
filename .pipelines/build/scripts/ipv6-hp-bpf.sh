@@ -38,6 +38,8 @@ function findcp::shared_library() {
 [[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
 export CGO_ENABLED=0
+# Go 1.26 Linux-only: use nocgo OpenSSL backend (systemcrypto default requires CGO)
+export GOEXPERIMENT=ms_nocgo_opensslcrypto
 export C_INCLUDE_PATH=/usr/include/bpf
 
 mkdir -p "$OUT_DIR"/bin

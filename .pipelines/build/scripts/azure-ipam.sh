@@ -4,6 +4,8 @@ set -eux
 [[ $OS =~ windows ]] && FILE_EXT='.exe' || FILE_EXT=''
 
 export CGO_ENABLED=0
+# Go 1.26 on Linux: systemcrypto is default but requires CGO; use nocgo backend instead
+[[ ! $OS =~ windows ]] && export GOEXPERIMENT=ms_nocgo_opensslcrypto
 
 mkdir -p "$OUT_DIR"/bin
 mkdir -p "$OUT_DIR"/files
