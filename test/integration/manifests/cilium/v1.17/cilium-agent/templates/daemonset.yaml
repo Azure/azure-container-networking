@@ -58,7 +58,7 @@ spec:
         - name: CILIUM_CLUSTERMESH_CONFIG
           value: /var/lib/cilium/clustermesh/
         image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 10
           httpGet:
@@ -160,7 +160,7 @@ spec:
       initContainers:
       - name: cilium-init-all
         image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         command:
         - sh
         - -ec
@@ -233,7 +233,7 @@ spec:
       nodeSelector:
         kubernetes.io/os: linux
       priorityClassName: system-node-critical
-      restartPolicy: Always
+      restartPolicy: IfNotPresent
       schedulerName: default-scheduler
       securityContext: {}
       serviceAccount: cilium
