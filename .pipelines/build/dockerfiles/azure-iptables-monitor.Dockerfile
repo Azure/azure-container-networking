@@ -3,18 +3,20 @@
 ARG ARCH
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM mcr.microsoft.com/azurelinux/base/core@sha256:a452d39c91576f5a2c983c7d3b62521fabd08e16b4a7237e24bf2be3b06e1651 AS mariner-core
+FROM mcr.microsoft.com/azurelinux/base/core@sha256:2d83ae6e0d21cd58973633948d903038679f70fb594d6565626f29ddc162fe0c AS mariner-core
 
 # mcr.microsoft.com/azurelinux/distroless/minimal:3.0
-FROM mcr.microsoft.com/azurelinux/distroless/minimal@sha256:22810fd97d6ad5ec7d5bdd5b00233a3050be01d9e26b47b16cb6f1a7f178834b AS mariner-distroless
+FROM mcr.microsoft.com/azurelinux/distroless/minimal@sha256:0c64ab9cfc44d4f100c0590bd59ead9afedda6cc54f14bb7465b5f9c35ddc037 AS mariner-distroless
 
-FROM mariner-core AS iptables
-RUN tdnf install -y iptables
+FROM mariner-core AS iptools
+RUN tdnf install -y iptables iproute
 
 FROM mariner-distroless AS linux
 ARG ARTIFACT_DIR
-COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
-COPY --from=iptables /usr/lib /usr/lib
+COPY --from=iptools /usr/sbin/*tables* /usr/sbin/
+COPY --from=iptools /usr/sbin/ip /usr/sbin/
+COPY --from=iptools /usr/lib /usr/lib
+COPY --from=iptools /usr/lib64 /usr/lib64
 COPY ${ARTIFACT_DIR}/bin/azure-iptables-monitor /azure-iptables-monitor
 COPY ${ARTIFACT_DIR}/bin/azure-block-iptables /azure-block-iptables
 
