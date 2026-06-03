@@ -122,6 +122,8 @@ jobs:
           if [ -z "$LATEST_GO_VERSION" ]; then
             LATEST_GO_VERSION=$(skopeo inspect "docker://$GO_IMG" --format '{{index .Labels "go-version"}}' 2>/dev/null || echo "UNKNOWN")
           fi
+          # Normalize: strip any "go" prefix (e.g., "go1.26.1" → "1.26.1")
+          LATEST_GO_VERSION="${LATEST_GO_VERSION#go}"
           echo "Go version in latest image: $LATEST_GO_VERSION"
           echo "latest_go_version=$LATEST_GO_VERSION" >> "$GITHUB_OUTPUT"
 
@@ -387,10 +389,10 @@ jobs:
 
           MCR_IMG="$MCR_REPO"
 
-          # 1. Update build/images.mk GO_IMG tag
-          make --no-print-directory -f build/images.mk set-GO_IMG NEW_TAG="${LATEST_PATCH}-${BASE_OS}"
+          # Note: GO_IMG stays as floating minor tag (e.g., 1.26-azurelinux3.0).
+          # Patch bumps update go.mod, digests, and re-resolve via make dockerfiles.
 
-          # 2. Update go.mod and tools-go/go.mod
+          # 1. Update go.mod and tools-go/go.mod
           go mod edit -go="${LATEST_PATCH}" go.mod
           go mod tidy
           if [ -f tools-go/go.mod ]; then
@@ -836,8 +838,7 @@ jobs:
 
           # Only bump if release branch is on the same minor
           if [ "$BRANCH_GO_MINOR" = "$GO_MINOR" ]; then
-            make --no-print-directory -f build/images.mk set-GO_IMG NEW_TAG="${LATEST_PATCH}-${BASE_OS}"
-
+            # GO_IMG stays as floating minor tag; patch version goes in go.mod and digests
             CURRENT_GOMOD=$(go mod edit -json go.mod | python3 -c "import sys,json;print(json.load(sys.stdin)['Go'])")
             go mod edit -go="${LATEST_PATCH}" go.mod
             go mod tidy
