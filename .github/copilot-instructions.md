@@ -24,8 +24,9 @@ For task-specific guidance, use the appropriate skill:
 - Build system uses `make dockerfiles` with template rendering via `renderkit`
 - Tools module lives at `tools-go/go.mod` (separate from root `go.mod`)
 - CI uses both GitHub Actions and Azure Pipelines (`.pipelines/`)
-- `cilium-log-collector` is the only component using `CGO_ENABLED=1` (with `GOEXPERIMENT=systemcrypto`)
-- All other components use `CGO_ENABLED=0` with `GOEXPERIMENT=ms_nocgo_opensslcrypto` (Go 1.26)
+- `cilium-log-collector` is the only component using `CGO_ENABLED=1`
+- All other components use `CGO_ENABLED=0`
+- **GOEXPERIMENT requirements are version-dependent** — consult the `acn-go-version-bump` skill for current rules. As of Go 1.26: CGO=1 needs `systemcrypto`, CGO=0 needs `ms_nocgo_opensslcrypto`. Go 1.27+ changes these rules.
 
 ## AI Documentation
 

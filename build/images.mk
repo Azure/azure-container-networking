@@ -31,6 +31,9 @@ print-%:
 
 # Set GO_IMG tag: make -f build/images.mk set-GO_IMG NEW_TAG=1.27-azurelinux3.0
 set-GO_IMG:
+ifndef NEW_TAG
+	$(error NEW_TAG is required — usage: make -f build/images.mk set-GO_IMG NEW_TAG=1.27-azurelinux3.0)
+endif
 	sed -i -E 's|(GO_IMG[[:space:]]*\?=[[:space:]]*.*golang:)[^ ]*|\1$(NEW_TAG)|' $(CURDIR)/build/images.mk
 
 render:

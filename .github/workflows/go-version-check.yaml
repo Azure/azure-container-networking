@@ -161,7 +161,7 @@ jobs:
           LATEST_MINOR_TAG=""
           if [ -n "$ALL_TAGS" ]; then
             while IFS=$'\t' read -r ver tag; do
-              if [[ "$ver" == ${GO_MINOR}* ]]; then
+              if [[ "$ver" == ${GO_MINOR}.* ]] || [[ "$ver" == "${GO_MINOR}" ]]; then
                 LATEST_PATCH="$ver"
                 LATEST_PATCH_TAG="$tag"
                 break
@@ -183,7 +183,7 @@ jobs:
           echo "latest_minor_tag=$LATEST_MINOR_TAG" >> "$GITHUB_OUTPUT"
 
           PATCH_AVAILABLE="false"
-          if [ -n "$LATEST_PATCH" ] && [ "$LATEST_PATCH" != "$GO_MINOR" ]; then
+          if [ -n "$LATEST_PATCH" ] && [ "$LATEST_PATCH" != "$GOMOD_VERSION" ]; then
             LATEST_PATCH_DIGEST=$(skopeo inspect "docker://$MCR_REPO:${LATEST_PATCH}-${BASE_OS}" --format "{{.Digest}}" 2>/dev/null || echo "FAILED")
             if [ "$LATEST_PATCH_DIGEST" != "FAILED" ] && [ "$LATEST_PATCH_DIGEST" != "$CURRENT_DIGEST" ]; then
               PATCH_AVAILABLE="true"
@@ -294,7 +294,12 @@ jobs:
           fi
           # Install renderkit from repo's pinned tools-go/go.mod
           GOPATH=$(go env GOPATH 2>/dev/null || echo "$HOME/go")
-          RENDERKIT_VER=$(grep 'orellazri/renderkit' tools-go/go.mod | awk '{print $2}')
+          RENDERKIT_VER=$(go mod edit -json tools-go/go.mod | python3 -c "
+          import sys, json
+          for req in json.load(sys.stdin).get('Require', []):
+              if 'orellazri/renderkit' in req['Path']:
+                  print(req['Version']); break
+          ")
           go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
 
@@ -360,8 +365,6 @@ jobs:
           fi
 
           # Commit
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
             echo "::notice::No changes to commit"
@@ -426,8 +429,6 @@ jobs:
           make dockerfiles
 
           # Commit
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
             echo "::notice::No changes to commit"
@@ -470,8 +471,7 @@ jobs:
           **Digest:** \`${PR_LATEST_PATCH_DIGEST}\`
 
           ### Changes Made
-          - \`build/images.mk\` GO_IMG tag updated
-          - \`go.mod\` version bumped
+          - \`go.mod\` and \`tools-go/go.mod\` version bumped
           - \`go mod tidy\` executed
           - \`install-go.sh\` DEFAULT_IMAGE SHA updated
           - \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` SHA updated
@@ -496,12 +496,13 @@ jobs:
           **Go version in image:** \`${PR_LATEST_GO_VERSION}\`
 
           This is a same-tag image rebuild (security patches, base OS updates).
-          No Go language version change expected.
+          If the Go version label in the image changed, \`go.mod\` is also updated.
 
           ### Changes Made
           - \`install-go.sh\` DEFAULT_IMAGE SHA updated
           - \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` SHA updated
           - Template Dockerfiles regenerated via \`make dockerfiles\`
+          - \`go.mod\`/\`tools-go/go.mod\` bumped (if Go version in image changed)
 
           ---
           <!-- go-digest-update:${PR_GO_TAG} -->
@@ -566,7 +567,12 @@ jobs:
           fi
           # Install renderkit from repo's pinned tools-go/go.mod
           GOPATH=$(go env GOPATH 2>/dev/null || echo "$HOME/go")
-          RENDERKIT_VER=$(grep 'orellazri/renderkit' tools-go/go.mod | awk '{print $2}')
+          RENDERKIT_VER=$(go mod edit -json tools-go/go.mod | python3 -c "
+          import sys, json
+          for req in json.load(sys.stdin).get('Require', []):
+              if 'orellazri/renderkit' in req['Path']:
+                  print(req['Version']); break
+          ")
           go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
 
@@ -738,8 +744,8 @@ jobs:
           gh issue create \
             --repo "$REPO" \
             --title "chore: FIPS prerequisites needed on ${MATRIX_BRANCH} before Go backport" \
-            --label "needs-review" \
-            --assignee "copilot" \
+            --label "go" \
+            --assignee "" \
             --body "## Prerequisites Needed on \`${MATRIX_BRANCH}\`
 
           The Go version automation detected a digest/patch update on master, but
@@ -1160,6 +1166,6 @@ jobs:
           gh issue create \
             --repo "$REPO" \
             --title "chore: upgrade Go ${GO_MINOR} → ${LATEST_MINOR}" \
-            --label "needs-review" \
-            --assignee "copilot" \
+            --label "go" \
+            --assignee "" \
             --body "$BODY"

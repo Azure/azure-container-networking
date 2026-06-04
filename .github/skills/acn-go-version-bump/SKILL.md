@@ -245,10 +245,15 @@ After making all changes:
 - Uses `renderkit` and `skopeo` to resolve image tags to SHA digests
 - Pipeline uses `.pipelines/build/scripts/install-go.sh`
 
-### Component CGO Map (current as of Go 1.26)
-| Component | CGO_ENABLED | GOEXPERIMENT | Build Mode | Notes |
-|-----------|:-----------:|:------------:|:----------:|-------|
-| cni, cns, npm, dropgz, azure-ipam, azure-ip-masq-merger, azure-iptables-monitor, ipv6-hp-bpf | 0 | ms_nocgo_opensslcrypto | static binary | Nocgo OpenSSL backend (systemcrypto requires CGO) |
+### Component CGO Map
+
+> **GOEXPERIMENT values are version-dependent.** Always consult MS Go docs for the target version.
+> The table below shows the CGO settings (which are version-independent) and the GOEXPERIMENT
+> rules as of Go 1.26. For Go 1.27+, `systemcrypto` works without CGO (nocgo backend is default).
+
+| Component | CGO_ENABLED | GOEXPERIMENT (Go 1.26) | Build Mode | Notes |
+|-----------|:-----------:|:----------------------:|:----------:|-------|
+| cni, cns, npm, dropgz, azure-ipam, azure-ip-masq-merger, azure-iptables-monitor, ipv6-hp-bpf | 0 | ms_nocgo_opensslcrypto | static binary | Nocgo OpenSSL backend (systemcrypto requires CGO in 1.26) |
 | cilium-log-collector | 1 | systemcrypto | c-shared (.so) | Fluent Bit plugin, requires CGO |
 
 ### Important Notes
