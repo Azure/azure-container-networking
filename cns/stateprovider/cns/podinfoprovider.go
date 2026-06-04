@@ -41,6 +41,14 @@ func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[
 	podInfoByIP := map[string]cns.PodInfo{}
 	for containerID, endpointInfo := range state { // for each endpoint
 		for _, ipinfo := range endpointInfo.IfnameToIPMap { // for each IP info object of the endpoint's interfaces
+			// Only InfraNIC IPs are allocated from the NodeNetworkConfig (NNC) IP pool and take part
+			// in CNS IPAM reconciliation. SwiftV2 delegated NIC IPs (e.g. FrontendNIC, BackendNIC) are
+			// owned by the per-pod MultitenantPodNetworkConfig, not the NNC, so reconciling them fails
+			// to map the IP to any NetworkContainer and aborts CNS initialization. An empty NICType
+			// denotes a legacy/InfraNIC entry and is retained for backward compatibility.
+			if ipinfo.NICType != cns.InfraNIC && ipinfo.NICType != "" {
+				continue
+			}
 			for _, ipv4conf := range ipinfo.IPv4 { // for each IPv4 config of the endpoint's interfaces
 				if _, ok := podInfoByIP[ipv4conf.IP.String()]; ok {
 					return nil, errors.Wrap(cns.ErrDuplicateIP, ipv4conf.IP.String())
