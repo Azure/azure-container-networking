@@ -2,6 +2,6 @@
 # SOURCE: .pipelines/build/dockerfiles/cilium-log-collector.Dockerfile.tmpl
 ARG ARCH
 
-FROM mcr.microsoft.com/oss/v2/fluent/fluent-bit:v4.2.3-8 as linux
+FROM mcr.microsoft.com/oss/v2/fluent/fluent-bit:v4.2.3-8@sha256:8d7eafa66d2cc71ce32526c7fff707c289c1a2b434fdbe3742742e906b2a3c16 as linux
 ARG ARTIFACT_DIR
 COPY ${ARTIFACT_DIR}/bin/out_azure_app_insights.so /out_azure_app_insights.so

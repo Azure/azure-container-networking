@@ -2,7 +2,7 @@ ARG ARCH
 
 
 # intermediate for win-ltsc2022
-FROM --platform=windows/${ARCH} mcr.microsoft.com/windows/servercore@sha256:45952938708fbde6ec0b5b94de68bcdec3f8c838be018536b1e9e5bd95e6b943 as windows
+FROM --platform=windows/${ARCH} mcr.microsoft.com/windows/servercore:ltsc2022@sha256:45952938708fbde6ec0b5b94de68bcdec3f8c838be018536b1e9e5bd95e6b943 as windows
 ARG ARTIFACT_DIR
 
 COPY ${ARTIFACT_DIR}/files/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
@@ -13,7 +13,7 @@ COPY ${ARTIFACT_DIR}/bin/azure-npm.exe npm.exe
 CMD ["npm.exe", "start" "--kubeconfig=.\\kubeconfig"]
 
 
-FROM --platform=linux/${ARCH} mcr.microsoft.com/mirror/docker/library/ubuntu:24.04 as linux
+FROM --platform=linux/${ARCH} mcr.microsoft.com/mirror/docker/library/ubuntu:24.04@sha256:c35e29c9450151419d9448b0fd75374fec4fff364a27f176fb458d472dfc9e54 as linux
 ARG ARTIFACT_DIR
 
 RUN apt-get update && apt-get install -y iptables ipset ca-certificates && apt-get autoremove -y && apt-get clean

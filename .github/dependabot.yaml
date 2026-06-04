@@ -2,7 +2,16 @@
 version: 2
 updates:
   - package-ecosystem: "docker"
-    directory: "/"
+    directories:
+      - "/.pipelines/build/dockerfiles"
+      - "/azure-ipam"
+      - "/azure-ip-masq-merger"
+      - "/azure-iptables-monitor"
+      - "/bpf-prog/ipv6-hp-bpf"
+      - "/cilium-log-collector"
+      - "/cni"
+      - "/cns"
+      - "/npm"
     schedule:
       interval: "daily"
     commit-message:
@@ -11,6 +20,11 @@ updates:
     open-pull-requests-limit: 10
     cooldown:
       default-days: 7
+    groups:
+      go:
+        patterns: ["*golang*"]
+      base-os:
+        patterns: ["*azurelinux*", "*windows*", "*servercore*", "*windows-host-process-containers-base-image*", "*ubuntu*"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
