@@ -98,6 +98,12 @@ const (
 	ApipaNIC NICType = "ApipaNIC"
 )
 
+// IsInfraOrLegacy returns true if the NIC type represents an InfraNIC
+// or is empty (legacy endpoints that predate the NICType field).
+func (n NICType) IsInfraOrLegacy() bool {
+	return n == InfraNIC || n == ""
+}
+
 // ChannelMode :- CNS channel modes
 const (
 	Direct         = "Direct"

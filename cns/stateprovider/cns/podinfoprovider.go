@@ -41,6 +41,11 @@ func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[
 	podInfoByIP := map[string]cns.PodInfo{}
 	for containerID, endpointInfo := range state { // for each endpoint
 		for _, ipinfo := range endpointInfo.IfnameToIPMap { // for each IP info object of the endpoint's interfaces
+			// Only InfraNIC IPs participate in NNC reconcile; delegated NIC IPs
+			// (FrontendNIC/BackendNIC) are owned by per-pod MTPNC.
+			if !ipinfo.NICType.IsInfraOrLegacy() {
+				continue
+			}
 			for _, ipv4conf := range ipinfo.IPv4 { // for each IPv4 config of the endpoint's interfaces
 				if _, ok := podInfoByIP[ipv4conf.IP.String()]; ok {
 					return nil, errors.Wrap(cns.ErrDuplicateIP, ipv4conf.IP.String())

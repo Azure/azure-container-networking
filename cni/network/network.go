@@ -673,7 +673,7 @@ func sortInfraNICFirst(epInfos []*network.EndpointInfo) {
 // isInfraOrLegacyNICType returns true if the NIC type is InfraNIC or empty (legacy).
 // Empty NICType is treated as infra for backward compatibility with older CNS responses.
 func isInfraOrLegacyNICType(nicType cns.NICType) bool {
-	return nicType == cns.InfraNIC || nicType == ""
+	return nicType.IsInfraOrLegacy()
 }
 
 func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
