@@ -241,7 +241,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 	// per hns team, the hns calls fails if passed a vSwitch interface
 	// Pass adapter name here if it is not empty, this is cause if we don't tell HNS which adapter to use
 	// it will just pick one randomly, this is a problem for customers that have multiple adapters
-	netAdapterNamePolicyAdded := false
+	isNetAdapterNamePolicyAdded := false
 	if nwInfo.AdapterName != "" || !strings.HasPrefix(extIf.Name, vEthernetAdapterPrefix) {
 		var adapterName string
 		if nwInfo.AdapterName != "" {
@@ -259,31 +259,36 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 		}
 
 		hcnNetwork.Policies = append(hcnNetwork.Policies, netAdapterNamePolicy)
-		netAdapterNamePolicyAdded = true
+		isNetAdapterNamePolicyAdded = true
 	}
 
-	if !netAdapterNamePolicyAdded {
+	// Best effort to add IP policy in case adapter name is empty
+	// TODO estebanca improve logger messages with coordinates
+	if !isNetAdapterNamePolicyAdded {
 		primaryInterfaceIdentifier := nwInfo.PrimaryInterfaceIdentifier
-		if primaryInterfaceIdentifier == "" {
-			return nil, errors.New("PrimaryInterfaceIdentifier is empty. Adapter Address policy can't be applied")
-		}
 
-		var providerAddress string
-		// Based on cns/NetworkContainerContract.go, PrimaryInterfaceIdentifier can be either an IP or a CIDR
-		if ip, _, err := net.ParseCIDR(primaryInterfaceIdentifier); err == nil {
-			providerAddress = ip.String()
-		} else if ip := net.ParseIP(primaryInterfaceIdentifier); ip != nil {
-			providerAddress = ip.String()
+		if primaryInterfaceIdentifier != "" {
+
+			var providerAddress string
+			// Based on cns/NetworkContainerContract.go, PrimaryInterfaceIdentifier can be either an IP or a CIDR
+			if ip, _, err := net.ParseCIDR(primaryInterfaceIdentifier); err == nil {
+				providerAddress = ip.String()
+			} else if ip := net.ParseIP(primaryInterfaceIdentifier); ip != nil {
+				providerAddress = ip.String()
+			} else {
+				return nil, fmt.Errorf("PrimaryInterfaceIdentifier %q is not a valid IP or CIDR", primaryInterfaceIdentifier)
+			}
+
+			adapterAddressPolicy, err := policy.GetHcnNetAdapterAddressPolicy(providerAddress)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to serialize network adapter address policy: %w", err)
+			}
+
+			hcnNetwork.Policies = append(hcnNetwork.Policies, adapterAddressPolicy)
 		} else {
-			return nil, fmt.Errorf("PrimaryInterfaceIdentifier %q is not a valid IP or CIDR", primaryInterfaceIdentifier)
+			logger.Info("Unable to apply Adapter Address policy during network creation. Proceeding without it.")
 		}
 
-		adapterAddressPolicy, err := policy.GetHcnNetAdapterAddressPolicy(providerAddress)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to serialize network adapter address policy: %w", err)
-		}
-
-		hcnNetwork.Policies = append(hcnNetwork.Policies, adapterAddressPolicy)
 	}
 
 	// Set hcn subnet policy
