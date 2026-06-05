@@ -258,3 +258,58 @@ func TestRuleExists(t *testing.T) {
 	result := client.RuleExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept)
 	assert.False(t, result)
 }
+
+func TestDeleteIptableRuleIfExists(t *testing.T) {
+	const expectedCmd = "iptables -w 60 -t filter -D AZURECNIINPUT -p tcp --dport 80 -j ACCEPT"
+
+	t.Run("delete succeeds returns nil", func(t *testing.T) {
+		mockPL := platform.NewMockExecClient(false)
+		client := &Client{pl: mockPL}
+		mockPL.SetExecRawCommand(func(cmd string) (string, error) {
+			require.Equal(t, expectedCmd, cmd)
+			return "", nil
+		})
+
+		require.NoError(t, client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept))
+	})
+
+	t.Run("rule not found error is swallowed", func(t *testing.T) {
+		mockPL := platform.NewMockExecClient(false)
+		client := &Client{pl: mockPL}
+		mockPL.SetExecRawCommand(func(cmd string) (string, error) {
+			require.Equal(t, expectedCmd, cmd)
+			// Real iptables stderr when the rule is absent. The wrapper
+			// in ExecuteRawCommand formats this as "<err>:<stderr>", which
+			// is what DeleteIptableRuleIfExists pattern-matches against.
+			return "", errors.New("exit status 1:iptables: Bad rule (does a matching rule exist in that chain?).\n")
+		})
+
+		require.NoError(t, client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept))
+	})
+
+	t.Run("lock contention error is propagated", func(t *testing.T) {
+		mockPL := platform.NewMockExecClient(false)
+		client := &Client{pl: mockPL}
+		lockErr := errors.New("exit status 4:Another app is currently holding the xtables lock; waiting for it to exit\n")
+		mockPL.SetExecRawCommand(func(cmd string) (string, error) {
+			require.Equal(t, expectedCmd, cmd)
+			return "", lockErr
+		})
+
+		err := client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept)
+		require.Error(t, err, "lock contention must NOT be silently treated as success")
+		assert.Contains(t, err.Error(), "xtables lock")
+	})
+
+	t.Run("permission denied error is propagated", func(t *testing.T) {
+		mockPL := platform.NewMockExecClient(false)
+		client := &Client{pl: mockPL}
+		mockPL.SetExecRawCommand(func(cmd string) (string, error) {
+			return "", errors.New("exit status 3:iptables v1.8.7: can't initialize iptables table `filter': Permission denied (you must be root)")
+		})
+
+		err := client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Permission denied")
+	})
+}

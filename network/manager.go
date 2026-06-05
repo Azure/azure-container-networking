@@ -516,10 +516,26 @@ func (nm *networkManager) DeleteEndpointStateless(networkID string, epInfo *Endp
 	// we want to always use hnsv2 in stateless
 	// hnsv2 is only enabled if NetNs has a valid guid and the hnsv2 api is supported
 	// by passing in a dummy guid, we satisfy the first condition
+
+	// Stateless DEL must honour the requested mode so the dispatcher in
+	// deleteEndpointImpl reaches the correct endpoint client. Previously the
+	// mode was hardcoded to opModeTransparent here, which silently routed
+	// transparent-tunnel deletes through the plain transparent path and
+	// left node-shared state behind (per-pod fwmark MARK rule, raw NOTRACK
+	// rule, ipset entry, fwmark ip rule, table-101 route).
+	//
+	// Empty mode keeps defaulting to opModeTransparent to preserve the
+	// pre-existing stateless behaviour for callers that don't set
+	// nwCfg.Mode (changing that default would route them through the
+	// bridge client instead — a regression unrelated to this fix).
+	if mode == "" {
+		mode = opModeTransparent
+	}
+
 	nw := &network{
 		Id:           networkID, // currently unused in stateless cni
 		HnsId:        epInfo.HNSNetworkID,
-		Mode:         opModeTransparent,
+		Mode:         mode,
 		SnatBridgeIP: "",
 		NetNs:        dummyGUID, // to trigger hns v2, windows
 		extIf: &externalInterface{

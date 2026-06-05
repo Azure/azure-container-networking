@@ -1,3 +1,95 @@
+// Package-level overview for the transparent-tunnel CNI mode (Linux).
+//
+// PROBLEM
+//
+// Azure CNI's existing "transparent" mode forwards same-node pod-to-pod
+// traffic through the Linux bridge `azure0` entirely inside the host
+// network stack. That path never reaches the Virtual Filtering Platform
+// (VFP) on the underlying NIC, so Azure NSG / NSG-with-ASG rules — which
+// are enforced by VFP — are silently bypassed for intra-node flows.
+// Cross-node and node-to-pod flows already traverse VFP, so the gap only
+// affects same-node pod-to-pod.
+//
+// SOLUTION
+//
+// "transparent-tunnel" forces same-node pod-to-pod packets out of the
+// host via the physical NIC and back in (a VFP hairpin) so that VFP
+// gets to enforce NSG on those packets too. The mechanism is a small
+// set of cooperating kernel rules installed at AddEndpointRules time
+// and torn down at DeleteEndpointRules time:
+//
+//   1. ipset `azure-tt-local-pods` (hash:ip)
+//      Holds every local pod's IPv4 address. Used by the NOTRACK rule
+//      below to identify "both endpoints are local pods" flows without
+//      pinning a static CIDR (which doesn't exist in NodeSubnet mode).
+//
+//   2. iptables -t mangle PREROUTING `-i azv* -j MARK --set-mark 3`
+//      One rule per pod, keyed by the host-side veth. Stamps fwmark 3
+//      on every packet that originates from a local pod.
+//
+//   3. ip -4 rule add fwmark 0x3 lookup 101
+//      Shared, one per node. Redirects fwmark-3 packets to a custom
+//      routing table.
+//
+//   4. ip route replace default via <gw> dev <eth0> table 101
+//      Shared, one per node. The custom table sends packets out the
+//      physical NIC so they hit VFP.
+//
+//   5. iptables -t raw PREROUTING `-i eth0 -m set --match-set
+//      azure-tt-local-pods src -m set --match-set azure-tt-local-pods
+//      dst -j NOTRACK`
+//      Shared, one per node. When the hairpinned packet re-enters the
+//      host on the physical NIC, conntrack is bypassed for src+dst that
+//      are BOTH in the local-pods set — this prevents conntrack tuple
+//      collisions that previously caused ~50% UDP packet loss for
+//      same-node ClusterIP services (e.g. CoreDNS). Cross-node traffic
+//      remains tracked (only one side is in the set), so NAT/un-DNAT
+//      and NPM/established matching keep working.
+//
+// WHY fwmark INSTEAD OF an `ip rule from <podCIDR>`
+//
+// In NodeSubnet mode, pods and the node share a single VNet subnet.
+// There is no distinct pod CIDR to match on, and matching on the whole
+// subnet would re-route node-originated traffic (kubelet, health probes)
+// through VFP too — breaking the data plane. Interface-based matching
+// (mangle `-i azv*`) is the only reliable way to single out
+// pod-originated traffic; the fwmark carries that decision through to
+// the routing layer.
+//
+// WHY NOTRACK INSTEAD OF a stateless bypass
+//
+// Conntrack runs on every interface by default. When the same packet
+// enters the host twice (once from the pod veth, once from the physical
+// NIC after hairpin) conntrack sees two views of the "same" 5-tuple and
+// drops the second one with insert_failed. Marking only the hairpin
+// re-entry path NOTRACK (and only when both endpoints are local pods)
+// keeps conntrack out of the way for exactly the flows that need to
+// hairpin while leaving all other tracking intact.
+//
+// LIFECYCLE
+//
+// Rules 1, 3, 4, 5 are shared across every transparent-tunnel pod on
+// the node and are reference-counted via the live mangle MARK rules:
+// the per-pod MARK rules are the canonical refcount, and shared state
+// is torn down only when the count reaches zero. Rule 2 (MARK) and the
+// ipset entry are per-pod.
+//
+// Cleanup goes through DeleteIptableRuleIfExists (defined in
+// iptables/iptables.go) which attempts the delete unconditionally and
+// swallows only the kernel's explicit "rule does not exist" error. The
+// previous RuleExists()+Delete pattern was unsafe because RuleExists
+// returns false on ANY error (xtables lock contention, permission
+// denied) and silently skipped the delete, leaving stale rules behind.
+//
+// IDEMPOTENCY
+//
+// The kernel does NOT deduplicate `ip rule` entries: every RTM_NEWRULE
+// just appends another entry at the next free priority, even with
+// NLM_F_EXCL. addTransparentTunnelRules therefore pre-checks via
+// RuleList and skips RuleAdd when a matching (mark, table) rule
+// already exists; deleteTransparentTunnelRules drains stacked
+// duplicates in a bounded loop to recover from older builds that
+// pre-date this dedup.
 package network
 
 import (
@@ -40,6 +132,15 @@ const (
 	// transparentTunnelLocalPodsSetType is the ipset type used for the
 	// local-pods set. hash:ip stores individual IPv4 addresses (no CIDRs).
 	transparentTunnelLocalPodsSetType = "hash:ip"
+
+	// deleteIPRuleDrainCap bounds the loop that drains stacked fwmark ip
+	// rules during shared cleanup. Each iteration removes one matching
+	// rule; the loop exits early on ENOENT/ESRCH. The cap is intentionally
+	// generous (much larger than any realistic per-node pod density) to
+	// recover from very old nodes that may have accumulated many leaked
+	// duplicates, while still guaranteeing forward progress in the
+	// pathological case where RuleDel never signals "not found".
+	deleteIPRuleDrainCap = 256
 )
 
 // tunnelPolicyRouteClient abstracts vishvananda/netlink operations for policy
@@ -48,6 +149,11 @@ const (
 type tunnelPolicyRouteClient interface {
 	RuleAdd(rule *vishnetlink.Rule) error
 	RuleDel(rule *vishnetlink.Rule) error
+	// RuleList enumerates ip rules in the given address family. Used by
+	// addTransparentTunnelRules to dedup before RuleAdd, since the kernel
+	// does NOT return EEXIST for duplicate ip rules — each RTM_NEWRULE
+	// just appends another entry at the next free priority.
+	RuleList(family int) ([]vishnetlink.Rule, error)
 	RouteReplace(route *vishnetlink.Route) error
 	RouteDel(route *vishnetlink.Route) error
 }
@@ -67,6 +173,14 @@ func (defaultTunnelPolicyRouteClient) RuleDel(rule *vishnetlink.Rule) error {
 		return fmt.Errorf("netlink rule del: %w", err)
 	}
 	return nil
+}
+
+func (defaultTunnelPolicyRouteClient) RuleList(family int) ([]vishnetlink.Rule, error) {
+	rules, err := vishnetlink.RuleList(family)
+	if err != nil {
+		return nil, fmt.Errorf("netlink rule list: %w", err)
+	}
+	return rules, nil
 }
 
 func (defaultTunnelPolicyRouteClient) RouteReplace(route *vishnetlink.Route) error {
@@ -219,12 +333,52 @@ func (client *TransparentTunnelEndpointClient) DeleteTransparentTunnelRules(ep *
 // consults the routing table — exactly what we need for policy routing via
 // table 101.
 // Ref: iptables(8) man page, Netfilter Packet Traversal documentation.
+
+// pickTunnelGateway returns the IPv4 gateway to use for the table-101 default
+// route. It prefers the per-pod IPAM gateway (epInfo.Gateways) because IPAM
+// always populates it from the IP allocation, then falls back to the host's
+// extIf gateway. Returns nil if neither source yields a usable, non-zero
+// IPv4 address — caller must reject. A zero (net.IPv4zero / "0.0.0.0") IP
+// is treated as "unusable" because passing it to netlink RouteReplace
+// silently installs a link-scoped default route, which only works for
+// same-subnet destinations and black-holes all other pod egress.
+func pickTunnelGateway(epInfo *EndpointInfo, extIfGateway net.IP) net.IP {
+	if epInfo != nil {
+		for _, g := range epInfo.Gateways {
+			if g4 := g.To4(); g4 != nil && !g4.IsUnspecified() {
+				return g4
+			}
+		}
+	}
+	if g4 := extIfGateway.To4(); g4 != nil && !g4.IsUnspecified() {
+		return g4
+	}
+	return nil
+}
+
 func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo *EndpointInfo) error {
-	// Gateway is required — without it the custom routing table would have no default
-	// route, and all fwmarked packets would be black-holed. Fail early before creating
-	// any iptables rules to avoid leaving the node in a partially-configured state.
-	if client.gateway == nil {
-		return errors.New("cannot add tunnel rules: host gateway is nil")
+	// Resolve the IPv4 gateway used for the table-101 default route.
+	//
+	// We prefer the per-pod IPAM gateway (epInfo.Gateways) over the host's
+	// extIf gateway (client.gateway) because extIf.IPv4Gateway is captured
+	// from `ip route show default` at the moment the externalInterface is
+	// first created and is then persisted to disk. On self-managed shapes
+	// (and during early-boot races on AKS) the host's default route can be
+	// absent at that instant, in which case extIf.IPv4Gateway is persisted
+	// as net.IPv4zero (i.e. "0.0.0.0"). It is NOT nil, so a `== nil` check
+	// does NOT catch it — and passing Gw=0.0.0.0 to netlink RouteReplace
+	// silently installs a link-scoped default route (`default dev eth0`,
+	// no `via …`). A link-scoped default works for same-subnet pod-to-pod
+	// (kernel ARPs the destination directly) — which is why same-node
+	// hairpin NSG enforcement still appears to work — but it black-holes
+	// every non-link-local pod egress: Azure DNS 168.63.129.16, IMDS
+	// 169.254.169.254, management.azure.com, kube-svc clusterIPs,
+	// NodePort-SNAT return, anything off-subnet. The pod gateway from
+	// IPAM is always populated (it is a required IPAM result field), so
+	// preferring it eliminates this whole class of failure.
+	gw := pickTunnelGateway(epInfo, client.gateway)
+	if gw == nil {
+		return errors.New("cannot add tunnel rules: no usable IPv4 gateway from epInfo or extIf (both nil or 0.0.0.0)")
 	}
 
 	hostVeth := client.hostVethName
@@ -294,19 +448,36 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 	//   ip -4 rule add fwmark <fwmark> lookup <table>
 	// Example: ip -4 rule add fwmark 0x3 lookup 101
 	//
-	// The ip rule is shared across all transparent-tunnel endpoints on this node —
-	// every pod uses the same fwmark (3) and lookup table (101). We always attempt
-	// the add and tolerate EEXIST. This avoids a TOCTOU race where two concurrent
-	// pod creates both see the rule missing and both try to add it.
+	// The ip rule is shared across all transparent-tunnel endpoints on this
+	// node — every pod uses the same fwmark (3) and lookup table (101).
+	//
+	// Idempotency note: the kernel does NOT deduplicate ip rules — every
+	// RTM_NEWRULE appends another entry at a fresh auto-assigned priority,
+	// even with NLM_F_EXCL, so we cannot rely on EEXIST. Instead we
+	// pre-check via RuleList(AF_INET) and skip RuleAdd when a matching
+	// (mark, table, family) rule already exists. The EEXIST tolerance
+	// below covers the narrow TOCTOU race where two concurrent CNI adds
+	// list the empty set and then both add — at worst this leaves one
+	// extra rule which the cleanup loop in deleteTransparentTunnelRules
+	// will drain.
 	rule := vishnetlink.NewRule()
 	rule.Mark = transparentTunnelFwmark
 	rule.Table = transparentTunnelRouteTable
 	rule.Family = unix.AF_INET
-	if err := client.nlPolicyRoute.RuleAdd(rule); err != nil {
+	existingRules, listErr := client.nlPolicyRoute.RuleList(unix.AF_INET)
+	if listErr != nil {
+		return errors.Wrap(listErr, "failed to list ip rules for fwmark dedup")
+	}
+	if existing := findFwmarkRule(existingRules, transparentTunnelFwmark, transparentTunnelRouteTable); existing != nil {
+		logger.Info("transparent-tunnel: ip rule already present, skipping add",
+			zap.Int("fwmark", transparentTunnelFwmark),
+			zap.Int("table", transparentTunnelRouteTable),
+			zap.Int("priority", existing.Priority))
+	} else if err := client.nlPolicyRoute.RuleAdd(rule); err != nil {
 		if !errors.Is(err, syscall.EEXIST) {
 			return errors.Wrap(err, "failed to add ip rule for fwmark")
 		}
-		logger.Info("transparent-tunnel: ip rule already exists, skipping",
+		logger.Info("transparent-tunnel: ip rule add returned EEXIST (race with concurrent add), tolerating",
 			zap.Int("fwmark", transparentTunnelFwmark), zap.Int("table", transparentTunnelRouteTable))
 	} else {
 		logger.Info("transparent-tunnel: added ip rule",
@@ -318,6 +489,15 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 	//   ip route replace default via <gateway> dev <hostPrimaryIfName> table <table>
 	// Example: ip route replace default via 10.224.0.1 dev eth0 table 101
 	//
+	// IMPORTANT: the Gw value MUST be a real next-hop, NOT 0.0.0.0. A route
+	// installed with Gw==0.0.0.0 is interpreted by the kernel as link-scoped
+	// (`default dev eth0`, no `via …`). Link-scoped only works for same-subnet
+	// destinations (kernel ARPs the dst directly); every non-link-local pod
+	// egress (Azure DNS 168.63.129.16, IMDS, ARM, kube-svc clusterIPs,
+	// NodePort SNAT return) gets black-holed. The `gw` value resolved at
+	// the top of this function via pickTunnelGateway is guaranteed non-nil
+	// and non-unspecified.
+	//
 	// RouteReplace is idempotent, so safe to call from every endpoint.
 	iface, err := client.netioshim.GetNetworkInterfaceByName(client.hostPrimaryIfName)
 	if err != nil {
@@ -327,14 +507,14 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 	route := &vishnetlink.Route{
 		LinkIndex: iface.Index,
 		Dst:       defaultDst,
-		Gw:        client.gateway,
+		Gw:        gw,
 		Table:     transparentTunnelRouteTable,
 	}
 	if err := client.nlPolicyRoute.RouteReplace(route); err != nil {
 		return errors.Wrapf(err, "failed to add default route in table %d", transparentTunnelRouteTable)
 	}
 	logger.Info("transparent-tunnel: added default route in custom table",
-		zap.String("gw", client.gateway.String()),
+		zap.String("gw", gw.String()),
 		zap.String("dev", client.hostPrimaryIfName),
 		zap.Int("table", transparentTunnelRouteTable))
 
@@ -343,21 +523,37 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 
 // buildTransparentTunnelNotrackMatch returns the iptables match expression for
 // the bidirectional ipset NOTRACK rule. Centralised so add and delete paths
-// always use the byte-identical match string (required for RuleExists /
-// iptables-D matching).
+// always use the byte-identical match string (required so the kernel matches
+// the rule exactly on iptables -D).
 func buildTransparentTunnelNotrackMatch(hostPrimaryIf string) string {
 	return "-i " + hostPrimaryIf +
 		" -m set --match-set " + transparentTunnelLocalPodsSet + " src" +
 		" -m set --match-set " + transparentTunnelLocalPodsSet + " dst"
 }
 
+// findFwmarkRule scans an ip-rule list for a rule matching the given fwmark
+// and routing table. Returns the first match (by enumeration order) or nil.
+// Used by the add path to dedup before RuleAdd, since the kernel does not
+// reject duplicate (mark, table) rules — every RTM_NEWRULE just appends
+// another entry at the next free priority.
+func findFwmarkRule(rules []vishnetlink.Rule, fwmark, table int) *vishnetlink.Rule {
+	wantMark := uint32(fwmark)
+	for i := range rules {
+		if rules[i].Mark == wantMark && rules[i].Table == table {
+			return &rules[i]
+		}
+	}
+	return nil
+}
+
 // deleteTransparentTunnelRules removes the per-endpoint iptables, ipset, and
 // routing-policy rules. It attempts every cleanup step independently and
 // aggregates failures via errors.Join so that one transient failure does not
-// leave behind unrelated state. Idempotency: iptables rules are pre-checked
-// with RuleExists so an absent rule is not treated as a delete failure;
-// netlink RuleDel / RouteDel tolerate ENOENT / ESRCH for the same reason;
-// ipset Del uses `-exist` so a missing entry is success.
+// leave behind unrelated state. Idempotency: iptables deletes go through
+// DeleteIptableRuleIfExists which swallows only the kernel's explicit "no
+// such rule" error (any other error — lock contention, permissions, syntax
+// — is surfaced); netlink RuleDel / RouteDel tolerate ENOENT / ESRCH for
+// the same reason; ipset Del uses `-exist` so a missing entry is success.
 //
 // All other errors are surfaced so containerd retries the CNI DEL — leaving
 // a stale fwmark MARK rule, ipset entry, or table-101 entry behind would
@@ -395,22 +591,21 @@ func (client *TransparentTunnelEndpointClient) deleteTransparentTunnelRules(ep *
 	// 2. Remove fwmark MARK rule (per-pod).
 	markMatch := "-i " + hostVeth
 	markTarget := "MARK --set-mark " + markStr
-	// Pre-check existence — equivalent CLI:
-	//   iptables -t mangle -C PREROUTING -i <hostVeth> -j MARK --set-mark <fwmark>
-	// Example: iptables -t mangle -C PREROUTING -i azv1234 -j MARK --set-mark 3
-	if client.iptablesClient.RuleExists(iptables.V4, iptables.Mangle, iptables.Prerouting, markMatch, markTarget) {
-		// Equivalent CLI:
-		//   iptables -t mangle -D PREROUTING -i <hostVeth> -j MARK --set-mark <fwmark>
-		// Example: iptables -t mangle -D PREROUTING -i azv1234 -j MARK --set-mark 3
-		if err := client.iptablesClient.DeleteIptableRule(
-			iptables.V4, iptables.Mangle, iptables.Prerouting, markMatch, markTarget,
-		); err != nil {
-			logger.Error("transparent-tunnel: failed to delete fwmark MARK rule", zap.Error(err))
-			errs = append(errs, errors.Wrap(err, "delete fwmark MARK rule"))
-		}
-	} else {
-		logger.Info("transparent-tunnel: fwmark MARK rule already absent, skipping",
-			zap.String("veth", hostVeth))
+	// Equivalent CLI:
+	//   iptables -t mangle -D PREROUTING -i <hostVeth> -j MARK --set-mark <fwmark>
+	// Example: iptables -t mangle -D PREROUTING -i azv1234 -j MARK --set-mark 3
+	//
+	// DeleteIptableRuleIfExists attempts the delete unconditionally and
+	// swallows only the kernel's explicit "no such rule" error. The
+	// previous RuleExists()+Delete pattern was unsafe in cleanup because
+	// RuleExists returns false on ANY error (xtables lock contention,
+	// permission denied) — it would silently skip the delete and leave
+	// the MARK rule on the host.
+	if err := client.iptablesClient.DeleteIptableRuleIfExists(
+		iptables.V4, iptables.Mangle, iptables.Prerouting, markMatch, markTarget,
+	); err != nil {
+		logger.Error("transparent-tunnel: failed to delete fwmark MARK rule", zap.Error(err))
+		errs = append(errs, errors.Wrap(err, "delete fwmark MARK rule"))
 	}
 
 	// 3. Refcount the shared state. The ip rule, route table, NOTRACK rule,
@@ -449,37 +644,56 @@ func (client *TransparentTunnelEndpointClient) deleteTransparentTunnelRules(ep *
 		//   iptables -t raw -D PREROUTING -i <hostPrimaryIf> \
 		//     -m set --match-set azure-tt-local-pods src \
 		//     -m set --match-set azure-tt-local-pods dst -j NOTRACK
+		//
+		// DeleteIptableRuleIfExists swallows only the explicit kernel
+		// "rule not found" error; any real failure (lock contention,
+		// permissions, syntax) is propagated to errs so the runtime
+		// retries the DEL. The prior RuleExists+Delete pattern hid
+		// these errors and could leave the NOTRACK rule on the host.
 		notrackMatch := buildTransparentTunnelNotrackMatch(client.hostPrimaryIfName)
-		if client.iptablesClient.RuleExists(iptables.V4, iptables.Raw, iptables.Prerouting, notrackMatch, iptables.Notrack) {
-			if err := client.iptablesClient.DeleteIptableRule(
-				iptables.V4, iptables.Raw, iptables.Prerouting, notrackMatch, iptables.Notrack,
-			); err != nil {
-				logger.Error("transparent-tunnel: failed to delete NOTRACK rule", zap.Error(err))
-				errs = append(errs, errors.Wrap(err, "delete NOTRACK rule"))
-			}
-		} else {
-			logger.Info("transparent-tunnel: NOTRACK rule already absent, skipping",
-				zap.String("dev", client.hostPrimaryIfName))
+		if err := client.iptablesClient.DeleteIptableRuleIfExists(
+			iptables.V4, iptables.Raw, iptables.Prerouting, notrackMatch, iptables.Notrack,
+		); err != nil {
+			logger.Error("transparent-tunnel: failed to delete NOTRACK rule", zap.Error(err))
+			errs = append(errs, errors.Wrap(err, "delete NOTRACK rule"))
 		}
 
 		// 5. Delete shared ip rule (fwmark → table 101).
 		// Equivalent CLI:
-		//   ip -4 rule del fwmark <fwmark> lookup <table>
+		//   ip -4 rule del fwmark <fwmark> lookup <table>   # repeat until ENOENT
 		// Example: ip -4 rule del fwmark 0x3 lookup 101
-		// (ENOENT/ESRCH from netlink == rule already gone; treated as success.)
+		//
+		// We loop RuleDel until ENOENT/ESRCH because the kernel does not
+		// deduplicate ip rules on add (see addTransparentTunnelRules); a
+		// node that survived an older build may have several stacked
+		// duplicates that all match (mark, table) and each RuleDel only
+		// removes one. The loop bounds itself by deleteIPRuleDrainCap to
+		// guarantee forward progress even if RuleDel never returns
+		// ENOENT/ESRCH (defensive against future netlink quirks).
 		rule := vishnetlink.NewRule()
 		rule.Mark = transparentTunnelFwmark
 		rule.Table = transparentTunnelRouteTable
 		rule.Family = unix.AF_INET
-		if err := client.nlPolicyRoute.RuleDel(rule); err != nil {
-			if errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ESRCH) {
-				logger.Info("transparent-tunnel: ip rule already absent, skipping",
-					zap.Int("fwmark", transparentTunnelFwmark))
-			} else {
+		drained := 0
+		for i := 0; i < deleteIPRuleDrainCap; i++ {
+			if err := client.nlPolicyRoute.RuleDel(rule); err != nil {
+				if errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ESRCH) {
+					break
+				}
 				logger.Error("transparent-tunnel: failed to delete ip rule",
 					zap.Int("fwmark", transparentTunnelFwmark), zap.Error(err))
 				errs = append(errs, errors.Wrapf(err, "delete ip rule fwmark %d", transparentTunnelFwmark))
+				break
 			}
+			drained++
+		}
+		if drained == 0 {
+			logger.Info("transparent-tunnel: ip rule already absent, skipping",
+				zap.Int("fwmark", transparentTunnelFwmark))
+		} else {
+			logger.Info("transparent-tunnel: deleted ip rule(s)",
+				zap.Int("fwmark", transparentTunnelFwmark),
+				zap.Int("count", drained))
 		}
 
 		// 6. Delete shared default route in custom table.

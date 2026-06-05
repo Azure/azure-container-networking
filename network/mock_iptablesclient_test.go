@@ -18,8 +18,9 @@ func (c *mockIPTablesClient) InsertIptableRule(version, tableName, chainName, ma
 	return nil
 }
 
-func (c *mockIPTablesClient) AppendIptableRule(_, _, _, _, _ string) error { return nil }
-func (c *mockIPTablesClient) DeleteIptableRule(_, _, _, _, _ string) error { return nil }
-func (c *mockIPTablesClient) RuleExists(_, _, _, _, _ string) bool         { return false }
-func (c *mockIPTablesClient) CreateChain(_, _, _ string) error             { return nil }
-func (c *mockIPTablesClient) RunCmd(_, _ string) error                     { return nil }
+func (c *mockIPTablesClient) AppendIptableRule(_, _, _, _, _ string) error         { return nil }
+func (c *mockIPTablesClient) DeleteIptableRule(_, _, _, _, _ string) error         { return nil }
+func (c *mockIPTablesClient) RuleExists(_, _, _, _, _ string) bool                 { return false }
+func (c *mockIPTablesClient) CreateChain(_, _, _ string) error                     { return nil }
+func (c *mockIPTablesClient) RunCmd(_, _ string) error                             { return nil }
+func (c *mockIPTablesClient) DeleteIptableRuleIfExists(_, _, _, _, _ string) error { return nil }

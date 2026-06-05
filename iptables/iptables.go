@@ -5,11 +5,19 @@ package iptables
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"go.uber.org/zap"
 )
+
+// iptables exit code 1 emits this exact stderr substring (across iptables-legacy
+// and iptables-nft, IPv4 and IPv6) when the rule being matched/deleted is not
+// present. Any OTHER iptables error (lock contention, permission denied, syntax
+// error) produces different stderr, so this substring is the safest "rule
+// absent" signal we can detect from ExecuteRawCommand output.
+const iptablesRuleNotFoundSubstr = "does a matching rule exist"
 
 var (
 	logger                        = log.CNILogger.With(zap.String("component", "cni-iptables"))
@@ -219,4 +227,34 @@ func (c *Client) AppendIptableRule(version, tableName, chainName, match, target 
 func (c *Client) DeleteIptableRule(version, tableName, chainName, match, target string) error {
 	params := fmt.Sprintf("-t %s -D %s %s -j %s", tableName, chainName, match, target)
 	return c.RunCmd(version, params)
+}
+
+// DeleteIptableRuleIfExists deletes the rule unconditionally and swallows ONLY
+// the "rule does not exist" error. All other failures (xtables lock contention,
+// permission denied, syntax errors, etc.) are surfaced to the caller.
+//
+// This is the safe alternative to the `RuleExists(...) { DeleteIptableRule(...) }`
+// pattern: RuleExists returns false for ANY check error (including transient
+// lock failures), causing cleanup to silently skip the delete and leave stale
+// host state behind. By attempting the delete first and only ignoring the
+// kernel's explicit "no such rule" signal, we get crash-safe idempotency
+// without losing visibility into real failures.
+//
+// Detection note: iptables returns exit code 1 for both "rule not found" AND
+// some other error classes, so we must inspect stderr (not just the exit code)
+// to distinguish them. The substring "does a matching rule exist" is the
+// long-standing iptables message for a missing rule and is stable across
+// iptables-legacy and iptables-nft on both IPv4 and IPv6.
+func (c *Client) DeleteIptableRuleIfExists(version, tableName, chainName, match, target string) error {
+	err := c.DeleteIptableRule(version, tableName, chainName, match, target)
+	if err == nil {
+		return nil
+	}
+	if strings.Contains(err.Error(), iptablesRuleNotFoundSubstr) {
+		logger.Info("iptables rule already absent, treating as success",
+			zap.String("table", tableName), zap.String("chain", chainName),
+			zap.String("match", match), zap.String("target", target))
+		return nil
+	}
+	return err
 }
