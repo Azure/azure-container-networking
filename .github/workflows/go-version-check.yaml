@@ -744,8 +744,8 @@ jobs:
           gh issue create \
             --repo "$REPO" \
             --title "chore: FIPS prerequisites needed on ${MATRIX_BRANCH} before Go backport" \
-            --label "go" \
-            --assignee "" \
+            
+            
             --body "## Prerequisites Needed on \`${MATRIX_BRANCH}\`
 
           The Go version automation detected a digest/patch update on master, but
@@ -1166,6 +1166,6 @@ jobs:
           gh issue create \
             --repo "$REPO" \
             --title "chore: upgrade Go ${GO_MINOR} → ${LATEST_MINOR}" \
-            --label "go" \
-            --assignee "" \
+            
+            
             --body "$BODY"
