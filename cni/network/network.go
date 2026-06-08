@@ -660,21 +660,16 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 // entries come before all other NIC types, preserving relative order among equals.
 func sortInfraNICFirst(epInfos []*network.EndpointInfo) {
 	slices.SortStableFunc(epInfos, func(a, b *network.EndpointInfo) int {
-		if isInfraOrLegacyNICType(a.NICType) && !isInfraOrLegacyNICType(b.NICType) {
+		if a.NICType.IsInfraOrLegacy() && !b.NICType.IsInfraOrLegacy() {
 			return -1
 		}
-		if !isInfraOrLegacyNICType(a.NICType) && isInfraOrLegacyNICType(b.NICType) {
+		if !a.NICType.IsInfraOrLegacy() && b.NICType.IsInfraOrLegacy() {
 			return 1
 		}
 		return 0
 	})
 }
 
-// isInfraOrLegacyNICType returns true if the NIC type is InfraNIC or empty (legacy).
-// Empty NICType is treated as infra for backward compatibility with older CNS responses.
-func isInfraOrLegacyNICType(nicType cns.NICType) bool {
-	return nicType.IsInfraOrLegacy()
-}
 
 func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 	switch opt.ifInfo.NICType {
@@ -1193,7 +1188,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			zap.String("endpointID", epInfo.EndpointID))
 		telemetryClient.SendEvent("Deleting endpoint: " + epInfo.EndpointID)
 
-		if !nwCfg.MultiTenancy && isInfraOrLegacyNICType(epInfo.NICType) {
+		if !nwCfg.MultiTenancy && epInfo.NICType.IsInfraOrLegacy() {
 			// Call into IPAM plugin to release the endpoint's addresses.
 			for i := range epInfo.IPAddresses {
 				logger.Info("Release ip", zap.String("ip", epInfo.IPAddresses[i].IP.String()))
