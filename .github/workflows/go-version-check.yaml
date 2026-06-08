@@ -123,8 +123,11 @@ jobs:
 
           # ─── Extract actual Go version from latest image ───
           LATEST_GO_VERSION=$(skopeo inspect "docker://$GO_IMG" --format '{{index .Labels "org.opencontainers.image.version"}}' 2>/dev/null || echo "")
-          if [ -z "$LATEST_GO_VERSION" ]; then
-            LATEST_GO_VERSION=$(skopeo inspect "docker://$GO_IMG" --format '{{index .Labels "go-version"}}' 2>/dev/null || echo "UNKNOWN")
+          if [ -z "$LATEST_GO_VERSION" ] || [ "$LATEST_GO_VERSION" = "<no value>" ]; then
+            LATEST_GO_VERSION=$(skopeo inspect "docker://$GO_IMG" --format '{{index .Labels "go-version"}}' 2>/dev/null || echo "")
+          fi
+          if [ -z "$LATEST_GO_VERSION" ] || [ "$LATEST_GO_VERSION" = "<no value>" ]; then
+            LATEST_GO_VERSION="UNKNOWN"
           fi
           # Normalize: strip any "go" prefix (e.g., "go1.26.1" → "1.26.1")
           LATEST_GO_VERSION="${LATEST_GO_VERSION#go}"
@@ -356,7 +359,7 @@ jobs:
           make dockerfiles
 
           # If Go version changed in the image, also bump go.mod and tools-go/go.mod
-          if [ "$GO_VERSION_CHANGED" = "true" ] && [ "$LATEST_GO_VERSION" != "UNKNOWN" ]; then
+          if [ "$GO_VERSION_CHANGED" = "true" ] && [ -n "$LATEST_GO_VERSION" ] && [ "$LATEST_GO_VERSION" != "UNKNOWN" ]; then
             go mod edit -go="${LATEST_GO_VERSION}" go.mod
             go mod tidy
             if [ -f tools-go/go.mod ]; then
@@ -803,7 +806,7 @@ jobs:
 
           make dockerfiles
 
-          if [ "$GO_VERSION_CHANGED" = "true" ] && [ "$LATEST_GO_VERSION" != "UNKNOWN" ]; then
+          if [ "$GO_VERSION_CHANGED" = "true" ] && [ -n "$LATEST_GO_VERSION" ] && [ "$LATEST_GO_VERSION" != "UNKNOWN" ]; then
             go mod edit -go="${LATEST_GO_VERSION}" go.mod
             go mod tidy
             if [ -f tools-go/go.mod ]; then
