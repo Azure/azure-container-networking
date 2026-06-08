@@ -302,6 +302,7 @@ jobs:
           ")
           go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
+          echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
 
       - name: Check for existing PR
         id: existing_pr
@@ -575,6 +576,7 @@ jobs:
           ")
           go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
+          echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
 
       - name: Fetch MS Go FIPS requirements for target version
         id: msgo_fips
