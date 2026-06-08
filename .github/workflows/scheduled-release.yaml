@@ -30,6 +30,10 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: scheduled-release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   actions: write
@@ -81,7 +85,7 @@ jobs:
     needs: check_cadence
     if: needs.check_cadence.outputs.should_run == 'true'
     outputs:
-      merged_count: ${{ steps.wait.outputs.merged_count }}
+      merged_count: ${{ steps.wait.outputs.merged_count || steps.skip.outputs.merged_count }}
     steps:
       - name: Wait for open dependabot PRs to merge
         id: wait
@@ -125,6 +129,7 @@ jobs:
           echo "Dependabot PRs merged in last 7 days: $MERGED"
 
       - name: Skip dependabot wait (manual override)
+        id: skip
         if: ${{ inputs.skip_dependabot_wait == true }}
         run: |
           echo "merged_count=0" >> "$GITHUB_OUTPUT"
@@ -189,6 +194,183 @@ jobs:
           curl -H "Content-Type: application/json" -d "{
             \"text\": \"⚠️ **govulncheck**: $VULN_COUNT vulnerabilities found on ${{ env.RELEASE_BRANCH }}. Manual review required before release proceeds.\"
           }" "${{ env.TEAMS_WEBHOOK_URL }}" || true
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STEP 2b: Detect Binary Changes (dropgz, azure-ipam, etc.)
+  # ─────────────────────────────────────────────────────────────────────────────
+  detect_binary_changes:
+    name: "Step 2b: Detect Binary Changes"
+    runs-on: ubuntu-latest
+    needs: [wait_dependabot, vuln_check]
+    if: always() && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+      has_changes: ${{ steps.detect.outputs.has_changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+          fetch-depth: 0
+
+      - name: Detect changes per binary
+        id: detect
+        run: |
+          set -euo pipefail
+
+          # Binaries to check: name matches both tag prefix and directory
+          BINARIES="dropgz azure-ipam azure-iptables-monitor azure-ip-masq-merger cilium-log-collector"
+
+          # Shared paths that affect all binaries (build infra changes)
+          SHARED_PATHS="Makefile build/"
+
+          MATRIX="[]"
+          for BIN in $BINARIES; do
+            # Find latest tag for this binary reachable from current branch
+            LATEST_TAG=$(git tag --merged HEAD -l "${BIN}/v*" --sort=-v:refname | head -1)
+
+            if [[ -z "$LATEST_TAG" ]]; then
+              echo "::warning::No existing tag found for $BIN — skipping"
+              continue
+            fi
+
+            # Check for changes in the binary's directory + shared build paths
+            CHANGES=$(git diff --name-only "${LATEST_TAG}..HEAD" -- "${BIN}/" $SHARED_PATHS 2>/dev/null | wc -l)
+
+            if [[ "$CHANGES" -gt 0 ]]; then
+              # Parse current version from latest tag
+              VERSION=$(echo "$LATEST_TAG" | sed "s|${BIN}/v||")
+              MAJOR=$(echo "$VERSION" | cut -d. -f1)
+              MINOR=$(echo "$VERSION" | cut -d. -f2)
+              PATCH=$(echo "$VERSION" | cut -d. -f3)
+              NEW_PATCH=$((PATCH + 1))
+              NEW_TAG="${BIN}/v${MAJOR}.${MINOR}.${NEW_PATCH}"
+
+              echo "  $BIN: $CHANGES file(s) changed since $LATEST_TAG → will tag $NEW_TAG"
+              MATRIX=$(echo "$MATRIX" | jq -c --arg bin "$BIN" --arg tag "$NEW_TAG" --arg prev "$LATEST_TAG" \
+                '. += [{"binary": $bin, "new_tag": $tag, "previous_tag": $prev}]')
+            else
+              echo "  $BIN: no changes since $LATEST_TAG — skipping"
+            fi
+          done
+
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          if [[ "$MATRIX" == "[]" ]]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No binaries need a release this cycle."
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "Binaries to release: $(echo "$MATRIX" | jq -r '.[].binary' | tr '\n' ' ')"
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STEP 2c: Tag Binaries That Have Changes
+  # ─────────────────────────────────────────────────────────────────────────────
+  tag_binaries:
+    name: "Tag ${{ matrix.binary }}"
+    runs-on: ubuntu-latest
+    needs: detect_binary_changes
+    if: needs.detect_binary_changes.outputs.has_changes == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.detect_binary_changes.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create tag ${{ matrix.new_tag }}
+        id: create
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          NEW_TAG="${{ matrix.new_tag }}"
+          PREV_TAG="${{ matrix.previous_tag }}"
+
+          # Verify tag doesn't already exist (race guard)
+          if git ls-remote --exit-code --tags origin "refs/tags/$NEW_TAG" >/dev/null 2>&1; then
+            echo "::warning::Tag $NEW_TAG already exists — skipping"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          TARGET_SHA=$(git rev-parse HEAD)
+
+          # Show changelog summary
+          echo "Changes since $PREV_TAG:"
+          git log --oneline "${PREV_TAG}..HEAD" -- "${{ matrix.binary }}/" | head -20
+
+          # Create and push tag
+          git tag -a "$NEW_TAG" "$TARGET_SHA" -m "Release $NEW_TAG (automated 3-week cycle)"
+          git push origin "$NEW_TAG"
+          echo "✅ Created and pushed tag: $NEW_TAG"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # STEP 2d: Post Binary Release Summary
+  # ─────────────────────────────────────────────────────────────────────────────
+  binary_release_summary:
+    name: "Binary Release Summary"
+    runs-on: ubuntu-latest
+    needs: [detect_binary_changes, tag_binaries]
+    if: always() && needs.detect_binary_changes.outputs.has_changes == 'true'
+    steps:
+      - name: Checkout (for tag verification)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+          fetch-depth: 1
+
+      - name: Verify created tags and post summary
+        run: |
+          set -euo pipefail
+          MATRIX='${{ needs.detect_binary_changes.outputs.matrix }}'
+
+          CREATED=""
+          FAILED=""
+          for TAG in $(echo "$MATRIX" | jq -r '.[].new_tag'); do
+            if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+              CREATED+="• $TAG\n"
+            else
+              FAILED+="• $TAG (not found)\n"
+            fi
+          done
+
+          if [[ -n "$CREATED" ]]; then
+            MSG="📦 **Binary releases created (3-week cycle):**
+
+          $(echo -e "$CREATED")
+          These tags were auto-created because changes were detected since the previous release."
+
+            curl -H "Content-Type: application/json" -d "{
+              \"text\": $(echo "$MSG" | jq -Rs .)
+            }" "${{ env.TEAMS_WEBHOOK_URL }}" || echo "::warning::Failed to post binary summary"
+          fi
+
+          if [[ -n "$FAILED" ]]; then
+            echo "::warning::Some binary tags were not created:"
+            echo -e "$FAILED"
+          fi
+
+      - name: Write binary summary to step summary
+        run: |
+          MATRIX='${{ needs.detect_binary_changes.outputs.matrix }}'
+          {
+            echo "## 📦 Binary Releases"
+            echo ""
+            echo "| Binary | New Tag | Previous Tag |"
+            echo "|--------|---------|--------------|"
+            echo "$MATRIX" | jq -r '.[] | "| \(.binary) | \(.new_tag) | \(.previous_tag) |"'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 3: Determine Next Version & Trigger Tag Creation
@@ -281,10 +463,17 @@ jobs:
     name: "Step 4: Pipeline Validation"
     runs-on: ubuntu-latest
     needs: create_tag
+    timeout-minutes: 360
     outputs:
       pr_pipeline_run_url: ${{ steps.pr_pipeline.outputs.run_url }}
       cni_release_run_url: ${{ steps.cni_release.outputs.run_url }}
     steps:
+      - name: Checkout (needed for git ls-remote)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+          fetch-depth: 1
+
       - name: Wait for tag to be created
         env:
           GH_TOKEN: ${{ github.token }}
@@ -347,7 +536,8 @@ jobs:
             RUN_URL="https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_build/results?buildId=${RUN_ID}&view=results"
             echo "Triggered run: $RUN_URL"
 
-            # Poll for completion
+            # Poll for completion (max 90 minutes per run)
+            poll_elapsed=0
             while true; do
               STATUS=$(curl -s -u ":${ADO_PAT}" \
                 "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/build/builds/${RUN_ID}?api-version=7.0" \
@@ -366,6 +556,11 @@ jobs:
                   echo "❌ ACN PR Pipeline failed with result: $RESULT (attempt $attempt)"
                   break
                 fi
+              fi
+              poll_elapsed=$((poll_elapsed + 120))
+              if (( poll_elapsed >= 5400 )); then
+                echo "::warning::ACN PR Pipeline timed out after 90 minutes (attempt $attempt)"
+                break
               fi
               sleep 120
             done
@@ -412,6 +607,7 @@ jobs:
             RUN_URL="https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_build/results?buildId=${RUN_ID}&view=results"
             echo "Triggered run: $RUN_URL"
 
+            poll_elapsed=0
             while true; do
               STATUS=$(curl -s -u ":${ADO_PAT}" \
                 "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/build/builds/${RUN_ID}?api-version=7.0" \
@@ -430,6 +626,11 @@ jobs:
                   echo "❌ ACN CNI Release Test failed with result: $RESULT (attempt $attempt)"
                   break
                 fi
+              fi
+              poll_elapsed=$((poll_elapsed + 120))
+              if (( poll_elapsed >= 5400 )); then
+                echo "::warning::ACN CNI Release Test timed out after 90 minutes (attempt $attempt)"
+                break
               fi
               sleep 120
             done
