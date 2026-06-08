@@ -1094,7 +1094,7 @@ jobs:
 
           **Current version:** \`${GO_MINOR}\` (go.mod: \`${GOMOD_VER}\`)
           **Target version:** \`${LATEST_MINOR}\` (\`${LATEST_MINOR_TAG}\`)
-          **MCR image:** \`${MCR_REPO}:${LATEST_MINOR}-${BASE_OS}\`
+          **MCR image:** \`${MCR_REPO}:${LATEST_MINOR_BASE}-${BASE_OS}\`
 
           ### Instructions for Copilot Agent
 
@@ -1123,7 +1123,7 @@ jobs:
 
           **Step 1: Execute Changes (based on your analysis)**
 
-          1. Update \`build/images.mk\`: \`GO_IMG\` → \`${MCR_REPO}:${LATEST_MINOR}-${BASE_OS}\`
+          1. Update \`build/images.mk\`: \`GO_IMG\` → \`${MCR_REPO}:${LATEST_MINOR_BASE}-${BASE_OS}\`
           2. Update \`go.mod\` and \`tools-go/go.mod\` (use \`.1\` minimum patch)
           3. Run \`go mod tidy\` on both modules
           4. Apply FIPS/crypto changes per your doc analysis (do NOT blindly reuse previous version's rules)
