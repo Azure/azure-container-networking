@@ -25,6 +25,17 @@ print:
 	@echo ${MARINER_DISTROLESS_PIN}
 	@echo ${WIN_HPC_PIN}
 
+# Print any variable: make -f build/images.mk print-GO_IMG
+print-%:
+	@echo $($*)
+
+# Set GO_IMG tag: make -f build/images.mk set-GO_IMG NEW_TAG=<version>-azurelinux3.0
+set-GO_IMG:
+ifndef NEW_TAG
+	$(error NEW_TAG is required — usage: make -f build/images.mk set-GO_IMG NEW_TAG=<version>-azurelinux3.0)
+endif
+	sed -i -E 's|(GO_IMG[[:space:]]*\?=[[:space:]]*.*golang:)[^ ]*|\1$(NEW_TAG)|' $(CURDIR)/build/images.mk
+
 render:
 	${GOPATH}/bin/renderkit -f ${SRC} --ds env:// > ${DEST}
 	${GOPATH}/bin/renderkit -f ${SRC_PIPE} --ds env:// > ${DEST_PIPE}
