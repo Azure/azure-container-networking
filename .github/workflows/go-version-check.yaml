@@ -1080,18 +1080,25 @@ jobs:
           4. Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` runtime base to \`azurelinux/distroless/base:3.0\`"
           elif [ "$LATEST_MIN_NUM" -ge 26 ]; then
             FIPS_SECTION="
-          ### ⚠️ FIPS / System Crypto Requirements
-          Go 1.26 requires \`CGO_ENABLED=1\` for \`GOEXPERIMENT=systemcrypto\` to work.
-          Reference: https://github.com/microsoft/go/blob/microsoft/main/eng/doc/NocgoOpenSSL.md
+          ### ⚠️ FIPS / System Crypto Requirements (CRITICAL — builds will FAIL without this)
+          Go 1.26 enables \`systemcrypto\` by default, which requires CGO on Linux.
+          **Reference:** https://github.com/microsoft/go/blob/microsoft/main/eng/doc/fips/README.md#usage-common-configurations
 
-          **CRITICAL: Only set GOEXPERIMENT=systemcrypto where CGO_ENABLED=1.**
-          For CGO_ENABLED=0 builds, do NOT set GOEXPERIMENT (it has no effect and is misleading).
+          **You MUST set GOEXPERIMENT in EVERY build path:**
 
-          1. Add \`GOEXPERIMENT=systemcrypto\` ONLY in scripts/Dockerfiles with \`CGO_ENABLED=1\` (e.g., cilium-log-collector)
-          2. REMOVE \`GOEXPERIMENT=systemcrypto\` from scripts/Dockerfiles with \`CGO_ENABLED=0\`
+          | Build Configuration | Required GOEXPERIMENT | Reason |
+          |---|---|---|
+          | Linux + CGO_ENABLED=1 | \`systemcrypto\` | Uses OpenSSL via dlopen (explicit, redundant but clear) |
+          | Linux + CGO_ENABLED=0 | \`ms_nocgo_opensslcrypto\` | Enables nocgo OpenSSL backend (default systemcrypto requires CGO and will FAIL) |
+          | Windows (any CGO) | (none needed) | CNG backend works without CGO |
+
+          **Steps:**
+          1. Add \`GOEXPERIMENT=ms_nocgo_opensslcrypto\` to ALL scripts/Dockerfiles/Makefiles with \`CGO_ENABLED=0\` on Linux
+          2. Add \`GOEXPERIMENT=systemcrypto\` to scripts/Dockerfiles with \`CGO_ENABLED=1\` (cilium-log-collector)
           3. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles if present
           4. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
-          5. Update \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` runtime base to \`azurelinux/distroless/base:3.0\`"
+          5. In root Makefile: add \`ACN_GOEXPERIMENT\` variable, apply inline to all CGO=0 build commands
+          6. **DO NOT** leave CGO_ENABLED=0 builds without GOEXPERIMENT — they WILL fail with crypto errors"
           fi
 
           # Agent instructions embedded in issue body
