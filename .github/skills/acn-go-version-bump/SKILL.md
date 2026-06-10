@@ -6,7 +6,7 @@ license: MIT
 compatibility: Designed for GitHub Copilot Coding Agent and Claude Code.
 metadata:
   author: behzad-mir
-  version: "4.0.0"
+  version: "4.1.0"
 allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(make:*) Bash(skopeo:*) Bash(git:*) Bash(gh:*) Agent
 ---
 
@@ -179,42 +179,53 @@ ACN uses **floating minor version tags** for the Go build image (`build/images.m
 - `GO_IMG` uses a 2-part minor version tag (e.g., `golang:1.26-azurelinux3.0`)
 - The floating tag resolves to the latest patch via SHA digest at `make dockerfiles` time
 
-### Version Sources (ALL must be updated)
+### Version Sources (ALL must be updated — do NOT skip any)
+
+**⚠️ IMPORTANT: The ROOT `go.mod` is the FIRST file to update. Do NOT only update sub-modules.**
 
 ```
-build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary tag
-    ├── → go.mod (go 1.XX.Y)                           ← must match (use .1+ not .0)
-    ├── → tools-go/go.mod (go 1.XX.Y)                  ← must match (formerly tools.go.mod, moved to own dir for Go 1.26 compat)
-    ├── → .devcontainer/Dockerfile (VARIANT="1.XX")
-    ├── → .pipelines/build/scripts/install-go.sh (DEFAULT_IMAGE SHA)
-    ├── → bpf-prog/ipv6-hp-bpf/linux.Dockerfile (Go image SHA)
-    ├── → npm/linux.Dockerfile (tag 1.XX.Y)
-    ├── → npm/windows.Dockerfile (tag 1.XX.Y)
-    └── → All .tmpl Dockerfiles (via `make dockerfiles`)
-
-Independent modules (bump go directive in each):
-    ├── → cilium-log-collector/go.mod
-    ├── → azure-ipam/go.mod
-    ├── → azure-ip-masq-merger/go.mod
-    ├── → azure-iptables-monitor/go.mod
-    ├── → bpf-prog/ipv6-hp-bpf/go.mod
-    ├── → dropgz/go.mod
-    ├── → zapai/go.mod
-    └── → tools/azure-npm-to-cilium-validator/go.mod
+build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
+    │
+    ├── ROOT MODULE (update FIRST):
+    │   └── → go.mod (go 1.XX.Y)                       ← ROOT go.mod — CRITICAL, never skip
+    │
+    ├── BUILD ENVIRONMENT:
+    │   ├── → tools-go/go.mod (go 1.XX.Y)              ← must match root (moved from tools.go.mod for Go 1.26)
+    │   ├── → .devcontainer/Dockerfile (VARIANT="1.XX") ← dev container version
+    │   ├── → .pipelines/build/scripts/install-go.sh (DEFAULT_IMAGE SHA)
+    │   ├── → bpf-prog/ipv6-hp-bpf/linux.Dockerfile (Go image SHA)
+    │   ├── → npm/linux.Dockerfile (tag 1.XX.Y)
+    │   ├── → npm/windows.Dockerfile (tag 1.XX.Y)
+    │   └── → All .tmpl Dockerfiles (via `make dockerfiles`)
+    │
+    └── INDEPENDENT MODULES (bump go directive in EACH):
+        ├── → azure-ipam/go.mod
+        ├── → azure-ip-masq-merger/go.mod
+        ├── → azure-iptables-monitor/go.mod
+        ├── → bpf-prog/ipv6-hp-bpf/go.mod
+        ├── → cilium-log-collector/go.mod
+        ├── → cni/go.mod
+        ├── → crd/go.mod
+        ├── → dropgz/go.mod
+        ├── → npm/go.mod
+        ├── → pkgerrlint/go.mod
+        ├── → tools/azure-npm-to-cilium-validator/go.mod
+        └── → zapai/go.mod
 ```
 
 ### Files to Update (in order)
 
-1. **`build/images.mk`** — Update `GO_IMG` tag
-   - ALWAYS use 2-part floating tag: `1.27`, never `1.27.0`
-2. **`go.mod`** — Update `go` directive (use `.1` minimum, e.g., `go 1.27.1`)
-3. **`tools-go/go.mod`** — Update `go` directive to match
-4. **All sub-module `go.mod` files** — Update `go` directive to match
+1. **`go.mod` (ROOT)** — Update `go` directive FIRST (use `.1` minimum, e.g., `go 1.27.1`)
+   - ⚠️ This is the most important file — ALL other modules inherit from this
+2. **`build/images.mk`** — Update `GO_IMG` tag
+   - ALWAYS use 2-part floating tag: `1.27-azurelinux3.0`, never `1.27.0-azurelinux3.0`
+3. **`tools-go/go.mod`** — Update `go` directive to match root
+4. **All sub-module `go.mod` files** — Update `go` directive to match (see full list above)
 5. **Run `go mod tidy`** on root, tools-go/, and each sub-module
-6. **`.pipelines/build/scripts/install-go.sh`** — Update `DEFAULT_IMAGE` SHA
-7. **`bpf-prog/ipv6-hp-bpf/linux.Dockerfile`** — Update Go image SHA
-8. **`npm/linux.Dockerfile`** and **`npm/windows.Dockerfile`** — Update Go tag
-9. **`.devcontainer/Dockerfile`** — Update `VARIANT` arg
+6. **`.devcontainer/Dockerfile`** — Update `VARIANT` arg to `"1.XX"`
+7. **`.pipelines/build/scripts/install-go.sh`** — Update `DEFAULT_IMAGE` SHA
+8. **`bpf-prog/ipv6-hp-bpf/linux.Dockerfile`** — Update Go image SHA
+9. **`npm/linux.Dockerfile`** and **`npm/windows.Dockerfile`** — Update Go tag
 10. **Run `make dockerfiles`** — Regenerate all template-based Dockerfiles
 
 ### Step 1b: Apply GOEXPERIMENT to ALL Build Paths (CRITICAL)
@@ -309,12 +320,20 @@ Tools live in `tools-go/go.mod` (module: `github.com/Azure/azure-container-netwo
 
 After making all changes:
 
-1. `go build ./...` — Verify compilation succeeds
-2. `go vet ./...` — Check for deprecated API usage
-3. `make dockerfiles` — Ensure templates render correctly (output must match committed files)
-4. `go mod tidy` — Ensure deps are clean (root and tools-go/)
-5. Verify no new `replace` directives are needed
-6. **FIPS validation** — run this check:
+1. **Root go.mod check** — Verify the root `go.mod` has the correct version:
+   ```bash
+   head -5 go.mod  # MUST show "go 1.XX.Y" — if still old version, the upgrade is INCOMPLETE
+   ```
+2. `go build ./...` — Verify compilation succeeds
+3. `go vet ./...` — Check for deprecated API usage
+4. `make dockerfiles` — Ensure templates render correctly (output must match committed files)
+5. `go mod tidy` — Ensure deps are clean (root and tools-go/)
+6. Verify no new `replace` directives are needed
+7. **Dev environment check:**
+   ```bash
+   grep "VARIANT" .devcontainer/Dockerfile  # Must show target version
+   ```
+8. **FIPS validation** — run this check:
 
 ```bash
 # Verify ALL CGO_ENABLED=0 scripts have the correct GOEXPERIMENT
@@ -337,6 +356,31 @@ done
 ```
 
 7. Cross-check every item in your Change Plan was actually applied
+
+8. **Completeness validation** — verify ALL version sources updated:
+   ```bash
+   TARGET="1.XX"  # Replace with actual target minor version
+   
+   # Root go.mod MUST be updated
+   grep "^go " go.mod | grep -q "$TARGET" || echo "FAIL: root go.mod not updated!"
+   
+   # .devcontainer must reference new version
+   grep -q "VARIANT=\"$TARGET\"" .devcontainer/Dockerfile || echo "FAIL: .devcontainer not updated!"
+   
+   # All sub-module go.mod files
+   for mod in azure-ipam cni crd dropgz npm zapai azure-ip-masq-merger azure-iptables-monitor \
+              bpf-prog/ipv6-hp-bpf cilium-log-collector pkgerrlint tools/azure-npm-to-cilium-validator; do
+     if [ -f "$mod/go.mod" ]; then
+       grep "^go " "$mod/go.mod" | grep -q "$TARGET" || echo "FAIL: $mod/go.mod not updated!"
+     fi
+   done
+   
+   # tools-go module
+   grep "^go " tools-go/go.mod | grep -q "$TARGET" || echo "FAIL: tools-go/go.mod not updated!"
+   
+   # build/images.mk
+   grep "GO_IMG" build/images.mk | grep -q "$TARGET" || echo "FAIL: build/images.mk not updated!"
+   ```
 
 ---
 
