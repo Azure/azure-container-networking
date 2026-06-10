@@ -6,7 +6,7 @@ license: MIT
 compatibility: Designed for GitHub Copilot Coding Agent and Claude Code.
 metadata:
   author: behzad-mir
-  version: "4.3.0"
+  version: "4.4.0"
 allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(make:*) Bash(skopeo:*) Bash(git:*) Bash(gh:*) Agent
 ---
 
@@ -105,9 +105,12 @@ grep -rn "CGO_ENABLED" . --include="*.Dockerfile" --include="*.Dockerfile.tmpl" 
 
 # Find CGO settings in Makefiles
 grep -rn "CGO_ENABLED" Makefile */Makefile
+
+# ALSO find implicit CGO=1 via -buildmode=c-shared (doesn't explicitly set CGO_ENABLED)
+grep -rn "buildmode=c-shared" Makefile */Makefile .pipelines/build/scripts/
 ```
 
-For EACH file that sets `CGO_ENABLED`, you MUST ensure the correct `GOEXPERIMENT` is set in the same scope.
+For EACH file that sets `CGO_ENABLED` OR uses `-buildmode=c-shared`, you MUST ensure the correct `GOEXPERIMENT` is set in the same scope.
 
 ### Full Analysis Checklist
 
@@ -317,7 +320,15 @@ GOEXPERIMENT=$(ACN_GOEXPERIMENT) CGO_ENABLED=0 go build ...
 
 #### Component-Specific Makefiles
 
-- `cilium-log-collector/Makefile` — Explicit `GOEXPERIMENT=<value_for_cgo1> CGO_ENABLED=1`
+- **`cilium-log-collector/Makefile`** — The `cilium-log-collector-binary` target uses `-buildmode=c-shared` which **implicitly requires CGO_ENABLED=1**. You MUST add explicit `CGO_ENABLED=1 GOEXPERIMENT=<value_for_cgo1>` to the build command:
+  ```makefile
+  # BEFORE (missing GOEXPERIMENT):
+  cd $(CILIUM_LOG_COLLECTOR_DIR) && go build -buildmode=c-shared ...
+  
+  # AFTER (correct):
+  cd $(CILIUM_LOG_COLLECTOR_DIR) && CGO_ENABLED=1 GOEXPERIMENT=<value_for_cgo1> go build -buildmode=c-shared ...
+  ```
+  **Do NOT skip this file** — `-buildmode=c-shared` implies CGO but doesn't explicitly set `CGO_ENABLED=1`, so grep for `CGO_ENABLED` won't find it. Search for `-buildmode=c-shared` as well.
 
 ### Tools Module Migration (Go 1.26+ requirement)
 
