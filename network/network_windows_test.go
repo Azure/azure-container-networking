@@ -590,10 +590,38 @@ func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallback(t *testing.T)
 	}
 
 	nwInfo := &EndpointInfo{
-		NetworkID:                  "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
-		MasterIfName:               "eth0",
-		NICType:                    cns.InfraNIC,
-		PrimaryInterfaceIdentifier: "10.240.0.4/24",
+		NetworkID:          "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName:       "eth0",
+		NICType:            cns.InfraNIC,
+		PrimaryInterfaceIP: "10.240.0.4/24",
+	}
+
+	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
+	assert.NoError(err)
+	if !assert.NotNil(hostComputeNetwork) {
+		return
+	}
+	assert.Len(hostComputeNetwork.Policies, 1)
+	assert.Equal(hcn.ProviderAddress, hostComputeNetwork.Policies[0].Type)
+	assert.Contains(string(hostComputeNetwork.Policies[0].Settings), "10.240.0.4")
+}
+
+func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallbackWithSingleIPv4(t *testing.T) {
+	assert := assert.New(t)
+
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	extIf := externalInterface{
+		Name: "vEthernet (eth0)",
+	}
+
+	nwInfo := &EndpointInfo{
+		NetworkID:          "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName:       "eth0",
+		NICType:            cns.InfraNIC,
+		PrimaryInterfaceIP: "10.240.0.4",
 	}
 
 	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
@@ -618,10 +646,10 @@ func TestConfigureHCNNetworkDoesNotUsePrimaryInterfaceIdentifierForEthernet(t *t
 	}
 
 	nwInfo := &EndpointInfo{
-		NetworkID:                  "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
-		MasterIfName:               "Ethernet",
-		NICType:                    cns.InfraNIC,
-		PrimaryInterfaceIdentifier: "10.240.0.4/24",
+		NetworkID:          "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName:       "Ethernet",
+		NICType:            cns.InfraNIC,
+		PrimaryInterfaceIP: "10.240.0.4/24",
 	}
 
 	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)

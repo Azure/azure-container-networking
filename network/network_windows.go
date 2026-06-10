@@ -265,7 +265,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 	// Best effort to add IP policy in case adapter name is empty
 	// TODO estebanca improve logger messages with coordinates
 	if !isNetAdapterNamePolicyAdded {
-		primaryInterfaceIdentifier := nwInfo.PrimaryInterfaceIdentifier
+		primaryInterfaceIdentifier := nwInfo.PrimaryInterfaceIP
 
 		if primaryInterfaceIdentifier != "" {
 
