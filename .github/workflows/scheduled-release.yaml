@@ -44,7 +44,7 @@ env:
   RELEASE_BRANCH: ${{ inputs.release_branch || 'release/v1.7' }}
   MAX_PIPELINE_RETRIES: 5
   TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_RELEASE_WEBHOOK_URL }}
-  TEAMS_CIN_WEBHOOK_URL: ${{ secrets.TEAMS_CIN_WEBHOOK_URL }}
+  TEAMS_CNI_WEBHOOK_URL: ${{ secrets.TEAMS_CNI_WEBHOOK_URL }}
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
@@ -503,9 +503,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           # ADO pipeline trigger details — customize per environment
-          ADO_ORG: ${{ secrets.ADO_ORG }}
-          ADO_PROJECT: ${{ secrets.ADO_PROJECT }}
-          ADO_PAT: ${{ secrets.ADO_PAT }}
+          ADO_ORG: ${{ secrets.AZURE_PIPELINE_ORG }}
+          ADO_PROJECT: ${{ secrets.AZURE_PIPELINE_PROJECT }}
+          ADO_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}
           ACN_PR_PIPELINE_ID: ${{ secrets.ACN_PR_PIPELINE_ID }}
         run: |
           set -euo pipefail
@@ -576,9 +576,9 @@ jobs:
         id: cni_release
         env:
           GH_TOKEN: ${{ github.token }}
-          ADO_ORG: ${{ secrets.ADO_ORG }}
-          ADO_PROJECT: ${{ secrets.ADO_PROJECT }}
-          ADO_PAT: ${{ secrets.ADO_PAT }}
+          ADO_ORG: ${{ secrets.AZURE_PIPELINE_ORG }}
+          ADO_PROJECT: ${{ secrets.AZURE_PIPELINE_PROJECT }}
+          ADO_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}
           ACN_CNI_RELEASE_PIPELINE_ID: ${{ secrets.ACN_CNI_RELEASE_PIPELINE_ID }}
         run: |
           set -euo pipefail
@@ -642,7 +642,7 @@ jobs:
             sleep 60
           done
 
-      - name: Post pipeline validation to CIN Teams channel
+      - name: Post pipeline validation to CNI Teams channel
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -652,7 +652,7 @@ jobs:
 
           curl -H "Content-Type: application/json" -d "{
             \"text\": \"✅ **Pipeline validation complete for ${NEW_TAG}**\n\n• ACN PR Pipeline: ${PR_RUN}\n• ACN CNI Release Test: ${CNI_RUN}\"
-          }" "${{ env.TEAMS_CIN_WEBHOOK_URL }}" || true
+          }" "${{ env.TEAMS_CNI_WEBHOOK_URL }}" || true
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 5: Post in Release Channel + Draft R2D
