@@ -6,7 +6,7 @@ license: MIT
 compatibility: Designed for GitHub Copilot Coding Agent and Claude Code.
 metadata:
   author: behzad-mir
-  version: "4.4.0"
+  version: "4.5.0"
 allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(make:*) Bash(skopeo:*) Bash(git:*) Bash(gh:*) Agent
 ---
 
@@ -195,6 +195,14 @@ ACN uses **floating minor version tags** for the Go build image (`build/images.m
 - `GO_IMG` uses a 2-part minor version tag (e.g., `golang:1.26-azurelinux3.0`)
 - The floating tag resolves to the latest patch via SHA digest at `make dockerfiles` time
 
+**go.mod version rule:** The `go` directive in `go.mod` files MUST use `1.XX.1` (the `.1` patch), NOT the latest patch (e.g., NOT `1.26.4`). This is because:
+- `.0` releases are pre-release/stabilization — avoid them
+- `.1` is the first stable patch — use this as the minimum
+- The actual Go binary version comes from the container image (floating tag), not go.mod
+- Using the latest patch in go.mod forces all developers to have that exact patch locally
+
+**Example:** If upgrading to Go 1.26, set `go 1.26.1` in all go.mod files, even if the latest available patch is `1.26.4`.
+
 ### Version Sources (ALL must be updated — do NOT skip any)
 
 **⚠️ IMPORTANT: The ROOT `go.mod` is the FIRST file to update. Do NOT only update sub-modules.**
@@ -231,8 +239,9 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
 
 ### Files to Update (in order)
 
-1. **`go.mod` (ROOT)** — Update `go` directive FIRST (use `.1` minimum, e.g., `go 1.27.1`)
+1. **`go.mod` (ROOT)** — Update `go` directive FIRST. **Use `1.XX.1` (NOT latest patch)**
    - ⚠️ This is the most important file — ALL other modules inherit from this
+   - Example: for Go 1.26 upgrade → set `go 1.26.1` (NOT `go 1.26.4`)
 2. **`build/images.mk`** — Update `GO_IMG` tag
    - ALWAYS use 2-part floating tag: `1.27-azurelinux3.0`, never `1.27.0-azurelinux3.0`
 3. **`tools-go/go.mod`** — Update `go` directive to match root
@@ -516,7 +525,7 @@ done
 
 ### Important Notes
 
-- Use `.1` as minimum patch version (`.0` is pre-release/stabilization)
+- **ALWAYS use `1.XX.1` in go.mod** — NOT the latest patch. The container image provides the actual binary version.
 - The `npm/` component is no longer released — update but don't worry about testing
 - The `baseimages.yaml` CI workflow fails if `make dockerfiles` output doesn't match committed files
 - ALWAYS use 2-part floating tags in `build/images.mk`
