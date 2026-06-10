@@ -3,6 +3,17 @@
 # release channel posting, and R2D draft preparation.
 #
 # Trigger: Every 3rd Friday at 14:00 UTC + manual dispatch
+#
+# ─── Teams Notification Dependency ───────────────────────────────────────────
+# Teams messages are sent via Azure Logic Apps with OAuth-based API connections.
+# The connection can lose access if:
+#   1. The authorizing user's password is reset or account is disabled
+#   2. An Azure AD admin revokes consent or applies a conditional access policy
+#   3. The connection is unused for 90+ days (refresh token expiry)
+# If Teams notifications stop working, see the internal wiki for re-authorization
+# steps, or run the re-auth script in the repo's /tools/release/ directory.
+# Contact: ACN Release Engineering team
+# ─────────────────────────────────────────────────────────────────────────────
 name: Scheduled Release
 
 on:
@@ -48,8 +59,9 @@ permissions:
 env:
   RELEASE_BRANCH: ${{ inputs.release_branch || 'release/v1.7' }}
   MAX_PIPELINE_RETRIES: 5
-  TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_RELEASE_WEBHOOK_URL }}
-  TEAMS_CNI_WEBHOOK_URL: ${{ secrets.TEAMS_CNI_WEBHOOK_URL }}
+  # Azure Logic App webhook URLs for Teams channel posting
+  TEAMS_RELEASE_WEBHOOK: ${{ secrets.TEAMS_RELEASE_LOGIC_APP_URL }}
+  TEAMS_CNI_WEBHOOK: ${{ secrets.TEAMS_CNI_LOGIC_APP_URL }}
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
@@ -196,9 +208,11 @@ jobs:
         if: steps.scan.outputs.clean == 'false'
         run: |
           VULN_COUNT="${{ steps.scan.outputs.vuln_count }}"
-          curl -H "Content-Type: application/json" -d "{
-            \"text\": \"⚠️ **govulncheck**: $VULN_COUNT vulnerabilities found on ${{ env.RELEASE_BRANCH }}. Manual review required before release proceeds.\"
-          }" "${{ env.TEAMS_WEBHOOK_URL }}" || true
+          MSG="⚠️ <b>govulncheck</b>: $VULN_COUNT vulnerabilities found on ${{ env.RELEASE_BRANCH }}. Manual review required before release proceeds."
+
+          curl -s -X POST "${{ env.TEAMS_RELEASE_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\":$(echo "$MSG" | jq -Rs .)}" || true
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 2b: Detect Binary Changes (dropgz, azure-ipam, etc.)
@@ -352,15 +366,11 @@ jobs:
           if [[ "$DRY_RUN" == "true" ]]; then
             # In dry run, list all intended tags (none were actually pushed)
             CREATED=$(echo "$MATRIX" | jq -r '.[].new_tag' | sed 's/^/• /' | tr '\n' '\n')
-            MSG="🏜️ [DRY RUN] **Binary releases that WOULD be created:**
+            MSG="🏜️ [DRY RUN] <b>Binary releases that WOULD be created:</b><br><br>${CREATED}<br><br>These tags were detected as needing a release but were not pushed (dry run mode)."
 
-          ${CREATED}
-
-          These tags were detected as needing a release but were not pushed (dry run mode)."
-
-            curl -H "Content-Type: application/json" -d "{
-              \"text\": $(echo "$MSG" | jq -Rs .)
-            }" "${{ env.TEAMS_WEBHOOK_URL }}" || echo "::warning::Failed to post binary summary"
+            curl -s -X POST "${{ env.TEAMS_RELEASE_WEBHOOK }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"text\":$(echo "$MSG" | jq -Rs .)}" || echo "::warning::Failed to post binary summary"
           else
             for TAG in $(echo "$MATRIX" | jq -r '.[].new_tag'); do
               if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
@@ -371,14 +381,11 @@ jobs:
             done
 
             if [[ -n "$CREATED" ]]; then
-              MSG="📦 **Binary releases created (3-week cycle):**
+              MSG="📦 <b>Binary releases created (3-week cycle):</b><br><br>$(echo -e "$CREATED")<br>These tags were auto-created because changes were detected since the previous release."
 
-          $(echo -e "$CREATED")
-          These tags were auto-created because changes were detected since the previous release."
-
-              curl -H "Content-Type: application/json" -d "{
-                \"text\": $(echo "$MSG" | jq -Rs .)
-              }" "${{ env.TEAMS_WEBHOOK_URL }}" || echo "::warning::Failed to post binary summary"
+              curl -s -X POST "${{ env.TEAMS_RELEASE_WEBHOOK }}" \
+                -H "Content-Type: application/json" \
+                -d "{\"text\":$(echo "$MSG" | jq -Rs .)}" || echo "::warning::Failed to post binary summary"
             fi
 
             if [[ -n "$FAILED" ]]; then
@@ -675,16 +682,16 @@ jobs:
           done
 
       - name: Post pipeline validation to CNI Teams channel
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
           PR_RUN="${{ steps.pr_pipeline.outputs.run_url }}"
           CNI_RUN="${{ steps.cni_release.outputs.run_url }}"
 
-          curl -H "Content-Type: application/json" -d "{
-            \"text\": \"✅ **Pipeline validation complete for ${NEW_TAG}**\n\n• ACN PR Pipeline: ${PR_RUN}\n• ACN CNI Release Test: ${CNI_RUN}\"
-          }" "${{ env.TEAMS_CNI_WEBHOOK_URL }}" || true
+          MSG="✅ <b>Pipeline validation complete for ${NEW_TAG}</b><br><br>• ACN PR Pipeline: ${PR_RUN}<br>• ACN CNI Release Test: ${CNI_RUN}"
+
+          curl -s -X POST "${{ env.TEAMS_CNI_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\":$(echo "$MSG" | jq -Rs .)}" || true
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 5: Post in Release Channel + Draft R2D
@@ -744,10 +751,11 @@ jobs:
           echo "Release channel message:"
           echo "$RELEASE_MSG"
 
-          # Post to Teams Release channel
-          curl -H "Content-Type: application/json" -d "{
-            \"text\": $(echo "$RELEASE_MSG" | jq -Rs .)
-          }" "${{ env.TEAMS_WEBHOOK_URL }}" || echo "::warning::Failed to post to Teams Release channel"
+          # Post to Teams Release channel via Logic App
+          HTML_MSG=$(echo "$RELEASE_MSG" | sed 's/\*\*/<b>/g; s/\*\*/<\/b>/g; s/$/<br>/g')
+          curl -s -X POST "${{ env.TEAMS_RELEASE_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\":$(echo "$HTML_MSG" | jq -Rs .)}" || echo "::warning::Failed to post to Teams Release channel"
 
       - name: Generate R2D Draft (Unsigned)
         id: r2d_unsigned
@@ -856,21 +864,11 @@ jobs:
         run: |
           NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
 
-          R2D_MSG="📋 **R2D Drafts prepared for ${NEW_TAG}:**
+          R2D_MSG="📋 <b>R2D Drafts prepared for ${NEW_TAG}:</b><br><br><b>UNSIGNED</b> — Clone from SafeFly Request #193479<br>• Service Group: microsoft.azure.networking.containernetworking.githubrelease<br>• File at: https://aka.ms/R2D<br><br><b>SIGNED</b> — Clone from SafeFly Request #174991<br>• Service Group: microsoft.azure.networking.containernetworking<br>• File at: https://aka.ms/R2D<br><br>⚠️ <b>Human action required:</b> File both R2Ds, then post the Safefly/R2D links back in this thread."
 
-          **UNSIGNED** — Clone from SafeFly Request #193479
-          • Service Group: microsoft.azure.networking.containernetworking.githubrelease
-          • File at: https://aka.ms/R2D
-
-          **SIGNED** — Clone from SafeFly Request #174991
-          • Service Group: microsoft.azure.networking.containernetworking
-          • File at: https://aka.ms/R2D
-
-          ⚠️ **Human action required:** File both R2Ds, then post the Safefly/R2D links back in this thread."
-
-          curl -H "Content-Type: application/json" -d "{
-            \"text\": $(echo "$R2D_MSG" | jq -Rs .)
-          }" "${{ env.TEAMS_WEBHOOK_URL }}" || echo "::warning::Failed to post R2D summary"
+          curl -s -X POST "${{ env.TEAMS_RELEASE_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\":$(echo "$R2D_MSG" | jq -Rs .)}" || echo "::warning::Failed to post R2D summary"
 
       - name: Send email to leads
         run: |
