@@ -29,6 +29,11 @@ on:
         required: false
         default: false
         type: boolean
+      dry_run:
+        description: "Dry run — post to Teams but skip actual tag creation and pipeline triggers"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: scheduled-release-${{ github.ref }}
@@ -310,10 +315,15 @@ jobs:
           git log --oneline "${PREV_TAG}..HEAD" -- "${{ matrix.binary }}/" | head -20
 
           # Create and push tag
-          git tag -a "$NEW_TAG" "$TARGET_SHA" -m "Release $NEW_TAG (automated 3-week cycle)"
-          git push origin "$NEW_TAG"
-          echo "✅ Created and pushed tag: $NEW_TAG"
-          echo "created=true" >> "$GITHUB_OUTPUT"
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "🏜️ DRY RUN: Would create and push tag $NEW_TAG at $TARGET_SHA"
+            echo "created=dry_run" >> "$GITHUB_OUTPUT"
+          else
+            git tag -a "$NEW_TAG" "$TARGET_SHA" -m "Release $NEW_TAG (automated 3-week cycle)"
+            git push origin "$NEW_TAG"
+            echo "✅ Created and pushed tag: $NEW_TAG"
+            echo "created=true" >> "$GITHUB_OUTPUT"
+          fi
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 2d: Post Binary Release Summary
@@ -337,28 +347,44 @@ jobs:
 
           CREATED=""
           FAILED=""
-          for TAG in $(echo "$MATRIX" | jq -r '.[].new_tag'); do
-            if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-              CREATED+="• $TAG\n"
-            else
-              FAILED+="• $TAG (not found)\n"
-            fi
-          done
+          DRY_RUN="${{ inputs.dry_run }}"
 
-          if [[ -n "$CREATED" ]]; then
-            MSG="📦 **Binary releases created (3-week cycle):**
+          if [[ "$DRY_RUN" == "true" ]]; then
+            # In dry run, list all intended tags (none were actually pushed)
+            CREATED=$(echo "$MATRIX" | jq -r '.[].new_tag' | sed 's/^/• /' | tr '\n' '\n')
+            MSG="🏜️ [DRY RUN] **Binary releases that WOULD be created:**
 
-          $(echo -e "$CREATED")
-          These tags were auto-created because changes were detected since the previous release."
+          ${CREATED}
+
+          These tags were detected as needing a release but were not pushed (dry run mode)."
 
             curl -H "Content-Type: application/json" -d "{
               \"text\": $(echo "$MSG" | jq -Rs .)
             }" "${{ env.TEAMS_WEBHOOK_URL }}" || echo "::warning::Failed to post binary summary"
-          fi
+          else
+            for TAG in $(echo "$MATRIX" | jq -r '.[].new_tag'); do
+              if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+                CREATED+="• $TAG\n"
+              else
+                FAILED+="• $TAG (not found)\n"
+              fi
+            done
 
-          if [[ -n "$FAILED" ]]; then
-            echo "::warning::Some binary tags were not created:"
-            echo -e "$FAILED"
+            if [[ -n "$CREATED" ]]; then
+              MSG="📦 **Binary releases created (3-week cycle):**
+
+          $(echo -e "$CREATED")
+          These tags were auto-created because changes were detected since the previous release."
+
+              curl -H "Content-Type: application/json" -d "{
+                \"text\": $(echo "$MSG" | jq -Rs .)
+              }" "${{ env.TEAMS_WEBHOOK_URL }}" || echo "::warning::Failed to post binary summary"
+            fi
+
+            if [[ -n "$FAILED" ]]; then
+              echo "::warning::Some binary tags were not created:"
+              echo -e "$FAILED"
+            fi
           fi
 
       - name: Write binary summary to step summary
@@ -445,16 +471,21 @@ jobs:
 
           REASON="Scheduled 3-week release. Dependabot PRs merged: ${MERGED_COUNT}. CVEs patched: ${VULN_COUNT}."
 
-          echo "Dispatching create-release-tag for $NEW_TAG on $TARGET_SHA"
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "🏜️ DRY RUN: Would dispatch create-release-tag for $NEW_TAG on $TARGET_SHA"
+            echo "Reason: $REASON"
+          else
+            echo "Dispatching create-release-tag for $NEW_TAG on $TARGET_SHA"
 
-          gh workflow run create-release-tag.yml \
-            --repo "${GITHUB_REPOSITORY}" \
-            -f tag_prefix=none \
-            -f tag_name="$NEW_TAG" \
-            -f target_sha="$TARGET_SHA" \
-            -f reason="$REASON"
+            gh workflow run create-release-tag.yml \
+              --repo "${GITHUB_REPOSITORY}" \
+              -f tag_prefix=none \
+              -f tag_name="$NEW_TAG" \
+              -f target_sha="$TARGET_SHA" \
+              -f reason="$REASON"
 
-          echo "✅ Tag creation dispatched. Requires tag-approval environment approval."
+            echo "✅ Tag creation dispatched. Requires tag-approval environment approval."
+          fi
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 4: Pipeline Validation (ACN PR Pipeline + CNI Release Test)
@@ -463,6 +494,7 @@ jobs:
     name: "Step 4: Pipeline Validation"
     runs-on: ubuntu-latest
     needs: create_tag
+    if: inputs.dry_run != true
     timeout-minutes: 360
     outputs:
       pr_pipeline_run_url: ${{ steps.pr_pipeline.outputs.run_url }}
@@ -661,6 +693,7 @@ jobs:
     name: "Step 5: Release Channel + R2D Draft"
     runs-on: ubuntu-latest
     needs: [create_tag, validate_pipelines]
+    if: always() && needs.create_tag.result == 'success'
     steps:
       - name: Post release thread in Release Channel
         id: release_thread
@@ -672,12 +705,18 @@ jobs:
           BRANCH="${{ env.RELEASE_BRANCH }}"
           PR_RUN="${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}"
           CNI_RUN="${{ needs.validate_pipelines.outputs.cni_release_run_url }}"
+          PR_RUN="${PR_RUN:-_(dry run — skipped)_}"
+          CNI_RUN="${CNI_RUN:-_(dry run — skipped)_}"
+          DRY_PREFIX=""
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            DRY_PREFIX="🏜️ [DRY RUN] "
+          fi
           REPO="${GITHUB_REPOSITORY}"
           COMMIT_LINK="https://github.com/${REPO}/commit/${TARGET_SHA}"
           CHANGELOG_LINK="https://github.com/${REPO}/compare/${PREVIOUS_TAG}...${NEW_TAG}"
 
           # Post the official release thread template
-          RELEASE_MSG="@Release I will start the release process for the acn repo (cni/cns/npm) ${NEW_TAG} based on this commit: ${COMMIT_LINK} from the ${BRANCH} branch. I intend for this release to make it to AKS.
+          RELEASE_MSG="${DRY_PREFIX}@Release I will start the release process for the acn repo (cni/cns/npm) ${NEW_TAG} based on this commit: ${COMMIT_LINK} from the ${BRANCH} branch. I intend for this release to make it to AKS.
 
           ---
           **SIGNED PATH CHECKLIST:**
