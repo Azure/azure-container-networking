@@ -246,9 +246,10 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
    - ALWAYS use 2-part floating tag: `1.27-azurelinux3.0`, never `1.27.0-azurelinux3.0`
 3. **`tools-go/go.mod`** — Update `go` directive to match root
 4. **All sub-module `go.mod` files** — Update `go` directive to match (see full list above)
-5. **Run `go mod tidy`** on root, tools-go/, and each sub-module
-   - If `go mod tidy` fails due to network (firewall blocks `proxy.golang.org`), skip and note in PR
-   - The `go.sum` files will be updated by CI or a follow-up commit
+5. **Do NOT run `go mod tidy`** — it times out in the agent environment
+   - Existing `go.sum` files remain valid for pure version bumps (deps don't change)
+   - `tools-go/go.sum` is handled by the migration step (copy from `tools.go.sum`)
+   - CI or a follow-up commit will reconcile any checksum drift if needed
 6. **`.devcontainer/Dockerfile`** — Update `VARIANT` arg to `"1.XX"`
 7. **`.pipelines/build/scripts/install-go.sh`** — Update `DEFAULT_IMAGE` to new Go image digest:
    ```bash
@@ -382,12 +383,12 @@ Go 1.26's stricter `go mod tidy` rejects root-level modfiles (`tools.go.mod`) th
 
    Replace all: `tools.go.mod` → `tools-go/go.mod`
 
-6. Run `cd tools-go && go mod tidy`
+6. Do NOT run `go mod tidy` — just copy the sum file (deps don't change for version bumps)
 
 **If `tools-go/go.mod` already exists (already migrated):**
 
 - Just update the `go` directive to match root
-- Run `cd tools-go && go mod tidy`
+- Do NOT run `go mod tidy` (times out in agent environment)
 - Verify all `-modfile` references point to `tools-go/go.mod` (not old `tools.go.mod`)
 
 ---
@@ -428,7 +429,7 @@ After making all changes:
    Then use `sed` to update SHA digests in ALL generated `.Dockerfile` files (not `.tmpl`).
    
    **IMPORTANT:** Both `.pipelines/build/dockerfiles/*.Dockerfile` AND component `*/Dockerfile` files must be updated — they are ALL generated from templates.
-5. `go mod tidy` — Ensure deps are clean (root and tools-go/)
+5. Do NOT run `go mod tidy` — it times out. Existing go.sum files remain valid for version bumps.
 6. Verify no new `replace` directives are needed
 7. **Dev environment check:**
    ```bash
@@ -503,7 +504,7 @@ done
 1. Check out `release/v1.7`
 2. Apply same version/SHA changes
 3. If release branch is missing GOEXPERIMENT prerequisites, add those too
-4. Run `go mod tidy` separately (release branch may have different deps)
+4. Do NOT run `go mod tidy` — existing go.sum remains valid for version bumps
 5. Run `make dockerfiles`
 6. Title: `chore(release/v1.7): upgrade Go <OLD> → <NEW>`
 
