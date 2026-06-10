@@ -596,13 +596,11 @@ func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallback(t *testing.T)
 	}
 
 	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
-	assert.NoError(err)
-	if !assert.NotNil(hostComputeNetwork) {
-		return
-	}
-	assert.Len(hostComputeNetwork.Policies, 1)
-	assert.Equal(hcn.ProviderAddress, hostComputeNetwork.Policies[0].Type)
-	assert.Contains(string(hostComputeNetwork.Policies[0].Settings), "10.240.0.4")
+	assert.NoError(t, err)
+	assert.NotNil(t, hostComputeNetwork)
+	assert.Len(t, hostComputeNetwork.Policies, 1)
+	assert.Equal(t, hcn.ProviderAddress, hostComputeNetwork.Policies[0].Type)
+	assert.Contains(t, string(hostComputeNetwork.Policies[0].Settings), "10.240.0.4")
 }
 
 func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallbackWithSingleIPv4(t *testing.T) {
@@ -623,13 +621,11 @@ func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallbackWithSingleIPv4
 	}
 
 	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
-	assert.NoError(err)
-	if !assert.NotNil(hostComputeNetwork) {
-		return
-	}
-	assert.Len(hostComputeNetwork.Policies, 1)
-	assert.Equal(hcn.ProviderAddress, hostComputeNetwork.Policies[0].Type)
-	assert.Contains(string(hostComputeNetwork.Policies[0].Settings), "10.240.0.4")
+	assert.NoError(t, err)
+	assert.NotNil(t, hostComputeNetwork)
+	assert.Len(t, hostComputeNetwork.Policies, 1)
+	assert.Equal(t, hcn.ProviderAddress, hostComputeNetwork.Policies[0].Type)
+	assert.Contains(t, string(hostComputeNetwork.Policies[0].Settings), "10.240.0.4")
 }
 
 func TestConfigureHCNNetworkDoesNotUsePrimaryInterfaceIdentifierForEthernet(t *testing.T) {
@@ -650,11 +646,11 @@ func TestConfigureHCNNetworkDoesNotUsePrimaryInterfaceIdentifierForEthernet(t *t
 	}
 
 	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
-	assert.NoError(err)
-	assert.NotNil(hostComputeNetwork)
-	assert.Len(hostComputeNetwork.Policies, 1)
-	assert.Equal(hcn.NetAdapterName, hostComputeNetwork.Policies[0].Type)
-	assert.NotEqual(hcn.ProviderAddress, hostComputeNetwork.Policies[0].Type)
+	assert.NoError(t, err)
+	assert.NotNil(t, hostComputeNetwork)
+	assert.Len(t, hostComputeNetwork.Policies, 1)
+	assert.Equal(t, hcn.NetAdapterName, hostComputeNetwork.Policies[0].Type)
+	assert.NotEqual(t, hcn.ProviderAddress, hostComputeNetwork.Policies[0].Type)
 }
 
 // Test Configure HCN Network for Swiftv2 DelegatedNIC HostComputeNetwork fields
