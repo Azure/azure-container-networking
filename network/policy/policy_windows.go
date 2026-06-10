@@ -335,7 +335,7 @@ func GetHcnNetAdapterAddressPolicy(networkAdapterAddress string) (hcn.NetworkPol
 
 	netAdapterAddressPolicySettingBytes, err := json.Marshal(netAdapterAddressPolicySetting)
 	if err != nil {
-		return networkAdapterAddressPolicy, err
+		return networkAdapterAddressPolicy, errors.Wrap(err, "Error during policy marshalling")
 	}
 
 	networkAdapterAddressPolicy.Settings = netAdapterAddressPolicySettingBytes

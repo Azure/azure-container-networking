@@ -579,7 +579,6 @@ func TestConfigureHCNNetworkInfraNIC(t *testing.T) {
 }
 
 func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallback(t *testing.T) {
-	assert := assert.New(t)
 
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
@@ -607,7 +606,6 @@ func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallback(t *testing.T)
 }
 
 func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallbackWithSingleIPv4(t *testing.T) {
-	assert := assert.New(t)
 
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
@@ -635,7 +633,6 @@ func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallbackWithSingleIPv4
 }
 
 func TestConfigureHCNNetworkDoesNotUsePrimaryInterfaceIdentifierForEthernet(t *testing.T) {
-	assert := assert.New(t)
 
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
