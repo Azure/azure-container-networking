@@ -1,0 +1,90 @@
+name: "Copilot Setup Steps"
+on: workflow_dispatch
+
+jobs:
+  copilot-setup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo > /dev/null
+          GOPATH=$(go env GOPATH)
+          if [ -f tools-go/go.mod ]; then
+            RENDERKIT_VER=$(go mod edit -json tools-go/go.mod | python3 -c "
+          import sys, json
+          for req in json.load(sys.stdin).get('Require', []):
+              if 'orellazri/renderkit' in req['Path']:
+                  print(req['Version']); break
+          ")
+          elif [ -f tools.go.mod ]; then
+            RENDERKIT_VER=$(grep 'orellazri/renderkit' tools.go.mod | awk '{print $2}')
+          fi
+          if [ -n "${RENDERKIT_VER:-}" ]; then
+            go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
+          fi
+          echo "${GOPATH}/bin" >> "$GITHUB_PATH"
+          echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
+
+      - name: Pre-fetch MS Go documentation (before firewall activates)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The agent firewall blocks api.github.com for cross-repo fetches.
+          # Pre-fetch all MS Go docs needed by SKILL.md into .github/ms-go-docs/
+          mkdir -p .github/ms-go-docs
+
+          docs=(
+            "eng/doc/fips/README.md"
+            "eng/doc/NocgoOpenSSL.md"
+            "eng/doc/Installation.md"
+            "eng/doc/MigrationGuide.md"
+            "eng/doc/fips/UserGuide.md"
+            "eng/doc/AdditionalFeatures.md"
+          )
+
+          for doc in "${docs[@]}"; do
+            outfile=".github/ms-go-docs/$(basename "$doc")"
+            echo "Fetching microsoft/go: $doc → $outfile"
+            gh api "repos/microsoft/go/contents/${doc}?ref=microsoft/main" --jq '.content' \
+              | base64 -d > "$outfile" 2>/dev/null || echo "WARN: $doc not found" > "$outfile"
+          done
+
+          echo "--- Pre-fetched docs ---"
+          ls -la .github/ms-go-docs/
+
+      - name: Pre-resolve container image digests (before firewall activates)
+        run: |
+          # The agent firewall blocks MCR DNS resolution.
+          # Pre-resolve all image SHAs needed for Dockerfile generation.
+          mkdir -p .github/image-digests
+
+          # Go builder image (floating tag)
+          GO_TAG=$(grep 'GO_IMG' build/images.mk | head -1 | sed 's/.*golang://' | tr -d ' ')
+          echo "Resolving Go image tag: $GO_TAG"
+          skopeo inspect "docker://mcr.microsoft.com/oss/go/microsoft/golang:${GO_TAG}" \
+            --format "{{.Name}}@{{.Digest}}" > .github/image-digests/go-image.txt 2>/dev/null || true
+
+          # Azure Linux base images
+          skopeo inspect "docker://mcr.microsoft.com/azurelinux/base/core:3.0" \
+            --format "{{.Name}}@{{.Digest}}" > .github/image-digests/mariner-core.txt 2>/dev/null || true
+          skopeo inspect "docker://mcr.microsoft.com/azurelinux/distroless/base:3.0" \
+            --format "{{.Name}}@{{.Digest}}" > .github/image-digests/mariner-distroless.txt 2>/dev/null || true
+
+          # Windows host process base image
+          skopeo inspect --override-os windows \
+            "docker://mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0" \
+            --format "{{.Name}}@{{.Digest}}" > .github/image-digests/windows-hpc.txt 2>/dev/null || true
+
+          echo "--- Pre-resolved digests ---"
+          for f in .github/image-digests/*.txt; do
+            echo "$f: $(cat "$f")"
+          done

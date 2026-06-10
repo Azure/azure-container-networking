@@ -6,7 +6,7 @@ license: MIT
 compatibility: Designed for GitHub Copilot Coding Agent and Claude Code.
 metadata:
   author: behzad-mir
-  version: "4.2.0"
+  version: "4.3.0"
 allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(make:*) Bash(skopeo:*) Bash(git:*) Bash(gh:*) Agent
 ---
 
@@ -28,34 +28,47 @@ allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(make:*) Bash(skopeo:*) 
 
 ### Documents to Fetch
 
-Use `gh api` to fetch each document from the `microsoft/go` repo (`ref=microsoft/main`):
+**The setup environment pre-fetches these docs into `.github/ms-go-docs/` before the firewall activates.** Try reading the cached files first. If they don't exist, fall back to `gh api`.
 
 ```bash
 # 1. FIPS README — the AUTHORITATIVE source for crypto configuration
-# This is the MOST IMPORTANT doc. It contains "Usage: Common configurations" table.
-gh api "repos/microsoft/go/contents/eng/doc/fips/README.md?ref=microsoft/main" --jq '.content' | base64 -d
+# PREFERRED: read pre-cached file (firewall blocks cross-repo gh api calls)
+cat .github/ms-go-docs/README.md 2>/dev/null || \
+  gh api "repos/microsoft/go/contents/eng/doc/fips/README.md?ref=microsoft/main" --jq '.content' | base64 -d
 
 # 2. NocgoOpenSSL — detailed nocgo backend docs
-gh api "repos/microsoft/go/contents/eng/doc/NocgoOpenSSL.md?ref=microsoft/main" --jq '.content' | base64 -d
+cat .github/ms-go-docs/NocgoOpenSSL.md 2>/dev/null || \
+  gh api "repos/microsoft/go/contents/eng/doc/NocgoOpenSSL.md?ref=microsoft/main" --jq '.content' | base64 -d
 
-# 3. Installation guide — how to install MS Go in CI
-gh api "repos/microsoft/go/contents/eng/doc/Installation.md?ref=microsoft/main" --jq '.content' | base64 -d
+# 3. Installation guide
+cat .github/ms-go-docs/Installation.md 2>/dev/null || \
+  gh api "repos/microsoft/go/contents/eng/doc/Installation.md?ref=microsoft/main" --jq '.content' | base64 -d
 
-# 4. Version-specific notes (may not exist for all versions)
-gh api "repos/microsoft/go/contents/docs/go1.<MINOR>.md?ref=microsoft/main" --jq '.content' | base64 -d
+# 4. Migration Guide — toolchain behavior, breaking changes
+cat .github/ms-go-docs/MigrationGuide.md 2>/dev/null || \
+  gh api "repos/microsoft/go/contents/eng/doc/MigrationGuide.md?ref=microsoft/main" --jq '.content' | base64 -d
 
-# 5. Migration Guide — toolchain behavior, breaking changes
-gh api "repos/microsoft/go/contents/eng/doc/MigrationGuide.md?ref=microsoft/main" --jq '.content' | base64 -d
+# 5. FIPS User Guide — runtime requirements, crypto API behavior
+cat .github/ms-go-docs/UserGuide.md 2>/dev/null || \
+  gh api "repos/microsoft/go/contents/eng/doc/fips/UserGuide.md?ref=microsoft/main" --jq '.content' | base64 -d
 
-# 6. FIPS User Guide — runtime requirements, crypto API behavior
-gh api "repos/microsoft/go/contents/eng/doc/fips/UserGuide.md?ref=microsoft/main" --jq '.content' | base64 -d
+# 6. Additional Features — all MS-specific patches
+cat .github/ms-go-docs/AdditionalFeatures.md 2>/dev/null || \
+  gh api "repos/microsoft/go/contents/eng/doc/AdditionalFeatures.md?ref=microsoft/main" --jq '.content' | base64 -d
 
-# 7. Additional Features — all MS-specific patches
-gh api "repos/microsoft/go/contents/eng/doc/AdditionalFeatures.md?ref=microsoft/main" --jq '.content' | base64 -d
-
-# 8. Upstream Go release notes
-# Fetch from https://go.dev/doc/go1.<MINOR>
+# 7. Upstream Go release notes (fetch from go.dev — may be blocked)
+# curl -sL https://go.dev/doc/go1.<MINOR> || echo "Blocked by firewall — skip"
 ```
+
+**Image digests are also pre-resolved** into `.github/image-digests/`:
+```bash
+cat .github/image-digests/go-image.txt        # Go builder SHA
+cat .github/image-digests/mariner-core.txt     # Azure Linux base/core SHA
+cat .github/image-digests/mariner-distroless.txt  # Azure Linux distroless SHA
+cat .github/image-digests/windows-hpc.txt      # Windows HPC base image SHA
+```
+
+Use these cached values for Dockerfile updates when `skopeo` is blocked by the firewall.
 
 ### Analysis Procedure — GOEXPERIMENT Determination
 
@@ -367,17 +380,21 @@ After making all changes:
    - Component directories: `cni/Dockerfile`, `cns/Dockerfile`, `azure-ipam/Dockerfile`, etc.
    - Pipeline directory: `.pipelines/build/dockerfiles/*.Dockerfile`
    
-   **If `make dockerfiles` fails** (e.g., skopeo unavailable or MCR auth issues), manually resolve the SHAs and update:
+   **If `make dockerfiles` fails** (e.g., skopeo blocked by firewall or MCR auth issues), use the **pre-cached digests**:
    ```bash
-   # Get current SHA digests
-   skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.XX-azurelinux3.0 \
-     --format "{{.Name}}@{{.Digest}}"
-   skopeo inspect docker://mcr.microsoft.com/azurelinux/base/core:3.0 \
-     --format "{{.Name}}@{{.Digest}}"
-   skopeo inspect docker://mcr.microsoft.com/azurelinux/distroless/base:3.0 \
-     --format "{{.Name}}@{{.Digest}}"
+   # Read pre-resolved digests from setup steps
+   GO_PIN=$(cat .github/image-digests/go-image.txt 2>/dev/null)
+   MARINER_CORE_PIN=$(cat .github/image-digests/mariner-core.txt 2>/dev/null)
+   MARINER_DISTROLESS_PIN=$(cat .github/image-digests/mariner-distroless.txt 2>/dev/null)
+   WINDOWS_HPC_PIN=$(cat .github/image-digests/windows-hpc.txt 2>/dev/null)
+
+   # If cached files don't exist, try skopeo directly (may fail behind firewall)
+   if [ -z "$GO_PIN" ]; then
+     GO_PIN=$(skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.XX-azurelinux3.0 \
+       --format "{{.Name}}@{{.Digest}}" 2>/dev/null)
+   fi
    ```
-   Then update ALL `.Dockerfile` files (not `.tmpl`) with the new digests.
+   Then use `sed` to update SHA digests in ALL generated `.Dockerfile` files (not `.tmpl`).
    
    **IMPORTANT:** Both `.pipelines/build/dockerfiles/*.Dockerfile` AND component `*/Dockerfile` files must be updated — they are ALL generated from templates.
 5. `go mod tidy` — Ensure deps are clean (root and tools-go/)
