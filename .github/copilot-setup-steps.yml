@@ -88,3 +88,31 @@ jobs:
           for f in .github/image-digests/*.txt; do
             echo "$f: $(cat "$f")"
           done
+
+      - name: Pre-download Go module dependencies (before firewall activates)
+        run: |
+          # The agent firewall blocks proxy.golang.org and sum.golang.org.
+          # Pre-download all module deps so 'go mod tidy' works offline.
+          echo "Downloading root module deps..."
+          go mod download || true
+
+          # Download tools-go deps (if it exists)
+          if [ -f tools-go/go.mod ]; then
+            echo "Downloading tools-go module deps..."
+            cd tools-go && go mod download || true
+            cd ..
+          elif [ -f tools.go.mod ]; then
+            echo "Downloading tools.go.mod deps..."
+            go mod download -modfile=tools.go.mod || true
+          fi
+
+          # Download sub-module deps
+          for mod in azure-ipam azure-ip-masq-merger azure-iptables-monitor \
+                     bpf-prog/ipv6-hp-bpf cilium-log-collector cni crd \
+                     dropgz npm pkgerrlint zapai tools/azure-npm-to-cilium-validator; do
+            if [ -f "$mod/go.mod" ]; then
+              echo "Downloading $mod deps..."
+              (cd "$mod" && go mod download) || true
+            fi
+          done
+          echo "Module cache populated."

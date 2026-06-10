@@ -6,7 +6,7 @@ license: MIT
 compatibility: Designed for GitHub Copilot Coding Agent and Claude Code.
 metadata:
   author: behzad-mir
-  version: "4.5.0"
+  version: "4.6.0"
 allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(make:*) Bash(skopeo:*) Bash(git:*) Bash(gh:*) Agent
 ---
 
@@ -247,9 +247,20 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
 3. **`tools-go/go.mod`** — Update `go` directive to match root
 4. **All sub-module `go.mod` files** — Update `go` directive to match (see full list above)
 5. **Run `go mod tidy`** on root, tools-go/, and each sub-module
+   - If `go mod tidy` fails due to network (firewall blocks `proxy.golang.org`), skip and note in PR
+   - The `go.sum` files will be updated by CI or a follow-up commit
 6. **`.devcontainer/Dockerfile`** — Update `VARIANT` arg to `"1.XX"`
-7. **`.pipelines/build/scripts/install-go.sh`** — Update `DEFAULT_IMAGE` SHA
-8. **`bpf-prog/ipv6-hp-bpf/linux.Dockerfile`** — Update Go image SHA
+7. **`.pipelines/build/scripts/install-go.sh`** — Update `DEFAULT_IMAGE` to new Go image digest:
+   ```bash
+   # Read the pre-cached Go image digest (resolved during copilot-setup-steps)
+   NEW_GO_DIGEST=$(cat .github/image-digests/go-image.txt 2>/dev/null)
+   # If cache exists, use it to update install-go.sh:
+   if [ -n "$NEW_GO_DIGEST" ]; then
+     sed -i "s|DEFAULT_IMAGE=\".*\"|DEFAULT_IMAGE=\"${NEW_GO_DIGEST}\"|" .pipelines/build/scripts/install-go.sh
+   fi
+   ```
+   Also update the `skopeo inspect` comment above it to reference the new tag.
+8. **`bpf-prog/ipv6-hp-bpf/linux.Dockerfile`** — Update Go image SHA (use same digest from step 7)
 9. **`npm/linux.Dockerfile`** and **`npm/windows.Dockerfile`** — Update Go tag
 10. **Run `make dockerfiles`** — Regenerate all template-based Dockerfiles
 
