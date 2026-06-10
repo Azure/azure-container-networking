@@ -6,7 +6,7 @@ license: MIT
 compatibility: Designed for GitHub Copilot Coding Agent and Claude Code.
 metadata:
   author: behzad-mir
-  version: "4.1.0"
+  version: "4.2.0"
 allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(make:*) Bash(skopeo:*) Bash(git:*) Bash(gh:*) Agent
 ---
 
@@ -306,13 +306,45 @@ GOEXPERIMENT=$(ACN_GOEXPERIMENT) CGO_ENABLED=0 go build ...
 
 - `cilium-log-collector/Makefile` — Explicit `GOEXPERIMENT=<value_for_cgo1> CGO_ENABLED=1`
 
-### Tools Module
+### Tools Module Migration (Go 1.26+ requirement)
 
-Tools live in `tools-go/go.mod` (module: `github.com/Azure/azure-container-networking/tools-go`):
-- Isolates tool dependencies from the main module graph
-- Go 1.26's stricter `go mod tidy` requires this separation
-- All `-modfile` references point to `tools-go/go.mod`
-- Root Makefile: `TOOLS_GO_MOD = $(REPO_ROOT)/tools-go/go.mod`
+Go 1.26's stricter `go mod tidy` rejects root-level modfiles (`tools.go.mod`) that share the same module path as `go.mod`. The tools module MUST live in its own directory.
+
+**If `tools.go.mod` exists at the repo root (not yet migrated):**
+
+1. Create `tools-go/` directory
+2. Move `tools.go.mod` → `tools-go/go.mod`
+3. Move `tools.go.sum` → `tools-go/go.sum`
+4. Change module name in `tools-go/go.mod`:
+   ```
+   - module github.com/Azure/azure-container-networking
+   + module github.com/Azure/azure-container-networking/tools-go
+   ```
+5. Find and update ALL references:
+   ```bash
+   grep -rn "tools\.go\.mod" . --include="*.go" --include="Makefile" --include="*.sh" --include="*.yaml" --include="*.yml" | grep -v vendor
+   ```
+   Common locations that reference `-modfile=tools.go.mod`:
+   - `crd/clustersubnetstate/Makefile`
+   - `crd/multitenancy/Makefile`
+   - `crd/multitenantnetworkcontainer/Makefile`
+   - `crd/nodenetworkconfig/Makefile`
+   - `crd/overlayextensionconfig/Makefile`
+   - `cns/multitenantcontroller/mockclients/Makefile`
+   - `npm/pkg/dataplane/Makefile`
+   - `platform/Makefile`
+   - `scripts/install-protoc.sh`
+   - Root `Makefile` (`TOOLS_GO_MOD` variable)
+
+   Replace all: `tools.go.mod` → `tools-go/go.mod`
+
+6. Run `cd tools-go && go mod tidy`
+
+**If `tools-go/go.mod` already exists (already migrated):**
+
+- Just update the `go` directive to match root
+- Run `cd tools-go && go mod tidy`
+- Verify all `-modfile` references point to `tools-go/go.mod` (not old `tools.go.mod`)
 
 ---
 
@@ -326,7 +358,28 @@ After making all changes:
    ```
 2. `go build ./...` — Verify compilation succeeds
 3. `go vet ./...` — Check for deprecated API usage
-4. `make dockerfiles` — Ensure templates render correctly (output must match committed files)
+4. **`make dockerfiles`** — Regenerate ALL template-based Dockerfiles. This resolves:
+   - `{{.GO_PIN}}` → current Go image SHA
+   - `{{.MARINER_CORE_PIN}}` → current azurelinux/base/core SHA
+   - `{{.MARINER_DISTROLESS_PIN}}` → current azurelinux/distroless/base SHA
+   
+   The generated files live in TWO locations:
+   - Component directories: `cni/Dockerfile`, `cns/Dockerfile`, `azure-ipam/Dockerfile`, etc.
+   - Pipeline directory: `.pipelines/build/dockerfiles/*.Dockerfile`
+   
+   **If `make dockerfiles` fails** (e.g., skopeo unavailable or MCR auth issues), manually resolve the SHAs and update:
+   ```bash
+   # Get current SHA digests
+   skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.XX-azurelinux3.0 \
+     --format "{{.Name}}@{{.Digest}}"
+   skopeo inspect docker://mcr.microsoft.com/azurelinux/base/core:3.0 \
+     --format "{{.Name}}@{{.Digest}}"
+   skopeo inspect docker://mcr.microsoft.com/azurelinux/distroless/base:3.0 \
+     --format "{{.Name}}@{{.Digest}}"
+   ```
+   Then update ALL `.Dockerfile` files (not `.tmpl`) with the new digests.
+   
+   **IMPORTANT:** Both `.pipelines/build/dockerfiles/*.Dockerfile` AND component `*/Dockerfile` files must be updated — they are ALL generated from templates.
 5. `go mod tidy` — Ensure deps are clean (root and tools-go/)
 6. Verify no new `replace` directives are needed
 7. **Dev environment check:**
