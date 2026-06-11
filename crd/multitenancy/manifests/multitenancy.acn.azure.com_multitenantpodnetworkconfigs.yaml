@@ -126,6 +126,12 @@ spec:
                     ncID:
                       description: NCID is the network container id
                       type: string
+                    networkID:
+                      description: |-
+                        NetworkID is the identifier of the network (e.g. VNet GUID) this NIC belongs to.
+                        Denormalized copy of PodNetwork.Spec.NetworkID, populated by the MTPNC writer.
+                        May be empty when written by older controllers; consumers must tolerate the empty value.
+                      type: string
                     primaryIP:
                       description: PrimaryIP is the ip allocated to the network container
                       type: string
@@ -137,6 +143,18 @@ spec:
                     subnetAddressSpace:
                       description: SubnetAddressSpace is the subnet address space
                         of the injected subnet
+                      type: string
+                    subnetGUID:
+                      description: |-
+                        SubnetGUID is the GUID of the subnet this NIC belongs to.
+                        Denormalized copy of PodNetwork.Spec.SubnetGUID, populated by the MTPNC writer.
+                        May be empty when written by older controllers; consumers must tolerate the empty value.
+                      type: string
+                    subnetName:
+                      description: |-
+                        SubnetName is the short subnet name (the trailing segment of PodNetwork.Spec.SubnetResourceID,
+                        e.g. "pod-subnet"). Provided for human-readable identification and debuggability; the
+                        authoritative identifier is SubnetGUID. May be empty when written by older controllers.
                       type: string
                   type: object
                 type: array
@@ -152,6 +170,17 @@ spec:
               primaryIP:
                 description: Deprecated - use InterfaceInfos
                 type: string
+              resourceClaims:
+                description: |-
+                  ResourceClaims lists the ResourceClaim names allocated to the pod by the
+                  scheduler via Dynamic Resource Allocation (DRA). An empty or nil list
+                  indicates the pod was scheduled without DRA. When non-empty, dataplane
+                  programming is owned by the DRA driver (NRI), and CNS will skip the
+                  CNI pod-info delivery path for this pod. Use IsDRAScheduled() to read.
+                items:
+                  type: string
+                type: array
+                x-kubernetes-list-type: set
               status:
                 description: Status represents the overall status of the MTPNC
                 enum:

@@ -15,3 +15,12 @@ func (m *MultitenantPodNetworkConfig) IsReady() bool {
 func (m *MultitenantPodNetworkConfig) IsDeleting() bool {
 	return !m.DeletionTimestamp.IsZero()
 }
+
+// IsDRAScheduled reports whether this pod was scheduled with Dynamic Resource
+// Allocation (DRA). It is derived from Status.ResourceClaims: a non-empty list
+// means a DRA driver owns dataplane programming for the pod (via NRI), and CNS
+// should skip CNI pod-info delivery. Callers must use this helper rather than
+// inspecting the field directly, so the contract has a single source of truth.
+func (m *MultitenantPodNetworkConfig) IsDRAScheduled() bool {
+	return len(m.Status.ResourceClaims) > 0
+}
