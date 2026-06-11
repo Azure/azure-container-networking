@@ -66,6 +66,23 @@ func TestNewAndDeleteNetworkImplHnsV2(t *testing.T) {
 	}
 }
 
+func TestDeleteNetworkImplHnsV2NotFound(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+
+	nw := &network{
+		HnsId: "nonexistent-network-id",
+	}
+
+	err := nm.deleteNetworkImplHnsV2(nw)
+	if err != nil {
+		t.Fatalf("delete should succeed when HNS network is not found, but got: %v", err)
+	}
+}
+
 func TestSuccesfulNetworkCreationWhenAlreadyExists(t *testing.T) {
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},

@@ -466,7 +466,13 @@ func (nm *networkManager) deleteNetworkImplHnsV2(nw *network) error {
 	logger.Info("Deleting hcn network with id", zap.String("id", nw.HnsId))
 
 	if hcnNetwork, err = Hnsv2.GetNetworkByID(nw.HnsId); err != nil {
-		return fmt.Errorf("Failed to get hcn network with id: %s due to err: %v", nw.HnsId, err)
+		if _, networkNotFound := err.(hcn.NetworkNotFoundError); !networkNotFound {
+			return fmt.Errorf("Failed to get hcn network with id: %s due to err: %v", nw.HnsId, err)
+		}
+
+		logger.Info("Delete called on the Network which doesn't exist.",
+			zap.String("HnsId", nw.HnsId), zap.Error(err))
+		return nil
 	}
 
 	if err = Hnsv2.DeleteNetwork(hcnNetwork); err != nil {
