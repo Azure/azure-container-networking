@@ -66,6 +66,10 @@ func (e *ConnectionFailureErr) Error() string {
 	return e.cause.Error()
 }
 
+func NewConnectionFailureErr(cause error) *ConnectionFailureErr {
+	return &ConnectionFailureErr{cause: cause}
+}
+
 // New returns a new CNS client configured with the passed URL and timeout.
 func New(baseURL string, requestTimeout time.Duration) (*Client, error) {
 	if baseURL == "" {

@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
+	cnscli "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -1508,6 +1509,129 @@ func TestCNSIPAMInvoker_Delete_NotSupportedAPI(t *testing.T) {
 			err := invoker.Delete(tt.args.address, tt.args.nwCfg, tt.args.args, tt.args.options)
 			if tt.wantErr {
 				require.Error(err)
+			} else {
+				require.NoError(err)
+			}
+		})
+	}
+}
+
+func TestCNSIPAMInvoker_Delete_DisableAsyncDelete(t *testing.T) {
+	require := require.New(t) //nolint further usage of require without passing t
+
+	connErr := cnscli.NewConnectionFailureErr(errors.New("connection refused"))
+
+	tests := []struct {
+		name             string
+		disableAsync     bool
+		releaseIPsErr    error
+		wantErr          bool
+		wantErrContains  string
+	}{
+		{
+			name:            "connection failure with async delete disabled returns error",
+			disableAsync:    true,
+			releaseIPsErr:   connErr,
+			wantErr:         true,
+			wantErrContains: "async delete is disabled",
+		},
+		{
+			name:            "connection failure with async delete enabled attempts async write",
+			disableAsync:    false,
+			releaseIPsErr:   connErr,
+			wantErr:         true,
+			wantErrContains: "failed to add file to watcher",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			invoker := &CNSIPAMInvoker{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: require,
+					releaseIPs: releaseIPsHandler{
+						ipconfigArgument: getTestIPConfigsRequest(),
+						err:              tt.releaseIPsErr,
+					},
+				},
+			}
+			nwCfg := &cni.NetworkConfig{
+				DisableAsyncDelete: tt.disableAsync,
+			}
+			args := &cniSkel.CmdArgs{
+				ContainerID: "testcontainerid",
+				Netns:       "testnetns",
+				IfName:      "testifname",
+			}
+			err := invoker.Delete(nil, nwCfg, args, nil)
+			if tt.wantErr {
+				require.Error(err)
+				require.Contains(err.Error(), tt.wantErrContains)
+			} else {
+				require.NoError(err)
+			}
+		})
+	}
+}
+
+func TestCNSIPAMInvoker_Delete_DisableAsyncDelete_UnsupportedAPI(t *testing.T) {
+	require := require.New(t) //nolint further usage of require without passing t
+
+	connErr := cnscli.NewConnectionFailureErr(errors.New("connection refused"))
+	unsupportedAPIs := make(map[cnsAPIName]struct{})
+	unsupportedAPIs["ReleaseIPs"] = struct{}{}
+
+	tests := []struct {
+		name             string
+		disableAsync     bool
+		releaseIPErr     error
+		wantErr          bool
+		wantErrContains  string
+	}{
+		{
+			name:            "unsupported API path with connection failure and async delete disabled returns error",
+			disableAsync:    true,
+			releaseIPErr:    connErr,
+			wantErr:         true,
+			wantErrContains: "async delete is disabled",
+		},
+		{
+			name:            "unsupported API path with connection failure and async delete enabled attempts async write",
+			disableAsync:    false,
+			releaseIPErr:    connErr,
+			wantErr:         true,
+			wantErrContains: "failed to add file to watcher",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			invoker := &CNSIPAMInvoker{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					unsupportedAPIs: unsupportedAPIs,
+					require:         require,
+					releaseIP: releaseIPHandler{
+						ipconfigArgument: getTestIPConfigRequest(),
+						err:              tt.releaseIPErr,
+					},
+				},
+			}
+			nwCfg := &cni.NetworkConfig{
+				DisableAsyncDelete: tt.disableAsync,
+			}
+			args := &cniSkel.CmdArgs{
+				ContainerID: "testcontainerid",
+				Netns:       "testnetns",
+				IfName:      "testifname",
+			}
+			err := invoker.Delete(nil, nwCfg, args, nil)
+			if tt.wantErr {
+				require.Error(err)
+				require.Contains(err.Error(), tt.wantErrContains)
 			} else {
 				require.NoError(err)
 			}
