@@ -187,7 +187,8 @@ jobs:
           echo "latest_minor_tag=$LATEST_MINOR_TAG" >> "$GITHUB_OUTPUT"
 
           PATCH_AVAILABLE="false"
-          if [ -n "$LATEST_PATCH" ] && [ "$LATEST_PATCH" != "$GOMOD_VERSION" ]; then
+          # Gate: only treat full x.y.z versions as patch bumps (not x.y without patch component)
+          if [ -n "$LATEST_PATCH" ] && [ "$LATEST_PATCH" != "$GOMOD_VERSION" ] && [[ "$LATEST_PATCH" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             LATEST_PATCH_DIGEST=$(skopeo inspect "docker://$MCR_REPO:${LATEST_PATCH}-${BASE_OS}" --format "{{.Digest}}" 2>/dev/null || echo "FAILED")
             if [ "$LATEST_PATCH_DIGEST" != "FAILED" ] && [ "$LATEST_PATCH_DIGEST" != "$CURRENT_DIGEST" ]; then
               PATCH_AVAILABLE="true"
@@ -358,8 +359,7 @@ jobs:
             go mod edit -go="${LATEST_GO_VERSION}" go.mod
             go mod tidy
             if [ -f tools-go/go.mod ]; then
-              go mod edit -go="${LATEST_GO_VERSION}" tools-go/go.mod
-              go mod tidy -modfile=tools-go/go.mod
+              (cd tools-go && go mod edit -go="${LATEST_GO_VERSION}" && go mod tidy)
             elif [ -f tools.go.mod ]; then
               go mod edit -go="${LATEST_GO_VERSION}" -modfile=tools.go.mod
               go mod tidy -modfile=tools.go.mod
@@ -405,8 +405,7 @@ jobs:
           go mod edit -go="${LATEST_PATCH}" go.mod
           go mod tidy
           if [ -f tools-go/go.mod ]; then
-            go mod edit -go="${LATEST_PATCH}" tools-go/go.mod
-            go mod tidy -modfile=tools-go/go.mod
+            (cd tools-go && go mod edit -go="${LATEST_PATCH}" && go mod tidy)
           elif [ -f tools.go.mod ]; then
             go mod edit -go="${LATEST_PATCH}" -modfile=tools.go.mod
             go mod tidy -modfile=tools.go.mod
@@ -805,8 +804,7 @@ jobs:
             go mod edit -go="${LATEST_GO_VERSION}" go.mod
             go mod tidy
             if [ -f tools-go/go.mod ]; then
-              go mod edit -go="${LATEST_GO_VERSION}" tools-go/go.mod
-              go mod tidy -modfile=tools-go/go.mod
+              (cd tools-go && go mod edit -go="${LATEST_GO_VERSION}" && go mod tidy)
             elif [ -f tools.go.mod ]; then
               go mod edit -go="${LATEST_GO_VERSION}" -modfile=tools.go.mod
               go mod tidy -modfile=tools.go.mod
@@ -854,8 +852,7 @@ jobs:
             go mod edit -go="${LATEST_PATCH}" go.mod
             go mod tidy
             if [ -f tools-go/go.mod ]; then
-              go mod edit -go="${LATEST_PATCH}" tools-go/go.mod
-              go mod tidy -modfile=tools-go/go.mod
+              (cd tools-go && go mod edit -go="${LATEST_PATCH}" && go mod tidy)
             elif [ -f tools.go.mod ]; then
               go mod edit -go="${LATEST_PATCH}" -modfile=tools.go.mod
               go mod tidy -modfile=tools.go.mod
@@ -1179,5 +1176,7 @@ jobs:
             --title "chore: upgrade Go ${GO_MINOR} → ${LATEST_MINOR}" \
             --body "$BODY" \
             --label "Agent-Generated" \
-            --label "go" \
-            --assignee "Copilot"
+            --label "go"
+          # Note: Copilot coding agent picks up issues labeled 'copilot' or assigned to it.
+          # --assignee "Copilot" may fail if the bot account lacks repo access.
+          # Assign manually or via repo settings to enable auto-pickup.

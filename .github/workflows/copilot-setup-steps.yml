@@ -57,8 +57,8 @@ jobs:
           # Pre-resolve all image SHAs needed for Dockerfile generation.
           mkdir -p .github/image-digests
 
-          # Go builder image (floating tag) — skip comments, match assignment only
-          GO_TAG=$(grep -E '^[[:space:]]*GO_IMG' build/images.mk | head -1 | sed 's/.*golang://' | tr -d ' ')
+          # Go builder image (floating tag) — match 'export GO_IMG ?= ...' assignment
+          GO_TAG=$(grep -E '^(export[[:space:]]+)?GO_IMG' build/images.mk | head -1 | sed 's/.*golang://' | tr -d ' ')
           echo "Resolving Go image tag: $GO_TAG"
           skopeo inspect "docker://mcr.microsoft.com/oss/go/microsoft/golang:${GO_TAG}" \
             --format "{{.Name}}@{{.Digest}}" > .github/image-digests/go-image.txt 2>/dev/null || true
