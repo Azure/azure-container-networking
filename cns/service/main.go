@@ -1425,22 +1425,12 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
 		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
+	}
+
+	// populate the NodeInfo CRD if any scenario requires it (SwiftV2, SwiftV1 DualStack, or HomeAz)
+	if cnsconfig.EnableSwiftV2 || cnsconfig.EnableSwiftV1DualStack || cnsconfig.EnableHomeAz {
 		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
 			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
-		}
-	}
-
-	// populate the NodeInfo CRD for Swift V1 dualstack scenario when enabled via config
-	if cnsconfig.EnableSwiftV1DualStack {
-		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
-			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd for swift v1 dualstack")
-		}
-	}
-
-	// populate the NodeInfo CRD when HomeAz is enabled
-	if cnsconfig.EnableHomeAz {
-		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
-			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd for home az")
 		}
 	}
 
