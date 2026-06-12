@@ -8,4 +8,6 @@ var (
 	ErrEndpointStateNotFound   = errors.New("endpoint state could not be found in the statefile")
 	ErrConnectionFailure       = errors.New("couldn't connect to CNS")
 	ErrGetEndpointStateFailure = errors.New("failure to obtain the endpoint state")
+	errGetHNSNetworkByID       = errors.New("failed to get hcn network by id")
+	errDeleteHNSNetwork        = errors.New("failed to delete hcn network")
 )
