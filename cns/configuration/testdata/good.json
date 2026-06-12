@@ -2,6 +2,7 @@
     "ChannelMode": "Direct",
     "InitializeFromCNI": true,
     "EnablePprof": true,
+    "EnableHomeAz": true,
     "EnableSubnetScarcity": true,
     "EnableSwiftV1DualStack": true,
     "ManagedSettings": {
