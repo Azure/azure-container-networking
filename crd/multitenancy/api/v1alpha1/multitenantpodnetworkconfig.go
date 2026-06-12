@@ -52,6 +52,23 @@ type MultitenantPodNetworkConfigSpec struct {
 	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
 	// PodUID is the UID of the pod
 	PodUID types.UID `json:"podUID,omitempty"`
+	// NetworkID is the identifier of the network (e.g. VNet GUID) this pod belongs to.
+	// Denormalized copy of PodNetwork.Spec.NetworkID, populated by the MTPNC writer.
+	// +kubebuilder:validation:Optional
+	NetworkID string `json:"networkID,omitempty"`
+	// SubnetGUID is the GUID of the subnet this pod belongs to.
+	// Denormalized copy of PodNetwork.Spec.SubnetGUID, populated by the MTPNC writer.
+	// +kubebuilder:validation:Optional
+	SubnetGUID string `json:"subnetGUID,omitempty"`
+	// SubnetName is the short subnet name (the trailing segment of PodNetwork.Spec.SubnetResourceID,
+	// e.g. "pod-subnet"). Provided for human-readable identification and debuggability; the
+	// authoritative identifier is SubnetGUID.
+	// +kubebuilder:validation:Optional
+	SubnetName string `json:"subnetName,omitempty"`
+	// ResourceClaims lists the ResourceClaim names allocated to the pod.
+	// +kubebuilder:validation:Optional
+	// +listType=set
+	ResourceClaims []string `json:"resourceClaims,omitempty"`
 }
 
 // +kubebuilder:validation:Enum=Unprogrammed;Programming;Programmed;Unprogramming;Failed
@@ -107,21 +124,6 @@ type InterfaceInfo struct {
 	// AccelnetEnabled determines if the CNI will provision the NIC with accelerated networking enabled
 	// +kubebuilder:validation:Optional
 	AccelnetEnabled bool `json:"accelnetEnabled,omitempty"`
-	// NetworkID is the identifier of the network (e.g. VNet GUID) this NIC belongs to.
-	// Denormalized copy of PodNetwork.Spec.NetworkID, populated by the MTPNC writer.
-	// May be empty when written by older controllers; consumers must tolerate the empty value.
-	// +kubebuilder:validation:Optional
-	NetworkID string `json:"networkID,omitempty"`
-	// SubnetGUID is the GUID of the subnet this NIC belongs to.
-	// Denormalized copy of PodNetwork.Spec.SubnetGUID, populated by the MTPNC writer.
-	// May be empty when written by older controllers; consumers must tolerate the empty value.
-	// +kubebuilder:validation:Optional
-	SubnetGUID string `json:"subnetGUID,omitempty"`
-	// SubnetName is the short subnet name (the trailing segment of PodNetwork.Spec.SubnetResourceID,
-	// e.g. "pod-subnet"). Provided for human-readable identification and debuggability; the
-	// authoritative identifier is SubnetGUID. May be empty when written by older controllers.
-	// +kubebuilder:validation:Optional
-	SubnetName string `json:"subnetName,omitempty"`
 	// IBStatus is the programming status of the infiniband device
 	// +kubebuilder:validation:Optional
 	IBStatus InfinibandStatus `json:"ibStatus,omitempty"`
@@ -157,14 +159,6 @@ type MultitenantPodNetworkConfigStatus struct {
 	// Status represents the overall status of the MTPNC
 	// +kubebuilder:validation:Optional
 	Status MTPNCStatus `json:"status,omitempty"`
-	// ResourceClaims lists the ResourceClaim names allocated to the pod by the
-	// scheduler via Dynamic Resource Allocation (DRA). An empty or nil list
-	// indicates the pod was scheduled without DRA. When non-empty, dataplane
-	// programming is owned by the DRA driver (NRI), and CNS will skip the
-	// CNI pod-info delivery path for this pod. Use IsDRAScheduled() to read.
-	// +kubebuilder:validation:Optional
-	// +listType=set
-	ResourceClaims []string `json:"resourceClaims,omitempty"`
 }
 
 func init() {

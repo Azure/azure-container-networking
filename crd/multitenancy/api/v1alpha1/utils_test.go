@@ -21,7 +21,7 @@ func TestIsDRAScheduled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &MultitenantPodNetworkConfig{
-				Status: MultitenantPodNetworkConfigStatus{ResourceClaims: tt.claims},
+				Spec: MultitenantPodNetworkConfigSpec{ResourceClaims: tt.claims},
 			}
 			require.Equal(t, tt.want, m.IsDRAScheduled())
 		})
