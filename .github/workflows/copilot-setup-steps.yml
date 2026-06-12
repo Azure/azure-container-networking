@@ -28,6 +28,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           # The agent firewall blocks api.github.com for cross-repo fetches.
           # Pre-fetch all MS Go docs needed by SKILL.md into .github/ms-go-docs/
           mkdir -p .github/ms-go-docs
@@ -44,8 +45,10 @@ jobs:
           for doc in "${docs[@]}"; do
             outfile=".github/ms-go-docs/$(basename "$doc")"
             echo "Fetching microsoft/go: $doc → $outfile"
-            gh api "repos/microsoft/go/contents/${doc}?ref=microsoft/main" --jq '.content' \
-              | base64 -d > "$outfile" 2>/dev/null || echo "WARN: $doc not found" > "$outfile"
+            if ! gh api "repos/microsoft/go/contents/${doc}?ref=microsoft/main" --jq '.content' \
+              | base64 -d > "$outfile" 2>/dev/null; then
+              echo "WARN: $doc not found or failed to decode" > "$outfile"
+            fi
           done
 
           echo "--- Pre-fetched docs ---"
