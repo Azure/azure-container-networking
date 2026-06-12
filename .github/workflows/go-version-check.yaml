@@ -190,7 +190,8 @@ jobs:
           # Gate: only treat full x.y.z versions as patch bumps (not x.y without patch component)
           if [ -n "$LATEST_PATCH" ] && [ "$LATEST_PATCH" != "$GOMOD_VERSION" ] && [[ "$LATEST_PATCH" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             LATEST_PATCH_DIGEST=$(skopeo inspect "docker://$MCR_REPO:${LATEST_PATCH}-${BASE_OS}" --format "{{.Digest}}" 2>/dev/null || echo "FAILED")
-            if [ "$LATEST_PATCH_DIGEST" != "FAILED" ] && [ "$LATEST_PATCH_DIGEST" != "$CURRENT_DIGEST" ]; then
+            if [ "$LATEST_PATCH_DIGEST" != "FAILED" ]; then
+              # Trigger if digest drifted OR go.mod is behind the latest patch
               PATCH_AVAILABLE="true"
             fi
             echo "latest_patch_digest=$LATEST_PATCH_DIGEST" >> "$GITHUB_OUTPUT"
@@ -419,13 +420,14 @@ jobs:
           sed -i "s|${MCR_IMG}@sha256:[a-f0-9]*|${MCR_IMG}@${LATEST_PATCH_DIGEST}|" \
             bpf-prog/ipv6-hp-bpf/linux.Dockerfile
           # Also update the tag reference if present
-          sed -i "s|golang:${GO_MINOR}|golang:${LATEST_PATCH}|g" \
+          sed -i "s|golang:${GO_MINOR}[0-9.]*|golang:${LATEST_PATCH}|g" \
             bpf-prog/ipv6-hp-bpf/linux.Dockerfile
 
           # 5. Update npm Dockerfiles (tag only, no SHA pin)
+          # npm Dockerfiles use full MCR path with patch version (e.g., golang:1.25.5)
           for f in npm/linux.Dockerfile npm/windows.Dockerfile; do
             if [ -f "$f" ]; then
-              sed -i "s|golang:${GO_MINOR}|golang:${LATEST_PATCH}|g" "$f"
+              sed -i "s|golang:${GOMOD_VERSION}|golang:${LATEST_PATCH}|g" "$f"
             fi
           done
 
@@ -864,12 +866,13 @@ jobs:
             sed -i "s|${MCR_IMG}@sha256:[a-f0-9]*|${MCR_IMG}@${LATEST_PATCH_DIGEST}|" \
               bpf-prog/ipv6-hp-bpf/linux.Dockerfile
 
-            sed -i "s|golang:${GO_MINOR}|golang:${LATEST_PATCH}|g" \
+            sed -i "s|golang:${GO_MINOR}[0-9.]*|golang:${LATEST_PATCH}|g" \
               bpf-prog/ipv6-hp-bpf/linux.Dockerfile
 
             for f in npm/linux.Dockerfile npm/windows.Dockerfile; do
               if [ -f "$f" ]; then
-                sed -i "s|golang:${GO_MINOR}|golang:${LATEST_PATCH}|g" "$f"
+                # npm Dockerfiles use full patch version (e.g., golang:1.25.5)
+                sed -i "s|golang:${CURRENT_GOMOD}|golang:${LATEST_PATCH}|g" "$f"
               fi
             done
 
