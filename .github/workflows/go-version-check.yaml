@@ -306,7 +306,7 @@ jobs:
                   print(req['Version']); break
           ")
           elif [ -f tools.go.mod ]; then
-            RENDERKIT_VER=$(grep 'orellazri/renderkit' tools.go.mod | awk '{print \$2}')
+            RENDERKIT_VER=$(grep 'orellazri/renderkit' tools.go.mod | awk '{print $2}')
           fi
           if [ -n "${RENDERKIT_VER:-}" ]; then
             go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
@@ -315,6 +315,7 @@ jobs:
           echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
 
       - name: Check for existing PR
+        id: existing_pr
         env:
           GH_TOKEN: ${{ github.token }}
           UPDATE_TYPE: ${{ needs.check-go-update.outputs.update_type }}
@@ -591,7 +592,7 @@ jobs:
                   print(req['Version']); break
           ")
           elif [ -f tools.go.mod ]; then
-            RENDERKIT_VER=$(grep 'orellazri/renderkit' tools.go.mod | awk '{print \$2}')
+            RENDERKIT_VER=$(grep 'orellazri/renderkit' tools.go.mod | awk '{print $2}')
           fi
           if [ -n "${RENDERKIT_VER:-}" ]; then
             go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
@@ -641,7 +642,7 @@ jobs:
           else
             echo "has_version_doc=false" >> "$GITHUB_OUTPUT"
           fi
-          echo "::notice::FIPS rules for Go 1.${TARGET_MIN_NUM}: CGO=1 → GOEXPERIMENT=$([ $TARGET_MIN_NUM -ge 26 ] && echo systemcrypto || echo none), CGO=0 → GOEXPERIMENT=$([ $TARGET_MIN_NUM -ge 27 ] && echo systemcrypto || echo none)"
+          echo "::notice::FIPS rules for Go 1.${TARGET_MIN_NUM}: CGO=1 → GOEXPERIMENT=$([ $TARGET_MIN_NUM -ge 26 ] && echo systemcrypto || echo none), CGO=0 → GOEXPERIMENT=$([ $TARGET_MIN_NUM -ge 27 ] && echo systemcrypto || ([ $TARGET_MIN_NUM -ge 26 ] && echo ms_nocgo_opensslcrypto || echo none))"
 
       - name: Check prerequisites on release branch
         id: prereqs
