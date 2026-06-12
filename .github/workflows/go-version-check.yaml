@@ -1058,6 +1058,9 @@ jobs:
           LATEST_MINOR_BASE=$(echo "$LATEST_MINOR" | grep -oP '^\d+\.\d+')
           LATEST_MIN_NUM=$(echo "$LATEST_MINOR_BASE" | cut -d. -f2)
 
+          # Resolve the image digest for the target version
+          TARGET_DIGEST=$(skopeo inspect "docker://${MCR_REPO}:${LATEST_MINOR_BASE}-${BASE_OS}" --format "{{.Digest}}" 2>/dev/null || echo "UNKNOWN")
+
           # Build FIPS instructions based on current state and target version
           FIPS_SECTION=""
           if [ "$FIPS_READY" = "true" ]; then
@@ -1105,6 +1108,7 @@ jobs:
           **Current version:** \`${GO_MINOR}\` (go.mod: \`${GOMOD_VER}\`)
           **Target version:** \`${LATEST_MINOR}\` (\`${LATEST_MINOR_TAG}\`)
           **MCR image:** \`${MCR_REPO}:${LATEST_MINOR_BASE}-${BASE_OS}\`
+          **Image digest:** \`${TARGET_DIGEST}\`
 
           ### Instructions for Copilot Agent
 
@@ -1135,7 +1139,7 @@ jobs:
 
           1. Update \`build/images.mk\`: \`GO_IMG\` → \`${MCR_REPO}:${LATEST_MINOR_BASE}-${BASE_OS}\`
           2. Update \`go.mod\` and tools module (\`tools-go/go.mod\` or \`tools.go.mod\`) — use \`.1\` minimum patch
-          3. Run \`go mod tidy\` on both modules
+          3. Do NOT run \`go mod tidy\` — it times out in the agent environment. Existing go.sum files are valid.
           4. Apply FIPS/crypto changes per your doc analysis (do NOT blindly reuse previous version's rules)
           5. Update all SHA references (install-go.sh, bpf-prog, npm Dockerfiles)
           6. Run \`make dockerfiles\`
@@ -1176,7 +1180,5 @@ jobs:
             --title "chore: upgrade Go ${GO_MINOR} → ${LATEST_MINOR}" \
             --body "$BODY" \
             --label "Agent-Generated" \
-            --label "go"
-          # Note: Copilot coding agent picks up issues labeled 'copilot' or assigned to it.
-          # --assignee "Copilot" may fail if the bot account lacks repo access.
-          # Assign manually or via repo settings to enable auto-pickup.
+            --label "copilot"
+          # Copilot coding agent auto-picks up issues labeled 'copilot'.
