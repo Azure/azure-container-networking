@@ -679,9 +679,10 @@ jobs:
             HAS_DISTROLESS_BASE="true"
           fi
 
-          # Get the current Go minor on this branch
-          BRANCH_GO_IMG=$(make --no-print-directory -f build/images.mk print-GO_IMG)
-          BRANCH_GO_TAG=$(echo "$BRANCH_GO_IMG" | grep -oP ':\K.*')
+          # Get the current Go minor on this branch (use grep fallback for branches without print-% target)
+          BRANCH_GO_IMG=$(make --no-print-directory -f build/images.mk print-GO_IMG 2>/dev/null \
+            || grep -E '^(export[[:space:]]+)?GO_IMG' build/images.mk | head -1 | sed 's/.*golang://' | tr -d ' ')
+          BRANCH_GO_TAG=$(echo "$BRANCH_GO_IMG" | grep -oP ':\K.*' || echo "$BRANCH_GO_IMG")
           BRANCH_GO_MINOR=$(echo "$BRANCH_GO_TAG" | grep -oP '^\d+\.\d+')
 
           echo "branch_go_minor=$BRANCH_GO_MINOR" >> "$GITHUB_OUTPUT"
@@ -1187,6 +1188,8 @@ jobs:
           "
 
           # Create issue with labels and assign to Copilot for pickup
+          # Ensure 'copilot' label exists (auto-pickup by Copilot coding agent)
+          gh label create "copilot" --repo "$REPO" --description "Auto-pickup by Copilot coding agent" --color "1d76db" 2>/dev/null || true
           gh issue create \
             --repo "$REPO" \
             --title "chore: upgrade Go ${GO_MINOR} → ${LATEST_MINOR}" \
