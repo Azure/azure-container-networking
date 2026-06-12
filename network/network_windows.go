@@ -45,6 +45,11 @@ const (
 	defaultIPv6NextHop = "fe80::1234:5678:9abc"
 )
 
+var (
+	errGetHNSNetworkByID = errors.New("failed to get hcn network by id")
+	errDeleteHNSNetwork  = errors.New("failed to delete hcn network")
+)
+
 // Windows implementation of route.
 type route interface{}
 
