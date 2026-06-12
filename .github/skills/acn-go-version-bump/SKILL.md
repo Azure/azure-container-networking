@@ -195,11 +195,13 @@ ACN uses **floating minor version tags** for the Go build image (`build/images.m
 - `GO_IMG` uses a 2-part minor version tag (e.g., `golang:1.26-azurelinux3.0`)
 - The floating tag resolves to the latest patch via SHA digest at `make dockerfiles` time
 
-**go.mod version rule:** The `go` directive in `go.mod` files MUST use `1.XX.1` (the `.1` patch), NOT the latest patch (e.g., NOT `1.26.4`). This is because:
+**go.mod version rule (minor upgrades only):** When performing a **minor** version upgrade (Tier 3), the `go` directive in `go.mod` files MUST use `1.XX.1` (the `.1` patch), NOT the latest patch (e.g., NOT `1.26.4`). This is because:
 - `.0` releases are pre-release/stabilization — avoid them
 - `.1` is the first stable patch — use this as the minimum
 - The actual Go binary version comes from the container image (floating tag), not go.mod
 - Using the latest patch in go.mod forces all developers to have that exact patch locally
+
+**Note:** For **patch** bumps (Tier 2), the workflow correctly sets `go.mod` to the target patch version (e.g., `1.26.3` → `1.26.4`). This rule only applies to the initial minor upgrade.
 
 **Example:** If upgrading to Go 1.26, set `go 1.26.1` in all go.mod files, even if the latest available patch is `1.26.4`.
 

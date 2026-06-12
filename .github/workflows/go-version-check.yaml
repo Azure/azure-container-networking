@@ -143,9 +143,10 @@ jobs:
           # ─── Tier 2: Check for newer patch versions ───
           echo "Listing MCR tags for patch versions..."
           ALL_TAGS=$(skopeo list-tags "docker://$MCR_REPO" 2>/dev/null | python3 -c "
-          import sys, json, re
+          import sys, json, re, os
           tags = json.load(sys.stdin).get('Tags', [])
-          pattern = re.compile(r'^(\d+\.\d+(?:\.\d+)?)-${BASE_OS}$')
+          base_os = re.escape('${BASE_OS}')
+          pattern = re.compile(r'^(\d+\.\d+(?:\.\d+)?)-' + base_os + r'$')
           matches = []
           for t in tags:
               m = pattern.match(t)
@@ -295,20 +296,25 @@ jobs:
             go${LATEST_PATCH} download
             echo "$(go${LATEST_PATCH} env GOROOT)/bin" >> "$GITHUB_PATH"
           fi
-          # Install renderkit from repo's pinned tools-go/go.mod
+          # Install renderkit from repo's pinned tools module
           GOPATH=$(go env GOPATH 2>/dev/null || echo "$HOME/go")
-          RENDERKIT_VER=$(go mod edit -json tools-go/go.mod | python3 -c "
+          if [ -f tools-go/go.mod ]; then
+            RENDERKIT_VER=$(go mod edit -json tools-go/go.mod | python3 -c "
           import sys, json
           for req in json.load(sys.stdin).get('Require', []):
               if 'orellazri/renderkit' in req['Path']:
                   print(req['Version']); break
           ")
-          go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
+          elif [ -f tools.go.mod ]; then
+            RENDERKIT_VER=$(grep 'orellazri/renderkit' tools.go.mod | awk '{print \$2}')
+          fi
+          if [ -n "${RENDERKIT_VER:-}" ]; then
+            go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
+          fi
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
           echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
 
       - name: Check for existing PR
-        id: existing_pr
         env:
           GH_TOKEN: ${{ github.token }}
           UPDATE_TYPE: ${{ needs.check-go-update.outputs.update_type }}
@@ -358,13 +364,16 @@ jobs:
           # Regenerate template Dockerfiles (picks up new digest via skopeo)
           make dockerfiles
 
-          # If Go version changed in the image, also bump go.mod and tools-go/go.mod
+          # If Go version changed in the image, also bump go.mod and tools module
           if [ "$GO_VERSION_CHANGED" = "true" ] && [ -n "$LATEST_GO_VERSION" ] && [ "$LATEST_GO_VERSION" != "UNKNOWN" ]; then
             go mod edit -go="${LATEST_GO_VERSION}" go.mod
             go mod tidy
             if [ -f tools-go/go.mod ]; then
               go mod edit -go="${LATEST_GO_VERSION}" tools-go/go.mod
               go mod tidy -modfile=tools-go/go.mod
+            elif [ -f tools.go.mod ]; then
+              go mod edit -go="${LATEST_GO_VERSION}" -modfile=tools.go.mod
+              go mod tidy -modfile=tools.go.mod
             fi
           fi
 
@@ -403,12 +412,15 @@ jobs:
           # Note: GO_IMG stays as floating minor tag (e.g., 1.26-azurelinux3.0).
           # Patch bumps update go.mod, digests, and re-resolve via make dockerfiles.
 
-          # 1. Update go.mod and tools-go/go.mod
+          # 1. Update go.mod and tools module
           go mod edit -go="${LATEST_PATCH}" go.mod
           go mod tidy
           if [ -f tools-go/go.mod ]; then
             go mod edit -go="${LATEST_PATCH}" tools-go/go.mod
             go mod tidy -modfile=tools-go/go.mod
+          elif [ -f tools.go.mod ]; then
+            go mod edit -go="${LATEST_PATCH}" -modfile=tools.go.mod
+            go mod tidy -modfile=tools.go.mod
           fi
 
           # 3. Update install-go.sh
@@ -475,7 +487,7 @@ jobs:
           **Digest:** \`${PR_LATEST_PATCH_DIGEST}\`
 
           ### Changes Made
-          - \`go.mod\` and \`tools-go/go.mod\` version bumped
+          - \`go.mod\` and tools module version bumped
           - \`go mod tidy\` executed
           - \`install-go.sh\` DEFAULT_IMAGE SHA updated
           - \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` SHA updated
@@ -506,7 +518,7 @@ jobs:
           - \`install-go.sh\` DEFAULT_IMAGE SHA updated
           - \`bpf-prog/ipv6-hp-bpf/linux.Dockerfile\` SHA updated
           - Template Dockerfiles regenerated via \`make dockerfiles\`
-          - \`go.mod\`/\`tools-go/go.mod\` bumped (if Go version in image changed)
+          - \`go.mod\` and tools module bumped (if Go version in image changed)
 
           ---
           <!-- go-digest-update:${PR_GO_TAG} -->
@@ -569,15 +581,21 @@ jobs:
             go${LATEST_PATCH} download
             echo "$(go${LATEST_PATCH} env GOROOT)/bin" >> "$GITHUB_PATH"
           fi
-          # Install renderkit from repo's pinned tools-go/go.mod
+          # Install renderkit from repo's pinned tools module
           GOPATH=$(go env GOPATH 2>/dev/null || echo "$HOME/go")
-          RENDERKIT_VER=$(go mod edit -json tools-go/go.mod | python3 -c "
+          if [ -f tools-go/go.mod ]; then
+            RENDERKIT_VER=$(go mod edit -json tools-go/go.mod | python3 -c "
           import sys, json
           for req in json.load(sys.stdin).get('Require', []):
               if 'orellazri/renderkit' in req['Path']:
                   print(req['Version']); break
           ")
-          go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
+          elif [ -f tools.go.mod ]; then
+            RENDERKIT_VER=$(grep 'orellazri/renderkit' tools.go.mod | awk '{print \$2}')
+          fi
+          if [ -n "${RENDERKIT_VER:-}" ]; then
+            go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
+          fi
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
           echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
 
@@ -812,6 +830,9 @@ jobs:
             if [ -f tools-go/go.mod ]; then
               go mod edit -go="${LATEST_GO_VERSION}" tools-go/go.mod
               go mod tidy -modfile=tools-go/go.mod
+            elif [ -f tools.go.mod ]; then
+              go mod edit -go="${LATEST_GO_VERSION}" -modfile=tools.go.mod
+              go mod tidy -modfile=tools.go.mod
             fi
           fi
 
@@ -858,6 +879,9 @@ jobs:
             if [ -f tools-go/go.mod ]; then
               go mod edit -go="${LATEST_PATCH}" tools-go/go.mod
               go mod tidy -modfile=tools-go/go.mod
+            elif [ -f tools.go.mod ]; then
+              go mod edit -go="${LATEST_PATCH}" -modfile=tools.go.mod
+              go mod tidy -modfile=tools.go.mod
             fi
 
             sed -i "s|DEFAULT_IMAGE=\"${MCR_IMG}@sha256:[a-f0-9]*\"|DEFAULT_IMAGE=\"${MCR_IMG}@${LATEST_PATCH_DIGEST}\"|" \
@@ -1136,7 +1160,7 @@ jobs:
           **Step 1: Execute Changes (based on your analysis)**
 
           1. Update \`build/images.mk\`: \`GO_IMG\` → \`${MCR_REPO}:${LATEST_MINOR_BASE}-${BASE_OS}\`
-          2. Update \`go.mod\` and \`tools-go/go.mod\` (use \`.1\` minimum patch)
+          2. Update \`go.mod\` and tools module (\`tools-go/go.mod\` or \`tools.go.mod\`) — use \`.1\` minimum patch
           3. Run \`go mod tidy\` on both modules
           4. Apply FIPS/crypto changes per your doc analysis (do NOT blindly reuse previous version's rules)
           5. Update all SHA references (install-go.sh, bpf-prog, npm Dockerfiles)
@@ -1172,8 +1196,11 @@ jobs:
           <!-- go-minor-update:${LATEST_MINOR} -->
           "
 
-          # Create issue and assign to Copilot
+          # Create issue with labels and assign to Copilot for pickup
           gh issue create \
             --repo "$REPO" \
             --title "chore: upgrade Go ${GO_MINOR} → ${LATEST_MINOR}" \
-            --body "$BODY"
+            --body "$BODY" \
+            --label "Agent-Generated" \
+            --label "go" \
+            --assignee "Copilot"

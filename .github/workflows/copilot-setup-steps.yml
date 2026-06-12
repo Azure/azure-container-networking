@@ -2,12 +2,14 @@ name: "Copilot Setup Steps"
 on: workflow_dispatch
 
 jobs:
-  copilot-setup:
+  copilot-setup-steps:
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
