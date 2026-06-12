@@ -34,7 +34,11 @@ set-GO_IMG:
 ifndef NEW_TAG
 	$(error NEW_TAG is required — usage: make -f build/images.mk set-GO_IMG NEW_TAG=<version>-azurelinux3.0)
 endif
+ifeq ($(shell uname -s),Darwin)
+	sed -i '' -E 's|(GO_IMG[[:space:]]*\?=[[:space:]]*.*golang:)[^ ]*|\1$(NEW_TAG)|' $(CURDIR)/build/images.mk
+else
 	sed -i -E 's|(GO_IMG[[:space:]]*\?=[[:space:]]*.*golang:)[^ ]*|\1$(NEW_TAG)|' $(CURDIR)/build/images.mk
+endif
 
 render:
 	${GOPATH}/bin/renderkit -f ${SRC} --ds env:// > ${DEST}

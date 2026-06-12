@@ -11,7 +11,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
 
@@ -19,20 +19,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq skopeo > /dev/null
+          make renderkit
           GOPATH=$(go env GOPATH)
-          if [ -f tools-go/go.mod ]; then
-            RENDERKIT_VER=$(go mod edit -json tools-go/go.mod | python3 -c "
-          import sys, json
-          for req in json.load(sys.stdin).get('Require', []):
-              if 'orellazri/renderkit' in req['Path']:
-                  print(req['Version']); break
-          ")
-          elif [ -f tools.go.mod ]; then
-            RENDERKIT_VER=$(grep 'orellazri/renderkit' tools.go.mod | awk '{print $2}')
-          fi
-          if [ -n "${RENDERKIT_VER:-}" ]; then
-            go install "github.com/orellazri/renderkit@${RENDERKIT_VER}"
-          fi
           echo "${GOPATH}/bin" >> "$GITHUB_PATH"
           echo "GOPATH=${GOPATH}" >> "$GITHUB_ENV"
 

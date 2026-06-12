@@ -28,7 +28,7 @@ allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(make:*) Bash(skopeo:*) 
 
 ### Documents to Fetch
 
-**The setup environment pre-fetches these docs into `.github/ms-go-docs/` before the firewall activates.** Try reading the cached files first. If they don't exist, fall back to `gh api`.
+**These docs may be pre-cached in `.github/ms-go-docs/` by `copilot-setup-steps.yml` (which runs before the agent firewall activates).** Try reading the cached files first. If they don't exist (e.g., running locally or cache wasn't populated), fall back to `gh api`.
 
 ```bash
 # 1. FIPS README — the AUTHORITATIVE source for crypto configuration
