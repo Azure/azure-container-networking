@@ -23,8 +23,8 @@ spec:
     - jsonPath: .spec.nodeName
       name: Node
       type: string
-    - jsonPath: .spec.nicName
-      name: NIC
+    - jsonPath: .spec.macAddress
+      name: MACAddress
       type: string
     - jsonPath: .spec.podNetwork
       name: PodNetwork
@@ -57,19 +57,19 @@ spec:
           spec:
             description: NICNetworkConfigSpec defines the desired state of NICNetworkConfig
             properties:
+              macAddress:
+                description: MACAddress is the MAC address of the NIC, used to create
+                  the network container
+                type: string
               networkID:
                 description: NetworkID is the VNET GUID or network identifier
-                type: string
-              nicName:
-                description: NICName is the name of the physical NIC on the node (e.g.,
-                  eth1)
                 type: string
               nodeName:
                 description: NodeName is the name of the node this NIC belongs to
                 type: string
               podAllocations:
-                description: PodAllocations tracks which pods are allocated on this
-                  NIC
+                description: PodAllocationRequests tracks which pods are allocated
+                  on this NIC
                 items:
                   description: PodAllocationRequest represents a pod's IP allocation
                     request on this NIC
@@ -97,8 +97,8 @@ spec:
                   /subscriptions/.../subnets/pod-subnet)
                 type: string
             required:
+            - macAddress
             - networkID
-            - nicName
             - nodeName
             - podNetwork
             - subnetID
@@ -135,7 +135,7 @@ spec:
                 description: GatewayIP is the gateway ip of the injected subnet
                 type: string
               macAddress:
-                description: MacAddress is the MAC Address of the VM's NIC
+                description: MACAddress is the MAC Address of the VM's NIC
                 type: string
               ncID:
                 description: NCID is the network container id created for this NIC
@@ -178,6 +178,7 @@ spec:
                 - Ready
                 - Pending
                 - Error
+                - Deleting
                 type: string
               subnetAddressSpace:
                 description: SubnetAddressSpace is the subnet address space of the

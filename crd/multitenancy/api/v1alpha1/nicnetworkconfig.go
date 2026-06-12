@@ -17,7 +17,7 @@ import (
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
 // +kubebuilder:printcolumn:name="Node",type=string,JSONPath=`.spec.nodeName`
-// +kubebuilder:printcolumn:name="NIC",type=string,JSONPath=`.spec.nicName`
+// +kubebuilder:printcolumn:name="MACAddress",type=string,JSONPath=`.spec.macAddress`
 // +kubebuilder:printcolumn:name="PodNetwork",type=string,JSONPath=`.spec.podNetwork`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
 type NICNetworkConfig struct {
@@ -43,15 +43,15 @@ type NICNetworkConfigSpec struct {
 	PodNetwork string `json:"podNetwork"`
 	// NodeName is the name of the node this NIC belongs to
 	NodeName string `json:"nodeName"`
-	// NICName is the name of the physical NIC on the node (e.g., eth1)
-	NICName string `json:"nicName"`
+	// MACAddress is the MAC address of the NIC, used to create the network container
+	MACAddress string `json:"macAddress"`
 	// SubnetID is the ARM resource ID of the subnet (e.g., /subscriptions/.../subnets/pod-subnet)
 	SubnetID string `json:"subnetID"`
 	// NetworkID is the VNET GUID or network identifier
 	NetworkID string `json:"networkID"`
-	// PodAllocations tracks which pods are allocated on this NIC
+	// PodAllocationRequests tracks which pods are allocated on this NIC
 	// +kubebuilder:validation:Optional
-	PodAllocations []PodAllocationRequest `json:"podAllocations,omitempty"`
+	PodAllocationRequests []PodAllocationRequest `json:"podAllocations,omitempty"`
 }
 
 // PodAllocationRequest represents a pod's IP allocation request on this NIC
@@ -79,16 +79,16 @@ type PodAllocation struct {
 // NICNetworkConfigStatus defines the observed state of NICNetworkConfig
 type NICNetworkConfigStatus struct {
 	// Status indicates the current status of the NIC Network Config
-	// +kubebuilder:validation:Enum=Ready;Pending;Error
-	Status NICNC `json:"status,omitempty"`
+	// +kubebuilder:validation:Enum=Ready;Pending;Error;Deleting
+	Status NICNCStatus `json:"status,omitempty"`
 	// NCID is the network container id created for this NIC
 	// +kubebuilder:validation:Optional
 	NCID string `json:"ncID,omitempty"`
 	// PrimaryIP is the primary IP allocated to the network container
 	// +kubebuilder:validation:Optional
 	PrimaryIP string `json:"primaryIP,omitempty"`
-	// MacAddress is the MAC Address of the VM's NIC
-	MacAddress string `json:"macAddress,omitempty"`
+	// MACAddress is the MAC Address of the VM's NIC
+	MACAddress string `json:"macAddress,omitempty"`
 	// GatewayIP is the gateway ip of the injected subnet
 	// +kubebuilder:validation:Optional
 	GatewayIP string `json:"gatewayIP,omitempty"`
@@ -114,13 +114,14 @@ type NICNetworkConfigStatus struct {
 	AccelnetEnabled bool `json:"accelnetEnabled,omitempty"`
 }
 
-// NICNC indicates the status of NIC Network Config
-type NICNC string
+// NICNCStatus indicates the status of NIC Network Config
+type NICNCStatus string
 
 const (
-	NICNCReady   NICNC = "Ready"
-	NICNCPending NICNC = "Pending"
-	NICNCError   NICNC = "Error"
+	NICNCReady    NICNCStatus = "Ready"
+	NICNCPending  NICNCStatus = "Pending"
+	NICNCError    NICNCStatus = "Error"
+	NICNCDeleting NICNCStatus = "Deleting"
 )
 
 func init() {
