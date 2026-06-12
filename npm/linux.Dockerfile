@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.25.10 AS builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.25.11 AS builder
 ARG VERSION
 ARG NPM_AI_PATH
 ARG NPM_AI_ID
@@ -20,8 +20,9 @@ COPY --from=builder /usr/local/bin/azure-npm /usr/bin/azure-npm
 #                 CVE-2026-42009, CVE-2026-42010, CVE-2026-42011, CVE-2026-42012,
 #                 CVE-2026-42013, CVE-2026-42014, CVE-2026-42015, CVE-2026-5260,
 #                 CVE-2026-5419 (MEDIUM)
-# libsystemd0:    CVE-2026-29111 (MEDIUM)
-# libudev1:       CVE-2026-29111 (MEDIUM)
+# libsystemd0:    CVE-2026-29111, CVE-2026-40225 (MEDIUM)
+# libudev1:       CVE-2026-29111, CVE-2026-40225 (MEDIUM)
+# liblzma5:       CVE-2026-34743 (LOW)
 # sed:            CVE-2026-5958 (MEDIUM)
 RUN apt-get update && apt-get install -y \
     iptables ipset ca-certificates \
@@ -33,8 +34,9 @@ RUN apt-get update && apt-get install -y \
     libcap2=1:2.66-5ubuntu2.4 \
     libgcrypt20=1.10.3-2ubuntu0.1 \
     libgnutls30t64=3.8.3-1.1ubuntu3.6 \
-    libsystemd0=255.4-1ubuntu8.14 \
-    libudev1=255.4-1ubuntu8.14 \
+    libsystemd0=255.4-1ubuntu8.16 \
+    libudev1=255.4-1ubuntu8.16 \
+    liblzma5=5.6.1+really5.4.5-1ubuntu0.3 \
     sed=4.9-2ubuntu0.24.04.1 \
     && apt-get autoremove -y && apt-get clean
 RUN chmod +x /usr/bin/azure-npm
