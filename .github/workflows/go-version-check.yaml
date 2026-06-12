@@ -419,8 +419,9 @@ jobs:
           # 4. Update bpf-prog Dockerfile
           sed -i "s|${MCR_IMG}@sha256:[a-f0-9]*|${MCR_IMG}@${LATEST_PATCH_DIGEST}|" \
             bpf-prog/ipv6-hp-bpf/linux.Dockerfile
-          # Also update the tag reference if present
-          sed -i "s|golang:${GO_MINOR}[0-9.]*|golang:${LATEST_PATCH}|g" \
+          # Also update the tag reference if present (escape dots in GO_MINOR for sed regex)
+          GO_MINOR_ESC=$(echo "$GO_MINOR" | sed 's/\./\\./g')
+          sed -i "s|golang:${GO_MINOR_ESC}[0-9.]*|golang:${LATEST_PATCH}|g" \
             bpf-prog/ipv6-hp-bpf/linux.Dockerfile
 
           # 5. Update npm Dockerfiles (tag only, no SHA pin)
@@ -866,7 +867,9 @@ jobs:
             sed -i "s|${MCR_IMG}@sha256:[a-f0-9]*|${MCR_IMG}@${LATEST_PATCH_DIGEST}|" \
               bpf-prog/ipv6-hp-bpf/linux.Dockerfile
 
-            sed -i "s|golang:${GO_MINOR}[0-9.]*|golang:${LATEST_PATCH}|g" \
+            # Escape dots in GO_MINOR for sed regex
+            GO_MINOR_ESC=$(echo "$GO_MINOR" | sed 's/\./\\./g')
+            sed -i "s|golang:${GO_MINOR_ESC}[0-9.]*|golang:${LATEST_PATCH}|g" \
               bpf-prog/ipv6-hp-bpf/linux.Dockerfile
 
             for f in npm/linux.Dockerfile npm/windows.Dockerfile; do
