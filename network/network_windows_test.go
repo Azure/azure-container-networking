@@ -26,6 +26,22 @@ var (
 	succededCaseReturn = "true"
 )
 
+type createEndpointNetworkNotFoundOnceWrapper struct {
+	*hnswrapper.Hnsv2wrapperFake
+	createEndpointNetworkIDs []string
+	failedOnce               bool
+}
+
+func (w *createEndpointNetworkNotFoundOnceWrapper) CreateEndpoint(endpoint *hcn.HostComputeEndpoint) (*hcn.HostComputeEndpoint, error) {
+	w.createEndpointNetworkIDs = append(w.createEndpointNetworkIDs, endpoint.HostComputeNetwork)
+	if !w.failedOnce {
+		w.failedOnce = true
+		return nil, hcn.NetworkNotFoundError{NetworkID: endpoint.HostComputeNetwork}
+	}
+
+	return w.Hnsv2wrapperFake.CreateEndpoint(endpoint)
+}
+
 func TestNewAndDeleteNetworkImplHnsV2(t *testing.T) {
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
@@ -97,6 +113,82 @@ func TestSuccesfulNetworkCreationWhenAlreadyExists(t *testing.T) {
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)
+	}
+}
+
+func TestCreateEndpointRecreatesNetworkWhenCachedHNSNetworkIsMissing(t *testing.T) {
+	hnsFake := &createEndpointNetworkNotFoundOnceWrapper{
+		Hnsv2wrapperFake: hnswrapper.NewHnsv2wrapperFake(),
+	}
+	Hnsv2 = hnsFake
+
+	extInterface := &externalInterface{
+		Name:     "eth0",
+		Subnets:  []string{"10.10.0.0/16"},
+		Networks: map[string]*network{},
+	}
+	const (
+		networkID     = "azure"
+		staleHNSID    = "stale-hns-network-id"
+		containerID   = "69e37cacdd5903823834a5ab5c4032f64dd623671fb6e0d8276ebd70a47503c9"
+		netNsPath     = "d9eb40f1-b35d-409b-a55e-a76be3bc0322"
+		networkPrefix = "192.168.0.0/16"
+	)
+	extInterface.Networks[networkID] = &network{
+		Id:        networkID,
+		HnsId:     staleHNSID,
+		Mode:      "bridge",
+		Endpoints: make(map[string]*endpoint),
+		extIf:     extInterface,
+	}
+
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{
+			extInterface.Name: extInterface,
+		},
+	}
+
+	_, subnetPrefix, _ := net.ParseCIDR(networkPrefix)
+	_, ipAddress, _ := net.ParseCIDR("192.168.3.89/16")
+	epInfo := &EndpointInfo{
+		NetworkID:        networkID,
+		MasterIfName:     extInterface.Name,
+		HostSubnetPrefix: extInterface.Subnets[0],
+		Mode:             "bridge",
+		EndpointID:       "69e37cac-eth0",
+		ContainerID:      containerID,
+		NetNs:            netNsPath,
+		NetNsPath:        netNsPath,
+		IfName:           "eth0",
+		Data:             map[string]interface{}{},
+		NICType:          cns.InfraNIC,
+		HNSNetworkID:     staleHNSID,
+		MacAddress:       net.HardwareAddr{0x00, 0x00, 0x5e, 0x00, 0x53, 0x01},
+		IPAddresses:      []net.IPNet{*ipAddress},
+		Subnets: []SubnetInfo{
+			{
+				Prefix:  *subnetPrefix,
+				Gateway: net.ParseIP("192.168.3.1"),
+			},
+		},
+	}
+
+	ep, err := nm.createEndpointWithNetworkRetry(nil, epInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(hnsFake.createEndpointNetworkIDs) != 2 {
+		t.Fatalf("expected endpoint create to be retried once, got %d attempts", len(hnsFake.createEndpointNetworkIDs))
+	}
+	if hnsFake.createEndpointNetworkIDs[0] != staleHNSID {
+		t.Fatalf("expected first endpoint create to use stale HNS ID %q, got %q", staleHNSID, hnsFake.createEndpointNetworkIDs[0])
+	}
+	if hnsFake.createEndpointNetworkIDs[1] == staleHNSID {
+		t.Fatalf("expected retry to use recreated HNS network ID, got stale ID %q", hnsFake.createEndpointNetworkIDs[1])
+	}
+	if ep.HNSNetworkID != hnsFake.createEndpointNetworkIDs[1] {
+		t.Fatalf("expected endpoint HNS network ID %q, got %q", hnsFake.createEndpointNetworkIDs[1], ep.HNSNetworkID)
 	}
 }
 

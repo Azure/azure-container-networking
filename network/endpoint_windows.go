@@ -463,7 +463,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 	logger.Info("Creating hcn endpoint", zap.Any("hcnEndpoint", hcnEndpoint), zap.String("computenetwork", hcnEndpoint.HostComputeNetwork))
 	hnsResponse, err := Hnsv2.CreateEndpoint(hcnEndpoint)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create endpoint: %s due to error: %v", hcnEndpoint.Name, err)
+		return nil, fmt.Errorf("Failed to create endpoint: %s due to error: %w", hcnEndpoint.Name, err)
 	}
 
 	logger.Info("Successfully created hcn endpoint with response", zap.Any("hnsResponse", hnsResponse))
