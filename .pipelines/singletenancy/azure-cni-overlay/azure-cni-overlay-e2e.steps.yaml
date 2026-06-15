@@ -115,6 +115,12 @@ steps:
       displayName: "Windows v4Overlay Datapath Tests"
       retryCountOnTaskFailure: 3
 
+    - script: |
+        # set cni name to azure so windows cleanup script runs on reboot
+        cd hack/scripts
+        bash patch-kubeclusterconfig.sh || true
+      displayName: "Patch kubeclusterconfig for Windows cleanup"
+
     - task: AzureCLI@2
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
