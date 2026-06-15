@@ -346,6 +346,9 @@ jobs:
 
           MCR_IMG="$MCR_REPO"
 
+          # Re-resolve digest at point of use to avoid race with check job
+          LATEST_DIGEST=$(skopeo inspect "docker://${MCR_IMG}:${GO_TAG}" --format "{{.Digest}}")
+
           # Update install-go.sh DEFAULT_IMAGE with new digest
           sed -i "s|DEFAULT_IMAGE=\"${MCR_IMG}@sha256:[a-f0-9]*\"|DEFAULT_IMAGE=\"${MCR_IMG}@${LATEST_DIGEST}\"|" \
             .pipelines/build/scripts/install-go.sh
@@ -400,6 +403,9 @@ jobs:
           git checkout -b "$BRANCH"
 
           MCR_IMG="$MCR_REPO"
+
+          # Re-resolve digest at point of use to avoid race with check job
+          LATEST_PATCH_DIGEST=$(skopeo inspect "docker://${MCR_IMG}:${LATEST_PATCH_TAG}" --format "{{.Digest}}")
 
           # Note: GO_IMG stays as floating minor tag (e.g., 1.26-azurelinux3.0).
           # Patch bumps update go.mod, digests, and re-resolve via make dockerfiles.
