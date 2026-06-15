@@ -106,6 +106,7 @@ type NICNetworkConfigStatus struct {
 	ErrorMessage string `json:"errorMessage,omitempty"`
 	// CooldownPeriodInSeconds is the cooldown duration before retrying NIC NC operations.
 	// +kubebuilder:default=30
+	// +kubebuilder:validation:Minimum=0
 	CooldownPeriodInSeconds int `json:"cooldownPeriodInSeconds,omitempty"`
 	// DeviceType is the device type that this NC was created for
 	DeviceType DeviceType `json:"deviceType,omitempty"`
