@@ -1519,14 +1519,14 @@ func TestCNSIPAMInvoker_Delete_NotSupportedAPI(t *testing.T) {
 func TestCNSIPAMInvoker_Delete_DisableAsyncDelete(t *testing.T) {
 	require := require.New(t) //nolint further usage of require without passing t
 
-	connErr := cnscli.NewConnectionFailureErr(errors.New("connection refused"))
+	connErr := cnscli.NewConnectionFailureErr(errConnectionRefused)
 
 	tests := []struct {
-		name           string
-		disableAsync   bool
-		releaseIPsErr  error
-		wantErr        bool
-		wantConnErr    bool
+		name          string
+		disableAsync  bool
+		releaseIPsErr error
+		wantErr       bool
+		wantConnErr   bool
 	}{
 		{
 			name:          "connection failure with async delete disabled returns connection error",
@@ -1544,8 +1544,7 @@ func TestCNSIPAMInvoker_Delete_DisableAsyncDelete(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			invoker := &CNSIPAMInvoker{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
@@ -1571,7 +1570,7 @@ func TestCNSIPAMInvoker_Delete_DisableAsyncDelete(t *testing.T) {
 			if tt.wantConnErr {
 				require.ErrorAs(err, &target)
 			} else {
-				require.False(errors.As(err, &target))
+				require.NotErrorAs(err, &target)
 			}
 		})
 	}
@@ -1580,7 +1579,7 @@ func TestCNSIPAMInvoker_Delete_DisableAsyncDelete(t *testing.T) {
 func TestCNSIPAMInvoker_Delete_DisableAsyncDelete_UnsupportedAPI(t *testing.T) {
 	require := require.New(t) //nolint further usage of require without passing t
 
-	connErr := cnscli.NewConnectionFailureErr(errors.New("connection refused"))
+	connErr := cnscli.NewConnectionFailureErr(errConnectionRefused)
 	unsupportedAPIs := make(map[cnsAPIName]struct{})
 	unsupportedAPIs["ReleaseIPs"] = struct{}{}
 
@@ -1607,8 +1606,7 @@ func TestCNSIPAMInvoker_Delete_DisableAsyncDelete_UnsupportedAPI(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(_ *testing.T) {
 			invoker := &CNSIPAMInvoker{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
@@ -1635,7 +1633,7 @@ func TestCNSIPAMInvoker_Delete_DisableAsyncDelete_UnsupportedAPI(t *testing.T) {
 			if tt.wantConnErr {
 				require.ErrorAs(err, &target)
 			} else {
-				require.False(errors.As(err, &target))
+				require.NotErrorAs(err, &target)
 			}
 		})
 	}
