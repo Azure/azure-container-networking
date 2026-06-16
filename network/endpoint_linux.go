@@ -184,18 +184,7 @@ func (nw *network) newEndpointImpl(
 		if err != nil {
 			logger.Error("CNI error. Delete Endpoint and rules that are created", zap.Error(err), zap.String("contIfName", contIfName))
 
-			// Transparent-tunnel installs shared, node-scoped state (ipset,
-			// NOTRACK rule, fwmark ip rule, table-101 route) inside
-			// AddEndpointRules. That state can be installed BEFORE
-			// `containerIf` is set — for example when AddEndpointRules
-			// fails partway through, or when NICType != InfraNIC so the
-			// `containerIf = GetNetworkInterfaceByName(...)` branch above
-			// never runs. Gating cleanup on `containerIf != nil` would
-			// leak shared state onto the host. DeleteTransparentTunnelRules
-			// is idempotent (per-rule helpers swallow only "already absent"
-			// errors and surface everything else), so it is safe to call
-			// even when AddEndpoints failed before any TT state was
-			// installed.
+			// Tunnel rollback is separate because it returns cleanup errors.
 			if ttClient, ok := client.(*TransparentTunnelEndpointClient); ok {
 				if delErr := ttClient.DeleteTransparentTunnelRules(ep); delErr != nil {
 					logger.Error("rollback: failed to delete transparent tunnel rules", zap.Error(delErr))
@@ -326,10 +315,7 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 		}
 	}
 
-	// transparent-tunnel cleanup is split out from DeleteEndpointRules so the
-	// caller can react to failures: stale fwmark MARK rules / ip rule / table
-	// 101 routes break routing for subsequent pods on this node, so we MUST
-	// return any error to containerd so it retries the CNI DEL.
+	// Tunnel cleanup is separate because DeleteEndpointRules cannot return errors.
 	if ttClient, ok := epClient.(*TransparentTunnelEndpointClient); ok {
 		if err := ttClient.DeleteTransparentTunnelRules(ep); err != nil {
 			return fmt.Errorf("failed to delete transparent tunnel rules: %w", err)

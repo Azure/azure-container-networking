@@ -1,0 +1,20 @@
+{
+   "cniVersion":"0.3.0",
+   "name":"transparent-tunnel",
+   "plugins":[
+      {
+         "type":"azure-vnet",
+         "mode":"transparent-tunnel",
+         "ipam":{
+            "type":"azure-vnet-ipam"
+         }
+      },
+      {
+         "type":"portmap",
+         "capabilities":{
+            "portMappings":true
+         },
+         "snat":true
+      }
+   ]
+}
