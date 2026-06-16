@@ -1194,8 +1194,9 @@ jobs:
           "
 
           # Create issue with labels and assign to Copilot for pickup
-          # Ensure 'copilot' label exists (auto-pickup by Copilot coding agent)
+          # Ensure required labels exist
           gh label create "copilot" --repo "$REPO" --description "Auto-pickup by Copilot coding agent" --color "1d76db" 2>/dev/null || true
+          gh label create "Agent-Generated" --repo "$REPO" --description "Created by automation" --color "ededed" 2>/dev/null || true
           gh issue create \
             --repo "$REPO" \
             --title "chore: upgrade Go ${GO_MINOR} → ${LATEST_MINOR}" \
