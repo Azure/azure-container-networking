@@ -129,9 +129,6 @@ spec:
                 - acn.azure.com/vnet-nic
                 - acn.azure.com/infiniband-nic
                 type: string
-              errorMessage:
-                description: ErrorMessage contains error details if status is Error
-                type: string
               gatewayIP:
                 description: GatewayIP is the gateway ip of the injected subnet
                 type: string
@@ -178,8 +175,9 @@ spec:
                 enum:
                 - Ready
                 - Pending
-                - Error
                 - Deleting
+                - InternalError
+                - NCCreateError
                 type: string
               subnetAddressSpace:
                 description: SubnetAddressSpace is the subnet address space of the

@@ -79,7 +79,7 @@ type PodAllocation struct {
 // NICNetworkConfigStatus defines the observed state of NICNetworkConfig
 type NICNetworkConfigStatus struct {
 	// Status indicates the current status of the NIC Network Config
-	// +kubebuilder:validation:Enum=Ready;Pending;Error;Deleting
+	// +kubebuilder:validation:Enum=Ready;Pending;Deleting;InternalError;NCCreateError
 	Status NICNCStatus `json:"status,omitempty"`
 	// NCID is the network container id created for this NIC
 	// +kubebuilder:validation:Optional
@@ -101,9 +101,6 @@ type NICNetworkConfigStatus struct {
 	// PodAllocations tracks the allocated IP addresses to pod mapping.
 	// +kubebuilder:validation:Optional
 	PodAllocations map[string]PodAllocation `json:"podAllocations,omitempty"`
-	// ErrorMessage contains error details if status is Error
-	// +kubebuilder:validation:Optional
-	ErrorMessage string `json:"errorMessage,omitempty"`
 	// CooldownPeriodInSeconds is the cooldown duration before retrying NIC NC operations.
 	// +kubebuilder:default=30
 	// +kubebuilder:validation:Minimum=0
@@ -119,10 +116,16 @@ type NICNetworkConfigStatus struct {
 type NICNCStatus string
 
 const (
-	NICNCReady    NICNCStatus = "Ready"
-	NICNCPending  NICNCStatus = "Pending"
-	NICNCError    NICNCStatus = "Error"
+	// NICNCReady indicates the NIC's network container has been successfully created and is ready for use.
+	NICNCReady NICNCStatus = "Ready"
+	// NICNCPending indicates the NIC's network container is awaiting processing.
+	NICNCPending NICNCStatus = "Pending"
+	// NICNCDeleting indicates the NIC's network container is being cleaned up.
 	NICNCDeleting NICNCStatus = "Deleting"
+	// NICNCInternalError indicates an internal error occurred while processing the NIC Network Config.
+	NICNCInternalError NICNCStatus = "InternalError"
+	// NICNCNCCreateError indicates the network container creation for the NIC failed.
+	NICNCNCCreateError NICNCStatus = "NCCreateError"
 )
 
 func init() {
