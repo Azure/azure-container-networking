@@ -1522,25 +1522,25 @@ func TestCNSIPAMInvoker_Delete_DisableAsyncDelete(t *testing.T) {
 	connErr := cnscli.NewConnectionFailureErr(errors.New("connection refused"))
 
 	tests := []struct {
-		name             string
-		disableAsync     bool
-		releaseIPsErr    error
-		wantErr          bool
-		wantErrContains  string
+		name           string
+		disableAsync   bool
+		releaseIPsErr  error
+		wantErr        bool
+		wantConnErr    bool
 	}{
 		{
-			name:            "connection failure with async delete disabled returns error",
-			disableAsync:    true,
-			releaseIPsErr:   connErr,
-			wantErr:         true,
-			wantErrContains: "async delete is disabled",
+			name:          "connection failure with async delete disabled returns connection error",
+			disableAsync:  true,
+			releaseIPsErr: connErr,
+			wantErr:       true,
+			wantConnErr:   true,
 		},
 		{
-			name:            "connection failure with async delete enabled attempts async write",
-			disableAsync:    false,
-			releaseIPsErr:   connErr,
-			wantErr:         true,
-			wantErrContains: "failed to add file to watcher",
+			name:          "connection failure with async delete enabled attempts async write",
+			disableAsync:  false,
+			releaseIPsErr: connErr,
+			wantErr:       true,
+			wantConnErr:   false,
 		},
 	}
 	for _, tt := range tests {
@@ -1566,11 +1566,12 @@ func TestCNSIPAMInvoker_Delete_DisableAsyncDelete(t *testing.T) {
 				IfName:      "testifname",
 			}
 			err := invoker.Delete(nil, nwCfg, args, nil)
-			if tt.wantErr {
-				require.Error(err)
-				require.Contains(err.Error(), tt.wantErrContains)
+			require.Error(err)
+			var target *cnscli.ConnectionFailureErr
+			if tt.wantConnErr {
+				require.ErrorAs(err, &target)
 			} else {
-				require.NoError(err)
+				require.False(errors.As(err, &target))
 			}
 		})
 	}
@@ -1584,25 +1585,25 @@ func TestCNSIPAMInvoker_Delete_DisableAsyncDelete_UnsupportedAPI(t *testing.T) {
 	unsupportedAPIs["ReleaseIPs"] = struct{}{}
 
 	tests := []struct {
-		name             string
-		disableAsync     bool
-		releaseIPErr     error
-		wantErr          bool
-		wantErrContains  string
+		name         string
+		disableAsync bool
+		releaseIPErr error
+		wantErr      bool
+		wantConnErr  bool
 	}{
 		{
-			name:            "unsupported API path with connection failure and async delete disabled returns error",
-			disableAsync:    true,
-			releaseIPErr:    connErr,
-			wantErr:         true,
-			wantErrContains: "async delete is disabled",
+			name:         "unsupported API path with connection failure and async delete disabled returns connection error",
+			disableAsync: true,
+			releaseIPErr: connErr,
+			wantErr:      true,
+			wantConnErr:  true,
 		},
 		{
-			name:            "unsupported API path with connection failure and async delete enabled attempts async write",
-			disableAsync:    false,
-			releaseIPErr:    connErr,
-			wantErr:         true,
-			wantErrContains: "failed to add file to watcher",
+			name:         "unsupported API path with connection failure and async delete enabled attempts async write",
+			disableAsync: false,
+			releaseIPErr: connErr,
+			wantErr:      true,
+			wantConnErr:  false,
 		},
 	}
 	for _, tt := range tests {
@@ -1629,11 +1630,12 @@ func TestCNSIPAMInvoker_Delete_DisableAsyncDelete_UnsupportedAPI(t *testing.T) {
 				IfName:      "testifname",
 			}
 			err := invoker.Delete(nil, nwCfg, args, nil)
-			if tt.wantErr {
-				require.Error(err)
-				require.Contains(err.Error(), tt.wantErrContains)
+			require.Error(err)
+			var target *cnscli.ConnectionFailureErr
+			if tt.wantConnErr {
+				require.ErrorAs(err, &target)
 			} else {
-				require.NoError(err)
+				require.False(errors.As(err, &target))
 			}
 		})
 	}
