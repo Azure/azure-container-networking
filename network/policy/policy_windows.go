@@ -323,8 +323,8 @@ type ProviderAddressNetworkPolicySetting struct {
 	ProviderAddress string `json:"ProviderAddress"`
 }
 
+// GetHcnNetAdapterAddressPolicy returns a provider address network policy for selecting an adapter by IP
 func GetHcnNetAdapterAddressPolicy(networkAdapterAddress string) (hcn.NetworkPolicy, error) {
-
 	networkAdapterAddressPolicy := hcn.NetworkPolicy{
 		Type: hcn.ProviderAddress,
 	}
@@ -335,7 +335,7 @@ func GetHcnNetAdapterAddressPolicy(networkAdapterAddress string) (hcn.NetworkPol
 
 	netAdapterAddressPolicySettingBytes, err := json.Marshal(netAdapterAddressPolicySetting)
 	if err != nil {
-		return networkAdapterAddressPolicy, errors.Wrap(err, "Error during policy marshalling")
+		return networkAdapterAddressPolicy, errors.Wrap(err, "marshalling provider address policy settings")
 	}
 
 	networkAdapterAddressPolicy.Settings = netAdapterAddressPolicySettingBytes
