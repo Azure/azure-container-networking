@@ -56,6 +56,7 @@ func Build(now time.Time, rc model.RunContext, fp model.Fingerprint, c model.Cla
 		EvidenceFiles:        ev.Files,
 		RetentionDecision:    retention,
 		RecommendedAction:    policy.RecommendedAction(c.Category, matches, retention),
+		ProposedFix:          c.ProposedFix,
 		ClassificationSource: c.Source,
 	}
 }
@@ -108,6 +109,11 @@ func RenderMarkdown(inc model.Incident) string {
 			fmt.Fprintf(&b, "- **%s** (`%s`, %.2f) — %s\n", m.ID, m.Category, m.Confidence, m.Description)
 		}
 		b.WriteString("\n")
+	}
+
+	if inc.ProposedFix != "" {
+		b.WriteString("### Proposed fix\n\n")
+		fmt.Fprintf(&b, "%s\n\n", inc.ProposedFix)
 	}
 
 	b.WriteString("### Recommended next action\n\n")

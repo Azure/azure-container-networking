@@ -65,6 +65,7 @@ type llmResult struct {
 	RootCauseSummary string   `json:"rootCauseSummary"`
 	TopEvidence      []string `json:"topEvidence"`
 	RecommendedOwner string   `json:"recommendedOwner"`
+	ProposedFix      string   `json:"proposedFix"`
 }
 
 func (r llmResult) toClassification() (model.Classification, error) {
@@ -84,6 +85,7 @@ func (r llmResult) toClassification() (model.Classification, error) {
 		RootCauseSummary: r.RootCauseSummary,
 		TopEvidence:      r.TopEvidence,
 		RecommendedOwner: r.RecommendedOwner,
+		ProposedFix:      r.ProposedFix,
 		Source:           "llm",
 	}, nil
 }
@@ -105,13 +107,14 @@ func classificationSchema() *Schema {
 	def := `{
   "type": "object",
   "additionalProperties": false,
-  "required": ["category", "confidence", "rootCauseSummary", "topEvidence", "recommendedOwner"],
+  "required": ["category", "confidence", "rootCauseSummary", "topEvidence", "recommendedOwner", "proposedFix"],
   "properties": {
     "category": {"type": "string", "enum": ["pr_regression", "cluster_bringup_failure", "pipeline_infra_config", "known_flake", "unknown_needs_human"]},
     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
     "rootCauseSummary": {"type": "string"},
     "topEvidence": {"type": "array", "items": {"type": "string"}},
-    "recommendedOwner": {"type": "string"}
+    "recommendedOwner": {"type": "string"},
+    "proposedFix": {"type": "string"}
   }
 }`
 	return &Schema{Name: "failure_classification", Definition: json.RawMessage(def)}
@@ -120,7 +123,8 @@ func classificationSchema() *Schema {
 func systemPrompt() string {
 	return "You are an expert Azure Container Networking (ACN) CI failure analyst. " +
 		"Given evidence from a failed pipeline run, identify the single most likely root-cause category, " +
-		"a concise root-cause summary, the most relevant evidence lines, and a recommended owning team. " +
+		"a concise root-cause summary, the most relevant evidence lines, a recommended owning team, " +
+		"and a proposed fix with concrete, actionable steps the developer should take to resolve the failure. " +
 		"Categories: pr_regression (the change under test broke it), cluster_bringup_failure (provisioning/readiness), " +
 		"pipeline_infra_config (agent/quota/credentials/connectivity, not product code), known_flake (recognized intermittent), " +
 		"unknown_needs_human (cannot determine). Treat the deterministic signature pre-matches as strong hints, not ground truth. " +

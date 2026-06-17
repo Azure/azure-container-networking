@@ -30,7 +30,8 @@ func TestLLMClassifierValidResponse(t *testing.T) {
 		"confidence": 0.91,
 		"rootCauseSummary": "the change under test removed a required field",
 		"topEvidence": ["panic: nil pointer", "added in this PR"],
-		"recommendedOwner": "acn-cni"
+		"recommendedOwner": "acn-cni",
+		"proposedFix": "Restore the required field in the struct and add a nil check before accessing it."
 	}`}
 
 	got, err := NewLLMClassifier(fc).Classify(context.Background(), model.RunContext{}, model.Evidence{}, model.Fingerprint{}, nil)

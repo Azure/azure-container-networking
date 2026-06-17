@@ -106,6 +106,7 @@ type Classification struct {
 	RootCauseSummary string          `json:"rootCauseSummary"`
 	TopEvidence      []string        `json:"topEvidence"`
 	RecommendedOwner string          `json:"recommendedOwner,omitempty"`
+	ProposedFix      string          `json:"proposedFix,omitempty"`
 	Source           string          `json:"source"` // "deterministic" or "llm"
 }
 
@@ -143,6 +144,7 @@ type Incident struct {
 
 	RetentionDecision RetentionDecision `json:"retentionDecision"`
 	RecommendedAction string            `json:"recommendedAction"`
+	ProposedFix       string            `json:"proposedFix,omitempty"`
 
 	ClassificationSource string `json:"classificationSource"`
 }
