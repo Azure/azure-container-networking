@@ -45,8 +45,11 @@ type NICNetworkConfigSpec struct {
 	NodeName string `json:"nodeName"`
 	// MACAddress is the MAC address of the NIC, used to create the network container
 	MACAddress string `json:"macAddress"`
-	// SubnetID is the ARM resource ID of the subnet (e.g., /subscriptions/.../subnets/pod-subnet)
-	SubnetID string `json:"subnetID"`
+	// customer subnet id
+	SubnetResourceID string `json:"subnetResourceID"`
+	// customer subnet guid
+	// +kubebuilder:validation:Optional
+	SubnetGUID string `json:"subnetGUID,omitempty"`
 	// NetworkID is the VNET GUID or network identifier
 	NetworkID string `json:"networkID"`
 	// PodAllocationRequests tracks which pods are allocated on this NIC

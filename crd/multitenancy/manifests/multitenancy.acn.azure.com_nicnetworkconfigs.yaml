@@ -92,16 +92,17 @@ spec:
               podNetwork:
                 description: PodNetwork is the name of the PodNetwork
                 type: string
-              subnetID:
-                description: SubnetID is the ARM resource ID of the subnet (e.g.,
-                  /subscriptions/.../subnets/pod-subnet)
+              subnetGUID:
+                description: customer subnet guid
+                type: string
+              subnetResourceID:
+                description: customer subnet id
                 type: string
             required:
             - macAddress
             - networkID
             - nodeName
             - podNetwork
-            - subnetID
             type: object
           status:
             description: NICNetworkConfigStatus defines the observed state of NICNetworkConfig
