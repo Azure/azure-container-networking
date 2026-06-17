@@ -1,0 +1,89 @@
+# Known failure signatures for the ACN pipeline failure-analysis agent.
+#
+# Each signature is a human-curated pattern that grounds the classifier with a
+# deterministic category, owner, and recommendation. Matching is case-sensitive
+# unless the pattern opts into (?i). Keep patterns specific to avoid false
+# positives. Confidence is in [0, 1].
+#
+# category must be one of:
+#   pr_regression | cluster_bringup_failure | pipeline_infra_config |
+#   known_flake | unknown_needs_human
+
+signatures:
+  - id: aks-cluster-create-quota-exceeded
+    category: pipeline_infra_config
+    description: AKS cluster creation failed due to subscription/region quota limits.
+    owner: acn-infra
+    recommendation: >-
+      Check regional vCPU/public-IP quota for the test subscription. Retry in a
+      different region or request a quota increase; this is not a product bug.
+    confidence: 0.85
+    anyOf:
+      - "(?i)quota.*exceeded"
+      - "(?i)OperationNotAllowed.*quota"
+      - "(?i)insufficient.*(quota|capacity)"
+
+  - id: image-pull-backoff
+    category: cluster_bringup_failure
+    description: A pod could not pull its container image (ImagePullBackOff/ErrImagePull).
+    owner: acn-cni
+    recommendation: >-
+      Verify the image tag exists and the registry/service-connection
+      credentials are valid for this pipeline. Confirm the dropgz/CNI image was
+      published before the E2E stage ran.
+    confidence: 0.75
+    anyOf:
+      - "ImagePullBackOff"
+      - "ErrImagePull"
+      - "(?i)failed to pull (and unpack )?image"
+
+  - id: node-not-ready-timeout
+    category: cluster_bringup_failure
+    description: Nodes never reached Ready within the wait timeout.
+    owner: acn-cni
+    recommendation: >-
+      Inspect CNS/CNI daemonset logs on the affected nodes and the NNC status.
+      A stuck CNI init or IPAM allocation commonly blocks node readiness.
+    confidence: 0.6
+    anyOf:
+      - "(?i)timed out waiting for .*node.* ready"
+      - "(?i)node.* not ready"
+      - "(?i)NodeNotReady"
+
+  - id: cns-crashloop
+    category: pr_regression
+    description: The CNS pod entered CrashLoopBackOff during the run.
+    owner: acn-cns
+    recommendation: >-
+      Review CNS container logs for the panic/fatal cause. If the failing change
+      touches CNS, treat as a likely regression from the PR under test.
+    confidence: 0.7
+    anyOf:
+      - "(?i)azure-cns.*CrashLoopBackOff"
+      - "(?i)CrashLoopBackOff.*cns"
+
+  - id: kubectl-connection-refused
+    category: pipeline_infra_config
+    description: kubectl could not reach the API server (connection refused/timeout).
+    owner: acn-infra
+    recommendation: >-
+      Usually a transient control-plane or kubeconfig/network issue on the agent,
+      not a product bug. Confirm get-credentials ran and the API server is healthy.
+    confidence: 0.55
+    anyOf:
+      - "(?i)the server could not find the requested resource"
+      - "(?i)dial tcp.*:443.*(connection refused|i/o timeout)"
+      - "(?i)Unable to connect to the server"
+
+  - id: e2e-context-deadline-exceeded
+    category: known_flake
+    description: An E2E step failed with a context deadline / timeout, a common flake.
+    owner: acn-cni
+    recommendation: >-
+      Re-run the failed stage. If it recurs with the same fingerprint across
+      multiple PRs, escalate to the owning team to extend the timeout or fix the
+      underlying slowness.
+    confidence: 0.5
+    anyOf:
+      - "(?i)context deadline exceeded"
+      - "(?i)test timed out after"
