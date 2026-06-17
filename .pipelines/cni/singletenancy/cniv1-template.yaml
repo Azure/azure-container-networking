@@ -238,6 +238,12 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
 
+      - template: ../../templates/failure-analysis.job.yaml
+        parameters:
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          cni: cniv1
+
 # Conditions for below E2E test scenarios confirm that:
 # Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn:
 # CONTROL_SCENARIO either contains 'all' or its respective scenario 'npm', 'scaleTest', 'restartNode', 'restartCNS'. It is not case sensitive
@@ -349,3 +355,11 @@ stages:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
                 jobName: failedE2ELogsHNS
+
+        - template: ../../templates/failure-analysis.job.yaml
+          parameters:
+            clusterName: ${{ parameters.clusterName }}-$(commitID)
+            os: ${{ parameters.os }}
+            cni: cniv1
+            dependsOnJob: failedE2ELogsHNS
+            artifactJobName: failedE2ELogsHNS

@@ -1,0 +1,92 @@
+# Reusable job template: Failure Analysis
+#
+# Add as a sibling job to failedE2ELogs in each E2E stage.
+# Downloads the evidence artifact that failedE2ELogs published, runs the
+# failure-agent CLI (LLM classification + deterministic signatures), and
+# publishes analysis results.
+#
+# In --dry-run mode (no Azure OpenAI creds), falls back to deterministic-only
+# analysis. When GITHUB_TOKEN is set and the build is a pull request, posts
+# a summary comment to the PR.
+
+parameters:
+  clusterName: ""
+  os: ""
+  cni: ""
+  # The failedE2ELogs job name this job depends on. Override for OS-suffixed
+  # variants (e.g. failedE2ELogs_linux).
+  dependsOnJob: "failedE2ELogs"
+  # Artifact naming fields — must match what log-template.yaml publishes.
+  logType: "failure"
+  artifactJobName: "FailedE2ELogs"
+
+jobs:
+  - job: failureAnalysis_${{ parameters.os }}
+    displayName: "Failure Analysis (${{ parameters.os }})"
+    dependsOn:
+      - ${{ parameters.dependsOnJob }}
+    # Run if failedE2ELogs ran (succeeded or failed), skip if it was skipped
+    # (which happens when the test passed and failedE2ELogs's condition: failed() wasn't met).
+    condition: succeededOrFailed()
+    pool:
+      type: linux
+      isCustom: true
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+    timeoutInMinutes: 15
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+    steps:
+      - checkout: azure-container-networking
+
+      - task: GoTool@0
+        inputs:
+          version: '1.24'
+        displayName: "Setup Go"
+
+      - task: DownloadPipelineArtifact@2
+        displayName: "Download failure logs"
+        inputs:
+          artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_${{ parameters.os }}${{ parameters.artifactJobName }}_Attempt_#$(System.StageAttempt)
+          targetPath: $(Agent.TempDirectory)/evidence
+        continueOnError: true
+
+      - script: |
+          set -euo pipefail
+
+          INPUT_DIR="$(Agent.TempDirectory)/evidence"
+          OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
+          mkdir -p "$OUTPUT_DIR"
+
+          # Determine mode: live (with Azure OpenAI) or dry-run (deterministic only).
+          EXTRA_FLAGS=""
+          if [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || [ -z "${AZURE_OPENAI_DEPLOYMENT:-}" ]; then
+            echo "##[warning]Azure OpenAI credentials not configured; running in dry-run (deterministic) mode."
+            EXTRA_FLAGS="--dry-run"
+          fi
+
+          cd "$(Build.SourcesDirectory)"
+          go run ./tools/failure-agent \
+            --input "$INPUT_DIR" \
+            --output "$OUTPUT_DIR" \
+            --signatures tools/failure-agent/signatures/signatures.yaml \
+            --cluster-name "${{ parameters.clusterName }}" \
+            --os "${{ parameters.os }}" \
+            --cni "${{ parameters.cni }}" \
+            $EXTRA_FLAGS
+        displayName: "Run failure analysis"
+        env:
+          AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+          AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
+          GITHUB_TOKEN: $(GITHUB_TOKEN)
+
+      - script: |
+          REPORT="$(Agent.TempDirectory)/analysis/report.md"
+          if [ -f "$REPORT" ]; then
+            echo "##vso[task.uploadsummary]$REPORT"
+            cp "$REPORT" "$(Build.ArtifactStagingDirectory)/out/"
+            cp "$(Agent.TempDirectory)/analysis/incident.json" "$(Build.ArtifactStagingDirectory)/out/" 2>/dev/null || true
+          fi
+        displayName: "Publish analysis summary"
+        condition: succeededOrFailed()
