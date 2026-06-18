@@ -163,6 +163,9 @@ func (nw *network) newEndpointImpl(
 					plc,
 					iptc)
 			}
+		} else if epInfo.Mode == opModeTransparentTunnel {
+			logger.Info("Transparent tunnel client")
+			epClient = NewTransparentTunnelEndpointClient(nw, epInfo, hostIfName, contIfName, nl, netioCli, plc, iptc)
 		} else if epInfo.Mode != opModeTransparent {
 			logger.Info("Bridge client")
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, epInfo.Mode, nl, plc)
@@ -180,6 +183,14 @@ func (nw *network) newEndpointImpl(
 		// Cleanup on failure.
 		if err != nil {
 			logger.Error("CNI error. Delete Endpoint and rules that are created", zap.Error(err), zap.String("contIfName", contIfName))
+
+			// Tunnel rollback is separate because it returns cleanup errors.
+			if ttClient, ok := client.(*TransparentTunnelEndpointClient); ok {
+				if delErr := ttClient.DeleteTransparentTunnelRules(ep); delErr != nil {
+					logger.Error("rollback: failed to delete transparent tunnel rules", zap.Error(delErr))
+				}
+			}
+
 			if containerIf != nil {
 				client.DeleteEndpointRules(ep)
 			}
@@ -282,6 +293,9 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			} else {
 				epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc, iptc)
 			}
+		} else if mode == opModeTransparentTunnel {
+			epInfo := ep.getInfo()
+			epClient = NewTransparentTunnelEndpointClient(nw, epInfo, ep.HostIfName, "", nl, nioc, plc, iptc)
 		} else if mode != opModeTransparent {
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", mode, nl, plc)
 		} else {
@@ -298,6 +312,13 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			}
 
 			epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", mode, nl, nioc, plc)
+		}
+	}
+
+	// Tunnel cleanup is separate because DeleteEndpointRules cannot return errors.
+	if ttClient, ok := epClient.(*TransparentTunnelEndpointClient); ok {
+		if err := ttClient.DeleteTransparentTunnelRules(ep); err != nil {
+			return fmt.Errorf("failed to delete transparent tunnel rules: %w", err)
 		}
 	}
 

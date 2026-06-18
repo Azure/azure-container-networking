@@ -5,11 +5,14 @@ package iptables
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"go.uber.org/zap"
 )
+
+const iptablesRuleNotFoundSubstr = "matching rule exist"
 
 var (
 	logger                        = log.CNILogger.With(zap.String("component", "cni-iptables"))
@@ -39,6 +42,7 @@ const (
 	Filter = "filter"
 	Nat    = "nat"
 	Mangle = "mangle"
+	Raw    = "raw"
 )
 
 // target
@@ -46,6 +50,7 @@ const (
 	Accept     = "ACCEPT"
 	Drop       = "DROP"
 	Masquerade = "MASQUERADE"
+	Notrack    = "NOTRACK"
 )
 
 // actions
@@ -217,4 +222,20 @@ func (c *Client) AppendIptableRule(version, tableName, chainName, match, target 
 func (c *Client) DeleteIptableRule(version, tableName, chainName, match, target string) error {
 	params := fmt.Sprintf("-t %s -D %s %s -j %s", tableName, chainName, match, target)
 	return c.RunCmd(version, params)
+}
+
+// DeleteIptableRuleIfExists deletes a rule and ignores only iptables'
+// missing-rule error. Other delete failures are returned.
+func (c *Client) DeleteIptableRuleIfExists(version, tableName, chainName, match, target string) error {
+	err := c.DeleteIptableRule(version, tableName, chainName, match, target)
+	if err == nil {
+		return nil
+	}
+	if strings.Contains(err.Error(), iptablesRuleNotFoundSubstr) {
+		logger.Info("iptables rule already absent, treating as success",
+			zap.String("table", tableName), zap.String("chain", chainName),
+			zap.String("match", match), zap.String("target", target))
+		return nil
+	}
+	return err
 }

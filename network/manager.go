@@ -516,10 +516,16 @@ func (nm *networkManager) DeleteEndpointStateless(networkID string, epInfo *Endp
 	// we want to always use hnsv2 in stateless
 	// hnsv2 is only enabled if NetNs has a valid guid and the hnsv2 api is supported
 	// by passing in a dummy guid, we satisfy the first condition
+
+	// Stateless DEL must preserve the requested mode so mode-specific cleanup runs.
+	if mode == "" {
+		mode = opModeTransparent
+	}
+
 	nw := &network{
 		Id:           networkID, // currently unused in stateless cni
 		HnsId:        epInfo.HNSNetworkID,
-		Mode:         opModeTransparent,
+		Mode:         mode,
 		SnatBridgeIP: "",
 		NetNs:        dummyGUID, // to trigger hns v2, windows
 		extIf: &externalInterface{
