@@ -100,8 +100,251 @@ jobs:
     if: needs.check_cadence.outputs.should_run == 'true'
     outputs:
       merged_count: ${{ steps.wait.outputs.merged_count || steps.skip.outputs.merged_count }}
+      skipped_prs: ${{ steps.wait.outputs.skipped_prs }}
+      tracking_issue: ${{ steps.create_issue.outputs.issue_number }}
     steps:
-      - name: Wait for open dependabot PRs to merge
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+          fetch-depth: 0
+
+      - name: Collect pending dependabot PRs, Go upgrade PRs, and upcoming tags
+        id: collect
+        if: ${{ inputs.skip_dependabot_wait != true }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          BRANCH="${{ env.RELEASE_BRANCH }}"
+
+          # Get open dependabot PRs
+          DEPENDABOT_PRS=$(gh pr list --repo "$REPO" --base "$BRANCH" \
+            --author "app/dependabot" --state open \
+            --json number,title,url --jq '.')
+
+          # Get open Go upgrade PRs (created by the Go version digest workflow)
+          # These PRs typically have "go" and "upgrade"/"bump" in the title or
+          # come from branches matching common Go upgrade patterns
+          GO_UPGRADE_PRS=$(gh pr list --repo "$REPO" --base "$BRANCH" \
+            --state open --json number,title,url,headRefName,labels --jq '
+            [.[] | select(
+              (.title | test("(?i)go.*(upgrade|bump|version|1\\.[0-9]+)")) or
+              (.headRefName | test("(?i)go.*(bump|upgrade|version|minor)")) or
+              (.labels[]?.name | test("(?i)go-upgrade"))
+            )]')
+
+          # Merge both lists, deduplicating by PR number
+          OPEN_PRS_JSON=$(echo "$DEPENDABOT_PRS $GO_UPGRADE_PRS" | jq -s '
+            .[0] + .[1] | unique_by(.number)')
+          echo "open_prs_json<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$OPEN_PRS_JSON" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          OPEN_COUNT=$(echo "$OPEN_PRS_JSON" | jq 'length')
+          DEPENDABOT_COUNT=$(echo "$DEPENDABOT_PRS" | jq 'length')
+          GO_UPGRADE_COUNT=$(echo "$GO_UPGRADE_PRS" | jq 'length')
+          echo "open_count=$OPEN_COUNT" >> "$GITHUB_OUTPUT"
+          echo "dependabot_count=$DEPENDABOT_COUNT" >> "$GITHUB_OUTPUT"
+          echo "go_upgrade_count=$GO_UPGRADE_COUNT" >> "$GITHUB_OUTPUT"
+
+          # Determine upcoming main tag
+          if [[ "$BRANCH" == "master" ]]; then
+            LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          else
+            VERSION_PREFIX=$(echo "$BRANCH" | sed 's|release/||')
+            LATEST_TAG=$(git tag -l "${VERSION_PREFIX}.*" --sort=-v:refname | head -1)
+          fi
+          MAJOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f1)
+          MINOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f2)
+          PATCH=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f3)
+          NEW_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+
+          # Detect binary tags that will be produced
+          BINARIES="dropgz azure-ipam azure-iptables-monitor azure-ip-masq-merger cilium-log-collector"
+          BINARY_TAGS=""
+          for BIN in $BINARIES; do
+            BIN_LATEST=$(git tag --merged HEAD -l "${BIN}/v*" --sort=-v:refname | head -1)
+            if [[ -n "$BIN_LATEST" ]]; then
+              CHANGES=$(git diff --name-only "${BIN_LATEST}..HEAD" -- "${BIN}/" 2>/dev/null | wc -l)
+              if [[ "$CHANGES" -gt 0 ]]; then
+                BIN_VER=$(echo "$BIN_LATEST" | sed "s|${BIN}/v||")
+                BIN_PATCH=$(echo "$BIN_VER" | cut -d. -f3)
+                BIN_NEW="${BIN}/v$(echo "$BIN_VER" | cut -d. -f1).$(echo "$BIN_VER" | cut -d. -f2).$((BIN_PATCH + 1))"
+                BINARY_TAGS+="• \`$BIN_NEW\`\n"
+              fi
+            fi
+          done
+          echo "binary_tags<<EOF" >> "$GITHUB_OUTPUT"
+          echo -e "$BINARY_TAGS" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Find or create release tracking issue
+        id: create_issue
+        if: ${{ inputs.skip_dependabot_wait != true }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          NEW_TAG="${{ steps.collect.outputs.new_tag }}"
+          OPEN_COUNT="${{ steps.collect.outputs.open_count }}"
+          OPEN_PRS_JSON='${{ steps.collect.outputs.open_prs_json }}'
+          BINARY_TAGS='${{ steps.collect.outputs.binary_tags }}'
+
+          # Check if a tracking issue already exists for this tag (from a previous timed-out run)
+          EXISTING_ISSUE=$(gh issue list --repo "$REPO" \
+            --label "release-tracking" --state open \
+            --search "Release Tracking: ${NEW_TAG}" \
+            --json number,title --jq '.[0].number // empty' 2>/dev/null || echo "")
+
+          if [[ -n "$EXISTING_ISSUE" ]]; then
+            echo "Found existing tracking issue #${EXISTING_ISSUE} — resuming"
+            echo "issue_number=$EXISTING_ISSUE" >> "$GITHUB_OUTPUT"
+            echo "issue_url=https://github.com/${REPO}/issues/${EXISTING_ISSUE}" >> "$GITHUB_OUTPUT"
+            echo "resumed=true" >> "$GITHUB_OUTPUT"
+
+            # Post a resume comment with updated PR state
+            PR_LIST=""
+            if [[ "$OPEN_COUNT" -gt 0 ]]; then
+              PR_LIST=$(echo "$OPEN_PRS_JSON" | jq -r '.[] | "- [ ] #\(.number) — \(.title)"')
+            fi
+
+            gh issue comment "$EXISTING_ISSUE" --repo "$REPO" \
+              --body "🔄 **Workflow re-triggered** (run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}))
+
+          Still pending (${OPEN_COUNT}):
+          ${PR_LIST:-_None — all clear!_}
+
+          Previous skip comments on this issue still apply." || true
+            exit 0
+          fi
+
+          # Build PR list for the issue body
+          PR_LIST=""
+          if [[ "$OPEN_COUNT" -gt 0 ]]; then
+            PR_LIST=$(echo "$OPEN_PRS_JSON" | jq -r '.[] | "- [ ] #\(.number) — \(.title)"')
+          fi
+
+          BODY="## 🚀 Release Cycle: ${NEW_TAG}
+
+          **Branch:** \`${{ env.RELEASE_BRANCH }}\`
+          **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ### Tags to be created:
+          • \`${NEW_TAG}\` (CNI/CNS/NPM)
+          ${BINARY_TAGS}
+          ### ⏳ Pending PRs — Dependabot (${DEPENDABOT_COUNT}) + Go Upgrade (${GO_UPGRADE_COUNT}):
+
+          ${PR_LIST:-_None — all clear!_}
+
+          ---
+          ### Skip Instructions
+
+          To skip a specific PR, comment on this issue:
+          \`\`\`
+          skip #<PR_NUMBER>
+          \`\`\`
+
+          To skip ALL remaining dependency PRs (dependabot + Go upgrade):
+          \`\`\`
+          skip all
+          \`\`\`
+
+          ### Pause for a non-dependabot PR
+
+          To hold the release until a specific PR merges (any PR, not just dependabot):
+          \`\`\`
+          pause #<PR_NUMBER>
+          \`\`\`
+
+          To remove the hold:
+          \`\`\`
+          unpause #<PR_NUMBER>
+          \`\`\`
+
+          ### Pause the release entirely
+
+          To freeze the release (e.g. waiting for an unrelated fix, discussion, etc.):
+          \`\`\`
+          pause
+          \`\`\`
+
+          To unfreeze and let it continue:
+          \`\`\`
+          resume
+          \`\`\`
+
+          ---
+          _This issue is managed by the Scheduled Release workflow. It will close automatically when the release completes._"
+
+          # Create the issue
+          ISSUE_URL=$(gh issue create --repo "$REPO" \
+            --title "🔄 Release Tracking: ${NEW_TAG}" \
+            --body "$BODY" \
+            --label "release-tracking" 2>&1)
+
+          ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oP '\d+$')
+          echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "issue_url=$ISSUE_URL" >> "$GITHUB_OUTPUT"
+          echo "resumed=false" >> "$GITHUB_OUTPUT"
+          echo "Created tracking issue: $ISSUE_URL"
+
+      - name: Post release announcement to CNI Teams channel
+        if: ${{ inputs.skip_dependabot_wait != true }}
+        env:
+          WEBHOOK_URL: ${{ secrets.TEAMS_CNI_LOGIC_APP_URL }}
+        run: |
+          set -euo pipefail
+          NEW_TAG="${{ steps.collect.outputs.new_tag }}"
+          OPEN_COUNT="${{ steps.collect.outputs.open_count }}"
+          DEPENDABOT_COUNT="${{ steps.collect.outputs.dependabot_count }}"
+          GO_UPGRADE_COUNT="${{ steps.collect.outputs.go_upgrade_count }}"
+          OPEN_PRS_JSON='${{ steps.collect.outputs.open_prs_json }}'
+          BINARY_TAGS='${{ steps.collect.outputs.binary_tags }}'
+          ISSUE_NUMBER="${{ steps.create_issue.outputs.issue_number }}"
+          RESUMED="${{ steps.create_issue.outputs.resumed }}"
+          REPO="${GITHUB_REPOSITORY}"
+
+          # Build PR list in HTML
+          PR_LIST_HTML=""
+          if [[ "$OPEN_COUNT" -gt 0 ]]; then
+            PR_LIST_HTML=$(echo "$OPEN_PRS_JSON" | jq -r '.[] | "• <a href=\"\(.url)\">#\(.number)</a> — \(.title)"' | tr '\n' ' ' | sed 's/ /<br>/g')
+          else
+            PR_LIST_HTML="<i>None — all clear!</i>"
+          fi
+
+          BINARY_TAGS_HTML=$(echo -e "$BINARY_TAGS" | sed 's/$/<br>/g')
+
+          if [[ "$RESUMED" == "true" ]]; then
+            # Brief resume message — don't repeat the full announcement
+            MSG="🔄 <b>Release workflow re-triggered for ${NEW_TAG}</b><br><br>\
+            <b>Still pending (${OPEN_COUNT}):</b><br>\
+            ${PR_LIST_HTML}<br><br>\
+            Previous skip commands still apply. Tracking issue: \
+            <a href=\"https://github.com/${REPO}/issues/${ISSUE_NUMBER}\">#${ISSUE_NUMBER}</a>"
+          else
+            # Full first-time announcement
+            MSG="🚀 <b>Release cycle starting: ${NEW_TAG}</b><br><br>\
+            <b>Tags to be created:</b><br>\
+            • <code>${NEW_TAG}</code> (CNI/CNS/NPM)<br>\
+            ${BINARY_TAGS_HTML}<br>\
+            <b>Pending PRs — Dependabot (${DEPENDABOT_COUNT}) + Go Upgrade (${GO_UPGRADE_COUNT}):</b><br>\
+            ${PR_LIST_HTML}<br><br>\
+            ⚠️ These PRs must merge before the release proceeds.<br>\
+            To skip a PR, comment <code>skip #NUMBER</code> on tracking issue \
+            <a href=\"https://github.com/${REPO}/issues/${ISSUE_NUMBER}\">#${ISSUE_NUMBER}</a><br>\
+            To skip all: comment <code>skip all</code>"
+          fi
+
+          curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\":$(echo "$MSG" | jq -Rs .)}" || echo "::warning::Failed to post to CNI Teams channel"
+
+      - name: Wait for PRs to merge or be skipped
         id: wait
         if: ${{ inputs.skip_dependabot_wait != true }}
         env:
@@ -110,41 +353,165 @@ jobs:
           set -euo pipefail
           REPO="${GITHUB_REPOSITORY}"
           BRANCH="${{ env.RELEASE_BRANCH }}"
-          MAX_WAIT_MINUTES=180  # 3 hours max
-          POLL_INTERVAL=1800    # 30 minutes
+          ISSUE_NUMBER="${{ steps.create_issue.outputs.issue_number }}"
+          POLL_INTERVAL=300  # 5 minutes
 
-          echo "Checking for open dependabot PRs targeting $BRANCH..."
+          # No artificial timeout — this job runs until all PRs merge or are
+          # explicitly skipped via issue comments. If the GitHub Actions job-level
+          # timeout (6h) is reached, the job FAILS and the user must re-trigger
+          # after merging/skipping PRs. This is intentional: we don't silently
+          # proceed with unmerged dependency updates.
 
-          elapsed=0
+          SKIPPED_PRS=""
+
           while true; do
-            OPEN_PRS=$(gh pr list --repo "$REPO" --base "$BRANCH" \
-              --author "app/dependabot" --state open --json number,title --jq 'length')
+            # Check for comments on the tracking issue
+            COMMENTS=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" \
+              --json comments --jq '.comments[].body' 2>/dev/null || echo "")
 
-            if [[ "$OPEN_PRS" -eq 0 ]]; then
-              echo "No open dependabot PRs remaining."
+            # --- Handle bare "pause" / "resume" (no PR number) ---
+            # A bare "pause" freezes the release entirely until someone comments "resume".
+            # We count occurrences: if pause > resume, the release is frozen.
+            PAUSE_BARE_COUNT=$(echo "$COMMENTS" | grep -ciP '^\s*pause\s*$' || true)
+            RESUME_BARE_COUNT=$(echo "$COMMENTS" | grep -ciP '^\s*resume\s*$' || true)
+            if (( PAUSE_BARE_COUNT > RESUME_BARE_COUNT )); then
+              echo "⏸️ Release is paused. Waiting for 'resume' comment on issue #${ISSUE_NUMBER}..."
+              sleep $POLL_INTERVAL
+              continue
+            fi
+
+            # --- Handle "skip" commands ---
+            SKIP_ALL=false
+            if echo "$COMMENTS" | grep -qi "^skip all$"; then
+              SKIP_ALL=true
+              echo "Received 'skip all' — proceeding without waiting for remaining PRs."
+            fi
+            SKIP_NUMBERS=$(echo "$COMMENTS" | grep -ioP 'skip\s+#\K\d+' | sort -u || true)
+
+            # --- Handle "pause #PR" commands ---
+            # Users can comment "pause #1234" to block the release until that PR merges.
+            # Comment "unpause #1234" or "resume #1234" to remove the hold.
+            PAUSE_NUMBERS=$(echo "$COMMENTS" | grep -ioP 'pause\s+#\K\d+' | sort -u || true)
+            UNPAUSE_NUMBERS=$(echo "$COMMENTS" | grep -ioP '(?:unpause|resume)\s+#\K\d+' | sort -u || true)
+
+            # Effective pauses = pause commands minus unpause commands
+            ACTIVE_PAUSES=""
+            BLOCKED_LIST=""
+            for PR_NUM in $PAUSE_NUMBERS; do
+              if ! echo "$UNPAUSE_NUMBERS" | grep -qx "$PR_NUM"; then
+                # Check if this PR is still open (not yet merged)
+                PR_STATE=$(gh pr view "$PR_NUM" --repo "$REPO" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
+                if [[ "$PR_STATE" == "OPEN" ]]; then
+                  ACTIVE_PAUSES="${ACTIVE_PAUSES:+$ACTIVE_PAUSES }$PR_NUM"
+                  PR_TITLE=$(gh pr view "$PR_NUM" --repo "$REPO" --json title --jq '.title' 2>/dev/null || echo "")
+                  BLOCKED_LIST+="  ⏸️ #$PR_NUM — $PR_TITLE (pause hold)\n"
+                fi
+                # If MERGED or CLOSED, the pause is automatically satisfied
+              fi
+            done
+
+            # --- Get currently open dependabot + Go upgrade PRs ---
+            DEPENDABOT_PRS=$(gh pr list --repo "$REPO" --base "$BRANCH" \
+              --author "app/dependabot" --state open \
+              --json number,title --jq '.')
+            GO_UPGRADE_PRS=$(gh pr list --repo "$REPO" --base "$BRANCH" \
+              --state open --json number,title,headRefName,labels --jq '
+              [.[] | select(
+                (.title | test("(?i)go.*(upgrade|bump|version|1\\.[0-9]+)")) or
+                (.headRefName | test("(?i)go.*(bump|upgrade|version|minor)")) or
+                (.labels[]?.name | test("(?i)go-upgrade"))
+              )]')
+            OPEN_PRS=$(echo "$DEPENDABOT_PRS $GO_UPGRADE_PRS" | jq -s '
+              .[0] + .[1] | unique_by(.number)')
+            OPEN_COUNT=$(echo "$OPEN_PRS" | jq 'length')
+
+            if [[ "$SKIP_ALL" == "true" ]]; then
+              REMAINING=$(echo "$OPEN_PRS" | jq -r '.[].number' | tr '\n' ',' | sed 's/,$//')
+              SKIPPED_PRS="${SKIPPED_PRS:+$SKIPPED_PRS,}$REMAINING"
+              # skip all does NOT override pause holds
+              if [[ -z "$ACTIVE_PAUSES" ]]; then
+                break
+              fi
+              echo "skip all received, but pause holds still active: $ACTIVE_PAUSES"
+            fi
+
+            # Filter out skipped dependabot PRs
+            WAITING_COUNT=0
+            WAITING_LIST=""
+            if [[ "$SKIP_ALL" != "true" ]]; then
+              while IFS= read -r PR_LINE; do
+                PR_NUM=$(echo "$PR_LINE" | jq -r '.number')
+                PR_TITLE=$(echo "$PR_LINE" | jq -r '.title')
+                if echo "$SKIP_NUMBERS" | grep -qx "$PR_NUM"; then
+                  SKIPPED_PRS="${SKIPPED_PRS:+$SKIPPED_PRS,}$PR_NUM"
+                else
+                  WAITING_COUNT=$((WAITING_COUNT + 1))
+                  WAITING_LIST+="  #$PR_NUM — $PR_TITLE\n"
+                fi
+              done < <(echo "$OPEN_PRS" | jq -c '.[]')
+            fi
+
+            # Check if we can proceed
+            TOTAL_BLOCKING=$((WAITING_COUNT + $(echo "$ACTIVE_PAUSES" | wc -w)))
+            if [[ "$TOTAL_BLOCKING" -eq 0 ]]; then
+              echo "All dependabot PRs merged/skipped and no active pause holds."
               break
             fi
 
-            echo "Found $OPEN_PRS open dependabot PRs. Waiting..."
-            if (( elapsed >= MAX_WAIT_MINUTES * 60 )); then
-              echo "::warning::Timed out waiting for dependabot PRs after ${MAX_WAIT_MINUTES}m"
-              break
+            echo "Blocked on $TOTAL_BLOCKING item(s):"
+            if [[ "$WAITING_COUNT" -gt 0 ]]; then
+              echo "  Dependabot PRs:"
+              echo -e "$WAITING_LIST"
+            fi
+            if [[ -n "$ACTIVE_PAUSES" ]]; then
+              echo "  Pause holds:"
+              echo -e "$BLOCKED_LIST"
             fi
 
             sleep $POLL_INTERVAL
-            elapsed=$((elapsed + POLL_INTERVAL))
           done
 
-          # Count recently merged dependabot PRs (last 7 days)
+          # Count merged dependabot PRs (last 7 days)
           MERGED=$(gh pr list --repo "$REPO" --base "$BRANCH" \
             --author "app/dependabot" --state merged \
             --json mergedAt --jq '[.[] | select(.mergedAt > (now - 604800 | todate))] | length' 2>/dev/null || echo "0")
           echo "merged_count=${MERGED}" >> "$GITHUB_OUTPUT"
-          echo "Dependabot PRs merged in last 7 days: $MERGED"
+          echo "skipped_prs=${SKIPPED_PRS}" >> "$GITHUB_OUTPUT"
+
+          # Update the tracking issue
+          SUMMARY="✅ **Dependabot gate passed.** Merged: ${MERGED}"
+          if [[ -n "$SKIPPED_PRS" ]]; then
+            SUMMARY+=" | Skipped: ${SKIPPED_PRS}"
+          fi
+          if [[ -n "$PAUSE_NUMBERS" ]]; then
+            SUMMARY+=" | Pause holds satisfied: ${PAUSE_NUMBERS}"
+          fi
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$SUMMARY" || true
+
+      - name: Post update to CNI channel
+        if: ${{ inputs.skip_dependabot_wait != true && steps.wait.outcome == 'success' }}
+        env:
+          WEBHOOK_URL: ${{ secrets.TEAMS_CNI_LOGIC_APP_URL }}
+        run: |
+          MERGED="${{ steps.wait.outputs.merged_count }}"
+          SKIPPED="${{ steps.wait.outputs.skipped_prs }}"
+          NEW_TAG="${{ steps.collect.outputs.new_tag }}"
+
+          if [[ -n "$SKIPPED" ]]; then
+            MSG="✅ <b>Dependabot gate passed for ${NEW_TAG}</b><br>Merged: ${MERGED} | Skipped: ${SKIPPED}<br>Proceeding to vulnerability check..."
+          else
+            MSG="✅ <b>All dependabot PRs merged for ${NEW_TAG}</b><br>Total merged: ${MERGED}<br>Proceeding to vulnerability check..."
+          fi
+
+          curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\":$(echo "$MSG" | jq -Rs .)}" || true
 
       - name: Skip dependabot wait (manual override)
         id: skip
         if: ${{ inputs.skip_dependabot_wait == true }}
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "merged_count=0" >> "$GITHUB_OUTPUT"
           echo "Skipped dependabot wait per user request"
@@ -690,7 +1057,7 @@ jobs:
           PR_RUN="${{ steps.pr_pipeline.outputs.run_url }}"
           CNI_RUN="${{ steps.cni_release.outputs.run_url }}"
 
-          MSG="✅ <b>Pipeline validation complete for ${NEW_TAG}</b><br><br>• ACN PR Pipeline: ${PR_RUN}<br>• ACN CNI Release Test: ${CNI_RUN}"
+          MSG="✅ <b>Pipeline validation complete for ${NEW_TAG}</b><br><br>• ACN PR Pipeline: ${PR_RUN}<br>• ACN CNI Release Test: ${CNI_RUN}<br>• CNI/CNS Signed Release: Managed DALEC (automatic — tag picked up)"
 
           curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
@@ -731,16 +1098,22 @@ jobs:
           RELEASE_MSG="${DRY_PREFIX}@Release I will start the release process for the acn repo (cni/cns/npm) ${NEW_TAG} based on this commit: ${COMMIT_LINK} from the ${BRANCH} branch. I intend for this release to make it to AKS.
 
           ---
-          **SIGNED PATH CHECKLIST:**
+          **SIGNED PATH (CNI/CNS) — Managed DALEC:**
           - Changelog Link: ${CHANGELOG_LINK}
           - CNI Release Test Pipeline Run Link: ${CNI_RUN}
           - ACN PR Pipeline Run Link: ${PR_RUN}
-          - ACN Official Build Pipeline Run Link: _(pending)_
-          - ACN Official Image Release Pipeline Run Link: _(pending)_
-          - Safefly/R2D Link: _(human to fill after filing)_
+          - Managed DALEC Build: _(automatic — triggered by tag)_
+          - Managed DALEC Lead Approval: _(pending — 18hr timeout)_
+          - Managed DALEC MCR Publish: _(automatic after approval)_
           - AgentBaker PR Link: _(pending BumpBump)_
           - AKS PR/ENO Link: _(pending)_
           - ENO Release Networking Sig Link: _(pending)_
+
+          ---
+          **SIGNED PATH (Other binaries) — Manual pipelines:**
+          - ACN Official Build Pipeline Run Link: _(pending — human to trigger)_
+          - ACN Official Image Release Pipeline Run Link: _(pending — human to trigger)_
+          - Safefly/R2D Link: _(human to fill after filing)_
 
           ---
           **UNSIGNED PATH CHECKLIST:**
