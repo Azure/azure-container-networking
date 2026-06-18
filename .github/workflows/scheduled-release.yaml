@@ -47,7 +47,7 @@ on:
         type: boolean
 
 concurrency:
-  group: scheduled-release-${{ github.ref }}
+  group: scheduled-release-${{ inputs.release_branch || 'release/v1.7' }}
   cancel-in-progress: false
 
 permissions:
@@ -132,7 +132,7 @@ jobs:
             [.[] | select(
               (.title | test("(?i)go.*(upgrade|bump|version|1\\.[0-9]+)")) or
               (.headRefName | test("(?i)go.*(bump|upgrade|version|minor)")) or
-              (.labels[]?.name | test("(?i)go-upgrade"))
+              (any(.labels[]?.name; test("(?i)go-upgrade")))
             )]')
 
           # Merge both lists, deduplicating by PR number
@@ -192,6 +192,8 @@ jobs:
           REPO="${GITHUB_REPOSITORY}"
           NEW_TAG="${{ steps.collect.outputs.new_tag }}"
           OPEN_COUNT="${{ steps.collect.outputs.open_count }}"
+          DEPENDABOT_COUNT="${{ steps.collect.outputs.dependabot_count }}"
+          GO_UPGRADE_COUNT="${{ steps.collect.outputs.go_upgrade_count }}"
           OPEN_PRS_JSON='${{ steps.collect.outputs.open_prs_json }}'
           BINARY_TAGS='${{ steps.collect.outputs.binary_tags }}'
 
@@ -312,7 +314,7 @@ jobs:
           # Build PR list in HTML
           PR_LIST_HTML=""
           if [[ "$OPEN_COUNT" -gt 0 ]]; then
-            PR_LIST_HTML=$(echo "$OPEN_PRS_JSON" | jq -r '.[] | "• <a href=\"\(.url)\">#\(.number)</a> — \(.title)"' | tr '\n' ' ' | sed 's/ /<br>/g')
+            PR_LIST_HTML=$(echo "$OPEN_PRS_JSON" | jq -r '.[] | "• <a href=\"\(.url)\">#\(.number)</a> — \(.title)<br>"' | tr -d '\n')
           else
             PR_LIST_HTML="<i>None — all clear!</i>"
           fi
@@ -419,7 +421,7 @@ jobs:
               [.[] | select(
                 (.title | test("(?i)go.*(upgrade|bump|version|1\\.[0-9]+)")) or
                 (.headRefName | test("(?i)go.*(bump|upgrade|version|minor)")) or
-                (.labels[]?.name | test("(?i)go-upgrade"))
+                (any(.labels[]?.name; test("(?i)go-upgrade")))
               )]')
             OPEN_PRS=$(echo "$DEPENDABOT_PRS $GO_UPGRADE_PRS" | jq -s '
               .[0] + .[1] | unique_by(.number)')
@@ -548,33 +550,47 @@ jobs:
           set -euo pipefail
           VULN_COUNT=0
           VULN_REPORT=""
+          SCAN_ERRORS=0
 
           for moddir in $(find . -name "go.mod" -exec dirname {} \;); do
             echo "Scanning $moddir..."
-            if ! OUTPUT=$(cd "$moddir" && govulncheck ./... 2>&1); then
+            if OUTPUT=$(cd "$moddir" && govulncheck ./... 2>&1); then
+              echo "  ✅ $moddir: clean"
+            else
+              EXIT_CODE=$?
               FOUND=$(echo "$OUTPUT" | grep -c "Vulnerability" || true)
-              VULN_COUNT=$((VULN_COUNT + FOUND))
-              VULN_REPORT+="$moddir: $FOUND vulnerabilities found\n"
+              if [[ "$FOUND" -gt 0 ]]; then
+                VULN_COUNT=$((VULN_COUNT + FOUND))
+                VULN_REPORT+="$moddir: $FOUND vulnerabilities found\n"
+              else
+                # govulncheck failed but no vulnerabilities reported — build/tooling error
+                SCAN_ERRORS=$((SCAN_ERRORS + 1))
+                VULN_REPORT+="$moddir: scan error (exit $EXIT_CODE, no vulns reported)\n"
+                echo "::error::govulncheck failed in $moddir (exit $EXIT_CODE) without reporting vulnerabilities — possible build error"
+              fi
             fi
           done
 
           echo "vuln_count=$VULN_COUNT" >> "$GITHUB_OUTPUT"
-          if [[ "$VULN_COUNT" -eq 0 ]]; then
+          echo "scan_errors=$SCAN_ERRORS" >> "$GITHUB_OUTPUT"
+          if [[ "$VULN_COUNT" -eq 0 && "$SCAN_ERRORS" -eq 0 ]]; then
             echo "clean=true" >> "$GITHUB_OUTPUT"
             echo "✅ No vulnerabilities found"
           else
             echo "clean=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Found $VULN_COUNT vulnerabilities"
+            echo "::error::Found $VULN_COUNT vulnerabilities and $SCAN_ERRORS scan errors"
             echo -e "$VULN_REPORT"
+            exit 1
           fi
 
       - name: Post vuln results to Teams
-        if: steps.scan.outputs.clean == 'false'
+        if: failure() && steps.scan.outputs.vuln_count != ''
         env:
           WEBHOOK_URL: ${{ secrets.TEAMS_RELEASE_LOGIC_APP_URL }}
         run: |
           VULN_COUNT="${{ steps.scan.outputs.vuln_count }}"
-          MSG="⚠️ <b>govulncheck</b>: $VULN_COUNT vulnerabilities found on ${{ env.RELEASE_BRANCH }}. Manual review required before release proceeds."
+          SCAN_ERRORS="${{ steps.scan.outputs.scan_errors }}"
+          MSG="🚫 <b>govulncheck FAILED</b> on ${{ env.RELEASE_BRANCH }}. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Release blocked until resolved."
 
           curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
@@ -1120,9 +1136,9 @@ jobs:
           - Changelog Link: ${CHANGELOG_LINK}
           - CNI Release Test Pipeline Run Link: ${CNI_RUN}
           - ACN PR Pipeline Run Link: ${PR_RUN}
-          - Github Release Pipeline Run Link: _(pending)_
+          - GitHub Release Pipeline Run Link: _(pending)_
           - Safefly/R2D Link: _(human to fill after filing)_
-          - Github Release Link: _(pending)_
+          - GitHub Release Link: _(pending)_
           - NA Build Pipeline Run Link: _(pending)_
           - OBP Signed Binaries Pipeline Run Link: _(pending)_"
 
@@ -1130,10 +1146,10 @@ jobs:
           echo "$RELEASE_MSG"
 
           # Post to Teams Release channel via Logic App
-          HTML_MSG=$(echo "$RELEASE_MSG" | sed 's/\*\*/<b>/g; s/\*\*/<\/b>/g; s/$/<br>/g')
+          # Send as plain text — Logic App handles rendering
           curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
-            -d "{\"text\":$(echo "$HTML_MSG" | jq -Rs .)}" || echo "::warning::Failed to post to Teams Release channel"
+            -d "{\"text\":$(echo "$RELEASE_MSG" | jq -Rs .)}" || echo "::warning::Failed to post to Teams Release channel"
 
       - name: Generate R2D Draft (Unsigned)
         id: r2d_unsigned
