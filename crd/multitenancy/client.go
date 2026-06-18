@@ -194,33 +194,33 @@ func (i *Installer) InstallOrUpdatePodNetworkInstance(ctx context.Context) (*v1.
 
 // Install installs the embedded NICNetworkConfig CRD definition in the cluster.
 func (i *Installer) InstallNICNetworkConfig(ctx context.Context) (*v1.CustomResourceDefinition, error) {
-	nicNetworkConfig, err := GetNICNetworkConfigs()
+	nicnc, err := GetNICNetworkConfigs()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get embedded nicnetworkconfig crd")
 	}
-	return i.create(ctx, nicNetworkConfig)
+	return i.create(ctx, nicnc)
 }
 
 // InstallOrUpdateNICNetworkConfig installs the embedded NICNetworkConfig CRD definition in the cluster or updates it if present.
 func (i *Installer) InstallOrUpdateNICNetworkConfig(ctx context.Context) (*v1.CustomResourceDefinition, error) {
-	nicNetworkConfig, err := GetNICNetworkConfigs()
+	nicnc, err := GetNICNetworkConfigs()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get embedded nicnetworkconfig crd")
 	}
-	current, err := i.create(ctx, nicNetworkConfig)
+	current, err := i.create(ctx, nicnc)
 	if !apierrors.IsAlreadyExists(err) {
 		return current, err
 	}
 	if current == nil {
-		current, err = i.cli.Get(ctx, nicNetworkConfig.Name, metav1.GetOptions{})
+		current, err = i.cli.Get(ctx, nicnc.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get existing nicnetworkconfig crd")
 		}
 	}
-	if !reflect.DeepEqual(nicNetworkConfig.Spec.Versions, current.Spec.Versions) {
-		nicNetworkConfig.SetResourceVersion(current.GetResourceVersion())
+	if !reflect.DeepEqual(nicnc.Spec.Versions, current.Spec.Versions) {
+		nicnc.SetResourceVersion(current.GetResourceVersion())
 		previous := *current
-		current, err = i.cli.Update(ctx, nicNetworkConfig, metav1.UpdateOptions{})
+		current, err = i.cli.Update(ctx, nicnc, metav1.UpdateOptions{})
 		if err != nil {
 			return &previous, errors.Wrap(err, "failed to update existing nicnetworkconfig crd")
 		}
