@@ -51,10 +51,8 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  actions: write
+  contents: read
   pull-requests: read
-  issues: write
 
 env:
   RELEASE_BRANCH: ${{ inputs.release_branch || 'release/v1.7' }}
@@ -98,16 +96,21 @@ jobs:
     runs-on: ubuntu-latest
     needs: check_cadence
     if: needs.check_cadence.outputs.should_run == 'true'
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
     outputs:
       merged_count: ${{ steps.wait.outputs.merged_count || steps.skip.outputs.merged_count }}
       skipped_prs: ${{ steps.wait.outputs.skipped_prs }}
       tracking_issue: ${{ steps.create_issue.outputs.issue_number }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Collect pending dependabot PRs, Go upgrade PRs, and upcoming tags
         id: collect
@@ -531,18 +534,19 @@ jobs:
       clean: ${{ steps.scan.outputs.clean }}
     steps:
       - name: Checkout release branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
 
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
       - name: Run govulncheck on all modules
         id: scan
@@ -552,7 +556,7 @@ jobs:
           VULN_REPORT=""
           SCAN_ERRORS=0
 
-          for moddir in $(find . -name "go.mod" -exec dirname {} \;); do
+          for moddir in $(find . -name "go.mod" -not -path "*/vendor/*" -exec dirname {} \;); do
             echo "Scanning $moddir..."
             if OUTPUT=$(cd "$moddir" && govulncheck ./... 2>&1); then
               echo "  ✅ $moddir: clean"
@@ -609,10 +613,11 @@ jobs:
       has_changes: ${{ steps.detect.outputs.has_changes }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Detect changes per binary
         id: detect
@@ -666,19 +671,25 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 2c: Tag Binaries That Have Changes
+  # NOTE: Binary tags (dropgz, azure-ipam, etc.) are pushed directly without the
+  # tag-approval environment gate. This is intentional — these are smaller utility
+  # binaries that don't go through managed DALEC, and the release workflow itself
+  # already provides the gating (vuln check + dependabot gate + manual dispatch).
   # ─────────────────────────────────────────────────────────────────────────────
   tag_binaries:
     name: "Tag ${{ matrix.binary }}"
     runs-on: ubuntu-latest
     needs: detect_binary_changes
     if: needs.detect_binary_changes.outputs.has_changes == 'true'
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.detect_binary_changes.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
@@ -731,10 +742,11 @@ jobs:
     if: always() && needs.detect_binary_changes.outputs.has_changes == 'true'
     steps:
       - name: Checkout (for tag verification)
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Verify created tags and post summary
         env:
@@ -797,13 +809,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: [wait_dependabot, vuln_check]
     if: always() && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
+    permissions:
+      contents: write
     outputs:
       new_tag: ${{ steps.version.outputs.new_tag }}
       target_sha: ${{ steps.version.outputs.target_sha }}
       previous_tag: ${{ steps.version.outputs.previous_tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
@@ -887,15 +901,18 @@ jobs:
     needs: create_tag
     if: inputs.dry_run != true
     timeout-minutes: 360
+    permissions:
+      actions: write
     outputs:
       pr_pipeline_run_url: ${{ steps.pr_pipeline.outputs.run_url }}
       cni_release_run_url: ${{ steps.cni_release.outputs.run_url }}
     steps:
       - name: Checkout (needed for git ls-remote)
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Wait for tag to be created
         env:
@@ -1086,7 +1103,7 @@ jobs:
     name: "Step 5: Release Channel + R2D Draft"
     runs-on: ubuntu-latest
     needs: [create_tag, validate_pipelines]
-    if: always() && needs.create_tag.result == 'success'
+    if: always() && needs.create_tag.result == 'success' && needs.validate_pipelines.result == 'success'
     steps:
       - name: Post release thread in Release Channel
         id: release_thread
