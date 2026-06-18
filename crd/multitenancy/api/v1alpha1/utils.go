@@ -16,8 +16,8 @@ func (m *MultitenantPodNetworkConfig) IsDeleting() bool {
 	return !m.DeletionTimestamp.IsZero()
 }
 
-// IsDRAScheduled reports whether the pod has any ResourceClaims allocated
+// IsScheduledWithDRA reports whether the pod has any ResourceClaims allocated
 // (i.e. was scheduled with Dynamic Resource Allocation).
-func (m *MultitenantPodNetworkConfig) IsDRAScheduled() bool {
+func (m *MultitenantPodNetworkConfig) IsScheduledWithDRA() bool {
 	return len(m.Spec.ResourceClaims) > 0
 }

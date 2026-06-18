@@ -82,8 +82,9 @@ spec:
                 description: PodUID is the UID of the pod
                 type: string
               resourceClaims:
-                description: ResourceClaims lists the ResourceClaim names allocated
-                  to the pod.
+                description: |-
+                  ResourceClaims is the list of ResourceClaims created for the driver
+                  networking.azure.com and allocated to the pod.
                 items:
                   type: string
                 type: array

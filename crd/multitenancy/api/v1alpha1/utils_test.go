@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestIsDRAScheduled(t *testing.T) {
+func TestIsScheduledWithDRA(t *testing.T) {
 	tests := []struct {
 		name   string
 		claims []string
@@ -23,7 +23,7 @@ func TestIsDRAScheduled(t *testing.T) {
 			m := &MultitenantPodNetworkConfig{
 				Spec: MultitenantPodNetworkConfigSpec{ResourceClaims: tt.claims},
 			}
-			require.Equal(t, tt.want, m.IsDRAScheduled())
+			require.Equal(t, tt.want, m.IsScheduledWithDRA())
 		})
 	}
 }

@@ -65,7 +65,8 @@ type MultitenantPodNetworkConfigSpec struct {
 	// authoritative identifier is SubnetGUID.
 	// +kubebuilder:validation:Optional
 	SubnetName string `json:"subnetName,omitempty"`
-	// ResourceClaims lists the ResourceClaim names allocated to the pod.
+	// ResourceClaims is the list of ResourceClaims created for the driver
+	// networking.azure.com and allocated to the pod.
 	// +kubebuilder:validation:Optional
 	// +listType=set
 	ResourceClaims []string `json:"resourceClaims,omitempty"`
