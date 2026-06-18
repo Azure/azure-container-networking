@@ -694,11 +694,7 @@ jobs:
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
-
-      - name: Configure git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          persist-credentials: false
 
       - name: Create tag ${{ matrix.new_tag }}
         id: create
@@ -729,8 +725,10 @@ jobs:
             echo "🏜️ DRY RUN: Would create and push tag $NEW_TAG at $TARGET_SHA"
             echo "created=dry_run" >> "$GITHUB_OUTPUT"
           else
-            git tag -a "$NEW_TAG" "$TARGET_SHA" -m "Release $NEW_TAG (automated 3-week cycle)"
-            git push origin "$NEW_TAG"
+            TARGET_SHA=$(git rev-parse HEAD)
+            gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/$NEW_TAG" \
+              -f sha="$TARGET_SHA" --silent
             echo "✅ Created and pushed tag: $NEW_TAG"
             echo "created=true" >> "$GITHUB_OUTPUT"
           fi
@@ -824,6 +822,7 @@ jobs:
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Determine next patch version
         id: version
