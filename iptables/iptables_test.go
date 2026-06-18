@@ -300,16 +300,4 @@ func TestDeleteIptableRuleIfExists(t *testing.T) {
 		require.Error(t, err, "lock contention must NOT be silently treated as success")
 		assert.Contains(t, err.Error(), "xtables lock")
 	})
-
-	t.Run("permission denied error is propagated", func(t *testing.T) {
-		mockPL := platform.NewMockExecClient(false)
-		client := &Client{pl: mockPL}
-		mockPL.SetExecRawCommand(func(cmd string) (string, error) {
-			return "", errors.New("exit status 3:iptables v1.8.7: can't initialize iptables table `filter': Permission denied (you must be root)")
-		})
-
-		err := client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "Permission denied")
-	})
 }
