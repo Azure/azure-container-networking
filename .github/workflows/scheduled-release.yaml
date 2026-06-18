@@ -71,7 +71,7 @@ jobs:
       - name: Determine if this is a release week
         id: check
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -106,7 +106,7 @@ jobs:
       tracking_issue: ${{ steps.create_issue.outputs.issue_number }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
@@ -120,7 +120,7 @@ jobs:
         run: |
           set -euo pipefail
           REPO="${GITHUB_REPOSITORY}"
-          BRANCH="${{ env.RELEASE_BRANCH }}"
+          BRANCH="${RELEASE_BRANCH}"
 
           # Get open dependabot PRs
           DEPENDABOT_PRS=$(gh pr list --repo "$REPO" --base "$BRANCH" \
@@ -190,15 +190,17 @@ jobs:
         if: ${{ inputs.skip_dependabot_wait != true }}
         env:
           GH_TOKEN: ${{ github.token }}
+          NEW_TAG: ${{ steps.collect.outputs.new_tag }}
+          OPEN_COUNT: ${{ steps.collect.outputs.open_count }}
+          DEPENDABOT_COUNT: ${{ steps.collect.outputs.dependabot_count }}
+          GO_UPGRADE_COUNT: ${{ steps.collect.outputs.go_upgrade_count }}
+          OPEN_PRS_JSON: ${{ steps.collect.outputs.open_prs_json }}
+          BINARY_TAGS: ${{ steps.collect.outputs.binary_tags }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
         run: |
           set -euo pipefail
           REPO="${GITHUB_REPOSITORY}"
-          NEW_TAG="${{ steps.collect.outputs.new_tag }}"
-          OPEN_COUNT="${{ steps.collect.outputs.open_count }}"
-          DEPENDABOT_COUNT="${{ steps.collect.outputs.dependabot_count }}"
-          GO_UPGRADE_COUNT="${{ steps.collect.outputs.go_upgrade_count }}"
-          OPEN_PRS_JSON='${{ steps.collect.outputs.open_prs_json }}'
-          BINARY_TAGS='${{ steps.collect.outputs.binary_tags }}'
 
           # Check if a tracking issue already exists for this tag (from a previous timed-out run)
           EXISTING_ISSUE=$(gh issue list --repo "$REPO" \
@@ -219,7 +221,7 @@ jobs:
             fi
 
             gh issue comment "$EXISTING_ISSUE" --repo "$REPO" \
-              --body "🔄 **Workflow re-triggered** (run [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}))
+              --body "🔄 **Workflow re-triggered** (run [$RUN_ID]($SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID))
 
           Still pending (${OPEN_COUNT}):
           ${PR_LIST:-_None — all clear!_}
@@ -236,8 +238,8 @@ jobs:
 
           BODY="## 🚀 Release Cycle: ${NEW_TAG}
 
-          **Branch:** \`${{ env.RELEASE_BRANCH }}\`
-          **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          **Branch:** \`${RELEASE_BRANCH}\`
+          **Run:** ${SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}
 
           ### Tags to be created:
           • \`${NEW_TAG}\` (CNI/CNS/NPM)
@@ -302,16 +304,16 @@ jobs:
         if: ${{ inputs.skip_dependabot_wait != true }}
         env:
           WEBHOOK_URL: ${{ secrets.TEAMS_CNI_LOGIC_APP_URL }}
+          NEW_TAG: ${{ steps.collect.outputs.new_tag }}
+          OPEN_COUNT: ${{ steps.collect.outputs.open_count }}
+          DEPENDABOT_COUNT: ${{ steps.collect.outputs.dependabot_count }}
+          GO_UPGRADE_COUNT: ${{ steps.collect.outputs.go_upgrade_count }}
+          OPEN_PRS_JSON: ${{ steps.collect.outputs.open_prs_json }}
+          BINARY_TAGS: ${{ steps.collect.outputs.binary_tags }}
+          ISSUE_NUMBER: ${{ steps.create_issue.outputs.issue_number }}
+          RESUMED: ${{ steps.create_issue.outputs.resumed }}
         run: |
           set -euo pipefail
-          NEW_TAG="${{ steps.collect.outputs.new_tag }}"
-          OPEN_COUNT="${{ steps.collect.outputs.open_count }}"
-          DEPENDABOT_COUNT="${{ steps.collect.outputs.dependabot_count }}"
-          GO_UPGRADE_COUNT="${{ steps.collect.outputs.go_upgrade_count }}"
-          OPEN_PRS_JSON='${{ steps.collect.outputs.open_prs_json }}'
-          BINARY_TAGS='${{ steps.collect.outputs.binary_tags }}'
-          ISSUE_NUMBER="${{ steps.create_issue.outputs.issue_number }}"
-          RESUMED="${{ steps.create_issue.outputs.resumed }}"
           REPO="${GITHUB_REPOSITORY}"
 
           # Build PR list in HTML
@@ -354,11 +356,11 @@ jobs:
         if: ${{ inputs.skip_dependabot_wait != true }}
         env:
           GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.create_issue.outputs.issue_number }}
         run: |
           set -euo pipefail
           REPO="${GITHUB_REPOSITORY}"
-          BRANCH="${{ env.RELEASE_BRANCH }}"
-          ISSUE_NUMBER="${{ steps.create_issue.outputs.issue_number }}"
+          BRANCH="${RELEASE_BRANCH}"
           POLL_INTERVAL=300  # 5 minutes
 
           # No artificial timeout — this job runs until all PRs merge or are
@@ -497,11 +499,10 @@ jobs:
         if: ${{ inputs.skip_dependabot_wait != true && steps.wait.outcome == 'success' }}
         env:
           WEBHOOK_URL: ${{ secrets.TEAMS_CNI_LOGIC_APP_URL }}
+          MERGED: ${{ steps.wait.outputs.merged_count }}
+          SKIPPED: ${{ steps.wait.outputs.skipped_prs }}
+          NEW_TAG: ${{ steps.collect.outputs.new_tag }}
         run: |
-          MERGED="${{ steps.wait.outputs.merged_count }}"
-          SKIPPED="${{ steps.wait.outputs.skipped_prs }}"
-          NEW_TAG="${{ steps.collect.outputs.new_tag }}"
-
           if [[ -n "$SKIPPED" ]]; then
             MSG="✅ <b>Dependabot gate passed for ${NEW_TAG}</b><br>Merged: ${MERGED} | Skipped: ${SKIPPED}<br>Proceeding to vulnerability check..."
           else
@@ -534,7 +535,7 @@ jobs:
       clean: ${{ steps.scan.outputs.clean }}
     steps:
       - name: Checkout release branch
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
@@ -591,10 +592,10 @@ jobs:
         if: failure() && steps.scan.outputs.vuln_count != ''
         env:
           WEBHOOK_URL: ${{ secrets.TEAMS_RELEASE_LOGIC_APP_URL }}
+          VULN_COUNT: ${{ steps.scan.outputs.vuln_count }}
+          SCAN_ERRORS: ${{ steps.scan.outputs.scan_errors }}
         run: |
-          VULN_COUNT="${{ steps.scan.outputs.vuln_count }}"
-          SCAN_ERRORS="${{ steps.scan.outputs.scan_errors }}"
-          MSG="🚫 <b>govulncheck FAILED</b> on ${{ env.RELEASE_BRANCH }}. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Release blocked until resolved."
+          MSG="🚫 <b>govulncheck FAILED</b> on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Release blocked until resolved."
 
           curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
             -H "Content-Type: application/json" \
@@ -613,7 +614,7 @@ jobs:
       has_changes: ${{ steps.detect.outputs.has_changes }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
@@ -689,7 +690,7 @@ jobs:
         include: ${{ fromJSON(needs.detect_binary_changes.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
@@ -703,10 +704,12 @@ jobs:
         id: create
         env:
           GH_TOKEN: ${{ github.token }}
+          NEW_TAG: ${{ matrix.new_tag }}
+          PREV_TAG: ${{ matrix.previous_tag }}
+          BINARY: ${{ matrix.binary }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          NEW_TAG="${{ matrix.new_tag }}"
-          PREV_TAG="${{ matrix.previous_tag }}"
 
           # Verify tag doesn't already exist (race guard)
           if git ls-remote --exit-code --tags origin "refs/tags/$NEW_TAG" >/dev/null 2>&1; then
@@ -719,10 +722,10 @@ jobs:
 
           # Show changelog summary
           echo "Changes since $PREV_TAG:"
-          git log --oneline "${PREV_TAG}..HEAD" -- "${{ matrix.binary }}/" | head -20
+          git log --oneline "${PREV_TAG}..HEAD" -- "${BINARY}/" | head -20
 
           # Create and push tag
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+          if [[ "$DRY_RUN" == "true" ]]; then
             echo "🏜️ DRY RUN: Would create and push tag $NEW_TAG at $TARGET_SHA"
             echo "created=dry_run" >> "$GITHUB_OUTPUT"
           else
@@ -742,7 +745,7 @@ jobs:
     if: always() && needs.detect_binary_changes.outputs.has_changes == 'true'
     steps:
       - name: Checkout (for tag verification)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 1
@@ -751,13 +754,12 @@ jobs:
       - name: Verify created tags and post summary
         env:
           WEBHOOK_URL: ${{ secrets.TEAMS_RELEASE_LOGIC_APP_URL }}
+          MATRIX: ${{ needs.detect_binary_changes.outputs.matrix }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          MATRIX='${{ needs.detect_binary_changes.outputs.matrix }}'
-
           CREATED=""
           FAILED=""
-          DRY_RUN="${{ inputs.dry_run }}"
 
           if [[ "$DRY_RUN" == "true" ]]; then
             # In dry run, list all intended tags (none were actually pushed)
@@ -791,8 +793,9 @@ jobs:
           fi
 
       - name: Write binary summary to step summary
+        env:
+          MATRIX: ${{ needs.detect_binary_changes.outputs.matrix }}
         run: |
-          MATRIX='${{ needs.detect_binary_changes.outputs.matrix }}'
           {
             echo "## 📦 Binary Releases"
             echo ""
@@ -817,7 +820,7 @@ jobs:
       previous_tag: ${{ steps.version.outputs.previous_tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
@@ -830,7 +833,7 @@ jobs:
           set -euo pipefail
 
           # Get latest tag on this branch
-          BRANCH="${{ env.RELEASE_BRANCH }}"
+          BRANCH="${RELEASE_BRANCH}"
 
           # Extract version prefix from branch name (e.g., release/v1.7 → v1.7)
           if [[ "$BRANCH" == "master" ]]; then
@@ -867,16 +870,16 @@ jobs:
       - name: Dispatch create-release-tag workflow
         env:
           GH_TOKEN: ${{ github.token }}
+          NEW_TAG: ${{ steps.version.outputs.new_tag }}
+          TARGET_SHA: ${{ steps.version.outputs.target_sha }}
+          VULN_COUNT: ${{ needs.vuln_check.outputs.vuln_count || '0' }}
+          MERGED_COUNT: ${{ needs.wait_dependabot.outputs.merged_count || '0' }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          NEW_TAG="${{ steps.version.outputs.new_tag }}"
-          TARGET_SHA="${{ steps.version.outputs.target_sha }}"
-          VULN_COUNT="${{ needs.vuln_check.outputs.vuln_count || '0' }}"
-          MERGED_COUNT="${{ needs.wait_dependabot.outputs.merged_count || '0' }}"
-
           REASON="Scheduled 3-week release. Dependabot PRs merged: ${MERGED_COUNT}. CVEs patched: ${VULN_COUNT}."
 
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+          if [[ "$DRY_RUN" == "true" ]]; then
             echo "🏜️ DRY RUN: Would dispatch create-release-tag for $NEW_TAG on $TARGET_SHA"
             echo "Reason: $REASON"
           else
@@ -908,7 +911,7 @@ jobs:
       cni_release_run_url: ${{ steps.cni_release.outputs.run_url }}
     steps:
       - name: Checkout (needed for git ls-remote)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 1
@@ -917,9 +920,9 @@ jobs:
       - name: Wait for tag to be created
         env:
           GH_TOKEN: ${{ github.token }}
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
         run: |
           set -euo pipefail
-          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
           echo "Waiting for tag $NEW_TAG to appear (requires human approval)..."
 
           MAX_WAIT=7200  # 2 hours
@@ -947,10 +950,10 @@ jobs:
           ADO_PROJECT: ${{ secrets.AZURE_PIPELINE_PROJECT }}
           ADO_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}
           ACN_PR_PIPELINE_ID: ${{ secrets.ACN_PR_PIPELINE_ID }}
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
         run: |
           set -euo pipefail
-          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
-          MAX_RETRIES=${{ env.MAX_PIPELINE_RETRIES }}
+          MAX_RETRIES="${MAX_PIPELINE_RETRIES}"
 
           for attempt in $(seq 1 $MAX_RETRIES); do
             echo "ACN PR Pipeline — Attempt $attempt/$MAX_RETRIES"
@@ -1020,10 +1023,10 @@ jobs:
           ADO_PROJECT: ${{ secrets.AZURE_PIPELINE_PROJECT }}
           ADO_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}
           ACN_CNI_RELEASE_PIPELINE_ID: ${{ secrets.ACN_CNI_RELEASE_PIPELINE_ID }}
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
         run: |
           set -euo pipefail
-          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
-          MAX_RETRIES=${{ env.MAX_PIPELINE_RETRIES }}
+          MAX_RETRIES="${MAX_PIPELINE_RETRIES}"
 
           for attempt in $(seq 1 $MAX_RETRIES); do
             echo "ACN CNI Release Test — Attempt $attempt/$MAX_RETRIES"
@@ -1085,11 +1088,10 @@ jobs:
       - name: Post pipeline validation to CNI Teams channel
         env:
           WEBHOOK_URL: ${{ secrets.TEAMS_CNI_LOGIC_APP_URL }}
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+          PR_RUN: ${{ steps.pr_pipeline.outputs.run_url }}
+          CNI_RUN: ${{ steps.cni_release.outputs.run_url }}
         run: |
-          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
-          PR_RUN="${{ steps.pr_pipeline.outputs.run_url }}"
-          CNI_RUN="${{ steps.cni_release.outputs.run_url }}"
-
           MSG="✅ <b>Pipeline validation complete for ${NEW_TAG}</b><br><br>• ACN PR Pipeline: ${PR_RUN}<br>• ACN CNI Release Test: ${CNI_RUN}<br>• CNI/CNS Signed Release: Managed DALEC (automatic — tag picked up)"
 
           curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
@@ -1109,18 +1111,19 @@ jobs:
         id: release_thread
         env:
           WEBHOOK_URL: ${{ secrets.TEAMS_RELEASE_LOGIC_APP_URL }}
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+          TARGET_SHA: ${{ needs.create_tag.outputs.target_sha }}
+          PREVIOUS_TAG: ${{ needs.create_tag.outputs.previous_tag }}
+          PR_RUN: ${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}
+          CNI_RUN: ${{ needs.validate_pipelines.outputs.cni_release_run_url }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
-          TARGET_SHA="${{ needs.create_tag.outputs.target_sha }}"
-          PREVIOUS_TAG="${{ needs.create_tag.outputs.previous_tag }}"
-          BRANCH="${{ env.RELEASE_BRANCH }}"
-          PR_RUN="${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}"
-          CNI_RUN="${{ needs.validate_pipelines.outputs.cni_release_run_url }}"
+          BRANCH="${RELEASE_BRANCH}"
           PR_RUN="${PR_RUN:-_(dry run — skipped)_}"
           CNI_RUN="${CNI_RUN:-_(dry run — skipped)_}"
           DRY_PREFIX=""
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+          if [[ "$DRY_RUN" == "true" ]]; then
             DRY_PREFIX="🏜️ [DRY RUN] "
           fi
           REPO="${GITHUB_REPOSITORY}"
@@ -1170,10 +1173,11 @@ jobs:
 
       - name: Generate R2D Draft (Unsigned)
         id: r2d_unsigned
+        env:
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+          CNI_RUN: ${{ needs.validate_pipelines.outputs.cni_release_run_url }}
         run: |
           set -euo pipefail
-          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
-          CNI_RUN="${{ needs.validate_pipelines.outputs.cni_release_run_url }}"
           TODAY=$(date +%Y-%m-%d)
           END_DATE=$(date -d "+7 days" +%Y-%m-%d)
 
@@ -1221,11 +1225,12 @@ jobs:
 
       - name: Generate R2D Draft (Signed)
         id: r2d_signed
+        env:
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+          PR_RUN: ${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}
+          CNI_RUN: ${{ needs.validate_pipelines.outputs.cni_release_run_url }}
         run: |
           set -euo pipefail
-          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
-          PR_RUN="${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}"
-          CNI_RUN="${{ needs.validate_pipelines.outputs.cni_release_run_url }}"
           TODAY=$(date +%Y-%m-%d)
           END_DATE=$(date -d "+7 days" +%Y-%m-%d)
 
@@ -1274,9 +1279,8 @@ jobs:
       - name: Post R2D drafts summary to Release thread
         env:
           WEBHOOK_URL: ${{ secrets.TEAMS_RELEASE_LOGIC_APP_URL }}
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
         run: |
-          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
-
           R2D_MSG="📋 <b>R2D Drafts prepared for ${NEW_TAG}:</b><br><br><b>UNSIGNED</b> — Clone from SafeFly Request #193479<br>• Service Group: microsoft.azure.networking.containernetworking.githubrelease<br>• File at: https://aka.ms/R2D<br><br><b>SIGNED</b> — Clone from SafeFly Request #174991<br>• Service Group: microsoft.azure.networking.containernetworking<br>• File at: https://aka.ms/R2D<br><br>⚠️ <b>Human action required:</b> File both R2Ds, then post the Safefly/R2D links back in this thread."
 
           curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
@@ -1284,8 +1288,9 @@ jobs:
             -d "{\"text\":$(echo "$R2D_MSG" | jq -Rs .)}" || echo "::warning::Failed to post R2D summary"
 
       - name: Send email to leads
+        env:
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
         run: |
-          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
           echo "📧 Email notification (manual step or integrate with Logic App/Power Automate):"
           echo "  To: chandan.aggarwal@microsoft.com, neaggarw@microsoft.com, tamanoha@microsoft.com, caggard@microsoft.com"
           echo "  Subject: ACN Release ${NEW_TAG}"
@@ -1294,10 +1299,11 @@ jobs:
           # This step serves as documentation of the requirement
 
       - name: Write workflow summary
+        env:
+          NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+          PR_RUN: ${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}
+          CNI_RUN: ${{ needs.validate_pipelines.outputs.cni_release_run_url }}
         run: |
-          NEW_TAG="${{ needs.create_tag.outputs.new_tag }}"
-          PR_RUN="${{ needs.validate_pipelines.outputs.pr_pipeline_run_url }}"
-          CNI_RUN="${{ needs.validate_pipelines.outputs.cni_release_run_url }}"
           {
             echo "## 🚀 Scheduled Release: ${NEW_TAG}"
             echo ""
