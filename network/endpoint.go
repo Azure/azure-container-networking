@@ -138,7 +138,6 @@ type InterfaceInfo struct {
 	SkipDefaultRoutes bool
 	HostSubnetPrefix  net.IPNet // Move this field from ipamAddResult
 	NCResponse        *cns.GetNetworkContainerResponse
-	PrimaryInterfaceIP string
 	PnPID             string
 	EndpointPolicies  []policy.Policy
 	// these fields will be required for swiftv2 apipa nic
