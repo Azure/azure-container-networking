@@ -77,3 +77,4 @@ jobs:
             echo "❌ No messageId in response"
             exit 1
           fi
+# trigger
