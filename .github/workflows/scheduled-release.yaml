@@ -313,7 +313,7 @@ jobs:
         with:
           client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
           tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
-          subscription-id: 9b8218f9-902a-4d20-a65c-e98acec5362f
+          allow-no-subscriptions: true
 
       - name: Post release announcement to CNI Teams channel
         if: ${{ inputs.skip_dependabot_wait != true }}
@@ -614,7 +614,7 @@ jobs:
         with:
           client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
           tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
-          subscription-id: 9b8218f9-902a-4d20-a65c-e98acec5362f
+          allow-no-subscriptions: true
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
@@ -849,7 +849,7 @@ jobs:
         with:
           client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
           tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
-          subscription-id: 9b8218f9-902a-4d20-a65c-e98acec5362f
+          allow-no-subscriptions: true
 
       - name: Verify created tags and post summary
         env:
@@ -1046,7 +1046,7 @@ jobs:
         with:
           client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
           tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
-          subscription-id: 9b8218f9-902a-4d20-a65c-e98acec5362f
+          allow-no-subscriptions: true
 
       - name: Wait for tag to be created
         env:
@@ -1268,7 +1268,7 @@ jobs:
         with:
           client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
           tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
-          subscription-id: 9b8218f9-902a-4d20-a65c-e98acec5362f
+          allow-no-subscriptions: true
 
       - name: Post release thread in Release Channel
         id: release_thread
