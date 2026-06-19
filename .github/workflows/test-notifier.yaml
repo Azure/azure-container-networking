@@ -39,8 +39,6 @@ jobs:
           TOKEN=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv)
           echo "✅ Token acquired (length: ${#TOKEN})"
 
-          # Test with corrected payload based on API validation errors
-          # API requires: runId, and status must be specific values
           echo "Sending test notification to CNI channel..."
           HTTP_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" -X POST "${NOTIFIER_URL}/api/notifications" \
             -H "Authorization: Bearer $TOKEN" \
@@ -48,45 +46,42 @@ jobs:
             -d "$(jq -n \
               --arg teamId "$TEAMS_TEAM_ID" \
               --arg channelId "$TEAMS_CNI_CHANNEL_ID" \
-              --arg runId "test-scheduled-release-$GITHUB_RUN_ID" \
+              --arg runId "scheduled-release-test-$GITHUB_RUN_ID" \
+              --arg source "scheduled-release" \
+              --arg title "🧪 Test: Scheduled Release v1.7.22" \
               --arg status "running" \
-              --arg pipelineName "Scheduled Release (Test)" \
-              --arg runUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-              '{teamId: $teamId, channelId: $channelId, runId: $runId, status: $status, pipelineName: $pipelineName, runUrl: $runUrl}')")
+              '{teamId: $teamId, channelId: $channelId, runId: $runId, source: $source, title: $title, status: $status}')")
 
           echo "HTTP Status: $HTTP_CODE"
-          echo "Response body:"
+          echo "Response:"
           cat /tmp/response.json
           echo ""
 
           if [[ "$HTTP_CODE" -ge 400 ]]; then
-            echo "❌ Request failed with HTTP $HTTP_CODE"
-            echo "Trying alternative status values..."
-            
-            for STATUS in "running" "succeeded" "failed" "inProgress" "completed" "queued"; do
-              HTTP_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" -X POST "${NOTIFIER_URL}/api/notifications" \
-                -H "Authorization: Bearer $TOKEN" \
-                -H "Content-Type: application/json" \
-                -d "$(jq -n \
-                  --arg teamId "$TEAMS_TEAM_ID" \
-                  --arg channelId "$TEAMS_CNI_CHANNEL_ID" \
-                  --arg runId "test-scheduled-release-$GITHUB_RUN_ID" \
-                  --arg status "$STATUS" \
-                  --arg pipelineName "Scheduled Release (Test)" \
-                  --arg runUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-                  '{teamId: $teamId, channelId: $channelId, runId: $runId, status: $status, pipelineName: $pipelineName, runUrl: $runUrl}')")
-              echo "  status=$STATUS → HTTP $HTTP_CODE: $(cat /tmp/response.json)"
-              if [[ "$HTTP_CODE" -lt 400 ]]; then
-                echo "✅ Found working status: $STATUS"
-                break
-              fi
-            done
+            echo "❌ Failed with HTTP $HTTP_CODE"
+            exit 1
           fi
 
-          if [[ "$HTTP_CODE" -lt 400 ]]; then
-            echo "✅ Notification sent successfully!"
-            cat /tmp/response.json
-          fi
+          echo "✅ Notification sent to Teams!"
+
+          # Test update (same runId → should update the card)
+          echo "Updating notification to succeeded..."
+          HTTP_CODE=$(curl -s -o /tmp/response2.json -w "%{http_code}" -X POST "${NOTIFIER_URL}/api/notifications" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg teamId "$TEAMS_TEAM_ID" \
+              --arg channelId "$TEAMS_CNI_CHANNEL_ID" \
+              --arg runId "scheduled-release-test-$GITHUB_RUN_ID" \
+              --arg source "scheduled-release" \
+              --arg title "🧪 Test: Scheduled Release v1.7.22 ✅" \
+              --arg status "succeeded" \
+              '{teamId: $teamId, channelId: $channelId, runId: $runId, source: $source, title: $title, status: $status}')")
+
+          echo "Update HTTP: $HTTP_CODE"
+          cat /tmp/response2.json
+          echo ""
+          echo "✅ Done! Check the CNI Teams channel for the notification."
 # trigger
 # retrigger 1781899060
 # retrigger 1781899856
