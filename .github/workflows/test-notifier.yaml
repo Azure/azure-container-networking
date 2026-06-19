@@ -50,7 +50,9 @@ jobs:
               --arg source "scheduled-release" \
               --arg title "🧪 Test: Scheduled Release v1.7.22" \
               --arg status "running" \
-              '{teamId: $teamId, channelId: $channelId, runId: $runId, source: $source, title: $title, status: $status}')")
+              --arg stage "dependabot-gate" \
+              --arg summary "Testing notifier bot integration from GitHub Actions (PR #4410)" \
+              '{source: $source, runId: $runId, teamId: $teamId, channelId: $channelId, title: $title, status: $status, stage: $stage, summary: $summary}')")
 
           echo "HTTP Status: $HTTP_CODE"
           echo "Response:"
@@ -64,8 +66,25 @@ jobs:
 
           echo "✅ Notification sent to Teams!"
 
-          # Test update (same runId → should update the card)
-          echo "Updating notification to succeeded..."
+          # Test reply
+          echo "Sending threaded reply..."
+          REPLY_CODE=$(curl -s -o /tmp/reply.json -w "%{http_code}" -X POST "${NOTIFIER_URL}/api/notifications/reply" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg source "scheduled-release" \
+              --arg runId "scheduled-release-test-$GITHUB_RUN_ID" \
+              --arg text "📋 This is a threaded reply test. R2D drafts and follow-up messages will appear here." \
+              --arg tag "r2d-draft" \
+              --arg severity "info" \
+              '{source: $source, runId: $runId, text: $text, tag: $tag, severity: $severity}')")
+
+          echo "Reply HTTP: $REPLY_CODE"
+          cat /tmp/reply.json
+          echo ""
+
+          # Test update to succeeded
+          echo "Updating card to succeeded..."
           HTTP_CODE=$(curl -s -o /tmp/response2.json -w "%{http_code}" -X POST "${NOTIFIER_URL}/api/notifications" \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
@@ -74,14 +93,16 @@ jobs:
               --arg channelId "$TEAMS_CNI_CHANNEL_ID" \
               --arg runId "scheduled-release-test-$GITHUB_RUN_ID" \
               --arg source "scheduled-release" \
-              --arg title "🧪 Test: Scheduled Release v1.7.22 ✅" \
+              --arg title "🧪 Test: Scheduled Release v1.7.22" \
               --arg status "succeeded" \
-              '{teamId: $teamId, channelId: $channelId, runId: $runId, source: $source, title: $title, status: $status}')")
+              --arg stage "complete" \
+              --arg summary "All checks passed! Notifier bot integration verified." \
+              '{source: $source, runId: $runId, teamId: $teamId, channelId: $channelId, title: $title, status: $status, stage: $stage, summary: $summary}')")
 
           echo "Update HTTP: $HTTP_CODE"
           cat /tmp/response2.json
           echo ""
-          echo "✅ Done! Check the CNI Teams channel for the notification."
+          echo "✅ Done! Check the CNI Teams channel."
 # trigger
 # retrigger 1781899060
 # retrigger 1781899856
