@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -579,7 +580,6 @@ func TestConfigureHCNNetworkInfraNIC(t *testing.T) {
 }
 
 func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallback(t *testing.T) {
-
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
@@ -596,7 +596,7 @@ func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallback(t *testing.T)
 	}
 
 	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, hostComputeNetwork)
 	assert.Len(t, hostComputeNetwork.Policies, 1)
 	assert.Equal(t, hcn.ProviderAddress, hostComputeNetwork.Policies[0].Type)
@@ -604,7 +604,6 @@ func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallback(t *testing.T)
 }
 
 func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallbackWithSingleIPv4(t *testing.T) {
-
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
@@ -621,7 +620,7 @@ func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallbackWithSingleIPv4
 	}
 
 	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, hostComputeNetwork)
 	assert.Len(t, hostComputeNetwork.Policies, 1)
 	assert.Equal(t, hcn.ProviderAddress, hostComputeNetwork.Policies[0].Type)
@@ -629,7 +628,6 @@ func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallbackWithSingleIPv4
 }
 
 func TestConfigureHCNNetworkDoesNotUsePrimaryInterfaceIdentifierForEthernet(t *testing.T) {
-
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
@@ -646,7 +644,7 @@ func TestConfigureHCNNetworkDoesNotUsePrimaryInterfaceIdentifierForEthernet(t *t
 	}
 
 	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, hostComputeNetwork)
 	assert.Len(t, hostComputeNetwork.Policies, 1)
 	assert.Equal(t, hcn.NetAdapterName, hostComputeNetwork.Policies[0].Type)
