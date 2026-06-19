@@ -5,13 +5,13 @@
 # Trigger: Every 3rd Friday at 14:00 UTC + manual dispatch
 #
 # ─── Teams Notification Dependency ───────────────────────────────────────────
-# Teams messages are sent via Azure Logic Apps with OAuth-based API connections.
-# The connection can lose access if:
-#   1. The authorizing user's password is reset or account is disabled
-#   2. An Azure AD admin revokes consent or applies a conditional access policy
-#   3. The connection is unused for 90+ days (refresh token expiry)
-# If Teams notifications stop working, see the internal wiki for re-authorization
-# steps, or run the re-auth script in the repo's /tools/release/ directory.
+# Teams messages are sent via the acn-notifier-bot Azure Function App,
+# authenticated using OIDC (federated credentials on acn-release-bot SP).
+# The bot creates/updates Adaptive Cards in Teams channels.
+# If notifications stop working, check:
+#   1. Federated credential on acn-release-bot (75013c7b) for this repo
+#   2. acn-notifier-bot Function App status in Azure portal
+#   3. Token audience: api://3976eca5-3f9d-4528-987f-c20c1f9f27f7
 # Contact: ACN Release Engineering team
 # ─────────────────────────────────────────────────────────────────────────────
 name: Scheduled Release
@@ -52,11 +52,17 @@ concurrency:
 
 permissions:
   contents: read
+  id-token: write
   pull-requests: read
 
 env:
   RELEASE_BRANCH: ${{ inputs.release_branch || 'release/v1.7' }}
   MAX_PIPELINE_RETRIES: 5
+  NOTIFIER_URL: https://acn-notifier-bot.azurewebsites.net
+  NOTIFIER_AUDIENCE: api://3976eca5-3f9d-4528-987f-c20c1f9f27f7
+  TEAMS_TEAM_ID: 1eb27b57-8ace-4f0e-a9a9-e6db4e9829b7
+  TEAMS_CNI_CHANNEL_ID: "19:2b104ee19fdb450b807903eb7c79588a@thread.skype"
+  TEAMS_RELEASE_CHANNEL_ID: "19:ad6cb6596adf4850910e9be3e8a7f9ab@thread.skype"
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
@@ -98,6 +104,7 @@ jobs:
     if: needs.check_cadence.outputs.should_run == 'true'
     permissions:
       contents: read
+      id-token: write
       pull-requests: read
       issues: write
     outputs:
@@ -300,10 +307,17 @@ jobs:
           echo "resumed=false" >> "$GITHUB_OUTPUT"
           echo "Created tracking issue: $ISSUE_URL"
 
+      - name: Azure Login (OIDC)
+        continue-on-error: true
+        uses: azure/login@1384c340ab2dda50fed2bee3041d1d87018aa5e8  # v2
+        with:
+          client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
+          tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
+          subscription-id: 9b8218f9-902a-4d20-a65c-e98acec5362f
+
       - name: Post release announcement to CNI Teams channel
         if: ${{ inputs.skip_dependabot_wait != true }}
         env:
-          WEBHOOK_URL: ${{ secrets.TEAMS_CNI_LOGIC_APP_URL }}
           NEW_TAG: ${{ steps.collect.outputs.new_tag }}
           OPEN_COUNT: ${{ steps.collect.outputs.open_count }}
           DEPENDABOT_COUNT: ${{ steps.collect.outputs.dependabot_count }}
@@ -314,6 +328,32 @@ jobs:
           RESUMED: ${{ steps.create_issue.outputs.resumed }}
         run: |
           set -euo pipefail
+          notify() {
+            local channel_id="$1" title="$2" status="$3" message="$4"
+            local token
+            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
+              echo "::warning::Failed to acquire notifier token"
+              return 0
+            }
+
+            local response
+            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
+              -H "Authorization: Bearer $token" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n \
+                --arg teamId "$TEAMS_TEAM_ID" \
+                --arg channelId "$channel_id" \
+                --arg source "scheduled-release" \
+                --arg title "$title" \
+                --arg status "$status" \
+                --arg message "$message" \
+                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
+              echo "::warning::Failed to post to Teams: $response"
+              return 0
+            }
+            echo "$response"
+          }
+
           REPO="${GITHUB_REPOSITORY}"
 
           # Build PR list in HTML
@@ -347,9 +387,7 @@ jobs:
             To skip all: comment <code>skip all</code>"
           fi
 
-          curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"text\":$(echo "$MSG" | jq -Rs .)}" || echo "::warning::Failed to post to CNI Teams channel"
+          notify "$TEAMS_CNI_CHANNEL_ID" "Release ${NEW_TAG}" "in_progress" "$MSG"
 
       - name: Wait for PRs to merge or be skipped
         id: wait
@@ -498,20 +536,44 @@ jobs:
       - name: Post update to CNI channel
         if: ${{ inputs.skip_dependabot_wait != true && steps.wait.outcome == 'success' }}
         env:
-          WEBHOOK_URL: ${{ secrets.TEAMS_CNI_LOGIC_APP_URL }}
           MERGED: ${{ steps.wait.outputs.merged_count }}
           SKIPPED: ${{ steps.wait.outputs.skipped_prs }}
           NEW_TAG: ${{ steps.collect.outputs.new_tag }}
         run: |
+          set -euo pipefail
+          notify() {
+            local channel_id="$1" title="$2" status="$3" message="$4"
+            local token
+            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
+              echo "::warning::Failed to acquire notifier token"
+              return 0
+            }
+
+            local response
+            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
+              -H "Authorization: Bearer $token" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n \
+                --arg teamId "$TEAMS_TEAM_ID" \
+                --arg channelId "$channel_id" \
+                --arg source "scheduled-release" \
+                --arg title "$title" \
+                --arg status "$status" \
+                --arg message "$message" \
+                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
+              echo "::warning::Failed to post to Teams: $response"
+              return 0
+            }
+            echo "$response"
+          }
+
           if [[ -n "$SKIPPED" ]]; then
             MSG="✅ <b>Dependabot gate passed for ${NEW_TAG}</b><br>Merged: ${MERGED} | Skipped: ${SKIPPED}<br>Proceeding to vulnerability check..."
           else
             MSG="✅ <b>All dependabot PRs merged for ${NEW_TAG}</b><br>Total merged: ${MERGED}<br>Proceeding to vulnerability check..."
           fi
 
-          curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"text\":$(echo "$MSG" | jq -Rs .)}" || true
+          notify "$TEAMS_CNI_CHANNEL_ID" "Dependabot Gate: ${NEW_TAG}" "success" "$MSG"
 
       - name: Skip dependabot wait (manual override)
         id: skip
@@ -545,6 +607,14 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
+
+      - name: Azure Login (OIDC)
+        continue-on-error: true
+        uses: azure/login@1384c340ab2dda50fed2bee3041d1d87018aa5e8  # v2
+        with:
+          client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
+          tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
+          subscription-id: 9b8218f9-902a-4d20-a65c-e98acec5362f
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
@@ -591,15 +661,39 @@ jobs:
       - name: Post vuln results to Teams
         if: failure() && steps.scan.outputs.vuln_count != ''
         env:
-          WEBHOOK_URL: ${{ secrets.TEAMS_RELEASE_LOGIC_APP_URL }}
           VULN_COUNT: ${{ steps.scan.outputs.vuln_count }}
           SCAN_ERRORS: ${{ steps.scan.outputs.scan_errors }}
         run: |
+          set -euo pipefail
+          notify() {
+            local channel_id="$1" title="$2" status="$3" message="$4"
+            local token
+            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
+              echo "::warning::Failed to acquire notifier token"
+              return 0
+            }
+
+            local response
+            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
+              -H "Authorization: Bearer $token" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n \
+                --arg teamId "$TEAMS_TEAM_ID" \
+                --arg channelId "$channel_id" \
+                --arg source "scheduled-release" \
+                --arg title "$title" \
+                --arg status "$status" \
+                --arg message "$message" \
+                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
+              echo "::warning::Failed to post to Teams: $response"
+              return 0
+            }
+            echo "$response"
+          }
+
           MSG="🚫 <b>govulncheck FAILED</b> on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Release blocked until resolved."
 
-          curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"text\":$(echo "$MSG" | jq -Rs .)}" || true
+          notify "$TEAMS_RELEASE_CHANNEL_ID" "Vuln Check: ${RELEASE_BRANCH}" "failure" "$MSG"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 2b: Detect Binary Changes (dropgz, azure-ipam, etc.)
@@ -749,13 +843,46 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Azure Login (OIDC)
+        continue-on-error: true
+        uses: azure/login@1384c340ab2dda50fed2bee3041d1d87018aa5e8  # v2
+        with:
+          client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
+          tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
+          subscription-id: 9b8218f9-902a-4d20-a65c-e98acec5362f
+
       - name: Verify created tags and post summary
         env:
-          WEBHOOK_URL: ${{ secrets.TEAMS_RELEASE_LOGIC_APP_URL }}
           MATRIX: ${{ needs.detect_binary_changes.outputs.matrix }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
+          notify() {
+            local channel_id="$1" title="$2" status="$3" message="$4"
+            local token
+            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
+              echo "::warning::Failed to acquire notifier token"
+              return 0
+            }
+
+            local response
+            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
+              -H "Authorization: Bearer $token" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n \
+                --arg teamId "$TEAMS_TEAM_ID" \
+                --arg channelId "$channel_id" \
+                --arg source "scheduled-release" \
+                --arg title "$title" \
+                --arg status "$status" \
+                --arg message "$message" \
+                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
+              echo "::warning::Failed to post to Teams: $response"
+              return 0
+            }
+            echo "$response"
+          }
+
           CREATED=""
           FAILED=""
 
@@ -764,9 +891,7 @@ jobs:
             CREATED=$(echo "$MATRIX" | jq -r '.[].new_tag' | sed 's/^/• /' | tr '\n' '\n')
             MSG="🏜️ [DRY RUN] <b>Binary releases that WOULD be created:</b><br><br>${CREATED}<br><br>These tags were detected as needing a release but were not pushed (dry run mode)."
 
-            curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
-              -H "Content-Type: application/json" \
-              -d "{\"text\":$(echo "$MSG" | jq -Rs .)}" || echo "::warning::Failed to post binary summary"
+            notify "$TEAMS_RELEASE_CHANNEL_ID" "Binary Release Summary: ${RELEASE_BRANCH}" "warning" "$MSG"
           else
             for TAG in $(echo "$MATRIX" | jq -r '.[].new_tag'); do
               if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
@@ -779,9 +904,7 @@ jobs:
             if [[ -n "$CREATED" ]]; then
               MSG="📦 <b>Binary releases created (3-week cycle):</b><br><br>$(echo -e "$CREATED")<br>These tags were auto-created because changes were detected since the previous release."
 
-              curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
-                -H "Content-Type: application/json" \
-                -d "{\"text\":$(echo "$MSG" | jq -Rs .)}" || echo "::warning::Failed to post binary summary"
+              notify "$TEAMS_RELEASE_CHANNEL_ID" "Binary Release Summary: ${RELEASE_BRANCH}" "success" "$MSG"
             fi
 
             if [[ -n "$FAILED" ]]; then
@@ -905,6 +1028,7 @@ jobs:
     timeout-minutes: 360
     permissions:
       actions: write
+      id-token: write
     outputs:
       pr_pipeline_run_url: ${{ steps.pr_pipeline.outputs.run_url }}
       cni_release_run_url: ${{ steps.cni_release.outputs.run_url }}
@@ -915,6 +1039,14 @@ jobs:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Azure Login (OIDC)
+        continue-on-error: true
+        uses: azure/login@1384c340ab2dda50fed2bee3041d1d87018aa5e8  # v2
+        with:
+          client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
+          tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
+          subscription-id: 9b8218f9-902a-4d20-a65c-e98acec5362f
 
       - name: Wait for tag to be created
         env:
@@ -1086,16 +1218,40 @@ jobs:
 
       - name: Post pipeline validation to CNI Teams channel
         env:
-          WEBHOOK_URL: ${{ secrets.TEAMS_CNI_LOGIC_APP_URL }}
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
           PR_RUN: ${{ steps.pr_pipeline.outputs.run_url }}
           CNI_RUN: ${{ steps.cni_release.outputs.run_url }}
         run: |
+          set -euo pipefail
+          notify() {
+            local channel_id="$1" title="$2" status="$3" message="$4"
+            local token
+            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
+              echo "::warning::Failed to acquire notifier token"
+              return 0
+            }
+
+            local response
+            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
+              -H "Authorization: Bearer $token" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n \
+                --arg teamId "$TEAMS_TEAM_ID" \
+                --arg channelId "$channel_id" \
+                --arg source "scheduled-release" \
+                --arg title "$title" \
+                --arg status "$status" \
+                --arg message "$message" \
+                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
+              echo "::warning::Failed to post to Teams: $response"
+              return 0
+            }
+            echo "$response"
+          }
+
           MSG="✅ <b>Pipeline validation complete for ${NEW_TAG}</b><br><br>• ACN PR Pipeline: ${PR_RUN}<br>• ACN CNI Release Test: ${CNI_RUN}<br>• CNI/CNS Signed Release: Managed DALEC (automatic — tag picked up)"
 
-          curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"text\":$(echo "$MSG" | jq -Rs .)}" || true
+          notify "$TEAMS_CNI_CHANNEL_ID" "Pipeline Validation: ${NEW_TAG}" "success" "$MSG"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 5: Post in Release Channel + Draft R2D
@@ -1106,10 +1262,17 @@ jobs:
     needs: [create_tag, validate_pipelines]
     if: always() && needs.create_tag.result == 'success' && needs.validate_pipelines.result == 'success'
     steps:
+      - name: Azure Login (OIDC)
+        continue-on-error: true
+        uses: azure/login@1384c340ab2dda50fed2bee3041d1d87018aa5e8  # v2
+        with:
+          client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
+          tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
+          subscription-id: 9b8218f9-902a-4d20-a65c-e98acec5362f
+
       - name: Post release thread in Release Channel
         id: release_thread
         env:
-          WEBHOOK_URL: ${{ secrets.TEAMS_RELEASE_LOGIC_APP_URL }}
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
           TARGET_SHA: ${{ needs.create_tag.outputs.target_sha }}
           PREVIOUS_TAG: ${{ needs.create_tag.outputs.previous_tag }}
@@ -1118,6 +1281,32 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
+          notify() {
+            local channel_id="$1" title="$2" status="$3" message="$4"
+            local token
+            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
+              echo "::warning::Failed to acquire notifier token"
+              return 0
+            }
+
+            local response
+            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
+              -H "Authorization: Bearer $token" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n \
+                --arg teamId "$TEAMS_TEAM_ID" \
+                --arg channelId "$channel_id" \
+                --arg source "scheduled-release" \
+                --arg title "$title" \
+                --arg status "$status" \
+                --arg message "$message" \
+                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
+              echo "::warning::Failed to post to Teams: $response"
+              return 0
+            }
+            echo "$response"
+          }
+
           BRANCH="${RELEASE_BRANCH}"
           PR_RUN="${PR_RUN:-_(dry run — skipped)_}"
           CNI_RUN="${CNI_RUN:-_(dry run — skipped)_}"
@@ -1164,11 +1353,9 @@ jobs:
           echo "Release channel message:"
           echo "$RELEASE_MSG"
 
-          # Post to Teams Release channel via Logic App
-          # Send as plain text — Logic App handles rendering
-          curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"text\":$(echo "$RELEASE_MSG" | jq -Rs .)}" || echo "::warning::Failed to post to Teams Release channel"
+          RESPONSE=$(notify "$TEAMS_RELEASE_CHANNEL_ID" "Release ${NEW_TAG}" "in_progress" "$RELEASE_MSG")
+          MESSAGE_ID=$(echo "$RESPONSE" | jq -r '.messageId // empty' 2>/dev/null || true)
+          echo "message_id=$MESSAGE_ID" >> "$GITHUB_OUTPUT"
 
       - name: Generate R2D Draft (Unsigned)
         id: r2d_unsigned
@@ -1277,14 +1464,67 @@ jobs:
 
       - name: Post R2D drafts summary to Release thread
         env:
-          WEBHOOK_URL: ${{ secrets.TEAMS_RELEASE_LOGIC_APP_URL }}
+          MESSAGE_ID: ${{ steps.release_thread.outputs.message_id }}
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
         run: |
+          set -euo pipefail
+          notify() {
+            local channel_id="$1" title="$2" status="$3" message="$4"
+            local token
+            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
+              echo "::warning::Failed to acquire notifier token"
+              return 0
+            }
+
+            local response
+            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
+              -H "Authorization: Bearer $token" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n \
+                --arg teamId "$TEAMS_TEAM_ID" \
+                --arg channelId "$channel_id" \
+                --arg source "scheduled-release" \
+                --arg title "$title" \
+                --arg status "$status" \
+                --arg message "$message" \
+                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
+              echo "::warning::Failed to post to Teams: $response"
+              return 0
+            }
+            echo "$response"
+          }
+
+          notify_reply() {
+            local channel_id="$1" message_id="$2" message="$3"
+            local token
+            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
+              echo "::warning::Failed to acquire notifier token"
+              return 0
+            }
+
+            local response
+            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications/reply" \
+              -H "Authorization: Bearer $token" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n \
+                --arg teamId "$TEAMS_TEAM_ID" \
+                --arg channelId "$channel_id" \
+                --arg messageId "$message_id" \
+                --arg message "$message" \
+                '{teamId: $teamId, channelId: $channelId, messageId: $messageId, message: $message}')" 2>&1) || {
+              echo "::warning::Failed to post reply to Teams: $response"
+              return 0
+            }
+            echo "$response"
+          }
+
           R2D_MSG="📋 <b>R2D Drafts prepared for ${NEW_TAG}:</b><br><br><b>UNSIGNED</b> — Clone from SafeFly Request #193479<br>• Service Group: microsoft.azure.networking.containernetworking.githubrelease<br>• File at: https://aka.ms/R2D<br><br><b>SIGNED</b> — Clone from SafeFly Request #174991<br>• Service Group: microsoft.azure.networking.containernetworking<br>• File at: https://aka.ms/R2D<br><br>⚠️ <b>Human action required:</b> File both R2Ds, then post the Safefly/R2D links back in this thread."
 
-          curl -sf -o /dev/null -X POST "$WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"text\":$(echo "$R2D_MSG" | jq -Rs .)}" || echo "::warning::Failed to post R2D summary"
+          if [[ -n "$MESSAGE_ID" ]]; then
+            notify_reply "$TEAMS_RELEASE_CHANNEL_ID" "$MESSAGE_ID" "$R2D_MSG"
+          else
+            notify "$TEAMS_RELEASE_CHANNEL_ID" "R2D Drafts: ${NEW_TAG}" "warning" "$R2D_MSG"
+          fi
 
       - name: Send email to leads
         env:
