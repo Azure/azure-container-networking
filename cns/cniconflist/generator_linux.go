@@ -25,9 +25,11 @@ var portmapConfig any = struct {
 
 // Generate writes the CNI conflist to the Generator's output stream
 func (v *V4OverlayGenerator) Generate() error {
+	version := cniVersion(v.CNIVersion, overlaycniVersion)
 	conflist := cniConflist{
-		CNIVersion: overlaycniVersion,
+		CNIVersion: version,
 		Name:       overlaycniName,
+		DisableGC:  disableGC(version),
 		Plugins: []any{
 			cni.NetworkConfig{
 				Type:              overlaycniType,
@@ -54,9 +56,11 @@ func (v *V4OverlayGenerator) Generate() error {
 
 // Generate writes the CNI conflist to the Generator's output stream
 func (v *DualStackOverlayGenerator) Generate() error {
+	version := cniVersion(v.CNIVersion, overlaycniVersion)
 	conflist := cniConflist{
-		CNIVersion: overlaycniVersion,
+		CNIVersion: version,
 		Name:       overlaycniName,
+		DisableGC:  disableGC(version),
 		Plugins: []any{
 			cni.NetworkConfig{
 				Type:              overlaycniType,
@@ -82,9 +86,11 @@ func (v *DualStackOverlayGenerator) Generate() error {
 
 // Generate writes the CNI conflist to the Generator's output stream
 func (v *OverlayGenerator) Generate() error {
+	version := cniVersion(v.CNIVersion, overlaycniVersion)
 	conflist := cniConflist{
-		CNIVersion: overlaycniVersion,
+		CNIVersion: version,
 		Name:       overlaycniName,
+		DisableGC:  disableGC(version),
 		Plugins: []any{
 			cni.NetworkConfig{
 				Type:              overlaycniType,
@@ -110,9 +116,11 @@ func (v *OverlayGenerator) Generate() error {
 
 // Generate writes the CNI conflist to the Generator's output stream
 func (v *CiliumGenerator) Generate() error {
+	version := cniVersion(v.CNIVersion, ciliumcniVersion)
 	conflist := cniConflist{
-		CNIVersion: ciliumcniVersion,
+		CNIVersion: version,
 		Name:       ciliumcniName,
+		DisableGC:  disableGC(version),
 		Plugins: []any{
 			NetConf{
 				Type:        ciliumcniType,
@@ -136,9 +144,11 @@ func (v *CiliumGenerator) Generate() error {
 
 // Generate writes the CNI conflist to the Generator's output stream
 func (v *SWIFTGenerator) Generate() error {
+	version := cniVersion(v.CNIVersion, azurecniVersion)
 	conflist := cniConflist{
-		CNIVersion: azurecniVersion,
+		CNIVersion: version,
 		Name:       azureName,
+		DisableGC:  disableGC(version),
 		Plugins: []any{
 			cni.NetworkConfig{
 				Type:              azureType,
@@ -163,9 +173,11 @@ func (v *SWIFTGenerator) Generate() error {
 }
 
 func (v *AzureCNIChainedCiliumGenerator) Generate() error {
+	version := cniVersion(v.CNIVersion, azurecniVersion)
 	conflist := cniConflist{
-		CNIVersion: azurecniVersion,
+		CNIVersion: version,
 		Name:       azureName,
+		DisableGC:  disableGC(version),
 		Plugins: []any{
 			cni.NetworkConfig{
 				Type:              azureType,

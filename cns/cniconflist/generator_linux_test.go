@@ -2,6 +2,7 @@ package cniconflist_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"testing"
 
@@ -30,6 +31,25 @@ func TestGenerateV4OverlayConflist(t *testing.T) {
 
 	// remove newlines and carriage returns in case these UTs are running on Windows
 	require.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
+}
+
+func TestGenerateV4OverlayConflistWithConfiguredCNIVersion(t *testing.T) {
+	buffer := new(bytes.Buffer)
+	g := cniconflist.V4OverlayGenerator{
+		Writer:     &bufferWriteCloser{buffer},
+		CNIVersion: "1.1.0",
+	}
+	err := g.Generate()
+	require.NoError(t, err)
+
+	var conflist struct {
+		CNIVersion string `json:"cniVersion"`
+		DisableGC  bool   `json:"disableGC"`
+	}
+	err = json.Unmarshal(buffer.Bytes(), &conflist)
+	require.NoError(t, err)
+	require.Equal(t, "1.1.0", conflist.CNIVersion)
+	require.True(t, conflist.DisableGC)
 }
 
 func TestGenerateDualStackOverlayConflist(t *testing.T) {

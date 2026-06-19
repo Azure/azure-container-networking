@@ -49,6 +49,7 @@ const (
 	// Supported IP version. Currently support only IPv4
 	ipamV6                = "azure-vnet-ipamv6"
 	defaultRequestTimeout = 15 * time.Second
+	statusRequestTimeout  = 2 * time.Second
 	ipv4FullMask          = 32
 	ipv6FullMask          = 128
 	ibInterfacePrefix     = "ib"
@@ -221,6 +222,37 @@ func (plugin *NetPlugin) GetAllEndpointState(networkid string) (*api.AzureCNISta
 	}
 
 	return &st, nil
+}
+
+// Status handles CNI STATUS by checking whether CNS can serve node networking.
+func (plugin *NetPlugin) Status(args *cniSkel.CmdArgs) error {
+	nwCfg, err := cni.ParseNetworkConfig(args.StdinData)
+	if err != nil {
+		return plugin.Errorf("failed to parse network configuration: %v", err)
+	}
+
+	if nwCfg.IPAM.Type != network.AzureCNS {
+		return nil
+	}
+
+	cnsClient, err := cnscli.New(nwCfg.CNSUrl, statusRequestTimeout)
+	if err != nil {
+		return cniTypes.NewError(cniTypes.ErrTryAgainLater, "cns not ready", err.Error())
+	}
+
+	ctx, cancel := context.WithTimeout(context.TODO(), statusRequestTimeout)
+	defer cancel()
+
+	if _, err := cnsClient.GetNetworkReadiness(ctx); err != nil {
+		return cniTypes.NewError(cniTypes.ErrTryAgainLater, "cns not ready", err.Error())
+	}
+
+	return nil
+}
+
+// GC handles CNI GC commands.
+func (plugin *NetPlugin) GC(args *cniSkel.CmdArgs) error {
+	return cniTypes.NewError(cniTypes.ErrUnsupportedField, "gc not supported", "")
 }
 
 // Stops the plugin.
@@ -696,7 +728,6 @@ func sortInfraNICFirst(epInfos []*network.EndpointInfo) {
 		return 0
 	})
 }
-
 
 func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 	switch opt.ifInfo.NICType {

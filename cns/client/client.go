@@ -27,6 +27,7 @@ const (
 var clientPaths = []string{
 	cns.GetNetworkContainerByOrchestratorContext,
 	cns.GetAllNetworkContainers,
+	cns.GetNetworkReadinessPath,
 	cns.CreateHostNCApipaEndpointPath,
 	cns.DeleteHostNCApipaEndpointPath,
 	cns.RequestIPConfig,
@@ -103,6 +104,45 @@ func buildRoutes(baseURL string, paths []string) (map[string]url.URL, error) {
 	}
 
 	return routes, nil
+}
+
+// GetNetworkReadiness gets CNS node network readiness.
+func (c *Client) GetNetworkReadiness(ctx context.Context) (*cns.NetworkReadinessResponse, error) {
+	u := c.routes[cns.GetNetworkReadinessPath]
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build request")
+	}
+
+	res, err := c.client.Do(req)
+	if err != nil {
+		return nil, &ConnectionFailureErr{cause: err}
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusServiceUnavailable {
+		return nil, &CNSClientError{
+			Code: types.UnexpectedError,
+			Err:  errors.Errorf("http response %d", res.StatusCode),
+		}
+	}
+
+	var resp cns.NetworkReadinessResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return nil, &CNSClientError{
+			Code: types.UnexpectedError,
+			Err:  err,
+		}
+	}
+
+	if resp.State != cns.NetworkReadinessStateReady || resp.Response.ReturnCode != types.Success {
+		return &resp, &CNSClientError{
+			Code: resp.Response.ReturnCode,
+			Err:  errors.New(resp.Response.Message),
+		}
+	}
+
+	return &resp, nil
 }
 
 // GetAllNetworkContainers Request to get network container configs.

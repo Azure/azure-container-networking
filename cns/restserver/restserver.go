@@ -102,6 +102,7 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
+	networkReadiness           networkReadiness
 }
 
 type CNIConflistGenerator interface {
@@ -117,6 +118,16 @@ func (*NoOpConflistGenerator) Generate() error {
 
 func (*NoOpConflistGenerator) Close() error {
 	return nil
+}
+
+type networkReadiness struct {
+	requiresNNC          bool
+	requiresNCProgrammed bool
+	requiresIPAMReady    bool
+	requiresCNIConflist  bool
+	ipamReady            bool
+	ncProgrammed         bool
+	cniConflistWritten   bool
 }
 
 type EndpointInfo struct {
@@ -232,6 +243,10 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 	if gen == nil {
 		gen = &NoOpConflistGenerator{}
 	}
+	requiresCNIConflist := true
+	if _, ok := gen.(*NoOpConflistGenerator); ok {
+		requiresCNIConflist = false
+	}
 
 	return &HTTPRestService{
 		Service:                  service,
@@ -252,6 +267,10 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		homeAzMonitor:            homeAzMonitor,
 		cniConflistGenerator:     gen,
 		imdsClient:               imdsClient,
+		networkReadiness: networkReadiness{
+			requiresCNIConflist: requiresCNIConflist,
+			cniConflistWritten:  !requiresCNIConflist,
+		},
 	}, nil
 }
 
@@ -269,6 +288,11 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 		logger.Errorf("[Azure CNS]  Failed to restore network state, err:%v.", err)
 		return err
 	}
+	service.configureNetworkReadiness(
+		config.ChannelMode == cns.CRD,
+		config.ChannelMode == cns.CRD,
+		config.ChannelMode == cns.CRD || config.ChannelMode == cns.AzureHost,
+	)
 
 	// Add handlers.
 	listener := service.Listener
@@ -303,6 +327,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.NetworkContainersURLPath, service.getOrRefreshNetworkContainers)
 	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.EndpointPath, service.EndpointHandlerAPI)
+	listener.AddHandler(cns.GetNetworkReadinessPath, service.getNetworkReadiness)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
 		listener.AddHandler(cns.GetVMUniqueID, service.getVMUniqueID)
@@ -393,6 +418,7 @@ func (service *HTTPRestService) MustGenerateCNIConflistOnce() {
 		if err := service.cniConflistGenerator.Close(); err != nil {
 			panic("unable to close the cni conflist output stream: " + err.Error())
 		}
+		service.setCNIConflistWritten()
 	})
 }
 

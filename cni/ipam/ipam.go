@@ -278,6 +278,16 @@ func (plugin *ipamPlugin) Get(args *cniSkel.CmdArgs) error {
 	return nil
 }
 
+// Status handles CNI STATUS commands.
+func (plugin *ipamPlugin) Status(args *cniSkel.CmdArgs) error {
+	return nil
+}
+
+// GC handles CNI GC commands.
+func (plugin *ipamPlugin) GC(args *cniSkel.CmdArgs) error {
+	return cniTypes.NewError(cniTypes.ErrUnsupportedField, "gc not supported", "")
+}
+
 // Delete handles CNI delete commands.
 func (plugin *ipamPlugin) Delete(args *cniSkel.CmdArgs) error {
 	var err error

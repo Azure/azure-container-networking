@@ -26,6 +26,7 @@ type cniConflist struct { //nolint:unused,deadcode // used in linux
 	CNIVersion   string `json:"cniVersion,omitempty"`
 	Name         string `json:"name,omitempty"`
 	DisableCheck bool   `json:"disableCheck,omitempty"`
+	DisableGC    bool   `json:"disableGC,omitempty"`
 	Plugins      []any  `json:"plugins,omitempty"`
 }
 
@@ -48,31 +49,49 @@ type IPAM struct {
 
 // V4OverlayGenerator generates the Azure CNI conflist for the ipv4 Overlay scenario
 type V4OverlayGenerator struct {
-	Writer io.WriteCloser
+	Writer     io.WriteCloser
+	CNIVersion string
 }
 
 // DualStackOverlayGenerator generates the Azure CNI conflist for the dualstack Overlay scenario
 type DualStackOverlayGenerator struct {
-	Writer io.WriteCloser
+	Writer     io.WriteCloser
+	CNIVersion string
 }
 
 // OverlayGenerator generates the Azure CNI conflist for all Overlay scenarios
 type OverlayGenerator struct {
-	Writer io.WriteCloser
+	Writer     io.WriteCloser
+	CNIVersion string
 }
 
 // CiliumGenerator generates the Azure CNI conflist for the Cilium scenario
 type CiliumGenerator struct {
-	Writer io.WriteCloser
+	Writer     io.WriteCloser
+	CNIVersion string
 }
 
 // SWIFTGenerator generates the Azure CNI conflist for the SWIFT scenario
 type SWIFTGenerator struct {
-	Writer io.WriteCloser
+	Writer     io.WriteCloser
+	CNIVersion string
 }
 
 type AzureCNIChainedCiliumGenerator struct {
-	Writer io.WriteCloser
+	Writer     io.WriteCloser
+	CNIVersion string
+}
+
+func cniVersion(configured string, defaultVersion string) string { //nolint:unused,deadcode // used in linux
+	if configured != "" {
+		return configured
+	}
+
+	return defaultVersion
+}
+
+func disableGC(cniVersion string) bool { //nolint:unused,deadcode // used in linux
+	return cniVersion == "1.1.0"
 }
 
 func (v *V4OverlayGenerator) Close() error {

@@ -106,7 +106,7 @@ func rootExecute() error {
 	// Check CNI_COMMAND value
 	cniCmd := os.Getenv(cni.Cmd)
 
-	if cniCmd != cni.CmdVersion {
+	if cniCmd != cni.CmdVersion && cniCmd != cni.CmdStatus && cniCmd != cni.CmdGC {
 		logger.Info("Environment variable set", zap.String("CNI_COMMAND", cniCmd))
 
 		cniReport.GetReport(pluginName, version, ipamQueryURL)
@@ -159,7 +159,9 @@ func rootExecute() error {
 	if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
 		return errors.Wrap(err, "Failed to execute network plugin")
 	}
-	netPlugin.Stop()
+	if cniCmd != cni.CmdStatus && cniCmd != cni.CmdGC {
+		netPlugin.Stop()
+	}
 
 	return errors.Wrap(err, "Execute netplugin failure")
 }

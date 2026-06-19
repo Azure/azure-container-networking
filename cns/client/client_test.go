@@ -195,6 +195,101 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
+func TestClientGetNetworkReadiness(t *testing.T) {
+	tests := []struct {
+		name        string
+		mock        *mockdo
+		wantState   cns.NetworkReadinessState
+		wantErr     bool
+		wantErrCode types.ResponseCode
+	}{
+		{
+			name: "ready",
+			mock: &mockdo{
+				httpStatusCodeToReturn: http.StatusOK,
+				objToReturn: cns.NetworkReadinessResponse{
+					Response: cns.Response{
+						ReturnCode: types.Success,
+					},
+					State:  cns.NetworkReadinessStateReady,
+					Reason: cns.NetworkReadinessReasonReady,
+				},
+			},
+			wantState: cns.NetworkReadinessStateReady,
+		},
+		{
+			name: "not ready",
+			mock: &mockdo{
+				httpStatusCodeToReturn: http.StatusServiceUnavailable,
+				objToReturn: cns.NetworkReadinessResponse{
+					Response: cns.Response{
+						ReturnCode: types.NetworkNotReady,
+						Message:    "nc not programmed",
+					},
+					State:  cns.NetworkReadinessStateNotReady,
+					Reason: cns.NetworkReadinessReasonNCNotProgrammed,
+				},
+			},
+			wantState:   cns.NetworkReadinessStateNotReady,
+			wantErr:     true,
+			wantErrCode: types.NetworkNotReady,
+		},
+		{
+			name: "unexpected status",
+			mock: &mockdo{
+				httpStatusCodeToReturn: http.StatusInternalServerError,
+				objToReturn:            cns.NetworkReadinessResponse{},
+			},
+			wantErr:     true,
+			wantErrCode: types.UnexpectedError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			routes, err := buildRoutes(defaultBaseURL, []string{cns.GetNetworkReadinessPath})
+			require.NoError(t, err)
+			client := &Client{
+				client: tt.mock,
+				routes: routes,
+			}
+
+			resp, err := client.GetNetworkReadiness(context.Background())
+			if tt.wantErr {
+				require.Error(t, err)
+
+				var clientErr *CNSClientError
+				require.True(t, errors.As(err, &clientErr))
+				require.Equal(t, tt.wantErrCode, clientErr.Code)
+				if resp != nil {
+					require.Equal(t, tt.wantState, resp.State)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.wantState, resp.State)
+		})
+	}
+}
+
+func TestClientGetNetworkReadinessConnectionFailure(t *testing.T) {
+	routes, err := buildRoutes(defaultBaseURL, []string{cns.GetNetworkReadinessPath})
+	require.NoError(t, err)
+	client := &Client{
+		client: &mockdo{
+			errToReturn: errors.New("connection refused"),
+		},
+		routes: routes,
+	}
+
+	_, err = client.GetNetworkReadiness(context.Background())
+	require.Error(t, err)
+
+	var connectionErr *ConnectionFailureErr
+	require.True(t, errors.As(err, &connectionErr))
+}
+
 func TestCNSClientRequestAndRelease(t *testing.T) {
 	podName := testpodname
 	podNamespace := testpodnamespace

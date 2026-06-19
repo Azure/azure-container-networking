@@ -619,17 +619,35 @@ func main() {
 
 		switch scenario := cniConflistScenario(scenarioString); scenario {
 		case scenarioV4Overlay:
-			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.V4OverlayGenerator{
+				Writer:     writer,
+				CNIVersion: cnsconfig.CNIConflistVersion,
+			}
 		case scenarioDualStackOverlay:
-			conflistGenerator = &cniconflist.DualStackOverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.DualStackOverlayGenerator{
+				Writer:     writer,
+				CNIVersion: cnsconfig.CNIConflistVersion,
+			}
 		case scenarioOverlay:
-			conflistGenerator = &cniconflist.OverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.OverlayGenerator{
+				Writer:     writer,
+				CNIVersion: cnsconfig.CNIConflistVersion,
+			}
 		case scenarioCilium:
-			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.CiliumGenerator{
+				Writer:     writer,
+				CNIVersion: cnsconfig.CNIConflistVersion,
+			}
 		case scenarioSWIFT:
-			conflistGenerator = &cniconflist.SWIFTGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.SWIFTGenerator{
+				Writer:     writer,
+				CNIVersion: cnsconfig.CNIConflistVersion,
+			}
 		case scenarioAzurecniChainedCilium:
-			conflistGenerator = &cniconflist.AzureCNIChainedCiliumGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.AzureCNIChainedCiliumGenerator{
+				Writer:     writer,
+				CNIVersion: cnsconfig.CNIConflistVersion,
+			}
 		default:
 			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
 			os.Exit(1)

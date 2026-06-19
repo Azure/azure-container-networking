@@ -26,6 +26,7 @@ const (
 	DeleteHnsNetworkPath          = "/network/hns/delete"
 	GetHostLocalIPPath            = "/network/ip/hostlocal"
 	GetHealthReportPath           = "/network/health"
+	GetNetworkReadinessPath       = "/network/readiness"
 	NumberOfCPUCoresPath          = "/hostcpucores"
 	CreateHostNCApipaEndpointPath = "/network/createhostncapipaendpoint"
 	DeleteHostNCApipaEndpointPath = "/network/deletehostncapipaendpoint"
@@ -309,6 +310,46 @@ type IpamPoolMonitorStateSnapshot struct {
 type Response struct {
 	ReturnCode types.ResponseCode `json:"ReturnCode"`
 	Message    string             `json:"Message"`
+}
+
+// NetworkReadinessState is the current node network readiness state reported by CNS.
+type NetworkReadinessState string
+
+const (
+	NetworkReadinessStateReady    NetworkReadinessState = "Ready"
+	NetworkReadinessStateNotReady NetworkReadinessState = "NotReady"
+)
+
+// NetworkReadinessReason explains why CNS reported a network readiness state.
+type NetworkReadinessReason string
+
+const (
+	NetworkReadinessReasonReady              NetworkReadinessReason = "Ready"
+	NetworkReadinessReasonNNCNotReceived     NetworkReadinessReason = "NNCNotReceived"
+	NetworkReadinessReasonNCNotProgrammed    NetworkReadinessReason = "NCNotProgrammed"
+	NetworkReadinessReasonIPAMNotReady       NetworkReadinessReason = "IPAMNotReady"
+	NetworkReadinessReasonConflistNotWritten NetworkReadinessReason = "ConflistNotWritten"
+)
+
+// NetworkReadinessDetails exposes the readiness gates used to compute network readiness.
+type NetworkReadinessDetails struct {
+	NNCReceived          bool `json:"nncReceived"`
+	NCProgrammed         bool `json:"ncProgrammed"`
+	IPAMReady            bool `json:"ipamReady"`
+	CNIConflistWritten   bool `json:"cniConflistWritten"`
+	RequiresNNC          bool `json:"requiresNNC"`
+	RequiresNCProgrammed bool `json:"requiresNCProgrammed"`
+	RequiresIPAMReady    bool `json:"requiresIPAMReady"`
+	RequiresCNIConflist  bool `json:"requiresCNIConflist"`
+}
+
+// NetworkReadinessResponse describes whether CNS considers node networking usable.
+type NetworkReadinessResponse struct {
+	Response Response                `json:"response"`
+	State    NetworkReadinessState   `json:"state"`
+	Reason   NetworkReadinessReason  `json:"reason"`
+	Message  string                  `json:"message,omitempty"`
+	Details  NetworkReadinessDetails `json:"details"`
 }
 
 // NumOfCPUCoresResponse describes num of cpu cores present on host.

@@ -1,8 +1,11 @@
 package network
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"runtime"
 	"strconv"
@@ -12,12 +15,14 @@ import (
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	acnnetwork "github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/nns"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
+	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -79,6 +84,82 @@ func GetTestResources() *NetPlugin {
 	plugin.nm = mockNetworkManager
 	plugin.ipamInvoker = NewMockIpamInvoker(isIPv6, false, false, false, false)
 	return plugin
+}
+
+func TestPluginStatus(t *testing.T) {
+	tests := []struct {
+		name        string
+		ipamType    string
+		statusCode  int
+		readiness   cns.NetworkReadinessResponse
+		wantErr     bool
+		wantErrCode uint
+	}{
+		{
+			name:       "ready",
+			ipamType:   acnnetwork.AzureCNS,
+			statusCode: http.StatusOK,
+			readiness: cns.NetworkReadinessResponse{
+				Response: cns.Response{
+					ReturnCode: types.Success,
+				},
+				State:  cns.NetworkReadinessStateReady,
+				Reason: cns.NetworkReadinessReasonReady,
+			},
+		},
+		{
+			name:       "not ready",
+			ipamType:   acnnetwork.AzureCNS,
+			statusCode: http.StatusServiceUnavailable,
+			readiness: cns.NetworkReadinessResponse{
+				Response: cns.Response{
+					ReturnCode: types.NetworkNotReady,
+					Message:    "nc not programmed",
+				},
+				State:  cns.NetworkReadinessStateNotReady,
+				Reason: cns.NetworkReadinessReasonNCNotProgrammed,
+			},
+			wantErr:     true,
+			wantErrCode: cniTypes.ErrTryAgainLater,
+		},
+		{
+			name:     "non cns ipam skips readiness check",
+			ipamType: "azure-vnet-ipam",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := nwCfg
+			cfg.IPAM.Type = tt.ipamType
+
+			if tt.ipamType == acnnetwork.AzureCNS {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(tt.statusCode)
+					if err := json.NewEncoder(w).Encode(tt.readiness); err != nil {
+						t.Fatalf("encoding readiness response: %v", err)
+					}
+				}))
+				t.Cleanup(server.Close)
+				cfg.CNSUrl = server.URL
+			}
+
+			statusArgs := &cniSkel.CmdArgs{
+				StdinData: cfg.Serialize(),
+			}
+			err := GetTestResources().Status(statusArgs)
+			if tt.wantErr {
+				require.Error(t, err)
+
+				var cniErr *cniTypes.Error
+				require.ErrorAs(t, err, &cniErr)
+				require.Equal(t, tt.wantErrCode, cniErr.Code)
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
 }
 
 // Happy path scenario for add and delete

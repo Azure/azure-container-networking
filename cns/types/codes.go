@@ -47,6 +47,7 @@ const (
 	ConnectionError                        ResponseCode = 45
 	UnexpectedError                        ResponseCode = 99
 	NmAgentNCVersionListError              ResponseCode = 100
+	NetworkNotReady                        ResponseCode = 101
 )
 
 // nolint:gocyclo
@@ -88,6 +89,8 @@ func (c ResponseCode) String() string {
 		return "NetworkContainerVfpProgramPending"
 	case NetworkJoinFailed:
 		return "NetworkJoinFailed"
+	case NetworkNotReady:
+		return "NetworkNotReady"
 	case NmAgentSupportedApisError:
 		return "NmAgentSupportedApisError"
 	case NotFound:

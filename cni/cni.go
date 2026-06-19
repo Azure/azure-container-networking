@@ -18,6 +18,10 @@ const (
 	CmdDel = "DEL"
 	// CmdUpdate - CNI UPDATE command.
 	CmdUpdate = "UPDATE"
+	// CmdGC - CNI GC command.
+	CmdGC = "GC"
+	// CmdStatus - CNI STATUS command.
+	CmdStatus = "STATUS"
 	// CmdVersion - CNI VERSION command.
 	CmdVersion = "VERSION"
 
@@ -32,7 +36,7 @@ const (
 )
 
 // Supported CNI versions.
-var supportedVersions = []string{"0.1.0", "0.2.0", "0.3.0", "0.3.1", "0.4.0", "1.0.0"}
+var supportedVersions = []string{"0.1.0", "0.2.0", "0.3.0", "0.3.1", "0.4.0", "1.0.0", "1.1.0"}
 
 // CNI contract.
 type PluginApi interface {
@@ -40,4 +44,6 @@ type PluginApi interface {
 	Get(args *cniSkel.CmdArgs) error
 	Delete(args *cniSkel.CmdArgs) error
 	Update(args *cniSkel.CmdArgs) error
+	GC(args *cniSkel.CmdArgs) error
+	Status(args *cniSkel.CmdArgs) error
 }
