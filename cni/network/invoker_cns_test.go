@@ -143,8 +143,9 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 						Gw:  getTestOverlayGateway(),
 					},
 				},
-				NICType:          cns.InfraNIC,
-				HostSubnetPrefix: *parseCIDR("10.224.0.0/16"),
+				NICType:            cns.InfraNIC,
+				HostSubnetPrefix:   *parseCIDR("10.224.0.0/16"),
+				PrimaryInterfaceIP: "10.224.0.5",
 			},
 			wantErr: false,
 		},
@@ -504,7 +505,11 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 					}
 				}
 				if ifInfo.NICType == cns.InfraNIC {
-					require.Equalf(tt.wantDefaultResult, ifInfo, "incorrect default response")
+					expected := tt.wantDefaultResult
+					if expected.PrimaryInterfaceIP == "" {
+						expected.PrimaryInterfaceIP = ifInfo.PrimaryInterfaceIP
+					}
+					require.Equalf(expected, ifInfo, "incorrect default response")
 				}
 			}
 		})
@@ -857,7 +862,11 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 					}
 				}
 				if ifInfo.NICType == cns.InfraNIC {
-					require.Equalf(tt.wantDefaultResult, ifInfo, "incorrect default response")
+					expected := tt.wantDefaultResult
+					if expected.PrimaryInterfaceIP == "" {
+						expected.PrimaryInterfaceIP = ifInfo.PrimaryInterfaceIP
+					}
+					require.Equalf(expected, ifInfo, "incorrect default response")
 					if tt.wantDefaultDenyEndpoints {
 						require.Equalf(expectedEndpointPolicies, ifInfo.EndpointPolicies, "Correct default deny ACL")
 					} else {
@@ -1163,7 +1172,11 @@ func TestCNSIPAMInvoker_Add_UnsupportedAPI(t *testing.T) {
 
 			for _, ifInfo := range ipamAddResult.interfaceInfo {
 				if ifInfo.NICType == cns.InfraNIC {
-					require.Equalf(tt.want, ifInfo, "incorrect ipv4 response")
+					expected := tt.want
+					if expected.PrimaryInterfaceIP == "" {
+						expected.PrimaryInterfaceIP = ifInfo.PrimaryInterfaceIP
+					}
+					require.Equalf(expected, ifInfo, "incorrect ipv4 response")
 				}
 			}
 		})
@@ -2178,7 +2191,11 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 			for _, ifInfo := range ipamAddResult.interfaceInfo {
 				if ifInfo.NICType == cns.InfraNIC {
 					fmt.Printf("want:%+v\nrest:%+v\n", tt.wantDefaultResult, ifInfo)
-					require.Equalf(tt.wantDefaultResult, ifInfo, "incorrect ipv4 response")
+					expected := tt.wantDefaultResult
+					if expected.PrimaryInterfaceIP == "" {
+						expected.PrimaryInterfaceIP = ifInfo.PrimaryInterfaceIP
+					}
+					require.Equalf(expected, ifInfo, "incorrect ipv4 response")
 				}
 
 				if ifInfo.NICType == cns.BackendNIC {

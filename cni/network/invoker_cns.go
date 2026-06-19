@@ -525,6 +525,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 			IPConfigs:         ipConfigs,
 			Routes:            resRoute,
 			HostSubnetPrefix:  *hostIPNet,
+			PrimaryInterfaceIP: info.hostPrimaryIP,
 			EndpointPolicies:  info.endpointPolicies,
 		}
 	}

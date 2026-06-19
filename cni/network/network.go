@@ -840,8 +840,10 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		AllowInboundFromHostToNC: opt.ifInfo.AllowHostToNCCommunication,
 		AllowInboundFromNCToHost: opt.ifInfo.AllowNCToHostCommunication,
 	}
-	if opt.ifInfo.NCResponse != nil {
+	if opt.ifInfo.NCResponse != nil && opt.ifInfo.NCResponse.PrimaryInterfaceIdentifier != "" {
 		endpointInfo.PrimaryInterfaceIP = opt.ifInfo.NCResponse.PrimaryInterfaceIdentifier
+	} else if opt.ifInfo.PrimaryInterfaceIP != "" {
+		endpointInfo.PrimaryInterfaceIP = opt.ifInfo.PrimaryInterfaceIP
 	}
 
 	if err = addSubnetToEndpointInfo(*opt.ifInfo, &endpointInfo); err != nil {
