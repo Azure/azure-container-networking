@@ -1,0 +1,79 @@
+# TEMPORARY: Test workflow for acn-notifier-bot integration
+# Delete this file before merging the PR
+name: Test Notifier Bot
+
+on:
+  push:
+    branches:
+      - behzadm/scheduled-release-workflow
+    paths:
+      - .github/workflows/test-notifier.yaml
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  NOTIFIER_URL: https://acn-notifier-bot.azurewebsites.net
+  NOTIFIER_AUDIENCE: api://3976eca5-3f9d-4528-987f-c20c1f9f27f7
+  TEAMS_TEAM_ID: 1eb27b57-8ace-4f0e-a9a9-e6db4e9829b7
+  TEAMS_CNI_CHANNEL_ID: "19:2b104ee19fdb450b807903eb7c79588a@thread.skype"
+  TEAMS_RELEASE_CHANNEL_ID: "19:ad6cb6596adf4850910e9be3e8a7f9ab@thread.skype"
+
+jobs:
+  test_notifier:
+    name: Test Teams Notification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login (OIDC)
+        uses: azure/login@2dd0bbf4064d5a1812889dc200bb8eed2597f82a  # v3
+        with:
+          client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
+          tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
+          subscription-id: 9b8218f9-902a-4d20-a65c-e98acec5362f
+
+      - name: Get token and send test notification
+        run: |
+          set -euo pipefail
+
+          TOKEN=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv)
+          echo "✅ Token acquired (length: ${#TOKEN})"
+
+          # Test 1: Send to CNI channel
+          echo "Sending test notification to CNI channel..."
+          RESPONSE=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg teamId "$TEAMS_TEAM_ID" \
+              --arg channelId "$TEAMS_CNI_CHANNEL_ID" \
+              --arg source "test-scheduled-release" \
+              --arg title "🧪 Test: Scheduled Release Notifier" \
+              --arg status "in_progress" \
+              --arg message "This is a test notification from the scheduled-release workflow (PR #4410). If you see this, the integration works! 🎉" \
+              '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')")
+
+          echo "Response: $RESPONSE"
+          MESSAGE_ID=$(echo "$RESPONSE" | jq -r '.messageId // empty')
+
+          if [[ -n "$MESSAGE_ID" ]]; then
+            echo "✅ Notification sent! messageId: $MESSAGE_ID"
+
+            # Test 2: Send a reply
+            echo "Sending reply..."
+            REPLY_RESPONSE=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications/reply" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n \
+                --arg teamId "$TEAMS_TEAM_ID" \
+                --arg channelId "$TEAMS_CNI_CHANNEL_ID" \
+                --arg messageId "$MESSAGE_ID" \
+                --arg message "📋 This is a threaded reply test. R2D drafts and follow-up messages will appear here." \
+                '{teamId: $teamId, channelId: $channelId, messageId: $messageId, message: $message}')")
+
+            echo "Reply response: $REPLY_RESPONSE"
+            echo "✅ Reply sent!"
+          else
+            echo "❌ No messageId in response"
+            exit 1
+          fi
