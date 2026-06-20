@@ -16,8 +16,10 @@ func (m *MultitenantPodNetworkConfig) IsDeleting() bool {
 	return !m.DeletionTimestamp.IsZero()
 }
 
-// IsScheduledWithDRA reports whether the pod has any ResourceClaims allocated
-// (i.e. was scheduled with Dynamic Resource Allocation).
+// IsScheduledWithDRA reports whether the pod was scheduled with Dynamic
+// Resource Allocation for the multitenancy DRA driver. ResourceClaims is
+// populated by the MTPNC writer with only the claims created for the
+// multitenancy DRA driver, so a non-empty slice means DRA scheduling.
 func (m *MultitenantPodNetworkConfig) IsScheduledWithDRA() bool {
 	return len(m.Spec.ResourceClaims) > 0
 }

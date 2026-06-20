@@ -66,8 +66,8 @@ spec:
                 type: array
               networkID:
                 description: |-
-                  NetworkID is the identifier of the network (e.g. VNet GUID) this pod belongs to.
-                  Denormalized copy of PodNetwork.Spec.NetworkID, populated by the MTPNC writer.
+                  NetworkID identifies the network (e.g. VNet GUID) this pod belongs to.
+                  Denormalized from PodNetwork.Spec.NetworkID.
                 type: string
               podName:
                 description: name of the requesting cx pod
@@ -83,8 +83,8 @@ spec:
                 type: string
               resourceClaims:
                 description: |-
-                  ResourceClaims is the list of ResourceClaims created for the driver
-                  networking.azure.com and allocated to the pod.
+                  ResourceClaims lists the names of ResourceClaims allocated to the pod that
+                  were created for the multitenancy DRA driver.
                 items:
                   type: string
                 type: array
@@ -92,13 +92,12 @@ spec:
               subnetGUID:
                 description: |-
                   SubnetGUID is the GUID of the subnet this pod belongs to.
-                  Denormalized copy of PodNetwork.Spec.SubnetGUID, populated by the MTPNC writer.
+                  Denormalized from PodNetwork.Spec.SubnetGUID.
                 type: string
-              subnetName:
+              subnetResourceID:
                 description: |-
-                  SubnetName is the short subnet name (the trailing segment of PodNetwork.Spec.SubnetResourceID,
-                  e.g. "pod-subnet"). Provided for human-readable identification and debuggability; the
-                  authoritative identifier is SubnetGUID.
+                  SubnetResourceID is the ARM resource ID of the subnet this pod belongs to.
+                  Denormalized from PodNetwork.Spec.SubnetResourceID.
                 type: string
             required:
             - podNetwork

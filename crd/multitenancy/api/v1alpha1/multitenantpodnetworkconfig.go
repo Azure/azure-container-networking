@@ -52,21 +52,20 @@ type MultitenantPodNetworkConfigSpec struct {
 	IBMACAddresses []string `json:"IBMACAddresses,omitempty"`
 	// PodUID is the UID of the pod
 	PodUID types.UID `json:"podUID,omitempty"`
-	// NetworkID is the identifier of the network (e.g. VNet GUID) this pod belongs to.
-	// Denormalized copy of PodNetwork.Spec.NetworkID, populated by the MTPNC writer.
+	// NetworkID identifies the network (e.g. VNet GUID) this pod belongs to.
+	// Denormalized from PodNetwork.Spec.NetworkID.
 	// +kubebuilder:validation:Optional
 	NetworkID string `json:"networkID,omitempty"`
 	// SubnetGUID is the GUID of the subnet this pod belongs to.
-	// Denormalized copy of PodNetwork.Spec.SubnetGUID, populated by the MTPNC writer.
+	// Denormalized from PodNetwork.Spec.SubnetGUID.
 	// +kubebuilder:validation:Optional
 	SubnetGUID string `json:"subnetGUID,omitempty"`
-	// SubnetName is the short subnet name (the trailing segment of PodNetwork.Spec.SubnetResourceID,
-	// e.g. "pod-subnet"). Provided for human-readable identification and debuggability; the
-	// authoritative identifier is SubnetGUID.
+	// SubnetResourceID is the ARM resource ID of the subnet this pod belongs to.
+	// Denormalized from PodNetwork.Spec.SubnetResourceID.
 	// +kubebuilder:validation:Optional
-	SubnetName string `json:"subnetName,omitempty"`
-	// ResourceClaims is the list of ResourceClaims created for the driver
-	// networking.azure.com and allocated to the pod.
+	SubnetResourceID string `json:"subnetResourceID,omitempty"`
+	// ResourceClaims lists the names of ResourceClaims allocated to the pod that
+	// were created for the multitenancy DRA driver.
 	// +kubebuilder:validation:Optional
 	// +listType=set
 	ResourceClaims []string `json:"resourceClaims,omitempty"`
