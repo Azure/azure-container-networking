@@ -64,6 +64,17 @@ type CNSConfig struct {
 	GRPCSettings                    GRPCSettings
 	MinTLSVersion                   string
 	MtlsClientCertSubjectName       string
+	WindowsCNIConflistSettings      WindowsCNIConflistSettings
+}
+
+type WindowsCNIConflistSettings struct {
+	DNSServiceIP                string
+	ClusterCIDRs                []string
+	ServiceCIDRs                []string
+	VNetCIDRs                   []string
+	HNSTimeoutDurationInSeconds int
+	DisableOutboundNAT          bool
+	EnableLoopbackDSR           bool
 }
 
 type TelemetrySettings struct {

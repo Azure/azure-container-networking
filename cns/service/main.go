@@ -600,6 +600,15 @@ func main() {
 	_, envEnableConflistGeneration := os.LookupEnv(envVarEnableCNIConflistGeneration)
 	var conflistGenerator restserver.CNIConflistGenerator
 	if cnsconfig.EnableCNIConflistGeneration || envEnableConflistGeneration {
+		windowsConflistSettings := cniconflist.WindowsSettings{
+			DNSServiceIP:                cnsconfig.WindowsCNIConflistSettings.DNSServiceIP,
+			ClusterCIDRs:                cnsconfig.WindowsCNIConflistSettings.ClusterCIDRs,
+			ServiceCIDRs:                cnsconfig.WindowsCNIConflistSettings.ServiceCIDRs,
+			VNetCIDRs:                   cnsconfig.WindowsCNIConflistSettings.VNetCIDRs,
+			HNSTimeoutDurationInSeconds: cnsconfig.WindowsCNIConflistSettings.HNSTimeoutDurationInSeconds,
+			DisableOutboundNAT:          cnsconfig.WindowsCNIConflistSettings.DisableOutboundNAT,
+			EnableLoopbackDSR:           cnsconfig.WindowsCNIConflistSettings.EnableLoopbackDSR,
+		}
 		conflistFilepath := cnsconfig.CNIConflistFilepath
 		if cniConflistFilepathArg != "" {
 			// allow the filepath to get overidden by command line arg
@@ -619,17 +628,35 @@ func main() {
 
 		switch scenario := cniConflistScenario(scenarioString); scenario {
 		case scenarioV4Overlay:
-			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.V4OverlayGenerator{
+				Writer:          writer,
+				WindowsSettings: windowsConflistSettings,
+			}
 		case scenarioDualStackOverlay:
-			conflistGenerator = &cniconflist.DualStackOverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.DualStackOverlayGenerator{
+				Writer:          writer,
+				WindowsSettings: windowsConflistSettings,
+			}
 		case scenarioOverlay:
-			conflistGenerator = &cniconflist.OverlayGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.OverlayGenerator{
+				Writer:          writer,
+				WindowsSettings: windowsConflistSettings,
+			}
 		case scenarioCilium:
-			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.CiliumGenerator{
+				Writer:          writer,
+				WindowsSettings: windowsConflistSettings,
+			}
 		case scenarioSWIFT:
-			conflistGenerator = &cniconflist.SWIFTGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.SWIFTGenerator{
+				Writer:          writer,
+				WindowsSettings: windowsConflistSettings,
+			}
 		case scenarioAzurecniChainedCilium:
-			conflistGenerator = &cniconflist.AzureCNIChainedCiliumGenerator{Writer: writer}
+			conflistGenerator = &cniconflist.AzureCNIChainedCiliumGenerator{
+				Writer:          writer,
+				WindowsSettings: windowsConflistSettings,
+			}
 		default:
 			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
 			os.Exit(1)

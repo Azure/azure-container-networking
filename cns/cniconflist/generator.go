@@ -25,6 +25,7 @@ const (
 type cniConflist struct { //nolint:unused,deadcode // used in linux
 	CNIVersion   string `json:"cniVersion,omitempty"`
 	Name         string `json:"name,omitempty"`
+	AdapterName  string `json:"adapterName,omitempty"`
 	DisableCheck bool   `json:"disableCheck,omitempty"`
 	Plugins      []any  `json:"plugins,omitempty"`
 }
@@ -46,33 +47,49 @@ type IPAM struct {
 	Type string `json:"type,omitempty"`
 }
 
+type WindowsSettings struct {
+	DNSServiceIP                string
+	ClusterCIDRs                []string
+	ServiceCIDRs                []string
+	VNetCIDRs                   []string
+	HNSTimeoutDurationInSeconds int
+	DisableOutboundNAT          bool
+	EnableLoopbackDSR           bool
+}
+
 // V4OverlayGenerator generates the Azure CNI conflist for the ipv4 Overlay scenario
 type V4OverlayGenerator struct {
-	Writer io.WriteCloser
+	Writer          io.WriteCloser
+	WindowsSettings WindowsSettings
 }
 
 // DualStackOverlayGenerator generates the Azure CNI conflist for the dualstack Overlay scenario
 type DualStackOverlayGenerator struct {
-	Writer io.WriteCloser
+	Writer          io.WriteCloser
+	WindowsSettings WindowsSettings
 }
 
 // OverlayGenerator generates the Azure CNI conflist for all Overlay scenarios
 type OverlayGenerator struct {
-	Writer io.WriteCloser
+	Writer          io.WriteCloser
+	WindowsSettings WindowsSettings
 }
 
 // CiliumGenerator generates the Azure CNI conflist for the Cilium scenario
 type CiliumGenerator struct {
-	Writer io.WriteCloser
+	Writer          io.WriteCloser
+	WindowsSettings WindowsSettings
 }
 
 // SWIFTGenerator generates the Azure CNI conflist for the SWIFT scenario
 type SWIFTGenerator struct {
-	Writer io.WriteCloser
+	Writer          io.WriteCloser
+	WindowsSettings WindowsSettings
 }
 
 type AzureCNIChainedCiliumGenerator struct {
-	Writer io.WriteCloser
+	Writer          io.WriteCloser
+	WindowsSettings WindowsSettings
 }
 
 func (v *V4OverlayGenerator) Close() error {
