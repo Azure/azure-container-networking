@@ -1,6 +1,7 @@
 package version
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
@@ -223,9 +224,11 @@ func parseSemver(version string) ([3]int, error) {
 
 func runCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
-	out, err := cmd.CombinedOutput()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return out, fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		return out, fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
 	}
 
 	return out, nil

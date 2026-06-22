@@ -294,6 +294,7 @@ func newWaitPRsCommand() *cobra.Command {
 		branch       string
 		issueNumber  int
 		pollInterval time.Duration
+		maxWait      time.Duration
 	)
 
 	cmd := &cobra.Command{
@@ -319,6 +320,7 @@ func newWaitPRsCommand() *cobra.Command {
 				Branch:       branch,
 				IssueNumber:  issueNumber,
 				PollInterval: pollInterval,
+				MaxWait:      maxWait,
 			}, os.Stderr)
 			if err != nil {
 				return err
@@ -332,6 +334,7 @@ func newWaitPRsCommand() *cobra.Command {
 	cmd.Flags().StringVar(&branch, "branch", "", "Base branch")
 	cmd.Flags().IntVar(&issueNumber, "issue-number", 0, "Tracking issue number")
 	cmd.Flags().DurationVar(&pollInterval, "poll-interval", 5*time.Minute, "Polling interval")
+	cmd.Flags().DurationVar(&maxWait, "max-wait", 4*time.Hour, "Maximum wait time (0 = no limit)")
 	mustMarkFlagRequired(cmd, "branch", "issue-number")
 
 	return cmd

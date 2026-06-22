@@ -79,6 +79,11 @@ func (c *Client) Run(ctx context.Context, opts RunOptions, progress io.Writer) (
 			defer cancel()
 
 			if err := c.waitForCompletion(pollCtx, opts, runID, progress); err != nil {
+				// Cancel the ADO run before retrying to avoid orphaned parallel runs
+				fmt.Fprintf(progress, "cancelling run %d before retry...\n", runID)
+				if cancelErr := c.cancelRun(ctx, opts, runID); cancelErr != nil {
+					fmt.Fprintf(progress, "warning: failed to cancel run %d: %v\n", runID, cancelErr)
+				}
 				return err
 			}
 
@@ -187,6 +192,19 @@ func (c *Client) buildStatus(ctx context.Context, opts RunOptions, runID int) (b
 	}
 
 	return resp, nil
+}
+
+func (c *Client) cancelRun(ctx context.Context, opts RunOptions, runID int) error {
+	payload := []byte(`{"status":"cancelling"}`)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, buildStatusURL(opts, runID), bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", basicAuthPAT(opts.PAT))
+	req.Header.Set("Content-Type", "application/json")
+
+	_, err = c.do(req)
+	return err
 }
 
 func (c *Client) do(req *http.Request) ([]byte, error) {

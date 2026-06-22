@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -48,6 +49,7 @@ type WaitOptions struct {
 	Branch       string
 	IssueNumber  int
 	PollInterval time.Duration
+	MaxWait      time.Duration // 0 means no internal timeout (relies on job-level timeout)
 }
 
 type WaitResult struct {
@@ -112,6 +114,13 @@ func (c *Client) CollectPRs(ctx context.Context, repo, branch string) (CollectRe
 func (c *Client) WaitPRs(ctx context.Context, opts WaitOptions, progress io.Writer) (WaitResult, error) {
 	if progress == nil {
 		progress = io.Discard
+	}
+
+	// Apply internal timeout if configured
+	if opts.MaxWait > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, opts.MaxWait)
+		defer cancel()
 	}
 
 	skipped := map[int]struct{}{}
@@ -445,9 +454,11 @@ func sleepContext(ctx context.Context, delay time.Duration) error {
 
 func runCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
-	out, err := cmd.CombinedOutput()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		return out, fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		return out, fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
 	}
 
 	return out, nil

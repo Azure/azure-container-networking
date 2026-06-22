@@ -1,8 +1,8 @@
-# Automated 3-Week Release Orchestrator for ACN
+# Automated Monthly Release Orchestrator for ACN
 # Handles: dependabot PR collection, vuln checks, tag creation, pipeline validation,
 # release channel posting, and R2D draft preparation.
 #
-# Trigger: Every 3rd Friday at 14:00 UTC + manual dispatch
+# Trigger: First Friday of every month at 14:00 UTC + manual dispatch
 #
 # ─── Teams Notification Dependency ───────────────────────────────────────────
 # Teams messages are sent via the acn-notifier-bot Azure Function App,
@@ -18,7 +18,7 @@ name: Scheduled Release
 
 on:
   schedule:
-    # Every Friday at 14:00 UTC — workflow checks if it's a 3-week cycle
+    # First Friday of every month at 14:00 UTC
     - cron: "0 14 * * 5"
   workflow_dispatch:
     inputs:
@@ -65,10 +65,10 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
-  # Gate: Check if this is a 3-week cycle (for cron trigger only)
+  # Gate: Check if this is a monthly release cycle (for cron trigger only)
   # ─────────────────────────────────────────────────────────────────────────────
   check_cadence:
-    name: Check 3-Week Cadence
+    name: Check Monthly Cadence
     runs-on: ubuntu-latest
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
@@ -80,17 +80,14 @@ jobs:
             echo "should_run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Calculate week number since epoch, check divisibility by 3
-          # Epoch anchor: 2024-01-05 (a Friday) = week 0
-          EPOCH_FRIDAY=1704412800  # 2024-01-05 00:00:00 UTC
-          NOW=$(date +%s)
-          WEEKS_SINCE=$(( (NOW - EPOCH_FRIDAY) / 604800 ))
-          if (( WEEKS_SINCE % 3 == 0 )); then
+          # Check if today is the first Friday of the month (day <= 7)
+          DAY_OF_MONTH=$(date +%d)
+          if (( DAY_OF_MONTH <= 7 )); then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "Release week detected (week $WEEKS_SINCE since anchor)"
+            echo "First Friday of the month (day $DAY_OF_MONTH) — release week"
           else
             echo "should_run=false" >> "$GITHUB_OUTPUT"
-            echo "Not a release week (week $WEEKS_SINCE since anchor). Skipping."
+            echo "Not the first Friday (day $DAY_OF_MONTH). Skipping."
           fi
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -608,7 +605,7 @@ jobs:
             done
 
             if [[ -n "$CREATED" ]]; then
-              MSG="📦 <b>Binary releases created (3-week cycle):</b><br><br>$(echo -e "$CREATED")<br>These tags were auto-created because changes were detected since the previous release."
+              MSG="📦 <b>Binary releases created (monthly release cycle):</b><br><br>$(echo -e "$CREATED")<br>These tags were auto-created because changes were detected since the previous release."
               /tmp/release-cli notify \
                 --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
                 --title "Binary Release Summary: ${RELEASE_BRANCH}" \
@@ -680,7 +677,7 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          REASON="Scheduled 3-week release. Dependabot PRs merged: ${MERGED_COUNT}. CVEs patched: ${VULN_COUNT}."
+          REASON="Scheduled monthly release. Dependabot PRs merged: ${MERGED_COUNT}. CVEs patched: ${VULN_COUNT}."
 
           if [[ "$DRY_RUN" == "true" ]]; then
             echo "🏜️ DRY RUN: Would dispatch create-release-tag for $NEW_TAG on $TARGET_SHA"
