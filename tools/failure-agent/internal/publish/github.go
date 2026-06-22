@@ -75,6 +75,45 @@ type ghComment struct {
 	Body string `json:"body"`
 }
 
+// PullRequest is the subset of a GitHub pull request the agent uses to sync an
+// incident's lifecycle. State and Merged are authoritative from GitHub.
+type PullRequest struct {
+	Number int    `json:"number"`
+	State  string `json:"state"` // "open" or "closed"
+	Merged bool   `json:"merged"`
+	URL    string `json:"html_url"`
+}
+
+// FetchPullRequest reads the authoritative pull request state from GitHub. It is
+// independent of the comment upsert path.
+func (g *GitHubCommentStore) FetchPullRequest(ctx context.Context) (PullRequest, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/pulls/%d", g.baseURL, g.owner, g.repo, g.prNumber)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return PullRequest{}, err
+	}
+	g.setHeaders(req)
+
+	resp, err := g.httpClient.Do(req)
+	if err != nil {
+		return PullRequest{}, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return PullRequest{}, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return PullRequest{}, fmt.Errorf("github api %s: %s", resp.Status, strings.TrimSpace(string(data)))
+	}
+	var pr PullRequest
+	if err := json.Unmarshal(data, &pr); err != nil {
+		return PullRequest{}, fmt.Errorf("decoding pull request: %w", err)
+	}
+	return pr, nil
+}
+
 // List returns all issue comments on the pull request, following pagination.
 func (g *GitHubCommentStore) List(ctx context.Context) ([]Comment, error) {
 	var out []Comment
