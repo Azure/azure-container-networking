@@ -213,10 +213,10 @@ ACN uses **floating minor version tags** for the Go build image (`build/images.m
 build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
     │
     ├── ROOT MODULE (update FIRST):
-    │   └── → go.mod (go 1.XX.Y)                       ← ROOT go.mod — CRITICAL, never skip
+    │   └── → go.mod (go 1.XY.Z)                       ← must match (use .1+ not .0)
     │
     ├── BUILD ENVIRONMENT:
-    │   ├── → tools-go/go.mod (go 1.XX.Y)              ← must match root (moved from tools.go.mod for Go 1.26)
+    │   ├── → tools-go/go.mod (go 1.XY.Z)              ← must match root
     │   ├── → .devcontainer/Dockerfile (VARIANT="1.XX") ← dev container version
     │   ├── → .pipelines/build/scripts/install-go.sh (DEFAULT_IMAGE SHA)
     │   ├── → bpf-prog/ipv6-hp-bpf/linux.Dockerfile (Go image SHA)
@@ -408,9 +408,14 @@ After making all changes:
    ```bash
    head -5 go.mod  # MUST show "go 1.XX.Y" — if still old version, the upgrade is INCOMPLETE
    ```
-2. `go build ./...` — Verify compilation succeeds
+2. `go build ./...` — Verify compilation succeeds (all binaries)
 3. `go vet ./...` — Check for deprecated API usage
-4. **`make dockerfiles`** — Regenerate ALL template-based Dockerfiles. This resolves:
+4. `docker build` (spot-check) — Verify at least one container image builds:
+   ```bash
+   # Quick validation that Dockerfiles + GOEXPERIMENT produce working images
+   docker build -f cni/Dockerfile -t acn-cni-test --build-arg VERSION=test .
+   ```
+5. **`make dockerfiles`** — Regenerate ALL template-based Dockerfiles. This resolves:
    - `{{.GO_PIN}}` → current Go image SHA
    - `{{.MARINER_CORE_PIN}}` → current azurelinux/base/core SHA
    - `{{.MARINER_DISTROLESS_PIN}}` → current azurelinux/distroless/base SHA
@@ -542,6 +547,13 @@ done
 | ipv6-hp-bpf | 0 | linux | static binary | BPF health probe |
 | cilium-log-collector | 1 | linux | c-shared (.so) | Fluent Bit plugin, requires CGO |
 
+
+### AKS Release Train Awareness
+
+When upgrading Go, verify compatibility with AKS supported Kubernetes versions:
+- Reference: https://learn.microsoft.com/en-us/azure/aks/supported-kubernetes-versions
+- Ensure controller-runtime and client-go versions support the target Go version
+- Cross-reference with release branches (`release/v1.7`, etc.) that map to AKS release trains
 ### Important Notes
 
 - **ALWAYS use `1.XX.1` in go.mod** — NOT the latest patch. The container image provides the actual binary version.
