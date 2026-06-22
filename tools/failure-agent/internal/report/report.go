@@ -54,9 +54,11 @@ func Build(now time.Time, rc model.RunContext, fp model.Fingerprint, c model.Cla
 		TopEvidence:          c.TopEvidence,
 		SignatureMatches:     matches,
 		EvidenceFiles:        ev.Files,
+		ErrorSnippets:        ev.ErrorSnippets,
 		RetentionDecision:    retention,
 		RecommendedAction:    policy.RecommendedAction(c.Category, matches, retention),
 		ProposedFix:          c.ProposedFix,
+		AnalysisStatus:       model.StatusAnalyzed,
 		ClassificationSource: c.Source,
 	}
 }
@@ -74,6 +76,13 @@ func RenderMarkdown(inc model.Incident) string {
 
 	fmt.Fprintf(&b, "%s\n", CommentMarker(inc.Fingerprint))
 	b.WriteString("## ACN Pipeline Failure Analysis\n\n")
+	if inc.AnalysisStatus == model.StatusAnalysisFailed {
+		b.WriteString("> ⚠️ **Automated analysis failed.** The evidence below was collected but the AI classifier could not produce a result. Human triage is required.\n")
+		if inc.AnalysisError != "" {
+			fmt.Fprintf(&b, ">\n> _Reason: %s_\n", strings.ReplaceAll(inc.AnalysisError, "\n", " "))
+		}
+		b.WriteString("\n")
+	}
 	fmt.Fprintf(&b, "**Category:** `%s`  |  **Confidence:** %s (%.2f)  |  **Fingerprint:** `%s`\n\n",
 		inc.Category, inc.ConfidenceBand, inc.Confidence, inc.Fingerprint)
 
@@ -101,6 +110,16 @@ func RenderMarkdown(inc model.Incident) string {
 			fmt.Fprintf(&b, "- `%s`\n", strings.ReplaceAll(e, "`", "'"))
 		}
 		b.WriteString("\n")
+	}
+
+	if len(inc.ErrorSnippets) > 0 {
+		b.WriteString("### Evidence snippets\n\n")
+		for _, sn := range inc.ErrorSnippets {
+			fmt.Fprintf(&b, "**%s:%d**\n\n", sn.File, sn.Line)
+			b.WriteString("```text\n")
+			b.WriteString(sn.Snippet)
+			b.WriteString("\n```\n\n")
+		}
 	}
 
 	if len(inc.SignatureMatches) > 0 {

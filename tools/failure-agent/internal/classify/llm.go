@@ -46,8 +46,8 @@ func NewLLMClassifier(client ChatCompleter) *LLMClassifier {
 
 // Classify asks the model to categorize the failure and validates the result.
 // A malformed or out-of-contract response is an error so the caller can fail.
-func (c *LLMClassifier) Classify(ctx context.Context, rc model.RunContext, ev model.Evidence, fp model.Fingerprint, matches []model.SignatureMatch) (model.Classification, error) {
-	raw, err := c.client.Complete(ctx, systemPrompt(), userPrompt(rc, ev, fp, matches), classificationSchema())
+func (c *LLMClassifier) Classify(ctx context.Context, rc model.RunContext, ev model.Evidence, fp model.Fingerprint, matches []model.SignatureMatch, prior PriorContext) (model.Classification, error) {
+	raw, err := c.client.Complete(ctx, systemPrompt(), userPrompt(rc, ev, fp, matches, prior), classificationSchema())
 	if err != nil {
 		return model.Classification{}, fmt.Errorf("llm completion: %w", err)
 	}
@@ -128,10 +128,11 @@ func systemPrompt() string {
 		"Categories: pr_regression (the change under test broke it), cluster_bringup_failure (provisioning/readiness), " +
 		"pipeline_infra_config (agent/quota/credentials/connectivity, not product code), known_flake (recognized intermittent), " +
 		"unknown_needs_human (cannot determine). Treat the deterministic signature pre-matches as strong hints, not ground truth. " +
+		"When prior validated resolutions are provided and clearly match the evidence, prefer them; treat in-flight (unvalidated) incidents as context only. " +
 		"Base your answer only on the provided evidence and respond strictly in the required JSON schema."
 }
 
-func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, matches []model.SignatureMatch) string {
+func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, matches []model.SignatureMatch, prior PriorContext) string {
 	var b strings.Builder
 
 	b.WriteString("## Scenario\n")
@@ -148,6 +149,8 @@ func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, ma
 		}
 	}
 	fmt.Fprintf(&b, "Fingerprint: %s\n\n", fp.Hash)
+
+	writePriorContext(&b, prior)
 
 	if len(matches) > 0 {
 		b.WriteString("## Candidate known signatures (deterministic pre-match)\n")

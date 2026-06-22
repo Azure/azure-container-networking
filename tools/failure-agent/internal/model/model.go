@@ -33,6 +33,17 @@ const (
 	BandLow ConfidenceBand = "low"
 )
 
+// AnalysisStatus records whether LLM analysis produced a classification.
+type AnalysisStatus string
+
+const (
+	// StatusAnalyzed means the LLM returned a valid classification.
+	StatusAnalyzed AnalysisStatus = "analyzed"
+	// StatusAnalysisFailed means the LLM call or its response could not be
+	// used; the incident still carries raw evidence for human triage.
+	StatusAnalysisFailed AnalysisStatus = "analysis_failed"
+)
+
 // RetentionDecision is the agent's recommendation about the failed cluster.
 // It is advisory only; the agent never changes teardown behavior.
 type RetentionDecision string
@@ -77,7 +88,15 @@ type Evidence struct {
 	Root          string            `json:"root"`
 	Files         []string          `json:"files"`
 	TopErrorLines []string          `json:"topErrorLines"`
+	ErrorSnippets []ErrorSnippet    `json:"errorSnippets,omitempty"`
 	Excerpts      map[string]string `json:"-"`
+}
+
+// ErrorSnippet captures context around a matched failure line.
+type ErrorSnippet struct {
+	File    string `json:"file"`
+	Line    int    `json:"line"`
+	Snippet string `json:"snippet"`
 }
 
 // Fingerprint is a stable identifier for a class of failure, used for
@@ -98,8 +117,7 @@ type SignatureMatch struct {
 	MatchedOn      string          `json:"matchedOn"`
 }
 
-// Classification is the root-cause assessment. In --dry-run it is derived
-// deterministically from signatures; otherwise it is produced by the LLM.
+// Classification is the LLM-produced root-cause assessment.
 type Classification struct {
 	Category         FailureCategory `json:"category"`
 	Confidence       float64         `json:"confidence"`
@@ -107,7 +125,7 @@ type Classification struct {
 	TopEvidence      []string        `json:"topEvidence"`
 	RecommendedOwner string          `json:"recommendedOwner,omitempty"`
 	ProposedFix      string          `json:"proposedFix,omitempty"`
-	Source           string          `json:"source"` // "deterministic" or "llm"
+	Source           string          `json:"source"` // "llm" or "none" when analysis failed
 }
 
 // Incident is the full structured result written to incident.json.
@@ -141,10 +159,13 @@ type Incident struct {
 	TopEvidence      []string         `json:"topEvidence"`
 	SignatureMatches []SignatureMatch `json:"signatureMatches"`
 	EvidenceFiles    []string         `json:"evidenceFiles"`
+	ErrorSnippets    []ErrorSnippet   `json:"errorSnippets,omitempty"`
 
 	RetentionDecision RetentionDecision `json:"retentionDecision"`
 	RecommendedAction string            `json:"recommendedAction"`
 	ProposedFix       string            `json:"proposedFix,omitempty"`
 
-	ClassificationSource string `json:"classificationSource"`
+	AnalysisStatus       AnalysisStatus `json:"analysisStatus"`
+	AnalysisError        string         `json:"analysisError,omitempty"`
+	ClassificationSource string         `json:"classificationSource"`
 }
