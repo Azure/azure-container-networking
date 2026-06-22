@@ -313,11 +313,12 @@ jobs:
         if: ${{ inputs.skip_dependabot_wait != true }}
         env:
           GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.create_issue.outputs.issue_number }}
         run: |
           set -euo pipefail
           RESULT=$(/tmp/release-cli wait-prs \
             --branch "$RELEASE_BRANCH" \
-            --issue-number "${{ steps.create_issue.outputs.issue_number }}" \
+            --issue-number "$ISSUE_NUMBER" \
             --poll-interval 5m)
           echo "merged_count=$(echo "$RESULT" | jq -r '.merged_count')" >> "$GITHUB_OUTPUT"
           echo "skipped_prs=$(echo "$RESULT" | jq -r '.skipped_prs')" >> "$GITHUB_OUTPUT"
