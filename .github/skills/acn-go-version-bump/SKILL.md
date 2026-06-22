@@ -265,6 +265,10 @@ build/images.mk (GO_IMG=golang:1.XX-azurelinux3.0)     ← primary image tag
    Also update the `skopeo inspect` comment above it to reference the new tag.
 8. **`bpf-prog/ipv6-hp-bpf/linux.Dockerfile`** — Update Go image SHA (use same digest from step 7)
 9. **`npm/linux.Dockerfile`** and **`npm/windows.Dockerfile`** — Update Go tag
+   - ⚠️ npm Dockerfiles use **plain patch tag** (e.g., `golang:1.26.4`), NOT the `-azurelinux3.0` suffixed tag
+   - The npm builder uses Ubuntu as runtime base, not Azure Linux
+   - `npm/windows.Dockerfile` builds on a **Linux builder** (`--platform=linux/amd64`) cross-compiling with `GOOS=windows` — it still needs `GOEXPERIMENT` for CGO_ENABLED=0 on the Linux build stage
+   - Replace `MS_GO_NOSYSTEMCRYPTO=1` with appropriate `GOEXPERIMENT=<value>` in BOTH files
 10. **Run `make dockerfiles`** — Regenerate all template-based Dockerfiles
 
 ### Step 1b: Apply GOEXPERIMENT to ALL Build Paths (CRITICAL)
@@ -326,6 +330,7 @@ Templates to update:
 
 - `bpf-prog/ipv6-hp-bpf/linux.Dockerfile`
 - `npm/linux.Dockerfile`
+- `npm/windows.Dockerfile` ← **builds on Linux** (`--platform=linux/amd64`), needs GOEXPERIMENT for CGO=0
 
 #### Root Makefile
 
@@ -540,7 +545,9 @@ done
 ### Important Notes
 
 - **ALWAYS use `1.XX.1` in go.mod** — NOT the latest patch. The container image provides the actual binary version.
-- The `npm/` component is no longer released — update but don't worry about testing
+- The `npm/` component is released as **npm-lite** — ensure Dockerfiles build correctly
+- npm Dockerfiles use **plain Go tags** (e.g., `golang:1.26.4`) without `-azurelinux3.0` suffix
+- `npm/windows.Dockerfile` builds on a Linux builder (`--platform=linux/amd64`) — still needs GOEXPERIMENT for CGO=0
 - The `baseimages.yaml` CI workflow fails if `make dockerfiles` output doesn't match committed files
 - ALWAYS use 2-part floating tags in `build/images.mk`
 - **Windows builds**: CNG backend typically works without CGO or GOEXPERIMENT — verify per version

@@ -1113,10 +1113,12 @@ jobs:
           **Steps:**
           1. Add \`GOEXPERIMENT=ms_nocgo_opensslcrypto\` to ALL scripts/Dockerfiles/Makefiles with \`CGO_ENABLED=0\` on Linux
           2. Add \`GOEXPERIMENT=systemcrypto\` to scripts/Dockerfiles with \`CGO_ENABLED=1\` (cilium-log-collector)
-          3. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles if present
-          4. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
-          5. In root Makefile: add \`ACN_GOEXPERIMENT\` variable, apply inline to all CGO=0 build commands
-          6. **DO NOT** leave CGO_ENABLED=0 builds without GOEXPERIMENT — they WILL fail with crypto errors"
+          3. Remove \`MS_GO_NOSYSTEMCRYPTO=1\` from npm Dockerfiles and replace with \`GOEXPERIMENT=ms_nocgo_opensslcrypto\`
+          4. npm Dockerfiles use **plain Go tags** (e.g., \`golang:1.26.4\`) — do NOT add \`-azurelinux3.0\` suffix
+          5. npm/windows.Dockerfile builds on Linux (\`--platform=linux/amd64\`) — it STILL needs GOEXPERIMENT for CGO=0
+          6. Ensure \`MARINER_DISTROLESS_IMG\` in \`build/images.mk\` is \`distroless/base\`
+          7. In root Makefile: add \`ACN_GOEXPERIMENT\` variable, apply inline to all CGO=0 build commands
+          8. **DO NOT** leave CGO_ENABLED=0 builds without GOEXPERIMENT — they WILL fail with crypto errors"
           fi
 
           # Agent instructions embedded in issue body
