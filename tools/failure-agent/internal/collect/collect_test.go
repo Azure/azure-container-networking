@@ -3,6 +3,7 @@ package collect
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -55,6 +56,22 @@ func TestParseEvidenceExtractsErrorsAndDedups(t *testing.T) {
 	}
 	if _, ok := ev.Excerpts["clean.txt"]; ok {
 		t.Error("did not expect excerpt for a file with no errors")
+	}
+	if len(ev.ErrorSnippets) == 0 {
+		t.Fatal("expected line-numbered error snippets")
+	}
+	first := ev.ErrorSnippets[0]
+	if first.File != "pods.log" {
+		t.Errorf("snippet file: got %q, want pods.log", first.File)
+	}
+	if first.Line <= 0 {
+		t.Errorf("snippet line: got %d", first.Line)
+	}
+	if !strings.Contains(first.Snippet, "|") {
+		t.Errorf("snippet missing line-number context: %q", first.Snippet)
+	}
+	if !strings.Contains(ev.Excerpts["pods.log"], "match line") {
+		t.Errorf("expected excerpt to include match line header: %q", ev.Excerpts["pods.log"])
 	}
 }
 

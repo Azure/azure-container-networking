@@ -14,7 +14,7 @@ func sampleClassification() model.Classification {
 		Confidence:       0,
 		RootCauseSummary: "Unclassified failure.",
 		TopEvidence:      []string{"some error line"},
-		Source:           "deterministic",
+		Source:           "llm",
 	}
 }
 
@@ -33,6 +33,27 @@ func TestBuildAppliesPolicy(t *testing.T) {
 	}
 	if inc.Fingerprint != "deadbeef" {
 		t.Errorf("fingerprint: got %q", inc.Fingerprint)
+	}
+}
+
+func TestBuildDefaultsToAnalyzed(t *testing.T) {
+	inc := Build(time.Unix(0, 0), model.RunContext{}, model.Fingerprint{Hash: "x"}, sampleClassification(), nil, model.Evidence{})
+	if inc.AnalysisStatus != model.StatusAnalyzed {
+		t.Errorf("status: got %s, want analyzed", inc.AnalysisStatus)
+	}
+}
+
+func TestRenderMarkdownShowsAnalysisFailedBanner(t *testing.T) {
+	inc := Build(time.Unix(0, 0), model.RunContext{}, model.Fingerprint{Hash: "x"}, sampleClassification(), nil, model.Evidence{})
+	inc.AnalysisStatus = model.StatusAnalysisFailed
+	inc.AnalysisError = "azure openai unauthorized"
+	md := RenderMarkdown(inc)
+
+	if !strings.Contains(md, "Automated analysis failed") {
+		t.Errorf("expected analysis-failed banner, got:\n%s", md)
+	}
+	if !strings.Contains(md, "azure openai unauthorized") {
+		t.Error("expected analysis error reason in markdown")
 	}
 }
 

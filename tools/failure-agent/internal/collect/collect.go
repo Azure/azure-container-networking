@@ -4,6 +4,7 @@ package collect
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -26,6 +27,15 @@ const maxTopErrorLines = 25
 
 // maxExcerptFiles caps how many file excerpts are retained.
 const maxExcerptFiles = 15
+
+// maxSnippetsPerFile caps how many context snippets are retained per file.
+const maxSnippetsPerFile = 3
+
+// snippetContextLines controls how many lines before/after a match are included.
+const snippetContextLines = 3
+
+// maxErrorSnippets caps the number of snippets retained across all files.
+const maxErrorSnippets = 30
 
 // errorLineRE matches lines that look like failures worth surfacing.
 var errorLineRE = regexp.MustCompile(`(?i)\b(error|fatal|fail(ed|ure)?|panic|timed?\s*out|timeout|exceeded|refused|cannot|unable to|denied|not found|crashloopbackoff|imagepullbackoff|oomkilled)\b`)
@@ -84,7 +94,7 @@ func ParseEvidence(root string) (model.Evidence, error) {
 		rel = filepath.ToSlash(rel)
 		ev.Files = append(ev.Files, rel)
 
-		lines, excerpt := scanFile(path)
+		lines, snippets := scanFile(path)
 		for _, l := range lines {
 			key := normalizeForDedup(l)
 			if key == "" || seen[key] {
@@ -93,8 +103,17 @@ func ParseEvidence(root string) (model.Evidence, error) {
 			seen[key] = true
 			errorLines = append(errorLines, l)
 		}
-		if excerpt != "" && len(ev.Excerpts) < maxExcerptFiles {
-			ev.Excerpts[rel] = excerpt
+		if len(snippets) > 0 {
+			if len(ev.Excerpts) < maxExcerptFiles {
+				ev.Excerpts[rel] = renderFileExcerpt(snippets)
+			}
+			for _, sn := range snippets {
+				if len(ev.ErrorSnippets) >= maxErrorSnippets {
+					break
+				}
+				sn.File = rel
+				ev.ErrorSnippets = append(ev.ErrorSnippets, sn)
+			}
 		}
 		return nil
 	})
@@ -110,37 +129,81 @@ func ParseEvidence(root string) (model.Evidence, error) {
 	return ev, nil
 }
 
-// scanFile returns the error lines and a leading excerpt from a single file.
-func scanFile(path string) (lines []string, excerpt string) {
+// scanFile returns matched error lines and line-numbered context snippets.
+func scanFile(path string) (lines []string, snippets []model.ErrorSnippet) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, ""
+		return nil, nil
 	}
 	defer f.Close()
 
-	var excerptB strings.Builder
 	scanner := bufio.NewScanner(&boundedReader{r: f, remaining: maxFileBytes})
 	scanner.Buffer(make([]byte, 0, 64<<10), 1<<20)
 
-	hasMatch := false
+	var allLines []string
+	var matchLines []int
+	lineNo := 0
 	for scanner.Scan() {
+		lineNo++
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		if excerptB.Len() < maxExcerptBytes {
-			excerptB.WriteString(line)
-			excerptB.WriteByte('\n')
-		}
+		allLines = append(allLines, line)
 		if errorLineRE.MatchString(line) {
-			hasMatch = true
+			matchLines = append(matchLines, lineNo)
 			lines = append(lines, line)
 		}
 	}
-	if !hasMatch {
-		return nil, ""
+	if len(matchLines) == 0 {
+		return nil, nil
 	}
-	return lines, strings.TrimSpace(excerptB.String())
+	for i, matched := range matchLines {
+		if i >= maxSnippetsPerFile {
+			break
+		}
+		snippets = append(snippets, model.ErrorSnippet{
+			Line:    matched,
+			Snippet: renderContextSnippet(allLines, matched),
+		})
+	}
+	return lines, snippets
+}
+
+func renderFileExcerpt(snippets []model.ErrorSnippet) string {
+	var b strings.Builder
+	for i, sn := range snippets {
+		if i > 0 {
+			b.WriteString("\n---\n")
+		}
+		if b.Len() >= maxExcerptBytes {
+			break
+		}
+		fmt.Fprintf(&b, "match line %d\n%s", sn.Line, sn.Snippet)
+	}
+	out := b.String()
+	if len(out) > maxExcerptBytes {
+		out = out[:maxExcerptBytes]
+	}
+	return strings.TrimSpace(out)
+}
+
+func renderContextSnippet(lines []string, matchedLine int) string {
+	start := matchedLine - snippetContextLines
+	if start < 1 {
+		start = 1
+	}
+	end := matchedLine + snippetContextLines
+	if end > len(lines) {
+		end = len(lines)
+	}
+
+	var b strings.Builder
+	for i := start; i <= end; i++ {
+		marker := " "
+		if i == matchedLine {
+			marker = ">"
+		}
+		fmt.Fprintf(&b, "%s %6d | %s\n", marker, i, lines[i-1])
+	}
+	return strings.TrimSpace(b.String())
 }
 
 func isTextFile(name string) bool {
