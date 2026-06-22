@@ -1,13 +1,26 @@
-# Reusable job template: Failure Analysis
+# Reusable job template: Failure Analysis (v2)
 #
-# Add as a sibling job to failedE2ELogs in each E2E stage.
-# Downloads the evidence artifact that failedE2ELogs published, runs the
-# failure-agent CLI (LLM classification + deterministic signatures), and
-# publishes analysis results.
+# Add as a sibling job to failedE2ELogs in each E2E stage. This job MUST be
+# scheduled before the cluster teardown/delete job so live diagnostics can run
+# against the still-retained failing cluster.
 #
-# In --dry-run mode (no Azure OpenAI creds), falls back to deterministic-only
-# analysis. When GITHUB_TOKEN is set and the build is a pull request, posts
-# a summary comment to the PR.
+# It downloads the evidence artifact that failedE2ELogs published, optionally
+# collects read-only live `kubectl` diagnostics from the retained cluster, runs
+# the failure-agent CLI (LLM-first analysis grounded by deterministic signatures
+# and prior knowledge), and publishes the analysis.
+#
+# Analysis is LLM-first: when Azure OpenAI credentials are not configured the
+# agent emits an `analysis_failed` incident that still preserves the raw evidence
+# for human triage — there is no deterministic fallback classification.
+#
+# When GITHUB_TOKEN is set and the build is a pull request, the agent posts a
+# summary comment to the PR (unless --dry-run is passed, which only suppresses
+# PR write-back).
+#
+# The agent is advisory about cluster retention: it writes a `retentionDecision`
+# field to incident.json. This job surfaces that as the `retentionDecision`
+# output variable so a downstream teardown/sweeper job can keep the cluster
+# (TTL-tagged) for inspection. The agent never changes teardown behavior itself.
 
 parameters:
   clusterName: ""
@@ -19,6 +32,15 @@ parameters:
   # Artifact naming fields — must match what log-template.yaml publishes.
   logType: "failure"
   artifactJobName: "FailedE2ELogs"
+  # Collect read-only live kubectl diagnostics from the retained cluster.
+  # Requires KUBECONFIG to point at the retained failing cluster.
+  live: false
+  # Optional path to a persisted SQLite knowledge store (incident memory,
+  # duplicate detection, prior-fix context). Leave empty to run statelessly.
+  knowledgeDb: ""
+  # Optional path to write the knowledge-store flakiness report. Requires
+  # knowledgeDb to be set.
+  flakinessOutput: ""
 
 jobs:
   - job: failureAnalysis_${{ parameters.os }}
@@ -42,7 +64,7 @@ jobs:
 
       - task: GoTool@0
         inputs:
-          version: '1.24'
+          version: '1.25'
         displayName: "Setup Go"
 
       - task: DownloadPipelineArtifact@2
@@ -59,11 +81,27 @@ jobs:
           OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
           mkdir -p "$OUTPUT_DIR"
 
-          # Determine mode: live (with Azure OpenAI) or dry-run (deterministic only).
-          EXTRA_FLAGS=""
           if [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || [ -z "${AZURE_OPENAI_DEPLOYMENT:-}" ]; then
-            echo "##[warning]Azure OpenAI credentials not configured; running in dry-run (deterministic) mode."
-            EXTRA_FLAGS="--dry-run"
+            echo "##[warning]Azure OpenAI credentials not configured; the agent will emit an analysis_failed incident preserving raw evidence."
+          fi
+
+          EXTRA_FLAGS=""
+
+          # --dry-run only suppresses PR write-back, not analysis.
+          if [ "${SUPPRESS_PR_WRITEBACK:-}" = "true" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --dry-run"
+          fi
+
+          if [ "${{ parameters.live }}" = "True" ] || [ "${{ parameters.live }}" = "true" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --live"
+          fi
+
+          if [ -n "${{ parameters.knowledgeDb }}" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --knowledge-db ${{ parameters.knowledgeDb }}"
+          fi
+
+          if [ -n "${{ parameters.flakinessOutput }}" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --flakiness-output ${{ parameters.flakinessOutput }}"
           fi
 
           cd "$(Build.SourcesDirectory)"
@@ -80,6 +118,20 @@ jobs:
           AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
           AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
           GITHUB_TOKEN: $(GITHUB_TOKEN)
+
+      - script: |
+          set -euo pipefail
+          INCIDENT="$(Agent.TempDirectory)/analysis/incident.json"
+          DECISION="delete"
+          if [ -f "$INCIDENT" ]; then
+            PARSED=$(grep -o '"retentionDecision"[^,]*' "$INCIDENT" | head -n1 | sed -E 's/.*: *"([^"]*)".*/\1/')
+            DECISION=${PARSED:-delete}
+          fi
+          echo "Retention recommendation: $DECISION (advisory only — teardown is unaffected by this job)"
+          echo "##vso[task.setvariable variable=retentionDecision;isOutput=true]$DECISION"
+        name: retention
+        displayName: "Surface retention recommendation"
+        condition: succeededOrFailed()
 
       - script: |
           REPORT="$(Agent.TempDirectory)/analysis/report.md"
