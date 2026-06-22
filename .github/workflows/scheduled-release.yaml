@@ -118,77 +118,36 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Collect pending dependabot PRs, Go upgrade PRs, and upcoming tags
+      - name: Build release-cli
+        run: |
+          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
+
+      - name: Collect pending PRs and upcoming tags
         id: collect
         if: ${{ inputs.skip_dependabot_wait != true }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          REPO="${GITHUB_REPOSITORY}"
-          BRANCH="${RELEASE_BRANCH}"
+          RESULT=$(/tmp/release-cli collect-prs --branch "$RELEASE_BRANCH")
+          echo "open_prs_json=$(echo "$RESULT" | jq -c '.prs')" >> "$GITHUB_OUTPUT"
+          echo "open_count=$(echo "$RESULT" | jq -r '.open_count')" >> "$GITHUB_OUTPUT"
+          echo "dependabot_count=$(echo "$RESULT" | jq -r '.dependabot_count')" >> "$GITHUB_OUTPUT"
+          echo "go_upgrade_count=$(echo "$RESULT" | jq -r '.go_upgrade_count')" >> "$GITHUB_OUTPUT"
 
-          # Get open dependabot PRs
-          DEPENDABOT_PRS=$(gh pr list --repo "$REPO" --base "$BRANCH" \
-            --author "app/dependabot" --state open \
-            --json number,title,url --jq '.')
+      - name: Determine version and binary tags
+        id: version_info
+        if: ${{ inputs.skip_dependabot_wait != true }}
+        run: |
+          set -euo pipefail
+          VERSION=$(/tmp/release-cli next-version --branch "$RELEASE_BRANCH")
+          echo "new_tag=$(echo "$VERSION" | jq -r '.new_tag')" >> "$GITHUB_OUTPUT"
+          echo "latest_tag=$(echo "$VERSION" | jq -r '.latest_tag')" >> "$GITHUB_OUTPUT"
 
-          # Get open Go upgrade PRs (created by the Go version digest workflow)
-          # These PRs typically have "go" and "upgrade"/"bump" in the title or
-          # come from branches matching common Go upgrade patterns
-          GO_UPGRADE_PRS=$(gh pr list --repo "$REPO" --base "$BRANCH" \
-            --state open --json number,title,url,headRefName,labels --jq '
-            [.[] | select(
-              (.title | test("(?i)go.*(upgrade|bump|version|1\\.[0-9]+)")) or
-              (.headRefName | test("(?i)go.*(bump|upgrade|version|minor)")) or
-              (any(.labels[]?.name; test("(?i)go-upgrade")))
-            )]')
-
-          # Merge both lists, deduplicating by PR number
-          OPEN_PRS_JSON=$(echo "$DEPENDABOT_PRS $GO_UPGRADE_PRS" | jq -s '
-            .[0] + .[1] | unique_by(.number)')
-          echo "open_prs_json<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$OPEN_PRS_JSON" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-          OPEN_COUNT=$(echo "$OPEN_PRS_JSON" | jq 'length')
-          DEPENDABOT_COUNT=$(echo "$DEPENDABOT_PRS" | jq 'length')
-          GO_UPGRADE_COUNT=$(echo "$GO_UPGRADE_PRS" | jq 'length')
-          echo "open_count=$OPEN_COUNT" >> "$GITHUB_OUTPUT"
-          echo "dependabot_count=$DEPENDABOT_COUNT" >> "$GITHUB_OUTPUT"
-          echo "go_upgrade_count=$GO_UPGRADE_COUNT" >> "$GITHUB_OUTPUT"
-
-          # Determine upcoming main tag
-          if [[ "$BRANCH" == "master" ]]; then
-            LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-          else
-            VERSION_PREFIX=$(echo "$BRANCH" | sed 's|release/||')
-            LATEST_TAG=$(git tag -l "${VERSION_PREFIX}.*" --sort=-v:refname | head -1)
-          fi
-          MAJOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f1)
-          MINOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f2)
-          PATCH=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f3)
-          NEW_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
-          echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
-          echo "latest_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
-
-          # Detect binary tags that will be produced
-          BINARIES="dropgz azure-ipam azure-iptables-monitor azure-ip-masq-merger cilium-log-collector"
-          BINARY_TAGS=""
-          for BIN in $BINARIES; do
-            BIN_LATEST=$(git tag --merged HEAD -l "${BIN}/v*" --sort=-v:refname | head -1)
-            if [[ -n "$BIN_LATEST" ]]; then
-              CHANGES=$(git diff --name-only "${BIN_LATEST}..HEAD" -- "${BIN}/" 2>/dev/null | wc -l)
-              if [[ "$CHANGES" -gt 0 ]]; then
-                BIN_VER=$(echo "$BIN_LATEST" | sed "s|${BIN}/v||")
-                BIN_PATCH=$(echo "$BIN_VER" | cut -d. -f3)
-                BIN_NEW="${BIN}/v$(echo "$BIN_VER" | cut -d. -f1).$(echo "$BIN_VER" | cut -d. -f2).$((BIN_PATCH + 1))"
-                BINARY_TAGS+="• \`$BIN_NEW\`\n"
-              fi
-            fi
-          done
+          BINARIES=$(/tmp/release-cli detect-binaries --branch "$RELEASE_BRANCH")
+          BINARY_TAGS=$(echo "$BINARIES" | jq -r '.[].new_tag' | sed 's/^/• `/' | sed 's/$/`/')
           echo "binary_tags<<EOF" >> "$GITHUB_OUTPUT"
-          echo -e "$BINARY_TAGS" >> "$GITHUB_OUTPUT"
+          echo "$BINARY_TAGS" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Find or create release tracking issue
@@ -196,12 +155,12 @@ jobs:
         if: ${{ inputs.skip_dependabot_wait != true }}
         env:
           GH_TOKEN: ${{ github.token }}
-          NEW_TAG: ${{ steps.collect.outputs.new_tag }}
+          NEW_TAG: ${{ steps.version_info.outputs.new_tag }}
           OPEN_COUNT: ${{ steps.collect.outputs.open_count }}
           DEPENDABOT_COUNT: ${{ steps.collect.outputs.dependabot_count }}
           GO_UPGRADE_COUNT: ${{ steps.collect.outputs.go_upgrade_count }}
           OPEN_PRS_JSON: ${{ steps.collect.outputs.open_prs_json }}
-          BINARY_TAGS: ${{ steps.collect.outputs.binary_tags }}
+          BINARY_TAGS: ${{ steps.version_info.outputs.binary_tags }}
           RUN_ID: ${{ github.run_id }}
           SERVER_URL: ${{ github.server_url }}
         run: |
@@ -317,262 +276,74 @@ jobs:
       - name: Post release announcement to CNI Teams channel
         if: ${{ inputs.skip_dependabot_wait != true }}
         env:
-          NEW_TAG: ${{ steps.collect.outputs.new_tag }}
+          NEW_TAG: ${{ steps.version_info.outputs.new_tag }}
           OPEN_COUNT: ${{ steps.collect.outputs.open_count }}
           DEPENDABOT_COUNT: ${{ steps.collect.outputs.dependabot_count }}
           GO_UPGRADE_COUNT: ${{ steps.collect.outputs.go_upgrade_count }}
           OPEN_PRS_JSON: ${{ steps.collect.outputs.open_prs_json }}
-          BINARY_TAGS: ${{ steps.collect.outputs.binary_tags }}
+          BINARY_TAGS: ${{ steps.version_info.outputs.binary_tags }}
           ISSUE_NUMBER: ${{ steps.create_issue.outputs.issue_number }}
           RESUMED: ${{ steps.create_issue.outputs.resumed }}
         run: |
           set -euo pipefail
-          notify() {
-            local channel_id="$1" title="$2" status="$3" message="$4"
-            local token
-            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
-              echo "::warning::Failed to acquire notifier token"
-              return 0
-            }
-
-            local response
-            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
-              -H "Authorization: Bearer $token" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n \
-                --arg teamId "$TEAMS_TEAM_ID" \
-                --arg channelId "$channel_id" \
-                --arg source "scheduled-release" \
-                --arg title "$title" \
-                --arg status "$status" \
-                --arg message "$message" \
-                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
-              echo "::warning::Failed to post to Teams: $response"
-              return 0
-            }
-            echo "$response"
-          }
-
           REPO="${GITHUB_REPOSITORY}"
 
-          # Build PR list in HTML
           PR_LIST_HTML=""
           if [[ "$OPEN_COUNT" -gt 0 ]]; then
-            PR_LIST_HTML=$(echo "$OPEN_PRS_JSON" | jq -r '.[] | "• <a href=\"\(.url)\">#\(.number)</a> — \(.title)<br>"' | tr -d '\n')
+            PR_LIST_HTML=$(echo "$OPEN_PRS_JSON" | jq -r '.[] | "• #\(.number) — \(.title)<br>"' | tr -d '\n')
           else
             PR_LIST_HTML="<i>None — all clear!</i>"
           fi
 
-          BINARY_TAGS_HTML=$(echo -e "$BINARY_TAGS" | sed 's/$/<br>/g')
+          BINARY_TAGS_HTML=$(echo "$BINARY_TAGS" | sed 's/$/<br>/g')
+          ISSUE_URL="https://github.com/${REPO}/issues/${ISSUE_NUMBER}"
 
           if [[ "$RESUMED" == "true" ]]; then
-            # Brief resume message — don't repeat the full announcement
-            MSG="🔄 <b>Release workflow re-triggered for ${NEW_TAG}</b><br><br>\
-            <b>Still pending (${OPEN_COUNT}):</b><br>\
-            ${PR_LIST_HTML}<br><br>\
-            Previous skip commands still apply. Tracking issue: \
-            <a href=\"https://github.com/${REPO}/issues/${ISSUE_NUMBER}\">#${ISSUE_NUMBER}</a>"
+            MSG="🔄 <b>Release workflow re-triggered for ${NEW_TAG}</b><br><br><b>Still pending (${OPEN_COUNT}):</b><br>${PR_LIST_HTML}<br><br>Previous skip commands still apply. Tracking issue: ${ISSUE_URL}"
           else
-            # Full first-time announcement
-            MSG="🚀 <b>Release cycle starting: ${NEW_TAG}</b><br><br>\
-            <b>Tags to be created:</b><br>\
-            • <code>${NEW_TAG}</code> (CNI/CNS/NPM)<br>\
-            ${BINARY_TAGS_HTML}<br>\
-            <b>Pending PRs — Dependabot (${DEPENDABOT_COUNT}) + Go Upgrade (${GO_UPGRADE_COUNT}):</b><br>\
-            ${PR_LIST_HTML}<br><br>\
-            ⚠️ These PRs must merge before the release proceeds.<br>\
-            To skip a PR, comment <code>skip #NUMBER</code> on tracking issue \
-            <a href=\"https://github.com/${REPO}/issues/${ISSUE_NUMBER}\">#${ISSUE_NUMBER}</a><br>\
-            To skip all: comment <code>skip all</code>"
+            MSG="🚀 <b>Release cycle starting: ${NEW_TAG}</b><br><br><b>Tags to be created:</b><br>• <code>${NEW_TAG}</code> (CNI/CNS/NPM)<br>${BINARY_TAGS_HTML}<br><b>Pending PRs — Dependabot (${DEPENDABOT_COUNT}) + Go Upgrade (${GO_UPGRADE_COUNT}):</b><br>${PR_LIST_HTML}<br><br>⚠️ These PRs must merge before the release proceeds.<br>To skip a PR, comment <code>skip #NUMBER</code> on tracking issue ${ISSUE_URL}<br>To skip all: comment <code>skip all</code>"
           fi
 
-          notify "$TEAMS_CNI_CHANNEL_ID" "Release ${NEW_TAG}" "in_progress" "$MSG"
+          /tmp/release-cli notify \
+            --channel-id "$TEAMS_CNI_CHANNEL_ID" \
+            --title "Release ${NEW_TAG}" \
+            --status running \
+            --summary "$MSG" \
+            --stage release-start
 
       - name: Wait for PRs to merge or be skipped
         id: wait
         if: ${{ inputs.skip_dependabot_wait != true }}
         env:
           GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ steps.create_issue.outputs.issue_number }}
         run: |
           set -euo pipefail
-          REPO="${GITHUB_REPOSITORY}"
-          BRANCH="${RELEASE_BRANCH}"
-          POLL_INTERVAL=300  # 5 minutes
-
-          # No artificial timeout — this job runs until all PRs merge or are
-          # explicitly skipped via issue comments. If the GitHub Actions job-level
-          # timeout (6h) is reached, the job FAILS and the user must re-trigger
-          # after merging/skipping PRs. This is intentional: we don't silently
-          # proceed with unmerged dependency updates.
-
-          SKIPPED_PRS=""
-
-          while true; do
-            # Check for comments on the tracking issue
-            COMMENTS=$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" \
-              --json comments --jq '.comments[].body' 2>/dev/null || echo "")
-
-            # --- Handle bare "pause" / "resume" (no PR number) ---
-            # A bare "pause" freezes the release entirely until someone comments "resume".
-            # We count occurrences: if pause > resume, the release is frozen.
-            PAUSE_BARE_COUNT=$(echo "$COMMENTS" | grep -ciP '^\s*pause\s*$' || true)
-            RESUME_BARE_COUNT=$(echo "$COMMENTS" | grep -ciP '^\s*resume\s*$' || true)
-            if (( PAUSE_BARE_COUNT > RESUME_BARE_COUNT )); then
-              echo "⏸️ Release is paused. Waiting for 'resume' comment on issue #${ISSUE_NUMBER}..."
-              sleep $POLL_INTERVAL
-              continue
-            fi
-
-            # --- Handle "skip" commands ---
-            SKIP_ALL=false
-            if echo "$COMMENTS" | grep -qi "^skip all$"; then
-              SKIP_ALL=true
-              echo "Received 'skip all' — proceeding without waiting for remaining PRs."
-            fi
-            SKIP_NUMBERS=$(echo "$COMMENTS" | grep -ioP 'skip\s+#\K\d+' | sort -u || true)
-
-            # --- Handle "pause #PR" commands ---
-            # Users can comment "pause #1234" to block the release until that PR merges.
-            # Comment "unpause #1234" or "resume #1234" to remove the hold.
-            PAUSE_NUMBERS=$(echo "$COMMENTS" | grep -ioP 'pause\s+#\K\d+' | sort -u || true)
-            UNPAUSE_NUMBERS=$(echo "$COMMENTS" | grep -ioP '(?:unpause|resume)\s+#\K\d+' | sort -u || true)
-
-            # Effective pauses = pause commands minus unpause commands
-            ACTIVE_PAUSES=""
-            BLOCKED_LIST=""
-            for PR_NUM in $PAUSE_NUMBERS; do
-              if ! echo "$UNPAUSE_NUMBERS" | grep -qx "$PR_NUM"; then
-                # Check if this PR is still open (not yet merged)
-                PR_STATE=$(gh pr view "$PR_NUM" --repo "$REPO" --json state --jq '.state' 2>/dev/null || echo "UNKNOWN")
-                if [[ "$PR_STATE" == "OPEN" ]]; then
-                  ACTIVE_PAUSES="${ACTIVE_PAUSES:+$ACTIVE_PAUSES }$PR_NUM"
-                  PR_TITLE=$(gh pr view "$PR_NUM" --repo "$REPO" --json title --jq '.title' 2>/dev/null || echo "")
-                  BLOCKED_LIST+="  ⏸️ #$PR_NUM — $PR_TITLE (pause hold)\n"
-                fi
-                # If MERGED or CLOSED, the pause is automatically satisfied
-              fi
-            done
-
-            # --- Get currently open dependabot + Go upgrade PRs ---
-            DEPENDABOT_PRS=$(gh pr list --repo "$REPO" --base "$BRANCH" \
-              --author "app/dependabot" --state open \
-              --json number,title --jq '.')
-            GO_UPGRADE_PRS=$(gh pr list --repo "$REPO" --base "$BRANCH" \
-              --state open --json number,title,headRefName,labels --jq '
-              [.[] | select(
-                (.title | test("(?i)go.*(upgrade|bump|version|1\\.[0-9]+)")) or
-                (.headRefName | test("(?i)go.*(bump|upgrade|version|minor)")) or
-                (any(.labels[]?.name; test("(?i)go-upgrade")))
-              )]')
-            OPEN_PRS=$(echo "$DEPENDABOT_PRS $GO_UPGRADE_PRS" | jq -s '
-              .[0] + .[1] | unique_by(.number)')
-            OPEN_COUNT=$(echo "$OPEN_PRS" | jq 'length')
-
-            if [[ "$SKIP_ALL" == "true" ]]; then
-              REMAINING=$(echo "$OPEN_PRS" | jq -r '.[].number' | tr '\n' ',' | sed 's/,$//')
-              SKIPPED_PRS="${SKIPPED_PRS:+$SKIPPED_PRS,}$REMAINING"
-              # skip all does NOT override pause holds
-              if [[ -z "$ACTIVE_PAUSES" ]]; then
-                break
-              fi
-              echo "skip all received, but pause holds still active: $ACTIVE_PAUSES"
-            fi
-
-            # Filter out skipped dependabot PRs
-            WAITING_COUNT=0
-            WAITING_LIST=""
-            if [[ "$SKIP_ALL" != "true" ]]; then
-              while IFS= read -r PR_LINE; do
-                PR_NUM=$(echo "$PR_LINE" | jq -r '.number')
-                PR_TITLE=$(echo "$PR_LINE" | jq -r '.title')
-                if echo "$SKIP_NUMBERS" | grep -qx "$PR_NUM"; then
-                  SKIPPED_PRS="${SKIPPED_PRS:+$SKIPPED_PRS,}$PR_NUM"
-                else
-                  WAITING_COUNT=$((WAITING_COUNT + 1))
-                  WAITING_LIST+="  #$PR_NUM — $PR_TITLE\n"
-                fi
-              done < <(echo "$OPEN_PRS" | jq -c '.[]')
-            fi
-
-            # Check if we can proceed
-            TOTAL_BLOCKING=$((WAITING_COUNT + $(echo "$ACTIVE_PAUSES" | wc -w)))
-            if [[ "$TOTAL_BLOCKING" -eq 0 ]]; then
-              echo "All dependabot PRs merged/skipped and no active pause holds."
-              break
-            fi
-
-            echo "Blocked on $TOTAL_BLOCKING item(s):"
-            if [[ "$WAITING_COUNT" -gt 0 ]]; then
-              echo "  Dependabot PRs:"
-              echo -e "$WAITING_LIST"
-            fi
-            if [[ -n "$ACTIVE_PAUSES" ]]; then
-              echo "  Pause holds:"
-              echo -e "$BLOCKED_LIST"
-            fi
-
-            sleep $POLL_INTERVAL
-          done
-
-          # Count merged dependabot PRs (last 7 days)
-          MERGED=$(gh pr list --repo "$REPO" --base "$BRANCH" \
-            --author "app/dependabot" --state merged \
-            --json mergedAt --jq '[.[] | select(.mergedAt > (now - 604800 | todate))] | length' 2>/dev/null || echo "0")
-          echo "merged_count=${MERGED}" >> "$GITHUB_OUTPUT"
-          echo "skipped_prs=${SKIPPED_PRS}" >> "$GITHUB_OUTPUT"
-
-          # Update the tracking issue
-          SUMMARY="✅ **Dependabot gate passed.** Merged: ${MERGED}"
-          if [[ -n "$SKIPPED_PRS" ]]; then
-            SUMMARY+=" | Skipped: ${SKIPPED_PRS}"
-          fi
-          if [[ -n "$PAUSE_NUMBERS" ]]; then
-            SUMMARY+=" | Pause holds satisfied: ${PAUSE_NUMBERS}"
-          fi
-          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$SUMMARY" || true
+          RESULT=$(/tmp/release-cli wait-prs \
+            --branch "$RELEASE_BRANCH" \
+            --issue-number "${{ steps.create_issue.outputs.issue_number }}" \
+            --poll-interval 5m)
+          echo "merged_count=$(echo "$RESULT" | jq -r '.merged_count')" >> "$GITHUB_OUTPUT"
+          echo "skipped_prs=$(echo "$RESULT" | jq -r '.skipped_prs')" >> "$GITHUB_OUTPUT"
 
       - name: Post update to CNI channel
         if: ${{ inputs.skip_dependabot_wait != true && steps.wait.outcome == 'success' }}
         env:
           MERGED: ${{ steps.wait.outputs.merged_count }}
           SKIPPED: ${{ steps.wait.outputs.skipped_prs }}
-          NEW_TAG: ${{ steps.collect.outputs.new_tag }}
+          NEW_TAG: ${{ steps.version_info.outputs.new_tag }}
         run: |
           set -euo pipefail
-          notify() {
-            local channel_id="$1" title="$2" status="$3" message="$4"
-            local token
-            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
-              echo "::warning::Failed to acquire notifier token"
-              return 0
-            }
-
-            local response
-            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
-              -H "Authorization: Bearer $token" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n \
-                --arg teamId "$TEAMS_TEAM_ID" \
-                --arg channelId "$channel_id" \
-                --arg source "scheduled-release" \
-                --arg title "$title" \
-                --arg status "$status" \
-                --arg message "$message" \
-                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
-              echo "::warning::Failed to post to Teams: $response"
-              return 0
-            }
-            echo "$response"
-          }
-
-          if [[ -n "$SKIPPED" ]]; then
-            MSG="✅ <b>Dependabot gate passed for ${NEW_TAG}</b><br>Merged: ${MERGED} | Skipped: ${SKIPPED}<br>Proceeding to vulnerability check..."
+          if [[ -n "${SKIPPED:-}" ]]; then
+            MSG="✅ Dependabot gate passed for ${NEW_TAG}. Merged: ${MERGED} | Skipped: ${SKIPPED}. Proceeding to vulnerability check..."
           else
-            MSG="✅ <b>All dependabot PRs merged for ${NEW_TAG}</b><br>Total merged: ${MERGED}<br>Proceeding to vulnerability check..."
+            MSG="✅ All dependabot PRs merged for ${NEW_TAG}. Total merged: ${MERGED}. Proceeding to vulnerability check..."
           fi
-
-          notify "$TEAMS_CNI_CHANNEL_ID" "Dependabot Gate: ${NEW_TAG}" "success" "$MSG"
+          /tmp/release-cli notify \
+            --channel-id "$TEAMS_CNI_CHANNEL_ID" \
+            --title "Dependabot Gate: ${NEW_TAG}" \
+            --status succeeded \
+            --summary "$MSG" \
+            --stage dependabot-gate
 
       - name: Skip dependabot wait (manual override)
         id: skip
@@ -609,6 +380,10 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
+
+      - name: Build release-cli
+        run: |
+          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
 
       - name: Azure Login (OIDC)
         continue-on-error: true
@@ -667,35 +442,13 @@ jobs:
           SCAN_ERRORS: ${{ steps.scan.outputs.scan_errors }}
         run: |
           set -euo pipefail
-          notify() {
-            local channel_id="$1" title="$2" status="$3" message="$4"
-            local token
-            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
-              echo "::warning::Failed to acquire notifier token"
-              return 0
-            }
-
-            local response
-            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
-              -H "Authorization: Bearer $token" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n \
-                --arg teamId "$TEAMS_TEAM_ID" \
-                --arg channelId "$channel_id" \
-                --arg source "scheduled-release" \
-                --arg title "$title" \
-                --arg status "$status" \
-                --arg message "$message" \
-                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
-              echo "::warning::Failed to post to Teams: $response"
-              return 0
-            }
-            echo "$response"
-          }
-
           MSG="🚫 <b>govulncheck FAILED</b> on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Release blocked until resolved."
-
-          notify "$TEAMS_RELEASE_CHANNEL_ID" "Vuln Check: ${RELEASE_BRANCH}" "failure" "$MSG"
+          /tmp/release-cli notify \
+            --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+            --title "Vuln Check: ${RELEASE_BRANCH}" \
+            --status failed \
+            --summary "$MSG" \
+            --stage vuln-check
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 2b: Detect Binary Changes (dropgz, azure-ipam, etc.)
@@ -716,54 +469,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Build release-cli
+        run: |
+          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
+
       - name: Detect changes per binary
         id: detect
         run: |
           set -euo pipefail
-
-          # Binaries to check: name matches both tag prefix and directory
-          BINARIES="dropgz azure-ipam azure-iptables-monitor azure-ip-masq-merger cilium-log-collector"
-
-          # Shared paths that affect all binaries (build infra changes)
-          SHARED_PATHS="Makefile build/"
-
-          MATRIX="[]"
-          for BIN in $BINARIES; do
-            # Find latest tag for this binary reachable from current branch
-            LATEST_TAG=$(git tag --merged HEAD -l "${BIN}/v*" --sort=-v:refname | head -1)
-
-            if [[ -z "$LATEST_TAG" ]]; then
-              echo "::warning::No existing tag found for $BIN — skipping"
-              continue
-            fi
-
-            # Check for changes in the binary's directory + shared build paths
-            CHANGES=$(git diff --name-only "${LATEST_TAG}..HEAD" -- "${BIN}/" $SHARED_PATHS 2>/dev/null | wc -l)
-
-            if [[ "$CHANGES" -gt 0 ]]; then
-              # Parse current version from latest tag
-              VERSION=$(echo "$LATEST_TAG" | sed "s|${BIN}/v||")
-              MAJOR=$(echo "$VERSION" | cut -d. -f1)
-              MINOR=$(echo "$VERSION" | cut -d. -f2)
-              PATCH=$(echo "$VERSION" | cut -d. -f3)
-              NEW_PATCH=$((PATCH + 1))
-              NEW_TAG="${BIN}/v${MAJOR}.${MINOR}.${NEW_PATCH}"
-
-              echo "  $BIN: $CHANGES file(s) changed since $LATEST_TAG → will tag $NEW_TAG"
-              MATRIX=$(echo "$MATRIX" | jq -c --arg bin "$BIN" --arg tag "$NEW_TAG" --arg prev "$LATEST_TAG" \
-                '. += [{"binary": $bin, "new_tag": $tag, "previous_tag": $prev}]')
-            else
-              echo "  $BIN: no changes since $LATEST_TAG — skipping"
-            fi
-          done
-
+          RESULT=$(/tmp/release-cli detect-binaries --branch "$RELEASE_BRANCH")
+          MATRIX=$(echo "$RESULT" | jq -c '.')
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
           if [[ "$MATRIX" == "[]" ]]; then
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
-            echo "No binaries need a release this cycle."
           else
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            echo "Binaries to release: $(echo "$MATRIX" | jq -r '.[].binary' | tr '\n' ' ')"
           fi
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -856,47 +576,28 @@ jobs:
           tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
           allow-no-subscriptions: true
 
+      - name: Build release-cli
+        run: |
+          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
+
       - name: Verify created tags and post summary
         env:
           MATRIX: ${{ needs.detect_binary_changes.outputs.matrix }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          notify() {
-            local channel_id="$1" title="$2" status="$3" message="$4"
-            local token
-            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
-              echo "::warning::Failed to acquire notifier token"
-              return 0
-            }
-
-            local response
-            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
-              -H "Authorization: Bearer $token" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n \
-                --arg teamId "$TEAMS_TEAM_ID" \
-                --arg channelId "$channel_id" \
-                --arg source "scheduled-release" \
-                --arg title "$title" \
-                --arg status "$status" \
-                --arg message "$message" \
-                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
-              echo "::warning::Failed to post to Teams: $response"
-              return 0
-            }
-            echo "$response"
-          }
-
           CREATED=""
           FAILED=""
 
           if [[ "$DRY_RUN" == "true" ]]; then
-            # In dry run, list all intended tags (none were actually pushed)
-            CREATED=$(echo "$MATRIX" | jq -r '.[].new_tag' | sed 's/^/• /' | tr '\n' '\n')
+            CREATED=$(echo "$MATRIX" | jq -r '.[].new_tag' | sed 's/^/• /')
             MSG="🏜️ [DRY RUN] <b>Binary releases that WOULD be created:</b><br><br>${CREATED}<br><br>These tags were detected as needing a release but were not pushed (dry run mode)."
-
-            notify "$TEAMS_RELEASE_CHANNEL_ID" "Binary Release Summary: ${RELEASE_BRANCH}" "warning" "$MSG"
+            /tmp/release-cli notify \
+              --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+              --title "Binary Release Summary: ${RELEASE_BRANCH}" \
+              --status queued \
+              --summary "$MSG" \
+              --stage binary-release
           else
             for TAG in $(echo "$MATRIX" | jq -r '.[].new_tag'); do
               if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
@@ -908,8 +609,12 @@ jobs:
 
             if [[ -n "$CREATED" ]]; then
               MSG="📦 <b>Binary releases created (3-week cycle):</b><br><br>$(echo -e "$CREATED")<br>These tags were auto-created because changes were detected since the previous release."
-
-              notify "$TEAMS_RELEASE_CHANNEL_ID" "Binary Release Summary: ${RELEASE_BRANCH}" "success" "$MSG"
+              /tmp/release-cli notify \
+                --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+                --title "Binary Release Summary: ${RELEASE_BRANCH}" \
+                --status succeeded \
+                --summary "$MSG" \
+                --stage binary-release
             fi
 
             if [[ -n "$FAILED" ]]; then
@@ -952,47 +657,18 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Build release-cli
+        run: |
+          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
+
       - name: Determine next patch version
         id: version
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
-          # Get latest tag on this branch
-          BRANCH="${RELEASE_BRANCH}"
-
-          # Extract version prefix from branch name (e.g., release/v1.7 → v1.7)
-          if [[ "$BRANCH" == "master" ]]; then
-            # For master, find the latest root tag
-            LATEST_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-          else
-            VERSION_PREFIX=$(echo "$BRANCH" | sed 's|release/||')
-            LATEST_TAG=$(git tag -l "${VERSION_PREFIX}.*" --sort=-v:refname | head -1)
-          fi
-
-          if [[ -z "$LATEST_TAG" ]]; then
-            echo "::error::No existing tag found for branch $BRANCH"
-            exit 1
-          fi
-
-          echo "Latest tag: $LATEST_TAG"
-          echo "previous_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
-
-          # Bump patch version
-          MAJOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f1)
-          MINOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f2)
-          PATCH=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f3)
-          NEW_PATCH=$((PATCH + 1))
-          NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
-
-          echo "New tag will be: $NEW_TAG"
-          echo "new_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
-
-          # Get HEAD SHA of release branch
-          TARGET_SHA=$(git rev-parse HEAD)
-          echo "target_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
-          echo "Target SHA: $TARGET_SHA"
+          RESULT=$(/tmp/release-cli next-version --branch "$RELEASE_BRANCH")
+          echo "new_tag=$(echo "$RESULT" | jq -r '.new_tag')" >> "$GITHUB_OUTPUT"
+          echo "previous_tag=$(echo "$RESULT" | jq -r '.latest_tag')" >> "$GITHUB_OUTPUT"
+          echo "target_sha=$(echo "$RESULT" | jq -r '.target_sha')" >> "$GITHUB_OUTPUT"
 
       - name: Dispatch create-release-tag workflow
         env:
@@ -1045,6 +721,10 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Build release-cli
+        run: |
+          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
+
       - name: Azure Login (OIDC)
         continue-on-error: true
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
@@ -1077,149 +757,51 @@ jobs:
             elapsed=$((elapsed + POLL))
           done
 
+      - name: Build release-cli
+        run: |
+          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
+
       - name: Run ACN PR Pipeline (retry up to 5x)
         id: pr_pipeline
         env:
-          GH_TOKEN: ${{ github.token }}
-          # ADO pipeline trigger details — customize per environment
           ADO_ORG: ${{ secrets.AZURE_PIPELINE_ORG }}
           ADO_PROJECT: ${{ secrets.AZURE_PIPELINE_PROJECT }}
           ADO_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}
-          ACN_PR_PIPELINE_ID: ${{ secrets.ACN_PR_PIPELINE_ID }}
+          PIPELINE_ID: ${{ secrets.ACN_PR_PIPELINE_ID }}
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
         run: |
           set -euo pipefail
-          MAX_RETRIES="${MAX_PIPELINE_RETRIES}"
-
-          for attempt in $(seq 1 $MAX_RETRIES); do
-            echo "ACN PR Pipeline — Attempt $attempt/$MAX_RETRIES"
-
-            # Trigger ADO pipeline (placeholder — replace with actual trigger mechanism)
-            # This could be az pipelines run, REST API call, or GitHub workflow dispatch
-            RUN_ID=$(curl -s -u ":${ADO_PAT}" \
-              -H "Content-Type: application/json" \
-              -d "{\"resources\":{\"repositories\":{\"self\":{\"refName\":\"refs/tags/${NEW_TAG}\"}}},\"templateParameters\":{\"tag\":\"${NEW_TAG}\"}}" \
-              "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/pipelines/${ACN_PR_PIPELINE_ID}/runs?api-version=7.0" \
-              | jq -r '.id' 2>/dev/null || echo "")
-
-            if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
-              echo "::warning::Failed to trigger ACN PR Pipeline (attempt $attempt)"
-              if (( attempt == MAX_RETRIES )); then
-                echo "::error::ACN PR Pipeline exhausted all $MAX_RETRIES retries"
-                exit 1
-              fi
-              sleep 60
-              continue
-            fi
-
-            RUN_URL="https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_build/results?buildId=${RUN_ID}&view=results"
-            echo "Triggered run: $RUN_URL"
-
-            # Poll for completion (max 90 minutes per run)
-            poll_elapsed=0
-            while true; do
-              STATUS=$(curl -s -u ":${ADO_PAT}" \
-                "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/build/builds/${RUN_ID}?api-version=7.0" \
-                | jq -r '.status' 2>/dev/null || echo "unknown")
-
-              RESULT=$(curl -s -u ":${ADO_PAT}" \
-                "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/build/builds/${RUN_ID}?api-version=7.0" \
-                | jq -r '.result' 2>/dev/null || echo "unknown")
-
-              if [[ "$STATUS" == "completed" ]]; then
-                if [[ "$RESULT" == "succeeded" ]]; then
-                  echo "✅ ACN PR Pipeline succeeded (attempt $attempt)"
-                  echo "run_url=$RUN_URL" >> "$GITHUB_OUTPUT"
-                  exit 0
-                else
-                  echo "❌ ACN PR Pipeline failed with result: $RESULT (attempt $attempt)"
-                  break
-                fi
-              fi
-              poll_elapsed=$((poll_elapsed + 120))
-              if (( poll_elapsed >= 5400 )); then
-                echo "::warning::ACN PR Pipeline timed out after 90 minutes (attempt $attempt)"
-                break
-              fi
-              sleep 120
-            done
-
-            if (( attempt == MAX_RETRIES )); then
-              echo "::error::ACN PR Pipeline exhausted all $MAX_RETRIES retries"
-              exit 1
-            fi
-            sleep 60
-          done
+          RESULT=$(/tmp/release-cli run-pipeline \
+            --org "$ADO_ORG" \
+            --project "$ADO_PROJECT" \
+            --pipeline-id "$PIPELINE_ID" \
+            --pat "$ADO_PAT" \
+            --tag "$NEW_TAG" \
+            --max-retries 5 \
+            --timeout 90m \
+            --name "ACN PR Pipeline")
+          echo "run_url=$(echo "$RESULT" | jq -r '.run_url')" >> "$GITHUB_OUTPUT"
 
       - name: Run ACN CNI Release Test (retry up to 5x)
         id: cni_release
         env:
-          GH_TOKEN: ${{ github.token }}
           ADO_ORG: ${{ secrets.AZURE_PIPELINE_ORG }}
           ADO_PROJECT: ${{ secrets.AZURE_PIPELINE_PROJECT }}
           ADO_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}
-          ACN_CNI_RELEASE_PIPELINE_ID: ${{ secrets.ACN_CNI_RELEASE_PIPELINE_ID }}
+          PIPELINE_ID: ${{ secrets.ACN_CNI_RELEASE_PIPELINE_ID }}
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
         run: |
           set -euo pipefail
-          MAX_RETRIES="${MAX_PIPELINE_RETRIES}"
-
-          for attempt in $(seq 1 $MAX_RETRIES); do
-            echo "ACN CNI Release Test — Attempt $attempt/$MAX_RETRIES"
-
-            RUN_ID=$(curl -s -u ":${ADO_PAT}" \
-              -H "Content-Type: application/json" \
-              -d "{\"resources\":{\"repositories\":{\"self\":{\"refName\":\"refs/tags/${NEW_TAG}\"}}},\"templateParameters\":{\"tag\":\"${NEW_TAG}\"}}" \
-              "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/pipelines/${ACN_CNI_RELEASE_PIPELINE_ID}/runs?api-version=7.0" \
-              | jq -r '.id' 2>/dev/null || echo "")
-
-            if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
-              echo "::warning::Failed to trigger ACN CNI Release Test (attempt $attempt)"
-              if (( attempt == MAX_RETRIES )); then
-                echo "::error::ACN CNI Release Test exhausted all $MAX_RETRIES retries"
-                exit 1
-              fi
-              sleep 60
-              continue
-            fi
-
-            RUN_URL="https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_build/results?buildId=${RUN_ID}&view=results"
-            echo "Triggered run: $RUN_URL"
-
-            poll_elapsed=0
-            while true; do
-              STATUS=$(curl -s -u ":${ADO_PAT}" \
-                "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/build/builds/${RUN_ID}?api-version=7.0" \
-                | jq -r '.status' 2>/dev/null || echo "unknown")
-
-              RESULT=$(curl -s -u ":${ADO_PAT}" \
-                "https://dev.azure.com/${ADO_ORG}/${ADO_PROJECT}/_apis/build/builds/${RUN_ID}?api-version=7.0" \
-                | jq -r '.result' 2>/dev/null || echo "unknown")
-
-              if [[ "$STATUS" == "completed" ]]; then
-                if [[ "$RESULT" == "succeeded" ]]; then
-                  echo "✅ ACN CNI Release Test succeeded (attempt $attempt)"
-                  echo "run_url=$RUN_URL" >> "$GITHUB_OUTPUT"
-                  exit 0
-                else
-                  echo "❌ ACN CNI Release Test failed with result: $RESULT (attempt $attempt)"
-                  break
-                fi
-              fi
-              poll_elapsed=$((poll_elapsed + 120))
-              if (( poll_elapsed >= 5400 )); then
-                echo "::warning::ACN CNI Release Test timed out after 90 minutes (attempt $attempt)"
-                break
-              fi
-              sleep 120
-            done
-
-            if (( attempt == MAX_RETRIES )); then
-              echo "::error::ACN CNI Release Test exhausted all $MAX_RETRIES retries"
-              exit 1
-            fi
-            sleep 60
-          done
+          RESULT=$(/tmp/release-cli run-pipeline \
+            --org "$ADO_ORG" \
+            --project "$ADO_PROJECT" \
+            --pipeline-id "$PIPELINE_ID" \
+            --pat "$ADO_PAT" \
+            --tag "$NEW_TAG" \
+            --max-retries 5 \
+            --timeout 90m \
+            --name "ACN CNI Release Test")
+          echo "run_url=$(echo "$RESULT" | jq -r '.run_url')" >> "$GITHUB_OUTPUT"
 
       - name: Post pipeline validation to CNI Teams channel
         env:
@@ -1228,35 +810,13 @@ jobs:
           CNI_RUN: ${{ steps.cni_release.outputs.run_url }}
         run: |
           set -euo pipefail
-          notify() {
-            local channel_id="$1" title="$2" status="$3" message="$4"
-            local token
-            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
-              echo "::warning::Failed to acquire notifier token"
-              return 0
-            }
-
-            local response
-            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
-              -H "Authorization: Bearer $token" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n \
-                --arg teamId "$TEAMS_TEAM_ID" \
-                --arg channelId "$channel_id" \
-                --arg source "scheduled-release" \
-                --arg title "$title" \
-                --arg status "$status" \
-                --arg message "$message" \
-                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
-              echo "::warning::Failed to post to Teams: $response"
-              return 0
-            }
-            echo "$response"
-          }
-
           MSG="✅ <b>Pipeline validation complete for ${NEW_TAG}</b><br><br>• ACN PR Pipeline: ${PR_RUN}<br>• ACN CNI Release Test: ${CNI_RUN}<br>• CNI/CNS Signed Release: Managed DALEC (automatic — tag picked up)"
-
-          notify "$TEAMS_CNI_CHANNEL_ID" "Pipeline Validation: ${NEW_TAG}" "success" "$MSG"
+          /tmp/release-cli notify \
+            --channel-id "$TEAMS_CNI_CHANNEL_ID" \
+            --title "Pipeline Validation: ${NEW_TAG}" \
+            --status succeeded \
+            --summary "$MSG" \
+            --stage pipeline-validation
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 5: Post in Release Channel + Draft R2D
@@ -1270,6 +830,17 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+        with:
+          ref: ${{ env.RELEASE_BRANCH }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build release-cli
+        run: |
+          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
+
       - name: Azure Login (OIDC)
         continue-on-error: true
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
@@ -1289,32 +860,6 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          notify() {
-            local channel_id="$1" title="$2" status="$3" message="$4"
-            local token
-            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
-              echo "::warning::Failed to acquire notifier token"
-              return 0
-            }
-
-            local response
-            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
-              -H "Authorization: Bearer $token" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n \
-                --arg teamId "$TEAMS_TEAM_ID" \
-                --arg channelId "$channel_id" \
-                --arg source "scheduled-release" \
-                --arg title "$title" \
-                --arg status "$status" \
-                --arg message "$message" \
-                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
-              echo "::warning::Failed to post to Teams: $response"
-              return 0
-            }
-            echo "$response"
-          }
-
           BRANCH="${RELEASE_BRANCH}"
           PR_RUN="${PR_RUN:-_(dry run — skipped)_}"
           CNI_RUN="${CNI_RUN:-_(dry run — skipped)_}"
@@ -1326,7 +871,6 @@ jobs:
           COMMIT_LINK="https://github.com/${REPO}/commit/${TARGET_SHA}"
           CHANGELOG_LINK="https://github.com/${REPO}/compare/${PREVIOUS_TAG}...${NEW_TAG}"
 
-          # Post the official release thread template
           RELEASE_MSG="${DRY_PREFIX}@Release I will start the release process for the acn repo (cni/cns/npm) ${NEW_TAG} based on this commit: ${COMMIT_LINK} from the ${BRANCH} branch. I intend for this release to make it to AKS.
 
           ---
@@ -1361,7 +905,12 @@ jobs:
           echo "Release channel message:"
           echo "$RELEASE_MSG"
 
-          RESPONSE=$(notify "$TEAMS_RELEASE_CHANNEL_ID" "Release ${NEW_TAG}" "in_progress" "$RELEASE_MSG")
+          RESPONSE=$(/tmp/release-cli notify \
+            --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+            --title "Release ${NEW_TAG}" \
+            --status running \
+            --summary "$RELEASE_MSG" \
+            --stage release-thread)
           MESSAGE_ID=$(echo "$RESPONSE" | jq -r '.messageId // empty' 2>/dev/null || true)
           echo "message_id=$MESSAGE_ID" >> "$GITHUB_OUTPUT"
 
@@ -1472,67 +1021,12 @@ jobs:
 
       - name: Post R2D drafts summary to Release thread
         env:
-          MESSAGE_ID: ${{ steps.release_thread.outputs.message_id }}
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
         run: |
-          set -euo pipefail
-          notify() {
-            local channel_id="$1" title="$2" status="$3" message="$4"
-            local token
-            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
-              echo "::warning::Failed to acquire notifier token"
-              return 0
-            }
-
-            local response
-            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications" \
-              -H "Authorization: Bearer $token" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n \
-                --arg teamId "$TEAMS_TEAM_ID" \
-                --arg channelId "$channel_id" \
-                --arg source "scheduled-release" \
-                --arg title "$title" \
-                --arg status "$status" \
-                --arg message "$message" \
-                '{teamId: $teamId, channelId: $channelId, source: $source, title: $title, status: $status, message: $message}')" 2>&1) || {
-              echo "::warning::Failed to post to Teams: $response"
-              return 0
-            }
-            echo "$response"
-          }
-
-          notify_reply() {
-            local channel_id="$1" message_id="$2" message="$3"
-            local token
-            token=$(az account get-access-token --resource "$NOTIFIER_AUDIENCE" --query accessToken -o tsv 2>/dev/null) || {
-              echo "::warning::Failed to acquire notifier token"
-              return 0
-            }
-
-            local response
-            response=$(curl -sf -X POST "${NOTIFIER_URL}/api/notifications/reply" \
-              -H "Authorization: Bearer $token" \
-              -H "Content-Type: application/json" \
-              -d "$(jq -n \
-                --arg teamId "$TEAMS_TEAM_ID" \
-                --arg channelId "$channel_id" \
-                --arg messageId "$message_id" \
-                --arg message "$message" \
-                '{teamId: $teamId, channelId: $channelId, messageId: $messageId, message: $message}')" 2>&1) || {
-              echo "::warning::Failed to post reply to Teams: $response"
-              return 0
-            }
-            echo "$response"
-          }
-
-          R2D_MSG="📋 <b>R2D Drafts prepared for ${NEW_TAG}:</b><br><br><b>UNSIGNED</b> — Clone from SafeFly Request #193479<br>• Service Group: microsoft.azure.networking.containernetworking.githubrelease<br>• File at: https://aka.ms/R2D<br><br><b>SIGNED</b> — Clone from SafeFly Request #174991<br>• Service Group: microsoft.azure.networking.containernetworking<br>• File at: https://aka.ms/R2D<br><br>⚠️ <b>Human action required:</b> File both R2Ds, then post the Safefly/R2D links back in this thread."
-
-          if [[ -n "$MESSAGE_ID" ]]; then
-            notify_reply "$TEAMS_RELEASE_CHANNEL_ID" "$MESSAGE_ID" "$R2D_MSG"
-          else
-            notify "$TEAMS_RELEASE_CHANNEL_ID" "R2D Drafts: ${NEW_TAG}" "warning" "$R2D_MSG"
-          fi
+          /tmp/release-cli notify-reply \
+            --text "📋 R2D Drafts prepared for ${NEW_TAG}:<br><br><b>UNSIGNED</b> — Clone from SafeFly Request #193479<br>• Service Group: microsoft.azure.networking.containernetworking.githubrelease<br>• File at: https://aka.ms/R2D<br><br><b>SIGNED</b> — Clone from SafeFly Request #174991<br>• Service Group: microsoft.azure.networking.containernetworking<br>• File at: https://aka.ms/R2D<br><br>⚠️ <b>Human action required:</b> File both R2Ds, then post the Safefly/R2D links back in this thread." \
+            --tag "r2d-draft" \
+            --severity warning
 
       - name: Send email to leads
         env:
