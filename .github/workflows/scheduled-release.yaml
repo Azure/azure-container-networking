@@ -52,7 +52,6 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write
   pull-requests: read
 
 env:
@@ -309,7 +308,7 @@ jobs:
 
       - name: Azure Login (OIDC)
         continue-on-error: true
-        uses: azure/login@2dd0bbf4064d5a1812889dc200bb8eed2597f82a  # v3
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
         with:
           client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
           tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
@@ -592,6 +591,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: wait_dependabot
     if: ${{ inputs.skip_vuln_check != true }}
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       vuln_count: ${{ steps.scan.outputs.vuln_count }}
       clean: ${{ steps.scan.outputs.clean }}
@@ -610,7 +612,7 @@ jobs:
 
       - name: Azure Login (OIDC)
         continue-on-error: true
-        uses: azure/login@2dd0bbf4064d5a1812889dc200bb8eed2597f82a  # v3
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
         with:
           client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
           tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
@@ -835,6 +837,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [detect_binary_changes, tag_binaries]
     if: always() && needs.detect_binary_changes.outputs.has_changes == 'true'
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout (for tag verification)
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
@@ -845,7 +850,7 @@ jobs:
 
       - name: Azure Login (OIDC)
         continue-on-error: true
-        uses: azure/login@2dd0bbf4064d5a1812889dc200bb8eed2597f82a  # v3
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
         with:
           client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
           tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
@@ -1042,7 +1047,7 @@ jobs:
 
       - name: Azure Login (OIDC)
         continue-on-error: true
-        uses: azure/login@2dd0bbf4064d5a1812889dc200bb8eed2597f82a  # v3
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
         with:
           client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
           tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
@@ -1261,10 +1266,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: [create_tag, validate_pipelines]
     if: always() && needs.create_tag.result == 'success' && needs.validate_pipelines.result == 'success'
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Azure Login (OIDC)
         continue-on-error: true
-        uses: azure/login@2dd0bbf4064d5a1812889dc200bb8eed2597f82a  # v3
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
         with:
           client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
           tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
