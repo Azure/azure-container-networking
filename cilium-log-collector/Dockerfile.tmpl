@@ -2,6 +2,7 @@
 # SOURCE: {{.SRC}}
 ARG ARCH
 ARG OS
+ARG FLUENT_BIT_VERSION=v4.2.3
 
 # {{.GO_IMG}}
 FROM --platform=linux/${ARCH} {{.GO_PIN}} AS go
@@ -12,5 +13,36 @@ WORKDIR /cilium-log-collector
 COPY ./cilium-log-collector .
 RUN go build -buildmode=c-shared -a -o out_azure_app_insights.so -trimpath -ldflags "-X main.version=$VERSION" -gcflags="-dwarflocationlists=true" .
 
-FROM mcr.microsoft.com/oss/v2/fluent/fluent-bit:v4.2.3-8 as linux
+# Build fluent-bit from source without jemalloc to support ARM64 64KB page kernels.
+# The upstream MCR image statically links jemalloc which crashes on 64KB page systems
+# (CONFIG_ARM64_64K_PAGES) with "Unsupported system page size".
+FROM --platform=linux/${ARCH} debian:bookworm-slim AS fluent-bit-builder
+ARG FLUENT_BIT_VERSION
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake make gcc g++ \
+    libssl-dev libyaml-dev zlib1g-dev \
+    libcurl4-openssl-dev libsystemd-dev \
+    libsasl2-dev flex bison pkg-config \
+    git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+RUN git clone --depth 1 --branch ${FLUENT_BIT_VERSION} https://github.com/fluent/fluent-bit.git /src/fluent-bit
+WORKDIR /src/fluent-bit/build
+RUN cmake .. \
+    -DFLB_JEMALLOC=OFF \
+    -DFLB_RELEASE=On \
+    -DFLB_TRACE=Off \
+    -DFLB_SHARED_LIB=Off \
+    -DFLB_OUT_KAFKA=OFF \
+    -DFLB_OUT_PGSQL=OFF \
+    -DCMAKE_INSTALL_PREFIX=/fluent-bit \
+    -DCMAKE_BUILD_TYPE=Release \
+    && make -j$(nproc) && make install
+
+FROM --platform=linux/${ARCH} debian:bookworm-slim as linux
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libyaml-0-2 libssl3 zlib1g libcurl4 \
+    libsystemd0 libsasl2-2 libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=fluent-bit-builder /fluent-bit /fluent-bit
+RUN ln -s /fluent-bit/bin/fluent-bit /usr/bin/fluent-bit
 COPY --from=fluent-bit-plugin /cilium-log-collector/out_azure_app_insights.so /out_azure_app_insights.so
