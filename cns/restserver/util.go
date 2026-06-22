@@ -132,7 +132,8 @@ func (service *HTTPRestService) restoreState() {
 				// Nothing to restore.
 				logger.Printf("[Azure CNS]  No endpoint state to restore.\n")
 			} else {
-				logger.Errorf("[Azure CNS]  Failed to restore endpoint state, err:%v. Removing endpoints.json", err)
+				//nolint:staticcheck // TODO: migrate to zap
+				logger.Errorf("[Azure CNS]  Failed to restore endpoint state, err:%v", err)
 			}
 			return
 		}
