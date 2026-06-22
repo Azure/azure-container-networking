@@ -32,14 +32,15 @@ parameters:
   # Artifact naming fields — must match what log-template.yaml publishes.
   logType: "failure"
   artifactJobName: "FailedE2ELogs"
-  # Collect read-only live kubectl diagnostics from the retained cluster.
+  # MVP demo: keep supplemental fixed-set live diagnostics enabled. The larger
+  # live evidence source is still failedE2ELogs, which publishes the input bundle.
   # Requires KUBECONFIG to point at the retained failing cluster.
-  live: false
-  # Optional path to a persisted SQLite knowledge store (incident memory,
-  # duplicate detection, prior-fix context). Leave empty to run statelessly.
+  live: true
+  # MVP demo: knowledge store remains implemented but disabled in the pipeline.
+  # Re-enable incrementally after AOAI analysis and GitHub upsert are proven.
   knowledgeDb: ""
-  # Optional path to write the knowledge-store flakiness report. Requires
-  # knowledgeDb to be set.
+  # MVP demo: flakiness analytics remains implemented but disabled until a
+  # persistent knowledge store is enabled across multiple pipeline runs.
   flakinessOutput: ""
 
 jobs:
@@ -96,13 +97,18 @@ jobs:
             EXTRA_FLAGS="$EXTRA_FLAGS --live"
           fi
 
-          if [ -n "${{ parameters.knowledgeDb }}" ]; then
-            EXTRA_FLAGS="$EXTRA_FLAGS --knowledge-db ${{ parameters.knowledgeDb }}"
-          fi
+          # MVP demo: knowledge-store incident memory/dedupe/prior context is
+          # intentionally disabled in the pipeline. The code remains in place;
+          # re-enable after AOAI analysis and GitHub upsert are proven.
+          # if [ -n "${{ parameters.knowledgeDb }}" ]; then
+          #   EXTRA_FLAGS="$EXTRA_FLAGS --knowledge-db ${{ parameters.knowledgeDb }}"
+          # fi
 
-          if [ -n "${{ parameters.flakinessOutput }}" ]; then
-            EXTRA_FLAGS="$EXTRA_FLAGS --flakiness-output ${{ parameters.flakinessOutput }}"
-          fi
+          # MVP demo: flakiness analytics requires a persistent knowledge store
+          # and repeated runs, so leave it disabled for the first demo.
+          # if [ -n "${{ parameters.flakinessOutput }}" ]; then
+          #   EXTRA_FLAGS="$EXTRA_FLAGS --flakiness-output ${{ parameters.flakinessOutput }}"
+          # fi
 
           cd "$(Build.SourcesDirectory)"
           go run ./tools/failure-agent \
@@ -127,7 +133,7 @@ jobs:
             PARSED=$(grep -o '"retentionDecision"[^,]*' "$INCIDENT" | head -n1 | sed -E 's/.*: *"([^"]*)".*/\1/')
             DECISION=${PARSED:-delete}
           fi
-          echo "Retention recommendation: $DECISION (advisory only — teardown is unaffected by this job)"
+          echo "Retention recommendation: $DECISION (MVP demo advisory only — teardown enforcement is re-enabled incrementally after the core demo)"
           echo "##vso[task.setvariable variable=retentionDecision;isOutput=true]$DECISION"
         name: retention
         displayName: "Surface retention recommendation"
