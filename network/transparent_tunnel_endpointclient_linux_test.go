@@ -14,6 +14,8 @@ import (
 	vishnetlink "github.com/vishvananda/netlink"
 )
 
+const testHostVethName = "azv1234"
+
 // transparentTunnelMockIPTablesClient tracks all iptables calls for test verification.
 type transparentTunnelMockIPTablesClient struct {
 	insertCalls         []iptablesCall
@@ -288,8 +290,8 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 
 			client := &TransparentTunnelEndpointClient{
 				TransparentEndpointClient: &TransparentEndpointClient{
-					hostVethName:      "azv1234",
-					hostPrimaryIfName: "eth0",
+					hostVethName:      testHostVethName,
+					hostPrimaryIfName: InfraInterfaceName,
 					netioshim:         netio.NewMockNetIO(false, 0),
 				},
 				iptablesClient: iptMock,
@@ -337,7 +339,7 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 			assert.Equal(t, iptables.Raw, notrackCall.tableName)
 			assert.Equal(t, iptables.Prerouting, notrackCall.chainName)
 			assert.Equal(t, iptables.Notrack, notrackCall.target)
-			assert.Contains(t, notrackCall.match, "-i eth0")
+			assert.Contains(t, notrackCall.match, "-i "+InfraInterfaceName)
 			assert.Contains(t, notrackCall.match, "--match-set "+transparentTunnelLocalPodsSet+" src")
 			assert.Contains(t, notrackCall.match, "--match-set "+transparentTunnelLocalPodsSet+" dst")
 
@@ -346,7 +348,7 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 			assert.Equal(t, iptables.V4, markCall.version)
 			assert.Equal(t, iptables.Mangle, markCall.tableName)
 			assert.Equal(t, iptables.Prerouting, markCall.chainName)
-			assert.Contains(t, markCall.match, "-i azv1234")
+			assert.Contains(t, markCall.match, "-i "+testHostVethName)
 			assert.Contains(t, markCall.target, "MARK --set-mark 3")
 
 			// RuleList must always run as the dedup pre-check.
@@ -377,8 +379,8 @@ func TestTransparentTunnelAddEndpointRules_IpsetCreateFails(t *testing.T) {
 
 	client := &TransparentTunnelEndpointClient{
 		TransparentEndpointClient: &TransparentEndpointClient{
-			hostVethName:      "azv1234",
-			hostPrimaryIfName: "eth0",
+			hostVethName:      testHostVethName,
+			hostPrimaryIfName: InfraInterfaceName,
 			netioshim:         netio.NewMockNetIO(false, 0),
 		},
 		iptablesClient: iptMock,
@@ -405,8 +407,8 @@ func TestTransparentTunnelAddEndpointRules_IpsetAddFails(t *testing.T) {
 
 	client := &TransparentTunnelEndpointClient{
 		TransparentEndpointClient: &TransparentEndpointClient{
-			hostVethName:      "azv1234",
-			hostPrimaryIfName: "eth0",
+			hostVethName:      testHostVethName,
+			hostPrimaryIfName: InfraInterfaceName,
 			netioshim:         netio.NewMockNetIO(false, 0),
 		},
 		iptablesClient: iptMock,
@@ -434,8 +436,8 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 	) *TransparentTunnelEndpointClient {
 		return &TransparentTunnelEndpointClient{
 			TransparentEndpointClient: &TransparentEndpointClient{
-				hostVethName:      "azv1234",
-				hostPrimaryIfName: "eth0",
+				hostVethName:      testHostVethName,
+				hostPrimaryIfName: InfraInterfaceName,
 				netlink:           netlink.NewMockNetlink(false, ""),
 				netioshim:         netio.NewMockNetIO(false, 0),
 			},
@@ -448,7 +450,7 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 
 	makeEndpoint := func() *endpoint {
 		return &endpoint{
-			HostIfName: "azv1234",
+			HostIfName: testHostVethName,
 			IPAddresses: []net.IPNet{
 				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
 			},
@@ -491,7 +493,7 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 	t.Run("iptables real failure during cleanup is surfaced (xtables lock contention)", func(t *testing.T) {
 		nlMock := &transparentTunnelMockNlClient{}
 		iptMock := &transparentTunnelMockIPTablesClient{
-			deleteIfExistsErr: errors.New("exit status 4:Another app is currently holding the xtables lock; waiting for it to exit"),
+			deleteIfExistsErr: errors.New("exit status 4: another app is currently holding the xtables lock; waiting for it to exit"),
 		}
 		ipsetMock := &transparentTunnelMockIpsetClient{}
 		client := makeClient(nlMock, iptMock, ipsetMock)
@@ -546,7 +548,7 @@ func TestTransparentTunnelDeleteEndpointRules(t *testing.T) {
 
 func TestGetTunnelGateway(t *testing.T) {
 	v4 := func(s string) net.IP { return net.ParseIP(s).To4() }
-	v6 := func(s string) net.IP { return net.ParseIP(s) }
+	v6 := net.ParseIP
 
 	tests := []struct {
 		name       string

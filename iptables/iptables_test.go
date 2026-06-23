@@ -17,6 +17,8 @@ type validationCase struct {
 var (
 	errMockPlatform    = errors.New("mock pl error")
 	errExtraneousCalls = errors.New("function called too many times")
+	errRuleNotFound    = errors.New("exit status 1: iptables: bad rule does a matching rule exist in that chain")
+	errXtablesLock     = errors.New("exit status 4: another app is currently holding the xtables lock; waiting for it to exit")
 )
 
 // GenerateValidateFunc takes in a slice of expected calls and intended responses for each time the returned function is called
@@ -281,7 +283,7 @@ func TestDeleteIptableRuleIfExists(t *testing.T) {
 			// Real iptables stderr when the rule is absent. The wrapper
 			// in ExecuteRawCommand formats this as "<err>:<stderr>", which
 			// is what DeleteIptableRuleIfExists pattern-matches against.
-			return "", errors.New("exit status 1:iptables: Bad rule (does a matching rule exist in that chain?).\n")
+			return "", errRuleNotFound
 		})
 
 		require.NoError(t, client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept))
@@ -290,10 +292,9 @@ func TestDeleteIptableRuleIfExists(t *testing.T) {
 	t.Run("lock contention error is propagated", func(t *testing.T) {
 		mockPL := platform.NewMockExecClient(false)
 		client := &Client{pl: mockPL}
-		lockErr := errors.New("exit status 4:Another app is currently holding the xtables lock; waiting for it to exit\n")
 		mockPL.SetExecRawCommand(func(cmd string) (string, error) {
 			require.Equal(t, expectedCmd, cmd)
-			return "", lockErr
+			return "", errXtablesLock
 		})
 
 		err := client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept)

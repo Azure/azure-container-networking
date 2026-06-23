@@ -232,10 +232,9 @@ func buildTransparentTunnelNotrackMatch(hostPrimaryIf string) string {
 		" -m set --match-set " + transparentTunnelLocalPodsSet + " dst"
 }
 
-func findFwmarkRule(rules []vishnetlink.Rule, fwmark, table int) *vishnetlink.Rule {
-	wantMark := uint32(fwmark)
+func findFwmarkRule(rules []vishnetlink.Rule, fwmark uint32, table int) *vishnetlink.Rule {
 	for i := range rules {
-		if rules[i].Mark == wantMark && rules[i].Table == table {
+		if rules[i].Mark == fwmark && rules[i].Table == table {
 			return &rules[i]
 		}
 	}
