@@ -175,7 +175,11 @@ func (s *Service) hasBinaryChanges(ctx context.Context, fromTag, branch, binary 
 func (s *Service) revParse(ctx context.Context, ref string) (string, error) {
 	out, err := s.run(ctx, "git", "rev-parse", ref)
 	if err != nil {
-		return "", fmt.Errorf("resolving ref %s: %w", ref, err)
+		// In CI checkout, local branch may not exist; try origin/<ref>
+		out, err = s.run(ctx, "git", "rev-parse", "origin/"+ref)
+		if err != nil {
+			return "", fmt.Errorf("resolving ref %s: %w", ref, err)
+		}
 	}
 
 	return strings.TrimSpace(string(out)), nil
