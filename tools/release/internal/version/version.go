@@ -46,11 +46,12 @@ func NewService() *Service {
 }
 
 func (s *Service) NextVersion(ctx context.Context, branch string) (VersionInfo, error) {
-	if _, err := s.revParse(ctx, branch); err != nil {
+	resolved, err := s.resolveRef(ctx, branch)
+	if err != nil {
 		return VersionInfo{}, err
 	}
 
-	latestTag, err := s.latestBranchTag(ctx, branch)
+	latestTag, err := s.latestBranchTag(ctx, resolved, branch)
 	if err != nil {
 		return VersionInfo{}, err
 	}
@@ -73,13 +74,14 @@ func (s *Service) NextVersion(ctx context.Context, branch string) (VersionInfo, 
 }
 
 func (s *Service) DetectBinaryChanges(ctx context.Context, branch string) ([]BinaryChange, error) {
-	if _, err := s.revParse(ctx, branch); err != nil {
+	resolved, err := s.resolveRef(ctx, branch)
+	if err != nil {
 		return nil, err
 	}
 
 	changes := make([]BinaryChange, 0, len(binaries))
 	for _, binary := range binaries {
-		latestTag, err := s.latestBinaryTag(ctx, branch, binary)
+		latestTag, err := s.latestBinaryTag(ctx, resolved, binary)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +89,7 @@ func (s *Service) DetectBinaryChanges(ctx context.Context, branch string) ([]Bin
 			continue
 		}
 
-		changed, err := s.hasBinaryChanges(ctx, latestTag, branch, binary)
+		changed, err := s.hasBinaryChanges(ctx, latestTag, resolved, binary)
 		if err != nil {
 			return nil, err
 		}
@@ -110,9 +112,9 @@ func (s *Service) DetectBinaryChanges(ctx context.Context, branch string) ([]Bin
 	return changes, nil
 }
 
-func (s *Service) latestBranchTag(ctx context.Context, branch string) (string, error) {
+func (s *Service) latestBranchTag(ctx context.Context, resolvedRef, branch string) (string, error) {
 	if branch == "master" {
-		return s.firstMatchingTag(ctx, branch, "v*", rootTagPattern)
+		return s.firstMatchingTag(ctx, resolvedRef, "v*", rootTagPattern)
 	}
 
 	match := releaseBranchPattern.FindStringSubmatch(branch)
@@ -121,7 +123,7 @@ func (s *Service) latestBranchTag(ctx context.Context, branch string) (string, e
 	}
 
 	prefix := regexp.MustCompile("^" + regexp.QuoteMeta(match[1]) + `\.\d+$`)
-	return s.firstMatchingTag(ctx, branch, match[1]+".*", prefix)
+	return s.firstMatchingTag(ctx, resolvedRef, match[1]+".*", prefix)
 }
 
 func (s *Service) latestBinaryTag(ctx context.Context, branch, binary string) (string, error) {
@@ -183,6 +185,11 @@ func (s *Service) revParse(ctx context.Context, ref string) (string, error) {
 	}
 
 	return strings.TrimSpace(string(out)), nil
+}
+
+// resolveRef resolves a branch name to a SHA that works with git commands like --merged.
+func (s *Service) resolveRef(ctx context.Context, ref string) (string, error) {
+	return s.revParse(ctx, ref)
 }
 
 func bumpTag(tag string) (string, error) {
