@@ -65,14 +65,13 @@ jobs:
         with:
           go-version-file: ${{ matrix.module }}/go.mod
 
-      - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
-        env:
-          GOOS: ''
-          GOARCH: ''
-
       - name: Run govulncheck
-        run: govulncheck -C ${{ matrix.module }} -format text ./...
+        uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
+          work-dir: ${{ matrix.module }}
+          go-package: ./...
+          repo-checkout: false
 
   check-gomod-coverage:
     name: Check all go.mod files are in matrix
