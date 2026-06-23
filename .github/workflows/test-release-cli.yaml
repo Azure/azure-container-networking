@@ -1,0 +1,198 @@
+name: Test Release CLI (Fork)
+
+on:
+  push:
+    branches:
+      - behzadm/scheduled-release-workflow
+    paths:
+      - '.github/workflows/test-release-cli.yaml'
+  workflow_dispatch:
+    inputs:
+      test_case:
+        description: "Which test to run"
+        required: true
+        type: choice
+        options:
+          - wait-prs
+          - next-version
+          - detect-binaries
+          - collect-prs
+          - tag-creation
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  RELEASE_BRANCH: release/v1.7
+
+jobs:
+  build:
+    name: Build release-cli
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: tools/release/go.mod
+
+      - name: Build
+        run: |
+          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
+          /tmp/release-cli --help
+
+      - name: Upload binary
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-cli
+          path: /tmp/release-cli
+
+  test-collect-prs:
+    name: "Test: collect-prs"
+    runs-on: ubuntu-latest
+    needs: build
+    if: inputs.test_case == '' || inputs.test_case == 'collect-prs'
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-cli
+          path: /tmp
+      - run: chmod +x /tmp/release-cli
+      - name: Collect PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          /tmp/release-cli collect-prs --branch "$RELEASE_BRANCH" | jq .
+
+  test-next-version:
+    name: "Test: next-version"
+    runs-on: ubuntu-latest
+    needs: build
+    if: inputs.test_case == '' || inputs.test_case == 'next-version'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-cli
+          path: /tmp
+      - run: chmod +x /tmp/release-cli
+      - name: Get next version
+        run: |
+          /tmp/release-cli next-version --branch "$RELEASE_BRANCH" | jq .
+
+  test-detect-binaries:
+    name: "Test: detect-binaries"
+    runs-on: ubuntu-latest
+    needs: build
+    if: inputs.test_case == '' || inputs.test_case == 'detect-binaries'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-cli
+          path: /tmp
+      - run: chmod +x /tmp/release-cli
+      - name: Detect binary changes
+        run: |
+          /tmp/release-cli detect-binaries --branch "$RELEASE_BRANCH" | jq .
+
+  test-wait-prs:
+    name: "Test: wait-prs (with test issue)"
+    runs-on: ubuntu-latest
+    needs: build
+    if: inputs.test_case == '' || inputs.test_case == 'wait-prs'
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-cli
+          path: /tmp
+      - run: chmod +x /tmp/release-cli
+      - name: Create test issue
+        id: issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ISSUE_URL=$(gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "🧪 Test: Release Tracking (auto-closes)" \
+            --body "Test issue for wait-prs. Comment \`skip all\` to proceed." \
+            --label "release-tracking")
+          ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oP '\d+$')
+          echo "issue_number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Created test issue: $ISSUE_URL"
+
+      - name: Comment 'skip all' after 30s
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+        run: |
+          # Background: wait 30s then post skip all
+          (sleep 30 && gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "skip all") &
+          echo "Will post 'skip all' in 30 seconds..."
+
+      - name: Run wait-prs (should exit after skip all)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+        run: |
+          /tmp/release-cli wait-prs \
+            --branch "$RELEASE_BRANCH" \
+            --issue-number "$ISSUE_NUMBER" \
+            --poll-interval 10s \
+            --max-wait 2m | jq .
+
+      - name: Close test issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
+        run: |
+          gh issue close "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --comment "Test complete ✅" || true
+
+  test-tag-creation:
+    name: "Test: tag creation (dry)"
+    runs-on: ubuntu-latest
+    needs: build
+    if: inputs.test_case == '' || inputs.test_case == 'tag-creation'
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-cli
+          path: /tmp
+      - run: chmod +x /tmp/release-cli
+      - name: Calculate version and show what would be tagged
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "=== Next Version ==="
+          /tmp/release-cli next-version --branch "$RELEASE_BRANCH" | jq .
+
+          echo ""
+          echo "=== Binary Changes ==="
+          /tmp/release-cli detect-binaries --branch "$RELEASE_BRANCH" | jq .
+
+          echo ""
+          echo "=== What create-release-tag.yml dispatch would look like ==="
+          VERSION=$(/tmp/release-cli next-version --branch "$RELEASE_BRANCH")
+          NEW_TAG=$(echo "$VERSION" | jq -r '.new_tag')
+          TARGET_SHA=$(echo "$VERSION" | jq -r '.target_sha')
+          echo "gh workflow run create-release-tag.yml \\"
+          echo "  -f tag_prefix=none \\"
+          echo "  -f tag_name=$NEW_TAG \\"
+          echo "  -f target_sha=$TARGET_SHA \\"
+          echo "  -f reason=\"Scheduled monthly release (test)\""
