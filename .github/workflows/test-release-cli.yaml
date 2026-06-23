@@ -6,6 +6,7 @@ on:
       - behzadm/scheduled-release-workflow
     paths:
       - '.github/workflows/test-release-cli.yaml'
+      - 'tools/release/**'
   workflow_dispatch:
     inputs:
       test_case:
