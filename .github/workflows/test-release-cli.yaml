@@ -24,7 +24,7 @@ permissions:
   issues: write
 
 env:
-  RELEASE_BRANCH: release/v1.7
+  RELEASE_BRANCH: master
 
 jobs:
   build:
@@ -123,6 +123,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Ensure label exists on fork
+          gh label create "release-tracking" --repo "$GITHUB_REPOSITORY" --color "0E8A16" --force 2>/dev/null || true
           ISSUE_URL=$(gh issue create --repo "$GITHUB_REPOSITORY" \
             --title "🧪 Test: Release Tracking (auto-closes)" \
             --body "Test issue for wait-prs. Comment \`skip all\` to proceed." \
