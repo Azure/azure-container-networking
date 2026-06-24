@@ -706,7 +706,7 @@ jobs:
     if: inputs.dry_run != true
     timeout-minutes: 360
     permissions:
-      actions: write
+      contents: read
       id-token: write
     outputs:
       pr_pipeline_run_url: ${{ steps.pr_pipeline.outputs.run_url }}
@@ -724,7 +724,6 @@ jobs:
           cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
 
       - name: Azure Login (OIDC)
-        continue-on-error: true
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
         with:
           client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
@@ -755,49 +754,46 @@ jobs:
             elapsed=$((elapsed + POLL))
           done
 
-      - name: Build release-cli
+      - name: Get ADO Bearer token
+        id: ado_token
         run: |
-          cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
+          set -euo pipefail
+          # Azure DevOps resource ID
+          TOKEN=$(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
-      - name: Run ACN PR Pipeline (retry up to 5x)
+      - name: Wait for ACN PR Pipeline
         id: pr_pipeline
         env:
-          ADO_ORG: ${{ secrets.AZURE_PIPELINE_ORG }}
-          ADO_PROJECT: ${{ secrets.AZURE_PIPELINE_PROJECT }}
-          ADO_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}
-          PIPELINE_ID: ${{ secrets.ACN_PR_PIPELINE_ID }}
+          ADO_TOKEN: ${{ steps.ado_token.outputs.token }}
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
         run: |
           set -euo pipefail
-          RESULT=$(/tmp/release-cli run-pipeline \
-            --org "$ADO_ORG" \
-            --project "$ADO_PROJECT" \
-            --pipeline-id "$PIPELINE_ID" \
-            --pat "$ADO_PAT" \
+          RESULT=$(/tmp/release-cli wait-pipeline \
+            --org "msazure" \
+            --project "One" \
+            --definition-id "${{ vars.ACN_PR_PIPELINE_ID }}" \
+            --token "$ADO_TOKEN" \
             --tag "$NEW_TAG" \
-            --max-retries 5 \
-            --timeout 90m \
+            --timeout 3h \
             --name "ACN PR Pipeline")
           echo "run_url=$(echo "$RESULT" | jq -r '.run_url')" >> "$GITHUB_OUTPUT"
 
-      - name: Run ACN CNI Release Test (retry up to 5x)
+      - name: Wait for ACN CNI Release Test
         id: cni_release
         env:
-          ADO_ORG: ${{ secrets.AZURE_PIPELINE_ORG }}
-          ADO_PROJECT: ${{ secrets.AZURE_PIPELINE_PROJECT }}
-          ADO_PAT: ${{ secrets.AZURE_DEVOPS_EXT_PAT }}
-          PIPELINE_ID: ${{ secrets.ACN_CNI_RELEASE_PIPELINE_ID }}
+          ADO_TOKEN: ${{ steps.ado_token.outputs.token }}
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
         run: |
           set -euo pipefail
-          RESULT=$(/tmp/release-cli run-pipeline \
-            --org "$ADO_ORG" \
-            --project "$ADO_PROJECT" \
-            --pipeline-id "$PIPELINE_ID" \
-            --pat "$ADO_PAT" \
+          RESULT=$(/tmp/release-cli wait-pipeline \
+            --org "msazure" \
+            --project "One" \
+            --definition-id "${{ vars.ACN_CNI_RELEASE_PIPELINE_ID }}" \
+            --token "$ADO_TOKEN" \
             --tag "$NEW_TAG" \
-            --max-retries 5 \
-            --timeout 90m \
+            --timeout 3h \
             --name "ACN CNI Release Test")
           echo "run_url=$(echo "$RESULT" | jq -r '.run_url')" >> "$GITHUB_OUTPUT"
 

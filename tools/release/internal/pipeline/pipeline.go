@@ -1,17 +1,13 @@
 package pipeline
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
-
-	retry "github.com/avast/retry-go/v4"
 )
 
 type httpDoer interface {
@@ -22,35 +18,41 @@ type Client struct {
 	doer httpDoer
 }
 
-type RunOptions struct {
-	Org        string        `json:"org"`
-	Project    string        `json:"project"`
-	PipelineID string        `json:"pipeline_id"`
-	PAT        string        `json:"-"`
-	Tag        string        `json:"tag"`
-	MaxRetries uint          `json:"max_retries"`
-	Timeout    time.Duration `json:"timeout"`
-	Name       string        `json:"name"`
+// WaitOptions configures how to find and wait for an auto-triggered pipeline run.
+type WaitOptions struct {
+	Org          string        `json:"org"`
+	Project      string        `json:"project"`
+	DefinitionID string        `json:"definition_id"`
+	Token        string        `json:"-"` // Bearer token (from OIDC)
+	Tag          string        `json:"tag"`
+	Timeout      time.Duration `json:"timeout"`
+	Name         string        `json:"name"`
 }
 
-type RunResult struct {
+type WaitResult struct {
 	RunURL string `json:"run_url"`
-}
-
-type triggerResponse struct {
-	ID int `json:"id"`
-}
-
-type buildStatusResponse struct {
-	Status string `json:"status"`
+	RunID  int    `json:"run_id"`
 	Result string `json:"result"`
+}
+
+type buildListResponse struct {
+	Value []buildEntry `json:"value"`
+}
+
+type buildEntry struct {
+	ID          int    `json:"id"`
+	Status      string `json:"status"`
+	Result      string `json:"result"`
+	SourceBranch string `json:"sourceBranch"`
 }
 
 func NewClient() *Client {
 	return &Client{doer: http.DefaultClient}
 }
 
-func (c *Client) Run(ctx context.Context, opts RunOptions, progress io.Writer) (RunResult, error) {
+// WaitForRun discovers a pipeline run triggered by the given tag and waits for it to complete.
+// It polls the ADO builds API until it finds a run matching the tag, then polls until completion.
+func (c *Client) WaitForRun(ctx context.Context, opts WaitOptions, progress io.Writer) (WaitResult, error) {
 	if progress == nil {
 		progress = io.Discard
 	}
@@ -60,151 +62,140 @@ func (c *Client) Run(ctx context.Context, opts RunOptions, progress io.Writer) (
 		name = "ADO pipeline"
 	}
 
-	var result RunResult
-	attempt := 0
-	err := retry.Do(
-		func() error {
-			attempt++
-			fmt.Fprintf(progress, "%s attempt %d/%d\n", name, attempt, opts.MaxRetries)
+	pollCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
+	defer cancel()
 
-			runID, err := c.triggerRun(ctx, opts)
-			if err != nil {
-				return err
-			}
+	// Phase 1: Find the run triggered by the tag
+	fmt.Fprintf(progress, "%s: waiting for run triggered by tag %s...\n", name, opts.Tag)
+	runID, err := c.findRunByTag(pollCtx, opts, progress)
+	if err != nil {
+		return WaitResult{}, fmt.Errorf("%s: %w", name, err)
+	}
 
-			runURL := buildRunURL(opts, runID)
-			fmt.Fprintf(progress, "triggered %s: %s\n", name, runURL)
+	runURL := buildRunURL(opts, runID)
+	fmt.Fprintf(progress, "%s: found run %d: %s\n", name, runID, runURL)
 
-			pollCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
-			defer cancel()
+	// Phase 2: Wait for the run to complete
+	result, err := c.waitForCompletion(pollCtx, opts, runID, progress)
+	if err != nil {
+		return WaitResult{}, fmt.Errorf("%s: %w", name, err)
+	}
 
-			if err := c.waitForCompletion(pollCtx, opts, runID, progress); err != nil {
-				// Cancel the ADO run before retrying to avoid orphaned parallel runs
-				fmt.Fprintf(progress, "cancelling run %d before retry...\n", runID)
-				if cancelErr := c.cancelRun(ctx, opts, runID); cancelErr != nil {
-					fmt.Fprintf(progress, "warning: failed to cancel run %d: %v\n", runID, cancelErr)
+	return WaitResult{
+		RunURL: runURL,
+		RunID:  runID,
+		Result: result,
+	}, nil
+}
+
+// findRunByTag polls the builds list until a run matching refs/tags/<tag> appears.
+func (c *Client) findRunByTag(ctx context.Context, opts WaitOptions, progress io.Writer) (int, error) {
+	expectedBranch := "refs/tags/" + opts.Tag
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		builds, err := c.listBuilds(ctx, opts)
+		if err != nil {
+			fmt.Fprintf(progress, "%s: error listing builds: %v (retrying...)\n", opts.Name, err)
+		} else {
+			for _, b := range builds {
+				if strings.EqualFold(b.SourceBranch, expectedBranch) {
+					return b.ID, nil
 				}
-				return err
 			}
+		}
 
-			result = RunResult{RunURL: runURL}
-			return nil
-		},
-		retry.Attempts(opts.MaxRetries),
-		retry.Context(ctx),
-		retry.Delay(time.Minute),
-		retry.DelayType(retry.FixedDelay),
-		retry.LastErrorOnly(true),
+		select {
+		case <-ctx.Done():
+			return 0, fmt.Errorf("timed out waiting for run triggered by %s", opts.Tag)
+		case <-ticker.C:
+			fmt.Fprintf(progress, "%s: no run found yet for %s, polling...\n", opts.Name, opts.Tag)
+		}
+	}
+}
+
+func (c *Client) listBuilds(ctx context.Context, opts WaitOptions) ([]buildEntry, error) {
+	url := fmt.Sprintf(
+		"https://dev.azure.com/%s/%s/_apis/build/builds?definitions=%s&$top=20&api-version=7.0",
+		opts.Org, opts.Project, opts.DefinitionID,
 	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return RunResult{}, fmt.Errorf("%s exhausted %d attempt(s): %w", name, opts.MaxRetries, err)
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+opts.Token)
+
+	body, err := c.do(req)
+	if err != nil {
+		return nil, err
 	}
 
-	return result, nil
+	var resp buildListResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil, fmt.Errorf("decoding builds list: %w", err)
+	}
+
+	return resp.Value, nil
 }
 
-func (c *Client) triggerRun(ctx context.Context, opts RunOptions) (int, error) {
-	payload := map[string]any{
-		"resources": map[string]any{
-			"repositories": map[string]any{
-				"self": map[string]any{
-					"refName": "refs/tags/" + opts.Tag,
-				},
-			},
-		},
-		"templateParameters": map[string]any{
-			"tag": opts.Tag,
-		},
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return 0, fmt.Errorf("marshaling trigger payload: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, triggerURL(opts), bytes.NewReader(body))
-	if err != nil {
-		return 0, fmt.Errorf("creating trigger request: %w", err)
-	}
-	req.Header.Set("Authorization", basicAuthPAT(opts.PAT))
-	req.Header.Set("Content-Type", "application/json")
-
-	respBody, err := c.do(req)
-	if err != nil {
-		return 0, fmt.Errorf("triggering pipeline: %w", err)
-	}
-
-	var resp triggerResponse
-	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return 0, fmt.Errorf("decoding trigger response: %w", err)
-	}
-	if resp.ID == 0 {
-		return 0, fmt.Errorf("trigger response missing run id")
-	}
-
-	return resp.ID, nil
-}
-
-func (c *Client) waitForCompletion(ctx context.Context, opts RunOptions, runID int, progress io.Writer) error {
+func (c *Client) waitForCompletion(ctx context.Context, opts WaitOptions, runID int, progress io.Writer) (string, error) {
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 
 	for {
 		state, err := c.buildStatus(ctx, opts, runID)
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		if strings.EqualFold(state.Status, "completed") {
 			if strings.EqualFold(state.Result, "succeeded") {
-				fmt.Fprintf(progress, "%s succeeded\n", opts.Name)
-				return nil
+				fmt.Fprintf(progress, "%s: succeeded\n", opts.Name)
+				return "succeeded", nil
 			}
-
-			return fmt.Errorf("%s failed with result %q", opts.Name, state.Result)
+			return state.Result, fmt.Errorf("completed with result %q", state.Result)
 		}
 
-		fmt.Fprintf(progress, "%s status=%s result=%s\n", opts.Name, state.Status, state.Result)
+		fmt.Fprintf(progress, "%s: status=%s result=%s\n", opts.Name, state.Status, state.Result)
 
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("%s timed out after %s: %w", opts.Name, opts.Timeout, ctx.Err())
+			return "", fmt.Errorf("timed out after %s: %w", opts.Timeout, ctx.Err())
 		case <-ticker.C:
 		}
 	}
 }
 
-func (c *Client) buildStatus(ctx context.Context, opts RunOptions, runID int) (buildStatusResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildStatusURL(opts, runID), nil)
-	if err != nil {
-		return buildStatusResponse{}, fmt.Errorf("creating status request: %w", err)
-	}
-	req.Header.Set("Authorization", basicAuthPAT(opts.PAT))
+type buildStatusResponse struct {
+	Status string `json:"status"`
+	Result string `json:"result"`
+}
 
-	respBody, err := c.do(req)
+func (c *Client) buildStatus(ctx context.Context, opts WaitOptions, runID int) (buildStatusResponse, error) {
+	url := fmt.Sprintf(
+		"https://dev.azure.com/%s/%s/_apis/build/builds/%d?api-version=7.0",
+		opts.Org, opts.Project, runID,
+	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return buildStatusResponse{}, fmt.Errorf("checking pipeline status: %w", err)
+		return buildStatusResponse{}, err
+	}
+	req.Header.Set("Authorization", "Bearer "+opts.Token)
+
+	body, err := c.do(req)
+	if err != nil {
+		return buildStatusResponse{}, fmt.Errorf("checking status: %w", err)
 	}
 
 	var resp buildStatusResponse
-	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return buildStatusResponse{}, fmt.Errorf("decoding status response: %w", err)
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return buildStatusResponse{}, fmt.Errorf("decoding status: %w", err)
 	}
 
 	return resp, nil
-}
-
-func (c *Client) cancelRun(ctx context.Context, opts RunOptions, runID int) error {
-	payload := []byte(`{"status":"cancelling"}`)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, buildStatusURL(opts, runID), bytes.NewReader(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", basicAuthPAT(opts.PAT))
-	req.Header.Set("Content-Type", "application/json")
-
-	_, err = c.do(req)
-	return err
 }
 
 func (c *Client) do(req *http.Request) ([]byte, error) {
@@ -225,33 +216,9 @@ func (c *Client) do(req *http.Request) ([]byte, error) {
 	return body, nil
 }
 
-func triggerURL(opts RunOptions) string {
-	return fmt.Sprintf(
-		"https://dev.azure.com/%s/%s/_apis/pipelines/%s/runs?api-version=7.0",
-		opts.Org,
-		opts.Project,
-		opts.PipelineID,
-	)
-}
-
-func buildStatusURL(opts RunOptions, runID int) string {
-	return fmt.Sprintf(
-		"https://dev.azure.com/%s/%s/_apis/build/builds/%d?api-version=7.0",
-		opts.Org,
-		opts.Project,
-		runID,
-	)
-}
-
-func buildRunURL(opts RunOptions, runID int) string {
+func buildRunURL(opts WaitOptions, runID int) string {
 	return fmt.Sprintf(
 		"https://dev.azure.com/%s/%s/_build/results?buildId=%d&view=results",
-		opts.Org,
-		opts.Project,
-		runID,
+		opts.Org, opts.Project, runID,
 	)
-}
-
-func basicAuthPAT(pat string) string {
-	return "Basic " + base64.StdEncoding.EncodeToString([]byte(":"+pat))
 }

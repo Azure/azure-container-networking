@@ -35,7 +35,7 @@ func newRootCommand() *cobra.Command {
 		newCollectPRsCommand(),
 		newNextVersionCommand(),
 		newDetectBinariesCommand(),
-		newRunPipelineCommand(),
+		newWaitPipelineCommand(),
 		newWaitPRsCommand(),
 	)
 
@@ -226,34 +226,32 @@ func newDetectBinariesCommand() *cobra.Command {
 	return cmd
 }
 
-func newRunPipelineCommand() *cobra.Command {
+func newWaitPipelineCommand() *cobra.Command {
 	var (
-		org        string
-		project    string
-		pipelineID string
-		pat        string
-		tag        string
-		maxRetries uint
-		timeout    time.Duration
-		name       string
-		dryRun     bool
+		org          string
+		project      string
+		definitionID string
+		token        string
+		tag          string
+		timeout      time.Duration
+		name         string
+		dryRun       bool
 	)
 
 	cmd := &cobra.Command{
-		Use:   "run-pipeline",
-		Short: "Trigger and poll an Azure DevOps pipeline",
+		Use:   "wait-pipeline",
+		Short: "Find and wait for an ADO pipeline run triggered by a tag",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			opts := pipeline.RunOptions{
-				Org:        org,
-				Project:    project,
-				PipelineID: pipelineID,
-				PAT:        pat,
-				Tag:        tag,
-				MaxRetries: maxRetries,
-				Timeout:    timeout,
-				Name:       name,
+			opts := pipeline.WaitOptions{
+				Org:          org,
+				Project:      project,
+				DefinitionID: definitionID,
+				Token:        token,
+				Tag:          tag,
+				Timeout:      timeout,
+				Name:         name,
 			}
-			if err := validatePipelineOptions(opts); err != nil {
+			if err := validateWaitPipelineOptions(opts); err != nil {
 				return err
 			}
 
@@ -265,7 +263,7 @@ func newRunPipelineCommand() *cobra.Command {
 			}
 
 			client := pipeline.NewClient()
-			result, err := client.Run(cmd.Context(), opts, os.Stderr)
+			result, err := client.WaitForRun(cmd.Context(), opts, os.Stderr)
 			if err != nil {
 				return err
 			}
@@ -276,14 +274,13 @@ func newRunPipelineCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&org, "org", "", "ADO organization")
 	cmd.Flags().StringVar(&project, "project", "", "ADO project")
-	cmd.Flags().StringVar(&pipelineID, "pipeline-id", "", "ADO pipeline ID")
-	cmd.Flags().StringVar(&pat, "pat", "", "ADO personal access token")
-	cmd.Flags().StringVar(&tag, "tag", "", "Git tag to build")
-	cmd.Flags().UintVar(&maxRetries, "max-retries", 5, "Maximum number of attempts")
-	cmd.Flags().DurationVar(&timeout, "timeout", 90*time.Minute, "Per-attempt timeout")
+	cmd.Flags().StringVar(&definitionID, "definition-id", "", "ADO pipeline definition ID")
+	cmd.Flags().StringVar(&token, "token", "", "Bearer token (from OIDC)")
+	cmd.Flags().StringVar(&tag, "tag", "", "Git tag to look for")
+	cmd.Flags().DurationVar(&timeout, "timeout", 90*time.Minute, "Overall timeout")
 	cmd.Flags().StringVar(&name, "name", "", "Friendly pipeline name")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the request without triggering the pipeline")
-	mustMarkFlagRequired(cmd, "org", "project", "pipeline-id", "pat", "tag", "name")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the request without polling")
+	mustMarkFlagRequired(cmd, "org", "project", "definition-id", "token", "tag", "name")
 
 	return cmd
 }
@@ -372,22 +369,20 @@ func validateReplyRequest(req notify.ReplyRequest) error {
 	}
 }
 
-func validatePipelineOptions(opts pipeline.RunOptions) error {
+func validateWaitPipelineOptions(opts pipeline.WaitOptions) error {
 	switch {
 	case strings.TrimSpace(opts.Org) == "":
 		return errors.New("org is required")
 	case strings.TrimSpace(opts.Project) == "":
 		return errors.New("project is required")
-	case strings.TrimSpace(opts.PipelineID) == "":
-		return errors.New("pipeline-id is required")
-	case strings.TrimSpace(opts.PAT) == "":
-		return errors.New("pat is required")
+	case strings.TrimSpace(opts.DefinitionID) == "":
+		return errors.New("definition-id is required")
+	case strings.TrimSpace(opts.Token) == "":
+		return errors.New("token is required")
 	case strings.TrimSpace(opts.Tag) == "":
 		return errors.New("tag is required")
 	case strings.TrimSpace(opts.Name) == "":
 		return errors.New("name is required")
-	case opts.MaxRetries == 0:
-		return errors.New("max-retries must be greater than zero")
 	case opts.Timeout <= 0:
 		return errors.New("timeout must be greater than zero")
 	default:
