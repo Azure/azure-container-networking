@@ -27,11 +27,14 @@ const (
 	transparentTunnelLocalPodsSetType = "hash:ip"
 )
 
+var errNoTunnelGateway = errors.New("cannot add tunnel rules: no usable IPv4 gateway from epInfo, extIf, or host default route")
+
 // tunnelPolicyRouteClient abstracts vishvananda/netlink operations for policy
 // routing so unit tests avoid touching real netlink sockets.
 type tunnelPolicyRouteClient interface {
 	RuleAdd(rule *vishnetlink.Rule) error
 	RuleList(family int) ([]vishnetlink.Rule, error)
+	RouteListFiltered(family int, filter *vishnetlink.Route, filterMask uint64) ([]vishnetlink.Route, error)
 	RouteReplace(route *vishnetlink.Route) error
 }
 
@@ -51,6 +54,14 @@ func (defaultTunnelPolicyRouteClient) RuleList(family int) ([]vishnetlink.Rule, 
 		return nil, fmt.Errorf("netlink rule list: %w", err)
 	}
 	return rules, nil
+}
+
+func (defaultTunnelPolicyRouteClient) RouteListFiltered(family int, filter *vishnetlink.Route, filterMask uint64) ([]vishnetlink.Route, error) {
+	routes, err := vishnetlink.RouteListFiltered(family, filter, filterMask)
+	if err != nil {
+		return nil, fmt.Errorf("netlink route list filtered: %w", err)
+	}
+	return routes, nil
 }
 
 func (defaultTunnelPolicyRouteClient) RouteReplace(route *vishnetlink.Route) error {
@@ -138,13 +149,16 @@ func getTunnelGateway(epInfo *EndpointInfo, extIfGateway net.IP) net.IP {
 }
 
 func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo *EndpointInfo) error {
-	gw := getTunnelGateway(epInfo, client.gateway)
-	if gw == nil {
-		return errors.New("cannot add tunnel rules: no usable IPv4 gateway from epInfo or extIf (both nil or 0.0.0.0)")
-	}
-
 	hostVeth := client.hostVethName
 	markStr := strconv.Itoa(transparentTunnelFwmark)
+	iface, err := client.netioshim.GetNetworkInterfaceByName(client.hostPrimaryIfName)
+	if err != nil {
+		return errors.Wrapf(err, "failed to look up interface %s for tunnel route", client.hostPrimaryIfName)
+	}
+	gw, err := client.resolveTunnelGateway(epInfo, iface.Index)
+	if err != nil {
+		return err
+	}
 
 	if err := client.ipsetClient.Create(transparentTunnelLocalPodsSet, transparentTunnelLocalPodsSetType); err != nil {
 		return errors.Wrap(err, "failed to create local-pods ipset")
@@ -159,10 +173,6 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 		return err
 	}
 
-	iface, err := client.netioshim.GetNetworkInterfaceByName(client.hostPrimaryIfName)
-	if err != nil {
-		return errors.Wrapf(err, "failed to look up interface %s for tunnel route", client.hostPrimaryIfName)
-	}
 	_, defaultDst, _ := net.ParseCIDR("0.0.0.0/0")
 	route := &vishnetlink.Route{
 		LinkIndex: iface.Index,
@@ -199,6 +209,45 @@ func (client *TransparentTunnelEndpointClient) addTransparentTunnelRules(epInfo 
 		zap.String("veth", hostVeth), zap.String("mark", markStr))
 
 	return nil
+}
+
+func (client *TransparentTunnelEndpointClient) resolveTunnelGateway(epInfo *EndpointInfo, linkIndex int) (net.IP, error) {
+	if gw := getTunnelGateway(epInfo, client.gateway); gw != nil {
+		return gw, nil
+	}
+
+	gw, err := client.hostDefaultGateway(linkIndex)
+	if err != nil {
+		return nil, err
+	}
+	if gw == nil {
+		return nil, errNoTunnelGateway
+	}
+	return gw, nil
+}
+
+func (client *TransparentTunnelEndpointClient) hostDefaultGateway(linkIndex int) (net.IP, error) {
+	routes, err := client.nlPolicyRoute.RouteListFiltered(unix.AF_INET, &vishnetlink.Route{LinkIndex: linkIndex}, vishnetlink.RT_FILTER_OIF)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to list host default routes")
+	}
+	for i := range routes {
+		if !isDefaultIPv4Route(routes[i]) {
+			continue
+		}
+		if gw := routes[i].Gw.To4(); gw != nil && !gw.IsUnspecified() {
+			return gw, nil
+		}
+	}
+	return nil, nil
+}
+
+func isDefaultIPv4Route(route vishnetlink.Route) bool {
+	if route.Dst == nil {
+		return true
+	}
+	ones, bits := route.Dst.Mask.Size()
+	return ones == 0 && bits == ipv4Bits && route.Dst.IP.To4() != nil && route.Dst.IP.IsUnspecified()
 }
 
 func (client *TransparentTunnelEndpointClient) ensureFwmarkRule() error {

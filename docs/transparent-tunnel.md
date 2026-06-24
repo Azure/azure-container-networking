@@ -97,9 +97,11 @@ The table-101 default route must use a real IPv4 next hop. A zero gateway
 (`0.0.0.0`) is treated by the kernel as a link-scoped default route, which only
 works for same-subnet destinations and can black-hole off-subnet pod egress.
 
-Transparent-tunnel prefers the per-pod IPAM gateway from `EndpointInfo.Gateways`
-and falls back to the host external-interface gateway only when it is a usable
-non-zero IPv4 address.
+Transparent-tunnel prefers the per-pod IPAM gateway from `EndpointInfo.Gateways`,
+then the host external-interface gateway, and finally the live default route on
+the host primary interface. This keeps bridge-shape NodeSubnet hosts working
+when the default route lives on the bridge and the external-interface gateway is
+persisted as `0.0.0.0`.
 
 ## Installation
 

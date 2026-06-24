@@ -68,11 +68,16 @@ func (c *transparentTunnelMockIPTablesClient) RunCmd(_, _ string) error         
 
 // transparentTunnelMockNlClient tracks netlink rule/route calls for test verification.
 type transparentTunnelMockNlClient struct {
-	ruleAddCalls      []*vishnetlink.Rule
-	ruleListCalls     int
-	routeReplaceCalls []*vishnetlink.Route
-	ruleAddErr        error // injected error for RuleAdd
-	ruleListErr       error // injected error for RuleList
+	ruleAddCalls        []*vishnetlink.Rule
+	ruleListCalls       int
+	routeListCalls      int
+	routeListFilter     *vishnetlink.Route
+	routeListFilterMask uint64
+	routeReplaceCalls   []*vishnetlink.Route
+	ruleAddErr          error // injected error for RuleAdd
+	ruleListErr         error // injected error for RuleList
+	routeListErr        error // injected error for RouteListFiltered
+	defaultRoutes       []vishnetlink.Route
 	// existingRules is what RuleList returns. The add path skips RuleAdd
 	// when a matching (Mark, Table) rule is already present here.
 	existingRules []vishnetlink.Rule
@@ -89,6 +94,16 @@ func (c *transparentTunnelMockNlClient) RuleList(_ int) ([]vishnetlink.Rule, err
 		return nil, c.ruleListErr
 	}
 	return c.existingRules, nil
+}
+
+func (c *transparentTunnelMockNlClient) RouteListFiltered(_ int, filter *vishnetlink.Route, filterMask uint64) ([]vishnetlink.Route, error) {
+	c.routeListCalls++
+	c.routeListFilter = filter
+	c.routeListFilterMask = filterMask
+	if c.routeListErr != nil {
+		return nil, c.routeListErr
+	}
+	return c.defaultRoutes, nil
 }
 
 func (c *transparentTunnelMockNlClient) RouteReplace(route *vishnetlink.Route) error {
@@ -152,11 +167,15 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 		ruleAddErr         error    // injected RuleAdd error (nil = success, EEXIST = tolerated)
 		existingRules      []vishnetlink.Rule
 		ruleListErr        error
+		routeListErr       error
+		defaultRoutes      []vishnetlink.Route
+		wantGateway        net.IP
 		expectError        bool
 		errorContains      string
 		expectIpsetAdds    int  // number of ipset Add calls expected
 		expectNotrackRule  bool // NOTRACK rule expected in raw PREROUTING
 		expectRuleAddCalls int  // RuleAdd call count expected (0 if dedup skip)
+		expectRouteLists   int
 	}{
 		{
 			name: "single ipv4 pod IP",
@@ -241,18 +260,46 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 			ipAddresses: []net.IPNet{
 				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
 			},
-			gateway:       nil,
-			expectError:   true,
-			errorContains: "no usable IPv4 gateway",
+			gateway:          nil,
+			expectError:      true,
+			errorContains:    "no usable IPv4 gateway",
+			expectRouteLists: 1,
 		},
 		{
 			name: "zero-IP extIf gateway with no pod gateway returns error",
 			ipAddresses: []net.IPNet{
 				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
 			},
-			gateway:       net.IPv4zero,
-			expectError:   true,
-			errorContains: "no usable IPv4 gateway",
+			gateway:          net.IPv4zero,
+			expectError:      true,
+			errorContains:    "no usable IPv4 gateway",
+			expectRouteLists: 1,
+		},
+		{
+			name: "zero-IP gateways use live host default route",
+			ipAddresses: []net.IPNet{
+				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
+			},
+			gateway: net.IPv4zero,
+			defaultRoutes: []vishnetlink.Route{
+				{LinkIndex: 2, Gw: net.ParseIP("10.3.1.1")},
+			},
+			wantGateway:        net.ParseIP("10.3.1.1"),
+			expectIpsetAdds:    1,
+			expectNotrackRule:  true,
+			expectRuleAddCalls: 1,
+			expectRouteLists:   1,
+		},
+		{
+			name: "default route lookup failure surfaces",
+			ipAddresses: []net.IPNet{
+				{IP: net.ParseIP("10.224.0.46"), Mask: net.CIDRMask(32, 32)},
+			},
+			gateway:          net.IPv4zero,
+			routeListErr:     assert.AnError,
+			expectError:      true,
+			errorContains:    "host default routes",
+			expectRouteLists: 1,
 		},
 		{
 			name: "zero-IP extIf gateway with valid pod gateway succeeds via IPAM",
@@ -285,6 +332,8 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 				ruleAddErr:    tt.ruleAddErr,
 				existingRules: tt.existingRules,
 				ruleListErr:   tt.ruleListErr,
+				routeListErr:  tt.routeListErr,
+				defaultRoutes: tt.defaultRoutes,
 			}
 			ipsetMock := &transparentTunnelMockIpsetClient{}
 
@@ -306,10 +355,17 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 			if tt.expectError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorContains)
+				assert.Equal(t, tt.expectRouteLists, nlMock.routeListCalls)
 				return
 			}
 
 			require.NoError(t, err)
+			assert.Equal(t, tt.expectRouteLists, nlMock.routeListCalls)
+			if tt.expectRouteLists > 0 {
+				require.NotNil(t, nlMock.routeListFilter)
+				assert.Equal(t, 2, nlMock.routeListFilter.LinkIndex)
+				assert.Equal(t, vishnetlink.RT_FILTER_OIF, nlMock.routeListFilterMask)
+			}
 
 			// Always create the ipset exactly once.
 			assert.Equal(t, 1, ipsetMock.countOps("create"), "ipset create should run exactly once")
@@ -364,7 +420,10 @@ func TestTransparentTunnelAddEndpointRules(t *testing.T) {
 			// Verify netlink route replace.
 			require.Len(t, nlMock.routeReplaceCalls, 1)
 			assert.Equal(t, transparentTunnelRouteTable, nlMock.routeReplaceCalls[0].Table)
-			wantGw := getTunnelGateway(&EndpointInfo{Gateways: tt.epGateways}, tt.gateway)
+			wantGw := tt.wantGateway
+			if wantGw == nil {
+				wantGw = getTunnelGateway(&EndpointInfo{Gateways: tt.epGateways}, tt.gateway)
+			}
 			require.NotNil(t, wantGw, "test setup error: expected non-nil gateway in success case")
 			assert.True(t, wantGw.Equal(nlMock.routeReplaceCalls[0].Gw),
 				"route Gw mismatch: got %v, want %v", nlMock.routeReplaceCalls[0].Gw, wantGw)
