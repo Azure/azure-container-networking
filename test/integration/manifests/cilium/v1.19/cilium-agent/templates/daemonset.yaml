@@ -173,117 +173,54 @@ spec:
       dnsPolicy: ClusterFirst
       hostNetwork: true
       initContainers:
-      - name: install-cni-binaries
+      # Merged init container: shares a single image pull and container start
+      # across the steps that previously ran in install-cni-binaries,
+      # mount-cgroup, apply-sysctl-overwrites, mount-bpf-fs, clean-cilium-state
+      # and block-wireserver. Runs privileged because mount-bpf-fs needs
+      # Bidirectional mount propagation.
+      - name: cilium-init-all
         image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
         imagePullPolicy: IfNotPresent
-        args:
-          - "/install-plugin.sh"
         command:
-          - sh
-        securityContext:
-          seLinuxOptions:
-            level: 's0'
-            # Running with spc_t since we have removed the privileged mode.
-            # Users can change it to a different type as long as they have the
-            # type available on the system.
-            type: 'spc_t'
-          capabilities:
-            drop:
-              - ALL
-        volumeMounts:
-          - name: cni-path
-            mountPath: /host/opt/cni/bin
-      - command:
-        - sh
+        - /bin/sh
         - -ec
         - |
-          cp /usr/bin/cilium-mount /hostbin/cilium-mount;
-          nsenter --cgroup=/hostproc/1/ns/cgroup --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-mount" $CGROUP_ROOT;
+          # 1. Install Cilium CNI plugin binaries on the host (was install-cni-binaries).
+          sh /install-plugin.sh
+
+          # 2. Mount host cgroup2 via nsenter (was mount-cgroup).
+          cp /usr/bin/cilium-mount /hostbin/cilium-mount
+          nsenter --cgroup=/hostproc/1/ns/cgroup --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-mount" "$CGROUP_ROOT"
           rm /hostbin/cilium-mount
+
+          # 3. Apply sysctl overwrites on the host (was apply-sysctl-overwrites).
+          cp /usr/bin/cilium-sysctlfix /hostbin/cilium-sysctlfix
+          nsenter --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-sysctlfix"
+          rm /hostbin/cilium-sysctlfix
+
+          # 4. Mount bpf fs if not already mounted (was mount-bpf-fs).
+          mount | grep "/sys/fs/bpf type bpf" || mount -t bpf bpf /sys/fs/bpf
+
+          # 5. Clean cilium state if requested (was clean-cilium-state).
+          sh /init-container.sh
+
+          # 6. Install wireserver-blocking iptables rule in the mangle forward
+          # chain (was block-wireserver). Idempotent and -e safe.
+          installRuleIdempotent() {
+            rule=$1
+            if ! iptables -t mangle -C $rule 2> /dev/null; then
+              echo "installing iptables rule: $rule"
+              iptables -t mangle -I $rule || exit 1
+            else
+              echo "iptables rule already installed: $rule"
+            fi
+          }
+          installRuleIdempotent "FORWARD -d 168.63.129.16 -p tcp --dport 80 -j DROP"
         env:
         - name: CGROUP_ROOT
           value: /run/cilium/cgroupv2
         - name: BIN_PATH
           value: /opt/cni/bin
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
-        imagePullPolicy: IfNotPresent
-        name: mount-cgroup
-        resources: {}
-        securityContext:
-          appArmorProfile:
-            type: Unconfined
-          capabilities:
-            add:
-            - SYS_ADMIN
-            - SYS_CHROOT
-            - SYS_PTRACE
-            drop:
-            - ALL
-          seLinuxOptions:
-            level: s0
-            type: spc_t
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
-        volumeMounts:
-        - mountPath: /hostproc
-          name: hostproc
-        - mountPath: /hostbin
-          name: cni-path
-      - command:
-        - sh
-        - -ec
-        - |
-          cp /usr/bin/cilium-sysctlfix /hostbin/cilium-sysctlfix;
-          nsenter --mount=/hostproc/1/ns/mnt "${BIN_PATH}/cilium-sysctlfix";
-          rm /hostbin/cilium-sysctlfix
-        env:
-        - name: BIN_PATH
-          value: /opt/cni/bin
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
-        imagePullPolicy: IfNotPresent
-        name: apply-sysctl-overwrites
-        resources: {}
-        securityContext:
-          appArmorProfile:
-            type: Unconfined
-          capabilities:
-            add:
-            - SYS_ADMIN
-            - SYS_CHROOT
-            - SYS_PTRACE
-            drop:
-            - ALL
-          seLinuxOptions:
-            level: s0
-            type: spc_t
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
-        volumeMounts:
-        - mountPath: /hostproc
-          name: hostproc
-        - mountPath: /hostbin
-          name: cni-path
-      - args:
-        - mount | grep "/sys/fs/bpf type bpf" || mount -t bpf bpf /sys/fs/bpf
-        command:
-        - sh
-        - -c
-        - --
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
-        imagePullPolicy: IfNotPresent
-        name: mount-bpf-fs
-        resources: {}
-        securityContext:
-          privileged: true
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
-        volumeMounts:
-        - mountPath: /sys/fs/bpf
-          mountPropagation: Bidirectional
-          name: bpf-maps
-      - command:
-        - /init-container.sh
-        env:
         - name: CILIUM_ALL_STATE
           valueFrom:
             configMapKeyRef:
@@ -296,67 +233,30 @@ spec:
               key: clean-cilium-bpf-state
               name: cilium-config
               optional: true
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
-        imagePullPolicy: IfNotPresent
-        name: clean-cilium-state
-        resources:
-          requests:
-            cpu: 100m
-            memory: 100Mi
+        terminationMessagePolicy: FallbackToLogsOnError
         securityContext:
-          appArmorProfile:
-            type: Unconfined
-          capabilities:
-            add:
-            - NET_ADMIN
-            - SYS_MODULE
-            - SYS_ADMIN
-            - SYS_RESOURCE
-            drop:
-            - ALL
-          seLinuxOptions:
-            level: s0
-            type: spc_t
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
+          privileged: true
         volumeMounts:
+        - mountPath: /host/opt/cni/bin
+          name: cni-path
+        - mountPath: /hostbin
+          name: cni-path
+        - mountPath: /hostproc
+          name: hostproc
         - mountPath: /sys/fs/bpf
+          mountPropagation: Bidirectional
           name: bpf-maps
         - mountPath: /run/cilium/cgroupv2
           mountPropagation: HostToContainer
           name: cilium-cgroup
         - mountPath: /var/run/cilium
           name: cilium-run
-        - mountPath: /host/etc/systemd
-          name: host-etc-systemd
-        - mountPath: /host/lib/systemd
-          name: host-lib-systemd
-          readOnly: true
-        - mountPath: /host/usr/lib
-          name: host-usr-lib
-          readOnly: true
-      - name: block-wireserver
-        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium-distroless-init:$CILIUM_VERSION_TAG
-        imagePullPolicy: IfNotPresent
-        command:
-        - sh
-        - -cx
-        - |
-          iptables -t mangle -C FORWARD -d 168.63.129.16 -p tcp --dport 80 -j DROP
-          status=$?
-          set -e
-          if [ $status -eq 0 ]; then
-            echo "Skip adding iptables as it already exists"
-          else
-            iptables -t mangle -I FORWARD -d 168.63.129.16 -p tcp --dport 80 -j DROP
-          fi
-        securityContext:
-          capabilities:
-            add:
-            - NET_ADMIN
-            - NET_RAW
-            drop:
-            - ALL
+        - mountPath: /run/xtables.lock
+          name: xtables-lock
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
       nodeSelector:
         kubernetes.io/os: linux
       priorityClassName: system-node-critical
