@@ -319,7 +319,7 @@ func GetHcnNetAdapterNamePolicy(networkAdapterName string) (hcn.NetworkPolicy, e
 }
 
 // TODO: estebanca: This type must be from hcsshim. HNS team did not provide the updated version of hcsshim.
-// The team decided to lave this type here until we have the new hcsshim version available (6/19/2026)
+// The team decided to leave this type here until we have the new hcsshim version available (6/19/2026)
 type ProviderAddressNetworkPolicySetting struct {
 	ProviderAddress string `json:"ProviderAddress"`
 }

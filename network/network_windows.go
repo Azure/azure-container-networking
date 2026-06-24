@@ -257,8 +257,8 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 		isNetAdapterNamePolicyAdded = true
 	}
 
-	// Best effort to add IP policy in case adapter name is empty
-	if !isNetAdapterNamePolicyAdded {
+	// Best effort to add IP policy in case adapter name is empty or in multitenancy mode
+	if !isNetAdapterNamePolicyAdded && nwInfo.EnableMultiTenancy {
 		primaryInterfaceIP := nwInfo.PrimaryInterfaceIP
 		if primaryInterfaceIP != "" {
 			var providerAddress string

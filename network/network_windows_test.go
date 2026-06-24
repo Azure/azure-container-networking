@@ -593,6 +593,7 @@ func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallback(t *testing.T)
 		MasterIfName:       "eth0",
 		NICType:            cns.InfraNIC,
 		PrimaryInterfaceIP: "10.240.0.4/24",
+		EnableMultiTenancy: true,
 	}
 
 	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
@@ -617,6 +618,7 @@ func TestConfigureHCNNetworkUsesPrimaryInterfaceIdentifierFallbackWithSingleIPv4
 		MasterIfName:       "eth0",
 		NICType:            cns.InfraNIC,
 		PrimaryInterfaceIP: "10.240.0.4",
+		EnableMultiTenancy: true,
 	}
 
 	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
