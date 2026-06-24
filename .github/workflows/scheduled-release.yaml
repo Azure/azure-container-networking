@@ -768,12 +768,13 @@ jobs:
         env:
           ADO_TOKEN: ${{ steps.ado_token.outputs.token }}
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+          PIPELINE_DEF_ID: ${{ vars.ACN_PR_PIPELINE_ID }}
         run: |
           set -euo pipefail
           RESULT=$(/tmp/release-cli wait-pipeline \
             --org "msazure" \
             --project "One" \
-            --definition-id "${{ vars.ACN_PR_PIPELINE_ID }}" \
+            --definition-id "$PIPELINE_DEF_ID" \
             --token "$ADO_TOKEN" \
             --tag "$NEW_TAG" \
             --timeout 3h \
@@ -785,12 +786,13 @@ jobs:
         env:
           ADO_TOKEN: ${{ steps.ado_token.outputs.token }}
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
+          PIPELINE_DEF_ID: ${{ vars.ACN_CNI_RELEASE_PIPELINE_ID }}
         run: |
           set -euo pipefail
           RESULT=$(/tmp/release-cli wait-pipeline \
             --org "msazure" \
             --project "One" \
-            --definition-id "${{ vars.ACN_CNI_RELEASE_PIPELINE_ID }}" \
+            --definition-id "$PIPELINE_DEF_ID" \
             --token "$ADO_TOKEN" \
             --tag "$NEW_TAG" \
             --timeout 3h \
