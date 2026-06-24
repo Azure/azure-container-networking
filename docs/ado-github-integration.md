@@ -235,3 +235,28 @@ curl -X POST \
 
 - **Build Validations SP owners:** Miguel Gonzalez (miguelgo@microsoft.com), John Payne (johnpayne@microsoft.com)
 - **ADO org:** `msazure`, Project: `One`
+
+---
+
+## Option 5: Migrate ADO Pipelines to GitHub Actions Workflows (Long-term)
+
+**Suggested by:** John Payne
+
+**Rationale:** If the E2E test pipelines ran as GitHub Actions workflows instead of ADO pipelines, all the auth complexity disappears:
+- `GITHUB_TOKEN` can natively poll workflow run status
+- Tag push triggers workflows the same way it triggers ADO
+- GitHub Copilot agents work better with GH workflows than ADO
+- The test workloads mainly interact with AKS clusters — they don't inherently depend on ADO infrastructure
+
+**How monitoring would work:**
+```bash
+# Trivial — just poll GitHub's own workflow runs API
+gh run list --workflow=acn-e2e-tests.yml --branch="refs/tags/$TAG" --status=completed
+```
+
+**Effort:** Large — requires rewriting `.pipelines/pipeline.yaml` and `.pipelines/cni/pipeline.yaml` (multi-scenario E2E matrix, AKS cluster lifecycle, image builds) into GitHub Actions equivalents.
+
+**Timeline:** Weeks to months, depending on scope.
+
+**Recommendation:** Pursue this as a separate initiative. If achieved, Options 1-4 become unnecessary. The scheduled release workflow would just use `gh run watch` to monitor the test workflows — zero auth setup needed.
+
