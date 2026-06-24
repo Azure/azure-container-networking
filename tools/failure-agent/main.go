@@ -50,6 +50,7 @@ type options struct {
 
 	aoaiEndpoint   string
 	aoaiDeployment string
+	aoaiAPIKey     string
 	aoaiAPIVersion string
 	timeout        time.Duration
 
@@ -110,6 +111,7 @@ func parseFlags() options {
 	flag.BoolVar(&o.dryRun, "dry-run", false, "skip pull-request write-back (analysis still runs)")
 	flag.StringVar(&o.aoaiEndpoint, "aoai-endpoint", os.Getenv("AZURE_OPENAI_ENDPOINT"), "Azure OpenAI endpoint (or AZURE_OPENAI_ENDPOINT)")
 	flag.StringVar(&o.aoaiDeployment, "aoai-deployment", os.Getenv("AZURE_OPENAI_DEPLOYMENT"), "Azure OpenAI deployment name (or AZURE_OPENAI_DEPLOYMENT)")
+	flag.StringVar(&o.aoaiAPIKey, "aoai-api-key", os.Getenv("AZURE_OPENAI_API_KEY"), "Azure OpenAI API key (or AZURE_OPENAI_API_KEY)")
 	flag.StringVar(&o.aoaiAPIVersion, "aoai-api-version", defaultAOAIAPIVersion, "Azure OpenAI API version")
 	flag.DurationVar(&o.timeout, "timeout", defaultTimeout, "overall timeout for LLM classification")
 	flag.StringVar(&o.pipeline, "pipeline", "", "override pipeline name")
@@ -399,10 +401,10 @@ func (e errorClassifier) Classify(context.Context, model.RunContext, model.Evide
 // buildClassifier returns the LLM classifier, or an errorClassifier carrying the
 // configuration error when Azure OpenAI is not set up.
 func buildClassifier(opts options) classifier {
-	if opts.aoaiEndpoint == "" || opts.aoaiDeployment == "" {
-		return errorClassifier{err: errors.New("azure openai endpoint and deployment are required for analysis")}
+	if opts.aoaiEndpoint == "" || opts.aoaiDeployment == "" || opts.aoaiAPIKey == "" {
+		return errorClassifier{err: errors.New("azure openai endpoint, deployment, and api key are required for analysis")}
 	}
-	client, err := classify.NewAzureClient(opts.aoaiEndpoint, opts.aoaiDeployment, opts.aoaiAPIVersion)
+	client, err := classify.NewAzureClient(opts.aoaiEndpoint, opts.aoaiDeployment, opts.aoaiAPIVersion, opts.aoaiAPIKey)
 	if err != nil {
 		return errorClassifier{err: fmt.Errorf("configuring azure openai client: %w", err)}
 	}

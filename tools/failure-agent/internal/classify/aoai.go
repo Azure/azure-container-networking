@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/azure"
 	"github.com/openai/openai-go/v3/shared"
@@ -19,8 +18,8 @@ type AzureClient struct {
 }
 
 // NewAzureClient builds a ChatCompleter for the given Azure OpenAI endpoint and
-// deployment using DefaultAzureCredential for authentication.
-func NewAzureClient(endpoint, deployment, apiVersion string) (*AzureClient, error) {
+// deployment using an API key for authentication.
+func NewAzureClient(endpoint, deployment, apiVersion, apiKey string) (*AzureClient, error) {
 	if endpoint == "" {
 		return nil, errors.New("azure openai endpoint is required")
 	}
@@ -30,15 +29,13 @@ func NewAzureClient(endpoint, deployment, apiVersion string) (*AzureClient, erro
 	if apiVersion == "" {
 		return nil, errors.New("azure openai api version is required")
 	}
-
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating azure credential: %w", err)
+	if apiKey == "" {
+		return nil, errors.New("azure openai api key is required")
 	}
 
 	client := openai.NewClient(
 		azure.WithEndpoint(endpoint, apiVersion),
-		azure.WithTokenCredential(cred),
+		azure.WithAPIKey(apiKey),
 	)
 	return &AzureClient{client: client, deployment: deployment}, nil
 }
