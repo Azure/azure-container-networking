@@ -1019,10 +1019,12 @@ jobs:
         env:
           NEW_TAG: ${{ needs.create_tag.outputs.new_tag }}
         run: |
-          /tmp/release-cli notify-reply \
-            --text "📋 R2D Drafts prepared for ${NEW_TAG}:<br><br><b>UNSIGNED</b> — Clone from SafeFly Request #193479<br>• Service Group: microsoft.azure.networking.containernetworking.githubrelease<br>• File at: https://aka.ms/R2D<br><br><b>SIGNED</b> — Clone from SafeFly Request #174991<br>• Service Group: microsoft.azure.networking.containernetworking<br>• File at: https://aka.ms/R2D<br><br>⚠️ <b>Human action required:</b> File both R2Ds, then post the Safefly/R2D links back in this thread." \
-            --tag "r2d-draft" \
-            --severity warning
+          /tmp/release-cli notify \
+            --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
+            --title "R2D Drafts: ${NEW_TAG}" \
+            --status running \
+            --summary "📋 R2D Drafts prepared for ${NEW_TAG}:<br><br><b>UNSIGNED</b> — Clone from SafeFly Request #193479<br>• Service Group: microsoft.azure.networking.containernetworking.githubrelease<br>• File at: https://aka.ms/R2D<br><br><b>SIGNED</b> — Clone from SafeFly Request #174991<br>• Service Group: microsoft.azure.networking.containernetworking<br>• File at: https://aka.ms/R2D<br><br>⚠️ <b>Human action required:</b> File both R2Ds, then post the Safefly/R2D links back in this thread." \
+            --stage r2d-draft
 
       - name: Send email to leads
         env:
