@@ -95,6 +95,7 @@ jobs:
             "dropgz"
             "pkgerrlint"
             "tools/azure-npm-to-cilium-validator"
+            "tools/release"
             "zapai"
           )
 

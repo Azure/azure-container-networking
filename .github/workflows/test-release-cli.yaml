@@ -210,7 +210,7 @@ jobs:
     name: "Test: tag push (real)"
     runs-on: ubuntu-latest
     needs: build
-    if: inputs.test_case == '' || inputs.test_case == 'tag-push'
+    if: (inputs.test_case == '' || inputs.test_case == 'tag-push') && github.repository != 'Azure/azure-container-networking'
     permissions:
       contents: write
     steps:
