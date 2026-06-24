@@ -75,6 +75,26 @@ jobs:
           targetPath: $(Agent.TempDirectory)/evidence
         continueOnError: true
 
+      - task: KubectlInstaller@0
+        displayName: "Install kubectl"
+        inputs:
+          kubectlVersion: latest
+
+      - task: AzureCLI@2
+        displayName: "Bootstrap kubeconfig for live diagnostics"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -euo pipefail
+            if [ "${{ parameters.live }}" = "True" ] || [ "${{ parameters.live }}" = "true" ]; then
+              make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+            else
+              echo "Skipping kubeconfig bootstrap because live diagnostics are disabled."
+            fi
+        continueOnError: true
+
       - script: |
           set -euo pipefail
 
