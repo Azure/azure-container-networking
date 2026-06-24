@@ -61,7 +61,7 @@ jobs:
     variables:
       ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
     steps:
-      - checkout: azure-container-networking
+      - checkout: self
 
       - task: GoTool@0
         inputs:
