@@ -51,10 +51,6 @@ parameters:
   - name: runNamePrefix
     type: string
     default: "__use-default__"
-  # MVP testing fast-path: skip non-E2E build/container publish stages.
-  - name: mvpE2EOnly
-    type: boolean
-    default: true
 
 stages:
   - stage: setup
@@ -132,7 +128,7 @@ stages:
 
   - template: templates/run-unit-tests.yaml
 
-  - ${{ if and(not(parameters.mvpE2EOnly), not(contains(variables['Build.SourceBranch'], 'refs/pull'))) }}:
+  - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
     - stage: binaries
       displayName: Build Binaries
       dependsOn:
