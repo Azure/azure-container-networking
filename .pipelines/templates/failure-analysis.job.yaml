@@ -162,11 +162,14 @@ jobs:
         condition: succeededOrFailed()
 
       - script: |
+          set -euo pipefail
           REPORT="$(Agent.TempDirectory)/analysis/report.md"
+          OUT_DIR="$(Build.ArtifactStagingDirectory)/out"
+          mkdir -p "$OUT_DIR"
           if [ -f "$REPORT" ]; then
             echo "##vso[task.uploadsummary]$REPORT"
-            cp "$REPORT" "$(Build.ArtifactStagingDirectory)/out/"
-            cp "$(Agent.TempDirectory)/analysis/incident.json" "$(Build.ArtifactStagingDirectory)/out/" 2>/dev/null || true
+            cp "$REPORT" "$OUT_DIR/report.md"
+            cp "$(Agent.TempDirectory)/analysis/incident.json" "$OUT_DIR/incident.json" 2>/dev/null || true
           fi
         displayName: "Publish analysis summary"
         condition: succeededOrFailed()
