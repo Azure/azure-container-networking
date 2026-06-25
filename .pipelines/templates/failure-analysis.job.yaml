@@ -163,6 +163,21 @@ jobs:
 
       - script: |
           set -euo pipefail
+          OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
+          echo "=== Agent output files ==="
+          ls -la "$OUTPUT_DIR" 2>/dev/null || echo "(no output directory)"
+          echo ""
+          for f in "$OUTPUT_DIR"/*; do
+            [ -f "$f" ] || continue
+            echo "========== $(basename "$f") =========="
+            cat "$f"
+            echo ""
+          done
+        displayName: "Dump agent output to logs"
+        condition: succeededOrFailed()
+
+      - script: |
+          set -euo pipefail
           REPORT="$(Agent.TempDirectory)/analysis/report.md"
           OUT_DIR="$(Build.ArtifactStagingDirectory)/out"
           mkdir -p "$OUT_DIR"
