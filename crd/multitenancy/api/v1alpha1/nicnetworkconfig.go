@@ -52,6 +52,9 @@ type NICNetworkConfigSpec struct {
 	SubnetGUID string `json:"subnetGUID,omitempty"`
 	// NetworkID is the VNET GUID or network identifier
 	NetworkID string `json:"networkID"`
+	// ScheduledByDRA indicates the pod was scheduled via Dynamic Resource Allocation (DRA).
+	// +kubebuilder:validation:Optional
+	ScheduledByDRA bool `json:"scheduledByDRA,omitempty"`
 	// PodAllocationRequests tracks which pods are allocated on this NIC
 	// +kubebuilder:validation:Optional
 	PodAllocationRequests []PodAllocationRequest `json:"podAllocations,omitempty"`

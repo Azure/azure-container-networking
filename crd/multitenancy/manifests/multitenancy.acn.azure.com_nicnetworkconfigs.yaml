@@ -92,6 +92,10 @@ spec:
               podNetwork:
                 description: PodNetwork is the name of the PodNetwork
                 type: string
+              scheduledByDRA:
+                description: ScheduledByDRA indicates the pod was scheduled via Dynamic
+                  Resource Allocation (DRA).
+                type: boolean
               subnetGUID:
                 description: customer subnet guid
                 type: string
@@ -103,6 +107,7 @@ spec:
             - networkID
             - nodeName
             - podNetwork
+            - subnetResourceID
             type: object
           status:
             description: NICNetworkConfigStatus defines the observed state of NICNetworkConfig
