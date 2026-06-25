@@ -109,7 +109,7 @@ jobs:
       tracking_issue: ${{ steps.create_issue.outputs.issue_number }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
@@ -368,7 +368,7 @@ jobs:
       clean: ${{ steps.scan.outputs.clean }}
     steps:
       - name: Checkout release branch
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
@@ -461,7 +461,7 @@ jobs:
       has_changes: ${{ steps.detect.outputs.has_changes }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
@@ -504,7 +504,7 @@ jobs:
         include: ${{ fromJSON(needs.detect_binary_changes.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
@@ -560,7 +560,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout (for tag verification)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 1
@@ -649,7 +649,7 @@ jobs:
       previous_tag: ${{ steps.version.outputs.previous_tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 0
@@ -713,7 +713,7 @@ jobs:
       cni_release_run_url: ${{ steps.cni_release.outputs.run_url }}
     steps:
       - name: Checkout (needed for git ls-remote)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 1
@@ -827,7 +827,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ env.RELEASE_BRANCH }}
           fetch-depth: 1
