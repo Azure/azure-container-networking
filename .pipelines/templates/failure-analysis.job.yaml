@@ -130,11 +130,11 @@ jobs:
           #   EXTRA_FLAGS="$EXTRA_FLAGS --flakiness-output ${{ parameters.flakinessOutput }}"
           # fi
 
-          cd "$(Build.SourcesDirectory)"
-          go run ./tools/failure-agent \
+          cd "$(Build.SourcesDirectory)/tools/failure-agent"
+          go run . \
             --input "$INPUT_DIR" \
             --output "$OUTPUT_DIR" \
-            --signatures tools/failure-agent/signatures/signatures.yaml \
+            --signatures signatures/signatures.yaml \
             --cluster-name "${{ parameters.clusterName }}" \
             --os "${{ parameters.os }}" \
             --cni "${{ parameters.cni }}" \
