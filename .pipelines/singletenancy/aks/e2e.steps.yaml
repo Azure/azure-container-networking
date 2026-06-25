@@ -72,3 +72,10 @@ steps:
       kubectl delete ns load-test
     displayName: "Validate State"
     retryCountOnTaskFailure: 3
+
+  # ⚠️ TEMPORARY: Deliberately fail to trigger failure analysis for MVP testing.
+  # Remove this step after verifying the failure-agent pipeline works end-to-end.
+  - script: |
+      echo "##[error]Intentional failure to exercise failure-analysis pipeline"
+      exit 1
+    displayName: "Induce test failure (MVP testing)"
