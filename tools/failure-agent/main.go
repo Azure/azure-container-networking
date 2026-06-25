@@ -112,7 +112,7 @@ func parseFlags() options {
 	flag.StringVar(&o.aoaiEndpoint, "aoai-endpoint", os.Getenv("AZURE_OPENAI_ENDPOINT"), "Azure OpenAI endpoint (or AZURE_OPENAI_ENDPOINT)")
 	flag.StringVar(&o.aoaiDeployment, "aoai-deployment", os.Getenv("AZURE_OPENAI_DEPLOYMENT"), "Azure OpenAI deployment name (or AZURE_OPENAI_DEPLOYMENT)")
 	flag.StringVar(&o.aoaiAPIKey, "aoai-api-key", os.Getenv("AZURE_OPENAI_API_KEY"), "Azure OpenAI API key (or AZURE_OPENAI_API_KEY)")
-	flag.StringVar(&o.aoaiAPIVersion, "aoai-api-version", defaultAOAIAPIVersion, "Azure OpenAI API version")
+	flag.StringVar(&o.aoaiAPIVersion, "aoai-api-version", envOrDefault("AZURE_OPENAI_API_VERSION", defaultAOAIAPIVersion), "Azure OpenAI API version (or AZURE_OPENAI_API_VERSION)")
 	flag.DurationVar(&o.timeout, "timeout", defaultTimeout, "overall timeout for LLM classification")
 	flag.StringVar(&o.pipeline, "pipeline", "", "override pipeline name")
 	flag.StringVar(&o.clusterName, "cluster-name", "", "scenario: cluster name")
@@ -508,4 +508,11 @@ func loadSignatures(logger *zap.Logger, path string) (*signatures.Set, error) {
 		return signatures.Load(strings.NewReader(""))
 	}
 	return nil, err
+}
+
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
