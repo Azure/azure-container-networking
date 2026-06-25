@@ -377,48 +377,12 @@ stages:
                 platforms: linux/amd64 linux/arm64 windows/amd64
 
     # =====================================================================
-    # TRIMMED FOR MVP TESTING — only 4 high-failure-rate E2E stages kept.
-    # Revert this block before merging to master.
+    # TRIMMED FOR MVP TESTING — single E2E stage with broken CNI image to
+    # exercise the failure-analysis agent. Revert before merging to master.
     # =====================================================================
 
-    # Cilium Overlay E2E tests
-    - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
-      parameters:
-        name: "cilium_overlay_e2e"
-        displayName: Cil on AKS Overlay
-        clusterType: overlay-byocni-nokubeproxy-up
-        clusterName: "cilovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
-
-    # Azure Overlay E2E tests
-    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
-      parameters:
-        name: "linux_azure_overlay_e2e"
-        displayName: Azure Overlay Linux
-        os: linux
-        clusterType: overlay-byocni-up
-        clusterName: "linuxazovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
-        scaleup: 100
-
-    # Windows Azure Overlay E2E tests
-    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
-      parameters:
-        name: "win_azure_overlay_e2e"
-        displayName: Azure Overlay Windows
-        os: windows
-        clusterType: overlay-byocni-up
-        clusterName: "winazovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
-        scaleup: 50
-
-    # CNIv1 E2E tests
+    # CNIv1 E2E tests — will fail because CNI_VERSION is overridden to a
+    # nonexistent tag, causing ImagePullBackOff on the azure-cni daemonset.
     - template: singletenancy/aks/e2e-job-template.yaml
       parameters:
         name: "aks_ubuntu_22_linux_e2e"
@@ -432,71 +396,12 @@ stages:
         scaleup: 100
         dependsOn: ["test"]
 
-    # Delete Cilium Clusters (trimmed for MVP testing)
-    - stage: delete_cilium_clusters
-      displayName: Delete Cilium Clusters
-      condition: always()
-      dependsOn:
-        - setup
-        - cilium_overlay_e2e
-      variables:
-        commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      pool:
-        name: $(BUILD_POOL_NAME_DEFAULT)
-      jobs:
-        - job: delete
-          displayName: Delete Cluster
-          strategy:
-            matrix:
-              cilium_overlay:
-                cluster_name: cilovere2e
-                delete_name: cilium_overlay_e2e
-                delete_region: $(REGION_AKS_CLUSTER_TEST)
-          steps:
-            - template: templates/delete-cluster.yaml
-              parameters:
-                name: $(delete_name)
-                clusterName: $(cluster_name)-$(commitID)
-                region: $(delete_region)
-                sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
-                svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-
-    # Delete Windows Clusters (trimmed for MVP testing)
-    - stage: delete_windows_clusters
-      displayName: Delete Windows Clusters
-      condition: always()
-      dependsOn:
-        - setup
-        - win_azure_overlay_e2e
-      variables:
-        commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      pool:
-        name: $(BUILD_POOL_NAME_DEFAULT)
-      jobs:
-        - job: delete
-          displayName: Delete Cluster
-          strategy:
-            matrix:
-              azure_overlay_windows:
-                cluster_name: winazovere2e
-                delete_name: win_azure_overlay_e2e
-                delete_region: $(REGION_AKS_CLUSTER_TEST)
-          steps:
-            - template: templates/delete-cluster.yaml
-              parameters:
-                name: $(delete_name)
-                clusterName: $(cluster_name)-$(commitID)
-                region: $(delete_region)
-                sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
-                svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-
     # Delete Linux Clusters (trimmed for MVP testing)
     - stage: delete_linux_clusters
       displayName: Delete Linux Clusters
       condition: always()
       dependsOn:
         - setup
-        - linux_azure_overlay_e2e
         - aks_ubuntu_22_linux_e2e
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
@@ -507,10 +412,6 @@ stages:
           displayName: Delete Cluster
           strategy:
             matrix:
-              azure_overlay_linux:
-                cluster_name: linuxazovere2e
-                delete_name: linux_azure_overlay_e2e
-                delete_region: $(REGION_AKS_CLUSTER_TEST)
               aks_ubuntu_22:
                 cluster_name: ubuntu22e2e
                 delete_name: aks_ubuntu_22_linux_e2e

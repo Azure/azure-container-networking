@@ -31,7 +31,9 @@ steps:
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         echo "Upload CNI"
         echo "Deploying on Linux nodes"
-        export CNI_IMAGE="$AZURE_REGISTRY"/"$CNI_IMAGE_NAME_OVERRIDE":"$CNI_VERSION"
+        # ⚠️ TEMPORARY: Force a nonexistent image tag to induce ImagePullBackOff
+        # for failure-analysis MVP testing. Remove after testing.
+        export CNI_IMAGE="$AZURE_REGISTRY"/"$CNI_IMAGE_NAME_OVERRIDE":"v999.0.0-does-not-exist"
         echo "CNI image: $CNI_IMAGE"
         if [ "${{parameters.os}}" == "windows" ]; then
           envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
