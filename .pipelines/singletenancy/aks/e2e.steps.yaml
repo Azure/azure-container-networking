@@ -35,15 +35,17 @@ steps:
         # for failure-analysis MVP testing. Remove after testing.
         export CNI_IMAGE="$AZURE_REGISTRY"/"$CNI_IMAGE_NAME_OVERRIDE":"v999.0.0-does-not-exist"
         echo "CNI image: $CNI_IMAGE"
+        # Delete existing daemonset so rollout must pull the (bad) new image
+        kubectl delete daemonset azure-cni -n kube-system --ignore-not-found
         if [ "${{parameters.os}}" == "windows" ]; then
           envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
-          kubectl rollout status daemonset/azure-cni -n kube-system
+          kubectl rollout status daemonset/azure-cni -n kube-system --timeout=120s
           echo "Deploying on windows nodes"
           envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
-          kubectl rollout status daemonset/azure-cni-windows -n kube-system
+          kubectl rollout status daemonset/azure-cni-windows -n kube-system --timeout=120s
         else
           envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
-          kubectl rollout status daemonset/azure-cni -n kube-system
+          kubectl rollout status daemonset/azure-cni -n kube-system --timeout=120s
         fi
     name: "deployCNI"
     displayName: "Deploy CNI"
