@@ -153,6 +153,18 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 			zap.String("event", "live_evidence_collected"),
 			zap.Int("commands", len(res.Executed)),
 		)
+		for _, argv := range res.Executed {
+			name := live.CommandString(argv)
+			logger.Info("live command executed", zap.String("command", name))
+		}
+		for label, output := range res.Outputs {
+			// Log full output so pipeline raw logs have complete traceability.
+			logger.Info("live diagnostic output",
+				zap.String("diagnostic", label),
+				zap.Int("bytes", len(output)),
+				zap.String("output", output),
+			)
+		}
 	}
 
 	fp := fingerprint.Compute(rc, ev)
