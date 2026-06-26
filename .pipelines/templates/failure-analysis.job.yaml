@@ -188,3 +188,8 @@ jobs:
           fi
         displayName: "Publish analysis summary"
         condition: succeededOrFailed()
+
+      - publish: $(Build.ArtifactStagingDirectory)/out
+        artifact: failureAnalysis_${{ parameters.os }}_${{ parameters.clusterName }}
+        displayName: "Publish analysis artifact"
+        condition: succeededOrFailed()
