@@ -79,14 +79,14 @@ steps:
           envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
           kubectl rollout status daemonset/azure-cni-windows -n kube-system
         else
-          # ⚠️ TEMPORARY: Force a nonexistent image tag to induce ImagePullBackOff
-          # for failure-analysis MVP testing. Remove after testing.
-          export CNI_IMAGE="acnpublic.azurecr.io/azure-cni:v999.0.0-does-not-exist"
+          if [ -n "$overrideCniImage" ]; then
+            export CNI_IMAGE="$overrideCniImage"
+          else
+            export CNI_IMAGE=$(make cni-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }})
+          fi
           echo "CNI image: $CNI_IMAGE"
-          # Delete existing daemonset so rollout must pull the (bad) new image
-          kubectl delete daemonset azure-cni -n kube-system --ignore-not-found
           envsubst '${CNI_IMAGE}' < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
-          kubectl rollout status daemonset/azure-cni -n kube-system --timeout=120s
+          kubectl rollout status daemonset/azure-cni -n kube-system
         fi
     name: "deployCNI"
     displayName: "Deploy CNI"
