@@ -2906,10 +2906,11 @@ func TestGetEndpoint(t *testing.T) {
 func TestDeleteEndpointState(t *testing.T) {
 	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
 	tests := []struct {
-		name     string
-		mockdo   *mockdo
-		wantErr  bool
-		wantResp bool
+		name         string
+		mockdo       *mockdo
+		wantErr      bool
+		wantRespCode types.ResponseCode
+		wantNilResp  bool
 	}{
 		{
 			name: "happy case",
@@ -2917,7 +2918,7 @@ func TestDeleteEndpointState(t *testing.T) {
 				objToReturn:            &cns.Response{ReturnCode: types.Success},
 				httpStatusCodeToReturn: http.StatusOK,
 			},
-			wantResp: true,
+			wantRespCode: types.Success,
 		},
 		{
 			name: "endpoint state not found",
@@ -2928,7 +2929,8 @@ func TestDeleteEndpointState(t *testing.T) {
 				},
 				httpStatusCodeToReturn: http.StatusOK,
 			},
-			wantResp: true,
+			wantErr:      true,
+			wantRespCode: types.NotFound,
 		},
 		{
 			name: "cns return code not zero",
@@ -2936,14 +2938,16 @@ func TestDeleteEndpointState(t *testing.T) {
 				objToReturn:            &cns.Response{ReturnCode: types.UnexpectedError},
 				httpStatusCodeToReturn: http.StatusOK,
 			},
-			wantErr: true,
+			wantErr:      true,
+			wantRespCode: types.UnexpectedError,
 		},
 		{
 			name: "http status not ok",
 			mockdo: &mockdo{
 				httpStatusCodeToReturn: http.StatusInternalServerError,
 			},
-			wantErr: true,
+			wantErr:     true,
+			wantNilResp: true,
 		},
 	}
 	for _, tt := range tests {
@@ -2958,11 +2962,11 @@ func TestDeleteEndpointState(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			if tt.wantResp {
-				require.NotNil(t, resp)
-				assert.Equal(t, types.Success, resp.ReturnCode)
-			} else {
+			if tt.wantNilResp {
 				assert.Nil(t, resp)
+			} else {
+				require.NotNil(t, resp)
+				assert.Equal(t, tt.wantRespCode, resp.ReturnCode)
 			}
 		})
 	}
