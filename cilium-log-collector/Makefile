@@ -14,7 +14,7 @@ cilium-log-collector-version: ## prints the cilium-log-collector version
 # Build the cilium-log-collector plugin "so" file
 cilium-log-collector-binary:
 	$(MKDIR) $(CILIUM_LOG_COLLECTOR_BUILD_DIR)
-	cd $(CILIUM_LOG_COLLECTOR_DIR) && go build -buildmode=c-shared -a -o $(CILIUM_LOG_COLLECTOR_BUILD_DIR)/out_azure_app_insights.so -trimpath -ldflags "-X main.version=$(CILIUM_LOG_COLLECTOR_VERSION)" -gcflags="-dwarflocationlists=true" .
+	cd $(CILIUM_LOG_COLLECTOR_DIR) && CGO_ENABLED=1 GOEXPERIMENT=systemcrypto go build -buildmode=c-shared -a -o $(CILIUM_LOG_COLLECTOR_BUILD_DIR)/out_azure_app_insights.so -trimpath -ldflags "-X main.version=$(CILIUM_LOG_COLLECTOR_VERSION)" -gcflags="-dwarflocationlists=true" .
 
 
 CILIUM_LOG_COLLECTOR_IMAGE = cilium-log-collector
