@@ -655,7 +655,7 @@ func main() {
 	if cnsconfig.Logger.AppInsights != nil {
 		cnsconfig.Logger.AppInsights.Fields = append(cnsconfig.Logger.AppInsights.Fields, aifields...)
 	}
-	cnsconfig.Logger.AppendETWFields(aifields)
+	cnsconfig.Logger.AppendETWFields(allFields)
 
 	// build the zap logger
 	z, c, err := loggerv2.New(&cnsconfig.Logger)

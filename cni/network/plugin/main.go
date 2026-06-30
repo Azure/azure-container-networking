@@ -67,6 +67,7 @@ func rootExecute() error {
 			zap.String("os_version", metadata.OSVersion),
 			zap.String("vm_id", metadata.VMID),
 			zap.String("session_id", metadata.VMID),
+			zap.String("os_type", metadata.OsType),
 		)
 	}
 
