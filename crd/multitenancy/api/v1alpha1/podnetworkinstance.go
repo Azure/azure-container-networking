@@ -79,14 +79,15 @@ type PodNetworkInstanceStatus struct {
 }
 
 // PNIStatus indicates the status of PNI
-// +kubebuilder:validation:Enum=Ready;CreateReservationSetError;PodNetworkNotReady;InsufficientIPAddressesOnSubnet
+// +kubebuilder:validation:Enum=Ready;CreateReservationSetError;PodNetworkNotReady;InsufficientIPAddressesOnSubnet;InvalidStaticReservationForPrefixBlock
 type PNIStatus string
 
 const (
-	PNIStatusReady                           PNIStatus = "Ready"
-	PNIStatusCreateReservationSetError       PNIStatus = "CreateReservationSetError"
-	PNIStatusPodNetworkNotReady              PNIStatus = "PodNetworkNotReady"
-	PNIStatusInsufficientIPAddressesOnSubnet PNIStatus = "InsufficientIPAddressesOnSubnet"
+	PNIStatusReady                                  PNIStatus = "Ready"
+	PNIStatusCreateReservationSetError              PNIStatus = "CreateReservationSetError"
+	PNIStatusPodNetworkNotReady                     PNIStatus = "PodNetworkNotReady"
+	PNIStatusInsufficientIPAddressesOnSubnet        PNIStatus = "InsufficientIPAddressesOnSubnet"
+	PNIStatusInvalidStaticReservationForPrefixBlock PNIStatus = "InvalidStaticReservationForPrefixBlock"
 )
 
 func init() {

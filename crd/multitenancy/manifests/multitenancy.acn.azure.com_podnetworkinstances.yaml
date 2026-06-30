@@ -112,6 +112,7 @@ spec:
                   - CreateReservationSetError
                   - PodNetworkNotReady
                   - InsufficientIPAddressesOnSubnet
+                  - InvalidStaticReservationForPrefixBlock
                   type: string
                 type: object
               status:
@@ -121,6 +122,7 @@ spec:
                 - CreateReservationSetError
                 - PodNetworkNotReady
                 - InsufficientIPAddressesOnSubnet
+                - InvalidStaticReservationForPrefixBlock
                 type: string
             type: object
         type: object
