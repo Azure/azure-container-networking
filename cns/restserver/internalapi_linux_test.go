@@ -4,32 +4,234 @@
 package restserver
 
 import (
+	"errors"
+	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 )
 
-type FakeIPTablesProvider struct {
-	iptables       *fakes.IPTablesMock
-	iptablesLegacy *fakes.IPTablesLegacyMock
+var (
+	errChainExists   = errors.New("chain already exists")
+	errChainNotFound = errors.New("chain not found")
+	errRuleExists    = errors.New("rule already exists")
+	errRuleNotFound  = errors.New("rule not found")
+	errIndexBounds   = errors.New("index out of bounds")
+)
+
+type ipTablesLegacyMock struct {
+	deleteCallCount int
 }
 
-func (c *FakeIPTablesProvider) GetIPTables() (iptablesClient, error) {
+func (c *ipTablesLegacyMock) Delete(_, _ string, _ ...string) error {
+	c.deleteCallCount++
+	return nil
+}
+
+func (c *ipTablesLegacyMock) DeleteCallCount() int {
+	return c.deleteCallCount
+}
+
+type ipTablesMock struct {
+	state               map[string]map[string][]string
+	clearChainCallCount int
+}
+
+func newIPTablesMock() *ipTablesMock {
+	return &ipTablesMock{
+		state: make(map[string]map[string][]string),
+	}
+}
+
+func (c *ipTablesMock) ensureTableExists(table string) {
+	_, exists := c.state[table]
+	if !exists {
+		c.state[table] = make(map[string][]string)
+	}
+}
+
+func (c *ipTablesMock) ChainExists(table, chain string) (bool, error) {
+	c.ensureTableExists(table)
+
+	builtins := []string{iptables.Input, iptables.Output, iptables.Prerouting, iptables.Postrouting, iptables.Forward}
+
+	_, exists := c.state[table][chain]
+
+	// these chains always exist
+	for _, val := range builtins {
+		if chain == val && !exists {
+			c.state[table][chain] = []string{}
+			return true, nil
+		}
+	}
+
+	return exists, nil
+}
+
+func (c *ipTablesMock) NewChain(table, chain string) error {
+	c.ensureTableExists(table)
+
+	exists, _ := c.ChainExists(table, chain)
+
+	if exists {
+		return errChainExists
+	}
+
+	c.state[table][chain] = []string{}
+	return nil
+}
+
+func (c *ipTablesMock) Exists(table, chain string, rulespec ...string) (bool, error) {
+	c.ensureTableExists(table)
+
+	chainExists, _ := c.ChainExists(table, chain)
+	if !chainExists {
+		return false, nil
+	}
+
+	targetRule := strings.Join(rulespec, " ")
+	chainRules := c.state[table][chain]
+
+	for _, chainRule := range chainRules {
+		if targetRule == chainRule {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (c *ipTablesMock) Append(table, chain string, rulespec ...string) error {
+	c.ensureTableExists(table)
+
+	chainRules := c.state[table][chain]
+	return c.Insert(table, chain, len(chainRules)+1, rulespec...)
+}
+
+func (c *ipTablesMock) Insert(table, chain string, pos int, rulespec ...string) error {
+	c.ensureTableExists(table)
+
+	chainExists, _ := c.ChainExists(table, chain)
+	if !chainExists {
+		return errChainNotFound
+	}
+
+	targetRule := strings.Join(rulespec, " ")
+	chainRules := c.state[table][chain]
+
+	// convert 1-based position to 0-based index
+	index := pos - 1
+	if index < 0 {
+		index = 0
+	}
+
+	switch {
+	case index == len(chainRules):
+		c.state[table][chain] = append(chainRules, targetRule)
+	case index > len(chainRules):
+		return errIndexBounds
+	default:
+		c.state[table][chain] = append(chainRules[:index], append([]string{targetRule}, chainRules[index:]...)...)
+	}
+
+	return nil
+}
+
+func (c *ipTablesMock) List(table, chain string) ([]string, error) {
+	c.ensureTableExists(table)
+
+	chainExists, _ := c.ChainExists(table, chain)
+	if !chainExists {
+		return nil, errChainNotFound
+	}
+
+	chainRules := c.state[table][chain]
+	// preallocate: 1 for chain header + number of rules
+	result := make([]string, 0, 1+len(chainRules))
+
+	// for built-in chains, start with policy -P, otherwise start with definition -N
+	builtins := []string{iptables.Input, iptables.Output, iptables.Prerouting, iptables.Postrouting, iptables.Forward}
+	isBuiltIn := false
+	for _, builtin := range builtins {
+		if chain == builtin {
+			isBuiltIn = true
+			break
+		}
+	}
+
+	if isBuiltIn {
+		result = append(result, fmt.Sprintf("-P %s ACCEPT", chain))
+	} else {
+		result = append(result, "-N "+chain)
+	}
+
+	// iptables with -S always outputs the rules in -A format
+	for _, rule := range chainRules {
+		result = append(result, fmt.Sprintf("-A %s %s", chain, rule))
+	}
+
+	return result, nil
+}
+
+func (c *ipTablesMock) ClearChain(table, chain string) error {
+	c.clearChainCallCount++
+	c.ensureTableExists(table)
+
+	chainExists, _ := c.ChainExists(table, chain)
+	if !chainExists {
+		return errChainNotFound
+	}
+
+	c.state[table][chain] = []string{}
+	return nil
+}
+
+func (c *ipTablesMock) Delete(table, chain string, rulespec ...string) error {
+	c.ensureTableExists(table)
+
+	chainExists, _ := c.ChainExists(table, chain)
+	if !chainExists {
+		return errChainNotFound
+	}
+
+	targetRule := strings.Join(rulespec, " ")
+	chainRules := c.state[table][chain]
+
+	// delete first match
+	for i, rule := range chainRules {
+		if rule == targetRule {
+			c.state[table][chain] = append(chainRules[:i], chainRules[i+1:]...)
+			return nil
+		}
+	}
+
+	return errRuleNotFound
+}
+
+func (c *ipTablesMock) ClearChainCallCount() int {
+	return c.clearChainCallCount
+}
+
+type fakeIPTablesProvider struct {
+	iptables       *ipTablesMock
+	iptablesLegacy *ipTablesLegacyMock
+}
+
+func (c *fakeIPTablesProvider) GetIPTables() (iptablesClient, error) {
 	// persist iptables in testing
 	if c.iptables == nil {
-		c.iptables = fakes.NewIPTablesMock()
+		c.iptables = newIPTablesMock()
 	}
 	return c.iptables, nil
 }
 
-func (c *FakeIPTablesProvider) GetIPTablesLegacy() (iptablesLegacyClient, error) {
+func (c *fakeIPTablesProvider) GetIPTablesLegacy() (iptablesLegacyClient, error) {
 	if c.iptablesLegacy == nil {
-		c.iptablesLegacy = &fakes.IPTablesLegacyMock{}
+		c.iptablesLegacy = &ipTablesLegacyMock{}
 	}
 	return c.iptablesLegacy, nil
 }
@@ -314,9 +516,9 @@ func TestAddSNATRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			service := getTestService(cns.KubernetesCRD)
-			ipt := fakes.NewIPTablesMock()
-			iptl := &fakes.IPTablesLegacyMock{}
-			service.iptables = &FakeIPTablesProvider{
+			ipt := newIPTablesMock()
+			iptl := &ipTablesLegacyMock{}
+			service.iptables = &fakeIPTablesProvider{
 				iptables:       ipt,
 				iptablesLegacy: iptl,
 			}
