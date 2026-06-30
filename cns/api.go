@@ -386,6 +386,53 @@ type GetVMUniqueIDResponse struct {
 	VMUniqueID string   `json:"vmuniqueid"`
 }
 
+// NICResource represents a network interface resource from the VM.
+type NICResource struct {
+	MacAddress             string `json:"macAddress"`
+	InterfaceName          string `json:"interfaceName,omitempty"`
+	InterfaceCompartmentID string `json:"interfaceCompartmentID,omitempty"`
+	NetworkID              string `json:"networkID,omitempty"`
+	VMUniqueID             string `json:"vmUniqueID,omitempty"`
+	SubnetID               string `json:"subnetID,omitempty"`
+	Capacity               int    `json:"capacity"`
+	// PrimaryIP is the host-underlay primary IP for the NIC (the address
+	// NMAgent provisions as the NIC's primary CA on the SwiftV2 fabric),
+	// formatted as a CIDR using the *subnet* address-space prefix length
+	// — e.g., "165.0.0.16/20" — not the narrower NC prefix-on-NIC range
+	// from Status.PrimaryIP. This shape lets the consumer (dranet) call
+	// `ip addr add <primaryIP> dev eth1` and have the kernel install a
+	// connected route covering every pod IP in the customer subnet, not
+	// just the pods on this NIC.
+	//
+	// Empty when the NIC has no NICNetworkConfig CRD or the field is unset.
+	PrimaryIP string `json:"primaryIP,omitempty"`
+}
+
+// GetNICResourcesResponse describes response for GetNICResources API.
+type GetNICResourcesResponse struct {
+	Response     Response      `json:"response"`
+	NICResources []NICResource `json:"nicResources"`
+}
+
+// NICNCInfo holds NICNetworkConfig CRD data used to enrich NICResource.
+type NICNCInfo struct {
+	NetworkID string
+	SubnetID  string
+	// PrimaryIP is the NIC's host-underlay primary IP as a CIDR using the
+	// VNet subnet address-space prefix length (e.g., "165.0.0.16/20"),
+	// parsed from CRD's Status.PrimaryIP (IP) + Status.SubnetAddressSpace
+	// (prefix). Empty for entries derived from MTPNC fallback (MTPNC
+	// PrimaryIP is per-pod, not per-NIC).
+	PrimaryIP string
+	// ScheduledWithDRA is true when the entry was derived from a
+	// MultitenantPodNetworkConfig whose pod was scheduled via Dynamic
+	// Resource Allocation (Spec.ResourceClaims is non-empty). Consumers
+	// of GetNICResources use this to drop NIC capacity to 0 when a NIC is
+	// pinned to a non-DRA pod and therefore not eligible for DRA sharing.
+	// Always false for entries derived from NICNetworkConfig.
+	ScheduledWithDRA bool
+}
+
 // AssignIBDevicesToPodRequest represents the request for assigning InfiniBand devices to a pod
 type AssignIBDevicesToPodRequest struct {
 	IBMACAddresses []net.HardwareAddr `json:"ibmacaddresses"` // List of IB device MAC addresses to assign

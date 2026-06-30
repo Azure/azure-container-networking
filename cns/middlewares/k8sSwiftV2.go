@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"context"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
@@ -32,7 +33,8 @@ var (
 )
 
 type K8sSWIFTv2Middleware struct {
-	Cli client.Client
+	Cli      client.Client
+	NodeName string
 }
 
 // Verify interface compliance at compile time
@@ -84,6 +86,14 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 		return nil, errMTPNCNotReady
 	}
 	logger.Printf("[SWIFTv2Middleware] mtpnc for pod %s is : %+v", podInfo.Name(), mtpnc)
+
+	// When the pod was scheduled with Dynamic Resource Allocation (DRA), dranet
+	// owns the delegated NIC via NRI and configures it out of band. CNS must not
+	// return the delegated NIC IP config to the CNI invoker, so skip it here.
+	if mtpnc.IsScheduledWithDRA() {
+		logger.Printf("[SWIFTv2Middleware] pod %s was scheduled with DRA; skipping delegated NIC IP config for CNI", podInfo.Name())
+		return []cns.PodIpInfo{}, nil
+	}
 
 	var podIPInfos []cns.PodIpInfo
 
@@ -140,6 +150,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 					},
 					MacAddress:        interfaceInfo.MacAddress,
 					NICType:           nicType,
+					SharedNIC:         interfaceInfo.SharedNIC,
 					SkipDefaultRoutes: false,
 					// InterfaceName is empty for DelegatedVMNIC and AccelnetFrontendNIC
 				}
@@ -277,4 +288,214 @@ func (k *K8sSWIFTv2Middleware) GetInfravnetAndServiceCidrs() ([]string, []string
 	v6Cidrs = append(v6Cidrs, serviceCIDRsV6...)
 
 	return v4Cidrs, v6Cidrs, nil
+}
+
+// GetMTPNCInfoByMAC lists all MTPNCs scheduled on this node and the referenced PodNetworks,
+// returning a map keyed by MAC address with network and subnet information.
+// This is used as a fallback when NICNetworkConfig CRDs are not present for a given NIC.
+func (k *K8sSWIFTv2Middleware) GetMTPNCInfoByMAC(ctx context.Context) (map[string]*cns.NICNCInfo, error) {
+	var mtpncList v1alpha1.MultitenantPodNetworkConfigList
+	if err := k.Cli.List(ctx, &mtpncList); err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]*cns.NICNCInfo)
+	pnCache := make(map[string]*v1alpha1.PodNetwork)
+	for i := range mtpncList.Items {
+		mtpnc := &mtpncList.Items[i]
+
+		// Only consider MTPNCs that are scheduled on this node.
+		if mtpnc.Status.NodeName != k.NodeName {
+			continue
+		}
+
+		pnNames, err := k.resolveMTPNCPodNetworkNames(ctx, mtpnc)
+		if err != nil {
+			logger.Errorf("[SWIFTv2Middleware] failed to resolve PodNetwork for MTPNC %s/%s: %v", mtpnc.Namespace, mtpnc.Name, err)
+			continue
+		}
+
+		scheduledWithDRA := mtpnc.IsScheduledWithDRA()
+
+		for j := range mtpnc.Status.InterfaceInfos {
+			mac := mtpnc.Status.InterfaceInfos[j].MacAddress
+			if mac == "" {
+				continue
+			}
+			// Skip if we already recorded this MAC (first-seen wins).
+			if _, exists := result[mac]; exists {
+				continue
+			}
+
+			pn := k.podNetworkForInterface(ctx, pnNames, j, pnCache)
+			if pn == nil {
+				logger.Printf("[SWIFTv2Middleware] MTPNC %s/%s interface %d MAC %s has no resolved PodNetwork", mtpnc.Namespace, mtpnc.Name, j, mac)
+				continue
+			}
+			info := nicNCInfoFromPodNetwork(pn)
+			info.ScheduledWithDRA = scheduledWithDRA
+			result[mac] = info
+		}
+
+		if len(mtpnc.Status.InterfaceInfos) == 0 && mtpnc.Status.MacAddress != "" {
+			if _, exists := result[mtpnc.Status.MacAddress]; exists {
+				continue
+			}
+			pn := k.podNetworkForInterface(ctx, pnNames, 0, pnCache)
+			if pn == nil {
+				logger.Printf("[SWIFTv2Middleware] MTPNC %s/%s MAC %s has no resolved PodNetwork", mtpnc.Namespace, mtpnc.Name, mtpnc.Status.MacAddress)
+				continue
+			}
+			info := nicNCInfoFromPodNetwork(pn)
+			info.ScheduledWithDRA = scheduledWithDRA
+			result[mtpnc.Status.MacAddress] = info
+		}
+	}
+
+	logger.Printf("[SWIFTv2Middleware] fetched %d MTPNCs on node %s, %d unique MACs with info", len(mtpncList.Items), k.NodeName, len(result))
+	return result, nil
+}
+
+func (k *K8sSWIFTv2Middleware) resolveMTPNCPodNetworkNames(ctx context.Context, mtpnc *v1alpha1.MultitenantPodNetworkConfig) ([]string, error) {
+	if mtpnc.Spec.PodNetwork != "" {
+		return []string{mtpnc.Spec.PodNetwork}, nil
+	}
+	if mtpnc.Spec.PodNetworkInstance == "" {
+		return nil, nil
+	}
+
+	var pni v1alpha1.PodNetworkInstance
+	if err := k.Cli.Get(ctx, k8stypes.NamespacedName{Namespace: mtpnc.Namespace, Name: mtpnc.Spec.PodNetworkInstance}, &pni); err != nil {
+		return nil, err
+	}
+
+	var pnNames []string
+	if pni.Spec.PodNetwork != "" {
+		pnNames = append(pnNames, pni.Spec.PodNetwork)
+	}
+	for _, config := range pni.Spec.PodNetworkConfigs {
+		if config.PodNetwork != "" {
+			pnNames = append(pnNames, config.PodNetwork)
+		}
+	}
+	return pnNames, nil
+}
+
+func (k *K8sSWIFTv2Middleware) podNetworkForInterface(ctx context.Context, pnNames []string, interfaceIndex int, cache map[string]*v1alpha1.PodNetwork) *v1alpha1.PodNetwork {
+	if len(pnNames) == 0 {
+		return nil
+	}
+
+	pnName := pnNames[0]
+	if len(pnNames) > 1 {
+		if interfaceIndex >= len(pnNames) {
+			logger.Printf("[SWIFTv2Middleware] interface index %d has no matching PodNetwork among %d PodNetworks", interfaceIndex, len(pnNames))
+			return nil
+		}
+		pnName = pnNames[interfaceIndex]
+	}
+
+	if pn, ok := cache[pnName]; ok {
+		return pn
+	}
+
+	var pn v1alpha1.PodNetwork
+	if err := k.Cli.Get(ctx, k8stypes.NamespacedName{Name: pnName}, &pn); err != nil {
+		logger.Errorf("[SWIFTv2Middleware] failed to get PodNetwork %s: %v", pnName, err)
+		return nil
+	}
+	cache[pnName] = &pn
+	return &pn
+}
+
+func nicNCInfoFromPodNetwork(pn *v1alpha1.PodNetwork) *cns.NICNCInfo {
+	networkID := pn.Spec.NetworkID
+	if networkID == "" {
+		networkID = pn.Spec.VnetGUID
+	}
+	return &cns.NICNCInfo{
+		NetworkID: networkID,
+		SubnetID:  subnetNameFromResourceID(pn.Spec.SubnetResourceID),
+	}
+}
+
+// subnetNameFromResourceID extracts the trailing subnet name from an ARM resource ID.
+// e.g. ".../subnets/mySubnet" → "mySubnet"
+func subnetNameFromResourceID(resourceID string) string {
+	if resourceID == "" {
+		return ""
+	}
+	parts := strings.Split(resourceID, "/")
+	if len(parts) < 2 {
+		return resourceID
+	}
+	return parts[len(parts)-1]
+}
+
+// GetNICNCInfoByMAC lists all NICNetworkConfig CRDs and returns a map keyed by MAC address.
+func (k *K8sSWIFTv2Middleware) GetNICNCInfoByMAC(ctx context.Context) (map[string]*cns.NICNCInfo, error) {
+	var nicNCList v1alpha1.NICNetworkConfigList
+	if err := k.Cli.List(ctx, &nicNCList); err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]*cns.NICNCInfo, len(nicNCList.Items))
+	for i := range nicNCList.Items {
+		mac := nicNCList.Items[i].Status.MACAddress
+		if mac == "" {
+			continue
+		}
+		// Build the host-underlay primary IP as a CIDR using the *subnet*
+		// width, not the NC width.
+		//
+		// Status.PrimaryIP is the NIC's primary CA but its prefix length is
+		// the NC's prefix-on-NIC range (e.g., "165.0.0.16/28") — that's not
+		// the actual VNet subnet width.
+		//
+		// For dranet to assign this address to the parent NIC on the host
+		// and have the kernel install a connected route that covers *every*
+		// pod CA in the customer subnet (including pods on other NICs in
+		// the same subnet), we need the subnet width from
+		// Status.SubnetAddressSpace (e.g., "165.0.0.0/20" → /20).
+		//
+		// Result: PrimaryIP = "165.0.0.16/20" — kernel-ready for `ip addr add`.
+		primaryIP := buildSubnetWidthPrimaryIP(
+			nicNCList.Items[i].Status.PrimaryIP,
+			nicNCList.Items[i].Status.SubnetAddressSpace,
+		)
+		result[mac] = &cns.NICNCInfo{
+			NetworkID: nicNCList.Items[i].Spec.NetworkID,
+			SubnetID:  nicNCList.Items[i].Spec.SubnetGUID,
+			PrimaryIP: primaryIP,
+		}
+	}
+
+	logger.Printf("[SWIFTv2Middleware] fetched %d NICNetworkConfigs, %d with MAC addresses", len(nicNCList.Items), len(result))
+	return result, nil
+}
+
+// buildSubnetWidthPrimaryIP combines the IP portion of Status.PrimaryIP
+// (which carries the NC's prefix-on-NIC range, e.g. "165.0.0.16/28") with
+// the prefix length from Status.SubnetAddressSpace (the actual VNet subnet,
+// e.g. "165.0.0.0/20") to produce a CIDR string suitable for `ip addr add`
+// on the host parent NIC: "165.0.0.16/20".
+//
+// Returns "" if the IP cannot be extracted. If the subnet prefix is missing
+// or unparseable, falls back to whatever prefix Status.PrimaryIP carried so
+// callers still get a usable address (just with the narrower NC mask).
+func buildSubnetWidthPrimaryIP(primaryIPCIDR, subnetAddressSpace string) string {
+	if primaryIPCIDR == "" {
+		return ""
+	}
+	ip := primaryIPCIDR
+	if idx := strings.IndexByte(ip, '/'); idx > 0 {
+		ip = ip[:idx]
+	}
+	if ip == "" {
+		return ""
+	}
+	if idx := strings.IndexByte(subnetAddressSpace, '/'); idx > 0 && idx+1 < len(subnetAddressSpace) {
+		return ip + subnetAddressSpace[idx:]
+	}
+	return primaryIPCIDR
 }

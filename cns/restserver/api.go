@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -1312,6 +1313,195 @@ func (service *HTTPRestService) getVMUniqueID(w http.ResponseWriter, r *http.Req
 			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
 		})
 	}
+}
+
+func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.Request) {
+	logger.Request(service.Name, "getNICResources", nil)
+	ctx := r.Context()
+
+	switch r.Method {
+	case http.MethodGet:
+		// Step 1: Get list of NICs (MACs) from NodeInfo CRD.
+		logger.Printf("[Azure CNS] getNICResources: fetching NodeInfo CRD for node %s", service.nodeName)
+		nodeInfo, err := service.nodeInfoCli.Get(ctx, service.nodeName)
+		if err != nil {
+			resp := cns.GetNICResourcesResponse{
+				Response: cns.Response{
+					ReturnCode: types.UnexpectedError,
+					Message:    errors.Wrap(err, "failed to get NodeInfo CRD").Error(),
+				},
+			}
+			respondJSON(w, http.StatusInternalServerError, resp)
+			logger.Errorf("[Azure CNS] getNICResources: failed to fetch NodeInfo CRD for node %s: %v", service.nodeName, err)
+			return
+		}
+		vmUniqueID := nodeInfo.Spec.VMUniqueID
+		logger.Printf("[Azure CNS] getNICResources: NodeInfo CRD fetched, %d devices, vmUniqueID: %s", len(nodeInfo.Status.DeviceInfos), vmUniqueID)
+
+		// Initialize map keyed by normalized MAC for every device in NodeInfo.
+		nicByMAC := make(map[string]*cns.NICResource, len(nodeInfo.Status.DeviceInfos))
+		for _, device := range nodeInfo.Status.DeviceInfos {
+			normalizedMAC, parseErr := net.ParseMAC(device.MacAddress)
+			if parseErr != nil {
+				logger.Errorf("[Azure CNS] getNICResources: failed to parse MAC %q from NodeInfo: %v", device.MacAddress, parseErr)
+				continue
+			}
+			key := normalizedMAC.String()
+			nicByMAC[key] = &cns.NICResource{
+				MacAddress: device.MacAddress,
+				VMUniqueID: vmUniqueID,
+			}
+			logger.Printf("[Azure CNS] getNICResources: initialized NIC entry for MAC %s", key)
+		}
+		logger.Printf("[Azure CNS] getNICResources: initialized %d NIC entries from NodeInfo", len(nicByMAC))
+
+		// Step 2: Populate InterfaceName from host network interfaces.
+		logger.Printf("[Azure CNS] getNICResources: listing host network interfaces")
+		ifaces, ifErr := net.Interfaces()
+		if ifErr != nil {
+			logger.Errorf("[Azure CNS] getNICResources: failed to list host network interfaces: %v", ifErr)
+		} else {
+			logger.Printf("[Azure CNS] getNICResources: listed %d host network interfaces", len(ifaces))
+			for _, iface := range ifaces {
+				if len(iface.HardwareAddr) == 0 {
+					continue
+				}
+				key := iface.HardwareAddr.String() // already normalized
+				if res, ok := nicByMAC[key]; ok {
+					// On Azure VMs with Accelerated Networking, a NIC appears as both a
+					// synthetic netvsc interface (e.g. eth1) and an SR-IOV VF interface
+					// (e.g. enP56082s2). Prefer the synthetic name because it is stable
+					// across VF hot-swap events; only set the VF name when no synthetic
+					// interface has been found yet.
+					if res.InterfaceName != "" && !strings.Contains(iface.Name, "eth") {
+						logger.Printf("[Azure CNS] getNICResources: MAC %s skipping VF interface %s (already have %s)", key, iface.Name, res.InterfaceName)
+						continue
+					}
+					res.InterfaceName = iface.Name
+					logger.Printf("[Azure CNS] getNICResources: MAC %s resolved to interface %s", key, iface.Name)
+				}
+			}
+		}
+
+		// Step 3: Populate NetworkID, SubnetID, and Capacity from NICNetworkConfig CRD (preferred).
+		var nicNCByMAC map[string]*cns.NICNCInfo
+		if service.nicNCClient != nil {
+			logger.Printf("[Azure CNS] getNICResources: fetching NICNetworkConfig CRD data")
+			nicNCByMAC, err = service.nicNCClient.GetNICNCInfoByMAC(ctx)
+			if err != nil {
+				logger.Errorf("[Azure CNS] getNICResources: failed to fetch NICNetworkConfig data: %v", err)
+			} else {
+				logger.Printf("[Azure CNS] getNICResources: fetched %d NICNetworkConfig entries", len(nicNCByMAC))
+			}
+		} else {
+			logger.Printf("[Azure CNS] getNICResources: nicNCClient is nil, skipping NICNetworkConfig")
+		}
+
+		// Step 4: Populate NetworkID, SubnetID, and Capacity from MTPNC CRD (fallback).
+		var mtpncByMAC map[string]*cns.NICNCInfo
+		if service.mtpncCli != nil {
+			logger.Printf("[Azure CNS] getNICResources: fetching MTPNC CRD data")
+			mtpncByMAC, err = service.mtpncCli.GetMTPNCInfoByMAC(ctx)
+			if err != nil {
+				logger.Errorf("[Azure CNS] getNICResources: failed to fetch MTPNC data: %v", err)
+			} else {
+				logger.Printf("[Azure CNS] getNICResources: fetched %d MTPNC entries", len(mtpncByMAC))
+			}
+		} else {
+			logger.Printf("[Azure CNS] getNICResources: mtpncCli is nil, skipping MTPNC")
+		}
+
+		// Step 5: Enrich each NIC with network info. Prefer NICNetworkConfig, fall back to MTPNC.
+		for mac, res := range nicByMAC {
+			// Normalize the stored MAC for lookups into the CRD maps (CRD maps may use raw format).
+			normalizedMAC, parseErr := net.ParseMAC(res.MacAddress)
+			if parseErr != nil {
+				logger.Errorf("[Azure CNS] getNICResources: failed to re-parse MAC %q: %v", res.MacAddress, parseErr)
+				res.Capacity = 1
+				continue
+			}
+			rawMAC := res.MacAddress
+			normalizedKey := normalizedMAC.String()
+
+			// Try NICNetworkConfig first (lookup by both raw and normalized key).
+			if info := lookupNICNCInfo(nicNCByMAC, rawMAC, normalizedKey); info != nil {
+				res.NetworkID = info.NetworkID
+				res.SubnetID = info.SubnetID
+				res.PrimaryIP = info.PrimaryIP
+				res.Capacity = 16
+				logger.Printf("[Azure CNS] getNICResources: MAC %s matched NICNetworkConfig (networkID: %s, subnetID: %s, primaryIP: %s, capacity: 16)",
+					mac, info.NetworkID, info.SubnetID, info.PrimaryIP)
+				continue
+			}
+
+			// Fall back to MTPNC.
+			if info := lookupNICNCInfo(mtpncByMAC, rawMAC, normalizedKey); info != nil {
+				res.NetworkID = info.NetworkID
+				res.SubnetID = info.SubnetID
+				// A NIC reported via MTPNC fallback is bound to a pod. If that
+				// pod was not scheduled with DRA the NIC is dedicated to a
+				// non-DRA workload and must not be advertised as having
+				// capacity for additional DRA pods.
+				if info.ScheduledWithDRA {
+					res.Capacity = 1
+				} else {
+					res.Capacity = 0
+				}
+				logger.Printf("[Azure CNS] getNICResources: MAC %s matched MTPNC (networkID: %s, subnetID: %s, scheduledWithDRA: %t, capacity: %d)",
+					mac, info.NetworkID, info.SubnetID, info.ScheduledWithDRA, res.Capacity)
+				continue
+			}
+
+			// No CRD match: default capacity.
+			res.Capacity = 1
+			logger.Printf("[Azure CNS] getNICResources: MAC %s had no NICNetworkConfig or MTPNC match, capacity: 1", mac)
+		}
+
+		// Log the final map for visibility.
+		logger.Printf("[Azure CNS] getNICResources: final NIC resource map (%d entries):", len(nicByMAC))
+		for mac, res := range nicByMAC {
+			logger.Printf("[Azure CNS] getNICResources:   MAC=%s iface=%s vmUniqueID=%s networkID=%s subnetID=%s primaryIP=%s capacity=%d",
+				mac, res.InterfaceName, res.VMUniqueID, res.NetworkID, res.SubnetID, res.PrimaryIP, res.Capacity)
+		}
+
+		// Convert map to slice for the response.
+		nicResources := make([]cns.NICResource, 0, len(nicByMAC))
+		for _, res := range nicByMAC {
+			nicResources = append(nicResources, *res)
+		}
+
+		logger.Printf("[Azure CNS] getNICResources: returning %d NIC resources", len(nicResources))
+		resp := cns.GetNICResourcesResponse{
+			Response: cns.Response{
+				ReturnCode: types.Success,
+			},
+			NICResources: nicResources,
+		}
+		respondJSON(w, http.StatusOK, resp)
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
+
+	default:
+		returnMessage := fmt.Sprintf("[Azure CNS] Error. getNICResources did not receive a GET."+
+			" Received: %s", r.Method)
+		returnCode := types.UnsupportedVerb
+		service.setResponse(w, returnCode, cns.GetNICResourcesResponse{
+			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+		})
+	}
+}
+
+// lookupNICNCInfo tries to find a NICNCInfo entry by raw MAC first, then by normalized MAC.
+func lookupNICNCInfo(m map[string]*cns.NICNCInfo, rawMAC, normalizedMAC string) *cns.NICNCInfo {
+	if m == nil {
+		return nil
+	}
+	if info, ok := m[rawMAC]; ok {
+		return info
+	}
+	if info, ok := m[normalizedMAC]; ok {
+		return info
+	}
+	return nil
 }
 
 // This function is used to query all NCs on a node from NMAgent
