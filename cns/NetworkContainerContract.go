@@ -21,6 +21,7 @@ const (
 	GetHomeAz                                = "/homeaz"
 	GetNCList                                = "/nclist"
 	GetVMUniqueID                            = "/metadata/vmuniqueid"
+	GetNICResources                          = "/network/nicresources"
 	CreateOrUpdateNetworkContainer           = "/network/createorupdatenetworkcontainer"
 	DeleteNetworkContainer                   = "/network/deletenetworkcontainer"
 	PublishNetworkContainer                  = "/network/publishnetworkcontainer"
@@ -33,6 +34,7 @@ const (
 	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
 	RequestIPConfig                          = "/network/requestipconfig"
 	RequestIPConfigs                         = "/network/requestipconfigs"
+	RequestIPConfigsAndNICResources          = "/network/requestipconfigsandnicresources"
 	ReleaseIPConfig                          = "/network/releaseipconfig"
 	ReleaseIPConfigs                         = "/network/releaseipconfigs"
 	PathDebugIPAddresses                     = "/debug/ipaddresses"
@@ -525,6 +527,8 @@ type PodIpInfo struct {
 	InterfaceName              string
 	// MacAddress of interface
 	MacAddress string
+	// SharedNIC indicates the delegated NIC is shared and should not be managed by CNI.
+	SharedNIC bool `json:"sharedNic,omitempty"`
 	// SkipDefaultRoutes is true if default routes should not be added on interface
 	SkipDefaultRoutes bool
 	// Routes to configure on interface
@@ -577,6 +581,17 @@ type IPConfigResponse struct {
 type IPConfigsResponse struct {
 	PodIPInfo []PodIpInfo `json:"podIPInfo"`
 	Response  Response    `json:"response"`
+}
+
+// IPConfigsAndNICResourcesResponse is the response for the RequestIPConfigsAndNICResources API.
+// It returns the pod's IP configs (the same set RequestIPConfigs produces, but
+// WITHOUT the IsScheduledWithDRA filtering, so delegated NIC configs are always
+// included) together with the resource-slice properties (networkID/subnetGUID/
+// subnetName/capacity/...) of every NIC allocated to the pod.
+type IPConfigsAndNICResourcesResponse struct {
+	Response     Response      `json:"response"`
+	PodIPInfo    []PodIpInfo   `json:"podIPInfo"`
+	NICResources []NICResource `json:"nicResources"`
 }
 
 // GetIPAddressesRequest is used in CNS IPAM mode to get the states of IPConfigs

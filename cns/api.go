@@ -386,6 +386,37 @@ type GetVMUniqueIDResponse struct {
 	VMUniqueID string   `json:"vmuniqueid"`
 }
 
+// NICResource represents a network interface resource from the VM.
+type NICResource struct {
+	MacAddress             string `json:"macAddress"`
+	InterfaceName          string `json:"interfaceName,omitempty"`
+	InterfaceCompartmentID string `json:"interfaceCompartmentID,omitempty"`
+	NetworkID              string `json:"networkID,omitempty"`
+	VMUniqueID             string `json:"vmUniqueID,omitempty"`
+	// SubnetGUID is the GUID of the customer subnet the NIC belongs to.
+	SubnetGUID string `json:"subnetGUID,omitempty"`
+	// SubnetName is the subnet name extracted from the subnet ARM resource ID.
+	SubnetName string `json:"subnetName,omitempty"`
+	Capacity   int    `json:"capacity"`
+}
+
+// GetNICResourcesResponse describes response for GetNICResources API.
+type GetNICResourcesResponse struct {
+	Response     Response      `json:"response"`
+	NICResources []NICResource `json:"nicResources"`
+}
+
+// NICResourceSliceInfo holds the network/subnet data and resource-slice capacity for a
+// single NIC, derived from its NICNetworkConfig, and used to enrich a NICResource.
+type NICResourceSliceInfo struct {
+	NetworkID  string
+	SubnetGUID string
+	SubnetName string
+	// Capacity is the resource-slice capacity advertised for the NIC, i.e. the number
+	// of pods the scheduler may place on it.
+	Capacity int
+}
+
 // AssignIBDevicesToPodRequest represents the request for assigning InfiniBand devices to a pod
 type AssignIBDevicesToPodRequest struct {
 	IBMACAddresses []net.HardwareAddr `json:"ibmacaddresses"` // List of IB device MAC addresses to assign

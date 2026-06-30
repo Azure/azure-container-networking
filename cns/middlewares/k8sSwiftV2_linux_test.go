@@ -42,6 +42,12 @@ var (
 	testPod9GUID = "2006cad4-e54d-472e-863d-c4bac66200a7"
 	testPod9Info = cns.NewPodInfo("2006cad4-eth0", testPod9GUID, "testpod9", "testpod9namespace")
 
+	testPod11GUID = "4006cad4-e54d-472e-863d-c4bac66200a7"
+	testPod11Info = cns.NewPodInfo("4006cad4-eth0", testPod11GUID, "testpod11", "testpod11namespace")
+
+	testPod12GUID = "5006cad4-e54d-472e-863d-c4bac66200a7"
+	testPod12Info = cns.NewPodInfo("5006cad4-eth0", testPod12GUID, "testpod12", "testpod12namespace")
+
 	testPodMtpncTerminatingGUID = "e3b0c442-98fc-1fc1-9b93-7a1c2e5c8e6f"
 	testPodMtpncTerminatingInfo = cns.NewPodInfo("2006cad4-eth0", testPodMtpncTerminatingGUID, "testpodMtpncTerminating", "testpodMtpncTerminatingnamespace")
 )
@@ -243,6 +249,26 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 	assert.Equal(t, len(ipInfos), 1)
 	assert.Equal(t, ipInfos[0].NICType, cns.DelegatedVMNIC)
 	assert.Equal(t, ipInfos[0].SkipDefaultRoutes, false)
+}
+
+func TestGetSWIFTv2IPConfigSharedNIC(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+
+	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod11Info)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, len(ipInfos), 1)
+	assert.Equal(t, ipInfos[0].NICType, cns.DelegatedVMNIC)
+	assert.Equal(t, ipInfos[0].SharedNIC, true)
+}
+
+func TestGetSWIFTv2IPConfigScheduledWithDRA(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+
+	// When the pod is scheduled with DRA, dranet owns the delegated NIC, so CNS
+	// must not return its IP config to the CNI caller.
+	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod12Info)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, len(ipInfos), 0)
 }
 
 func TestGetSWIFTv2IPConfigFailure(t *testing.T) {

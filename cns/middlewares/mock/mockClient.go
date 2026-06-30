@@ -171,6 +171,41 @@ func NewClient() *Client {
 		Status: v1alpha1.MultitenantPodNetworkConfigStatus{},
 	}
 
+	// Mtpnc with a shared delegated NIC.
+	testMTPNC11 := v1alpha1.MultitenantPodNetworkConfig{
+		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+			InterfaceInfos: []v1alpha1.InterfaceInfo{
+				{
+					PrimaryIP:  "192.168.10.1/32",
+					MacAddress: "00:00:00:00:00:10",
+					GatewayIP:  "10.0.0.1",
+					NCID:       "testncid10",
+					DeviceType: v1alpha1.DeviceTypeVnetNIC,
+					SharedNIC:  true,
+				},
+			},
+		},
+	}
+
+	// Mtpnc scheduled with DRA (dranet owns the delegated NIC via NRI); CNS must
+	// not return its delegated NIC IP config to the CNI caller.
+	testMTPNC12 := v1alpha1.MultitenantPodNetworkConfig{
+		Spec: v1alpha1.MultitenantPodNetworkConfigSpec{
+			ResourceClaims: []string{"testpod12-claim"},
+		},
+		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+			InterfaceInfos: []v1alpha1.InterfaceInfo{
+				{
+					PrimaryIP:  "192.168.12.1/32",
+					MacAddress: "00:00:00:00:00:12",
+					GatewayIP:  "10.0.0.1",
+					NCID:       "testncid12",
+					DeviceType: v1alpha1.DeviceTypeVnetNIC,
+				},
+			},
+		},
+	}
+
 	testMTPNCTerminating := v1alpha1.MultitenantPodNetworkConfig{
 		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
 			InterfaceInfos: []v1alpha1.InterfaceInfo{testInterfaceInfos1},
@@ -202,6 +237,8 @@ func NewClient() *Client {
 			"testpod8namespace/testpod8":                               &testMTPNC8,
 			"testpod9namespace/testpod9":                               &testMTPNC9,
 			"testpod10namespace/testpod10":                             &testMTPNC10,
+			"testpod11namespace/testpod11":                             &testMTPNC11,
+			"testpod12namespace/testpod12":                             &testMTPNC12,
 			"testpodMtpncTerminatingnamespace/testpodMtpncTerminating": &testMTPNCTerminating,
 		},
 	}
