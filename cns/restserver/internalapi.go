@@ -171,8 +171,6 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 // SyncHostNCVersion will check NC version from NMAgent and save it as host NC version in container status.
 // If NMAgent NC version got updated, CNS will refresh the pending programming IP status.
 func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMode string) {
-	service.Lock()
-	defer service.Unlock()
 	start := time.Now()
 	programmedNCCount, err := service.syncHostNCVersion(ctx, channelMode)
 	// even if we get an error, we want to write the CNI conflist if we have any NC programmed to any version
@@ -197,6 +195,11 @@ var errNonExistentContainerStatus = errors.New("nonExistantContainerstatus")
 func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMode string) (int, error) {
 	outdatedNCs := map[string]struct{}{}
 	programmedNCs := map[string]struct{}{}
+	// Snapshot the NCs that need a version update under a read lock; the NMAgent/IMDS
+	// calls below must NOT hold the lock (a slow/hung wireserver would otherwise wedge
+	// every IPAM request, which all take this same lock). State is re-read and
+	// re-validated under a write lock before any mutation (see below).
+	service.RLock()
 	for idx := range service.state.ContainerStatus {
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
 		localNCVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].HostVersion)
@@ -220,10 +223,12 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 			programmedNCs[service.state.ContainerStatus[idx].ID] = struct{}{}
 		}
 	}
+	service.RUnlock()
 	if len(outdatedNCs) == 0 {
 		return len(programmedNCs), nil
 	}
 
+	// NMAgent/IMDS I/O runs WITHOUT the service lock held.
 	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
 		return len(programmedNCs), errors.Wrap(err, "failed to get nc version list from nmagent")
@@ -255,6 +260,11 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		}
 	}
 	hasNC.Set(float64(len(nmaProgrammedNCs)))
+	// Re-acquire the write lock only to apply updates. Each NC is re-read from state
+	// and guarded (existence check + monotonic-version check) so a concurrent
+	// create/update/delete during the unlocked I/O above is handled safely.
+	service.Lock()
+	defer service.Unlock()
 	for ncID := range outdatedNCs {
 		nmaProgrammedNCVersionStr, ok := nmaProgrammedNCs[ncID]
 		if !ok {
