@@ -1128,12 +1128,9 @@ func (c *Client) DeleteEndpointState(ctx context.Context, endpointID string) (*c
 		return nil, errors.Wrap(err, "failed to decode CNS Response")
 	}
 
-	if response.ReturnCode == types.NotFound {
-		return &cns.Response{}, nil
-	}
-
 	if response.ReturnCode != types.Success {
-		return nil, errors.New(response.Message)
+		// return the response so the caller can inspect ReturnCode (e.g. NotFound) and decide how to handle it
+		return &response, errors.New(response.Message)
 	}
 
 	return &response, nil
