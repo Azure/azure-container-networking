@@ -63,6 +63,7 @@ type options struct {
 
 	knowledgeDB     string
 	live            bool
+	privileged      bool
 	flakinessOutput string
 }
 
@@ -92,8 +93,9 @@ func main() {
 	}
 
 	lc := buildCollector(logger, opts)
+	pc := buildPrivilegedCollector(logger, opts)
 
-	if err := run(ctx, logger, opts, buildClassifier(opts), ks, lc); err != nil {
+	if err := run(ctx, logger, opts, buildClassifier(opts), ks, lc, pc); err != nil {
 		logger.Error("failure analysis failed", zap.Error(err))
 		os.Exit(1)
 	}
@@ -121,7 +123,8 @@ func parseFlags() options {
 	flag.StringVar(&o.osName, "os", "", "scenario: operating system (linux/windows)")
 	flag.StringVar(&o.cni, "cni", "", "scenario: cni (cniv1/cniv2/cilium)")
 	flag.StringVar(&o.knowledgeDB, "knowledge-db", os.Getenv("FAILURE_AGENT_DB"), "path to the SQLite knowledge store (or FAILURE_AGENT_DB); enables incident memory")
-	flag.BoolVar(&o.live, "live", false, "collect read-only kubectl diagnostics from the retained cluster (requires kubectl + KUBECONFIG)")
+	flag.BoolVar(&o.live, "live", true, "collect read-only kubectl diagnostics from the retained cluster (requires kubectl + KUBECONFIG)")
+	flag.BoolVar(&o.privileged, "privileged", true, "collect host-level logs via kubectl debug node (requires --live; creates ephemeral debug pods)")
 	flag.StringVar(&o.flakinessOutput, "flakiness-output", "", "write the knowledge-store flakiness report to this path")
 	flag.Parse()
 	return o
@@ -130,7 +133,7 @@ func parseFlags() options {
 // priorContextLimit caps how many prior incidents of each kind are injected.
 const priorContextLimit = 3
 
-func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, ks knowledgeStore, lc liveCollector) error {
+func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, ks knowledgeStore, lc liveCollector, pc liveCollector) error {
 	if opts.input == "" {
 		return errors.New("--input is required")
 	}
@@ -160,6 +163,24 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 		for label, output := range res.Outputs {
 			// Log full output so pipeline raw logs have complete traceability.
 			logger.Info("live diagnostic output",
+				zap.String("diagnostic", label),
+				zap.Int("bytes", len(output)),
+				zap.String("output", output),
+			)
+		}
+	}
+
+	if res := pc.Collect(ctx); len(res.Executed) > 0 {
+		ev = live.Merge(ev, res)
+		logger.Info("privileged diagnostics collected",
+			zap.String("event", "privileged_evidence_collected"),
+			zap.Int("commands", len(res.Executed)),
+		)
+		for _, argv := range res.Executed {
+			logger.Info("privileged command executed", zap.String("command", live.CommandString(argv)))
+		}
+		for label, output := range res.Outputs {
+			logger.Info("privileged diagnostic output",
 				zap.String("diagnostic", label),
 				zap.Int("bytes", len(output)),
 				zap.String("output", output),
@@ -369,12 +390,34 @@ func buildCollector(logger *zap.Logger, opts options) liveCollector {
 	return live.NewCollector(kubectlRunner{})
 }
 
+// buildPrivilegedCollector returns a privileged collector when both --live and
+// --privileged are set, otherwise a no-op.
+func buildPrivilegedCollector(logger *zap.Logger, opts options) liveCollector {
+	if !opts.live || !opts.privileged {
+		return noopCollector{}
+	}
+	logger.Info("privileged diagnostics enabled (will create ephemeral debug pods)")
+	return live.NewPrivilegedCollector(privilegedRunner{})
+}
+
 // kubectlRunner executes read-only kubectl commands. It re-validates argv against
 // the command policy as defense in depth before exec.
 type kubectlRunner struct{}
 
 func (kubectlRunner) Run(ctx context.Context, argv []string) (string, error) {
 	if err := command.Validate(argv); err != nil {
+		return "", err
+	}
+	out, err := exec.CommandContext(ctx, argv[0], argv[1:]...).CombinedOutput()
+	return string(out), err
+}
+
+// privilegedRunner executes kubectl commands including debug/exec. It validates
+// through the privileged policy as defense in depth.
+type privilegedRunner struct{}
+
+func (privilegedRunner) Run(ctx context.Context, argv []string) (string, error) {
+	if err := command.ValidatePrivileged(argv); err != nil {
 		return "", err
 	}
 	out, err := exec.CommandContext(ctx, argv[0], argv[1:]...).CombinedOutput()

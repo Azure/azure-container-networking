@@ -59,7 +59,7 @@ func TestRunEndToEnd(t *testing.T) {
 		cni:            "cilium",
 	}
 
-	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, noopCollector{}); err != nil {
+	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -90,7 +90,7 @@ func TestRunEndToEnd(t *testing.T) {
 }
 
 func TestRunRequiresInput(t *testing.T) {
-	if err := run(context.Background(), zap.NewNop(), options{dryRun: true}, &fakeClassifier{}, noopStore{}, noopCollector{}); err == nil {
+	if err := run(context.Background(), zap.NewNop(), options{dryRun: true}, &fakeClassifier{}, noopStore{}, noopCollector{}, noopCollector{}); err == nil {
 		t.Fatal("expected error when --input missing")
 	}
 }
@@ -106,7 +106,7 @@ func TestRunAnalysisFailedWhenLLMFails(t *testing.T) {
 		signaturesPath: filepath.Join("signatures", "signatures.yaml"),
 		dryRun:         true,
 	}
-	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, noopCollector{}); err != nil {
+	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, noopCollector{}, noopCollector{}); err != nil {
 		t.Fatalf("run should not fail on LLM error: %v", err)
 	}
 
@@ -181,7 +181,7 @@ func TestRunSkipsDuplicateFailure(t *testing.T) {
 	}}
 
 	opts := bundleOptions(t.TempDir())
-	if err := run(context.Background(), zap.NewNop(), opts, cl, st, noopCollector{}); err != nil {
+	if err := run(context.Background(), zap.NewNop(), opts, cl, st, noopCollector{}, noopCollector{}); err != nil {
 		t.Fatalf("first run failed: %v", err)
 	}
 	if cl.callCount != 1 {
@@ -189,7 +189,7 @@ func TestRunSkipsDuplicateFailure(t *testing.T) {
 	}
 
 	opts.output = t.TempDir()
-	if err := run(context.Background(), zap.NewNop(), opts, cl, st, noopCollector{}); err != nil {
+	if err := run(context.Background(), zap.NewNop(), opts, cl, st, noopCollector{}, noopCollector{}); err != nil {
 		t.Fatalf("second run failed: %v", err)
 	}
 	if cl.callCount != 1 {
@@ -226,7 +226,7 @@ func TestRunInjectsPriorResolvedContext(t *testing.T) {
 	cl := &fakeClassifier{result: model.Classification{
 		Category: model.CategoryClusterBringupFailure, Confidence: 0.7, Source: "llm",
 	}}
-	if err := run(context.Background(), zap.NewNop(), opts, cl, st, noopCollector{}); err != nil {
+	if err := run(context.Background(), zap.NewNop(), opts, cl, st, noopCollector{}, noopCollector{}); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
@@ -254,7 +254,7 @@ func TestRunMergesLiveDiagnostics(t *testing.T) {
 	opts := bundleOptions(t.TempDir())
 	collector := live.NewCollector(fakeRunner{})
 
-	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, collector); err != nil {
+	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, collector, noopCollector{}); err != nil {
 		t.Fatalf("run failed: %v", err)
 	}
 
