@@ -2514,3 +2514,171 @@ func TestStatelessCNIStateFile(t *testing.T) {
 		})
 	}
 }
+
+// TestReleaseStaleIPsForPod_SandboxRecreation verifies that when a pod sandbox is
+// recreated (new InfraContainerID), the IP assigned to the old sandbox is released
+// before a new IP is assigned to the new sandbox. This prevents IP pool exhaustion
+// caused by crash-looping pods in NodeSubnet mode.
+func TestReleaseStaleIPsForPod_SandboxRecreation(t *testing.T) {
+	// Use InfraIDPodInfoScheme as in NodeSubnet mode.
+	origScheme := cns.GlobalPodInfoScheme
+	cns.GlobalPodInfoScheme = cns.InfraIDPodInfoScheme
+	t.Cleanup(func() { cns.GlobalPodInfoScheme = origScheme })
+
+	svc := getTestService(cns.KubernetesCRD)
+
+	// Simulate old sandbox: pod "testpod1/testpod1namespace" has IP testIP1 assigned.
+	oldContainerID := "old-container-1111"
+	oldPodInfo := cns.NewPodInfo(oldContainerID, oldContainerID, "testpod1", "testpod1namespace")
+
+	staleState, err := newPodStateWithOrchestratorContext(testIP1, testIPID1, testNCID, types.Assigned, ipPrefixBitsv4, 0, oldPodInfo)
+	require.NoError(t, err)
+
+	// Also add testIP2 as available so there's a free IP after the stale one is released.
+	availableState := newPodState(testIP2, testIPID2, testNCID, types.Available, 0)
+
+	ipconfigs := map[string]cns.IPConfigurationStatus{
+		staleState.ID:    staleState,
+		availableState.ID: availableState,
+	}
+	require.NoError(t, updatePodIPConfigState(t, svc, ipconfigs, testNCID))
+
+	// Verify initial state: testIP1 is assigned to old container ID.
+	ip1State := svc.PodIPConfigState[testIPID1]
+	require.Equal(t, types.Assigned, ip1State.GetState())
+	require.Contains(t, svc.PodIPIDByPodInterfaceKey, oldContainerID)
+
+	// New sandbox: same pod, new container ID.
+	newContainerID := "new-container-2222"
+	newPodInfo := cns.NewPodInfo(newContainerID, newContainerID, "testpod1", "testpod1namespace")
+	orchestratorCtx, err := newPodInfo.OrchestratorContext()
+	require.NoError(t, err)
+
+	req := cns.IPConfigsRequest{
+		InfraContainerID:    newContainerID,
+		PodInterfaceID:      newContainerID,
+		OrchestratorContext: orchestratorCtx,
+	}
+
+	podIPInfo, err := requestIPConfigsHelper(svc, req)
+	require.NoError(t, err)
+	require.Len(t, podIPInfo, 1)
+
+	// The stale assignment under old container ID must be gone.
+	assert.NotContains(t, svc.PodIPIDByPodInterfaceKey, oldContainerID,
+		"stale entry for old container ID should have been removed")
+
+	// testIP1 should now be Available (released) or assigned to the new container.
+	// testIP2 should be assigned to the new container.
+	newIPIDs, ok := svc.PodIPIDByPodInterfaceKey[newContainerID]
+	require.True(t, ok, "new container ID must have an IP assignment")
+	require.Len(t, newIPIDs, 1)
+
+	// The assigned IP must be available (either the freed testIP1 or testIP2).
+	assignedIPState := svc.PodIPConfigState[newIPIDs[0]]
+	assert.Equal(t, types.Assigned, assignedIPState.GetState())
+
+	// testIP1 (formerly stale) must now be Available since it was released.
+	ip1State = svc.PodIPConfigState[testIPID1]
+	assert.Equal(t, types.Available, ip1State.GetState(),
+		"stale IP testIP1 should have been released to Available")
+}
+
+// TestReleaseStaleIPsForPod_DualStack verifies that both IPv4 and IPv6 stale IPs are
+// released when a pod's sandbox is recreated.
+func TestReleaseStaleIPsForPod_DualStack(t *testing.T) {
+	origScheme := cns.GlobalPodInfoScheme
+	cns.GlobalPodInfoScheme = cns.InfraIDPodInfoScheme
+	t.Cleanup(func() { cns.GlobalPodInfoScheme = origScheme })
+
+	svc := getTestService(cns.KubernetesCRD)
+
+	oldContainerID := "old-container-dualstack"
+	oldPodInfo := cns.NewPodInfo(oldContainerID, oldContainerID, "testpod1", "testpod1namespace")
+
+	staleV4, err := newPodStateWithOrchestratorContext(testIP1, testIPID1, testNCID, types.Assigned, ipPrefixBitsv4, 0, oldPodInfo)
+	require.NoError(t, err)
+	staleV6, err := newPodStateWithOrchestratorContext(testIP1v6, testIPID1v6, testNCIDv6, types.Assigned, ipPrefixBitsv6, 0, oldPodInfo)
+	require.NoError(t, err)
+
+	availableV4 := newPodState(testIP2, testIPID2, testNCID, types.Available, 0)
+	availableV6 := newPodState(testIP2v6, testIPID2v6, testNCIDv6, types.Available, 0)
+
+	require.NoError(t, updatePodIPConfigState(t, svc, map[string]cns.IPConfigurationStatus{
+		staleV4.ID:    staleV4,
+		availableV4.ID: availableV4,
+	}, testNCID))
+	require.NoError(t, updatePodIPConfigState(t, svc, map[string]cns.IPConfigurationStatus{
+		staleV6.ID:    staleV6,
+		availableV6.ID: availableV6,
+	}, testNCIDv6))
+
+	// Manually add both stale IPs under the old key (dual-stack scenario).
+	svc.PodIPIDByPodInterfaceKey[oldContainerID] = []string{testIPID1, testIPID1v6}
+
+	// Trigger stale cleanup.
+	newPodInfo := cns.NewPodInfo("new-container-ds", "new-container-ds", "testpod1", "testpod1namespace")
+	svc.releaseStaleIPsForPod(newPodInfo)
+
+	// Both stale IPs must be freed.
+	staleV4State := svc.PodIPConfigState[testIPID1]
+	assert.Equal(t, types.Available, staleV4State.GetState(),
+		"stale IPv4 should be released")
+	staleV6State := svc.PodIPConfigState[testIPID1v6]
+	assert.Equal(t, types.Available, staleV6State.GetState(),
+		"stale IPv6 should be released")
+	assert.NotContains(t, svc.PodIPIDByPodInterfaceKey, oldContainerID,
+		"stale key should be removed from PodIPIDByPodInterfaceKey")
+}
+
+// TestReleaseStaleIPsForPod_NoOpWithoutName verifies that releaseStaleIPsForPod is a
+// no-op when the pod name is empty (non-Kubernetes scenarios).
+func TestReleaseStaleIPsForPod_NoOpWithoutName(t *testing.T) {
+	origScheme := cns.GlobalPodInfoScheme
+	cns.GlobalPodInfoScheme = cns.InfraIDPodInfoScheme
+	t.Cleanup(func() { cns.GlobalPodInfoScheme = origScheme })
+
+	svc := getTestService(cns.KubernetesCRD)
+
+	oldContainerID := "old-container-noname"
+	oldPodInfo := cns.NewPodInfo(oldContainerID, oldContainerID, "testpod1", "testpod1namespace")
+	staleState, err := newPodStateWithOrchestratorContext(testIP1, testIPID1, testNCID, types.Assigned, ipPrefixBitsv4, 0, oldPodInfo)
+	require.NoError(t, err)
+	require.NoError(t, updatePodIPConfigState(t, svc, map[string]cns.IPConfigurationStatus{staleState.ID: staleState}, testNCID))
+	svc.PodIPIDByPodInterfaceKey[oldContainerID] = []string{testIPID1}
+
+	// Pod info with empty name – should not trigger cleanup.
+	emptyNamePodInfo := cns.NewPodInfo("new-container-x", "new-container-x", "", "testpod1namespace")
+	svc.releaseStaleIPsForPod(emptyNamePodInfo)
+
+	// Stale assignment must still be intact.
+	noOpIP1 := svc.PodIPConfigState[testIPID1]
+	assert.Equal(t, types.Assigned, noOpIP1.GetState(),
+		"releaseStaleIPsForPod must be a no-op when pod name is empty")
+	assert.Contains(t, svc.PodIPIDByPodInterfaceKey, oldContainerID)
+}
+
+// TestReleaseStaleIPsForPod_NoOpSameKey verifies that releaseStaleIPsForPod does not
+// touch an assignment that already has the same key as the incoming request.
+func TestReleaseStaleIPsForPod_NoOpSameKey(t *testing.T) {
+	origScheme := cns.GlobalPodInfoScheme
+	cns.GlobalPodInfoScheme = cns.InfraIDPodInfoScheme
+	t.Cleanup(func() { cns.GlobalPodInfoScheme = origScheme })
+
+	svc := getTestService(cns.KubernetesCRD)
+
+	containerID := "container-same-key"
+	podInfo := cns.NewPodInfo(containerID, containerID, "testpod1", "testpod1namespace")
+	assignedState, err := newPodStateWithOrchestratorContext(testIP1, testIPID1, testNCID, types.Assigned, ipPrefixBitsv4, 0, podInfo)
+	require.NoError(t, err)
+	require.NoError(t, updatePodIPConfigState(t, svc, map[string]cns.IPConfigurationStatus{assignedState.ID: assignedState}, testNCID))
+	svc.PodIPIDByPodInterfaceKey[containerID] = []string{testIPID1}
+
+	// Same pod info – no stale cleanup should occur.
+	svc.releaseStaleIPsForPod(podInfo)
+
+	sameKeyIP1 := svc.PodIPConfigState[testIPID1]
+	assert.Equal(t, types.Assigned, sameKeyIP1.GetState(),
+		"IP for the same key should remain Assigned")
+	assert.Contains(t, svc.PodIPIDByPodInterfaceKey, containerID)
+}
