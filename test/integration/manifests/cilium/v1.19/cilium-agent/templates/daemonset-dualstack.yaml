@@ -253,6 +253,14 @@ spec:
           name: cilium-run
         - mountPath: /run/xtables.lock
           name: xtables-lock
+        - mountPath: /host/etc/systemd
+          name: host-etc-systemd
+        - mountPath: /host/lib/systemd
+          name: host-lib-systemd
+          readOnly: true
+        - mountPath: /host/usr/lib
+          name: host-usr-lib
+          readOnly: true
         resources:
           requests:
             cpu: 100m
