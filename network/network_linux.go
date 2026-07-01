@@ -733,6 +733,10 @@ func getNetworkInfoImpl(nwInfo *EndpointInfo, nw *network) {
 	}
 }
 
+func shouldRecreateNetworkOnEndpointCreateFailure(error) bool {
+	return false
+}
+
 // AddStaticRoute adds a static route to the interface.
 func AddStaticRoute(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, ip, interfaceName string) error {
 	logger.Info("Adding static route", zap.String("ip", ip))

@@ -337,7 +337,7 @@ func (nm *networkManager) EndpointCreate(cnsclient apipaClient, epInfos []*Endpo
 				return err
 			}
 		}
-		ep, err := nm.createEndpoint(cnsclient, epInfo.NetworkID, epInfo)
+		ep, err := nm.createEndpointWithNetworkRetry(cnsclient, epInfo)
 		if err != nil {
 			return err
 		}
@@ -351,4 +351,30 @@ func (nm *networkManager) EndpointCreate(cnsclient apipaClient, epInfos []*Endpo
 
 	// save endpoints
 	return nm.SaveState(eps)
+}
+
+func (nm *networkManager) createEndpointWithNetworkRetry(cnsclient apipaClient, epInfo *EndpointInfo) (*endpoint, error) {
+	ep, err := nm.createEndpoint(cnsclient, epInfo.NetworkID, epInfo)
+	if err == nil || !shouldRecreateNetworkOnEndpointCreateFailure(err) {
+		return ep, err
+	}
+
+	logger.Info("HNS network not found while creating endpoint, recreating network and retrying",
+		zap.String("networkID", epInfo.NetworkID), zap.Error(err))
+
+	if err = nm.recreateNetworkForEndpointCreate(epInfo); err != nil {
+		return nil, errors.Wrapf(err, "failed to recreate network %s after endpoint create failed", epInfo.NetworkID)
+	}
+
+	return nm.createEndpoint(cnsclient, epInfo.NetworkID, epInfo)
+}
+
+func (nm *networkManager) recreateNetworkForEndpointCreate(epInfo *EndpointInfo) error {
+	nm.Lock()
+	for _, extIf := range nm.ExternalInterfaces {
+		delete(extIf.Networks, epInfo.NetworkID)
+	}
+	nm.Unlock()
+
+	return nm.CreateNetwork(epInfo)
 }

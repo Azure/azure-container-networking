@@ -486,3 +486,7 @@ func (nm *networkManager) deleteNetworkImplHnsV2(nw *network) error {
 
 func getNetworkInfoImpl(_ *EndpointInfo, _ *network) {
 }
+
+func shouldRecreateNetworkOnEndpointCreateFailure(err error) bool {
+	return errors.As(err, &hcn.NetworkNotFoundError{})
+}
