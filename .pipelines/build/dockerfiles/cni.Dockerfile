@@ -3,7 +3,7 @@
 ARG ARCH
 
 # mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
-FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:4c5b2a2c0440d2fb50715774c5d1cb2a26997ce1d1d86586cbea882953bfad70 AS windows
+FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b AS windows
 ARG ARTIFACT_DIR .
 
 COPY ${ARTIFACT_DIR}/bin/dropgz.exe /dropgz.exe
