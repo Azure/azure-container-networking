@@ -1126,6 +1126,11 @@ func requestIPConfigsHelper(service *HTTPRestService, req cns.IPConfigsRequest) 
 		return podIPInfo, err
 	}
 
+	// Release any stale IP assignments for the same pod (name+namespace) under a different key.
+	// This handles pod sandbox recreations (e.g. crash-loops) where a new InfraContainerID is
+	// issued while the old IP assignment was never released via CNI DEL.
+	service.releaseStaleIPsForPod(podInfo)
+
 	// if the desired IP configs are not specified, assign any free IPConfigs
 	if len(req.DesiredIPAddresses) == 0 {
 		return service.AssignAvailableIPConfigs(podInfo)
@@ -1136,6 +1141,73 @@ func requestIPConfigsHelper(service *HTTPRestService, req cns.IPConfigsRequest) 
 	}
 
 	return service.AssignDesiredIPConfigs(podInfo, req.DesiredIPAddresses)
+}
+
+// releaseStaleIPsForPod releases any IP configs that are assigned to the same pod
+// (identified by Name+Namespace) but under a different interface key than the incoming
+// request's podInfo. This handles the scenario where a pod sandbox is recreated (e.g.
+// due to crash-loops) and gets a new InfraContainerID, leaving the previous IP assignment
+// unreleased under the old key and preventing IP pool exhaustion.
+// This function must be called without the service lock held.
+func (service *HTTPRestService) releaseStaleIPsForPod(podInfo cns.PodInfo) {
+	// Only applicable when name and namespace are available (Kubernetes scenarios).
+	if podInfo.Name() == "" || podInfo.Namespace() == "" {
+		return
+	}
+
+	service.Lock()
+	defer service.Unlock()
+
+	type staleEntry struct {
+		staleKey    string
+		stalePodInfo cns.PodInfo
+		ipIDs       []string
+	}
+
+	var staleEntries []staleEntry
+
+	for key, ipIDs := range service.PodIPIDByPodInterfaceKey {
+		if key == podInfo.Key() {
+			// Same key as the incoming request – not stale.
+			continue
+		}
+		for _, ipID := range ipIDs {
+			ipConfig, exists := service.PodIPConfigState[ipID]
+			if !exists || ipConfig.PodInfo == nil {
+				continue
+			}
+			if ipConfig.PodInfo.Name() == podInfo.Name() &&
+				ipConfig.PodInfo.Namespace() == podInfo.Namespace() {
+				// Found stale IPs for the same pod under a different key.
+				ipIDsCopy := make([]string, len(ipIDs))
+				copy(ipIDsCopy, ipIDs)
+				staleEntries = append(staleEntries, staleEntry{
+					staleKey:    key,
+					stalePodInfo: ipConfig.PodInfo,
+					ipIDs:       ipIDsCopy,
+				})
+				break
+			}
+		}
+	}
+
+	for _, entry := range staleEntries {
+		logger.Printf("[releaseStaleIPsForPod] pod %s/%s: releasing stale IPs under old key %q (new key %q)",
+			podInfo.Namespace(), podInfo.Name(), entry.staleKey, podInfo.Key())
+		for _, ipID := range entry.ipIDs {
+			ipConfig, exists := service.PodIPConfigState[ipID]
+			if !exists || ipConfig.GetState() != types.Assigned {
+				continue
+			}
+			if _, err := service.unassignIPConfig(ipConfig, entry.stalePodInfo); err != nil {
+				logger.Errorf("[releaseStaleIPsForPod] failed to release IP %s for pod %s/%s (old key %q): %v",
+					ipConfig.IPAddress, podInfo.Namespace(), podInfo.Name(), entry.staleKey, err)
+			} else {
+				logger.Printf("[releaseStaleIPsForPod] released stale IP %s for pod %s/%s",
+					ipConfig.IPAddress, podInfo.Namespace(), podInfo.Name())
+			}
+		}
+	}
 }
 
 // checks all desired IPs for a request to make sure they are all valid
