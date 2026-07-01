@@ -2902,3 +2902,72 @@ func TestGetEndpoint(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteEndpointState(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name         string
+		mockdo       *mockdo
+		wantErr      bool
+		wantRespCode types.ResponseCode
+		wantNilResp  bool
+	}{
+		{
+			name: "happy case",
+			mockdo: &mockdo{
+				objToReturn:            &cns.Response{ReturnCode: types.Success},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			wantRespCode: types.Success,
+		},
+		{
+			name: "endpoint state not found",
+			mockdo: &mockdo{
+				objToReturn: &cns.Response{
+					ReturnCode: types.NotFound,
+					Message:    "endpoint state could not be found in the statefile",
+				},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			wantErr:      true,
+			wantRespCode: types.NotFound,
+		},
+		{
+			name: "cns return code not zero",
+			mockdo: &mockdo{
+				objToReturn:            &cns.Response{ReturnCode: types.UnexpectedError},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			wantErr:      true,
+			wantRespCode: types.UnexpectedError,
+		},
+		{
+			name: "http status not ok",
+			mockdo: &mockdo{
+				httpStatusCodeToReturn: http.StatusInternalServerError,
+			},
+			wantErr:     true,
+			wantNilResp: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &Client{
+				client: tt.mockdo,
+				routes: emptyRoutes,
+			}
+			resp, err := client.DeleteEndpointState(context.TODO(), "testendpointid")
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.wantNilResp {
+				assert.Nil(t, resp)
+			} else {
+				require.NotNil(t, resp)
+				assert.Equal(t, tt.wantRespCode, resp.ReturnCode)
+			}
+		})
+	}
+}
