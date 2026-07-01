@@ -205,6 +205,17 @@ stages:
             #   archiveVersion: $(NPM_VERSION)
             #   imageTag: $(Build.BuildNumber)
 
+  # Run failure analysis when the build stage fails (image/binary builds).
+  # This is parallel to the E2E failure-analysis path and does not use kubectl.
+  - stage: build_failure_analysis
+    displayName: "Build Failure Analysis"
+    dependsOn:
+      - build
+    condition: failed('build')
+    jobs:
+      - template: templates/pipeline-failure-analysis.job.yaml
+        parameters:
+          scope: build
 
 - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
   - stage: manifests
