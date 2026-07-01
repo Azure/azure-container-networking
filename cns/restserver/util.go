@@ -135,10 +135,14 @@ func (service *HTTPRestService) restoreState() {
 				//nolint:staticcheck // TODO: migrate to zap
 				logger.Errorf("[Azure CNS]  Failed to restore endpoint state, err:%v", err)
 			}
-			return
+		} else {
+			logger.Printf("[Azure CNS]  Restored endpoint state, %+v\n", service.EndpointState)
 		}
-		logger.Printf("[Azure CNS]  Restored endpoint state, %+v\n", service.EndpointState)
 
+		service.loadEndpointDeleteIntents()
+		if err := service.pruneEndpointDeleteIntentsLocked(time.Now()); err != nil {
+			logger.Errorf("[Azure CNS] Failed to prune endpoint delete intents, err:%v", err)
+		}
 	}
 }
 

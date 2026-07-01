@@ -2,6 +2,7 @@ package restserver
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -183,6 +184,70 @@ func TestRestoreState(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRestoreStateLoadsAndPrunesEndpointDeleteIntents(t *testing.T) {
+	mainStore := store.NewMockStore("")
+	endpointStore := store.NewMockStore("")
+	require.NoError(t, endpointStore.Write(EndpointStoreKey, map[string]*EndpointInfo{
+		"container1": {PodName: "pod1"},
+	}))
+	require.NoError(t, endpointStore.Write(EndpointDeleteIntentStoreKey, map[string]EndpointDeleteIntent{
+		"expired": {
+			InfraContainerID: "expired",
+			CreatedAt:        time.Now().Add(-endpointDeleteIntentTTL - time.Minute),
+		},
+		"current": {
+			InfraContainerID: "current",
+			CreatedAt:        time.Now(),
+		},
+	}))
+
+	svc := HTTPRestService{
+		Service: &cns.Service{
+			Service: &common.Service{Options: map[string]interface{}{acn.OptManageEndpointState: true}},
+		},
+		store:                 mainStore,
+		state:                 &httpRestServiceState{},
+		EndpointStateStore:    endpointStore,
+		EndpointState:         make(map[string]*EndpointInfo),
+		EndpointDeleteIntents: make(map[string]EndpointDeleteIntent),
+	}
+
+	svc.restoreState()
+
+	require.Contains(t, svc.EndpointState, "container1")
+	require.Contains(t, svc.EndpointDeleteIntents, "current")
+	require.NotContains(t, svc.EndpointDeleteIntents, "expired")
+
+	var stored map[string]EndpointDeleteIntent
+	require.NoError(t, endpointStore.Read(EndpointDeleteIntentStoreKey, &stored))
+	require.Contains(t, stored, "current")
+	require.NotContains(t, stored, "expired")
+}
+
+func TestRestoreStateToleratesMissingEndpointDeleteIntents(t *testing.T) {
+	mainStore := store.NewMockStore("")
+	endpointStore := store.NewMockStore("")
+	require.NoError(t, endpointStore.Write(EndpointStoreKey, map[string]*EndpointInfo{
+		"container1": {PodName: "pod1"},
+	}))
+
+	svc := HTTPRestService{
+		Service: &cns.Service{
+			Service: &common.Service{Options: map[string]interface{}{acn.OptManageEndpointState: true}},
+		},
+		store:                 mainStore,
+		state:                 &httpRestServiceState{},
+		EndpointStateStore:    endpointStore,
+		EndpointState:         make(map[string]*EndpointInfo),
+		EndpointDeleteIntents: make(map[string]EndpointDeleteIntent),
+	}
+
+	svc.restoreState()
+
+	require.Contains(t, svc.EndpointState, "container1")
+	require.Empty(t, svc.EndpointDeleteIntents)
 }
 
 // test to check if nc can be deleted from ncList for Delete() method
