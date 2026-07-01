@@ -1159,13 +1159,17 @@ func (service *HTTPRestService) releaseStaleIPsForPod(podInfo cns.PodInfo) {
 	defer service.Unlock()
 
 	type staleEntry struct {
-		staleKey    string
+		staleKey     string
 		stalePodInfo cns.PodInfo
-		ipIDs       []string
+		ipIDs        []string
 	}
 
 	var staleEntries []staleEntry
 
+	// Scan PodIPIDByPodInterfaceKey for entries that belong to the same pod
+	// (name+namespace) under a different key. The IP pool per node is small
+	// (typically ≤256 IPs) so this linear scan is acceptable; a reverse-index
+	// could be added if it ever becomes a hot path.
 	for key, ipIDs := range service.PodIPIDByPodInterfaceKey {
 		if key == podInfo.Key() {
 			// Same key as the incoming request – not stale.
@@ -1182,9 +1186,9 @@ func (service *HTTPRestService) releaseStaleIPsForPod(podInfo cns.PodInfo) {
 				ipIDsCopy := make([]string, len(ipIDs))
 				copy(ipIDsCopy, ipIDs)
 				staleEntries = append(staleEntries, staleEntry{
-					staleKey:    key,
+					staleKey:     key,
 					stalePodInfo: ipConfig.PodInfo,
-					ipIDs:       ipIDsCopy,
+					ipIDs:        ipIDsCopy,
 				})
 				break
 			}
@@ -1199,12 +1203,13 @@ func (service *HTTPRestService) releaseStaleIPsForPod(podInfo cns.PodInfo) {
 			if !exists || ipConfig.GetState() != types.Assigned {
 				continue
 			}
-			if _, err := service.unassignIPConfig(ipConfig, entry.stalePodInfo); err != nil {
+			released, err := service.unassignIPConfig(ipConfig, entry.stalePodInfo)
+			if err != nil {
 				logger.Errorf("[releaseStaleIPsForPod] failed to release IP %s for pod %s/%s (old key %q): %v",
 					ipConfig.IPAddress, podInfo.Namespace(), podInfo.Name(), entry.staleKey, err)
 			} else {
-				logger.Printf("[releaseStaleIPsForPod] released stale IP %s for pod %s/%s",
-					ipConfig.IPAddress, podInfo.Namespace(), podInfo.Name())
+				logger.Printf("[releaseStaleIPsForPod] released stale IP %s (now %s) for pod %s/%s",
+					released.IPAddress, released.GetState(), podInfo.Namespace(), podInfo.Name())
 			}
 		}
 	}
