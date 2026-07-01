@@ -318,6 +318,18 @@ stages:
                 name: $(name)
                 os: $(os)
 
+    - stage: build_failure_analysis
+      displayName: Build Failure Analysis
+      dependsOn:
+        - binaries
+        - containerize
+        - containerize_npm
+      condition: or(failed('binaries'), failed('containerize'), failed('containerize_npm'))
+      jobs:
+        - template: templates/pipeline-failure-analysis.job.yaml
+          parameters:
+            scope: build
+
     - stage: publish
       displayName: Publish Multiarch Manifests
       dependsOn:
