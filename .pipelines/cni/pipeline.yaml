@@ -9,6 +9,10 @@ parameters:
   - name: upgradeScenario
     type: boolean
     default: false
+  - name: ciliumVersionOverwrite
+    type: boolean
+    default: false
+
 
 stages:
   - stage: setup
@@ -27,7 +31,18 @@ stages:
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
-  
+          - script: |
+              echo "testing cilium version overwrite parameter"
+              make -C ./hack/aks print-cilium-vars
+              echo "ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}"
+              if [ ${{ parameters.ciliumVersionOverwrite }} != "True" ]; then
+                unset DIR
+                unset CILIUM_VERSION_TAG
+              fi
+              make -C ./hack/aks print-cilium-vars
+
+            displayName: "Check ciliumVersionOverwrite parameter"
+
   - stage: build_images
     dependsOn: setup
     displayName: "Build Images"
@@ -120,7 +135,7 @@ stages:
               arch: $(arch)
               name: $(name)
               os: $(os)
-              
+
   - stage: binaries
     displayName: Build Binaries
     dependsOn: setup
@@ -325,6 +340,7 @@ stages:
       arch: amd64
       cni: "cilium"
       upgradeScenario: false
+      ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -337,6 +353,7 @@ stages:
       arch: amd64
       cni: "cilium"
       upgradeScenario: false
+      ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -349,6 +366,7 @@ stages:
       osSKU: AzureLinux
       cni: "cilium"
       upgradeScenario: false
+      ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -360,6 +378,7 @@ stages:
       arch: arm64
       cni: "cilium"
       upgradeScenario: false
+      ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -371,6 +390,7 @@ stages:
       arch: amd64
       cni: "cilium"
       upgradeScenario: false
+      ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -383,6 +403,7 @@ stages:
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
       upgradeScenario: false
+      ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -395,6 +416,7 @@ stages:
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
       upgradeScenario: false
+      ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -408,6 +430,7 @@ stages:
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
       upgradeScenario: false
+      ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -420,6 +443,7 @@ stages:
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
       upgradeScenario: false
+      ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
 
 
   ## If upgradeScenario is set, redeploy new IPAM/CNS version to existing clusters and run tests
@@ -434,6 +458,7 @@ stages:
         arch: amd64
         cni: "cilium"
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: cilium_overlay
 
     - template: cilium/cilium-overlay-load-test-template.yaml
@@ -447,6 +472,7 @@ stages:
         arch: amd64
         cni: "cilium"
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: cilium_overlay_hubble
 
     - template: cilium/cilium-overlay-load-test-template.yaml
@@ -460,6 +486,7 @@ stages:
         osSKU: AzureLinux
         cni: "cilium"
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: cilium_overlay_mariner
 
     - template: cilium/cilium-overlay-load-test-template.yaml
@@ -472,6 +499,7 @@ stages:
         arch: arm64
         cni: "cilium"
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: cilium_overlay_arm
 
     - template: cilium/cilium-overlay-load-test-template.yaml
@@ -484,6 +512,7 @@ stages:
         arch: amd64
         cni: "cilium"
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: cilium_overlay_rdma
 
     - template: cilium/cilium-overlay-load-test-template.yaml
@@ -497,6 +526,7 @@ stages:
         dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
         cni: "cilium_dualstack"
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: cilium_overlay_ds
 
     - template: cilium/cilium-overlay-load-test-template.yaml
@@ -510,6 +540,7 @@ stages:
         dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
         cni: "cilium_dualstack"
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: cilium_ds_arm
 
     - template: cilium/cilium-overlay-load-test-template.yaml
@@ -524,6 +555,7 @@ stages:
         dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
         cni: "cilium_dualstack"
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: cilium_ds_mariner
 
     - template: cilium/cilium-overlay-load-test-template.yaml
@@ -537,8 +569,9 @@ stages:
         dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
         cni: "cilium_dualstack"
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: cilium_ds_rdma
-    
+
     - template: singletenancy/cniv2-template.yaml
       parameters:
         name: linux_podsubnet_upgrade
@@ -550,6 +583,7 @@ stages:
         scaleup: ${SCALEUP_LINUX}
         iterations: ${ITERATIONS_LINUX}
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: linux_podsubnet
 
     - template: singletenancy/cniv2-template.yaml
@@ -563,6 +597,7 @@ stages:
         scaleup: ${SCALEUP_LINUX}
         iterations: ${ITERATIONS_LINUX}
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: linux_overlay
 
     - template: singletenancy/cniv2-template.yaml
@@ -577,6 +612,7 @@ stages:
         scaleup: ${SCALEUP_LINUX}
         iterations: ${ITERATIONS_LINUX}
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: mariner_linux_overlay
 
     - template: singletenancy/cniv2-template.yaml
@@ -590,6 +626,7 @@ stages:
         scaleup: ${SCALEUP_LINUX}
         iterations: ${ITERATIONS_LINUX}
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: arm_linux_overlay
 
     - template: singletenancy/cniv2-template.yaml
@@ -603,6 +640,7 @@ stages:
         scaleup: ${SCALEUP_LINUX}
         iterations: ${ITERATIONS_LINUX}
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: rdma_linux_overlay
 
     - template: singletenancy/cniv2-template.yaml
@@ -621,6 +659,7 @@ stages:
         scaleup: ${SCALEUP_WIN}
         iterations: ${ITERATIONS_WIN}
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: windows_podsubnet_HNS
 
     - template: singletenancy/cniv2-template.yaml
@@ -639,6 +678,7 @@ stages:
         scaleup: ${SCALEUP_WIN}
         iterations: ${ITERATIONS_WIN}
         upgradeScenario: true
+        ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}
         dependsOn: windows_overlay_HNS
 
   - stage: delete_resources
