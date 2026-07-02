@@ -976,6 +976,12 @@ dockerfiles: renderkit ## Render all Dockerfile templates with current state of 
 	@make -f build/images.mk render PATH=azure-iptables-monitor
 	@make -f build/images.mk render PATH=cilium-log-collector
 
+cilium-versions: ## Update cilium-family image tags in hack/aks/deploy.mk to newest MCR tags (override minor with MINOR=1.18)
+	@hack/scripts/update-cilium-versions.sh $(if $(MINOR),--minor $(MINOR))
+
+cilium-versions-check: ## Report if newer cilium-family tags are available on MCR (exit 1 if so)
+	@hack/scripts/update-cilium-versions.sh --check $(if $(MINOR),--minor $(MINOR))
+
 regenerate-crd: ## Regenerate CRDs
 	for makefile in $$(find ./crd/ -name "Makefile" -type f -printf '%h\n'); do \
 		echo "Running make in $$makefile"; \
