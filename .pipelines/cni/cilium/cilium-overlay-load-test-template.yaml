@@ -94,7 +94,7 @@ stages:
 
                   # makefile manages cilium version
                   # Allow for cilium version to be overwritten by pipeline variable if set.
-                  if [ ${{ parameters.ciliumVersionOverwrite }} != "true" ]; then
+                  if [ ${{ parameters.ciliumVersionOverwrite }} != "True" ]; then
                     unset DIR
                     unset CILIUM_VERSION_TAG
                   fi

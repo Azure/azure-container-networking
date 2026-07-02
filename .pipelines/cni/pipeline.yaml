@@ -35,7 +35,7 @@ stages:
               echo "testing cilium version overwrite parameter"
               make -C ./hack/aks print-cilium-vars
               echo "ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}"
-              if [ ${{ parameters.ciliumVersionOverwrite }} != "true" ]; then
+              if [ ${{ parameters.ciliumVersionOverwrite }} != "True" ]; then
                 unset DIR
                 unset CILIUM_VERSION_TAG
               fi
