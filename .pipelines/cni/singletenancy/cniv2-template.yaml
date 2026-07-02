@@ -352,6 +352,12 @@ stages:
               os: ${{ parameters.os }}
               cni: cniv2
 
+      - template: ../../templates/failure-analysis.job.yaml
+        parameters:
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          cni: cniv2
+
   - ${{ if eq(parameters.os, 'windows') }}:
     - stage: ${{ parameters.name }}_HNS
       variables:
@@ -475,3 +481,11 @@ stages:
                 os: ${{ parameters.os }}
                 cni: cniv2
                 jobName: "HNS_failedE2ELogs"
+
+        - template: ../../templates/failure-analysis.job.yaml
+          parameters:
+            clusterName: ${{ parameters.clusterName }}-$(commitID)
+            os: ${{ parameters.os }}
+            cni: cniv2
+            dependsOnJob: logs
+            artifactJobName: HNS_failedE2ELogs

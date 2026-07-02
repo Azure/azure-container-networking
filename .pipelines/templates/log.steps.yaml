@@ -277,3 +277,12 @@ steps:
     inputs:
       sourceFolder: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
       targetFolder: $(Build.ArtifactStagingDirectory)/out
+
+  # Publish a named pipeline artifact so the failure-analysis job can download it
+  # by the same name contract used in log-template.yaml. This is additive to the
+  # OneBranch ob_outputDirectory drop and does not affect E2E test execution.
+  - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+    condition: always()
+    artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_${{ parameters.os }}${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
+    displayName: "Publish failure logs for analysis"
+    continueOnError: true
