@@ -31,6 +31,17 @@ stages:
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
+          - script: |
+              echo "testing cilium version overwrite parameter"
+              make -C ./hack/aks print-cilium-vars
+              echo "ciliumVersionOverwrite: ${{ parameters.ciliumVersionOverwrite }}"
+              if [ ${{ parameters.ciliumVersionOverwrite }} != "true" ]; then
+                unset DIR
+                unset CILIUM_VERSION_TAG
+              fi
+              make -C ./hack/aks print-cilium-vars
+
+            displayName: "Check ciliumVersionOverwrite parameter"
 
   - stage: build_images
     dependsOn: setup
