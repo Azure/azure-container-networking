@@ -48,9 +48,9 @@ jobs:
     displayName: "Failure Analysis (${{ parameters.os }})"
     dependsOn:
       - ${{ parameters.dependsOnJob }}
-    # Run if failedE2ELogs ran (succeeded or failed), skip if it was skipped
-    # (which happens when the test passed and failedE2ELogs's condition: failed() wasn't met).
-    condition: succeededOrFailed()
+    # Run only when failedE2ELogs actually executed (succeeded or failed).
+    # Skip when it was skipped (test passed, so failedE2ELogs's condition: failed() was not met).
+    condition: in(dependencies.${{ parameters.dependsOnJob }}.result, 'Succeeded', 'SucceededWithIssues', 'Failed')
     pool:
       type: linux
       isCustom: true
