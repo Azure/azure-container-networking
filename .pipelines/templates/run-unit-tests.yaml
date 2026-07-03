@@ -11,6 +11,10 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
+          - task: GoTool@0
+            inputs:
+              version: '1.26'
+            displayName: "Install Go"
           - script: |
               set -e
               make bpf-lib
@@ -51,6 +55,10 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
         steps:
+          - task: GoTool@0
+            inputs:
+              version: '1.26'
+            displayName: "Install Go"
           # Only run one go test per script
           - script: |
               cd azure-container-networking/
@@ -75,6 +83,10 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
+          - task: GoTool@0
+            inputs:
+              version: '1.26'
+            displayName: "Install Go"
           - task: DownloadPipelineArtifact@2
             inputs:
               artifact: 'linux-coverage'
