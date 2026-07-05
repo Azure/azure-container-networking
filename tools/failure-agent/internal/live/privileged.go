@@ -49,6 +49,15 @@ var privilegedDiagnostics = []nodeDiagnostic{
 		},
 	},
 	{
+		// NOTE: HNS state is Windows-only. This node-shell path uses a Linux
+		// debug image (debugImage), so these commands only succeed where a
+		// PowerShell-capable shell is reachable via `kubectl debug node`. On
+		// Linux nodes they are recorded as best-effort failures and ignored.
+		// The authoritative, reliable HNS capture is the CI pipeline
+		// (.pipelines/templates/log.steps.yaml, Windows section), which execs
+		// Get-HnsNetwork/Get-HnsEndpoint inside the Windows privileged
+		// (hostProcess/SYSTEM) daemonset and publishes them in the evidence
+		// bundle the agent consumes.
 		name: "hns-networks",
 		buildArgv: func(node string) []string {
 			return []string{"kubectl", "debug", node, "--image=" + debugImage, "--quiet", "--",

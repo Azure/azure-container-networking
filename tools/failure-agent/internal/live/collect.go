@@ -26,7 +26,10 @@ type diagnostic struct {
 }
 
 // diagnostics is the fixed read-only command set the agent runs against a
-// retained cluster. ACN components live in kube-system.
+// retained cluster. ACN components live in kube-system. Both the Linux
+// (k8s-app=azure-cns) and Windows (k8s-app=azure-cns-win) CNS label selectors
+// are included; the one that does not match the cluster's OS simply returns no
+// pods and is recorded as empty, best-effort.
 var diagnostics = []diagnostic{
 	{"pods", []string{"kubectl", "get", "pods", "-A", "-o", "wide"}},
 	{"nodes", []string{"kubectl", "get", "nodes", "-o", "wide"}},
@@ -34,6 +37,7 @@ var diagnostics = []diagnostic{
 	{"events", []string{"kubectl", "get", "events", "-A", "--sort-by=.lastTimestamp"}},
 	{"daemonsets", []string{"kubectl", "get", "daemonsets", "-n", "kube-system", "-o", "wide"}},
 	{"cns-logs", []string{"kubectl", "logs", "-n", "kube-system", "-l", "k8s-app=azure-cns", "--tail=200", "--prefix"}},
+	{"cns-logs-windows", []string{"kubectl", "logs", "-n", "kube-system", "-l", "k8s-app=azure-cns-win", "--tail=200", "--prefix"}},
 	{"cilium-logs", []string{"kubectl", "logs", "-n", "kube-system", "-l", "k8s-app=cilium", "--tail=200", "--prefix"}},
 }
 
