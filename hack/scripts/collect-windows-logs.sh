@@ -107,20 +107,29 @@ if [ "${fullWindowsLogs:-true}" = "true" ]; then
     node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name --no-headers | awk '{print $1}'`
     mkdir -p ${acnLogs}/"$node"_logs/full-windows-logs/
     echo "Running collect-windows-logs.ps1 on $node (best-effort)"
-    # Capture the collector's full output (all streams via *>&1) into the folder so
-    # it is never silently empty: on failure this log explains why (script missing,
-    # errored, or no zip). Try the canonical c:\k\debug location, then c:\k, then a
-    # recursive search under c:\k.
-    kubectl exec -i -n kube-system $pod -- powershell "if (Test-Path ../../k/debug/collect-windows-logs.ps1) { Push-Location ../../k/debug; & .\collect-windows-logs.ps1 *>&1; Pop-Location } elseif (Test-Path ../../k/collect-windows-logs.ps1) { Push-Location ../../k; & .\collect-windows-logs.ps1 *>&1; Pop-Location } else { \$found = Get-ChildItem -Path ../../k -Recurse -Filter collect-windows-logs.ps1 -ErrorAction SilentlyContinue | Select-Object -First 1; if (\$found) { Write-Output ('Found collector at ' + \$found.FullName); Push-Location \$found.DirectoryName; & \$found.FullName *>&1; Pop-Location } else { Write-Output 'collect-windows-logs.ps1 not found under ../../k (debug, root, or recursive)' } }" > ${acnLogs}/"$node"_logs/full-windows-logs/collector-run.log 2>&1
+    # Run the AKS canonical collector, capturing all streams (*>&1). Newer AKS node
+    # images do NOT emit a .zip; the script gathers files into C:\k\debug\<random>\
+    # and prints "Logs are available at <dir>". We capture that dir, archive it
+    # ourselves, and always write collector-run.log so the folder is never empty.
+    collectorOut=`kubectl exec -i -n kube-system $pod -- powershell "if (Test-Path ../../k/debug/collect-windows-logs.ps1) { Push-Location ../../k/debug; & .\collect-windows-logs.ps1 *>&1; Pop-Location } elseif (Test-Path ../../k/collect-windows-logs.ps1) { Push-Location ../../k; & .\collect-windows-logs.ps1 *>&1; Pop-Location } else { Write-Output 'collect-windows-logs.ps1 not found under ../../k/debug or ../../k' }"`
+    echo "$collectorOut" | tr -d '\r' > ${acnLogs}/"$node"_logs/full-windows-logs/collector-run.log
     echo "collector-run.log captured: ${acnLogs}/"$node"_logs/full-windows-logs/collector-run.log"
-    zipInfo=`kubectl exec -i -n kube-system $pod -- powershell '$zip = Get-ChildItem -Path "../../k/debug","../../k" -Recurse -Filter "*.zip" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($zip) { Write-Output "$($zip.Name)|$($zip.FullName)" }' | tr -d '\r'`
-    zipName=${zipInfo%%|*}
-    zipPath=${zipInfo#*|}
-    if [ -n "$zipInfo" ] && [ "$zipName" != "$zipPath" ]; then
-      kubectl exec -i -n kube-system $pod -- powershell "[Convert]::ToBase64String([IO.File]::ReadAllBytes('$zipPath'))" | tr -d '\r' | base64 -d > ${acnLogs}/"$node"_logs/full-windows-logs/"$zipName"
-      echo "Full Windows log bundle, $zipName, captured: ${acnLogs}/"$node"_logs/full-windows-logs/$zipName"
+    logDir=`echo "$collectorOut" | tr -d '\r' | grep -i "Logs are available at" | tail -1 | sed 's/.*[Ll]ogs are available at //;s/[[:space:]]*$//'`
+    if [ -n "$logDir" ]; then
+      echo "Collector output dir: $logDir - archiving to windows-logs.zip"
+      kubectl exec -i -n kube-system $pod -- powershell "Compress-Archive -Path '$logDir\*' -DestinationPath '$logDir.zip' -Force -ErrorAction SilentlyContinue; if (Test-Path '$logDir.zip') { [Convert]::ToBase64String([IO.File]::ReadAllBytes('$logDir.zip')) }" | tr -d '\r' | base64 -d > ${acnLogs}/"$node"_logs/full-windows-logs/windows-logs.zip
+      echo "Full Windows log bundle captured: ${acnLogs}/"$node"_logs/full-windows-logs/windows-logs.zip"
     else
-      echo "collect-windows-logs.ps1 produced no zip on $node (script may be absent)"
+      # Older collectors may drop a pre-made zip; grab the newest under c:\k as a fallback.
+      zipInfo=`kubectl exec -i -n kube-system $pod -- powershell '$zip = Get-ChildItem -Path "../../k/debug","../../k" -Recurse -Filter "*.zip" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($zip) { Write-Output "$($zip.Name)|$($zip.FullName)" }' | tr -d '\r'`
+      zipName=${zipInfo%%|*}
+      zipPath=${zipInfo#*|}
+      if [ -n "$zipInfo" ] && [ "$zipName" != "$zipPath" ]; then
+        kubectl exec -i -n kube-system $pod -- powershell "[Convert]::ToBase64String([IO.File]::ReadAllBytes('$zipPath'))" | tr -d '\r' | base64 -d > ${acnLogs}/"$node"_logs/full-windows-logs/"$zipName"
+        echo "Full Windows log bundle, $zipName, captured: ${acnLogs}/"$node"_logs/full-windows-logs/$zipName"
+      else
+        echo "collect-windows-logs.ps1 produced no output dir or zip on $node (see collector-run.log)"
+      fi
     fi
   done
 fi
