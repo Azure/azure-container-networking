@@ -31,7 +31,7 @@ type CNSConfig struct {
 	EnableAPIServerHealthPing       bool
 	EnableAsyncPodDelete            bool
 	EnableCNIConflistGeneration     bool
-	EnableHomeAz                    bool
+	EnableHomeAZ                    bool
 	EnableIPAMv2                    bool
 	EnableK8sDevicePlugin           bool
 	EnableLoggerV2                  bool
