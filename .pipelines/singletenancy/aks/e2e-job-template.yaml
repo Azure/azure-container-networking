@@ -109,6 +109,17 @@ stages:
               service: true
               hostport: true
 
+          # >>> TEMP TEST TRIGGER - remove before merge <<<
+          # Deterministically fail the Windows E2E AFTER CNI + datapath tests have
+          # run, so azure-vnet logs and HNS state are populated on the nodes. This
+          # exercises Windows failure-log collection (collect-windows-logs.sh) and
+          # the failure-analysis agent. Gated to Windows so Linux is unaffected.
+          - ${{ if eq(parameters.os, 'windows') }}:
+              - script: |
+                  echo "TEMP TEST TRIGGER: forcing Windows E2E failure to validate failure-log collection + failure-analysis agent"
+                  exit 1
+                displayName: "TEMP - Force Windows failure (remove before merge)"
+
       # can only succeed with issues in linux
       - template: ../../templates/warning-handler-job-template.yaml
         parameters:
