@@ -293,11 +293,11 @@ steps:
           echo "Directory created: $(acnLogs)/"$node"_logs/HNS-output/"
 
           file="hns-network.json"
-          kubectl exec -i -n kube-system $pod -- powershell "Get-HnsNetwork | ConvertTo-Json -Depth 20" > $(acnLogs)/"$node"_logs/HNS-output/$file
+          kubectl exec -i -n kube-system $pod -- powershell "Import-Module C:\k\hns.psm1 -ErrorAction SilentlyContinue; if (Get-Command Get-HnsNetwork -ErrorAction SilentlyContinue) { Get-HnsNetwork | ConvertTo-Json -Depth 20 } else { hnsdiag list networks | ConvertTo-Json -Depth 20 }" > $(acnLogs)/"$node"_logs/HNS-output/$file
           echo "HNS Networks, $file, captured: $(acnLogs)/"$node"_logs/HNS-output/$file"
 
           file="hns-endpoint.json"
-          kubectl exec -i -n kube-system $pod -- powershell "Get-HnsEndpoint | ConvertTo-Json -Depth 20" > $(acnLogs)/"$node"_logs/HNS-output/$file
+          kubectl exec -i -n kube-system $pod -- powershell "Import-Module C:\k\hns.psm1 -ErrorAction SilentlyContinue; if (Get-Command Get-HnsEndpoint -ErrorAction SilentlyContinue) { Get-HnsEndpoint | ConvertTo-Json -Depth 20 } else { hnsdiag list endpoints | ConvertTo-Json -Depth 20 }" > $(acnLogs)/"$node"_logs/HNS-output/$file
           echo "HNS Endpoints, $file, captured: $(acnLogs)/"$node"_logs/HNS-output/$file"
         done
 
