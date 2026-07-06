@@ -119,6 +119,14 @@ if [ "${fullWindowsLogs:-true}" = "true" ]; then
       echo "Collector output dir: $logDir - archiving to windows-logs.zip"
       kubectl exec -i -n kube-system $pod -- powershell "Compress-Archive -Path '$logDir\*' -DestinationPath '$logDir.zip' -Force -ErrorAction SilentlyContinue; if (Test-Path '$logDir.zip') { [Convert]::ToBase64String([IO.File]::ReadAllBytes('$logDir.zip')) }" | tr -d '\r' | base64 -d > ${acnLogs}/"$node"_logs/full-windows-logs/windows-logs.zip
       echo "Full Windows log bundle captured: ${acnLogs}/"$node"_logs/full-windows-logs/windows-logs.zip"
+      # Extract the bundle so its text files (hnsdiag, vfpOutput, routes, kubelet,
+      # containerd, etc.) are walked by the failure-agent, which only parses text
+      # files and does not open zips. The zip is retained for human download.
+      if [ -s ${acnLogs}/"$node"_logs/full-windows-logs/windows-logs.zip ] && command -v unzip >/dev/null 2>&1; then
+        unzip -o -q ${acnLogs}/"$node"_logs/full-windows-logs/windows-logs.zip -d ${acnLogs}/"$node"_logs/full-windows-logs/extracted/ && echo "Extracted bundle for agent ingestion: ${acnLogs}/"$node"_logs/full-windows-logs/extracted/" || echo "unzip failed on $node (zip retained for humans)"
+      else
+        echo "unzip unavailable or empty zip on $node; agent reads collector-run.log, zip retained for humans"
+      fi
     else
       # Older collectors may drop a pre-made zip; grab the newest under c:\k as a fallback.
       zipInfo=`kubectl exec -i -n kube-system $pod -- powershell '$zip = Get-ChildItem -Path "../../k/debug","../../k" -Recurse -Filter "*.zip" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($zip) { Write-Output "$($zip.Name)|$($zip.FullName)" }' | tr -d '\r'`
