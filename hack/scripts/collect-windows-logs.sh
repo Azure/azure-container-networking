@@ -107,8 +107,13 @@ if [ "${fullWindowsLogs:-true}" = "true" ]; then
     node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name --no-headers | awk '{print $1}'`
     mkdir -p ${acnLogs}/"$node"_logs/full-windows-logs/
     echo "Running collect-windows-logs.ps1 on $node (best-effort)"
-    kubectl exec -i -n kube-system $pod -- powershell "if (Test-Path ../../k/debug/collect-windows-logs.ps1) { Push-Location ../../k/debug; & .\collect-windows-logs.ps1 | Out-Null; Pop-Location } else { Write-Output 'collect-windows-logs.ps1 not found' }"
-    zipInfo=`kubectl exec -i -n kube-system $pod -- powershell '$zip = Get-ChildItem -Path "../../k/debug/*.zip","../../k/*.zip" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($zip) { Write-Output "$($zip.Name)|$($zip.FullName)" }' | tr -d '\r'`
+    # Capture the collector's full output (all streams via *>&1) into the folder so
+    # it is never silently empty: on failure this log explains why (script missing,
+    # errored, or no zip). Try the canonical c:\k\debug location, then c:\k, then a
+    # recursive search under c:\k.
+    kubectl exec -i -n kube-system $pod -- powershell "if (Test-Path ../../k/debug/collect-windows-logs.ps1) { Push-Location ../../k/debug; & .\collect-windows-logs.ps1 *>&1; Pop-Location } elseif (Test-Path ../../k/collect-windows-logs.ps1) { Push-Location ../../k; & .\collect-windows-logs.ps1 *>&1; Pop-Location } else { \$found = Get-ChildItem -Path ../../k -Recurse -Filter collect-windows-logs.ps1 -ErrorAction SilentlyContinue | Select-Object -First 1; if (\$found) { Write-Output ('Found collector at ' + \$found.FullName); Push-Location \$found.DirectoryName; & \$found.FullName *>&1; Pop-Location } else { Write-Output 'collect-windows-logs.ps1 not found under ../../k (debug, root, or recursive)' } }" > ${acnLogs}/"$node"_logs/full-windows-logs/collector-run.log 2>&1
+    echo "collector-run.log captured: ${acnLogs}/"$node"_logs/full-windows-logs/collector-run.log"
+    zipInfo=`kubectl exec -i -n kube-system $pod -- powershell '$zip = Get-ChildItem -Path "../../k/debug","../../k" -Recurse -Filter "*.zip" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($zip) { Write-Output "$($zip.Name)|$($zip.FullName)" }' | tr -d '\r'`
     zipName=${zipInfo%%|*}
     zipPath=${zipInfo#*|}
     if [ -n "$zipInfo" ] && [ "$zipName" != "$zipPath" ]; then
