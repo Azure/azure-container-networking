@@ -2,7 +2,8 @@
 # SOURCE: {{.SRC_PIPE}}
 ARG ARCH
 
-FROM scratch AS linux
+# {{.MARINER_DISTROLESS_IMG}}
+FROM --platform=linux/${ARCH} {{.MARINER_DISTROLESS_PIN}} AS linux
 ARG ARTIFACT_DIR
 
 COPY ${ARTIFACT_DIR}/bin/azure-ip-masq-merger /azure-ip-masq-merger

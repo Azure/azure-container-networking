@@ -11,6 +11,9 @@ FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:8
 # mcr.microsoft.com/azurelinux/base/core:3.0
 FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:1c56f09437dfc2910faad39abaaed336265d246cf183e2adb362d4cb3b881ab6 AS mariner-core
 
+# mcr.microsoft.com/azurelinux/distroless/base:3.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/base@sha256:f8f5a9bb739ad1ec347853144c9ed4ca2260e587082277bc6066fcd5cc9973e8 AS mariner-distroless
+
 FROM go AS azure-vnet
 ARG OS
 ARG VERSION
@@ -53,8 +56,8 @@ RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/dropgz -trimpath -ldflags "-s 
 FROM scratch AS bins
 COPY --from=azure-vnet /go/bin/* /
 
-FROM scratch AS linux
-COPY --from=dropgz /go/bin/dropgz dropgz
+FROM mariner-distroless AS linux
+COPY --from=dropgz /go/bin/dropgz /dropgz
 ENTRYPOINT [ "/dropgz" ]
 
 # mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0

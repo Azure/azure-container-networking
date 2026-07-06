@@ -11,6 +11,9 @@ FROM --platform=linux/${ARCH} {{.GO_PIN}} AS go
 # {{.MARINER_CORE_IMG}}
 FROM --platform=linux/${ARCH} {{.MARINER_CORE_PIN}} AS mariner-core
 
+# {{.MARINER_DISTROLESS_IMG}}
+FROM --platform=linux/${ARCH} {{.MARINER_DISTROLESS_PIN}} AS mariner-distroless
+
 FROM go AS azure-vnet
 ARG OS
 ARG VERSION
@@ -53,8 +56,8 @@ RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/dropgz -trimpath -ldflags "-s 
 FROM scratch AS bins
 COPY --from=azure-vnet /go/bin/* /
 
-FROM scratch AS linux
-COPY --from=dropgz /go/bin/dropgz dropgz
+FROM mariner-distroless AS linux
+COPY --from=dropgz /go/bin/dropgz /dropgz
 ENTRYPOINT [ "/dropgz" ]
 
 # {{.WIN_HPC_IMG}}
