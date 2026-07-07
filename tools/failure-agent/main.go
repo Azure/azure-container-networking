@@ -81,6 +81,9 @@ type options struct {
 	teamsGraphChatID       string
 	teamsGraphTeamID       string
 	teamsGraphChannelID    string
+
+	// TEMP: delegated token path (short-lived demo when app consent is pending).
+	teamsGraphToken string
 }
 
 func main() {
@@ -153,6 +156,7 @@ func parseFlags() options {
 	flag.StringVar(&o.teamsGraphChatID, "teams-graph-chat-id", os.Getenv("TEAMS_GRAPH_CHAT_ID"), "Teams chat ID for Graph API delivery (or TEAMS_GRAPH_CHAT_ID); for 1:1 or group chats")
 	flag.StringVar(&o.teamsGraphTeamID, "teams-graph-team-id", os.Getenv("TEAMS_GRAPH_TEAM_ID"), "Teams team ID for Graph API channel delivery (or TEAMS_GRAPH_TEAM_ID)")
 	flag.StringVar(&o.teamsGraphChannelID, "teams-graph-channel-id", os.Getenv("TEAMS_GRAPH_CHANNEL_ID"), "Teams channel ID for Graph API channel delivery (or TEAMS_GRAPH_CHANNEL_ID)")
+	flag.StringVar(&o.teamsGraphToken, "teams-graph-token", os.Getenv("TEAMS_GRAPH_TOKEN"), "TEMP: pre-obtained delegated access token for Graph API (or TEAMS_GRAPH_TOKEN)")
 	flag.Parse()
 	return o
 }
@@ -603,7 +607,14 @@ func notifyTeams(ctx context.Context, logger *zap.Logger, opts options, inc mode
 // buildTeamsNotifier returns the configured notifier or nil when no delivery
 // method is configured. Graph API takes priority over webhook when both are set.
 func buildTeamsNotifier(opts options) notify.Notifier {
-	// Prefer Graph API (works when DLP blocks webhooks).
+	// TEMP: pre-obtained delegated user token (highest priority for demo).
+	if opts.teamsGraphToken != "" && opts.teamsGraphChatID != "" {
+		return notify.DelegatedTokenNotifier{
+			Token:  opts.teamsGraphToken,
+			ChatID: opts.teamsGraphChatID,
+		}
+	}
+	// Prefer Graph API client_credentials (works when DLP blocks webhooks).
 	if opts.teamsGraphTenantID != "" && opts.teamsGraphClientID != "" && opts.teamsGraphClientSecret != "" {
 		cfg := notify.GraphConfig{
 			TenantID:     opts.teamsGraphTenantID,

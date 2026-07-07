@@ -175,6 +175,19 @@ stages:
       dependsOn:
         - setup
       jobs:
+        # TEMP demo: force containerize to fail quickly on this branch so
+        # build_failure_analysis fires within delegated token lifetime.
+        - job: containerize_demo_fail
+          displayName: "TEMP: Force Build Failure for Demo"
+          condition: eq(variables['Build.SourceBranch'], 'refs/heads/failure-agent-teams-bot')
+          pool:
+            name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+          steps:
+            - script: |
+                echo "TEMP: forcing containerize stage failure for Teams bot demo"
+                exit 1
+              displayName: "Force failure"
+
         - job: containerize_amd64
           displayName: Build Images
           pool:

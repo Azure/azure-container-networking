@@ -176,6 +176,7 @@ jobs:
           TEAMS_GRAPH_CHAT_ID: $(TEAMS_GRAPH_CHAT_ID)
           TEAMS_GRAPH_TEAM_ID: $(TEAMS_GRAPH_TEAM_ID)
           TEAMS_GRAPH_CHANNEL_ID: $(TEAMS_GRAPH_CHANNEL_ID)
+          TEAMS_GRAPH_TOKEN: $(TEAMS_GRAPH_TOKEN)
 
       - script: |
           set -euo pipefail

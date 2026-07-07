@@ -310,6 +310,52 @@ func toGraphMessage(payload map[string]any) map[string]any {
 	}
 }
 
+// DelegatedTokenNotifier posts Adaptive Card messages to a Teams chat via
+// Microsoft Graph using a pre-obtained delegated (user) access token. This is a
+// temporary workaround for environments where application-permission admin
+// consent has not yet been granted: the operator obtains a short-lived token
+// manually (e.g. `az account get-access-token --resource-type ms-graph`) and
+// injects it as a pipeline secret. The token typically expires within 1 hour.
+type DelegatedTokenNotifier struct {
+	Token  string // Bearer token (delegated, pre-obtained)
+	ChatID string // Target chat ID
+	Client *http.Client
+}
+
+// Send posts the card payload using the pre-obtained delegated token.
+func (d DelegatedTokenNotifier) Send(ctx context.Context, payload map[string]any) error {
+	client := d.Client
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	graphMsg := toGraphMessage(payload)
+	data, err := json.Marshal(graphMsg)
+	if err != nil {
+		return fmt.Errorf("marshaling graph message: %w", err)
+	}
+
+	url := fmt.Sprintf("https://graph.microsoft.com/v1.0/chats/%s/messages", d.ChatID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("building graph request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+d.Token)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("posting to graph: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("graph api returned %d: %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
+	}
+	return nil
+}
+
 func fact(title, value string) map[string]any {
 	return map[string]any{"title": title, "value": value}
 }
