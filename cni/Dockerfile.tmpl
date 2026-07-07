@@ -59,5 +59,8 @@ ENTRYPOINT [ "/dropgz" ]
 FROM --platform=windows/${ARCH} {{.WIN_HPC_PIN}} as hpc
 
 FROM hpc as windows
-COPY --from=dropgz /go/bin/dropgz dropgz.exe
-ENTRYPOINT [ "/dropgz.exe" ]
+COPY --from=azure-vnet /go/bin/azure-vnet.exe /azure-vnet.exe
+COPY --from=azure-vnet /go/bin/azure-vnet-ipam.exe /azure-vnet-ipam.exe
+COPY --from=azure-vnet /go/bin/azure-vnet-telemetry.exe /azure-vnet-telemetry.exe
+COPY --from=azure-vnet /azure-container-networking/telemetry/azure-vnet-telemetry.config /azure-vnet-telemetry.config
+ENTRYPOINT [ "powershell.exe" ]

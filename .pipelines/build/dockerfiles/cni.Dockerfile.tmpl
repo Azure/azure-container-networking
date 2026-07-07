@@ -6,8 +6,11 @@ ARG ARCH
 FROM --platform=windows/${ARCH} {{.WIN_HPC_PIN}} AS windows
 ARG ARTIFACT_DIR .
 
-COPY ${ARTIFACT_DIR}/bin/dropgz.exe /dropgz.exe
-ENTRYPOINT [ "/dropgz.exe" ]
+COPY ${ARTIFACT_DIR}/bin/azure-vnet.exe /azure-vnet.exe
+COPY ${ARTIFACT_DIR}/bin/azure-vnet-ipam.exe /azure-vnet-ipam.exe
+COPY ${ARTIFACT_DIR}/bin/azure-vnet-telemetry.exe /azure-vnet-telemetry.exe
+COPY ${ARTIFACT_DIR}/files/azure-vnet-telemetry.config /azure-vnet-telemetry.config
+ENTRYPOINT [ "powershell.exe" ]
 
 
 FROM scratch AS linux
