@@ -503,18 +503,20 @@ stages:
     #     dependsOn: ["test"]
     #     testHubble: true
 
-    # Azure Overlay E2E tests (KEPT — the one test for the demo)
-    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
-      parameters:
-        name: "linux_azure_overlay_e2e"
-        displayName: Azure Overlay Linux
-        os: linux
-        clusterType: overlay-byocni-up
-        clusterName: "linuxazovere2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: ["test"]
-        scaleup: 100
+    # TEMP: Azure Overlay E2E disabled for Teams demo. The build-failure path
+    # (containerize fast-fail -> build_failure_analysis) does not need a cluster,
+    # and the E2E cluster creation was cascading/throttling. Revert after demo.
+    # - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
+    #   parameters:
+    #     name: "linux_azure_overlay_e2e"
+    #     displayName: Azure Overlay Linux
+    #     os: linux
+    #     clusterType: overlay-byocni-up
+    #     clusterName: "linuxazovere2e"
+    #     vmSize: Standard_B2ms
+    #     k8sVersion: ""
+    #     dependsOn: ["test"]
+    #     scaleup: 100
     
     # # Windows Azure Overlay E2E tests
     # - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
@@ -626,31 +628,32 @@ stages:
     # - stage: delete_cilium_clusters
     # - stage: delete_windows_clusters
 
-    # Delete Linux Clusters (trimmed for demo — only overlay)
-    - stage: delete_linux_clusters
-      displayName: Delete Linux Clusters
-      condition: always()
-      dependsOn:
-        - setup
-        - linux_azure_overlay_e2e
-      variables:
-        commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-      pool:
-        name: $(BUILD_POOL_NAME_DEFAULT)
-      jobs:
-        - job: delete
-          displayName: Delete Cluster
-          strategy:
-            matrix:
-              azure_overlay_linux:
-                cluster_name: linuxazovere2e
-                delete_name: linux_azure_overlay_e2e
-                delete_region: $(REGION_AKS_CLUSTER_TEST)
-          steps:
-            - template: templates/delete-cluster.yaml
-              parameters:
-                name: $(delete_name)
-                clusterName: $(cluster_name)-$(commitID)
-                region: $(delete_region)
-                sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
-                svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+    # TEMP: Delete Linux Clusters disabled — no E2E clusters are created in the
+    # Teams demo, so there is nothing to delete. Revert after demo.
+    # - stage: delete_linux_clusters
+    #   displayName: Delete Linux Clusters
+    #   condition: always()
+    #   dependsOn:
+    #     - setup
+    #     - linux_azure_overlay_e2e
+    #   variables:
+    #     commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    #   pool:
+    #     name: $(BUILD_POOL_NAME_DEFAULT)
+    #   jobs:
+    #     - job: delete
+    #       displayName: Delete Cluster
+    #       strategy:
+    #         matrix:
+    #           azure_overlay_linux:
+    #             cluster_name: linuxazovere2e
+    #             delete_name: linux_azure_overlay_e2e
+    #             delete_region: $(REGION_AKS_CLUSTER_TEST)
+    #       steps:
+    #         - template: templates/delete-cluster.yaml
+    #           parameters:
+    #             name: $(delete_name)
+    #             clusterName: $(cluster_name)-$(commitID)
+    #             region: $(delete_region)
+    #             sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+    #             svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
