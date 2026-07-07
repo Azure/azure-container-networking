@@ -1,0 +1,77 @@
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  AZDO_ORG_URL: https://msazure.visualstudio.com
+  AZDO_PROJECT: One
+  STORAGE_ACCOUNT: failureanalysisstorage
+
+stages:
+  - stage: ValidateKnowledgeBaseConnectivity
+    displayName: Validate knowledge-base connectivity
+    jobs:
+      - job: validate
+        displayName: Validate ADO API + Table access
+        steps:
+          - checkout: none
+
+          - task: AzureCLI@2
+            displayName: Validate Azure DevOps and Table Storage access
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -euo pipefail
+
+                if [ -z "${SYSTEM_ACCESSTOKEN:-}" ]; then
+                  echo "SYSTEM_ACCESSTOKEN is empty. Enable OAuth token access for scripts."
+                  exit 1
+                fi
+
+                echo "Checking Azure DevOps pipeline definitions..."
+                for DEF_ID in 95007 312109; do
+                  URL="${AZDO_ORG_URL}/${AZDO_PROJECT}/_apis/build/definitions/${DEF_ID}?api-version=7.1-preview.7"
+                  RESP=$(curl -sS -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" "$URL")
+                  echo "$RESP" | grep -q "\"id\":[ ]*${DEF_ID}" || {
+                    echo "Definition ${DEF_ID} was not returned from Azure DevOps API."
+                    echo "$RESP"
+                    exit 1
+                  }
+                  echo "Definition ${DEF_ID} is reachable."
+                done
+
+                PK="connectivity-test"
+                RK="run-$(date +%s)"
+
+                echo "Inserting test entity into FailureIncidents..."
+                az storage entity insert \
+                  --account-name "${STORAGE_ACCOUNT}" \
+                  --table-name FailureIncidents \
+                  --auth-mode login \
+                  --entity PartitionKey="${PK}" RowKey="${RK}" category="connectivity_check" status="ok"
+
+                echo "Reading test entity back..."
+                az storage entity show \
+                  --account-name "${STORAGE_ACCOUNT}" \
+                  --table-name FailureIncidents \
+                  --auth-mode login \
+                  --partition-key "${PK}" \
+                  --row-key "${RK}" \
+                  -o json
+
+                echo "Deleting test entity..."
+                az storage entity delete \
+                  --account-name "${STORAGE_ACCOUNT}" \
+                  --table-name FailureIncidents \
+                  --auth-mode login \
+                  --partition-key "${PK}" \
+                  --row-key "${RK}"
+
+                echo "Validation complete."
+            env:
+              SYSTEM_ACCESSTOKEN: $(System.AccessToken)
