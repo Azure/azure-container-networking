@@ -134,6 +134,7 @@ type Notifier interface {
 }
 
 // WebhookNotifier POSTs card payloads to a Teams webhook URL.
+// Use this when your org allows incoming webhooks / Power Automate triggers.
 type WebhookNotifier struct {
 	URL    string
 	Client *http.Client
@@ -169,6 +170,144 @@ func (w WebhookNotifier) Send(ctx context.Context, payload map[string]any) error
 		return fmt.Errorf("teams webhook returned %d: %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
 	}
 	return nil
+}
+
+// GraphConfig holds the AAD app registration credentials and target chat/channel
+// for posting via Microsoft Graph API. Use this when DLP policy blocks webhook triggers.
+type GraphConfig struct {
+	TenantID     string // AAD tenant ID
+	ClientID     string // App registration client ID
+	ClientSecret string // App registration client secret
+	// Exactly one of ChatID or (TeamID + ChannelID) must be set.
+	ChatID    string // For 1:1 or group chat messages
+	TeamID    string // For channel messages
+	ChannelID string // For channel messages
+}
+
+// GraphNotifier posts Adaptive Card messages via the Microsoft Graph API using
+// client_credentials OAuth2 flow. It does not depend on Power Automate or
+// incoming webhooks, so it works even when those are blocked by DLP policy.
+type GraphNotifier struct {
+	Config GraphConfig
+	Client *http.Client
+}
+
+// Send acquires an access token and posts the card payload as a chatMessage.
+// The payload is re-wrapped into the Graph chatMessage format (the caller still
+// passes the same RenderCard output).
+func (g GraphNotifier) Send(ctx context.Context, payload map[string]any) error {
+	client := g.Client
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	token, err := g.acquireToken(ctx, client)
+	if err != nil {
+		return fmt.Errorf("acquiring graph token: %w", err)
+	}
+
+	graphMsg := toGraphMessage(payload)
+	data, err := json.Marshal(graphMsg)
+	if err != nil {
+		return fmt.Errorf("marshaling graph message: %w", err)
+	}
+
+	url := g.messagesURL()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return fmt.Errorf("building graph request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("posting to graph: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("graph api returned %d: %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
+	}
+	return nil
+}
+
+// acquireToken performs the OAuth2 client_credentials flow against the Microsoft
+// identity platform to get a Graph API access token.
+func (g GraphNotifier) acquireToken(ctx context.Context, client *http.Client) (string, error) {
+	tokenURL := fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", g.Config.TenantID)
+	body := fmt.Sprintf("grant_type=client_credentials&client_id=%s&client_secret=%s&scope=https://graph.microsoft.com/.default",
+		g.Config.ClientID, g.Config.ClientSecret)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		snippet, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return "", fmt.Errorf("token endpoint returned %d: %s", resp.StatusCode, string(snippet))
+	}
+
+	var tokenResp struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return "", fmt.Errorf("decoding token response: %w", err)
+	}
+	if tokenResp.AccessToken == "" {
+		return "", fmt.Errorf("empty access token in response")
+	}
+	return tokenResp.AccessToken, nil
+}
+
+func (g GraphNotifier) messagesURL() string {
+	if g.Config.ChatID != "" {
+		return fmt.Sprintf("https://graph.microsoft.com/v1.0/chats/%s/messages", g.Config.ChatID)
+	}
+	return fmt.Sprintf("https://graph.microsoft.com/v1.0/teams/%s/channels/%s/messages", g.Config.TeamID, g.Config.ChannelID)
+}
+
+// toGraphMessage converts the webhook-format payload (from RenderCard) into the
+// Microsoft Graph chatMessage format with an Adaptive Card attachment.
+func toGraphMessage(payload map[string]any) map[string]any {
+	// Extract the adaptive card content from the webhook envelope.
+	var cardContent any
+	if attachments, ok := payload["attachments"].([]any); ok && len(attachments) > 0 {
+		if att, ok := attachments[0].(map[string]any); ok {
+			cardContent = att["content"]
+		}
+	}
+	if cardContent == nil {
+		cardContent = map[string]any{}
+	}
+
+	// Graph requires the card JSON as a string, not an object.
+	cardJSON, _ := json.Marshal(cardContent)
+
+	const attachmentID = "acn-failure-card"
+	return map[string]any{
+		"body": map[string]any{
+			"contentType": "html",
+			"content":     fmt.Sprintf(`<attachment id="%s"></attachment>`, attachmentID),
+		},
+		"attachments": []any{
+			map[string]any{
+				"id":          attachmentID,
+				"contentType": "application/vnd.microsoft.card.adaptive",
+				"contentUrl":  nil,
+				"content":     string(cardJSON),
+			},
+		},
+	}
 }
 
 func fact(title, value string) map[string]any {

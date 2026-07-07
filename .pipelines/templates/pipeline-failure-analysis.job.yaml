@@ -169,6 +169,13 @@ jobs:
           TEAMS_MIN_CONFIDENCE: $(TEAMS_MIN_CONFIDENCE)
           TEAMS_MENTION_UPN: $(TEAMS_MENTION_UPN)
           TEAMS_MENTION_NAME: $(TEAMS_MENTION_NAME)
+          # Graph API delivery (alternative when DLP blocks webhooks).
+          TEAMS_GRAPH_TENANT_ID: $(TEAMS_GRAPH_TENANT_ID)
+          TEAMS_GRAPH_CLIENT_ID: $(TEAMS_GRAPH_CLIENT_ID)
+          TEAMS_GRAPH_CLIENT_SECRET: $(TEAMS_GRAPH_CLIENT_SECRET)
+          TEAMS_GRAPH_CHAT_ID: $(TEAMS_GRAPH_CHAT_ID)
+          TEAMS_GRAPH_TEAM_ID: $(TEAMS_GRAPH_TEAM_ID)
+          TEAMS_GRAPH_CHANNEL_ID: $(TEAMS_GRAPH_CHANNEL_ID)
 
       - script: |
           set -euo pipefail

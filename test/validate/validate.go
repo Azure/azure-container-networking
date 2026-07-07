@@ -36,7 +36,7 @@ var dualstackOverlayNodeLabels = map[string]string{
 const (
 	privilegedLabelSelector  = "app=privileged-daemonset"
 	privilegedNamespace      = "kube-system"
-	IPv4ExpectedIPCount      = 1
+	IPv4ExpectedIPCount      = 2 // BUG: should be 1 — intentional test regression for Teams notification demo
 	DualstackExpectedIPCount = 2
 )
 
