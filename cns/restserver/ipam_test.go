@@ -2578,10 +2578,15 @@ func TestReleaseStaleIPsForPod_SandboxRecreation(t *testing.T) {
 	assignedIPState := svc.PodIPConfigState[newIPIDs[0]]
 	assert.Equal(t, types.Assigned, assignedIPState.GetState())
 
-	// testIP1 (formerly stale) must now be Available since it was released.
+	// testIP1 (formerly stale) must no longer be assigned to the old container ID. It may be
+	// re-assigned to the new container ID (allocation order is non-deterministic due to map iteration).
 	ip1State = svc.PodIPConfigState[testIPID1]
-	assert.Equal(t, types.Available, ip1State.GetState(),
-		"stale IP testIP1 should have been released to Available")
+	if ip1State.GetState() == types.Assigned {
+		require.NotNil(t, ip1State.PodInfo)
+		assert.Equal(t, newContainerID, ip1State.PodInfo.Key(), "stale IP must not remain assigned to old container ID")
+	} else {
+		assert.Equal(t, types.Available, ip1State.GetState(), "stale IP should be released to Available when not re-assigned")
+	}
 }
 
 // TestReleaseStaleIPsForPod_DualStack verifies that both IPv4 and IPv6 stale IPs are
