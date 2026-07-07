@@ -71,6 +71,8 @@ stages:
       AZURE_IPAM_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamVersion'] ]
       CNS_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsImageRepo'] ]
       IPAM_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamImageRepo'] ]
+      CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
+      CILIUM_LOG_COLLECTOR_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorImageRepo'] ]
       CNS_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsImageNameOverride'] ]
       IPAM_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamImageNameOverride'] ]
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path

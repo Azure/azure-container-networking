@@ -63,8 +63,14 @@ steps:
         unset DIR
         unset CILIUM_VERSION_TAG
         make -C ./hack/aks deploy-cilium
-        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=acnpublic.azurecr.io
-        export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(make cilium-log-collector-version)
+        get_image_registry() {
+          case "$1" in
+            MCR) echo "mcr.microsoft.com/containernetworking" ;;
+            *) echo "acnpublic.azurecr.io" ;;
+          esac
+        }
+        export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=$(get_image_registry "$(CILIUM_LOG_COLLECTOR_IMAGE_REPO)")
+        export CILIUM_LOG_COLLECTOR_VERSION_TAG=$(CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE)
         make -C ./hack/aks add-cilium-log-collector
         kubectl get po -owide -A
         kubectl get crd -A
