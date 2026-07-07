@@ -1,6 +1,3 @@
-# >>> TEMP TEST COMMIT - revert before merge <<<
-# Trimmed to Cilium Overlay only for testing failure-analysis agent with a
-# natural bug in test/validate/linux_validate.go (cnsCachedAssignedIPStateCmd).
 pr: none
 trigger:
   tags:
@@ -30,7 +27,7 @@ stages:
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
-
+  
   - stage: build_images
     dependsOn: setup
     displayName: "Build Images"
@@ -123,6 +120,38 @@ stages:
               arch: $(arch)
               name: $(name)
               os: $(os)
+              
+  - stage: binaries
+    displayName: Build Binaries
+    dependsOn: setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+        - Role -equals Build
+    jobs:
+      - job:
+        displayName: "Build k8s NPM Linux Test Suite Binary"
+        steps:
+          - bash: |
+              git clone https://github.com/kubernetes/kubernetes.git --depth=1
+              cd kubernetes
+              export PATH=$PATH:/usr/local/go/bin/
+              make WHAT=test/e2e/e2e.test
+            displayName: "Build Kubernetes e2e.test"
+          - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
+            artifact: npm_k8s
+      - job:
+        displayName: "Build k8s NPM Windows Test Suite Binary"
+        steps:
+          - bash: |
+              git clone https://github.com/kubernetes/kubernetes.git --depth=1
+              cd kubernetes
+              export PATH=$PATH:/usr/local/go/bin/
+              make WHAT=test/e2e/e2e.test
+            displayName: "Build Kubernetes e2e.test"
+          - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
+            artifact: npm_k8s_windows
 
   - stage: publish
     displayName: Publish Multiarch Manifests
@@ -160,7 +189,132 @@ stages:
               os_versions: $(os_versions)
               platforms: $(platforms)
 
-## Cilium Overlay E2E (trimmed - only this stage for testing)
+## Windows E2E
+  - template: singletenancy/cniv1-template.yaml
+    parameters:
+      name: win22_cniv1
+      clusterType: cniv1-up
+      clusterName: "win22-cniv1"
+      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+      nodeCountWin: ${NODE_COUNT_WIN}
+      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+      vmSizeWin: ${VM_SIZE_WIN}
+      arch: amd64
+      os: windows
+      os_version: 'ltsc2022'
+      osSkuWin: 'Windows2022'
+      scaleup: ${SCALEUP_WIN}
+      iterations: ${ITERATIONS_WIN}
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: windows_podsubnet
+      clusterType: swift-byocni-up
+      clusterName: w22-podsub
+      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+      nodeCountWin: ${NODE_COUNT_WIN}
+      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+      vmSizeWin: ${VM_SIZE_WIN}
+      arch: amd64
+      os: windows
+      os_version: 'ltsc2022'
+      osSkuWin: 'Windows2022'
+      scaleup: ${SCALEUP_WIN}
+      iterations: ${ITERATIONS_WIN}
+      upgradeScenario: false
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: windows_overlay
+      clusterType: overlay-byocni-up
+      clusterName: w22-over
+      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+      nodeCountWin: ${NODE_COUNT_WIN}
+      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+      vmSizeWin: ${VM_SIZE_WIN}
+      arch: amd64
+      os: windows
+      os_version: 'ltsc2022'
+      osSkuWin: 'Windows2022'
+      scaleup: ${SCALEUP_WIN}
+      iterations: ${ITERATIONS_WIN}
+      upgradeScenario: false
+
+## Linux E2E
+  - template: singletenancy/cniv1-template.yaml
+    parameters:
+      name: linux_cniv1
+      clusterType: cniv1-up
+      clusterName: "linux-cniv1"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
+      os: linux
+      arch: amd64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: linux_podsubnet
+      clusterType: swift-byocni-up
+      clusterName: "linux-podsub"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
+      arch: amd64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+      upgradeScenario: false
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "linux-over"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
+      arch: amd64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+      upgradeScenario: false
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: mariner_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "mariner-over"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize:  ${VM_SIZE}
+      arch: amd64
+      osSKU: AzureLinux
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+      upgradeScenario: false
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: arm_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "arm-over"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: Standard_D8ps_v5
+      arch: arm64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+      upgradeScenario: false
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: rdma_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "rdma-over"
+      nodeCount: 2
+      vmSize: Standard_HC44-16rs
+      arch: amd64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+      upgradeScenario: false
+
+## Cilium E2E
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
       name: cilium_overlay
@@ -172,6 +326,321 @@ stages:
       cni: "cilium"
       upgradeScenario: false
 
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_overlay_hubble
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cil-over-hub"
+      hubbleEnabled: true
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: ${VM_SIZE_CILIUM}
+      arch: amd64
+      cni: "cilium"
+      upgradeScenario: false
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_overlay_mariner
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cil-over-mar"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: ${VM_SIZE_CILIUM}
+      arch: amd64
+      osSKU: AzureLinux
+      cni: "cilium"
+      upgradeScenario: false
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_overlay_arm
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cil-over-arm"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: Standard_D8ps_v5
+      arch: arm64
+      cni: "cilium"
+      upgradeScenario: false
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_overlay_rdma
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cil-over-rdma"
+      nodeCount: 2
+      vmSize: Standard_HC44-16rs
+      arch: amd64
+      cni: "cilium"
+      upgradeScenario: false
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_overlay_ds
+      clusterType: dualstack-byocni-nokubeproxy-up
+      clusterName: "cil-ds-ov"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: ${VM_SIZE_CILIUM}
+      arch: amd64
+      dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+      cni: "cilium_dualstack"
+      upgradeScenario: false
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_ds_arm
+      clusterType: dualstack-byocni-nokubeproxy-up
+      clusterName: "cil-ds-arm"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: Standard_D8ps_v5
+      arch: arm64
+      dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+      cni: "cilium_dualstack"
+      upgradeScenario: false
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_ds_mariner
+      clusterType: dualstack-byocni-nokubeproxy-up
+      clusterName: "cil-ds-mar"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: ${VM_SIZE_CILIUM}
+      arch: amd64
+      osSKU: AzureLinux
+      dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+      cni: "cilium_dualstack"
+      upgradeScenario: false
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_ds_rdma
+      clusterType: dualstack-byocni-nokubeproxy-up
+      clusterName: "cil-ds-rdma"
+      nodeCount: 2
+      vmSize: Standard_HC44-16rs
+      arch: amd64
+      dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+      cni: "cilium_dualstack"
+      upgradeScenario: false
+
+
+  ## If upgradeScenario is set, redeploy new IPAM/CNS version to existing clusters and run tests
+  - ${{if eq(parameters.upgradeScenario, true)}}:
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_overlay_upgrade
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cilium-over"
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: ${VM_SIZE_CILIUM}
+        arch: amd64
+        cni: "cilium"
+        upgradeScenario: true
+        dependsOn: cilium_overlay
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_overlay_hubble_upgrade
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cil-over-hub"
+        hubbleEnabled: true
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: ${VM_SIZE_CILIUM}
+        arch: amd64
+        cni: "cilium"
+        upgradeScenario: true
+        dependsOn: cilium_overlay_hubble
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_overlay_mariner_upgrade
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cil-over-mar"
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: ${VM_SIZE_CILIUM}
+        arch: amd64
+        osSKU: AzureLinux
+        cni: "cilium"
+        upgradeScenario: true
+        dependsOn: cilium_overlay_mariner
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_overlay_arm_upgrade
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cil-over-arm"
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: Standard_D8ps_v5
+        arch: arm64
+        cni: "cilium"
+        upgradeScenario: true
+        dependsOn: cilium_overlay_arm
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_overlay_rdma_upgrade
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cil-over-rdma"
+        nodeCount: 2
+        vmSize: Standard_HC44-16rs
+        arch: amd64
+        cni: "cilium"
+        upgradeScenario: true
+        dependsOn: cilium_overlay_rdma
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_overlay_ds_upgrade
+        clusterType: dualstack-byocni-nokubeproxy-up
+        clusterName: "cil-ds-ov"
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: ${VM_SIZE_CILIUM}
+        arch: amd64
+        dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+        cni: "cilium_dualstack"
+        upgradeScenario: true
+        dependsOn: cilium_overlay_ds
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_ds_arm_upgrade
+        clusterType: dualstack-byocni-nokubeproxy-up
+        clusterName: "cil-ds-arm"
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: Standard_D8ps_v5
+        arch: arm64
+        dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+        cni: "cilium_dualstack"
+        upgradeScenario: true
+        dependsOn: cilium_ds_arm
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_ds_mariner_upgrade
+        clusterType: dualstack-byocni-nokubeproxy-up
+        clusterName: "cil-ds-mar"
+        nodeCount: ${NODE_COUNT_CILIUM}
+        vmSize: ${VM_SIZE_CILIUM}
+        arch: amd64
+        osSKU: AzureLinux
+        dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+        cni: "cilium_dualstack"
+        upgradeScenario: true
+        dependsOn: cilium_ds_mariner
+
+    - template: cilium/cilium-overlay-load-test-template.yaml
+      parameters:
+        name: cilium_ds_rdma_upgrade
+        clusterType: dualstack-byocni-nokubeproxy-up
+        clusterName: "cil-ds-rdma"
+        nodeCount: 2
+        vmSize: Standard_HC44-16rs
+        arch: amd64
+        dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+        cni: "cilium_dualstack"
+        upgradeScenario: true
+        dependsOn: cilium_ds_rdma
+    
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: linux_podsubnet_upgrade
+        clusterType: swift-byocni-up
+        clusterName: "linux-podsub"
+        nodeCount: ${NODE_COUNT_LINUX}
+        vmSize: ${VM_SIZE}
+        arch: amd64
+        scaleup: ${SCALEUP_LINUX}
+        iterations: ${ITERATIONS_LINUX}
+        upgradeScenario: true
+        dependsOn: linux_podsubnet
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: linux_overlay_upgrade
+        clusterType: overlay-byocni-up
+        clusterName: "linux-over"
+        nodeCount: ${NODE_COUNT_LINUX}
+        vmSize: ${VM_SIZE}
+        arch: amd64
+        scaleup: ${SCALEUP_LINUX}
+        iterations: ${ITERATIONS_LINUX}
+        upgradeScenario: true
+        dependsOn: linux_overlay
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: mariner_linux_overlay_upgrade
+        clusterType: overlay-byocni-up
+        clusterName: "mariner-over"
+        nodeCount: ${NODE_COUNT_LINUX}
+        vmSize:  ${VM_SIZE}
+        arch: amd64
+        osSKU: AzureLinux
+        scaleup: ${SCALEUP_LINUX}
+        iterations: ${ITERATIONS_LINUX}
+        upgradeScenario: true
+        dependsOn: mariner_linux_overlay
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: arm_linux_overlay_upgrade
+        clusterType: overlay-byocni-up
+        clusterName: "arm-over"
+        nodeCount: ${NODE_COUNT_LINUX}
+        vmSize: Standard_D8ps_v5
+        arch: arm64
+        scaleup: ${SCALEUP_LINUX}
+        iterations: ${ITERATIONS_LINUX}
+        upgradeScenario: true
+        dependsOn: arm_linux_overlay
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: rdma_linux_overlay_upgrade
+        clusterType: overlay-byocni-up
+        clusterName: "rdma-over"
+        nodeCount: 2
+        vmSize: Standard_HC44-16rs
+        arch: amd64
+        scaleup: ${SCALEUP_LINUX}
+        iterations: ${ITERATIONS_LINUX}
+        upgradeScenario: true
+        dependsOn: rdma_linux_overlay
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: windows_podsubnet_upgrade
+        clusterType: swift-byocni-up
+        clusterName: w22-podsub
+        nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+        nodeCountWin: ${NODE_COUNT_WIN}
+        vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+        vmSizeWin: ${VM_SIZE_WIN}
+        arch: amd64
+        os: windows
+        os_version: 'ltsc2022'
+        osSkuWin: 'Windows2022'
+        scaleup: ${SCALEUP_WIN}
+        iterations: ${ITERATIONS_WIN}
+        upgradeScenario: true
+        dependsOn: windows_podsubnet_HNS
+
+    - template: singletenancy/cniv2-template.yaml
+      parameters:
+        name: windows_overlay_upgrade
+        clusterType: overlay-byocni-up
+        clusterName: w22-over
+        nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+        nodeCountWin: ${NODE_COUNT_WIN}
+        vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+        vmSizeWin: ${VM_SIZE_WIN}
+        arch: amd64
+        os: windows
+        os_version: 'ltsc2022'
+        osSkuWin: 'Windows2022'
+        scaleup: ${SCALEUP_WIN}
+        iterations: ${ITERATIONS_WIN}
+        upgradeScenario: true
+        dependsOn: windows_overlay_HNS
+
   - stage: delete_resources
     displayName: "Delete Resources"
     pool:
@@ -179,7 +648,43 @@ stages:
     condition: always()
     dependsOn:
       - cilium_overlay
+      - cilium_overlay_hubble
+      - cilium_overlay_mariner
+      - cilium_overlay_arm
+      - cilium_overlay_rdma
+      - cilium_overlay_ds
+      - cilium_ds_arm
+      - cilium_ds_mariner
+      - cilium_ds_rdma
+      - win22_cniv1_HNS
+      - linux_cniv1
+      - linux_podsubnet
+      - linux_overlay
+      - mariner_linux_overlay
+      - arm_linux_overlay
+      - rdma_linux_overlay
+      - windows_podsubnet_HNS
+      - windows_overlay_HNS
       - setup
+      - ${{if eq(parameters.upgradeScenario, true)}}:
+        - cilium_overlay_upgrade
+        - cilium_overlay_hubble_upgrade
+        - cilium_overlay_mariner_upgrade
+        - cilium_overlay_arm_upgrade
+        - cilium_overlay_rdma_upgrade
+        - cilium_overlay_ds_upgrade
+        - cilium_ds_arm_upgrade
+        - cilium_ds_mariner_upgrade
+        - cilium_ds_rdma_upgrade
+        - linux_podsubnet_upgrade
+        - linux_overlay_upgrade
+        - mariner_linux_overlay_upgrade
+        - arm_linux_overlay_upgrade
+        - rdma_linux_overlay_upgrade
+        - windows_podsubnet_upgrade
+        - windows_overlay_upgrade
+        - windows_podsubnet_upgrade_HNS
+        - windows_overlay_upgrade_HNS
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     jobs:
@@ -192,6 +697,57 @@ stages:
             cilium_overlay:
               name: cilium_overlay
               clusterName: "cilium-over"
+            cilium_overlay_hubble:
+               name: cilium_overlay_hubble
+               clusterName: "cil-over-hub"
+            cilium_overlay_mariner:
+              name: cilium_overlay_mariner
+              clusterName: "cil-over-mar"
+            cilium_overlay_arm:
+              name: cilium_overlay_arm
+              clusterName: "cil-over-arm"
+            cilium_overlay_rdma:
+              name: cilium_overlay_rdma
+              clusterName: "cil-over-rdma"
+            cilium_overlay_ds:
+              name: cilium_overlay_ds
+              clusterName: "cil-ds-ov"
+            cilium_ds_arm:
+              name: cilium_ds_arm
+              clusterName: "cil-ds-arm"
+            cilium_ds_mariner:
+              name: cilium_ds_mariner
+              clusterName: "cil-ds-mar"
+            cilium_ds_rdma:
+              name: cilium_ds_rdma
+              clusterName: "cil-ds-rdma"
+            win22-cniv1:
+              name: win22-cniv1
+              clusterName: "win22-cniv1"
+            linux_cniv1:
+              name: linux_cniv1
+              clusterName: "linux-cniv1"
+            linux_podsubnet:
+              name: linux_podsubnet
+              clusterName: "linux-podsub"
+            linux_overlay:
+              name: linux_overlay
+              clusterName: "linux-over"
+            mariner_linux_overlay:
+              name: mariner_linux_overlay
+              clusterName: "mariner-over"
+            arm_linux_overlay:
+              name: arm_linux_overlay
+              clusterName: "arm-over"
+            rdma_linux_overlay:
+              name: rdma_linux_overlay
+              clusterName: "rdma-over"
+            win-cniv2-podsubnet:
+              name: windows_podsubnet
+              clusterName: w22-podsub
+            win-cniv2-overlay:
+              name: windows_overlay
+              clusterName: w22-over
         steps:
           - task: AzureCLI@2
             inputs:

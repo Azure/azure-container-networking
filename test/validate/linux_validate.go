@@ -23,9 +23,7 @@ var (
 	azureVnetStateFileCmd       = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
 	azureVnetIpamStateCmd       = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
 	ciliumStateFileCmd          = []string{"cilium", "endpoint", "list", "-o", "json"}
-	// TEMP TEST BUG: "PendingProgramming" returns 0 IPs, causing state validation
-	// to fail with a realistic mismatch. Revert to "Assigned" before merge.
-	cnsCachedAssignedIPStateCmd = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"PendingProgramming\"]}"}
+	cnsCachedAssignedIPStateCmd = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
 )
 
 type stateFileIpsFunc func([]byte) (map[string]string, error)
