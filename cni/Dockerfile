@@ -56,11 +56,11 @@ COPY --from=dropgz /go/bin/dropgz dropgz
 ENTRYPOINT [ "/dropgz" ]
 
 # mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
-FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b as hpc
+FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b AS hpc
 
-FROM hpc as windows
-COPY --from=azure-vnet /go/bin/azure-vnet.exe /azure-vnet.exe
-COPY --from=azure-vnet /go/bin/azure-vnet-ipam.exe /azure-vnet-ipam.exe
-COPY --from=azure-vnet /go/bin/azure-vnet-telemetry.exe /azure-vnet-telemetry.exe
+FROM hpc AS windows
+COPY --from=azure-vnet /go/bin/azure-vnet /azure-vnet.exe
+COPY --from=azure-vnet /go/bin/azure-vnet-ipam /azure-vnet-ipam.exe
+COPY --from=azure-vnet /go/bin/azure-vnet-telemetry /azure-vnet-telemetry.exe
 COPY --from=azure-vnet /azure-container-networking/telemetry/azure-vnet-telemetry.config /azure-vnet-telemetry.config
 ENTRYPOINT [ "powershell.exe" ]
