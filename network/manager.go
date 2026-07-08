@@ -512,15 +512,25 @@ func (nm *networkManager) DeleteEndpoint(networkID, endpointID string, epInfo *E
 	return nil
 }
 
+// statelessDeleteMode returns the endpoint mode to use for a stateless DEL.
+// An empty mode defaults to transparent for backward compatibility; any
+// explicit mode (e.g. transparent-tunnel) is preserved so that the dispatcher
+// in deleteEndpointImpl reaches the correct endpoint client and its
+// mode-specific cleanup runs.
+func statelessDeleteMode(mode string) string {
+	if mode == "" {
+		return opModeTransparent
+	}
+	return mode
+}
+
 func (nm *networkManager) DeleteEndpointStateless(networkID string, epInfo *EndpointInfo, mode string) error {
 	// we want to always use hnsv2 in stateless
 	// hnsv2 is only enabled if NetNs has a valid guid and the hnsv2 api is supported
 	// by passing in a dummy guid, we satisfy the first condition
 
 	// Stateless DEL must preserve the requested mode so mode-specific cleanup runs.
-	if mode == "" {
-		mode = opModeTransparent
-	}
+	mode = statelessDeleteMode(mode)
 
 	nw := &network{
 		Id:           networkID, // currently unused in stateless cni

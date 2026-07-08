@@ -626,3 +626,40 @@ func TestCnsEndpointInfotoCNIEpInfos_Cases(t *testing.T) {
 		})
 	}
 }
+
+func TestStatelessDeleteMode(t *testing.T) {
+	cases := []struct {
+		name     string
+		mode     string
+		expected string
+	}{
+		{
+			name:     "empty mode defaults to transparent",
+			mode:     "",
+			expected: opModeTransparent,
+		},
+		{
+			name:     "transparent-tunnel mode is preserved",
+			mode:     opModeTransparentTunnel,
+			expected: opModeTransparentTunnel,
+		},
+		{
+			name:     "transparent mode is preserved",
+			mode:     opModeTransparent,
+			expected: opModeTransparent,
+		},
+		{
+			name:     "transparent-vlan mode is preserved",
+			mode:     opModeTransparentVlan,
+			expected: opModeTransparentVlan,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := statelessDeleteMode(tc.mode); got != tc.expected {
+				t.Errorf("statelessDeleteMode(%q) = %q, want %q", tc.mode, got, tc.expected)
+			}
+		})
+	}
+}
