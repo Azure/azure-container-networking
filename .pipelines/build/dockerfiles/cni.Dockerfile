@@ -7,6 +7,7 @@ FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-pr
 ARG ARTIFACT_DIR .
 
 COPY ${ARTIFACT_DIR}/bin/azure-vnet.exe /azure-vnet.exe
+COPY ${ARTIFACT_DIR}/bin/azure-vnet-stateless.exe /azure-vnet-stateless.exe
 COPY ${ARTIFACT_DIR}/bin/azure-vnet-ipam.exe /azure-vnet-ipam.exe
 COPY ${ARTIFACT_DIR}/bin/azure-vnet-telemetry.exe /azure-vnet-telemetry.exe
 COPY ${ARTIFACT_DIR}/files/azure-vnet-telemetry.config /azure-vnet-telemetry.config

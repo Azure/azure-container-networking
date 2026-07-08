@@ -60,6 +60,7 @@ FROM --platform=windows/${ARCH} {{.WIN_HPC_PIN}} AS hpc
 
 FROM hpc AS windows
 COPY --from=azure-vnet /go/bin/azure-vnet /azure-vnet.exe
+COPY --from=azure-vnet /go/bin/azure-vnet-stateless /azure-vnet-stateless.exe
 COPY --from=azure-vnet /go/bin/azure-vnet-ipam /azure-vnet-ipam.exe
 COPY --from=azure-vnet /go/bin/azure-vnet-telemetry /azure-vnet-telemetry.exe
 COPY --from=azure-vnet /azure-container-networking/telemetry/azure-vnet-telemetry.config /azure-vnet-telemetry.config

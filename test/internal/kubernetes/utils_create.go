@@ -457,8 +457,11 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				clusterRoleBindingPath: cnsClusterRoleBindingPath,
 				serviceAccountPath:     cnsServiceAccountPath,
 				initContainerArgs: []string{
-					"deploy",
-					"azure-vnet", "-o", "/k/azurecni/bin/azure-vnet.exe",
+					`New-Item -Path "C:/k/azurecni/bin" -ItemType Directory -Force | Out-Null;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-ipam.exe" -Destination "C:/k/azurecni/bin/azure-vnet-ipam.exe" -Force;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-telemetry.exe" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.exe" -Force;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-telemetry.config" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.config" -Force`,
 				},
 				initContainerName:  initContainerNameCNI,
 				configMapPath:      cnsSwiftWindowsConfigMapPath,
@@ -495,8 +498,11 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				clusterRoleBindingPath: cnsClusterRoleBindingPath,
 				serviceAccountPath:     cnsServiceAccountPath,
 				initContainerArgs: []string{
-					"deploy",
-					"azure-vnet-stateless", "-o", "/k/azurecni/bin/azure-vnet.exe",
+					`New-Item -Path "C:/k/azurecni/bin" -ItemType Directory -Force | Out-Null;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-stateless.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-ipam.exe" -Destination "C:/k/azurecni/bin/azure-vnet-ipam.exe" -Force;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-telemetry.exe" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.exe" -Force;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-telemetry.config" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.config" -Force`,
 				},
 				initContainerName:         initContainerNameCNI,
 				volumes:                   volumesForAzureCNIOverlayWindows(),
@@ -537,7 +543,7 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 					"deploy",
 					"azure-ipam", "-o", "/opt/cni/bin/azure-ipam",
 				},
-				initContainerName:  initContainerNameIPAM,
+				initContainerName:   initContainerNameIPAM,
 				configMapPath:       cnsNodeSubnetLinuxConfigMapPath,
 				installIPMasqAgent:  true,
 				useNodeSubnetIPMasq: true,
@@ -591,8 +597,11 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				clusterRoleBindingPath: cnsClusterRoleBindingPath,
 				serviceAccountPath:     cnsServiceAccountPath,
 				initContainerArgs: []string{
-					"deploy",
-					"azure-vnet", "-o", "/k/azurecni/bin/azure-vnet.exe",
+					`New-Item -Path "C:/k/azurecni/bin" -ItemType Directory -Force | Out-Null;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-ipam.exe" -Destination "C:/k/azurecni/bin/azure-vnet-ipam.exe" -Force;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-telemetry.exe" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.exe" -Force;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-telemetry.config" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.config" -Force`,
 				},
 				initContainerName:         initContainerNameCNI,
 				volumes:                   volumesForAzureCNIOverlayWindows(),
@@ -630,8 +639,11 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				clusterRoleBindingPath: cnsClusterRoleBindingPath,
 				serviceAccountPath:     cnsServiceAccountPath,
 				initContainerArgs: []string{
-					"deploy",
-					"azure-vnet", "-o", "/k/azurecni/bin/azure-vnet.exe",
+					`New-Item -Path "C:/k/azurecni/bin" -ItemType Directory -Force | Out-Null;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-ipam.exe" -Destination "C:/k/azurecni/bin/azure-vnet-ipam.exe" -Force;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-telemetry.exe" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.exe" -Force;` +
+						` Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-telemetry.config" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.config" -Force`,
 				},
 				initContainerName:         initContainerNameCNI,
 				volumes:                   volumesForAzureCNIOverlayWindows(),
