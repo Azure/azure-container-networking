@@ -35,6 +35,10 @@ stages:
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
+          - task: GoTool@0
+            inputs:
+              version: '1.26'
+            displayName: "Install Go"
           - template: ../../templates/cilium-cli.yaml
           - task: AzureCLI@2
             inputs:

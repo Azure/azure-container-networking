@@ -130,6 +130,10 @@ stages:
       - job: integration
         displayName: "Integration Test - ${{ parameters.name }}"
         steps:
+          - task: GoTool@0
+            inputs:
+              version: '1.26'
+            displayName: "Install Go"
           - ${{ if contains(parameters.clusterType, 'overlay') }}:
             - task: AzureCLI@2
               inputs:

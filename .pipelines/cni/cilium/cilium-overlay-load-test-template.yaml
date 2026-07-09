@@ -148,6 +148,10 @@ stages:
         displayName: "Deploy CNS and IPAM"
         dependsOn: deploy_cilium_components
         steps:
+          - task: GoTool@0
+            inputs:
+              version: '1.26'
+            displayName: "Install Go"
           - task: AzureCLI@2
             displayName: "Install CNS and IPAM"
             inputs:
