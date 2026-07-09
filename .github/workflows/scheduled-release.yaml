@@ -2,7 +2,8 @@
 # Handles: dependabot PR collection, vuln checks, tag creation, pipeline validation,
 # release channel posting, and R2D draft preparation.
 #
-# Trigger: First Friday of every month at 14:00 UTC + manual dispatch
+# Trigger: Every Friday at 14:00/14:15 UTC (check_cadence gates to first Friday)
+# Branches: release/v1.7 (14:00) and master (14:15) + manual dispatch
 #
 # ─── Teams Notification Dependency ───────────────────────────────────────────
 # Teams messages are sent via the acn-notifier-bot Azure Function App,
