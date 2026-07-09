@@ -28,7 +28,7 @@ RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet-ipam -trimpath -ldf
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-vnet-stateless -trimpath -ldflags "-s -w -X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/network/stateless/main.go
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-cni-telemetry-sidecar -trimpath -ldflags "-s -w -X main.version="$VERSION" -X "$CNI_AI_PATH"="$CNI_AI_ID"" -gcflags="-dwarflocationlists=true" ./cns/cni-telemetry-sidecar
 
-FROM mariner-core AS compressor
+FROM mariner-core AS payload
 ARG OS
 WORKDIR /payload
 COPY --from=azure-vnet /go/bin/* /payload/
@@ -40,6 +40,8 @@ COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay-d
 COPY --from=azure-vnet /azure-container-networking/cni/azure-windows-multitenancy.conflist /payload/azure-multitenancy.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-chained-cilium.conflist /payload/azure-chained-cilium.conflist
 COPY --from=azure-vnet /azure-container-networking/telemetry/azure-vnet-telemetry.config /payload/azure-vnet-telemetry.config
+
+FROM payload AS compressor
 RUN cd /payload && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive /payload && for f in /payload/*.gz; do mv -- "$f" "${f%%.gz}"; done
 
@@ -61,8 +63,14 @@ COPY --from=dropgz /go/bin/dropgz /dropgz
 ENTRYPOINT [ "/dropgz" ]
 
 # mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
-FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b as hpc
+FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b AS hpc
 
-FROM hpc as windows
-COPY --from=dropgz /go/bin/dropgz dropgz.exe
-ENTRYPOINT [ "/dropgz.exe" ]
+FROM hpc AS windows
+COPY --from=azure-vnet /go/bin/azure-vnet /azure-vnet.exe
+COPY --from=azure-vnet /go/bin/azure-vnet-stateless /azure-vnet-stateless.exe
+COPY --from=azure-vnet /go/bin/azure-vnet-ipam /azure-vnet-ipam.exe
+COPY --from=azure-vnet /go/bin/azure-vnet-telemetry /azure-vnet-telemetry.exe
+COPY --from=azure-vnet /go/bin/azure-cni-telemetry-sidecar /azure-cni-telemetry-sidecar.exe
+COPY --from=payload /payload/*.conflist /
+COPY --from=payload /payload/azure-vnet-telemetry.config /azure-vnet-telemetry.config
+ENTRYPOINT [ "powershell.exe" ]
