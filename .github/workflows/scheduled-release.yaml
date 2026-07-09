@@ -18,7 +18,7 @@ name: Scheduled Release
 
 on:
   schedule:
-    # First Friday of every month — staggered by 15 min per branch
+    # Every Friday at 14:00/14:15 UTC — check_cadence job gates to first Friday only
     - cron: "0 14 * * 5"   # release/v1.7
     - cron: "15 14 * * 5"  # master
   workflow_dispatch:
