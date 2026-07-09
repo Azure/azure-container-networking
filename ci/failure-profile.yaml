@@ -1,0 +1,89 @@
+# Copy this file into a consuming repo (for example, ci/failure-profile.yaml)
+# and pass it to the shared failure-analysis-agent with:
+#
+#   --profile ci/failure-profile.yaml
+#
+# Omit sections that do not differ from the embedded ACN default. The engine's
+# safety rules are not configurable: live diagnostics are policy-gated read-only
+# by default, privileged diagnostics require explicit opt-in, and retention
+# decisions remain advisory only.
+
+branding:
+  reportTitle: "ACN Pipeline Failure Analysis"
+  commentMarkerPrefix: "acn-failure-agent"
+  reportFile: "report.md"
+  incidentFile: "incident.json"
+
+prompt:
+  analystPersona: "an expert Azure Container Networking (ACN) CI failure analyst"
+
+signatures:
+  # Relative paths resolve relative to THIS file (ci/failure-profile.yaml),
+  # so this points at ci/failure-signatures.yaml.
+  defaultPath: "failure-signatures.yaml"
+
+env:
+  # Each list is tried in order; the first non-empty variable wins.
+  # Replace these with your CI system's variable names.
+  pipelineName: ["BUILD_DEFINITIONNAME"]
+  buildID: ["BUILD_BUILDID"]
+  buildNumber: ["BUILD_BUILDNUMBER"]
+  # BUILD_REPOSITORY_NAME is already "Azure/azure-container-networking" (owner/repo)
+  # for this GitHub-backed pipeline, so GitHub PR-comment upsert resolves correctly.
+  # GITHUB_REPOSITORY is an optional custom ADO var kept as an explicit override/fallback.
+  repository: ["GITHUB_REPOSITORY", "BUILD_REPOSITORY_NAME"]
+  stageName: ["SYSTEM_STAGEDISPLAYNAME", "SYSTEM_STAGENAME"]
+  jobName: ["SYSTEM_JOBDISPLAYNAME", "SYSTEM_JOBNAME"]
+  pullRequestNumber: ["SYSTEM_PULLREQUEST_PULLREQUESTNUMBER"]
+  sourceBranch: ["SYSTEM_PULLREQUEST_SOURCEBRANCH"]
+  targetBranch: ["SYSTEM_PULLREQUEST_TARGETBRANCH"]
+  sourceCommitID: ["SYSTEM_PULLREQUEST_SOURCECOMMITID"]
+  commitID: ["commitID", "BUILD_SOURCEVERSION"]
+  buildReason: ["BUILD_REASON"]
+  isPRReason: "PullRequest"
+
+diagnostics:
+  # Fixed, read-only kubectl commands only. These run when the CLI is invoked
+  # with --live=true. No mutating verbs, no shell expansion.
+  - name: pods
+    argv: ["kubectl", "get", "pods", "-A", "-o", "wide"]
+  - name: nodes
+    argv: ["kubectl", "get", "nodes", "-o", "wide"]
+  - name: describe-nodes
+    argv: ["kubectl", "describe", "nodes"]
+  - name: cns-logs
+    argv: ["kubectl", "logs", "-n", "kube-system", "-l", "k8s-app=azure-cns", "--tail=1000", "--prefix", "--all-containers"]
+  - name: events
+    argv: ["kubectl", "get", "events", "-A", "--sort-by=.lastTimestamp"]
+
+privilegedDiagnostics:
+  # These run ONLY when the CLI is invoked with BOTH --live=true AND
+  # --privileged=true. Each entry attaches an ephemeral debug pod to a node via
+  # `kubectl debug node/{{node}}`; {{node}} is replaced with each discovered node
+  # name. Only include approved, read-only, BOUNDED payloads against a trusted
+  # debug image. Do not enable --privileged unless host-level log collection is
+  # the explicit intent of the test.
+  - name: host-syslog-tail
+    argv:
+      - "kubectl"
+      - "debug"
+      - "{{node}}"
+      - "--image=mcr.microsoft.com/cbl-mariner/busybox:2.0"
+      - "--quiet"
+      - "--"
+      - "tail"
+      - "-c"
+      - "200000"
+      - "/host/var/log/syslog"
+  - name: host-azure-cni-log-tail
+    argv:
+      - "kubectl"
+      - "debug"
+      - "{{node}}"
+      - "--image=mcr.microsoft.com/cbl-mariner/busybox:2.0"
+      - "--quiet"
+      - "--"
+      - "tail"
+      - "-c"
+      - "200000"
+      - "/host/var/log/azure-vnet.log"

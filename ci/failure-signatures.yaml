@@ -1,0 +1,83 @@
+# ACN CI failure signatures.
+#
+# Referenced by ci/failure-profile.yaml -> signatures.defaultPath
+# ("failure-signatures.yaml", resolved relative to that profile).
+#
+# Schema (per the shared failure-analysis-agent in One/Networking-ACN-Agent):
+#   Required:
+#     id          - unique signature id
+#     category    - one of: pr_regression | cluster_bringup_failure |
+#                   pipeline_infra_config | known_flake | unknown_needs_human
+#     confidence  - float in [0, 1]
+#     anyOf       - list of Go regexes; a match on ANY entry fires the signature.
+#                   Use (?i) for case-insensitive matching.
+#   Optional (surfaced in reports):
+#     description
+#     owner
+#     recommendation
+
+signatures:
+  - id: cns-crashloop
+    category: cluster_bringup_failure
+    confidence: 0.8
+    description: azure-cns pods are restarting or crashing during bringup.
+    owner: acn-cns
+    recommendation: >-
+      Inspect azure-cns logs, the CNS ConfigMap, and node readiness. Confirm the
+      NNC is present and reconciled before attributing this to the test itself.
+    anyOf:
+      - "(?i)azure-cns.*(crashloopbackoff|panic|fatal)"
+      - "(?i)failed to start cns"
+
+  - id: cni-add-failure
+    category: pr_regression
+    confidence: 0.7
+    description: Pod networking setup failed at CNI ADD (IPAM/NC assignment).
+    owner: acn-cni
+    recommendation: >-
+      Check azure-vnet logs on the node and CNS IPAM pool state for exhaustion or
+      missing NC assignment. Correlate with recent CNI/CNS changes in the PR.
+    anyOf:
+      - "(?i)failed to allocate.*ip"
+      - "(?i)no available ip"
+      - "(?i)cni add.*failed"
+      - "(?i)plugin type=\"azure-vnet\".*failed"
+
+  - id: node-not-ready
+    category: cluster_bringup_failure
+    confidence: 0.65
+    description: One or more nodes went NotReady, invalidating networking assertions.
+    owner: acn-e2e
+    recommendation: >-
+      Correlate with kubelet/containerd restarts and host logs. If nodes never
+      reached Ready, treat as a bringup/infra failure rather than a regression.
+    anyOf:
+      - "(?i)nodenotready"
+      - "(?i)node.*status is now: nodenotready"
+      - "(?i)nodes? .* not ready"
+
+  - id: image-pull-failure
+    category: pipeline_infra_config
+    confidence: 0.85
+    description: A required image could not be pulled (registry/tag/access issue).
+    owner: acn-infra
+    recommendation: >-
+      Verify the image tag exists and the agent has ACR/registry access. Usually
+      an infra/config issue, not a networking regression.
+    anyOf:
+      - "(?i)imagepullbackoff"
+      - "(?i)errimagepull"
+      - "(?i)failed to pull image"
+
+  - id: aks-cluster-create-failure
+    category: cluster_bringup_failure
+    confidence: 0.7
+    description: AKS cluster creation or credential retrieval failed before tests ran.
+    owner: acn-infra
+    recommendation: >-
+      Check the create-cluster / set-kubeconf steps and Azure quota/region
+      availability. No test signal is expected when bringup fails.
+    anyOf:
+      - "(?i)operation failed with status.*conflict"
+      - "(?i)(az aks create|get-credentials).*(failed|error)"
+      - "(?i)quotaexceeded"

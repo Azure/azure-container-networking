@@ -21,6 +21,17 @@ parameters:
   os: ""
   cni: ""
   jobName: "FailedE2ELogs"
+  # Failure-analysis-agent wiring. Runs in-place in each E2E stage's failure job,
+  # while the cluster is still alive and kubeconfig is already set, against the
+  # evidence bundle just collected into $(acnLogs). Set runFailureAnalysis: false
+  # on a specific call to opt a scenario out.
+  runFailureAnalysis: true
+  live: true
+  privileged: true
+  agentProject: "One"
+  agentRepo: "Networking-ACN-Agent"
+  agentRef: "amaro/failure-analysis-agent"
+  goVersion: "1.24.1"
 
 steps:
   - task: AzureCLI@2
@@ -136,6 +147,55 @@ steps:
         acnLogs=$(acnLogs) cni=${{ parameters.cni }} bash collect-windows-logs.sh
       displayName: Windows Logs
       condition: always()
+
+  # -- Failure analysis (live) --
+  # Runs only on failure log collection. The cluster is still alive here (delete
+  # is a later stage that depends on this E2E stage), kubeconfig is already set by
+  # the Kube-System Logs step above, and $(acnLogs) holds the evidence bundle.
+  # Every step is continueOnError so analysis never fails the CI failure job.
+  - ${{ if and(eq(parameters.runFailureAnalysis, true), eq(parameters.logType, 'failure')) }}:
+    - task: GoTool@0
+      inputs:
+        version: "${{ parameters.goVersion }}"
+      displayName: "Failure Analysis - Install Go"
+      condition: always()
+      continueOnError: true
+
+    - bash: |
+        set -euo pipefail
+        AGENT_DIR="$(Agent.TempDirectory)/acn-failure-agent"
+        rm -rf "$AGENT_DIR"
+        git -c http.extraheader="AUTHORIZATION: bearer ${SYSTEM_ACCESSTOKEN}" \
+          clone --depth 1 --branch "${{ parameters.agentRef }}" \
+          "$(System.CollectionUri)${{ parameters.agentProject }}/_git/${{ parameters.agentRepo }}" \
+          "$AGENT_DIR"
+      displayName: "Failure Analysis - Fetch shared agent"
+      condition: always()
+      continueOnError: true
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+    - bash: |
+        set -euo pipefail
+        AGENT_DIR="$(Agent.TempDirectory)/acn-failure-agent"
+        OUT="$(acnLogs)/failure-analysis"
+        mkdir -p "$OUT"
+        cd "$AGENT_DIR/agents/failure-analysis-agent"
+        go run . \
+          --profile "$(Build.SourcesDirectory)/ci/failure-profile.yaml" \
+          --input "$(acnLogs)" \
+          --output "$OUT" \
+          --live=${{ lower(parameters.live) }} \
+          --privileged=${{ lower(parameters.privileged) }}
+      displayName: "Failure Analysis - Run agent (live)"
+      condition: always()
+      continueOnError: true
+      env:
+        AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+        AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
+        AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
+        AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
+        GITHUB_TOKEN: $(GITHUB_TOKEN)
 
   - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
     condition: always()
