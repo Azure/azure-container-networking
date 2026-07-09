@@ -204,7 +204,8 @@ func (g *GitHubCommentStore) doComments(req *http.Request) ([]ghComment, error) 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("github api %s: %s", resp.Status, strings.TrimSpace(string(data)))
 	}
-	if len(bytes.TrimSpace(data)) == 0 {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 {
 		return nil, nil
 	}
 

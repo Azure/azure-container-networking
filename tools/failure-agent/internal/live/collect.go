@@ -99,8 +99,10 @@ func Merge(ev model.Evidence, r Result) model.Evidence {
 
 func liveNames(r Result) []string {
 	names := make([]string, 0, len(r.Outputs))
-	for name := range r.Outputs {
-		names = append(names, "live/"+name)
+	for _, d := range diagnostics {
+		if _, ok := r.Outputs[d.name]; ok {
+			names = append(names, "live/"+d.name)
+		}
 	}
 	return names
 }

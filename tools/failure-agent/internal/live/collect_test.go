@@ -80,3 +80,64 @@ func TestMergeFoldsLiveEvidenceWithoutMutating(t *testing.T) {
 		t.Error("expected original excerpts preserved")
 	}
 }
+
+func TestLiveNamesOrderIsDeterministic(t *testing.T) {
+	// Build a Result with outputs keyed in arbitrary (non-diagnostics) order.
+	res := Result{Outputs: map[string]string{
+		"events":          "ev",
+		"pods":            "po",
+		"nodes":           "no",
+		"daemonsets":      "ds",
+		"cns-logs":        "cl",
+		"cilium-logs":     "ci",
+		"node-conditions": "nc",
+	}}
+
+	// Run liveNames multiple times and confirm order is always the same.
+	first := liveNames(res)
+	for i := 0; i < 20; i++ {
+		got := liveNames(res)
+		if len(got) != len(first) {
+			t.Fatalf("iteration %d: length mismatch %d vs %d", i, len(got), len(first))
+		}
+		for j := range first {
+			if got[j] != first[j] {
+				t.Fatalf("iteration %d: index %d differs: %q vs %q", i, j, got[j], first[j])
+			}
+		}
+	}
+
+	// Confirm the order follows the diagnostics slice.
+	expected := []string{
+		"live/pods",
+		"live/nodes",
+		"live/node-conditions",
+		"live/events",
+		"live/daemonsets",
+		"live/cns-logs",
+		"live/cilium-logs",
+	}
+	if len(first) != len(expected) {
+		t.Fatalf("expected %d names, got %d", len(expected), len(first))
+	}
+	for i, want := range expected {
+		if first[i] != want {
+			t.Errorf("index %d: got %q, want %q", i, first[i], want)
+		}
+	}
+}
+
+func TestLiveNamesExcludesMissingDiagnostics(t *testing.T) {
+	// Only a subset of diagnostics has output.
+	res := Result{Outputs: map[string]string{
+		"pods":  "po",
+		"nodes": "no",
+	}}
+	names := liveNames(res)
+	if len(names) != 2 {
+		t.Fatalf("expected 2 names, got %d: %v", len(names), names)
+	}
+	if names[0] != "live/pods" || names[1] != "live/nodes" {
+		t.Errorf("unexpected order: %v", names)
+	}
+}

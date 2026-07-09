@@ -100,7 +100,7 @@ jobs:
 
           INPUT_DIR="$(Agent.TempDirectory)/evidence"
           OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
-          mkdir -p "$OUTPUT_DIR"
+          mkdir -p "$INPUT_DIR" "$OUTPUT_DIR"
 
           if [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || [ -z "${AZURE_OPENAI_DEPLOYMENT:-}" ]; then
             echo "##[warning]Azure OpenAI credentials not configured; the agent will emit an analysis_failed incident preserving raw evidence."
