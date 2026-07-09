@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/fingerprint"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/live"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/model"
+	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/notify"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/publish"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/report"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/signatures"
@@ -36,10 +37,12 @@ import (
 )
 
 const (
-	defaultSignaturesPath = "signatures/signatures.yaml"
-	defaultAOAIAPIVersion = "2024-10-21"
-	defaultTimeout        = 90 * time.Second
-	publishTimeout        = 30 * time.Second
+	defaultSignaturesPath     = "signatures/signatures.yaml"
+	defaultAOAIAPIVersion     = "2024-10-21"
+	defaultTimeout            = 90 * time.Second
+	publishTimeout            = 30 * time.Second
+	teamsTimeout              = 15 * time.Second
+	defaultTeamsMinConfidence = 0.75
 )
 
 type options struct {
@@ -65,6 +68,22 @@ type options struct {
 	live            bool
 	privileged      bool
 	flakinessOutput string
+
+	teamsWebhookURL    string
+	teamsMinConfidence float64
+	teamsMentionUPN    string
+	teamsMentionName   string
+
+	// Graph API delivery (alternative when webhooks are DLP-blocked).
+	teamsGraphTenantID     string
+	teamsGraphClientID     string
+	teamsGraphClientSecret string
+	teamsGraphChatID       string
+	teamsGraphTeamID       string
+	teamsGraphChannelID    string
+
+	// TEMP: delegated token path (short-lived demo when app consent is pending).
+	teamsGraphToken string
 }
 
 func main() {
@@ -126,6 +145,18 @@ func parseFlags() options {
 	flag.BoolVar(&o.live, "live", true, "collect read-only kubectl diagnostics from the retained cluster (requires kubectl + KUBECONFIG)")
 	flag.BoolVar(&o.privileged, "privileged", true, "collect host-level logs via kubectl debug node (requires --live; creates ephemeral debug pods)")
 	flag.StringVar(&o.flakinessOutput, "flakiness-output", "", "write the knowledge-store flakiness report to this path")
+	flag.StringVar(&o.teamsWebhookURL, "teams-webhook-url", os.Getenv("TEAMS_WEBHOOK_URL"), "Teams incoming webhook / Power Automate workflow URL for confident-analysis alerts (or TEAMS_WEBHOOK_URL); empty disables Teams notifications")
+	flag.Float64Var(&o.teamsMinConfidence, "teams-min-confidence", envFloatOrDefault("TEAMS_MIN_CONFIDENCE", defaultTeamsMinConfidence), "minimum confidence (0-1) required to send a Teams alert (or TEAMS_MIN_CONFIDENCE)")
+	flag.StringVar(&o.teamsMentionUPN, "teams-mention-upn", os.Getenv("TEAMS_MENTION_UPN"), "AAD userPrincipalName to @mention in the Teams alert (or TEAMS_MENTION_UPN); requires --teams-mention-name")
+	flag.StringVar(&o.teamsMentionName, "teams-mention-name", os.Getenv("TEAMS_MENTION_NAME"), "display name for the Teams @mention (or TEAMS_MENTION_NAME); requires --teams-mention-upn")
+	// Graph API delivery (alternative when DLP blocks incoming webhooks / Power Automate triggers).
+	flag.StringVar(&o.teamsGraphTenantID, "teams-graph-tenant-id", os.Getenv("TEAMS_GRAPH_TENANT_ID"), "AAD tenant ID for Graph API delivery (or TEAMS_GRAPH_TENANT_ID)")
+	flag.StringVar(&o.teamsGraphClientID, "teams-graph-client-id", os.Getenv("TEAMS_GRAPH_CLIENT_ID"), "App registration client ID for Graph API (or TEAMS_GRAPH_CLIENT_ID)")
+	flag.StringVar(&o.teamsGraphClientSecret, "teams-graph-client-secret", os.Getenv("TEAMS_GRAPH_CLIENT_SECRET"), "App registration client secret for Graph API (or TEAMS_GRAPH_CLIENT_SECRET)")
+	flag.StringVar(&o.teamsGraphChatID, "teams-graph-chat-id", os.Getenv("TEAMS_GRAPH_CHAT_ID"), "Teams chat ID for Graph API delivery (or TEAMS_GRAPH_CHAT_ID); for 1:1 or group chats")
+	flag.StringVar(&o.teamsGraphTeamID, "teams-graph-team-id", os.Getenv("TEAMS_GRAPH_TEAM_ID"), "Teams team ID for Graph API channel delivery (or TEAMS_GRAPH_TEAM_ID)")
+	flag.StringVar(&o.teamsGraphChannelID, "teams-graph-channel-id", os.Getenv("TEAMS_GRAPH_CHANNEL_ID"), "Teams channel ID for Graph API channel delivery (or TEAMS_GRAPH_CHANNEL_ID)")
+	flag.StringVar(&o.teamsGraphToken, "teams-graph-token", os.Getenv("TEAMS_GRAPH_TOKEN"), "TEMP: pre-obtained delegated access token for Graph API (or TEAMS_GRAPH_TOKEN)")
 	flag.Parse()
 	return o
 }
@@ -243,6 +274,8 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 		zap.Int("signatureMatches", len(matches)),
 		zap.String("report", filepath.Join(opts.output, report.MarkdownFile)),
 	)
+
+	notifyTeams(ctx, logger, opts, inc)
 
 	if !opts.dryRun {
 		if err := publishToPR(ctx, logger, rc, fp, inc); err != nil {
@@ -532,6 +565,76 @@ func publishToPR(ctx context.Context, logger *zap.Logger, rc model.RunContext, f
 	return nil
 }
 
+// notifyTeams sends a Teams alert when a webhook is configured and the incident
+// clears the confidence gate (analyzed + confidence >= threshold + proposed fix).
+// It runs independently of --dry-run so a real alert still fires, and never fails
+// the run: delivery problems are logged as warnings.
+func notifyTeams(ctx context.Context, logger *zap.Logger, opts options, inc model.Incident) {
+	notifier := buildTeamsNotifier(opts)
+	if notifier == nil {
+		return
+	}
+	if !notify.ShouldNotify(inc, opts.teamsMinConfidence) {
+		logger.Info("skipping teams notification; incident did not clear the confidence gate",
+			zap.String("event", "teams_skipped"),
+			zap.String("status", string(inc.AnalysisStatus)),
+			zap.Float64("confidence", inc.Confidence),
+			zap.Float64("threshold", opts.teamsMinConfidence),
+			zap.Bool("hasProposedFix", strings.TrimSpace(inc.ProposedFix) != ""),
+		)
+		return
+	}
+
+	payload := notify.RenderCard(inc, notify.Mention{
+		UPN:  opts.teamsMentionUPN,
+		Name: opts.teamsMentionName,
+	})
+
+	notifyCtx, cancel := context.WithTimeout(ctx, teamsTimeout)
+	defer cancel()
+
+	if err := notifier.Send(notifyCtx, payload); err != nil {
+		logger.Warn("failed to send teams notification", zap.Error(err))
+		return
+	}
+	logger.Info("teams notification sent",
+		zap.String("event", "teams_notified"),
+		zap.Float64("confidence", inc.Confidence),
+		zap.String("fingerprint", inc.Fingerprint),
+	)
+}
+
+// buildTeamsNotifier returns the configured notifier or nil when no delivery
+// method is configured. Graph API takes priority over webhook when both are set.
+func buildTeamsNotifier(opts options) notify.Notifier {
+	// TEMP: pre-obtained delegated user token (highest priority for demo).
+	if opts.teamsGraphToken != "" && opts.teamsGraphChatID != "" {
+		return notify.DelegatedTokenNotifier{
+			Token:  opts.teamsGraphToken,
+			ChatID: opts.teamsGraphChatID,
+		}
+	}
+	// Prefer Graph API client_credentials (works when DLP blocks webhooks).
+	if opts.teamsGraphTenantID != "" && opts.teamsGraphClientID != "" && opts.teamsGraphClientSecret != "" {
+		cfg := notify.GraphConfig{
+			TenantID:     opts.teamsGraphTenantID,
+			ClientID:     opts.teamsGraphClientID,
+			ClientSecret: opts.teamsGraphClientSecret,
+			ChatID:       opts.teamsGraphChatID,
+			TeamID:       opts.teamsGraphTeamID,
+			ChannelID:    opts.teamsGraphChannelID,
+		}
+		if cfg.ChatID != "" || (cfg.TeamID != "" && cfg.ChannelID != "") {
+			return notify.GraphNotifier{Config: cfg}
+		}
+	}
+	// Fall back to webhook.
+	if strings.TrimSpace(opts.teamsWebhookURL) != "" {
+		return notify.WebhookNotifier{URL: opts.teamsWebhookURL}
+	}
+	return nil
+}
+
 func applyOverrides(rc *model.RunContext, opts options) {
 	if opts.pipeline != "" {
 		rc.PipelineName = opts.pipeline
@@ -568,6 +671,15 @@ func loadSignatures(logger *zap.Logger, path string) (*signatures.Set, error) {
 func envOrDefault(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+func envFloatOrDefault(key string, fallback float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
 	}
 	return fallback
 }

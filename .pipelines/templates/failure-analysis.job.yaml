@@ -146,6 +146,21 @@ jobs:
           AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
           AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
           GITHUB_TOKEN: $(GITHUB_TOKEN)
+          # Teams alert: when set, the agent pings on confident analysis
+          # (analyzed + confidence >= TEAMS_MIN_CONFIDENCE + a proposed fix).
+          # Leave TEAMS_WEBHOOK_URL empty to disable Teams notifications.
+          TEAMS_WEBHOOK_URL: $(TEAMS_WEBHOOK_URL)
+          TEAMS_MIN_CONFIDENCE: $(TEAMS_MIN_CONFIDENCE)
+          TEAMS_MENTION_UPN: $(TEAMS_MENTION_UPN)
+          TEAMS_MENTION_NAME: $(TEAMS_MENTION_NAME)
+          # Graph API delivery (alternative when DLP blocks webhooks).
+          TEAMS_GRAPH_TENANT_ID: $(TEAMS_GRAPH_TENANT_ID)
+          TEAMS_GRAPH_CLIENT_ID: $(TEAMS_GRAPH_CLIENT_ID)
+          TEAMS_GRAPH_CLIENT_SECRET: $(TEAMS_GRAPH_CLIENT_SECRET)
+          TEAMS_GRAPH_CHAT_ID: $(TEAMS_GRAPH_CHAT_ID)
+          TEAMS_GRAPH_TEAM_ID: $(TEAMS_GRAPH_TEAM_ID)
+          TEAMS_GRAPH_CHANNEL_ID: $(TEAMS_GRAPH_CHANNEL_ID)
+          TEAMS_GRAPH_TOKEN: $(TEAMS_GRAPH_TOKEN)
 
       - script: |
           set -euo pipefail

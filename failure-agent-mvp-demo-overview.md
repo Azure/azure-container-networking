@@ -36,6 +36,7 @@ This is not only a post-error log summarizer. The agent is positioned between pi
 | Azure OpenAI LLM analysis | Enabled | Produces summary, root cause, confidence, and proposed fix. |
 | Report artifacts | Enabled | Writes `report.md` and `incident.json`. |
 | GitHub PR upsert | Enabled | Posts or updates PR comment when `GITHUB_TOKEN` is available and dry-run is false. |
+| Teams confident-analysis alert | Enabled | Pings via a Teams webhook when analysis succeeds, confidence ≥ threshold (default 0.75), and a proposed fix exists. Optional `@mention`. No-op when `TEAMS_WEBHOOK_URL` is unset. |
 
 ### Implemented but disabled for MVP
 
@@ -314,6 +315,19 @@ GITHUB_TOKEN
 KUBECONFIG or pipeline cluster access
 failedE2ELogs artifact
 ```
+
+Optional (for the Teams confident-analysis ping):
+
+```text
+TEAMS_WEBHOOK_URL      # Teams incoming webhook / Power Automate workflow URL (secret); empty disables the ping
+TEAMS_MIN_CONFIDENCE   # minimum confidence to ping, default 0.75
+TEAMS_MENTION_UPN      # AAD userPrincipalName to @mention (optional; requires TEAMS_MENTION_NAME)
+TEAMS_MENTION_NAME     # display name for the @mention (optional; requires TEAMS_MENTION_UPN)
+```
+
+The Teams alert fires only when analysis succeeded, `confidence >= TEAMS_MIN_CONFIDENCE`,
+and the agent produced a proposed fix — so low-confidence or diagnosis-only runs stay
+quiet. It runs independently of `--dry-run` (that flag only suppresses PR write-back).
 
 The MVP intentionally does not require:
 
