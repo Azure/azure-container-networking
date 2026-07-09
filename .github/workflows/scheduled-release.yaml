@@ -18,8 +18,9 @@ name: Scheduled Release
 
 on:
   schedule:
-    # First Friday of every month at 14:00 UTC
-    - cron: "0 14 * * 5"
+    # First Friday of every month — staggered by 15 min per branch
+    - cron: "0 14 * * 5"   # release/v1.7
+    - cron: "15 14 * * 5"  # master
   workflow_dispatch:
     inputs:
       release_branch:
@@ -47,7 +48,7 @@ on:
         type: boolean
 
 concurrency:
-  group: scheduled-release-${{ inputs.release_branch || 'release/v1.7' }}
+  group: scheduled-release-${{ inputs.release_branch || (github.event.schedule == '15 14 * * 5' && 'master') || 'release/v1.7' }}
   cancel-in-progress: false
 
 permissions:
@@ -55,7 +56,8 @@ permissions:
   pull-requests: read
 
 env:
-  RELEASE_BRANCH: ${{ inputs.release_branch || 'release/v1.7' }}
+  # Map cron schedules to branches: 14:00 → release/v1.7, 14:15 → master
+  RELEASE_BRANCH: ${{ inputs.release_branch || (github.event.schedule == '15 14 * * 5' && 'master') || 'release/v1.7' }}
   MAX_PIPELINE_RETRIES: 5
   NOTIFIER_URL: https://acn-notifier-bot.azurewebsites.net
   NOTIFIER_AUDIENCE: api://3976eca5-3f9d-4528-987f-c20c1f9f27f7
