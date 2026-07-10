@@ -142,9 +142,10 @@ stages:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           steps:
             - template: templates/disk-cleanup.steps.yaml
-            - script: |
-                .pipelines/build/scripts/install-crane.sh
+            - task: ShellScript@2
               displayName: "Install crane"
+              inputs:
+                scriptPath: .pipelines/build/scripts/install-crane.sh
             - task: ShellScript@2
               displayName: "Install msft-go"
               inputs:

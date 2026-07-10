@@ -148,9 +148,13 @@ stages:
         displayName: "Deploy CNS and IPAM"
         dependsOn: deploy_cilium_components
         steps:
+          - script: |
+              GO_VER=$(grep '^toolchain' go.mod | sed 's/toolchain go//' | cut -d. -f1,2)
+              echo "##vso[task.setvariable variable=GO_TOOLCHAIN_VERSION]${GO_VER:-1.26}"
+            displayName: "Detect Go version from go.mod"
           - task: GoTool@0
             inputs:
-              version: '1.26'
+              version: '$(GO_TOOLCHAIN_VERSION)'
             displayName: "Install Go"
           - task: AzureCLI@2
             displayName: "Install CNS and IPAM"
