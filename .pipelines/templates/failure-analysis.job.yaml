@@ -59,7 +59,9 @@ jobs:
         - agent.os -equals Linux
     timeoutInMinutes: 15
     variables:
-      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+      - template: ../failure-agent-teams-bot/pipeline-constants.yml
+      - name: ob_outputDirectory
+        value: $(Build.ArtifactStagingDirectory)/out
     steps:
       - checkout: self
 
@@ -208,3 +210,32 @@ jobs:
         artifact: failureAnalysis_${{ parameters.os }}_${{ parameters.clusterName }}
         displayName: "Publish analysis artifact"
         condition: succeededOrFailed()
+
+      # Post a Teams ping via the shared ACN Notifier bot when the diagnosis is
+      # confident and actionable (analyzed + confidence >= 0.51 + a proposed
+      # fix). Best-effort: below-threshold incidents are a quiet no-op and this
+      # step never fails the job. Requires the acn-dalec-test WIF connection and
+      # jq on the agent; see .pipelines/failure-agent-teams-bot/.
+      - task: AzureCLI@2
+        displayName: "Notify Teams on confident analysis"
+        condition: succeededOrFailed()
+        inputs:
+          azureSubscription: acn-dalec-test
+          scriptType: bash
+          scriptLocation: inlineScript
+          addSpnToEnvironment: true
+          inlineScript: |
+            bash "$(Build.SourcesDirectory)/.pipelines/failure-agent-teams-bot/scripts/notify-incident.sh" \
+              "$(Agent.TempDirectory)/analysis/incident.json" \
+              "0.51"
+        env:
+          NOTIFIER_ENDPOINT: $(notifierEndpoint)
+          NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
+          NOTIFY_SOURCE: $(notifySource)
+          NOTIFY_RUN_ID: $(Build.BuildId)
+          NOTIFY_TEAM_ID: $(notifyTeamId)
+          NOTIFY_CHANNEL_ID: $(notifyChannelId)
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          SYSTEM_COLLECTIONURI: $(System.CollectionUri)
+          SYSTEM_TEAMPROJECT: $(System.TeamProject)
+          BUILD_BUILDID: $(Build.BuildId)
