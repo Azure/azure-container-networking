@@ -142,14 +142,6 @@ stages:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           steps:
             - template: templates/disk-cleanup.steps.yaml
-            - task: ShellScript@2
-              displayName: "Install crane"
-              inputs:
-                scriptPath: .pipelines/build/scripts/install-crane.sh
-            - task: ShellScript@2
-              displayName: "Install msft-go"
-              inputs:
-                scriptPath: .pipelines/build/scripts/install-go.sh
             - script: |
                 make bpf-lib
                 make all-binaries-platforms
