@@ -9,9 +9,30 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/test/integration/swiftv2/helpers"
+	"github.com/onsi/ginkgo"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
+
+// currentStep holds the phase the running test is currently in. It is reported
+// on failure so the pipeline can tag the failure metric with the step that broke.
+var currentStep string
+
+// SetStep records the phase the test is currently in.
+func SetStep(step string) {
+	currentStep = step
+	fmt.Printf("==> step: %s\n", step)
+}
+
+// ReportFailedStep prints a marker line with the current step when the running
+// spec has failed. The pipeline greps this marker to set the metric's step
+// dimension. Register it with ginkgo.AfterEach in each suite.
+func ReportFailedStep() {
+	if !ginkgo.CurrentGinkgoTestDescription().Failed {
+		return
+	}
+	fmt.Printf("##LONGRUNNING_FAILED_STEP=%s\n", currentStep)
+}
 
 // Shared constants for long-running pod tests (rotating + always-on DaemonSet).
 // These are defined in this shared file and are available to all long-running

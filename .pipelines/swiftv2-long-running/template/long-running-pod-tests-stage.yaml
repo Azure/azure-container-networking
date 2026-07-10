@@ -9,6 +9,9 @@ parameters:
     type: string
   - name: zone
     type: string
+  - name: clusterType
+    type: string
+    default: "swiftv2-linux"
   - name: vmSkuHighNIC
     type: string
     default: "Standard_D16s_v3"
@@ -164,17 +167,17 @@ stages:
 
                 cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
 
-                if go test -v -timeout=45m -tags=longrunning_rotating_test; then
+                log_file="$(Agent.TempDirectory)/lr-rotating-z${{ parameters.zone }}.log"
+                set -o pipefail
+                if go test -v -timeout=45m -tags=longrunning_rotating_test 2>&1 | tee "$log_file"; then
                   echo "RotatingPods Zone ${{ parameters.zone }} PASSED"
-                  # TODO: Re-enable with a dedicated long-running metric name once persistent-cluster-metrics
-                  # in Networking-Aquarius is updated to support it. Currently disabled to avoid polluting
-                  # PersistentClusterTestsSucceeded/Failed alerts with long-running test noise.
-                  # cd $metrics_dir
-                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "longrunning-rotating-z${{ parameters.zone }}" --test-scenario "Rotating pod management zone ${{ parameters.zone }}"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --region "${{ parameters.location }}" --cluster-type "${{ parameters.clusterType }}" --test-scenario "Long-running rotating pods"
                 else
                   echo "RotatingPods Zone ${{ parameters.zone }} FAILED"
-                  # cd $metrics_dir
-                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "longrunning-rotating-z${{ parameters.zone }}" --test-scenario "Rotating pod management zone ${{ parameters.zone }}"
+                  failed_step=$(grep -oE '##LONGRUNNING_FAILED_STEP=.*' "$log_file" | tail -1 | cut -d= -f2-)
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --region "${{ parameters.location }}" --cluster-type "${{ parameters.clusterType }}" --test-scenario "Long-running rotating pods" --step "$failed_step"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -235,16 +238,17 @@ stages:
 
                 cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
 
-                if go test -v -timeout=45m -tags=longrunning_alwayson_test; then
+                log_file="$(Agent.TempDirectory)/lr-alwayson-z${{ parameters.zone }}.log"
+                set -o pipefail
+                if go test -v -timeout=45m -tags=longrunning_alwayson_test 2>&1 | tee "$log_file"; then
                   echo "AlwaysOnPods Zone ${{ parameters.zone }} PASSED"
-                  # TODO: Re-enable with a dedicated long-running metric name once persistent-cluster-metrics
-                  # in Networking-Aquarius is updated to support it.
-                  # cd $metrics_dir
-                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "longrunning-alwayson-z${{ parameters.zone }}" --test-scenario "Always-on pod management zone ${{ parameters.zone }}"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --region "${{ parameters.location }}" --cluster-type "${{ parameters.clusterType }}" --test-scenario "Long-running always-on pods"
                 else
                   echo "AlwaysOnPods Zone ${{ parameters.zone }} FAILED"
-                  # cd $metrics_dir
-                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "longrunning-alwayson-z${{ parameters.zone }}" --test-scenario "Always-on pod management zone ${{ parameters.zone }}"
+                  failed_step=$(grep -oE '##LONGRUNNING_FAILED_STEP=.*' "$log_file" | tail -1 | cut -d= -f2-)
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --region "${{ parameters.location }}" --cluster-type "${{ parameters.clusterType }}" --test-scenario "Long-running always-on pods" --step "$failed_step"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)
@@ -308,16 +312,17 @@ stages:
 
                 cd $(System.DefaultWorkingDirectory)/azure-container-networking/test/integration/swiftv2/longRunningCluster
 
-                if go test -v -timeout=20m -tags=longrunning_connectivity_test; then
+                log_file="$(Agent.TempDirectory)/lr-connectivity-z${{ parameters.zone }}.log"
+                set -o pipefail
+                if go test -v -timeout=20m -tags=longrunning_connectivity_test 2>&1 | tee "$log_file"; then
                   echo "Connectivity Zone ${{ parameters.zone }} PASSED"
-                  # TODO: Re-enable with a dedicated long-running metric name once persistent-cluster-metrics
-                  # in Networking-Aquarius is updated to support it.
-                  # cd $metrics_dir
-                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "longrunning-connectivity-z${{ parameters.zone }}" --test-scenario "Long-running connectivity zone ${{ parameters.zone }}"
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --region "${{ parameters.location }}" --cluster-type "${{ parameters.clusterType }}" --test-scenario "Long-running connectivity"
                 else
                   echo "Connectivity Zone ${{ parameters.zone }} FAILED"
-                  # cd $metrics_dir
-                  # output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --cluster-type "longrunning-connectivity-z${{ parameters.zone }}" --test-scenario "Long-running connectivity zone ${{ parameters.zone }}"
+                  failed_step=$(grep -oE '##LONGRUNNING_FAILED_STEP=.*' "$log_file" | tail -1 | cut -d= -f2-)
+                  cd $metrics_dir
+                  output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --region "${{ parameters.location }}" --cluster-type "${{ parameters.clusterType }}" --test-scenario "Long-running connectivity" --step "$failed_step"
                   exit 1
                 fi
               workingDirectory: $(System.DefaultWorkingDirectory)

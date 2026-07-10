@@ -24,6 +24,7 @@ func ensureAlwaysOnPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 	ctx := context.Background()
 	c := helpers.MustGetK8sClient(kubeconfig)
 
+	SetStep("EnsurePodNetwork")
 	exists, err := helpers.PodNetworkExists(ctx, c, pnName)
 	gomega.Expect(err).To(gomega.BeNil(), "Failed to check PodNetwork existence")
 	if exists {
@@ -36,6 +37,7 @@ func ensureAlwaysOnPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 		gomega.Expect(createErr).To(gomega.BeNil(), "Failed to create PodNetwork")
 	}
 
+	SetStep("EnsurePNI")
 	exists, err = helpers.PodNetworkInstanceExists(ctx, c, namespace, pniName)
 	gomega.Expect(err).To(gomega.BeNil(), "Failed to check PodNetworkInstance existence")
 	if exists {
@@ -48,7 +50,10 @@ func ensureAlwaysOnPNAndPNI(kubeconfig, rg, pnName, pniName, namespace string) {
 }
 
 var _ = ginkgo.Describe("Long-Running Always-On DaemonSet Tests", func() {
+	ginkgo.AfterEach(ReportFailedStep)
+
 	ginkgo.It("ensures the always-on DaemonSet is running on the zone node", func() {
+		SetStep("ValidateEnv")
 		rg := os.Getenv("RG")
 		buildID := os.Getenv("BUILD_ID")
 		location := os.Getenv("LOCATION")
@@ -77,6 +82,7 @@ var _ = ginkgo.Describe("Long-Running Always-On DaemonSet Tests", func() {
 		}
 
 		// Ensure namespace exists
+		SetStep("EnsureNamespace")
 		err := helpers.EnsureNamespaceK8s(ctx, c, namespace)
 		gomega.Expect(err).To(gomega.BeNil(), "Failed to ensure namespace exists")
 
@@ -84,6 +90,7 @@ var _ = ginkgo.Describe("Long-Running Always-On DaemonSet Tests", func() {
 		ensureAlwaysOnPNAndPNI(kubeconfig, rg, pnName, pniName, namespace)
 
 		// Ensure DaemonSet exists
+		SetStep("EnsureDaemonSet")
 		exists, dsErr := helpers.DaemonSetExists(ctx, c, namespace, dsName)
 		gomega.Expect(dsErr).To(gomega.BeNil(), "Failed to check DaemonSet existence")
 		if exists {
@@ -103,11 +110,13 @@ var _ = ginkgo.Describe("Long-Running Always-On DaemonSet Tests", func() {
 		}
 
 		// Wait for DaemonSet pod to be running
+		SetStep("WaitDaemonSetReady")
 		fmt.Printf("Waiting for DaemonSet %s pod to be ready\n", dsName)
 		err = helpers.WaitForDaemonSetReady(ctx, c, namespace, dsName, 10, 30)
 		gomega.Expect(err).To(gomega.BeNil(), fmt.Sprintf("DaemonSet %s pod is not running", dsName))
 
 		// Verify the DaemonSet pod exists and is running
+		SetStep("VerifyPodRunning")
 		podName := GetDaemonSetPodName(kubeconfig, namespace, dsName)
 		gomega.Expect(podName).NotTo(gomega.BeEmpty(), "DaemonSet pod not found")
 		gomega.Expect(IsPodRunning(kubeconfig, namespace, podName)).To(gomega.BeTrue(),
