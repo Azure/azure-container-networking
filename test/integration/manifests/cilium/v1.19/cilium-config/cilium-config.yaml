@@ -126,7 +126,7 @@ data:
   enable-internal-traffic-policy: "true"
   enable-lb-ipam: "false"
   enable-non-default-deny-policies: "true"
-  enable-source-ip-verification: "false"
+  enable-source-ip-verification: "true"
 ## new values for 1.18
   # bpf-policy-stats-map-max specifies the maximum number of entries in global
   # policy stats map

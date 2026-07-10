@@ -125,7 +125,7 @@ data:
   enable-endpoint-lockdown-on-policy-overflow: "false"
   health-check-icmp-failure-threshold: "3"
   enable-internal-traffic-policy: "true"
-  enable-lb-ipam: "true"
+  enable-lb-ipam: "false"
   enable-non-default-deny-policies: "true"
   enable-source-ip-verification: "true"
 kind: ConfigMap
