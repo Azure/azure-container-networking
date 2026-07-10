@@ -1155,15 +1155,30 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		// network ID is passed in and used only for migration
 		// otherwise, in stateless, we don't need the network id for deletion
 		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID, args.Netns)
-		// if stateless CNI fails to get the endpoint from CNS for any reason other than
-		// endpoint not found or connection failure, return error
-		if err != nil && !errors.Is(err, network.ErrEndpointStateNotFound) && !errors.Is(err, network.ErrConnectionFailure) {
-			logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
+		// Handle the possible outcomes from GetEndpointState:
+		//   * nil                         -> proceed with normal delete path
+		//   * ErrEndpointStateNotFound    -> real no-op, fall through with err reset
+		//   * ErrConnectionFailure        -> CNS is unreachable; return a retriable
+		//     error so kubelet retries this DEL later. Without this, DEL returns
+		//     success, kubelet never retries, and any downstream cleanup that
+		//     needs the sync path (e.g., delegated-NIC HNS network delete) is
+		//     skipped -- leaking the network and hiding the pNIC MAC.
+		//   * any other error             -> retriable, log details
+		switch {
+		case err == nil:
+			// ok
+		case errors.Is(err, network.ErrConnectionFailure):
+			logger.Warn("CNS unreachable during DEL; returning retriable error so cleanup runs on retry",
+				zap.String("containerID", args.ContainerID), zap.Error(err))
+			return plugin.RetriableError(fmt.Errorf(
+				"CNS unreachable, cannot clean up endpoint for %s: %w", args.ContainerID, err))
+		case errors.Is(err, network.ErrEndpointStateNotFound):
+			err = nil
+		default:
+			logger.Error("Get Endpoint State API returned error",
+				zap.String("containerID", args.ContainerID), zap.Error(err))
 			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 		}
-		// set the error to nil if endpoint state is not found or connection failure to CNS;
-		// the next if block (len(epInfos) == 0) will handle that ip release if necessary
-		err = nil
 	} else {
 		epInfos = plugin.nm.GetEndpointInfosFromContainerID(args.ContainerID)
 	}
