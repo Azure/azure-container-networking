@@ -68,10 +68,10 @@ data:
   tofqdns-endpoint-max-ip-per-hostname: "1000"
   tofqdns-idle-connection-grace-period: 0s
   tofqdns-max-deferred-connection-deletes: "10000"
-  tofqdns-min-ttl: "0"
+  tofqdns-min-ttl: "3600"
   tofqdns-proxy-response-max-delay: 100ms
   routing-mode: native
-  unmanaged-pod-watcher-interval: "15"
+  unmanaged-pod-watcher-interval: "0"
   vtep-cidr: ""
   vtep-endpoint: ""
   vtep-mac: ""
@@ -80,7 +80,7 @@ data:
   external-envoy-proxy: "false"
   k8s-client-qps: "10"
   k8s-client-burst: "20"
-  mesh-auth-enabled: "true"
+  mesh-auth-enabled: "false"
   mesh-auth-queue-size: "1024"
   mesh-auth-rotated-identities-queue-size: "1024"
   mesh-auth-gc-interval: "5m0s"
