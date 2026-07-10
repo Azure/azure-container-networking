@@ -143,14 +143,14 @@ stages:
     - checkout: azure-container-networking
 
     - powershell: |
-        $gomod = if (Test-Path "go.mod") { "go.mod" }
-                 elseif (Test-Path "azure-container-networking/go.mod") { "azure-container-networking/go.mod" }
-                 elseif (Test-Path "$(Build.SourcesDirectory)/go.mod") { "$(Build.SourcesDirectory)/go.mod" }
-                 else { $null }
+        $gomod = $null
+        if (Test-Path "go.mod") { $gomod = "go.mod" }
+        elseif (Test-Path "azure-container-networking/go.mod") { $gomod = "azure-container-networking/go.mod" }
+        elseif (Test-Path "$(Build.SourcesDirectory)/go.mod") { $gomod = "$(Build.SourcesDirectory)/go.mod" }
         if ($gomod) {
           $toolchain = Select-String -Path $gomod -Pattern '^toolchain go(\d+\.\d+)' | ForEach-Object { $_.Matches[0].Groups[1].Value }
         }
-        if (-not $toolchain) { $toolchain = Select-String -Path ($gomod ?? "go.mod") -Pattern '^go (\d+\.\d+)' | ForEach-Object { $_.Matches[0].Groups[1].Value } }
+        if (-not $toolchain -and $gomod) { $toolchain = Select-String -Path $gomod -Pattern '^go (\d+\.\d+)' | ForEach-Object { $_.Matches[0].Groups[1].Value } }
         if (-not $toolchain) { Write-Error "Failed to detect Go version from go.mod"; exit 1 }
         Write-Host "##vso[task.setvariable variable=GO_TOOLCHAIN_VERSION]$toolchain"
         Write-Host "Detected Go version: $toolchain from $gomod"
