@@ -38,17 +38,9 @@ func (em *EndpointManager) deleteEndpoint(ctx context.Context, containerid strin
 			return errors.Wrap(err, "failed to delete HNS endpoint with id "+ipInfo.HnsEndpointID)
 		}
 
-		// For SwiftV2 / L1VH delegated NICs, each MAC gets its own dedicated
-		// transparent HNS network with exactly one endpoint. The endpoint-only
-		// cleanup that is correct for single-tenancy shared networks leaks the
-		// network here and keeps the pNIC bound to a vSwitch, hiding the MAC
-		// from the next CNI ADD. Delete the network too, but only for delegated
-		// NIC types so single-tenancy InfraNIC behavior is unchanged.
-		// DeleteNetworkByIDHnsV2 is idempotent (no-op if already deleted).
-		if ipInfo.HnsNetworkID != "" &&
-			(ipInfo.NICType == cns.DelegatedVMNIC ||
-				ipInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC ||
-				ipInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC) {
+		// For SwiftV2 delegated NICs, each endpoint gets its own dedicated transparent HNS network.
+		// In order to properly clean up all the resources for this endpoint, we must also delete the network.
+		if ipInfo.HnsNetworkID != "" && ipInfo.NICType == cns.DelegatedVMNIC {
 			if err := hnsclient.DeleteNetworkByIDHnsV2(ipInfo.HnsNetworkID); err != nil {
 				return errors.Wrap(err, "failed to delete HNS network with id "+ipInfo.HnsNetworkID)
 			}
