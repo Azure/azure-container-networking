@@ -111,6 +111,21 @@ if [[ -n "$pr_number" && -n "$repository" ]]; then
   status_args+=(--fact "Pull request|#${pr_number}|https://github.com/${repository}/pull/${pr_number}")
 fi
 
+# @mention whoever queued this run so the ping lands on them in the shared
+# channel. Build.RequestedForEmail is the AAD UPN the notifier resolves; empty
+# (some scheduled/service triggers) is a quiet skip. Build.RequestedFor is the
+# display name; notify_status defaults to the email prefix when it's absent.
+initiator_upn="${BUILD_REQUESTEDFOREMAIL:-}"
+initiator_name="${BUILD_REQUESTEDFOR:-}"
+if [[ -n "$initiator_upn" ]]; then
+  status_args+=(--cc-label "Initiated by")
+  if [[ -n "$initiator_name" ]]; then
+    status_args+=(--cc-user "${initiator_upn}|${initiator_name}")
+  else
+    status_args+=(--cc-user "$initiator_upn")
+  fi
+fi
+
 notify_status "${status_args[@]}"
 
 # --- Threaded detail: notify_reply -----------------------------------------

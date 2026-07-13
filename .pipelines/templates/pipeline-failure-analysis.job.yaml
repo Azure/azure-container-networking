@@ -241,3 +241,5 @@ jobs:
           SYSTEM_COLLECTIONURI: $(System.CollectionUri)
           SYSTEM_TEAMPROJECT: $(System.TeamProject)
           BUILD_BUILDID: $(Build.BuildId)
+          BUILD_REQUESTEDFOR: $(Build.RequestedFor)
+          BUILD_REQUESTEDFOREMAIL: $(Build.RequestedForEmail)
