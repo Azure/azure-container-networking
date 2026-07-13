@@ -54,7 +54,7 @@ stages:
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
           os: ${{ parameters.os }}
-          region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) # Dualstack has a specific region requirement
+          region: $(REGION_AKS_CLUSTER_TEST) # Dualstack has a specific region requirement
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
     dependsOn:
@@ -101,7 +101,7 @@ stages:
                 cniType: cniv2
                 validateCniType: dualstack
                 testLoadArgs: "INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true"
-                regionClusterTest: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+                regionClusterTest: $(REGION_AKS_CLUSTER_TEST)
                 scaleup: ${{ parameters.scaleup }}
           - template: ../../templates/k8s-e2e-step-template.yaml
             parameters:

@@ -689,92 +689,32 @@ stages:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     jobs:
       - job: delete
-        displayName: Delete Cluster
+        displayName: Delete Clusters
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
-        strategy:
-          matrix:
-            cilium_overlay:
-              name: cilium_overlay
-              clusterName: "cilium-over"
-            cilium_overlay_hubble:
-               name: cilium_overlay_hubble
-               clusterName: "cil-over-hub"
-            cilium_overlay_mariner:
-              name: cilium_overlay_mariner
-              clusterName: "cil-over-mar"
-            cilium_overlay_arm:
-              name: cilium_overlay_arm
-              clusterName: "cil-over-arm"
-            cilium_overlay_rdma:
-              name: cilium_overlay_rdma
-              clusterName: "cil-over-rdma"
-            cilium_overlay_ds:
-              name: cilium_overlay_ds
-              clusterName: "cil-ds-ov"
-            cilium_ds_arm:
-              name: cilium_ds_arm
-              clusterName: "cil-ds-arm"
-            cilium_ds_mariner:
-              name: cilium_ds_mariner
-              clusterName: "cil-ds-mar"
-            cilium_ds_rdma:
-              name: cilium_ds_rdma
-              clusterName: "cil-ds-rdma"
-            win22-cniv1:
-              name: win22-cniv1
-              clusterName: "win22-cniv1"
-            linux_cniv1:
-              name: linux_cniv1
-              clusterName: "linux-cniv1"
-            linux_podsubnet:
-              name: linux_podsubnet
-              clusterName: "linux-podsub"
-            linux_overlay:
-              name: linux_overlay
-              clusterName: "linux-over"
-            mariner_linux_overlay:
-              name: mariner_linux_overlay
-              clusterName: "mariner-over"
-            arm_linux_overlay:
-              name: arm_linux_overlay
-              clusterName: "arm-over"
-            rdma_linux_overlay:
-              name: rdma_linux_overlay
-              clusterName: "rdma-over"
-            win-cniv2-podsubnet:
-              name: windows_podsubnet
-              clusterName: w22-podsub
-            win-cniv2-overlay:
-              name: windows_overlay
-              clusterName: w22-over
         steps:
-          - task: AzureCLI@2
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                set -x
-
-                if [[ ${clusterName} =~ 'rdma' ]]; then
-                  region=${LOCATION_RDMA}
-                elif [[ ${clusterName} =~ 'arm' ]]; then
-                  region=${LOCATION_ARM64}
-                else
-                  region=${LOCATION_AMD64}
-                fi
-
-                if [ "$(DELETE_RESOURCES)" ]
-                then
-                  echo "Deleting Cluster and resource group"
-                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clusterName)-$(commitID)
-                  make -C ./hack/aks azcfg AZCLI=az REGION=${region}
-                  make -C ./hack/aks down AZCLI=az REGION=${region} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=$(clusterName)-$(commitID)
-                  echo "Cluster and resources down"
-                else
-                  echo "Deletion of resources is False"
-                fi
-            name: "CleanUpCluster"
-            displayName: "Cleanup cluster - $(name)"
+          - template: ../templates/delete-cluster.yaml
+            parameters:
+              sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+              svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              deleteResources: $(DELETE_RESOURCES)
+              suffix: -$(commitID)
+              clusters:
+                - cilium-over
+                - cil-over-hub
+                - cil-over-mar
+                - cil-over-arm
+                - cil-over-rdma
+                - cil-ds-ov
+                - cil-ds-arm
+                - cil-ds-mar
+                - cil-ds-rdma
+                - win22-cniv1
+                - linux-cniv1
+                - linux-podsub
+                - linux-over
+                - mariner-over
+                - arm-over
+                - rdma-over
+                - w22-podsub
+                - w22-over

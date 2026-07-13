@@ -1,7 +1,43 @@
+# Async cluster delete + leak-detection verification.
+#
+# Mirrors the cilium-private cluster-delete template:
+# submit `az aks delete --no-wait` + `az group delete --no-wait` for every
+# cluster in `parameters.clusters`, wait 2 minutes (single amortized sleep),
+# then verify each resource group is gone or in 'Deleting' state. Any other
+# state is flagged as a leak via ##vso[task.logissue type=error] with a
+# manual cleanup command; the job is failed if any leaks are found.
+#
+# Two invocation modes:
+#   1. List mode (preferred, matches cilium-private): pass `clusters:` as a
+#      list of BASE names (no suffix), and `suffix:` as a runtime string
+#      appended to each entry (e.g. "-$(commitID)"). Because parameters.clusters
+#      is expanded at compile time via `join()`, callers can only reference
+#      values that resolve at compile time; the per-run suffix must go through
+#      the `suffix` parameter to be substituted at runtime.
+#   2. Single-cluster mode (legacy): pass `clusterName` for callers still
+#      driven by a matrix strategy. Kept for backwards compat with existing
+#      callers (networkobservability, nightly-release-test, ado-automation).
+#
+# All `az` commands run within the AzureCLI@2 auth context established by
+# `azureSubscription: ${{ parameters.svcConn }}`, so `--subscription` is not
+# passed explicitly. `sub` is used only to build the manual cleanup hint in
+# the leak-error message.
 parameters:
+  # List mode
+  clusters: []
+  suffix: ""
+  # Single-cluster mode (legacy)
   name: ""
   clusterName: ""
+  # region kept for backwards compatibility with existing callers; the async
+  # delete path does not need it (ARM resolves RG location itself).
   region: ""
+  # Shared
+  sub: ""
+  svcConn: ""
+  # Runtime opt-out gate. Pass a pipeline variable (e.g. $(DELETE_RESOURCES))
+  # to skip the delete when the variable is empty.
+  deleteResources: "true"
 
 steps:
   - task: AzureCLI@2
@@ -11,11 +47,83 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        echo "Deleting cluster"
-        make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        make -C ./hack/aks down AZCLI=az REGION=${{ parameters.region }} SUB=${{ parameters.sub }} CLUSTER=${{ parameters.clusterName }}
-        echo "Cluster and resources down"
-    name: delete
-    displayName: Delete - ${{ parameters.name }}
+        # Do not `set -e` — we want to attempt every cluster's delete even if
+        # one fails, and reach the verification block regardless.
+
+        DELETE_RES="${{ parameters.deleteResources }}"
+        if [[ -z "$DELETE_RES" || "$DELETE_RES" == "false" || "$DELETE_RES" == "False" || "$DELETE_RES" == "0" ]]; then
+          echo "Skipping cluster delete (deleteResources='$DELETE_RES')"
+          exit 0
+        fi
+
+        SUB="${{ parameters.sub }}"
+        SUFFIX="${{ parameters.suffix }}"
+
+        # Cluster list expanded at compile time from parameters.clusters into
+        # a space-separated string; each base name gets SUFFIX appended at
+        # runtime so callers can pass "$(commitID)" or similar per-run tokens.
+        BASE_NAMES=(${{ join(' ', parameters.clusters) }})
+        CLUSTERS=()
+        for c in "${BASE_NAMES[@]}"; do CLUSTERS+=("${c}${SUFFIX}"); done
+
+        # Legacy single-cluster fallback.
+        if [[ ${#CLUSTERS[@]} -eq 0 && -n "${{ parameters.clusterName }}" ]]; then
+          CLUSTERS=("${{ parameters.clusterName }}")
+        fi
+        if [[ ${#CLUSTERS[@]} -eq 0 ]]; then
+          echo "No clusters to delete."
+          exit 0
+        fi
+
+        echo "==> ${#CLUSTERS[@]} cluster(s) to delete"
+        for RG in "${CLUSTERS[@]}"; do echo "    - $RG"; done
+        echo ""
+
+        # ---- Phase 1: async delete submit ----
+        for RG in "${CLUSTERS[@]}"; do
+          echo "==> [$RG] submit deletes"
+
+          # If the cluster is already gone (e.g. never created), az returns non-zero —
+          # the RG-existence check in Phase 3 is the source of truth.
+          az aks delete -g "$RG" -n "$RG" --yes --no-wait 2>&1 || echo "  aks delete submit returned non-zero (may already be gone)"
+          az group delete -n "$RG" --yes --no-wait 2>&1 || echo "  group delete submit returned non-zero (may already be gone)"
+        done
+
+        # ---- Phase 2: single 2-min sleep for all clusters ----
+        # ARM sets provisioningState=Deleting within 1-2s of accepting an async delete
+        # but we sleep longer to avoid racing with eventual-consistency lag before polling.
+        echo ""
+        echo "==> Submitted async deletes for all clusters. Waiting 2 minutes before verifying..."
+        sleep 120
+
+        # ---- Phase 3: verify each RG is gone or Deleting; aggregate leaks ----
+        LEAKS=()
+        for RG in "${CLUSTERS[@]}"; do
+          STATE=$(az group show -n "$RG" --query properties.provisioningState -o tsv 2>/dev/null)
+          if [[ -z "$STATE" ]]; then
+            echo "==> [$RG] gone (delete completed synchronously)."
+          elif [[ "$STATE" == "Deleting" ]]; then
+            echo "==> [$RG] provisioningState='Deleting' — async delete accepted."
+          else
+            echo "==> [$RG] LEAK: provisioningState='$STATE'"
+            LEAKS+=("$RG")
+          fi
+        done
+
+        if [[ ${#LEAKS[@]} -gt 0 ]]; then
+          echo ""
+          echo "==> ${#LEAKS[@]} cluster(s) leaked:"
+          for RG in "${LEAKS[@]}"; do
+            HINT="az group delete -n $RG --yes"
+            if [[ -n "$SUB" ]]; then HINT="az group delete -n $RG --subscription $SUB --yes"; fi
+            echo "##vso[task.logissue type=error]Cluster leak: resource group '$RG' still exists after async delete submit + 2 min wait. Manual cleanup required. Run: $HINT"
+          done
+          echo ""
+          echo "==> Marking job as failed to surface the leak(s)."
+          exit 1
+        fi
+
+        echo ""
+        echo "==> All ${#CLUSTERS[@]} cluster deletes accepted by Azure."
+    displayName: Delete Clusters (async + verify)
     condition: always()
