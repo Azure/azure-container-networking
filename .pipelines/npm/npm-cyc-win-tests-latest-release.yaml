@@ -66,8 +66,8 @@ jobs:
           scriptLocation: "inlineScript"
           failOnStderr: true
           inlineScript: |
-            az extension add --name aks-preview
-            az extension update --name aks-preview
+            # aks-preview pinned: Azure/azure-cli-extensions#10101 (b9 checksum mismatch)
+            az extension add --name aks-preview --version 21.0.0b7 --upgrade --yes
 
             export CLUSTER_NAME=$(RESOURCE_GROUP)
 

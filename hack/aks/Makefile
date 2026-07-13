@@ -85,9 +85,13 @@ azlogin: ## Login and set account to $SUB
 	@$(AZCLI) login
 	@$(AZCLI) account set -s $(SUB)
 
-azcfg: ## Set the $AZCLI to use aks-preview
-	@$(AZCLI) extension add --name aks-preview --yes
-	@$(AZCLI) extension update --name aks-preview
+# Pinned to work around aks-preview 21.0.0b9 checksum mismatch upstream.
+# Track: https://github.com/Azure/azure-cli-extensions/issues/10101
+# Revert this pin (drop --version) once b9/b10 is republished with a matching checksum.
+AKS_PREVIEW_VERSION ?= 21.0.0b7
+
+azcfg: ## Set the $AZCLI to use aks-preview (pinned via AKS_PREVIEW_VERSION)
+	@$(AZCLI) extension add --name aks-preview --version $(AKS_PREVIEW_VERSION) --upgrade --yes
 
 ip:
 	$(AZCLI) network public-ip create --name $(IP_PREFIX)-$(CLUSTER)-$(IPVERSION) \

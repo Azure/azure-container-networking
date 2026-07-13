@@ -39,7 +39,8 @@ jobs:
             mkdir -p ~/.kube/
             # make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
 
-            az extension add --name aks-preview --upgrade
+            # aks-preview pinned: Azure/azure-cli-extensions#10101 (b9 checksum mismatch)
+            az extension add --name aks-preview --version 21.0.0b7 --upgrade --yes
 
             make -C ./hack/aks ${{ parameters.clusterType }} \
             AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \

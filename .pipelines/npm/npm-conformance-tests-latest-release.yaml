@@ -126,8 +126,8 @@ jobs:
 
             if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
             then
-              az extension add --name aks-preview
-              az extension update --name aks-preview
+              # aks-preview pinned: Azure/azure-cli-extensions#10101 (b9 checksum mismatch)
+              az extension add --name aks-preview --version 21.0.0b7 --upgrade --yes
 
               echo "creating WS22 Cluster";
               az aks create \
