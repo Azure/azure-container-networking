@@ -1,7 +1,0 @@
-NAMESPACE     NAME                          READY   STATUS             RESTARTS   AGE
-kube-system   azure-cns-abcd12              0/1     ImagePullBackOff   0          3m
-kube-system   coredns-7f9c8b6d4-xz12        1/1     Running            0          10m
-kube-system   azure-cni-node-qq88           1/1     Running            0          10m
-
-Warning  Failed     kubelet  Failed to pull image "acnpublic.azurecr.io/azure-cns:bad-tag": ErrImagePull
-Warning  Failed     kubelet  Error: ImagePullBackOff

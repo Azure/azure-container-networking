@@ -49,7 +49,7 @@ func TestRunEndToEnd(t *testing.T) {
 		Source:           "llm",
 	}}
 	opts := options{
-		input:          filepath.Join("testdata", "bundle"),
+		input:          writeEvidenceBundle(t),
 		output:         out,
 		signaturesPath: filepath.Join("signatures", "signatures.yaml"),
 		dryRun:         true,
@@ -101,7 +101,7 @@ func TestRunAnalysisFailedWhenLLMFails(t *testing.T) {
 	out := t.TempDir()
 	cl := &fakeClassifier{err: errors.New("azure openai unauthorized")}
 	opts := options{
-		input:          filepath.Join("testdata", "bundle"),
+		input:          writeEvidenceBundle(t),
 		output:         out,
 		signaturesPath: filepath.Join("signatures", "signatures.yaml"),
 		dryRun:         true,
@@ -137,14 +137,45 @@ func TestBuildClassifierWithoutCredentials(t *testing.T) {
 	}
 }
 
-// bundleOptions returns options pointing at the committed evidence bundle.
-func bundleOptions(out string) options {
+func bundleOptions(t *testing.T, out string) options {
+	t.Helper()
 	return options{
-		input:          filepath.Join("testdata", "bundle"),
+		input:          writeEvidenceBundle(t),
 		output:         out,
 		signaturesPath: filepath.Join("signatures", "signatures.yaml"),
 		dryRun:         true,
 	}
+}
+
+func writeEvidenceBundle(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	files := map[string]string{
+		"nodes.txt": `Name:               aks-nodepool1-12345678-vmss000000
+Conditions:
+  Type             Status
+  Ready            True
+  MemoryPressure   False
+  DiskPressure     False
+System Info:
+  Kernel Version:  5.15.0-1071-azure
+  Container Runtime Version: containerd://1.7.20
+`,
+		"pods.txt": `NAMESPACE     NAME                          READY   STATUS             RESTARTS   AGE
+kube-system   azure-cns-abcd12              0/1     ImagePullBackOff   0          3m
+kube-system   coredns-7f9c8b6d4-xz12        1/1     Running            0          10m
+kube-system   azure-cni-node-qq88           1/1     Running            0          10m
+
+Warning  Failed     kubelet  Failed to pull image "acnpublic.azurecr.io/azure-cns:bad-tag": ErrImagePull
+Warning  Failed     kubelet  Error: ImagePullBackOff
+`,
+	}
+	for name, contents := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(contents), 0o600); err != nil {
+			t.Fatalf("writing evidence file %s: %v", name, err)
+		}
+	}
+	return dir
 }
 
 func openTestStore(t *testing.T) *store.Store {
@@ -180,7 +211,7 @@ func TestRunSkipsDuplicateFailure(t *testing.T) {
 		Source:           "llm",
 	}}
 
-	opts := bundleOptions(t.TempDir())
+	opts := bundleOptions(t, t.TempDir())
 	if err := run(context.Background(), zap.NewNop(), opts, cl, st, noopCollector{}, noopCollector{}); err != nil {
 		t.Fatalf("first run failed: %v", err)
 	}
@@ -206,7 +237,7 @@ func TestRunSkipsDuplicateFailure(t *testing.T) {
 // for the same fingerprint is injected into the classifier prompt context.
 func TestRunInjectsPriorResolvedContext(t *testing.T) {
 	st := openTestStore(t)
-	opts := bundleOptions(t.TempDir())
+	opts := bundleOptions(t, t.TempDir())
 	fp := bundleFingerprint(t, opts)
 
 	id, err := st.CreateIncident(context.Background(), store.Incident{
@@ -251,7 +282,7 @@ func TestRunMergesLiveDiagnostics(t *testing.T) {
 	cl := &fakeClassifier{result: model.Classification{
 		Category: model.CategoryClusterBringupFailure, Confidence: 0.7, Source: "llm",
 	}}
-	opts := bundleOptions(t.TempDir())
+	opts := bundleOptions(t, t.TempDir())
 	collector := live.NewCollector(fakeRunner{})
 
 	if err := run(context.Background(), zap.NewNop(), opts, cl, noopStore{}, collector, noopCollector{}); err != nil {

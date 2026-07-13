@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document describes the current demo-able MVP for the ACN failure-agent and separates the active demo path from production features that remain implemented but are intentionally disabled in the pipeline for incremental rollout.
+This document describes the current demo-able MVP for the ACN failure-agent and separates the active non-OneBranch demo path from production features that remain implemented but are intentionally disabled in the pipeline for incremental rollout.
 
 The MVP goal is:
 
@@ -236,7 +236,9 @@ This lets the agent observe the failed cluster but prevents mutation.
 
 ---
 
-## Pipeline Template Changes for MVP
+## Non-OneBranch Pipeline Template Changes for MVP
+
+The MVP pipeline wiring is intentionally limited to the non-OneBranch ACN PR and CNI release-test paths. OneBranch wiring is excluded for now to avoid introducing new behavior into that path while it remains unstable.
 
 File:
 

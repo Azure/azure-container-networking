@@ -1,9 +1,0 @@
-Name:               aks-nodepool1-12345678-vmss000000
-Conditions:
-  Type             Status
-  Ready            True
-  MemoryPressure   False
-  DiskPressure     False
-System Info:
-  Kernel Version:  5.15.0-1071-azure
-  Container Runtime Version: containerd://1.7.20
