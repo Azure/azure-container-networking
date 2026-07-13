@@ -1168,24 +1168,21 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		case err == nil:
 			// ok
 		case errors.Is(err, network.ErrConnectionFailure):
-			logger.Warn("CNS unreachable during DEL; returning retriable error so cleanup runs on retry",
-				zap.String("containerID", args.ContainerID), zap.Error(err))
 			return plugin.RetriableError(fmt.Errorf(
-				"CNS unreachable, cannot clean up endpoint for %s: %w", args.ContainerID, err))
+				"cns unreachable during del (containerID=%s): %w", args.ContainerID, err))
 		case errors.Is(err, network.ErrEndpointStateNotFound):
 			err = nil
 		default:
-			logger.Error("Get Endpoint State API returned error",
-				zap.String("containerID", args.ContainerID), zap.Error(err))
-			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
+			return plugin.RetriableError(fmt.Errorf(
+				"get endpoint state (containerID=%s): %w", args.ContainerID, err))
 		}
 	} else {
 		epInfos = plugin.nm.GetEndpointInfosFromContainerID(args.ContainerID)
 	}
 
 	// for when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
-	// this block applies to stateless CNI if either endpoint state is not found or there is a CNS connection failure
-	// if there is a connection failure to CNS, IP release will be handled asynchronously by the CNS invoker (via ipamInvoker.Delete)
+	// this block applies to stateless CNI when GetEndpointState returned ErrEndpointStateNotFound (err reset to nil above).
+	// CNS connection failures now return a retriable error earlier so this path is not reached in that case.
 	if len(epInfos) == 0 {
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		if !nwCfg.MultiTenancy {

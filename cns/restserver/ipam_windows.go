@@ -42,7 +42,9 @@ func normalizeMAC(mac string) string {
 func (service *HTTPRestService) findEndpointStateByMAC(mac string) (string, *IPInfo) {
 	for containerID, epInfo := range service.EndpointState {
 		for _, ipInfo := range epInfo.IfnameToIPMap {
-			if (ipInfo.NICType == cns.DelegatedVMNIC || ipInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC) &&
+			if (ipInfo.NICType == cns.DelegatedVMNIC ||
+				ipInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC ||
+				ipInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC) &&
 				normalizeMAC(ipInfo.MacAddress) == normalizeMAC(mac) {
 				return containerID, ipInfo
 			}
@@ -105,7 +107,9 @@ func (service *HTTPRestService) cleanupContainerHNSResources(containerID string)
 			switch { //nolint:staticcheck // DelegatedVMNIC and NodeNetworkInterfaceFrontendNIC share the same underlying value
 			case info.NICType == cns.ApipaNIC:
 				apipaEndpointID = info.HnsEndpointID
-			case info.NICType == cns.DelegatedVMNIC || info.NICType == cns.NodeNetworkInterfaceFrontendNIC:
+			case info.NICType == cns.DelegatedVMNIC ||
+				info.NICType == cns.NodeNetworkInterfaceFrontendNIC ||
+				info.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC:
 				hnsEndpointID = info.HnsEndpointID
 				hnsNetworkID = info.HnsNetworkID
 			}

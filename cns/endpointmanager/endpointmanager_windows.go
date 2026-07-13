@@ -49,7 +49,6 @@ func (em *EndpointManager) deleteEndpoint(ctx context.Context, containerid strin
 			(ipInfo.NICType == cns.DelegatedVMNIC ||
 				ipInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC ||
 				ipInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC) {
-			logger.Printf("deleting delegated-NIC HNS network with id %v", ipInfo.HnsNetworkID)
 			if err := hnsclient.DeleteNetworkByIDHnsV2(ipInfo.HnsNetworkID); err != nil {
 				return errors.Wrap(err, "failed to delete HNS network with id "+ipInfo.HnsNetworkID)
 			}
