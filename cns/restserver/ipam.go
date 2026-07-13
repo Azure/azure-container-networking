@@ -1202,10 +1202,6 @@ func (service *HTTPRestService) DeleteEndpointStateHandler(w http.ResponseWriter
 			Message:    fmt.Sprintf("[DeleteEndpointStateHandler] Failed to delete endpoint state for %s with error: %s", endpointID, err.Error()),
 		}
 
-		if errors.Is(err, ErrEndpointStateNotFound) {
-			response.ReturnCode = types.NotFound
-		}
-
 		err = common.Encode(w, &response)
 		logger.Response(opName, response, response.ReturnCode, err) //nolint:staticcheck // reason: using deprecated call until migration to new API
 		return
@@ -1226,8 +1222,10 @@ func (service *HTTPRestService) DeleteEndpointStateHelper(endpointID string) err
 	logger.Printf("[deleteEndpointState] Deleting Endpoint state from state file %s", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
 	_, endpointExist := service.EndpointState[endpointID]
 	if !endpointExist {
+		// CNI DEL is required to be idempotent per the CNI spec, so a missing endpoint is not an error.
+		// The kubelet retries DEL on failure, which previously caused a retry storm (ICM 830677663).
 		logger.Printf("[deleteEndpointState] endpoint could not be found in the statefile %s", endpointID) //nolint:staticcheck // reason: using deprecated call until migration to new API
-		return fmt.Errorf("[deleteEndpointState] endpoint %s: %w", endpointID, ErrEndpointStateNotFound)
+		return nil
 	}
 
 	// Delete the endpoint from the state
