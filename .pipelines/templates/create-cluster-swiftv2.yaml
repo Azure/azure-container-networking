@@ -16,12 +16,6 @@ jobs:
             set -e
             echo "Check az version"
             az version
-            if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
-            then
-              echo "Install az cli extension preview"
-              # aks-preview pinned: Azure/azure-cli-extensions#10101 (b9 checksum mismatch)
-              az extension add --name aks-preview --version 21.0.0b7 --upgrade --yes
-            fi
             mkdir -p ~/.kube/
             make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
 

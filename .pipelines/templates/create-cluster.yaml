@@ -28,9 +28,6 @@ jobs:
             az version
             if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
             then
-              echo "Install az cli extension preview"
-              # aks-preview pinned: Azure/azure-cli-extensions#10101 (b9 checksum mismatch)
-              az extension add --name aks-preview --version 21.0.0b7 --upgrade --yes
               export POD_CIDRS="10.244.0.0/16,fdd5:a27a:b4bc:99d6::/64"
             fi
 

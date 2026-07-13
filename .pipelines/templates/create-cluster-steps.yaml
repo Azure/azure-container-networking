@@ -23,12 +23,6 @@ steps:
         set -e
         echo "Check az version"
         az version
-        if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
-        then
-          echo "Install az cli extension preview"
-          # aks-preview pinned: Azure/azure-cli-extensions#10101 (b9 checksum mismatch)
-          az extension add --name aks-preview --version 21.0.0b7 --upgrade --yes
-        fi
 
         if ! [ -z ${{ parameters.k8sVersion }} ]; then
           echo "Set K8S_VER with ${{ parameters.k8sVersion }}"

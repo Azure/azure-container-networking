@@ -17,8 +17,7 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -ex
-                # aks-preview pinned: Azure/azure-cli-extensions#10101 (b9 checksum mismatch)
-                az extension add --name aks-preview --version 21.0.0b7 --upgrade --yes
+                make -C ./hack/aks azcfg AZCLI=az
 
                 subscriptionId="$(az account list --query "[?isDefault].id" --output tsv)"
                 make -C ./hack/aks AZCLI=az ${CLUSTER_TYPE} CLUSTER=${CLUSTER} GROUP=${RESOURCE_GROUP} REGION=${LOCATION} NODE_COUNT=5 VM_SIZE=${VMSIZE} SUB=${subscriptionId} || {

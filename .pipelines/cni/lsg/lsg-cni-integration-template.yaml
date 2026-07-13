@@ -114,7 +114,7 @@ stages:
                 inlineScript: |
                   set -ex
                   # aks-preview pinned: Azure/azure-cli-extensions#10101 (b9 checksum mismatch)
-                  az extension add --name aks-preview --version 21.0.0b7 --upgrade --yes
+                  make -C ./hack/aks azcfg AZCLI=az
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   ls -lah
                   pwd

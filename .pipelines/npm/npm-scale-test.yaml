@@ -133,8 +133,7 @@ jobs:
           condition: succeeded()
           inlineScript: |
             set -e
-            # aks-preview pinned: Azure/azure-cli-extensions#10101 (b9 checksum mismatch)
-            az extension add --name aks-preview --version 21.0.0b7 --upgrade --yes
+            make -C ./hack/aks azcfg AZCLI=az
 
             echo "Creating resource group named $(RESOURCE_GROUP)"
             az group create --name $(RESOURCE_GROUP) -l $(LOCATION) -o table
