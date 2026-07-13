@@ -1,6 +1,8 @@
 # -- Captures --
 # CNS, CNI, and Cilium Logs
 # CNS, CNI, and Cilium State files
+# HNS network and endpoint state (Windows)
+# Optional full Windows bundle via collect-windows-logs.ps1 (fullWindowsLogs, default true)
 # Daemonset and Deployment Images
 # Node Status
 # kube-system namespace logs
@@ -21,6 +23,12 @@ parameters:
   os: ""
   cni: ""
   jobName: "FailedE2ELogs"
+  # When true (default), additionally run the AKS-canonical Windows collector
+  # C:\k\debug\collect-windows-logs.ps1 and capture its full zip bundle
+  # (HNS state, all of c:\k, event logs, etc). The targeted azure*.log /
+  # azurecns / HNS captures always run regardless. Set false to skip the full
+  # bundle and keep artifacts small.
+  fullWindowsLogs: true
 
 steps:
   - task: KubectlInstaller@0
@@ -218,9 +226,15 @@ steps:
             echo "Azure-*.log, $file, captured: $(acnLogs)/"$node"_logs/log-output/$file"
           done
           if [ ${{ parameters.cni }} = 'cniv2' ]; then
-            file="azure-cns.log"
-            kubectl exec -i -n kube-system $pod -- cat k/azurecns/$file > $(acnLogs)/"$node"_logs/log-output/$file
-            echo "CNS Log, $file, captured: $(acnLogs)/"$node"_logs/log-output/$file"
+            echo "Capture all CNS logs from k/azurecns"
+            cnsLogFiles=`kubectl exec -i -n kube-system $pod -- powershell "Get-ChildItem k/azurecns/*.log* -Name" 2>/dev/null | tr -d '\r'`
+            if [ -z "$cnsLogFiles" ]; then
+              echo "No CNS logs found in k/azurecns for $pod"
+            fi
+            for cnsFile in $cnsLogFiles; do
+              kubectl exec -i -n kube-system $pod -- powershell "cat k/azurecns/$cnsFile" > $(acnLogs)/"$node"_logs/log-output/$cnsFile
+              echo "CNS Log, $cnsFile, captured: $(acnLogs)/"$node"_logs/log-output/$cnsFile"
+            done
           fi
         done
 
@@ -269,6 +283,46 @@ steps:
             fi
           done
         fi
+
+        echo "------ HNS work ------"
+        kubectl get pods -n kube-system -l os=windows,app=privileged-daemonset -owide
+        echo "Capture HNS network and endpoint state from privileged pods"
+        for pod in $podList; do
+          node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name --no-headers | awk '{print $1}'`
+          mkdir -p $(acnLogs)/"$node"_logs/HNS-output/
+          echo "Directory created: $(acnLogs)/"$node"_logs/HNS-output/"
+
+          file="hns-network.json"
+          kubectl exec -i -n kube-system $pod -- powershell "Import-Module C:\k\hns.psm1 -ErrorAction SilentlyContinue; if (Get-Command Get-HnsNetwork -ErrorAction SilentlyContinue) { Get-HnsNetwork | ConvertTo-Json -Depth 20 } else { hnsdiag list networks | ConvertTo-Json -Depth 20 }" > $(acnLogs)/"$node"_logs/HNS-output/$file
+          echo "HNS Networks, $file, captured: $(acnLogs)/"$node"_logs/HNS-output/$file"
+
+          file="hns-endpoint.json"
+          kubectl exec -i -n kube-system $pod -- powershell "Import-Module C:\k\hns.psm1 -ErrorAction SilentlyContinue; if (Get-Command Get-HnsEndpoint -ErrorAction SilentlyContinue) { Get-HnsEndpoint | ConvertTo-Json -Depth 20 } else { hnsdiag list endpoints | ConvertTo-Json -Depth 20 }" > $(acnLogs)/"$node"_logs/HNS-output/$file
+          echo "HNS Endpoints, $file, captured: $(acnLogs)/"$node"_logs/HNS-output/$file"
+        done
+
+        # AKS-canonical comprehensive Windows collector. On by default (see
+        # fullWindowsLogs parameter); set it false to keep artifacts small.
+        # Best-effort: skipped where the script is absent and never aborts other
+        # collection.
+        if [ "${{ parameters.fullWindowsLogs }}" = "True" ] || [ "${{ parameters.fullWindowsLogs }}" = "true" ]; then
+          echo "------ Full Windows log bundle (collect-windows-logs.ps1) ------"
+          for pod in $podList; do
+            node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name --no-headers | awk '{print $1}'`
+            mkdir -p $(acnLogs)/"$node"_logs/full-windows-logs/
+            echo "Running C:\\k\\debug\\collect-windows-logs.ps1 on $node (best-effort)"
+            kubectl exec -i -n kube-system $pod -- powershell "if (Test-Path C:\k\debug\collect-windows-logs.ps1) { Push-Location C:\k\debug; & .\collect-windows-logs.ps1 | Out-Null; Pop-Location } else { Write-Output 'collect-windows-logs.ps1 not found' }"
+            zipInfo=`kubectl exec -i -n kube-system $pod -- powershell '$zip = Get-ChildItem -Path "C:\k\debug\*.zip","C:\k\*.zip" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($zip) { Write-Output "$($zip.Name)|$($zip.FullName)" }' | tr -d '\r'`
+            zipName=${zipInfo%%|*}
+            zipPath=${zipInfo#*|}
+            if [ -n "$zipInfo" ] && [ "$zipName" != "$zipPath" ]; then
+              kubectl exec -i -n kube-system $pod -- powershell "[Convert]::ToBase64String([IO.File]::ReadAllBytes('$zipPath'))" | tr -d '\r' | base64 -d > $(acnLogs)/"$node"_logs/full-windows-logs/"$zipName"
+              echo "Full Windows log bundle, $zipName, captured: $(acnLogs)/"$node"_logs/full-windows-logs/$zipName"
+            else
+              echo "collect-windows-logs.ps1 produced no zip on $node (script may be absent)"
+            fi
+          done
+        fi
       displayName: Windows Logs
       condition: always()
 
@@ -277,3 +331,12 @@ steps:
     inputs:
       sourceFolder: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
       targetFolder: $(Build.ArtifactStagingDirectory)/out
+
+  # Publish a named pipeline artifact so the failure-analysis job can download it
+  # by the same name contract used in log-template.yaml. This is additive to the
+  # OneBranch ob_outputDirectory drop and does not affect E2E test execution.
+  - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+    condition: always()
+    artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_${{ parameters.os }}${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
+    displayName: "Publish failure logs for analysis"
+    continueOnError: true

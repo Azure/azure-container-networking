@@ -139,3 +139,9 @@ stages:
               os: ${{ parameters.os }}
               cni: cniv1
 
+      - template: ../../templates/failure-analysis.job.yaml
+        parameters:
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          cni: cniv1
+

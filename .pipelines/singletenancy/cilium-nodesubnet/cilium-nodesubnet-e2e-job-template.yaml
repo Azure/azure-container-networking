@@ -122,3 +122,9 @@ stages:
               os: ${{ parameters.os }}
               cni: cilium
 
+      - template: ../../templates/failure-analysis.job.yaml
+        parameters:
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          cni: cilium
+

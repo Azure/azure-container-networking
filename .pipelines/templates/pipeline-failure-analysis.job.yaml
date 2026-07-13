@@ -1,0 +1,197 @@
+# Reusable job template: Pipeline Task-Log Failure Analysis
+#
+# Use this for non-E2E failures (image builds, binary builds, manifests, setup,
+# unit-test infra, signing, etc.) where the evidence lives in Azure DevOps task
+# logs rather than a cluster failure artifact.
+#
+# This template downloads the ADO build timeline and task logs for the current
+# run, writes them as the evidence bundle, and runs the failure-agent CLI in
+# non-live mode (no kubectl). It produces the same report.md + incident.json
+# artifacts as the E2E failure-analysis path.
+#
+# Wire this as a stage or job that runs on condition: failed() after the build
+# stage. It does NOT affect E2E failure analysis, cluster retention, or teardown.
+
+parameters:
+  # Human-readable scope label for the analysis artifact name.
+  scope: "build"
+  # Override pipeline name if needed.
+  pipeline: ""
+  # Dry-run skips PR write-back (analysis still runs).
+  dryRun: false
+
+jobs:
+  - job: pipelineFailureAnalysis_${{ parameters.scope }}
+    displayName: "Pipeline Failure Analysis (${{ parameters.scope }})"
+    pool:
+      type: linux
+      isCustom: true
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+    timeoutInMinutes: 10
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+    steps:
+      - checkout: self
+
+      - task: GoTool@0
+        inputs:
+          version: '1.25'
+        displayName: "Setup Go"
+
+      # Collect ADO build timeline and task logs as the evidence bundle.
+      - script: |
+          set -euo pipefail
+
+          EVIDENCE="$(Agent.TempDirectory)/evidence"
+          mkdir -p "$EVIDENCE/logs"
+
+          BASE_URL="${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECT}/_apis/build/builds/${BUILD_BUILDID}"
+
+          echo "Downloading build timeline..."
+          curl -fsS \
+            -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
+            "${BASE_URL}/timeline?api-version=7.1" \
+            -o "$EVIDENCE/timeline.json"
+
+          echo "Downloading logs index..."
+          curl -fsS \
+            -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
+            "${BASE_URL}/logs?api-version=7.1" \
+            -o "$EVIDENCE/logs-index.json"
+
+          # Download individual task logs. The logs-index contains an array of
+          # log entries with id and url fields.
+          LOG_COUNT=$(python3 -c "
+          import json, sys
+          with open('$EVIDENCE/logs-index.json') as f:
+              data = json.load(f)
+          logs = data.get('value', [])
+          print(len(logs))
+          ")
+
+          echo "Found $LOG_COUNT log entries"
+
+          # Download up to 50 logs to avoid excessive API calls on very large runs.
+          python3 -c "
+          import json, subprocess, os
+
+          evidence = '$EVIDENCE'
+          token = os.environ['SYSTEM_ACCESSTOKEN']
+
+          with open(os.path.join(evidence, 'logs-index.json')) as f:
+              data = json.load(f)
+
+          logs = data.get('value', [])[:50]
+          for entry in logs:
+              log_id = entry.get('id', 'unknown')
+              url = entry.get('url', '')
+              if not url:
+                  continue
+              out_path = os.path.join(evidence, 'logs', f'{log_id}.log')
+              try:
+                  result = subprocess.run(
+                      ['curl', '-fsS', '-H', f'Authorization: Bearer {token}', url],
+                      capture_output=True, text=True, timeout=30
+                  )
+                  if result.returncode == 0:
+                      with open(out_path, 'w') as f:
+                          f.write(result.stdout)
+              except Exception:
+                  pass
+          "
+
+          # Write run metadata for the agent's RunContext.
+          cat > "$EVIDENCE/run-metadata.json" <<EOF
+          {
+            "pipelineName": "${BUILD_DEFINITIONNAME}",
+            "buildId": "${BUILD_BUILDID}",
+            "buildNumber": "${BUILD_BUILDNUMBER}",
+            "repository": "${BUILD_REPOSITORY_NAME}",
+            "sourceBranch": "${BUILD_SOURCEBRANCH}",
+            "sourceVersion": "${BUILD_SOURCEVERSION}",
+            "reason": "${BUILD_REASON}",
+            "scope": "${{ parameters.scope }}"
+          }
+          EOF
+
+          echo "Evidence collected: $(find "$EVIDENCE" -type f | wc -l) files"
+          ls -la "$EVIDENCE"
+          ls -la "$EVIDENCE/logs" | head -20
+        displayName: "Collect ADO build logs"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+      # Run the failure-agent in non-live mode against the collected ADO logs.
+      - script: |
+          set -euo pipefail
+
+          INPUT_DIR="$(Agent.TempDirectory)/evidence"
+          OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
+          mkdir -p "$OUTPUT_DIR"
+
+          if [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || [ -z "${AZURE_OPENAI_DEPLOYMENT:-}" ]; then
+            echo "##[warning]Azure OpenAI credentials not configured; the agent will emit an analysis_failed incident preserving raw evidence."
+          fi
+
+          EXTRA_FLAGS=""
+
+          if [ "${{ parameters.dryRun }}" = "True" ] || [ "${{ parameters.dryRun }}" = "true" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --dry-run"
+          fi
+
+          PIPELINE_OVERRIDE=""
+          if [ -n "${{ parameters.pipeline }}" ]; then
+            PIPELINE_OVERRIDE="--pipeline ${{ parameters.pipeline }}"
+          fi
+
+          cd "$(Build.SourcesDirectory)/tools/failure-agent"
+          go run . \
+            --input "$INPUT_DIR" \
+            --output "$OUTPUT_DIR" \
+            --signatures signatures/signatures.yaml \
+            --live=false \
+            --privileged=false \
+            $PIPELINE_OVERRIDE \
+            $EXTRA_FLAGS
+        displayName: "Run failure analysis (non-live)"
+        env:
+          AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+          AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
+          AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
+          AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
+          GITHUB_TOKEN: $(GITHUB_TOKEN)
+
+      - script: |
+          set -euo pipefail
+          OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
+          echo "=== Agent output files ==="
+          ls -la "$OUTPUT_DIR" 2>/dev/null || echo "(no output directory)"
+          echo ""
+          for f in "$OUTPUT_DIR"/*; do
+            [ -f "$f" ] || continue
+            echo "========== $(basename "$f") =========="
+            cat "$f"
+            echo ""
+          done
+        displayName: "Dump agent output to logs"
+        condition: succeededOrFailed()
+
+      - script: |
+          set -euo pipefail
+          REPORT="$(Agent.TempDirectory)/analysis/report.md"
+          OUT_DIR="$(Build.ArtifactStagingDirectory)/out"
+          mkdir -p "$OUT_DIR"
+          if [ -f "$REPORT" ]; then
+            echo "##vso[task.uploadsummary]$REPORT"
+            cp "$REPORT" "$OUT_DIR/report.md"
+            cp "$(Agent.TempDirectory)/analysis/incident.json" "$OUT_DIR/incident.json" 2>/dev/null || true
+          fi
+        displayName: "Publish analysis summary"
+        condition: succeededOrFailed()
+
+      - publish: $(Build.ArtifactStagingDirectory)/out
+        artifact: pipelineFailureAnalysis_${{ parameters.scope }}
+        displayName: "Publish analysis artifact"
+        condition: succeededOrFailed()

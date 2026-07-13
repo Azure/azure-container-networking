@@ -101,3 +101,10 @@ stages:
               os: windows
               cni: cniv2
 
+      - template: ../../templates/failure-analysis.job.yaml
+        parameters:
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: windows
+          cni: cniv2
+          dependsOnJob: failedE2ELogs_windows
+

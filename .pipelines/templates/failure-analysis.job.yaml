@@ -1,0 +1,195 @@
+# Reusable job template: Failure Analysis (v2)
+#
+# Add as a sibling job to failedE2ELogs in each E2E stage. This job MUST be
+# scheduled before the cluster teardown/delete job so live diagnostics can run
+# against the still-retained failing cluster.
+#
+# It downloads the evidence artifact that failedE2ELogs published, optionally
+# collects read-only live `kubectl` diagnostics from the retained cluster, runs
+# the failure-agent CLI (LLM-first analysis grounded by deterministic signatures
+# and prior knowledge), and publishes the analysis.
+#
+# Analysis is LLM-first: when Azure OpenAI credentials are not configured the
+# agent emits an `analysis_failed` incident that still preserves the raw evidence
+# for human triage — there is no deterministic fallback classification.
+#
+# When GITHUB_TOKEN is set and the build is a pull request, the agent posts a
+# summary comment to the PR (unless --dry-run is passed, which only suppresses
+# PR write-back).
+#
+# The agent is advisory about cluster retention: it writes a `retentionDecision`
+# field to incident.json. This job surfaces that as the `retentionDecision`
+# output variable so a downstream teardown/sweeper job can keep the cluster
+# (TTL-tagged) for inspection. The agent never changes teardown behavior itself.
+
+parameters:
+  clusterName: ""
+  os: ""
+  cni: ""
+  # The failedE2ELogs job name this job depends on. Override for OS-suffixed
+  # variants (e.g. failedE2ELogs_linux).
+  dependsOnJob: "failedE2ELogs"
+  # Artifact naming fields — must match what log-template.yaml publishes.
+  logType: "failure"
+  artifactJobName: "FailedE2ELogs"
+  # MVP demo: keep supplemental fixed-set live diagnostics enabled. The larger
+  # live evidence source is still failedE2ELogs, which publishes the input bundle.
+  # Requires KUBECONFIG to point at the retained failing cluster.
+  live: true
+  # MVP demo: knowledge store remains implemented but disabled in the pipeline.
+  # Re-enable incrementally after AOAI analysis and GitHub upsert are proven.
+  knowledgeDb: ""
+  # MVP demo: flakiness analytics remains implemented but disabled until a
+  # persistent knowledge store is enabled across multiple pipeline runs.
+  flakinessOutput: ""
+
+jobs:
+  - job: failureAnalysis_${{ parameters.os }}
+    displayName: "Failure Analysis (${{ parameters.os }})"
+    dependsOn:
+      - ${{ parameters.dependsOnJob }}
+    # Run only when failedE2ELogs actually executed (succeeded or failed).
+    # Skip when it was skipped (test passed, so failedE2ELogs's condition: failed() was not met).
+    condition: in(dependencies.${{ parameters.dependsOnJob }}.result, 'Succeeded', 'SucceededWithIssues', 'Failed')
+    pool:
+      type: linux
+      isCustom: true
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+    timeoutInMinutes: 15
+    variables:
+      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+    steps:
+      - checkout: self
+
+      - task: GoTool@0
+        inputs:
+          version: '1.25'
+        displayName: "Setup Go"
+
+      - task: DownloadPipelineArtifact@2
+        displayName: "Download failure logs"
+        inputs:
+          artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_${{ parameters.os }}${{ parameters.artifactJobName }}_Attempt_#$(System.StageAttempt)
+          targetPath: $(Agent.TempDirectory)/evidence
+        continueOnError: true
+
+      - task: KubectlInstaller@0
+        displayName: "Install kubectl"
+        inputs:
+          kubectlVersion: latest
+
+      - task: AzureCLI@2
+        displayName: "Bootstrap kubeconfig for live diagnostics"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            set -euo pipefail
+            if [ "${{ parameters.live }}" = "True" ] || [ "${{ parameters.live }}" = "true" ]; then
+              make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+            else
+              echo "Skipping kubeconfig bootstrap because live diagnostics are disabled."
+            fi
+        continueOnError: true
+
+      - script: |
+          set -euo pipefail
+
+          INPUT_DIR="$(Agent.TempDirectory)/evidence"
+          OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
+          mkdir -p "$INPUT_DIR" "$OUTPUT_DIR"
+
+          if [ -z "${AZURE_OPENAI_ENDPOINT:-}" ] || [ -z "${AZURE_OPENAI_DEPLOYMENT:-}" ]; then
+            echo "##[warning]Azure OpenAI credentials not configured; the agent will emit an analysis_failed incident preserving raw evidence."
+          fi
+
+          EXTRA_FLAGS=""
+
+          # --dry-run only suppresses PR write-back, not analysis.
+          if [ "${SUPPRESS_PR_WRITEBACK:-}" = "true" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --dry-run"
+          fi
+
+          if [ "${{ parameters.live }}" = "True" ] || [ "${{ parameters.live }}" = "true" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --live"
+          fi
+
+          # MVP demo: knowledge-store incident memory/dedupe/prior context is
+          # intentionally disabled in the pipeline. The code remains in place;
+          # re-enable after AOAI analysis and GitHub upsert are proven.
+          # if [ -n "${{ parameters.knowledgeDb }}" ]; then
+          #   EXTRA_FLAGS="$EXTRA_FLAGS --knowledge-db ${{ parameters.knowledgeDb }}"
+          # fi
+
+          # MVP demo: flakiness analytics requires a persistent knowledge store
+          # and repeated runs, so leave it disabled for the first demo.
+          # if [ -n "${{ parameters.flakinessOutput }}" ]; then
+          #   EXTRA_FLAGS="$EXTRA_FLAGS --flakiness-output ${{ parameters.flakinessOutput }}"
+          # fi
+
+          cd "$(Build.SourcesDirectory)/tools/failure-agent"
+          go run . \
+            --input "$INPUT_DIR" \
+            --output "$OUTPUT_DIR" \
+            --signatures signatures/signatures.yaml \
+            --cluster-name "${{ parameters.clusterName }}" \
+            --os "${{ parameters.os }}" \
+            --cni "${{ parameters.cni }}" \
+            $EXTRA_FLAGS
+        displayName: "Run failure analysis"
+        env:
+          AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+          AZURE_OPENAI_DEPLOYMENT: $(AZURE_OPENAI_DEPLOYMENT)
+          AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
+          AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
+          GITHUB_TOKEN: $(GITHUB_TOKEN)
+
+      - script: |
+          set -euo pipefail
+          INCIDENT="$(Agent.TempDirectory)/analysis/incident.json"
+          DECISION="delete"
+          if [ -f "$INCIDENT" ]; then
+            PARSED=$(grep -o '"retentionDecision"[^,]*' "$INCIDENT" | head -n1 | sed -E 's/.*: *"([^"]*)".*/\1/')
+            DECISION=${PARSED:-delete}
+          fi
+          echo "Retention recommendation: $DECISION (MVP demo advisory only — teardown enforcement is re-enabled incrementally after the core demo)"
+          echo "##vso[task.setvariable variable=retentionDecision;isOutput=true]$DECISION"
+        name: retention
+        displayName: "Surface retention recommendation"
+        condition: succeededOrFailed()
+
+      - script: |
+          set -euo pipefail
+          OUTPUT_DIR="$(Agent.TempDirectory)/analysis"
+          echo "=== Agent output files ==="
+          ls -la "$OUTPUT_DIR" 2>/dev/null || echo "(no output directory)"
+          echo ""
+          for f in "$OUTPUT_DIR"/*; do
+            [ -f "$f" ] || continue
+            echo "========== $(basename "$f") =========="
+            cat "$f"
+            echo ""
+          done
+        displayName: "Dump agent output to logs"
+        condition: succeededOrFailed()
+
+      - script: |
+          set -euo pipefail
+          REPORT="$(Agent.TempDirectory)/analysis/report.md"
+          OUT_DIR="$(Build.ArtifactStagingDirectory)/out"
+          mkdir -p "$OUT_DIR"
+          if [ -f "$REPORT" ]; then
+            echo "##vso[task.uploadsummary]$REPORT"
+            cp "$REPORT" "$OUT_DIR/report.md"
+            cp "$(Agent.TempDirectory)/analysis/incident.json" "$OUT_DIR/incident.json" 2>/dev/null || true
+          fi
+        displayName: "Publish analysis summary"
+        condition: succeededOrFailed()
+
+      - publish: $(Build.ArtifactStagingDirectory)/out
+        artifact: failureAnalysis_${{ parameters.os }}_${{ parameters.clusterName }}
+        displayName: "Publish analysis artifact"
+        condition: succeededOrFailed()

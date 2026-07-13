@@ -144,3 +144,10 @@ stages:
               os: ${{ parameters.os }}
               cni: cniv2
 
+      - template: ../../templates/failure-analysis.job.yaml
+        parameters:
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          cni: cniv2
+          dependsOnJob: failedE2ELogs_${{ parameters.os }}
+
