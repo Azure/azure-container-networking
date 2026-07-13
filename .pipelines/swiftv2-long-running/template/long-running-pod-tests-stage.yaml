@@ -175,7 +175,8 @@ stages:
                   output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --region "${{ parameters.location }}" --cluster-type "${{ parameters.clusterType }}" --test-scenario "Long-running rotating pods"
                 else
                   echo "RotatingPods Zone ${{ parameters.zone }} FAILED"
-                  failed_step=$(grep -oE '##LONGRUNNING_FAILED_STEP=.*' "$log_file" | tail -1 | cut -d= -f2-)
+                  failed_step=$(grep -oE '##LONGRUNNING_FAILED_STEP=.*' "$log_file" | tail -1 | cut -d= -f2- || true)
+                  failed_step=${failed_step:-Unknown}
                   cd $metrics_dir
                   output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --region "${{ parameters.location }}" --cluster-type "${{ parameters.clusterType }}" --test-scenario "Long-running rotating pods" --step "$failed_step"
                   exit 1
@@ -246,7 +247,8 @@ stages:
                   output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --region "${{ parameters.location }}" --cluster-type "${{ parameters.clusterType }}" --test-scenario "Long-running always-on pods"
                 else
                   echo "AlwaysOnPods Zone ${{ parameters.zone }} FAILED"
-                  failed_step=$(grep -oE '##LONGRUNNING_FAILED_STEP=.*' "$log_file" | tail -1 | cut -d= -f2-)
+                  failed_step=$(grep -oE '##LONGRUNNING_FAILED_STEP=.*' "$log_file" | tail -1 | cut -d= -f2- || true)
+                  failed_step=${failed_step:-Unknown}
                   cd $metrics_dir
                   output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --region "${{ parameters.location }}" --cluster-type "${{ parameters.clusterType }}" --test-scenario "Long-running always-on pods" --step "$failed_step"
                   exit 1
@@ -320,7 +322,8 @@ stages:
                   output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsSucceeded" --ado-run-id $ado_run_id --resource-group "$RG" --region "${{ parameters.location }}" --cluster-type "${{ parameters.clusterType }}" --test-scenario "Long-running connectivity"
                 else
                   echo "Connectivity Zone ${{ parameters.zone }} FAILED"
-                  failed_step=$(grep -oE '##LONGRUNNING_FAILED_STEP=.*' "$log_file" | tail -1 | cut -d= -f2-)
+                  failed_step=$(grep -oE '##LONGRUNNING_FAILED_STEP=.*' "$log_file" | tail -1 | cut -d= -f2- || true)
+                  failed_step=${failed_step:-Unknown}
                   cd $metrics_dir
                   output/linux_amd64/metrics/persistent-cluster-metrics --metric-name "PersistentClusterTestsFailed" --ado-run-id $ado_run_id --resource-group "$RG" --region "${{ parameters.location }}" --cluster-type "${{ parameters.clusterType }}" --test-scenario "Long-running connectivity" --step "$failed_step"
                   exit 1

@@ -31,7 +31,11 @@ func ReportFailedStep() {
 	if !ginkgo.CurrentGinkgoTestDescription().Failed {
 		return
 	}
-	fmt.Printf("##LONGRUNNING_FAILED_STEP=%s\n", currentStep)
+	step := currentStep
+	if step == "" {
+		step = "Unknown"
+	}
+	fmt.Printf("##LONGRUNNING_FAILED_STEP=%s\n", step)
 }
 
 // Shared constants for long-running pod tests (rotating + always-on DaemonSet).
