@@ -86,17 +86,13 @@ azlogin: ## Login and set account to $SUB
 	@$(AZCLI) account set -s $(SUB)
 
 # Fallback pin to work around aks-preview upstream breaks (checksum mismatches, etc.).
-# Track: https://github.com/Azure/azure-cli-extensions/issues/10101
-# azcfg tries the latest aks-preview first; if that fails (e.g., broken upstream
-# publish like 21.0.0b9), it falls back to this known-good version so CI keeps
-# moving without a manual intervention. Bump this to the newest verified-good
-# release when needed.
+# Past Issue: https://github.com/Azure/azure-cli-extensions/issues/10101
 AKS_PREVIEW_FALLBACK_VERSION ?= 21.0.0b7
 
 azcfg: ## Install aks-preview (latest, falling back to AKS_PREVIEW_FALLBACK_VERSION on failure)
 	@$(AZCLI) extension add --name aks-preview --upgrade --yes \
 		|| { \
-			echo "aks-preview latest install failed; falling back to $(AKS_PREVIEW_FALLBACK_VERSION) (see Azure/azure-cli-extensions#10101)"; \
+			echo "aks-preview latest install failed; falling back to $(AKS_PREVIEW_FALLBACK_VERSION)"; \
 			$(AZCLI) extension add --name aks-preview --version $(AKS_PREVIEW_FALLBACK_VERSION) --upgrade --yes; \
 		}
 
