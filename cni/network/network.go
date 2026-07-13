@@ -1155,34 +1155,22 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		// network ID is passed in and used only for migration
 		// otherwise, in stateless, we don't need the network id for deletion
 		epInfos, err = plugin.nm.GetEndpointState(networkID, args.ContainerID, args.Netns)
-		// Handle the possible outcomes from GetEndpointState:
-		//   * nil                         -> proceed with normal delete path
-		//   * ErrEndpointStateNotFound    -> real no-op, fall through with err reset
-		//   * ErrConnectionFailure        -> CNS is unreachable; return a retriable
-		//     error so kubelet retries this DEL later. Without this, DEL returns
-		//     success, kubelet never retries, and any downstream cleanup that
-		//     needs the sync path (e.g., delegated-NIC HNS network delete) is
-		//     skipped -- leaking the network and hiding the pNIC MAC.
-		//   * any other error             -> retriable, log details
-		switch {
-		case err == nil:
-			// ok
-		case errors.Is(err, network.ErrConnectionFailure):
-			return plugin.RetriableError(fmt.Errorf(
-				"cns unreachable during del (containerID=%s): %w", args.ContainerID, err))
-		case errors.Is(err, network.ErrEndpointStateNotFound):
-			err = nil
-		default:
-			return plugin.RetriableError(fmt.Errorf(
-				"get endpoint state (containerID=%s): %w", args.ContainerID, err))
+		// if stateless CNI fails to get the endpoint from CNS for any reason other than
+		// endpoint not found or connection failure, return error
+		if err != nil && !errors.Is(err, network.ErrEndpointStateNotFound) && !errors.Is(err, network.ErrConnectionFailure) {
+			logger.Error("Get Endpoint State API returned error", zap.String("containerID", args.ContainerID), zap.Error(err))
+			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
 		}
+		// set the error to nil if endpoint state is not found or connection failure to CNS;
+		// the next if block (len(epInfos) == 0) will handle that ip release if necessary
+		err = nil
 	} else {
 		epInfos = plugin.nm.GetEndpointInfosFromContainerID(args.ContainerID)
 	}
 
 	// for when the endpoint is not created, but the ips are already allocated (only works if single network, single infra)
-	// this block applies to stateless CNI when GetEndpointState returned ErrEndpointStateNotFound (err reset to nil above).
-	// CNS connection failures now return a retriable error earlier so this path is not reached in that case.
+	// this block applies to stateless CNI if either endpoint state is not found or there is a CNS connection failure
+	// if there is a connection failure to CNS, IP release will be handled asynchronously by the CNS invoker (via ipamInvoker.Delete)
 	if len(epInfos) == 0 {
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		if !nwCfg.MultiTenancy {
