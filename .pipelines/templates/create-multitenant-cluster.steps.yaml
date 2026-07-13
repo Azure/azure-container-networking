@@ -32,12 +32,6 @@ steps:
       set -e
       echo "Check az version"
       az version
-      if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
-      then
-        echo "Install az cli extension preview"
-        az extension add --name aks-preview
-        az extension update --name aks-preview
-      fi
       mkdir -p ~/.kube/
       make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
 

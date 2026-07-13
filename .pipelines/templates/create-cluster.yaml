@@ -25,12 +25,6 @@ jobs:
             set -e
             echo "Check az version"
             az version
-            if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
-            then
-              echo "Install az cli extension preview"
-              az extension add --name aks-preview
-              az extension update --name aks-preview
-            fi
 
             if ! [ -z ${K8S_VERSION} ]; then
               echo "Default k8s version, $(make -C ./hack/aks vars | grep K8S | cut -d'=' -f 2), is manually set to ${K8S_VERSION}"
