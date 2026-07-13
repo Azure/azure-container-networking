@@ -23,26 +23,17 @@ stages:
     - checkout: azure-container-networking
 
     - script: |
-        set -eux
-        ls -la .pipelines/build/scripts/ || ls -la $(Build.SourcesDirectory)/$(ACN_DIR)/.pipelines/build/scripts/ || echo "Scripts not found at either path"
-        if [ -f .pipelines/build/scripts/install-crane.sh ]; then
-          bash .pipelines/build/scripts/install-crane.sh
-        else
-          bash $(Build.SourcesDirectory)/$(ACN_DIR)/.pipelines/build/scripts/install-crane.sh
-        fi
-      displayName: "Install crane"
+        GO_VER=$(grep '^toolchain' go.mod | sed 's/toolchain go//' | cut -d. -f1,2)
+        if [ -z "$GO_VER" ]; then GO_VER=$(grep '^go ' go.mod | awk '{print $2}' | cut -d. -f1,2); fi
+        if [ -z "$GO_VER" ]; then echo "##[error]Failed to detect Go version from go.mod"; exit 1; fi
+        echo "##vso[task.setvariable variable=GO_TOOLCHAIN_VERSION]$GO_VER"
+        echo "Detected Go version: $GO_VER"
+      displayName: "Detect Go version from go.mod"
 
-    - script: |
-        set -eux
-        export REPO_ROOT="${REPO_ROOT:-$(pwd)}"
-        if [ -f .pipelines/build/scripts/install-go.sh ]; then
-          bash .pipelines/build/scripts/install-go.sh
-        else
-          bash $(Build.SourcesDirectory)/$(ACN_DIR)/.pipelines/build/scripts/install-go.sh
-        fi
-      displayName: "Install msft-go"
-      env:
-        REPO_ROOT: $(Build.SourcesDirectory)/$(ACN_DIR)
+    - task: GoTool@0
+      inputs:
+        version: '$(GO_TOOLCHAIN_VERSION)'
+      displayName: "Install Go"
 
     - script: |
         set -e
