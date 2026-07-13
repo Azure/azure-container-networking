@@ -86,8 +86,8 @@ azlogin: ## Login and set account to $SUB
 	@$(AZCLI) account set -s $(SUB)
 
 azcfg: ## Set the $AZCLI to use aks-preview
-	@$(AZCLI) extension add --name aks-preview --yes
-	@$(AZCLI) extension update --name aks-preview
+	@$(AZCLI) extension show --name aks-preview &>/dev/null || $(AZCLI) extension add --name aks-preview --yes
+	@$(AZCLI) extension update --name aks-preview || true
 
 ip:
 	$(AZCLI) network public-ip create --name $(IP_PREFIX)-$(CLUSTER)-$(IPVERSION) \
