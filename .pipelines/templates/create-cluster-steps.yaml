@@ -23,12 +23,6 @@ steps:
         set -e
         echo "Check az version"
         az version
-        if ${{ lower(contains(parameters.clusterType, 'dualstack')) }}
-        then
-          echo "Install az cli extension preview"
-          az extension add --name aks-preview
-          az extension update --name aks-preview
-        fi
 
         if ! [ -z ${{ parameters.k8sVersion }} ]; then
           echo "Set K8S_VER with ${{ parameters.k8sVersion }}"
