@@ -15,7 +15,7 @@ stages:
       ACR_DIR: $(Build.SourcesDirectory)/azure-container-networking
       BUILD_TYPE: $(IMAGE_ACR_TYPE)
     steps:
-    - checkout: self
+    - checkout: azure-container-networking
     - template: build/ob-prepare.steps.yaml
 
 - template: templates/run-unit-tests.stages.yaml
@@ -599,7 +599,7 @@ stages:
             clusterName: "cildsovere2e"
             region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
       steps:
-      - checkout: self
+      - checkout: azure-container-networking
       - template: templates/delete-cluster.steps.yaml
         parameters:
           name: $(name)
