@@ -51,6 +51,15 @@ func printVersion() {
 }
 
 func rootExecute() error {
+	var config common.PluginConfig
+
+	log.SetName(name)
+	log.SetLevel(log.LevelInfo)
+	if err := log.SetTargetLogDirectory(log.TargetLogfile, ""); err != nil {
+		fmt.Printf("Failed to setup cni logging: %v\n", err)
+	}
+	defer log.Close()
+
 	// Enrich all CNI loggers with host metadata so ETW events carry VM identity for diagnostics.
 	metadataFile := filepath.Join(os.TempDir(), "azuremetadata.json")
 	if metadata, err := common.GetHostMetadata(metadataFile); err == nil {
@@ -70,15 +79,6 @@ func rootExecute() error {
 			zap.String("os_type", metadata.OsType),
 		)
 	}
-
-	var config common.PluginConfig
-
-	log.SetName(name)
-	log.SetLevel(log.LevelInfo)
-	if err := log.SetTargetLogDirectory(log.TargetLogfile, ""); err != nil {
-		fmt.Printf("Failed to setup cni logging: %v\n", err)
-	}
-	defer log.Close()
 
 	config.Version = version
 	config.Stateless = stateless

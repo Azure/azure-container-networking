@@ -178,8 +178,6 @@ func GetHostMetadata(fileName string) (Metadata, error) {
 		}
 	}
 
-	log.Printf("[Telemetry] Request metadata from wireserver")
-
 	req, err := http.NewRequest("GET", metadataURL, nil)
 	if err != nil {
 		return Metadata{}, err
