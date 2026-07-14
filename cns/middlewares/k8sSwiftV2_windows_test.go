@@ -1,20 +1,30 @@
 package middlewares
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/v3/assert"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func TestMain(m *testing.M) {
+	logger.InitLogger("testlogs", 0, 0, "./")
+	os.Exit(m.Run())
+}
 
 func TestSetRoutesSuccess(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
@@ -218,4 +228,58 @@ func normalizeKVPairs(t *testing.T, policies []policy.Policy) []policy.Policy {
 	}
 
 	return normalized
+}
+
+// TestApplyLabelDefaultDeny covers the prototype path that forces SwiftV2-style
+// default-deny ACLs on the InfraNIC of a non-SwiftV2 pod when it carries
+// configuration.LabelPodDefaultDeny.
+func TestApplyLabelDefaultDeny(t *testing.T) {
+	cli := mock.NewClient()
+	mw := K8sSWIFTv2Middleware{Cli: cli}
+
+	const (
+		ns   = "default"
+		name = "labelled-pod"
+	)
+	cli.SetPod(ns, name, &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns,
+			Name:      name,
+			Labels:    map[string]string{configuration.LabelPodDefaultDeny: "true"},
+		},
+	})
+
+	t.Run("label present applies deny ACLs to InfraNIC", func(t *testing.T) {
+		resp := &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{
+				{NICType: cns.InfraNIC, PodIPConfig: cns.IPSubnet{IPAddress: "10.0.0.5", PrefixLength: 24}},
+			},
+		}
+		mw.applyLabelDefaultDeny(context.Background(), cns.NewPodInfo("cid", "iid", name, ns), resp)
+
+		require.Len(t, resp.PodIPInfo[0].EndpointPolicies, 2)
+		normalized := normalizeKVPairs(t, resp.PodIPInfo[0].EndpointPolicies)
+		expected := normalizeKVPairs(t, []policy.Policy{defaultDenyEgressPolicy, defaultDenyIngressPolicy})
+		require.True(t, cmp.Equal(expected, normalized), "applied policies differ: %s", cmp.Diff(expected, normalized))
+	})
+
+	t.Run("label absent leaves policies untouched", func(t *testing.T) {
+		const plainName = "plain-pod"
+		cli.SetPod(ns, plainName, &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: plainName},
+		})
+		resp := &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{{NICType: cns.InfraNIC}},
+		}
+		mw.applyLabelDefaultDeny(context.Background(), cns.NewPodInfo("cid", "iid", plainName, ns), resp)
+		require.Empty(t, resp.PodIPInfo[0].EndpointPolicies)
+	})
+
+	t.Run("pod fetch failure is swallowed", func(t *testing.T) {
+		resp := &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{{NICType: cns.InfraNIC}},
+		}
+		mw.applyLabelDefaultDeny(context.Background(), cns.NewPodInfo("cid", "iid", "missing-pod", ns), resp)
+		require.Empty(t, resp.PodIPInfo[0].EndpointPolicies)
+	})
 }

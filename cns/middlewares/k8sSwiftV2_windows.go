@@ -7,12 +7,15 @@ import (
 	"net/netip"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 )
 
 var defaultDenyEgressPolicy policy.Policy = mustGetEndpointPolicy(cns.DirectionTypeOut)
@@ -141,8 +144,13 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 			}, errors.New("failed to validate IP configs request")
 		}
 		ipConfigsResp, err := defaultHandler(ctx, req)
-		// If the pod is not v2, return the response from the handler
+		// If the pod is not v2, check the LabelPodDefaultDeny label and force the same
+		// default-deny ACLs on the InfraNIC that the SwiftV2 DefaultDenyACL path would
+		// have applied. Prototype: extends DefaultDeny to non-SwiftV2 pods.
 		if !req.SecondaryInterfacesExist {
+			if err == nil {
+				k.applyLabelDefaultDeny(ctx, podInfo, ipConfigsResp)
+			}
 			return ipConfigsResp, err
 		}
 
@@ -242,4 +250,36 @@ func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.R
 	}
 
 	return routes, nil
+}
+
+// applyLabelDefaultDeny is a prototype: for a non-SwiftV2 pod, fetch the pod
+// and, if it carries configuration.LabelPodDefaultDeny, append the same
+// default-deny ACL endpoint policies to the InfraNIC entry that SwiftV2's
+// PNI.DefaultDenyACL path would attach via mtpnc.Status.DefaultDenyACL.
+//
+// This makes the InfraNIC HCN endpoint receive Block ACLs in HNS without
+// requiring a PNI/MTPNC for the pod. Failures here are logged and swallowed:
+// label-driven default-deny is best-effort and must not break IPAM.
+func (k *K8sSWIFTv2Middleware) applyLabelDefaultDeny(ctx context.Context, podInfo cns.PodInfo, resp *cns.IPConfigsResponse) {
+	if resp == nil || len(resp.PodIPInfo) == 0 {
+		return
+	}
+	pod := v1.Pod{}
+	nsName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
+	if err := k.Cli.Get(ctx, nsName, &pod); err != nil {
+		logger.Errorf("default-deny label check: failed to get pod %s: %v", nsName, err)
+		return
+	}
+	if _, ok := pod.Labels[configuration.LabelPodDefaultDeny]; !ok {
+		return
+	}
+	for i := range resp.PodIPInfo {
+		ipInfo := &resp.PodIPInfo[i]
+		// Match InfraNIC explicitly or the legacy/empty NICType, mirroring cns.NICType.IsInfraOrLegacy().
+		if ipInfo.NICType == cns.InfraNIC || ipInfo.NICType == "" {
+			ipInfo.EndpointPolicies = append(ipInfo.EndpointPolicies, defaultDenyEgressPolicy, defaultDenyIngressPolicy)
+			logger.Printf("[DefaultDenyLabel] applied default-deny ACLs to InfraNIC for pod %s", nsName)
+			return
+		}
+	}
 }

@@ -16,6 +16,11 @@ const (
 	// LabelPodSwiftV2 is the Pod label for Swift V2
 	LabelPodSwiftV2                = "kubernetes.azure.com/pod-network"
 	LabelPodNetworkInstanceSwiftV2 = "kubernetes.azure.com/pod-network-instance"
+	// LabelPodDefaultDeny, when present on a Pod, causes CNS (Windows) to attach
+	// the same default-deny ACL endpoint policies to the pod's InfraNIC that
+	// SwiftV2's PNI.DefaultDenyACL path would attach, even for non-SwiftV2 pods.
+	// Prototype.
+	LabelPodDefaultDeny = "kubernetes.azure.com/pod-default-deny"
 	EnvPodCIDRs                    = "POD_CIDRs"
 	EnvServiceCIDRs                = "SERVICE_CIDRs"
 	EnvInfraVNETCIDRs              = "INFRA_VNET_CIDRs"

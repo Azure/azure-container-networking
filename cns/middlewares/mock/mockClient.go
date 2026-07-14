@@ -247,3 +247,10 @@ func (c *Client) SetMTPNCNotReady() {
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{}
 	c.mtpncCache["testpod1namespace/testpod1"] = &testMTPNC1
 }
+
+// SetPod injects a pod into the mock pod cache for tests that need labels or other pod state
+// the constructor doesn't pre-populate (e.g. the LabelPodDefaultDeny prototype path).
+func (c *Client) SetPod(namespace, name string, pod *v1.Pod) {
+	key := namespace + "/" + name
+	c.mtPodCache[key] = pod
+}
