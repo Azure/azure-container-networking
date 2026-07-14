@@ -26,6 +26,11 @@ schedules:
   branches:
     include: ["master"]
   always: true
+- cron: "0 */4 * * *" # Every 4 hours
+  displayName: "Scheduled Failure Analysis Agent Run"
+  branches:
+    include: ["master"]
+  always: true
 
 parameters:
   - name: buildCni
