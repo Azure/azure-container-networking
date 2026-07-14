@@ -18,6 +18,7 @@ data:
     ^.*--comment.*cilium:
     ^.*--comment.*cilium-feeder:
     ^.*--comment.*AKS managed: added by AgentBaker
+    ^-A CILIUM_\S+ 
   mangle: |
 
   nat: |
