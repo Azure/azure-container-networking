@@ -207,8 +207,8 @@ notify_status() {
   if (( ${#cc_users[@]} > 0 )); then
     local mentions_json
     mentions_json="$(printf '%s\n' "${cc_users[@]}" | jq -R . | jq -s .)"
-    cc_json="$(jq -n --arg label "$cc_label" --argjson m "$mentions_json" \
-      'if $label != "" then {label:$label, mentions:$m} else {mentions:$m} end')"
+    cc_json="$(jq -n --arg lbl "$cc_label" --argjson m "$mentions_json" \
+      'if $lbl != "" then {label: $lbl, mentions: $m} else {mentions: $m} end')"
   fi
 
   local payload
