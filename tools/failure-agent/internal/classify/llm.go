@@ -66,6 +66,7 @@ type llmResult struct {
 	TopEvidence      []string `json:"topEvidence"`
 	RecommendedOwner string   `json:"recommendedOwner"`
 	ProposedFix      string   `json:"proposedFix"`
+	NodeAssessment   string   `json:"nodeAssessment"`
 }
 
 func (r llmResult) toClassification() (model.Classification, error) {
@@ -86,6 +87,7 @@ func (r llmResult) toClassification() (model.Classification, error) {
 		TopEvidence:      r.TopEvidence,
 		RecommendedOwner: r.RecommendedOwner,
 		ProposedFix:      r.ProposedFix,
+		NodeAssessment:   r.NodeAssessment,
 		Source:           "llm",
 	}, nil
 }
@@ -107,14 +109,15 @@ func classificationSchema() *Schema {
 	def := `{
   "type": "object",
   "additionalProperties": false,
-  "required": ["category", "confidence", "rootCauseSummary", "topEvidence", "recommendedOwner", "proposedFix"],
+  "required": ["category", "confidence", "rootCauseSummary", "topEvidence", "recommendedOwner", "proposedFix", "nodeAssessment"],
   "properties": {
     "category": {"type": "string", "enum": ["pr_regression", "cluster_bringup_failure", "pipeline_infra_config", "known_flake", "unknown_needs_human"]},
     "confidence": {"type": "number", "minimum": 0, "maximum": 1},
     "rootCauseSummary": {"type": "string"},
     "topEvidence": {"type": "array", "items": {"type": "string"}},
     "recommendedOwner": {"type": "string"},
-    "proposedFix": {"type": "string"}
+    "proposedFix": {"type": "string"},
+    "nodeAssessment": {"type": "string"}
   }
 }`
 	return &Schema{Name: "failure_classification", Definition: json.RawMessage(def)}
@@ -128,6 +131,12 @@ func systemPrompt() string {
 		"Categories: pr_regression (the change under test broke it), cluster_bringup_failure (provisioning/readiness), " +
 		"pipeline_infra_config (agent/quota/credentials/connectivity, not product code), known_flake (recognized intermittent), " +
 		"unknown_needs_human (cannot determine). Treat the deterministic signature pre-matches as strong hints, not ground truth. " +
+		"Always investigate node and nodepool health before blaming the change under test: inspect node Ready/NotReady status, " +
+		"reboots, reimage, resource pressure (MemoryPressure/DiskPressure/PIDPressure), evictions, and node-scoped events. " +
+		"A component restart (for example CNS logging \"caught exit signal terminated\" followed by a restart) is expected when a node " +
+		"reboots, is reimaged, drains, or goes NotReady; when such a restart coincides with a node lifecycle event, prefer " +
+		"pipeline_infra_config or cluster_bringup_failure over pr_regression. Record your node/nodepool findings in nodeAssessment " +
+		"(state explicitly if the nodes were healthy and node health was not a factor). " +
 		"When prior validated resolutions are provided and clearly match the evidence, prefer them; treat in-flight (unvalidated) incidents as context only. " +
 		"Base your answer only on the provided evidence and respond strictly in the required JSON schema."
 }
@@ -171,12 +180,25 @@ func userPrompt(rc model.RunContext, ev model.Evidence, fp model.Fingerprint, ma
 	return b.String()
 }
 
+// nodeEvidenceKeys are excerpt names that describe node/nodepool health. They
+// are emitted before the alphabetical remainder so the node-lifecycle signal is
+// never starved out of the prompt by the total excerpt budget.
+var nodeEvidenceKeys = []string{
+	"live/nodes",
+	"live/node-conditions",
+	"live/node-events",
+	"live/events",
+	"node-status.txt",
+	"node-network-configs.txt",
+}
+
 func writeExcerpts(b *strings.Builder, excerpts map[string]string) {
 	names := make([]string, 0, len(excerpts))
 	for name := range excerpts {
 		names = append(names, name)
 	}
 	sort.Strings(names)
+	names = prioritizeNodeEvidence(names)
 
 	total := 0
 	for _, name := range names {
@@ -190,4 +212,34 @@ func writeExcerpts(b *strings.Builder, excerpts map[string]string) {
 		fmt.Fprintf(b, "### %s\n%s\n", name, chunk)
 		total += len(chunk)
 	}
+}
+
+// prioritizeNodeEvidence moves present node-evidence keys to the front of names,
+// preserving the relative order of everything else.
+func prioritizeNodeEvidence(names []string) []string {
+	priority := make(map[string]bool, len(nodeEvidenceKeys))
+	for _, k := range nodeEvidenceKeys {
+		priority[k] = true
+	}
+	ordered := make([]string, 0, len(names))
+	for _, k := range nodeEvidenceKeys {
+		if _, ok := indexOf(names, k); ok {
+			ordered = append(ordered, k)
+		}
+	}
+	for _, n := range names {
+		if !priority[n] {
+			ordered = append(ordered, n)
+		}
+	}
+	return ordered
+}
+
+func indexOf(names []string, target string) (int, bool) {
+	for i, n := range names {
+		if n == target {
+			return i, true
+		}
+	}
+	return 0, false
 }

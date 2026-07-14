@@ -51,6 +51,7 @@ func Build(now time.Time, rc model.RunContext, fp model.Fingerprint, c model.Cla
 		ConfidenceBand:       policy.Band(c.Confidence),
 		RootCauseSummary:     c.RootCauseSummary,
 		RecommendedOwner:     c.RecommendedOwner,
+		NodeAssessment:       c.NodeAssessment,
 		TopEvidence:          c.TopEvidence,
 		SignatureMatches:     matches,
 		EvidenceFiles:        ev.Files,
@@ -101,6 +102,11 @@ func RenderMarkdown(inc model.Incident) string {
 
 	b.WriteString("### Likely root cause\n\n")
 	fmt.Fprintf(&b, "%s\n\n", emptyDash(inc.RootCauseSummary))
+
+	if strings.TrimSpace(inc.NodeAssessment) != "" {
+		b.WriteString("### Node / nodepool health\n\n")
+		fmt.Fprintf(&b, "%s\n\n", inc.NodeAssessment)
+	}
 
 	b.WriteString("### Top evidence\n\n")
 	if len(inc.TopEvidence) == 0 {

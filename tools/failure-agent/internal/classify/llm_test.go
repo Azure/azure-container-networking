@@ -25,6 +25,51 @@ func (f *fakeCompleter) Complete(_ context.Context, system, user string, schema 
 	return f.response, f.err
 }
 
+func TestLLMClassifierPromptCoversNodeHealth(t *testing.T) {
+	fc := &fakeCompleter{response: `{
+		"category": "pipeline_infra_config",
+		"confidence": 0.6,
+		"rootCauseSummary": "node rebooted",
+		"topEvidence": ["NotReady"],
+		"recommendedOwner": "acn-infra",
+		"proposedFix": "rerun once nodepool healthy",
+		"nodeAssessment": "node aks-nodepool1-vmss000000 went NotReady after reboot"
+	}`}
+
+	got, err := NewLLMClassifier(fc).Classify(context.Background(), model.RunContext{}, model.Evidence{}, model.Fingerprint{}, nil, PriorContext{})
+	if err != nil {
+		t.Fatalf("Classify: %v", err)
+	}
+	if !strings.Contains(fc.gotSystem, "node and nodepool health") {
+		t.Error("expected system prompt to direct node/nodepool investigation")
+	}
+	if got.NodeAssessment == "" {
+		t.Error("expected node assessment to be propagated from the model response")
+	}
+}
+
+func TestWriteExcerptsPrioritizesNodeEvidence(t *testing.T) {
+	filler := strings.Repeat("x", maxExcerptChars)
+	excerpts := map[string]string{
+		"aks-nodepool1-vmss000000_logs/containerd-output/containerd.log": filler,
+		"live/cilium-logs":     filler,
+		"live/cns-logs":        filler,
+		"live/nodes":           "NODE STATUS: aks-nodepool1-vmss000000 NotReady",
+		"node-status.txt":      "node rebooted at 07:02",
+		"node-network-configs": filler,
+	}
+	var b strings.Builder
+	writeExcerpts(&b, excerpts)
+	out := b.String()
+
+	if !strings.Contains(out, "live/nodes") || !strings.Contains(out, "NotReady") {
+		t.Error("expected node evidence to survive the excerpt budget")
+	}
+	if !strings.Contains(out, "node-status.txt") {
+		t.Error("expected node-status.txt excerpt to be prioritized")
+	}
+}
+
 func TestLLMClassifierValidResponse(t *testing.T) {
 	fc := &fakeCompleter{response: `{
 		"category": "pr_regression",

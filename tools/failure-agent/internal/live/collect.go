@@ -34,6 +34,7 @@ var diagnostics = []diagnostic{
 	{"pods", []string{"kubectl", "get", "pods", "-A", "-o", "wide"}},
 	{"nodes", []string{"kubectl", "get", "nodes", "-o", "wide"}},
 	{"node-conditions", []string{"kubectl", "describe", "nodes"}},
+	{"node-events", []string{"kubectl", "get", "events", "-A", "--field-selector", "involvedObject.kind=Node", "--sort-by=.lastTimestamp"}},
 	{"events", []string{"kubectl", "get", "events", "-A", "--sort-by=.lastTimestamp"}},
 	{"daemonsets", []string{"kubectl", "get", "daemonsets", "-n", "kube-system", "-o", "wide"}},
 	{"cns-logs", []string{"kubectl", "logs", "-n", "kube-system", "-l", "k8s-app=azure-cns", "--tail=200", "--prefix"}},

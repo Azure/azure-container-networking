@@ -75,6 +75,44 @@ func TestParseEvidenceExtractsErrorsAndDedups(t *testing.T) {
 	}
 }
 
+func TestParseEvidenceSurfacesNodeHealthWithoutErrors(t *testing.T) {
+	dir := t.TempDir()
+	// node-status.txt has no error keywords but is essential node evidence.
+	writeFile(t, dir, "node-status.txt", "NAME                              STATUS     ROLES   AGE\naks-nodepool1-vmss000000          NotReady   agent   42m\n")
+	writeFile(t, dir, "unrelated.txt", "everything healthy\nready\n")
+
+	ev, err := ParseEvidence(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	excerpt, ok := ev.Excerpts["node-status.txt"]
+	if !ok {
+		t.Fatalf("expected node-status.txt to be surfaced as an excerpt, got %v", ev.Excerpts)
+	}
+	if !strings.Contains(excerpt, "NotReady") {
+		t.Errorf("expected node status content in excerpt: %q", excerpt)
+	}
+	if _, ok := ev.Excerpts["unrelated.txt"]; ok {
+		t.Error("did not expect excerpt for a non-node file with no errors")
+	}
+}
+
+func TestIsNodeEvidenceFile(t *testing.T) {
+	yes := []string{"node-status.txt", "node-network-configs.txt", "logs/node-conditions.txt", "nodes", "nodes.txt"}
+	for _, n := range yes {
+		if !isNodeEvidenceFile(n) {
+			t.Errorf("expected %q to be node evidence", n)
+		}
+	}
+	no := []string{"pods.txt", "azure-cns.log", "kube-system/coredns-node-manager-logs.txt"}
+	for _, n := range no {
+		if isNodeEvidenceFile(n) {
+			t.Errorf("did not expect %q to be node evidence", n)
+		}
+	}
+}
+
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {

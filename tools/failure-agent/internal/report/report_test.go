@@ -18,6 +18,32 @@ func sampleClassification() model.Classification {
 	}
 }
 
+func TestRenderMarkdownNodeAssessment(t *testing.T) {
+	inc := Build(time.Unix(0, 0), model.RunContext{}, model.Fingerprint{Hash: "x"},
+		model.Classification{
+			Category:         model.CategoryPipelineInfraConfig,
+			Confidence:       0.6,
+			RootCauseSummary: "CNS restarted after the node rebooted.",
+			NodeAssessment:   "Node aks-nodepool1-vmss000000 went NotReady after a RebootScheduled event; CNS restart is a side effect.",
+			Source:           "llm",
+		}, nil, model.Evidence{})
+
+	md := RenderMarkdown(inc)
+	if !strings.Contains(md, "### Node / nodepool health") {
+		t.Error("expected node/nodepool health section in report")
+	}
+	if !strings.Contains(md, "RebootScheduled") {
+		t.Error("expected node assessment text in report")
+	}
+}
+
+func TestRenderMarkdownOmitsEmptyNodeAssessment(t *testing.T) {
+	md := RenderMarkdown(Build(time.Unix(0, 0), model.RunContext{}, model.Fingerprint{Hash: "x"}, sampleClassification(), nil, model.Evidence{}))
+	if strings.Contains(md, "Node / nodepool health") {
+		t.Error("did not expect node section when assessment is empty")
+	}
+}
+
 func TestBuildAppliesPolicy(t *testing.T) {
 	rc := model.RunContext{PipelineName: "ACN", StageName: "Cilium", SourceCommitID: "abc123"}
 	inc := Build(time.Unix(0, 0), rc, model.Fingerprint{Hash: "deadbeef"}, sampleClassification(), nil, model.Evidence{})

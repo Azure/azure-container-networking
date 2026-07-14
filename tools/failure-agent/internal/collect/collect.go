@@ -103,6 +103,11 @@ func ParseEvidence(root string) (model.Evidence, error) {
 			seen[key] = true
 			errorLines = append(errorLines, l)
 		}
+		if len(snippets) == 0 && isNodeEvidenceFile(rel) {
+			if head := headExcerpt(path); head != "" {
+				snippets = []model.ErrorSnippet{{Line: 1, Snippet: head}}
+			}
+		}
 		if len(snippets) > 0 {
 			if len(ev.Excerpts) < maxExcerptFiles {
 				ev.Excerpts[rel] = renderFileExcerpt(snippets)
@@ -127,6 +132,38 @@ func ParseEvidence(root string) (model.Evidence, error) {
 	}
 	ev.TopErrorLines = errorLines
 	return ev, nil
+}
+
+// nodeEvidenceNameRE matches evidence files that describe node/nodepool health.
+// These are surfaced as excerpts even when they contain no error keywords, since
+// node readiness/lifecycle signals (NotReady, reboot, pressure) do not match the
+// error regex but are essential to distinguish infra failures from PR regressions.
+var nodeEvidenceNameRE = regexp.MustCompile(`(?i)(^|/)(node-status|node-conditions|node-network|nodes)[a-z0-9-]*(\.[a-z]+)?$`)
+
+// isNodeEvidenceFile reports whether rel is a node/nodepool health file.
+func isNodeEvidenceFile(rel string) bool {
+	return nodeEvidenceNameRE.MatchString(rel)
+}
+
+// headExcerpt returns the first lines of a file as a line-numbered snippet, used
+// to surface node-health files that carry no error-keyword matches.
+func headExcerpt(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(&boundedReader{r: f, remaining: maxExcerptBytes})
+	scanner.Buffer(make([]byte, 0, 64<<10), 1<<20)
+
+	var b strings.Builder
+	lineNo := 0
+	for scanner.Scan() && b.Len() < maxExcerptBytes {
+		lineNo++
+		fmt.Fprintf(&b, "  %6d | %s\n", lineNo, strings.TrimSpace(scanner.Text()))
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // scanFile returns matched error lines and line-numbered context snippets.

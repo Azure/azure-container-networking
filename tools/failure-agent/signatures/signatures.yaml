@@ -50,6 +50,27 @@ signatures:
       - "(?i)node.* not ready"
       - "(?i)NodeNotReady"
 
+  - id: node-lifecycle-restart
+    category: pipeline_infra_config
+    description: >-
+      A node reboot, reimage, preemption, or eviction disrupted the run. Component
+      restarts (e.g. CNS "caught exit signal terminated") are expected side effects
+      of node lifecycle events, not a product regression.
+    owner: acn-infra
+    recommendation: >-
+      Correlate the failure timestamps with node lifecycle events (kubectl get
+      events for Node objects, node-status/node-conditions). If CNS/CNI restarted
+      because the node rebooted, was reimaged, drained, or went NotReady, this is an
+      infra/nodepool event rather than a PR regression. Re-run once the nodepool is
+      healthy.
+    confidence: 0.6
+    anyOf:
+      - "(?i)RebootScheduled"
+      - "(?i)node.*(rebooted|reimaged|preempted)"
+      - "(?i)NodeNotReady.*kubelet"
+      - "(?i)(Preempt|Evict)ed.*node"
+      - "(?i)node\\.kubernetes\\.io/unreachable"
+
   - id: cns-crashloop
     category: pr_regression
     description: The CNS pod entered CrashLoopBackOff during the run.

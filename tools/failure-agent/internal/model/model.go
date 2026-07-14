@@ -125,7 +125,12 @@ type Classification struct {
 	TopEvidence      []string        `json:"topEvidence"`
 	RecommendedOwner string          `json:"recommendedOwner,omitempty"`
 	ProposedFix      string          `json:"proposedFix,omitempty"`
-	Source           string          `json:"source"` // "llm" or "none" when analysis failed
+	// NodeAssessment records what node/nodepool health showed and whether a node
+	// lifecycle event (reboot, reimage, NotReady, eviction) contributed to the
+	// failure. It exists so a CNS/agent restart is not misattributed to a PR
+	// regression when the node itself went down.
+	NodeAssessment string `json:"nodeAssessment,omitempty"`
+	Source         string `json:"source"` // "llm" or "none" when analysis failed
 }
 
 // Incident is the full structured result written to incident.json.
@@ -155,6 +160,7 @@ type Incident struct {
 	ConfidenceBand   ConfidenceBand  `json:"confidenceBand"`
 	RootCauseSummary string          `json:"rootCauseSummary"`
 	RecommendedOwner string          `json:"recommendedOwner,omitempty"`
+	NodeAssessment   string          `json:"nodeAssessment,omitempty"`
 
 	TopEvidence      []string         `json:"topEvidence"`
 	SignatureMatches []SignatureMatch `json:"signatureMatches"`

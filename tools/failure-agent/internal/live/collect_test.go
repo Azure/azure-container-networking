@@ -28,6 +28,27 @@ func (f *fakeRunner) Run(_ context.Context, argv []string) (string, error) {
 	return f.outputs[key], nil
 }
 
+func TestCollectRunsNodeEventsDiagnostic(t *testing.T) {
+	r := &fakeRunner{outputs: map[string]string{}}
+	res := NewCollector(r).Collect(context.Background())
+
+	if _, ok := res.Outputs["node-events"]; !ok {
+		t.Fatal("expected a node-events diagnostic to be collected")
+	}
+	var found bool
+	for _, argv := range r.calls {
+		if CommandString(argv) == "kubectl get events -A --field-selector involvedObject.kind=Node --sort-by=.lastTimestamp" {
+			found = true
+			if err := command.Validate(argv); err != nil {
+				t.Errorf("node-events command rejected by policy: %v", err)
+			}
+		}
+	}
+	if !found {
+		t.Error("node-events diagnostic did not run the expected node-scoped events query")
+	}
+}
+
 func TestCollectOnlyRunsAllowedCommands(t *testing.T) {
 	r := &fakeRunner{outputs: map[string]string{}}
 	res := NewCollector(r).Collect(context.Background())
