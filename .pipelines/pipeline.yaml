@@ -166,7 +166,7 @@ stages:
 
             - task: PublishBuildArtifacts@1
               inputs:
-                artifactName: "output"
+                artifactName: "unsigned-binaries"
                 pathtoPublish: "$(Build.ArtifactStagingDirectory)"
               condition: succeeded()
 
@@ -322,8 +322,6 @@ stages:
       displayName: Publish Multiarch Manifests
       dependsOn:
         - containerize
-      variables:
-        Packaging.EnableSBOMSigning: true
       jobs:
         - job: manifest
           displayName: Compile Manifests
@@ -375,6 +373,82 @@ stages:
               parameters:
                 name: npm
                 platforms: linux/amd64 linux/arm64 windows/amd64
+
+    # Aggregates intermediate per-image / per-binary artifacts and runs the
+    # Microsoft SBOM Generator over the assembled drop. This is the only
+    # place SBOM is generated and signed (Packaging.EnableSBOMSigning).
+    - stage: sbom_publish
+      displayName: Publish Signed SBOM Artifact
+      dependsOn:
+        - binaries
+        - publish
+        - publish_npm
+      # Run as long as no producer failed and at least one succeeded.
+      condition: |
+        and(
+          not(failed()),
+          or(
+            eq(dependencies.binaries.result, 'Succeeded'),
+            eq(dependencies.publish.result, 'Succeeded'),
+            eq(dependencies.publish_npm.result, 'Succeeded')
+          )
+        )
+      variables:
+        Packaging.EnableSBOMSigning: true
+      jobs:
+        - job: aggregate_sbom
+          displayName: Aggregate Drop and Generate SBOM
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          steps:
+            # Missing intermediates (skipped producers) contribute zero files;
+            # the task does not fail.
+            - task: DownloadPipelineArtifact@2
+              displayName: Download all intermediate artifacts
+              inputs:
+                patterns: |
+                  unsigned-binaries/**
+                  unsigned-images-*/**
+                path: $(Pipeline.Workspace)/intermediate
+
+            - script: |
+                set -euo pipefail
+                STAGING="$(Pipeline.Workspace)/staging"
+                INTER="$(Pipeline.Workspace)/intermediate"
+                rm -rf "$STAGING"
+                mkdir -p "$STAGING"
+
+                if [ -d "$INTER/unsigned-binaries/bins" ]; then
+                  mkdir -p "$STAGING/bins"
+                  cp -r "$INTER/unsigned-binaries/bins/." "$STAGING/bins/"
+                fi
+
+                # Flatten per-image artifacts into a single staging/images/.
+                # Tarball filenames are unique per image, so no collisions.
+                shopt -s nullglob
+                image_dirs=("$INTER"/unsigned-images-*/images)
+                if [ ${#image_dirs[@]} -gt 0 ]; then
+                  mkdir -p "$STAGING/images"
+                  for d in "${image_dirs[@]}"; do
+                    cp "$d"/* "$STAGING/images/"
+                  done
+                fi
+
+                echo "Assembled drop:"
+                find "$STAGING" -maxdepth 3 -type f | sort
+              displayName: Assemble unified build drop
+
+            - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+              displayName: Generate signed SBOM
+              inputs:
+                BuildDropPath: $(Pipeline.Workspace)/staging
+
+            - task: PublishBuildArtifacts@1
+              displayName: Publish final output artifact
+              inputs:
+                artifactName: "output"
+                pathtoPublish: $(Pipeline.Workspace)/staging
+              condition: succeeded()
 
     # Cilium Podsubnet E2E tests
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
