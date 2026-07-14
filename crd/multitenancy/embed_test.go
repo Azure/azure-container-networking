@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const mtpncFilename = "manifests/multitenancy.acn.azure.com_multitenantpodnetworkconfigs.yaml"
@@ -57,4 +58,17 @@ func TestEmbedPodNetworkInstance(t *testing.T) {
 func TestGetPodNetworkInstances(t *testing.T) {
 	_, err := GetPodNetworkInstances()
 	assert.NoError(t, err)
+}
+
+const nicNetworkConfigFilename = "manifests/multitenancy.acn.azure.com_nicnetworkconfigs.yaml"
+
+func TestEmbedNICNetworkConfig(t *testing.T) {
+	b, err := os.ReadFile(nicNetworkConfigFilename)
+	require.NoError(t, err)
+	assert.YAMLEq(t, string(b), string(NICNetworkConfigsYAML))
+}
+
+func TestGetNICNetworkConfigs(t *testing.T) {
+	_, err := GetNICNetworkConfigs()
+	require.NoError(t, err)
 }

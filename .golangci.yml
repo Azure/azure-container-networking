@@ -65,6 +65,12 @@ linters:
       - common-false-positives
       - legacy
       - std-error-handling
+    rules:
+      # kubebuilder CEL validation markers must be a single comment line and
+      # can legitimately exceed the line-length limit.
+      - linters:
+          - lll
+        source: kubebuilder:validation:XValidation
     paths:
       - third_party$
       - builtin$

@@ -85,9 +85,16 @@ azlogin: ## Login and set account to $SUB
 	@$(AZCLI) login
 	@$(AZCLI) account set -s $(SUB)
 
-azcfg: ## Set the $AZCLI to use aks-preview
-	@$(AZCLI) extension add --name aks-preview --yes
-	@$(AZCLI) extension update --name aks-preview
+# Fallback pin to work around aks-preview upstream breaks (checksum mismatches, etc.).
+# Past Issue: https://github.com/Azure/azure-cli-extensions/issues/10101
+AKS_PREVIEW_FALLBACK_VERSION ?= 21.0.0b7
+
+azcfg: ## Install aks-preview (latest, falling back to AKS_PREVIEW_FALLBACK_VERSION on failure)
+	@$(AZCLI) extension add --name aks-preview --upgrade --yes \
+		|| { \
+			echo "aks-preview latest install failed; falling back to $(AKS_PREVIEW_FALLBACK_VERSION)"; \
+			$(AZCLI) extension add --name aks-preview --version $(AKS_PREVIEW_FALLBACK_VERSION) --upgrade --yes; \
+		}
 
 ip:
 	$(AZCLI) network public-ip create --name $(IP_PREFIX)-$(CLUSTER)-$(IPVERSION) \

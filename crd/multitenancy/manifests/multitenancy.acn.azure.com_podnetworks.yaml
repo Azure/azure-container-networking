@@ -102,10 +102,11 @@ spec:
                 items:
                   type: string
                 type: array
-              prefixBlockAllocationSize:
-                default: 16
-                description: PrefixBlockAllocationSize indicates the size of IP block
-                  allocated to the subnet
+              prefixBlockCIDRLength:
+                description: |-
+                  PrefixBlockCIDRLength indicates the prefix length of IP block allocated to the subnet.
+                  It must be 0 when SubnetAllocationMode is Single, and is set to 28 by the controller
+                  when SubnetAllocationMode is PrefixBlock.
                 type: integer
               status:
                 description: Status indicates the status of PN
@@ -117,6 +118,11 @@ spec:
                 type: string
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: prefixBlockCIDRLength can only be non-zero when subnetAllocationMode
+            is PrefixBlock
+          rule: '!has(self.status) || !has(self.status.prefixBlockCIDRLength) || self.status.prefixBlockCIDRLength
+            == 0 || (has(self.spec) && self.spec.subnetAllocationMode == ''PrefixBlock'')'
     served: true
     storage: true
     subresources:

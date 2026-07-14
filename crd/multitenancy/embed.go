@@ -67,3 +67,18 @@ func GetPodNetworkInstances() (*apiextensionsv1.CustomResourceDefinition, error)
 	}
 	return podNetworkInstances, nil
 }
+
+// NICNetworkConfigsYAML embeds the CRD YAML for downstream consumers.
+//
+//go:embed manifests/multitenancy.acn.azure.com_nicnetworkconfigs.yaml
+var NICNetworkConfigsYAML []byte
+
+// GetNICNetworkConfigs parses the raw []byte NICNetworkConfigs in
+// to a CustomResourceDefinition and returns it or an unmarshalling error.
+func GetNICNetworkConfigs() (*apiextensionsv1.CustomResourceDefinition, error) {
+	nicNetworkConfigs := &apiextensionsv1.CustomResourceDefinition{}
+	if err := yaml.Unmarshal(NICNetworkConfigsYAML, &nicNetworkConfigs); err != nil {
+		return nil, errors.Wrap(err, "error unmarshalling embedded nicNetworkConfig")
+	}
+	return nicNetworkConfigs, nil
+}

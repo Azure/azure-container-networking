@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
+	"net/http"
+	"os"
+	"runtime"
+	"time"
+
 	"github.com/Azure/azure-container-networking/zapai"
 	logfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"net/http"
-	"os"
-	"runtime"
-	"time"
 )
 
 const version = "1.2.3"
@@ -93,6 +94,7 @@ func main() {
 		zap.String("VMSize", "VMSize"),
 		zap.String("OSVersion", "OSVersion"),
 		zap.String("VMID", "VMID"),
+		zap.String("OSType", "OsType"),
 	)
 
 	subn := Sub{

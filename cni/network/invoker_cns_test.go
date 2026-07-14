@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
+	cnscli "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -1510,6 +1511,129 @@ func TestCNSIPAMInvoker_Delete_NotSupportedAPI(t *testing.T) {
 				require.Error(err)
 			} else {
 				require.NoError(err)
+			}
+		})
+	}
+}
+
+func TestCNSIPAMInvoker_Delete_DisableAsyncDelete(t *testing.T) {
+	require := require.New(t) //nolint further usage of require without passing t
+
+	connErr := cnscli.NewConnectionFailureErr(errConnectionRefused)
+
+	tests := []struct {
+		name          string
+		disableAsync  bool
+		releaseIPsErr error
+		wantErr       bool
+		wantConnErr   bool
+	}{
+		{
+			name:          "connection failure with async delete disabled returns connection error",
+			disableAsync:  true,
+			releaseIPsErr: connErr,
+			wantErr:       true,
+			wantConnErr:   true,
+		},
+		{
+			name:          "connection failure with async delete enabled attempts async write",
+			disableAsync:  false,
+			releaseIPsErr: connErr,
+			wantErr:       true,
+			wantConnErr:   false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(_ *testing.T) {
+			invoker := &CNSIPAMInvoker{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: require,
+					releaseIPs: releaseIPsHandler{
+						ipconfigArgument: getTestIPConfigsRequest(),
+						err:              tt.releaseIPsErr,
+					},
+				},
+			}
+			nwCfg := &cni.NetworkConfig{
+				DisableAsyncDelete: tt.disableAsync,
+			}
+			args := &cniSkel.CmdArgs{
+				ContainerID: "testcontainerid",
+				Netns:       "testnetns",
+				IfName:      "testifname",
+			}
+			err := invoker.Delete(nil, nwCfg, args, nil)
+			require.Error(err)
+			var target *cnscli.ConnectionFailureErr
+			if tt.wantConnErr {
+				require.ErrorAs(err, &target)
+			} else {
+				require.NotErrorAs(err, &target)
+			}
+		})
+	}
+}
+
+func TestCNSIPAMInvoker_Delete_DisableAsyncDelete_UnsupportedAPI(t *testing.T) {
+	require := require.New(t) //nolint further usage of require without passing t
+
+	connErr := cnscli.NewConnectionFailureErr(errConnectionRefused)
+	unsupportedAPIs := make(map[cnsAPIName]struct{})
+	unsupportedAPIs["ReleaseIPs"] = struct{}{}
+
+	tests := []struct {
+		name         string
+		disableAsync bool
+		releaseIPErr error
+		wantErr      bool
+		wantConnErr  bool
+	}{
+		{
+			name:         "unsupported API path with connection failure and async delete disabled returns connection error",
+			disableAsync: true,
+			releaseIPErr: connErr,
+			wantErr:      true,
+			wantConnErr:  true,
+		},
+		{
+			name:         "unsupported API path with connection failure and async delete enabled attempts async write",
+			disableAsync: false,
+			releaseIPErr: connErr,
+			wantErr:      true,
+			wantConnErr:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(_ *testing.T) {
+			invoker := &CNSIPAMInvoker{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					unsupportedAPIs: unsupportedAPIs,
+					require:         require,
+					releaseIP: releaseIPHandler{
+						ipconfigArgument: getTestIPConfigRequest(),
+						err:              tt.releaseIPErr,
+					},
+				},
+			}
+			nwCfg := &cni.NetworkConfig{
+				DisableAsyncDelete: tt.disableAsync,
+			}
+			args := &cniSkel.CmdArgs{
+				ContainerID: "testcontainerid",
+				Netns:       "testnetns",
+				IfName:      "testifname",
+			}
+			err := invoker.Delete(nil, nwCfg, args, nil)
+			require.Error(err)
+			var target *cnscli.ConnectionFailureErr
+			if tt.wantConnErr {
+				require.ErrorAs(err, &target)
+			} else {
+				require.NotErrorAs(err, &target)
 			}
 		})
 	}

@@ -206,7 +206,7 @@ func (f Hnsv2wrapperFake) GetNetworkByID(networkID string) (*hcn.HostComputeNetw
 			return network.GetHCNObj(), nil
 		}
 	}
-	return &hcn.HostComputeNetwork{}, nil
+	return nil, hcn.NetworkNotFoundError{NetworkID: networkID}
 }
 
 func (f Hnsv2wrapperFake) GetEndpointByID(endpointID string) (*hcn.HostComputeEndpoint, error) {

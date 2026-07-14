@@ -840,6 +840,9 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		AllowInboundFromHostToNC: opt.ifInfo.AllowHostToNCCommunication,
 		AllowInboundFromNCToHost: opt.ifInfo.AllowNCToHostCommunication,
 	}
+	if opt.ifInfo.NCResponse != nil {
+		endpointInfo.PrimaryInterfaceIP = opt.ifInfo.NCResponse.PrimaryInterfaceIdentifier
+	}
 
 	if err = addSubnetToEndpointInfo(*opt.ifInfo, &endpointInfo); err != nil {
 		logger.Info("Failed to add subnets to endpointInfo", zap.Error(err))

@@ -6,6 +6,7 @@ package network
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -235,11 +236,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 		},
 	}
 
-	// Set hcn network adaptor name policy
-	// FixMe: Find a better way to check if a nic that is selected is not part of a vSwitch
-	// per hns team, the hns calls fails if passed a vSwitch interface
-	// Pass adapter name here if it is not empty, this is cause if we don't tell HNS which adapter to use
-	// it will just pick one randomly, this is a problem for customers that have multiple adapters
+	isNetAdapterNamePolicyAdded := false
 	if nwInfo.AdapterName != "" || !strings.HasPrefix(extIf.Name, vEthernetAdapterPrefix) {
 		var adapterName string
 		if nwInfo.AdapterName != "" {
@@ -250,13 +247,41 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 
 		logger.Info("Adapter name used with HNS is", zap.String("adapterName", adapterName))
 
-		netAdapterNamePolicy, err := policy.GetHcnNetAdapterPolicy(adapterName)
+		netAdapterNamePolicy, err := policy.GetHcnNetAdapterNamePolicy(adapterName)
 		if err != nil {
 			logger.Error("Failed to serialize network adapter policy due to", zap.Error(err))
 			return nil, err
 		}
 
 		hcnNetwork.Policies = append(hcnNetwork.Policies, netAdapterNamePolicy)
+		isNetAdapterNamePolicyAdded = true
+	}
+
+	// Best effort to add IP policy in case adapter name is empty or in multitenancy mode
+	if !isNetAdapterNamePolicyAdded && nwInfo.EnableMultiTenancy {
+		primaryInterfaceIP := nwInfo.PrimaryInterfaceIP
+		if primaryInterfaceIP != "" {
+			var providerAddress string
+			// Based on cns/NetworkContainerContract.go, PrimaryInterfaceIdentifier can be either an IP or a CIDR
+			if ip, _, err := net.ParseCIDR(primaryInterfaceIP); err == nil {
+				providerAddress = ip.String()
+			} else if ip := net.ParseIP(primaryInterfaceIP); ip != nil {
+				providerAddress = ip.String()
+			}
+
+			if providerAddress != "" {
+				adapterAddressPolicy, err := policy.GetHcnNetAdapterAddressPolicy(providerAddress)
+				if err != nil {
+					logger.Error("Failed to serialize network adapter address policy", zap.Error(err))
+				} else {
+					hcnNetwork.Policies = append(hcnNetwork.Policies, adapterAddressPolicy)
+				}
+			} else {
+				logger.Warn("Error parsing primary interface IP or CIDR", zap.String("primaryInterfaceIP", primaryInterfaceIP))
+			}
+		} else {
+			logger.Warn("Primary interface IP undefined")
+		}
 	}
 
 	// Set hcn subnet policy
@@ -466,11 +491,17 @@ func (nm *networkManager) deleteNetworkImplHnsV2(nw *network) error {
 	logger.Info("Deleting hcn network with id", zap.String("id", nw.HnsId))
 
 	if hcnNetwork, err = Hnsv2.GetNetworkByID(nw.HnsId); err != nil {
-		return fmt.Errorf("Failed to get hcn network with id: %s due to err: %v", nw.HnsId, err)
+		if !errors.As(err, &hcn.NetworkNotFoundError{}) {
+			return fmt.Errorf("failed to get hcn network by id %s: %w", nw.HnsId, err)
+		}
+
+		logger.Info("Delete called on the Network which doesn't exist.",
+			zap.String("HnsId", nw.HnsId), zap.Error(err))
+		return nil
 	}
 
 	if err = Hnsv2.DeleteNetwork(hcnNetwork); err != nil {
-		return fmt.Errorf("Failed to delete hcn network: %s due to error: %v", nw.HnsId, err)
+		return fmt.Errorf("failed to delete hcn network id %s: %w", nw.HnsId, err)
 	}
 
 	logger.Info("Successfully deleted hcn network with id", zap.String("id", nw.HnsId))

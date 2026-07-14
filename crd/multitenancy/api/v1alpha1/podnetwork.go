@@ -20,6 +20,7 @@ import (
 // +kubebuilder:printcolumn:name="Subnet",type=string,priority=1,JSONPath=`.spec.subnetResourceID`
 // +kubebuilder:printcolumn:name="SubnetGUID",type=string,priority=1,JSONPath=`.spec.subnetGUID`
 // +kubebuilder:printcolumn:name="DeviceType",type=string,priority=1,JSONPath=`.spec.deviceType`
+// +kubebuilder:validation:XValidation:rule="!has(self.status) || !has(self.status.prefixBlockCIDRLength) || self.status.prefixBlockCIDRLength == 0 || (has(self.spec) && self.spec.subnetAllocationMode == 'PrefixBlock')",message="prefixBlockCIDRLength can only be non-zero when subnetAllocationMode is PrefixBlock"
 type PodNetwork struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -92,9 +93,11 @@ type PodNetworkStatus struct {
 	// +kubebuilder:validation:Optional
 	Status          Status   `json:"status,omitempty"`
 	AddressPrefixes []string `json:"addressPrefixes,omitempty"`
-	// PrefixBlockAllocationSize indicates the size of IP block allocated to the subnet
-	// +kubebuilder:default=16
-	PrefixBlockAllocationSize int `json:"prefixBlockAllocationSize,omitempty"`
+	// PrefixBlockCIDRLength indicates the prefix length of IP block allocated to the subnet.
+	// It must be 0 when SubnetAllocationMode is Single, and is set to 28 by the controller
+	// when SubnetAllocationMode is PrefixBlock.
+	// +kubebuilder:validation:Optional
+	PrefixBlockCIDRLength int `json:"prefixBlockCIDRLength,omitempty"`
 }
 
 func init() {

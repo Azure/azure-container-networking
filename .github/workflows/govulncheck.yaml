@@ -31,6 +31,7 @@ jobs:
           - dropgz
           - pkgerrlint
           - tools/azure-npm-to-cilium-validator
+          - tools/release
           - zapai
         include:
           - module: .
@@ -94,6 +95,7 @@ jobs:
             "dropgz"
             "pkgerrlint"
             "tools/azure-npm-to-cilium-validator"
+            "tools/release"
             "zapai"
           )
 

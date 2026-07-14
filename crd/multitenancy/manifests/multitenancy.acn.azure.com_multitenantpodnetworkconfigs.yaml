@@ -64,6 +64,11 @@ spec:
                 items:
                   type: string
                 type: array
+              networkID:
+                description: |-
+                  NetworkID identifies the network (e.g. VNet GUID) this pod belongs to.
+                  Denormalized from PodNetwork.Spec.NetworkID.
+                type: string
               podName:
                 description: name of the requesting cx pod
                 type: string
@@ -75,6 +80,24 @@ spec:
                 type: string
               podUID:
                 description: PodUID is the UID of the pod
+                type: string
+              resourceClaims:
+                description: |-
+                  ResourceClaims lists the names of ResourceClaims allocated to the pod that
+                  were created for the multitenancy DRA driver.
+                items:
+                  type: string
+                type: array
+                x-kubernetes-list-type: set
+              subnetGUID:
+                description: |-
+                  SubnetGUID is the GUID of the subnet this pod belongs to.
+                  Denormalized from PodNetwork.Spec.SubnetGUID.
+                type: string
+              subnetResourceID:
+                description: |-
+                  SubnetResourceID is the ARM resource ID of the subnet this pod belongs to.
+                  Denormalized from PodNetwork.Spec.SubnetResourceID.
                 type: string
             required:
             - podNetwork
