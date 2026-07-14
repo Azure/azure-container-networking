@@ -207,8 +207,8 @@ endif
 
 # Build the azure-block-iptables binary.
 azure-block-iptables-binary: bpf-lib
-	cd $(AZURE_BLOCK_IPTABLES_DIR) && CGO_ENABLED=0 go generate ./...
-	cd $(AZURE_BLOCK_IPTABLES_DIR)/cmd/azure-block-iptables && CGO_ENABLED=0 go build -v -o $(AZURE_BLOCK_IPTABLES_BUILD_DIR)/azure-block-iptables$(EXE_EXT) -ldflags "-X main.version=$(AZURE_BLOCK_IPTABLES_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(AZURE_BLOCK_IPTABLES_DIR) && MS_GO_NOSYSTEMCRYPTO=1 CGO_ENABLED=0 go generate ./...
+	cd $(AZURE_BLOCK_IPTABLES_DIR)/cmd/azure-block-iptables && MS_GO_NOSYSTEMCRYPTO=1 CGO_ENABLED=0 go build -v -o $(AZURE_BLOCK_IPTABLES_BUILD_DIR)/azure-block-iptables$(EXE_EXT) -ldflags "-X main.version=$(AZURE_BLOCK_IPTABLES_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI network binary.
 azure-vnet-binary:
@@ -254,7 +254,7 @@ azure-ip-masq-merger-binary:
 
 # Build the azure-iptables-monitor binary.
 azure-iptables-monitor-binary:
-	cd $(AZURE_IPTABLES_MONITOR_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPTABLES_MONITOR_BUILD_DIR)/azure-iptables-monitor$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IPTABLES_MONITOR_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(AZURE_IPTABLES_MONITOR_DIR) && MS_GO_NOSYSTEMCRYPTO=1 CGO_ENABLED=0 go build -v -o $(AZURE_IPTABLES_MONITOR_BUILD_DIR)/azure-iptables-monitor$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IPTABLES_MONITOR_VERSION)" -gcflags="-dwarflocationlists=true"
 
 ##@ Containers
 

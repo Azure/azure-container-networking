@@ -5,6 +5,9 @@ set -eux
 FILE_EXT=''
 
 export CGO_ENABLED=0
+# MS Go 1.25 makes systemcrypto (cgo/OpenSSL) the default backend; with CGO_ENABLED=0
+# and crypto stdlib deps the build fails, so disable it to keep the pure-Go static build.
+export MS_GO_NOSYSTEMCRYPTO=1
 export C_INCLUDE_PATH=/usr/include/bpf
 
 mkdir -p "$OUT_DIR"/bin
