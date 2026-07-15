@@ -236,6 +236,7 @@ stages:
           pool:
             name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
           strategy:
+            maxParallel: 2
             matrix:
               ${{ if eq(parameters.buildIpam, true) }}:
                 azure_ipam_linux_arm64:
