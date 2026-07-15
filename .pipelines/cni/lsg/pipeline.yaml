@@ -83,22 +83,15 @@ stages:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     jobs:
       - job: delete
-        displayName: Delete Cluster
+        displayName: Delete Clusters
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
-        strategy:
-          matrix:
-            linux_overlay:
-              name: linux_overlay
-              clusterName: "kup-over"
-            cilium_overlay:
-              name: cilium_overlay
-              clusterName: "kup-cilover"
         steps:
           - template: ../../templates/delete-cluster.yaml
             parameters:
-              name: $(name)
-              clusterName: $(clusterName)-$(commitID)
-              region: $(LOCATION)
               sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
               svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              suffix: -$(commitID)
+              clusters:
+                - kup-over
+                - kup-cilover
