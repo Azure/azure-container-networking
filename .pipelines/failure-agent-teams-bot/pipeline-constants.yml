@@ -1,0 +1,27 @@
+variables:
+# ----------------------------------------------------------------------------
+# ACN Pipeline Notifier (Teams bot) — see /src/notifier and /infra/notifier.bicep
+# in the azure-container-networking notifier repo.
+# ----------------------------------------------------------------------------
+
+# Notifier function-app endpoint. Shared bot — keep as-is.
+- name: notifierEndpoint
+  value: 'https://acn-notifier-bot.azurewebsites.net'
+
+# AAD audience the notifier validates incoming bearer tokens against.
+# Matches `apiAppId` in /infra/notifier.bicepparam. Shared bot — keep as-is.
+- name: notifierApiAudience
+  value: 'api://3976eca5-3f9d-4528-987f-c20c1f9f27f7'
+
+# Stable source identifier for cards posted by this pipeline. Each
+# (notifySource, runId) pair maps to one root Adaptive Card in Teams.
+- name: notifySource
+  value: 'acn-failure-analysis'
+
+# Target Teams team groupId. Same team/channel as failure-agent-teams-bot.
+- name: notifyTeamId
+  value: '1eb27b57-8ace-4f0e-a9a9-e6db4e9829b7'
+
+# Target Teams channel id (URL-decoded).
+- name: notifyChannelId
+  value: '19:e810e8f1d12741198af77c3743a2eecf@thread.skype'

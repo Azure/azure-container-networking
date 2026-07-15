@@ -1,1 +1,5 @@
 *.go text eol=lf
+
+# Shell scripts must stay LF so they run on Linux CI agents even when checked
+# out on Windows (core.autocrlf=true would otherwise rewrite them to CRLF).
+*.sh text eol=lf
