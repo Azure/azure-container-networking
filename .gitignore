@@ -37,3 +37,6 @@ test/scale/generated/*
 
 # omit e2e bin
 test/e2e/bin/*
+
+**/service
+tools/release/release-cli
