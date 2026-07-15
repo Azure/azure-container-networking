@@ -775,3 +775,32 @@ stages:
                 region: $(delete_region)
                 sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
                 svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+
+  # Catch-all end-of-pipeline failure analysis.
+  #
+  # Build failures are handled by `build_failure_analysis`; each E2E stage runs
+  # its own live analysis. This stage covers everything else (setup, unit tests,
+  # manifest publish, cluster teardown, scheduled swiftv2) so no failing stage is
+  # left without a specific, grounded diagnosis + Teams notification.
+  #
+  # It runs on failure of any dependency, then parses the full ADO timeline to
+  # find the actually-failed task(s) across all stages (see focus_timeline.py),
+  # so the report reflects the real failure regardless of which stage tripped it.
+  - stage: pipeline_failure_analysis
+    displayName: Pipeline Failure Analysis
+    dependsOn:
+      - setup
+      - test
+      - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
+        - publish
+        - publish_npm
+        - delete_cilium_clusters
+        - delete_windows_clusters
+        - delete_linux_clusters
+      - ${{ if and(not(contains(variables['Build.SourceBranch'], 'refs/pull')), eq(variables['Build.Reason'], 'Schedule')) }}:
+        - manifold_e2e
+    condition: failed()
+    jobs:
+      - template: templates/pipeline-failure-analysis.job.yaml
+        parameters:
+          scope: pipeline

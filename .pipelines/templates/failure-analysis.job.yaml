@@ -59,7 +59,9 @@ jobs:
         - agent.os -equals Linux
     timeoutInMinutes: 15
     variables:
-      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+      - template: ../failure-agent-teams-bot/pipeline-constants.yml
+      - name: ob_outputDirectory
+        value: $(Build.ArtifactStagingDirectory)/out
     steps:
       - checkout: self
 
@@ -94,6 +96,17 @@ jobs:
               echo "Skipping kubeconfig bootstrap because live diagnostics are disabled."
             fi
         continueOnError: true
+
+      - script: |
+          set -euo pipefail
+          # Make the base branch available so the agent can diff the change under
+          # test (origin/<target> for PRs, origin/master otherwise). Best-effort:
+          # grounding degrades to logs-only when the fetch cannot complete.
+          BASE_BRANCH="${SYSTEM_PULLREQUEST_TARGETBRANCHNAME:-master}"
+          git -C "$(Build.SourcesDirectory)" fetch --no-tags --depth=200 origin \
+            "+refs/heads/${BASE_BRANCH}:refs/remotes/origin/${BASE_BRANCH}" || true
+        displayName: "Fetch base branch for diff grounding"
+        condition: succeededOrFailed()
 
       - script: |
           set -euo pipefail
@@ -135,6 +148,7 @@ jobs:
             --input "$INPUT_DIR" \
             --output "$OUTPUT_DIR" \
             --signatures signatures/signatures.yaml \
+            --repo-root "$(Build.SourcesDirectory)" \
             --cluster-name "${{ parameters.clusterName }}" \
             --os "${{ parameters.os }}" \
             --cni "${{ parameters.cni }}" \
@@ -146,6 +160,27 @@ jobs:
           AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
           AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
           GITHUB_TOKEN: $(GITHUB_TOKEN)
+
+      - task: AzureCLI@2
+        displayName: "Notify Teams (failure analysis)"
+        condition: succeededOrFailed()
+        continueOnError: true
+        inputs:
+          azureSubscription: acn-dalec-test
+          scriptType: bash
+          scriptLocation: inlineScript
+          addSpnToEnvironment: true
+          inlineScript: |
+            bash "$(Build.SourcesDirectory)/.pipelines/failure-agent-teams-bot/scripts/notify-incident.sh" \
+              "$(Agent.TempDirectory)/analysis/incident.json"
+        env:
+          NOTIFIER_ENDPOINT: $(notifierEndpoint)
+          NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
+          NOTIFY_SOURCE: $(notifySource)
+          NOTIFY_RUN_ID: $(Build.BuildId)
+          NOTIFY_TEAM_ID: $(notifyTeamId)
+          NOTIFY_CHANNEL_ID: $(notifyChannelId)
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
       - script: |
           set -euo pipefail
