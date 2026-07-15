@@ -31,7 +31,9 @@ jobs:
         - agent.os -equals Linux
     timeoutInMinutes: 10
     variables:
-      ob_outputDirectory: $(Build.ArtifactStagingDirectory)/out
+      - template: ../failure-agent-teams-bot/pipeline-constants.yml
+      - name: ob_outputDirectory
+        value: $(Build.ArtifactStagingDirectory)/out
     steps:
       - checkout: self
 
@@ -40,67 +42,23 @@ jobs:
           version: '1.25'
         displayName: "Setup Go"
 
-      # Collect ADO build timeline and task logs as the evidence bundle.
+      # Collect ADO build timeline and only the FAILED task logs as the evidence
+      # bundle, so the agent focuses on what actually broke instead of dozens of
+      # green tasks. focus_timeline.py also records the real failed Stage/Job.
       - script: |
           set -euo pipefail
 
-          EVIDENCE="$(Agent.TempDirectory)/evidence"
+          export EVIDENCE="$(Agent.TempDirectory)/evidence"
           mkdir -p "$EVIDENCE/logs"
+          export ADO_BUILD_BASE_URL="${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECT}/_apis/build/builds/${BUILD_BUILDID}"
 
-          BASE_URL="${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECT}/_apis/build/builds/${BUILD_BUILDID}"
+          python3 "$(Build.SourcesDirectory)/.pipelines/scripts/failure-analysis/focus_timeline.py"
 
-          echo "Downloading build timeline..."
-          curl -fsS \
-            -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
-            "${BASE_URL}/timeline?api-version=7.1" \
-            -o "$EVIDENCE/timeline.json"
-
-          echo "Downloading logs index..."
-          curl -fsS \
-            -H "Authorization: Bearer ${SYSTEM_ACCESSTOKEN}" \
-            "${BASE_URL}/logs?api-version=7.1" \
-            -o "$EVIDENCE/logs-index.json"
-
-          # Download individual task logs. The logs-index contains an array of
-          # log entries with id and url fields.
-          LOG_COUNT=$(python3 -c "
-          import json, sys
-          with open('$EVIDENCE/logs-index.json') as f:
-              data = json.load(f)
-          logs = data.get('value', [])
-          print(len(logs))
-          ")
-
-          echo "Found $LOG_COUNT log entries"
-
-          # Download up to 50 logs to avoid excessive API calls on very large runs.
-          python3 -c "
-          import json, subprocess, os
-
-          evidence = '$EVIDENCE'
-          token = os.environ['SYSTEM_ACCESSTOKEN']
-
-          with open(os.path.join(evidence, 'logs-index.json')) as f:
-              data = json.load(f)
-
-          logs = data.get('value', [])[:50]
-          for entry in logs:
-              log_id = entry.get('id', 'unknown')
-              url = entry.get('url', '')
-              if not url:
-                  continue
-              out_path = os.path.join(evidence, 'logs', f'{log_id}.log')
-              try:
-                  result = subprocess.run(
-                      ['curl', '-fsS', '-H', f'Authorization: Bearer {token}', url],
-                      capture_output=True, text=True, timeout=30
-                  )
-                  if result.returncode == 0:
-                      with open(out_path, 'w') as f:
-                          f.write(result.stdout)
-              except Exception:
-                  pass
-          "
+          # Make the base branch available so the agent can diff the change under
+          # test. Best-effort: grounding degrades to logs-only on fetch failure.
+          BASE_BRANCH="${SYSTEM_PULLREQUEST_TARGETBRANCHNAME:-master}"
+          git -C "$(Build.SourcesDirectory)" fetch --no-tags --depth=200 origin \
+            "+refs/heads/${BASE_BRANCH}:refs/remotes/origin/${BASE_BRANCH}" || true
 
           # Write run metadata for the agent's RunContext.
           cat > "$EVIDENCE/run-metadata.json" <<EOF
@@ -118,8 +76,10 @@ jobs:
 
           echo "Evidence collected: $(find "$EVIDENCE" -type f | wc -l) files"
           ls -la "$EVIDENCE"
-          ls -la "$EVIDENCE/logs" | head -20
-        displayName: "Collect ADO build logs"
+          echo "=== focus.txt ==="
+          cat "$EVIDENCE/focus.txt" 2>/dev/null || echo "(no focus.txt)"
+          ls -la "$EVIDENCE/logs" | head -30
+        displayName: "Collect focused ADO failure logs"
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
@@ -135,26 +95,32 @@ jobs:
             echo "##[warning]Azure OpenAI credentials not configured; the agent will emit an analysis_failed incident preserving raw evidence."
           fi
 
-          EXTRA_FLAGS=""
-
-          if [ "${{ parameters.dryRun }}" = "True" ] || [ "${{ parameters.dryRun }}" = "true" ]; then
-            EXTRA_FLAGS="$EXTRA_FLAGS --dry-run"
-          fi
-
-          PIPELINE_OVERRIDE=""
+          # Build args as an array so stage/job names with spaces stay one token.
+          ARGS=(
+            --input "$INPUT_DIR"
+            --output "$OUTPUT_DIR"
+            --signatures signatures/signatures.yaml
+            --repo-root "$(Build.SourcesDirectory)"
+            --live=false
+            --privileged=false
+          )
           if [ -n "${{ parameters.pipeline }}" ]; then
-            PIPELINE_OVERRIDE="--pipeline ${{ parameters.pipeline }}"
+            ARGS+=(--pipeline "${{ parameters.pipeline }}")
+          fi
+          # FAILED_STAGE / FAILED_JOB are set by focus_timeline.py from the ADO
+          # timeline so the agent reports the real failed unit, not this job.
+          if [ -n "${FAILED_STAGE:-}" ]; then
+            ARGS+=(--stage-name "$FAILED_STAGE")
+          fi
+          if [ -n "${FAILED_JOB:-}" ]; then
+            ARGS+=(--job-name "$FAILED_JOB")
+          fi
+          if [ "${{ parameters.dryRun }}" = "True" ] || [ "${{ parameters.dryRun }}" = "true" ]; then
+            ARGS+=(--dry-run)
           fi
 
           cd "$(Build.SourcesDirectory)/tools/failure-agent"
-          go run . \
-            --input "$INPUT_DIR" \
-            --output "$OUTPUT_DIR" \
-            --signatures signatures/signatures.yaml \
-            --live=false \
-            --privileged=false \
-            $PIPELINE_OVERRIDE \
-            $EXTRA_FLAGS
+          go run . "${ARGS[@]}"
         displayName: "Run failure analysis (non-live)"
         env:
           AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
@@ -162,6 +128,27 @@ jobs:
           AZURE_OPENAI_API_KEY: $(AZURE_OPENAI_API_KEY)
           AZURE_OPENAI_API_VERSION: $(AZURE_OPENAI_API_VERSION)
           GITHUB_TOKEN: $(GITHUB_TOKEN)
+
+      - task: AzureCLI@2
+        displayName: "Notify Teams (failure analysis)"
+        condition: succeededOrFailed()
+        continueOnError: true
+        inputs:
+          azureSubscription: acn-dalec-test
+          scriptType: bash
+          scriptLocation: inlineScript
+          addSpnToEnvironment: true
+          inlineScript: |
+            bash "$(Build.SourcesDirectory)/.pipelines/failure-agent-teams-bot/scripts/notify-incident.sh" \
+              "$(Agent.TempDirectory)/analysis/incident.json"
+        env:
+          NOTIFIER_ENDPOINT: $(notifierEndpoint)
+          NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
+          NOTIFY_SOURCE: $(notifySource)
+          NOTIFY_RUN_ID: $(Build.BuildId)
+          NOTIFY_TEAM_ID: $(notifyTeamId)
+          NOTIFY_CHANNEL_ID: $(notifyChannelId)
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
       - script: |
           set -euo pipefail
