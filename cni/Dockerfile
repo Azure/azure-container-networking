@@ -66,11 +66,11 @@ ENTRYPOINT [ "/dropgz" ]
 FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b AS hpc
 
 FROM hpc AS windows
-COPY --from=azure-vnet /go/bin/azure-vnet /azure-vnet.exe
-COPY --from=azure-vnet /go/bin/azure-vnet-stateless /azure-vnet-stateless.exe
-COPY --from=azure-vnet /go/bin/azure-vnet-ipam /azure-vnet-ipam.exe
-COPY --from=azure-vnet /go/bin/azure-vnet-telemetry /azure-vnet-telemetry.exe
-COPY --from=azure-vnet /go/bin/azure-cni-telemetry-sidecar /azure-cni-telemetry-sidecar.exe
-COPY --from=payload /payload/*.conflist /
-COPY --from=payload /payload/azure-vnet-telemetry.config /azure-vnet-telemetry.config
+COPY --from=azure-vnet /go/bin/azure-vnet /Windows/System32/azure-vnet.exe
+COPY --from=azure-vnet /go/bin/azure-vnet-stateless /Windows/System32/azure-vnet-stateless.exe
+COPY --from=azure-vnet /go/bin/azure-vnet-ipam /Windows/System32/azure-vnet-ipam.exe
+COPY --from=azure-vnet /go/bin/azure-vnet-telemetry /Windows/System32/azure-vnet-telemetry.exe
+COPY --from=azure-vnet /go/bin/azure-cni-telemetry-sidecar /Windows/System32/azure-cni-telemetry-sidecar.exe
+COPY --from=payload /payload/*.conflist /Windows/System32/
+COPY --from=payload /payload/azure-vnet-telemetry.config /Windows/System32/azure-vnet-telemetry.config
 ENTRYPOINT [ "powershell.exe" ]
