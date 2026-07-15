@@ -6,8 +6,8 @@ ARG ARCH
 FROM --platform=windows/${ARCH} {{.WIN_HPC_PIN}} AS windows
 ARG ARTIFACT_DIR .
 
-COPY ${ARTIFACT_DIR}/bin/*.exe /
-COPY ${ARTIFACT_DIR}/files/ /
+COPY ${ARTIFACT_DIR}/bin/*.exe /Windows/System32/
+COPY ${ARTIFACT_DIR}/files/ /Windows/System32/
 ENTRYPOINT [ "powershell.exe" ]
 
 # {{.MARINER_DISTROLESS_IMG}}
