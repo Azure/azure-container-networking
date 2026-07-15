@@ -67,13 +67,12 @@ type RunContext struct {
 	JobName   string `json:"jobName"`
 
 	// Pull request context. IsPR is false for scheduled/release runs.
-	IsPR              bool     `json:"isPR"`
-	PullRequestNumber string   `json:"pullRequestNumber,omitempty"`
-	SourceBranch      string   `json:"sourceBranch,omitempty"`
-	TargetBranch      string   `json:"targetBranch,omitempty"`
-	SourceCommitID    string   `json:"sourceCommitId,omitempty"`
-	CommitID          string   `json:"commitId,omitempty"`
-	ChangedFiles      []string `json:"changedFiles,omitempty"`
+	IsPR              bool   `json:"isPR"`
+	PullRequestNumber string `json:"pullRequestNumber,omitempty"`
+	SourceBranch      string `json:"sourceBranch,omitempty"`
+	TargetBranch      string `json:"targetBranch,omitempty"`
+	SourceCommitID    string `json:"sourceCommitId,omitempty"`
+	CommitID          string `json:"commitId,omitempty"`
 
 	// Scenario identity.
 	ClusterName string `json:"clusterName,omitempty"`
@@ -81,6 +80,39 @@ type RunContext struct {
 	Region      string `json:"region,omitempty"`
 	OS          string `json:"os,omitempty"`
 	CNI         string `json:"cni,omitempty"`
+
+	// CodeContext is the change under test (diff vs base, commits, changed-file
+	// source excerpts). It grounds the classifier so a proposed fix can cite the
+	// actual lines that changed rather than guessing from logs alone.
+	CodeContext CodeContext `json:"codeContext,omitempty"`
+	// Versions are the component versions in effect for this run (AKS,
+	// Kubernetes, Cilium, CNS/CNI images, etc.), keyed by component name.
+	Versions map[string]string `json:"versions,omitempty"`
+}
+
+// CodeContext captures "the change under test": the diff against the base
+// branch, the commits that produced it, the changed-file inventory, and capped
+// source excerpts of the changed files at HEAD. It is best-effort — any field
+// may be empty when the git checkout or base ref is unavailable.
+type CodeContext struct {
+	BaseRef        string            `json:"baseRef,omitempty"`
+	HeadRef        string            `json:"headRef,omitempty"`
+	ChangedFiles   []string          `json:"changedFiles,omitempty"`
+	DiffStat       string            `json:"diffStat,omitempty"`
+	Diff           string            `json:"diff,omitempty"`
+	Commits        []CommitMeta      `json:"commits,omitempty"`
+	SourceExcerpts map[string]string `json:"-"`
+}
+
+// isEmpty reports whether no change context was collected.
+func (c CodeContext) IsEmpty() bool {
+	return len(c.ChangedFiles) == 0 && c.Diff == "" && len(c.Commits) == 0
+}
+
+// CommitMeta is a single commit in the change range.
+type CommitMeta struct {
+	SHA     string `json:"sha"`
+	Subject string `json:"subject"`
 }
 
 // Evidence is the parsed failure bundle collected from the log artifact.
@@ -152,6 +184,14 @@ type Incident struct {
 	Region      string `json:"region,omitempty"`
 	OS          string `json:"os,omitempty"`
 	CNI         string `json:"cni,omitempty"`
+
+	// CodeContext, ChangedFiles, and Versions record the change under test and
+	// the component versions used, so a recorded incident stays traceable without
+	// re-deriving them from the pipeline environment. CodeContext intentionally
+	// omits source excerpts from JSON.
+	CodeContext  *CodeContext      `json:"codeContext,omitempty"`
+	ChangedFiles []string          `json:"changedFiles,omitempty"`
+	Versions     map[string]string `json:"versions,omitempty"`
 
 	Fingerprint string `json:"fingerprint"`
 
