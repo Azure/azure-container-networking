@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ func Build(now time.Time, rc model.RunContext, fp model.Fingerprint, c model.Cla
 	if commit == "" {
 		commit = rc.CommitID
 	}
+	codeContext := codeContextForIncident(rc.CodeContext)
 
 	return model.Incident{
 		GeneratedAt:          now.UTC(),
@@ -45,6 +47,9 @@ func Build(now time.Time, rc model.RunContext, fp model.Fingerprint, c model.Cla
 		Region:               rc.Region,
 		OS:                   rc.OS,
 		CNI:                  rc.CNI,
+		CodeContext:          codeContext,
+		ChangedFiles:         rc.CodeContext.ChangedFiles,
+		Versions:             rc.Versions,
 		Fingerprint:          fp.Hash,
 		Category:             c.Category,
 		Confidence:           c.Confidence,
@@ -62,6 +67,14 @@ func Build(now time.Time, rc model.RunContext, fp model.Fingerprint, c model.Cla
 		AnalysisStatus:       model.StatusAnalyzed,
 		ClassificationSource: c.Source,
 	}
+}
+
+func codeContextForIncident(cc model.CodeContext) *model.CodeContext {
+	if cc.IsEmpty() {
+		return nil
+	}
+	cc.SourceExcerpts = nil
+	return &cc
 }
 
 // CommentMarker is the hidden HTML marker keyed by fingerprint, used by the PR
@@ -99,6 +112,9 @@ func RenderMarkdown(inc model.Incident) string {
 	}
 	writeRow(&b, "Commit", inc.Commit)
 	b.WriteString("\n")
+
+	writeChangeContext(&b, inc)
+	writeVersions(&b, inc.Versions)
 
 	b.WriteString("### Likely root cause\n\n")
 	fmt.Fprintf(&b, "%s\n\n", emptyDash(inc.RootCauseSummary))
@@ -152,6 +168,63 @@ func RenderMarkdown(inc model.Incident) string {
 		inc.ClassificationSource, len(inc.EvidenceFiles))
 
 	return b.String()
+}
+
+func writeChangeContext(b *strings.Builder, inc model.Incident) {
+	if inc.CodeContext == nil && len(inc.ChangedFiles) == 0 {
+		return
+	}
+	b.WriteString("### Change under test\n\n")
+	if inc.CodeContext != nil {
+		b.WriteString("| Field | Value |\n|---|---|\n")
+		writeRow(b, "Base ref", inc.CodeContext.BaseRef)
+		writeRow(b, "Head ref", inc.CodeContext.HeadRef)
+		b.WriteString("\n")
+	}
+	if len(inc.ChangedFiles) > 0 {
+		b.WriteString("**Changed files:**\n\n")
+		for _, f := range inc.ChangedFiles {
+			fmt.Fprintf(b, "- `%s`\n", strings.ReplaceAll(f, "`", "'"))
+		}
+		b.WriteString("\n")
+	}
+	if inc.CodeContext != nil && len(inc.CodeContext.Commits) > 0 {
+		b.WriteString("**Commits:**\n\n")
+		for _, c := range inc.CodeContext.Commits {
+			short := c.SHA
+			if len(short) > 12 {
+				short = short[:12]
+			}
+			fmt.Fprintf(b, "- `%s` %s\n", short, c.Subject)
+		}
+		b.WriteString("\n")
+	}
+	if inc.CodeContext != nil && strings.TrimSpace(inc.CodeContext.DiffStat) != "" {
+		b.WriteString("**Diff stat:**\n\n```text\n")
+		b.WriteString(strings.TrimSpace(inc.CodeContext.DiffStat))
+		b.WriteString("\n```\n\n")
+	}
+}
+
+func writeVersions(b *strings.Builder, versions map[string]string) {
+	if len(versions) == 0 {
+		return
+	}
+	b.WriteString("### Environment versions\n\n")
+	b.WriteString("| Component | Version |\n|---|---|\n")
+	for _, k := range sortedKeys(versions) {
+		writeRow(b, k, versions[k])
+	}
+	b.WriteString("\n")
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // WriteFiles writes report.md and incident.json into dir, creating it if needed.

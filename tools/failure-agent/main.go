@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/collect"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/command"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/fingerprint"
+	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/grounding"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/live"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/model"
 	"github.com/Azure/azure-container-networking/tools/failure-agent/internal/publish"
@@ -55,6 +56,8 @@ type options struct {
 	timeout        time.Duration
 
 	pipeline    string
+	stageName   string
+	jobName     string
 	clusterName string
 	clusterType string
 	region      string
@@ -65,6 +68,11 @@ type options struct {
 	live            bool
 	privileged      bool
 	flakinessOutput string
+
+	repoRoot    string
+	baseRef     string
+	headRef     string
+	codeContext bool
 }
 
 func main() {
@@ -117,6 +125,8 @@ func parseFlags() options {
 	flag.StringVar(&o.aoaiAPIVersion, "aoai-api-version", envOrDefault("AZURE_OPENAI_API_VERSION", defaultAOAIAPIVersion), "Azure OpenAI API version (or AZURE_OPENAI_API_VERSION)")
 	flag.DurationVar(&o.timeout, "timeout", defaultTimeout, "overall timeout for LLM classification")
 	flag.StringVar(&o.pipeline, "pipeline", "", "override pipeline name")
+	flag.StringVar(&o.stageName, "stage-name", "", "override the failed stage name (used by the pipeline-wide catch-all analysis)")
+	flag.StringVar(&o.jobName, "job-name", "", "override the failed job name (used by the pipeline-wide catch-all analysis)")
 	flag.StringVar(&o.clusterName, "cluster-name", "", "scenario: cluster name")
 	flag.StringVar(&o.clusterType, "cluster-type", "", "scenario: cluster type")
 	flag.StringVar(&o.region, "region", "", "scenario: region")
@@ -126,6 +136,10 @@ func parseFlags() options {
 	flag.BoolVar(&o.live, "live", true, "collect read-only kubectl diagnostics from the retained cluster (requires kubectl + KUBECONFIG)")
 	flag.BoolVar(&o.privileged, "privileged", true, "collect host-level logs via kubectl debug node (requires --live; creates ephemeral debug pods)")
 	flag.StringVar(&o.flakinessOutput, "flakiness-output", "", "write the knowledge-store flakiness report to this path")
+	flag.StringVar(&o.repoRoot, "repo-root", envOrDefault("BUILD_SOURCESDIRECTORY", "."), "path to the checked-out repository root used for diff/commit grounding (or BUILD_SOURCESDIRECTORY)")
+	flag.StringVar(&o.baseRef, "base-ref", "", "base git ref for the change under test (default: derived from the pipeline target branch)")
+	flag.StringVar(&o.headRef, "head-ref", "", "head git ref for the change under test (default: derived from the pipeline source commit or HEAD)")
+	flag.BoolVar(&o.codeContext, "code-context", true, "ground the analysis on the diff-from-base, commits, and changed-file source excerpts")
 	flag.Parse()
 	return o
 }
@@ -187,6 +201,11 @@ func run(ctx context.Context, logger *zap.Logger, opts options, cl classifier, k
 			)
 		}
 	}
+
+	if opts.codeContext {
+		collectCodeContext(ctx, logger, opts, &rc, ev, cl)
+	}
+	rc.Versions = grounding.DetectVersions(os.Getenv, ev)
 
 	fp := fingerprint.Compute(rc, ev)
 
@@ -466,6 +485,99 @@ func buildClassifier(opts options) classifier {
 	return classify.NewLLMClassifier(client)
 }
 
+// collectCodeContext grounds the run on the diff-from-base, commit log, and
+// changed-file source excerpts, then (for the LLM classifier) wires an evidence
+// provider so the bounded deepen pass can pull specific changed-file sources or
+// named log sections on demand. It is best-effort: git failures leave the code
+// context empty and analysis proceeds on logs alone.
+func collectCodeContext(ctx context.Context, logger *zap.Logger, opts options, rc *model.RunContext, ev model.Evidence, cl classifier) {
+	git := grounding.NewGitRunner(opts.repoRoot)
+	baseRef := opts.baseRef
+	if baseRef == "" {
+		baseRef = grounding.BaseRef(os.Getenv)
+	}
+	headRef := opts.headRef
+	if headRef == "" {
+		headRef = grounding.HeadRef(os.Getenv)
+	}
+
+	cc := grounding.Collect(ctx, grounding.Options{
+		BaseRef:        baseRef,
+		HeadRef:        headRef,
+		Priority:       grounding.CandidatePathsFromLines(ev.TopErrorLines),
+		SourceExcerpts: true,
+	}, git)
+	rc.CodeContext = cc
+
+	if cc.IsEmpty() {
+		logger.Info("no code context collected; analyzing on logs alone",
+			zap.String("baseRef", baseRef),
+			zap.String("headRef", headRef),
+		)
+		return
+	}
+	logger.Info("code context collected",
+		zap.String("event", "code_context_collected"),
+		zap.String("baseRef", baseRef),
+		zap.String("headRef", headRef),
+		zap.Int("changedFiles", len(cc.ChangedFiles)),
+		zap.Int("commits", len(cc.Commits)),
+		zap.Int("diffBytes", len(cc.Diff)),
+	)
+
+	llm, ok := cl.(*classify.LLMClassifier)
+	if !ok {
+		return
+	}
+	changed := make(map[string]bool, len(cc.ChangedFiles))
+	for _, f := range cc.ChangedFiles {
+		changed[f] = true
+	}
+	llm.WithEvidence(&evidenceProvider{
+		git:      git,
+		headRef:  headRef,
+		changed:  changed,
+		excerpts: ev.Excerpts,
+	})
+}
+
+// evidenceProvider satisfies the classifier's allow-listed deepen requests.
+// "source:<path>" returns the HEAD content of a changed file (only files that
+// are actually part of the change under test); "log:<name>" returns a collected
+// evidence excerpt. Anything else is refused so the model cannot pull arbitrary
+// files or wander off the recorded failure.
+type evidenceProvider struct {
+	git      grounding.GitRunner
+	headRef  string
+	changed  map[string]bool
+	excerpts map[string]string
+}
+
+func (p *evidenceProvider) Provide(ctx context.Context, id string) (string, bool) {
+	kind, name, ok := strings.Cut(id, ":")
+	if !ok {
+		return "", false
+	}
+	switch kind {
+	case "source":
+		if !p.changed[name] {
+			return "", false
+		}
+		ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+		out, err := p.git(ctx, "show", p.headRef+":"+name)
+		if err != nil || strings.TrimSpace(out) == "" {
+			return "", false
+		}
+		return out, true
+	case "log":
+		v, ok := p.excerpts[name]
+		return v, ok
+	default:
+		return "", false
+	}
+}
+
 // maxFailedEvidenceLines caps how many error lines are surfaced when analysis fails.
 const maxFailedEvidenceLines = 5
 
@@ -535,6 +647,12 @@ func publishToPR(ctx context.Context, logger *zap.Logger, rc model.RunContext, f
 func applyOverrides(rc *model.RunContext, opts options) {
 	if opts.pipeline != "" {
 		rc.PipelineName = opts.pipeline
+	}
+	if opts.stageName != "" {
+		rc.StageName = opts.stageName
+	}
+	if opts.jobName != "" {
+		rc.JobName = opts.jobName
 	}
 	if opts.clusterName != "" {
 		rc.ClusterName = opts.clusterName
