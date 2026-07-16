@@ -122,9 +122,19 @@ func (kvs *jsonFileStore) Write(key string, value interface{}) error {
 		return err
 	}
 
-	kvs.data[key] = &raw
+	nextData := make(map[string]*json.RawMessage, len(kvs.data)+1)
+	for existingKey, existingValue := range kvs.data {
+		nextData[existingKey] = existingValue
+	}
+	nextData[key] = &raw
 
-	return kvs.flush()
+	if err := kvs.flushData(nextData); err != nil {
+		return err
+	}
+
+	kvs.data = nextData
+	kvs.inSync = true
+	return nil
 }
 
 // Flush commits in-memory state to persistent store.
@@ -137,7 +147,11 @@ func (kvs *jsonFileStore) Flush() error {
 
 // Lock-free flush for internal callers.
 func (kvs *jsonFileStore) flush() error {
-	buf, err := json.MarshalIndent(&kvs.data, "", "\t")
+	return kvs.flushData(kvs.data)
+}
+
+func (kvs *jsonFileStore) flushData(data map[string]*json.RawMessage) error {
+	buf, err := json.MarshalIndent(&data, "", "\t")
 	if err != nil {
 		return err
 	}

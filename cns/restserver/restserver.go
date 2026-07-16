@@ -2,6 +2,7 @@ package restserver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -127,12 +128,7 @@ type EndpointInfo struct {
 }
 
 type EndpointDeleteIntent struct {
-	InfraContainerID string
-	PodInterfaceID   string
-	PodName          string
-	PodNamespace     string
-	Ifname           string
-	CreatedAt        time.Time
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type IPInfo struct {
@@ -274,7 +270,9 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 		return err
 	}
 
-	service.restoreState()
+	if err = service.restoreState(); err != nil {
+		return fmt.Errorf("restoring state: %w", err)
+	}
 	err = service.restoreNetworkState()
 	if err != nil {
 		logger.Errorf("[Azure CNS]  Failed to restore network state, err:%v.", err)

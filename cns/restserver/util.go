@@ -97,13 +97,13 @@ func (service *HTTPRestService) saveState() error {
 }
 
 // restoreState restores CNS state from persistent store.
-func (service *HTTPRestService) restoreState() {
+func (service *HTTPRestService) restoreState() error {
 	logger.Printf("[Azure CNS] restoreState")
 
 	// Skip if a store is not provided.
 	if service.store == nil {
 		logger.Printf("[Azure CNS]  store not initialized.")
-		return
+		return nil
 	}
 
 	// Read any persisted state.
@@ -124,7 +124,7 @@ func (service *HTTPRestService) restoreState() {
 		if service.EndpointStateStore == nil {
 			//nolint:staticcheck // TODO: migrate to zap
 			logger.Errorf("[Azure CNS]  OptManageEndpointState is enabled but EndpointStateStore is not initialized; endpoint state persistence/restoration is disabled.")
-			return
+			return nil
 		}
 		err := service.EndpointStateStore.Read(EndpointStoreKey, &service.EndpointState)
 		if err != nil {
@@ -132,18 +132,23 @@ func (service *HTTPRestService) restoreState() {
 				// Nothing to restore.
 				logger.Printf("[Azure CNS]  No endpoint state to restore.\n")
 			} else {
-				//nolint:staticcheck // TODO: migrate to zap
-				logger.Errorf("[Azure CNS]  Failed to restore endpoint state, err:%v", err)
+				return fmt.Errorf("reading endpoint state: %w", err)
 			}
 		} else {
+			//nolint:staticcheck // TODO: migrate to zap
 			logger.Printf("[Azure CNS]  Restored endpoint state, %+v\n", service.EndpointState)
 		}
 
-		service.loadEndpointDeleteIntents()
-		if err := service.pruneEndpointDeleteIntentsLocked(time.Now()); err != nil {
-			logger.Errorf("[Azure CNS] Failed to prune endpoint delete intents, err:%v", err)
+		service.Lock()
+		defer service.Unlock()
+		if err := service.loadEndpointDeleteIntentsLocked(); err != nil {
+			return err
+		}
+		if err := service.replayEndpointDeleteIntentsLocked(time.Now()); err != nil {
+			return err
 		}
 	}
+	return nil
 }
 
 func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (types.ResponseCode, string) { //nolint // legacy

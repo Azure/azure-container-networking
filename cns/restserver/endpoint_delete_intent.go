@@ -5,15 +5,13 @@ import (
 	"net"
 	"time"
 
-	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
 )
 
-func (service *HTTPRestService) loadEndpointDeleteIntents() {
+func (service *HTTPRestService) loadEndpointDeleteIntentsLocked() error {
 	if service.EndpointStateStore == nil {
-		return
+		return ErrStoreEmpty
 	}
 
 	var intents map[string]EndpointDeleteIntent
@@ -21,13 +19,15 @@ func (service *HTTPRestService) loadEndpointDeleteIntents() {
 	if err != nil {
 		if errors.Is(err, store.ErrKeyNotFound) || errors.Is(err, store.ErrStoreEmpty) {
 			service.EndpointDeleteIntents = make(map[string]EndpointDeleteIntent)
-			return
+			return nil
 		}
-		logger.Errorf("[Azure CNS] Failed to restore endpoint delete intents, err:%v", err)
-		service.EndpointDeleteIntents = make(map[string]EndpointDeleteIntent)
-		return
+		return fmt.Errorf("reading endpoint delete intents: %w", err)
+	}
+	if intents == nil {
+		intents = make(map[string]EndpointDeleteIntent)
 	}
 	service.EndpointDeleteIntents = intents
+	return nil
 }
 
 func (service *HTTPRestService) writeEndpointDeleteIntentsLocked(intents map[string]EndpointDeleteIntent) error {
@@ -41,53 +41,72 @@ func (service *HTTPRestService) writeEndpointDeleteIntentsLocked(intents map[str
 	return nil
 }
 
-func (service *HTTPRestService) recordEndpointDeleteIntentLocked(req cns.IPConfigsRequest, podInfo cns.PodInfo, now time.Time) error {
+func (service *HTTPRestService) recordEndpointDeleteIntentLocked(containerID string, now time.Time) error {
 	intents := cloneEndpointDeleteIntents(service.EndpointDeleteIntents)
-	intents[podInfo.InfraContainerID()] = EndpointDeleteIntent{
-		InfraContainerID: podInfo.InfraContainerID(),
-		PodInterfaceID:   podInfo.InterfaceID(),
-		PodName:          podInfo.Name(),
-		PodNamespace:     podInfo.Namespace(),
-		Ifname:           req.Ifname,
-		CreatedAt:        now,
+	for existingContainerID, intent := range intents {
+		if endpointDeleteIntentExpired(intent, now) {
+			delete(intents, existingContainerID)
+		}
 	}
+	intents[containerID] = EndpointDeleteIntent{CreatedAt: now}
+	return service.writeEndpointDeleteIntentsLocked(intents)
+}
+
+func (service *HTTPRestService) endpointDeleteIntentBlocksAddLocked(containerID string, now time.Time) (bool, error) {
+	intent, ok := service.EndpointDeleteIntents[containerID]
+	if !ok {
+		return false, nil
+	}
+
+	if !endpointDeleteIntentExpired(intent, now) {
+		return true, nil
+	}
+
+	intents := cloneEndpointDeleteIntents(service.EndpointDeleteIntents)
+	delete(intents, containerID)
 	if err := service.writeEndpointDeleteIntentsLocked(intents); err != nil {
-		return err
+		return true, err
 	}
-	logger.Printf("[endpointDeleteIntent] recorded delete intent for infra container %s pod %s/%s",
-		podInfo.InfraContainerID(), podInfo.Namespace(), podInfo.Name())
-	return nil
+	return false, nil
 }
 
-func (service *HTTPRestService) hasEndpointDeleteIntentLocked(containerID string) bool {
-	if service.EndpointDeleteIntents == nil {
-		return false
-	}
-	_, ok := service.EndpointDeleteIntents[containerID]
-	return ok
-}
-
-func (service *HTTPRestService) pruneEndpointDeleteIntentsLocked(now time.Time) error {
+func (service *HTTPRestService) replayEndpointDeleteIntentsLocked(now time.Time) error {
 	if len(service.EndpointDeleteIntents) == 0 {
 		return nil
 	}
 
 	intents := cloneEndpointDeleteIntents(service.EndpointDeleteIntents)
-	pruned := 0
+	endpointState := cloneEndpointState(service.EndpointState)
+	intentsChanged := false
+	endpointStateChanged := false
 	for containerID, intent := range intents {
-		if !intent.CreatedAt.IsZero() && now.Sub(intent.CreatedAt) > endpointDeleteIntentTTL {
+		if endpointDeleteIntentExpired(intent, now) {
 			delete(intents, containerID)
-			pruned++
+			intentsChanged = true
+			continue
+		}
+		if _, ok := endpointState[containerID]; ok {
+			delete(endpointState, containerID)
+			endpointStateChanged = true
 		}
 	}
-	if pruned == 0 {
-		return nil
+
+	if endpointStateChanged {
+		if err := service.EndpointStateStore.Write(EndpointStoreKey, endpointState); err != nil {
+			return fmt.Errorf("replaying endpoint delete intents: %w", err)
+		}
+		service.EndpointState = endpointState
 	}
-	if err := service.writeEndpointDeleteIntentsLocked(intents); err != nil {
-		return err
+	if intentsChanged {
+		if err := service.writeEndpointDeleteIntentsLocked(intents); err != nil {
+			return fmt.Errorf("pruning endpoint delete intents: %w", err)
+		}
 	}
-	logger.Printf("[endpointDeleteIntent] pruned %d expired endpoint delete intents", pruned)
 	return nil
+}
+
+func endpointDeleteIntentExpired(intent EndpointDeleteIntent, now time.Time) bool {
+	return intent.CreatedAt.IsZero() || !now.Before(intent.CreatedAt.Add(endpointDeleteIntentTTL))
 }
 
 func cloneEndpointDeleteIntents(intents map[string]EndpointDeleteIntent) map[string]EndpointDeleteIntent {
