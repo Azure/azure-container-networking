@@ -1,0 +1,166 @@
+parameters:
+  - name: lane
+    type: string
+  - name: transition
+    type: string
+  - name: clusterName
+    type: string
+  - name: os
+    type: string
+  - name: configMapName
+    type: string
+  - name: daemonsetName
+    type: string
+  - name: expectedBackend
+    type: string
+  - name: expectedAuthority
+    type: string
+  - name: expectedSchemaVersion
+    type: number
+  - name: summaryPath
+    type: string
+
+steps:
+  - ${{ if eq(parameters.expectedBackend, 'bolt') }}:
+    - task: AzureCLI@2
+      displayName: Capture strict persistent debug responses
+      condition: always()
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -euo pipefail
+
+          evidenceDir="$(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}"
+          mkdir -p "$evidenceDir/persistent-debug"
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+          if [[ "${{ parameters.os }}" == "windows" ]]; then
+            selector="k8s-app=azure-cns-win"
+          else
+            selector="k8s-app=azure-cns"
+          fi
+
+          found=false
+          while IFS=$'\t' read -r pod node; do
+            [[ -n "$pod" && -n "$node" ]] || continue
+            found=true
+            response="$evidenceDir/persistent-debug/${pod}.json"
+
+            if [[ "${{ parameters.os }}" == "windows" ]]; then
+              kubectl exec -n kube-system "$pod" -c cns-container -- \
+                powershell -NoProfile -Command \
+                'Invoke-WebRequest -Uri 127.0.0.1:10090/debug/persistentstate -Method Post -UseBasicParsing -ErrorAction Stop | Select-Object -Expand Content' \
+                >"$response"
+            else
+              kubectl exec -n kube-system "$pod" -c debug -- \
+                bash -c "curl -sf localhost:10090/debug/persistentstate -d '{}'" \
+                >"$response"
+            fi
+
+            jq -e \
+              --arg backend "${{ parameters.expectedBackend }}" \
+              --arg authority "${{ parameters.expectedAuthority }}" \
+              --argjson schema "${{ parameters.expectedSchemaVersion }}" \
+              '.storage.backend == $backend
+                and .storage.filePresent == true
+                and .storage.fileSizeBytes > 0
+                and .snapshot.metadata.authority == $authority
+                and .snapshot.metadata.schemaVersion == $schema
+                and ((.snapshot.metadata.bootID // "") | length) > 0' \
+              "$response"
+
+            nodeBootID=$(kubectl get node "$node" -o jsonpath='{.status.nodeInfo.bootID}')
+            stateBootID=$(jq -r '.snapshot.metadata.bootID' "$response")
+            normalizedNodeBootID=$(tr '[:upper:]' '[:lower:]' <<<"$nodeBootID" | tr -d '{}[:space:]')
+            normalizedStateBootID=$(tr '[:upper:]' '[:lower:]' <<<"$stateBootID" | tr -d '{}[:space:]')
+            if [[ "$normalizedNodeBootID" != "$normalizedStateBootID" ]]; then
+              echo "persistent boot ID does not match Kubernetes node boot ID for $node"
+              exit 1
+            fi
+          done < <(
+            kubectl get pods -n kube-system -l "$selector" -o json |
+              jq -r '.items[] | [.metadata.name, .spec.nodeName] | @tsv'
+          )
+
+          if [[ "$found" != "true" ]]; then
+            echo "no CNS pods matched selector $selector"
+            exit 1
+          fi
+
+  - task: AzureCLI@2
+    displayName: Capture transition state and logs
+    condition: always()
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -uo pipefail
+
+        evidenceDir="$(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}"
+        captureFailed=false
+        if ! mkdir -p "$evidenceDir/cns-logs"; then
+          captureFailed=true
+        fi
+        if ! make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}; then
+          captureFailed=true
+        fi
+
+        if [[ -s "${{ parameters.summaryPath }}" ]]; then
+          if ! cp "${{ parameters.summaryPath }}" "$evidenceDir/summary.json"; then
+            captureFailed=true
+          fi
+        else
+          echo "validation summary is missing: ${{ parameters.summaryPath }}"
+          captureFailed=true
+        fi
+
+        if ! kubectl get configmap/${{ parameters.configMapName }} -n kube-system -o yaml \
+          >"$evidenceDir/cns-config.yaml"; then
+          captureFailed=true
+        fi
+        if ! kubectl get daemonset/${{ parameters.daemonsetName }} -n kube-system -o yaml \
+          >"$evidenceDir/cns-daemonset.yaml"; then
+          captureFailed=true
+        fi
+        if ! kubectl get nodes -o wide >"$evidenceDir/nodes.txt"; then
+          captureFailed=true
+        fi
+        if ! kubectl get pods -A -o wide >"$evidenceDir/pods.txt"; then
+          captureFailed=true
+        fi
+        if ! kubectl get events -A --sort-by=.lastTimestamp >"$evidenceDir/events.txt"; then
+          captureFailed=true
+        fi
+
+        if [[ "${{ parameters.os }}" == "windows" ]]; then
+          selector="k8s-app=azure-cns-win"
+        else
+          selector="k8s-app=azure-cns"
+        fi
+        podList=$(kubectl get pods -n kube-system -l "$selector" -o name) || captureFailed=true
+        if [[ -z "$podList" ]]; then
+          echo "no CNS pods matched selector $selector"
+          captureFailed=true
+        fi
+        for pod in $podList; do
+          podName=${pod#pod/}
+          if ! kubectl logs -n kube-system "$podName" --all-containers=true --prefix=true \
+            >"$evidenceDir/cns-logs/${podName}.log" 2>&1; then
+            captureFailed=true
+          fi
+        done
+
+        if [[ "$captureFailed" == "true" ]]; then
+          echo "one or more required transition evidence captures failed"
+          exit 1
+        fi
+
+  - publish: $(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}
+    artifact: state-migration-${{ parameters.lane }}-${{ parameters.transition }}
+    displayName: Publish transition evidence
+    condition: always()

@@ -1,0 +1,560 @@
+parameters:
+  - name: lane
+    type: string
+  - name: transition
+    type: string
+  - name: action
+    type: string
+  - name: clusterName
+    type: string
+  - name: os
+    type: string
+  - name: cni
+    type: string
+  - name: targetNodeCount
+    type: number
+  - name: replicasPerNode
+    type: number
+  - name: configMapName
+    type: string
+  - name: daemonsetName
+    type: string
+  - name: expectedBackend
+    type: string
+  - name: expectedAuthority
+    type: string
+  - name: expectedSchemaVersion
+    type: number
+  - name: baselineArtifact
+    type: string
+    default: ""
+  - name: stateRelation
+    type: string
+    default: none
+  - name: bootRelation
+    type: string
+    default: none
+  - name: enableFaultInjectionHooks
+    type: boolean
+    default: false
+
+steps:
+  - ${{ if ne(parameters.baselineArtifact, '') }}:
+    - download: current
+      artifact: ${{ parameters.baselineArtifact }}
+      displayName: Download preceding transition evidence
+
+  - bash: |
+      set -euo pipefail
+      evidenceDir="$(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}"
+      summaryPath="$(Build.SourcesDirectory)/test/integration/logs/validate/${{ parameters.lane }}/${{ parameters.transition }}.json"
+      rm -rf "$evidenceDir"
+      rm -f "$summaryPath"
+      mkdir -p "$evidenceDir"
+    displayName: Prepare transition evidence
+    condition: always()
+
+  - ${{ if or(eq(parameters.action, 'json-baseline'), eq(parameters.action, 'bolt-migrate'), eq(parameters.action, 'rollback-json'), eq(parameters.action, 'bolt-reimport')) }}:
+    - task: AzureCLI@2
+      displayName: Apply ${{ parameters.action }} state mode
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -euo pipefail
+
+          evidenceDir="$(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}"
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+          configMap="${{ parameters.configMapName }}"
+          daemonset="${{ parameters.daemonsetName }}"
+          action="${{ parameters.action }}"
+          beforeGeneration=$(kubectl get daemonset "$daemonset" -n kube-system -o jsonpath='{.metadata.generation}')
+
+          patch_config() {
+            local backend=$1
+            local mode=$2
+            local current patched payload
+            current=$(kubectl get configmap "$configMap" -n kube-system -o jsonpath='{.data.cns_config\.json}')
+            patched=$(jq --arg backend "$backend" --arg mode "$mode" \
+              '.StateStoreBackend = $backend | .StateStoreMode = $mode' <<<"$current")
+            payload=$(jq -n --arg config "$patched" '{data: {"cns_config.json": $config}}')
+            kubectl patch configmap "$configMap" -n kube-system --type merge -p "$payload"
+          }
+
+          restart_target() {
+            kubectl rollout restart daemonset "$daemonset" -n kube-system
+            kubectl rollout status daemonset "$daemonset" -n kube-system --timeout=20m
+          }
+
+          case "$action" in
+            json-baseline)
+              [[ "${{ parameters.expectedBackend }}" == "json" ]]
+              patch_config json normal
+              restart_target
+              expectedRestarts=1
+              ;;
+            bolt-migrate|bolt-reimport)
+              [[ "${{ parameters.expectedBackend }}" == "bolt" ]]
+              patch_config bolt normal
+              restart_target
+              expectedRestarts=1
+              ;;
+            rollback-json)
+              [[ "${{ parameters.expectedBackend }}" == "json" ]]
+              patch_config json rollback-to-json
+              restart_target
+              patch_config json normal
+              restart_target
+              expectedRestarts=2
+              ;;
+            *)
+              echo "unsupported state mode action: $action"
+              exit 1
+              ;;
+          esac
+
+          afterGeneration=$(kubectl get daemonset "$daemonset" -n kube-system -o jsonpath='{.metadata.generation}')
+          generationDelta=$((afterGeneration - beforeGeneration))
+          if (( generationDelta != expectedRestarts )); then
+            echo "$action expected $expectedRestarts daemonset restart(s), generation changed by $generationDelta"
+            exit 1
+          fi
+
+          config=$(kubectl get configmap "$configMap" -n kube-system -o jsonpath='{.data.cns_config\.json}')
+          jq -e \
+            --arg backend "${{ parameters.expectedBackend }}" \
+            '.StateStoreBackend == $backend and .StateStoreMode == "normal"' \
+            <<<"$config"
+
+          jq -n \
+            --arg action "$action" \
+            --arg backend "${{ parameters.expectedBackend }}" \
+            --argjson beforeGeneration "$beforeGeneration" \
+            --argjson afterGeneration "$afterGeneration" \
+            --argjson restarts "$expectedRestarts" \
+            '{
+              action: $action,
+              expectedBackend: $backend,
+              daemonsetGenerationBefore: $beforeGeneration,
+              daemonsetGenerationAfter: $afterGeneration,
+              restartCount: $restarts
+            }' >"$evidenceDir/mode-transition.json"
+
+  - ${{ if eq(parameters.action, 'json-baseline') }}:
+    - task: AzureCLI@2
+      displayName: Seed JSON-authoritative pod state
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -euo pipefail
+
+          evidenceDir="$(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}"
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+          kubectl create namespace load-test --dry-run=client -o yaml | kubectl apply -f -
+
+          if [[ "${{ parameters.os }}" == "windows" ]]; then
+            manifest=test/integration/manifests/noop-deployment-windows.yaml
+            deployment=win-load-test
+          else
+            manifest=test/integration/manifests/noop-deployment-linux.yaml
+            deployment=load-test
+          fi
+
+          replicas=$(( ${{ parameters.replicasPerNode }} * ${{ parameters.targetNodeCount }} ))
+          kubectl apply -f "$manifest"
+          kubectl scale deployment "$deployment" -n load-test --replicas="$replicas"
+          kubectl rollout status deployment "$deployment" -n load-test --timeout=30m
+          jq -n --arg deployment "$deployment" --argjson replicas "$replicas" \
+            '{deployment: $deployment, replicas: $replicas}' \
+            >"$evidenceDir/workload.json"
+
+  - ${{ if or(eq(parameters.action, 'same-boot-restart'), eq(parameters.action, 'final-same-boot-restart')) }}:
+    - task: AzureCLI@2
+      displayName: Restart CNS on the same node boot
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -euo pipefail
+
+          evidenceDir="$(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}"
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+          beforeGeneration=$(kubectl get daemonset/${{ parameters.daemonsetName }} -n kube-system -o jsonpath='{.metadata.generation}')
+          kubectl rollout restart daemonset/${{ parameters.daemonsetName }} -n kube-system
+          kubectl rollout status daemonset/${{ parameters.daemonsetName }} -n kube-system --timeout=20m
+          afterGeneration=$(kubectl get daemonset/${{ parameters.daemonsetName }} -n kube-system -o jsonpath='{.metadata.generation}')
+          if (( afterGeneration - beforeGeneration != 1 )); then
+            echo "same-boot restart must advance daemonset generation exactly once"
+            exit 1
+          fi
+          jq -n \
+            --argjson beforeGeneration "$beforeGeneration" \
+            --argjson afterGeneration "$afterGeneration" \
+            '{daemonsetGenerationBefore: $beforeGeneration, daemonsetGenerationAfter: $afterGeneration, restartCount: 1}' \
+            >"$evidenceDir/restart.json"
+
+  # Hook point for the reusable migration fault-injection template. Until that
+  # template is integrated, opting in fails loudly instead of silently skipping
+  # required ADD/DEL/PATCH/scale fault coverage.
+  - ${{ if and(eq(parameters.action, 'restart-during-scale'), eq(parameters.enableFaultInjectionHooks, true)) }}:
+    - bash: |
+        echo "fault injection hooks were requested, but the reusable template is not present in this branch"
+        echo "wire the migration fault template here with lane/os/cni/clusterName parameters after cherry-pick"
+        exit 1
+      displayName: Require reusable migration fault hooks
+
+  - ${{ if and(eq(parameters.action, 'restart-during-scale'), eq(parameters.enableFaultInjectionHooks, false)) }}:
+    - task: AzureCLI@2
+      displayName: Restart CNS during active pod scale
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -euo pipefail
+
+          evidenceDir="$(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}"
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+          if [[ "${{ parameters.os }}" == "windows" ]]; then
+            deployment=win-load-test
+          else
+            deployment=load-test
+          fi
+
+          current=$(kubectl get deployment "$deployment" -n load-test -o jsonpath='{.spec.replicas}')
+          target=$((current + ${{ parameters.targetNodeCount }}))
+          beforeGeneration=$(kubectl get daemonset/${{ parameters.daemonsetName }} -n kube-system -o jsonpath='{.metadata.generation}')
+
+          kubectl scale deployment "$deployment" -n load-test --replicas="$target"
+          kubectl rollout restart daemonset/${{ parameters.daemonsetName }} -n kube-system
+          kubectl rollout status daemonset/${{ parameters.daemonsetName }} -n kube-system --timeout=20m
+          kubectl rollout status deployment "$deployment" -n load-test --timeout=30m
+
+          afterGeneration=$(kubectl get daemonset/${{ parameters.daemonsetName }} -n kube-system -o jsonpath='{.metadata.generation}')
+          if (( afterGeneration - beforeGeneration != 1 )); then
+            echo "scale transition must restart the target CNS daemonset exactly once"
+            exit 1
+          fi
+
+          jq -n \
+            --arg deployment "$deployment" \
+            --argjson replicasBefore "$current" \
+            --argjson replicasAfter "$target" \
+            --argjson daemonsetGenerationBefore "$beforeGeneration" \
+            --argjson daemonsetGenerationAfter "$afterGeneration" \
+            '{
+              deployment: $deployment,
+              replicasBefore: $replicasBefore,
+              replicasAfter: $replicasAfter,
+              daemonsetGenerationBefore: $daemonsetGenerationBefore,
+              daemonsetGenerationAfter: $daemonsetGenerationAfter
+            }' >"$evidenceDir/restart-during-scale.json"
+
+  - ${{ if eq(parameters.action, 'node-reboot') }}:
+    - task: AzureCLI@2
+      displayName: Reboot cluster nodes and require new boot IDs
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -euo pipefail
+
+          evidenceDir="$(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}"
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+          kubectl get nodes -l kubernetes.io/os=${{ parameters.os }} -o json |
+            jq '[.items[] | {nodeName: .metadata.name, bootID: .status.nodeInfo.bootID}] | sort_by(.nodeName)' \
+            >"$evidenceDir/node-boots-before.json"
+
+          nodeResourceGroup=$(az aks show \
+            --resource-group "${{ parameters.clusterName }}" \
+            --name "${{ parameters.clusterName }}" \
+            --query nodeResourceGroup -o tsv)
+          mapfile -t vmsses < <(
+            kubectl get nodes -l kubernetes.io/os=${{ parameters.os }} -o json |
+              jq -r '
+                .items[].spec.providerID
+                | split("/") as $parts
+                | ($parts | map(ascii_downcase) | index("virtualmachinescalesets")) as $index
+                | select($index != null)
+                | $parts[$index + 1]
+              ' |
+              sort -u
+          )
+          if (( ${#vmsses[@]} == 0 )); then
+            echo "no target ${{ parameters.os }} VM scale sets found in $nodeResourceGroup"
+            exit 1
+          fi
+          for vmss in "${vmsses[@]}"; do
+            az vmss restart -g "$nodeResourceGroup" -n "$vmss" --instance-ids '*'
+          done
+
+          rebootComplete=false
+          deadline=$((SECONDS + 1800))
+          while (( SECONDS < deadline )); do
+            kubectl get nodes -l kubernetes.io/os=${{ parameters.os }} -o json |
+              jq '[.items[] | {
+                nodeName: .metadata.name,
+                bootID: .status.nodeInfo.bootID,
+                ready: any(.status.conditions[]?; .type == "Ready" and .status == "True")
+              }] | sort_by(.nodeName)' \
+              >"$evidenceDir/node-boots-after.json"
+
+            if jq -e -n \
+              --slurpfile before "$evidenceDir/node-boots-before.json" \
+              --slurpfile after "$evidenceDir/node-boots-after.json" \
+              '($before[0] | length) > 0
+                and ($before[0] | map(.nodeName)) == ($after[0] | map(.nodeName))
+                and all($after[0][]; .ready == true)
+                and ([range(0; $before[0] | length) as $i
+                  | $before[0][$i].bootID != $after[0][$i].bootID] | all)' \
+              >/dev/null; then
+              rebootComplete=true
+              break
+            fi
+            sleep 20
+          done
+          if [[ "$rebootComplete" != "true" ]]; then
+            echo "target nodes did not return Ready with new boot IDs within 30 minutes"
+            exit 1
+          fi
+
+          kubectl rollout status daemonset/${{ parameters.daemonsetName }} \
+            -n kube-system --timeout=20m
+
+          if [[ "${{ parameters.os }}" == "windows" ]]; then
+            deployment=win-load-test
+          else
+            deployment=load-test
+          fi
+          kubectl rollout status deployment "$deployment" -n load-test --timeout=30m
+
+          jq -e -n \
+            --slurpfile before "$evidenceDir/node-boots-before.json" \
+            --slurpfile after "$evidenceDir/node-boots-after.json" \
+            '($before[0] | length) > 0
+              and ($before[0] | map(.nodeName)) == ($after[0] | map(.nodeName))
+              and ([range(0; $before[0] | length) as $i
+                | $before[0][$i].bootID != $after[0][$i].bootID] | all)'
+
+  - ${{ if eq(parameters.action, 'os-validation') }}:
+    - task: AzureCLI@2
+      displayName: Run ${{ parameters.os }} service validation
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -euo pipefail
+
+          evidenceDir="$(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}"
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+          if [[ "${{ parameters.os }}" == "windows" ]]; then
+            found=false
+            for pod in $(kubectl get pods -n kube-system \
+              -l app=privileged-daemonset,os=windows -o name); do
+              found=true
+              kubectl exec -n kube-system "$pod" -- \
+                powershell -NoProfile -Command 'Restart-Service hns -Force'
+            done
+            if [[ "$found" != "true" ]]; then
+              echo "no Windows privileged daemonset pods found for HNS validation"
+              exit 1
+            fi
+            validation=hns-restart
+          else
+            # The strict validator below restarts systemd-networkd in the host
+            # namespace and verifies connectivity on every Linux node.
+            validation=systemd-networkd-restart
+          fi
+
+          jq -n --arg validation "$validation" '{osValidation: $validation}' \
+            >"$evidenceDir/os-validation.json"
+
+  - ${{ if eq(parameters.action, 'json-mutation') }}:
+    - task: AzureCLI@2
+      displayName: Mutate pods while JSON is authoritative
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -euo pipefail
+
+          [[ "${{ parameters.expectedBackend }}" == "json" ]]
+          evidenceDir="$(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}"
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+          config=$(kubectl get configmap/${{ parameters.configMapName }} \
+            -n kube-system -o jsonpath='{.data.cns_config\.json}')
+          jq -e '.StateStoreBackend == "json" and .StateStoreMode == "normal"' <<<"$config"
+
+          if [[ "${{ parameters.os }}" == "windows" ]]; then
+            deployment=win-load-test
+          else
+            deployment=load-test
+          fi
+
+          before=$(kubectl get deployment "$deployment" -n load-test -o jsonpath='{.spec.replicas}')
+          peak=$((before + ${{ parameters.targetNodeCount }}))
+          if (( peak <= before + 1 )); then
+            peak=$((before + 2))
+          fi
+          after=$((before + 1))
+
+          kubectl scale deployment "$deployment" -n load-test --replicas="$peak"
+          kubectl rollout status deployment "$deployment" -n load-test --timeout=30m
+          kubectl scale deployment "$deployment" -n load-test --replicas="$after"
+          kubectl rollout status deployment "$deployment" -n load-test --timeout=30m
+
+          jq -n \
+            --arg deployment "$deployment" \
+            --argjson replicasBefore "$before" \
+            --argjson replicasPeak "$peak" \
+            --argjson replicasAfter "$after" \
+            '{
+              authority: "json",
+              deployment: $deployment,
+              replicasBefore: $replicasBefore,
+              replicasPeak: $replicasPeak,
+              replicasAfter: $replicasAfter
+            }' >"$evidenceDir/json-mutation.json"
+
+  - task: AzureCLI@2
+    displayName: Validate strict ${{ parameters.expectedBackend }} state
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -euo pipefail
+
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        evidenceDir="$(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}"
+        summaryDir="$(Build.SourcesDirectory)/test/integration/logs/validate/${{ parameters.lane }}"
+        summaryPath="$summaryDir/${{ parameters.transition }}.json"
+        mkdir -p "$summaryDir"
+
+        config=$(kubectl get configmap/${{ parameters.configMapName }} \
+          -n kube-system -o jsonpath='{.data.cns_config\.json}')
+        jq -e \
+          --arg backend "${{ parameters.expectedBackend }}" \
+          '.StateStoreBackend == $backend and .StateStoreMode == "normal"' \
+          <<<"$config"
+
+        restartCase=true
+        if [[ "${{ parameters.action }}" == "json-baseline" ]]; then
+          restartCase=false
+        fi
+
+        VALIDATE_SUMMARY_PATH="$summaryPath" \
+        VALIDATE_STATEFILE=true \
+        VALIDATE_STATE_BACKEND="${{ parameters.expectedBackend }}" \
+        VALIDATE_CONVERGENCE_ATTEMPTS=10 \
+        VALIDATE_CONVERGENCE_INTERVAL_SECONDS=15 \
+          make test-validate-state \
+            OS_TYPE=${{ parameters.os }} \
+            RESTART_CASE="$restartCase" \
+            CNI_TYPE=${{ parameters.cni }}
+
+        test -s "$summaryPath"
+        jq -e \
+          --arg backend "${{ parameters.expectedBackend }}" \
+          --arg authority "${{ parameters.expectedAuthority }}" \
+          --argjson schema "${{ parameters.expectedSchemaVersion }}" '
+            (.checks | length) > 0
+            and all(.checks[];
+              .validationPass == true
+              and .converged == true
+              and (((.missingIPs // []) | length) == 0)
+              and (((.unexpectedIPs // []) | length) == 0)
+              and (((.duplicateIPs // []) | length) == 0)
+            )
+            and (
+              if $backend == "bolt" then
+                ([.checks[] | select((.stateBackend // "") != "")]) as $persistent
+                | ($persistent | length) > 0
+                and all($persistent[];
+                  .stateBackend == $backend
+                  and .authority == $authority
+                  and .schemaVersion == $schema
+                  and ((.bootID // "") | length) > 0
+                  and .dbFilePresent == true
+                  and .dbFileSizeBytes > 0
+                )
+              else
+                all(.checks[]; (.stateBackend // "") == "")
+              end
+            )
+          ' "$summaryPath"
+
+        kubectl get pods -n load-test -l load-test=true -o json |
+          jq '[
+            .items[]
+            | {
+              namespace: .metadata.namespace,
+              name: .metadata.name,
+              nodeName: .spec.nodeName,
+              phase: .status.phase,
+              podIPs: ((.status.podIPs // []) | map(.ip) | sort)
+            }
+          ] | sort_by(.namespace, .name)' \
+          >"$evidenceDir/pod-state.json"
+        jq -e '
+          length > 0
+          and all(.[];
+            .nodeName != ""
+            and .phase == "Running"
+            and (.podIPs | length) > 0
+          )
+        ' "$evidenceDir/pod-state.json" >/dev/null
+
+  - ${{ if ne(parameters.baselineArtifact, '') }}:
+    - bash: |
+        set -euo pipefail
+        evidenceDir="$(Build.SourcesDirectory)/test/integration/logs/state-migration/${{ parameters.lane }}/${{ parameters.transition }}"
+        baseline="$(Pipeline.Workspace)/${{ parameters.baselineArtifact }}/summary.json"
+        candidate="$(Build.SourcesDirectory)/test/integration/logs/validate/${{ parameters.lane }}/${{ parameters.transition }}.json"
+        baselinePodState="$(Pipeline.Workspace)/${{ parameters.baselineArtifact }}/pod-state.json"
+        candidatePodState="$evidenceDir/pod-state.json"
+        bash hack/scripts/compare-state-migration-summaries.sh \
+          "$baseline" \
+          "$candidate" \
+          "${{ parameters.expectedBackend }}" \
+          "${{ parameters.expectedAuthority }}" \
+          "${{ parameters.expectedSchemaVersion }}" \
+          "${{ parameters.stateRelation }}" \
+          "${{ parameters.bootRelation }}" \
+          "$baselinePodState" \
+          "$candidatePodState" \
+          2>&1 | tee "$evidenceDir/comparison.txt"
+      displayName: Compare transition summaries
+
+  - template: capture-transition.steps.yaml
+    parameters:
+      lane: ${{ parameters.lane }}
+      transition: ${{ parameters.transition }}
+      clusterName: ${{ parameters.clusterName }}
+      os: ${{ parameters.os }}
+      configMapName: ${{ parameters.configMapName }}
+      daemonsetName: ${{ parameters.daemonsetName }}
+      expectedBackend: ${{ parameters.expectedBackend }}
+      expectedAuthority: ${{ parameters.expectedAuthority }}
+      expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+      summaryPath: $(Build.SourcesDirectory)/test/integration/logs/validate/${{ parameters.lane }}/${{ parameters.transition }}.json

@@ -1,0 +1,272 @@
+pr: none
+trigger:
+  tags:
+    include:
+      - "dropgz/*"
+      - "azure-ipam/*"
+      - "v*"
+
+parameters:
+  - name: linuxNodeCount
+    type: number
+    default: 2
+  - name: windowsSystemNodeCount
+    type: number
+    default: 2
+  - name: windowsNodeCount
+    type: number
+    default: 2
+  - name: replicasPerNode
+    type: number
+    default: 2
+  - name: linuxVMSize
+    type: string
+    default: "$(VM_SIZE)"
+  - name: windowsSystemVMSize
+    type: string
+    default: "$(VM_SIZE_WINCLUSTER_SYSTEMPOOL)"
+  - name: windowsVMSize
+    type: string
+    default: "$(VM_SIZE_WIN)"
+  - name: region
+    type: string
+    default: "$(LOCATION_AMD64)"
+  - name: expectedSchemaVersion
+    type: number
+    default: 1
+  # Reserved for the reusable migration fault template being developed in
+  # parallel. Enabling it before that template is wired fails loudly at the
+  # restart-during-scale hook instead of silently omitting required coverage.
+  - name: enableFaultInjectionHooks
+    type: boolean
+    default: false
+
+stages:
+  - stage: setup
+    displayName: Set up migration release gate
+    jobs:
+      - job: env
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - bash: |
+              set -euo pipefail
+              go version
+              commitID="$(make revision)-$(Build.BuildId)"
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$commitID"
+              echo "Migration gate commit ID: $commitID"
+              echo "Fault injection hooks enabled: ${{ parameters.enableFaultInjectionHooks }}"
+            name: SetEnvVars
+            displayName: Set migration gate variables
+
+  - stage: build_migration_images
+    displayName: Build migration gate images
+    dependsOn: setup
+    jobs:
+      - job: containerize_amd64
+        pool:
+          name: $(BUILD_POOL_NAME_LINUX_AMD64)
+        strategy:
+          matrix:
+            azure_ipam_linux_amd64:
+              arch: amd64
+              name: azure-ipam
+              os: linux
+            azure_ipam_windows_amd64:
+              arch: amd64
+              name: azure-ipam
+              os: windows
+            cni_linux_amd64:
+              arch: amd64
+              name: cni
+              os: linux
+            cni_windows_amd64:
+              arch: amd64
+              name: cni
+              os: windows
+            cns_linux_amd64:
+              arch: amd64
+              name: cns
+              os: linux
+            cns_windows_amd64:
+              arch: amd64
+              name: cns
+              os: windows
+        steps:
+          - template: ../../containers/container-template.yaml
+            parameters:
+              arch: $(arch)
+              name: $(name)
+              os: $(os)
+
+  - stage: publish_migration_images
+    displayName: Publish migration gate manifests
+    dependsOn: build_migration_images
+    jobs:
+      - job: manifest
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        strategy:
+          matrix:
+            azure_ipam:
+              name: azure-ipam
+              platforms: linux/amd64 windows/amd64
+            cni:
+              name: cni
+              platforms: linux/amd64 windows/amd64
+            cns:
+              name: cns
+              platforms: linux/amd64 windows/amd64
+        steps:
+          - template: ../../containers/manifest-template.yaml
+            parameters:
+              name: $(name)
+              platforms: $(platforms)
+
+  - template: lane.stage.yaml
+    parameters:
+      name: linux_cilium_overlay
+      displayName: "P0 Linux Cilium overlay — CNS-managed"
+      clusterBaseName: mig-cilium-lnx
+      clusterType: overlay-byocni-nokubeproxy-up
+      scenario: cilium-overlay
+      os: linux
+      cni: cilium
+      region: ${{ parameters.region }}
+      nodeCount: ${{ parameters.linuxNodeCount }}
+      nodeCountWin: 0
+      vmSize: ${{ parameters.linuxVMSize }}
+      vmSizeWin: ""
+      osSKU: Ubuntu
+      osSkuWin: Windows2022
+      targetNodeCount: ${{ parameters.linuxNodeCount }}
+      replicasPerNode: ${{ parameters.replicasPerNode }}
+      configMapName: cns-config
+      daemonsetName: azure-cns
+      manageEndpointState: "true"
+      initializeFromCNI: "false"
+      expectedAuthority: bolt
+      expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+      enableFaultInjectionHooks: ${{ parameters.enableFaultInjectionHooks }}
+
+  - template: lane.stage.yaml
+    parameters:
+      name: linux_podsubnet
+      displayName: "P0 Linux Azure CNI pod-subnet — CNI-managed"
+      clusterBaseName: mig-podsub-lnx
+      clusterType: swift-byocni-up
+      scenario: azure-cni-pod-subnet
+      os: linux
+      cni: cniv2
+      region: ${{ parameters.region }}
+      nodeCount: ${{ parameters.linuxNodeCount }}
+      nodeCountWin: 0
+      vmSize: ${{ parameters.linuxVMSize }}
+      vmSizeWin: ""
+      osSKU: Ubuntu
+      osSkuWin: Windows2022
+      targetNodeCount: ${{ parameters.linuxNodeCount }}
+      replicasPerNode: ${{ parameters.replicasPerNode }}
+      configMapName: cns-config
+      daemonsetName: azure-cns
+      manageEndpointState: "false"
+      initializeFromCNI: "true"
+      expectedAuthority: bolt
+      expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+      enableFaultInjectionHooks: ${{ parameters.enableFaultInjectionHooks }}
+
+  - template: lane.stage.yaml
+    parameters:
+      name: linux_overlay
+      displayName: "P0 Linux Azure CNI overlay — CNI-managed"
+      clusterBaseName: mig-overlay-lnx
+      clusterType: overlay-byocni-up
+      scenario: azure-cni-overlay
+      os: linux
+      cni: cniv2
+      region: ${{ parameters.region }}
+      nodeCount: ${{ parameters.linuxNodeCount }}
+      nodeCountWin: 0
+      vmSize: ${{ parameters.linuxVMSize }}
+      vmSizeWin: ""
+      osSKU: Ubuntu
+      osSkuWin: Windows2022
+      targetNodeCount: ${{ parameters.linuxNodeCount }}
+      replicasPerNode: ${{ parameters.replicasPerNode }}
+      configMapName: cns-config
+      daemonsetName: azure-cns
+      manageEndpointState: "false"
+      initializeFromCNI: "true"
+      expectedAuthority: bolt
+      expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+      enableFaultInjectionHooks: ${{ parameters.enableFaultInjectionHooks }}
+
+  - template: lane.stage.yaml
+    parameters:
+      name: windows_podsubnet
+      displayName: "P0 Windows Azure CNI pod-subnet — CNI-managed"
+      clusterBaseName: mig-podsub-win
+      clusterType: swift-byocni-up
+      scenario: azure-cni-pod-subnet
+      os: windows
+      cni: cniv2
+      region: ${{ parameters.region }}
+      nodeCount: ${{ parameters.windowsSystemNodeCount }}
+      nodeCountWin: ${{ parameters.windowsNodeCount }}
+      vmSize: ${{ parameters.windowsSystemVMSize }}
+      vmSizeWin: ${{ parameters.windowsVMSize }}
+      osSKU: Ubuntu
+      osSkuWin: Windows2022
+      targetNodeCount: ${{ parameters.windowsNodeCount }}
+      replicasPerNode: ${{ parameters.replicasPerNode }}
+      configMapName: cns-win-config
+      daemonsetName: azure-cns-win
+      manageEndpointState: "false"
+      initializeFromCNI: "true"
+      expectedAuthority: bolt
+      expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+      enableFaultInjectionHooks: ${{ parameters.enableFaultInjectionHooks }}
+
+  - template: lane.stage.yaml
+    parameters:
+      name: windows_stateless_overlay
+      displayName: "P0 Windows stateless overlay — CNS-managed"
+      clusterBaseName: mig-stateless-win
+      clusterType: overlay-byocni-up
+      scenario: azure-cni-stateless-overlay
+      os: windows
+      cni: stateless
+      region: ${{ parameters.region }}
+      nodeCount: ${{ parameters.windowsSystemNodeCount }}
+      nodeCountWin: ${{ parameters.windowsNodeCount }}
+      vmSize: ${{ parameters.windowsSystemVMSize }}
+      vmSizeWin: ${{ parameters.windowsVMSize }}
+      osSKU: Ubuntu
+      osSkuWin: Windows2022
+      targetNodeCount: ${{ parameters.windowsNodeCount }}
+      replicasPerNode: ${{ parameters.replicasPerNode }}
+      configMapName: cns-win-config
+      daemonsetName: azure-cns-win
+      manageEndpointState: "true"
+      initializeFromCNI: "false"
+      expectedAuthority: bolt
+      expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+      enableFaultInjectionHooks: ${{ parameters.enableFaultInjectionHooks }}
+
+  - stage: migration_release_gate
+    displayName: State migration release gate
+    dependsOn:
+      - linux_cilium_overlay
+      - linux_podsubnet
+      - linux_overlay
+      - windows_podsubnet
+      - windows_stateless_overlay
+    condition: succeeded()
+    jobs:
+      - job: passed
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - bash: |
+              echo "All five P0 state-migration lifecycle lanes passed."
+            displayName: Confirm release gate

@@ -1,0 +1,379 @@
+parameters:
+  - name: name
+    type: string
+  - name: displayName
+    type: string
+  - name: clusterBaseName
+    type: string
+  - name: clusterType
+    type: string
+  - name: scenario
+    type: string
+  - name: os
+    type: string
+  - name: cni
+    type: string
+  - name: region
+    type: string
+  - name: nodeCount
+    type: number
+  - name: nodeCountWin
+    type: number
+  - name: vmSize
+    type: string
+  - name: vmSizeWin
+    type: string
+  - name: osSKU
+    type: string
+  - name: osSkuWin
+    type: string
+  - name: targetNodeCount
+    type: number
+  - name: replicasPerNode
+    type: number
+  - name: configMapName
+    type: string
+  - name: daemonsetName
+    type: string
+  - name: manageEndpointState
+    type: string
+  - name: initializeFromCNI
+    type: string
+  - name: expectedAuthority
+    type: string
+  - name: expectedSchemaVersion
+    type: number
+  - name: enableFaultInjectionHooks
+    type: boolean
+    default: false
+
+stages:
+  - stage: ${{ parameters.name }}
+    displayName: ${{ parameters.displayName }}
+    dependsOn:
+      - setup
+      - publish_migration_images
+    variables:
+      commitID: $[ stageDependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    jobs:
+      - job: create_cluster
+        displayName: Create migration cluster
+        timeoutInMinutes: 90
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: inlineScript
+              scriptType: bash
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -euo pipefail
+
+                cluster="${{ parameters.clusterBaseName }}-$(commitID)"
+                make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
+
+                if az aks show --resource-group "$cluster" --name "$cluster" >/dev/null 2>&1; then
+                  make -C ./hack/aks down \
+                    AZCLI=az \
+                    REGION=${{ parameters.region }} \
+                    SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
+                    CLUSTER="$cluster"
+                fi
+
+                makeArgs=(
+                  "AZCLI=az"
+                  "REGION=${{ parameters.region }}"
+                  "SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)"
+                  "CLUSTER=$cluster"
+                  "NODE_COUNT=${{ parameters.nodeCount }}"
+                  "VM_SIZE=${{ parameters.vmSize }}"
+                  "OS=${{ parameters.os }}"
+                  "OS_SKU=${{ parameters.osSKU }}"
+                )
+                if [[ "${{ parameters.os }}" == "windows" ]]; then
+                  makeArgs+=(
+                    "NODE_COUNT_WIN=${{ parameters.nodeCountWin }}"
+                    "VM_SIZE_WIN=${{ parameters.vmSizeWin }}"
+                    "OS_SKU_WIN=${{ parameters.osSkuWin }}"
+                  )
+                fi
+
+                make -C ./hack/aks "${{ parameters.clusterType }}" "${makeArgs[@]}"
+                kubectl get nodes -o wide
+            displayName: Create ${{ parameters.clusterType }}
+
+      - job: install_components
+        displayName: Install lane components
+        dependsOn: create_cluster
+        timeoutInMinutes: 120
+        steps:
+          - template: install-components.steps.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              scenario: ${{ parameters.scenario }}
+              os: ${{ parameters.os }}
+              region: ${{ parameters.region }}
+              configMapName: ${{ parameters.configMapName }}
+              daemonsetName: ${{ parameters.daemonsetName }}
+              manageEndpointState: ${{ parameters.manageEndpointState }}
+              initializeFromCNI: ${{ parameters.initializeFromCNI }}
+
+      - job: json_baseline
+        displayName: 01 JSON baseline
+        dependsOn: install_components
+        timeoutInMinutes: 90
+        steps:
+          - template: transition.steps.yaml
+            parameters:
+              lane: ${{ parameters.name }}
+              transition: 01-json-baseline
+              action: json-baseline
+              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              targetNodeCount: ${{ parameters.targetNodeCount }}
+              replicasPerNode: ${{ parameters.replicasPerNode }}
+              configMapName: ${{ parameters.configMapName }}
+              daemonsetName: ${{ parameters.daemonsetName }}
+              expectedBackend: json
+              expectedAuthority: ${{ parameters.expectedAuthority }}
+              expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+
+      - job: bolt_migrate
+        displayName: 02 Single-restart Bolt migration
+        dependsOn: json_baseline
+        timeoutInMinutes: 90
+        steps:
+          - template: transition.steps.yaml
+            parameters:
+              lane: ${{ parameters.name }}
+              transition: 02-bolt-migrate
+              action: bolt-migrate
+              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              targetNodeCount: ${{ parameters.targetNodeCount }}
+              replicasPerNode: ${{ parameters.replicasPerNode }}
+              configMapName: ${{ parameters.configMapName }}
+              daemonsetName: ${{ parameters.daemonsetName }}
+              expectedBackend: bolt
+              expectedAuthority: ${{ parameters.expectedAuthority }}
+              expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+              baselineArtifact: state-migration-${{ parameters.name }}-01-json-baseline
+              stateRelation: exact
+
+      - job: same_boot_restart
+        displayName: 03 Same-boot restart
+        dependsOn: bolt_migrate
+        timeoutInMinutes: 90
+        steps:
+          - template: transition.steps.yaml
+            parameters:
+              lane: ${{ parameters.name }}
+              transition: 03-same-boot-restart
+              action: same-boot-restart
+              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              targetNodeCount: ${{ parameters.targetNodeCount }}
+              replicasPerNode: ${{ parameters.replicasPerNode }}
+              configMapName: ${{ parameters.configMapName }}
+              daemonsetName: ${{ parameters.daemonsetName }}
+              expectedBackend: bolt
+              expectedAuthority: ${{ parameters.expectedAuthority }}
+              expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+              baselineArtifact: state-migration-${{ parameters.name }}-02-bolt-migrate
+              stateRelation: exact
+              bootRelation: same
+
+      - job: restart_during_scale
+        displayName: 04 Restart during scale
+        dependsOn: same_boot_restart
+        timeoutInMinutes: 90
+        steps:
+          - template: transition.steps.yaml
+            parameters:
+              lane: ${{ parameters.name }}
+              transition: 04-restart-during-scale
+              action: restart-during-scale
+              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              targetNodeCount: ${{ parameters.targetNodeCount }}
+              replicasPerNode: ${{ parameters.replicasPerNode }}
+              configMapName: ${{ parameters.configMapName }}
+              daemonsetName: ${{ parameters.daemonsetName }}
+              expectedBackend: bolt
+              expectedAuthority: ${{ parameters.expectedAuthority }}
+              expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+              baselineArtifact: state-migration-${{ parameters.name }}-03-same-boot-restart
+              stateRelation: changed
+              bootRelation: same
+              enableFaultInjectionHooks: ${{ parameters.enableFaultInjectionHooks }}
+
+      - job: node_reboot
+        displayName: 05 Node reboot
+        dependsOn: restart_during_scale
+        timeoutInMinutes: 120
+        steps:
+          - template: transition.steps.yaml
+            parameters:
+              lane: ${{ parameters.name }}
+              transition: 05-node-reboot
+              action: node-reboot
+              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              targetNodeCount: ${{ parameters.targetNodeCount }}
+              replicasPerNode: ${{ parameters.replicasPerNode }}
+              configMapName: ${{ parameters.configMapName }}
+              daemonsetName: ${{ parameters.daemonsetName }}
+              expectedBackend: bolt
+              expectedAuthority: ${{ parameters.expectedAuthority }}
+              expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+              baselineArtifact: state-migration-${{ parameters.name }}-04-restart-during-scale
+              stateRelation: exact
+              bootRelation: changed
+
+      - job: os_validation
+        displayName: 06 OS-specific validation
+        dependsOn: node_reboot
+        timeoutInMinutes: 90
+        steps:
+          - template: transition.steps.yaml
+            parameters:
+              lane: ${{ parameters.name }}
+              transition: 06-os-validation
+              action: os-validation
+              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              targetNodeCount: ${{ parameters.targetNodeCount }}
+              replicasPerNode: ${{ parameters.replicasPerNode }}
+              configMapName: ${{ parameters.configMapName }}
+              daemonsetName: ${{ parameters.daemonsetName }}
+              expectedBackend: bolt
+              expectedAuthority: ${{ parameters.expectedAuthority }}
+              expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+              baselineArtifact: state-migration-${{ parameters.name }}-05-node-reboot
+              stateRelation: exact
+              bootRelation: same
+
+      - job: rollback_json
+        displayName: 07 Roll back to JSON
+        dependsOn: os_validation
+        timeoutInMinutes: 90
+        steps:
+          - template: transition.steps.yaml
+            parameters:
+              lane: ${{ parameters.name }}
+              transition: 07-rollback-json
+              action: rollback-json
+              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              targetNodeCount: ${{ parameters.targetNodeCount }}
+              replicasPerNode: ${{ parameters.replicasPerNode }}
+              configMapName: ${{ parameters.configMapName }}
+              daemonsetName: ${{ parameters.daemonsetName }}
+              expectedBackend: json
+              expectedAuthority: ${{ parameters.expectedAuthority }}
+              expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+              baselineArtifact: state-migration-${{ parameters.name }}-06-os-validation
+              stateRelation: exact
+
+      - job: json_mutation
+        displayName: 08 Mutate JSON-authoritative pod state
+        dependsOn: rollback_json
+        timeoutInMinutes: 90
+        steps:
+          - template: transition.steps.yaml
+            parameters:
+              lane: ${{ parameters.name }}
+              transition: 08-json-mutation
+              action: json-mutation
+              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              targetNodeCount: ${{ parameters.targetNodeCount }}
+              replicasPerNode: ${{ parameters.replicasPerNode }}
+              configMapName: ${{ parameters.configMapName }}
+              daemonsetName: ${{ parameters.daemonsetName }}
+              expectedBackend: json
+              expectedAuthority: ${{ parameters.expectedAuthority }}
+              expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+              baselineArtifact: state-migration-${{ parameters.name }}-07-rollback-json
+              stateRelation: changed
+
+      - job: bolt_reimport
+        displayName: 09 Bolt re-upgrade and reimport
+        dependsOn: json_mutation
+        timeoutInMinutes: 90
+        steps:
+          - template: transition.steps.yaml
+            parameters:
+              lane: ${{ parameters.name }}
+              transition: 09-bolt-reimport
+              action: bolt-reimport
+              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              targetNodeCount: ${{ parameters.targetNodeCount }}
+              replicasPerNode: ${{ parameters.replicasPerNode }}
+              configMapName: ${{ parameters.configMapName }}
+              daemonsetName: ${{ parameters.daemonsetName }}
+              expectedBackend: bolt
+              expectedAuthority: ${{ parameters.expectedAuthority }}
+              expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+              baselineArtifact: state-migration-${{ parameters.name }}-08-json-mutation
+              stateRelation: exact
+
+      - job: final_same_boot_restart
+        displayName: 10 Final same-boot restart and comparison
+        dependsOn: bolt_reimport
+        timeoutInMinutes: 90
+        steps:
+          - template: transition.steps.yaml
+            parameters:
+              lane: ${{ parameters.name }}
+              transition: 10-final-same-boot-restart
+              action: final-same-boot-restart
+              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              targetNodeCount: ${{ parameters.targetNodeCount }}
+              replicasPerNode: ${{ parameters.replicasPerNode }}
+              configMapName: ${{ parameters.configMapName }}
+              daemonsetName: ${{ parameters.daemonsetName }}
+              expectedBackend: bolt
+              expectedAuthority: ${{ parameters.expectedAuthority }}
+              expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
+              baselineArtifact: state-migration-${{ parameters.name }}-09-bolt-reimport
+              stateRelation: exact
+              bootRelation: same
+
+      - job: cleanup
+        displayName: Clean up migration cluster
+        condition: always()
+        dependsOn:
+          - create_cluster
+          - install_components
+          - json_baseline
+          - bolt_migrate
+          - same_boot_restart
+          - restart_during_scale
+          - node_reboot
+          - os_validation
+          - rollback_json
+          - json_mutation
+          - bolt_reimport
+          - final_same_boot_restart
+        steps:
+          - template: ../../templates/delete-cluster.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterBaseName }}-$(commitID)
+              sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+              svcConn: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              deleteResources: "true"
