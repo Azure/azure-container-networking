@@ -37,6 +37,10 @@ steps:
         # explicitly unzip and strip directories from ginkgo and e2e.test
         tar -xvzf kubernetes-test-linux-amd64.tar.gz --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
 
+        kubeTestRepoList="$PWD/.pipelines/cni/k8s-e2e/acnpublic-repo-list.yaml"
+        test -f "$kubeTestRepoList"
+        echo "##vso[task.setvariable variable=KUBE_TEST_REPO_LIST]$kubeTestRepoList"
+
     displayName: "Setup k8s E2E Environment"
   - ${{ if contains(parameters.os, 'windows') }}:
       - script: |
