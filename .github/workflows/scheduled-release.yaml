@@ -677,6 +677,7 @@ jobs:
     permissions:
       contents: write
       actions: write
+      id-token: write
     outputs:
       new_tag: ${{ steps.version.outputs.new_tag }}
       target_sha: ${{ steps.version.outputs.target_sha }}
@@ -737,6 +738,43 @@ jobs:
 
             echo "✅ Tag creation dispatched. Requires tag-approval environment approval."
           fi
+
+      - name: Azure Login (OIDC) for notifications
+        if: ${{ inputs.dry_run != 'true' }}
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
+        with:
+          client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
+          tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
+          allow-no-subscriptions: true
+
+      - name: Post tag approval link to CNI channel and tracking issue
+        if: ${{ inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_TAG: ${{ steps.version.outputs.new_tag }}
+          TARGET_SHA: ${{ steps.version.outputs.target_sha }}
+          ISSUE_NUMBER: ${{ needs.wait_dependabot.outputs.tracking_issue }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          APPROVE_URL="https://github.com/${REPO}/actions/workflows/create-release-tag.yml"
+
+          MSG="🏷️ Tag **${NEW_TAG}** dispatched for creation (commit: ${TARGET_SHA:0:7})
+
+          ⏳ Waiting for manual approval on the tag-approval environment.
+
+          👉 [Approve tag creation here](${APPROVE_URL})"
+
+          /tmp/release-cli notify \
+            --channel-id "$TEAMS_CNI_CHANNEL_ID" \
+            --title "Tag Approval: ${NEW_TAG}" \
+            --status running \
+            --summary "$MSG" \
+            --stage tag-approval
+
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$REPO" \
+            --body "🏷️ Tag **${NEW_TAG}** dispatched for creation (commit: \`${TARGET_SHA:0:7}\`). Waiting for approval: [Approve here](${APPROVE_URL})"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 4: Pipeline Validation (ACN PR Pipeline + CNI Release Test)
