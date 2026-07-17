@@ -131,6 +131,7 @@ type HTTPRestService struct {
 	nodeName                   string
 	stateRestoreLogger         stateRestoreLogger
 	unifiedStateAdapter        *durableStateAdapter
+	faultInjector              *faultInjector
 }
 
 type CNIConflistGenerator interface {
@@ -287,6 +288,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		cniConflistGenerator:     gen,
 		imdsClient:               imdsClient,
 		stateRestoreLogger:       logger.Log,
+		faultInjector:            newFaultInjectorFromEnv(),
 	}, nil
 }
 
@@ -337,6 +339,9 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.PathDebugIPAddresses, service.HandleDebugIPAddresses)
 	listener.AddHandler(cns.PathDebugPodContext, service.HandleDebugPodContext)
 	listener.AddHandler(cns.PathDebugRestData, service.HandleDebugRestData)
+	if service.faultInjector != nil {
+		listener.AddHandler(faultInjectionPath, service.faultInjector.handle)
+	}
 	listener.AddHandler(cns.NetworkContainersURLPath, service.getOrRefreshNetworkContainers)
 	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.EndpointPath, service.EndpointHandlerAPI)
