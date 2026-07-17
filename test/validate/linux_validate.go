@@ -17,6 +17,7 @@ const (
 	validatorPod            = "k8s-app=azure-cns"
 	ciliumLabelSelector     = "k8s-app=cilium"
 	overlayClusterLabelName = "overlay"
+	loadTestPodLabel        = "load-test=true"
 )
 
 var (
@@ -320,10 +321,11 @@ func (v *Validator) validateRestartNetwork(ctx context.Context) error {
 		return errors.Wrapf(err, "failed to get node list")
 	}
 
-	// Only validate the test payload pods in v.namespace. If there is no payload
-	// deployed (e.g. validate-state is invoked after the load-test namespace has
-	// been cleaned up), there is nothing to validate, so skip the readiness check.
-	payloadPods, err := v.clientset.CoreV1().Pods(v.namespace).List(ctx, metav1.ListOptions{})
+	// Only validate the load-test payload pods in v.namespace. If there is no
+	// payload deployed (e.g. validate-state is invoked after the load-test
+	// namespace has been cleaned up), there is nothing to validate, so skip the
+	// readiness check.
+	payloadPods, err := v.clientset.CoreV1().Pods(v.namespace).List(ctx, metav1.ListOptions{LabelSelector: loadTestPodLabel})
 	if err != nil {
 		return errors.Wrapf(err, "failed to list pods in namespace %s", v.namespace)
 	}
@@ -351,7 +353,7 @@ func (v *Validator) validateRestartNetwork(ctx context.Context) error {
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privilegedPod.Name, node.Name)
 		}
-		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, v.namespace, "")
+		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, v.namespace, loadTestPodLabel)
 		if err != nil {
 			return errors.Wrapf(err, "failed to wait for pods running")
 		}
