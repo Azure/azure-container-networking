@@ -153,9 +153,10 @@ func newClusterHarness(t *testing.T, ctx context.Context, cfg faultConfig) *clus
 }
 
 func (harness *clusterHarness) validateCNSConfig(ctx context.Context) error {
-	configMap, err := harness.clientset.CoreV1().ConfigMaps(kubeSystemNamespace).Get(ctx, "cns-config", metav1.GetOptions{})
+	configMapName := cnsConfigMapForOS(harness.cfg.OS)
+	configMap, err := harness.clientset.CoreV1().ConfigMaps(kubeSystemNamespace).Get(ctx, configMapName, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("getting CNS configmap: %w", err)
+		return fmt.Errorf("getting CNS configmap %q: %w", configMapName, err)
 	}
 	raw := []byte(configMap.Data["cns_config.json"])
 	if err := validateMigrationCNSConfig(raw); err != nil {

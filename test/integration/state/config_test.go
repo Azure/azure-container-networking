@@ -191,6 +191,23 @@ func TestFindCNSContainer(t *testing.T) {
 	}
 }
 
+func TestCNSConfigMapForOS(t *testing.T) {
+	tests := []struct {
+		name string
+		os   string
+		want string
+	}{
+		{name: "linux", os: faultOSLinux, want: linuxCNSConfigMap},
+		{name: "windows", os: faultOSWindows, want: windowsCNSConfigMap},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, cnsConfigMapForOS(tt.os))
+		})
+	}
+}
+
 func TestSanitizeResourceName(t *testing.T) {
 	tests := []struct {
 		name      string

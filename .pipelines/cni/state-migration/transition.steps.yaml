@@ -34,7 +34,7 @@ parameters:
   - name: bootRelation
     type: string
     default: none
-  - name: enableFaultInjectionHooks
+  - name: runFaultInjection
     type: boolean
     default: false
 
@@ -201,17 +201,18 @@ steps:
             '{daemonsetGenerationBefore: $beforeGeneration, daemonsetGenerationAfter: $afterGeneration, restartCount: 1}' \
             >"$evidenceDir/restart.json"
 
-  # Hook point for the reusable migration fault-injection template. Until that
-  # template is integrated, opting in fails loudly instead of silently skipping
-  # required ADD/DEL/PATCH/scale fault coverage.
-  - ${{ if and(eq(parameters.action, 'restart-during-scale'), eq(parameters.enableFaultInjectionHooks, true)) }}:
-    - bash: |
-        echo "fault injection hooks were requested, but the reusable template is not present in this branch"
-        echo "wire the migration fault template here with lane/os/cni/clusterName parameters after cherry-pick"
-        exit 1
-      displayName: Require reusable migration fault hooks
+  # Endpoint-commit faults require CNS-owned endpoint state. CNI-managed lanes
+  # still run the mandatory active-scale restart immediately below.
+  - ${{ if and(eq(parameters.action, 'restart-during-scale'), eq(parameters.runFaultInjection, true)) }}:
+    - template: ../load-test-templates/migration-fault-injection-template.yaml
+      parameters:
+        clusterName: ${{ parameters.clusterName }}
+        os: ${{ parameters.os }}
+        cni: ${{ parameters.cni }}
+        scenario: all
+        artifactName: state-migration-${{ parameters.lane }}-04-fault-injection
 
-  - ${{ if and(eq(parameters.action, 'restart-during-scale'), eq(parameters.enableFaultInjectionHooks, false)) }}:
+  - ${{ if eq(parameters.action, 'restart-during-scale') }}:
     - task: AzureCLI@2
       displayName: Restart CNS during active pod scale
       inputs:

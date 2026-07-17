@@ -43,9 +43,6 @@ parameters:
     type: string
   - name: expectedSchemaVersion
     type: number
-  - name: enableFaultInjectionHooks
-    type: boolean
-    default: false
 
 stages:
   - stage: ${{ parameters.name }}
@@ -191,7 +188,7 @@ stages:
       - job: restart_during_scale
         displayName: 04 Restart during scale
         dependsOn: same_boot_restart
-        timeoutInMinutes: 90
+        timeoutInMinutes: 180
         steps:
           - template: transition.steps.yaml
             parameters:
@@ -211,7 +208,7 @@ stages:
               baselineArtifact: state-migration-${{ parameters.name }}-03-same-boot-restart
               stateRelation: changed
               bootRelation: same
-              enableFaultInjectionHooks: ${{ parameters.enableFaultInjectionHooks }}
+              runFaultInjection: ${{ eq(parameters.manageEndpointState, 'true') }}
 
       - job: node_reboot
         displayName: 05 Node reboot

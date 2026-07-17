@@ -34,12 +34,6 @@ parameters:
   - name: expectedSchemaVersion
     type: number
     default: 1
-  # Reserved for the reusable migration fault template being developed in
-  # parallel. Enabling it before that template is wired fails loudly at the
-  # restart-during-scale hook instead of silently omitting required coverage.
-  - name: enableFaultInjectionHooks
-    type: boolean
-    default: false
 
 stages:
   - stage: setup
@@ -55,7 +49,7 @@ stages:
               commitID="$(make revision)-$(Build.BuildId)"
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$commitID"
               echo "Migration gate commit ID: $commitID"
-              echo "Fault injection hooks enabled: ${{ parameters.enableFaultInjectionHooks }}"
+              echo "Reusable fault injection runs in CNS-managed migration lanes."
             name: SetEnvVars
             displayName: Set migration gate variables
 
@@ -147,7 +141,6 @@ stages:
       initializeFromCNI: "false"
       expectedAuthority: bolt
       expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-      enableFaultInjectionHooks: ${{ parameters.enableFaultInjectionHooks }}
 
   - template: lane.stage.yaml
     parameters:
@@ -173,7 +166,6 @@ stages:
       initializeFromCNI: "true"
       expectedAuthority: bolt
       expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-      enableFaultInjectionHooks: ${{ parameters.enableFaultInjectionHooks }}
 
   - template: lane.stage.yaml
     parameters:
@@ -199,7 +191,6 @@ stages:
       initializeFromCNI: "true"
       expectedAuthority: bolt
       expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-      enableFaultInjectionHooks: ${{ parameters.enableFaultInjectionHooks }}
 
   - template: lane.stage.yaml
     parameters:
@@ -225,7 +216,6 @@ stages:
       initializeFromCNI: "true"
       expectedAuthority: bolt
       expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-      enableFaultInjectionHooks: ${{ parameters.enableFaultInjectionHooks }}
 
   - template: lane.stage.yaml
     parameters:
@@ -251,7 +241,6 @@ stages:
       initializeFromCNI: "false"
       expectedAuthority: bolt
       expectedSchemaVersion: ${{ parameters.expectedSchemaVersion }}
-      enableFaultInjectionHooks: ${{ parameters.enableFaultInjectionHooks }}
 
   - stage: migration_release_gate
     displayName: State migration release gate
