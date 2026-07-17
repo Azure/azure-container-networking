@@ -78,7 +78,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		if err != nil {
 			if len(addResult.interfaceInfo) > 0 && len(addResult.interfaceInfo[invoker.getInterfaceInfoKey(cns.InfraNIC)].IPConfigs) > 0 {
 				if er := invoker.Delete(&addResult.interfaceInfo[invoker.getInterfaceInfoKey(cns.InfraNIC)].IPConfigs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
-					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
+					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %v", er, err)
 				}
 			} else {
 				err = fmt.Errorf("No IP's to delete on error: %v", err)
