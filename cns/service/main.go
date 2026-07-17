@@ -1489,6 +1489,12 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 					"kube-system": {FieldSelector: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})},
 				},
 			},
+			// NodeInfo is cluster-scoped and named after the node; CNS only reads
+			// its own node's NodeInfo, so scope the informer to this node instead
+			// of caching and watching every node's NodeInfo cluster-wide.
+			&mtv1alpha1.NodeInfo{}: {
+				Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName}),
+			},
 		},
 	}
 
@@ -1503,6 +1509,26 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 			Namespaces: map[string]cache.Config{
 				"kube-system": {},
 			},
+		}
+	}
+
+	if cnsconfig.EnableSwiftV2 {
+		// NICNetworkConfig is namespaced and created per-NIC (multiple per node), so
+		// unlike the node-named NodeInfo/NNC it can't be scoped by metadata.name.
+		// Scope the informer to this node via the spec.nodeName selectable field so
+		// CNS doesn't cache and watch every NIC's NICNetworkConfig cluster-wide.
+		cacheOpts.ByObject[&mtv1alpha1.NICNetworkConfig{}] = cache.ByObject{
+			Field: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName}),
+		}
+
+		// MTPNC is namespaced and per-pod; its node identity lives in status.nodeName,
+		// which DNC-RC writes atomically with the interface data CNS reads (and only
+		// after the pod is scheduled). Scope the informer to this node's MTPNCs. A not-
+		// yet-ready MTPNC has no status.nodeName and is simply absent from cache, but
+		// every CNS reader already rejects a not-ready MTPNC, so this only turns a
+		// "found-but-not-ready" read into a "not-found" one - both retryable.
+		cacheOpts.ByObject[&mtv1alpha1.MultitenantPodNetworkConfig{}] = cache.ByObject{
+			Field: fields.SelectorFromSet(fields.Set{"status.nodeName": nodeName}),
 		}
 	}
 

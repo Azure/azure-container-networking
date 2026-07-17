@@ -10,6 +10,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
+// Shared test fixtures; constants keep the repeated literals from tripping goconst.
+const (
+	testNode       = "node1"
+	testSubnetName = "mySubnet"
+	canonMAC01     = "aa:bb:cc:dd:ee:01"
+	canonMAC02     = "aa:bb:cc:dd:ee:02"
+	canonMAC03     = "aa:bb:cc:dd:ee:03"
+)
+
 // GetMTPNCInfoByMAC must node-scope, compute capacity from DRA state, and tolerate a
 // not-ready MTPNC (empty Spec network/subnet) without erroring — empty values flow
 // through as-is.
@@ -29,7 +38,7 @@ func TestGetMTPNCInfoByMAC(t *testing.T) {
 				ResourceClaims:   []string{"claim-a"}, // scheduled with DRA
 			},
 			Status: v1alpha1.MultitenantPodNetworkConfigStatus{
-				NodeName:       "node1",
+				NodeName:       testNode,
 				InterfaceInfos: []v1alpha1.InterfaceInfo{{MacAddress: "aa:bb:cc:dd:ee:0a"}},
 			},
 		},
@@ -37,7 +46,7 @@ func TestGetMTPNCInfoByMAC(t *testing.T) {
 			// Not-ready: has a MAC but empty Spec network/subnet and no DRA claims.
 			ObjectMeta: metav1.ObjectMeta{Name: "partial", Namespace: "ns"},
 			Status: v1alpha1.MultitenantPodNetworkConfigStatus{
-				NodeName:       "node1",
+				NodeName:       testNode,
 				InterfaceInfos: []v1alpha1.InterfaceInfo{{MacAddress: "aa:bb:cc:dd:ee:0b"}},
 			},
 		},
@@ -54,7 +63,7 @@ func TestGetMTPNCInfoByMAC(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(scheme).
 		WithLists(&v1alpha1.MultitenantPodNetworkConfigList{Items: mtpncs}).Build()
-	mw := &K8sSWIFTv2Middleware{Cli: cli, NodeName: "node1"}
+	mw := &K8sSWIFTv2Middleware{Cli: cli, NodeName: testNode}
 
 	got, err := mw.GetMTPNCInfoByMAC(context.Background())
 	if err != nil {
@@ -93,8 +102,8 @@ func TestSubnetNameFromResourceID(t *testing.T) {
 		resourceID string
 		want       string
 	}{
-		{name: "trailing subnet name", resourceID: "/subscriptions/x/subnets/mySubnet", want: "mySubnet"},
-		{name: "no slashes returns input", resourceID: "mySubnet", want: "mySubnet"},
+		{name: "trailing subnet name", resourceID: "/subscriptions/x/subnets/mySubnet", want: testSubnetName},
+		{name: "no slashes returns input", resourceID: testSubnetName, want: testSubnetName},
 		{name: "empty returns empty", resourceID: "", want: ""},
 	}
 	for _, tc := range tests {
@@ -113,9 +122,9 @@ func TestCanonicalMAC(t *testing.T) {
 		want   string
 		wantOK bool
 	}{
-		{name: "uppercase colon form", raw: "AA:BB:CC:DD:EE:01", want: "aa:bb:cc:dd:ee:01", wantOK: true},
-		{name: "hyphen form", raw: "aa-bb-cc-dd-ee-02", want: "aa:bb:cc:dd:ee:02", wantOK: true},
-		{name: "already canonical", raw: "aa:bb:cc:dd:ee:03", want: "aa:bb:cc:dd:ee:03", wantOK: true},
+		{name: "uppercase colon form", raw: "AA:BB:CC:DD:EE:01", want: canonMAC01, wantOK: true},
+		{name: "hyphen form", raw: "aa-bb-cc-dd-ee-02", want: canonMAC02, wantOK: true},
+		{name: "already canonical", raw: canonMAC03, want: canonMAC03, wantOK: true},
 		{name: "empty is invalid", raw: "", want: "", wantOK: false},
 		{name: "garbage is invalid", raw: "not-a-mac", want: "", wantOK: false},
 	}
@@ -140,12 +149,12 @@ func TestMTPNCMACs(t *testing.T) {
 			mtpnc: v1alpha1.MultitenantPodNetworkConfig{
 				Status: v1alpha1.MultitenantPodNetworkConfigStatus{
 					InterfaceInfos: []v1alpha1.InterfaceInfo{
-						{MacAddress: "aa:bb:cc:dd:ee:01"},
-						{MacAddress: "aa:bb:cc:dd:ee:02"},
+						{MacAddress: canonMAC01},
+						{MacAddress: canonMAC02},
 					},
 				},
 			},
-			want: []string{"aa:bb:cc:dd:ee:01", "aa:bb:cc:dd:ee:02"},
+			want: []string{canonMAC01, canonMAC02},
 		},
 		{
 			name: "skips empty MACs in InterfaceInfos",
@@ -153,11 +162,11 @@ func TestMTPNCMACs(t *testing.T) {
 				Status: v1alpha1.MultitenantPodNetworkConfigStatus{
 					InterfaceInfos: []v1alpha1.InterfaceInfo{
 						{MacAddress: ""},
-						{MacAddress: "aa:bb:cc:dd:ee:03"},
+						{MacAddress: canonMAC03},
 					},
 				},
 			},
-			want: []string{"aa:bb:cc:dd:ee:03"},
+			want: []string{canonMAC03},
 		},
 		{
 			name: "falls back to deprecated Status.MacAddress",

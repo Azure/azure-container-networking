@@ -397,7 +397,7 @@ type NICResource struct {
 	SubnetGUID string `json:"subnetGUID,omitempty"`
 	// SubnetName is the subnet name extracted from the subnet ARM resource ID.
 	SubnetName string `json:"subnetName,omitempty"`
-	Capacity   int    `json:"capacity"`
+	Capacity   string `json:"capacity"`
 }
 
 // GetNICResourcesResponse describes response for GetNICResources API.

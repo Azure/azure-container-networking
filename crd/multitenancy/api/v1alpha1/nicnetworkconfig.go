@@ -20,6 +20,7 @@ import (
 // +kubebuilder:printcolumn:name="MACAddress",type=string,JSONPath=`.spec.macAddress`
 // +kubebuilder:printcolumn:name="PodNetwork",type=string,JSONPath=`.spec.podNetwork`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
+// +kubebuilder:selectablefield:JSONPath=`.spec.nodeName`
 type NICNetworkConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

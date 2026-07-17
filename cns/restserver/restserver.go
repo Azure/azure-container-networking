@@ -325,7 +325,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.EndpointPath, service.EndpointHandlerAPI)
 	listener.AddHandler(cns.GetNICResources, service.getNICResources)
-	listener.AddHandler(cns.RequestIPConfigsAndNICResources, service.requestIPConfigsAndNICResources)
+	listener.AddHandler(cns.RequestClaimConfig, service.requestClaimConfig)
 	// This API is only needed for Direct channel mode.
 	if config.ChannelMode == cns.Direct {
 		listener.AddHandler(cns.GetVMUniqueID, service.getVMUniqueID)

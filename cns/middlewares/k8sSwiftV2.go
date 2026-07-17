@@ -32,6 +32,7 @@ var (
 	errInvalidSWIFTv2NICType    = errors.New("invalid NIC type for SWIFT v2 scenario")
 	errInvalidMTPNCPrefixLength = errors.New("invalid prefix length for MTPNC primaryIP, must be 32")
 	errMTPNCDeleting            = errors.New(NetworkNotReadyErrorMsg + " - mtpnc for previous pod is being deleted, waiting for new mtpnc to be ready")
+	errClaimNotFound            = errors.New(NetworkNotReadyErrorMsg + " - no mtpnc found for resource claim")
 )
 
 type K8sSWIFTv2Middleware struct {
@@ -256,6 +257,32 @@ func (k *K8sSWIFTv2Middleware) getMTPNC(ctx context.Context, podInfo cns.PodInfo
 	return mtpnc, types.Success, ""
 }
 
+// GetPodInfoByClaimUID finds the MTPNC on this node whose Spec.ResourceClaims contains
+// claimUID and returns PodInfo for the pod that owns it. It is used by RequestClaimConfig
+// to resolve a DRA ResourceClaim to its pod, and is scoped to this node's MTPNCs.
+func (k *K8sSWIFTv2Middleware) GetPodInfoByClaimUID(ctx context.Context, claimUID k8stypes.UID) (cns.PodInfo, types.ResponseCode, string) {
+	var mtpncList v1alpha1.MultitenantPodNetworkConfigList
+	if err := k.Cli.List(ctx, &mtpncList); err != nil {
+		return nil, types.UnexpectedError, errors.Wrap(err, "failed to list mtpncs").Error()
+	}
+	for i := range mtpncList.Items {
+		mtpnc := &mtpncList.Items[i]
+		// Only consider MTPNCs scheduled on this node.
+		if mtpnc.Status.NodeName != k.NodeName {
+			continue
+		}
+		for _, claim := range mtpnc.Spec.ResourceClaims {
+			if claim == string(claimUID) {
+				if mtpnc.IsDeleting() {
+					return nil, types.UnexpectedError, errMTPNCDeleting.Error()
+				}
+				return cns.NewPodInfo("", "", mtpnc.Spec.PodName, mtpnc.Namespace), types.Success, ""
+			}
+		}
+	}
+	return nil, types.UnexpectedError, errClaimNotFound.Error()
+}
+
 // Updates Ip Config Request
 func (k *K8sSWIFTv2Middleware) UpdateIPConfigRequest(mtpnc v1alpha1.MultitenantPodNetworkConfig, req *cns.IPConfigsRequest) (
 	respCode types.ResponseCode,
@@ -386,7 +413,7 @@ const dedicatedNICDRACapacity = 1
 func (k *K8sSWIFTv2Middleware) GetNICNCInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
 	var nicNCList v1alpha1.NICNetworkConfigList
 	if err := k.Cli.List(ctx, &nicNCList); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to list nicnetworkconfigs")
 	}
 
 	result := make(map[string]*cns.NICResourceSliceInfo, len(nicNCList.Items))
@@ -429,7 +456,7 @@ func (k *K8sSWIFTv2Middleware) GetNICNCInfoByMAC(ctx context.Context) (map[strin
 func (k *K8sSWIFTv2Middleware) GetMTPNCInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
 	var mtpncList v1alpha1.MultitenantPodNetworkConfigList
 	if err := k.Cli.List(ctx, &mtpncList); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to list mtpncs")
 	}
 
 	result := make(map[string]*cns.NICResourceSliceInfo)

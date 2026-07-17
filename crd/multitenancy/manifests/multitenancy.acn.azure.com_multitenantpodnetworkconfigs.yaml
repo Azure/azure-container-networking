@@ -189,6 +189,8 @@ spec:
                 type: string
             type: object
         type: object
+    selectableFields:
+    - jsonPath: .status.nodeName
     served: true
     storage: true
     subresources:

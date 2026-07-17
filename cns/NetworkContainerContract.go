@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 )
 
 // Container Network Service DNC Contract
@@ -34,7 +35,7 @@ const (
 	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
 	RequestIPConfig                          = "/network/requestipconfig"
 	RequestIPConfigs                         = "/network/requestipconfigs"
-	RequestIPConfigsAndNICResources          = "/network/requestipconfigsandnicresources"
+	RequestClaimConfig                       = "/network/requestclaimconfig"
 	ReleaseIPConfig                          = "/network/releaseipconfig"
 	ReleaseIPConfigs                         = "/network/releaseipconfigs"
 	PathDebugIPAddresses                     = "/debug/ipaddresses"
@@ -583,12 +584,19 @@ type IPConfigsResponse struct {
 	Response  Response    `json:"response"`
 }
 
-// IPConfigsAndNICResourcesResponse is the response for the RequestIPConfigsAndNICResources API.
+// ClaimConfigRequest is the request for the RequestClaimConfig API. ClaimUID identifies
+// the DRA ResourceClaim; CNS resolves it to the owning pod by finding the pod's MTPNC
+// whose Spec.ResourceClaims contains this claim.
+type ClaimConfigRequest struct {
+	ClaimUID k8stypes.UID `json:"claimUID"`
+}
+
+// ClaimConfigResponse is the response for the RequestClaimConfig API.
 // It returns the pod's IP configs (the same set RequestIPConfigs produces, but
 // WITHOUT the IsScheduledWithDRA filtering, so delegated NIC configs are always
 // included) together with the resource-slice properties (networkID/subnetGUID/
 // subnetName/capacity/...) of every NIC allocated to the pod.
-type IPConfigsAndNICResourcesResponse struct {
+type ClaimConfigResponse struct {
 	Response     Response      `json:"response"`
 	PodIPInfo    []PodIpInfo   `json:"podIPInfo"`
 	NICResources []NICResource `json:"nicResources"`
