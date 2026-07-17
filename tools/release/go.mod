@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking/tools/release
 
-go 1.23.0
+go 1.26.1
 
 require github.com/spf13/cobra v1.8.1
 

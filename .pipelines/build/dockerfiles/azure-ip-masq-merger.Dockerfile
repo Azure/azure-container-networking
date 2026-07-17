@@ -2,7 +2,8 @@
 # SOURCE: .pipelines/build/dockerfiles/azure-ip-masq-merger.Dockerfile.tmpl
 ARG ARCH
 
-FROM scratch AS linux
+# mcr.microsoft.com/azurelinux/distroless/minimal:3.0
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/minimal:3.0@sha256:576d9769c0146cbf0cf7946bacf536c5758464c29eadfa03ef5090ae708e641f AS linux
 ARG ARTIFACT_DIR
 
 COPY ${ARTIFACT_DIR}/bin/azure-ip-masq-merger /azure-ip-masq-merger
