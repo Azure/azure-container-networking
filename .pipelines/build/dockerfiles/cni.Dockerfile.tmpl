@@ -6,8 +6,9 @@ ARG ARCH
 FROM --platform=windows/${ARCH} {{.WIN_HPC_PIN}} AS windows
 ARG ARTIFACT_DIR .
 
-COPY ${ARTIFACT_DIR}/bin/dropgz.exe /dropgz.exe
-ENTRYPOINT [ "/dropgz.exe" ]
+COPY ${ARTIFACT_DIR}/bin/*.exe /Windows/System32/
+COPY ${ARTIFACT_DIR}/files/ /Windows/System32/
+ENTRYPOINT [ "powershell.exe" ]
 
 # {{.MARINER_DISTROLESS_IMG}}
 FROM --platform=linux/${ARCH} {{.MARINER_DISTROLESS_PIN}} AS linux

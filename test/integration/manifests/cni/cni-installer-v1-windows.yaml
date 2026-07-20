@@ -54,22 +54,14 @@ spec:
         - name: cni-installer
           image: ${CNI_IMAGE}
           imagePullPolicy: Always
-          command:
-            - powershell.exe; $env:CONTAINER_SANDBOX_MOUNT_POINT/dropgz
+          command: ["powershell.exe", "-Command"]
           args:
-            - deploy
-            - azure-vnet
-            - -o
-            - /k/azurecni/bin/azure-vnet.exe
-            - azure-vnet-ipam
-            - -o
-            - /k/azurecni/bin/azure-vnet-ipam.exe
-            - azure-vnet-telemetry
-            - -o
-            - /k/azurecni/bin/azure-vnet-telemetry.exe
-            - azure-vnet-telemetry.config
-            - -o
-            - /k/azurecni/bin/azure-vnet-telemetry.config
+            - >-
+              New-Item -Path "C:/k/azurecni/bin" -ItemType Directory -Force | Out-Null;
+              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet.exe" -Destination "C:/k/azurecni/bin/azure-vnet.exe" -Force;
+              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-ipam.exe" -Destination "C:/k/azurecni/bin/azure-vnet-ipam.exe" -Force;
+              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-telemetry.exe" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.exe" -Force;
+              Copy-Item -Path "$env:CONTAINER_SANDBOX_MOUNT_POINT/azure-vnet-telemetry.config" -Destination "C:/k/azurecni/bin/azure-vnet-telemetry.config" -Force
           env:
           - name: PATHEXT
             value: .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL;;
