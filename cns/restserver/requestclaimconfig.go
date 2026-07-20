@@ -101,14 +101,14 @@ func (service *HTTPRestService) podNICResources(ctx context.Context, l *zap.Logg
 		return nil, errors.Wrap(err, "failed to get pod NIC MACs")
 	}
 
-	var nicNCInfoByMAC, mtpncInfoByMAC map[string]*cns.NICResourceSliceInfo
+	var nicResourceSliceInfoByMAC, mtpncResourceSliceInfoByMAC map[string]*cns.NICResourceSliceInfo
 	if service.nicNCClient != nil {
-		if nicNCInfoByMAC, err = service.nicNCClient.GetNICNCInfoByMAC(ctx); err != nil {
+		if nicResourceSliceInfoByMAC, err = service.nicNCClient.GetNICResourceSliceInfoByMAC(ctx); err != nil {
 			l.Warn("failed to fetch NICNetworkConfig data", zap.Error(err))
 		}
 	}
 	if service.mtpncCli != nil {
-		if mtpncInfoByMAC, err = service.mtpncCli.GetMTPNCInfoByMAC(ctx); err != nil {
+		if mtpncResourceSliceInfoByMAC, err = service.mtpncCli.GetMTPNCResourceSliceInfoByMAC(ctx); err != nil {
 			l.Warn("failed to fetch MTPNC data", zap.Error(err))
 		}
 	}
@@ -120,7 +120,7 @@ func (service *HTTPRestService) podNICResources(ctx context.Context, l *zap.Logg
 		if hw, parseErr := net.ParseMAC(mac); parseErr == nil {
 			key = hw.String()
 		}
-		enrichNICResource(&res, key, nicNCInfoByMAC, mtpncInfoByMAC)
+		enrichNICResource(&res, key, nicResourceSliceInfoByMAC, mtpncResourceSliceInfoByMAC)
 		nicResources = append(nicResources, res)
 	}
 	return nicResources, nil

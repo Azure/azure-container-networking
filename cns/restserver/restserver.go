@@ -60,13 +60,13 @@ type imdsClient interface {
 
 // nicNCClient enriches NICResource data with NICNetworkConfig CRD information (e.g., NetworkID, SubnetGUID).
 type nicNCClient interface {
-	GetNICNCInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error)
+	GetNICResourceSliceInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error)
 }
 
 // mtpncClient enriches NICResource data with MTPNC CRD information for dedicated NICs,
 // which usually have no NICNetworkConfig.
 type mtpncClient interface {
-	GetMTPNCInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error)
+	GetMTPNCResourceSliceInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error)
 }
 
 // nodeInfoClient reads NodeInfo CRDs to get NIC device info and VM metadata.

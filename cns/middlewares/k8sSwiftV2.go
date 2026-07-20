@@ -268,6 +268,7 @@ func (k *K8sSWIFTv2Middleware) GetPodInfoByClaimUID(ctx context.Context, claimUI
 	for i := range mtpncList.Items {
 		mtpnc := &mtpncList.Items[i]
 		// Only consider MTPNCs scheduled on this node.
+		// TODO When the ctrl.manager is modified to watch only MTPNCs for this node, this check needs to be removed.
 		if mtpnc.Status.NodeName != k.NodeName {
 			continue
 		}
@@ -407,10 +408,10 @@ const sharedNICDRACapacity = 16
 // against the slice.
 const dedicatedNICDRACapacity = 1
 
-// GetNICNCInfoByMAC lists the NICNetworkConfigs on this node and returns a map keyed by
+// GetNICResourceSliceInfoByMAC lists the NICNetworkConfigs on this node and returns a map keyed by
 // canonical NIC MAC address with the NIC's network/subnet info and resource-slice
 // capacity from Spec.
-func (k *K8sSWIFTv2Middleware) GetNICNCInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
+func (k *K8sSWIFTv2Middleware) GetNICResourceSliceInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
 	var nicNCList v1alpha1.NICNetworkConfigList
 	if err := k.Cli.List(ctx, &nicNCList); err != nil {
 		return nil, errors.Wrap(err, "failed to list nicnetworkconfigs")
@@ -420,6 +421,7 @@ func (k *K8sSWIFTv2Middleware) GetNICNCInfoByMAC(ctx context.Context) (map[strin
 	for i := range nicNCList.Items {
 		spec := &nicNCList.Items[i].Spec
 		// Only consider NICs on this node.
+		// TODO when the ctrl.manager is modified to watch only NICNCs for this node, this check needs to be removed.
 		if spec.NodeName != k.NodeName {
 			continue
 		}
@@ -445,7 +447,7 @@ func (k *K8sSWIFTv2Middleware) GetNICNCInfoByMAC(ctx context.Context) (map[strin
 	return result, nil
 }
 
-// GetMTPNCInfoByMAC lists the MTPNCs scheduled on this node and returns a map keyed by
+// GetMTPNCResourceSliceInfoByMAC lists the MTPNCs scheduled on this node and returns a map keyed by
 // canonical NIC MAC address with the NIC's network/subnet info and resource-slice
 // capacity from the MTPNC Spec. Dedicated NICs (single-allocation PodNetworks) usually
 // have no NICNetworkConfig and are served from here as a fallback.
@@ -453,7 +455,7 @@ func (k *K8sSWIFTv2Middleware) GetNICNCInfoByMAC(ctx context.Context) (map[strin
 // It intentionally does NOT wait for the MTPNC to be Ready: a not-yet-ready MTPNC may
 // have empty Spec NetworkID/SubnetGUID/SubnetResourceID, which are surfaced as-is (empty)
 // rather than treated as an error. Entries whose MAC is empty or unparseable are skipped.
-func (k *K8sSWIFTv2Middleware) GetMTPNCInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
+func (k *K8sSWIFTv2Middleware) GetMTPNCResourceSliceInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
 	var mtpncList v1alpha1.MultitenantPodNetworkConfigList
 	if err := k.Cli.List(ctx, &mtpncList); err != nil {
 		return nil, errors.Wrap(err, "failed to list mtpncs")

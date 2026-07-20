@@ -64,7 +64,7 @@ type fakeNICNCClient struct {
 	m map[string]*cns.NICResourceSliceInfo
 }
 
-func (f *fakeNICNCClient) GetNICNCInfoByMAC(context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
+func (f *fakeNICNCClient) GetNICResourceSliceInfoByMAC(context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
 	return f.m, nil
 }
 
@@ -72,7 +72,7 @@ type fakeMTPNCClient struct {
 	m map[string]*cns.NICResourceSliceInfo
 }
 
-func (f *fakeMTPNCClient) GetMTPNCInfoByMAC(context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
+func (f *fakeMTPNCClient) GetMTPNCResourceSliceInfoByMAC(context.Context) (map[string]*cns.NICResourceSliceInfo, error) {
 	return f.m, nil
 }
 

@@ -19,10 +19,10 @@ const (
 	canonMAC03     = "aa:bb:cc:dd:ee:03"
 )
 
-// GetMTPNCInfoByMAC must node-scope, compute capacity from DRA state, and tolerate a
+// GetMTPNCResourceSliceInfoByMAC must node-scope, compute capacity from DRA state, and tolerate a
 // not-ready MTPNC (empty Spec network/subnet) without erroring — empty values flow
 // through as-is.
-func TestGetMTPNCInfoByMAC(t *testing.T) {
+func TestGetMTPNCResourceSliceInfoByMAC(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		t.Fatalf("add scheme: %v", err)
@@ -65,9 +65,9 @@ func TestGetMTPNCInfoByMAC(t *testing.T) {
 		WithLists(&v1alpha1.MultitenantPodNetworkConfigList{Items: mtpncs}).Build()
 	mw := &K8sSWIFTv2Middleware{Cli: cli, NodeName: testNode}
 
-	got, err := mw.GetMTPNCInfoByMAC(context.Background())
+	got, err := mw.GetMTPNCResourceSliceInfoByMAC(context.Background())
 	if err != nil {
-		t.Fatalf("GetMTPNCInfoByMAC: %v", err)
+		t.Fatalf("GetMTPNCResourceSliceInfoByMAC: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("got %d entries, want 2: %+v", len(got), got)

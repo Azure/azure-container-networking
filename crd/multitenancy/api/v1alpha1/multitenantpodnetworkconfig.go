@@ -21,7 +21,6 @@ import (
 // +kubebuilder:printcolumn:name="PodName",type=string,JSONPath=`.spec.podName`
 // +kubebuilder:printcolumn:name="PodUID",type=string,JSONPath=`.spec.podUID`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
-// +kubebuilder:selectablefield:JSONPath=`.status.nodeName`
 type MultitenantPodNetworkConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

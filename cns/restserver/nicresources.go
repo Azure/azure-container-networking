@@ -1,4 +1,4 @@
-// Copyright 2017 Microsoft. All rights reserved.
+// Copyright 2026 Microsoft. All rights reserved.
 // MIT License
 
 package restserver
@@ -96,9 +96,9 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 
 		// Step 3: Fetch per-NIC network/subnet/capacity from NICNetworkConfig (shared
 		// prefix-on-NIC NICs).
-		var nicNCInfoByMAC map[string]*cns.NICResourceSliceInfo
+		var nicResourceSliceInfoByMAC map[string]*cns.NICResourceSliceInfo
 		if service.nicNCClient != nil {
-			nicNCInfoByMAC, err = service.nicNCClient.GetNICNCInfoByMAC(ctx)
+			nicResourceSliceInfoByMAC, err = service.nicNCClient.GetNICResourceSliceInfoByMAC(ctx)
 			if err != nil {
 				l.Warn("failed to fetch NICNetworkConfig data", zap.Error(err))
 			}
@@ -106,9 +106,9 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 
 		// Step 4: Fetch per-NIC data from MTPNC. Dedicated NICs usually have no
 		// NICNetworkConfig and are served from MTPNC as a fallback (see Step 5).
-		var mtpncInfoByMAC map[string]*cns.NICResourceSliceInfo
+		var mtpncResourceSliceInfoByMAC map[string]*cns.NICResourceSliceInfo
 		if service.mtpncCli != nil {
-			mtpncInfoByMAC, err = service.mtpncCli.GetMTPNCInfoByMAC(ctx)
+			mtpncResourceSliceInfoByMAC, err = service.mtpncCli.GetMTPNCResourceSliceInfoByMAC(ctx)
 			if err != nil {
 				l.Warn("failed to fetch MTPNC data", zap.Error(err))
 			}
@@ -118,7 +118,7 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 		// and falling back to MTPNC for MACs it doesn't cover. The map key is the
 		// canonical MAC used for lookups.
 		for mac, res := range nicByMAC {
-			enrichNICResource(res, mac, nicNCInfoByMAC, mtpncInfoByMAC)
+			enrichNICResource(res, mac, nicResourceSliceInfoByMAC, mtpncResourceSliceInfoByMAC)
 		}
 
 		// Convert map to slice for the response.
@@ -149,10 +149,10 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 // looked up by canonical MAC. NICNetworkConfig is preferred (shared prefix-on-NIC NICs);
 // MTPNC is the fallback for dedicated NICs, which usually have no NICNetworkConfig. MTPNC
 // never overrides NICNetworkConfig, and a NIC found in neither keeps zero capacity.
-func enrichNICResource(res *cns.NICResource, mac string, nicNCInfoByMAC, mtpncInfoByMAC map[string]*cns.NICResourceSliceInfo) {
-	info := nicNCInfoByMAC[mac]
+func enrichNICResource(res *cns.NICResource, mac string, nicResourceSliceInfoByMAC, mtpncResourceSliceInfoByMAC map[string]*cns.NICResourceSliceInfo) {
+	info := nicResourceSliceInfoByMAC[mac]
 	if info == nil {
-		info = mtpncInfoByMAC[mac]
+		info = mtpncResourceSliceInfoByMAC[mac]
 	}
 	if info == nil {
 		res.Capacity = "0"
