@@ -67,7 +67,7 @@ steps:
       # nodes to be Ready and, only if a Defender pod is not Running, lets it
       # settle before force-restarting it. Best-effort: the suite has its own
       # readiness checks, so a gate error must not fail the stage prematurely.
-      make test-ensure-system-ready || echo "system readiness gate reported an error; continuing to e2e"
+      ( cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load --skip 'TestE2E*' -run '^TestEnsureSystemPodsReady$' ) || echo "system readiness gate reported an error; continuing to e2e"
 
       # Depreciating flags. Change once k8s minimum version supported is > 1.24
       # nodes -> procs

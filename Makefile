@@ -932,10 +932,6 @@ test-validate-state:
 	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load --skip 'TestE2E*' -run ^TestValidateState
 	cd ../../..
 
-test-ensure-system-ready: ## post-node-restart readiness gate: recover wedged system daemonsets before e2e
-	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load --skip 'TestE2E*' -run ^TestEnsureSystemPodsReady
-	cd ../../..
-
 test-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh
 	cd ..
