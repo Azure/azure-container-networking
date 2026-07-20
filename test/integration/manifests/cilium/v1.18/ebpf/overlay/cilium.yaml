@@ -168,6 +168,9 @@ spec:
             - mountPath: /flowlog-config
               name: hubble-flowlog-config
               readOnly: true
+            - mountPath: /dynamic-metrics-config
+              name: hubble-dynamic-metrics-config
+              readOnly: true
             - mountPath: /var/log/acns/hubble
               name: networkflowlogs
             - mountPath: /etc/config
@@ -502,6 +505,11 @@ spec:
             name: acns-flowlog-config
             optional: true
           name: hubble-flowlog-config
+        - configMap:
+            defaultMode: 420
+            name: cilium-dynamic-metrics-config
+            optional: true
+          name: hubble-dynamic-metrics-config
         - hostPath:
             path: /var/log/acns/hubble
             type: DirectoryOrCreate
