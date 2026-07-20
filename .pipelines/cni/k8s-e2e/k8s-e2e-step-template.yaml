@@ -58,6 +58,19 @@ steps:
         kubectl taint nodes -l kubernetes.azure.com/mode=user node-role.kubernetes.io/control-plane:NoSchedule
       fi
 
+      # Post-reboot readiness gate. The upstream e2e SynchronizedBeforeSuite
+      # requires every node schedulable AND every kube-system pod Running+Ready
+      # within a fixed budget before any spec runs. After the pipeline's
+      # node-restart step, the AKS-managed azuresecuritylinuxagent (Defender)
+      # DaemonSet can wedge its init container in a saturated CrashLoopBackOff and
+      # never recover in time, failing the whole suite. Wait for the cluster to
+      # settle and force a clean restart of any Defender pod that is not yet
+      # Running so it is no longer stuck at the back-off ceiling.
+      echo "Waiting for all nodes to be Ready after node restart"
+      kubectl wait --for=condition=Ready nodes --all --timeout=15m || kubectl get nodes -owide
+      kubectl -n kube-system delete pod -l app=azuresecuritylinuxagent --field-selector 'status.phase!=Running' --ignore-not-found || true
+      kubectl -n kube-system rollout status ds/azuresecuritylinuxagent --timeout=20m || kubectl get pods -n kube-system -owide
+
       # Depreciating flags. Change once k8s minimum version supported is > 1.24
       # nodes -> procs
       # flakeAttempts -> flake-attempts
@@ -67,6 +80,7 @@ steps:
       ./e2e.test -- \
       --num-nodes=2 \
       --provider=skeleton \
+      --system-pods-startup-timeout=25m \
       --ginkgo.focus='${{ parameters.ginkgoFocus }}' \
       --ginkgo.skip="${{ parameters.ginkgoSkip }}$SKIP$GATE_SKIP" \
       --ginkgo.flakeAttempts=${{ parameters.attempts }} \
