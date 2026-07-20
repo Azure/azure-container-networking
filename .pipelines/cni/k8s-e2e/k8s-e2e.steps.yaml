@@ -64,24 +64,11 @@ steps:
       # within a fixed budget before any spec runs. After the pipeline's
       # node-restart step, the AKS-managed azuresecuritylinuxagent (Defender)
       # DaemonSet can wedge its init container in a saturated CrashLoopBackOff and
-      # never recover in time, failing the whole suite. Wait for the cluster to
-      # settle and force a clean restart of any Defender pod that is not yet
-      # Running so it is no longer stuck at the back-off ceiling.
-      echo "Waiting for all nodes to be Ready after node restart"
-      kubectl wait --for=condition=Ready nodes --all --timeout=15m || kubectl get nodes -owide
-
-      # Only intervene if a Defender (azuresecuritylinuxagent) pod is not Running.
-      # If one is, it may just be finishing its post-reboot init (image pull +
-      # package install can take minutes), so give it 5 minutes to recover, then
-      # delete any pod still not Running once. A pod stuck that long is wedged in
-      # a saturated CrashLoopBackOff; recreating it resets the back-off timer and
-      # gives it a fresh sandbox. Healthy clusters skip the wait entirely.
-      if [ -n "$(kubectl -n kube-system get pods -l app=azuresecuritylinuxagent --field-selector 'status.phase!=Running' --no-headers --ignore-not-found)" ]; then
-        echo "A Defender pod is not Running; waiting 5m for it to settle before forcing a restart"
-        sleep 300
-        kubectl -n kube-system delete pod -l app=azuresecuritylinuxagent --field-selector 'status.phase!=Running' --ignore-not-found || true
-      fi
-      kubectl -n kube-system rollout status ds/azuresecuritylinuxagent --timeout=20m || kubectl get pods -n kube-system -owide
+      # never recover in time, failing the whole suite. The Go gate waits for
+      # nodes to be Ready and, only if a Defender pod is not Running, lets it
+      # settle before force-restarting it. Best-effort: the suite has its own
+      # readiness checks, so a gate error must not fail the stage prematurely.
+      make test-ensure-system-ready || echo "system readiness gate reported an error; continuing to e2e"
 
       # Deprecating flags. Change once k8s minimum version supported is > 1.24
       # nodes -> procs
