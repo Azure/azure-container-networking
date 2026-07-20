@@ -7,9 +7,11 @@ import (
 
 	"github.com/Azure/azure-container-networking/test/internal/retry"
 	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -72,71 +74,101 @@ func WaitForDaemonsetReady(ctx context.Context, clientset *kubernetes.Clientset,
 	return errors.Wrapf(retrier.Do(ctx, checkDaemonsetReadyFn), "daemonset %s did not become ready", daemonsetName)
 }
 
-// deleteNotRunningPods deletes every pod matching the label selector whose phase
-// is not Running. Missing pods are ignored so the call is idempotent.
-func deleteNotRunningPods(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelSelector string) error {
-	podsClient := clientset.CoreV1().Pods(namespace)
-	podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
-	if err != nil {
-		return errors.Wrapf(err, "could not list pods with label selector %s", labelSelector)
-	}
-	for index := range podList.Items {
-		pod := podList.Items[index]
-		if pod.Status.Phase == corev1.PodRunning {
-			continue
-		}
-		log.Printf("Deleting non-Running pod %s/%s (phase %s) to break CrashLoopBackOff", namespace, pod.Name, pod.Status.Phase)
-		if err := podsClient.Delete(ctx, pod.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-			return errors.Wrapf(err, "could not delete pod %s", pod.Name)
+// ownedBy reports whether the pod has an owner reference with the given UID.
+func ownedBy(pod *corev1.Pod, ownerUID types.UID) bool {
+	for index := range pod.OwnerReferences {
+		if pod.OwnerReferences[index].UID == ownerUID {
+			return true
 		}
 	}
-	return nil
+	return false
 }
 
-// hasNotRunningPod reports whether any pod matching the label selector is not in
-// the Running phase.
-func hasNotRunningPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelSelector string) (bool, error) {
-	podList, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
+// selectorString builds a label selector string from a DaemonSet's spec selector.
+func selectorString(daemonset *appsv1.DaemonSet) (string, error) {
+	selector, err := metav1.LabelSelectorAsSelector(daemonset.Spec.Selector)
 	if err != nil {
-		return false, errors.Wrapf(err, "could not list pods with label selector %s", labelSelector)
+		return "", errors.Wrapf(err, "could not build selector for daemonset %s", daemonset.Name)
 	}
+	return selector.String(), nil
+}
+
+// listNotRunningDaemonsetPods returns the pods owned by the DaemonSet (matched by
+// selector and owner UID, so CronJob pods sharing the label are excluded) whose
+// phase is not Running.
+func listNotRunningDaemonsetPods(ctx context.Context, clientset *kubernetes.Clientset, namespace, selector string, ownerUID types.UID) ([]corev1.Pod, error) {
+	podList, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: selector})
+	if err != nil {
+		return nil, errors.Wrapf(err, "could not list pods with label selector %s", selector)
+	}
+	var notRunning []corev1.Pod
 	for index := range podList.Items {
-		if podList.Items[index].Status.Phase != corev1.PodRunning {
-			return true, nil
+		pod := &podList.Items[index]
+		if !ownedBy(pod, ownerUID) {
+			continue
+		}
+		if pod.Status.Phase != corev1.PodRunning {
+			notRunning = append(notRunning, *pod)
 		}
 	}
-	return false, nil
+	return notRunning, nil
 }
 
 // RecoverDaemonsetAfterRestart is a post-node-restart readiness gate. It waits
-// for all nodes to be Ready, then - only if a pod of the named DaemonSet is not
-// yet Running - waits `settle` for it to finish its post-reboot init (image
+// for all nodes to be Ready, then - only if a pod owned by the named DaemonSet is
+// not yet Running - waits settle for it to finish its post-reboot init (image
 // pulls and package installs can legitimately take minutes) before deleting any
-// pod still not Running. A pod stuck that long is wedged in a saturated
+// of its pods still not Running. A pod stuck that long is wedged in a saturated
 // CrashLoopBackOff; recreating it resets the back-off timer and gives it a fresh
-// sandbox. Finally it waits for the DaemonSet to be fully rolled out. Healthy
-// clusters incur no extra delay because the settle only runs when a pod is not
-// Running.
-func RecoverDaemonsetAfterRestart(ctx context.Context, clientset *kubernetes.Clientset, namespace, daemonsetName, labelSelector string, settle time.Duration) error {
+// sandbox. Finally it waits for the DaemonSet to be fully rolled out.
+//
+// The pod selector is read from the DaemonSet's own spec (not hard-coded) and pod
+// operations are scoped to pods owned by the DaemonSet, so unrelated pods sharing
+// the label (e.g. completed CronJob cleanup pods) are never touched and never
+// trigger the settle. Healthy clusters therefore incur no extra delay.
+func RecoverDaemonsetAfterRestart(ctx context.Context, clientset *kubernetes.Clientset, namespace, daemonsetName string, settle time.Duration) error {
 	log.Print("Waiting for all nodes to be Ready after node restart")
 	if err := WaitForNodesReady(ctx, clientset); err != nil {
 		return errors.Wrap(err, "nodes did not become ready after restart")
 	}
 
-	notRunning, err := hasNotRunningPod(ctx, clientset, namespace, labelSelector)
+	daemonset, err := clientset.AppsV1().DaemonSets(namespace).Get(ctx, daemonsetName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			log.Printf("daemonset %s/%s not found; nothing to recover", namespace, daemonsetName)
+			return nil
+		}
+		return errors.Wrapf(err, "could not get daemonset %s", daemonsetName)
+	}
+	selector, err := selectorString(daemonset)
+	if err != nil {
+		return err
+	}
+
+	notRunning, err := listNotRunningDaemonsetPods(ctx, clientset, namespace, selector, daemonset.UID)
 	if err != nil {
 		return errors.Wrap(err, "could not check daemonset pod state")
 	}
 
-	if notRunning {
-		log.Printf("A %s pod is not Running; waiting %s for it to settle before forcing a restart", daemonsetName, settle)
+	if len(notRunning) > 0 {
+		log.Printf("%d %s pod(s) not Running; waiting %s for them to settle before forcing a restart", len(notRunning), daemonsetName, settle)
 		select {
 		case <-time.After(settle):
 		case <-ctx.Done():
 			return errors.Wrap(ctx.Err(), "context cancelled while waiting for daemonset to settle")
 		}
-		if err := deleteNotRunningPods(ctx, clientset, namespace, labelSelector); err != nil {
-			return errors.Wrapf(err, "could not delete wedged %s pods", daemonsetName)
+
+		stillWedged, err := listNotRunningDaemonsetPods(ctx, clientset, namespace, selector, daemonset.UID)
+		if err != nil {
+			return errors.Wrap(err, "could not re-check daemonset pod state")
+		}
+		podsClient := clientset.CoreV1().Pods(namespace)
+		for index := range stillWedged {
+			name := stillWedged[index].Name
+			log.Printf("Deleting non-Running pod %s/%s (phase %s) to break CrashLoopBackOff", namespace, name, stillWedged[index].Status.Phase)
+			if err := podsClient.Delete(ctx, name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+				return errors.Wrapf(err, "could not delete pod %s", name)
+			}
 		}
 	}
 

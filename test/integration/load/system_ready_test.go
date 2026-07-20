@@ -14,9 +14,10 @@ import (
 const (
 	// AKS-managed Microsoft Defender (azsecpack) DaemonSet in kube-system. After
 	// a VMSS reboot its init container can wedge in a saturated CrashLoopBackOff.
+	// The pod selector is derived from the DaemonSet spec at runtime, so only the
+	// name is needed here.
 	defenderNamespace     = "kube-system"
 	defenderDaemonsetName = "azuresecuritylinuxagent"
-	defenderLabelSelector = "app=azuresecuritylinuxagent"
 	// How long to let a not-Running Defender pod finish its post-reboot init
 	// before force-restarting it.
 	defenderSettleTimeout = 5 * time.Minute
@@ -31,9 +32,11 @@ const (
 // recover before the suite runs.
 func TestEnsureSystemPodsReady(t *testing.T) {
 	clientset := kubernetes.MustGetClientset()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	// Keep the deadline below the make target's `go test -timeout 30m` so a
+	// worst-case wait cancels gracefully via context rather than a hard timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
 	defer cancel()
 
-	err := kubernetes.RecoverDaemonsetAfterRestart(ctx, clientset, defenderNamespace, defenderDaemonsetName, defenderLabelSelector, defenderSettleTimeout)
+	err := kubernetes.RecoverDaemonsetAfterRestart(ctx, clientset, defenderNamespace, defenderDaemonsetName, defenderSettleTimeout)
 	require.NoError(t, err, "failed to ensure system pods are ready after node restart")
 }
