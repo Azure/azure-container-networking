@@ -70,24 +70,14 @@ steps:
       echo "Waiting for all nodes to be Ready after node restart"
       kubectl wait --for=condition=Ready nodes --all --timeout=15m || kubectl get nodes -owide
 
-      # Poll for up to 5 minutes and delete any Defender pod that is not yet
-      # Running. A single snapshot delete can miss a pod that only wedges a
-      # moment later, so keep checking on a 15s cadence: recreating a wedged pod
-      # resets its saturated CrashLoopBackOff timer and gives it a fresh sandbox.
-      # Exit early once the DaemonSet reports fully rolled out.
-      echo "Polling up to 5m for non-Running Defender (azuresecuritylinuxagent) pods"
-      deadline=$((SECONDS + 300))
-      while [ $SECONDS -lt $deadline ]; do
-        wedged=$(kubectl -n kube-system get pods -l app=azuresecuritylinuxagent --field-selector 'status.phase!=Running' --no-headers --ignore-not-found 2>/dev/null | awk '{print $1}')
-        if [ -n "$wedged" ]; then
-          echo "Deleting non-Running Defender pods to break CrashLoopBackOff: $wedged"
-          kubectl -n kube-system delete pod $wedged --ignore-not-found || true
-        elif kubectl -n kube-system rollout status ds/azuresecuritylinuxagent --timeout=10s >/dev/null 2>&1; then
-          echo "Defender DaemonSet is fully rolled out; continuing"
-          break
-        fi
-        sleep 15
-      done
+      # Give the Defender DaemonSet 5 minutes to finish its post-reboot init
+      # (image pulls + package install can legitimately take minutes), then
+      # delete any pod still not Running once. A pod stuck this long is wedged in
+      # a saturated CrashLoopBackOff; recreating it resets the back-off timer and
+      # gives it a fresh sandbox so it can recover before the e2e suite runs.
+      echo "Waiting 5m for Defender (azuresecuritylinuxagent) pods to settle after reboot"
+      sleep 300
+      kubectl -n kube-system delete pod -l app=azuresecuritylinuxagent --field-selector 'status.phase!=Running' --ignore-not-found || true
       kubectl -n kube-system rollout status ds/azuresecuritylinuxagent --timeout=20m || kubectl get pods -n kube-system -owide
 
       # Deprecating flags. Change once k8s minimum version supported is > 1.24
