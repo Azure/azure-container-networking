@@ -119,7 +119,7 @@ Each "rotating slot" is a **Kubernetes Deployment** (1 replica). The deployment 
 4. Wait for DaemonSet pod to be Ready (`waitForDaemonSetReady`, returns `errDaemonSetNotReady` on timeout)
 5. Verify DaemonSet pod is in Running phase
 
-> **Metrics**: Metrics emission is currently **disabled** (commented-out TODO). Will be re-enabled once Networking-Aquarius supports a dedicated long-running metric name.
+> **Metrics**: On pass this job emits `PersistentClusterTestsSucceeded`; on failure `PersistentClusterTestsFailed` tagged with the step that failed. See [Metrics](#metrics).
 
 ### Connectivity Test (per zone)
 
@@ -131,6 +131,30 @@ After both pod management jobs succeed in a zone, a bidirectional TCP datapath t
 | `LR-AlwaysOn-To-Rotating-Z<N>` | DaemonSet pod → rotating deployment pod |
 
 Both pod names are resolved at runtime — the rotating deployment pod via `GetDeploymentPodName()` and the DaemonSet pod via `GetDaemonSetPodName()`. Both pods are on `cx_vnet_v1/lr`. Tests use TCP via delegated subnet (eth1) with netcat on port 8080.
+
+---
+
+## Metrics
+
+Each of the three per-zone jobs (rotating, always-on, connectivity) emits one metric per run using the `persistent-cluster-metrics` tool from Networking-Aquarius:
+
+- Pass → `PersistentClusterTestsSucceeded`
+- Fail → `PersistentClusterTestsFailed`
+
+The metric name is shared with the datapath tests. Monitors tell the two apart, and tell the long-running jobs apart from each other, using dimensions:
+
+| Dimension | Meaning | Example |
+|-----------|---------|---------|
+| `test-scenario` | Which long-running job ran | `Long-running rotating pods`, `Long-running always-on pods`, `Long-running connectivity` |
+| `cluster-type` | AKS cluster / workload type | `swiftv2-linux` (pipeline parameter, defaults to `swiftv2-linux`) |
+| `step` | Phase that failed (failure metric only) | rotating: `EnsureNamespace`, `EnsurePodNetwork`, `EnsurePNI`, `RotateDeployments`, `VerifyDeploymentsReady`; always-on: `EnsureDaemonSet`, `WaitDaemonSetReady`, `VerifyPodRunning`; connectivity: `ResolvePods`, `RotatingToAlwaysOn`, `AlwaysOnToRotating` |
+| `region` | Azure region | `eastus2euap` |
+| `resource-group` | Resource group | `sv2-long-run-eastus2euap` |
+| `ado-run-id` | Pipeline build id | `158844893` |
+
+**How the step is captured**: each test calls `SetStep("<phase>")` as it moves through its phases. On failure a ginkgo `AfterEach` prints a marker line `##LONGRUNNING_FAILED_STEP=<phase>`. The pipeline greps the test output for that marker and passes it as `--step`. A passing run emits no step.
+
+Build separate monitors by filtering on these dimensions — e.g. one monitor per `test-scenario`, or one that pages only when `step = EnsurePodNetwork`.
 
 ---
 
