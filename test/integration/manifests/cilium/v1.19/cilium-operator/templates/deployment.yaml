@@ -68,8 +68,8 @@ spec:
         - --identity-heartbeat-timeout=0m20s
         - --enable-cilium-endpoint-slice=true
         - --ces-slice-mode=fcfs
-        - --gateway-api-disable-azure-lb-floating-ip=$GWAPI_DISABLE_FLOATING_IP
-        - --enable-gateway-api-tlsroute=$GWAPI_ENABLE_TLSROUTE
+        - --gateway-api-disable-azure-lb-floating-ip=true
+        - --enable-gateway-api-tlsroute=false
         env:
         - name: K8S_NODE_NAME
           valueFrom:
