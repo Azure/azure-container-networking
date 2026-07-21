@@ -1,4 +1,4 @@
-//go:build load
+//go:build load && systemready
 
 package load
 
