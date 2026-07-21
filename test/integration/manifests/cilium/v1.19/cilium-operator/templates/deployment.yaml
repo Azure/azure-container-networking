@@ -32,7 +32,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: retina-crd-operator
-        image: "mcr.microsoft.com/containernetworking/retina-operator-enterprise:v0.2.0"
+        image: "mcr.microsoft.com/containernetworking/retina-operator-enterprise:v0.1.15"
         imagePullPolicy: IfNotPresent
         command:
           - /retina-operator
@@ -68,8 +68,6 @@ spec:
         - --identity-heartbeat-timeout=0m20s
         - --enable-cilium-endpoint-slice=true
         - --ces-slice-mode=fcfs
-        - --gateway-api-disable-azure-lb-floating-ip=true
-        - --enable-gateway-api-tlsroute=false
         env:
         - name: K8S_NODE_NAME
           valueFrom:

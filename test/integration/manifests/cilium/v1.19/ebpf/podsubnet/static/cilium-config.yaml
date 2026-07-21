@@ -47,7 +47,7 @@ data:
   enable-health-check-nodeport: "true"
   enable-health-checking: "true"
   enable-host-legacy-routing: "false"
-  enable-hubble: "true"
+  enable-hubble: "false"
   enable-hubble-open-metrics: "false"
   enable-internal-traffic-policy: "true"
   enable-ip-masq-agent: "true"
@@ -80,9 +80,9 @@ data:
   enable-tcx: "false"
   enable-vtep: "false"
   enable-well-known-identities: "false"
-  enable-wireguard: "true"
+  enable-wireguard: "false"
   enable-xt-socket-fallback: "true"
-  external-envoy-proxy: "true"
+  external-envoy-proxy: "false"
   health-check-icmp-failure-threshold: "3"
   hubble-disable-tls: "false"
   hubble-event-buffer-capacity: "4095"
@@ -90,7 +90,8 @@ data:
   hubble-export-file-max-size-mb: "10"
   hubble-flowlogs-config-path: /flowlog-config/flowlogs.yaml
   hubble-listen-address: :4244
-  hubble-dynamic-metrics-config-path: /dynamic-metrics-config/dynamic-metrics.yaml
+  hubble-metrics: flow:sourceEgressContext=pod;destinationIngressContext=pod tcp:sourceEgressContext=pod;destinationIngressContext=pod
+    drop:sourceEgressContext=pod;destinationIngressContext=pod dns:sourceEgressContext=pod;destinationIngressContext=pod
   hubble-metrics-server: :9965
   hubble-socket-path: /var/run/cilium/hubble.sock
   hubble-tls-cert-file: /var/lib/cilium/tls/hubble/server.crt
@@ -145,8 +146,7 @@ data:
   tofqdns-idle-connection-grace-period: 0s
   tofqdns-max-deferred-connection-deletes: "10000"
   tofqdns-min-ttl: "3600"
-  standalone-dns-proxy-server-port: "10095"
-  tofqdns-proxy-port: "10094"
+  tofqdns-proxy-port: "40046"
   tofqdns-proxy-response-max-delay: 100ms
   tofqdns-server-port: "40045"
   unmanaged-pod-watcher-interval: "0"
@@ -161,58 +161,6 @@ data:
   identity-management-mode: "agent"
   tofqdns-preallocate-identities:  "true"
   policy-default-local-cluster: "false"
-  enable-gateway-api: "true"
-  enable-envoy-config: "true"
-  envoy-config-retry-interval: "15s"
-  enable-gateway-api-secrets-sync: "true"
-  enable-gateway-api-proxy-protocol: "false"
-  enable-gateway-api-app-protocol: "false"
-  enable-gateway-api-alpn: "false"
-  gateway-api-xff-num-trusted-hops: "0"
-  gateway-api-service-externaltrafficpolicy: "Cluster"
-  gateway-api-secrets-namespace: "cilium-secrets"
-  gateway-api-hostnetwork-enabled: "false"
-  gateway-api-hostnetwork-nodelabelselector: ""
-  hubble-flowlogs-configmapname: acns-flowlog-config
-  flowlogs.yaml: |
-    flowLogs:
-      - name: all
-        fieldAggregate: ["verdict", "is_reply", "drop_reason_desc", "source.namespace", "destination.namespace", "source.workloads", "destination.workloads", "l4.TCP.destination_port", "l4.UDP.destination_port", "l7.http.code", "l7.dns.rcode", "IP.ipVersion", "IP.encrypted", "source.cluster_name", "destination.cluster_name"]
-        aggregationInterval: "2s"
-        fieldMask: ["time", "verdict", "ethernet", "drop_reason", "drop_reason_desc", "interface", "proxy_port", "auth_type", "IP", "l4", "l7", "Type", "node_name", "source_names", "destination_names", "event_type", "debug_capture_point", "traffic_direction", "policy_match_type", "is_reply", "reply", "Summary", "source_service", "destination_service", "trace_context", "trace_reason", "trace_observation_point", "sock_xlate_point", "socket_cookie", "cgroup_id", "extensions", "source.ID", "source.namespace", "source.identity", "source.pod_name", "source.workloads", "source.cluster_name", "destination.ID", "destination.namespace", "destination.identity", "destination.pod_name", "destination.cluster_name", "destination.workloads", "egress_allowed_by", "egress_denied_by", "ingress_denied_by", "ingress_allowed_by"] 
-        includeFilters: []
-        excludeFilters: []
-        filePath: "/var/log/acns/hubble/events.log"
-  hubble-metrics-config.yaml: |
-    config:
-      configMap:
-        name: cilium-dynamic-metrics-config
-        createConfigMap: false
-      content:
-          - name: "flow"
-            contextOptions:
-              - name: "destinationIngressContext"
-                values: ["pod"]
-              - name: "sourceEgressContext"
-                values: ["pod"]
-          - name: "tcp"
-            contextOptions:
-              - name: "destinationIngressContext"
-                values: ["pod"]
-              - name: "sourceEgressContext"
-                values: ["pod"]
-          - name: "drop"
-            contextOptions:
-              - name: "destinationIngressContext"
-                values: ["pod"]
-              - name: "sourceEgressContext"
-                values: ["pod"]
-          - name: "dns"
-            contextOptions:
-              - name: "destinationIngressContext"
-                values: ["pod"]
-              - name: "sourceEgressContext"
-                values: ["pod"]
 kind: ConfigMap
 metadata:
   annotations:

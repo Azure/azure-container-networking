@@ -28,31 +28,6 @@ spec:
         kubernetes.azure.com/ebpf-dataplane: cilium
     spec:
       containers:
-      - name: retina-crd-operator
-        image: "mcr.microsoft.com/containernetworking/retina-operator-enterprise:v0.2.0"
-        imagePullPolicy: IfNotPresent
-        command:
-          - /retina-operator
-        args:
-          - retina-crd-manager
-          - --enable-crds=retinanetworkflowlogs,containernetworklogs,containernetworkmetrics
-          - --enable-k8s-api-discovery
-          - --config-dir
-          - /retina/
-        env:
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: metadata.name
-        volumeMounts:
-          - name: cilium-config-path
-            mountPath: /retina/
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - "ALL"
       - name: cilium-operator
         image: $CILIUM_IMAGE_REGISTRY/cilium/operator-generic:$CILIUM_VERSION_TAG
         imagePullPolicy: IfNotPresent
@@ -65,7 +40,6 @@ spec:
         - --identity-heartbeat-timeout=0m20s
         - --enable-cilium-endpoint-slice=true
         - --ces-slice-mode=fcfs
-        - --gateway-api-disable-azure-lb-floating-ip=true
         env:
         - name: K8S_NODE_NAME
           valueFrom:
