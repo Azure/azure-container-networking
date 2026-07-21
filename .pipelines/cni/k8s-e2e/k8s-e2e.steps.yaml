@@ -68,7 +68,6 @@ steps:
       ./e2e.test -- \
       --num-nodes=2 \
       --provider=skeleton \
-      --system-pods-startup-timeout=25m \
       --ginkgo.focus='${{ parameters.ginkgoFocus }}' \
       --ginkgo.skip="${{ parameters.ginkgoSkip }}$SKIP$GATE_SKIP" \
       --ginkgo.flakeAttempts=${{ parameters.attempts }} \
