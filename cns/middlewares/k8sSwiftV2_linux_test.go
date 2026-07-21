@@ -229,6 +229,42 @@ func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
 	assert.Assert(t, strings.Contains(msg, NetworkNotReadyErrorMsg), "expected error message to contain '%s', got '%s'", NetworkNotReadyErrorMsg, msg)
 }
 
+func TestGetPodAndNetworkingCrds(t *testing.T) {
+	cli := mock.NewClient()
+	cli.SetMTPNCReady()
+	middleware := K8sSWIFTv2Middleware{Cli: cli}
+
+	// SwiftV2 pod: returns the pod and a ready MTPNC, and flags the secondary interface.
+	req := &cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	b, _ := testPod1Info.OrchestratorContext()
+	req.OrchestratorContext = b
+
+	pod, podInfo, mtpnc, respCode, msg := middleware.GetPodAndNetworkingCrds(context.TODO(), req)
+	assert.Equal(t, respCode, types.Success)
+	assert.Equal(t, msg, "")
+	assert.Equal(t, podInfo.Name(), "testpod1")
+	_, isSwiftV2 := pod.Labels[configuration.LabelPodSwiftV2]
+	assert.Assert(t, isSwiftV2, "expected returned pod to carry the SwiftV2 label")
+	assert.Assert(t, mtpnc.IsReady(), "expected returned mtpnc to be ready")
+	assert.Equal(t, req.SecondaryInterfacesExist, true)
+
+	// Failure path: pod not found propagates the error and returns a zero-valued pod.
+	failReq := &cns.IPConfigsRequest{
+		PodInterfaceID:   testPod2Info.InterfaceID(),
+		InfraContainerID: testPod2Info.InfraContainerID(),
+	}
+	b, _ = testPod2Info.OrchestratorContext()
+	failReq.OrchestratorContext = b
+
+	pod, podInfo, _, respCode, _ = middleware.GetPodAndNetworkingCrds(context.TODO(), failReq)
+	assert.Equal(t, respCode, types.UnexpectedError)
+	assert.Assert(t, podInfo == nil, "expected nil podInfo on failure")
+	assert.Assert(t, pod.Labels == nil, "expected zero-valued pod on failure")
+}
+
 func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
 	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")

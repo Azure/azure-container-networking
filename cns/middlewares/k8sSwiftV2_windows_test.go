@@ -1,7 +1,6 @@
 package middlewares
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -230,32 +229,24 @@ func normalizeKVPairs(t *testing.T, policies []policy.Policy) []policy.Policy {
 	return normalized
 }
 
-// TestApplyLabelDefaultDeny covers the prototype path that forces SwiftV2-style
-// default-deny ACLs on the InfraNIC of a non-SwiftV2 pod when it carries
-// configuration.LabelPodDefaultDeny.
-func TestApplyLabelDefaultDeny(t *testing.T) {
-	cli := mock.NewClient()
-	mw := K8sSWIFTv2Middleware{Cli: cli}
-
+// TestApplyDefaultDenyToInfraNIC covers the prototype path that forces SwiftV2-style
+// default-deny ACLs on the InfraNIC of a non-SwiftV2 pod. Label detection is handled
+// upstream during request validation, so this function unconditionally decorates the
+// InfraNIC entry.
+func TestApplyDefaultDenyToInfraNIC(t *testing.T) {
 	const (
 		ns   = "default"
 		name = "labelled-pod"
 	)
-	cli.SetPod(ns, name, &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: ns,
-			Name:      name,
-			Labels:    map[string]string{configuration.LabelPodDefaultDeny: "true"},
-		},
-	})
+	podInfo := cns.NewPodInfo("cid", "iid", name, ns)
 
-	t.Run("label present applies deny ACLs to InfraNIC", func(t *testing.T) {
+	t.Run("applies deny ACLs to InfraNIC", func(t *testing.T) {
 		resp := &cns.IPConfigsResponse{
 			PodIPInfo: []cns.PodIpInfo{
 				{NICType: cns.InfraNIC, PodIPConfig: cns.IPSubnet{IPAddress: "10.0.0.5", PrefixLength: 24}},
 			},
 		}
-		mw.applyLabelDefaultDeny(context.Background(), cns.NewPodInfo("cid", "iid", name, ns), resp)
+		applyDefaultDenyToInfraNIC(podInfo, resp)
 
 		require.Len(t, resp.PodIPInfo[0].EndpointPolicies, 2)
 		normalized := normalizeKVPairs(t, resp.PodIPInfo[0].EndpointPolicies)
@@ -263,23 +254,23 @@ func TestApplyLabelDefaultDeny(t *testing.T) {
 		require.True(t, cmp.Equal(expected, normalized), "applied policies differ: %s", cmp.Diff(expected, normalized))
 	})
 
-	t.Run("label absent leaves policies untouched", func(t *testing.T) {
-		const plainName = "plain-pod"
-		cli.SetPod(ns, plainName, &corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: plainName},
-		})
-		resp := &cns.IPConfigsResponse{
-			PodIPInfo: []cns.PodIpInfo{{NICType: cns.InfraNIC}},
-		}
-		mw.applyLabelDefaultDeny(context.Background(), cns.NewPodInfo("cid", "iid", plainName, ns), resp)
-		require.Empty(t, resp.PodIPInfo[0].EndpointPolicies)
+	t.Run("empty response is a no-op", func(t *testing.T) {
+		resp := &cns.IPConfigsResponse{}
+		applyDefaultDenyToInfraNIC(podInfo, resp)
+		require.Empty(t, resp.PodIPInfo)
 	})
+}
 
-	t.Run("pod fetch failure is swallowed", func(t *testing.T) {
-		resp := &cns.IPConfigsResponse{
-			PodIPInfo: []cns.PodIpInfo{{NICType: cns.InfraNIC}},
-		}
-		mw.applyLabelDefaultDeny(context.Background(), cns.NewPodInfo("cid", "iid", "missing-pod", ns), resp)
-		require.Empty(t, resp.PodIPInfo[0].EndpointPolicies)
-	})
+// TestPodHasDefaultDenyLabel verifies the label detection used during request
+// validation to decide whether a non-SwiftV2 pod opts into default-deny ACLs.
+func TestPodHasDefaultDenyLabel(t *testing.T) {
+	labelled := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{configuration.LabelPodDefaultDeny: "true"},
+		},
+	}
+	require.True(t, podHasDefaultDenyLabel(labelled))
+
+	plain := corev1.Pod{ObjectMeta: metav1.ObjectMeta{}}
+	require.False(t, podHasDefaultDenyLabel(plain))
 }

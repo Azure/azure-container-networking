@@ -39,35 +39,44 @@ type K8sSWIFTv2Middleware struct {
 var _ cns.IPConfigsHandlerMiddleware = (*K8sSWIFTv2Middleware)(nil)
 
 func (k *K8sSWIFTv2Middleware) GetPodInfoForIPConfigsRequest(ctx context.Context, req *cns.IPConfigsRequest) (podInfo cns.PodInfo, respCode types.ResponseCode, message string) {
+	_, podInfo, _, respCode, message = k.GetPodAndNetworkingCrds(ctx, req)
+	return podInfo, respCode, message
+}
+
+// GetPodAndNetworkingCrds fetches the pod and its associated networking CRDs for an
+// IP configs request, performing the same validation as the IPAM request path:
+//   - unmarshals pod info and fetches the pod object,
+//   - for SwiftV2 pods, fetches the MTPNC, verifies it is ready and not being deleted,
+//     and updates the request's secondary/backend interface flags.
+//
+// It returns the fetched pod and MTPNC (zero-valued for non-SwiftV2 pods) so callers
+// can reuse them without issuing additional apiserver Gets on the IPAM hot path.
+func (k *K8sSWIFTv2Middleware) GetPodAndNetworkingCrds(ctx context.Context, req *cns.IPConfigsRequest) (pod v1.Pod, podInfo cns.PodInfo, mtpnc v1alpha1.MultitenantPodNetworkConfig, respCode types.ResponseCode, message string) {
 	// gets pod info for the specified request
-	podInfo, pod, respCode, message := k.GetPodInfo(ctx, req)
+	podInfo, pod, respCode, message = k.GetPodInfo(ctx, req)
 	if respCode != types.Success {
-		return nil, respCode, message
+		return v1.Pod{}, nil, v1alpha1.MultitenantPodNetworkConfig{}, respCode, message
 	}
 
-	// validates if pod is swiftv2
-	isSwiftv2 := ValidateSwiftv2Pod(pod)
-
-	var mtpnc v1alpha1.MultitenantPodNetworkConfig
-	// if swiftv2 is enabled, get mtpnc
-	if isSwiftv2 {
+	// if swiftv2 is enabled, get mtpnc and validate its readiness
+	if ValidateSwiftv2Pod(pod) {
 		mtpnc, respCode, message = k.getMTPNC(ctx, podInfo)
 		if respCode != types.Success {
-			return nil, respCode, message
+			return v1.Pod{}, nil, v1alpha1.MultitenantPodNetworkConfig{}, respCode, message
 		}
 		if mtpnc.IsDeleting() {
-			return nil, types.UnexpectedError, errMTPNCDeleting.Error()
+			return v1.Pod{}, nil, v1alpha1.MultitenantPodNetworkConfig{}, types.UnexpectedError, errMTPNCDeleting.Error()
 		}
 		// update ipConfigRequest
 		respCode, message = k.UpdateIPConfigRequest(mtpnc, req)
 		if respCode != types.Success {
-			return nil, respCode, message
+			return v1.Pod{}, nil, v1alpha1.MultitenantPodNetworkConfig{}, respCode, message
 		}
 	}
 	logger.Printf("[SWIFTv2Middleware] pod %s has secondary interface : %v", podInfo.Name(), req.SecondaryInterfacesExist)
 	logger.Printf("[SWIFTv2Middleware] pod %s has backend interface : %v", podInfo.Name(), req.BackendInterfaceExist)
 
-	return podInfo, types.Success, ""
+	return pod, podInfo, mtpnc, types.Success, ""
 }
 
 // getIPConfig returns the pod's SWIFT V2 IP configuration.
@@ -187,6 +196,13 @@ func ValidateSwiftv2Pod(pod v1.Pod) bool {
 	_, swiftV2PodNetworkLabel := pod.Labels[configuration.LabelPodSwiftV2]
 	_, swiftV2PodNetworkInstanceLabel := pod.Labels[configuration.LabelPodNetworkInstanceSwiftV2]
 	return swiftV2PodNetworkLabel || swiftV2PodNetworkInstanceLabel
+}
+
+// podHasDefaultDenyLabel reports whether the pod carries configuration.LabelPodDefaultDeny,
+// which opts a non-SwiftV2 pod into SwiftV2-style default-deny ACLs on its InfraNIC.
+func podHasDefaultDenyLabel(pod v1.Pod) bool {
+	_, ok := pod.Labels[configuration.LabelPodDefaultDeny]
+	return ok
 }
 
 func (k *K8sSWIFTv2Middleware) getMTPNC(ctx context.Context, podInfo cns.PodInfo) (mtpncResource v1alpha1.MultitenantPodNetworkConfig, respCode types.ResponseCode, message string) {
