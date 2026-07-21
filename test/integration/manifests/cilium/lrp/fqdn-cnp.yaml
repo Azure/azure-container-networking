@@ -1,7 +1,7 @@
 apiVersion: "cilium.io/v2"
 kind: CiliumNetworkPolicy
 metadata:
-  name: "to-fqdn"
+  name: "to-fqdn${POOL}"
   namespace: "default"
 spec:
   endpointSelector:

@@ -94,14 +94,7 @@ func setupLRP(t *testing.T, ctx context.Context) (*corev1.Pod, func()) {
 	//   POOL              - suffix appended to rendered resource names ("-<pool>")
 	//   POOL_NODESELECTOR - inline map body for the pods' nodeSelector (e.g. "agentpool: pool1")
 	//   POOL_LABEL        - label selector used to restrict the candidate node list
-	poolSuffix := ""
-	if pool := os.Getenv("POOL"); pool != "" {
-		poolSuffix = "-" + pool
-	}
-	manifestSubs := map[string]string{
-		"${POOL}":              poolSuffix,
-		"${POOL_NODESELECTOR}": os.Getenv("POOL_NODESELECTOR"),
-	}
+	manifestSubs := poolManifestSubs()
 
 	// 1.17 and 1.13 cilium versions of both files are identical.
 	// Render the node-local-dns daemonset, also substituting the kube-dns pillar.
@@ -521,6 +514,23 @@ func deleteAndRecreateResources(t *testing.T, ctx context.Context, cs *k8sclient
 	require.NotEmpty(t, clientPods.Items)
 
 	return TakeOne(clientPods.Items)
+}
+
+// poolManifestSubs returns the literal manifest substitutions used to render
+// per-pool test resources. Values are empty when the corresponding env vars are
+// unset, reproducing the default (single-pool) behavior:
+//
+//	${POOL}              -> "-<pool>" when POOL is set, "" otherwise
+//	${POOL_NODESELECTOR} -> inline nodeSelector map body from POOL_NODESELECTOR
+func poolManifestSubs() map[string]string {
+	poolSuffix := ""
+	if pool := os.Getenv("POOL"); pool != "" {
+		poolSuffix = "-" + pool
+	}
+	return map[string]string{
+		"${POOL}":              poolSuffix,
+		"${POOL_NODESELECTOR}": os.Getenv("POOL_NODESELECTOR"),
+	}
 }
 
 // renderManifest reads the manifest at srcPath, applies the given literal

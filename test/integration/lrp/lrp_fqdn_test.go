@@ -40,7 +40,11 @@ func TestLRPFQDN(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "true", ciliumCM.Data[enableFQDNFlag], "enable-l7-proxy not set to true in cilium-config")
 
-	_, cleanupCNP := kubernetes.MustSetupCNP(ctx, ciliumCS, fqdnCNPPath)
+	// Render the FQDN policy so its name carries the optional ${POOL} suffix,
+	// avoiding collisions when the test runs per-pool in parallel.
+	renderedFQDNCNPPath, cleanupFQDNFile := renderManifest(t, fqdnCNPPath, poolManifestSubs())
+	defer cleanupFQDNFile()
+	_, cleanupCNP := kubernetes.MustSetupCNP(ctx, ciliumCS, renderedFQDNCNPPath)
 	defer cleanupCNP()
 
 	tests := []struct {
