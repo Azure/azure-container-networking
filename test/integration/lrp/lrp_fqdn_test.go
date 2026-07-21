@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	ciliumClientset "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +41,11 @@ func TestLRPFQDN(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "true", ciliumCM.Data[enableFQDNFlag], "enable-l7-proxy not set to true in cilium-config")
 
-	_, cleanupCNP := kubernetes.MustSetupCNP(ctx, ciliumCS, fqdnCNPPath)
+	// Uniquify the FQDN policy name per pool so simultaneous per-pool runs
+	// don't collide; when POOL is unset the name stays "to-fqdn".
+	_, cleanupCNP := kubernetes.MustSetupCNP(ctx, ciliumCS, fqdnCNPPath, func(cnp *ciliumv2.CiliumNetworkPolicy) {
+		cnp.Name += poolSuffix()
+	})
 	defer cleanupCNP()
 
 	tests := []struct {

@@ -273,8 +273,11 @@ func MustSetupLRP(ctx context.Context, clientset *cilium.Clientset, lrpPath stri
 	}
 }
 
-func MustSetupCNP(ctx context.Context, clientset *cilium.Clientset, cnpPath string) (ciliumv2.CiliumNetworkPolicy, func()) { // nolint
+func MustSetupCNP(ctx context.Context, clientset *cilium.Clientset, cnpPath string, mutators ...func(*ciliumv2.CiliumNetworkPolicy)) (ciliumv2.CiliumNetworkPolicy, func()) { // nolint
 	cnp := mustParseCNP(cnpPath)
+	for _, mutate := range mutators {
+		mutate(&cnp)
+	}
 	cnpClient := clientset.CiliumV2().CiliumNetworkPolicies(cnp.Namespace)
 	mustCreateCiliumNetworkPolicy(ctx, cnpClient, cnp)
 	return cnp, func() {
