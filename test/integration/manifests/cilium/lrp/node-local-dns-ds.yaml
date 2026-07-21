@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: node-local-dns
+  name: node-local-dns${POOL}
   namespace: kube-system
   labels:
     k8s-app: node-local-dns
@@ -21,6 +21,9 @@ spec:
         prometheus.io/port: "9253"
         prometheus.io/scrape: "true"
     spec:
+      # Optional per-pool node selector. Rendered to "{}" (no constraint) unless
+      # POOL_NODESELECTOR is set (e.g. "agentpool: pool1").
+      nodeSelector: {${POOL_NODESELECTOR}}
       priorityClassName: system-node-critical
       serviceAccountName: node-local-dns
       dnsPolicy: Default # Don't use cluster DNS.

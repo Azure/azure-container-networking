@@ -46,7 +46,6 @@ const (
 var (
 	defaultRetrier                 = retry.Retrier{Attempts: retryAttempts, Delay: retryDelay}
 	nodeLocalDNSDaemonsetPath      = ciliumManifestsDir + "node-local-dns-ds.yaml"
-	tempNodeLocalDNSDaemonsetPath  = ciliumManifestsDir + "temp-daemonset.yaml"
 	nodeLocalDNSConfigMapPath      = ciliumManifestsDir + "config-map.yaml"
 	nodeLocalDNSServiceAccountPath = ciliumManifestsDir + "service-account.yaml"
 	nodeLocalDNSServicePath        = ciliumManifestsDir + "service.yaml"
@@ -90,22 +89,38 @@ func setupLRP(t *testing.T, ctx context.Context) (*corev1.Pod, func()) {
 	require.NoError(t, err)
 	require.Equal(t, "true", ciliumCM.Data[enableLRPFlag], "enable-local-redirect-policy not set to true in cilium-config")
 
-	// 1.17 and 1.13 cilium versions of both files are identical
-	// read file
-	nodeLocalDNSContent, err := os.ReadFile(nodeLocalDNSDaemonsetPath)
-	require.NoError(t, err)
-	// replace pillar dns
-	replaced := strings.ReplaceAll(string(nodeLocalDNSContent), "__PILLAR__DNS__SERVER__", kubeDNS)
-	// Write the updated content back to the file
-	err = os.WriteFile(tempNodeLocalDNSDaemonsetPath, []byte(replaced), 0o644)
-	require.NoError(t, err)
-	defer func() {
-		err := os.Remove(tempNodeLocalDNSDaemonsetPath)
-		require.NoError(t, err)
-	}()
+	// Per-pool parameterization (all optional; empty values reproduce today's
+	// behavior):
+	//   POOL              - suffix appended to rendered resource names ("-<pool>")
+	//   POOL_NODESELECTOR - inline map body for the pods' nodeSelector (e.g. "agentpool: pool1")
+	//   POOL_LABEL        - label selector used to restrict the candidate node list
+	poolSuffix := ""
+	if pool := os.Getenv("POOL"); pool != "" {
+		poolSuffix = "-" + pool
+	}
+	manifestSubs := map[string]string{
+		"${POOL}":              poolSuffix,
+		"${POOL_NODESELECTOR}": os.Getenv("POOL_NODESELECTOR"),
+	}
 
-	// list out and select node of choice
-	nodeList, err := kubernetes.GetNodeList(ctx, cs)
+	// 1.17 and 1.13 cilium versions of both files are identical.
+	// Render the node-local-dns daemonset, also substituting the kube-dns pillar.
+	nodeLocalDNSSubs := map[string]string{"__PILLAR__DNS__SERVER__": kubeDNS}
+	for k, v := range manifestSubs {
+		nodeLocalDNSSubs[k] = v
+	}
+	renderedNodeLocalDNSPath, cleanupNodeLocalDNSFile := renderManifest(t, nodeLocalDNSDaemonsetPath, nodeLocalDNSSubs)
+	defer cleanupNodeLocalDNSFile()
+
+	// list out and select node of choice; when POOL_LABEL is set restrict the
+	// candidate nodes to that pool so the test targets a single pool.
+	var nodeList *corev1.NodeList
+	if poolLabel := os.Getenv("POOL_LABEL"); poolLabel != "" {
+		nodeList, err = kubernetes.GetNodeListByLabelSelector(ctx, cs, poolLabel)
+	} else {
+		nodeList, err = kubernetes.GetNodeList(ctx, cs)
+	}
+	require.NoError(t, err)
 	require.NotEmpty(t, nodeList.Items)
 	selectedNode := TakeOne(nodeList.Items).Name
 
@@ -116,7 +131,7 @@ func setupLRP(t *testing.T, ctx context.Context) (*corev1.Pod, func()) {
 	cleanUpFns = append(cleanUpFns, cleanupServiceAccount)
 	_, cleanupService := kubernetes.MustSetupService(ctx, cs, nodeLocalDNSServicePath)
 	cleanUpFns = append(cleanUpFns, cleanupService)
-	nodeLocalDNSDS, cleanupNodeLocalDNS := kubernetes.MustSetupDaemonset(ctx, cs, tempNodeLocalDNSDaemonsetPath)
+	nodeLocalDNSDS, cleanupNodeLocalDNS := kubernetes.MustSetupDaemonset(ctx, cs, renderedNodeLocalDNSPath)
 	cleanUpFns = append(cleanUpFns, cleanupNodeLocalDNS)
 	kubernetes.WaitForPodDaemonset(ctx, cs, nodeLocalDNSDS.Namespace, nodeLocalDNSDS.Name, nodeLocalDNSLabelSelector)
 	require.NoError(t, err)
@@ -126,11 +141,15 @@ func setupLRP(t *testing.T, ctx context.Context) (*corev1.Pod, func()) {
 	selectedLocalDNSPod := TakeOne(pods.Items).Name
 
 	// deploy lrp
-	_, cleanupLRP := kubernetes.MustSetupLRP(ctx, ciliumCS, lrpPath)
+	renderedLRPPath, cleanupLRPFile := renderManifest(t, lrpPath, manifestSubs)
+	defer cleanupLRPFile()
+	_, cleanupLRP := kubernetes.MustSetupLRP(ctx, ciliumCS, renderedLRPPath)
 	cleanUpFns = append(cleanUpFns, cleanupLRP)
 
 	// create client pods
-	clientDS, cleanupClient := kubernetes.MustSetupDaemonset(ctx, cs, clientPath)
+	renderedClientPath, cleanupClientFile := renderManifest(t, clientPath, manifestSubs)
+	defer cleanupClientFile()
+	clientDS, cleanupClient := kubernetes.MustSetupDaemonset(ctx, cs, renderedClientPath)
 	cleanUpFns = append(cleanUpFns, cleanupClient)
 	kubernetes.WaitForPodDaemonset(ctx, cs, clientDS.Namespace, clientDS.Name, clientLabelSelector)
 	require.NoError(t, err)
@@ -255,7 +274,6 @@ func TestLRP(t *testing.T) {
 func testLRPLifecycle(t *testing.T, ctx context.Context, clientPod corev1.Pod, kubeDNS string) {
 	config := kubernetes.MustGetRestConfig()
 	cs := kubernetes.MustGetClientset()
-
 
 	// Step 1: Validate LRP using cilium commands
 	t.Log("Step 1: Validating LRP using cilium commands")
@@ -503,6 +521,27 @@ func deleteAndRecreateResources(t *testing.T, ctx context.Context, cs *k8sclient
 	require.NotEmpty(t, clientPods.Items)
 
 	return TakeOne(clientPods.Items)
+}
+
+// renderManifest reads the manifest at srcPath, applies the given literal
+// substitutions, and writes the result to a temporary file colocated with the
+// source. It returns the rendered file path and a cleanup func that removes it.
+// Substitutions always run (even when values are empty) so template tokens like
+// ${POOL} never leak into the applied manifest.
+func renderManifest(t *testing.T, srcPath string, subs map[string]string) (string, func()) {
+	t.Helper()
+	content, err := os.ReadFile(srcPath)
+	require.NoError(t, err)
+	rendered := string(content)
+	for k, v := range subs {
+		rendered = strings.ReplaceAll(rendered, k, v)
+	}
+	tmp, err := os.CreateTemp(ciliumManifestsDir, "rendered-*.yaml")
+	require.NoError(t, err)
+	_, err = tmp.WriteString(rendered)
+	require.NoError(t, err)
+	require.NoError(t, tmp.Close())
+	return tmp.Name(), func() { _ = os.Remove(tmp.Name()) }
 }
 
 // TakeOne takes one item from the slice randomly; if empty, it returns the empty value for the type
