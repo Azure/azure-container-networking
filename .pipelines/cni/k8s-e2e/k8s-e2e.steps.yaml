@@ -59,17 +59,6 @@ steps:
         kubectl taint nodes -l kubernetes.azure.com/mode=user node-role.kubernetes.io/control-plane:NoSchedule
       fi
 
-      # Post-reboot readiness gate. The upstream e2e SynchronizedBeforeSuite
-      # requires every node schedulable AND every kube-system pod Running+Ready
-      # within a fixed budget before any spec runs. After the pipeline's
-      # node-restart step, the AKS-managed azuresecuritylinuxagent (Defender)
-      # DaemonSet can wedge its init container in a saturated CrashLoopBackOff and
-      # never recover in time, failing the whole suite. The Go gate waits for
-      # nodes to be Ready and, only if a Defender pod is not Running, lets it
-      # settle before force-restarting it. Best-effort: the suite has its own
-      # readiness checks, so a gate error must not fail the stage prematurely.
-      ( cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags "load systemready" -run '^TestEnsureSystemPodsReady$' ) || echo "system readiness gate reported an error; continuing to e2e"
-
       # Deprecating flags. Change once k8s minimum version supported is > 1.24
       # nodes -> procs
       # flakeAttempts -> flake-attempts
