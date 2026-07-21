@@ -130,7 +130,7 @@ func createEndpointPolicy(direction string) ([]byte, error) {
 // and release IP configs handlers.
 func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
 	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
-		pod, podInfo, mtpnc, respCode, message := k.GetPodAndNetworkingCrds(ctx, &req)
+		podInfo, respCode, message := k.GetPodInfoForIPConfigsRequest(ctx, &req)
 
 		if respCode != types.Success {
 			return &cns.IPConfigsResponse{
@@ -145,13 +145,28 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		// default-deny ACLs on the InfraNIC that the SwiftV2 DefaultDenyACL path would
 		// have applied.
 		if !req.SecondaryInterfacesExist {
-			if err == nil && podHasDefaultDenyLabel(pod) {
-				applyDefaultDenyToInfraNIC(podInfo, ipConfigsResp)
+			if err == nil {
+				// GetPodInfo re-fetches the pod so we can read the default-deny label.
+				_, pod, podRespCode, _ := k.GetPodInfo(ctx, &req)
+				if podRespCode == types.Success && podHasDefaultDenyLabel(pod) {
+					applyDefaultDenyToInfraNIC(podInfo, ipConfigsResp)
+				}
 			}
 			return ipConfigsResp, err
 		}
 
-		//  GetDefaultDenyBool takes in the fetched mtpnc and returns the value of defaultDenyACLBool from it
+		// Get MTPNC
+		mtpnc, respCode, message := k.getMTPNC(ctx, podInfo)
+		if respCode != types.Success {
+			return &cns.IPConfigsResponse{
+				Response: cns.Response{
+					ReturnCode: respCode,
+					Message:    message,
+				},
+			}, errors.New("failed to validate IP configs request")
+		}
+
+		//  GetDefaultDenyBool takes in mtpnc and returns the value of defaultDenyACLBool from it
 		defaultDenyACLBool := GetDefaultDenyBool(mtpnc)
 
 		// ipConfigsResp has infra IP configs -> if defaultDenyACLbool is enabled, add the default deny endpoint policies as a property in PodIpInfo
