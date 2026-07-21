@@ -57,6 +57,15 @@ spec:
           spec:
             description: NICNetworkConfigSpec defines the desired state of NICNetworkConfig
             properties:
+              cooldownPeriodInSeconds:
+                default: 30
+                description: |-
+                  CooldownPeriodInSeconds is the cooldown duration to keep this NIC's network container and its
+                  pre-allocated IPs reserved after the last pod is released, before tearing it down. This avoids
+                  thrashing when pods are quickly created/deleted on the same subnet. A value of 0 disables the
+                  cooldown (the NIC is torn down immediately once the last pod is released).
+                minimum: 0
+                type: integer
               macAddress:
                 description: MACAddress is the MAC address of the NIC, used to create
                   the network container
@@ -122,12 +131,12 @@ spec:
                 items:
                   type: string
                 type: array
-              cooldownPeriodInSeconds:
-                default: 30
-                description: CooldownPeriodInSeconds is the cooldown duration before
-                  retrying NIC NC operations.
-                minimum: 0
-                type: integer
+              cooldownExpiresAt:
+                description: |-
+                  CooldownExpiresAt is the time at which the cooldown period ends. It is set only while Status is
+                  Cooldown; once it passes (and no pod has re-claimed the NIC) the NIC transitions to Deleting.
+                format: date-time
+                type: string
               deviceType:
                 description: DeviceType is the device type that this NC was created
                   for
@@ -181,6 +190,7 @@ spec:
                 enum:
                 - Ready
                 - Pending
+                - Cooldown
                 - Deleting
                 - InternalError
                 - NCCreateError
