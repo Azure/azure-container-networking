@@ -930,7 +930,7 @@ test-load: ## run all load tests
 		go test -timeout 40m -race -tags=load ./test/integration/load... -v
 
 test-validate-state:
-	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load --skip 'TestE2E*' -run ^TestValidateState
+	cd test/integration/load && POOL_LABEL_SELECTOR=$(POOL_LABEL_SELECTOR) go test -mod=readonly -count=1 -timeout 30m -tags load --skip 'TestE2E*' -run ^TestValidateState
 	cd ../../..
 
 test-cyclonus: ## run the cyclonus test for npm.

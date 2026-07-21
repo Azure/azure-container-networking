@@ -41,13 +41,14 @@ const (
 )
 
 type Validator struct {
-	clientset   *kubernetes.Clientset
-	config      *rest.Config
-	checks      []check
-	namespace   string
-	cni         string
-	restartCase bool
-	os          string
+	clientset         *kubernetes.Clientset
+	config            *rest.Config
+	checks            []check
+	namespace         string
+	cni               string
+	restartCase       bool
+	os                string
+	poolLabelSelector string
 }
 
 type check struct {
@@ -59,7 +60,7 @@ type check struct {
 	cmd              []string
 }
 
-func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool, os string) (*Validator, error) {
+func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool, os, poolLabelSelector string) (*Validator, error) {
 	// deploy privileged pod
 	privilegedDaemonSet := acnk8s.MustParseDaemonSet(privilegedDaemonSetPathMap[os])
 	daemonsetClient := clientset.AppsV1().DaemonSets(privilegedNamespace)
@@ -85,14 +86,27 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 	}
 
 	return &Validator{
-		clientset:   clientset,
-		config:      config,
-		namespace:   namespace,
-		cni:         cni,
-		restartCase: restartCase,
-		checks:      checks,
-		os:          os,
+		clientset:         clientset,
+		config:            config,
+		namespace:         namespace,
+		cni:               cni,
+		restartCase:       restartCase,
+		checks:            checks,
+		os:                os,
+		poolLabelSelector: poolLabelSelector,
 	}, nil
+}
+
+// nodeSelector returns the label selector used to pick candidate nodes. It
+// always constrains by OS; when a pool label selector is configured (via
+// POOL_LABEL_SELECTOR) it is ANDed in so validation targets a single pool.
+// An empty poolLabelSelector reproduces the previous OS-only behavior.
+func (v *Validator) nodeSelector() string {
+	selector := nodeSelectorMap[v.os]
+	if v.poolLabelSelector != "" {
+		selector += "," + v.poolLabelSelector
+	}
+	return selector
 }
 
 func (v *Validator) Validate(ctx context.Context) error {
@@ -125,7 +139,7 @@ func (v *Validator) ValidateStateFile(ctx context.Context) error {
 
 func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector, containerName string) error {
 	log.Printf("Validating %s state file for %s on %s", checkType, v.cni, v.os)
-	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
+	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, v.nodeSelector())
 	if err != nil {
 		return errors.Wrapf(err, "failed to get node list")
 	}
@@ -208,7 +222,7 @@ func validateNodeProperties(nodes *corev1.NodeList, labels map[string]string, ex
 }
 
 func (v *Validator) ValidateV4OverlayControlPlane(ctx context.Context) error {
-	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
+	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, v.nodeSelector())
 	if err != nil {
 		return errors.Wrap(err, "failed to get node list")
 	}
@@ -227,7 +241,7 @@ func (v *Validator) ValidateV4OverlayControlPlane(ctx context.Context) error {
 }
 
 func (v *Validator) ValidateDualStackControlPlane(ctx context.Context) error {
-	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
+	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, v.nodeSelector())
 	if err != nil {
 		return errors.Wrap(err, "failed to get node list")
 	}
