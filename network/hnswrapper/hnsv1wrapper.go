@@ -73,6 +73,10 @@ func (Hnsv1wrapper) DeleteNetwork(networkId string) (*hcsshim.HNSNetwork, error)
 	return hnsResponse, err
 }
 
+func (Hnsv1wrapper) GetHNSNetworkByName(networkName string) (*hcsshim.HNSNetwork, error) {
+	return hcsshim.GetHNSNetworkByName(networkName)
+}
+
 func (Hnsv1wrapper) GetHNSEndpointByName(endpointName string) (*hcsshim.HNSEndpoint, error) {
 	return hcsshim.GetHNSEndpointByName(endpointName)
 }

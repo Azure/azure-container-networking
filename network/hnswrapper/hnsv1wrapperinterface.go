@@ -15,6 +15,7 @@ type HnsV1WrapperInterface interface {
 	DeleteEndpoint(endpointId string) (*hcsshim.HNSEndpoint, error)
 	CreateNetwork(network *hcsshim.HNSNetwork, path string) (*hcsshim.HNSNetwork, error)
 	DeleteNetwork(networkId string) (*hcsshim.HNSNetwork, error)
+	GetHNSNetworkByName(networkName string) (*hcsshim.HNSNetwork, error)
 	GetHNSEndpointByName(endpointName string) (*hcsshim.HNSEndpoint, error)
 	GetHNSEndpointByID(endpointID string) (*hcsshim.HNSEndpoint, error)
 	HotAttachEndpoint(containerID string, endpointID string) error
