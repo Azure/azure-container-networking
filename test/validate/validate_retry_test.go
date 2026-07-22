@@ -85,15 +85,32 @@ func TestRunValidationAttempts(t *testing.T) {
 }
 
 func TestRunValidationAttemptsCanceled(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
+	tests := []struct {
+		name     string
+		interval time.Duration
+	}{
+		{
+			name:     "during delayed retry",
+			interval: time.Hour,
+		},
+		{
+			name: "without retry delay",
+		},
+	}
 
-	attempts, converged, err := runValidationAttempts(ctx, 2, time.Hour, func() (bool, error) {
-		return false, errTransientObservation
-	})
-	require.ErrorIs(t, err, context.Canceled)
-	require.Equal(t, 1, attempts)
-	require.False(t, converged)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			attempts, converged, err := runValidationAttempts(ctx, 2, test.interval, func() (bool, error) {
+				return false, errTransientObservation
+			})
+			require.ErrorIs(t, err, context.Canceled)
+			require.Equal(t, 1, attempts)
+			require.False(t, converged)
+		})
+	}
 }
 
 func TestRunValidationAttemptsRejectsInvalidAttemptCount(t *testing.T) {

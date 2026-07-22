@@ -200,6 +200,9 @@ func runValidationAttempts(
 		if attempts >= maxAttempts {
 			return attempts, false, lastErr
 		}
+		if err := ctx.Err(); err != nil {
+			return attempts, false, errors.Wrap(err, "waiting to retry state validation")
+		}
 		if interval <= 0 {
 			continue
 		}
