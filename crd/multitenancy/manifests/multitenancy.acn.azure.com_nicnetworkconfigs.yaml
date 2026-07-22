@@ -61,9 +61,9 @@ spec:
                 default: 30
                 description: |-
                   CooldownPeriodInSeconds is the cooldown duration to keep this NIC's network container and its
-                  pre-allocated IPs reserved after the last pod is released, before tearing it down. This avoids
-                  thrashing when pods are quickly created/deleted on the same subnet. A value of 0 disables the
-                  cooldown (the NIC is torn down immediately once the last pod is released).
+                  pre-allocated IPs reserved after the last pod is released, before tearing it down. Pointer so
+                  unset (nil, defaults to 30) is distinguishable from an explicit 0, which disables the cooldown
+                  (the NICNC is torn down immediately once the last pod is released).
                 minimum: 0
                 type: integer
               macAddress:
