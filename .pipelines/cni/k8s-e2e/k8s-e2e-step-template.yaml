@@ -63,6 +63,8 @@ steps:
       # flakeAttempts -> flake-attempts
       # dryRun -> dry-run
 
+      : "${KUBE_TEST_REPO_LIST:?KUBE_TEST_REPO_LIST must point to the ACR registry override file}"
+
       ./ginkgo --nodes=${{ parameters.processes }} \
       ./e2e.test -- \
       --num-nodes=2 \

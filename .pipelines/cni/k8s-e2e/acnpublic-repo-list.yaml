@@ -1,0 +1,12 @@
+gcAuthenticatedRegistry: acnpublic.azurecr.io/authenticated-image-pulling
+promoterE2eRegistry: acnpublic.azurecr.io/e2e-test-images
+buildImageRegistry: acnpublic.azurecr.io/build-image
+# These repositories remain absent so pull-failure and authenticated-pull tests fail closed.
+invalidRegistry: acnpublic.azurecr.io/invalid
+gcEtcdRegistry: acnpublic.azurecr.io
+gcRegistry: acnpublic.azurecr.io
+sigStorageRegistry: acnpublic.azurecr.io/sig-storage
+privateRegistry: acnpublic.azurecr.io/k8s-authenticated-test
+microsoftRegistry: acnpublic.azurecr.io/mcr
+dockerLibraryRegistry: acnpublic.azurecr.io/library
+cloudProviderGcpRegistry: acnpublic.azurecr.io/cloud-provider-gcp
