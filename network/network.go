@@ -318,24 +318,8 @@ func (nm *networkManager) EndpointCreate(cnsclient apipaClient, epInfos []*Endpo
 
 	for _, epInfo := range epInfos {
 		logger.Info("Creating endpoint and network", zap.String("endpointInfo", epInfo.PrettyString()))
-		// check if network exists by searching through all external interfaces for the network
-		_, nwGetErr := nm.GetNetworkInfo(epInfo.NetworkID)
-		if nwGetErr != nil {
-			logger.Info("Existing network not found", zap.String("networkID", epInfo.NetworkID))
-
-			logger.Info("Found master interface", zap.String("masterIfName", epInfo.MasterIfName))
-
-			// Add the master as an external interface.
-			err := nm.AddExternalInterface(epInfo.MasterIfName, epInfo.HostSubnetPrefix, string(epInfo.NICType))
-			if err != nil {
-				return err
-			}
-
-			// Create the network if it is not found
-			err = nm.CreateNetwork(epInfo)
-			if err != nil {
-				return err
-			}
+		if err := nm.ensureNetwork(epInfo); err != nil {
+			return err
 		}
 		ep, err := nm.createEndpoint(cnsclient, epInfo.NetworkID, epInfo)
 		if err != nil {
@@ -351,4 +335,12 @@ func (nm *networkManager) EndpointCreate(cnsclient apipaClient, epInfos []*Endpo
 
 	// save endpoints
 	return nm.SaveState(eps)
+}
+
+func (nm *networkManager) removeNetworkFromState(networkID string) {
+	nm.Lock()
+	defer nm.Unlock()
+	for _, extIf := range nm.ExternalInterfaces {
+		delete(extIf.Networks, networkID)
+	}
 }

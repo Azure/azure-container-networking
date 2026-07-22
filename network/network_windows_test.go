@@ -85,6 +85,126 @@ func TestDeleteNetworkImplHnsV2NotFound(t *testing.T) {
 	}
 }
 
+func TestEnsureNetworkReconcilesHNSState(t *testing.T) {
+	const networkID = "azure"
+	tests := []struct {
+		name             string
+		stateExists      bool
+		hnsNetworkExists bool
+		wantRecreated    bool
+		nicType          cns.NICType
+		wantHNSNetworks  int
+	}{
+		{
+			name:             "preserves network present in HNS",
+			stateExists:      true,
+			hnsNetworkExists: true,
+			wantHNSNetworks:  1,
+		},
+		{
+			name:            "recreates network missing from HNS",
+			stateExists:     true,
+			wantRecreated:   true,
+			wantHNSNetworks: 1,
+		},
+		{
+			name:            "creates network missing from state",
+			wantRecreated:   true,
+			wantHNSNetworks: 1,
+		},
+		{
+			name:            "backend NIC bypasses HNS",
+			stateExists:     true,
+			nicType:         cns.BackendNIC,
+			wantHNSNetworks: 0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			hnsFake := hnswrapper.NewHnsv2wrapperFake()
+			previousHNS := Hnsv2
+			Hnsv2 = hnsFake
+			t.Cleanup(func() {
+				Hnsv2 = previousHNS
+			})
+
+			extIf := &externalInterface{
+				Name:     "eth0",
+				Networks: map[string]*network{},
+			}
+			staleNetwork := &network{
+				Id:        networkID,
+				HnsId:     "stale-hns-id",
+				Endpoints: map[string]*endpoint{"stale": {}},
+				extIf:     extIf,
+			}
+			if test.stateExists {
+				extIf.Networks[networkID] = staleNetwork
+			}
+			nm := &networkManager{
+				ExternalInterfaces: map[string]*externalInterface{"eth0": extIf},
+			}
+			if test.hnsNetworkExists {
+				_, err := hnsFake.CreateNetwork(&hcn.HostComputeNetwork{Name: networkID})
+				require.NoError(t, err)
+			}
+
+			err := nm.ensureNetwork(&EndpointInfo{
+				NetworkID:    networkID,
+				MasterIfName: "eth0",
+				Mode:         opModeBridge,
+				NetNs:        dummyGUID,
+				NICType:      test.nicType,
+			})
+			require.NoError(t, err)
+			require.Len(t, hnsFake.Cache.GetNetworks(), test.wantHNSNetworks)
+			if test.wantRecreated {
+				require.NotSame(t, staleNetwork, extIf.Networks[networkID])
+				require.Empty(t, extIf.Networks[networkID].Endpoints)
+			} else {
+				require.Same(t, staleNetwork, extIf.Networks[networkID])
+			}
+		})
+	}
+}
+
+func TestEnsureNetworkPreservesStateOnHNSQueryFailure(t *testing.T) {
+	hnsFake := hnswrapper.NewHnsv2wrapperFake()
+	hnsFake.Delay = 10 * time.Millisecond
+	previousHNS := Hnsv2
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2:          hnsFake,
+		HnsCallTimeout: time.Millisecond,
+	}
+	t.Cleanup(func() {
+		Hnsv2 = previousHNS
+	})
+
+	extIf := &externalInterface{
+		Name:     "eth0",
+		Networks: map[string]*network{},
+	}
+	staleNetwork := &network{
+		Id:        "azure",
+		Endpoints: map[string]*endpoint{},
+		extIf:     extIf,
+	}
+	extIf.Networks[staleNetwork.Id] = staleNetwork
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{"eth0": extIf},
+	}
+
+	err := nm.ensureNetwork(&EndpointInfo{
+		NetworkID:    staleNetwork.Id,
+		MasterIfName: extIf.Name,
+		Mode:         opModeBridge,
+		NetNs:        dummyGUID,
+	})
+	require.ErrorIs(t, err, hnswrapper.ErrHNSCallTimeout)
+	require.Same(t, staleNetwork, extIf.Networks[staleNetwork.Id])
+}
+
 func TestSuccesfulNetworkCreationWhenAlreadyExists(t *testing.T) {
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},

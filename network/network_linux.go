@@ -59,6 +59,17 @@ func newErrorNetworkManager(errStr string) error {
 // Linux implementation of route.
 type route netlink.Route
 
+func (nm *networkManager) ensureNetwork(epInfo *EndpointInfo) error {
+	if _, err := nm.GetNetworkInfo(epInfo.NetworkID); err == nil {
+		return nil
+	}
+	logger.Info("Existing network not found", zap.String("networkID", epInfo.NetworkID))
+	if err := nm.AddExternalInterface(epInfo.MasterIfName, epInfo.HostSubnetPrefix, string(epInfo.NICType)); err != nil {
+		return err
+	}
+	return nm.CreateNetwork(epInfo)
+}
+
 // NewNetworkImpl creates a new container network.
 func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalInterface) (*network, error) {
 	// Connect the external interface.

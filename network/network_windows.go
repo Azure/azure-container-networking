@@ -86,6 +86,29 @@ func EnableHnsV1Timeout(timeoutValue int) {
 	}
 }
 
+func (nm *networkManager) ensureNetwork(epInfo *EndpointInfo) error {
+	if _, err := nm.GetNetworkInfo(epInfo.NetworkID); err == nil {
+		if epInfo.NICType == cns.BackendNIC || epInfo.NICType == cns.ApipaNIC {
+			return nil
+		}
+		if _, err := Hnsv2.GetNetworkByName(epInfo.NetworkID); err == nil {
+			return nil
+		} else if !errors.As(err, &hcn.NetworkNotFoundError{}) {
+			return fmt.Errorf("checking HNS network %s: %w", epInfo.NetworkID, err)
+		}
+
+		logger.Info("Removing stale network state after HNS network loss", zap.String("networkID", epInfo.NetworkID))
+		nm.removeNetworkFromState(epInfo.NetworkID)
+	} else {
+		logger.Info("Existing network not found", zap.String("networkID", epInfo.NetworkID))
+	}
+
+	if err := nm.AddExternalInterface(epInfo.MasterIfName, epInfo.HostSubnetPrefix, string(epInfo.NICType)); err != nil {
+		return err
+	}
+	return nm.CreateNetwork(epInfo)
+}
+
 // newNetworkImplHnsV1 creates a new container network for HNSv1.
 func (nm *networkManager) newNetworkImplHnsV1(nwInfo *EndpointInfo, extIf *externalInterface) (*network, error) {
 	var (
