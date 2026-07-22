@@ -9,40 +9,13 @@ steps:
 
   - template: ../../templates/cilium-cli.yaml
 
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        ls -lah
-        pwd
-        kubectl cluster-info
-        kubectl get pods -Aowide
-          
-        # see makefile
-        export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
-        export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
-        export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY=acnpublic.azurecr.io
-        export AZURE_IP_MASQ_MERGER_TAG=$(make azure-ip-masq-merger-version)
-        export IPV6_HP_BPF_IMAGE_REGISTRY=acnpublic.azurecr.io
-        export IPV6_HP_BPF_VERSION=$(make ipv6-hp-bpf-version)
-        make -C ./hack/aks deploy-ebpf-dualstack-cilium
-
-        kubectl get pods -Aowide
-    name: "installCilium"
-    displayName: "Install Cilium EBPF on AKS Dualstack Overlay"
-
   - script: |
       # These vars may be set by the job template via setup stage outputs and are available here as environment variables in child scripts.
 
       CNS=${CNS_VERSION:-$(make cns-version)}
       IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
       echo "Start Azilium E2E Tests on Overlay Cluster"
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cilium_dualstack VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cilium_dualstack VALIDATE_STATEFILE=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"

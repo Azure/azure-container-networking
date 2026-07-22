@@ -68,7 +68,7 @@ stages:
           dependsOn: ${{ parameters.dependsOn }}
           os: ${{ parameters.os }}
           region: $(REGION_AKS_CLUSTER_TEST)
-          installAzureCNIOverlay: true
+          networkType: azure-cni-overlay
 
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
