@@ -3,18 +3,27 @@ package middlewares
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/v3/assert"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func TestMain(m *testing.M) {
+	logger.InitLogger("testlogs", 0, 0, "./")
+	os.Exit(m.Run())
+}
 
 func TestSetRoutesSuccess(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
@@ -218,4 +227,50 @@ func normalizeKVPairs(t *testing.T, policies []policy.Policy) []policy.Policy {
 	}
 
 	return normalized
+}
+
+// TestApplyDefaultDenyToInfraNIC covers the prototype path that forces SwiftV2-style
+// default-deny ACLs on the InfraNIC of a non-SwiftV2 pod. Label detection is handled
+// upstream during request validation, so this function unconditionally decorates the
+// InfraNIC entry.
+func TestApplyDefaultDenyToInfraNIC(t *testing.T) {
+	const (
+		ns   = "default"
+		name = "labelled-pod"
+	)
+	podInfo := cns.NewPodInfo("cid", "iid", name, ns)
+
+	t.Run("applies deny ACLs to InfraNIC", func(t *testing.T) {
+		resp := &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{
+				{NICType: cns.InfraNIC, PodIPConfig: cns.IPSubnet{IPAddress: "10.0.0.5", PrefixLength: 24}},
+			},
+		}
+		applyDefaultDenyToInfraNIC(podInfo, resp)
+
+		require.Len(t, resp.PodIPInfo[0].EndpointPolicies, 2)
+		normalized := normalizeKVPairs(t, resp.PodIPInfo[0].EndpointPolicies)
+		expected := normalizeKVPairs(t, []policy.Policy{defaultDenyEgressPolicy, defaultDenyIngressPolicy})
+		require.True(t, cmp.Equal(expected, normalized), "applied policies differ: %s", cmp.Diff(expected, normalized))
+	})
+
+	t.Run("empty response is a no-op", func(t *testing.T) {
+		resp := &cns.IPConfigsResponse{}
+		applyDefaultDenyToInfraNIC(podInfo, resp)
+		require.Empty(t, resp.PodIPInfo)
+	})
+}
+
+// TestPodHasDefaultDenyLabel verifies the label detection used during request
+// validation to decide whether a non-SwiftV2 pod opts into default-deny ACLs.
+func TestPodHasDefaultDenyLabel(t *testing.T) {
+	labelled := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{configuration.LabelPodDefaultDeny: "true"},
+		},
+	}
+	require.True(t, podHasDefaultDenyLabel(labelled))
+
+	plain := corev1.Pod{ObjectMeta: metav1.ObjectMeta{}}
+	require.False(t, podHasDefaultDenyLabel(plain))
 }
