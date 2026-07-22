@@ -117,7 +117,6 @@ jobs:
           go tool cover -func=windows-coverage.out
 
       - name: Run Windows Network Recovery Tests
-        shell: cmd
         run: go test -timeout 5m ./network -run "^TestEnsureNetwork"
 
       - name: Upload Windows Coverage
