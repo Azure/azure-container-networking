@@ -87,7 +87,7 @@ func TestDeleteNetworkImplHnsV2NotFound(t *testing.T) {
 }
 
 func TestEnsureNetworkReconcilesHNSState(t *testing.T) {
-	const networkID = "azure"
+	const networkID = DefaultNetworkID
 	tests := []struct {
 		name             string
 		stateExists      bool
@@ -187,7 +187,7 @@ func TestEnsureNetworkPreservesStateOnHNSQueryFailure(t *testing.T) {
 		Networks: map[string]*network{},
 	}
 	staleNetwork := &network{
-		Id:        "azure",
+		Id:        DefaultNetworkID,
 		Endpoints: map[string]*endpoint{},
 		extIf:     extIf,
 	}
@@ -207,7 +207,7 @@ func TestEnsureNetworkPreservesStateOnHNSQueryFailure(t *testing.T) {
 }
 
 func TestEnsureNetworkReconcilesHNSv1State(t *testing.T) {
-	const networkID = "azure"
+	const networkID = DefaultNetworkID
 	tests := []struct {
 		name          string
 		networkErr    error

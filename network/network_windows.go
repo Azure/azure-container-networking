@@ -124,7 +124,7 @@ func networkExistsInHNS(epInfo *EndpointInfo) (bool, error) {
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
 			return false, nil
 		}
-		return false, err
+		return false, fmt.Errorf("getting HNSv2 network: %w", err)
 	}
 
 	_, err = Hnsv1.GetHNSNetworkByName(epInfo.NetworkID)
@@ -134,7 +134,7 @@ func networkExistsInHNS(epInfo *EndpointInfo) (bool, error) {
 	if errors.As(err, &hcsshim.NetworkNotFoundError{}) {
 		return false, nil
 	}
-	return false, err
+	return false, fmt.Errorf("getting HNSv1 network: %w", err)
 }
 
 func (nm *networkManager) removeNetworkFromState(networkID string) {
