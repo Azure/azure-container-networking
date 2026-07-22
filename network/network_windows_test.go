@@ -206,6 +206,42 @@ func TestEnsureNetworkPreservesStateOnHNSQueryFailure(t *testing.T) {
 	require.Same(t, staleNetwork, extIf.Networks[staleNetwork.Id])
 }
 
+func TestEnsureNetworkPreservesStateOnHNSv1QueryFailure(t *testing.T) {
+	hnsFake := hnswrapper.NewHnsv1wrapperFake()
+	hnsFake.Delay = 10 * time.Millisecond
+	previousHNS := Hnsv1
+	Hnsv1 = hnswrapper.Hnsv1wrapperwithtimeout{
+		Hnsv1:          hnsFake,
+		HnsCallTimeout: time.Millisecond,
+	}
+	t.Cleanup(func() {
+		Hnsv1 = previousHNS
+	})
+
+	extIf := &externalInterface{
+		Name:     "eth0",
+		Networks: map[string]*network{},
+	}
+	staleNetwork := &network{
+		Id:        DefaultNetworkID,
+		Endpoints: map[string]*endpoint{},
+		extIf:     extIf,
+	}
+	extIf.Networks[staleNetwork.Id] = staleNetwork
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{"eth0": extIf},
+	}
+
+	err := nm.ensureNetwork(&EndpointInfo{
+		NetworkID:    staleNetwork.Id,
+		MasterIfName: extIf.Name,
+		Mode:         opModeBridge,
+		NetNs:        "not-a-guid",
+	})
+	require.ErrorIs(t, err, hnswrapper.ErrHNSCallTimeout)
+	require.Same(t, staleNetwork, extIf.Networks[staleNetwork.Id])
+}
+
 func TestEnsureNetworkReconcilesHNSv1State(t *testing.T) {
 	const networkID = DefaultNetworkID
 	tests := []struct {

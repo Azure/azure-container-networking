@@ -105,6 +105,7 @@ func (nm *networkManager) ensureNetwork(epInfo *EndpointInfo) error {
 		logger.Info("Existing network not found", zap.String("networkID", epInfo.NetworkID))
 	}
 
+	logger.Info("Found master interface", zap.String("masterIfName", epInfo.MasterIfName))
 	if err := nm.AddExternalInterface(epInfo.MasterIfName, epInfo.HostSubnetPrefix, string(epInfo.NICType)); err != nil {
 		return err
 	}
@@ -112,11 +113,10 @@ func (nm *networkManager) ensureNetwork(epInfo *EndpointInfo) error {
 }
 
 func networkExistsInHNS(epInfo *EndpointInfo) (bool, error) {
-	useHNSv2, err := UseHnsV2(epInfo.NetNs)
-	if err != nil {
-		return false, err
-	}
-	if useHNSv2 {
+	if useHNSv2, err := UseHnsV2(epInfo.NetNs); useHNSv2 {
+		if err != nil {
+			return false, err
+		}
 		_, err = Hnsv2.GetNetworkByName(epInfo.NetworkID)
 		if err == nil {
 			return true, nil
@@ -127,7 +127,7 @@ func networkExistsInHNS(epInfo *EndpointInfo) (bool, error) {
 		return false, fmt.Errorf("getting HNSv2 network: %w", err)
 	}
 
-	_, err = Hnsv1.GetHNSNetworkByName(epInfo.NetworkID)
+	_, err := Hnsv1.GetHNSNetworkByName(epInfo.NetworkID)
 	if err == nil {
 		return true, nil
 	}
