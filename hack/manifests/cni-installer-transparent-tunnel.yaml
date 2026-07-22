@@ -1,0 +1,92 @@
+# Transparent-tunnel CNI installer
+#
+# Drops the azure-vnet binary + a `mode: transparent-tunnel` conflist onto
+# each Linux node's /opt/cni/bin and /etc/cni/net.d. The conflist is written
+# as 10-azure.conflist, replacing whatever conflist is already there, so
+# kubelet picks it up unambiguously on the next pod sandbox creation.
+#
+# Host prerequisites (must be in place before applying):
+#   - `ipset` userspace tool + the `ip_set` / `xt_set` kernel modules
+#   - `iptables` (legacy or nft, matching whichever azure-vnet was built for)
+#   - Pod-pool secondary IPs must not be assigned to the host primary NIC
+#     by anything other than azure-vnet (e.g. cloud-init / netplan must
+#     leave the secondaries alone). On AKS this is handled by CNS.
+#
+# Do not deploy alongside any host bridge that keeps pod traffic off the
+# physical NIC; transparent-tunnel relies on VFP seeing same-node traffic.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: azure-cni-transparent-tunnel
+  namespace: kube-system
+  labels:
+    app: azure-cni-transparent-tunnel
+spec:
+  selector:
+    matchLabels:
+      k8s-app: azure-cni-transparent-tunnel
+  template:
+    metadata:
+      labels:
+        k8s-app: azure-cni-transparent-tunnel
+      annotations:
+        cluster-autoscaler.kubernetes.io/daemonset-pod: "true"
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: type
+                    operator: NotIn
+                    values:
+                      - virtual-kubelet
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+      priorityClassName: system-node-critical
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+      initContainers:
+        - name: azure-cni-transparent-tunnel
+          image: mcr.microsoft.com/containernetworking/azure-cni:v1.5.16
+          imagePullPolicy: Always
+          command: ["/dropgz"]
+          args:
+            - deploy
+            - azure-vnet
+            - -o
+            - /opt/cni/bin/azure-vnet
+            - azure-vnet-ipam
+            - -o
+            - /opt/cni/bin/azure-vnet-ipam
+            - azure-vnet-telemetry
+            - -o
+            - /opt/cni/bin/azure-vnet-telemetry
+            - azure-transparent-tunnel.conflist
+            - -o
+            - /etc/cni/net.d/10-azure.conflist
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /opt/cni/bin
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
+      containers:
+        - name: pause
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+      hostNetwork: true
+      volumes:
+        - name: cni-conflist
+          hostPath:
+            path: /etc/cni/net.d
+            type: Directory
+        - name: cni-bin
+          hostPath:
+            path: /opt/cni/bin
+            type: Directory

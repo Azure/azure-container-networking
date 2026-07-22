@@ -17,6 +17,8 @@ type validationCase struct {
 var (
 	errMockPlatform    = errors.New("mock pl error")
 	errExtraneousCalls = errors.New("function called too many times")
+	errRuleNotFound    = errors.New("exit status 1: iptables: bad rule does a matching rule exist in that chain")
+	errXtablesLock     = errors.New("exit status 4: another app is currently holding the xtables lock; waiting for it to exit")
 )
 
 // GenerateValidateFunc takes in a slice of expected calls and intended responses for each time the returned function is called
@@ -257,4 +259,46 @@ func TestRuleExists(t *testing.T) {
 
 	result := client.RuleExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept)
 	assert.False(t, result)
+}
+
+func TestDeleteIptableRuleIfExists(t *testing.T) {
+	const expectedCmd = "iptables -w 60 -t filter -D AZURECNIINPUT -p tcp --dport 80 -j ACCEPT"
+
+	t.Run("delete succeeds returns nil", func(t *testing.T) {
+		mockPL := platform.NewMockExecClient(false)
+		client := &Client{pl: mockPL}
+		mockPL.SetExecRawCommand(func(cmd string) (string, error) {
+			require.Equal(t, expectedCmd, cmd)
+			return "", nil
+		})
+
+		require.NoError(t, client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept))
+	})
+
+	t.Run("rule not found error is swallowed", func(t *testing.T) {
+		mockPL := platform.NewMockExecClient(false)
+		client := &Client{pl: mockPL}
+		mockPL.SetExecRawCommand(func(cmd string) (string, error) {
+			require.Equal(t, expectedCmd, cmd)
+			// Real iptables stderr when the rule is absent. The wrapper
+			// in ExecuteRawCommand formats this as "<err>:<stderr>", which
+			// is what DeleteIptableRuleIfExists pattern-matches against.
+			return "", errRuleNotFound
+		})
+
+		require.NoError(t, client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept))
+	})
+
+	t.Run("lock contention error is propagated", func(t *testing.T) {
+		mockPL := platform.NewMockExecClient(false)
+		client := &Client{pl: mockPL}
+		mockPL.SetExecRawCommand(func(cmd string) (string, error) {
+			require.Equal(t, expectedCmd, cmd)
+			return "", errXtablesLock
+		})
+
+		err := client.DeleteIptableRuleIfExists(V4, Filter, CNIInputChain, "-p tcp --dport 80", Accept)
+		require.Error(t, err, "lock contention must NOT be silently treated as success")
+		assert.Contains(t, err.Error(), "xtables lock")
+	})
 }

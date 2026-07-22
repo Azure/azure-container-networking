@@ -68,6 +68,7 @@ pushd "$REPO_ROOT"/cni
   cp azure-$OS.conflist "$OUT_DIR"/files/azure.conflist
   cp azure-$OS-swift.conflist "$OUT_DIR"/files/azure-swift.conflist
   cp azure-linux-multitenancy-transparent-vlan.conflist "$OUT_DIR"/files/azure-multitenancy-transparent-vlan.conflist
+  cp azure-linux-transparent-tunnel.conflist "$OUT_DIR"/files/azure-transparent-tunnel.conflist
   cp azure-$OS-swift-overlay.conflist "$OUT_DIR"/files/azure-swift-overlay.conflist
   cp azure-$OS-swift-overlay-dualstack.conflist "$OUT_DIR"/files/azure-swift-overlay-dualstack.conflist
   cp azure-windows-multitenancy.conflist "$OUT_DIR"/files/multitenancy.conflist
