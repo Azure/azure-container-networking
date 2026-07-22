@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"strconv"
 	"testing"
@@ -2513,4 +2515,54 @@ func TestStatelessCNIStateFile(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestDeleteEndpointStateHelper_MissingIsSuccess verifies that deleting an endpoint
+// that is not present in the statefile returns success (idempotent no-op).
+// This is required by the CNI DEL contract; see ICM 830677663 for the regression
+// this test guards against.
+func TestDeleteEndpointStateHelper_MissingIsSuccess(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	svc.EndpointStateStore = store.NewMockStore("")
+	svc.EndpointState = map[string]*EndpointInfo{}
+
+	err := svc.DeleteEndpointStateHelper("unknown-container-id")
+	require.NoError(t, err)
+	assert.Empty(t, svc.EndpointState)
+}
+
+// TestDeleteEndpointStateHelper_DoubleDeleteIdempotent verifies that a second
+// delete for the same endpoint after a successful first delete also returns nil.
+func TestDeleteEndpointStateHelper_DoubleDeleteIdempotent(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	svc.EndpointStateStore = store.NewMockStore("")
+	endpointID := "container-id-double-delete"
+	svc.EndpointState = map[string]*EndpointInfo{
+		endpointID: {PodName: "pod1", PodNamespace: "default", IfnameToIPMap: map[string]*IPInfo{}},
+	}
+
+	require.NoError(t, svc.DeleteEndpointStateHelper(endpointID))
+	assert.NotContains(t, svc.EndpointState, endpointID)
+
+	require.NoError(t, svc.DeleteEndpointStateHelper(endpointID))
+	assert.NotContains(t, svc.EndpointState, endpointID)
+}
+
+// TestDeleteEndpointStateHandler_MissingReturnsSuccess verifies that the HTTP
+// handler reports Success (not NotFound / UnexpectedError) when the endpoint is
+// absent, so idempotent CNI DEL retries do not fail.
+func TestDeleteEndpointStateHandler_MissingReturnsSuccess(t *testing.T) {
+	svc := getTestService(cns.KubernetesCRD)
+	svc.EndpointStateStore = store.NewMockStore("")
+	svc.EndpointState = map[string]*EndpointInfo{}
+
+	req, err := http.NewRequest(http.MethodDelete, cns.EndpointPath+"unknown-container-id", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+
+	svc.DeleteEndpointStateHandler(w, req)
+
+	var resp cns.Response
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, types.Success, resp.ReturnCode)
 }
