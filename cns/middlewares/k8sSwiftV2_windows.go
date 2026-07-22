@@ -7,12 +7,14 @@ import (
 	"net/netip"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
 )
 
 var defaultDenyEgressPolicy policy.Policy = mustGetEndpointPolicy(cns.DirectionTypeOut)
@@ -251,6 +253,13 @@ func (k *K8sSWIFTv2Middleware) getInfraRoutes(podIPInfo *cns.PodIpInfo) ([]cns.R
 	}
 
 	return routes, nil
+}
+
+// podHasDefaultDenyLabel reports whether the pod carries configuration.LabelPodDefaultDeny,
+// which opts a non-SwiftV2 pod into SwiftV2-style default-deny ACLs on its InfraNIC.
+func podHasDefaultDenyLabel(pod v1.Pod) bool {
+	_, ok := pod.Labels[configuration.LabelPodDefaultDeny]
+	return ok
 }
 
 // applyDefaultDenyToInfraNIC appends the default-deny ACL endpoint policies to the

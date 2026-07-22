@@ -189,13 +189,6 @@ func ValidateSwiftv2Pod(pod v1.Pod) bool {
 	return swiftV2PodNetworkLabel || swiftV2PodNetworkInstanceLabel
 }
 
-// podHasDefaultDenyLabel reports whether the pod carries configuration.LabelPodDefaultDeny,
-// which opts a non-SwiftV2 pod into SwiftV2-style default-deny ACLs on its InfraNIC.
-func podHasDefaultDenyLabel(pod v1.Pod) bool {
-	_, ok := pod.Labels[configuration.LabelPodDefaultDeny]
-	return ok
-}
-
 func (k *K8sSWIFTv2Middleware) getMTPNC(ctx context.Context, podInfo cns.PodInfo) (mtpncResource v1alpha1.MultitenantPodNetworkConfig, respCode types.ResponseCode, message string) {
 	// Check if the MTPNC CRD exists for the pod, if not, return error
 	mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
