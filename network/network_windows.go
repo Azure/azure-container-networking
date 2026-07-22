@@ -91,10 +91,12 @@ func (nm *networkManager) ensureNetwork(epInfo *EndpointInfo) error {
 		if epInfo.NICType == cns.BackendNIC || epInfo.NICType == cns.ApipaNIC {
 			return nil
 		}
-		if _, err := Hnsv2.GetNetworkByName(epInfo.NetworkID); err == nil {
-			return nil
-		} else if !errors.As(err, &hcn.NetworkNotFoundError{}) {
+		exists, err := networkExistsInHNS(epInfo)
+		if err != nil {
 			return fmt.Errorf("checking HNS network %s: %w", epInfo.NetworkID, err)
+		}
+		if exists {
+			return nil
 		}
 
 		logger.Info("Removing stale network state after HNS network loss", zap.String("networkID", epInfo.NetworkID))
@@ -107,6 +109,32 @@ func (nm *networkManager) ensureNetwork(epInfo *EndpointInfo) error {
 		return err
 	}
 	return nm.CreateNetwork(epInfo)
+}
+
+func networkExistsInHNS(epInfo *EndpointInfo) (bool, error) {
+	useHNSv2, err := UseHnsV2(epInfo.NetNs)
+	if err != nil {
+		return false, err
+	}
+	if useHNSv2 {
+		_, err = Hnsv2.GetNetworkByName(epInfo.NetworkID)
+		if err == nil {
+			return true, nil
+		}
+		if errors.As(err, &hcn.NetworkNotFoundError{}) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	_, err = Hnsv1.GetHNSNetworkByName(epInfo.NetworkID)
+	if err == nil {
+		return true, nil
+	}
+	if errors.As(err, &hcsshim.NetworkNotFoundError{}) {
+		return false, nil
+	}
+	return false, err
 }
 
 // newNetworkImplHnsV1 creates a new container network for HNSv1.

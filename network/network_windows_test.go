@@ -17,6 +17,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -203,6 +204,65 @@ func TestEnsureNetworkPreservesStateOnHNSQueryFailure(t *testing.T) {
 	})
 	require.ErrorIs(t, err, hnswrapper.ErrHNSCallTimeout)
 	require.Same(t, staleNetwork, extIf.Networks[staleNetwork.Id])
+}
+
+func TestEnsureNetworkReconcilesHNSv1State(t *testing.T) {
+	const networkID = "azure"
+	tests := []struct {
+		name          string
+		networkErr    error
+		wantRecreated bool
+	}{
+		{
+			name: "preserves network present in HNS",
+		},
+		{
+			name:          "recreates network missing from HNS",
+			networkErr:    hcsshim.NetworkNotFoundError{NetworkName: networkID},
+			wantRecreated: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			hnsFake := hnswrapper.NewHnsv1wrapperFake()
+			hnsFake.NetworkErr = test.networkErr
+			previousHNS := Hnsv1
+			Hnsv1 = hnsFake
+			t.Cleanup(func() {
+				Hnsv1 = previousHNS
+			})
+
+			extIf := &externalInterface{
+				Name:     "eth0",
+				Networks: map[string]*network{},
+			}
+			staleNetwork := &network{
+				Id:        networkID,
+				HnsId:     "stale-hns-id",
+				Endpoints: map[string]*endpoint{"stale": {}},
+				extIf:     extIf,
+			}
+			extIf.Networks[networkID] = staleNetwork
+			nm := &networkManager{
+				ExternalInterfaces: map[string]*externalInterface{"eth0": extIf},
+			}
+
+			err := nm.ensureNetwork(&EndpointInfo{
+				NetworkID:    networkID,
+				MasterIfName: extIf.Name,
+				Mode:         opModeBridge,
+				NetNs:        "not-a-guid",
+			})
+			require.NoError(t, err)
+			if test.wantRecreated {
+				require.NotSame(t, staleNetwork, extIf.Networks[networkID])
+				require.Empty(t, extIf.Networks[networkID].Endpoints)
+			} else {
+				require.Same(t, staleNetwork, extIf.Networks[networkID])
+			}
+		})
+	}
 }
 
 func TestSuccesfulNetworkCreationWhenAlreadyExists(t *testing.T) {

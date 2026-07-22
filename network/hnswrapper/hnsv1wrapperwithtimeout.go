@@ -125,6 +125,27 @@ func (h Hnsv1wrapperwithtimeout) DeleteNetwork(networkId string) (*hcsshim.HNSNe
 	}
 }
 
+func (h Hnsv1wrapperwithtimeout) GetHNSNetworkByName(networkName string) (*hcsshim.HNSNetwork, error) {
+	r := make(chan NetworkFuncResult)
+	ctx, cancel := context.WithTimeout(context.TODO(), h.HnsCallTimeout)
+	defer cancel()
+
+	go func() {
+		network, err := h.Hnsv1.GetHNSNetworkByName(networkName)
+		r <- NetworkFuncResult{
+			network: network,
+			Err:     err,
+		}
+	}()
+
+	select {
+	case res := <-r:
+		return res.network, res.Err
+	case <-ctx.Done():
+		return nil, errors.Wrapf(ErrHNSCallTimeout, "GetHNSNetworkByName timeout value is %v ", h.HnsCallTimeout.String())
+	}
+}
+
 func (h Hnsv1wrapperwithtimeout) GetHNSEndpointByName(endpointName string) (*hcsshim.HNSEndpoint, error) {
 	r := make(chan EndpointFuncResult)
 	ctx, cancel := context.WithTimeout(context.TODO(), h.HnsCallTimeout)
