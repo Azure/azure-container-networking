@@ -4,6 +4,7 @@ parameters:
   cniType: "cniv2"                                    # CNI_TYPE for make test-load (cniv2 or stateless)
   validateCniType: "cniv2"                            # CNI_TYPE for make test-validate-state (cniv2, stateless, or dualstack)
   testLoadArgs: ""                                    # Extra args for make test-load (e.g. "INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true")
+  installCNS: true
   regionClusterTest: "$(REGION_AKS_CLUSTER_TEST)"
   scaleup: "32"
   runWireserverTests: "false"
@@ -73,7 +74,7 @@ steps:
         IPAM=${AZURE_IPAM_VERSION:-$(make azure-ipam-version)}
         CNS=${CNS_VERSION:-$(make cns-version)}
         CNI=${CNI_VERSION:-$(make cni-version)}
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=${{ parameters.scaleup }} OS_TYPE=windows CNI_TYPE=${{ parameters.cniType }} VALIDATE_STATEFILE=true INSTALL_CNS=true ${{ parameters.testLoadArgs }} AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=${CNI} CLEANUP=true
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=${{ parameters.scaleup }} OS_TYPE=windows CNI_TYPE=${{ parameters.cniType }} VALIDATE_STATEFILE=true INSTALL_CNS=${{ parameters.installCNS }} ${{ parameters.testLoadArgs }} AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CNI_VERSION=${CNI} CLEANUP=true
 
         # Run datapath tests
         echo "Windows Overlay DataPath Test"

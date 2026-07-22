@@ -10,6 +10,7 @@ parameters:
   dependsOn: ""
   region: ""
   os: linux
+  installAzureCNIOverlay: false
 
 jobs:
   - job: ${{ parameters.name }}
@@ -48,3 +49,8 @@ jobs:
             echo "Cluster successfully created"
         displayName: Cluster - ${{ parameters.clusterType }}
         continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}
+      - ${{ if eq(parameters.installAzureCNIOverlay, true) }}:
+        - template: install-azure-cni-overlay.steps.yaml
+          parameters:
+            clusterName: ${{ parameters.clusterName }}
+            os: ${{ parameters.os }}
