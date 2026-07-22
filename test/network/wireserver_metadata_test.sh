@@ -20,4 +20,5 @@ fi
 kubectl run "$POD_NAME" -it --rm --image busybox --restart Never "${OVERRIDES[@]}" -- wget --timeout=3 --header=Metadata:true "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
 if [ $? -ne 0 ]; then
     echo "metadata server connectivity expected to succeed but failed"
+    exit 1
 fi
