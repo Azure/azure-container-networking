@@ -9,9 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errFirstObservation     = errors.New("first observation failed")
+	errLastObservation      = errors.New("last observation failed")
+	errTransientObservation = errors.New("transient observation failure")
+)
+
 func TestRunValidationAttempts(t *testing.T) {
-	firstErr := errors.New("first observation failed")
-	lastErr := errors.New("last observation failed")
 	tests := []struct {
 		name          string
 		results       []bool
@@ -30,7 +34,7 @@ func TestRunValidationAttempts(t *testing.T) {
 		{
 			name:          "transient observation failure",
 			results:       []bool{false, true},
-			errs:          []error{firstErr, nil},
+			errs:          []error{errFirstObservation, nil},
 			wantAttempts:  2,
 			wantConverged: true,
 		},
@@ -44,16 +48,16 @@ func TestRunValidationAttempts(t *testing.T) {
 		{
 			name:         "returns latest exhausted error",
 			results:      []bool{false, false},
-			errs:         []error{firstErr, lastErr},
+			errs:         []error{errFirstObservation, errLastObservation},
 			wantAttempts: 2,
-			wantErr:      lastErr,
+			wantErr:      errLastObservation,
 		},
 		{
 			name:         "convergence does not hide error",
 			results:      []bool{true},
-			errs:         []error{lastErr},
+			errs:         []error{errLastObservation},
 			wantAttempts: 1,
-			wantErr:      lastErr,
+			wantErr:      errLastObservation,
 		},
 		{
 			name:         "exhausted mismatch",
@@ -85,7 +89,7 @@ func TestRunValidationAttemptsCanceled(t *testing.T) {
 	cancel()
 
 	attempts, converged, err := runValidationAttempts(ctx, 2, time.Hour, func() (bool, error) {
-		return false, errors.New("transient observation failure")
+		return false, errTransientObservation
 	})
 	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, 1, attempts)

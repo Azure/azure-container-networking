@@ -182,23 +182,23 @@ func runValidationAttempts(
 	maxAttempts int,
 	interval time.Duration,
 	validate func() (bool, error),
-) (int, bool, error) {
+) (attempts int, converged bool, validationErr error) {
 	if maxAttempts < 1 {
 		return 0, false, errors.New("validation attempts must be positive")
 	}
 
 	var lastErr error
-	for attempt := 1; ; attempt++ {
-		converged, err := validate()
+	for attempts = 1; ; attempts++ {
+		converged, validationErr = validate()
 		if converged {
-			if err != nil {
-				return attempt, false, err
+			if validationErr != nil {
+				return attempts, false, validationErr
 			}
-			return attempt, true, nil
+			return attempts, true, nil
 		}
-		lastErr = err
-		if attempt >= maxAttempts {
-			return attempt, false, lastErr
+		lastErr = validationErr
+		if attempts >= maxAttempts {
+			return attempts, false, lastErr
 		}
 		if interval <= 0 {
 			continue
@@ -208,7 +208,7 @@ func runValidationAttempts(
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return attempt, false, errors.Wrap(ctx.Err(), "waiting to retry state validation")
+			return attempts, false, errors.Wrap(ctx.Err(), "waiting to retry state validation")
 		case <-timer.C:
 		}
 	}
