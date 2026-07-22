@@ -137,6 +137,14 @@ func networkExistsInHNS(epInfo *EndpointInfo) (bool, error) {
 	return false, err
 }
 
+func (nm *networkManager) removeNetworkFromState(networkID string) {
+	nm.Lock()
+	defer nm.Unlock()
+	for _, extIf := range nm.ExternalInterfaces {
+		delete(extIf.Networks, networkID)
+	}
+}
+
 // newNetworkImplHnsV1 creates a new container network for HNSv1.
 func (nm *networkManager) newNetworkImplHnsV1(nwInfo *EndpointInfo, extIf *externalInterface) (*network, error) {
 	var (

@@ -336,11 +336,3 @@ func (nm *networkManager) EndpointCreate(cnsclient apipaClient, epInfos []*Endpo
 	// save endpoints
 	return nm.SaveState(eps)
 }
-
-func (nm *networkManager) removeNetworkFromState(networkID string) {
-	nm.Lock()
-	defer nm.Unlock()
-	for _, extIf := range nm.ExternalInterfaces {
-		delete(extIf.Networks, networkID)
-	}
-}
