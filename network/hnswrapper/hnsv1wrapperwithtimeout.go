@@ -126,7 +126,7 @@ func (h Hnsv1wrapperwithtimeout) DeleteNetwork(networkId string) (*hcsshim.HNSNe
 }
 
 func (h Hnsv1wrapperwithtimeout) GetHNSNetworkByName(networkName string) (*hcsshim.HNSNetwork, error) {
-	r := make(chan NetworkFuncResult)
+	r := make(chan NetworkFuncResult, 1)
 	ctx, cancel := context.WithTimeout(context.TODO(), h.HnsCallTimeout)
 	defer cancel()
 
