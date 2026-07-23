@@ -92,9 +92,11 @@ func TestEnsureNetworkReconcilesHNSState(t *testing.T) {
 		name             string
 		stateExists      bool
 		hnsNetworkExists bool
+		hnsNetworkErr    error
 		wantRecreated    bool
 		nicType          cns.NICType
 		wantHNSNetworks  int
+		wantErr          error
 	}{
 		{
 			name:             "preserves network present in HNS",
@@ -118,6 +120,18 @@ func TestEnsureNetworkReconcilesHNSState(t *testing.T) {
 			stateExists:     true,
 			nicType:         cns.BackendNIC,
 			wantHNSNetworks: 0,
+		},
+		{
+			name:            "APIPA NIC bypasses HNS",
+			stateExists:     true,
+			nicType:         cns.ApipaNIC,
+			wantHNSNetworks: 0,
+		},
+		{
+			name:          "preserves state on HNS query failure",
+			stateExists:   true,
+			hnsNetworkErr: errTestFailure,
+			wantErr:       errTestFailure,
 		},
 	}
 
@@ -150,6 +164,7 @@ func TestEnsureNetworkReconcilesHNSState(t *testing.T) {
 				_, err := hnsFake.CreateNetwork(&hcn.HostComputeNetwork{Name: networkID})
 				require.NoError(t, err)
 			}
+			hnsFake.NetworkErr = test.hnsNetworkErr
 
 			err := nm.ensureNetwork(&EndpointInfo{
 				NetworkID:    networkID,
@@ -158,6 +173,11 @@ func TestEnsureNetworkReconcilesHNSState(t *testing.T) {
 				NetNs:        dummyGUID,
 				NICType:      test.nicType,
 			})
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+				require.Same(t, staleNetwork, extIf.Networks[networkID])
+				return
+			}
 			require.NoError(t, err)
 			require.Len(t, hnsFake.Cache.GetNetworks(), test.wantHNSNetworks)
 			if test.wantRecreated {
@@ -248,6 +268,7 @@ func TestEnsureNetworkReconcilesHNSv1State(t *testing.T) {
 		name          string
 		networkErr    error
 		wantRecreated bool
+		wantErr       error
 	}{
 		{
 			name: "preserves network present in HNS",
@@ -256,6 +277,11 @@ func TestEnsureNetworkReconcilesHNSv1State(t *testing.T) {
 			name:          "recreates network missing from HNS",
 			networkErr:    hcsshim.NetworkNotFoundError{NetworkName: networkID},
 			wantRecreated: true,
+		},
+		{
+			name:       "preserves state on HNS query failure",
+			networkErr: errTestFailure,
+			wantErr:    errTestFailure,
 		},
 	}
 
@@ -290,6 +316,11 @@ func TestEnsureNetworkReconcilesHNSv1State(t *testing.T) {
 				Mode:         opModeBridge,
 				NetNs:        "not-a-guid",
 			})
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+				require.Same(t, staleNetwork, extIf.Networks[networkID])
+				return
+			}
 			require.NoError(t, err)
 			if test.wantRecreated {
 				require.NotSame(t, staleNetwork, extIf.Networks[networkID])
