@@ -26,6 +26,9 @@ type TestConfig struct {
 	RestartCase       bool   `env:"RESTART_CASE" default:"false"`
 	Cleanup           bool   `env:"CLEANUP" default:"false"`
 	CNSOnly           bool   `env:"CNS_ONLY" default:"false"`
+	// PoolLabelSelector optionally restricts state validation to nodes matching
+	// this label selector (e.g. "agentpool=pool1"). Empty validates all nodes.
+	PoolLabelSelector string `env:"POOL_LABEL_SELECTOR" default:""`
 }
 
 const (
@@ -171,7 +174,7 @@ func TestValidateState(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType)
+	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType, testConfig.PoolLabelSelector)
 	require.NoError(t, err)
 
 	err = validator.Validate(ctx)
@@ -228,7 +231,7 @@ func TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall(t *testing.
 		t.Run("Validate state file", TestValidateState)
 	}
 
-	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType)
+	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType, testConfig.PoolLabelSelector)
 	require.NoError(t, err)
 
 	deployment := kubernetes.MustParseDeployment(noopDeploymentMap[testConfig.OSType])
@@ -295,7 +298,7 @@ func TestV4OverlayProperties(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType)
+	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType, testConfig.PoolLabelSelector)
 	require.NoError(t, err)
 
 	// validate IPv4 overlay scenarios
@@ -319,7 +322,7 @@ func TestDualStackProperties(t *testing.T) {
 	defer cancel()
 
 	t.Log("Validating the dualstack node labels")
-	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType)
+	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType, testConfig.PoolLabelSelector)
 	require.NoError(t, err)
 
 	// validate dualstack overlay scenarios
