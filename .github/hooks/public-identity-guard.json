@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "python3 .github/hooks/deny-public-github-mutations.py",
+        "powershell": "python .github/hooks/deny-public-github-mutations.py",
+        "cwd": ".",
+        "timeoutSec": 5
+      }
+    ]
+  }
+}

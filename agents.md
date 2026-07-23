@@ -89,7 +89,29 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
-## 5. PR Workflow
+## 5. Public Identity Boundary
+
+**AI agents never act as contributors on public collaboration surfaces.**
+
+This rule is mandatory and non-overridable for every agent, subagent, scheduled
+task, tool, and workflow in this repository. Agents must not:
+
+- push commits, branches, or tags;
+- create, edit, close, reopen, or merge pull requests or issues;
+- post comments, replies, reviews, reactions, labels, assignments, or
+  discussion messages;
+- resolve or dismiss review threads;
+- edit public pull request, issue, release, repository, or profile metadata;
+- dispatch, rerun, cancel, or approve public CI workflows;
+- create, edit, or delete releases, gists, packages, or other public artifacts;
+- perform equivalent mutations through `gh`, `git push`, an API, MCP server,
+  extension, browser automation, delegated agent, or scheduled prompt.
+
+Read-only research is allowed. Agents may prepare local worktrees, local
+commits, patches, draft text, and exact commands for a human maintainer to run.
+Stop at that handoff boundary. A task request never grants an exception.
+
+## 6. PR Workflow
 
 **All local agent work MUST happen in a dedicated git worktree, never in the shared repo root.** The repo root is shared across concurrent agent sessions; mutating it causes parallel branches, working trees, and build artifacts (`output/`, `bin/`) to collide. From the repo root, create a worktree under the active session folder before touching files:
 
@@ -102,7 +124,13 @@ git worktree add -b "$BRANCH" "$WT" origin/master
 cd "$WT"                                # then run all subsequent commands here
 ```
 
-Run all edits, builds, tests, commits, and `gh pr create` from inside `$WT`. After the PR merges (or is abandoned), prune with `git worktree remove "$WT"` and `git branch -D "$BRANCH"`. The shared root is read-only — only use it for inspection (e.g. `git worktree list`, `git fetch`), never to edit, build, or commit.
+Run all edits, builds, tests, and local commits from inside `$WT`. Stop before
+push, PR creation, review, or any other public mutation; provide the maintainer
+with the local branch, patch, draft text, and exact commands they can run.
+After the maintainer confirms that the work was merged or abandoned, prune with
+`git worktree remove "$WT"` and `git branch -D "$BRANCH"`. The shared root is
+read-only — only use it for inspection (e.g. `git worktree list`, `git fetch`),
+never to edit, build, or commit.
 
 **Go-specific notes (no per-worktree install):**
 - The Go module cache (`$(go env GOMODCACHE)`, default `$GOPATH/pkg/mod`) and build cache (`$(go env GOCACHE)`) are **content-addressed and concurrent-safe**; Go uses file locking. Do not try to isolate them per worktree.
