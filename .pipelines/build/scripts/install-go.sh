@@ -11,8 +11,8 @@ set -euxo pipefail
 #   3. Hardcoded fallback digest below
 #
 # To update the fallback, run:
-#   skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.24-azurelinux3.0 --format "{{.Name}}@{{.Digest}}"
-DEFAULT_IMAGE="mcr.microsoft.com/oss/go/microsoft/golang@sha256:3999f970bb52b7413ef9be2803173d4fd7f1f3c59362a98a0c78d155e3a0e59f"
+#   skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0 --format "{{.Name}}@{{.Digest}}"
+DEFAULT_IMAGE="mcr.microsoft.com/oss/go/microsoft/golang@sha256:877a4c2aed044ce1b36c043c1af0c939c3129a7a854453117e5e2b9d574d4b52"
 
 # Resolves the golang image from the source Dockerfile for the given $name.
 # Echoes the image reference, or empty string if it cannot be determined.
@@ -49,8 +49,24 @@ fi
 
 ARCH="${ARCH:-amd64}"
 
+# Remove any pre-installed Go to prevent source file contamination.
+# tar extract overlays onto the existing directory without deleting files that
+# are absent from the archive. When the agent's pre-installed Go and msft-go
+# have different source files (e.g. crypto/internal/fips140, internal/runtime),
+# both sets survive the overlay, causing redeclaration and undefined-symbol
+# build errors.
+sudo rm -rf /usr/local/go
+
 # Extract /usr/local/go from the image without needing a Docker daemon.
 # crane export streams the full image filesystem; we extract just usr/local/go.
 crane export --platform "linux/${ARCH}" "$MSFT_GO_IMAGE" - | sudo tar -xf - -C / usr/local/go
+
+# Prevent the Go toolchain from auto-downloading upstream (non-FIPS) Go.
+# With GOTOOLCHAIN=local, the build uses exactly the msft-go we just installed.
+export GOTOOLCHAIN=local
+echo "##vso[task.setvariable variable=GOTOOLCHAIN]local"
+
+# Clear any build cache left by the agent's previous Go version.
+/usr/local/go/bin/go clean -cache 2>/dev/null || true
 
 echo "##vso[task.prependpath]/usr/local/go/bin"

@@ -116,6 +116,7 @@ NPM_IMAGE_INFO_FILE			= azure-npm-$(NPM_VERSION).txt
 #Tools paths
 TOOLS_GO_MOD = $(REPO_ROOT)/tools.go.mod
 
+
 # Default target
 all-binaries-platforms: ## Make all platform binaries
 	@for goos in "$(GOOSES)"; do \

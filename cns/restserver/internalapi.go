@@ -78,7 +78,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	if err != nil {
 		returnCode = types.UnexpectedError
 		errStr = fmt.Sprintf("[Azure-CNS] Failed to sync node with error: %+v", err)
-		logger.Errorf(errStr)
+		logger.Errorf("%s", errStr) //nolint:staticcheck // will migrate to logger/v2
 		return
 	}
 
@@ -573,7 +573,7 @@ func (service *HTTPRestService) MustEnsureNoStaleNCs(validNCIDs []string) {
 			// stale NCs with assigned IPs are an unexpected CNS state which we need to alert on.
 			if assignedIPs, hasAssignedIPs := ncIDToAssignedIPs[ncID]; hasAssignedIPs {
 				msg := fmt.Sprintf("Unexpected state: found stale NC ID %s in CNS state with %d assigned IPs: %+v", ncID, len(assignedIPs), assignedIPs)
-				logger.Errorf(msg)
+				logger.Errorf("%s", msg) //nolint:staticcheck // will migrate to logger/v2
 				panic(msg)
 			}
 
@@ -655,13 +655,13 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 		logNCSnapshot(*req)
 		service.publishIPStateMetrics()
 	} else {
-		logger.Errorf(returnMessage)
+		logger.Errorf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
 	}
 
 	if service.Options[common.OptProgramSNATIPTables] == true {
 		returnCode, returnMessage = service.programSNATRules(req)
 		if returnCode != 0 {
-			logger.Errorf(returnMessage)
+			logger.Errorf("%s", returnMessage) //nolint:staticcheck // will migrate to logger/v2
 		}
 	}
 
