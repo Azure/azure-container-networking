@@ -1,0 +1,30 @@
+parameters:
+  clusterName: ""
+  os: linux
+
+steps:
+  - task: AzureCLI@2
+    displayName: "Restart CNS without rebooting nodes"
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -euo pipefail
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+        daemon_set=azure-cns
+        if [[ "${{ parameters.os }}" == "windows" ]]; then
+          daemon_set=azure-cns-win
+        fi
+
+        kubectl rollout restart daemonset "$daemon_set" -n kube-system
+        kubectl rollout status daemonset "$daemon_set" -n kube-system --timeout=20m
+
+  - template: ../../load-test-templates/validate-state-template.yaml
+    parameters:
+      clusterName: ${{ parameters.clusterName }}
+      os: ${{ parameters.os }}
+      cni: cniv2
+      restartCase: "true"

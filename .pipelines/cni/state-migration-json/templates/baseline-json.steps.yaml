@@ -1,0 +1,19 @@
+parameters:
+  clusterName: ""
+  os: linux
+
+steps:
+  - task: AzureCLI@2
+    displayName: "Create baseline workload and validate JSON state"
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: inlineScript
+      scriptType: bash
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -euo pipefail
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        make test-validate-state \
+          VALIDATE_STATEFILE=true \
+          OS_TYPE=${{ parameters.os }} \
+          CNI_TYPE=cniv2
