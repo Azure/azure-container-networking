@@ -3,13 +3,13 @@
 ARG ARCH
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM  AS mariner-core
+FROM mcr.microsoft.com/azurelinux/base/core@sha256:a30e18dd24a8080ee0b72d0f998a688e99380678a407bdd7c3a0ac7417b15eb3 AS mariner-core
 
 # mcr.microsoft.com/azurelinux/distroless/base:3.0
-FROM  AS mariner-distroless
+FROM mcr.microsoft.com/azurelinux/distroless/base@sha256:178f25fadf466549d31e234b3091bf815161159f2f2bc98720bbf39f7368aff4 AS mariner-distroless
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0
-FROM --platform=linux/${ARCH}  AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:f0363c90b1a42a06fb72eced44dd0330003ae1d9a855c74f209363a9ba9a684d AS go
 
 
 FROM go AS azure-iptables-monitor

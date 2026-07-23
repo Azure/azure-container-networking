@@ -3,14 +3,14 @@
 ARG ARCH
 
 # mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
-FROM --platform=windows/${ARCH}  AS windows
+FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b AS windows
 ARG ARTIFACT_DIR .
 
 COPY ${ARTIFACT_DIR}/bin/dropgz.exe /dropgz.exe
 ENTRYPOINT [ "/dropgz.exe" ]
 
 # mcr.microsoft.com/azurelinux/distroless/base:3.0
-FROM --platform=linux/${ARCH}  AS linux
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/base@sha256:178f25fadf466549d31e234b3091bf815161159f2f2bc98720bbf39f7368aff4 AS linux
 ARG ARTIFACT_DIR .
 
 COPY ${ARTIFACT_DIR}/bin/dropgz /dropgz

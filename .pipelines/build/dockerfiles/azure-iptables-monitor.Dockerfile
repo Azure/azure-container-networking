@@ -3,10 +3,10 @@
 ARG ARCH
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM  AS mariner-core
+FROM mcr.microsoft.com/azurelinux/base/core@sha256:a30e18dd24a8080ee0b72d0f998a688e99380678a407bdd7c3a0ac7417b15eb3 AS mariner-core
 
 # mcr.microsoft.com/azurelinux/distroless/base:3.0
-FROM  AS mariner-distroless
+FROM mcr.microsoft.com/azurelinux/distroless/base@sha256:178f25fadf466549d31e234b3091bf815161159f2f2bc98720bbf39f7368aff4 AS mariner-distroless
 
 FROM mariner-core AS iptools
 RUN tdnf install -y iptables iproute

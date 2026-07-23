@@ -5,13 +5,13 @@ ARG OS_VERSION
 ARG OS
 
 # mcr.microsoft.com/oss/go/microsoft/golang:1.26-azurelinux3.0
-FROM --platform=linux/${ARCH}  AS go
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:f0363c90b1a42a06fb72eced44dd0330003ae1d9a855c74f209363a9ba9a684d AS go
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM  AS mariner-core
+FROM mcr.microsoft.com/azurelinux/base/core@sha256:a30e18dd24a8080ee0b72d0f998a688e99380678a407bdd7c3a0ac7417b15eb3 AS mariner-core
 
 # mcr.microsoft.com/azurelinux/distroless/base:3.0
-FROM  AS mariner-distroless
+FROM mcr.microsoft.com/azurelinux/distroless/base@sha256:178f25fadf466549d31e234b3091bf815161159f2f2bc98720bbf39f7368aff4 AS mariner-distroless
 
 FROM --platform=linux/${ARCH} go AS builder
 ARG OS
@@ -34,7 +34,7 @@ ENTRYPOINT [ "/usr/local/bin/azure-cns" ]
 EXPOSE 10090
 
 # mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
-FROM --platform=windows/${ARCH}  as hpc
+FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b as hpc
 
 FROM hpc as windows
 COPY --from=builder /go/bin/azure-cns /azure-cns.exe

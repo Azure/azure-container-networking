@@ -3,7 +3,7 @@
 ARG ARCH
 
 # mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image:v1.0.0
-FROM --platform=windows/${ARCH}  AS windows
+FROM --platform=windows/${ARCH} mcr.microsoft.com/oss/kubernetes/windows-host-process-containers-base-image@sha256:b4c9637e032f667c52d1eccfa31ad8c63f1b035e8639f3f48a510536bf34032b AS windows
 ARG ARTIFACT_DIR .
 
 COPY ${ARTIFACT_DIR}/bin/azure-cns.exe /azure-cns.exe
@@ -11,11 +11,11 @@ ENTRYPOINT ["azure-cns.exe"]
 EXPOSE 10090
 
 # mcr.microsoft.com/azurelinux/base/core:3.0
-FROM --platform=linux/${ARCH}  AS build-helper
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/base/core@sha256:a30e18dd24a8080ee0b72d0f998a688e99380678a407bdd7c3a0ac7417b15eb3 AS build-helper
 RUN tdnf install -y iptables
 
 # mcr.microsoft.com/azurelinux/distroless/base:3.0
-FROM --platform=linux/${ARCH}  AS linux
+FROM --platform=linux/${ARCH} mcr.microsoft.com/azurelinux/distroless/base@sha256:178f25fadf466549d31e234b3091bf815161159f2f2bc98720bbf39f7368aff4 AS linux
 ARG ARTIFACT_DIR .
 
 COPY --from=build-helper /usr/sbin/*tables* /usr/sbin/
