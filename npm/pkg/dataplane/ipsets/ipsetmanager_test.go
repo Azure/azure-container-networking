@@ -76,6 +76,18 @@ var (
 	nestedPodLabelList = NewIPSetMetadata("test-nested-pod-label-list", NestedLabelOfPod)
 )
 
+// TestAddReferenceCIDRSingleOwner checks a CIDR set is bound to one netpol: the owner
+// (and re-applies) are accepted, a different netpol is rejected.
+func TestAddReferenceCIDRSingleOwner(t *testing.T) {
+	metrics.ReinitializeAll()
+	iMgr := NewIPSetManager(applyAlwaysCfg, common.NewMockIOShim(nil))
+	cidrSet := NewIPSetMetadata("9-a-in-ns-b-in-ns-1-c-0-0IN", CIDRBlocks)
+
+	require.NoError(t, iMgr.AddReference(cidrSet, "c/a-in-ns-b", NetPolType)) // owner
+	require.NoError(t, iMgr.AddReference(cidrSet, "c/a-in-ns-b", NetPolType)) // owner re-apply
+	require.Error(t, iMgr.AddReference(cidrSet, "b-in-ns-c/a", NetPolType))   // different netpol
+}
+
 func TestReconcileCache(t *testing.T) {
 	type args struct {
 		cfg          *IPSetManagerCfg
