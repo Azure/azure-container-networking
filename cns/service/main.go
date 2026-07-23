@@ -1592,22 +1592,30 @@ func InitializeCRDState(ctx context.Context, z *zap.Logger, httpRestService cns.
 		if err := mtpncctrl.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
 		}
-		// Register a noop NICNetworkConfig reconciler so the informer/cache is
-		// warm before the middleware reads it via the cached client.
-		if err := nicncctrl.SetupWithManager(manager); err != nil {
-			return errors.Wrapf(err, "failed to setup nicnetworkconfig reconciler with manager")
-		}
 		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
 		// switch here for AKS(K8s) swiftv2 middleware to process IP configs requests
 		swiftV2Middleware := &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient(), NodeName: nodeName, Logger: z.With(zap.String("component", "swiftv2-middleware"))}
 		httpRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
-		httpRestServiceImplementation.AttachNICNCClient(swiftV2Middleware)
-		httpRestServiceImplementation.AttachMTPNCClient(swiftV2Middleware)
-	}
 
-	// Attach NodeInfo client to read NIC info from NodeInfo CRD
-	nodeInfoCli := &multitenancy.NodeInfoClient{Cli: manager.GetClient()}
-	httpRestServiceImplementation.AttachNodeInfoClient(nodeInfoCli, nodeName)
+		// SWIFT v2 prefix-on-NIC allocation (delegated NIC sharing via DRA) is an
+		// opt-in extension of SWIFT v2. Only when it is enabled do we warm the
+		// NICNetworkConfig informer and wire up the clients that back the
+		// NIC-resources APIs (getNICResources / requestClaimConfig).
+		if cnsconfig.EnableSwiftV2PrefixAllocation {
+			// Register a noop NICNetworkConfig reconciler so the informer/cache is
+			// warm before the middleware reads it via the cached client.
+			if err := nicncctrl.SetupWithManager(manager, nodeName); err != nil {
+				return errors.Wrapf(err, "failed to setup nicnetworkconfig reconciler with manager")
+			}
+			httpRestServiceImplementation.AttachNICNCClient(swiftV2Middleware)
+			httpRestServiceImplementation.AttachMTPNCClient(swiftV2Middleware)
+
+			// Attach the NodeInfo client used to read NIC device info from the
+			// NodeInfo CRD when serving the NIC-resources APIs.
+			nodeInfoCli := &multitenancy.NodeInfoClient{Cli: manager.GetClient()}
+			httpRestServiceImplementation.AttachNodeInfoClient(nodeInfoCli, nodeName)
+		}
+	}
 
 	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
 	// NodeNetworkConfig update by the time the Reconciler tries to send it.

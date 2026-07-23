@@ -58,19 +58,18 @@ type imdsClient interface {
 	GetIMDSVersions(ctx context.Context) (*imds.APIVersionsResponse, error)
 }
 
-// nicNCClient enriches NICResource data with NICNetworkConfig CRD information (e.g., NetworkID, SubnetGUID).
-type nicNCClient interface {
+// nicncClient enriches NICResource data with NICNetworkConfig CRD information (e.g., NetworkID, SubnetGUID).
+type nicncClient interface {
 	GetNICResourceSliceInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error)
 }
 
-// mtpncClient enriches NICResource data with MTPNC CRD information for dedicated NICs,
-// which usually have no NICNetworkConfig.
+// mtpncClient enriches NICResource data with MTPNC CRD information for dedicated NICs.
 type mtpncClient interface {
 	GetMTPNCResourceSliceInfoByMAC(ctx context.Context) (map[string]*cns.NICResourceSliceInfo, error)
 }
 
-// nodeInfoClient reads NodeInfo CRDs to get NIC device info and VM metadata.
-type nodeInfoClient interface {
+// nodeinfoClient reads NodeInfo CRDs to get NIC device info and VM metadata.
+type nodeinfoClient interface {
 	Get(ctx context.Context, name string) (*v1alpha1.NodeInfo, error)
 }
 
@@ -119,9 +118,9 @@ type HTTPRestService struct {
 	PnpIDByMacAddress          map[string]string
 	imdsClient                 imdsClient
 	nodesubnetIPFetcher        *nodesubnet.IPFetcher
-	nicNCClient                nicNCClient
-	mtpncCli                   mtpncClient
-	nodeInfoCli                nodeInfoClient
+	nicncClient                nicncClient
+	mtpncClient                mtpncClient
+	nodeinfoClient             nodeinfoClient
 	nodeName                   string
 }
 
@@ -423,15 +422,15 @@ func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.
 	service.IPConfigsHandlerMiddleware = middleware
 }
 
-func (service *HTTPRestService) AttachNICNCClient(client nicNCClient) {
-	service.nicNCClient = client
+func (service *HTTPRestService) AttachNICNCClient(client nicncClient) {
+	service.nicncClient = client
 }
 
 func (service *HTTPRestService) AttachMTPNCClient(client mtpncClient) {
-	service.mtpncCli = client
+	service.mtpncClient = client
 }
 
-func (service *HTTPRestService) AttachNodeInfoClient(client nodeInfoClient, nodeName string) {
-	service.nodeInfoCli = client
+func (service *HTTPRestService) AttachNodeInfoClient(client nodeinfoClient, nodeName string) {
+	service.nodeinfoClient = client
 	service.nodeName = nodeName
 }

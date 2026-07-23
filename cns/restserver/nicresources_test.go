@@ -35,7 +35,7 @@ const (
 func TestGetNICResourcesNotConfigured(t *testing.T) {
 	svc := &HTTPRestService{
 		Service: &cns.Service{Service: &common.Service{}},
-	} // nodeInfoCli nil, nodeName ""
+	} // nodeinfoClient nil, nodeName ""
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, cns.GetNICResources, http.NoBody)
@@ -104,11 +104,11 @@ func TestGetNICResources(t *testing.T) {
 	}
 
 	svc := &HTTPRestService{
-		Service:     &cns.Service{Service: &common.Service{}},
-		nodeName:    testNodeName,
-		nodeInfoCli: &fakeNodeInfoClient{nodeInfo: nodeInfo},
-		nicNCClient: &fakeNICNCClient{m: nicNC},
-		mtpncCli:    &fakeMTPNCClient{m: mtpnc},
+		Service:        &cns.Service{Service: &common.Service{}},
+		nodeName:       testNodeName,
+		nodeinfoClient: &fakeNodeInfoClient{nodeInfo: nodeInfo},
+		nicncClient:    &fakeNICNCClient{m: nicNC},
+		mtpncClient:    &fakeMTPNCClient{m: mtpnc},
 	}
 
 	w := httptest.NewRecorder()

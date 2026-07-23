@@ -111,6 +111,16 @@ var (
 		},
 		[]string{},
 	)
+	// nicResourceMACParseErrors counts NodeInfo device MAC addresses that failed to
+	// parse while building the NIC resources response. The offending MAC is logged,
+	// not used as a metric label (a MAC is too high-cardinality to be a label). Drive
+	// alerting off the rate of increase.
+	nicResourceMACParseErrors = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "cns_nicresources_mac_parse_errors_total",
+			Help: "Number of NodeInfo device MAC addresses that failed to parse while building the NIC resources response.",
+		},
+	)
 )
 
 func init() {
@@ -126,6 +136,7 @@ func init() {
 		availableIPCount,
 		pendingProgrammingIPCount,
 		pendingReleaseIPCount,
+		nicResourceMACParseErrors,
 	)
 }
 

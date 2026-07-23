@@ -36,10 +36,10 @@ func (f *fakeSwiftV2NICMiddleware) GetPodNICMACs(context.Context, cns.PodInfo) (
 func TestPodNICResources(t *testing.T) {
 	svc := &HTTPRestService{
 		Service: &cns.Service{Service: &common.Service{}},
-		nicNCClient: &fakeNICNCClient{m: map[string]*cns.NICResourceSliceInfo{
+		nicncClient: &fakeNICNCClient{m: map[string]*cns.NICResourceSliceInfo{
 			testMAC01: {NetworkID: testNet1, SubnetGUID: testGUID1, SubnetName: testSubnet1, Capacity: 16},
 		}},
-		mtpncCli: &fakeMTPNCClient{m: map[string]*cns.NICResourceSliceInfo{
+		mtpncClient: &fakeMTPNCClient{m: map[string]*cns.NICResourceSliceInfo{
 			testMAC02: {NetworkID: testNet2, SubnetGUID: "guid2", SubnetName: "subnet2", Capacity: 1},
 		}},
 	}

@@ -29,8 +29,8 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 		// They may be unset if AttachNodeInfoClient was never called (e.g. the
 		// feature is not configured), so guard against a nil client / empty name
 		// instead of panicking.
-		if service.nodeInfoCli == nil || service.nodeName == "" {
-			l.Error("getNICResources not configured", zap.Bool("nodeInfoCliSet", service.nodeInfoCli != nil), zap.Bool("nodeNameSet", service.nodeName != ""))
+		if service.nodeinfoClient == nil || service.nodeName == "" {
+			l.Error("getNICResources not configured", zap.Bool("nodeinfoClientSet", service.nodeinfoClient != nil), zap.Bool("nodeNameSet", service.nodeName != ""))
 			resp := cns.GetNICResourcesResponse{
 				Response: cns.Response{
 					ReturnCode: types.UnexpectedError,
@@ -42,7 +42,7 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 		}
 
 		// Step 1: Get list of NICs (MACs) from NodeInfo CRD.
-		nodeInfo, err := service.nodeInfoCli.Get(ctx, service.nodeName)
+		nodeInfo, err := service.nodeinfoClient.Get(ctx, service.nodeName)
 		if err != nil {
 			l.Error("failed to fetch NodeInfo CRD", zap.String("node", service.nodeName), zap.Error(err))
 			resp := cns.GetNICResourcesResponse{
@@ -61,6 +61,10 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 		for _, device := range nodeInfo.Status.DeviceInfos {
 			normalizedMAC, parseErr := net.ParseMAC(device.MacAddress)
 			if parseErr != nil {
+				// Skip this NIC, but surface the failure as an alertable metric in addition
+				// to the log so a bad MAC in NodeInfo isn't silently ignored. The MAC value
+				// stays in the log — it's too high-cardinality to be a metric label.
+				nicResourceMACParseErrors.Inc()
 				l.Warn("failed to parse MAC from NodeInfo", zap.String("mac", device.MacAddress), zap.Error(parseErr))
 				continue
 			}
@@ -97,18 +101,18 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 		// Step 3: Fetch per-NIC network/subnet/capacity from NICNetworkConfig (shared
 		// prefix-on-NIC NICs).
 		var nicResourceSliceInfoByMAC map[string]*cns.NICResourceSliceInfo
-		if service.nicNCClient != nil {
-			nicResourceSliceInfoByMAC, err = service.nicNCClient.GetNICResourceSliceInfoByMAC(ctx)
+		if service.nicncClient != nil {
+			nicResourceSliceInfoByMAC, err = service.nicncClient.GetNICResourceSliceInfoByMAC(ctx)
 			if err != nil {
 				l.Warn("failed to fetch NICNetworkConfig data", zap.Error(err))
 			}
 		}
 
-		// Step 4: Fetch per-NIC data from MTPNC. Dedicated NICs usually have no
-		// NICNetworkConfig and are served from MTPNC as a fallback (see Step 5).
+		// Step 4: Fetch per-NIC data from MTPNC. Dedicated NICs do not have
+		// NICNetworkConfig and are served from MTPNC.
 		var mtpncResourceSliceInfoByMAC map[string]*cns.NICResourceSliceInfo
-		if service.mtpncCli != nil {
-			mtpncResourceSliceInfoByMAC, err = service.mtpncCli.GetMTPNCResourceSliceInfoByMAC(ctx)
+		if service.mtpncClient != nil {
+			mtpncResourceSliceInfoByMAC, err = service.mtpncClient.GetMTPNCResourceSliceInfoByMAC(ctx)
 			if err != nil {
 				l.Warn("failed to fetch MTPNC data", zap.Error(err))
 			}
@@ -147,7 +151,7 @@ func (service *HTTPRestService) getNICResources(w http.ResponseWriter, r *http.R
 
 // enrichNICResource populates res.NetworkID/SubnetGUID/SubnetName/Capacity for a NIC,
 // looked up by canonical MAC. NICNetworkConfig is preferred (shared prefix-on-NIC NICs);
-// MTPNC is the fallback for dedicated NICs, which usually have no NICNetworkConfig. MTPNC
+// MTPNC is the fallback for dedicated NICs, which has no NICNetworkConfig. MTPNC
 // never overrides NICNetworkConfig, and a NIC found in neither keeps zero capacity.
 func enrichNICResource(res *cns.NICResource, mac string, nicResourceSliceInfoByMAC, mtpncResourceSliceInfoByMAC map[string]*cns.NICResourceSliceInfo) {
 	info := nicResourceSliceInfoByMAC[mac]

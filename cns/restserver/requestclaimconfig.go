@@ -102,13 +102,13 @@ func (service *HTTPRestService) podNICResources(ctx context.Context, l *zap.Logg
 	}
 
 	var nicResourceSliceInfoByMAC, mtpncResourceSliceInfoByMAC map[string]*cns.NICResourceSliceInfo
-	if service.nicNCClient != nil {
-		if nicResourceSliceInfoByMAC, err = service.nicNCClient.GetNICResourceSliceInfoByMAC(ctx); err != nil {
+	if service.nicncClient != nil {
+		if nicResourceSliceInfoByMAC, err = service.nicncClient.GetNICResourceSliceInfoByMAC(ctx); err != nil {
 			l.Warn("failed to fetch NICNetworkConfig data", zap.Error(err))
 		}
 	}
-	if service.mtpncCli != nil {
-		if mtpncResourceSliceInfoByMAC, err = service.mtpncCli.GetMTPNCResourceSliceInfoByMAC(ctx); err != nil {
+	if service.mtpncClient != nil {
+		if mtpncResourceSliceInfoByMAC, err = service.mtpncClient.GetMTPNCResourceSliceInfoByMAC(ctx); err != nil {
 			l.Warn("failed to fetch MTPNC data", zap.Error(err))
 		}
 	}
