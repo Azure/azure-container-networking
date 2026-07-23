@@ -33,6 +33,28 @@ HTTP_MUTATION_PATTERN = re.compile(
     r")",
     re.IGNORECASE,
 )
+PROTECTED_PATHS = (
+    ".github/copilot-instructions.md",
+    ".github/hooks/deny-public-github-mutations.py",
+    ".github/hooks/public-identity-guard.json",
+    "agents.md",
+)
+FILE_MUTATION_PATTERN = re.compile(
+    r"(?:"
+    r"(?<![\w.-])(?:rm|mv|cp|install|chmod|chown|truncate|unlink)\b"
+    r"|(?:^|\s)(?:sed|perl)\s+[^\n]*-[^\n]*i"
+    r"|(?:^|\s)(?:tee|dd)\b"
+    r"|>{1,2}"
+    r")",
+    re.IGNORECASE,
+)
+WRITE_TOOLS = {
+    "apply_patch",
+    "create",
+    "edit",
+    "str_replace_editor",
+    "write",
+}
 
 
 def decision(value: str, reason: str = "") -> None:
@@ -83,6 +105,9 @@ def denied(payload: dict[str, Any]) -> bool:
     normalized = tool_name.rsplit(".", 1)[-1].lower()
     if "github" in lowered_tool_name and normalized not in {"web_fetch", "web_search"}:
         return True
+    if normalized in WRITE_TOOLS:
+        serialized_args = json.dumps(tool_args, sort_keys=True, default=str)
+        return any(path in serialized_args for path in PROTECTED_PATHS)
     if normalized not in {"bash", "powershell"}:
         return False
 
@@ -96,6 +121,9 @@ def denied(payload: dict[str, Any]) -> bool:
     command = tool_args.get("command", tool_args.get("script"))
     if not isinstance(command, str):
         return True
+    if any(path in command for path in PROTECTED_PATHS):
+        if FILE_MUTATION_PATTERN.search(command):
+            return True
     return (
         FORGE_CLI_PATTERN.search(command) is not None
         or is_git_push(command)
