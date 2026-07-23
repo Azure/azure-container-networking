@@ -566,6 +566,10 @@ func main() {
 		}
 	}
 	configuration.SetCNSConfigDefaults(cnsconfig)
+	if err := cnsconfig.ValidateStateStore(); err != nil {
+		logger.Errorf("fatal: invalid CNS state store configuration: %v", err)
+		os.Exit(1)
+	}
 
 	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
 	if !disableTelemetry {

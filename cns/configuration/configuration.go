@@ -3,6 +3,7 @@ package configuration
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -22,6 +23,25 @@ const (
 	defaultConfigName = "cns_config.json"
 )
 
+type StateStoreBackend string
+
+const (
+	StateStoreBackendJSON StateStoreBackend = "json"
+	StateStoreBackendBolt StateStoreBackend = "bolt"
+)
+
+type StateStoreMode string
+
+const (
+	StateStoreModeNormal         StateStoreMode = "normal"
+	StateStoreModeRollbackToJSON StateStoreMode = "rollback-to-json"
+)
+
+var (
+	ErrInvalidStateStoreConfig      = errors.New("configuration: invalid state store configuration")
+	ErrStateStoreFeatureUnavailable = errors.New("configuration: bolt state store feature unavailable")
+)
+
 type CNSConfig struct {
 	AZRSettings                     AZRSettings
 	AsyncPodDeletePath              string
@@ -30,6 +50,7 @@ type CNSConfig struct {
 	ChannelMode                     string
 	EnableAPIServerHealthPing       bool
 	EnableAsyncPodDelete            bool
+	EnableBoltStateStore            bool
 	EnableCNIConflistGeneration     bool
 	EnableHomeAZ                    bool
 	EnableIPAMv2                    bool
@@ -51,6 +72,8 @@ type CNSConfig struct {
 	MellanoxMonitorIntervalSecs     int
 	MetricsBindAddress              string
 	ProgramSNATIPTables             bool
+	StateStoreBackend               StateStoreBackend
+	StateStoreMode                  StateStoreMode
 	SyncHostNCTimeoutMs             int
 	SyncHostNCVersionIntervalMs     int
 	TLSCertificatePath              string
@@ -65,6 +88,36 @@ type CNSConfig struct {
 	GRPCSettings                    GRPCSettings
 	MinTLSVersion                   string
 	MtlsClientCertSubjectName       string
+}
+
+func (cnsconfig CNSConfig) ValidateStateStore() error {
+	backend := cnsconfig.StateStoreBackend
+	if backend == "" {
+		backend = StateStoreBackendJSON
+	}
+	switch backend {
+	case StateStoreBackendJSON, StateStoreBackendBolt:
+	default:
+		return fmt.Errorf("%w: backend %q", ErrInvalidStateStoreConfig, backend)
+	}
+
+	mode := cnsconfig.StateStoreMode
+	if mode == "" {
+		mode = StateStoreModeNormal
+	}
+	switch mode {
+	case StateStoreModeNormal, StateStoreModeRollbackToJSON:
+	default:
+		return fmt.Errorf("%w: mode %q", ErrInvalidStateStoreConfig, mode)
+	}
+
+	boltEnabled := cnsconfig.EnableBoltStateStore
+	boltSelected := backend == StateStoreBackendBolt
+	rollbackSelected := mode == StateStoreModeRollbackToJSON
+	if boltEnabled || boltSelected || rollbackSelected {
+		return ErrStateStoreFeatureUnavailable
+	}
+	return nil
 }
 
 type TelemetrySettings struct {
@@ -223,6 +276,12 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 
 	if config.ChannelMode == "" {
 		config.ChannelMode = cns.Direct
+	}
+	if config.StateStoreBackend == "" {
+		config.StateStoreBackend = StateStoreBackendJSON
+	}
+	if config.StateStoreMode == "" {
+		config.StateStoreMode = StateStoreModeNormal
 	}
 	if config.MetricsBindAddress == "" {
 		config.MetricsBindAddress = ":9090"
