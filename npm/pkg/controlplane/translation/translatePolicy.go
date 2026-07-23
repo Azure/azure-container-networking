@@ -47,10 +47,14 @@ type podSelectorResult struct {
 type netpolPortType string
 
 const (
-	numericPortType      netpolPortType = "validport"
-	namedPortType        netpolPortType = "namedport"
-	included             bool           = true
-	ipBlocksetNameFormat                = "%s-in-ns-%s-%d-%d%s"
+	numericPortType netpolPortType = "validport"
+	namedPortType   netpolPortType = "namedport"
+	included        bool           = true
+	// ipBlocksetNameFormat separates the policy name and namespace with ":", which is not
+	// a valid character in either, so distinct (policy, namespace) pairs always produce
+	// distinct set names.
+	// Format: "<policy>:in-ns:<ns>-<setIndex>-<peerIndex><direction>".
+	ipBlocksetNameFormat = "%s:in-ns:%s-%d-%d%s"
 )
 
 // portType returns type of ports (e.g., numeric port or namedPort) given NetworkPolicyPort object.
@@ -134,14 +138,10 @@ func portRule(ruleIPSets []*ipsets.TranslatedIPSet, acl *policies.ACLPolicy, por
 	return ruleIPSets
 }
 
-// ipBlockSetName returns ipset name of the IPBlock.
-// It is our contract to format "<policyname>-in-ns-<namespace>-<ipblock index><direction of ipblock (i.e., ingress: IN, egress: OUT>"
-// as ipset name of the IPBlock.
-// For example, in case network policy object has
-// name: "test"
-// namespace: "default"
-// ingress rule
-// it returns "test-in-ns-default-0IN".
+// ipBlockSetName returns the ipset name of the IPBlock. The policy name and namespace
+// are separated by ":" (see ipBlocksetNameFormat), which neither can contain, so distinct
+// (policy, namespace) pairs always produce distinct names.
+// e.g. name "test", namespace "default", ingress (setIndex 0, peerIndex 0) -> "test:in-ns:default-0-0IN".
 func ipBlockSetName(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int) string {
 	return fmt.Sprintf(ipBlocksetNameFormat, policyName, ns, ipBlockSetIndex, ipBlockPeerIndex, direction)
 }
