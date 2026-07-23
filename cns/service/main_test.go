@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	mtv1alpha1 "github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/nmagent"
@@ -17,6 +16,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// stubHTTPService is a minimal cns.HTTPService for testing sendRegisterNodeRequest.
+type stubHTTPService struct{ cns.HTTPService }
+
+func (*stubHTTPService) SetNodeOrchestrator(*cns.SetOrchestratorTypeRequest) {}
 
 // MockHTTPClient is a mock implementation of HTTPClient
 type MockHTTPClient struct {
@@ -32,7 +36,7 @@ func (m *MockHTTPClient) Do(_ *http.Request) (*http.Response, error) {
 func TestSendRegisterNodeRequest_StatusOK(t *testing.T) {
 	ctx := context.Background()
 	logger.InitLogger("testlogs", 0, 0, "./")
-	httpServiceFake := fakes.NewHTTPServiceFake()
+	httpServiceFake := &stubHTTPService{}
 	nodeRegisterReq := cns.NodeRegisterRequest{
 		NumCores:             2,
 		NmAgentSupportedApis: nil,
@@ -55,7 +59,7 @@ func TestSendRegisterNodeRequest_StatusOK(t *testing.T) {
 func TestSendRegisterNodeRequest_StatusAccepted(t *testing.T) {
 	ctx := context.Background()
 	logger.InitLogger("testlogs", 0, 0, "./")
-	httpServiceFake := fakes.NewHTTPServiceFake()
+	httpServiceFake := &stubHTTPService{}
 	nodeRegisterReq := cns.NodeRegisterRequest{
 		NumCores:             2,
 		NmAgentSupportedApis: nil,
