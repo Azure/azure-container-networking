@@ -113,6 +113,21 @@ func TestRunValidationAttemptsCanceled(t *testing.T) {
 	}
 }
 
+func TestRunValidationAttemptsCanceledWhileWaiting(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
+	defer cancel()
+
+	call := 0
+	attempts, converged, err := runValidationAttempts(ctx, 2, time.Hour, func() (bool, error) {
+		call++
+		return false, errTransientObservation
+	})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Equal(t, 1, attempts)
+	require.False(t, converged)
+	require.Equal(t, 1, call)
+}
+
 func TestRunValidationAttemptsRejectsInvalidAttemptCount(t *testing.T) {
 	attempts, converged, err := runValidationAttempts(t.Context(), 0, 0, func() (bool, error) {
 		t.Fatal("validation callback must not run")
