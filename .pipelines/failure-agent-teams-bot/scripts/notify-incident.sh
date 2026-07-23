@@ -115,16 +115,20 @@ fi
 # channel. Build.RequestedForEmail is the AAD UPN the notifier resolves; empty
 # (some scheduled/service triggers) is a quiet skip. Build.RequestedFor is the
 # display name; notify_status defaults to the email prefix when it's absent.
+status_args+=(--cc-label "Initiated by")
 initiator_upn="${BUILD_REQUESTEDFOREMAIL:-}"
 initiator_name="${BUILD_REQUESTEDFOR:-}"
 if [[ -n "$initiator_upn" ]]; then
-  status_args+=(--cc-label "Initiated by")
   if [[ -n "$initiator_name" ]]; then
     status_args+=(--cc-user "${initiator_upn}|${initiator_name}")
   else
     status_args+=(--cc-user "$initiator_upn")
   fi
 fi
+
+# Always cc the failure-analysis owners so they're pinged on every card.
+status_args+=(--cc-user "johnpayne@microsoft.com|John Payne")
+status_args+=(--cc-user "behzadm@microsoft.com|Behzad Mirkhanzadeh")
 
 notify_status "${status_args[@]}"
 
