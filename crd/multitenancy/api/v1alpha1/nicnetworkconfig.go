@@ -59,9 +59,8 @@ type NICNetworkConfigSpec struct {
 	// +kubebuilder:validation:Optional
 	PodAllocationRequests []PodAllocationRequest `json:"podAllocations,omitempty"`
 	// CooldownPeriodInSeconds is the cooldown duration to keep this NIC's network container and its
-	// pre-allocated IPs reserved after the last pod is released, before tearing it down. Pointer so
+	// pre-allocated IPs reserved after the last pod is released, before tearing it down. Pointer
 	// unset (nil, defaults to 30) is distinguishable from an explicit 0, which disables the cooldown
-	// (the NICNC is torn down immediately once the last pod is released).
 	// +kubebuilder:default=30
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Optional
