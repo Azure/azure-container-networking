@@ -394,6 +394,40 @@ stages:
                 name: npm
                 platforms: linux/amd64 linux/arm64 windows/amd64
 
+    - stage: sbom
+      displayName: Generate SBOM
+      dependsOn:
+        - binaries
+        - publish
+        - publish_npm
+      variables:
+        Packaging.EnableSBOMSigning: true
+      jobs:
+        - job: sbom
+          displayName: Generate and Sign SBOM
+          pool:
+            name: "$(BUILD_POOL_NAME_DEFAULT)"
+          steps:
+            - task: DownloadBuildArtifacts@1
+              displayName: Download full output artifact drop
+              inputs:
+                buildType: current
+                artifactName: output
+                downloadPath: $(Pipeline.Workspace)
+
+            - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+              displayName: Generate SBOM over full output artifact drop and sign _manifest
+              inputs:
+                BuildDropPath: $(Pipeline.Workspace)/output
+                ManifestDirPath: $(Build.ArtifactStagingDirectory)/sbom
+
+            - task: PublishBuildArtifacts@1
+              displayName: Publish _manifest into output artifact
+              inputs:
+                artifactName: output
+                pathtoPublish: $(Build.ArtifactStagingDirectory)/sbom
+              condition: succeeded()
+
     # Cilium Podsubnet E2E tests
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
       parameters:
