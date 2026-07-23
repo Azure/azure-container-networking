@@ -91,25 +91,21 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ## 5. Public Identity Boundary
 
-**AI agents never act as contributors on public collaboration surfaces.**
+**AI agents never author public communication as maintainers or contributors.**
 
 This rule is mandatory and non-overridable for every agent, subagent, scheduled
-task, tool, and workflow in this repository. Agents must not:
+task, tool, and workflow in this repository. Agents must never post comments,
+replies, reviews, reactions, or discussion messages; resolve or dismiss review
+threads; or edit, close, reopen, lock, or otherwise change public pull request
+or issue text/metadata. Draft the exact text for a human maintainer instead.
 
-- push commits, branches, or tags;
-- create, edit, close, reopen, or merge pull requests or issues;
-- post comments, replies, reviews, reactions, labels, assignments, or
-  discussion messages;
-- resolve or dismiss review threads;
-- edit public pull request, issue, release, repository, or profile metadata;
-- dispatch, rerun, cancel, or approve public CI workflows;
-- create, edit, or delete releases, gists, packages, or other public artifacts;
-- perform equivalent mutations through `gh`, `git push`, an API, MCP server,
-  extension, browser automation, delegated agent, or scheduled prompt.
+Keep read-only GitHub capabilities available. Read-only `gh`, API, MCP, and web
+research is allowed.
 
-Read-only research is allowed. Agents may prepare local worktrees, local
-commits, patches, draft text, and exact commands for a human maintainer to run.
-Stop at that handoff boundary. A task request never grants an exception.
+Code publishing actions (including `git push` and pull request creation) and
+workflow/release mutations are allowed only when the current user task
+explicitly requests that public action. Do not infer authorization from a
+general request to implement, fix, review, or validate code.
 
 ## 6. PR Workflow
 
@@ -124,9 +120,11 @@ git worktree add -b "$BRANCH" "$WT" origin/master
 cd "$WT"                                # then run all subsequent commands here
 ```
 
-Run all edits, builds, tests, and local commits from inside `$WT`. Stop before
-push, PR creation, review, or any other public mutation; provide the maintainer
-with the local branch, patch, draft text, and exact commands they can run.
+Run all edits, builds, tests, and local commits from inside `$WT`. Unless the
+current task explicitly requests publishing, stop before push, PR creation, or
+workflow/release mutation and provide the maintainer with the exact commands.
+Always stop before public comments, replies, reviews, thread resolution, or
+PR/issue text edits; those remain human-only even when publishing is requested.
 After the maintainer confirms that the work was merged or abandoned, prune with
 `git worktree remove "$WT"` and `git branch -D "$BRANCH"`. The shared root is
 read-only — only use it for inspection (e.g. `git worktree list`, `git fetch`),
