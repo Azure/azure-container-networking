@@ -21,27 +21,39 @@ stages:
       AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
       CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
       CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
-      CNS_IMAGE_REPO: ACN
-      IPAM_IMAGE_REPO: ACN
-      CNI_IMAGE_REPO: ACN
       IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
       CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
       CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+      IPAM_IMAGE_REPO: ACN
+      CNS_IMAGE_REPO: ACN
+      CNI_IMAGE_REPO: ACN
     jobs:
-      - template: ../../templates/create-cluster.jobs.yaml
-        parameters:
-          name: ${{ parameters.name }}
-          displayName: ${{ parameters.displayName }}
-          clusterType: ${{ parameters.clusterType }}
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          vmSize: ${{ parameters.vmSize }}
-          vmSizeWin: ${{ parameters.vmSize }}
-          k8sVersion: ${{ parameters.k8sVersion }}
-          dependsOn: ${{ parameters.dependsOn }}
-          os: ${{ parameters.os }}
-          region: $(REGION_AKS_CLUSTER_TEST)
-          networkType: azure-cni-overlay
-
+      - job: ${{ parameters.name }}
+        displayName: Cluster - ${{ parameters.name }}
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          isCustom: true
+          type: linux
+        steps:
+          - checkout: azure-container-networking
+          - template: ../../templates/create-cluster-steps.yaml
+            parameters:
+              clusterType: ${{ parameters.clusterType }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              vmSize: ${{ parameters.vmSize }}
+              vmSizeWin: ${{ parameters.vmSize }}
+              k8sVersion: ${{ parameters.k8sVersion }}
+              os: ${{ parameters.os }}
+              region: $(REGION_AKS_CLUSTER_TEST)
+          - template: ../../templates/network-install.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              networkType: azure-cni-overlay
+              azureIpamVersion: $(AZURE_IPAM_VERSION)
+              cnsVersion: $(CNS_VERSION)
+              cniVersion: $(CNI_VERSION)
+              installFlag: INSTALL_AZURE_CNI_OVERLAY
+              os: ${{ parameters.os }}
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
     dependsOn:

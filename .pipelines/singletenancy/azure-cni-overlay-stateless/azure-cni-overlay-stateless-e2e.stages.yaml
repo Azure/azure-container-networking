@@ -15,22 +15,83 @@ stages:
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
+      AZURE_IPAM_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
+      CNI_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      CNS_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
+      IPAM_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/azure-ipam
+      CNS_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cns
+      CNI_IMAGE_NAME_OVERRIDE: $(IMAGE_REPO_PATH)/cni
+      IPAM_IMAGE_REPO: ACN
+      CNS_IMAGE_REPO: ACN
+      CNI_IMAGE_REPO: ACN
     jobs:
-      - template: ../../templates/create-cluster.jobs.yaml
-        parameters:
-          name: ${{ parameters.name }}
-          displayName: ${{ parameters.displayName }}
-          clusterType: ${{ parameters.clusterType }}
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          vmSize: ${{ parameters.vmSize }}
-          k8sVersion: ${{ parameters.k8sVersion }}
-          dependsOn: ${{ parameters.dependsOn }}
-          region: $(REGION_AKS_CLUSTER_TEST)
-      - template: ../../templates/add-windows-nodepool.jobs.yaml
-        parameters:
-          depend: ${{ parameters.name }}
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          vmSize: ${{ parameters.vmSize }}
+      - job: ${{ parameters.name }}
+        displayName: Cluster - ${{ parameters.name }}
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          isCustom: true
+          type: linux
+        steps:
+          - checkout: azure-container-networking
+          - template: ../../templates/create-cluster-steps.yaml
+            parameters:
+              clusterType: ${{ parameters.clusterType }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              vmSize: ${{ parameters.vmSize }}
+              k8sVersion: ${{ parameters.k8sVersion }}
+              region: $(REGION_AKS_CLUSTER_TEST)
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -e
+
+                windows_nodepool=$(az aks nodepool list \
+                --resource-group ${{ parameters.clusterName }}-$(commitID) \
+                --cluster-name ${{ parameters.clusterName }}-$(commitID) \
+                --query "[?osType=='Windows']" \
+                --output tsv)
+
+                if [ -z "$windows_nodepool" ]; then
+                  echo "No Windows node pool found in the AKS cluster."
+                  while true; do
+                    cluster_state=$(az aks show \
+                    --name "${{ parameters.clusterName }}-$(commitID)" \
+                    --resource-group "${{ parameters.clusterName }}-$(commitID)" \
+                    --query provisioningState)
+                    if echo "$cluster_state" | grep -q "Updating"; then
+                      echo "Cluster is updating. Sleeping for 30 seconds..."
+                      sleep 30
+                    else
+                      break
+                    fi
+                  done
+                  echo "Cluster state is: $cluster_state"
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                  make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}-$(commitID) VM_SIZE_WIN=${{ parameters.vmSize }}
+                  echo "Windows node was successfully added"
+                  kubectl cluster-info
+                  kubectl get node -owide
+                  kubectl get po -owide -A
+                else
+                  echo "Windows node pool already exists in the AKS cluster."
+                fi
+            name: "Add_Windows_Node"
+            displayName: "Add windows node to cluster"
+            retryCountOnTaskFailure: 5
+          - template: ../../templates/network-install.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              networkType: azure-cni-overlay-stateless
+              azureIpamVersion: $(AZURE_IPAM_VERSION)
+              cnsVersion: $(CNS_VERSION)
+              cniVersion: $(CNI_VERSION)
+              installFlag: INSTALL_AZURE_VNET_STATELESS
+              os: windows
 
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
@@ -39,11 +100,11 @@ stages:
     - ${{ parameters.clusterName }}
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
 
-      IMAGE_REPO_PATH: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.imageRepositoryPath'] ]
       AZURE_IPAM_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.azureIpamVersion'] ]
       CNI_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
       CNS_VERSION: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
@@ -100,4 +161,3 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: windows
               cni: cniv2
-

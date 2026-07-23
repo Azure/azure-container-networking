@@ -10,10 +10,6 @@ parameters:
   dependsOn: ""
   region: ""
   os: linux
-  networkType: ""
-  networkScaleup: 32
-  networkTestHubble: false
-  networkNightly: false
 
 jobs:
   - job: ${{ parameters.name }}
@@ -52,12 +48,3 @@ jobs:
             echo "Cluster successfully created"
         displayName: Cluster - ${{ parameters.clusterType }}
         continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}
-      - ${{ if ne(parameters.networkType, '') }}:
-        - template: network-install.yaml
-          parameters:
-            clusterName: ${{ parameters.clusterName }}
-            os: ${{ parameters.os }}
-            networkType: ${{ parameters.networkType }}
-            scaleup: ${{ parameters.networkScaleup }}
-            testHubble: ${{ parameters.networkTestHubble }}
-            nightly: ${{ parameters.networkNightly }}

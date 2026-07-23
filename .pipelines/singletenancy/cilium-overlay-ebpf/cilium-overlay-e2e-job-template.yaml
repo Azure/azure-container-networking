@@ -29,21 +29,28 @@ stages:
       CNS_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsImageNameOverride'] ]
       IPAM_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamImageNameOverride'] ]
       CNI_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniImageNameOverride'] ]
+      CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE: acnpublic.azurecr.io
+      CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ciliumLogCollectorVersion'] ]
     jobs:
-      - template: ../../templates/create-cluster.yaml
-        parameters:
-          name: ${{ parameters.name }}
-          displayName: ${{ parameters.displayName }}
-          clusterType: ${{ parameters.clusterType }}
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          vmSize: ${{ parameters.vmSize }}
-          k8sVersion: ${{ parameters.k8sVersion }}
-          dependsOn: ${{ parameters.dependsOn }}
-          osSKU: "AzureLinux"
-          region: $(REGION_AKS_CLUSTER_TEST)
-          networkType: cilium-ebpf-overlay
-          networkScaleup: 50
-
+      - job: ${{ parameters.name }}
+        displayName: Cluster - ${{ parameters.name }}
+        steps:
+          - template: ../../templates/create-cluster-steps.yaml
+            parameters:
+              clusterType: ${{ parameters.clusterType }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              vmSize: ${{ parameters.vmSize }}
+              k8sVersion: ${{ parameters.k8sVersion }}
+              osSKU: AzureLinux
+              region: $(REGION_AKS_CLUSTER_TEST)
+          - template: ../../templates/network-install.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              networkType: cilium-ebpf-overlay
+              azureIpamVersion: $(AZURE_IPAM_VERSION)
+              cnsVersion: $(CNS_VERSION)
+              cniVersion: $(CNI_VERSION)
+              installFlag: INSTALL_OVERLAY
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
     condition: and(succeeded(), eq(dependencies.setup.outputs['env.GitDiffCheck.RunCiliumTests'], 'true'))
@@ -55,10 +62,10 @@ stages:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       CNS_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsVersion'] ]
       AZURE_IPAM_VERSION: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamVersion'] ]
-      CNS_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsImageRepo'] ]
-      IPAM_IMAGE_REPO: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamImageRepo'] ]
-      CNS_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cnsImageNameOverride'] ]
-      IPAM_IMAGE_NAME_OVERRIDE: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.ipamImageNameOverride'] ]
+
+
+      CNS_IMAGE_NAME_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cnsImageNameOverride'] ]
+      IPAM_IMAGE_NAME_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipamImageNameOverride'] ]
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"

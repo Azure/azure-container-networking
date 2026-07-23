@@ -1,11 +1,19 @@
 parameters:
   - name: clusterName
     type: string
+  - name: networkType
+    type: string
+  - name: azureIpamVersion
+    type: string
+  - name: cnsVersion
+    type: string
+  - name: cniVersion
+    type: string
+  - name: installFlag
+    type: string
   - name: os
     type: string
     default: linux
-  - name: networkType
-    type: string
   - name: scaleup
     type: number
     default: 32
@@ -24,8 +32,93 @@ steps:
   - ${{ if startsWith(parameters.networkType, 'cilium') }}:
     - template: cilium-cli.yaml
 
+  - ${{ if startsWith(parameters.networkType, 'cilium') }}:
+    - task: AzureCLI@2
+      displayName: Install Cilium networking
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: inlineScript
+        scriptType: bash
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+          kubectl cluster-info
+
+          configure_ebpf() {
+            export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
+            export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
+          }
+
+          configure_ebpf_overlay() {
+            configure_ebpf
+            export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY=acnpublic.azurecr.io
+            export AZURE_IP_MASQ_MERGER_TAG=$(make azure-ip-masq-merger-version)
+          }
+
+          configure_dualstack() {
+            export IPV6_HP_BPF_VERSION=${IPV6_HP_BPF_VERSION:-$(make ipv6-hp-bpf-version)}
+            export IPV6_IMAGE_REGISTRY=${IPV6_IMAGE_REGISTRY:-acnpublic.azurecr.io}
+            if [ -n "$IPV6_HP_BPF_IMAGE_REPO_PATH" ]; then
+              export IPV6_IMAGE_REGISTRY="$IPV6_IMAGE_REGISTRY/$IPV6_HP_BPF_IMAGE_REPO_PATH"
+            fi
+            export IPV6_HP_BPF_IMAGE_REGISTRY="$IPV6_IMAGE_REGISTRY"
+          }
+
+          case "${{ parameters.networkType }}" in
+            cilium-podsubnet)
+              unset DIR CILIUM_VERSION_TAG
+              make -C ./hack/aks deploy-cilium
+              ;;
+            cilium-nodesubnet)
+              SECONDARY_IP_COUNT=$(( ${{ parameters.scaleup }} * 2 )) \
+              RESOURCE_GROUP="MC_${{ parameters.clusterName }}_${{ parameters.clusterName }}_$(REGION_AKS_CLUSTER_TEST)" \
+              go run $(Build.SourcesDirectory)/test/integration/cilium-nodesubnet/ipconfigupdate.go
+              unset DIR CILIUM_VERSION_TAG
+              make -C ./hack/aks deploy-cilium
+              ;;
+            cilium-overlay)
+              NIGHTLY_TAG="$CILIUM_VERSION_TAG"
+              unset DIR CILIUM_VERSION_TAG
+              if [ "${{ parameters.testHubble }}" = "True" ]; then
+                make -C ./hack/aks deploy-cilium-hubble
+              elif [ "$NIGHTLY_TAG" = "cilium-nightly-pipeline" ] || [ "${{ parameters.nightly }}" = "True" ]; then
+                make -C ./hack/aks deploy-cilium-nightly
+              else
+                make -C ./hack/aks deploy-cilium
+              fi
+              ;;
+            cilium-dualstack)
+              configure_dualstack
+              unset DIR CILIUM_VERSION_TAG
+              make -C ./hack/aks deploy-cilium-dualstack
+              ;;
+            cilium-ebpf-podsubnet)
+              configure_ebpf
+              make -C ./hack/aks deploy-ebpf-podsubnet-cilium
+              ;;
+            cilium-ebpf-overlay)
+              configure_ebpf_overlay
+              make -C ./hack/aks deploy-ebpf-overlay-cilium
+              ;;
+            cilium-ebpf-dualstack)
+              configure_ebpf_overlay
+              configure_dualstack
+              make -C ./hack/aks deploy-ebpf-dualstack-cilium
+              ;;
+            *)
+              echo "Unsupported networkType: ${{ parameters.networkType }}"
+              exit 1
+              ;;
+          esac
+
+          export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE:-acnpublic.azurecr.io}
+          export CILIUM_LOG_COLLECTOR_VERSION_TAG=${CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE:-$(make cilium-log-collector-version)}
+          make -C ./hack/aks add-cilium-log-collector
+          kubectl get pods -A -o wide
+
   - task: AzureCLI@2
-    displayName: Install ${{ parameters.networkType }} networking
+    displayName: Install ACN Networking
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: inlineScript
@@ -36,116 +129,15 @@ steps:
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         kubectl cluster-info
 
+        CNI_TYPE=cniv2
         case "${{ parameters.networkType }}" in
-          azure-cni-overlay)
-            if [ "${{ parameters.os }}" = "windows" ]; then
-              sudo -E env "PATH=$PATH" make test-load \
-                CNS_ONLY=true OS_TYPE=windows CNI_TYPE=cniv2 \
-                INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true \
-                CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
-                CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) \
-                CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
-            else
-              sudo -E env "PATH=$PATH" make test-load \
-                CNS_ONLY=true OS_TYPE=linux CNI_TYPE=cniv2 \
-                INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true \
-                AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \
-                CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
-                IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) \
-                CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) \
-                CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
-            fi
+          cilium-dualstack|cilium-ebpf-dualstack)
+            CNI_TYPE=cilium_dualstack
             ;;
-          cilium-podsubnet|cilium-nodesubnet|cilium-overlay|cilium-dualstack|cilium-ebpf-podsubnet|cilium-ebpf-overlay|cilium-ebpf-dualstack)
-            if [ "${{ parameters.networkType }}" = "cilium-nodesubnet" ]; then
-              SECONDARY_IP_COUNT=$(( ${{ parameters.scaleup }} * 2 )) \
-              RESOURCE_GROUP="MC_${{ parameters.clusterName }}_${{ parameters.clusterName }}_$(REGION_AKS_CLUSTER_TEST)" \
-              go run $(Build.SourcesDirectory)/test/integration/cilium-nodesubnet/ipconfigupdate.go
-            fi
-
-            case "${{ parameters.networkType }}" in
-              cilium-ebpf-podsubnet|cilium-ebpf-overlay|cilium-ebpf-dualstack)
-                export AZURE_IPTABLES_MONITOR_IMAGE_REGISTRY=acnpublic.azurecr.io
-                export AZURE_IPTABLES_MONITOR_TAG=$(make azure-iptables-monitor-version)
-                ;;
-            esac
-            case "${{ parameters.networkType }}" in
-              cilium-ebpf-overlay|cilium-ebpf-dualstack)
-                export AZURE_IP_MASQ_MERGER_IMAGE_REGISTRY=acnpublic.azurecr.io
-                export AZURE_IP_MASQ_MERGER_TAG=$(make azure-ip-masq-merger-version)
-                ;;
-            esac
-            case "${{ parameters.networkType }}" in
-              cilium-dualstack|cilium-ebpf-dualstack)
-                export IPV6_HP_BPF_VERSION=${IPV6_HP_BPF_VERSION:-$(make ipv6-hp-bpf-version)}
-                export IPV6_IMAGE_REGISTRY=${IPV6_IMAGE_REGISTRY:-acnpublic.azurecr.io}
-                if [ -n "$IPV6_HP_BPF_IMAGE_REPO_PATH" ]; then
-                  export IPV6_IMAGE_REGISTRY="$IPV6_IMAGE_REGISTRY/$IPV6_HP_BPF_IMAGE_REPO_PATH"
-                fi
-                export IPV6_HP_BPF_IMAGE_REGISTRY="$IPV6_IMAGE_REGISTRY"
-                ;;
-            esac
-
-            NIGHTLY_TAG="$CILIUM_VERSION_TAG"
-            unset DIR
-            unset CILIUM_VERSION_TAG
-            case "${{ parameters.networkType }}" in
-              cilium-podsubnet|cilium-nodesubnet)
-                make -C ./hack/aks deploy-cilium
-                ;;
-              cilium-overlay)
-                TEST_HUBBLE="${{ parameters.testHubble }}"
-                if [ "${TEST_HUBBLE,,}" = "true" ]; then
-                  make -C ./hack/aks deploy-cilium-hubble
-                elif [ "${NIGHTLY_TAG}" = "cilium-nightly-pipeline" ] || [ "${{ parameters.nightly }}" = "True" ]; then
-                  make -C ./hack/aks deploy-cilium-nightly
-                else
-                  make -C ./hack/aks deploy-cilium
-                fi
-                ;;
-              cilium-dualstack)
-                make -C ./hack/aks deploy-cilium-dualstack
-                ;;
-              cilium-ebpf-podsubnet)
-                make -C ./hack/aks deploy-ebpf-podsubnet-cilium
-                ;;
-              cilium-ebpf-overlay)
-                make -C ./hack/aks deploy-ebpf-overlay-cilium
-                ;;
-              cilium-ebpf-dualstack)
-                make -C ./hack/aks deploy-ebpf-dualstack-cilium
-                ;;
-            esac
-
-            export CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY=${CILIUM_LOG_COLLECTOR_IMAGE_REGISTRY_OVERRIDE:-acnpublic.azurecr.io}
-            export CILIUM_LOG_COLLECTOR_VERSION_TAG=${CILIUM_LOG_COLLECTOR_VERSION_TAG_OVERRIDE:-$(make cilium-log-collector-version)}
-            make -C ./hack/aks add-cilium-log-collector
-
-            CNS_FLAGS="INSTALL_CNS=true"
-            CNI_TYPE="cilium"
-            case "${{ parameters.networkType }}" in
-              cilium-podsubnet|cilium-ebpf-podsubnet)
-                CNS_FLAGS="$CNS_FLAGS INSTALL_AZILIUM=true"
-                ;;
-              cilium-nodesubnet)
-                CNS_FLAGS="$CNS_FLAGS INSTALL_CNS_NODESUBNET=true"
-                ;;
-              cilium-overlay|cilium-ebpf-overlay)
-                CNS_FLAGS="$CNS_FLAGS INSTALL_OVERLAY=true"
-                ;;
-              cilium-dualstack|cilium-ebpf-dualstack)
-                CNS_FLAGS="$CNS_FLAGS INSTALL_OVERLAY=true"
-                CNI_TYPE="cilium_dualstack"
-                ;;
-            esac
-
-            sudo -E env "PATH=$PATH" make test-load \
-              CNS_ONLY=true OS_TYPE=linux CNI_TYPE="$CNI_TYPE" \
-              $CNS_FLAGS AZURE_IPAM_VERSION=$(AZURE_IPAM_VERSION) \
-              CNS_VERSION=$(CNS_VERSION) CNI_VERSION=$(CNI_VERSION) \
-              IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) \
-              CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) \
-              CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)
+          cilium-*)
+            CNI_TYPE=cilium
+            ;;
+          azure-vnet|azure-cni-overlay|azure-cni-overlay-stateless|azure-cni-dualstack-overlay)
             ;;
           *)
             echo "Unsupported networkType: ${{ parameters.networkType }}"
@@ -153,4 +145,15 @@ steps:
             ;;
         esac
 
-        kubectl get pods -A -o wide
+        sudo -E env "PATH=$PATH" make test-load \
+          CNS_ONLY=true \
+          OS_TYPE=${{ parameters.os }} \
+          CNI_TYPE="$CNI_TYPE" \
+          INSTALL_CNS=true \
+          ${{ parameters.installFlag }}=true \
+          AZURE_IPAM_VERSION=${{ parameters.azureIpamVersion }} \
+          CNS_VERSION=${{ parameters.cnsVersion }} \
+          CNI_VERSION=${{ parameters.cniVersion }} \
+          IPAM_IMAGE_NAME_OVERRIDE=$(IPAM_IMAGE_NAME_OVERRIDE) \
+          CNS_IMAGE_NAME_OVERRIDE=$(CNS_IMAGE_NAME_OVERRIDE) \
+          CNI_IMAGE_NAME_OVERRIDE=$(CNI_IMAGE_NAME_OVERRIDE)

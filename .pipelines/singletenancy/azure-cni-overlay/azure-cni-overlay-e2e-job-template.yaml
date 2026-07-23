@@ -56,20 +56,27 @@ stages:
       IPAM_IMAGE_NAME_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.ipamImageNameOverride'] ]
       CNI_IMAGE_NAME_OVERRIDE: $[ stageDependencies.setup.env.outputs['EnvironmentalVariables.cniImageNameOverride'] ]
     jobs:
-      - template: ../../templates/create-cluster.yaml
-        parameters:
-          name: ${{ parameters.name }}
-          displayName: ${{ parameters.displayName }}
-          clusterType: ${{ parameters.clusterType }}
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          vmSize: ${{ parameters.vmSize }}
-          vmSizeWin: ${{ parameters.vmSize }}
-          k8sVersion: ${{ parameters.k8sVersion }}
-          dependsOn: ${{ parameters.dependsOn }}
-          os: ${{ parameters.os }}
-          region: $(REGION_AKS_CLUSTER_TEST)
-          networkType: azure-cni-overlay
-
+      - job: ${{ parameters.name }}
+        displayName: Cluster - ${{ parameters.name }}
+        steps:
+          - template: ../../templates/create-cluster-steps.yaml
+            parameters:
+              clusterType: ${{ parameters.clusterType }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              vmSize: ${{ parameters.vmSize }}
+              vmSizeWin: ${{ parameters.vmSize }}
+              k8sVersion: ${{ parameters.k8sVersion }}
+              os: ${{ parameters.os }}
+              region: $(REGION_AKS_CLUSTER_TEST)
+          - template: ../../templates/network-install.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              networkType: azure-cni-overlay
+              azureIpamVersion: $(AZURE_IPAM_VERSION)
+              cnsVersion: $(CNS_VERSION)
+              cniVersion: $(CNI_VERSION)
+              installFlag: INSTALL_AZURE_CNI_OVERLAY
+              os: ${{ parameters.os }}
   - stage: ${{ parameters.name }}
     displayName: E2E-${{ parameters.displayName }}
     dependsOn:
@@ -118,8 +125,7 @@ stages:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 cniType: cniv2
                 validateCniType: cniv2
-                installCNS: false
-                testLoadArgs: "VALIDATE_V4OVERLAY=true"
+                testLoadArgs: "INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true"
                 scaleup: ${{ parameters.scaleup }}
           - template: ../../templates/k8s-e2e-step-template.yaml
             parameters:
