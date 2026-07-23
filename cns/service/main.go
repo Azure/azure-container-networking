@@ -62,7 +62,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/processlock"
 	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
@@ -94,8 +93,6 @@ const (
 	name                              = "azure-cns"
 	pluginName                        = "azure-vnet"
 	endpointStoreName                 = "azure-endpoints"
-	endpointStoreLocationLinux        = "/var/run/azure-cns/"
-	endpointStoreLocationWindows      = "/k/azurecns/"
 	defaultCNINetworkConfigFileName   = "10-azure.conflist"
 	dncApiVersion                     = "?api-version=2018-03-01"
 	poolIPAMRefreshRateInMilliseconds = 1000
@@ -362,11 +359,7 @@ func init() {
 
 	// Fill EndpointStatePath based on the platform
 	if endpointStorePath = os.Getenv("CNSStoreFilePath"); endpointStorePath == "" {
-		if runtime.GOOS == "windows" {
-			endpointStorePath = endpointStoreLocationWindows
-		} else {
-			endpointStorePath = endpointStoreLocationLinux
-		}
+		endpointStorePath = defaultEndpointStorePath
 	}
 	go func() {
 		// Wait until receiving a signal.
@@ -529,9 +522,10 @@ func main() {
 
 	// Initialize CNS.
 	var (
-		err                error
-		config             common.ServiceConfig
-		endpointStateStore store.KeyValueStore
+		err                   error
+		config                common.ServiceConfig
+		endpointStateStore    store.KeyValueStore
+		httpRemoteRestService *restserver.HTTPRestService
 	)
 
 	config.Version = version
@@ -731,50 +725,34 @@ func main() {
 	// Log platform information.
 	logger.Printf("Running on %v", platform.GetOSInfo())
 
-	err = platform.CreateDirectory(storeFileLocation)
-	if err != nil {
-		logger.Errorf("Failed to create File Store directory %s, due to Error:%v", storeFileLocation, err.Error())
-		return
-	}
-
-	lockclient, err := processlock.NewFileLock(platform.CNILockPath + name + store.LockExtension)
-	if err != nil {
-		logger.Printf("Error initializing file lock:%v", err)
-		return
-	}
-
-	// Create the key value store.
-	storeFileName := storeFileLocation + name + ".json"
-	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient, nil)
-	if err != nil {
-		logger.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
-		return
-	}
-
-	// Initialize endpoint state store if cns is managing endpoint state.
 	if cnsconfig.ManageEndpointState {
 		logger.Printf("[Azure CNS] Configured to manage endpoints state")
-		endpointStoreLock, err := processlock.NewFileLock(platform.CNILockPath + endpointStoreName + store.LockExtension) // nolint
-		if err != nil {
-			logger.Printf("Error initializing endpoint state file lock:%v", err)
-			return
-		}
-		defer endpointStoreLock.Unlock() // nolint
-
-		err = platform.CreateDirectory(endpointStorePath)
-		if err != nil {
-			logger.Errorf("Failed to create File Store directory %s, due to Error:%v", storeFileLocation, err.Error())
-			return
-		}
-		// Create the key value store.
-		storeFileName := endpointStorePath + endpointStoreName + ".json"
-		logger.Printf("EndpointStoreState path is %s", storeFileName)
-		endpointStateStore, err = store.NewJsonFileStore(storeFileName, endpointStoreLock, nil)
-		if err != nil {
-			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", storeFileName, err)
-			return
-		}
+		logger.Printf("EndpointStoreState path is %s", endpointStorePath+endpointStoreName+".json")
 	}
+
+	persistentState, err := newJSONPersistentStateStartup(
+		persistentStatePaths{
+			stateDirectory:    storeFileLocation,
+			stateFile:         storeFileLocation + name + ".json",
+			stateLockFile:     platform.CNILockPath + name + store.LockExtension,
+			endpointDirectory: endpointStorePath,
+			endpointFile:      endpointStorePath + endpointStoreName + ".json",
+			endpointLockFile:  platform.CNILockPath + endpointStoreName + store.LockExtension,
+		},
+		cnsconfig.ManageEndpointState,
+		func(context.Context) error {
+			return httpRemoteRestService.Start(&config)
+		},
+	)
+	if err != nil {
+		logger.Errorf("Failed to initialize persistent state: %v", err)
+		return
+	}
+	defer func() {
+		_ = persistentState.Close()
+	}()
+	config.Store = persistentState.stateStore
+	endpointStateStore = persistentState.endpointStateStore
 
 	wsProxy := wireserver.Proxy{
 		Host:       cnsconfig.WireserverIP,
@@ -788,7 +766,7 @@ func main() {
 	}
 
 	imdsClient := imds.NewClient()
-	httpRemoteRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, &restserver.IPtablesProvider{}, nmaClient,
+	httpRemoteRestService, err = restserver.NewHTTPRestService(&config, wsclient, &wsProxy, &restserver.IPtablesProvider{}, nmaClient,
 		endpointStateStore, conflistGenerator, homeAzMonitor, imdsClient)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
@@ -1030,7 +1008,7 @@ func main() {
 			httpRemoteRestService.RegisterPProfEndpoints()
 		}
 
-		err = httpRemoteRestService.Start(&config)
+		err = persistentState.Start(rootCtx)
 		if err != nil {
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)
 			return
@@ -1160,7 +1138,7 @@ func main() {
 		httpRemoteRestService.Stop()
 	}
 
-	if err = lockclient.Unlock(); err != nil {
+	if err = persistentState.Close(); err != nil {
 		logger.Errorf("lockclient cns unlock error:%v", err)
 	}
 
