@@ -212,7 +212,7 @@ jobs:
           inlineScript: |
             bash "$(Build.SourcesDirectory)/.pipelines/failure-agent-teams-bot/scripts/notify-incident.sh" \
               "$(Agent.TempDirectory)/analysis/incident.json" \
-              "0.51"
+              "0.65"
         env:
           NOTIFIER_ENDPOINT: $(notifierEndpoint)
           NOTIFIER_API_AUDIENCE: $(notifierApiAudience)
