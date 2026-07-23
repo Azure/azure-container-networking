@@ -63,10 +63,12 @@ steps:
       # flakeAttempts -> flake-attempts
       # dryRun -> dry-run
 
+      # AKS-managed kube-system pods outside this pipeline must not gate CNI tests.
       ./ginkgo --nodes=${{ parameters.processes }} \
       ./e2e.test -- \
       --num-nodes=2 \
       --provider=skeleton \
+      --minStartupPods=-1 \
       --ginkgo.focus='${{ parameters.ginkgoFocus }}' \
       --ginkgo.skip="${{ parameters.ginkgoSkip }}$SKIP$GATE_SKIP" \
       --ginkgo.flakeAttempts=${{ parameters.attempts }} \
