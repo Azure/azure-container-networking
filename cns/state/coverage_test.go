@@ -472,6 +472,35 @@ func TestTransactionCorruptionFaultsAreCategorized(t *testing.T) {
 	})
 }
 
+func TestMetadataReadRejectsCorruptValues(t *testing.T) {
+	tests := []struct {
+		name  string
+		key   []byte
+		value []byte
+	}{
+		{name: "schema version", key: metaKeySchemaVersion, value: []byte{1}},
+		{name: "authority", key: metaKeyAuthority, value: []byte("invalid")},
+		{name: "generation", key: metaKeyGeneration, value: []byte{1}},
+		{name: "legacy import marker", key: metaKeyLegacyImport, value: []byte("invalid")},
+		{name: "rollback export marker", key: metaKeyRollbackExport, value: []byte("invalid")},
+		{name: "service metadata", key: metaKeyService, value: []byte(`{"initialized":`)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, _ := openTestDB(t)
+			require.NoError(t, db.db.Update(func(tx *bolt.Tx) error {
+				return tx.Bucket(bucketMetadata).Put(tt.key, tt.value)
+			}))
+
+			err := db.View(context.Background(), func(tx *ReadTx) error {
+				_, err := tx.Metadata()
+				return err
+			})
+			require.ErrorIs(t, err, ErrCorrupt)
+		})
+	}
+}
+
 func TestValidationHelpersPreserveErrorCategories(t *testing.T) {
 	require.NoError(t, validateNonemptyKeys(bucketIPs, map[string]int{"ip": 1}))
 	require.ErrorIs(t, validateNonemptyKeys(bucketIPs, map[string]int{"": 1}), ErrInconsistentState)
@@ -760,9 +789,42 @@ func TestOwnershipOperationAdditionalInputErrors(t *testing.T) {
 			},
 		},
 		{
+			name: "release malformed pod",
+			run: func() error {
+				_, err := db.ReleaseEndpoint(context.Background(), PodIdentity{}, testNow)
+				return err
+			},
+		},
+		{
 			name: "release zero timestamp",
 			run: func() error {
 				_, err := db.ReleaseEndpoint(context.Background(), validAssignment.Pod, time.Time{})
+				return err
+			},
+		},
+		{
+			name: "patch malformed pod",
+			run: func() error {
+				_, err := db.PatchEndpoint(
+					context.Background(),
+					PodIdentity{},
+					validEndpoint,
+					testNow,
+					testDeleteIntentTTL,
+				)
+				return err
+			},
+		},
+		{
+			name: "patch malformed endpoint",
+			run: func() error {
+				_, err := db.PatchEndpoint(
+					context.Background(),
+					validAssignment.Pod,
+					EndpointRecord{},
+					testNow,
+					testDeleteIntentTTL,
+				)
 				return err
 			},
 		},

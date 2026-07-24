@@ -5,6 +5,7 @@ package state
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"sync"
@@ -178,6 +179,19 @@ func TestAssignEndpoint(t *testing.T) {
 		assert.False(t, changed)
 		assert.Equal(t, before+1, readMetadata(t, db).Generation)
 
+		changedEndpoint := deepCloneEndpoint(t, endpoint)
+		changedEndpoint.IfnameToIPMap["eth0"].HostVethName = "changed-veth"
+		_, err = db.AssignEndpoint(
+			context.Background(),
+			assignment,
+			changedEndpoint,
+			testNow,
+			testDeleteIntentTTL,
+		)
+		require.ErrorIs(t, err, ErrInvalidInput)
+		assert.Contains(t, err.Error(), "PatchEndpoint")
+		assert.Equal(t, before+1, readMetadata(t, db).Generation)
+
 		changedAssignment := assignment
 		changedAssignment.IPIDs = []string{testIPv4ID}
 		_, err = db.AssignEndpoint(
@@ -239,6 +253,72 @@ func TestAssignEndpoint(t *testing.T) {
 		require.ErrorIs(t, err, ErrInvalidInput)
 		assert.Empty(t, requireValidSnapshot(t, db).Assignments)
 	})
+}
+
+func TestAssignEndpointRejectsIdentityConflicts(t *testing.T) {
+	tests := []struct {
+		name          string
+		retainFirst   bool
+		changeRequest func(*AssignmentRecord, *EndpointRecord)
+	}{
+		{
+			name: "container already belongs to another pod",
+			changeRequest: func(assignment *AssignmentRecord, endpoint *EndpointRecord) {
+				assignment.Pod.PodName = "other-pod"
+				endpoint.PodName = "other-pod"
+			},
+		},
+		{
+			name: "pod changes containers before release",
+			changeRequest: func(assignment *AssignmentRecord, _ *EndpointRecord) {
+				assignment.Pod.PodKey = "container-2"
+				assignment.Pod.InfraContainerID = "container-2"
+			},
+		},
+		{
+			name:        "pod changes containers while endpoint retained",
+			retainFirst: true,
+			changeRequest: func(assignment *AssignmentRecord, _ *EndpointRecord) {
+				assignment.Pod.PodKey = "container-2"
+				assignment.Pod.InfraContainerID = "container-2"
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, _ := openTestDB(t)
+			assignment, endpoint := seedOwnershipInventory(t, db)
+			changed, err := db.AssignEndpoint(
+				context.Background(),
+				assignment,
+				endpoint,
+				testNow,
+				testDeleteIntentTTL,
+			)
+			require.NoError(t, err)
+			require.True(t, changed)
+
+			if tt.retainFirst {
+				changed, err = db.ReleaseEndpoint(context.Background(), assignment.Pod, testNow)
+				require.NoError(t, err)
+				require.True(t, changed)
+			}
+			before := readMetadata(t, db).Generation
+			requestedEndpoint := deepCloneEndpoint(t, endpoint)
+			tt.changeRequest(&assignment, &requestedEndpoint)
+
+			_, err = db.AssignEndpoint(
+				context.Background(),
+				assignment,
+				requestedEndpoint,
+				testNow,
+				testDeleteIntentTTL,
+			)
+			require.ErrorIs(t, err, ErrInvalidInput)
+			assert.Equal(t, before, readMetadata(t, db).Generation)
+			requireValidSnapshot(t, db)
+		})
+	}
 }
 
 func TestConcurrentDuplicateOwnership(t *testing.T) {
@@ -556,6 +636,24 @@ func TestOwnershipFailuresRollback(t *testing.T) {
 		)
 		require.ErrorIs(t, err, ErrInvalidInput)
 		assert.Equal(t, before, requireValidSnapshot(t, db))
+	})
+
+	t.Run("corrupt inventory preflight", func(t *testing.T) {
+		db, _ := openTestDB(t)
+		assignment, endpoint := seedOwnershipInventory(t, db)
+		beforeGeneration := readMetadata(t, db).Generation
+		putRaw(t, db, bucketIPs, []byte("ip-v4"), []byte(`{"id":`))
+
+		_, err := db.AssignEndpoint(
+			context.Background(),
+			assignment,
+			endpoint,
+			testNow,
+			testDeleteIntentTTL,
+		)
+		require.ErrorIs(t, err, ErrCorrupt)
+		assert.Equal(t, beforeGeneration, readMetadata(t, db).Generation)
+		assert.Nil(t, rawValue(t, db, bucketAssignments, []byte(assignment.Pod.PodKey)))
 	})
 
 	t.Run("callback failure", func(t *testing.T) {
@@ -902,6 +1000,15 @@ func testEndpoint(podName, address string) EndpointRecord {
 			},
 		},
 	}
+}
+
+func deepCloneEndpoint(t *testing.T, endpoint EndpointRecord) EndpointRecord {
+	t.Helper()
+	data, err := json.Marshal(endpoint)
+	require.NoError(t, err)
+	var cloned EndpointRecord
+	require.NoError(t, json.Unmarshal(data, &cloned))
+	return cloned
 }
 
 func requireValidSnapshot(t *testing.T, db *DB) Snapshot {
