@@ -175,6 +175,132 @@ func TestPersistentStateStartup_StartPropagatesContextAndCleansUpFailure(t *test
 	require.Equal(t, 1, endpointLock.unlockCalls)
 }
 
+func TestPersistentStateStartup_AttachmentRestoreGatesListenerAndOwnsClose(t *testing.T) {
+	restoreErr := errors.New("restore failure")
+	closeErr := errors.New("adapter close failure")
+	lock := &trackedFileLock{}
+	listenerStarted := false
+	closeCalls := 0
+
+	startup, err := newPersistentStateStartup(
+		testPersistentStatePaths(),
+		false,
+		func(context.Context) error {
+			listenerStarted = true
+			return nil
+		},
+		persistentStateDependencies{
+			createDirectory: func(string) error { return nil },
+			newFileLock: func(string) (processlock.Interface, error) {
+				return lock, nil
+			},
+			openStore: func(path string, _ processlock.Interface) (store.KeyValueStore, error) {
+				return store.NewMockStore(path), nil
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, startup.attach(
+		func(context.Context) error { return restoreErr },
+		func() error {
+			closeCalls++
+			return closeErr
+		},
+	))
+
+	err = startup.Start(context.Background())
+	require.ErrorIs(t, err, restoreErr)
+	require.ErrorIs(t, err, closeErr)
+	require.False(t, listenerStarted)
+	require.Equal(t, 1, closeCalls)
+	require.Equal(t, 1, lock.unlockCalls)
+
+	require.ErrorIs(t, startup.Close(), closeErr)
+	require.Equal(t, 1, closeCalls)
+	require.Equal(t, 1, lock.unlockCalls)
+}
+
+func TestPersistentStateStartup_AttachmentClosesOnListenerFailure(t *testing.T) {
+	listenerErr := errors.New("listener failure")
+	closeErr := errors.New("adapter close failure")
+	lock := &trackedFileLock{}
+	restored := false
+	closeCalls := 0
+
+	startup, err := newPersistentStateStartup(
+		testPersistentStatePaths(),
+		false,
+		func(context.Context) error { return listenerErr },
+		persistentStateDependencies{
+			createDirectory: func(string) error { return nil },
+			newFileLock: func(string) (processlock.Interface, error) {
+				return lock, nil
+			},
+			openStore: func(path string, _ processlock.Interface) (store.KeyValueStore, error) {
+				return store.NewMockStore(path), nil
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, startup.attach(
+		func(context.Context) error {
+			restored = true
+			return nil
+		},
+		func() error {
+			closeCalls++
+			return closeErr
+		},
+	))
+
+	err = startup.Start(context.Background())
+	require.ErrorIs(t, err, listenerErr)
+	require.ErrorIs(t, err, closeErr)
+	require.True(t, restored)
+	require.Equal(t, 1, closeCalls)
+	require.Equal(t, 1, lock.unlockCalls)
+}
+
+func TestPersistentStateStartup_AttachmentClosesOnceOnShutdown(t *testing.T) {
+	lock := &trackedFileLock{}
+	closeCalls := 0
+	startup, err := newPersistentStateStartup(
+		testPersistentStatePaths(),
+		false,
+		func(context.Context) error { return nil },
+		persistentStateDependencies{
+			createDirectory: func(string) error { return nil },
+			newFileLock: func(string) (processlock.Interface, error) {
+				return lock, nil
+			},
+			openStore: func(path string, _ processlock.Interface) (store.KeyValueStore, error) {
+				return store.NewMockStore(path), nil
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NoError(t, startup.attach(
+		func(context.Context) error { return nil },
+		func() error {
+			closeCalls++
+			return nil
+		},
+	))
+
+	require.NoError(t, startup.Start(context.Background()))
+	require.NoError(t, startup.Close())
+	require.NoError(t, startup.Close())
+	require.Equal(t, 1, closeCalls)
+	require.Equal(t, 1, lock.unlockCalls)
+}
+
+func TestPersistentStateStartup_AttachmentValidation(t *testing.T) {
+	startup := &persistentStateStartup{}
+	require.Error(t, startup.attach(nil, func() error { return nil }))
+	require.Error(t, startup.attach(func(context.Context) error { return nil }, nil))
+	require.Empty(t, startup.attachments)
+}
+
 func TestNewPersistentStateStartup_EndpointStateDisabled(t *testing.T) {
 	var (
 		directories []string

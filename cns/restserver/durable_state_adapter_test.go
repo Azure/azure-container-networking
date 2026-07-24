@@ -1,0 +1,703 @@
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+package restserver
+
+import (
+	"context"
+	"errors"
+	"net"
+	"os"
+	"path/filepath"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/state"
+	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	bolterrors "go.etcd.io/bbolt/errors"
+)
+
+type adapterTestStore struct {
+	mu             sync.Mutex
+	snapshot       state.Snapshot
+	replaceErr     error
+	metadataErr    error
+	statusErr      error
+	closeErr       error
+	closeCalls     int
+	beforeReplace  func()
+	beforeMetadata func()
+}
+
+func newAdapterTestStore(snapshot state.Snapshot) *adapterTestStore {
+	cloned, err := cloneJSON(snapshot)
+	if err != nil {
+		panic(err)
+	}
+	return &adapterTestStore{snapshot: cloned}
+}
+
+func (s *adapterTestStore) operations() durableStateOperations {
+	return durableStateOperations{
+		snapshot: func(ctx context.Context) (state.Snapshot, error) {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if err := ctx.Err(); err != nil {
+				return state.Snapshot{}, err
+			}
+			return s.snapshot, nil
+		},
+		replace: func(ctx context.Context, expected uint64, durable state.DurableState) (bool, error) {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if s.beforeReplace != nil {
+				s.beforeReplace()
+			}
+			if err := ctx.Err(); err != nil {
+				return false, err
+			}
+			if s.replaceErr != nil {
+				return false, s.replaceErr
+			}
+			if s.snapshot.Metadata.Generation != expected {
+				return false, state.ErrStaleGeneration
+			}
+			s.snapshot.NetworkContainers = durable.NetworkContainers
+			s.snapshot.IPs = durable.IPs
+			s.snapshot.Networks = durable.Networks
+			s.snapshot.OrchestratorContexts = durable.OrchestratorContexts
+			s.snapshot.PnPIDByMAC = durable.PnPIDByMAC
+			s.snapshot.Metadata.Generation++
+			return true, nil
+		},
+		updateMetadata: func(ctx context.Context, expected uint64, metadata state.Metadata) (bool, error) {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if s.beforeMetadata != nil {
+				s.beforeMetadata()
+			}
+			if err := ctx.Err(); err != nil {
+				return false, err
+			}
+			if s.metadataErr != nil {
+				return false, s.metadataErr
+			}
+			if s.snapshot.Metadata.Generation != expected {
+				return false, state.ErrStaleGeneration
+			}
+			metadata.Generation++
+			s.snapshot.Metadata = metadata
+			return true, nil
+		},
+		status: func(ctx context.Context) (state.Status, error) {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if err := ctx.Err(); err != nil {
+				return state.Status{}, err
+			}
+			if s.statusErr != nil {
+				return state.Status{}, s.statusErr
+			}
+			return healthyAdapterStatus(s.snapshot.Metadata.Generation), nil
+		},
+		close: func() error {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			s.closeCalls++
+			return s.closeErr
+		},
+	}
+}
+
+func TestDurableStateAdapterProjection(t *testing.T) {
+	snapshot := completeAdapterSnapshot(7)
+	store := newAdapterTestStore(snapshot)
+	service := newAdapterTestService()
+	originalEndpoint := service.EndpointState["existing-endpoint"]
+	originalAssignments := append([]string{}, service.PodIPIDByPodInterfaceKey["existing-pod"]...)
+	adapter, err := newDurableStateAdapterWithOperations(service, store.operations())
+	require.NoError(t, err)
+
+	require.NoError(t, adapter.restore(context.Background()))
+	assertAdapterProjection(t, service, snapshot)
+	generation, projected := adapter.cacheGeneration()
+	assert.True(t, projected)
+	assert.Equal(t, uint64(7), generation)
+	assert.Same(t, originalEndpoint, service.EndpointState["existing-endpoint"])
+	assert.Equal(t, originalAssignments, service.PodIPIDByPodInterfaceKey["existing-pod"])
+	assert.NotContains(t, service.EndpointState, "persisted-endpoint")
+
+	snapshot.NetworkContainers["nc-1"] = state.NetworkContainerRecord{}
+	snapshot.Networks["network-1"].Options["nested"].(map[string]any)["key"] = "mutated"
+	assert.Equal(t, "nc-1", service.state.ContainerStatus["nc-1"].ID)
+	assert.Equal(t, "value", service.state.Networks["network-1"].Options["nested"].(map[string]any)["key"])
+
+	service.state.Location = "same-generation-no-op"
+	require.NoError(t, adapter.restore(context.Background()))
+	assert.Equal(t, "same-generation-no-op", service.state.Location)
+
+	before := durableCacheFingerprint(service, adapter)
+	store.mu.Lock()
+	store.snapshot.Metadata.Generation = 6
+	store.mu.Unlock()
+	require.ErrorIs(t, adapter.restore(context.Background()), state.ErrStaleGeneration)
+	assert.Equal(t, before, durableCacheFingerprint(service, adapter))
+
+	newer := completeAdapterSnapshot(8)
+	newer.Metadata.Location = "new-location"
+	store.mu.Lock()
+	store.snapshot = newer
+	store.mu.Unlock()
+	require.NoError(t, adapter.restore(context.Background()))
+	assert.Equal(t, "new-location", service.state.Location)
+	assert.Equal(t, uint64(8), adapter.generation)
+}
+
+func TestDurableStateAdapterProjectionFailureIsAtomic(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*state.Snapshot)
+	}{
+		{
+			name: "invalid host version",
+			mutate: func(snapshot *state.Snapshot) {
+				record := snapshot.NetworkContainers["nc-1"]
+				record.HostVersion = "not-a-version"
+				snapshot.NetworkContainers["nc-1"] = record
+			},
+		},
+		{
+			name: "late network clone failure",
+			mutate: func(snapshot *state.Snapshot) {
+				record := snapshot.Networks["network-1"]
+				record.Options["unsupported"] = make(chan struct{})
+				snapshot.Networks["network-1"] = record
+			},
+		},
+		{
+			name: "missing projection metadata",
+			mutate: func(snapshot *state.Snapshot) {
+				snapshot.Metadata.Authority = ""
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := newAdapterTestService()
+			initial := completeAdapterSnapshot(1)
+			store := newAdapterTestStore(initial)
+			adapter, err := newDurableStateAdapterWithOperations(service, store.operations())
+			require.NoError(t, err)
+			require.NoError(t, adapter.restore(context.Background()))
+			before := durableCacheFingerprint(service, adapter)
+
+			failed := completeAdapterSnapshot(2)
+			tt.mutate(&failed)
+			store.mu.Lock()
+			store.snapshot = failed
+			store.mu.Unlock()
+			require.Error(t, adapter.restore(context.Background()))
+			assert.Equal(t, before, durableCacheFingerprint(service, adapter))
+		})
+	}
+}
+
+func TestDurableStateAdapterCommitOrderingAndFailures(t *testing.T) {
+	snapshot := completeAdapterSnapshot(3)
+	service := newAdapterTestService()
+	store := newAdapterTestStore(snapshot)
+	adapter, err := newDurableStateAdapterWithOperations(service, store.operations())
+	require.NoError(t, err)
+	require.NoError(t, adapter.restore(context.Background()))
+
+	record := snapshot.NetworkContainers["nc-1"]
+	record.VMVersion = "9"
+	record.HostVersion = "9"
+	record.Request.Version = "9"
+	ips := []state.IPRecord{{
+		ID:        "ip-new",
+		IPAddress: "10.0.0.99",
+		NCID:      "nc-1",
+		NCVersion: 9,
+	}}
+	store.beforeReplace = func() {
+		assert.Equal(t, "2", service.state.ContainerStatus["nc-1"].VMVersion)
+		assert.NotContains(t, service.PodIPConfigState, "ip-new")
+	}
+	require.NoError(t, adapter.applyNetworkContainer(context.Background(), record, ips))
+	store.beforeReplace = nil
+	assert.Equal(t, "9", service.state.ContainerStatus["nc-1"].VMVersion)
+	assert.Contains(t, service.PodIPConfigState, "ip-new")
+	assert.Equal(t, uint64(4), adapter.generation)
+	store.mu.Lock()
+	assert.Equal(t, "9", store.snapshot.NetworkContainers["nc-1"].VMVersion)
+	assert.Contains(t, store.snapshot.IPs, "ip-new")
+	store.mu.Unlock()
+
+	failures := []struct {
+		name string
+		err  error
+	}{
+		{name: "commit", err: errors.New("commit failed")},
+		{name: "stale", err: state.ErrStaleGeneration},
+		{name: "read only", err: bolterrors.ErrDatabaseReadOnly},
+		{name: "canceled", err: context.Canceled},
+	}
+	for _, tt := range failures {
+		t.Run(tt.name, func(t *testing.T) {
+			before := durableCacheFingerprint(service, adapter)
+			store.mu.Lock()
+			store.replaceErr = tt.err
+			store.mu.Unlock()
+			err := adapter.putNetwork(context.Background(), state.NetworkRecord{NetworkName: "not-committed"})
+			require.ErrorIs(t, err, tt.err)
+			assert.Equal(t, before, durableCacheFingerprint(service, adapter))
+			store.mu.Lock()
+			assert.NotContains(t, store.snapshot.Networks, "not-committed")
+			store.replaceErr = nil
+			store.mu.Unlock()
+		})
+	}
+
+	before := durableCacheFingerprint(service, adapter)
+	store.mu.Lock()
+	store.metadataErr = errors.New("metadata commit failed")
+	store.mu.Unlock()
+	err = adapter.putServiceMetadata(context.Background(), durableServiceMetadata{NodeID: "not-committed"})
+	require.Error(t, err)
+	assert.Equal(t, before, durableCacheFingerprint(service, adapter))
+	store.mu.Lock()
+	assert.NotEqual(t, "not-committed", store.snapshot.Metadata.NodeID)
+	store.metadataErr = nil
+	store.mu.Unlock()
+
+	before = durableCacheFingerprint(service, adapter)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, adapter.putNetwork(ctx, state.NetworkRecord{NetworkName: "canceled"}), context.Canceled)
+	assert.Equal(t, before, durableCacheFingerprint(service, adapter))
+}
+
+func TestDurableStateAdapterDurableOperations(t *testing.T) {
+	service := newAdapterTestService()
+	store := newAdapterTestStore(emptyAdapterSnapshot(0))
+	adapter, err := newDurableStateAdapterWithOperations(service, store.operations())
+	require.NoError(t, err)
+	require.NoError(t, adapter.restore(context.Background()))
+
+	record := adapterNetworkContainer("nc")
+	require.NoError(t, adapter.applyNetworkContainer(context.Background(), record, []state.IPRecord{{
+		ID: "ip", IPAddress: "10.0.0.4", NCID: "nc", NCVersion: 2,
+	}}))
+	require.NoError(t, adapter.putNetwork(context.Background(), state.NetworkRecord{
+		NetworkName: "network",
+		NicInfo:     &wireserver.InterfaceInfo{Subnet: "10.0.0.0/24", SecondaryIPs: []string{"10.0.0.4"}},
+		Options:     map[string]any{"mode": "bridge"},
+	}))
+	require.NoError(t, adapter.putOrchestratorContext(context.Background(), "pod", []string{"nc"}))
+	require.NoError(t, adapter.putPnPID(context.Background(), "00-11-22-33-44-55", "pnp"))
+	require.NoError(t, adapter.putServiceMetadata(context.Background(), durableServiceMetadata{
+		OrchestratorType: cns.KubernetesCRD,
+		NodeID:           "node",
+		Location:         "azure",
+		NetworkType:      "underlay",
+		Initialized:      true,
+		TimeStamp:        time.Unix(100, 0).UTC(),
+	}))
+
+	assert.Contains(t, service.state.ContainerStatus, "nc")
+	assert.Contains(t, service.PodIPConfigState, "ip")
+	assert.Contains(t, service.state.Networks, "network")
+	assert.Equal(t, ncList("nc"), *service.state.ContainerIDByOrchestratorContext["pod"])
+	assert.Equal(t, "pnp", service.state.PnpIDByMacAddress["00:11:22:33:44:55"])
+	assert.Equal(t, "node", service.state.NodeID)
+	assert.Equal(t, uint64(5), adapter.generation)
+
+	require.NoError(t, adapter.deleteOrchestratorContext(context.Background(), "pod"))
+	require.NoError(t, adapter.deletePnPID(context.Background(), "00:11:22:33:44:55"))
+	require.NoError(t, adapter.deleteNetwork(context.Background(), "network"))
+	require.NoError(t, adapter.deleteNetworkContainer(context.Background(), "nc"))
+	assert.Empty(t, service.state.ContainerStatus)
+	assert.Empty(t, service.PodIPConfigState)
+	assert.Empty(t, service.state.Networks)
+	assert.Empty(t, service.state.ContainerIDByOrchestratorContext)
+	assert.Empty(t, service.state.PnpIDByMacAddress)
+}
+
+func TestDurableStateAdapterStaleWritersDoNotLoseState(t *testing.T) {
+	baseDir, err := os.MkdirTemp(".", ".durable-adapter-concurrency-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(baseDir)) })
+
+	db, err := state.Open(filepath.Join(baseDir, "state.db"), state.Options{})
+	require.NoError(t, err)
+	first, err := newDurableStateAdapter(newAdapterTestService(), db)
+	require.NoError(t, err)
+	second, err := newDurableStateAdapter(newAdapterTestService(), db)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = first.Close() })
+
+	require.NoError(t, first.restore(context.Background()))
+	require.NoError(t, second.restore(context.Background()))
+	firstBefore := durableCacheFingerprint(first.service, first)
+	secondBefore := durableCacheFingerprint(second.service, second)
+	start := make(chan struct{})
+	results := make(chan struct {
+		name    string
+		adapter *durableStateAdapter
+		err     error
+	}, 2)
+	var writers sync.WaitGroup
+	writers.Add(2)
+	go func() {
+		defer writers.Done()
+		<-start
+		results <- struct {
+			name    string
+			adapter *durableStateAdapter
+			err     error
+		}{"first", first, first.putNetwork(context.Background(), state.NetworkRecord{NetworkName: "first"})}
+	}()
+	go func() {
+		defer writers.Done()
+		<-start
+		results <- struct {
+			name    string
+			adapter *durableStateAdapter
+			err     error
+		}{"second", second, second.putNetwork(context.Background(), state.NetworkRecord{NetworkName: "second"})}
+	}()
+	close(start)
+	writers.Wait()
+	close(results)
+
+	var staleWriter struct {
+		name    string
+		adapter *durableStateAdapter
+	}
+	successes := 0
+	for result := range results {
+		if result.err == nil {
+			successes++
+			continue
+		}
+		require.ErrorIs(t, result.err, state.ErrStaleGeneration)
+		staleWriter.name = result.name
+		staleWriter.adapter = result.adapter
+	}
+	require.Equal(t, 1, successes)
+	require.NotNil(t, staleWriter.adapter)
+	if staleWriter.adapter == first {
+		assert.Equal(t, firstBefore, durableCacheFingerprint(first.service, first))
+	} else {
+		assert.Equal(t, secondBefore, durableCacheFingerprint(second.service, second))
+	}
+
+	require.NoError(t, staleWriter.adapter.restore(context.Background()))
+	require.NoError(
+		t,
+		staleWriter.adapter.putNetwork(context.Background(), state.NetworkRecord{NetworkName: staleWriter.name}),
+	)
+	snapshot, err := db.Snapshot(context.Background())
+	require.NoError(t, err)
+	assert.Contains(t, snapshot.Networks, "first")
+	assert.Contains(t, snapshot.Networks, "second")
+}
+
+func TestDurableStateAdapterRestartRestoreAndClose(t *testing.T) {
+	baseDir, err := os.MkdirTemp(".", ".durable-adapter-restart-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, os.RemoveAll(baseDir)) })
+	path := filepath.Join(baseDir, "state.db")
+
+	db, err := state.Open(path, state.Options{})
+	require.NoError(t, err)
+	firstService := newAdapterTestService()
+	first, err := newDurableStateAdapter(firstService, db)
+	require.NoError(t, err)
+	require.NoError(t, first.restore(context.Background()))
+	record := adapterNetworkContainer("nc")
+	record.Request.AuthorizationToken = "must-not-persist"
+	record.Request.SecondaryIPConfigs = map[string]cns.SecondaryIPConfig{"embedded": {IPAddress: "10.0.0.8"}}
+	require.NoError(t, first.applyNetworkContainer(context.Background(), record, []state.IPRecord{{
+		ID: "ip", IPAddress: "10.0.0.4", NCID: "nc", NCVersion: 2,
+	}}))
+	require.NoError(t, first.putNetwork(context.Background(), state.NetworkRecord{
+		NetworkName: "network",
+		NicInfo:     &wireserver.InterfaceInfo{Subnet: "10.0.0.0/24"},
+		Options:     map[string]any{"nested": map[string]any{"enabled": true}},
+	}))
+	require.NoError(t, first.putOrchestratorContext(context.Background(), "pod", []string{"nc"}))
+	require.NoError(t, first.putPnPID(context.Background(), "00-11-22-33-44-55", "pnp"))
+	require.NoError(t, first.putServiceMetadata(context.Background(), durableServiceMetadata{
+		OrchestratorType: cns.KubernetesCRD,
+		NodeID:           "node",
+		Location:         "azure",
+		NetworkType:      "underlay",
+		Initialized:      true,
+		TimeStamp:        time.Unix(100, 0).UTC(),
+	}))
+	want := durableCacheFingerprint(firstService, first)
+	require.NoError(t, first.Close())
+	require.NoError(t, first.Close())
+
+	reopened, err := state.Open(path, state.Options{})
+	require.NoError(t, err)
+	secondService := newAdapterTestService()
+	second, err := newDurableStateAdapter(secondService, reopened)
+	require.NoError(t, err)
+	require.NoError(t, second.restore(context.Background()))
+	assert.Equal(t, want, durableCacheFingerprint(secondService, second))
+	assert.Empty(t, secondService.state.ContainerStatus["nc"].CreateNetworkContainerRequest.AuthorizationToken)
+	assert.NotContains(
+		t,
+		secondService.state.ContainerStatus["nc"].CreateNetworkContainerRequest.SecondaryIPConfigs,
+		"embedded",
+	)
+	require.NoError(t, second.Close())
+}
+
+func TestDurableStateAdapterCloseErrorIsStable(t *testing.T) {
+	closeErr := errors.New("close failed")
+	store := newAdapterTestStore(emptyAdapterSnapshot(0))
+	store.closeErr = closeErr
+	adapter, err := newDurableStateAdapterWithOperations(newAdapterTestService(), store.operations())
+	require.NoError(t, err)
+	require.ErrorIs(t, adapter.Close(), closeErr)
+	require.ErrorIs(t, adapter.Close(), closeErr)
+	assert.Equal(t, 1, store.closeCalls)
+}
+
+func TestDurableStateAdapterConstructorValidation(t *testing.T) {
+	service := newAdapterTestService()
+	store := newAdapterTestStore(emptyAdapterSnapshot(0))
+	operations := store.operations()
+
+	adapter, err := newDurableStateAdapterWithOperations(nil, operations)
+	require.Error(t, err)
+	assert.Nil(t, adapter)
+	adapter, err = newDurableStateAdapter(service, nil)
+	require.Error(t, err)
+	assert.Nil(t, adapter)
+
+	tests := []struct {
+		name   string
+		mutate func(*durableStateOperations)
+	}{
+		{name: "snapshot", mutate: func(ops *durableStateOperations) { ops.snapshot = nil }},
+		{name: "replace", mutate: func(ops *durableStateOperations) { ops.replace = nil }},
+		{name: "metadata", mutate: func(ops *durableStateOperations) { ops.updateMetadata = nil }},
+		{name: "status", mutate: func(ops *durableStateOperations) { ops.status = nil }},
+		{name: "close", mutate: func(ops *durableStateOperations) { ops.close = nil }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			invalid := operations
+			tt.mutate(&invalid)
+			adapter, err := newDurableStateAdapterWithOperations(service, invalid)
+			require.Error(t, err)
+			assert.Nil(t, adapter)
+		})
+	}
+}
+
+func newAdapterTestService() *HTTPRestService {
+	return &HTTPRestService{
+		state: &httpRestServiceState{
+			ContainerStatus:                  map[string]containerstatus{"old": {ID: "old"}},
+			ContainerIDByOrchestratorContext: map[string]*ncList{},
+			Networks:                         map[string]*networkInfo{},
+			joinedNetworks:                   map[string]struct{}{"joined": {}},
+			PnpIDByMacAddress:                map[string]string{},
+		},
+		PodIPConfigState: map[string]cns.IPConfigurationStatus{},
+		PodIPIDByPodInterfaceKey: map[string][]string{
+			"existing-pod": {"existing-ip"},
+		},
+		EndpointState: map[string]*EndpointInfo{
+			"existing-endpoint": {PodName: "existing"},
+		},
+	}
+}
+
+func completeAdapterSnapshot(generation uint64) state.Snapshot {
+	snapshot := emptyAdapterSnapshot(generation)
+	snapshot.Metadata.OrchestratorType = cns.KubernetesCRD
+	snapshot.Metadata.NodeID = "node-1"
+	snapshot.Metadata.Location = "azure"
+	snapshot.Metadata.NetworkType = "underlay"
+	snapshot.Metadata.Initialized = true
+	snapshot.Metadata.TimeStamp = time.Unix(50, 0).UTC()
+	snapshot.NetworkContainers["nc-1"] = adapterNetworkContainer("nc-1")
+	second := adapterNetworkContainer("nc-2")
+	second.HostVersion = "3"
+	snapshot.NetworkContainers["nc-2"] = second
+	snapshot.IPs["11111111-1111-1111-1111-111111111111"] = state.IPRecord{
+		ID:        "11111111-1111-1111-1111-111111111111",
+		IPAddress: "10.0.0.4",
+		NCID:      "nc-1",
+		NCVersion: 2,
+	}
+	snapshot.IPs["22222222-2222-2222-2222-222222222222"] = state.IPRecord{
+		ID:        "22222222-2222-2222-2222-222222222222",
+		IPAddress: "10.0.1.4",
+		NCID:      "nc-2",
+		NCVersion: 2,
+	}
+	snapshot.Networks["network-1"] = state.NetworkRecord{
+		NetworkName: "network-1",
+		NicInfo: &wireserver.InterfaceInfo{
+			Subnet:       "10.0.0.0/24",
+			Gateway:      "10.0.0.1",
+			PrimaryIP:    "10.0.0.2",
+			SecondaryIPs: []string{"10.0.0.4"},
+		},
+		Options: map[string]any{"nested": map[string]any{"key": "value"}},
+	}
+	snapshot.OrchestratorContexts["pod-a"] = []string{"nc-1", "nc-2"}
+	snapshot.PnPIDByMAC["00:11:22:33:44:55"] = "pnp-1"
+	snapshot.Endpoints["persisted-endpoint"] = state.EndpointRecord{
+		PodName:       "must-not-project",
+		IfnameToIPMap: map[string]*state.IPInfoRecord{},
+	}
+	return snapshot
+}
+
+func emptyAdapterSnapshot(generation uint64) state.Snapshot {
+	snapshot := state.NewSnapshot()
+	snapshot.Metadata = state.Metadata{
+		SchemaVersion: state.SchemaVersion,
+		Authority:     state.AuthorityBolt,
+		Generation:    generation,
+	}
+	return snapshot
+}
+
+func adapterNetworkContainer(id string) state.NetworkContainerRecord {
+	return state.NewNetworkContainerRecord(id, "2", "1", true, cns.CreateNetworkContainerRequest{
+		NetworkContainerid: id,
+		Version:            "2",
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet:         cns.IPSubnet{IPAddress: "10.0.0.0", PrefixLength: 24},
+			GatewayIPAddress: "10.0.0.1",
+			DNSServers:       []string{"10.0.0.10"},
+		},
+		Routes: []cns.Route{{IPAddress: "0.0.0.0/0", GatewayIPAddress: "10.0.0.1"}},
+	})
+}
+
+func healthyAdapterStatus(generation uint64) state.Status {
+	return state.Status{
+		Backend:         state.BackendBolt,
+		Authority:       state.AuthorityBolt,
+		SchemaVersion:   state.SchemaVersion,
+		Generation:      generation,
+		InvariantStatus: state.InvariantHealthy,
+	}
+}
+
+func assertAdapterProjection(t *testing.T, service *HTTPRestService, snapshot state.Snapshot) {
+	t.Helper()
+	require.Len(t, service.state.ContainerStatus, 2)
+	assert.Equal(t, snapshot.Metadata.NodeID, service.state.NodeID)
+	assert.Equal(t, snapshot.Metadata.OrchestratorType, service.state.OrchestratorType)
+	assert.Equal(t, snapshot.Metadata.TimeStamp, service.state.TimeStamp)
+	assert.Equal(t, snapshot.NetworkContainers["nc-1"].Request.Routes, service.state.ContainerStatus["nc-1"].CreateNetworkContainerRequest.Routes)
+	assert.Empty(t, service.state.ContainerStatus["nc-1"].CreateNetworkContainerRequest.AuthorizationToken)
+	require.Len(t, service.PodIPConfigState, 2)
+	pending := service.PodIPConfigState["11111111-1111-1111-1111-111111111111"]
+	available := service.PodIPConfigState["22222222-2222-2222-2222-222222222222"]
+	assert.Equal(t, types.PendingProgramming, pending.GetState())
+	assert.Equal(t, types.Available, available.GetState())
+	assert.Equal(
+		t,
+		"10.0.0.4",
+		service.state.ContainerStatus["nc-1"].CreateNetworkContainerRequest.
+			SecondaryIPConfigs["11111111-1111-1111-1111-111111111111"].IPAddress,
+	)
+	assert.Equal(t, snapshot.Networks["network-1"].NicInfo, service.state.Networks["network-1"].NicInfo)
+	assert.Equal(t, snapshot.Networks["network-1"].Options, service.state.Networks["network-1"].Options)
+	assert.Equal(t, ncList("nc-1,nc-2"), *service.state.ContainerIDByOrchestratorContext["pod-a"])
+	assert.Equal(t, "pnp-1", service.state.PnpIDByMacAddress["00:11:22:33:44:55"])
+}
+
+type adapterCacheFingerprint struct {
+	Generation      uint64
+	Projected       bool
+	Metadata        durableServiceMetadata
+	Containers      map[string]containerstatus
+	IPs             map[string]adapterIPFingerprint
+	Networks        map[string]state.NetworkRecord
+	OrchestratorNCs map[string]string
+	PnPIDs          map[string]string
+}
+
+type adapterIPFingerprint struct {
+	ID        string
+	IPAddress string
+	NCID      string
+	State     types.IPState
+}
+
+func durableCacheFingerprint(service *HTTPRestService, adapter *durableStateAdapter) adapterCacheFingerprint {
+	generation, projected := adapter.cacheGeneration()
+	containers, err := cloneJSON(service.state.ContainerStatus)
+	if err != nil {
+		panic(err)
+	}
+	fingerprint := adapterCacheFingerprint{
+		Generation: generation,
+		Projected:  projected,
+		Metadata: durableServiceMetadata{
+			OrchestratorType: service.state.OrchestratorType,
+			NodeID:           service.state.NodeID,
+			Location:         service.state.Location,
+			NetworkType:      service.state.NetworkType,
+			Initialized:      service.state.Initialized,
+			TimeStamp:        service.state.TimeStamp,
+		},
+		Containers:      containers,
+		IPs:             make(map[string]adapterIPFingerprint, len(service.PodIPConfigState)),
+		Networks:        make(map[string]state.NetworkRecord, len(service.state.Networks)),
+		OrchestratorNCs: make(map[string]string, len(service.state.ContainerIDByOrchestratorContext)),
+		PnPIDs:          make(map[string]string, len(service.state.PnpIDByMacAddress)),
+	}
+	for id, status := range service.PodIPConfigState {
+		fingerprint.IPs[id] = adapterIPFingerprint{
+			ID: status.ID, IPAddress: status.IPAddress, NCID: status.NCID, State: status.GetState(),
+		}
+	}
+	for name, network := range service.state.Networks {
+		record, err := cloneJSON(state.NetworkRecord{
+			NetworkName: network.NetworkName,
+			NicInfo:     network.NicInfo,
+			Options:     network.Options,
+		})
+		if err != nil {
+			panic(err)
+		}
+		fingerprint.Networks[name] = record
+	}
+	for id, ncs := range service.state.ContainerIDByOrchestratorContext {
+		fingerprint.OrchestratorNCs[id] = string(*ncs)
+	}
+	for macAddress, pnpID := range service.state.PnpIDByMacAddress {
+		fingerprint.PnPIDs[macAddress] = pnpID
+	}
+	return fingerprint
+}
+
+func TestBuildDurableCacheProjectionRejectsInvalidIPFamily(t *testing.T) {
+	snapshot := completeAdapterSnapshot(1)
+	snapshot.IPs["11111111-1111-1111-1111-111111111111"] = state.IPRecord{
+		ID: "11111111-1111-1111-1111-111111111111", IPAddress: net.IP{}.String(), NCID: "nc-1",
+	}
+	_, err := buildDurableCacheProjection(snapshot)
+	require.Error(t, err)
+}
