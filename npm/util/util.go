@@ -92,6 +92,11 @@ func GetHashedChainName(name string) string {
 	return digest[:hashedChainDigestLen]
 }
 
+// hashedNameDigestLen is the number of base36 digest characters appended after
+// AzureNpmPrefix to form a kernel ipset name. 20 base36 chars is ~103 bits, which keeps
+// distinct ipset names from resolving to the same kernel name, and fits the 31-char limit.
+const hashedNameDigestLen = 20
+
 // SortMap sorts the map by key in alphabetical order.
 // Note: even though the map is sorted, accessing it through range will still result in random order.
 func SortMap(m *map[string]string) ([]string, []string) {
@@ -184,9 +189,13 @@ func AppendMap(base, new map[string]string) map[string]string {
 	return base
 }
 
-// GetHashedName returns hashed ipset name.
+// GetHashedName returns the kernel ipset name for the given prefixed name. It uses a wide
+// digest (not the 32-bit Hash used for iptables chain names, which is length-constrained) so
+// distinct ipset names map to distinct kernel names. The result is AzureNpmPrefix (10) +
+// hashedNameDigestLen (20) = 30 chars, within the 31-char kernel ipset name limit.
 func GetHashedName(name string) string {
-	return AzureNpmPrefix + Hash(name)
+	sum := sha256.Sum256([]byte(name))
+	return AzureNpmPrefix + new(big.Int).SetBytes(sum[:]).Text(36)[:hashedNameDigestLen]
 }
 
 // CompareK8sVer compares two k8s versions.

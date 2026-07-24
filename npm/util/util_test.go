@@ -2,6 +2,7 @@ package util
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -467,4 +468,16 @@ func TestGetHashedChainName(t *testing.T) {
 	// Distinct policy keys produce distinct digests.
 	require.NotEqual(t, GetHashedChainName("y/test2"), GetHashedChainName("z/test3"))
 	require.NotEqual(t, GetHashedChainName("ns-a/p"), GetHashedChainName("ns-b/p"))
+}
+
+func TestGetHashedName(t *testing.T) {
+	// Deterministic and within the 31-char kernel ipset name limit.
+	name := GetHashedName("ns-some-namespace")
+	require.Equal(t, name, GetHashedName("ns-some-namespace"), "hashed name must be deterministic")
+	require.LessOrEqual(t, len(name), 31, "hashed name must fit the kernel ipset name limit")
+	require.True(t, strings.HasPrefix(name, AzureNpmPrefix), "hashed name must carry the azure-npm- prefix")
+
+	// Distinct inputs (incl. the reported pair) produce distinct kernel names.
+	require.NotEqual(t, GetHashedName("ns-msobb-target"), GetHashedName("podlabel-x:YMaaIZ"))
+	require.NotEqual(t, GetHashedName("ns-a"), GetHashedName("ns-b"))
 }
