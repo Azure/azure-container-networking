@@ -1,0 +1,41 @@
+parameters:
+  - name: job
+    type: string
+  - name: image
+    type: string
+  - name: platforms
+    type: object
+  - name: manifestPlatforms
+    type: string
+  - name: enableSbomSigning
+    type: boolean
+    default: false
+
+jobs:
+  - ${{ each platform in parameters.platforms }}:
+    - job: containerize_${{ parameters.job }}_${{ platform.job }}
+      displayName: Build ${{ parameters.image }} ${{ platform.os }}/${{ platform.arch }} Image
+      pool:
+        name: ${{ platform.pool }}
+      steps:
+        - template: container-template.yaml
+          parameters:
+            arch: ${{ platform.arch }}
+            name: ${{ parameters.image }}
+            os: ${{ platform.os }}
+
+  - job: manifest_${{ parameters.job }}
+    displayName: Compile ${{ parameters.image }} Manifest
+    dependsOn:
+      - ${{ each platform in parameters.platforms }}:
+        - containerize_${{ parameters.job }}_${{ platform.job }}
+    pool:
+      name: "$(BUILD_POOL_NAME_DEFAULT)"
+    ${{ if eq(parameters.enableSbomSigning, true) }}:
+      variables:
+        Packaging.EnableSBOMSigning: true
+    steps:
+      - template: manifest-template.yaml
+        parameters:
+          name: ${{ parameters.image }}
+          platforms: ${{ parameters.manifestPlatforms }}

@@ -180,201 +180,150 @@ stages:
       dependsOn:
         - setup
       jobs:
-        - job: containerize_amd64
-          displayName: Build Images
-          pool:
-            name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
-          strategy:
-            matrix:
-              ${{ if eq(parameters.buildIpam, true) }}:
-                azure_ipam_linux_amd64:
+        - ${{ if eq(parameters.buildIpam, true) }}:
+          - template: containers/image-manifest-jobs-template.yaml
+            parameters:
+              job: azure_ipam
+              image: azure-ipam
+              enableSbomSigning: true
+              manifestPlatforms: linux/amd64 linux/arm64 windows/amd64
+              platforms:
+                - job: linux_amd64
                   arch: amd64
-                  name: azure-ipam
                   os: linux
-                azure_ipam_windows:
-                  arch: amd64
-                  name: azure-ipam
-                  os: windows
-              azure_ip_masq_merger_linux_amd64:
-                arch: amd64
-                name: azure-ip-masq-merger
-                os: linux
-              azure_iptables_monitor_linux_amd64:
-                arch: amd64
-                name: azure-iptables-monitor
-                os: linux
-              ${{ if eq(parameters.buildCni, true) }}:
-                cni_linux_amd64:
-                  arch: amd64
-                  name: cni
-                  os: linux
-                cni_windows_amd64:
-                  arch: amd64
-                  name: cni
-                  os: windows
-              ${{ if eq(parameters.buildCns, true) }}:
-                cns_linux_amd64:
-                  arch: amd64
-                  name: cns
-                  os: linux
-                cns_windows_amd64:
-                  arch: amd64
-                  name: cns
-                  os: windows
-              ipv6_hp_bpf_linux_amd64:
-                arch: amd64
-                name: ipv6-hp-bpf
-                os: linux
-              cilium_log_collector_amd64:
-                arch: amd64
-                name: cilium-log-collector
-                os: linux
-          steps:
-            - template: containers/container-template.yaml
-              parameters:
-                arch: $(arch)
-                name: $(name)
-                os: $(os)
-                os_version: $(os_version)
-        - job: containerize_linux_arm64
-          displayName: Build Images
-          pool:
-            name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
-          strategy:
-            maxParallel: 2
-            matrix:
-              ${{ if eq(parameters.buildIpam, true) }}:
-                azure_ipam_linux_arm64:
+                  pool: $(BUILD_POOL_NAME_LINUX_AMD64)
+                - job: linux_arm64
                   arch: arm64
-                  name: azure-ipam
                   os: linux
-              azure_ip_masq_merger_linux_arm64:
-                arch: arm64
-                name: azure-ip-masq-merger
+                  pool: $(BUILD_POOL_NAME_LINUX_ARM64)
+                - job: windows_amd64
+                  arch: amd64
+                  os: windows
+                  pool: $(BUILD_POOL_NAME_LINUX_AMD64)
+        - template: containers/image-manifest-jobs-template.yaml
+          parameters:
+            job: azure_ip_masq_merger
+            image: azure-ip-masq-merger
+            enableSbomSigning: true
+            manifestPlatforms: linux/amd64 linux/arm64
+            platforms:
+              - job: linux_amd64
+                arch: amd64
                 os: linux
-              azure_iptables_monitor_linux_arm64:
+                pool: $(BUILD_POOL_NAME_LINUX_AMD64)
+              - job: linux_arm64
                 arch: arm64
-                name: azure-iptables-monitor
                 os: linux
-              ${{ if eq(parameters.buildCni, true) }}:
-                cni_linux_arm64:
+                pool: $(BUILD_POOL_NAME_LINUX_ARM64)
+        - template: containers/image-manifest-jobs-template.yaml
+          parameters:
+            job: azure_iptables_monitor
+            image: azure-iptables-monitor
+            enableSbomSigning: true
+            manifestPlatforms: linux/amd64 linux/arm64
+            platforms:
+              - job: linux_amd64
+                arch: amd64
+                os: linux
+                pool: $(BUILD_POOL_NAME_LINUX_AMD64)
+              - job: linux_arm64
+                arch: arm64
+                os: linux
+                pool: $(BUILD_POOL_NAME_LINUX_ARM64)
+        - ${{ if eq(parameters.buildCni, true) }}:
+          - template: containers/image-manifest-jobs-template.yaml
+            parameters:
+              job: cni
+              image: cni
+              enableSbomSigning: true
+              manifestPlatforms: linux/amd64 linux/arm64 windows/amd64
+              platforms:
+                - job: linux_amd64
+                  arch: amd64
+                  os: linux
+                  pool: $(BUILD_POOL_NAME_LINUX_AMD64)
+                - job: linux_arm64
                   arch: arm64
-                  name: cni
                   os: linux
-              ${{ if eq(parameters.buildCns, true) }}:
-                cns_linux_arm64:
+                  pool: $(BUILD_POOL_NAME_LINUX_ARM64)
+                - job: windows_amd64
+                  arch: amd64
+                  os: windows
+                  pool: $(BUILD_POOL_NAME_LINUX_AMD64)
+        - ${{ if eq(parameters.buildCns, true) }}:
+          - template: containers/image-manifest-jobs-template.yaml
+            parameters:
+              job: cns
+              image: cns
+              enableSbomSigning: true
+              manifestPlatforms: linux/amd64 linux/arm64 windows/amd64
+              platforms:
+                - job: linux_amd64
+                  arch: amd64
+                  os: linux
+                  pool: $(BUILD_POOL_NAME_LINUX_AMD64)
+                - job: linux_arm64
                   arch: arm64
-                  name: cns
                   os: linux
-              ipv6_hp_bpf_linux_arm64:
-                arch: arm64
-                name: ipv6-hp-bpf
+                  pool: $(BUILD_POOL_NAME_LINUX_ARM64)
+                - job: windows_amd64
+                  arch: amd64
+                  os: windows
+                  pool: $(BUILD_POOL_NAME_LINUX_AMD64)
+        - template: containers/image-manifest-jobs-template.yaml
+          parameters:
+            job: ipv6_hp_bpf
+            image: ipv6-hp-bpf
+            enableSbomSigning: true
+            manifestPlatforms: linux/amd64 linux/arm64
+            platforms:
+              - job: linux_amd64
+                arch: amd64
                 os: linux
-              cilium_log_collector_arm64:
+                pool: $(BUILD_POOL_NAME_LINUX_AMD64)
+              - job: linux_arm64
                 arch: arm64
-                name: cilium-log-collector
                 os: linux
-          steps:
-            - template: containers/container-template.yaml
-              parameters:
-                arch: $(arch)
-                name: $(name)
-                os: $(os)
-        - job: manifest
-          displayName: Compile Manifests
-          dependsOn:
-            - containerize_amd64
-            - containerize_linux_arm64
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-          variables:
-            Packaging.EnableSBOMSigning: true
-          strategy:
-            matrix:
-              ${{ if eq(parameters.buildIpam, true) }}:
-                azure_ipam:
-                  name: azure-ipam
-                  platforms: linux/amd64 linux/arm64 windows/amd64
-              ${{ if eq(parameters.buildCni, true) }}:
-                cni:
-                  name: cni
-                  platforms: linux/amd64 linux/arm64 windows/amd64
-              ${{ if eq(parameters.buildCns, true) }}:
-                cns:
-                  name: cns
-                  platforms: linux/amd64 linux/arm64 windows/amd64
-              ipv6_hp_bpf:
-                name: ipv6-hp-bpf
-                platforms: linux/amd64 linux/arm64
-              azure_ip_masq_merger:
-                name: azure-ip-masq-merger
-                platforms: linux/amd64 linux/arm64
-              azure_iptables_monitor:
-                name: azure-iptables-monitor
-                platforms: linux/amd64 linux/arm64
-              cilium_log_collector:
-                name: cilium-log-collector
-                platforms: linux/amd64 linux/arm64
-          steps:
-            - template: containers/manifest-template.yaml
-              parameters:
-                name: $(name)
-                platforms: $(platforms)
+                pool: $(BUILD_POOL_NAME_LINUX_ARM64)
+        - template: containers/image-manifest-jobs-template.yaml
+          parameters:
+            job: cilium_log_collector
+            image: cilium-log-collector
+            enableSbomSigning: true
+            manifestPlatforms: linux/amd64 linux/arm64
+            platforms:
+              - job: linux_amd64
+                arch: amd64
+                os: linux
+                pool: $(BUILD_POOL_NAME_LINUX_AMD64)
+              - job: linux_arm64
+                arch: arm64
+                os: linux
+                pool: $(BUILD_POOL_NAME_LINUX_ARM64)
 
     - stage: containerize_npm
       displayName: Build NPM Images
       dependsOn:
         - setup
       jobs:
-        - job: containerize_npm_amd64
-          displayName: Build NPM Images
-          pool:
-            name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
-          strategy:
-            matrix:
-              npm_linux_amd64:
+        - template: containers/image-manifest-jobs-template.yaml
+          parameters:
+            job: npm
+            image: npm
+            manifestPlatforms: linux/amd64 linux/arm64 windows/amd64
+            platforms:
+              - job: linux_amd64
                 arch: amd64
-                name: npm
                 os: linux
-              npm_windows_amd64:
-                arch: amd64
-                name: npm
-                os: windows
-          steps:
-            - template: containers/container-template.yaml
-              parameters:
-                arch: $(arch)
-                name: $(name)
-                os: $(os)
-                os_version: $(os_version)
-        - job: containerize_npm_linux_arm64
-          displayName: Build NPM Images
-          pool:
-            name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
-          strategy:
-            matrix:
-              npm_linux_arm64:
+                pool: $(BUILD_POOL_NAME_LINUX_AMD64)
+              - job: linux_arm64
                 arch: arm64
-                name: npm
                 os: linux
-          steps:
-            - template: containers/container-template.yaml
-              parameters:
-                arch: $(arch)
-                name: $(name)
-                os: $(os)
-        - job: npm_manifest
-          displayName: Compile NPM Manifest
-          dependsOn:
-            - containerize_npm_amd64
-            - containerize_npm_linux_arm64
-          pool:
-            name: "$(BUILD_POOL_NAME_DEFAULT)"
-          steps:
-            - template: containers/manifest-template.yaml
-              parameters:
-                name: npm
-                platforms: linux/amd64 linux/arm64 windows/amd64
+                pool: $(BUILD_POOL_NAME_LINUX_ARM64)
+              - job: windows_amd64
+                arch: amd64
+                os: windows
+                pool: $(BUILD_POOL_NAME_LINUX_AMD64)
 
     - stage: build_failure_analysis
       displayName: Build Failure Analysis
