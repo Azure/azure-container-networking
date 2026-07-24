@@ -11,13 +11,16 @@ steps:
   - script: |
       set -ex
 
-      # ginkgoSkip cant handle only |LinuxOnly. Need to have check
+      # A single-dot DNS search suffix disables short-name expansion on Windows.
+      WINDOWS_DNS_SKIP="should work with a search path containing an underscore and a search path with a single dot"
+
+      # ginkgoSkip cant handle a leading |. Build the Windows-only skip accordingly.
       if ${{ lower(and(ge(length(parameters.ginkgoSkip), 1), eq(parameters.os, 'windows'))) }}
       then
-        SKIP="|LinuxOnly"
+        SKIP="|LinuxOnly|$WINDOWS_DNS_SKIP"
       elif ${{ lower(eq(parameters.os, 'windows')) }}
       then
-        SKIP="LinuxOnly"
+        SKIP="LinuxOnly|$WINDOWS_DNS_SKIP"
       fi
 
       # Map of upstream Kubernetes feature gates that are alpha-default-off
