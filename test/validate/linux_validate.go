@@ -3,18 +3,21 @@ package validate
 import (
 	"context"
 	"encoding/json"
+	"log"
 
 	"github.com/Azure/azure-container-networking/cns"
 	restserver "github.com/Azure/azure-container-networking/cns/restserver"
 	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
 	validatorPod            = "k8s-app=azure-cns"
 	ciliumLabelSelector     = "k8s-app=cilium"
 	overlayClusterLabelName = "overlay"
+	loadTestPodLabel        = "load-test=true"
 )
 
 var (
@@ -313,6 +316,19 @@ func (v *Validator) validateRestartNetwork(ctx context.Context) error {
 		return errors.Wrapf(err, "failed to get node list")
 	}
 
+	// Only validate the load-test payload pods in v.namespace. If there is no
+	// payload deployed (e.g. validate-state is invoked after the load-test
+	// namespace has been cleaned up), there is nothing to validate, so skip the
+	// readiness check.
+	payloadPods, err := v.clientset.CoreV1().Pods(v.namespace).List(ctx, metav1.ListOptions{LabelSelector: loadTestPodLabel})
+	if err != nil {
+		return errors.Wrapf(err, "failed to list pods in namespace %s", v.namespace)
+	}
+	if len(payloadPods.Items) == 0 {
+		log.Printf("no test payload pods found in namespace %s, skipping restart network validation", v.namespace)
+		return nil
+	}
+
 	for index := range nodes.Items {
 		node := nodes.Items[index]
 		if node.Status.NodeInfo.OperatingSystem != string(corev1.Linux) {
@@ -332,7 +348,7 @@ func (v *Validator) validateRestartNetwork(ctx context.Context) error {
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privilegedPod.Name, node.Name)
 		}
-		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, "", "", []string{"azuresecuritylinuxagent"})
+		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, v.namespace, loadTestPodLabel)
 		if err != nil {
 			return errors.Wrapf(err, "failed to wait for pods running")
 		}
