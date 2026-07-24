@@ -415,6 +415,9 @@ stages:
                 artifactName: output
                 downloadPath: $(Pipeline.Workspace)
 
+            - script: mkdir -p "$(Build.ArtifactStagingDirectory)/sbom"
+              displayName: Create SBOM staging directory
+
             - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
               displayName: Generate SBOM over full output artifact drop and sign _manifest
               inputs:
