@@ -24,6 +24,12 @@ COPY --from=builder /usr/local/bin/azure-npm /usr/bin/azure-npm
 # libudev1:       CVE-2026-29111, CVE-2026-40225 (MEDIUM)
 # liblzma5:       CVE-2026-34743 (LOW)
 # sed:            CVE-2026-5958 (MEDIUM)
+# gzip:           CVE-2026-41991, CVE-2026-41992 (LOW)
+# libncursesw6:   CVE-2025-69720 (MEDIUM)
+# libtinfo6:      CVE-2025-69720 (MEDIUM)
+# libpam-modules: CVE-2026-54411 (MEDIUM)
+# perl-base:      CVE-2026-42496, CVE-2026-8376 (MEDIUM)
+# tar:            CVE-2025-45582, CVE-2026-5704 (MEDIUM)
 RUN apt-get update && apt-get install -y \
     iptables ipset ca-certificates \
     gpgv=2.4.4-2ubuntu17.4 \
@@ -38,6 +44,12 @@ RUN apt-get update && apt-get install -y \
     libudev1=255.4-1ubuntu8.16 \
     liblzma5=5.6.1+really5.4.5-1ubuntu0.3 \
     sed=4.9-2ubuntu0.24.04.1 \
+    gzip=1.12-1ubuntu3.2 \
+    libncursesw6=6.4+20240113-1ubuntu2.1 \
+    libtinfo6=6.4+20240113-1ubuntu2.1 \
+    libpam-modules=1.5.3-5ubuntu5.6 \
+    perl-base=5.38.2-3.2ubuntu0.3 \
+    tar=1.35+dfsg-3ubuntu0.4 \
     && apt-get autoremove -y && apt-get clean
 RUN chmod +x /usr/bin/azure-npm
 ENTRYPOINT ["/usr/bin/azure-npm", "start"]
