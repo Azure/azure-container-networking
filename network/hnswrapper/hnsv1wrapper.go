@@ -5,6 +5,7 @@ package hnswrapper
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Microsoft/hcsshim"
@@ -71,6 +72,14 @@ func (Hnsv1wrapper) DeleteNetwork(networkId string) (*hcsshim.HNSNetwork, error)
 	}
 
 	return hnsResponse, err
+}
+
+func (Hnsv1wrapper) GetHNSNetworkByName(networkName string) (*hcsshim.HNSNetwork, error) {
+	network, err := hcsshim.GetHNSNetworkByName(networkName)
+	if err != nil {
+		return nil, fmt.Errorf("getting HNS network by name: %w", err)
+	}
+	return network, nil
 }
 
 func (Hnsv1wrapper) GetHNSEndpointByName(endpointName string) (*hcsshim.HNSEndpoint, error) {

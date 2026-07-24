@@ -86,6 +86,65 @@ func EnableHnsV1Timeout(timeoutValue int) {
 	}
 }
 
+func (nm *networkManager) ensureNetwork(epInfo *EndpointInfo) error {
+	if _, err := nm.GetNetworkInfo(epInfo.NetworkID); err == nil {
+		if epInfo.NICType == cns.BackendNIC || epInfo.NICType == cns.ApipaNIC {
+			return nil
+		}
+		exists, err := networkExistsInHNS(epInfo)
+		if err != nil {
+			return fmt.Errorf("checking HNS network %s: %w", epInfo.NetworkID, err)
+		}
+		if exists {
+			return nil
+		}
+
+		logger.Info("Removing stale network state after HNS network loss", zap.String("networkID", epInfo.NetworkID))
+		nm.removeNetworkFromState(epInfo.NetworkID)
+	} else {
+		logger.Info("Existing network not found", zap.String("networkID", epInfo.NetworkID))
+	}
+
+	logger.Info("Found master interface", zap.String("masterIfName", epInfo.MasterIfName))
+	if err := nm.AddExternalInterface(epInfo.MasterIfName, epInfo.HostSubnetPrefix, string(epInfo.NICType)); err != nil {
+		return err
+	}
+	return nm.CreateNetwork(epInfo)
+}
+
+func networkExistsInHNS(epInfo *EndpointInfo) (bool, error) {
+	if useHNSv2, err := UseHnsV2(epInfo.NetNs); useHNSv2 {
+		if err != nil {
+			return false, err
+		}
+		_, err = Hnsv2.GetNetworkByName(epInfo.NetworkID)
+		if err == nil {
+			return true, nil
+		}
+		if errors.As(err, &hcn.NetworkNotFoundError{}) {
+			return false, nil
+		}
+		return false, fmt.Errorf("getting HNSv2 network: %w", err)
+	}
+
+	_, err := Hnsv1.GetHNSNetworkByName(epInfo.NetworkID)
+	if err == nil {
+		return true, nil
+	}
+	if errors.As(err, &hcsshim.NetworkNotFoundError{}) {
+		return false, nil
+	}
+	return false, fmt.Errorf("getting HNSv1 network: %w", err)
+}
+
+func (nm *networkManager) removeNetworkFromState(networkID string) {
+	nm.Lock()
+	defer nm.Unlock()
+	for _, extIf := range nm.ExternalInterfaces {
+		delete(extIf.Networks, networkID)
+	}
+}
+
 // newNetworkImplHnsV1 creates a new container network for HNSv1.
 func (nm *networkManager) newNetworkImplHnsV1(nwInfo *EndpointInfo, extIf *externalInterface) (*network, error) {
 	var (
