@@ -45,13 +45,13 @@ func NewService() *Service {
 	return &Service{run: runCommand}
 }
 
-func (s *Service) NextVersion(ctx context.Context, branch string) (VersionInfo, error) {
+func (s *Service) NextVersion(ctx context.Context, branch, versionPrefix string) (VersionInfo, error) {
 	resolved, err := s.resolveRef(ctx, branch)
 	if err != nil {
 		return VersionInfo{}, err
 	}
 
-	latestTag, err := s.latestBranchTag(ctx, resolved, branch)
+	latestTag, err := s.latestBranchTag(ctx, resolved, branch, versionPrefix)
 	if err != nil {
 		return VersionInfo{}, err
 	}
@@ -112,7 +112,13 @@ func (s *Service) DetectBinaryChanges(ctx context.Context, branch string) ([]Bin
 	return changes, nil
 }
 
-func (s *Service) latestBranchTag(ctx context.Context, resolvedRef, branch string) (string, error) {
+func (s *Service) latestBranchTag(ctx context.Context, resolvedRef, branch, versionPrefix string) (string, error) {
+	// If an explicit version prefix is provided, use it (e.g., "v1.8" → match v1.8.x)
+	if versionPrefix != "" {
+		prefix := regexp.MustCompile("^" + regexp.QuoteMeta(versionPrefix) + `\.\d+$`)
+		return s.firstMatchingTag(ctx, resolvedRef, versionPrefix+".*", prefix)
+	}
+
 	if branch == "master" {
 		return s.firstMatchingTag(ctx, resolvedRef, "v*", rootTagPattern)
 	}

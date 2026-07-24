@@ -182,13 +182,14 @@ func newCollectPRsCommand() *cobra.Command {
 
 func newNextVersionCommand() *cobra.Command {
 	var branch string
+	var versionPrefix string
 
 	cmd := &cobra.Command{
 		Use:   "next-version",
 		Short: "Determine the next patch version for a branch",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			svc := version.NewService()
-			result, err := svc.NextVersion(cmd.Context(), branch)
+			result, err := svc.NextVersion(cmd.Context(), branch, versionPrefix)
 			if err != nil {
 				return err
 			}
@@ -198,6 +199,7 @@ func newNextVersionCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&branch, "branch", "", "Branch or ref to inspect")
+	cmd.Flags().StringVar(&versionPrefix, "version-prefix", "", "Version prefix to filter tags (e.g., v1.8)")
 	mustMarkFlagRequired(cmd, "branch")
 
 	return cmd

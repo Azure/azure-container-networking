@@ -118,6 +118,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Overlay release tooling from workflow source
+        run: |
+          git checkout ${{ github.sha }} -- tools/release/
+
       - name: Build release-cli
         run: |
           cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
@@ -140,7 +144,11 @@ jobs:
         if: ${{ inputs.skip_dependabot_wait != true }}
         run: |
           set -euo pipefail
-          VERSION=$(/tmp/release-cli next-version --branch "$RELEASE_BRANCH")
+          VERSION_PREFIX=""
+          if [[ "$RELEASE_BRANCH" == "master" ]]; then
+            VERSION_PREFIX="--version-prefix v1.8"
+          fi
+          VERSION=$(/tmp/release-cli next-version --branch "$RELEASE_BRANCH" $VERSION_PREFIX)
           echo "new_tag=$(echo "$VERSION" | jq -r '.new_tag')" >> "$GITHUB_OUTPUT"
           echo "latest_tag=$(echo "$VERSION" | jq -r '.latest_tag')" >> "$GITHUB_OUTPUT"
 
@@ -288,20 +296,42 @@ jobs:
           set -euo pipefail
           REPO="${GITHUB_REPOSITORY}"
 
-          PR_LIST_HTML=""
+          PR_LIST=""
+          MAX_DISPLAY=10
           if [[ "$OPEN_COUNT" -gt 0 ]]; then
-            PR_LIST_HTML=$(echo "$OPEN_PRS_JSON" | jq -r '.[] | "• #\(.number) — \(.title)<br>"' | tr -d '\n')
+            PR_LIST=$(echo "$OPEN_PRS_JSON" | jq -r ".[0:${MAX_DISPLAY}][] | \"• #\\(.number) — \\(.title)\"" | paste -sd $'\n')
+            if [[ "$OPEN_COUNT" -gt "$MAX_DISPLAY" ]]; then
+              REMAINING=$((OPEN_COUNT - MAX_DISPLAY))
+              PR_LIST="${PR_LIST}
+          … and ${REMAINING} more (see tracking issue)"
+            fi
           else
-            PR_LIST_HTML="<i>None — all clear!</i>"
+            PR_LIST="None — all clear!"
           fi
 
-          BINARY_TAGS_HTML=$(echo "$BINARY_TAGS" | sed 's/$/<br>/g')
+          BINARY_TAGS_MD=$(echo "$BINARY_TAGS" | paste -sd $'\n')
           ISSUE_URL="https://github.com/${REPO}/issues/${ISSUE_NUMBER}"
 
           if [[ "$RESUMED" == "true" ]]; then
-            MSG="🔄 <b>Release workflow re-triggered for ${NEW_TAG}</b><br><br><b>Still pending (${OPEN_COUNT}):</b><br>${PR_LIST_HTML}<br><br>Previous skip commands still apply. Tracking issue: ${ISSUE_URL}"
+            MSG="🔄 Release workflow re-triggered for ${NEW_TAG}
+
+          Still pending (${OPEN_COUNT}):
+          ${PR_LIST}
+
+          Previous skip commands still apply. Tracking issue: ${ISSUE_URL}"
           else
-            MSG="🚀 <b>Release cycle starting: ${NEW_TAG}</b><br><br><b>Tags to be created:</b><br>• <code>${NEW_TAG}</code> (CNI/CNS/NPM)<br>${BINARY_TAGS_HTML}<br><b>Pending PRs — Dependabot (${DEPENDABOT_COUNT}) + Go Upgrade (${GO_UPGRADE_COUNT}):</b><br>${PR_LIST_HTML}<br><br>⚠️ These PRs must merge before the release proceeds.<br>To skip a PR, comment <code>skip #NUMBER</code> on tracking issue ${ISSUE_URL}<br>To skip all: comment <code>skip all</code>"
+            MSG="🚀 Release cycle starting: ${NEW_TAG}
+
+          Tags to be created:
+          • ${NEW_TAG} (CNI/CNS/NPM)
+          ${BINARY_TAGS_MD}
+
+          Pending PRs — Dependabot (${DEPENDABOT_COUNT}) + Go Upgrade (${GO_UPGRADE_COUNT}):
+          ${PR_LIST}
+
+          ⚠️ These PRs must merge before the release proceeds.
+          To skip a PR, comment skip #NUMBER on tracking issue ${ISSUE_URL}
+          To skip all: comment skip all"
           fi
 
           /tmp/release-cli notify \
@@ -443,7 +473,7 @@ jobs:
           SCAN_ERRORS: ${{ steps.scan.outputs.scan_errors }}
         run: |
           set -euo pipefail
-          MSG="🚫 <b>govulncheck FAILED</b> on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Release blocked until resolved."
+          MSG="🚫 **govulncheck FAILED** on $RELEASE_BRANCH. Vulnerabilities: ${VULN_COUNT}, Scan errors: ${SCAN_ERRORS}. Release blocked until resolved."
           /tmp/release-cli notify \
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
             --title "Vuln Check: ${RELEASE_BRANCH}" \
@@ -592,7 +622,7 @@ jobs:
 
           if [[ "$DRY_RUN" == "true" ]]; then
             CREATED=$(echo "$MATRIX" | jq -r '.[].new_tag' | sed 's/^/• /')
-            MSG="🏜️ [DRY RUN] <b>Binary releases that WOULD be created:</b><br><br>${CREATED}<br><br>These tags were detected as needing a release but were not pushed (dry run mode)."
+            MSG="🏜️ [DRY RUN] Binary releases that WOULD be created: ${CREATED} — These tags were detected as needing a release but were not pushed (dry run mode)."
             /tmp/release-cli notify \
               --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
               --title "Binary Release Summary: ${RELEASE_BRANCH}" \
@@ -609,7 +639,7 @@ jobs:
             done
 
             if [[ -n "$CREATED" ]]; then
-              MSG="📦 <b>Binary releases created (monthly release cycle):</b><br><br>$(echo -e "$CREATED")<br>These tags were auto-created because changes were detected since the previous release."
+              MSG="📦 Binary releases created (monthly release cycle): $(echo -e "$CREATED") — These tags were auto-created because changes were detected since the previous release."
               /tmp/release-cli notify \
                 --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
                 --title "Binary Release Summary: ${RELEASE_BRANCH}" \
@@ -646,6 +676,8 @@ jobs:
     if: always() && needs.wait_dependabot.result == 'success' && (needs.vuln_check.result == 'success' || needs.vuln_check.result == 'skipped')
     permissions:
       contents: write
+      actions: write
+      id-token: write
     outputs:
       new_tag: ${{ steps.version.outputs.new_tag }}
       target_sha: ${{ steps.version.outputs.target_sha }}
@@ -658,6 +690,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Overlay release tooling from workflow source
+        run: |
+          git checkout ${{ github.sha }} -- tools/release/
+
       - name: Build release-cli
         run: |
           cd tools/release && go build -o /tmp/release-cli ./cmd/release-cli/
@@ -666,7 +702,11 @@ jobs:
         id: version
         run: |
           set -euo pipefail
-          RESULT=$(/tmp/release-cli next-version --branch "$RELEASE_BRANCH")
+          VERSION_PREFIX=""
+          if [[ "$RELEASE_BRANCH" == "master" ]]; then
+            VERSION_PREFIX="--version-prefix v1.8"
+          fi
+          RESULT=$(/tmp/release-cli next-version --branch "$RELEASE_BRANCH" $VERSION_PREFIX)
           echo "new_tag=$(echo "$RESULT" | jq -r '.new_tag')" >> "$GITHUB_OUTPUT"
           echo "previous_tag=$(echo "$RESULT" | jq -r '.latest_tag')" >> "$GITHUB_OUTPUT"
           echo "target_sha=$(echo "$RESULT" | jq -r '.target_sha')" >> "$GITHUB_OUTPUT"
@@ -699,6 +739,43 @@ jobs:
             echo "✅ Tag creation dispatched. Requires tag-approval environment approval."
           fi
 
+      - name: Azure Login (OIDC) for notifications
+        if: ${{ inputs.dry_run != 'true' }}
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
+        with:
+          client-id: 75013c7b-3bea-441b-952c-e13d7c9247bc
+          tenant-id: 72f988bf-86f1-41af-91ab-2d7cd011db47
+          allow-no-subscriptions: true
+
+      - name: Post tag approval link to CNI channel and tracking issue
+        if: ${{ inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_TAG: ${{ steps.version.outputs.new_tag }}
+          TARGET_SHA: ${{ steps.version.outputs.target_sha }}
+          ISSUE_NUMBER: ${{ needs.wait_dependabot.outputs.tracking_issue }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+          APPROVE_URL="https://github.com/${REPO}/actions/workflows/create-release-tag.yml"
+
+          MSG="🏷️ Tag **${NEW_TAG}** dispatched for creation (commit: ${TARGET_SHA:0:7})
+
+          ⏳ Waiting for manual approval on the tag-approval environment.
+
+          👉 [Approve tag creation here](${APPROVE_URL})"
+
+          /tmp/release-cli notify \
+            --channel-id "$TEAMS_CNI_CHANNEL_ID" \
+            --title "Tag Approval: ${NEW_TAG}" \
+            --status running \
+            --summary "$MSG" \
+            --stage tag-approval
+
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "$REPO" \
+            --body "🏷️ Tag **${NEW_TAG}** dispatched for creation (commit: \`${TARGET_SHA:0:7}\`). Waiting for approval: [Approve here](${APPROVE_URL})"
+
   # ─────────────────────────────────────────────────────────────────────────────
   # STEP 4: Pipeline Validation (ACN PR Pipeline + CNI Release Test)
   # ─────────────────────────────────────────────────────────────────────────────
@@ -706,7 +783,7 @@ jobs:
     name: "Step 4: Pipeline Validation"
     runs-on: ubuntu-latest
     needs: create_tag
-    if: inputs.dry_run != true
+    if: ${{ !inputs.dry_run }}
     timeout-minutes: 360
     permissions:
       contents: read
@@ -809,7 +886,10 @@ jobs:
           CNI_RUN: ${{ steps.cni_release.outputs.run_url }}
         run: |
           set -euo pipefail
-          MSG="✅ <b>Pipeline validation complete for ${NEW_TAG}</b><br><br>• ACN PR Pipeline: ${PR_RUN}<br>• ACN CNI Release Test: ${CNI_RUN}<br>• CNI/CNS Signed Release: Managed DALEC (automatic — tag picked up)"
+          MSG="✅ Pipeline validation complete for ${NEW_TAG}
+          • ACN PR Pipeline: ${PR_RUN}
+          • ACN CNI Release Test: ${CNI_RUN}
+          • CNI/CNS Signed Release: Managed DALEC (automatic — tag picked up)"
           /tmp/release-cli notify \
             --channel-id "$TEAMS_CNI_CHANNEL_ID" \
             --title "Pipeline Validation: ${NEW_TAG}" \
@@ -1026,7 +1106,7 @@ jobs:
             --channel-id "$TEAMS_RELEASE_CHANNEL_ID" \
             --title "R2D Drafts: ${NEW_TAG}" \
             --status running \
-            --summary "📋 R2D Drafts prepared for ${NEW_TAG}:<br><br><b>UNSIGNED</b> — Clone from SafeFly Request #193479<br>• Service Group: microsoft.azure.networking.containernetworking.githubrelease<br>• File at: https://aka.ms/R2D<br><br><b>SIGNED</b> — Clone from SafeFly Request #174991<br>• Service Group: microsoft.azure.networking.containernetworking<br>• File at: https://aka.ms/R2D<br><br>⚠️ <b>Human action required:</b> File both R2Ds, then post the Safefly/R2D links back in this thread." \
+            --summary "📋 R2D Drafts prepared for ${NEW_TAG}: UNSIGNED — Clone from SafeFly Request #193479 • Service Group: microsoft.azure.networking.containernetworking.githubrelease • File at: https://aka.ms/R2D | SIGNED — Clone from SafeFly Request #174991 • Service Group: microsoft.azure.networking.containernetworking • File at: https://aka.ms/R2D | ⚠️ Human action required: File both R2Ds, then post the Safefly/R2D links back in this thread." \
             --stage r2d-draft
 
       - name: Send email to leads
