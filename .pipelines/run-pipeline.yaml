@@ -453,7 +453,6 @@ stages:
       clusterType: vnetscale-swift-byocni-up
       clusterName: "vscaleswifte2e"
       vmSize: Standard_B2ms
-      k8sVersion: "1.30"
       dependsOn: manifests
 
   # CNIv1 E2E tests
@@ -466,7 +465,6 @@ stages:
       clusterType: cniv1-up
       clusterName: "ubuntu22e2e"
       vmSize: Standard_B2s
-      k8sVersion: 1.25
       scaleup: 100
       dependsOn: manifests
 
